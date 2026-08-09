@@ -10,8 +10,7 @@ use crossterm::{
     },
 };
 use std::io::stdout;
-
-use model::GameState;
+use bevy_ecs::prelude::World;
 
 fn main() -> std::io::Result<()> {
     // --- TERMINAL SETUP ---
@@ -20,15 +19,13 @@ fn main() -> std::io::Result<()> {
     execute!(stdout, EnterAlternateScreen, Hide)?;
 
     // --- GAME INITIALIZATION ---
-    let mut state = GameState::new();
+    let mut world = World::default();
+    model::initialize_world(&mut world);
 
     // --- MAIN LOOP ---
-    while state.is_running {
-        // 1. View
-        view::render(&state, &mut stdout)?;
-
-        // 2. Input & Update (Merged)
-        update::process_input_and_update(&mut state)?;
+    while world.resource::<model::GameState>().is_running {
+        view::render(&mut world, &mut stdout)?;
+        update::process_input_and_update(&mut world)?;
     }
 
     // --- TERMINAL CLEANUP ---
