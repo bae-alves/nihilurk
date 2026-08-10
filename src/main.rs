@@ -1,6 +1,7 @@
 mod model;
 mod update;
 mod view;
+mod rect;
 
 use crossterm::{
     cursor::{Hide, Show},
