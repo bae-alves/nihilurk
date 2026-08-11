@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use crossterm::event::{poll, read, Event, KeyCode};
 use std::time::Duration;
-use crate::model::{GameState, Player, Position, Wall};
+use crate::model::{GameState, Player, Position, Viewshed, Wall};
 
 fn move_player(world: &mut World, dx: i16, dy: i16) {
     // 1. Calculate target position
@@ -23,6 +23,9 @@ fn move_player(world: &mut World, dx: i16, dy: i16) {
         if let Some((mut pos, _)) = world.query::<(&mut Position, With<Player>)>().iter_mut(world).next() {
             pos.x = new_x;
             pos.y = new_y;
+        }
+        if let Some((mut viewshed, _)) = world.query::<(&mut Viewshed, With<Player>)>().iter_mut(world).next() {
+            viewshed.dirty = true;
         }
     }
 }

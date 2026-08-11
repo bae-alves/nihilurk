@@ -9,6 +9,12 @@ pub struct Player;
 pub struct Wall;
 
 #[derive(Component)]
+pub struct Passage;
+
+#[derive(Component)]
+pub struct Room;
+
+#[derive(Component)]
 pub struct Position {
     pub x: u16,
     pub y: u16,
@@ -20,6 +26,13 @@ pub struct Renderable {
     pub color: Color,
 }
 
+#[derive(Component)]
+pub struct Viewshed {
+    pub visible_tiles: Vec<(u16, u16)>,
+    pub range: u16,
+    pub dirty: bool,
+}
+
 #[derive(Resource)]
 pub struct GameState {
     pub is_running: bool,
@@ -28,7 +41,8 @@ pub struct GameState {
 #[derive(PartialEq, Copy, Clone)]
 enum TileType {
     Wall,
-    Floor,
+    Room,
+    Passage,
 }
 
 impl GameState {
@@ -42,7 +56,7 @@ fn create_room(rect: &Rect, tiles: &mut [TileType], map_width: u16) {
     for y in rect.y1..=rect.y2 {
         for x in rect.x1..=rect.x2 {
             let idx = (y as u16 * map_width + x as u16) as usize;
-            tiles[idx] = TileType::Floor;
+            tiles[idx] = TileType::Room;
         }
     }
 }
@@ -55,7 +69,9 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     // Horizontal movement
     while x != to.0 {
         let idx = (y * map_width + x) as usize;
-        tiles[idx] = TileType::Floor;
+        if tiles[idx] != TileType::Room {
+            tiles[idx] = TileType::Passage;
+        }
         if x < to.0 {
             x += 1;
         } else {
@@ -66,7 +82,9 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     // Vertical movement
     while y != to.1 {
         let idx = (y * map_width + x) as usize;
-        tiles[idx] = TileType::Floor;
+        if tiles[idx] != TileType::Room {
+            tiles[idx] = TileType::Passage;
+        }
         if y < to.1 {
             y += 1;
         } else {
@@ -183,13 +201,24 @@ pub fn create_map(world: &mut World) {
         for x in 0..map_width {
             let idx = (y * map_width + x) as usize;
             match tiles[idx] {
-                TileType::Floor => {
+                TileType::Room => {
                     world.spawn((
                         Position { x, y },
                         Renderable {
                             glyph: '.',
+                            color: Color::Cyan,
+                        },
+                        Room,
+                    ));
+                }
+                TileType::Passage => {
+                    world.spawn((
+                        Position { x, y },
+                        Renderable {
+                            glyph: '▒',
                             color: Color::White,
                         },
+                        Passage,
                     ));
                 }
                 TileType::Wall => {
@@ -208,12 +237,12 @@ pub fn create_map(world: &mut World) {
 }
 
 //Helper function to create a test map layout
-pub fn create_test_map(world: &mut World) {
+pub fn _create_test_map(world: &mut World) {
     let map_width = 80;
     let map_height = 22;
 
     // 1. Initialize empty floor grid
-    let mut tiles = vec![TileType::Floor; (map_width * map_height) as usize];
+    let mut tiles = vec![TileType::Room; (map_width * map_height) as usize];
 
     // 2. Set border walls
     for y in 0..map_height {
@@ -238,7 +267,7 @@ pub fn create_test_map(world: &mut World) {
         for x in 0..map_width {
             let idx = (y * map_width + x) as usize;
             match tiles[idx] {
-                TileType::Floor => {
+                TileType::Room | TileType::Passage => {
                     world.spawn((
                         Position { x, y },
                         Renderable {
@@ -271,6 +300,11 @@ pub fn initialize_world(world: &mut World) {
         Renderable {
             glyph: '@',
             color: Color::Yellow,
+        },
+        Viewshed {
+            visible_tiles: Vec::new(),
+            range: 16,
+            dirty: true,
         },
     ));
 }
