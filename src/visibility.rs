@@ -1,8 +1,8 @@
 use bevy_ecs::prelude::*;
+use crossterm::style::Color;
 use std::collections::{HashSet, HashMap, VecDeque};
-use crate::model::{Viewshed, Position, Room, Passage, Wall};
+use crate::model::{Viewshed, Position, Room, Passage, Wall, Renderable};
 
-// A lightweight enum to help us map the ECS components into a quick 2D lookup
 #[derive(Clone, Copy, PartialEq)]
 enum TileKind {
     Room,
@@ -11,13 +11,19 @@ enum TileKind {
 }
 
 pub fn visibility_system(
+    // Note: If monsters get Viewsheds later, you should add `With<Player>` 
+    // to this query so only the player's FOV changes the map colors!
     mut viewshed_query: Query<(&mut Viewshed, &Position)>,
-    room_query: Query<&Position, With<Room>>,
-    passage_query: Query<&Position, With<Passage>>,
-    wall_query: Query<&Position, With<Wall>>,
+    // We combine the map queries into one, grabbing Entity and Renderable
+    mut map_tiles_query: Query<(
+        Entity, 
+        &Position, 
+        &mut Renderable, 
+        Option<&Room>, 
+        Option<&Passage>, 
+        Option<&Wall>
+    )>,
 ) {
-    // 1. Bail out early if nothing moved. 
-    // This saves us from building the spatial lookup if no viewsheds are dirty.
     let mut any_dirty = false;
     for (viewshed, _) in viewshed_query.iter() {
         if viewshed.dirty {
@@ -30,29 +36,29 @@ pub fn visibility_system(
         return;
     }
 
-    // 2. Build a fast spatial lookup map. 
-    // Querying the ECS inside a flood-fill while-loop is an anti-pattern that will 
-    // crush performance. Converting the relevant map data to a HashMap first gives us O(1) lookups.
+    // 1. Build the fast spatial lookup map.
+    // Because we queried `Entity`, we can save it in the map for instant access later!
     let mut map_lookup = HashMap::new();
-    for pos in room_query.iter() {
-        map_lookup.insert((pos.x, pos.y), TileKind::Room);
-    }
-    for pos in passage_query.iter() {
-        map_lookup.insert((pos.x, pos.y), TileKind::Passage);
-    }
-    for pos in wall_query.iter() {
-        map_lookup.insert((pos.x, pos.y), TileKind::Wall);
+    for (entity, pos, _, room, passage, wall) in map_tiles_query.iter() {
+        let kind = if room.is_some() {
+            TileKind::Room
+        } else if passage.is_some() {
+            TileKind::Passage
+        } else if wall.is_some() {
+            TileKind::Wall
+        } else {
+            continue; // Skip entities that aren't map tiles
+        };
+        map_lookup.insert((pos.x, pos.y), (kind, entity));
     }
 
-    // 3. Process viewsheds
+    // 2. Process viewsheds
     for (mut viewshed, pos) in viewshed_query.iter_mut() {
         if !viewshed.dirty {
             continue;
         }
 
-        viewshed.visible_tiles.clear();
         let mut visible_set = HashSet::new();
-        
         let center_x = pos.x as i16;
         let center_y = pos.y as i16;
 
@@ -68,7 +74,7 @@ pub fn visibility_system(
         }
 
         // Rule B: If standing in a Room, flood-fill to reveal the whole room
-        if let Some(&TileKind::Room) = map_lookup.get(&(pos.x, pos.y)) {
+        if let Some(&(TileKind::Room, _)) = map_lookup.get(&(pos.x, pos.y)) {
             let mut queue = VecDeque::new();
             let mut visited_rooms = HashSet::new();
 
@@ -76,7 +82,6 @@ pub fn visibility_system(
             visited_rooms.insert((pos.x, pos.y));
 
             while let Some((cx, cy)) = queue.pop_front() {
-                // Check all 8 neighboring tiles
                 for dx in -1..=1 {
                     for dy in -1..=1 {
                         if dx == 0 && dy == 0 { continue; }
@@ -86,13 +91,9 @@ pub fn visibility_system(
                         
                         if nx >= 0 && ny >= 0 {
                             let neighbor_pos = (nx as u16, ny as u16);
-                            
-                            // Any tile touching a visited Room tile becomes visible 
-                            // (this catches the enclosing walls and passage entrances)
                             visible_set.insert(neighbor_pos);
 
-                            // If the neighbor is also a Room tile, add it to the queue
-                            if let Some(&TileKind::Room) = map_lookup.get(&neighbor_pos) {
+                            if let Some(&(TileKind::Room, _)) = map_lookup.get(&neighbor_pos) {
                                 if visited_rooms.insert(neighbor_pos) {
                                     queue.push_back(neighbor_pos);
                                 }
@@ -103,6 +104,29 @@ pub fn visibility_system(
             }
         }
 
+        // 3. ✨ THE MAGIC: Update Map Colors Directly ✨
+        for (&tile_pos, &(kind, entity)) in map_lookup.iter() {
+            // Grab the mutable renderable component using the Entity ID
+            if let Ok((_, _, mut renderable, _, _, _)) = map_tiles_query.get_mut(entity) {
+                if visible_set.contains(&tile_pos) {
+                    // It's currently visible - render bright original colors
+                    renderable.color = match kind {
+                        TileKind::Room => Color::Cyan,
+                        TileKind::Passage => Color::White,
+                        TileKind::Wall => Color::Green,
+                    };
+                } else if viewshed.revealed_tiles.contains(&tile_pos) {
+                    // It's not visible, but we remember it - render dark grey
+                    renderable.color = Color::DarkGrey; 
+                } else {
+                    // Never seen - hide it completely
+                    renderable.color = Color::Black; // Or Color::NONE, depending on your Bevy version
+                }
+            }
+        }
+
+        // 4. Update the viewshed memory and clean the dirty flag
+        viewshed.revealed_tiles.extend(visible_set.iter().copied());
         viewshed.visible_tiles = visible_set.into_iter().collect();
         viewshed.dirty = false;
     }

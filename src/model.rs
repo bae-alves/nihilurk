@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::rect::Rect;
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
@@ -29,6 +31,7 @@ pub struct Renderable {
 #[derive(Component)]
 pub struct Viewshed {
     pub visible_tiles: Vec<(u16, u16)>,
+    pub revealed_tiles: HashSet<(u16, u16)>,
     pub range: u16,
     pub dirty: bool,
 }
@@ -303,6 +306,7 @@ pub fn initialize_world(world: &mut World) {
         },
         Viewshed {
             visible_tiles: Vec::new(),
+            revealed_tiles: HashSet::new(),
             range: 16,
             dirty: true,
         },
