@@ -1,8 +1,6 @@
-mod model;
 mod update;
 mod view;
-mod rect;
-mod visibility;
+use models::*;
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -37,7 +35,9 @@ fn main() -> std::io::Result<()> {
     let _guard = TerminalGuard::new()?;
     let mut stdout = stdout();
     let mut world = World::new();
+    
     model::initialize_world(&mut world);
+    
     // 1. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
@@ -45,12 +45,23 @@ fn main() -> std::io::Result<()> {
         visibility_system,       // FOV recalculates AFTER movement, BEFORE render
     ));
 
+    // [!] KICKSTART THE ENGINE [!]
+    // We must run the systems and render once before the loop, 
+    // otherwise the screen will be completely black until the first keypress.
+    schedule.run(&mut world);
+    view::render(&mut world, &mut stdout)?;
+
     // 2. Main Loop
     while world.resource::<model::GameState>().is_running {
-        // Step A: Capture keypresses / update intent
-        update::process_input_and_update(&mut world)?;
-        // Step B: Run all ECS systems (visibility, movement, combat)
-        schedule.run(&mut world);
+        
+        // Step A: Wait for move (Thread pauses here at event::read)
+        let turn_taken = update::process_input_and_update(&mut world)?;
+        
+        // Step B: Only let monsters act if the player took a valid action
+        if turn_taken {
+            schedule.run(&mut world);
+        }
+
         // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout)?;
     }

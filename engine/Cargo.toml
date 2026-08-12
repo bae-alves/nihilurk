@@ -1,0 +1,10 @@
+[package]
+name = "engine"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Link to your local models crate
+models = { path = "../models" }
+crossterm = "0.29.0"
+bevy_ecs = "0.12"

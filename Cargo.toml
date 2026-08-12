@@ -1,9 +1,6 @@
-[package]
-name = "roog"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-crossterm = "0.29.0"
-bevy_ecs = "0.12"
-getrandom = "0.4.3"
+[workspace]
+resolver = "3"
+members = [
+    "engine",
+    "models"
+]
