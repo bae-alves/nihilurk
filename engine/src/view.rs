@@ -23,13 +23,13 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
     }; // <-- The borrow on `world` ends here!
 
     // 2. Query all renderable entities along with optional map components
-    let mut query = world.query::<(
+    let mut query = world.query_filtered::<(
         &Position,
         &Renderable,
         Option<&Wall>,
         Option<&Room>,
         Option<&Passage>,
-    )>();
+    ), Without<Hidden>>();
 
     for (pos, renderable, wall, room, passage) in query.iter(world) {
         let tile_coord = (pos.x, pos.y);

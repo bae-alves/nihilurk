@@ -5,6 +5,7 @@ use crossterm::style::Color;
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
+use crate::monsters::MonsterBundle;
 
 #[derive(PartialEq, Copy, Clone)]
 enum TileType {
@@ -83,7 +84,7 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
 }
 
 /// Procedurally generates a random map layout, spawns map entities, and returns the player start position.
-pub fn create_map(world: &mut World) -> (u16, u16) {
+pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
     let map_width = 80;
     let map_height = 22;
 
@@ -239,13 +240,13 @@ pub fn create_map(world: &mut World) -> (u16, u16) {
 
     // Return the center of the very first room so we can spawn the player safely away from doors
     let start_pos = rooms[0].center();
-    (start_pos.0 as u16, start_pos.1 as u16)
+    ((start_pos.0 as u16, start_pos.1 as u16), rooms)
 }
 
 pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
     
-    let (player_x, player_y) = create_map(world);
+    let ((player_x, player_y), rooms) = create_map(world);
     
     world.spawn((
         Player,
@@ -261,4 +262,13 @@ pub fn initialize_world(world: &mut World) {
             dirty: true,
         },
     ));
+
+    for room in rooms.iter().skip(1) {
+        let (orc_x, orc_y) = random_point_in_room(room);
+        
+        world.spawn(MonsterBundle::orc(Position { 
+            x: orc_x, 
+            y: orc_y 
+        }));
+    }
 }

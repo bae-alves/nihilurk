@@ -32,6 +32,19 @@ impl Drop for TerminalGuard {
 }
 
 fn main() -> std::io::Result<()> {
+    // 🛡️ THE ANTI-KABLOOEY SHIELD
+    std::panic::set_hook(Box::new(|panic_info| {
+        let _ = crossterm::execute!(
+            std::io::stdout(),
+            crossterm::cursor::Show,
+            crossterm::terminal::LeaveAlternateScreen
+        );
+        let _ = crossterm::terminal::disable_raw_mode();
+        eprintln!("\n💥 CRASH DETECTED:\n{}", panic_info);
+    }));
+
+    let _guard = TerminalGuard::new()?;
+    // ... the rest of your main function ...
     let _guard = TerminalGuard::new()?;
     let mut stdout = stdout();
     let mut world = World::new();
@@ -41,7 +54,7 @@ fn main() -> std::io::Result<()> {
     // 1. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
-        // monster_ai_system,    // AI runs
+        ai,
         visibility_system,       // FOV recalculates AFTER movement, BEFORE render
     ));
 
