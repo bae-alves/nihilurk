@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 use crossterm::event::{read, Event, KeyCode, KeyEventKind};
-use crate::model::{GameState, Player, Position, Viewshed, Wall};
+use models::*;
 
 fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // 1. Calculate target position

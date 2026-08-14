@@ -6,7 +6,7 @@ use crossterm::{
     cursor::MoveTo,
     terminal::{Clear, ClearType},
 };
-use crate::model::{Position, Renderable, Wall, Room, Passage, Viewshed};
+use models::*;
 
 pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
     queue!(stdout, Clear(ClearType::All))?;

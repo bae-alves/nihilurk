@@ -1,48 +1,10 @@
 use std::collections::HashSet;
-
-use crate::rect::Rect;
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 
-#[derive(Component)]
-pub struct Player;
-
-#[derive(Component)]
-pub struct Wall;
-
-#[derive(Component)]
-pub struct Passage;
-
-#[derive(Component)]
-pub struct Room;
-
-#[derive(Component)]
-pub struct Door;
-
-#[derive(Component)]
-pub struct Position {
-    pub x: u16,
-    pub y: u16,
-}
-
-#[derive(Component)]
-pub struct Renderable {
-    pub glyph: char,
-    pub color: Color,
-}
-
-#[derive(Component)]
-pub struct Viewshed {
-    pub visible_tiles: Vec<(u16, u16)>,
-    pub revealed_tiles: HashSet<(u16, u16)>,
-    pub range: u16,
-    pub dirty: bool,
-}
-
-#[derive(Resource)]
-pub struct GameState {
-    pub is_running: bool,
-}
+use crate::rect::Rect;
+use crate::components::*;
+use crate::state::*;
 
 #[derive(PartialEq, Copy, Clone)]
 enum TileType {
@@ -50,12 +12,6 @@ enum TileType {
     Room,
     Passage,
     Door,
-}
-
-impl GameState {
-    pub fn new() -> Self {
-        Self { is_running: true }
-    }
 }
 
 /// Helper function to carve a room into the tiles grid
@@ -201,7 +157,6 @@ pub fn create_map(world: &mut World) -> (u16, u16) {
                     };
                     
                     if connected_pairs.insert(pair) {
-                        // Pick random points inside the rooms instead of the centers
                         let pt1 = random_point_in_room(&rooms[prev_idx]);
                         let pt2 = random_point_in_room(&rooms[room_idx]);
                         
@@ -222,7 +177,6 @@ pub fn create_map(world: &mut World) -> (u16, u16) {
                     let pair = if prev_idx < room_idx { (prev_idx, room_idx) } else { (room_idx, prev_idx) };
 
                     if connected_pairs.insert(pair) {
-                        // Pick random points inside the rooms instead of the centers
                         let pt1 = random_point_in_room(&rooms[prev_idx]);
                         let pt2 = random_point_in_room(&rooms[room_idx]);
                         

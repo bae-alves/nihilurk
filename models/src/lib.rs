@@ -1,8 +1,11 @@
-pub mod model;
 pub mod rect;
 pub mod visibility;
+pub mod components;
+pub mod map;
+pub mod state;
 
-// Re-export so the engine can just `use models::*`
-pub use model::*;
+pub use components::*;
+pub use map::*;
 pub use rect::*;
+pub use state::*;
 pub use visibility::*;

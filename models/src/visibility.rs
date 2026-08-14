@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use std::collections::{HashSet, HashMap, VecDeque};
-use crate::model::*;
+use crate::*;
 
 #[derive(Clone, Copy, PartialEq)]
 enum TileKind {

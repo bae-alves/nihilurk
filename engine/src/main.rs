@@ -36,7 +36,7 @@ fn main() -> std::io::Result<()> {
     let mut stdout = stdout();
     let mut world = World::new();
     
-    model::initialize_world(&mut world);
+    models::initialize_world(&mut world);
     
     // 1. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
@@ -52,7 +52,7 @@ fn main() -> std::io::Result<()> {
     view::render(&mut world, &mut stdout)?;
 
     // 2. Main Loop
-    while world.resource::<model::GameState>().is_running {
+    while world.resource::<models::GameState>().is_running {
         
         // Step A: Wait for move (Thread pauses here at event::read)
         let turn_taken = update::process_input_and_update(&mut world)?;
