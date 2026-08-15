@@ -3,13 +3,22 @@ use bevy_ecs::prelude::*;
 use crate::components::*;
 use std::collections::HashSet;
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum TileType {
+    Room,
+    Passage,
+    Wall,
+    Door,
+}
+
 pub fn ai(
     mut param_set: ParamSet<(
         Query<(Entity, &Position, &Viewshed, &Faction), With<Player>>,     // p0
         Query<(Entity, &Mob, &mut Position, &Faction), Without<Player>>,   // p1
         Query<(Entity, &Position), With<Wall>>,                            // p2
+        Query<(&Position, Option<&Room>, Option<&Passage>, Option<&Wall>, Option<&Door>), Without<Player>>, // p3
     )>,
-    mut attack_queue: ResMut<AttackQueue>, // <-- Swapped EventWriter for AttackQueue resource
+    mut attack_queue: ResMut<AttackQueue>,
 ) {
     // 1. Get player info and clone visible_tiles so p0 can be dropped immediately
     let player_data = {
@@ -26,13 +35,29 @@ pub fn ai(
     };
     let (player_entity, player_pos, visible_tiles, player_faction) = player_data;
 
-    // 2. Build a position-to-entity lookup map for all blockers (walls, player, mobs)
+    // 2. Build map lookups (walls and tile types)
     let mut spatial_map: HashMap<(u16, u16), (Entity, Faction)> = HashMap::new();
 
     let walls: HashSet<(u16, u16)> = param_set.p2()
         .iter()
         .map(|(_, pos)| (pos.x, pos.y))
         .collect();
+
+    let mut tile_map: HashMap<(u16, u16), TileType> = HashMap::new();
+    for (pos, room, passage, wall, door) in param_set.p3().iter() {
+        let t_type = if room.is_some() {
+            TileType::Room
+        } else if passage.is_some() {
+            TileType::Passage
+        } else if wall.is_some() {
+            TileType::Wall
+        } else if door.is_some() {
+            TileType::Door
+        } else {
+            continue;
+        };
+        tile_map.insert((pos.x, pos.y), t_type);
+    }
 
     // Insert player into spatial map
     spatial_map.insert((player_pos.x, player_pos.y), (player_entity, player_faction));
@@ -95,6 +120,21 @@ pub fn ai(
             continue;
         }
 
+        // ==========================================
+        // [!] ROOM LEASH: Prevent chasing player into corridors
+        // ==========================================
+        if matches!(mob.movement_type, MovementType::Chase) {
+            let current_tile = tile_map.get(&(mob_pos.x, mob_pos.y)).copied();
+            let target_tile = tile_map.get(&(new_x, new_y)).copied();
+            
+            // If the monster is in a Room and tries to step into a Door or Passage, block it!
+            if matches!(current_tile, Some(TileType::Room)) 
+                && matches!(target_tile, Some(TileType::Passage | TileType::Door)) 
+            {
+                continue;
+            }
+        }
+
         // Check entity collision / interaction
         if let Some(&(target_entity, target_faction)) = spatial_map.get(&(new_x, new_y)) {
             let is_hostile = match (*mob_faction, target_faction) {
@@ -104,7 +144,6 @@ pub fn ai(
             };
 
             if is_hostile {
-                // Push to the shared AttackQueue resource instead of using EventWriter
                 attack_queue.attacks.push(WantsToAttack {
                     attacker: mob_entity,
                     target: target_entity,

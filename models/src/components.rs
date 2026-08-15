@@ -77,3 +77,30 @@ pub enum Faction {
 pub struct AttackQueue {
     pub attacks: Vec<WantsToAttack>,
 }
+
+#[derive(Resource)]
+pub struct GameLog {
+    pub history: Vec<String>,
+    pub unread: Vec<String>, // The queue of messages waiting for a --MORE-- acknowledgment
+}
+
+impl Default for GameLog {
+    fn default() -> Self {
+        Self {
+            history: Vec::new(),
+            unread: vec!["Welcome to ROOG! Use arrow keys to move.".to_string()],
+        }
+    }
+}
+
+impl GameLog {
+    pub fn add<S: Into<String>>(&mut self, message: S) {
+        let msg = message.into();
+        self.history.push(msg.clone());
+        self.unread.push(msg); // Push to the unread queue!
+        
+        if self.history.len() > 50 {
+            self.history.remove(0);
+        }
+    }
+}

@@ -49,6 +49,7 @@ fn main() -> std::io::Result<()> {
     let mut stdout = stdout();
     let mut world = World::new();
     world.init_resource::<AttackQueue>();
+    world.init_resource::<GameLog>();
     models::initialize_world(&mut world);
     
     // 1. Create the schedule and register systems in execution order

@@ -76,7 +76,7 @@ pub fn visibility_system(
             }
         }
 
-        // Rule B: Flood-fill Room logic
+        // Rule B: Flood-fill Room logic (with leak prevention!)
         if let Some(&(TileKind::Room, _)) | Some(&(TileKind::Door, _)) = map_lookup.get(&(pos.x, pos.y)) {
             let mut queue = VecDeque::new();
             let mut visited_rooms = HashSet::new();
@@ -94,11 +94,23 @@ pub fn visibility_system(
                         
                         if nx >= 0 && ny >= 0 {
                             let neighbor_pos = (nx as u16, ny as u16);
-                            visible_set.insert(neighbor_pos);
 
-                            if let Some(&(TileKind::Room, _)) = map_lookup.get(&neighbor_pos) {
-                                if visited_rooms.insert(neighbor_pos) {
-                                    queue.push_back(neighbor_pos);
+                            // Check what kind of tile the neighbor is to prevent leaking
+                            if let Some(&(neighbor_kind, _)) = map_lookup.get(&neighbor_pos) {
+                                match neighbor_kind {
+                                    TileKind::Room | TileKind::Door => {
+                                        visible_set.insert(neighbor_pos);
+                                        if visited_rooms.insert(neighbor_pos) {
+                                            queue.push_back(neighbor_pos); // Continue spreading inside rooms/doors
+                                        }
+                                    }
+                                    TileKind::Passage => {
+                                        visible_set.insert(neighbor_pos); // Let players see open doors/passage entrances
+                                    }
+                                    TileKind::Wall => {
+                                        visible_set.insert(neighbor_pos); // Allow player to see the room's enclosing walls...
+                                        // BUT DO NOT push walls to the queue! This stops the flood-fill from leaking outside the room.
+                                    }
                                 }
                             }
                         }

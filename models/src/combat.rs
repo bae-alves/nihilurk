@@ -20,6 +20,13 @@ pub fn combat_system(world: &mut World) {
             .unwrap_or(0);
 
         let damage = (attacker_power - target_armor).max(0);
+        let mut log = world.resource_mut::<GameLog>();
+        if damage > 0 {
+            log.add(format!("Smack! {} takes {} damage.", attack.target.index(), damage));
+        } else {
+            log.add(format!("The attack on {} misses!", attack.target.index()));
+        }
+        drop(log);
 
         if let Some(mut target_fighter) = world.get_mut::<Fighter>(attack.target) {
             target_fighter.hp -= damage;
