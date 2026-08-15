@@ -9,18 +9,23 @@ use models::*;
 
 pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
 
-    // 1. Get the player's viewshed data and immediately drop the world borrow 
-    // by enclosing it in a block scope. Clone both visible and revealed tiles.
-    let (visible_tiles, revealed_tiles) = {
-        let mut query = world.query::<(&Position, &Viewshed)>();
-        if let Some((_, viewshed)) = query.iter(world).next() {
-            (viewshed.visible_tiles.clone(), viewshed.revealed_tiles.clone())
+    // 1. Get player viewshed and fighter stats in a single query, then drop world borrow
+    let (visible_tiles, revealed_tiles, player_hp, player_max_hp) = {
+        let mut query = world.query_filtered::<(&Viewshed, &Fighter), With<Player>>();
+        if let Some((viewshed, fighter)) = query.iter(world).next() {
+            (viewshed.visible_tiles.clone(), viewshed.revealed_tiles.clone(), fighter.hp, fighter.max_hp)
         } else {
-            return Ok(()); // No player/viewshed found, bail out early
+            (Default::default(), Default::default(), 0, 0) // Automatically matches the viewshed collection types!
         }
-    }; // <-- The borrow on `world` ends here!
+    }; // <-- The borrow on `world` cleanly ends here!<-- The borrow on `world` cleanly ends here! <-- Borrow on `world` ends here!
 
-    // 2. Query all renderable entities along with optional map components
+    queue!(
+        stdout,
+        MoveTo(0, 0),
+        SetForegroundColor(Color::Cyan),
+        Print(format!(" ROOG | Hits: {} / {} ", player_hp, player_max_hp))
+    )?;
+
     let mut query = world.query_filtered::<(
         &Position,
         &Renderable,
@@ -35,25 +40,31 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
         let is_revealed = revealed_tiles.contains(&tile_coord);
         let is_map_tile = wall.is_some() || room.is_some() || passage.is_some();
 
+        let render_y = pos.y + 1; // Shift down by 1 for the top UI line
+
         if is_visible {
-            // Currently in line of sight: Draw with full brightness
             queue!(
                 stdout,
-                MoveTo(pos.x as u16, pos.y as u16),
+                MoveTo(pos.x as u16, render_y as u16),
                 SetForegroundColor(renderable.color),
                 Print(renderable.glyph)
             )?;
         } else if is_map_tile && is_revealed {
-            // Not visible right now, but remembered: Draw as dark grey
             queue!(
                 stdout,
-                MoveTo(pos.x as u16, pos.y as u16),
+                MoveTo(pos.x as u16, render_y as u16),
                 SetForegroundColor(Color::DarkGrey),
                 Print(renderable.glyph)
             )?;
         }
-        // If it's an actor/item that isn't visible, or a tile never seen, we do nothing (it stays hidden)
     }
+
+    queue!(
+        stdout,
+        MoveTo(0, 22),
+        SetForegroundColor(Color::Green),
+        Print("Welcome to ROOG!")
+    )?;
 
     stdout.flush()?;
     Ok(())
