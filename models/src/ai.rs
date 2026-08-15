@@ -22,11 +22,22 @@ pub fn ai(
         .copied()
         .collect();
 
-    // 2. Build a fast lookup set of wall coordinates from the wall query
-    let walls: HashSet<(u16, u16)> = param_set.p2()
+    // 2. Build a fast lookup set of wall coordinates and occupied positions
+    let mut occupied: HashSet<(u16, u16)> = param_set.p2()
         .iter()
         .map(|pos| (pos.x, pos.y))
         .collect();
+
+    // Add player position to the occupied set
+    occupied.insert((player_pos.x, player_pos.y));
+
+    // Add all initial mob positions to the occupied set (using a scoped borrow)
+    {
+        let mob_query = param_set.p1();
+        for (_, pos) in mob_query.iter() {
+            occupied.insert((pos.x, pos.y));
+        }
+    }
 
     // 3. Iterate over every mob and update their position using the mutable query
     for (mob, mut mob_pos) in param_set.p1().iter_mut() {
@@ -65,10 +76,17 @@ pub fn ai(
         let new_x = (mob_pos.x as i16 + step_x) as u16;
         let new_y = (mob_pos.y as i16 + step_y) as u16;
 
-        // 4. Check map bounds and wall collisions
-        if new_x < 80 && new_y < 22 && !walls.contains(&(new_x, new_y)) {
+        // 4. Check map bounds and collisions (walls, player, and other mobs)
+        if new_x < 80 && new_y < 22 && !occupied.contains(&(new_x, new_y)) {
+            // Remove old position from occupied set
+            occupied.remove(&(mob_pos.x, mob_pos.y));
+            
+            // Update mob position
             mob_pos.x = new_x;
             mob_pos.y = new_y;
+            
+            // Insert new position into occupied set
+            occupied.insert((new_x, new_y));
         }
     }
 }
