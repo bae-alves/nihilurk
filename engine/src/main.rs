@@ -10,9 +10,11 @@ use crossterm::{
     },
 };
 use std::io::stdout;
-use bevy_ecs::{prelude::World, schedule::Schedule};
+use bevy_ecs::{prelude::World, schedule::Schedule, schedule::IntoSystemConfigs};
 
 use crate::visibility::visibility_system;
+use crate::ai::ai;
+use models::combat_system;
 
 /// RAII Guard that manages Crossterm terminal setup and cleanup.
 pub struct TerminalGuard;
@@ -32,17 +34,29 @@ impl Drop for TerminalGuard {
 }
 
 fn main() -> std::io::Result<()> {
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = execute!(
+            std::io::stderr(),
+            LeaveAlternateScreen,
+            Show
+        );
+        let _ = disable_raw_mode();
+        original_hook(panic_info);
+    }));
+
     let _guard = TerminalGuard::new()?;
     let mut stdout = stdout();
     let mut world = World::new();
-    
+    world.init_resource::<AttackQueue>();
     models::initialize_world(&mut world);
     
     // 1. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
         ai,
-        visibility_system,       // FOV recalculates AFTER movement, BEFORE render
+        combat_system.after(ai),
+        visibility_system.after(combat_system),
     ));
 
     // [!] KICKSTART THE ENGINE [!]

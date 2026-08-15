@@ -3,44 +3,87 @@ use crossterm::event::{read, Event, KeyCode, KeyEventKind};
 use models::*;
 
 fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
-    // 1. Calculate target position
-    let mut target_pos = None;
-    if let Some((pos, _)) = world.query::<(&Position, With<Player>)>().iter(world).next() {
-        target_pos = Some((
-            pos.x.saturating_add_signed(dx),
-            pos.y.saturating_add_signed(dy),
-        ));
+    // 1. Get player entity and calculate target position
+    let mut player_data = None;
+    {
+        let mut query = world.query_filtered::<(Entity, &Position), With<Player>>();
+        if let Some((entity, pos)) = query.iter(world).next() {
+            player_data = Some((
+                entity,
+                pos.x.saturating_add_signed(dx),
+                pos.y.saturating_add_signed(dy),
+            ));
+        }
     }
-    let Some((new_x, new_y)) = target_pos else { return false; };
+    let Some((player_entity, new_x, new_y)) = player_data else {
+        return false;
+    };
     
-    // 2. Check if any Wall or Mob component exists at target coordinates
-    let is_blocked = world
-        .query::<(&Position, Or<(With<Wall>, With<Mob>)>)>()
+    // 2. Check if a Wall exists at the target coordinates
+    let is_wall = world
+        .query_filtered::<&Position, With<Wall>>()
         .iter(world)
-        .any(|(pos, _)| pos.x == new_x && pos.y == new_y);
-        
-    // 3. Move player if path is clear
-    if !is_blocked {
-        if let Some((mut pos, _)) = world.query::<(&mut Position, With<Player>)>().iter_mut(world).next() {
-            pos.x = new_x;
-            pos.y = new_y;
+        .any(|pos| pos.x == new_x && pos.y == new_y);
+
+    if is_wall {
+        return false; // Bumped into a wall, turn is NOT consumed
+    }
+
+    // 3. Check if a Mob exists at the target coordinates to attack
+    let mut target_mob_entity = None;
+    {
+        let mut query = world.query_filtered::<(Entity, &Position), With<Mob>>();
+        for (entity, pos) in query.iter(world) {
+            if pos.x == new_x && pos.y == new_y {
+                target_mob_entity = Some(entity);
+                break;
+            }
         }
-        if let Some((mut viewshed, _)) = world.query::<(&mut Viewshed, With<Player>)>().iter_mut(world).next() {
-            viewshed.dirty = true;
-        }
-        return true; // The player successfully moved, consuming a turn
+    }
+
+    if let Some(target_entity) = target_mob_entity {
+        player_attack(world, player_entity, target_entity);
+        return true; // Attacking consumes a turn
+    }
+
+    // 4. Move player if the path is completely clear
+    if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
+        pos.x = new_x;
+        pos.y = new_y;
+    }
+    if let Some(mut viewshed) = world.get_mut::<Viewshed>(player_entity) {
+        viewshed.dirty = true;
     }
     
-    false // The player bumped into a wall or mob, turn is NOT consumed
+    true // Successfully moved, consuming a turn
+}
+
+fn player_attack(world: &mut World, attacker_entity: Entity, target_entity: Entity) {
+    let attacker_power = world
+        .get::<Fighter>(attacker_entity)
+        .map(|f| f.power)
+        .unwrap_or(1);
+
+    let target_armor = world
+        .get::<Fighter>(target_entity)
+        .map(|f| f.armor)
+        .unwrap_or(0);
+
+    let damage = (attacker_power - target_armor).max(0);
+
+    if let Some(mut target_fighter) = world.get_mut::<Fighter>(target_entity) {
+        target_fighter.hp -= damage;
+        if target_fighter.hp <= 0 {
+            world.despawn(target_entity);
+        }
+    }
 }
 
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
-    // read() halts the thread until an event occurs
     let event = read()?;
     let mut turn_taken = false;
 
     if let Event::Key(key) = event {
-        // Ignore key release events to prevent double-turns on a single press
         if key.kind != KeyEventKind::Press {
             return Ok(false);
         }

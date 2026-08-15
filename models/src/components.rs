@@ -59,3 +59,21 @@ pub struct Fighter {
 
 #[derive(Component)]
 pub struct Hidden;
+
+#[derive(Event, Clone, Copy)]
+pub struct WantsToAttack {
+    pub attacker: Entity,
+    pub target: Entity,
+}
+
+#[derive(Component, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum Faction {
+    Player,
+    Monster,
+    Ally,
+}
+
+#[derive(Resource, Default)]
+pub struct AttackQueue {
+    pub attacks: Vec<WantsToAttack>,
+}

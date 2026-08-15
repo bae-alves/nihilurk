@@ -283,6 +283,13 @@ pub fn initialize_world(world: &mut World) {
             range: 16,
             dirty: true,
         },
+        Fighter {
+            hp: 30,
+            max_hp: 30,
+            armor: 2,
+            power: 5,
+        },
+        Faction::Player,
     ));
 
     for room in rooms.iter().skip(1) {
