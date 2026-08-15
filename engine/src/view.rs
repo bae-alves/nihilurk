@@ -4,12 +4,10 @@ use crossterm::{
     queue,
     style::{Print, SetForegroundColor, Color},
     cursor::MoveTo,
-    terminal::{Clear, ClearType},
 };
 use models::*;
 
 pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
-    queue!(stdout, Clear(ClearType::All))?;
 
     // 1. Get the player's viewshed data and immediately drop the world borrow 
     // by enclosing it in a block scope. Clone both visible and revealed tiles.

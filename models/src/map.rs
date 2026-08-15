@@ -85,16 +85,29 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
 
 /// Procedurally generates a random map layout, spawns map entities, and returns the player start position.
 pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
-    let map_width = 80;
-    let map_height = 22;
+    let map_width: u16 = 80;
+    let map_height: u16 = 22;
 
     // Initialize map
     let mut tiles = vec![TileType::Wall; (map_width * map_height) as usize];
     let mut rooms: Vec<Rect> = Vec::new();
 
-    // THE ROGUE GENERATION ALGORITHM
-    let section_width = map_width / 3;
-    let section_height = map_height / 3;
+    // THE ROGUE GENERATION ALGORITHM WITH STRICT PADDING & 3-TILE GUTTERS
+    let gutter_size: u16 = 3;
+    let padding: u16 = 1;
+    let num_sections: u16 = 3;
+    let num_gutters: u16 = num_sections - 1_u16; 
+
+    // Usable space = Total - (Padding * 2) - (Gutters * GutterSize)
+    let usable_width: u16 = map_width.saturating_sub(padding * 2_u16).saturating_sub(num_gutters * gutter_size);
+    let usable_height: u16 = map_height.saturating_sub(padding * 2_u16).saturating_sub(num_gutters * gutter_size);
+
+    let section_width: u16 = usable_width / num_sections;
+    let section_height: u16 = usable_height / num_sections;
+
+    // Center the grid by adding half the remainder space to the initial padding
+    let offset_x: u16 = padding + (usable_width % num_sections) / 2_u16;
+    let offset_y: u16 = padding + (usable_height % num_sections) / 2_u16;
 
     let gone_sections_count = (getrandom::u32().unwrap() % 4) as usize;
 
@@ -105,8 +118,10 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
     }
     let gone_sections = &sections[..gone_sections_count];
 
-    let avail_width: u16 = section_width - 2_u16;
-    let avail_height: u16 = section_height - 2_u16;
+    let min_room_w: u16 = 4;
+    // Reduced to 3. A 4-high room physically occupies 5 tiles, which overflows the 4-tile tall sections.
+    let min_room_h: u16 = 3; 
+
     let mut grid_rooms: [Option<usize>; 9] = [None; 9];
 
     for section_y in 0_u16..3_u16 {
@@ -116,20 +131,27 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
                 continue;
             }
 
-            let width_range = avail_width.saturating_sub(4_u16).max(1_u16);
-            let room_width: u16 = 5_u16 + (getrandom::u32().unwrap() as u16 % width_range);
+            // Safely calculate maximum room dimensions so they NEVER bleed out of their section.
+            // Subtracting 1_u16 accounts for Rect inclusive bounding (which adds +1 to actual footprint).
+            let max_room_w = section_width.saturating_sub(1_u16).max(min_room_w);
+            let max_room_h = section_height.saturating_sub(1_u16).max(min_room_h);
 
-            let height_range = avail_height.saturating_sub(4_u16).max(1_u16);
-            let room_height: u16 = 5_u16 + (getrandom::u32().unwrap() as u16 % height_range);
+            let width_range = (max_room_w - min_room_w) + 1_u16;
+            let room_width: u16 = min_room_w + (getrandom::u32().unwrap() as u16 % width_range);
 
-            let base_x = section_x * section_width;
-            let base_y = section_y * section_height;
+            let height_range = (max_room_h - min_room_h) + 1_u16;
+            let room_height: u16 = min_room_h + (getrandom::u32().unwrap() as u16 % height_range);
 
-            let x_range = (avail_width.saturating_sub(room_width) + 1_u16).max(1_u16);
-            let room_x = base_x + (getrandom::u32().unwrap() as u16 % x_range);
+            // Base position includes calculated offset + section offset + 3-tile gutter per section step
+            let base_x = offset_x + (section_x * section_width) + (section_x * gutter_size);
+            let base_y = offset_y + (section_y * section_height) + (section_y * gutter_size);
 
-            let y_range = (avail_height.saturating_sub(room_height) + 1_u16).max(1_u16);
-            let room_y = base_y + (getrandom::u32().unwrap() as u16 % y_range);
+            // Calculate max placement offset from base so the far wall stays completely inside the section
+            let max_offset_x = section_width.saturating_sub(room_width + 1_u16);
+            let room_x = base_x + (getrandom::u32().unwrap() as u16 % (max_offset_x + 1_u16));
+
+            let max_offset_y = section_height.saturating_sub(room_height + 1_u16);
+            let room_y = base_y + (getrandom::u32().unwrap() as u16 % (max_offset_y + 1_u16));
 
             let room = Rect::new(
                 room_x as i32,
