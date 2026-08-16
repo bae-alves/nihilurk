@@ -1,6 +1,7 @@
 use bevy_ecs::prelude::*;
 use crossterm::event::{read, Event, KeyCode, KeyEventKind};
 use models::*;
+use models::{GameState, components::GameLog}; 
 
 fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // 1. Get player entity and calculate target position
@@ -87,8 +88,6 @@ fn player_attack(world: &mut World, attacker_entity: Entity, target_entity: Enti
     }
 }
 
-use models::{GameState, components::GameLog}; 
-
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     let event = read()?;
     let mut turn_taken = false;
@@ -97,35 +96,48 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         if key.kind != KeyEventKind::Press {
             return Ok(false);
         }
-
-        // ==========================================
-        // [!] THE --MORE-- INTERCEPTOR (3-by-3) [!]
-        // ==========================================
-        let mut log = world.resource_mut::<GameLog>();
-        if !log.unread.is_empty() {
-            if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
-                let to_remove = log.unread.len().min(9);
-                log.unread.drain(0..to_remove); // Pops up to 3 messages per space press
+        
+        {
+            let mut log = world.resource_mut::<GameLog>();
+            
+            // 1. Only block and require a spacebar IF there are more than 3 messages.
+            if log.unread.len() > 3 {
+                if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
+                    let to_remove = log.unread.len().min(3);
+                    log.unread.drain(0..to_remove);
+                }
+                return Ok(false); 
             }
-            return Ok(false); 
-        }
-        drop(log);
-        // ==========================================
+        } // Block ends, log borrow is dropped cleanly!
 
-        // Normal game input
+        // 2. Normal game input
+        let mut dx = 0;
+        let mut dy = 0;
+        let mut action_attempted = false;
+        
+        // Map the key strictly once!
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => {
                 world.resource_mut::<GameState>().is_running = false;
             }
-            KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => turn_taken = move_player(world, 0, -1),
-            KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => turn_taken = move_player(world, 0, 1),
-            KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => turn_taken = move_player(world, -1, 0),
-            KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => turn_taken = move_player(world, 1, 0),
-            KeyCode::Char('y') => turn_taken = move_player(world, -1, -1),
-            KeyCode::Char('u') => turn_taken = move_player(world, 1, -1),
-            KeyCode::Char('b') => turn_taken = move_player(world, -1, 1),
-            KeyCode::Char('n') => turn_taken = move_player(world, 1, 1),
-            _ => {}
+            KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => { dy = -1; action_attempted = true; }
+            KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => { dy = 1; action_attempted = true; }
+            KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => { dx = -1; action_attempted = true; }
+            KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => { dx = 1; action_attempted = true; }
+            KeyCode::Char('y') => { dx = -1; dy = -1; action_attempted = true; }
+            KeyCode::Char('u') => { dx = 1; dy = -1; action_attempted = true; }
+            KeyCode::Char('b') => { dx = -1; dy = 1; action_attempted = true; }
+            KeyCode::Char('n') => { dx = 1; dy = 1; action_attempted = true; }
+            _ => {} // Unrecognized key; do nothing
+        }
+
+        // 3. If they successfully pressed a movement key, clear the logs and execute
+        if action_attempted {
+            // Fix: Clear the logs BEFORE executing the move, so new logs generated 
+            // during `move_player` (like "Monster is dead!") aren't immediately wiped out!
+            world.resource_mut::<GameLog>().unread.clear();
+            
+            turn_taken = move_player(world, dx, dy);
         }
     }
 

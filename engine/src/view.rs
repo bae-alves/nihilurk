@@ -64,10 +64,10 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
     // THE LOG & --MORE-- PROMPT (3 Fixed Rows)
     // ==========================================
     let log = world.resource::<GameLog>();
-    let is_more = !log.unread.is_empty();
+    let unread_len = log.unread.len();
 
-    if is_more {
-        let count = log.unread.len().min(3);
+    if unread_len > 0 {
+        let count = unread_len.min(3);
         let mut lines = vec![String::new(), String::new(), String::new()];
         for (i, msg) in log.unread.iter().take(count).enumerate() {
             lines[i] = msg.clone();
@@ -90,8 +90,8 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
         )?;
 
         // Line 3 (y = 24)
-        if count == 3 {
-            // If we have all 3 messages, share the line with --MORE-- on the right
+        if unread_len > 3 {
+            // We have more than 3 messages, share the line with --MORE-- on the right
             let prompt_line = format!("{:<57} --MORE-- (Press Space)", lines[2]);
             queue!(
                 stdout,
@@ -100,13 +100,12 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
                 Print(format!("{:<80}", prompt_line))
             )?;
         } else {
-            // If there are only 1 or 2 messages, print the 3rd line normally (blank) 
-            // and show --MORE-- cleanly without empty text gaps.
+            // 3 or fewer messages: just print the 3rd line normally (blank if empty)
             queue!(
                 stdout,
                 MoveTo(0, 24),
-                SetForegroundColor(Color::Yellow),
-                Print(format!("{:<80}", "--MORE-- (Press Space)"))
+                SetForegroundColor(Color::White),
+                Print(format!("{:<80}", lines[2]))
             )?;
         }
     } else {
