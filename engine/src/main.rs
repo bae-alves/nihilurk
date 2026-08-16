@@ -12,6 +12,9 @@ use crossterm::{
 use std::io::stdout;
 use bevy_ecs::{prelude::World, schedule::Schedule, schedule::IntoSystemConfigs};
 
+// Import our rng seed types
+use rand::{SeedableRng, rngs::StdRng};
+
 use crate::visibility::visibility_system;
 use crate::ai::ai;
 use models::combat_system;
@@ -34,6 +37,18 @@ impl Drop for TerminalGuard {
 }
 
 fn main() -> std::io::Result<()> {
+    // 1. Argument Parsing for Seed
+    let args: Vec<String> = std::env::args().collect();
+    let mut seed: Option<u64> = None;
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if arg == "-s" {
+            if let Some(seed_str) = iter.next() {
+                seed = seed_str.parse::<u64>().ok();
+            }
+        }
+    }
+
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = execute!(
@@ -48,11 +63,20 @@ fn main() -> std::io::Result<()> {
     let _guard = TerminalGuard::new()?;
     let mut stdout = stdout();
     let mut world = World::new();
+
+    // 2. Initialize Seeded GameRng
+    let rng = if let Some(s) = seed {
+        StdRng::seed_from_u64(s)
+    } else {
+        StdRng::from_entropy()
+    };
+    world.insert_resource(models::GameRng(rng));
+
     world.init_resource::<AttackQueue>();
     world.init_resource::<GameLog>();
     models::initialize_world(&mut world);
     
-    // 1. Create the schedule and register systems in execution order
+    // 3. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
         ai,
@@ -66,7 +90,7 @@ fn main() -> std::io::Result<()> {
     schedule.run(&mut world);
     view::render(&mut world, &mut stdout)?;
 
-    // 2. Main Loop
+    // 4. Main Loop
     while world.resource::<models::GameState>().is_running {
         
         // Step A: Wait for move (Thread pauses here at event::read)

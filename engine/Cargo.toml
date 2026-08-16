@@ -8,3 +8,4 @@ edition = "2024"
 models = { path = "../models" }
 crossterm = "0.29.0"
 bevy_ecs = "0.12"
+rand = "0.8"

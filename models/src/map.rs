@@ -2,10 +2,16 @@ use std::collections::HashSet;
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 
+use rand::Rng;
+use rand::rngs::StdRng;
+
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
 use crate::monsters::MonsterBundle;
+
+#[derive(Resource)]
+pub struct GameRng(pub StdRng);
 
 #[derive(PartialEq, Copy, Clone)]
 enum TileType {
@@ -26,12 +32,13 @@ fn create_room(rect: &Rect, tiles: &mut [TileType], map_width: u16) {
 }
 
 /// Helper function to pick a random interior point within a room
-fn random_point_in_room(room: &Rect) -> (u16, u16) {
+fn random_point_in_room(room: &Rect, rng: &mut StdRng) -> (u16, u16) {
     let width = (room.x2 - room.x1 + 1).max(1) as u32;
     let height = (room.y2 - room.y1 + 1).max(1) as u32;
     
-    let rx = room.x1 as u32 + (getrandom::u32().unwrap() % width);
-    let ry = room.y1 as u32 + (getrandom::u32().unwrap() % height);
+    // Use gen_range instead of gen() % width
+    let rx = room.x1 as u32 + rng.gen_range(0..width);
+    let ry = room.y1 as u32 + rng.gen_range(0..height);
     
     (rx as u16, ry as u16)
 }
@@ -88,6 +95,10 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
     let map_width: u16 = 80;
     let map_height: u16 = 22;
 
+    // Take out the RNG safely without holding a long mutable borrow of `world`
+    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
+    let rng = &mut game_rng.0;
+
     // Initialize map
     let mut tiles = vec![TileType::Wall; (map_width * map_height) as usize];
     let mut rooms: Vec<Rect> = Vec::new();
@@ -109,11 +120,11 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
     let offset_x: u16 = padding + (usable_width % num_sections) / 2_u16;
     let offset_y: u16 = padding + (usable_height % num_sections) / 2_u16;
 
-    let gone_sections_count = (getrandom::u32().unwrap() % 4) as usize;
+    let gone_sections_count = rng.gen_range(0..4);
 
     let mut sections = [0, 1, 2, 3, 4, 5, 6, 7, 8];
     for i in 0..gone_sections_count {
-        let swap_idx = i + (getrandom::u32().unwrap() as usize % (9 - i));
+        let swap_idx = i + rng.gen_range(0..(9 - i));
         sections.swap(i, swap_idx);
     }
     let gone_sections = &sections[..gone_sections_count];
@@ -137,10 +148,10 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
             let max_room_h = section_height.saturating_sub(1_u16).max(min_room_h);
 
             let width_range = (max_room_w - min_room_w) + 1_u16;
-            let room_width: u16 = min_room_w + (getrandom::u32().unwrap() as u16 % width_range);
+            let room_width: u16 = min_room_w + rng.gen_range(0..width_range);
 
             let height_range = (max_room_h - min_room_h) + 1_u16;
-            let room_height: u16 = min_room_h + (getrandom::u32().unwrap() as u16 % height_range);
+            let room_height: u16 = min_room_h + rng.gen_range(0..height_range);
 
             // Base position includes calculated offset + section offset + 3-tile gutter per section step
             let base_x = offset_x + (section_x * section_width) + (section_x * gutter_size);
@@ -148,10 +159,10 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
 
             // Calculate max placement offset from base so the far wall stays completely inside the section
             let max_offset_x = section_width.saturating_sub(room_width + 1_u16);
-            let room_x = base_x + (getrandom::u32().unwrap() as u16 % (max_offset_x + 1_u16));
+            let room_x = base_x + rng.gen_range(0..=max_offset_x);
 
             let max_offset_y = section_height.saturating_sub(room_height + 1_u16);
-            let room_y = base_y + (getrandom::u32().unwrap() as u16 % (max_offset_y + 1_u16));
+            let room_y = base_y + rng.gen_range(0..=max_offset_y);
 
             let room = Rect::new(
                 room_x as i32,
@@ -180,8 +191,8 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
                     };
                     
                     if connected_pairs.insert(pair) {
-                        let pt1 = random_point_in_room(&rooms[prev_idx]);
-                        let pt2 = random_point_in_room(&rooms[room_idx]);
+                        let pt1 = random_point_in_room(&rooms[prev_idx], rng);
+                        let pt2 = random_point_in_room(&rooms[room_idx], rng);
                         
                         create_corridor(pt1, pt2, &mut tiles, map_width);
                     }
@@ -200,8 +211,8 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
                     let pair = if prev_idx < room_idx { (prev_idx, room_idx) } else { (room_idx, prev_idx) };
 
                     if connected_pairs.insert(pair) {
-                        let pt1 = random_point_in_room(&rooms[prev_idx]);
-                        let pt2 = random_point_in_room(&rooms[room_idx]);
+                        let pt1 = random_point_in_room(&rooms[prev_idx], rng);
+                        let pt2 = random_point_in_room(&rooms[room_idx], rng);
                         
                         create_corridor(pt1, pt2, &mut tiles, map_width);
                     }
@@ -210,6 +221,9 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
             }
         }
     }
+
+    // Put the RNG back into the world before attempting to mutate world via `spawn`
+    world.insert_resource(game_rng);
 
     // 4. Spawn exactly one entity per tile coordinate
     for y in 0..map_height {
@@ -292,12 +306,18 @@ pub fn initialize_world(world: &mut World) {
         Faction::Player,
     ));
 
+    // Retrieve the resource safely again
+    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
+
     for room in rooms.iter().skip(1) {
-        let (orc_x, orc_y) = random_point_in_room(room);
+        let (orc_x, orc_y) = random_point_in_room(room, &mut game_rng.0);
         
         world.spawn(MonsterBundle::orc(Position { 
             x: orc_x, 
             y: orc_y 
         }));
     }
+
+    // Put it back
+    world.insert_resource(game_rng);
 }
