@@ -6,6 +6,7 @@ pub mod state;
 pub mod ai;
 mod monsters;
 mod combat;
+mod items;
 
 pub use components::*;
 pub use map::*;

@@ -9,6 +9,7 @@ use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
 use crate::monsters::MonsterBundle;
+use crate::items::ItemBundle;
 
 #[derive(Resource)]
 pub struct GameRng(pub StdRng);
@@ -281,9 +282,9 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
 
 pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
-    
+
     let ((player_x, player_y), rooms) = create_map(world);
-    
+
     world.spawn((
         Player,
         Position { x: player_x, y: player_y },
@@ -304,20 +305,67 @@ pub fn initialize_world(world: &mut World) {
             power: 5,
         },
         Faction::Player,
+        Backpack { items: vec![]},
+        Score { value: 0 },
     ));
 
-    // Retrieve the resource safely again
     let mut game_rng = world.remove_resource::<GameRng>().unwrap();
+    let mut occupied = HashSet::new();
 
-    for room in rooms.iter().skip(1) {
-        let (orc_x, orc_y) = random_point_in_room(room, &mut game_rng.0);
-        
-        world.spawn(MonsterBundle::orc(Position { 
-            x: orc_x, 
-            y: orc_y 
-        }));
+    // The player's tile is already occupied.
+    occupied.insert((player_x, player_y));
+
+    // Up to 3 monsters.
+    for _ in 0..3 {
+        let mut placed = false;
+
+        for _ in 0..100 {
+            let room_idx = game_rng.0.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+
+            if occupied.insert((x, y)) {
+                let monster = if game_rng.0.gen_bool(0.5) {
+                    MonsterBundle::orc(Position { x, y })
+                } else {
+                    MonsterBundle::goblin(Position { x, y })
+                };
+
+                world.spawn(monster);
+                placed = true;
+                break;
+            }
+        }
+
+        if !placed {
+            break;
+        }
     }
 
-    // Put it back
+    // Up to 3 coins.
+    for _ in 0..3 {
+        let mut placed = false;
+
+        for _ in 0..100 {
+            let room_idx = game_rng.0.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+
+            if occupied.insert((x, y)) {
+                let coin = if game_rng.0.gen_bool(0.5) {
+                    ItemBundle::silver_coin(Position { x, y })
+                } else {
+                    ItemBundle::gold_coin(Position { x, y })
+                };
+
+                world.spawn(coin);
+                placed = true;
+                break;
+            }
+        }
+
+        if !placed {
+            break;
+        }
+    }
+
     world.insert_resource(game_rng);
 }

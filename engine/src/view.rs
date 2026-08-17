@@ -1,22 +1,45 @@
+use std::collections::HashSet;
 use std::io::{Stdout, Write};
+
 use bevy_ecs::prelude::*;
 use crossterm::{
-    queue,
-    style::{Print, SetForegroundColor, Color},
     cursor::MoveTo,
+    queue,
+    style::{Color, Print, SetForegroundColor},
 };
+
 use models::*;
 
 pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
-    // 1. Get player viewshed and fighter stats (with safe fallbacks to prevent 0/0 viewshed failure)
+    // 1. Get player viewshed and fighter stats.
     let (visible_tiles, revealed_tiles, player_hp, player_max_hp) = {
         let mut query = world.query_filtered::<(&Viewshed, &Fighter), With<Player>>();
+
         if let Some((viewshed, fighter)) = query.iter(world).next() {
-            (viewshed.visible_tiles.clone(), viewshed.revealed_tiles.clone(), fighter.hp, fighter.max_hp)
+            (
+                viewshed.visible_tiles.clone(),
+                viewshed.revealed_tiles.clone(),
+                fighter.hp,
+                fighter.max_hp,
+            )
         } else {
-            (Default::default(), Default::default(), 10, 10) // Fallback defaults so viewshed doesn't break
+            (Default::default(), Default::default(), 10, 10)
         }
-    }; // <-- Borrow on `world` cleanly ends here!
+    };
+
+    // 2. Collect positions occupied by actors.
+    // Floor/map entities must NOT suppress items.
+    let occupied_by_actor = {
+        let mut occupied = HashSet::new();
+
+        let mut query = world.query_filtered::<&Position, Or<(With<Player>, With<Mob>)>>();
+
+        for pos in query.iter(world) {
+            occupied.insert((pos.x, pos.y));
+        }
+
+        occupied
+    };
 
     // TOP UI
     queue!(
@@ -30,18 +53,24 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
     let mut query = world.query_filtered::<(
         &Position,
         &Renderable,
+        Option<&Item>,
         Option<&Wall>,
         Option<&Room>,
         Option<&Passage>,
     ), Without<Hidden>>();
 
-    for (pos, renderable, wall, room, passage) in query.iter(world) {
+    for (pos, renderable, item, wall, room, passage) in query.iter(world) {
+        // Items lose rendering priority to players/monsters.
+        if item.is_some() && occupied_by_actor.contains(&(pos.x, pos.y)) {
+            continue;
+        }
+
         let tile_coord = (pos.x, pos.y);
         let is_visible = visible_tiles.contains(&tile_coord);
         let is_revealed = revealed_tiles.contains(&tile_coord);
         let is_map_tile = wall.is_some() || room.is_some() || passage.is_some();
 
-        let render_y = pos.y + 1; // Shift down by 1 for the top UI line
+        let render_y = pos.y + 1;
 
         if is_visible {
             queue!(
@@ -69,30 +98,24 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
     if unread_len > 0 {
         let count = unread_len.min(3);
         let mut lines = vec![String::new(), String::new(), String::new()];
+
         for (i, msg) in log.unread.iter().take(count).enumerate() {
             lines[i] = msg.clone();
         }
 
-        // Line 1 (y = 22)
         queue!(
             stdout,
             MoveTo(0, 22),
             SetForegroundColor(Color::White),
-            Print(format!("{:<80}", lines[0]))
-        )?;
-
-        // Line 2 (y = 23)
-        queue!(
-            stdout,
+            Print(format!("{:<80}", lines[0])),
             MoveTo(0, 23),
             SetForegroundColor(Color::White),
             Print(format!("{:<80}", lines[1]))
         )?;
 
-        // Line 3 (y = 24)
         if unread_len > 3 {
-            // We have more than 3 messages, share the line with --MORE-- on the right
             let prompt_line = format!("{:<57} --MORE-- (Press Space)", lines[2]);
+
             queue!(
                 stdout,
                 MoveTo(0, 24),
@@ -100,7 +123,6 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
                 Print(format!("{:<80}", prompt_line))
             )?;
         } else {
-            // 3 or fewer messages: just print the 3rd line normally (blank if empty)
             queue!(
                 stdout,
                 MoveTo(0, 24),
@@ -109,19 +131,12 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
             )?;
         }
     } else {
-        // Quiet turn: completely clear all 3 log rows so nothing lingers
         queue!(
             stdout,
             MoveTo(0, 22),
-            Print(format!("{:<80}", ""))
-        )?;
-        queue!(
-            stdout,
+            Print(format!("{:<80}", "")),
             MoveTo(0, 23),
-            Print(format!("{:<80}", ""))
-        )?;
-        queue!(
-            stdout,
+            Print(format!("{:<80}", "")),
             MoveTo(0, 24),
             Print(format!("{:<80}", ""))
         )?;

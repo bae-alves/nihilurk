@@ -55,7 +55,27 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     if let Some(mut viewshed) = world.get_mut::<Viewshed>(player_entity) {
         viewshed.dirty = true;
     }
-    
+
+    //5. Query world to see if there is an item at the new position and pick it up if so
+    let mut item_entity_to_pickup = None;
+    {
+        let mut query = world.query_filtered::<(Entity, &Position), With<Item>>();
+        for (entity, pos) in query.iter(world) {
+            if pos.x == new_x && pos.y == new_y {
+                item_entity_to_pickup = Some(entity);
+                break;
+            }
+        }
+    }
+    if let Some(item_entity) = item_entity_to_pickup {
+        if let Some(mut backpack) = world.get_mut::<Backpack>(player_entity) {
+            backpack.items.push(item_entity);
+            world.entity_mut(item_entity).remove::<Position>();
+            let mut log = world.resource_mut::<GameLog>();
+            log.add("You pick up an item!".to_string());
+        }
+    }
+
     true // Successfully moved, consuming a turn
 }
 

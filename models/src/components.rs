@@ -38,6 +38,16 @@ pub struct Viewshed {
 }
 
 #[derive(Component)]
+pub struct Backpack {
+    pub items: Vec<Entity>,
+}
+
+#[derive(Component)]
+pub struct Score {
+    pub value: i32,
+}
+
+#[derive(Component)]
 pub struct Mob {
     pub movement_type: MovementType,
 }
@@ -103,4 +113,36 @@ impl GameLog {
             self.history.remove(0);
         }
     }
+}
+
+#[derive(Component)]
+pub struct Value {
+    pub amount: i32,
+}
+
+#[derive(Component)]
+pub struct Item;
+
+#[derive(Component)]
+pub struct Potion {
+    pub effect: PotionEffect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PotionEffect {
+    Blindness,
+    Confusion,
+    ExtraHealing,
+    FruitJuice,
+    GainStrength,
+    Haste,
+    Healing,
+    MagicDetection,
+    MonsterDetection,
+    Paralysis,
+    Poison,
+    RaiseLevel,
+    RestoreStrength,
+    SeeInvisible,
+    Water,
 }
