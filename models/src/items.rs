@@ -16,7 +16,7 @@ impl ItemBundle {
             glyph: Renderable { glyph: '$', color: Color::Yellow },
             position,
             value: Value { amount: 1000 },
-            item: Item,
+            item: Item {name : String::from("Gold coin")},
         }
     }
 
@@ -25,7 +25,7 @@ impl ItemBundle {
             glyph: Renderable { glyph: '$', color: Color::Grey },
             position,
             value: Value { amount: 100 },
-            item: Item,
+            item: Item {name : String::from("Silver coin")},
         }
     }
 }

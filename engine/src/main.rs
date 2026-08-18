@@ -71,7 +71,7 @@ fn main() -> std::io::Result<()> {
         StdRng::from_entropy()
     };
     world.insert_resource(models::GameRng(rng));
-
+    world.insert_resource(PackIsOpen {open: false});
     world.init_resource::<AttackQueue>();
     world.init_resource::<GameLog>();
     models::initialize_world(&mut world);

@@ -84,6 +84,11 @@ pub enum Faction {
 }
 
 #[derive(Resource, Default)]
+pub struct PackIsOpen {
+    pub open: bool
+}
+
+#[derive(Resource, Default)]
 pub struct AttackQueue {
     pub attacks: Vec<WantsToAttack>,
 }
@@ -121,7 +126,9 @@ pub struct Value {
 }
 
 #[derive(Component)]
-pub struct Item;
+pub struct Item {
+    pub name: String,
+}
 
 #[derive(Component)]
 pub struct Potion {

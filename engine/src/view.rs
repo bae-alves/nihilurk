@@ -11,6 +11,28 @@ use crossterm::{
 use models::*;
 
 pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
+    if world.resource::<PackIsOpen>().open {
+        let mut query = world.query_filtered::<&Backpack, With<Player>>();
+        let backpack = query.single(world);
+
+        let mut inventory_line = 5;
+
+        for &item_entity in &backpack.items {
+            if let Some(item) = world.get::<Item>(item_entity) {
+                queue!(
+                    stdout,
+                    MoveTo(5, inventory_line),
+                    SetForegroundColor(Color::White),
+                    Print(&item.name)
+                )?;
+
+                inventory_line += 2;
+            }
+        }
+
+        stdout.flush()?;
+        Ok(())
+    } else {
     // 1. Get player viewshed and fighter stats.
     let (visible_tiles, revealed_tiles, player_hp, player_max_hp) = {
         let mut query = world.query_filtered::<(&Viewshed, &Fighter), With<Player>>();
@@ -144,4 +166,5 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
 
     stdout.flush()?;
     Ok(())
+    }
 }

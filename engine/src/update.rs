@@ -130,6 +130,11 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             }
         } // Block ends, log borrow is dropped cleanly!
 
+        // Go into inventory mode if PackIsOpen
+        // bind each item to 0 to 9 key in the order they are in the player's backpack
+        //if world.resource::<PackIsOpen>().open{
+        //    return Ok(false)
+        //}
         // 2. Normal game input
         let mut dx = 0;
         let mut dy = 0;
@@ -148,6 +153,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             KeyCode::Char('u') => { dx = 1; dy = -1; action_attempted = true; }
             KeyCode::Char('b') => { dx = -1; dy = 1; action_attempted = true; }
             KeyCode::Char('n') => { dx = 1; dy = 1; action_attempted = true; }
+            KeyCode::Char('i') => {dx=0; dy=0; action_attempted=false; world.resource_mut::<PackIsOpen>().open = !world.resource_mut::<PackIsOpen>().open;}
             _ => {} // Unrecognized key; do nothing
         }
 
