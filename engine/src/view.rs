@@ -108,6 +108,13 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
                 SetForegroundColor(Color::DarkGrey),
                 Print(renderable.glyph)
             )?;
+        } else {
+            queue!(
+                stdout,
+                MoveTo(pos.x as u16, render_y as u16),
+                SetForegroundColor(Color::Black),
+                Print(" ")
+            )?;            
         }
     }
 

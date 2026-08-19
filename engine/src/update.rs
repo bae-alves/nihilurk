@@ -130,11 +130,6 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             }
         } // Block ends, log borrow is dropped cleanly!
 
-        // Go into inventory mode if PackIsOpen
-        // bind each item to 0 to 9 key in the order they are in the player's backpack
-        //if world.resource::<PackIsOpen>().open{
-        //    return Ok(false)
-        //}
         // 2. Normal game input
         let mut dx = 0;
         let mut dy = 0;
@@ -145,6 +140,28 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             KeyCode::Char('q') | KeyCode::Esc => {
                 world.resource_mut::<GameState>().is_running = false;
             }
+            KeyCode::Char('i') => {
+                let player_entity = world
+                    .query_filtered::<Entity, With<Player>>()
+                    .iter(world)
+                    .next();
+
+                let is_empty = if let Some(entity) = player_entity {
+                    world.get::<Backpack>(entity).map_or(true, |bp| bp.items.is_empty())
+                } else {
+                    true
+                };
+
+                if is_empty {
+                    let mut log = world.resource_mut::<GameLog>();
+                    log.add("You have no items.");
+                    world.resource_mut::<PackIsOpen>().open = false;
+                } else {
+                    let mut pack_open = world.resource_mut::<PackIsOpen>();
+                    pack_open.open = !pack_open.open;
+                }
+                return Ok(false);
+            }
             KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => { dy = -1; action_attempted = true; }
             KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => { dy = 1; action_attempted = true; }
             KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => { dx = -1; action_attempted = true; }
@@ -153,16 +170,12 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             KeyCode::Char('u') => { dx = 1; dy = -1; action_attempted = true; }
             KeyCode::Char('b') => { dx = -1; dy = 1; action_attempted = true; }
             KeyCode::Char('n') => { dx = 1; dy = 1; action_attempted = true; }
-            KeyCode::Char('i') => {dx=0; dy=0; action_attempted=false; world.resource_mut::<PackIsOpen>().open = !world.resource_mut::<PackIsOpen>().open;}
             _ => {} // Unrecognized key; do nothing
         }
 
         // 3. If they successfully pressed a movement key, clear the logs and execute
         if action_attempted {
-            // Fix: Clear the logs BEFORE executing the move, so new logs generated 
-            // during `move_player` (like "Monster is dead!") aren't immediately wiped out!
             world.resource_mut::<GameLog>().unread.clear();
-            
             turn_taken = move_player(world, dx, dy);
         }
     }
