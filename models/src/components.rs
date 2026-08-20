@@ -70,6 +70,11 @@ pub struct Fighter {
 #[derive(Component)]
 pub struct Hidden;
 
+#[derive(Resource, Default)]
+pub struct RenderConfig {
+    pub centered: bool,
+}
+
 #[derive(Event, Clone, Copy)]
 pub struct WantsToAttack {
     pub attacker: Entity,

@@ -40,12 +40,15 @@ fn main() -> std::io::Result<()> {
     // 1. Argument Parsing for Seed
     let args: Vec<String> = std::env::args().collect();
     let mut seed: Option<u64> = None;
+    let mut centered_mode = false;
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         if arg == "-s" {
             if let Some(seed_str) = iter.next() {
                 seed = seed_str.parse::<u64>().ok();
             }
+        } else if arg == "-c" {
+            centered_mode = true;
         }
     }
 
@@ -72,6 +75,7 @@ fn main() -> std::io::Result<()> {
     };
     world.insert_resource(models::GameRng(rng));
     world.insert_resource(PackIsOpen {open: false});
+    world.insert_resource(RenderConfig { centered: centered_mode });
     world.init_resource::<AttackQueue>();
     world.init_resource::<GameLog>();
     models::initialize_world(&mut world);
