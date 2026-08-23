@@ -10,7 +10,6 @@ use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
 use crate::monsters::MonsterBundle;
-use crate::items::ItemBundle;
 
 #[derive(Resource)]
 pub struct GameRng(pub StdRng);

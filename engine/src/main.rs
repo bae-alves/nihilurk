@@ -74,7 +74,7 @@ fn main() -> std::io::Result<()> {
         StdRng::from_entropy()
     };
     world.insert_resource(models::GameRng(rng));
-    world.insert_resource(PackIsOpen {open: false, selected: 0 as usize});
+    world.insert_resource(PackIsOpen {open: false, selected: 0 as usize, action_mode: None, action_selected: 0});
     world.insert_resource(RenderConfig { centered: centered_mode });
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();

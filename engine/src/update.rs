@@ -127,9 +127,9 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             }
         }
 
-        let (is_open, current_selected) = {
+        let (is_open, current_selected, action_mode, action_selected) = {
             let pack_state = world.resource::<PackIsOpen>();
-            (pack_state.open, pack_state.selected)
+            (pack_state.open, pack_state.selected, pack_state.action_mode, pack_state.action_selected)
         };
 
         if is_open {
@@ -137,70 +137,114 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             let item_count = player_entity
                 .and_then(|entity| world.get::<Backpack>(entity))
                 .map_or(0, |bp| bp.items.len());
-
-            let mut new_selected = current_selected;
-            let mut close_inventory = false;
-            let mut use_item_index = None;
-
-            // Step C: Process the keypress logic using local variables
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('i') => {
-                    close_inventory = true;
-                }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    new_selected = new_selected.saturating_sub(1);
-                }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    if new_selected + 1 < item_count {
-                        new_selected += 1;
+            if let Some(action_item_idx) = action_mode {
+                let mut close_inventory = false;
+                let mut confirm_action = false;
+                let mut new_action_sel = action_selected;
+                match key.code {
+                    // FIX: Esc and i now trigger closing the entire inventory
+                    KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
+                    // FEAT: 'w' added, toggles between 0 and 1 for wrap-around
+                    KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => { 
+                        new_action_sel = if new_action_sel == 0 { 1 } else { 0 }; 
                     }
-                }
-                KeyCode::Enter | KeyCode::Char(' ') => {
-                    use_item_index = Some(new_selected);
-                }
-                KeyCode::Char(c) if c.is_ascii_lowercase() => {
-                    let idx = (c as u32 - 'a' as u32) as usize;
-                    if idx < item_count {
-                        use_item_index = Some(idx);
+                    // FEAT: 's' added, toggles between 1 and 0 for wrap-around
+                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => { 
+                        new_action_sel = if new_action_sel == 1 { 0 } else { 1 }; 
                     }
+                    KeyCode::Enter | KeyCode::Char(' ') => confirm_action = true,
+                    _ => {}
                 }
-                _ => {}
-            }
-            let mut pack_state = world.resource_mut::<PackIsOpen>();
-            pack_state.selected = new_selected;
-
-            if close_inventory {
-                pack_state.open = false;
-            }
-            let mut item_to_use = None;
-            if let Some(idx) = use_item_index {
-                pack_state.open = false;
-                turn_taken = true; 
-                item_to_use = Some(idx);
-            }
-            drop(pack_state); 
-            if let Some(idx) = item_to_use {
-                let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next();
                 
-                if let Some(player) = player_entity {
-                    let item_entity = if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
-                        if idx < backpack.items.len() {
-                            Some(backpack.items.remove(idx))
-                        } else {
-                            None
+                let mut pack_state = world.resource_mut::<PackIsOpen>();
+                pack_state.action_selected = new_action_sel;
+                
+                if close_inventory {
+                    pack_state.open = false;
+                    pack_state.action_mode = None; 
+                } else if confirm_action {
+                    pack_state.open = false;
+                    pack_state.action_mode = None;
+                    turn_taken = true;
+                }
+                
+                drop(pack_state);
+                
+                if confirm_action {
+                    if let Some(player) = player_entity {
+                        // 1. Remove from backpack
+                        let item_entity = if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                            if action_item_idx < backpack.items.len() {
+                                Some(backpack.items.remove(action_item_idx))
+                            } else { None }
+                        } else { None };
+                        
+                        // 2. Route to correct action
+                        if let Some(item) = item_entity {
+                            if new_action_sel == 0 {
+                                let mut use_queue = world.resource_mut::<UseQueue>();
+                                use_queue.uses.push(WantsToUse { user: player, item });
+                            } else {
+                                let player_pos = world.get::<Position>(player).cloned();
+                                if let Some(pos) = player_pos {
+                                    world.entity_mut(item).insert(pos);
+                                    let mut log = world.resource_mut::<GameLog>();
+                                    log.add("You dropped an item.".to_string());
+                                }
+                            }
                         }
-                    } else {
-                        None
-                    };
-                    if let Some(item) = item_entity {
-                        let mut use_queue = world.resource_mut::<UseQueue>();
-                        use_queue.uses.push(WantsToUse { user: player, item });
                     }
                 }
-            }
+                return Ok(turn_taken);
+            } 
+            // ==========================================
+            // BRANCH B: We are navigating the main list
+            // ==========================================
+            else {
+                let mut new_selected = current_selected;
+                let mut close_inventory = false;
+                let mut trigger_action_menu = None;
 
-            // Return early so we don't process player movement
-            return Ok(turn_taken);
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
+                    // FEAT: Added 'w', wrapped up to the bottom of the list
+                    KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
+                        new_selected = if new_selected == 0 {
+                            item_count.saturating_sub(1)
+                        } else {
+                            new_selected - 1
+                        };
+                    }
+                    // FEAT: Added 's', wrapped down to the top of the list
+                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
+                        new_selected = if new_selected + 1 >= item_count {
+                            0
+                        } else {
+                            new_selected + 1
+                        };
+                    }
+                    KeyCode::Enter | KeyCode::Char(' ') => trigger_action_menu = Some(new_selected),
+                    KeyCode::Char(c) if c.is_ascii_lowercase() => {
+                        let idx = (c as u32 - 'a' as u32) as usize;
+                        if idx < item_count { trigger_action_menu = Some(idx); }
+                    }
+                    _ => {}
+                }
+
+                let mut pack_state = world.resource_mut::<PackIsOpen>();
+                pack_state.selected = new_selected;
+
+                if close_inventory {
+                    pack_state.open = false;
+                }
+
+                if let Some(idx) = trigger_action_menu {
+                    pack_state.action_mode = Some(idx);
+                    pack_state.action_selected = 0; 
+                }
+                
+                return Ok(false); 
+            }
         }
 
         // 3. Normal game input
@@ -224,7 +268,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 } else {
                     let mut pack_state = world.resource_mut::<PackIsOpen>();
                     pack_state.open = true;
-                    pack_state.selected = 0; // Always start at the top
+                    pack_state.selected = 0; 
                 }
                 return Ok(false);
             }

@@ -3,6 +3,11 @@ use crossterm::style::Color;
 use std::collections::HashSet;
 
 #[derive(Component)]
+pub struct Name {
+    pub what: String
+}
+
+#[derive(Component)]
 pub struct Player;
 
 #[derive(Component)]
@@ -97,7 +102,9 @@ pub enum Faction {
 #[derive(Resource, Default)]
 pub struct PackIsOpen {
     pub open: bool,
-    pub selected: usize
+    pub selected: usize,
+    pub action_mode: Option<usize>,
+    pub action_selected: usize,
 }
 
 #[derive(Resource, Default)]

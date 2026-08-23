@@ -86,6 +86,42 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
             Print("┘")
         )?;
 
+        let pack_state = world.resource::<PackIsOpen>();
+        if let Some(action_idx) = pack_state.action_mode {
+            let action_sel = pack_state.action_selected;
+            
+            // Draw it slightly to the right of the main inventory box
+            let modal_x = start_x + box_width as u16 + 1;
+            
+            // Align the Y coordinate roughly with the item that was selected
+            let modal_y = start_y + 1 + action_idx as u16; 
+
+            queue!(
+                stdout,
+                MoveTo(modal_x, modal_y),
+                SetForegroundColor(Color::DarkGrey),
+                Print("┌────────┐"),
+                
+                MoveTo(modal_x, modal_y + 1),
+                Print("│"),
+                SetForegroundColor(if action_sel == 0 { Color::Yellow } else { Color::White }),
+                Print(" Use    "),
+                SetForegroundColor(Color::DarkGrey),
+                Print("│"),
+                
+                MoveTo(modal_x, modal_y + 2),
+                Print("│"),
+                SetForegroundColor(if action_sel == 1 { Color::Yellow } else { Color::White }),
+                Print(" Drop   "),
+                SetForegroundColor(Color::DarkGrey),
+                Print("│"),
+                
+                MoveTo(modal_x, modal_y + 3),
+                SetForegroundColor(Color::DarkGrey),
+                Print("└────────┘"),
+            )?;
+        }
+
         stdout.flush()?;
         Ok(())
     } else {
