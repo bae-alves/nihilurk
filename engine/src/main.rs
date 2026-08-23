@@ -74,9 +74,10 @@ fn main() -> std::io::Result<()> {
         StdRng::from_entropy()
     };
     world.insert_resource(models::GameRng(rng));
-    world.insert_resource(PackIsOpen {open: false});
+    world.insert_resource(PackIsOpen {open: false, selected: 0 as usize});
     world.insert_resource(RenderConfig { centered: centered_mode });
     world.init_resource::<AttackQueue>();
+    world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
     models::initialize_world(&mut world);
     
@@ -84,7 +85,8 @@ fn main() -> std::io::Result<()> {
     let mut schedule = Schedule::default();
     schedule.add_systems((
         ai,
-        combat_system.after(ai),
+        item_system.after(ai),
+        combat_system.after(item_system),
         visibility_system.after(combat_system),
     ));
 

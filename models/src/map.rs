@@ -5,6 +5,7 @@ use crossterm::style::Color;
 use rand::Rng;
 use rand::rngs::StdRng;
 
+use crate::PotionBundle;
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
@@ -350,13 +351,13 @@ pub fn initialize_world(world: &mut World) {
             let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
 
             if occupied.insert((x, y)) {
-                let coin = if game_rng.0.gen_bool(0.5) {
-                    ItemBundle::silver_coin(Position { x, y })
+                let potion = if game_rng.0.gen_bool(0.5) {
+                    PotionBundle::healing(Position {x,y})
                 } else {
-                    ItemBundle::gold_coin(Position { x, y })
+                    PotionBundle::healing(Position {x,y})
                 };
 
-                world.spawn(coin);
+                world.spawn(potion);
                 placed = true;
                 break;
             }

@@ -31,21 +31,60 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
     if world.resource::<PackIsOpen>().open {
         let mut query = world.query_filtered::<&Backpack, With<Player>>();
         let backpack = query.single(world);
+        let selected_idx = world.resource::<PackIsOpen>().selected;
 
-        let mut inventory_line: u16 = 5;
+        let box_width = 30; // Adjust this if you have longer item names
+        let num_items = backpack.items.len();
+        let start_x = offset_x + 5;
+        let start_y = offset_y + 3;
 
-        for &item_entity in &backpack.items {
+        // 1. Draw Top Border & Title
+        let title = " INVENTORY ";
+        queue!(
+            stdout,
+            MoveTo(start_x, start_y),
+            SetForegroundColor(Color::DarkGrey),
+            Print("┌"),
+            Print("─".repeat(box_width)),
+            Print("┐"),
+            MoveTo(start_x + (box_width as u16 / 2) - (title.len() as u16 / 2), start_y),
+            SetForegroundColor(Color::Yellow),
+            Print(title)
+        )?;
+        for (i, &item_entity) in backpack.items.iter().enumerate() {
             if let Some(item) = world.get::<Item>(item_entity) {
+                let letter = (b'a' + i as u8) as char;
+                let is_selected = i == selected_idx;
+                
+                // Switch color based on selection
+                let item_color = if is_selected { Color::Yellow } else { Color::White };
+                
+                // Format nicely: " a) Potion " and pad it to fit the box
+                let item_text = format!(" {}) {} ", letter, item.name);
+                let padded_text = format!("{:<width$}", item_text, width = box_width);
+
                 queue!(
                     stdout,
-                    MoveTo(offset_x + 5, offset_y + inventory_line),
-                    SetForegroundColor(Color::White),
-                    Print(&item.name)
+                    MoveTo(start_x, start_y + 1 + i as u16),
+                    SetForegroundColor(Color::DarkGrey),
+                    Print("│"), // Left border
+                    SetForegroundColor(item_color),
+                    Print(padded_text), // Item text
+                    SetForegroundColor(Color::DarkGrey),
+                    Print("│") // Right border
                 )?;
-
-                inventory_line += 2;
             }
         }
+
+        // 3. Draw Bottom Border
+        queue!(
+            stdout,
+            MoveTo(start_x, start_y + 1 + num_items as u16),
+            SetForegroundColor(Color::DarkGrey),
+            Print("└"),
+            Print("─".repeat(box_width)),
+            Print("┘")
+        )?;
 
         stdout.flush()?;
         Ok(())

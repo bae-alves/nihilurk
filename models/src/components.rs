@@ -81,6 +81,12 @@ pub struct WantsToAttack {
     pub target: Entity,
 }
 
+#[derive(Event, Clone, Copy)]
+pub struct WantsToUse {
+    pub user: Entity,
+    pub item: Entity,
+}
+
 #[derive(Component, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Faction {
     Player,
@@ -90,12 +96,18 @@ pub enum Faction {
 
 #[derive(Resource, Default)]
 pub struct PackIsOpen {
-    pub open: bool
+    pub open: bool,
+    pub selected: usize
 }
 
 #[derive(Resource, Default)]
 pub struct AttackQueue {
     pub attacks: Vec<WantsToAttack>,
+}
+
+#[derive(Resource, Default)]
+pub struct UseQueue {
+    pub uses: Vec<WantsToUse>,
 }
 
 #[derive(Resource)]
@@ -133,6 +145,14 @@ pub struct Value {
 #[derive(Component)]
 pub struct Item {
     pub name: String,
+}
+
+#[derive(Component)]
+pub struct Consume;
+
+#[derive(Component)]
+pub struct Battery {
+    pub charges: i8,
 }
 
 #[derive(Component)]

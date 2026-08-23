@@ -15,3 +15,4 @@ pub use state::*;
 pub use visibility::*;
 pub use ai::*;
 pub use combat::*;
+pub use items::*;

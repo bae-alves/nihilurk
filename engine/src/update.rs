@@ -113,14 +113,11 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     let mut turn_taken = false;
 
     if let Event::Key(key) = event {
-        if key.kind != KeyEventKind::Press {
-            return Ok(false);
-        }
+        if key.kind != KeyEventKind::Press { return Ok(false); }
         
+        // 1. Handle logs first
         {
             let mut log = world.resource_mut::<GameLog>();
-            
-            // 1. Only block and require a spacebar IF there are more than 3 messages.
             if log.unread.len() > 3 {
                 if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
                     let to_remove = log.unread.len().min(3);
@@ -128,37 +125,106 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
                 return Ok(false); 
             }
-        } // Block ends, log borrow is dropped cleanly!
+        }
 
-        // 2. Normal game input
+        let (is_open, current_selected) = {
+            let pack_state = world.resource::<PackIsOpen>();
+            (pack_state.open, pack_state.selected)
+        };
+
+        if is_open {
+            let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next();
+            let item_count = player_entity
+                .and_then(|entity| world.get::<Backpack>(entity))
+                .map_or(0, |bp| bp.items.len());
+
+            let mut new_selected = current_selected;
+            let mut close_inventory = false;
+            let mut use_item_index = None;
+
+            // Step C: Process the keypress logic using local variables
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('i') => {
+                    close_inventory = true;
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    new_selected = new_selected.saturating_sub(1);
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if new_selected + 1 < item_count {
+                        new_selected += 1;
+                    }
+                }
+                KeyCode::Enter | KeyCode::Char(' ') => {
+                    use_item_index = Some(new_selected);
+                }
+                KeyCode::Char(c) if c.is_ascii_lowercase() => {
+                    let idx = (c as u32 - 'a' as u32) as usize;
+                    if idx < item_count {
+                        use_item_index = Some(idx);
+                    }
+                }
+                _ => {}
+            }
+            let mut pack_state = world.resource_mut::<PackIsOpen>();
+            pack_state.selected = new_selected;
+
+            if close_inventory {
+                pack_state.open = false;
+            }
+            let mut item_to_use = None;
+            if let Some(idx) = use_item_index {
+                pack_state.open = false;
+                turn_taken = true; 
+                item_to_use = Some(idx);
+            }
+            drop(pack_state); 
+            if let Some(idx) = item_to_use {
+                let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next();
+                
+                if let Some(player) = player_entity {
+                    let item_entity = if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                        if idx < backpack.items.len() {
+                            Some(backpack.items.remove(idx))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    if let Some(item) = item_entity {
+                        let mut use_queue = world.resource_mut::<UseQueue>();
+                        use_queue.uses.push(WantsToUse { user: player, item });
+                    }
+                }
+            }
+
+            // Return early so we don't process player movement
+            return Ok(turn_taken);
+        }
+
+        // 3. Normal game input
         let mut dx = 0;
         let mut dy = 0;
         let mut action_attempted = false;
-        
-        // Map the key strictly once!
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => {
                 world.resource_mut::<GameState>().is_running = false;
             }
             KeyCode::Char('i') => {
-                let player_entity = world
-                    .query_filtered::<Entity, With<Player>>()
-                    .iter(world)
-                    .next();
-
-                let is_empty = if let Some(entity) = player_entity {
-                    world.get::<Backpack>(entity).map_or(true, |bp| bp.items.is_empty())
-                } else {
-                    true
-                };
+                let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next();
+                let is_empty = player_entity
+                    .and_then(|entity| world.get::<Backpack>(entity))
+                    .map_or(true, |bp| bp.items.is_empty());
 
                 if is_empty {
                     let mut log = world.resource_mut::<GameLog>();
                     log.add("You have no items.");
                     world.resource_mut::<PackIsOpen>().open = false;
                 } else {
-                    let mut pack_open = world.resource_mut::<PackIsOpen>();
-                    pack_open.open = !pack_open.open;
+                    let mut pack_state = world.resource_mut::<PackIsOpen>();
+                    pack_state.open = true;
+                    pack_state.selected = 0; // Always start at the top
                 }
                 return Ok(false);
             }
@@ -170,10 +236,10 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             KeyCode::Char('u') => { dx = 1; dy = -1; action_attempted = true; }
             KeyCode::Char('b') => { dx = -1; dy = 1; action_attempted = true; }
             KeyCode::Char('n') => { dx = 1; dy = 1; action_attempted = true; }
-            _ => {} // Unrecognized key; do nothing
+            _ => {} 
         }
 
-        // 3. If they successfully pressed a movement key, clear the logs and execute
+        // 4. Execute movement
         if action_attempted {
             world.resource_mut::<GameLog>().unread.clear();
             turn_taken = move_player(world, dx, dy);
