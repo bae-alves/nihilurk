@@ -76,6 +76,8 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(models::GameRng(rng));
     world.insert_resource(PackIsOpen {open: false, selected: 0 as usize, action_mode: None, action_selected: 0});
     world.insert_resource(RenderConfig { centered: centered_mode });
+    world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
+    world.insert_resource(LastInventoryRect {rect: None});
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();

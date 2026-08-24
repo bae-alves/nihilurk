@@ -11,6 +11,41 @@ use crossterm::{
 
 use models::*; 
 
+// Helper function to calculate the targeting beam trajectory
+fn bresenham_line(x0: u16, y0: u16, x1: u16, y1: u16) -> Vec<(u16, u16)> {
+    let mut result = Vec::new();
+    
+    // Cast to signed integers for the math (since lines can go negative!)
+    let mut x = x0 as i32;
+    let mut y = y0 as i32;
+    let target_x = x1 as i32;
+    let target_y = y1 as i32;
+
+    let dx = (target_x - x).abs();
+    let sx = if x < target_x { 1 } else { -1 };
+    let dy = -(target_y - y).abs();
+    let sy = if y < target_y { 1 } else { -1 };
+    let mut err = dx + dy;
+
+    loop {
+        // Cast back to unsigned integers for your game coordinates
+        result.push((x as u16, y as u16));
+        
+        if x == target_x && y == target_y { break; }
+        
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y += sy;
+        }
+    }
+    result
+}
+
 pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
     // 1. Fetch config and calculate offsets
     let is_centered = world
@@ -122,26 +157,61 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
             )?;
         }
 
+        let mut box_right = start_x + box_width as u16 + 1;
+        let mut box_bottom = start_y + 1 + num_items as u16;
+
+        if let Some(action_idx) = world.resource::<PackIsOpen>().action_mode {
+            let modal_x = start_x + box_width as u16 + 1;
+            let modal_y = start_y + 1 + action_idx as u16;
+            box_right = box_right.max(modal_x + 9);
+            box_bottom = box_bottom.max(modal_y + 3);
+        }
+
+        world.resource_mut::<LastInventoryRect>().rect = Some((
+            start_x,
+            start_y,
+            box_right - start_x + 1,
+            box_bottom - start_y + 1,
+        ));
+
         stdout.flush()?;
         Ok(())
     } else {
-        // 1. Get player viewshed and fighter stats.
-        let (visible_tiles, revealed_tiles, player_hp, player_max_hp) = {
-            let mut query = world.query_filtered::<(&Viewshed, &Fighter), With<Player>>();
+        if let Some((rx, ry, rw, rh)) = world.resource_mut::<LastInventoryRect>().rect.take() {
+        let blank = " ".repeat(rw as usize);
+            for row in 0..rh {
+                queue!(stdout, MoveTo(rx, ry + row), Print(blank.as_str()))?;
+            }
+        }
+        // 1. Get player viewshed, fighter stats, and position.
+        let (visible_tiles, revealed_tiles, player_hp, player_max_hp, player_pos) = {
+            let mut query = world.query_filtered::<(&Viewshed, &Fighter, &Position), With<Player>>();
 
-            if let Some((viewshed, fighter)) = query.iter(world).next() {
+            if let Some((viewshed, fighter, pos)) = query.iter(world).next() {
                 (
                     viewshed.visible_tiles.clone(),
                     viewshed.revealed_tiles.clone(),
                     fighter.hp,
                     fighter.max_hp,
+                    (pos.x, pos.y),
                 )
             } else {
-                (Default::default(), Default::default(), 10, 10)
+                (Default::default(), Default::default(), 10, 10, (0, 0))
             }
         };
 
-        // 2. Collect positions occupied by actors.
+        // 2. Map the current line of fire if targeting
+        let targeting = world.resource::<TargetingState>();
+        let is_targeting = targeting.active;
+        let mut target_line = HashSet::new();
+        
+        if is_targeting {
+            target_line = bresenham_line(player_pos.0, player_pos.1, targeting.cursor_x as u16, targeting.cursor_y as u16)
+                .into_iter()
+                .collect();
+        }
+
+        // 3. Collect positions occupied by actors.
         let occupied_by_actor = {
             let mut occupied = HashSet::new();
             let mut query = world.query_filtered::<&Position, Or<(With<Player>, With<Mob>)>>();
@@ -168,9 +238,11 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
             Option<&Wall>,
             Option<&Room>,
             Option<&Passage>,
+            Option<&Mob>,
+            Option<&Player>,
         ), Without<Hidden>>();
 
-        for (pos, renderable, item, wall, room, passage) in query.iter(world) {
+        for (pos, renderable, item, wall, room, passage, mob, player) in query.iter(world) {
             if item.is_some() && occupied_by_actor.contains(&(pos.x, pos.y)) {
                 continue;
             }
@@ -179,32 +251,66 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
             let is_visible = visible_tiles.contains(&tile_coord);
             let is_revealed = revealed_tiles.contains(&tile_coord);
             let is_map_tile = wall.is_some() || room.is_some() || passage.is_some();
+            let is_actor_entity = mob.is_some() || player.is_some();
 
             let render_y = pos.y + 1;
             let screen_x = offset_x + pos.x as u16;
             let screen_y = offset_y + render_y as u16;
 
+            let mut print_char = " ".to_string();
+            let mut print_color = Color::Black;
+            let mut should_print = true;
+
+            // Fog of War evaluation
             if is_visible {
-                queue!(
-                    stdout,
-                    MoveTo(screen_x, screen_y),
-                    SetForegroundColor(renderable.color),
-                    Print(renderable.glyph)
-                )?;
+                print_char = renderable.glyph.to_string();
+                print_color = renderable.color;
             } else if is_map_tile && is_revealed {
-                queue!(
-                    stdout,
-                    MoveTo(screen_x, screen_y),
-                    SetForegroundColor(Color::DarkGrey),
-                    Print(renderable.glyph)
-                )?;
+                // Grey out everything out of the viewshed
+                print_char = renderable.glyph.to_string();
+                print_color = Color::DarkGrey;
+            } else if !is_map_tile {
+                // Out of FOV mobs/items shouldn't print (fixes accidental black hole tiles)
+                should_print = false;
             } else {
+                // Unrevealed darkness
+                print_char = " ".to_string();
+                print_color = Color::Black;
+            }
+
+            // DCSS-style Line Override
+            if is_targeting && target_line.contains(&tile_coord) {
+                if is_visible {
+                    print_color = Color::Yellow;
+                    if !occupied_by_actor.contains(&tile_coord) {
+                        print_char = "*".to_string(); // Empty floor -> Asterisk
+                    } else {
+                        print_char = renderable.glyph.to_string(); // Actor -> Highlighted Character
+                    }
+                    should_print = true; 
+                } else {
+                    if is_actor_entity {
+                        // We shouldn't reveal invisible actors. Suppress them entirely
+                        should_print = false;
+                    } else if item.is_some() {
+                        // FIX: Don't leak hidden items in the fog of war!
+                        should_print = false;
+                    } else {
+                        // Projectile line traversing darkness
+                        print_char = "*".to_string();
+                        print_color = Color::Yellow;
+                        should_print = true;
+                    }
+                }
+            }
+
+            if should_print {
                 queue!(
                     stdout,
                     MoveTo(screen_x, screen_y),
-                    SetForegroundColor(Color::Black),
-                    Print(" ")
-                )?;            
+                    SetForegroundColor(print_color),
+                    Print(print_char)
+                )?;
             }
         }
 

@@ -6,6 +6,7 @@ use rand::Rng;
 use rand::rngs::StdRng;
 
 use crate::PotionBundle;
+use crate::WandBundle;
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
@@ -285,6 +286,10 @@ pub fn initialize_world(world: &mut World) {
 
     let ((player_x, player_y), rooms) = create_map(world);
 
+    // 1. Create a starting wand entity first
+    let starting_wand = world.spawn(WandBundle::magic_missile(Position { x: 0, y: 0 })).id();
+
+    // 2. Spawn the player with the wand in their backpack
     world.spawn((
         Player,
         Position { x: player_x, y: player_y },
@@ -305,7 +310,7 @@ pub fn initialize_world(world: &mut World) {
             power: 5,
         },
         Faction::Player,
-        Backpack { items: vec![]},
+        Backpack { items: vec![starting_wand] }, // <--- Right here!
         Score { value: 0 },
     ));
 

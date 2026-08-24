@@ -76,6 +76,11 @@ pub struct Fighter {
 pub struct Hidden;
 
 #[derive(Resource, Default)]
+pub struct LastInventoryRect {
+    pub rect: Option<(u16, u16, u16, u16)>,
+}
+
+#[derive(Resource, Default)]
 pub struct RenderConfig {
     pub centered: bool,
 }
@@ -90,6 +95,8 @@ pub struct WantsToAttack {
 pub struct WantsToUse {
     pub user: Entity,
     pub item: Entity,
+    pub target: Option<Position>,
+    pub slot_idx: Option<usize>
 }
 
 #[derive(Component, PartialEq, Eq, Clone, Copy, Debug)]
@@ -115,6 +122,19 @@ pub struct AttackQueue {
 #[derive(Resource, Default)]
 pub struct UseQueue {
     pub uses: Vec<WantsToUse>,
+}
+
+#[derive(Component)]
+pub struct Ranged {
+    pub range: i32,
+} 
+
+#[derive(Resource, Default)]
+pub struct TargetingState {
+    pub active: bool,
+    pub item: Option<Entity>,
+    pub cursor_x: i16,
+    pub cursor_y: i16,
 }
 
 #[derive(Resource)]
@@ -184,4 +204,15 @@ pub enum PotionEffect {
     RestoreStrength,
     SeeInvisible,
     Water,
+}
+
+#[derive(Component)]
+pub struct Wand {
+    pub effect: WandEffect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WandEffect {
+    MagicMissile,
+    Fireball,
 }
