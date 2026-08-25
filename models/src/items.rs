@@ -1,6 +1,6 @@
 use bevy_ecs::{entity::Entity, prelude::Bundle, world::World};
 use crossterm::style::Color;
-use crate::components::*;
+use crate::{components::*, helpers::{apply_damage, get_entities_at_position, get_line, is_wall_at}};
 
 #[derive(Bundle)]
 pub struct ItemBundle {
@@ -112,18 +112,53 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
         None => return, // Safety catch: Wands require targets!
     };
 
+    // Pega a posição do usuário para cálculos de trajetória e distância
+    let user_pos = match world.get::<Position>(user) {
+        Some(pos) => *pos,
+        None => return,
+    };
+
     match effect {
         WandEffect::MagicMissile => {
             let mut log = world.resource_mut::<GameLog>();
             log.add("A brilliant cyan bolt leaps from the wand!".to_string());
-            
-            // TODO: Query for a Mob at target_pos and apply damage
+            // 1. Gera os pontos da linha entre o usuário e o alvo (Bresenham's line algorithm)
+            let line_points = get_line(user_pos, target_pos);
+            // 2. Itera pelos pontos da linha
+            for pos in line_points {
+                // Opcional: Para se atingir uma parede (Wall)
+                if is_wall_at(world, pos) {
+                    break;
+                }
+
+                // 3. Aplica dano a todas as entidades na linha (exceto o próprio usuário)
+                let entities_at_pos = get_entities_at_position(world, pos);
+                for entity in entities_at_pos {
+                    if entity != user {
+                        apply_damage(world, entity, 10); // Exemplo: 10 de dano mágico
+                    }
+                }
+            }
         }
         WandEffect::Fireball => {
             let mut log = world.resource_mut::<GameLog>();
             log.add("A roaring sphere of fire erupts!".to_string());
-            
-            // TODO: Query for all Mobs within an area around target_pos and apply damage
+            // Raio da explosão de fogo
+            let radius = 3.0;
+            // Coleta todas as entidades com Posição e Vida em uma área ao redor do target_pos
+            let mut affected_entities = Vec::new();
+            // Usamos um query manual no World do Bevy para encontrar entidades na área
+            let mut query = world.query::<(Entity, &Position)>();
+            for (entity, pos) in query.iter(world) {
+                let distance = ((pos.x - target_pos.x).pow(2) as f32 + (pos.y - target_pos.y).pow(2) as f32).sqrt();
+                if distance <= radius {
+                    affected_entities.push(entity);
+                }
+            }
+            // Aplica dano em área
+            for entity in affected_entities {
+                apply_damage(world, entity, 25); // Exemplo: 25 de dano de fogo
+            }
         }
     }
 }

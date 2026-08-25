@@ -22,7 +22,7 @@ pub struct Room;
 #[derive(Component)]
 pub struct Door;
 
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     pub x: u16,
     pub y: u16,

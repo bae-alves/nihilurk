@@ -1,5 +1,5 @@
 use bevy_ecs::prelude::*;
-use crossterm::event::{read, Event, KeyCode, KeyEventKind};
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, read};
 use models::*;
 use models::{GameState, components::GameLog}; 
 
@@ -386,10 +386,13 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         let mut dy = 0;
         let mut action_attempted = false;
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => {
-                world.resource_mut::<GameState>().is_running = false;
-            }
-            KeyCode::Char('i') => {
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    world.resource_mut::<GameState>().is_running = false;
+                }
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    world.resource_mut::<GameState>().is_running = false;
+                }
+                KeyCode::Char('i') => {
                 let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next();
                 let is_empty = player_entity
                     .and_then(|entity| world.get::<Backpack>(entity))
