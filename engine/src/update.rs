@@ -358,7 +358,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     KeyCode::Enter | KeyCode::Char(' ') => trigger_action_menu = Some(new_selected),
                     KeyCode::Char(c) if c.is_ascii_lowercase() => {
                         let idx = (c as u32 - 'a' as u32) as usize;
-                        if idx < item_count { trigger_action_menu = Some(idx); }
+                        if idx < item_count { new_selected = idx; trigger_action_menu = Some(idx);}
                     }
                     _ => {}
                 }
