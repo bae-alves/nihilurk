@@ -288,10 +288,12 @@ pub fn initialize_world(world: &mut World) {
 
     // 1. Create a starting wand entity first
     let starting_wand = world.spawn(WandBundle::magic_missile(Position { x: 0, y: 0 })).id();
+    let player_name = world.resource::<PlayerName>().what.clone();
 
     // 2. Spawn the player with the wand in their backpack
     world.spawn((
         Player,
+        Name { what: player_name},
         Position { x: player_x, y: player_y },
         Renderable {
             glyph: '@',
@@ -310,7 +312,7 @@ pub fn initialize_world(world: &mut World) {
             power: 5,
         },
         Faction::Player,
-        Backpack { items: vec![starting_wand] }, // <--- Right here!
+        Backpack { items: vec![starting_wand] },
         Score { value: 0 },
     ));
 

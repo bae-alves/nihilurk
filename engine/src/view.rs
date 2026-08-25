@@ -222,12 +222,14 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
             occupied
         };
 
+        let player_name = world.resource::<PlayerName>().what.clone();
+
         // TOP UI
         queue!(
             stdout,
             MoveTo(offset_x, offset_y),
             SetForegroundColor(Color::Cyan),
-            Print(format!(" ROOG | Hits: {} / {} ", player_hp, player_max_hp))
+            Print(format!(" {} | Hits: {} / {} ", player_name, player_hp, player_max_hp))
         )?;
 
         // DUNGEON GRID

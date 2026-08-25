@@ -41,6 +41,7 @@ fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
+    let mut player_name = "Roog";
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         if arg == "-s" {
@@ -49,6 +50,8 @@ fn main() -> std::io::Result<()> {
             }
         } else if arg == "-c" {
             centered_mode = true;
+        } else {
+            player_name = arg;
         }
     }
 
@@ -78,6 +81,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(RenderConfig { centered: centered_mode });
     world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
     world.insert_resource(LastInventoryRect {rect: None});
+    world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();

@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
-use std::collections::HashSet;
+use std::{collections::HashSet};
 
 #[derive(Component)]
 pub struct Name {
@@ -74,6 +74,11 @@ pub struct Fighter {
 
 #[derive(Component)]
 pub struct Hidden;
+
+#[derive(Resource, Default)]
+pub struct PlayerName {
+    pub what: String,
+}
 
 #[derive(Resource, Default)]
 pub struct LastInventoryRect {
