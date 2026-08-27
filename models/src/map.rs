@@ -3,7 +3,8 @@ use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 
 use rand::Rng;
-use rand::rngs::StdRng;
+use rand::SeedableRng;
+use rand_chacha::ChaCha12Rng;
 
 use crate::PotionBundle;
 use crate::WandBundle;
@@ -13,7 +14,12 @@ use crate::state::*;
 use crate::monsters::MonsterBundle;
 
 #[derive(Resource)]
-pub struct GameRng(pub StdRng);
+pub struct GameRng(pub ChaCha12Rng);
+
+/// The u64 seed the run's RNG was created from. Kept alongside the live RNG
+/// state so future features (e.g. regenerating a specific floor) can reseed.
+#[derive(Resource)]
+pub struct RngSeed(pub u64);
 
 #[derive(PartialEq, Copy, Clone)]
 enum TileType {
@@ -34,7 +40,7 @@ fn create_room(rect: &Rect, tiles: &mut [TileType], map_width: u16) {
 }
 
 /// Helper function to pick a random interior point within a room
-fn random_point_in_room(room: &Rect, rng: &mut StdRng) -> (u16, u16) {
+fn random_point_in_room(room: &Rect, rng: &mut ChaCha12Rng) -> (u16, u16) {
     let width = (room.x2 - room.x1 + 1).max(1) as u32;
     let height = (room.y2 - room.y1 + 1).max(1) as u32;
     
@@ -92,14 +98,15 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     }
 }
 
-/// Procedurally generates a random map layout, spawns map entities, and returns the player start position.
-pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
-    let map_width: u16 = 80;
-    let map_height: u16 = 22;
+pub const MAP_WIDTH: u16 = 80;
+pub const MAP_HEIGHT: u16 = 22;
 
-    // Take out the RNG safely without holding a long mutable borrow of `world`
-    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
-    let rng = &mut game_rng.0;
+/// Procedurally computes a map layout from the given RNG. Pure: the same RNG
+/// state always yields the same tiles, which is what lets us drop the map from
+/// save files and rebuild it from the seed on load.
+fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>) {
+    let map_width: u16 = MAP_WIDTH;
+    let map_height: u16 = MAP_HEIGHT;
 
     // Initialize map
     let mut tiles = vec![TileType::Wall; (map_width * map_height) as usize];
@@ -224,13 +231,14 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
         }
     }
 
-    // Put the RNG back into the world before attempting to mutate world via `spawn`
-    world.insert_resource(game_rng);
+    (tiles, rooms)
+}
 
-    // 4. Spawn exactly one entity per tile coordinate
-    for y in 0..map_height {
-        for x in 0..map_width {
-            let idx = (y * map_width + x) as usize;
+/// Spawns exactly one tile entity per map coordinate for the given layout.
+fn spawn_tile_entities(world: &mut World, tiles: &[TileType]) {
+    for y in 0..MAP_HEIGHT {
+        for x in 0..MAP_WIDTH {
+            let idx = (y * MAP_WIDTH + x) as usize;
             match tiles[idx] {
                 TileType::Room => {
                     world.spawn((
@@ -275,10 +283,28 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
             }
         }
     }
+}
+
+/// Generates a fresh map, spawns its tile entities, and returns the player start.
+pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
+    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
+    let (tiles, rooms) = build_tiles(&mut game_rng.0);
+    world.insert_resource(game_rng);
+
+    spawn_tile_entities(world, &tiles);
 
     // Return the center of the very first room so we can spawn the player safely away from doors
     let start_pos = rooms[0].center();
     ((start_pos.0 as u16, start_pos.1 as u16), rooms)
+}
+
+/// Rebuilds the map tile entities deterministically from `seed`, without
+/// touching the live `GameRng` resource or spawning any actors. Used on load,
+/// where the map is reconstructed from the seed rather than the save file.
+pub fn regenerate_map(world: &mut World, seed: u64) {
+    let mut rng = ChaCha12Rng::seed_from_u64(seed);
+    let (tiles, _rooms) = build_tiles(&mut rng);
+    spawn_tile_entities(world, &tiles);
 }
 
 pub fn initialize_world(world: &mut World) {

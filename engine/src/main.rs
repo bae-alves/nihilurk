@@ -13,7 +13,7 @@ use std::io::stdout;
 use bevy_ecs::{prelude::World, schedule::Schedule, schedule::IntoSystemConfigs};
 
 // Import our rng seed types
-use rand::{SeedableRng, rngs::StdRng};
+use models::{ChaCha12Rng, SeedableRng};
 
 use crate::visibility::visibility_system;
 use crate::ai::ai;
@@ -41,8 +41,10 @@ fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
-    let mut player_name = "Roog";
+    let mut player_name = "Roog".to_string();
+    let mut positional: Option<String> = None;
     let mut iter = args.iter();
+    iter.next(); // skip the executable path
     while let Some(arg) = iter.next() {
         if arg == "-s" {
             if let Some(seed_str) = iter.next() {
@@ -50,6 +52,21 @@ fn main() -> std::io::Result<()> {
             }
         } else if arg == "-c" {
             centered_mode = true;
+        } else {
+            positional = Some(arg.clone());
+        }
+    }
+
+    // A positional argument is a save file to load if it names an existing file
+    // (either verbatim or with a `.save.json` suffix); otherwise it is the
+    // player's name for a fresh game.
+    let mut load_path: Option<String> = None;
+    if let Some(arg) = positional {
+        let suffixed = format!("{arg}.save.json");
+        if std::path::Path::new(&arg).is_file() {
+            load_path = Some(arg);
+        } else if std::path::Path::new(&suffixed).is_file() {
+            load_path = Some(suffixed);
         } else {
             player_name = arg;
         }
@@ -66,17 +83,14 @@ fn main() -> std::io::Result<()> {
         original_hook(panic_info);
     }));
 
-    let _guard = TerminalGuard::new()?;
+    let guard = TerminalGuard::new()?;
     let mut stdout = stdout();
     let mut world = World::new();
 
     // 2. Initialize Seeded GameRng
-    let rng = if let Some(s) = seed {
-        StdRng::seed_from_u64(s)
-    } else {
-        StdRng::from_entropy()
-    };
-    world.insert_resource(models::GameRng(rng));
+    let seed_value = seed.unwrap_or_else(rand::random);
+    world.insert_resource(models::GameRng(ChaCha12Rng::seed_from_u64(seed_value)));
+    world.insert_resource(models::RngSeed(seed_value));
     world.insert_resource(PackIsOpen {open: false, selected: 0 as usize, action_mode: None, action_selected: 0});
     world.insert_resource(RenderConfig { centered: centered_mode });
     world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
@@ -85,7 +99,13 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
-    models::initialize_world(&mut world);
+
+    if let Some(path) = &load_path {
+        models::load_game(&mut world, path)?;
+        world.resource_mut::<GameLog>().add(format!("Loaded save '{path}'."));
+    } else {
+        models::initialize_world(&mut world);
+    }
     
     // 3. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
@@ -115,6 +135,17 @@ fn main() -> std::io::Result<()> {
 
         // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout)?;
+    }
+    // Save the game on exit, then restore the terminal so the message is visible.
+    let save_name = format!(
+        "{}.save.json",
+        world.resource::<PlayerName>().what.to_ascii_lowercase()
+    );
+    let save_result = models::save_game(&mut world, &save_name);
+    drop(guard);
+    match save_result {
+        Ok(()) => println!("Game saved to '{save_name}'. Resume with: roog {save_name}"),
+        Err(e) => eprintln!("Failed to save game: {e}"),
     }
 
     Ok(())

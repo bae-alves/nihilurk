@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet};
 
 #[derive(Component)]
@@ -57,6 +58,7 @@ pub struct Mob {
     pub movement_type: MovementType,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub enum MovementType {
     Static,
     Chase,
@@ -104,7 +106,7 @@ pub struct WantsToUse {
     pub slot_idx: Option<usize>
 }
 
-#[derive(Component, PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(Component, PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Faction {
     Player,
     Monster,
@@ -192,7 +194,7 @@ pub struct Potion {
     pub effect: PotionEffect,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PotionEffect {
     Blindness,
     Confusion,
@@ -216,7 +218,7 @@ pub struct Wand {
     pub effect: WandEffect,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WandEffect {
     MagicMissile,
     Fireball,
