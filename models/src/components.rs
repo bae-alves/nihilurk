@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
+use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet};
 
 #[derive(Component)]
 pub struct Name {
@@ -37,8 +37,10 @@ pub struct Renderable {
 
 #[derive(Component)]
 pub struct Viewshed {
+    /// Transient: recomputed every frame by the visibility system, never saved.
     pub visible_tiles: Vec<(u16, u16)>,
-    pub revealed_tiles: HashSet<(u16, u16)>,
+    /// Fog-of-war memory, one bit per map tile (see [`crate::map::tile_index`]).
+    pub revealed_tiles: FixedBitSet,
     pub range: u16,
     pub dirty: bool,
 }

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use fixedbitset::FixedBitSet;
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 
@@ -100,6 +101,15 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
 
 pub const MAP_WIDTH: u16 = 80;
 pub const MAP_HEIGHT: u16 = 22;
+
+/// Total tile count; the length of a fog-of-war bitset.
+pub const MAP_TILE_COUNT: usize = MAP_WIDTH as usize * MAP_HEIGHT as usize;
+
+/// Flattens a tile coordinate into a bitset/array index.
+#[inline]
+pub const fn tile_index(x: u16, y: u16) -> usize {
+    y as usize * MAP_WIDTH as usize + x as usize
+}
 
 /// Procedurally computes a map layout from the given RNG. Pure: the same RNG
 /// state always yields the same tiles, which is what lets us drop the map from
@@ -327,7 +337,7 @@ pub fn initialize_world(world: &mut World) {
         },
         Viewshed {
             visible_tiles: Vec::new(),
-            revealed_tiles: HashSet::new(),
+            revealed_tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             range: 16,
             dirty: true,
         },

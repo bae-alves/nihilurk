@@ -10,4 +10,5 @@ getrandom = "0.4.3"
 rand = "0.8"
 rand_chacha = { version = "0.3", features = ["serde1"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+postcard = { version = "1", features = ["use-std"] }
+fixedbitset = { version = "0.5", features = ["serde"] }

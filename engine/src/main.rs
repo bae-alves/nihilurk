@@ -58,11 +58,11 @@ fn main() -> std::io::Result<()> {
     }
 
     // A positional argument is a save file to load if it names an existing file
-    // (either verbatim or with a `.save.json` suffix); otherwise it is the
+    // (either verbatim or with a `.sav` suffix); otherwise it is the
     // player's name for a fresh game.
     let mut load_path: Option<String> = None;
     if let Some(arg) = positional {
-        let suffixed = format!("{arg}.save.json");
+        let suffixed = format!("{arg}.sav");
         if std::path::Path::new(&arg).is_file() {
             load_path = Some(arg);
         } else if std::path::Path::new(&suffixed).is_file() {
@@ -138,7 +138,7 @@ fn main() -> std::io::Result<()> {
     }
     // Save the game on exit, then restore the terminal so the message is visible.
     let save_name = format!(
-        "{}.save.json",
+        "{}.sav",
         world.resource::<PlayerName>().what.to_ascii_lowercase()
     );
     let save_result = models::save_game(&mut world, &save_name);

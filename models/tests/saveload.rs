@@ -10,7 +10,7 @@ fn round_trip() {
     w.insert_resource(PlayerName { what: "TESTER".into() });
     initialize_world(&mut w);
     let n0 = w.iter_entities().count();
-    let path = std::env::temp_dir().join("roog_test.save.json");
+    let path = std::env::temp_dir().join("roog_test.sav");
     let p = path.to_str().unwrap();
     save_game(&mut w, p).unwrap();
 

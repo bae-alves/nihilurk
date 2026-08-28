@@ -129,7 +129,7 @@ pub fn visibility_system(
                         TileKind::Wall => Color::DarkYellow,
                         TileKind::Door => Color::Yellow,
                     };
-                } else if viewshed.revealed_tiles.contains(&tile_pos) {
+                } else if viewshed.revealed_tiles.contains(crate::map::tile_index(tile_pos.0, tile_pos.1)) {
                     renderable.color = Color::DarkGrey; 
                 } else {
                     renderable.color = Color::Black; 
@@ -148,7 +148,12 @@ pub fn visibility_system(
             }
         }
 
-        viewshed.revealed_tiles.extend(visible_set.iter().copied());
+        if viewshed.revealed_tiles.len() < crate::map::MAP_TILE_COUNT {
+            viewshed.revealed_tiles.grow(crate::map::MAP_TILE_COUNT);
+        }
+        for &(x, y) in visible_set.iter() {
+            viewshed.revealed_tiles.insert(crate::map::tile_index(x, y));
+        }
         viewshed.visible_tiles = visible_set.into_iter().collect();
         viewshed.dirty = false;
     }

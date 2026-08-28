@@ -190,7 +190,7 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
             if let Some((viewshed, fighter, pos)) = query.iter(world).next() {
                 (
                     viewshed.visible_tiles.clone(),
-                    viewshed.revealed_tiles.clone(),
+                    viewshed.revealed_tiles.clone(), // ~220 bytes, cheap
                     fighter.hp,
                     fighter.max_hp,
                     (pos.x, pos.y),
@@ -251,7 +251,7 @@ pub fn render(world: &mut World, stdout: &mut Stdout) -> std::io::Result<()> {
 
             let tile_coord = (pos.x, pos.y);
             let is_visible = visible_tiles.contains(&tile_coord);
-            let is_revealed = revealed_tiles.contains(&tile_coord);
+            let is_revealed = revealed_tiles.contains(tile_index(pos.x, pos.y));
             let is_map_tile = wall.is_some() || room.is_some() || passage.is_some();
             let is_actor_entity = mob.is_some() || player.is_some();
 
