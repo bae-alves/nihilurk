@@ -36,6 +36,30 @@ impl Drop for TerminalGuard {
     }
 }
 
+/// Finds a file in the current directory whose name matches `name`
+/// case-insensitively, returning its actual on-disk name. This makes save
+/// files loadable regardless of the case typed on the command line, since
+/// the filesystem itself may be case-sensitive (Linux/macOS).
+fn find_case_insensitive(name: &str) -> Option<String> {
+    if std::path::Path::new(name).is_file() {
+        return Some(name.to_string());
+    }
+    let dir = std::path::Path::new(name)
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let file_name = std::path::Path::new(name).file_name()?.to_str()?;
+    for entry in std::fs::read_dir(dir).ok()? {
+        let entry = entry.ok()?;
+        if entry.file_name().to_str().is_some_and(|f| f.eq_ignore_ascii_case(file_name))
+            && entry.path().is_file()
+        {
+            return entry.path().to_str().map(|s| s.to_string());
+        }
+    }
+    None
+}
+
 fn main() -> std::io::Result<()> {
     // 1. Argument Parsing for Seed
     let args: Vec<String> = std::env::args().collect();
@@ -61,15 +85,13 @@ fn main() -> std::io::Result<()> {
     }
 
     // A positional argument is a save file to load if it names an existing file
-    // (either verbatim or with a `.sav` suffix); otherwise it is the
-    // player's name for a fresh game.
+    // (either verbatim or with a `.sav` suffix, matched case-insensitively);
+    // otherwise it is the player's name for a fresh game.
     let mut load_path: Option<String> = None;
     if let Some(arg) = positional {
         let suffixed = format!("{arg}.sav");
-        if std::path::Path::new(&arg).is_file() {
-            load_path = Some(arg);
-        } else if std::path::Path::new(&suffixed).is_file() {
-            load_path = Some(suffixed);
+        if let Some(found) = find_case_insensitive(&arg).or_else(|| find_case_insensitive(&suffixed)) {
+            load_path = Some(found);
         } else {
             player_name = arg;
         }
@@ -101,6 +123,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(RenderConfig { centered: centered_mode });
     world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
     world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
+    world.insert_resource(Depth {what: 1 as u8});
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();

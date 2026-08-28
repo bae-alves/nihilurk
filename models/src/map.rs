@@ -28,6 +28,8 @@ pub enum TileType {
     Room,
     Passage,
     Door,
+    Upstairs,
+    Downstairs
 }
 
 /// The dungeon terrain for the current floor: one [`TileType`] per coordinate,
@@ -64,6 +66,8 @@ pub fn tile_appearance(t: TileType) -> (char, Color) {
         TileType::Passage => ('▒', Color::White),
         TileType::Wall => ('#', Color::DarkYellow),
         TileType::Door => ('+', Color::Yellow),
+        TileType::Downstairs => ('>', Color::Cyan),
+        TileType::Upstairs => ('<', Color::Cyan)
     }
 }
 
@@ -278,6 +282,15 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>) {
         }
     }
 
+    // Staircases: up in the first room (where the player spawns), down in a
+    // random other room. Done here so the map rebuilt from the seed on load —
+    // and the map for every new floor — carries the same stairs.
+    let up = rooms[0].center();
+    tiles[tile_index(up.0 as u16, up.1 as u16)] = TileType::Upstairs;
+    let down_room = if rooms.len() > 1 { rng.gen_range(1..rooms.len()) } else { 0 };
+    let down = random_point_in_room(&rooms[down_room], rng);
+    tiles[tile_index(down.0, down.1)] = TileType::Downstairs;
+
     (tiles, rooms)
 }
 
@@ -303,8 +316,145 @@ pub fn regenerate_map(world: &mut World, seed: u64) {
     world.insert_resource(Map { tiles });
 }
 
+/// Spawns the monsters and items for a freshly built floor. The staircases are
+/// carved by [`build_tiles`]. Shared by [`initialize_world`] and [`change_level`].
+fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
+    let (player_x, player_y) = player_start;
+
+    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
+    let mut occupied = HashSet::new();
+
+    // The player's tile is already occupied.
+    occupied.insert((player_x, player_y));
+
+    // Up to 3 monsters.
+    for _ in 0..3 {
+        for _ in 0..100 {
+            let room_idx = game_rng.0.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+
+            if occupied.insert((x, y)) {
+                let monster = if game_rng.0.gen_bool(0.5) {
+                    MonsterBundle::orc(Position { x, y })
+                } else {
+                    MonsterBundle::goblin(Position { x, y })
+                };
+
+                world.spawn(monster);
+                break;
+            }
+        }
+    }
+
+    // Up to 3 items.
+    for _ in 0..3 {
+        for _ in 0..100 {
+            let room_idx = game_rng.0.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+
+            if occupied.insert((x, y)) {
+                world.spawn(PotionBundle::healing(Position { x, y }));
+                break;
+            }
+        }
+    }
+
+    world.insert_resource(game_rng);
+}
+
+/// Handles the player using a staircase. Going up is permanently blocked by the
+/// Dungeon Lord's power; only `going_down == true` can succeed, and only while
+/// standing on a [`TileType::Downstairs`]. On success a brand new floor is
+/// generated, the player is placed in its first room, [`Depth`] increases,
+/// their `Fighter` recovers 50% of its max HP, and `true` is returned (a turn
+/// passes). Otherwise a log line is added and `false` is returned so no turn
+/// is consumed.
+pub fn change_level(world: &mut World, going_down: bool) -> bool {
+    let player_entity = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+        .unwrap();
+    let player_pos = *world.get::<Position>(player_entity).unwrap();
+    let tile = world.resource::<Map>().tile(player_pos.x, player_pos.y);
+
+    if !going_down {
+        if tile == TileType::Upstairs {
+            world
+                .resource_mut::<GameLog>()
+                .add("The Dungeon Lord's power prevents you from going upstairs.");
+        } else {
+            world
+                .resource_mut::<GameLog>()
+                .add("You cannot go up from here.");
+        }
+        return false;
+    }
+
+    if tile != TileType::Downstairs {
+        world
+            .resource_mut::<GameLog>()
+            .add("You cannot go down from here.");
+        return false;
+    }
+
+    // Despawn every monster and every item lying on the floor. Backpack contents
+    // (which carry no Position) are left untouched.
+    let backpacked: HashSet<Entity> = world
+        .query::<&Backpack>()
+        .iter(world)
+        .flat_map(|bp| bp.items.iter().copied())
+        .collect();
+    let to_despawn: Vec<Entity> = world
+        .iter_entities()
+        .filter(|e| !e.contains::<Player>() && e.contains::<Position>() && !backpacked.contains(&e.id()))
+        .map(|e| e.id())
+        .collect();
+    for e in to_despawn {
+        world.despawn(e);
+    }
+
+    // Build the next floor from the live RNG stream.
+    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
+    let (tiles, rooms) = build_tiles(&mut game_rng.0);
+    world.insert_resource(game_rng);
+    world.insert_resource(Map { tiles });
+
+    let start = rooms[0].center();
+    let start = (start.0 as u16, start.1 as u16);
+
+    if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
+        pos.x = start.0;
+        pos.y = start.1;
+    }
+    if let Some(mut viewshed) = world.get_mut::<Viewshed>(player_entity) {
+        viewshed.visible_tiles.clear();
+        viewshed.revealed_tiles.clear();
+        viewshed.dirty = true;
+    }
+
+    populate_level(world, &rooms, start);
+
+    let depth = {
+        let mut depth = world.resource_mut::<Depth>();
+        depth.what = depth.what.saturating_add(1);
+        depth.what
+    };
+
+    if let Some(mut fighter) = world.get_mut::<Fighter>(player_entity) {
+        let heal = fighter.max_hp / 2;
+        fighter.hp = (fighter.hp + heal).min(fighter.max_hp);
+    }
+
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("You go down the stairs. (Depth {depth})"));
+    true
+}
+
 pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
+    world.insert_resource(Depth { what: 1 });
 
     let ((player_x, player_y), rooms) = create_map(world);
 
@@ -338,63 +488,5 @@ pub fn initialize_world(world: &mut World) {
         Score { value: 0 },
     ));
 
-    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
-    let mut occupied = HashSet::new();
-
-    // The player's tile is already occupied.
-    occupied.insert((player_x, player_y));
-
-    // Up to 3 monsters.
-    for _ in 0..3 {
-        let mut placed = false;
-
-        for _ in 0..100 {
-            let room_idx = game_rng.0.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
-
-            if occupied.insert((x, y)) {
-                let monster = if game_rng.0.gen_bool(0.5) {
-                    MonsterBundle::orc(Position { x, y })
-                } else {
-                    MonsterBundle::goblin(Position { x, y })
-                };
-
-                world.spawn(monster);
-                placed = true;
-                break;
-            }
-        }
-
-        if !placed {
-            break;
-        }
-    }
-
-    // Up to 3 coins.
-    for _ in 0..3 {
-        let mut placed = false;
-
-        for _ in 0..100 {
-            let room_idx = game_rng.0.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
-
-            if occupied.insert((x, y)) {
-                let potion = if game_rng.0.gen_bool(0.5) {
-                    PotionBundle::healing(Position {x,y})
-                } else {
-                    PotionBundle::healing(Position {x,y})
-                };
-
-                world.spawn(potion);
-                placed = true;
-                break;
-            }
-        }
-
-        if !placed {
-            break;
-        }
-    }
-
-    world.insert_resource(game_rng);
+    populate_level(world, &rooms, (player_x, player_y));
 }

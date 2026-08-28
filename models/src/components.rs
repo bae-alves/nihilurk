@@ -135,6 +135,11 @@ pub struct GameLog {
     pub unread: Vec<String>, // The queue of messages waiting for a --MORE-- acknowledgment
 }
 
+#[derive(Resource)]
+pub struct Depth{
+    pub what: u8
+}
+
 impl Default for GameLog {
     fn default() -> Self {
         Self {

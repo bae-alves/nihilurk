@@ -45,7 +45,7 @@ pub fn visibility_system(
         }
 
         // Rule B: Flood-fill Room logic (with leak prevention!)
-        if matches!(map.tile(pos.x, pos.y), TileType::Room | TileType::Door) {
+        if matches!(map.tile(pos.x, pos.y), TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs) {
             let mut queue = VecDeque::new();
             let mut visited_rooms = HashSet::new();
 
@@ -67,10 +67,10 @@ pub fn visibility_system(
                         let neighbor_pos = (nx as u16, ny as u16);
 
                         match map.tile(neighbor_pos.0, neighbor_pos.1) {
-                            TileType::Room | TileType::Door => {
+                            TileType::Room | TileType::Door | TileType::Downstairs | TileType::Upstairs => {
                                 visible_set.insert(neighbor_pos);
                                 if visited_rooms.insert(neighbor_pos) {
-                                    queue.push_back(neighbor_pos); // keep spreading inside rooms/doors
+                                    queue.push_back(neighbor_pos); // keep spreading inside rooms/doors/stairs
                                 }
                             }
                             TileType::Passage => {

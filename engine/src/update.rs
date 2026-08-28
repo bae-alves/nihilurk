@@ -404,6 +404,14 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
                 return Ok(false);
             }
+            KeyCode::Char('>') | KeyCode::Char('.') => {
+                world.resource_mut::<GameLog>().unread.clear();
+                return Ok(change_level(world, true));
+            }
+            KeyCode::Char('<') | KeyCode::Char(',') => {
+                world.resource_mut::<GameLog>().unread.clear();
+                return Ok(change_level(world, false));
+            }
             KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => { dy = -1; action_attempted = true; }
             KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => { dy = 1; action_attempted = true; }
             KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => { dx = -1; action_attempted = true; }

@@ -9,6 +9,7 @@ fn round_trip() {
     w.init_resource::<GameLog>();
     w.insert_resource(PlayerName { what: "TESTER".into() });
     initialize_world(&mut w);
+    w.resource_mut::<Depth>().what = 4;
     let n0 = w.iter_entities().count();
     let path = std::env::temp_dir().join("roog_test.sav");
     let p = path.to_str().unwrap();
@@ -28,6 +29,7 @@ fn round_trip() {
     let b: u64 = w2.resource_mut::<GameRng>().0.r#gen();
     assert_eq!(a, b);
     assert_eq!(w2.resource::<PlayerName>().what, "TESTER");
+    assert_eq!(w2.resource::<Depth>().what, 4);
     let mut q = w2.query_filtered::<&Backpack, With<Player>>();
     assert_eq!(q.single(&w2).items.len(), 1);
     assert!(w2.get::<Wand>(q.single(&w2).items[0]).is_some());

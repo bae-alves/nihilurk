@@ -101,6 +101,8 @@ struct SaveGame<'a> {
     log_unread: Vec<Cow<'a, str>>,
     #[serde(borrow)]
     player_name: Cow<'a, str>,
+    /// The current dungeon depth.
+    depth: u8,
     /// The seed the run was originally created from.
     rng_seed: u64,
     /// The live RNG state, so the stream continues exactly where it left off.
@@ -163,6 +165,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             .collect(),
         log_unread: log.unread.iter().map(|s| Cow::Borrowed(s.as_str())).collect(),
         player_name: Cow::Borrowed(world.resource::<PlayerName>().what.as_str()),
+        depth: world.resource::<Depth>().what,
         rng_seed: world.resource::<RngSeed>().0,
         rng_state: world.resource::<GameRng>().0.clone(),
     };
@@ -174,8 +177,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
     writer.flush()
 }
 
-/// Rebuilds the world from a postcard save file. Inserts GameState, GameLog and
-/// PlayerName resources; all other resources must already be present.
+/// Rebuilds the world from a postcard save file. Inserts GameState, GameLog,
+/// PlayerName and Depth resources; all other resources must already be present.
 pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     let bytes = std::fs::read(path)?;
     let save: SaveGame = postcard::from_bytes(&bytes)
@@ -189,6 +192,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(PlayerName {
         what: save.player_name.into_owned(),
     });
+    world.insert_resource(Depth { what: save.depth });
     world.insert_resource(RngSeed(save.rng_seed));
     world.insert_resource(GameRng(save.rng_state));
 
