@@ -1,6 +1,7 @@
 use bevy_ecs::{entity::Entity, world::World};
 
-use crate::{Fighter, Position, Wall};
+use crate::map::Map;
+use crate::{Fighter, Position};
 
 pub fn get_line(start: Position, end: Position) -> Vec<Position> {
     let mut points = Vec::new();
@@ -42,8 +43,9 @@ pub fn get_line(start: Position, end: Position) -> Vec<Position> {
 }
 
 pub fn is_wall_at(world: &mut World, pos: Position) -> bool {
-    let mut query = world.query::<(&Position, &Wall)>();
-    query.iter(world).any(|(p, _)| *p == pos)
+    world
+        .get_resource::<Map>()
+        .map_or(false, |m| m.blocks(pos.x, pos.y))
 }
 
 pub fn get_entities_at_position(world: &mut World, pos: Position) -> Vec<Entity> {

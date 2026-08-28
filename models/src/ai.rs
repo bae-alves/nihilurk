@@ -1,23 +1,15 @@
 use std::collections::HashMap;
 use bevy_ecs::prelude::*;
 use crate::components::*;
+use crate::map::{Map, TileType};
 use std::collections::HashSet;
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum TileType {
-    Room,
-    Passage,
-    Wall,
-    Door,
-}
 
 pub fn ai(
     mut param_set: ParamSet<(
         Query<(Entity, &Position, &Viewshed, &Faction), With<Player>>,     // p0
         Query<(Entity, &Mob, &mut Position, &Faction), Without<Player>>,   // p1
-        Query<(Entity, &Position), With<Wall>>,                            // p2
-        Query<(&Position, Option<&Room>, Option<&Passage>, Option<&Wall>, Option<&Door>), Without<Player>>, // p3
     )>,
+    map: Res<Map>,
     mut attack_queue: ResMut<AttackQueue>,
 ) {
     // 1. Get player info and clone visible_tiles so p0 can be dropped immediately
@@ -35,29 +27,8 @@ pub fn ai(
     };
     let (player_entity, player_pos, visible_tiles, player_faction) = player_data;
 
-    // 2. Build map lookups (walls and tile types)
+    // 2. Build the actor spatial map (terrain comes from the Map resource)
     let mut spatial_map: HashMap<(u16, u16), (Entity, Faction)> = HashMap::new();
-
-    let walls: HashSet<(u16, u16)> = param_set.p2()
-        .iter()
-        .map(|(_, pos)| (pos.x, pos.y))
-        .collect();
-
-    let mut tile_map: HashMap<(u16, u16), TileType> = HashMap::new();
-    for (pos, room, passage, wall, door) in param_set.p3().iter() {
-        let t_type = if room.is_some() {
-            TileType::Room
-        } else if passage.is_some() {
-            TileType::Passage
-        } else if wall.is_some() {
-            TileType::Wall
-        } else if door.is_some() {
-            TileType::Door
-        } else {
-            continue;
-        };
-        tile_map.insert((pos.x, pos.y), t_type);
-    }
 
     // Insert player into spatial map
     spatial_map.insert((player_pos.x, player_pos.y), (player_entity, player_faction));
@@ -116,7 +87,7 @@ pub fn ai(
         }
 
         // Check wall collision
-        if walls.contains(&(new_x, new_y)) {
+        if map.blocks(new_x, new_y) {
             continue;
         }
 
@@ -124,12 +95,12 @@ pub fn ai(
         // [!] ROOM LEASH: Prevent chasing player into corridors
         // ==========================================
         if matches!(mob.movement_type, MovementType::Chase) {
-            let current_tile = tile_map.get(&(mob_pos.x, mob_pos.y)).copied();
-            let target_tile = tile_map.get(&(new_x, new_y)).copied();
-            
+            let current_tile = map.tile(mob_pos.x, mob_pos.y);
+            let target_tile = map.tile(new_x, new_y);
+
             // If the monster is in a Room and tries to step into a Door or Passage, block it!
-            if matches!(current_tile, Some(TileType::Room)) 
-                && matches!(target_tile, Some(TileType::Passage | TileType::Door)) 
+            if current_tile == TileType::Room
+                && matches!(target_tile, TileType::Passage | TileType::Door)
             {
                 continue;
             }

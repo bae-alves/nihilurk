@@ -11,18 +11,6 @@ pub struct Name {
 #[derive(Component)]
 pub struct Player;
 
-#[derive(Component)]
-pub struct Wall;
-
-#[derive(Component)]
-pub struct Passage;
-
-#[derive(Component)]
-pub struct Room;
-
-#[derive(Component)]
-pub struct Door;
-
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     pub x: u16,
@@ -82,11 +70,6 @@ pub struct Hidden;
 #[derive(Resource, Default)]
 pub struct PlayerName {
     pub what: String,
-}
-
-#[derive(Resource, Default)]
-pub struct LastInventoryRect {
-    pub rect: Option<(u16, u16, u16, u16)>,
 }
 
 #[derive(Resource, Default)]

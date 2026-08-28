@@ -33,12 +33,10 @@ fn round_trip() {
     assert!(w2.get::<Wand>(q.single(&w2).items[0]).is_some());
 
     // Map regenerated from the seed matches the original tile-for-tile.
-    let walls = |w: &mut World| -> std::collections::HashSet<(u16, u16)> {
-        w.query_filtered::<&Position, With<Wall>>()
-            .iter(w)
-            .map(|p| (p.x, p.y))
-            .collect()
-    };
-    assert_eq!(walls(&mut w), walls(&mut w2));
-    assert!(!walls(&mut w2).is_empty());
+    assert_eq!(w.resource::<Map>().tiles, w2.resource::<Map>().tiles);
+    assert!(w2
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .any(|&t| t == TileType::Wall));
 }

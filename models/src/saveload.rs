@@ -13,7 +13,7 @@ use rand_chacha::ChaCha12Rng;
 
 /// How many log lines to persist. `GameLog::add` already trims to this, but the
 /// save path clamps too so an oversized in-memory log never bloats the file.
-const LOG_CAP: usize = 50;
+const LOG_CAP: usize = 10;
 
 /// The 16-colour terminal palette, packed to one byte instead of a debug string.
 fn color_to_u8(c: &Color) -> u8 {
@@ -107,22 +107,14 @@ struct SaveGame<'a> {
     rng_state: ChaCha12Rng,
 }
 
-fn is_map_tile(e: &bevy_ecs::world::EntityRef) -> bool {
-    e.contains::<Wall>() || e.contains::<Room>() || e.contains::<Passage>() || e.contains::<Door>()
-}
-
-/// Serializes the world to a compact postcard save file. Map tile entities are
-/// omitted: they are rebuilt from the seed on load (see [`regenerate_map`]).
+/// Serializes the world to a compact postcard save file. The map is not saved:
+/// it is rebuilt from the seed on load (see [`regenerate_map`]).
 ///
 /// The save struct borrows everything it can (names, log lines, item labels)
 /// straight out of the ECS, so no second copy of the world is built in RAM, and
 /// the bytes are streamed to disk through a `BufWriter` rather than buffered.
 pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
-    let mut ents: Vec<Entity> = world
-        .iter_entities()
-        .filter(|e| !is_map_tile(e))
-        .map(|e| e.id())
-        .collect();
+    let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
     let index_map: HashMap<Entity, u32> =
         ents.iter().enumerate().map(|(i, e)| (*e, i as u32)).collect();

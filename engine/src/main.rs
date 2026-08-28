@@ -9,7 +9,7 @@ use crossterm::{
         disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     },
 };
-use std::io::stdout;
+use std::io::{stdout, BufWriter};
 use bevy_ecs::{prelude::World, schedule::Schedule, schedule::IntoSystemConfigs};
 
 // Import our rng seed types
@@ -41,6 +41,7 @@ fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
+    let mut no_save = false;
     let mut player_name = "Roog".to_string();
     let mut positional: Option<String> = None;
     let mut iter = args.iter();
@@ -52,6 +53,8 @@ fn main() -> std::io::Result<()> {
             }
         } else if arg == "-c" {
             centered_mode = true;
+        } else if arg == "-ns" {
+            no_save = true;
         } else {
             positional = Some(arg.clone());
         }
@@ -84,7 +87,10 @@ fn main() -> std::io::Result<()> {
     }));
 
     let guard = TerminalGuard::new()?;
-    let mut stdout = stdout();
+    // Buffer all render output so a frame is one write(2), not thousands.
+    // render() flushes at the end of each frame.
+    let mut stdout = BufWriter::with_capacity(32 * 1024, stdout());
+    let mut screen = view::Screen::new();
     let mut world = World::new();
 
     // 2. Initialize Seeded GameRng
@@ -94,7 +100,6 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(PackIsOpen {open: false, selected: 0 as usize, action_mode: None, action_selected: 0});
     world.insert_resource(RenderConfig { centered: centered_mode });
     world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
-    world.insert_resource(LastInventoryRect {rect: None});
     world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
@@ -120,7 +125,7 @@ fn main() -> std::io::Result<()> {
     // We must run the systems and render once before the loop, 
     // otherwise the screen will be completely black until the first keypress.
     schedule.run(&mut world);
-    view::render(&mut world, &mut stdout)?;
+    view::render(&mut world, &mut stdout, &mut screen)?;
 
     // 4. Main Loop
     while world.resource::<models::GameState>().is_running {
@@ -134,18 +139,23 @@ fn main() -> std::io::Result<()> {
         }
 
         // Step C: Render the world to terminal
-        view::render(&mut world, &mut stdout)?;
+        view::render(&mut world, &mut stdout, &mut screen)?;
     }
     // Save the game on exit, then restore the terminal so the message is visible.
-    let save_name = format!(
-        "{}.sav",
-        world.resource::<PlayerName>().what.to_ascii_lowercase()
-    );
-    let save_result = models::save_game(&mut world, &save_name);
-    drop(guard);
-    match save_result {
-        Ok(()) => println!("Game saved to '{save_name}'. Resume with: roog {save_name}"),
-        Err(e) => eprintln!("Failed to save game: {e}"),
+    if no_save {
+        drop(guard);
+        println!("Game not saved (-ns).");
+    } else {
+        let save_name = format!(
+            "{}.sav",
+            world.resource::<PlayerName>().what.to_ascii_lowercase()
+        );
+        let save_result = models::save_game(&mut world, &save_name);
+        drop(guard);
+        match save_result {
+            Ok(()) => println!("Game saved to '{save_name}'. Resume with: roog {save_name}"),
+            Err(e) => eprintln!("Failed to save game: {e}"),
+        }
     }
 
     Ok(())

@@ -22,12 +22,49 @@ pub struct GameRng(pub ChaCha12Rng);
 #[derive(Resource)]
 pub struct RngSeed(pub u64);
 
-#[derive(PartialEq, Copy, Clone)]
-enum TileType {
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum TileType {
     Wall,
     Room,
     Passage,
     Door,
+}
+
+/// The dungeon terrain for the current floor: one [`TileType`] per coordinate,
+/// row-major (see [`tile_index`]). This is the single source of truth for the
+/// map — terrain is no longer stored as one ECS entity per tile.
+#[derive(Resource, Clone)]
+pub struct Map {
+    pub tiles: Vec<TileType>,
+}
+
+impl Map {
+    /// The tile at `(x, y)`. Out-of-bounds coordinates read as solid [`TileType::Wall`]
+    /// so callers can probe freely without bounds checks.
+    #[inline]
+    pub fn tile(&self, x: u16, y: u16) -> TileType {
+        if x >= MAP_WIDTH || y >= MAP_HEIGHT {
+            TileType::Wall
+        } else {
+            self.tiles[tile_index(x, y)]
+        }
+    }
+
+    /// Whether `(x, y)` blocks movement.
+    #[inline]
+    pub fn blocks(&self, x: u16, y: u16) -> bool {
+        self.tile(x, y) == TileType::Wall
+    }
+}
+
+/// The glyph and lit colour used to draw a terrain tile.
+pub fn tile_appearance(t: TileType) -> (char, Color) {
+    match t {
+        TileType::Room => ('.', Color::Green),
+        TileType::Passage => ('▒', Color::White),
+        TileType::Wall => ('#', Color::DarkYellow),
+        TileType::Door => ('+', Color::Yellow),
+    }
 }
 
 /// Helper function to carve a room into the tiles grid
@@ -244,77 +281,26 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>) {
     (tiles, rooms)
 }
 
-/// Spawns exactly one tile entity per map coordinate for the given layout.
-fn spawn_tile_entities(world: &mut World, tiles: &[TileType]) {
-    for y in 0..MAP_HEIGHT {
-        for x in 0..MAP_WIDTH {
-            let idx = (y * MAP_WIDTH + x) as usize;
-            match tiles[idx] {
-                TileType::Room => {
-                    world.spawn((
-                        Position { x, y },
-                        Renderable {
-                            glyph: '.',
-                            color: Color::Green,
-                        },
-                        Room,
-                    ));
-                }
-                TileType::Passage => {
-                    world.spawn((
-                        Position { x, y },
-                        Renderable {
-                            glyph: '▒',
-                            color: Color::White,
-                        },
-                        Passage,
-                    ));
-                }
-                TileType::Wall => {
-                    world.spawn((
-                        Position { x, y },
-                        Renderable {
-                            glyph: '#',
-                            color: Color::DarkYellow,
-                        },
-                        Wall,
-                    ));
-                }
-                TileType::Door => {
-                    world.spawn((
-                        Position { x, y },
-                        Renderable {
-                            glyph: '+',
-                            color: Color::Yellow,
-                        },
-                        Door,
-                    ));
-                }
-            }
-        }
-    }
-}
-
-/// Generates a fresh map, spawns its tile entities, and returns the player start.
+/// Generates a fresh map, inserts the [`Map`] resource, and returns the player start.
 pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
     let mut game_rng = world.remove_resource::<GameRng>().unwrap();
     let (tiles, rooms) = build_tiles(&mut game_rng.0);
     world.insert_resource(game_rng);
 
-    spawn_tile_entities(world, &tiles);
+    world.insert_resource(Map { tiles });
 
     // Return the center of the very first room so we can spawn the player safely away from doors
     let start_pos = rooms[0].center();
     ((start_pos.0 as u16, start_pos.1 as u16), rooms)
 }
 
-/// Rebuilds the map tile entities deterministically from `seed`, without
-/// touching the live `GameRng` resource or spawning any actors. Used on load,
-/// where the map is reconstructed from the seed rather than the save file.
+/// Rebuilds the [`Map`] resource deterministically from `seed`, without touching
+/// the live `GameRng` resource or spawning any actors. Used on load, where the
+/// map is reconstructed from the seed rather than the save file.
 pub fn regenerate_map(world: &mut World, seed: u64) {
     let mut rng = ChaCha12Rng::seed_from_u64(seed);
     let (tiles, _rooms) = build_tiles(&mut rng);
-    spawn_tile_entities(world, &tiles);
+    world.insert_resource(Map { tiles });
 }
 
 pub fn initialize_world(world: &mut World) {

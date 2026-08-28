@@ -20,13 +20,8 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return false;
     };
     
-    // 2. Check if a Wall exists at the target coordinates
-    let is_wall = world
-        .query_filtered::<&Position, With<Wall>>()
-        .iter(world)
-        .any(|pos| pos.x == new_x && pos.y == new_y);
-
-    if is_wall {
+    // 2. Check if the target tile is a wall
+    if world.resource::<Map>().blocks(new_x, new_y) {
         return false; // Bumped into a wall, turn is NOT consumed
     }
 
