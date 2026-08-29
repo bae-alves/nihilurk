@@ -477,11 +477,13 @@ pub fn initialize_world(world: &mut World) {
             range: 16,
             dirty: true,
         },
+        // Micro-HP design: 20 HP to soak the attrition of back-to-back fights.
+        // Power/Armor are die sizes: attacks roll 1d8, defence rolls 1d4.
         Fighter {
-            hp: 30,
-            max_hp: 30,
-            armor: 2,
-            power: 5,
+            hp: 20,
+            max_hp: 20,
+            armor: 4,
+            power: 8,
         },
         Faction::Player,
         Backpack { items: vec![starting_wand] },

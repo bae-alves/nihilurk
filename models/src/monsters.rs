@@ -4,6 +4,7 @@ use crate::components::*;
 
 #[derive(Bundle)]
 pub struct MonsterBundle {
+    pub name: Name,
     pub mob: Mob,
     pub fighter: Fighter,
     pub glyph: Renderable,
@@ -12,12 +13,16 @@ pub struct MonsterBundle {
 }
 
 impl MonsterBundle {
+    /// Micro-HP design: mobs live on 1-3 HP and survive by winning the armour
+    /// roll, not by having a fat health pool.
     pub fn goblin(position: Position) -> Self {
         Self {
+            name: Name { what: "goblin".to_string() },
             mob: Mob {
                 movement_type: MovementType::Flee,
             },
-            fighter: Fighter { hp: 10, max_hp: 10, power: 2, armor: 1 },
+            // Power/Armor are die sizes: attacks roll 1d4, defence rolls 1d6.
+            fighter: Fighter { hp: 1, max_hp: 1, power: 4, armor: 6 },
             glyph: Renderable { glyph: 'g', color: Color::Green },
             position,
             faction: Faction::Monster,
@@ -26,10 +31,12 @@ impl MonsterBundle {
 
     pub fn orc(position: Position) -> Self {
         Self {
+            name: Name { what: "orc".to_string() },
             mob: Mob {
                 movement_type: MovementType::Chase,
             },
-            fighter: Fighter { hp: 20, max_hp: 20, power: 5, armor: 2 },
+            // Attacks roll 1d6, defence rolls 1d8.
+            fighter: Fighter { hp: 3, max_hp: 3, power: 6, armor: 8 },
             glyph: Renderable { glyph: 'o', color: Color::Red },
             position,
             faction: Faction::Monster,

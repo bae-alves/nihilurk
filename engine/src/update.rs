@@ -75,32 +75,9 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
 }
 
 fn player_attack(world: &mut World, attacker_entity: Entity, target_entity: Entity) {
-    let attacker_power = world
-        .get::<Fighter>(attacker_entity)
-        .map(|f| f.power)
-        .unwrap_or(1);
-
-    let target_armor = world
-        .get::<Fighter>(target_entity)
-        .map(|f| f.armor)
-        .unwrap_or(0);
-
-    let damage = (attacker_power - target_armor).max(0);
-    let mut log = world.resource_mut::<GameLog>();
-    if damage > 0 {
-        log.add(format!("You smack the monster for {} damage!", damage));
-    } else {
-        log.add("You swing wildly and miss!".to_string());
-    }
-    drop(log); // Drop borrow before despawning below
-    if let Some(mut target_fighter) = world.get_mut::<Fighter>(target_entity) {
-        target_fighter.hp -= damage;
-        if target_fighter.hp <= 0 {
-            world.despawn(target_entity);
-            let mut log = world.resource_mut::<GameLog>();
-            log.add("The monster is dead!".to_string());
-        }
-    }
+    // Same opposed-roll resolution the monsters use, including the player's
+    // chip-damage floor and excellent-hit chance.
+    resolve_attack(world, attacker_entity, target_entity);
 }
 
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {

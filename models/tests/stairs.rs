@@ -41,8 +41,8 @@ fn descend_generates_new_floor_and_heals() {
 
     assert_eq!(w.resource::<Depth>().what, 2);
     assert_ne!(w.resource::<Map>().tiles, old_tiles, "a new floor was generated");
-    // Healed 50% of max (30) -> 4 + 15 = 19.
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 19);
+    // Healed 50% of max (20) -> 4 + 10 = 14.
+    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 14);
     // Player is back on an upstairs in the new floor's first room.
     let np = *w.get::<Position>(p).unwrap();
     assert_eq!(w.resource::<Map>().tile(np.x, np.y), TileType::Upstairs);
