@@ -76,7 +76,8 @@ struct EntitySave<'a> {
     /// (range, fog-of-war bitset). `visible_tiles` is never saved: the
     /// visibility system rebuilds it on the first frame after load.
     viewshed: Option<(u16, FixedBitSet)>,
-    fighter: Option<(i32, i32, i32, i32)>,
+    /// (hp, max_hp, armor, power, armor_bonus, power_bonus)
+    fighter: Option<(i32, i32, i32, i32, i32, i32)>,
     faction: Option<Faction>,
     /// Indices into the saved entity list.
     backpack: Option<Vec<u32>>,
@@ -136,7 +137,9 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             viewshed: er
                 .get::<Viewshed>()
                 .map(|v| (v.range, v.revealed_tiles.clone())),
-            fighter: er.get::<Fighter>().map(|f| (f.hp, f.max_hp, f.armor, f.power)),
+            fighter: er
+                .get::<Fighter>()
+                .map(|f| (f.hp, f.max_hp, f.armor, f.power, f.armor_bonus, f.power_bonus)),
             faction: er.get::<Faction>().copied(),
             backpack: er.get::<Backpack>().map(|b| {
                 b.items
@@ -239,12 +242,14 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 dirty: true,
             });
         }
-        if let Some((hp, max_hp, armor, power)) = es.fighter {
+        if let Some((hp, max_hp, armor, power, armor_bonus, power_bonus)) = es.fighter {
             em.insert(Fighter {
                 hp,
                 max_hp,
                 armor,
                 power,
+                armor_bonus,
+                power_bonus,
             });
         }
         if let Some(f) = es.faction {

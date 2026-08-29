@@ -60,8 +60,14 @@ pub enum MovementType {
 pub struct Fighter {
     pub hp: i32,
     pub max_hp: i32,
+    /// Defence die size: the opposed armour roll is `1d[armor] + armor_bonus`.
     pub armor: i32,
+    /// Attack die size: weapon damage rolls `1d[power] + power_bonus`.
     pub power: i32,
+    /// Flat modifier added once to the armour roll (may be negative).
+    pub armor_bonus: i32,
+    /// Flat modifier added once to the damage roll (may be negative).
+    pub power_bonus: i32,
 }
 
 #[derive(Component)]

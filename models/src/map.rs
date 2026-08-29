@@ -316,6 +316,41 @@ pub fn regenerate_map(world: &mut World, seed: u64) {
     world.insert_resource(Map { tiles });
 }
 
+/// Picks a monster bundle appropriate for `depth`. The bestiary is split into
+/// danger tiers; each floor rolls from every tier it has already unlocked, so
+/// early letters keep showing up as fodder while deeper letters get mixed in.
+fn pick_monster(depth: u8, rng: &mut ChaCha12Rng, pos: Position) -> MonsterBundle {
+    type Ctor = fn(Position) -> MonsterBundle;
+
+    const TIERS: [&[Ctor]; 4] = [
+        &[
+            MonsterBundle::bat, MonsterBundle::emu, MonsterBundle::goblin,
+            MonsterBundle::hobgoblin, MonsterBundle::ice_monster, MonsterBundle::kestral,
+            MonsterBundle::orc,
+        ],
+        &[
+            MonsterBundle::aquator, MonsterBundle::centaur, MonsterBundle::leprechaun,
+            MonsterBundle::nymph, MonsterBundle::quagga, MonsterBundle::rattlesnake,
+            MonsterBundle::slime, MonsterBundle::yeti, MonsterBundle::zombie,
+        ],
+        &[
+            MonsterBundle::medusa, MonsterBundle::phantom, MonsterBundle::troll,
+            MonsterBundle::ur_vile, MonsterBundle::venus_flytrap, MonsterBundle::wraith,
+            MonsterBundle::xeroc,
+        ],
+        &[
+            MonsterBundle::dragon, MonsterBundle::griffin, MonsterBundle::jabberwock,
+            MonsterBundle::vampire,
+        ],
+    ];
+
+    // depth 1-2 -> tier 0, 3-4 -> up to tier 1, 5-6 -> tier 2, 7+ -> all tiers.
+    let unlocked = (((depth.max(1) - 1) / 2) as usize + 1).min(TIERS.len());
+    let pool: Vec<Ctor> = TIERS[..unlocked].iter().flat_map(|t| t.iter().copied()).collect();
+    let ctor = pool[rng.gen_range(0..pool.len())];
+    ctor(pos)
+}
+
 /// Spawns the monsters and items for a freshly built floor. The staircases are
 /// carved by [`build_tiles`]. Shared by [`initialize_world`] and [`change_level`].
 fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
@@ -327,6 +362,9 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // The player's tile is already occupied.
     occupied.insert((player_x, player_y));
 
+    // Rough danger tier: deeper floors unlock nastier letters.
+    let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
+
     // Up to 3 monsters.
     for _ in 0..3 {
         for _ in 0..100 {
@@ -334,12 +372,8 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
             let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
 
             if occupied.insert((x, y)) {
-                let monster = if game_rng.0.gen_bool(0.5) {
-                    MonsterBundle::orc(Position { x, y })
-                } else {
-                    MonsterBundle::goblin(Position { x, y })
-                };
-
+                let pos = Position { x, y };
+                let monster = pick_monster(depth, &mut game_rng.0, pos);
                 world.spawn(monster);
                 break;
             }
@@ -474,16 +508,16 @@ pub fn initialize_world(world: &mut World) {
         Viewshed {
             visible_tiles: Vec::new(),
             revealed_tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            range: 16,
+            range: 12,
             dirty: true,
         },
-        // Micro-HP design: 20 HP to soak the attrition of back-to-back fights.
-        // Power/Armor are die sizes: attacks roll 1d8, defence rolls 1d4.
         Fighter {
-            hp: 20,
-            max_hp: 20,
+            hp: 12,
+            max_hp: 12,
             armor: 4,
             power: 8,
+            armor_bonus: 0,
+            power_bonus: 0,
         },
         Faction::Player,
         Backpack { items: vec![starting_wand] },

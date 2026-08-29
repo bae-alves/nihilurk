@@ -8,8 +8,6 @@ use crate::map::GameRng;
 /// Chance for the player to land an "excellent hit" (see [`resolve_attack`]).
 const EXCELLENT_HIT_CHANCE: f64 = 0.15;
 /// An excellent hit rolls extra weapon dice: `1d[Power]` becomes `Nd[Power]`.
-/// 3d8 instead of 1d8 keeps the swing high *and* consistent — a crit you can
-/// rely on, not a bigger gamble.
 const EXCELLENT_HIT_DICE: i32 = 3;
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
@@ -46,8 +44,9 @@ pub fn combat_system(world: &mut World) {
 
 /// Resolves a single opposed-roll attack of `attacker` against `target`.
 ///
-/// Damage is `(1d[Power]) - (1d[Armor])`: the attacker's and defender's roll
-/// totals are computed independently and then subtracted. When the *player* is
+/// Damage is `(1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus)`: the
+/// attacker's and defender's roll totals are computed independently and then
+/// subtracted. When the *player* is
 /// the attacker two extra rules apply:
 ///
 /// * **Excellent hit** — a [`EXCELLENT_HIT_CHANCE`] chance for a clean strike
@@ -62,7 +61,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     }
 
     let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1);
+    let attacker_power_bonus = world.get::<Fighter>(attacker).map(|f| f.power_bonus).unwrap_or(0);
     let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0);
+    let target_armor_bonus = world.get::<Fighter>(target).map(|f| f.armor_bonus).unwrap_or(0);
     let attacker_is_player = world.get::<Player>(attacker).is_some();
 
     // --- Independent opposed rolls -----------------------------------------
@@ -70,8 +71,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         let mut rng = world.resource_mut::<GameRng>();
         let excellent = attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE);
         let dice = if excellent { EXCELLENT_HIT_DICE } else { 1 };
-        let attack_total: i32 = (0..dice).map(|_| roll_die(&mut rng.0, attacker_power)).sum();
-        let armor_roll = roll_die(&mut rng.0, target_armor);
+        let attack_total: i32 =
+            (0..dice).map(|_| roll_die(&mut rng.0, attacker_power)).sum::<i32>() + attacker_power_bonus;
+        let armor_roll = roll_die(&mut rng.0, target_armor) + target_armor_bonus;
         (attack_total, armor_roll, excellent)
     };
 
