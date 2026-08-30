@@ -4,13 +4,14 @@ use models::*;
 
 use crossterm::{
     cursor::{Hide, Show},
+    event::{read, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{
         disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     },
 };
 use std::io::{stdout, BufWriter};
-use bevy_ecs::{prelude::World, schedule::Schedule, schedule::IntoSystemConfigs};
+use bevy_ecs::{prelude::{With, World}, schedule::Schedule, schedule::IntoSystemConfigs};
 
 // Import our rng seed types
 use models::{ChaCha12Rng, SeedableRng};
@@ -58,6 +59,48 @@ fn find_case_insensitive(name: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Blocks until the player presses a key (any key, or a specific one). Ignores
+/// key-release events so a single physical press doesn't skip two screens.
+fn wait_for_key(accept: impl Fn(KeyCode) -> bool) -> std::io::Result<()> {
+    loop {
+        if let Event::Key(key) = read()? {
+            if key.kind == KeyEventKind::Press && accept(key.code) {
+                return Ok(());
+            }
+        }
+    }
+}
+
+/// The death sequence: destroy the save, show the "You die..." `--MORE--` panel,
+/// then the tombstone. Runs while the terminal guard is still active.
+fn run_death_screens<W: std::io::Write>(
+    world: &mut World,
+    stdout: &mut W,
+    screen: &mut view::Screen,
+    save_name: &str,
+) -> std::io::Result<()> {
+    // The save is destroyed before the player is even prompted.
+    let _ = std::fs::remove_file(save_name);
+
+    let offset = view::centering_offset(world);
+    let (name, cause, score) = {
+        let mut q = world.query_filtered::<(&Score,), With<Player>>();
+        let score = q.iter(world).next().map(|(s,)| s.value).unwrap_or(0);
+        (
+            world.resource::<PlayerName>().what.clone(),
+            world.resource::<Ending>().cause.clone(),
+            score,
+        )
+    };
+
+    view::render_you_died(stdout, screen, offset)?;
+    wait_for_key(|c| matches!(c, KeyCode::Char(' ') | KeyCode::Enter))?;
+
+    view::render_tombstone(stdout, screen, offset, &name, &cause, score)?;
+    wait_for_key(|_| true)?;
+    Ok(())
 }
 
 fn main() -> std::io::Result<()> {
@@ -124,6 +167,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
     world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
     world.insert_resource(Depth {what: 1 as u8});
+    world.init_resource::<Ending>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
@@ -150,12 +194,17 @@ fn main() -> std::io::Result<()> {
     schedule.run(&mut world);
     view::render(&mut world, &mut stdout, &mut screen)?;
 
+    let save_name = format!(
+        "{}.sav",
+        world.resource::<PlayerName>().what.to_ascii_lowercase()
+    );
+
     // 4. Main Loop
     while world.resource::<models::GameState>().is_running {
-        
+
         // Step A: Wait for move (Thread pauses here at event::read)
         let turn_taken = update::process_input_and_update(&mut world)?;
-        
+
         // Step B: Only let monsters act if the player took a valid action
         if turn_taken {
             schedule.run(&mut world);
@@ -163,16 +212,26 @@ fn main() -> std::io::Result<()> {
 
         // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout, &mut screen)?;
+
+        // Step D: The player may have just been killed.
+        if world.resource::<Ending>().player_dead {
+            break;
+        }
     }
+
+    if world.resource::<Ending>().player_dead {
+        // Death overrides everything: the save is gone and there is nothing to
+        // write. Show the epitaph, then restore the terminal.
+        run_death_screens(&mut world, &mut stdout, &mut screen, &save_name)?;
+        drop(guard);
+        return Ok(());
+    }
+
     // Save the game on exit, then restore the terminal so the message is visible.
     if no_save {
         drop(guard);
         println!("Game not saved (-ns).");
     } else {
-        let save_name = format!(
-            "{}.sav",
-            world.resource::<PlayerName>().what.to_ascii_lowercase()
-        );
         let save_result = models::save_game(&mut world, &save_name);
         drop(guard);
         match save_result {

@@ -4,6 +4,7 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
 use crate::map::GameRng;
+use crate::state::Ending;
 
 /// Chance for the player to land an "excellent hit" (see [`resolve_attack`]).
 const EXCELLENT_HIT_CHANCE: f64 = 0.15;
@@ -171,6 +172,14 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     drop(log);
 
     if lethal {
-        world.despawn(target);
+        if target_is_player {
+            // The player does not leave the world; the main loop notices the
+            // Ending resource, tears down the save, and shows the death screen.
+            let mut ending = world.resource_mut::<Ending>();
+            ending.player_dead = true;
+            ending.cause = format!("Slain by the {attacker_name}");
+        } else {
+            world.despawn(target);
+        }
     }
 }

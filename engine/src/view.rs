@@ -138,18 +138,14 @@ fn bresenham_line(x0: u16, y0: u16, x1: u16, y1: u16) -> Vec<(u16, u16)> {
     result
 }
 
-pub fn render<W: Write>(
-    world: &mut World,
-    stdout: &mut W,
-    screen: &mut Screen,
-) -> std::io::Result<()> {
-    screen.clear();
-
+/// The top-left offset that keeps the 80x25 frame centred in the real terminal
+/// when `-c` was passed; `(0, 0)` otherwise.
+pub fn centering_offset(world: &World) -> (u16, u16) {
     let is_centered = world
         .get_resource::<RenderConfig>()
         .map(|cfg| cfg.centered)
         .unwrap_or(false);
-    let offset = if is_centered {
+    if is_centered {
         let (term_width, term_height) = size().unwrap_or((SCREEN_W, SCREEN_H));
         (
             term_width.saturating_sub(SCREEN_W) / 2,
@@ -157,7 +153,17 @@ pub fn render<W: Write>(
         )
     } else {
         (0, 0)
-    };
+    }
+}
+
+pub fn render<W: Write>(
+    world: &mut World,
+    stdout: &mut W,
+    screen: &mut Screen,
+) -> std::io::Result<()> {
+    screen.clear();
+
+    let offset = centering_offset(world);
 
     // 1. Player-derived state.
     let (visible, revealed, player_hp, player_max_hp, player_pos, mut pow_die, mut pow_flat, mut arm_die, mut arm_flat, player_score, pack_items) = {
@@ -332,6 +338,77 @@ pub fn render<W: Write>(
         draw_inventory(world, screen);
     }
 
+    screen.flush(stdout, offset)
+}
+
+/// Rough vertical centring helper for the full-screen end panels.
+fn centered_x(text: &str) -> u16 {
+    (SCREEN_W.saturating_sub(text.chars().count() as u16)) / 2
+}
+
+/// The transient "You die..." panel. It is deliberately sparse: a single line
+/// and a `--MORE--` prompt the player must acknowledge before the tombstone.
+pub fn render_you_died<W: Write>(
+    stdout: &mut W,
+    screen: &mut Screen,
+    offset: (u16, u16),
+) -> std::io::Result<()> {
+    screen.clear();
+    let y = SCREEN_H / 2;
+    let msg = "You die...";
+    screen.puts(centered_x(msg), y, msg, Color::Red);
+    let more = "--MORE-- (Press Space)";
+    screen.puts(centered_x(more), y + 2, more, Color::Yellow);
+    screen.dirty_all = true;
+    screen.flush(stdout, offset)
+}
+
+/// The tombstone. Shown once the player has acknowledged the death prompt.
+pub fn render_tombstone<W: Write>(
+    stdout: &mut W,
+    screen: &mut Screen,
+    offset: (u16, u16),
+    player_name: &str,
+    cause: &str,
+    score: i32,
+) -> std::io::Result<()> {
+    screen.clear();
+
+const GRAVESTONE: [&str; 8] = [
+    "       .-'\"\"\"\"\"'-.       ",
+    "     .'           '.     ",
+    "    /     R.I.P.    \\    ",
+    "   |  _            _  |   ",
+    "   | (_)          (_) |   ",
+    "   |    HERE LIES     |   ",
+    "   |       YOU        |   ",
+    "   |__________________|   ",
+];
+
+    let top = 3u16;
+    for (i, line) in GRAVESTONE.iter().enumerate() {
+        screen.puts(centered_x(line), top + i as u16, line, Color::White);
+    }
+
+    let mut y = top + GRAVESTONE.len() as u16 + 2;
+    let epitaph = "DEATH AND THE DUNGEON HAVE TAKEN THEE";
+    screen.puts(centered_x(epitaph), y, epitaph, Color::Red);
+    y += 2;
+
+    let name_line = player_name.to_uppercase();
+    screen.puts(centered_x(&name_line), y, &name_line, Color::Cyan);
+    y += 1;
+    screen.puts(centered_x(cause), y, cause, Color::Grey);
+    y += 2;
+
+    let score_line = format!("SCORE {:06}", score);
+    screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
+    y += 3;
+
+    let prompt = "Press any key to depart.";
+    screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
+
+    screen.dirty_all = true;
     screen.flush(stdout, offset)
 }
 
