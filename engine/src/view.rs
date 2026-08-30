@@ -16,15 +16,17 @@ use models::*;
 pub const SCREEN_W: u16 = 80;
 pub const SCREEN_H: u16 = 25;
 
-const BLANK_CELL: (char, Color) = (' ', Color::Reset);
+/// A screen cell: glyph and foreground colour.
+type Cell = (char, Color);
+const BLANK_CELL: Cell = (' ', Color::Reset);
 
 /// Double-buffered character grid. `render` paints the whole frame into `cur`;
 /// `flush` then emits terminal commands only for the cells that differ from the
 /// previously displayed frame, so a typical turn writes a few dozen cells
 /// instead of repainting all 2000.
 pub struct Screen {
-    cur: Vec<(char, Color)>,
-    prev: Vec<(char, Color)>,
+    cur: Vec<Cell>,
+    prev: Vec<Cell>,
     /// Force a full repaint on the next flush (first frame, or the centering
     /// offset changed and stale cells would otherwise be left behind).
     dirty_all: bool,
@@ -55,8 +57,17 @@ impl Screen {
         }
     }
 
+    /// Sets only the foreground colour of a cell, leaving its glyph untouched.
+    /// Used by the blood overlay to redden a tile in place.
     #[inline]
-    fn get(&self, x: u16, y: u16) -> (char, Color) {
+    fn set_fg(&mut self, x: u16, y: u16, fg: Color) {
+        if x < SCREEN_W && y < SCREEN_H {
+            self.cur[(y * SCREEN_W + x) as usize].1 = fg;
+        }
+    }
+
+    #[inline]
+    fn get(&self, x: u16, y: u16) -> Cell {
         if x < SCREEN_W && y < SCREEN_H {
             self.cur[(y * SCREEN_W + x) as usize]
         } else {
@@ -262,7 +273,13 @@ pub fn render<W: Write>(
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
             let coord = (x, y);
-            let (glyph, lit) = tile_appearance(map.tile(x, y));
+            let tile = map.tile(x, y);
+            // Rogue only draws the walls that frame a room; corridor walls stay
+            // dark so passages look like tunnels, not ditches.
+            if tile == TileType::Wall && !map.is_room_wall(x, y) {
+                continue;
+            }
+            let (glyph, lit) = tile_appearance(tile);
             let (ch, color) = if visible.contains(&coord) {
                 (glyph, lit)
             } else if revealed.contains(tile_index(x, y)) {
@@ -271,6 +288,20 @@ pub fn render<W: Write>(
                 continue; // unexplored: leave blank
             };
             screen.put(x, y + 1, ch, color);
+        }
+    }
+
+    // ---- Blood overlay ----
+    // Bloody tiles are reddened in place by recolouring their glyph, only where
+    // the player can currently see, and never on a tile an actor stands on (the
+    // red marks the floor, not whatever is on it).
+    {
+        let stains = world.resource::<BloodStains>();
+        for &(x, y) in &visible {
+            if !stains.is_bloody(x, y) || occupied_by_actor.contains(&(x, y)) {
+                continue;
+            }
+            screen.set_fg(x, y + 1, Color::DarkRed);
         }
     }
 

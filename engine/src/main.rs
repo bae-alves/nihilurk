@@ -109,6 +109,7 @@ fn main() -> std::io::Result<()> {
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
     let mut no_save = false;
+    let mut no_blood = false;
     let mut player_name = "Roog".to_string();
     let mut positional: Option<String> = None;
     let mut iter = args.iter();
@@ -122,6 +123,8 @@ fn main() -> std::io::Result<()> {
             centered_mode = true;
         } else if arg == "-ns" {
             no_save = true;
+        } else if arg == "-nb" {
+            no_blood = true;
         } else {
             positional = Some(arg.clone());
         }
@@ -178,14 +181,20 @@ fn main() -> std::io::Result<()> {
     } else {
         models::initialize_world(&mut world);
     }
-    
+
+    // `-nb`: disable bloodstains entirely for this run.
+    if no_blood {
+        world.resource_mut::<BloodStains>().enabled = false;
+    }
+
     // 3. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
         ai,
         item_system.after(ai),
         combat_system.after(item_system),
-        visibility_system.after(combat_system),
+        reaper_system.after(combat_system),
+        visibility_system.after(reaper_system),
     ));
 
     // [!] KICKSTART THE ENGINE [!]

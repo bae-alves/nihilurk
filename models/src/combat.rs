@@ -73,6 +73,38 @@ pub fn combat_system(world: &mut World) {
     }
 }
 
+/// Sweeps up anything that has been reduced to 0 HP by a source that doesn't
+/// resolve its own lethality — wand bolts, fire/cold blasts, and any future
+/// indirect damage. Melee kills are still finalised inline by [`resolve_attack`],
+/// so by the time this runs the only casualties left are the indirect ones.
+///
+/// A dead monster is despawned with a plain death line. A dead player does not
+/// leave the world; we just flag the [`Ending`]. Because no attacker entity is
+/// available here, the cause of death is recorded as "Killer unknown".
+pub fn reaper_system(world: &mut World) {
+    let doomed: Vec<Entity> = {
+        let mut q = world.query::<(Entity, &Fighter)>();
+        q.iter(world)
+            .filter(|(_, f)| f.hp <= 0)
+            .map(|(e, _)| e)
+            .collect()
+    };
+
+    for entity in doomed {
+        if world.get::<Player>(entity).is_some() {
+            let mut ending = world.resource_mut::<Ending>();
+            if !ending.player_dead {
+                ending.player_dead = true;
+                ending.cause = "Killer unknown".to_string();
+            }
+        } else {
+            let name = entity_name(world, entity);
+            world.resource_mut::<GameLog>().add(format!("The {name} dies."));
+            world.despawn(entity);
+        }
+    }
+}
+
 /// Resolves a single opposed-roll attack of `attacker` against `target`.
 ///
 /// Damage is `(1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus)`: the
@@ -132,6 +164,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     if let Some(mut fighter) = world.get_mut::<Fighter>(target) {
         fighter.hp -= damage;
         lethal = fighter.hp <= 0;
+    }
+    if damage > 0 {
+        crate::helpers::spill_blood(world, target, damage, glancing);
     }
 
     let mut log = world.resource_mut::<GameLog>();

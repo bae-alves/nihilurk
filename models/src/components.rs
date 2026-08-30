@@ -73,6 +73,12 @@ pub struct Fighter {
 #[derive(Component)]
 pub struct Hidden;
 
+/// Creatures that bleed. When an entity carrying this takes damage, the tile it
+/// is standing on is recorded in [`crate::map::BloodStains`] and rendered with a
+/// red background while it stays in the player's view.
+#[derive(Component)]
+pub struct Blood;
+
 #[derive(Resource, Default)]
 pub struct PlayerName {
     pub what: String,

@@ -191,7 +191,16 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 drop(target_state);
 
                 let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next().unwrap();
-                
+
+                // No shooting yourself in the foot: a bolt aimed at your own
+                // tile is refused and the turn is not consumed.
+                if let Some(pos) = world.get::<Position>(player_entity) {
+                    if pos.x == tx as u16 && pos.y == ty as u16 {
+                        world.resource_mut::<GameLog>().add("You can't target yourself.");
+                        return Ok(false);
+                    }
+                }
+
                 let mut extracted_item = None;
                 let mut original_idx = None;
                 if let Some(mut backpack) = world.get_mut::<Backpack>(player_entity) {

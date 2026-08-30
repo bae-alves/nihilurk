@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use crate::components::*;
-use crate::map::{regenerate_map, GameRng, RngSeed};
+use crate::map::{regenerate_map, BloodStains, GameRng, RngSeed};
 use crate::state::GameState;
 use rand_chacha::ChaCha12Rng;
 
@@ -198,6 +198,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     world.insert_resource(GameState::new());
+    world.insert_resource(BloodStains::new());
     world.insert_resource(GameLog {
         history: save.log_history.into_iter().map(Cow::into_owned).collect(),
         unread: save.log_unread.into_iter().map(Cow::into_owned).collect(),
@@ -274,6 +275,11 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some(m) = es.mob {
             em.insert(Mob { movement_type: m });
+        }
+        // Blood is not serialised: every creature (player and monsters) bleeds,
+        // so it is simply re-attached on load.
+        if es.player || es.mob.is_some() {
+            em.insert(Blood);
         }
         if let Some(it) = es.item {
             em.insert(Item {

@@ -10,6 +10,7 @@ pub struct MonsterBundle {
     pub glyph: Renderable,
     pub position: Position,
     pub faction: Faction,
+    pub blood: Blood,
 }
 
 impl MonsterBundle {
@@ -39,6 +40,7 @@ impl MonsterBundle {
             glyph: Renderable { glyph, color },
             position,
             faction: Faction::Monster,
+            blood: Blood,
         }
     }
 

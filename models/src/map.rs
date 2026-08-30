@@ -56,6 +56,75 @@ impl Map {
     pub fn blocks(&self, x: u16, y: u16) -> bool {
         self.tile(x, y) == TileType::Wall
     }
+
+    /// Whether the wall at `(x, y)` bounds a room (or a doorway into one). Rogue
+    /// only draws these; the loose walls hugging a corridor are left as blank
+    /// space so passages read as tunnels through the dark rather than trenches.
+    pub fn is_room_wall(&self, x: u16, y: u16) -> bool {
+        if self.tile(x, y) != TileType::Wall {
+            return false;
+        }
+        for dy in -1i32..=1 {
+            for dx in -1i32..=1 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+                if nx < 0 || ny < 0 {
+                    continue;
+                }
+                match self.tile(nx as u16, ny as u16) {
+                    TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs => {
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        false
+    }
+}
+
+/// Per-tile record of where a bleeding creature (anything with [`Blood`]) has
+/// been hurt. Purely cosmetic: the renderer paints these tiles with a red
+/// background while they are in the player's viewshed. Rebuilt per floor and not
+/// saved, like the map itself.
+#[derive(Resource)]
+pub struct BloodStains {
+    tiles: FixedBitSet,
+    /// When `false` (the `-nb` flag) no tile is ever stained.
+    pub enabled: bool,
+}
+
+impl BloodStains {
+    pub fn new() -> Self {
+        Self {
+            tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            enabled: true,
+        }
+    }
+
+    /// Marks the tile at `(x, y)` bloody (unless blood is disabled).
+    pub fn stain(&mut self, x: u16, y: u16) {
+        if self.enabled && x < MAP_WIDTH && y < MAP_HEIGHT {
+            self.tiles.insert(tile_index(x, y));
+        }
+    }
+
+    pub fn is_bloody(&self, x: u16, y: u16) -> bool {
+        x < MAP_WIDTH && y < MAP_HEIGHT && self.tiles.contains(tile_index(x, y))
+    }
+
+    pub fn clear(&mut self) {
+        self.tiles.clear();
+    }
+}
+
+impl Default for BloodStains {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// The glyph and lit colour used to draw a terrain tile.
@@ -525,6 +594,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
     let (tiles, rooms) = build_tiles(&mut game_rng.0);
     world.insert_resource(game_rng);
     world.insert_resource(Map { tiles });
+    world.resource_mut::<BloodStains>().clear();
 
     let start = rooms[0].center();
     let start = (start.0 as u16, start.1 as u16);
@@ -561,6 +631,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
 pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
     world.insert_resource(Depth { what: 1 });
+    world.insert_resource(BloodStains::new());
 
     let ((player_x, player_y), rooms) = create_map(world);
 
@@ -594,6 +665,7 @@ pub fn initialize_world(world: &mut World) {
         Faction::Player,
         Backpack { items: vec![starting_wand] },
         Score { value: 0 },
+        Blood,
     ));
 
     populate_level(world, &rooms, (player_x, player_y));

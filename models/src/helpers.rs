@@ -1,7 +1,8 @@
 use bevy_ecs::{entity::Entity, world::World};
+use rand::Rng;
 
-use crate::map::Map;
-use crate::{Fighter, Position};
+use crate::map::{BloodStains, GameRng, Map};
+use crate::{Blood, Fighter, Position};
 
 pub fn get_line(start: Position, end: Position) -> Vec<Position> {
     let mut points = Vec::new();
@@ -58,5 +59,64 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
     if let Some(mut fighter) = world.get_mut::<Fighter>(entity) {
         fighter.hp -= amount;
         // Aqui você também pode checar se a vida chegou a 0 para despawnar a entidade
+    }
+    if amount > 0 {
+        spill_blood(world, entity, amount, false);
+    }
+}
+
+const DIRS: [(i32, i32); 8] = [
+    (-1, -1), (0, -1), (1, -1),
+    (-1, 0),           (1, 0),
+    (-1, 1),  (0, 1),  (1, 1),
+];
+
+/// If `entity` bleeds (has [`Blood`]), stain the tile it is standing on and,
+/// depending on how hard it was hit, splatter blood onto nearby tiles. Purely
+/// cosmetic; call this whenever a creature takes damage.
+///
+/// `damage` is the HP actually lost and `glancing` marks a chip-damage-only hit.
+/// A glancing blow never splatters; otherwise both the number of droplets and
+/// how far they can fly scale with the damage dealt.
+pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: bool) {
+    if world.get::<Blood>(entity).is_none() {
+        return;
+    }
+    let Some(&pos) = world.get::<Position>(entity) else {
+        return;
+    };
+
+    // Bail before touching the RNG stream if blood is switched off.
+    if !world.resource::<BloodStains>().enabled {
+        return;
+    }
+
+    // Droplet count and reach both grow with the wound. A glancing blow only
+    // wets the tile underfoot.
+    let (droplets, max_reach) = if glancing {
+        (0, 0)
+    } else {
+        ((damage / 4).clamp(0, 8), (1 + damage / 8).clamp(1, 4))
+    };
+
+    let splats: Vec<(i32, i32)> = {
+        let mut rng = world.resource_mut::<GameRng>();
+        (0..droplets)
+            .map(|_| {
+                let (dx, dy) = DIRS[rng.0.gen_range(0..DIRS.len())];
+                let reach = rng.0.gen_range(1..=max_reach);
+                (dx * reach, dy * reach)
+            })
+            .collect()
+    };
+
+    let mut stains = world.resource_mut::<BloodStains>();
+    stains.stain(pos.x, pos.y);
+    for (dx, dy) in splats {
+        let sx = pos.x as i32 + dx;
+        let sy = pos.y as i32 + dy;
+        if sx >= 0 && sy >= 0 {
+            stains.stain(sx as u16, sy as u16);
+        }
     }
 }
