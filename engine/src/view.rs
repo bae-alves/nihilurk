@@ -160,20 +160,44 @@ pub fn render<W: Write>(
     };
 
     // 1. Player-derived state.
-    let (visible, revealed, player_hp, player_max_hp, player_pos) = {
-        let mut query = world.query_filtered::<(&Viewshed, &Fighter, &Position), With<Player>>();
-        if let Some((viewshed, fighter, pos)) = query.iter(world).next() {
+    let (visible, revealed, player_hp, player_max_hp, player_pos, mut pow_die, mut pow_flat, mut arm_die, mut arm_flat, player_score, pack_items) = {
+        let mut query = world
+            .query_filtered::<(&Viewshed, &Fighter, &Position, &Score, &Backpack), With<Player>>();
+        if let Some((viewshed, fighter, pos, score, backpack)) = query.iter(world).next() {
             (
                 viewshed.visible_tiles.iter().copied().collect::<HashSet<_>>(),
                 viewshed.revealed_tiles.clone(),
                 fighter.hp,
                 fighter.max_hp,
                 (pos.x, pos.y),
+                fighter.power,
+                fighter.power_bonus,
+                fighter.armor,
+                fighter.armor_bonus,
+                score.value,
+                backpack.items.clone(),
             )
         } else {
-            (HashSet::new(), Default::default(), 10, 10, (0, 0))
+            (HashSet::new(), Default::default(), 10, 10, (0, 0), 1, 0, 0, 0, 0, Vec::new())
         }
     };
+
+    // Fold equipped weapon / armour into the displayed Pow. / Arm. figures.
+    for &it in &pack_items {
+        if let Some(w) = world.get::<Wield>(it) {
+            if w.wielder.is_some() {
+                pow_die += w.pow_increase as i32;
+                pow_flat += w.pow_bonus as i32;
+            }
+        }
+        if let Some(w) = world.get::<Wear>(it) {
+            if w.wearer.is_some() {
+                arm_die += w.arm_increase as i32;
+                arm_flat += w.arm_bonus as i32;
+            }
+        }
+    }
+    let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
 
     // 2. Targeting beam.
     let targeting = world.resource::<TargetingState>();
@@ -199,13 +223,33 @@ pub fn render<W: Write>(
 
     let player_name = world.resource::<PlayerName>().what.clone();
 
-    // ---- Status line ----
-    screen.puts(
-        0,
-        0,
-        &format!(" {} | Hits: {} / {} ", player_name, player_hp, player_max_hp),
-        Color::Cyan,
-    );
+    // ---- Top HUD ----
+    {
+        let stat = |die: i32, flat: i32| {
+            if flat != 0 {
+                format!("{die}+{flat}")
+            } else {
+                format!("{die}")
+            }
+        };
+        let fields = [
+            player_name.to_uppercase(),
+            format!("HP {}/{}", player_hp, player_max_hp),
+            format!("Pow. {}", stat(pow_die, pow_flat)),
+            format!("Arm. {}", stat(arm_die, arm_flat)),
+            format!("DEPTH {}", depth),
+            format!("SCORE {:06}", player_score),
+        ];
+        let mut hx: u16 = 1;
+        for (i, field) in fields.iter().enumerate() {
+            if i > 0 {
+                screen.puts(hx, 0, " · ", Color::DarkGrey);
+                hx += 3;
+            }
+            screen.puts(hx, 0, field, Color::Cyan);
+            hx += field.chars().count() as u16;
+        }
+    }
 
     // ---- Terrain ----
     let map = world.resource::<Map>().clone();
@@ -266,17 +310,19 @@ pub fn render<W: Write>(
     }
 
     // ---- Message log (rows 22..=24) ----
+    // Messages are packed onto shared lines and only wrap when the next one
+    // would overflow; a message is never split across the wrap.
     {
         let log = world.resource::<GameLog>();
-        let unread_len = log.unread.len();
-        let count = unread_len.min(3);
-        for i in 0..count {
+        let (lines, _consumed, more) = log_view(&log.unread);
+        for (i, line) in lines.iter().enumerate() {
             let y = 22 + i as u16;
-            if i == 2 && unread_len > 3 {
-                let line = format!("{:<57} --MORE-- (Press Space)", log.unread[2]);
-                screen.puts(0, y, &line, Color::Yellow);
+            let last = i + 1 == lines.len();
+            if last && more {
+                screen.puts(0, y, line, Color::White);
+                screen.puts(57, y, "--MORE-- (Press Space)", Color::Yellow);
             } else {
-                screen.puts(0, y, &log.unread[i], Color::White);
+                screen.puts(0, y, line, Color::White);
             }
         }
     }

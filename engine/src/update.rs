@@ -87,15 +87,19 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     if let Event::Key(key) = event {
         if key.kind != KeyEventKind::Press { return Ok(false); }
         
-        // 1. Handle logs first
+        // 1. Handle logs first: while a --MORE-- prompt is up, the only input
+        //    accepted is the acknowledgement, which drops the messages already
+        //    shown and lets the rest flow up on the next frame.
         {
-            let mut log = world.resource_mut::<GameLog>();
-            if log.unread.len() > 3 {
+            let (_lines, shown, more) = {
+                let log = world.resource::<GameLog>();
+                log_view(&log.unread)
+            };
+            if more {
                 if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
-                    let to_remove = log.unread.len().min(3);
-                    log.unread.drain(0..to_remove);
+                    world.resource_mut::<GameLog>().unread.drain(0..shown);
                 }
-                return Ok(false); 
+                return Ok(false);
             }
         }
 
