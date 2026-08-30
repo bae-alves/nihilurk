@@ -4,6 +4,7 @@ use crate::{components::*, helpers::{apply_damage, get_entities_at_position, get
 
 #[derive(Bundle)]
 pub struct ItemBundle {
+    pub name: Name,
     pub glyph: Renderable,
     pub position: Position,
     pub value: Value,
@@ -13,24 +14,27 @@ pub struct ItemBundle {
 impl ItemBundle {
     pub fn gold_coin(position: Position) -> Self {
         Self {
+            name: Name { what: String::from("Gold coin") },
             glyph: Renderable { glyph: '$', color: Color::Yellow },
             position,
             value: Value { amount: 1000 },
-            item: Item {name : String::from("Gold coin")},
+            item: Item,
         }
     }
 
     pub fn silver_coin(position: Position) -> Self {
         Self {
+            name: Name { what: String::from("Silver coin") },
             glyph: Renderable { glyph: '$', color: Color::Grey },
             position,
             value: Value { amount: 100 },
-            item: Item {name : String::from("Silver coin")},
+            item: Item,
         }
     }
 }
 #[derive(Bundle)]
 pub struct PotionBundle {
+    pub name: Name,
     pub glyph: Renderable,
     pub position: Position,
     pub item: Item,
@@ -42,9 +46,10 @@ impl PotionBundle {
     /// Potions draw as `!` and are quaffed once, then gone.
     fn new(name: &str, color: Color, effect: PotionEffect, position: Position) -> Self {
         Self {
+            name: Name { what: name.to_string() },
             glyph: Renderable { glyph: '!', color },
             position,
-            item: Item { name: name.to_string() },
+            item: Item,
             potion: Potion { effect },
             consume: Consume,
         }
@@ -108,6 +113,7 @@ fn apply_potion_effect(world: &mut World, user: Entity, effect: PotionEffect) {
 
 #[derive(Bundle)]
 pub struct WandBundle {
+    pub name: Name,
     pub glyph: Renderable,
     pub position: Position,
     pub item: Item,
@@ -121,9 +127,10 @@ impl WandBundle {
     /// `charges` the battery.
     fn new(name: &str, color: Color, effect: WandEffect, range: i32, charges: i8, position: Position) -> Self {
         Self {
+            name: Name { what: name.to_string() },
             glyph: Renderable { glyph: '/', color },
             position,
-            item: Item { name: name.to_string() },
+            item: Item,
             wand: Wand { effect },
             ranged: Ranged { range },
             battery: Battery { charges },
@@ -258,6 +265,7 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
 
 #[derive(Bundle)]
 pub struct WeaponsBundle {
+    pub name: Name,
     pub glyph: Renderable,
     pub position: Position,
     pub item: Item,
@@ -270,9 +278,10 @@ impl WeaponsBundle {
     /// style, tinted by material.
     fn new(name: &str, color: Color, power_increase: i8, position: Position) -> Self {
         Self {
+            name: Name { what: name.to_string() },
             glyph: Renderable { glyph: ')', color },
             position,
-            item: Item { name: name.to_string() },
+            item: Item,
             wield: Wield { wielder: None, pow_increase: power_increase, pow_bonus: 0 },
         }
     }
@@ -300,6 +309,7 @@ impl WeaponsBundle {
 
 #[derive(Bundle)]
 pub struct ArmorBundle {
+    pub name: Name,
     pub glyph: Renderable,
     pub position: Position,
     pub item: Item,
@@ -311,9 +321,10 @@ impl ArmorBundle {
     /// via [`Wear::arm_increase`]. Armor draws as `]` in the classic Rogue style.
     fn new(name: &str, color: Color, armor_increase: i8, position: Position) -> Self {
         Self {
+            name: Name { what: name.to_string() },
             glyph: Renderable { glyph: ']', color },
             position,
-            item: Item { name: name.to_string() },
+            item: Item,
             wear: Wear { wearer: None, arm_increase: armor_increase, arm_bonus: 0 },
         }
     }
@@ -361,6 +372,7 @@ impl ArmorBundle {
 
 #[derive(Bundle)]
 pub struct ScrollBundle {
+    pub name: Name,
     pub glyph: Renderable,
     pub position: Position,
     pub item: Item,
@@ -372,9 +384,10 @@ impl ScrollBundle {
     /// Scrolls draw as `?` and are read once, then crumble.
     fn new(name: &str, effect: ScrollEffect, position: Position) -> Self {
         Self {
+            name: Name { what: name.to_string() },
             glyph: Renderable { glyph: '?', color: Color::White },
             position,
-            item: Item { name: name.to_string() },
+            item: Item,
             scroll: Scroll { effect },
             consume: Consume,
         }
@@ -429,6 +442,7 @@ impl ScrollBundle {
 
 #[derive(Bundle)]
 pub struct RingBundle {
+    pub name: Name,
     pub glyph: Renderable,
     pub position: Position,
     pub item: Item,
@@ -455,9 +469,10 @@ impl RingBundle {
             RingEffect::MaintainArmor => "Ring of Maintain Armor",
         };
         Self {
+            name: Name { what: name.to_string() },
             glyph: Renderable { glyph: '=', color: Color::Yellow },
             position,
-            item: Item { name: name.to_string() },
+            item: Item,
             puton: PutOn { bearer: None, effect },
         }
     }
@@ -465,7 +480,7 @@ impl RingBundle {
 
 /// An item's display name, or a vague fallback.
 fn item_label(world: &World, item: Entity) -> String {
-    world.get::<Item>(item).map(|i| i.name.clone()).unwrap_or_else(|| "item".to_string())
+    world.get::<Name>(item).map(|n| n.what.clone()).unwrap_or_else(|| "item".to_string())
 }
 
 /// Toggles `item` as `user`'s wielded weapon. Equipping first unequips whatever

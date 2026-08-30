@@ -15,7 +15,14 @@ pub fn visibility_system(
     // the map for the player.
     mut viewshed_query: Query<(&mut Viewshed, &Position), With<Player>>,
 
-    mob_query: Query<(Entity, &Position), With<Mob>>,
+    // Everything the player can "spot": monsters and floor items. `Option`s let
+    // one query cover both kinds and track the per-entity spotted state.
+    spot_query: Query<
+        (Entity, &Position, Option<&Mob>, Option<&Name>, Option<&Spotted>),
+        Or<(With<Mob>, With<Item>)>,
+    >,
+
+    mut log: ResMut<GameLog>,
 
     map: Res<Map>,
 ) {
@@ -87,12 +94,26 @@ pub fn visibility_system(
             }
         }
 
-        // Hide or reveal monsters based on the fresh visibility set.
-        for (entity, mob_pos) in mob_query.iter() {
-            if visible_set.contains(&(mob_pos.x, mob_pos.y)) {
-                commands.entity(entity).remove::<Hidden>();
-            } else {
-                commands.entity(entity).insert(Hidden);
+        // Hide/reveal monsters and announce anything freshly in view.
+        for (entity, target_pos, mob, name, spotted) in spot_query.iter() {
+            let in_view = visible_set.contains(&(target_pos.x, target_pos.y));
+
+            if mob.is_some() {
+                if in_view {
+                    commands.entity(entity).remove::<Hidden>();
+                } else {
+                    commands.entity(entity).insert(Hidden);
+                }
+            }
+
+            if in_view && spotted.is_none() {
+                match name {
+                    Some(name) => log.add(format!("you spotted {} {}", name.article(), name.what)),
+                    None => log.add("you spotted something"),
+                }
+                commands.entity(entity).insert(Spotted);
+            } else if !in_view && spotted.is_some() {
+                commands.entity(entity).remove::<Spotted>();
             }
         }
 

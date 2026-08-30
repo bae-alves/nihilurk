@@ -83,8 +83,8 @@ struct EntitySave<'a> {
     backpack: Option<Vec<u32>>,
     score: Option<i32>,
     mob: Option<MovementType>,
-    #[serde(borrow)]
-    item: Option<Cow<'a, str>>,
+    /// Marker only — the display name rides along in [`EntitySave::name`].
+    item: bool,
     value: Option<i32>,
     potion: Option<PotionEffect>,
     battery: Option<i8>,
@@ -155,7 +155,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             }),
             score: er.get::<Score>().map(|s| s.value),
             mob: er.get::<Mob>().map(|m| m.movement_type),
-            item: er.get::<Item>().map(|it| Cow::Borrowed(it.name.as_str())),
+            item: er.contains::<Item>(),
             value: er.get::<Value>().map(|v| v.amount),
             potion: er.get::<Potion>().map(|p| p.effect),
             battery: er.get::<Battery>().map(|b| b.charges),
@@ -281,10 +281,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.player || es.mob.is_some() {
             em.insert(Blood);
         }
-        if let Some(it) = es.item {
-            em.insert(Item {
-                name: it.into_owned(),
-            });
+        if es.item {
+            em.insert(Item);
         }
         if let Some(v) = es.value {
             em.insert(Value { amount: v });

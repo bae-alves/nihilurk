@@ -461,7 +461,7 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
         entities
             .iter()
             .map(|&e| {
-                let name = world.get::<Item>(e).map(|it| it.name.clone()).unwrap_or_default();
+                let name = world.get::<Name>(e).map(|n| n.what.clone()).unwrap_or_default();
                 let equipped = world.get::<Wield>(e).is_some_and(|w| w.wielder.is_some())
                     || world.get::<Wear>(e).is_some_and(|w| w.wearer.is_some());
                 (name, equipped)

@@ -8,6 +8,18 @@ pub struct Name {
     pub what: String
 }
 
+impl Name {
+    /// The indefinite article that reads correctly before this name:
+    /// `"an"` before a vowel sound, `"a"` otherwise. Good enough for the
+    /// bestiary and item list (no "an hour" / "a unicorn" edge cases here).
+    pub fn article(&self) -> &'static str {
+        match self.what.chars().next() {
+            Some(c) if matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u') => "an",
+            _ => "a",
+        }
+    }
+}
+
 #[derive(Component)]
 pub struct Player;
 
@@ -72,6 +84,12 @@ pub struct Fighter {
 
 #[derive(Component)]
 pub struct Hidden;
+
+/// Present while an entity is currently inside the player's viewshed. Added the
+/// turn it first enters view (logging "you spotted ..."), removed the turn it
+/// leaves, so re-entering view spots it again. Transient, never serialised.
+#[derive(Component)]
+pub struct Spotted;
 
 /// Creatures that bleed. When an entity carrying this takes damage, the tile it
 /// is standing on is recorded in [`crate::map::BloodStains`] and rendered with a
@@ -240,10 +258,10 @@ pub struct Value {
     pub amount: i32,
 }
 
+/// Marker for anything that can sit on the floor and be picked up. The display
+/// name lives on the [`Name`] component, same as monsters.
 #[derive(Component)]
-pub struct Item {
-    pub name: String,
-}
+pub struct Item;
 
 #[derive(Component)]
 pub struct Consume;
