@@ -103,12 +103,13 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         if picked_up {
             world.entity_mut(item_entity).remove::<Position>();
             let is_element = world.get::<Amulet>(item_entity).is_some();
-            let mut log = world.resource_mut::<GameLog>();
-            log.add(if is_element {
-                "You take the Element of Yoord. \"The element of Yoord seeks the sun.\""
+            let msg = if is_element {
+                "You take the Element of Yoord. \"The element of Yoord seeks the sun.\"".to_string()
             } else {
-                "You pick up an item!"
-            });
+                let name = models::display_name(world, item_entity);
+                format!("You pick up {} {name}.", models::article_for(&name))
+            };
+            world.resource_mut::<GameLog>().add(msg);
         }
     }
 

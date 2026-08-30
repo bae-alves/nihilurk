@@ -12,6 +12,7 @@ use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
 use crate::monsters::MonsterBundle;
+use crate::identify::{Identified, ItemAppearances};
 
 #[derive(Resource)]
 pub struct GameRng(pub ChaCha12Rng);
@@ -839,6 +840,14 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
     world.insert_resource(Depth { what: 1 });
     world.insert_resource(BloodStains::new());
+    world.insert_resource(Identified::default());
+    // This run's cosmetic appearance for every unidentified item type. Drawn
+    // from a separate RNG keyed off the same seed (so a given seed always
+    // shuffles the same way) rather than the shared `GameRng` stream, so
+    // adding new appearance pools here never perturbs dungeon/loot rolls.
+    let seed = world.resource::<RngSeed>().0;
+    let mut appearance_rng = ChaCha12Rng::seed_from_u64(seed ^ 0x1DEA_5117_FEED_u64);
+    world.insert_resource(ItemAppearances::generate(&mut appearance_rng));
 
     let ((player_x, player_y), rooms) = create_map(world);
 

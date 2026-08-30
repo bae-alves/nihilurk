@@ -177,7 +177,7 @@ pub struct PutOn {
     pub effect: RingEffect,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RingEffect {
     Protection,
     AddStrength,
@@ -200,7 +200,7 @@ pub struct Scroll {
     pub effect: ScrollEffect,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScrollEffect {
     MonsterConfusion,
     MagicMapping,
@@ -291,7 +291,7 @@ pub struct Potion {
     pub effect: PotionEffect,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PotionEffect {
     Blindness,
     Confusion,
@@ -315,7 +315,7 @@ pub struct Wand {
     pub effect: WandEffect,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WandEffect {
     Light,
     Striking,

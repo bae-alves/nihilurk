@@ -1,6 +1,8 @@
 use bevy_ecs::{entity::Entity, prelude::Bundle, world::World};
 use crossterm::style::Color;
-use crate::{components::*, map::Map, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
+use rand::Rng;
+use crate::{components::*, map::{GameRng, Map}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
+use crate::identify::Identified;
 
 #[derive(Bundle)]
 pub struct ItemBundle {
@@ -14,7 +16,7 @@ pub struct ItemBundle {
 impl ItemBundle {
     pub fn gold_coin(position: Position) -> Self {
         Self {
-            name: Name { what: String::from("Gold coin") },
+            name: Name { what: String::from("gold coin") },
             glyph: Renderable { glyph: '$', color: Color::Yellow },
             position,
             value: Value { amount: 1000 },
@@ -24,7 +26,7 @@ impl ItemBundle {
 
     pub fn silver_coin(position: Position) -> Self {
         Self {
-            name: Name { what: String::from("Silver coin") },
+            name: Name { what: String::from("silver coin") },
             glyph: Renderable { glyph: '$', color: Color::Grey },
             position,
             value: Value { amount: 100 },
@@ -49,7 +51,7 @@ pub struct AmuletBundle {
 impl AmuletBundle {
     pub fn element_of_yoord(position: Position) -> Self {
         Self {
-            name: Name { what: String::from("the Element of Yoord") },
+            name: Name { what: String::from("The Element of Yoord") },
             glyph: Renderable { glyph: '&', color: Color::Yellow },
             position,
             value: Value { amount: 25000 },
@@ -82,46 +84,46 @@ impl PotionBundle {
     }
 
     pub fn confusion(position: Position) -> Self {
-        Self::new("Potion of Confusion", Color::Magenta, PotionEffect::Confusion, position)
+        Self::new("potion of confusion", Color::Magenta, PotionEffect::Confusion, position)
     }
     pub fn paralysis(position: Position) -> Self {
-        Self::new("Potion of Paralysis", Color::DarkGrey, PotionEffect::Paralysis, position)
+        Self::new("potion of paralysis", Color::DarkGrey, PotionEffect::Paralysis, position)
     }
     pub fn poison(position: Position) -> Self {
-        Self::new("Potion of Poison", Color::Green, PotionEffect::Poison, position)
+        Self::new("potion of poison", Color::Green, PotionEffect::Poison, position)
     }
     pub fn gain_strength(position: Position) -> Self {
-        Self::new("Potion of Gain Strength", Color::Red, PotionEffect::GainStrength, position)
+        Self::new("potion of gain strength", Color::Red, PotionEffect::GainStrength, position)
     }
     pub fn see_invisible(position: Position) -> Self {
-        Self::new("Potion of See Invisible", Color::Cyan, PotionEffect::SeeInvisible, position)
+        Self::new("potion of see invisible", Color::Cyan, PotionEffect::SeeInvisible, position)
     }
     pub fn healing(position: Position) -> Self {
-        Self::new("Potion of Healing", Color::Red, PotionEffect::Healing, position)
+        Self::new("potion of healing", Color::Red, PotionEffect::Healing, position)
     }
     pub fn monster_detection(position: Position) -> Self {
-        Self::new("Potion of Monster Detection", Color::Yellow, PotionEffect::MonsterDetection, position)
+        Self::new("potion of monster detection", Color::Yellow, PotionEffect::MonsterDetection, position)
     }
     pub fn magic_detection(position: Position) -> Self {
-        Self::new("Potion of Magic Detection", Color::Yellow, PotionEffect::MagicDetection, position)
+        Self::new("potion of magic detection", Color::Yellow, PotionEffect::MagicDetection, position)
     }
     pub fn raise_level(position: Position) -> Self {
-        Self::new("Potion of Raise Level", Color::White, PotionEffect::RaiseLevel, position)
+        Self::new("potion of raise level", Color::White, PotionEffect::RaiseLevel, position)
     }
     pub fn extra_healing(position: Position) -> Self {
-        Self::new("Potion of Extra Healing", Color::Red, PotionEffect::ExtraHealing, position)
+        Self::new("potion of extra healing", Color::Red, PotionEffect::ExtraHealing, position)
     }
     pub fn haste_self(position: Position) -> Self {
-        Self::new("Potion of Haste Self", Color::DarkYellow, PotionEffect::Haste, position)
+        Self::new("potion of haste self", Color::DarkYellow, PotionEffect::Haste, position)
     }
     pub fn restore_strength(position: Position) -> Self {
-        Self::new("Potion of Restore Strength", Color::Red, PotionEffect::RestoreStrength, position)
+        Self::new("potion of restore strength", Color::Red, PotionEffect::RestoreStrength, position)
     }
     pub fn blindness(position: Position) -> Self {
-        Self::new("Potion of Blindness", Color::DarkGrey, PotionEffect::Blindness, position)
+        Self::new("potion of blindness", Color::DarkGrey, PotionEffect::Blindness, position)
     }
     pub fn thirst_quenching(position: Position) -> Self {
-        Self::new("Potion of Thirst Quenching", Color::Blue, PotionEffect::Water, position)
+        Self::new("potion of thirst quenching", Color::Blue, PotionEffect::Water, position)
     }
 }
 
@@ -164,46 +166,46 @@ impl WandBundle {
     }
 
     pub fn light(position: Position) -> Self {
-        Self::new("Wand of Light", Color::Yellow, WandEffect::Light, 8, 5, position)
+        Self::new("wand of light", Color::Yellow, WandEffect::Light, 8, 5, position)
     }
     pub fn striking(position: Position) -> Self {
-        Self::new("Wand of Striking", Color::White, WandEffect::Striking, 6, 4, position)
+        Self::new("wand of striking", Color::White, WandEffect::Striking, 6, 4, position)
     }
     pub fn lightning(position: Position) -> Self {
-        Self::new("Wand of Lightning", Color::Cyan, WandEffect::Lightning, 8, 3, position)
+        Self::new("wand of lightning", Color::Cyan, WandEffect::Lightning, 8, 3, position)
     }
     pub fn fire(position: Position) -> Self {
-        Self::new("Wand of Fire", Color::Red, WandEffect::Fire, 8, 3, position)
+        Self::new("wand of fire", Color::Red, WandEffect::Fire, 8, 3, position)
     }
     pub fn cold(position: Position) -> Self {
-        Self::new("Wand of Cold", Color::Blue, WandEffect::Cold, 8, 3, position)
+        Self::new("wand of cold", Color::Blue, WandEffect::Cold, 8, 3, position)
     }
     pub fn polymorph(position: Position) -> Self {
-        Self::new("Wand of Polymorph", Color::Magenta, WandEffect::Polymorph, 6, 5, position)
+        Self::new("wand of polymorph", Color::Magenta, WandEffect::Polymorph, 6, 5, position)
     }
     pub fn magic_missile(position: Position) -> Self {
-        Self::new("Wand of Magic Missile", Color::Cyan, WandEffect::MagicMissile, 6, 5, position)
+        Self::new("wand of magic missile", Color::Cyan, WandEffect::MagicMissile, 6, 5, position)
     }
     pub fn haste_monster(position: Position) -> Self {
-        Self::new("Wand of Haste Monster", Color::DarkYellow, WandEffect::HasteMonster, 6, 4, position)
+        Self::new("wand of haste monster", Color::DarkYellow, WandEffect::HasteMonster, 6, 4, position)
     }
     pub fn slow_monster(position: Position) -> Self {
-        Self::new("Wand of Slow Monster", Color::DarkCyan, WandEffect::SlowMonster, 6, 5, position)
+        Self::new("wand of slow monster", Color::DarkCyan, WandEffect::SlowMonster, 6, 5, position)
     }
     pub fn drain_life(position: Position) -> Self {
-        Self::new("Wand of Drain Life", Color::DarkRed, WandEffect::DrainLife, 6, 3, position)
+        Self::new("wand of drain life", Color::DarkRed, WandEffect::DrainLife, 6, 3, position)
     }
     pub fn nothing(position: Position) -> Self {
-        Self::new("Wand of Nothing", Color::DarkGrey, WandEffect::Nothing, 6, 3, position)
+        Self::new("wand of nothing", Color::DarkGrey, WandEffect::Nothing, 6, 3, position)
     }
     pub fn teleport_away(position: Position) -> Self {
-        Self::new("Wand of Teleport Away", Color::Green, WandEffect::TeleportAway, 8, 4, position)
+        Self::new("wand of teleport away", Color::Green, WandEffect::TeleportAway, 8, 4, position)
     }
     pub fn teleport_to(position: Position) -> Self {
-        Self::new("Wand of Teleport To", Color::Green, WandEffect::TeleportTo, 8, 4, position)
+        Self::new("wand of teleport to", Color::Green, WandEffect::TeleportTo, 8, 4, position)
     }
     pub fn cancellation(position: Position) -> Self {
-        Self::new("Wand of Cancellation", Color::DarkMagenta, WandEffect::Cancellation, 6, 5, position)
+        Self::new("wand of cancellation", Color::DarkMagenta, WandEffect::Cancellation, 6, 5, position)
     }
 }
 
@@ -356,22 +358,22 @@ impl WeaponsBundle {
 
     /// Dagger — WC 1, power increase 4.
     pub fn dagger(position: Position) -> Self {
-        Self::new("Dagger", Color::Grey, 4, position)
+        Self::new("dagger", Color::Grey, 4, position)
     }
 
     /// Mace — WC 2, power increase 6.
     pub fn mace(position: Position) -> Self {
-        Self::new("Mace", Color::DarkGrey, 6, position)
+        Self::new("mace", Color::DarkGrey, 6, position)
     }
 
     /// Long Sword — WC 3, power increase 8.
     pub fn long_sword(position: Position) -> Self {
-        Self::new("Long Sword", Color::White, 8, position)
+        Self::new("long sword", Color::White, 8, position)
     }
 
     /// Two-Handed Sword — WC 4, power increase 10.
     pub fn two_handed_sword(position: Position) -> Self {
-        Self::new("Two-Handed Sword", Color::Cyan, 10, position)
+        Self::new("two-handed sword", Color::Cyan, 10, position)
     }
 }
 
@@ -399,42 +401,42 @@ impl ArmorBundle {
 
     /// Leather armor — armor increase 2.
     pub fn leather_armor(position: Position) -> Self {
-        Self::new("Leather Armor", Color::DarkYellow, 2, position)
+        Self::new("leather armor", Color::DarkYellow, 2, position)
     }
 
     /// Ring mail — armor increase 3.
     pub fn ring_mail(position: Position) -> Self {
-        Self::new("Ring Mail", Color::Grey, 3, position)
+        Self::new("ring mail", Color::Grey, 3, position)
     }
 
     /// Studded leather armor — armor increase 4.
     pub fn studded_leather_armor(position: Position) -> Self {
-        Self::new("Studded Leather Armor", Color::DarkYellow, 4, position)
+        Self::new("studded leather armor", Color::DarkYellow, 4, position)
     }
 
     /// Scale mail — armor increase 5.
     pub fn scale_mail(position: Position) -> Self {
-        Self::new("Scale Mail", Color::Grey, 5, position)
+        Self::new("scale mail", Color::Grey, 5, position)
     }
 
     /// Chain mail — armor increase 6.
     pub fn chain_mail(position: Position) -> Self {
-        Self::new("Chain Mail", Color::Grey, 6, position)
+        Self::new("chain mail", Color::Grey, 6, position)
     }
 
     /// Splint mail — armor increase 7.
     pub fn splint_mail(position: Position) -> Self {
-        Self::new("Splint Mail", Color::White, 7, position)
+        Self::new("splint mail", Color::White, 7, position)
     }
 
     /// Banded mail — armor increase 8.
     pub fn banded_mail(position: Position) -> Self {
-        Self::new("Banded Mail", Color::White, 8, position)
+        Self::new("banded mail", Color::White, 8, position)
     }
 
     /// Plate mail — armor increase 9.
     pub fn plate_mail(position: Position) -> Self {
-        Self::new("Plate Mail", Color::Cyan, 9, position)
+        Self::new("plate mail", Color::Cyan, 9, position)
     }
 }
 
@@ -462,49 +464,49 @@ impl ScrollBundle {
     }
 
     pub fn monster_confusion(position: Position) -> Self {
-        Self::new("Scroll of Monster Confusion", ScrollEffect::MonsterConfusion, position)
+        Self::new("scroll of monster confusion", ScrollEffect::MonsterConfusion, position)
     }
     pub fn magic_mapping(position: Position) -> Self {
-        Self::new("Scroll of Magic Mapping", ScrollEffect::MagicMapping, position)
+        Self::new("scroll of magic mapping", ScrollEffect::MagicMapping, position)
     }
     pub fn hold_monster(position: Position) -> Self {
-        Self::new("Scroll of Hold Monster", ScrollEffect::HoldMonster, position)
+        Self::new("scroll of hold monster", ScrollEffect::HoldMonster, position)
     }
     pub fn sleep(position: Position) -> Self {
-        Self::new("Scroll of Sleep", ScrollEffect::Sleep, position)
+        Self::new("scroll of sleep", ScrollEffect::Sleep, position)
     }
     pub fn enchant_armor(position: Position) -> Self {
-        Self::new("Scroll of Enchant Armor", ScrollEffect::EnchantArmor, position)
+        Self::new("scroll of enchant armor", ScrollEffect::EnchantArmor, position)
     }
     pub fn identify(position: Position) -> Self {
-        Self::new("Scroll of Identify", ScrollEffect::Identify, position)
+        Self::new("scroll of identify", ScrollEffect::Identify, position)
     }
     pub fn scare_monster(position: Position) -> Self {
-        Self::new("Scroll of Scare Monster", ScrollEffect::ScareMonster, position)
+        Self::new("scroll of scare monster", ScrollEffect::ScareMonster, position)
     }
     pub fn food_detection(position: Position) -> Self {
-        Self::new("Scroll of Food Detection", ScrollEffect::FoodDetection, position)
+        Self::new("scroll of food detection", ScrollEffect::FoodDetection, position)
     }
     pub fn teleportation(position: Position) -> Self {
-        Self::new("Scroll of Teleportation", ScrollEffect::Teleportation, position)
+        Self::new("scroll of teleportation", ScrollEffect::Teleportation, position)
     }
     pub fn enchant_weapon(position: Position) -> Self {
-        Self::new("Scroll of Enchant Weapon", ScrollEffect::EnchantWeapon, position)
+        Self::new("scroll of enchant weapon", ScrollEffect::EnchantWeapon, position)
     }
     pub fn create_monster(position: Position) -> Self {
-        Self::new("Scroll of Create Monster", ScrollEffect::CreateMonster, position)
+        Self::new("scroll of create monster", ScrollEffect::CreateMonster, position)
     }
     pub fn remove_curse(position: Position) -> Self {
-        Self::new("Scroll of Remove Curse", ScrollEffect::RemoveCurse, position)
+        Self::new("scroll of remove curse", ScrollEffect::RemoveCurse, position)
     }
     pub fn aggravate_monsters(position: Position) -> Self {
-        Self::new("Scroll of Aggravate Monsters", ScrollEffect::AggravateMonsters, position)
+        Self::new("scroll of aggravate monsters", ScrollEffect::AggravateMonsters, position)
     }
     pub fn blank_paper(position: Position) -> Self {
-        Self::new("Scroll of Blank Paper", ScrollEffect::BlankPaper, position)
+        Self::new("scroll of blank paper", ScrollEffect::BlankPaper, position)
     }
     pub fn vorpalize_weapon(position: Position) -> Self {
-        Self::new("Scroll of Vorpalize Weapon", ScrollEffect::VorpalizeWeapon, position)
+        Self::new("scroll of vorpalize weapon", ScrollEffect::VorpalizeWeapon, position)
     }
 }
 
@@ -521,20 +523,20 @@ impl RingBundle {
     /// Rings draw as `=` and are worn, not consumed.
     pub fn new(effect: RingEffect, position: Position) -> Self {
         let name = match effect {
-            RingEffect::Protection => "Ring of Protection",
-            RingEffect::AddStrength => "Ring of Add Strength",
-            RingEffect::SustainStrength => "Ring of Sustain Strength",
-            RingEffect::Searching => "Ring of Searching",
-            RingEffect::SeeInvisible => "Ring of See Invisible",
-            RingEffect::Adornment => "Ring of Adornment",
-            RingEffect::AggravateMonster => "Ring of Aggravate Monster",
-            RingEffect::Dexterity => "Ring of Dexterity",
-            RingEffect::IncreaseDamage => "Ring of Increase Damage",
-            RingEffect::Regeneration => "Ring of Regeneration",
-            RingEffect::SlowDigestion => "Ring of Slow Digestion",
-            RingEffect::Teleportation => "Ring of Teleportation",
-            RingEffect::Stealth => "Ring of Stealth",
-            RingEffect::MaintainArmor => "Ring of Maintain Armor",
+            RingEffect::Protection => "ring of protection",
+            RingEffect::AddStrength => "ring of add strength",
+            RingEffect::SustainStrength => "ring of sustain strength",
+            RingEffect::Searching => "ring of searching",
+            RingEffect::SeeInvisible => "ring of see invisible",
+            RingEffect::Adornment => "ring of adornment",
+            RingEffect::AggravateMonster => "ring of aggravate monster",
+            RingEffect::Dexterity => "ring of dexterity",
+            RingEffect::IncreaseDamage => "ring of increase damage",
+            RingEffect::Regeneration => "ring of regeneration",
+            RingEffect::SlowDigestion => "ring of slow digestion",
+            RingEffect::Teleportation => "ring of teleportation",
+            RingEffect::Stealth => "ring of stealth",
+            RingEffect::MaintainArmor => "ring of maintain armor",
         };
         Self {
             name: Name { what: name.to_string() },
@@ -547,7 +549,7 @@ impl RingBundle {
 }
 
 /// An item's display name, or a vague fallback.
-fn item_label(world: &World, item: Entity) -> String {
+pub(crate) fn item_label(world: &World, item: Entity) -> String {
     world.get::<Name>(item).map(|n| n.what.clone()).unwrap_or_else(|| "item".to_string())
 }
 
@@ -617,7 +619,101 @@ fn toggle_wear(world: &mut World, user: Entity, item: Entity) {
     world.resource_mut::<GameLog>().add(format!("You put on the {name}."));
 }
 
-fn apply_scroll_effect(world: &mut World, _user: Entity, effect: ScrollEffect) {
+/// Toggles `item` as `user`'s worn ring. Mirrors [`toggle_wear`]; only one
+/// ring at a time for now. Putting one on is a ring's only "use", so it's
+/// also where ring identification is triggered.
+fn toggle_puton(world: &mut World, user: Entity, item: Entity) {
+    let name = crate::identify::display_name(world, item);
+    if world.get::<PutOn>(item).and_then(|p| p.bearer) == Some(user) {
+        if let Some(mut p) = world.get_mut::<PutOn>(item) {
+            p.bearer = None;
+        }
+        world.resource_mut::<GameLog>().add(format!("You remove the {name}."));
+        return;
+    }
+
+    let others: Vec<Entity> = world
+        .get::<Backpack>(user)
+        .map(|bp| {
+            bp.items
+                .iter()
+                .copied()
+                .filter(|&e| e != item && world.get::<PutOn>(e).is_some_and(|p| p.bearer == Some(user)))
+                .collect()
+        })
+        .unwrap_or_default();
+    for e in others {
+        if let Some(mut p) = world.get_mut::<PutOn>(e) {
+            p.bearer = None;
+        }
+    }
+    if let Some(mut p) = world.get_mut::<PutOn>(item) {
+        p.bearer = Some(user);
+    }
+    world.resource_mut::<GameLog>().add(format!("You put on the {name}."));
+
+    if let Some(effect) = world.get::<PutOn>(item).map(|p| p.effect) {
+        let true_name = item_label(world, item);
+        let newly_identified = world.resource_mut::<Identified>().rings.insert(effect);
+        if newly_identified {
+            world.resource_mut::<GameLog>().add(format!("That was {} {true_name}!", crate::identify::article_for(&true_name)));
+        }
+    }
+}
+
+/// Picks a uniformly random item in `user`'s backpack whose true type isn't
+/// identified yet and identifies it directly. Used by
+/// [`ScrollEffect::Identify`], which has no interactive item picker (yet).
+fn identify_random_unknown_item(world: &mut World, user: Entity) {
+    let candidates: Vec<Entity> = world.get::<Backpack>(user).map(|bp| bp.items.clone()).unwrap_or_default();
+
+    let is_unidentified = |world: &World, e: Entity| -> bool {
+        let identified = world.resource::<Identified>();
+        world.get::<Potion>(e).is_some_and(|p| !identified.potions.contains(&p.effect))
+            || world.get::<Scroll>(e).is_some_and(|s| !identified.scrolls.contains(&s.effect))
+            || world.get::<Wand>(e).is_some_and(|w| !identified.wands.contains(&w.effect))
+            || world.get::<PutOn>(e).is_some_and(|p| !identified.rings.contains(&p.effect))
+    };
+
+    let unknown: Vec<Entity> = candidates.into_iter().filter(|&e| is_unidentified(world, e)).collect();
+    if unknown.is_empty() {
+        world.resource_mut::<GameLog>().add("You already recognise everything in your pack.".to_string());
+        return;
+    }
+    let target = {
+        let mut rng = world.resource_mut::<GameRng>();
+        unknown[rng.0.gen_range(0..unknown.len())]
+    };
+
+    let name = item_label(world, target);
+    let potion_effect = world.get::<Potion>(target).map(|p| p.effect);
+    let scroll_effect = world.get::<Scroll>(target).map(|s| s.effect);
+    let wand_effect = world.get::<Wand>(target).map(|w| w.effect);
+    let ring_effect = world.get::<PutOn>(target).map(|p| p.effect);
+
+    let mut identified = world.resource_mut::<Identified>();
+    if let Some(effect) = potion_effect {
+        identified.potions.insert(effect);
+    }
+    if let Some(effect) = scroll_effect {
+        identified.scrolls.insert(effect);
+    }
+    if let Some(effect) = wand_effect {
+        identified.wands.insert(effect);
+    }
+    if let Some(effect) = ring_effect {
+        identified.rings.insert(effect);
+    }
+    drop(identified);
+
+    world.resource_mut::<GameLog>().add(format!("The scroll identifies your {name}!"));
+}
+
+fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
+    if effect == ScrollEffect::Identify {
+        identify_random_unknown_item(world, user);
+        return;
+    }
     let msg = match effect {
         ScrollEffect::MagicMapping => "The dungeon's shape springs into your mind.",
         ScrollEffect::Teleportation => "You blink to somewhere else.",
@@ -637,12 +733,19 @@ pub fn item_system(world: &mut World) {
     drop(use_queue);
 
     for item_use in uses {
+        // What the player sees right now (appearance if unidentified, true
+        // name otherwise) and the item's true name, captured before any
+        // despawn below could make `item_use.item` unqueryable.
+        let seen_name = crate::identify::display_name(world, item_use.item);
+        let true_name = item_label(world, item_use.item);
+
         // We store the "work to be done" here
         let mut potion_effect: Option<PotionEffect> = None;
         let mut wand_effect: Option<WandEffect> = None;
         let mut scroll_effect: Option<ScrollEffect> = None;
         let mut is_wield = false;
         let mut is_wear = false;
+        let mut is_puton = false;
         let mut destroy_item = false;
         let mut return_to_inventory = false;
 
@@ -671,6 +774,9 @@ pub fn item_system(world: &mut World) {
             if item_entity.get::<Wear>().is_some() {
                 is_wear = true;
             }
+            if item_entity.get::<PutOn>().is_some() {
+                is_puton = true;
+            }
 
             // Handle Wands / Battery logic
             if let Some(mut battery) = item_entity.get_mut::<Battery>() {
@@ -698,17 +804,21 @@ pub fn item_system(world: &mut World) {
             toggle_wear(world, item_use.user, item_use.item);
             return_to_inventory = true;
         }
+        if is_puton {
+            toggle_puton(world, item_use.user, item_use.item);
+            return_to_inventory = true;
+        }
 
-        // Anything the game doesn't know how to "use" (e.g. an unworn ring) is
-        // handed straight back rather than vanishing into limbo.
+        // Anything the game doesn't know how to "use" is handed straight back
+        // rather than vanishing into limbo.
         if !destroy_item
             && !return_to_inventory
             && potion_effect.is_none()
             && wand_effect.is_none()
             && scroll_effect.is_none()
         {
-            let name = item_label(world, item_use.item);
-            world.resource_mut::<GameLog>().add(format!("You can't use the {name} right now."));
+            let name = crate::identify::with_the(&item_label(world, item_use.item));
+            world.resource_mut::<GameLog>().add(format!("You can't use {name} right now."));
             return_to_inventory = true;
         }
 
@@ -732,29 +842,45 @@ pub fn item_system(world: &mut World) {
 
             let mut log = world.resource_mut::<GameLog>();
             if is_wand {
-                log.add("The wand crumbles to dust!".to_string());
+                log.add(format!("The {seen_name} crumbles to dust!"));
             } else if is_potion {
-                log.add("You drink the potion.".to_string());
+                log.add(format!("You drink the {seen_name}."));
             } else if is_scroll {
-                log.add("The scroll crumbles to dust!".to_string());
+                log.add(format!("You read the {seen_name}."));
             } else {
                 log.add("The item turns to dust!".to_string());
             }
 
             world.entity_mut(item_use.item).despawn();
+        } else if wand_effect.is_some() {
+            // Wands survive a zap (until their battery runs dry, handled
+            // above), so the "you use it" beat lives here instead.
+            world.resource_mut::<GameLog>().add(format!("You zap the {seen_name}."));
         }
 
-        // 2. Dispatch to specialized functions
+        // 2. Dispatch to specialized functions. Using a potion, scroll or
+        // wand always identifies its true type — every roguelike's
+        // use-to-identify convention (rings identify on wear instead, inside
+        // `toggle_puton`).
         if let Some(eff) = potion_effect {
             apply_potion_effect(world, item_use.user, eff);
+            if world.resource_mut::<Identified>().potions.insert(eff) {
+                world.resource_mut::<GameLog>().add(format!("That was {} {true_name}!", crate::identify::article_for(&true_name)));
+            }
         }
 
         if let Some(eff) = wand_effect {
             apply_wand_effect(world, item_use.user, item_use.target, eff);
+            if world.resource_mut::<Identified>().wands.insert(eff) {
+                world.resource_mut::<GameLog>().add(format!("That was {} {true_name}!", crate::identify::article_for(&true_name)));
+            }
         }
 
         if let Some(eff) = scroll_effect {
             apply_scroll_effect(world, item_use.user, eff);
+            if world.resource_mut::<Identified>().scrolls.insert(eff) {
+                world.resource_mut::<GameLog>().add(format!("That was {} {true_name}!", crate::identify::article_for(&true_name)));
+            }
         }
     }
 }

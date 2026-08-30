@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use crate::components::*;
+use crate::identify::{Identified, ItemAppearances};
 use crate::map::{regenerate_map, BloodStains, GameRng, Map, RngSeed, TileType, FINAL_DEPTH};
 use crate::state::{Ending, GameState};
 use rand_chacha::ChaCha12Rng;
@@ -116,6 +117,13 @@ struct SaveGame<'a> {
     rng_seed: u64,
     /// The live RNG state, so the stream continues exactly where it left off.
     rng_state: ChaCha12Rng,
+    /// This run's cosmetic appearance for every unidentified item type. Saved
+    /// verbatim rather than re-derived from the seed, so identification state
+    /// stays consistent even if a future build changes how appearances are
+    /// assigned.
+    item_appearances: ItemAppearances,
+    /// Which true item types the player has identified so far.
+    identified: Identified,
     /// "Clear data": set when the run was won. The file is kept rather than
     /// deleted; the loader recognises it and asks before starting over.
     cleared: bool,
@@ -205,6 +213,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         depth: world.resource::<Depth>().what,
         rng_seed: world.resource::<RngSeed>().0,
         rng_state: world.resource::<GameRng>().0.clone(),
+        item_appearances: world.resource::<ItemAppearances>().clone(),
+        identified: world.resource::<Identified>().clone(),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
     };
 
@@ -235,6 +245,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(RngSeed(save.rng_seed));
     world.insert_resource(GameRng(save.rng_state));
     world.insert_resource(DungeonLord::default());
+    world.insert_resource(save.item_appearances);
+    world.insert_resource(save.identified);
 
     // Rebuild the map from the seed rather than the save file.
     regenerate_map(world, save.rng_seed);

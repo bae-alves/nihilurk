@@ -14,6 +14,7 @@ mod combat;
 mod items;
 mod helpers;
 mod saveload;
+mod identify;
 
 pub use components::*;
 pub use map::*;
@@ -29,6 +30,7 @@ pub use particles::*;
 pub use combat::*;
 pub use items::*;
 pub use saveload::*;
+pub use identify::*;
 
 pub use rand_chacha::ChaCha12Rng;
 pub use rand::SeedableRng;

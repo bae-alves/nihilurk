@@ -10,6 +10,7 @@ fn round_trip() {
     w.insert_resource(PlayerName { what: "TESTER".into() });
     initialize_world(&mut w);
     w.resource_mut::<Depth>().what = 4;
+    w.resource_mut::<Identified>().potions.insert(PotionEffect::Healing);
     let n0 = w.iter_entities().count();
     let path = std::env::temp_dir().join("roog_test.sav");
     let p = path.to_str().unwrap();
@@ -30,6 +31,12 @@ fn round_trip() {
     assert_eq!(a, b);
     assert_eq!(w2.resource::<PlayerName>().what, "TESTER");
     assert_eq!(w2.resource::<Depth>().what, 4);
+    // Identification knowledge and this run's item appearances survive too.
+    assert!(w2.resource::<Identified>().potions.contains(&PotionEffect::Healing));
+    assert_eq!(
+        w.resource::<ItemAppearances>().potions,
+        w2.resource::<ItemAppearances>().potions,
+    );
     let mut q = w2.query_filtered::<&Backpack, With<Player>>();
     assert_eq!(q.single(&w2).items.len(), 1);
     assert!(w2.get::<Wand>(q.single(&w2).items[0]).is_some());
