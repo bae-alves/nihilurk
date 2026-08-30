@@ -50,7 +50,8 @@ fn round_trip() {
     initialize_world(&mut w3);
     let pos = Position { x: 5, y: 5 };
     w3.spawn(WeaponsBundle::long_sword(pos));
-    w3.spawn(ArmorBundle::plate_mail(pos));
+    let cursed_armor = w3.spawn(ArmorBundle::plate_mail(pos)).id();
+    w3.entity_mut(cursed_armor).insert(Curse);
     w3.spawn(ScrollBundle::magic_mapping(pos));
     w3.spawn(RingBundle::new(RingEffect::Regeneration, pos));
     w3.spawn(AmuletBundle::element_of_yoord(pos));
@@ -78,6 +79,8 @@ fn round_trip() {
         vec![RingEffect::Regeneration],
     );
     assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);
+    // The curse tag rides along, so cursed gear stays cursed after a reload.
+    assert_eq!(w4.query::<&Curse>().iter(&w4).count(), 1);
 
     // An ordinary save is not clear data.
     assert!(clear_data(p).unwrap().is_none());

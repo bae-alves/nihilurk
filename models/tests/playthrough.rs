@@ -7,8 +7,10 @@ use models::*;
 #[test]
 fn walk_a_few_floors_and_use_the_loot() {
     let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
-    w.insert_resource(RngSeed(2112));
+    // Seed picked so a short 8-floor run turns up at least one of every loot
+    // category (rings are only 5% of drops, so this is deliberately calibrated).
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(42)));
+    w.insert_resource(RngSeed(42));
     w.init_resource::<GameLog>();
     w.init_resource::<UseQueue>();
     w.insert_resource(PlayerName { what: "TESTER".into() });

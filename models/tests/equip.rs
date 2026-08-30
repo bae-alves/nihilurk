@@ -76,6 +76,40 @@ fn using_gear_toggles_equipped_state() {
 }
 
 #[test]
+fn cursed_gear_sticks_until_the_curse_is_lifted() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+
+    let cursed_mail = w.spawn(ArmorBundle::plate_mail(Position { x: 0, y: 0 })).id();
+    w.entity_mut(cursed_mail).insert(Curse);
+    let plain_mail = w.spawn(ArmorBundle::leather_armor(Position { x: 0, y: 0 })).id();
+    let scroll = w.spawn(ScrollBundle::remove_curse(Position { x: 0, y: 0 })).id();
+    for e in [cursed_mail, plain_mail, scroll] {
+        w.entity_mut(e).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(e);
+    }
+
+    // Put the cursed armour on — fine.
+    use_item(&mut w, p, cursed_mail);
+    assert!(is_equipped(&w, cursed_mail));
+
+    // Can't take it off.
+    use_item(&mut w, p, cursed_mail);
+    assert!(is_equipped(&w, cursed_mail), "cursed armour should not come off");
+
+    // Can't swap to other armour while the cursed suit is stuck.
+    use_item(&mut w, p, plain_mail);
+    assert!(!is_equipped(&w, plain_mail), "cursed armour blocks changing armour");
+    assert!(is_equipped(&w, cursed_mail));
+
+    // Read a scroll of remove curse, then it comes off.
+    use_item(&mut w, p, scroll);
+    assert!(w.get::<Curse>(cursed_mail).is_none(), "remove curse strips the tag");
+    use_item(&mut w, p, cursed_mail);
+    assert!(!is_equipped(&w, cursed_mail), "un-cursed armour comes off normally");
+}
+
+#[test]
 fn equipped_weapon_and_armor_change_combat_math() {
     // A punching bag with a big HP pool and no rolls of its own.
     fn bag(w: &mut World) -> Entity {

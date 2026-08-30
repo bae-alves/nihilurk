@@ -177,6 +177,13 @@ pub struct PutOn {
     pub effect: RingEffect,
 }
 
+/// Tag for a cursed piece of equipment. Rolled on at spawn for the majority of
+/// weapon/armour/ring drops (see [`crate::items::enchant_equipment`]). Once a
+/// cursed item is equipped it can't be taken off again until the curse is lifted
+/// by a scroll of remove curse.
+#[derive(Component)]
+pub struct Curse;
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RingEffect {
     Protection,

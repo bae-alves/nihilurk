@@ -99,6 +99,8 @@ struct EntitySave<'a> {
     wield: Option<(i8, i8)>,
     /// (arm_increase, arm_bonus). `wearer` is always rebuilt as `None`.
     wear: Option<(i8, i8)>,
+    /// Marker: this equipment is cursed and can't be taken off once equipped.
+    curse: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -197,6 +199,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             ring: er.get::<PutOn>().map(|p| p.effect),
             wield: er.get::<Wield>().map(|w| (w.pow_increase, w.pow_bonus)),
             wear: er.get::<Wear>().map(|w| (w.arm_increase, w.arm_bonus)),
+            curse: er.contains::<Curse>(),
         });
     }
 
@@ -361,6 +364,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some((arm_increase, arm_bonus)) = es.wear {
             em.insert(Wear { wearer: None, arm_increase, arm_bonus });
+        }
+        if es.curse {
+            em.insert(Curse);
         }
     }
 

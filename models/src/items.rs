@@ -1,6 +1,7 @@
 use bevy_ecs::{entity::Entity, prelude::Bundle, world::World};
 use crossterm::style::Color;
 use rand::Rng;
+use rand_chacha::ChaCha12Rng;
 use crate::{components::*, map::{GameRng, Map}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
 use crate::identify::Identified;
 
@@ -548,6 +549,70 @@ impl RingBundle {
     }
 }
 
+/// The quality every weapon, armour and ring drop rolls when it spawns.
+///
+/// | Quality     | Odds | Bonus (equal-probability integer) |
+/// |-------------|------|-----------------------------------|
+/// | Normal      | 25%  | +0                                |
+/// | Exceptional | 10%  | +1 .. +3                          |
+/// | Cursed      | 65%  | -6 .. +4 (yes, a cursed item can roll positive) |
+///
+/// Weapons and armour apply the bonus as a flat modifier on the opposed combat
+/// roll (`pow_bonus` / `arm_bonus`), never to the die size. Rings carry no
+/// numeric bonus — they are simply cursed or not.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Quality {
+    Normal,
+    Exceptional,
+    Cursed,
+}
+
+impl Quality {
+    fn roll(rng: &mut ChaCha12Rng) -> Self {
+        match rng.gen_range(0..100) {
+            0..=24 => Quality::Normal,
+            25..=34 => Quality::Exceptional,
+            _ => Quality::Cursed,
+        }
+    }
+}
+
+/// Rolls quality for a freshly spawned weapon, armour or ring and stamps the
+/// result onto the entity: the flat bonus on its [`Wield`]/[`Wear`] component,
+/// and a [`Curse`] tag if it came up cursed. Rings get only the tag.
+pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) {
+    let quality = Quality::roll(rng);
+    let bonus: i8 = match quality {
+        Quality::Normal => 0,
+        Quality::Exceptional => rng.gen_range(1..=3),
+        Quality::Cursed => rng.gen_range(-6..=4),
+    };
+
+    let mut entity = world.entity_mut(item);
+    if let Some(mut wield) = entity.get_mut::<Wield>() {
+        wield.pow_bonus = bonus;
+    }
+    if let Some(mut wear) = entity.get_mut::<Wear>() {
+        wear.arm_bonus = bonus;
+    }
+    if quality == Quality::Cursed {
+        entity.insert(Curse);
+    }
+}
+
+/// Strips the [`Curse`] tag from every item in `user`'s pack (a scroll of remove
+/// curse). Returns how many items were freed.
+pub(crate) fn lift_curses(world: &mut World, user: Entity) -> usize {
+    let cursed: Vec<Entity> = world
+        .get::<Backpack>(user)
+        .map(|bp| bp.items.iter().copied().filter(|&e| world.get::<Curse>(e).is_some()).collect())
+        .unwrap_or_default();
+    for &e in &cursed {
+        world.entity_mut(e).remove::<Curse>();
+    }
+    cursed.len()
+}
+
 /// An item's display name, or a vague fallback.
 pub(crate) fn item_label(world: &World, item: Entity) -> String {
     world.get::<Name>(item).map(|n| n.what.clone()).unwrap_or_else(|| "item".to_string())
@@ -558,6 +623,10 @@ pub(crate) fn item_label(world: &World, item: Entity) -> String {
 fn toggle_wield(world: &mut World, user: Entity, item: Entity) {
     let name = item_label(world, item);
     if world.get::<Wield>(item).and_then(|w| w.wielder) == Some(user) {
+        if world.get::<Curse>(item).is_some() {
+            world.resource_mut::<GameLog>().add(format!("You can't — the {name} is welded to your grip!"));
+            return;
+        }
         if let Some(mut w) = world.get_mut::<Wield>(item) {
             w.wielder = None;
         }
@@ -575,6 +644,11 @@ fn toggle_wield(world: &mut World, user: Entity, item: Entity) {
                 .collect()
         })
         .unwrap_or_default();
+    if let Some(&stuck) = others.iter().find(|&&e| world.get::<Curse>(e).is_some()) {
+        let stuck_name = item_label(world, stuck);
+        world.resource_mut::<GameLog>().add(format!("You can't switch weapons — the {stuck_name} won't leave your hand."));
+        return;
+    }
     for e in others {
         if let Some(mut w) = world.get_mut::<Wield>(e) {
             w.wielder = None;
@@ -591,6 +665,10 @@ fn toggle_wield(world: &mut World, user: Entity, item: Entity) {
 fn toggle_wear(world: &mut World, user: Entity, item: Entity) {
     let name = item_label(world, item);
     if world.get::<Wear>(item).and_then(|w| w.wearer) == Some(user) {
+        if world.get::<Curse>(item).is_some() {
+            world.resource_mut::<GameLog>().add(format!("You can't — the {name} clings to you and won't come off!"));
+            return;
+        }
         if let Some(mut w) = world.get_mut::<Wear>(item) {
             w.wearer = None;
         }
@@ -608,6 +686,11 @@ fn toggle_wear(world: &mut World, user: Entity, item: Entity) {
                 .collect()
         })
         .unwrap_or_default();
+    if let Some(&stuck) = others.iter().find(|&&e| world.get::<Curse>(e).is_some()) {
+        let stuck_name = item_label(world, stuck);
+        world.resource_mut::<GameLog>().add(format!("You can't change armour — the {stuck_name} won't come off."));
+        return;
+    }
     for e in others {
         if let Some(mut w) = world.get_mut::<Wear>(e) {
             w.wearer = None;
@@ -625,6 +708,10 @@ fn toggle_wear(world: &mut World, user: Entity, item: Entity) {
 fn toggle_puton(world: &mut World, user: Entity, item: Entity) {
     let name = crate::identify::display_name(world, item);
     if world.get::<PutOn>(item).and_then(|p| p.bearer) == Some(user) {
+        if world.get::<Curse>(item).is_some() {
+            world.resource_mut::<GameLog>().add(format!("You can't — the {name} is fused to your finger!"));
+            return;
+        }
         if let Some(mut p) = world.get_mut::<PutOn>(item) {
             p.bearer = None;
         }
@@ -642,6 +729,11 @@ fn toggle_puton(world: &mut World, user: Entity, item: Entity) {
                 .collect()
         })
         .unwrap_or_default();
+    if let Some(&stuck) = others.iter().find(|&&e| world.get::<Curse>(e).is_some()) {
+        let stuck_name = crate::identify::display_name(world, stuck);
+        world.resource_mut::<GameLog>().add(format!("You can't — the {stuck_name} won't leave your finger."));
+        return;
+    }
     for e in others {
         if let Some(mut p) = world.get_mut::<PutOn>(e) {
             p.bearer = None;
@@ -712,6 +804,16 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
 fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
     if effect == ScrollEffect::Identify {
         identify_random_unknown_item(world, user);
+        return;
+    }
+    if effect == ScrollEffect::RemoveCurse {
+        let freed = lift_curses(world, user);
+        let msg = if freed > 0 {
+            "You feel as though somebody is watching over you. Your gear loosens its grip."
+        } else {
+            "You feel as though somebody is watching over you."
+        };
+        world.resource_mut::<GameLog>().add(msg.to_string());
         return;
     }
     let msg = match effect {

@@ -500,50 +500,57 @@ fn pick_monster(depth: u8, rng: &mut ChaCha12Rng, pos: Position) -> MonsterBundl
 /// | Wands    |  5%  |
 /// | Rings    |  5%  |
 fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
-    /// Picks one constructor from `opts` uniformly and spawns its bundle.
-    fn one<F: Fn(Position) -> B, B: Bundle>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, opts: &[F]) {
+    /// Picks one constructor from `opts` uniformly and spawns its bundle,
+    /// returning the new entity.
+    fn one<F: Fn(Position) -> B, B: Bundle>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, opts: &[F]) -> Entity {
         let ctor = &opts[rng.gen_range(0..opts.len())];
-        world.spawn(ctor(pos));
+        world.spawn(ctor(pos)).id()
     }
 
     match rng.gen_range(0..100) {
         // Scrolls — 30%
-        0..=29 => one(world, rng, pos, &[
+        0..=29 => { one(world, rng, pos, &[
             ScrollBundle::monster_confusion, ScrollBundle::magic_mapping, ScrollBundle::hold_monster,
             ScrollBundle::sleep, ScrollBundle::enchant_armor, ScrollBundle::identify,
             ScrollBundle::scare_monster, ScrollBundle::food_detection, ScrollBundle::teleportation,
             ScrollBundle::enchant_weapon, ScrollBundle::create_monster, ScrollBundle::remove_curse,
             ScrollBundle::aggravate_monsters, ScrollBundle::blank_paper, ScrollBundle::vorpalize_weapon,
-        ]),
+        ]); }
         // Potions — 27%
-        30..=56 => one(world, rng, pos, &[
+        30..=56 => { one(world, rng, pos, &[
             PotionBundle::confusion, PotionBundle::paralysis, PotionBundle::poison,
             PotionBundle::gain_strength, PotionBundle::see_invisible, PotionBundle::healing,
             PotionBundle::monster_detection, PotionBundle::magic_detection, PotionBundle::raise_level,
             PotionBundle::extra_healing, PotionBundle::haste_self, PotionBundle::restore_strength,
             PotionBundle::blindness, PotionBundle::thirst_quenching,
-        ]),
+        ]); }
         // Coins (Rogue's food slot) — 17%
-        57..=73 => one(world, rng, pos, &[ItemBundle::gold_coin, ItemBundle::silver_coin]),
+        57..=73 => { one(world, rng, pos, &[ItemBundle::gold_coin, ItemBundle::silver_coin]); }
         // Armor — 8%
-        74..=81 => one(world, rng, pos, &[
-            ArmorBundle::leather_armor, ArmorBundle::ring_mail, ArmorBundle::studded_leather_armor,
-            ArmorBundle::scale_mail, ArmorBundle::chain_mail, ArmorBundle::splint_mail,
-            ArmorBundle::banded_mail, ArmorBundle::plate_mail,
-        ]),
+        74..=81 => {
+            let e = one(world, rng, pos, &[
+                ArmorBundle::leather_armor, ArmorBundle::ring_mail, ArmorBundle::studded_leather_armor,
+                ArmorBundle::scale_mail, ArmorBundle::chain_mail, ArmorBundle::splint_mail,
+                ArmorBundle::banded_mail, ArmorBundle::plate_mail,
+            ]);
+            crate::items::enchant_equipment(world, rng, e);
+        }
         // Weapons — 8%
-        82..=89 => one(world, rng, pos, &[
-            WeaponsBundle::dagger, WeaponsBundle::mace, WeaponsBundle::long_sword,
-            WeaponsBundle::two_handed_sword,
-        ]),
+        82..=89 => {
+            let e = one(world, rng, pos, &[
+                WeaponsBundle::dagger, WeaponsBundle::mace, WeaponsBundle::long_sword,
+                WeaponsBundle::two_handed_sword,
+            ]);
+            crate::items::enchant_equipment(world, rng, e);
+        }
         // Wands / Staves — 5%
-        90..=94 => one(world, rng, pos, &[
+        90..=94 => { one(world, rng, pos, &[
             WandBundle::light, WandBundle::striking, WandBundle::lightning, WandBundle::fire,
             WandBundle::cold, WandBundle::polymorph, WandBundle::magic_missile,
             WandBundle::haste_monster, WandBundle::slow_monster, WandBundle::drain_life,
             WandBundle::nothing, WandBundle::teleport_away, WandBundle::teleport_to,
             WandBundle::cancellation,
-        ]),
+        ]); }
         // Rings — 5%
         _ => {
             const RINGS: [RingEffect; 14] = [
@@ -554,7 +561,8 @@ fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
                 RingEffect::Stealth, RingEffect::MaintainArmor,
             ];
             let effect = RINGS[rng.gen_range(0..RINGS.len())];
-            world.spawn(RingBundle::new(effect, pos));
+            let ring = world.spawn(RingBundle::new(effect, pos)).id();
+            crate::items::enchant_equipment(world, rng, ring);
         }
     }
 }
