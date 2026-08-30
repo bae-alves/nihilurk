@@ -173,6 +173,7 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();
     world.init_resource::<FastMove>();
+    world.init_resource::<TravelCursor>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
@@ -221,6 +222,9 @@ fn main() -> std::io::Result<()> {
         } else {
             let turn_taken = if world.resource::<AutoExplore>().active {
                 update::auto_explore_step(&mut world)?
+            } else if world.resource::<TravelCursor>().active {
+                update::travel_cursor_step(&mut world)?;
+                false
             } else {
                 update::process_input_and_update(&mut world)?
             };

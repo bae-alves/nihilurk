@@ -457,6 +457,19 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
                 return Ok(false);
             }
+            KeyCode::Char('O') => {
+                // Open the travel cursor: steer a blinking highlight over seen
+                // ground, then Enter to auto-walk there. Takes no turn.
+                let ppos = {
+                    let mut q = world.query_filtered::<&Position, With<Player>>();
+                    q.iter(world).next().copied()
+                };
+                if let Some(p) = ppos {
+                    world.resource_mut::<GameLog>().unread.clear();
+                    world.resource_mut::<TravelCursor>().open(p.x, p.y);
+                }
+                return Ok(false);
+            }
             KeyCode::Tab => {
                 // Auto-fight: one turn spent closing on — or striking — the
                 // weakest foe in sight. Not a mode: each press is a single turn.
@@ -580,7 +593,11 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         };
         if arrived {
             world.resource_mut::<AutoExplore>().stop();
-            world.resource_mut::<GameLog>().add("You arrive at the staircase.");
+            let msg = match world.resource::<Map>().tile(target.0, target.1) {
+                TileType::Upstairs | TileType::Downstairs => "You arrive at the staircase.",
+                _ => "You stop.",
+            };
+            world.resource_mut::<GameLog>().add(msg);
             return Ok(false);
         }
     }
@@ -629,6 +646,102 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         world.resource_mut::<AutoExplore>().stop();
     }
     Ok(moved)
+}
+
+/// One tick of the `O` travel cursor, called by the main loop in place of
+/// [`process_input_and_update`] while [`TravelCursor::active`] is set.
+///
+/// Blocks up to one blink interval for a keypress. Arrow / vi / WASD keys walk
+/// the cursor over revealed ground — sliding along a single axis when the
+/// diagonal tile is still unseen — Enter or Space commits the destination to an
+/// auto-travel, and Esc or `O` cancels. A bare timeout just flips the
+/// highlight's blink phase and repaints.
+pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
+    if !poll(Duration::from_millis(400))? {
+        let mut tc = world.resource_mut::<TravelCursor>();
+        tc.blink_on = !tc.blink_on;
+        return Ok(());
+    }
+
+    let Event::Key(key) = read()? else { return Ok(()) };
+    if key.kind != KeyEventKind::Press {
+        return Ok(());
+    }
+
+    let (mut dx, mut dy) = (0i32, 0i32);
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('O') => {
+            world.resource_mut::<TravelCursor>().close();
+            return Ok(());
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => return confirm_travel_cursor(world),
+        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => dy = -1,
+        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => dy = 1,
+        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => dx = -1,
+        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => dx = 1,
+        KeyCode::Char('y') => { dx = -1; dy = -1; }
+        KeyCode::Char('u') => { dx = 1; dy = -1; }
+        KeyCode::Char('b') => { dx = -1; dy = 1; }
+        KeyCode::Char('n') => { dx = 1; dy = 1; }
+        _ => return Ok(()),
+    }
+
+    let (cx, cy) = {
+        let tc = world.resource::<TravelCursor>();
+        (tc.x as i32, tc.y as i32)
+    };
+    // Prefer the full move; fall back to a one-axis slide so the cursor can
+    // still hug a wall or room edge when the diagonal tile is unseen.
+    for (nx, ny) in [(cx + dx, cy + dy), (cx + dx, cy), (cx, cy + dy)] {
+        if nx < 0 || ny < 0 || (nx == cx && ny == cy) {
+            continue;
+        }
+        let (nx, ny) = (nx as u16, ny as u16);
+        if tile_is_revealed(world, nx, ny) {
+            let mut tc = world.resource_mut::<TravelCursor>();
+            tc.x = nx;
+            tc.y = ny;
+            tc.blink_on = true;
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Commit the travel cursor's tile: with the coast clear, start an auto-travel
+/// to it — or, if it's a wall or unreachable, to the nearest walkable tile the
+/// player can reach. Always closes the cursor; never consumes a turn itself.
+fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
+    let (tx, ty) = {
+        let tc = world.resource::<TravelCursor>();
+        (tc.x, tc.y)
+    };
+    world.resource_mut::<TravelCursor>().close();
+
+    if monster_in_sight(world) {
+        world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+        return Ok(());
+    }
+
+    // Route to the picked tile, or — when it is a wall or somewhere unreachable
+    // — to the nearest walkable tile the player can actually get to.
+    let Some(goal) = nearest_reachable(world, (tx, ty)) else {
+        world.resource_mut::<GameLog>().add("You can't find a path there.");
+        return Ok(());
+    };
+
+    let here = {
+        let mut q = world.query_filtered::<&Position, With<Player>>();
+        q.iter(world).next().map(|p| (p.x, p.y))
+    };
+    if here == Some(goal) {
+        world.resource_mut::<GameLog>().add("You are already there.");
+        return Ok(());
+    }
+
+    world.resource_mut::<GameLog>().unread.clear();
+    world.resource_mut::<AutoExplore>().start(Some(goal));
+    Ok(())
 }
 
 /// Run an entire NetHack-style fast move to completion, then hand control back.

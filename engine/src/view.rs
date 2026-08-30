@@ -5,7 +5,7 @@ use bevy_ecs::prelude::*;
 use crossterm::{
     cursor::MoveTo,
     queue,
-    style::{Color, Print, SetForegroundColor},
+    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
     terminal::size,
 };
 
@@ -16,9 +16,9 @@ use models::*;
 pub const SCREEN_W: u16 = 80;
 pub const SCREEN_H: u16 = 25;
 
-/// A screen cell: glyph and foreground colour.
-type Cell = (char, Color);
-const BLANK_CELL: Cell = (' ', Color::Reset);
+/// A screen cell: glyph, foreground colour, background colour.
+type Cell = (char, Color, Color);
+const BLANK_CELL: Cell = (' ', Color::Reset, Color::Reset);
 
 /// Double-buffered character grid. `render` paints the whole frame into `cur`;
 /// `flush` then emits terminal commands only for the cells that differ from the
@@ -53,7 +53,7 @@ impl Screen {
     #[inline]
     fn put(&mut self, x: u16, y: u16, ch: char, color: Color) {
         if x < SCREEN_W && y < SCREEN_H {
-            self.cur[(y * SCREEN_W + x) as usize] = (ch, color);
+            self.cur[(y * SCREEN_W + x) as usize] = (ch, color, Color::Reset);
         }
     }
 
@@ -63,6 +63,15 @@ impl Screen {
     fn set_fg(&mut self, x: u16, y: u16, fg: Color) {
         if x < SCREEN_W && y < SCREEN_H {
             self.cur[(y * SCREEN_W + x) as usize].1 = fg;
+        }
+    }
+
+    /// Sets only the background colour of a cell, leaving its glyph and
+    /// foreground untouched. Used by the travel cursor to highlight a tile.
+    #[inline]
+    fn set_bg(&mut self, x: u16, y: u16, bg: Color) {
+        if x < SCREEN_W && y < SCREEN_H {
+            self.cur[(y * SCREEN_W + x) as usize].2 = bg;
         }
     }
 
@@ -93,17 +102,22 @@ impl Screen {
             self.last_offset = offset;
         }
 
-        let mut cur_color: Option<Color> = None;
+        let mut cur_fg: Option<Color> = None;
+        let mut cur_bg: Option<Color> = None;
         for y in 0..SCREEN_H {
             for x in 0..SCREEN_W {
                 let idx = (y * SCREEN_W + x) as usize;
                 if !self.dirty_all && self.cur[idx] == self.prev[idx] {
                     continue;
                 }
-                let (ch, color) = self.cur[idx];
-                if cur_color != Some(color) {
-                    queue!(out, SetForegroundColor(color))?;
-                    cur_color = Some(color);
+                let (ch, fg, bg) = self.cur[idx];
+                if cur_fg != Some(fg) {
+                    queue!(out, SetForegroundColor(fg))?;
+                    cur_fg = Some(fg);
+                }
+                if cur_bg != Some(bg) {
+                    queue!(out, SetBackgroundColor(bg))?;
+                    cur_bg = Some(bg);
                 }
                 queue!(out, MoveTo(offset.0 + x, offset.1 + y), Print(ch))?;
             }
@@ -273,6 +287,10 @@ pub fn render<W: Write>(
             screen.puts(hx, 0, " · ", Color::DarkGrey);
             screen.puts(hx + 3, 0, label, Color::Green);
         }
+        if world.resource::<TravelCursor>().active {
+            screen.puts(hx, 0, " · ", Color::DarkGrey);
+            screen.puts(hx + 3, 0, "TRAVEL?", Color::Yellow);
+        }
     }
 
     // ---- Terrain ----
@@ -345,11 +363,21 @@ pub fn render<W: Write>(
             }
             if visible.contains(&(tx, ty)) && occupied_by_actor.contains(&(tx, ty)) {
                 // Keep the actor's glyph but recolour it.
-                let (ch, _) = screen.get(tx, ty + 1);
+                let (ch, _, _) = screen.get(tx, ty + 1);
                 screen.put(tx, ty + 1, ch, Color::Yellow);
             } else {
                 screen.put(tx, ty + 1, '*', Color::Yellow);
             }
+        }
+    }
+
+    // ---- Travel cursor (`O`): a blinking highlight on the chosen tile ----
+    // The blink phase paints the tile's *background* yellow, leaving the glyph
+    // and its colour untouched so what's on the tile stays readable.
+    {
+        let tc = world.resource::<TravelCursor>();
+        if tc.active && tc.blink_on && tc.x < MAP_WIDTH && tc.y < MAP_HEIGHT {
+            screen.set_bg(tc.x, tc.y + 1, Color::Yellow);
         }
     }
 
@@ -369,6 +397,17 @@ pub fn render<W: Write>(
                 screen.puts(0, y, line, Color::White);
             }
         }
+    }
+
+    // ---- Travel-cursor prompt (overrides the log rows while picking) ----
+    if world.resource::<TravelCursor>().active {
+        screen.puts(0, 24, "Move where?", Color::Yellow);
+        screen.puts(
+            12,
+            24,
+            "[hjkl/arrows move · Enter travel · Esc cancel]",
+            Color::DarkGrey,
+        );
     }
 
     // ---- Inventory overlay ----

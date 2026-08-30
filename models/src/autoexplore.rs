@@ -159,6 +159,45 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     first_step(px, py, &open, &is_frontier)
 }
 
+/// Transient UI state for the `O` command: a free-floating cursor the player
+/// steers over already-seen ground to pick a travel destination. Confirming
+/// hands the tile to [`AutoExplore`] as a travel target. Never serialised.
+#[derive(Resource, Default)]
+pub struct TravelCursor {
+    pub active: bool,
+    pub x: u16,
+    pub y: u16,
+    /// Highlight blink phase; the engine flips it on a timer while active.
+    pub blink_on: bool,
+}
+
+impl TravelCursor {
+    /// Open the cursor at `(x, y)` — normally the player's own tile.
+    pub fn open(&mut self, x: u16, y: u16) {
+        self.active = true;
+        self.x = x;
+        self.y = y;
+        self.blink_on = true;
+    }
+
+    /// Close the cursor.
+    pub fn close(&mut self) {
+        self.active = false;
+    }
+}
+
+/// Whether the player has revealed `(x, y)` — i.e. whether the `O` cursor is
+/// allowed to rest on it. Pure: reads the world, never mutates it.
+pub fn tile_is_revealed(world: &mut World, x: u16, y: u16) -> bool {
+    if x >= MAP_WIDTH || y >= MAP_HEIGHT {
+        return false;
+    }
+    let mut q = world.query_filtered::<&Viewshed, With<Player>>();
+    q.iter(world)
+        .next()
+        .is_some_and(|v| v.revealed_tiles.contains(tile_index(x, y)))
+}
+
 /// The single `(dx, dy)` step toward `target` over already-revealed, walkable
 /// ground, or `None` if the player is already there or no known path reaches it.
 pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> {
@@ -173,4 +212,56 @@ pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> 
     };
 
     first_step(px, py, &open, |x, y| (x, y) == target)
+}
+
+/// The revealed, walkable tile reachable from the player that lies closest to
+/// `target` — which may itself be a wall, or in a spot the player cannot get to.
+/// Returns the player's own tile when nothing better is reachable. Pure.
+pub fn nearest_reachable(world: &mut World, target: (u16, u16)) -> Option<(u16, u16)> {
+    let (px, py, seen) = player_view(world)?;
+    let map = world.resource::<Map>();
+
+    let open = |x: u16, y: u16| -> bool {
+        x < MAP_WIDTH && y < MAP_HEIGHT && seen.contains(tile_index(x, y)) && !map.blocks(x, y)
+    };
+    let dist2 = |x: u16, y: u16| -> i64 {
+        let dx = x as i64 - target.0 as i64;
+        let dy = y as i64 - target.1 as i64;
+        dx * dx + dy * dy
+    };
+
+    // Flood every open tile the player can reach, remembering the one that ends
+    // up nearest the target.
+    let start = tile_index(px, py);
+    let mut visited = vec![false; MAP_TILE_COUNT];
+    visited[start] = true;
+    let mut queue: VecDeque<(u16, u16)> = VecDeque::new();
+    queue.push_back((px, py));
+
+    let mut best = (px, py);
+    let mut best_d = dist2(px, py);
+
+    while let Some((cx, cy)) = queue.pop_front() {
+        for &(dx, dy) in &DIRS {
+            let nx = cx as i32 + dx;
+            let ny = cy as i32 + dy;
+            if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
+                continue;
+            }
+            let (nx, ny) = (nx as u16, ny as u16);
+            let ni = tile_index(nx, ny);
+            if visited[ni] || !open(nx, ny) {
+                continue;
+            }
+            visited[ni] = true;
+            let d = dist2(nx, ny);
+            if d < best_d {
+                best_d = d;
+                best = (nx, ny);
+            }
+            queue.push_back((nx, ny));
+        }
+    }
+
+    Some(best)
 }
