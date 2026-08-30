@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 use std::io::Write;
+use std::time::Duration;
 
 use bevy_ecs::prelude::*;
 use crossterm::{
     cursor::MoveTo,
+    event::{poll, read},
     queue,
     style::{Color, Print, SetBackgroundColor, SetForegroundColor},
     terminal::size,
@@ -355,6 +357,19 @@ pub fn render<W: Write>(
         }
     }
 
+    // ---- Particle effects (transient; drawn over actors, only where seen) ----
+    {
+        let particles = world.resource::<Particles>();
+        for p in &particles.live {
+            if p.x >= MAP_WIDTH || p.y >= MAP_HEIGHT || !visible.contains(&(p.x, p.y)) {
+                continue;
+            }
+            if let Some((glyph, color)) = p.current() {
+                screen.put(p.x, p.y + 1, glyph, color);
+            }
+        }
+    }
+
     // ---- Targeting beam overlay ----
     if is_targeting {
         for &(tx, ty) in &target_line {
@@ -416,6 +431,45 @@ pub fn render<W: Write>(
     }
 
     screen.flush(stdout, offset)
+}
+
+/// Play out whatever hit / beam / blast particles the turn just queued.
+///
+/// The turn is already fully resolved — this only animates the aftermath — so it
+/// is safe to freeze here for a couple hundred milliseconds the way NetHack and
+/// DCSS freeze for a bolt. Each ~33 ms frame ages the effect layer and repaints
+/// the map; the loop ends when the last mote dies or the player hits a key
+/// (that key is swallowed, exactly like the auto-explore interrupt). A no-op
+/// when nothing was queued.
+pub fn play_particles<W: Write>(
+    world: &mut World,
+    stdout: &mut W,
+    screen: &mut Screen,
+) -> std::io::Result<()> {
+    if !world.resource::<Particles>().pending {
+        return Ok(());
+    }
+    world.resource_mut::<Particles>().pending = false;
+
+    const FRAME_MS: u64 = 33;
+    loop {
+        {
+            let mut fx = world.resource_mut::<Particles>();
+            fx.advance(FRAME_MS as f32);
+            if !fx.any_alive() {
+                break;
+            }
+        }
+        render(world, stdout, screen)?;
+        // The frame delay doubles as an "abort on keypress" poll.
+        if poll(Duration::from_millis(FRAME_MS))? {
+            let _ = read()?;
+            break;
+        }
+    }
+
+    world.resource_mut::<Particles>().clear();
+    Ok(())
 }
 
 /// Rough vertical centring helper for the full-screen end panels.

@@ -1,9 +1,11 @@
 use bevy_ecs::prelude::*;
+use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
 use crate::map::GameRng;
+use crate::particles::Particles;
 use crate::state::Ending;
 
 /// Chance for the player to land an "excellent hit" (see [`resolve_attack`]).
@@ -167,6 +169,20 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     }
     if damage > 0 {
         crate::helpers::spill_blood(world, target, damage, glancing);
+    }
+
+    // Instant hit feedback: a spark where the blow landed, or a faint tick for a
+    // blow that did nothing. Purely cosmetic; `target` still has its Position
+    // here even on a lethal hit (the despawn happens further down).
+    if let Some(tpos) = world.get::<Position>(target).copied() {
+        // The effect layer is optional (tests run without it).
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            if damage > 0 {
+                fx.hit_spark(tpos.x, tpos.y);
+            } else {
+                fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey);
+            }
+        }
     }
 
     let mut log = world.resource_mut::<GameLog>();

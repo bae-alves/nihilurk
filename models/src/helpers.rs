@@ -1,7 +1,7 @@
 use bevy_ecs::{entity::Entity, world::World};
 use rand::Rng;
 
-use crate::map::{BloodStains, GameRng, Map};
+use crate::map::{BloodStains, GameRng};
 use crate::{Blood, Fighter, Position};
 
 pub fn get_line(start: Position, end: Position) -> Vec<Position> {
@@ -41,12 +41,6 @@ pub fn get_line(start: Position, end: Position) -> Vec<Position> {
         }
     }
     points
-}
-
-pub fn is_wall_at(world: &mut World, pos: Position) -> bool {
-    world
-        .get_resource::<Map>()
-        .map_or(false, |m| m.blocks(pos.x, pos.y))
 }
 
 pub fn get_entities_at_position(world: &mut World, pos: Position) -> Vec<Entity> {

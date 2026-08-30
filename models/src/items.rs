@@ -1,6 +1,6 @@
 use bevy_ecs::{entity::Entity, prelude::Bundle, world::World};
 use crossterm::style::Color;
-use crate::{components::*, helpers::{apply_damage, get_entities_at_position, get_line, is_wall_at}};
+use crate::{components::*, map::Map, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
 
 #[derive(Bundle)]
 pub struct ItemBundle {
@@ -194,23 +194,29 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
     };
 
     // Bolt wands: travel a straight line to the target, damaging everything on
-    // the way. `None` means this effect isn't a damaging bolt.
-    let bolt: Option<(i32, &str)> = match effect {
-        WandEffect::MagicMissile => Some((10, "A brilliant cyan bolt leaps from the wand!")),
-        WandEffect::Lightning => Some((20, "A forking bolt of lightning cracks out!")),
-        WandEffect::Striking => Some((14, "An invisible fist hammers down the line!")),
-        WandEffect::DrainLife => Some((12, "A tendril of black light drinks the life from its path.")),
+    // the way. `None` means this effect isn't a damaging bolt. The colour is the
+    // one the animated beam streaks in.
+    let bolt: Option<(i32, &str, Color)> = match effect {
+        WandEffect::MagicMissile => Some((10, "A brilliant cyan bolt leaps from the wand!", Color::Cyan)),
+        WandEffect::Lightning => Some((20, "A forking bolt of lightning cracks out!", Color::Yellow)),
+        WandEffect::Striking => Some((14, "An invisible fist hammers down the line!", Color::White)),
+        WandEffect::DrainLife => Some((12, "A tendril of black light drinks the life from its path.", Color::DarkMagenta)),
         _ => None,
     };
 
     match effect {
         _ if bolt.is_some() => {
-            let (damage, msg) = bolt.unwrap();
+            let (damage, msg, color) = bolt.unwrap();
             world.resource_mut::<GameLog>().add(msg.to_string());
+            let map = world.resource::<Map>().clone();
             let line_points = get_line(user_pos, target_pos);
+            let mut beam_cells: Vec<(u16, u16)> = Vec::new();
             for pos in line_points {
-                if is_wall_at(world, pos) {
+                if map.blocks(pos.x, pos.y) {
                     break;
+                }
+                if !(pos.x == user_pos.x && pos.y == user_pos.y) {
+                    beam_cells.push((pos.x, pos.y));
                 }
                 let entities_at_pos = get_entities_at_position(world, pos);
                 for entity in entities_at_pos {
@@ -219,29 +225,65 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
                     }
                 }
             }
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                fx.beam(&beam_cells, color);
+            }
         }
         WandEffect::Fire | WandEffect::Cold => {
-            let (msg, damage) = if effect == WandEffect::Fire {
+            let is_fire = effect == WandEffect::Fire;
+            let (msg, damage) = if is_fire {
                 ("A roaring sphere of fire erupts!", 25)
             } else {
                 ("A blast of freezing air detonates!", 18)
             };
             world.resource_mut::<GameLog>().add(msg.to_string());
-            // Raio da explosão
-            let radius = 3.0;
-            // Coleta todas as entidades com Posição e Vida em uma área ao redor do target_pos
+
+            // Radius of the blast disc, in tiles.
+            let radius: f32 = 3.0;
+            let map = world.resource::<Map>().clone();
+            let cx = target_pos.x as i32;
+            let cy = target_pos.y as i32;
+            let r = radius.ceil() as i32;
+
+            // Every tile within the disc that the blast centre has line of sight
+            // to (walls stop the flames), tagged with its distance from centre
+            // so the animation can ripple outward.
+            let mut blast_cells: Vec<(u16, u16, f32)> = Vec::new();
+            for dy in -r..=r {
+                for dx in -r..=r {
+                    let dist = ((dx * dx + dy * dy) as f32).sqrt();
+                    if dist > radius {
+                        continue;
+                    }
+                    let Some((tx, ty)) = crate::particles::on_map(cx + dx, cy + dy) else {
+                        continue;
+                    };
+                    let ray = get_line(target_pos, Position { x: tx, y: ty });
+                    let blocked = ray
+                        .iter()
+                        .any(|p| map.blocks(p.x, p.y) && !(p.x == tx && p.y == ty));
+                    if !blocked {
+                        blast_cells.push((tx, ty, dist));
+                    }
+                }
+            }
+
+            // Damage every fighter standing in a blast cell.
+            let cell_set: std::collections::HashSet<(u16, u16)> =
+                blast_cells.iter().map(|&(x, y, _)| (x, y)).collect();
             let mut affected_entities = Vec::new();
-            // Usamos um query manual no World do Bevy para encontrar entidades na área
             let mut query = world.query::<(Entity, &Position)>();
             for (entity, pos) in query.iter(world) {
-                let distance = ((pos.x - target_pos.x).pow(2) as f32 + (pos.y - target_pos.y).pow(2) as f32).sqrt();
-                if distance <= radius {
+                if cell_set.contains(&(pos.x, pos.y)) {
                     affected_entities.push(entity);
                 }
             }
-            // Aplica dano em área
             for entity in affected_entities {
                 apply_damage(world, entity, damage);
+            }
+
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                fx.explosion(&blast_cells, is_fire);
             }
         }
         // Utility wands (polymorph, haste/slow, teleport, cancellation, light,

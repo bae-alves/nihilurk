@@ -177,6 +177,7 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
+    world.insert_resource(models::Particles::new());
 
     if let Some(path) = &load_path {
         models::load_game(&mut world, path)?;
@@ -234,6 +235,11 @@ fn main() -> std::io::Result<()> {
                 schedule.run(&mut world);
             }
         }
+
+        // Step B2: Play any hit / beam / blast animation this turn queued. A
+        // no-op unless a system asked for particles, so auto-explore and
+        // fast-move (which never fight) pass straight through.
+        view::play_particles(&mut world, &mut stdout, &mut screen)?;
 
         // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout, &mut screen)?;
