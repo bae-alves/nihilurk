@@ -74,8 +74,11 @@ impl Map {
                 if nx < 0 || ny < 0 {
                     continue;
                 }
+                // Only room floor (and the stairs that sit on it) makes a wall
+                // worth drawing. A wall that merely touches a Door — but no room
+                // tile — is outside the room, hugging the corridor, and stays dark.
                 match self.tile(nx as u16, ny as u16) {
-                    TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs => {
+                    TileType::Room | TileType::Upstairs | TileType::Downstairs => {
                         return true;
                     }
                     _ => {}

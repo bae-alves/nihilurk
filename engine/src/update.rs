@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use bevy_ecs::prelude::*;
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, read};
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, poll, read};
 use models::*;
-use models::{GameState, components::GameLog}; 
+use models::{GameState, components::GameLog};
 
 fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // 1. Get player entity and calculate target position
@@ -394,13 +396,25 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
                 return Ok(false);
             }
+            KeyCode::Char('o') => {
+                // Auto-explore: refuse to start with a creature in sight or when
+                // there is nothing left to map; otherwise arm the flag and let
+                // the main loop drive the walk one step per frame.
+                if monster_in_sight(world) {
+                    world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+                } else if explore_step(world).is_none() {
+                    world.resource_mut::<GameLog>().add("There is nothing left to explore.");
+                } else {
+                    world.resource_mut::<GameLog>().unread.clear();
+                    world.resource_mut::<AutoExplore>().start(None);
+                }
+                return Ok(false);
+            }
             KeyCode::Char('>') | KeyCode::Char('.') => {
-                world.resource_mut::<GameLog>().unread.clear();
-                return Ok(change_level(world, true));
+                return Ok(travel_or_use_stairs(world, true));
             }
             KeyCode::Char('<') | KeyCode::Char(',') => {
-                world.resource_mut::<GameLog>().unread.clear();
-                return Ok(change_level(world, false));
+                return Ok(travel_or_use_stairs(world, false));
             }
             KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => { dy = -1; action_attempted = true; }
             KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => { dy = 1; action_attempted = true; }
@@ -420,4 +434,133 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     }
 
     Ok(turn_taken)
+}
+
+/// Handles `>` / `<`. Standing on the matching staircase, it uses it. Otherwise,
+/// if that staircase has already been discovered, the coast is clear and a route
+/// to it exists, it starts an auto-walk there; if not, it just prints the usual
+/// "you cannot go that way" line. Never consumes a turn itself.
+fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
+    let dir = if going_down { "down" } else { "up" };
+    let want_tile = if going_down { TileType::Downstairs } else { TileType::Upstairs };
+
+    let ppos = {
+        let mut q = world.query_filtered::<&Position, With<Player>>();
+        q.iter(world).next().copied()
+    };
+    let Some(ppos) = ppos else { return false };
+
+    // Already on the right staircase: use it now.
+    if world.resource::<Map>().tile(ppos.x, ppos.y) == want_tile {
+        world.resource_mut::<GameLog>().unread.clear();
+        return change_level(world, going_down);
+    }
+
+    // Otherwise, offer to walk there — but only if we know where it is.
+    let known_target = stair_location(world.resource::<Map>(), going_down).filter(|&(tx, ty)| {
+        let mut q = world.query_filtered::<&Viewshed, With<Player>>();
+        q.iter(world)
+            .next()
+            .is_some_and(|v| v.revealed_tiles.contains(tile_index(tx, ty)))
+    });
+    let Some(target) = known_target else {
+        world.resource_mut::<GameLog>().add(format!("You cannot go {dir} from here."));
+        return false;
+    };
+
+    if monster_in_sight(world) {
+        world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+        return false;
+    }
+    if travel_step(world, target).is_none() {
+        world.resource_mut::<GameLog>().add(format!("You can't find a path to the {dir}-stairs."));
+        return false;
+    }
+
+    world.resource_mut::<GameLog>().unread.clear();
+    world.resource_mut::<AutoExplore>().start(Some(target));
+    false
+}
+
+/// One tick of an auto-walk, called by the main loop in place of
+/// [`process_input_and_update`] while [`AutoExplore::active`] is set. Returns
+/// whether a turn was consumed.
+///
+/// The walk is halted — the flag cleared — the instant anything worth the
+/// player's attention happens: a key is pressed, a message was logged on the
+/// previous turn (a monster spotted, a hit taken, an item picked up), a monster
+/// is in plain sight, or there is nowhere left to go.
+pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
+    let travelling = world.resource::<AutoExplore>().target.is_some();
+
+    // Any pending keypress cancels the walk. Swallow it so it doesn't also act
+    // as a move on the next frame.
+    if poll(Duration::from_millis(0))? {
+        let _ = read()?;
+        world.resource_mut::<AutoExplore>().stop();
+        world.resource_mut::<GameLog>().add(if travelling {
+            "Travel interrupted."
+        } else {
+            "Auto-explore interrupted."
+        });
+        return Ok(false);
+    }
+
+    // Travelling and arrived: stop cleanly on the staircase.
+    if let Some(target) = world.resource::<AutoExplore>().target {
+        let arrived = {
+            let mut q = world.query_filtered::<&Position, With<Player>>();
+            q.iter(world).next().is_some_and(|p| (p.x, p.y) == target)
+        };
+        if arrived {
+            world.resource_mut::<AutoExplore>().stop();
+            world.resource_mut::<GameLog>().add("You arrive at the staircase.");
+            return Ok(false);
+        }
+    }
+
+    // Something was logged last turn: stop and let the player read it.
+    if !world.resource::<GameLog>().unread.is_empty() {
+        world.resource_mut::<AutoExplore>().stop();
+        return Ok(false);
+    }
+
+    // A monster came into view (or was already there when we started).
+    if monster_in_sight(world) {
+        world.resource_mut::<AutoExplore>().stop();
+        world.resource_mut::<GameLog>().add("There is a monster nearby.");
+        return Ok(false);
+    }
+
+    // Runaway guard.
+    {
+        let mut auto = world.resource_mut::<AutoExplore>();
+        auto.steps += 1;
+        if auto.steps > AUTO_EXPLORE_STEP_CAP {
+            auto.stop();
+            return Ok(false);
+        }
+    }
+
+    let next = match world.resource::<AutoExplore>().target {
+        Some(target) => travel_step(world, target),
+        None => explore_step(world),
+    };
+    let Some((dx, dy)) = next else {
+        world.resource_mut::<AutoExplore>().stop();
+        world.resource_mut::<GameLog>().add(if travelling {
+            "You can't find a path there."
+        } else {
+            "You have explored everywhere you can."
+        });
+        return Ok(false);
+    };
+
+    let moved = move_player(world, dx, dy);
+    if !moved {
+        // The pathfinder only ever steps onto open ground, so this shouldn't
+        // happen — but if it does, don't spin.
+        world.resource_mut::<AutoExplore>().stop();
+    }
+    Ok(moved)
 }

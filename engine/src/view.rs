@@ -215,6 +215,9 @@ pub fn render<W: Write>(
         }
     }
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
+    let auto_label = world.get_resource::<AutoExplore>().and_then(|a| {
+        a.active.then(|| if a.target.is_some() { "TRAVELING" } else { "EXPLORING" })
+    });
 
     // 2. Targeting beam.
     let targeting = world.resource::<TargetingState>();
@@ -265,6 +268,10 @@ pub fn render<W: Write>(
             }
             screen.puts(hx, 0, field, Color::Cyan);
             hx += field.chars().count() as u16;
+        }
+        if let Some(label) = auto_label {
+            screen.puts(hx, 0, " · ", Color::DarkGrey);
+            screen.puts(hx + 3, 0, label, Color::Green);
         }
     }
 

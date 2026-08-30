@@ -171,6 +171,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
     world.insert_resource(Depth {what: 1 as u8});
     world.init_resource::<Ending>();
+    world.init_resource::<AutoExplore>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
@@ -211,8 +212,14 @@ fn main() -> std::io::Result<()> {
     // 4. Main Loop
     while world.resource::<models::GameState>().is_running {
 
-        // Step A: Wait for move (Thread pauses here at event::read)
-        let turn_taken = update::process_input_and_update(&mut world)?;
+        // Step A: Advance one turn. Normally this blocks at event::read waiting
+        // for the player's move; while auto-exploring it instead takes the next
+        // step toward unmapped ground without blocking.
+        let turn_taken = if world.resource::<AutoExplore>().active {
+            update::auto_explore_step(&mut world)?
+        } else {
+            update::process_input_and_update(&mut world)?
+        };
 
         // Step B: Only let monsters act if the player took a valid action
         if turn_taken {
@@ -221,6 +228,12 @@ fn main() -> std::io::Result<()> {
 
         // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout, &mut screen)?;
+
+        // Step C2: Pace the auto-explore walk so it reads as movement rather
+        // than a teleport, and stays interruptible.
+        if world.resource::<AutoExplore>().active {
+            std::thread::sleep(std::time::Duration::from_millis(35));
+        }
 
         // Step D: The player may have just been killed.
         if world.resource::<Ending>().player_dead {
