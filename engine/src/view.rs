@@ -231,8 +231,19 @@ pub fn render<W: Write>(
         }
     }
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
+    // Carrying the Element of Yoord recolours the auto-walk badge: the descent is
+    // over, every step now heads for the surface.
+    let holding_element = pack_items.iter().any(|&it| world.get::<Amulet>(it).is_some());
     let auto_label = world.get_resource::<AutoExplore>().and_then(|a| {
-        a.active.then(|| if a.target.is_some() { "TRAVELING" } else { "EXPLORING" })
+        a.active.then(|| {
+            if holding_element {
+                "ASCENDING"
+            } else if a.target.is_some() {
+                "TRAVELING"
+            } else {
+                "EXPLORING"
+            }
+        })
     });
 
     // 2. Targeting beam.
@@ -287,7 +298,8 @@ pub fn render<W: Write>(
         }
         if let Some(label) = auto_label {
             screen.puts(hx, 0, " · ", Color::DarkGrey);
-            screen.puts(hx + 3, 0, label, Color::Green);
+            let color = if holding_element { Color::Magenta } else { Color::Green };
+            screen.puts(hx + 3, 0, label, color);
         }
         if world.resource::<TravelCursor>().active {
             screen.puts(hx, 0, " · ", Color::DarkGrey);
@@ -541,6 +553,83 @@ const GRAVESTONE: [&str; 8] = [
 
     screen.dirty_all = true;
     screen.flush(stdout, offset)
+}
+
+/// The victory starfield. Shown when the player carries the Element of Yoord up
+/// the final stair. The counterpart to [`render_tombstone`].
+pub fn render_victory<W: Write>(
+    stdout: &mut W,
+    screen: &mut Screen,
+    offset: (u16, u16),
+    player_name: &str,
+    score: i32,
+) -> std::io::Result<()> {
+    screen.clear();
+
+    const STAR: [&str; 9] = [
+        "           *           ",
+        "     .     |     .     ",
+        "      '.   |   .'      ",
+        "        '. | .'        ",
+        "*  --  --  *  --  --  *",
+        "        .' | '.        ",
+        "      .'   |   '.      ",
+        "     '     |     '     ",
+        "           *           ",
+    ];
+
+    let top = 2u16;
+    for (i, line) in STAR.iter().enumerate() {
+        screen.puts(centered_x(line), top + i as u16, line, Color::Yellow);
+    }
+
+    let mut y = top + STAR.len() as u16 + 2;
+    let banner = "YOU WIN";
+    screen.puts(centered_x(banner), y, banner, Color::Green);
+    y += 2;
+
+    // The blessing, wrapped so a long name can't run off the panel.
+    let name = player_name.to_uppercase();
+    let blessing = format!(
+        "WITH THE ELEMENT, {name} AND EVERYONE WHO BASKED IN ITS LIGHT LIVED HAPPILY EVER AFTER"
+    );
+    for line in wrap_words(&blessing, 68) {
+        screen.puts(centered_x(&line), y, &line, Color::Cyan);
+        y += 1;
+    }
+    y += 2;
+
+    let score_line = format!("SCORE {:06}", score);
+    screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
+    y += 3;
+
+    let prompt = "Press any key to depart.";
+    screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
+
+    screen.dirty_all = true;
+    screen.flush(stdout, offset)
+}
+
+/// Greedily breaks `text` into lines no wider than `width` on word boundaries. A
+/// single word longer than `width` gets its own overflowing line.
+fn wrap_words(text: &str, width: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for word in text.split_whitespace() {
+        if cur.is_empty() {
+            cur.push_str(word);
+        } else if cur.chars().count() + 1 + word.chars().count() <= width {
+            cur.push(' ');
+            cur.push_str(word);
+        } else {
+            lines.push(std::mem::take(&mut cur));
+            cur.push_str(word);
+        }
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    lines
 }
 
 fn draw_inventory(world: &mut World, screen: &mut Screen) {

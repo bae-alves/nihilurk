@@ -7,7 +7,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::{ArmorBundle, ItemBundle, PotionBundle, RingBundle, ScrollBundle, WandBundle, WeaponsBundle};
+use crate::{AmuletBundle, ArmorBundle, ItemBundle, PotionBundle, RingBundle, ScrollBundle, WandBundle, WeaponsBundle};
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
@@ -240,6 +240,42 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
 
 pub const MAP_WIDTH: u16 = 80;
 pub const MAP_HEIGHT: u16 = 22;
+
+/// The deepest floor of a run. It has no down-stair: the Element of Yoord sits
+/// where the stair would be, and retrieving it is the whole point of the descent.
+pub const FINAL_DEPTH: u8 = 13;
+
+/// Turns the player may dawdle on one level before the Dungeon Lord loses
+/// patience and portals them onward (down on the way in, up once they carry the
+/// Element). Reset by every level change.
+pub const DUNGEON_LORD_PATIENCE: u32 = 260;
+
+/// The eight neighbouring offsets, ordered for the guardian ring around the
+/// Element of Yoord.
+const RING_DIRS: [(i32, i32); 8] = [
+    (-1, -1), (0, -1), (1, -1), (-1, 0),
+    (1, 0), (-1, 1), (0, 1), (1, 1),
+];
+
+/// The coordinate of the first tile of `want` in `tiles`, row-major.
+fn find_tile(tiles: &[TileType], want: TileType) -> Option<(u16, u16)> {
+    tiles.iter().position(|&t| t == want).map(|i| {
+        ((i % MAP_WIDTH as usize) as u16, (i / MAP_WIDTH as usize) as u16)
+    })
+}
+
+/// Whether the player is currently carrying the Element of Yoord.
+pub fn holding_element_of_yoord(world: &mut World) -> bool {
+    let items: Vec<Entity> = match world
+        .query_filtered::<&Backpack, With<Player>>()
+        .iter(world)
+        .next()
+    {
+        Some(bp) => bp.items.clone(),
+        None => return false,
+    };
+    items.iter().any(|&e| world.get::<Amulet>(e).is_some())
+}
 
 /// Total tile count; the length of a fog-of-war bitset.
 pub const MAP_TILE_COUNT: usize = MAP_WIDTH as usize * MAP_HEIGHT as usize;
@@ -564,16 +600,48 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
         }
     }
 
+    // The deepest floor: replace the down-stair with the Element of Yoord and
+    // ring it with guardians — the first certain, each further one half as
+    // likely. A guardian that would land in a wall cuts the ring short.
+    if depth >= FINAL_DEPTH {
+        if let Some((ex, ey)) = find_tile(&world.resource::<Map>().tiles, TileType::Downstairs) {
+            world.resource_mut::<Map>().tiles[tile_index(ex, ey)] = TileType::Room;
+            world.spawn(AmuletBundle::element_of_yoord(Position { x: ex, y: ey }));
+            occupied.insert((ex, ey));
+
+            for (i, (dx, dy)) in RING_DIRS.iter().enumerate() {
+                if !game_rng.0.gen_bool(0.5_f64.powi(i as i32)) {
+                    continue;
+                }
+                let (nx, ny) = (ex as i32 + dx, ey as i32 + dy);
+                if nx < 0 || ny < 0 {
+                    break;
+                }
+                let (nx, ny) = (nx as u16, ny as u16);
+                if world.resource::<Map>().blocks(nx, ny) {
+                    break;
+                }
+                if occupied.insert((nx, ny)) {
+                    let pos = Position { x: nx, y: ny };
+                    let monster = pick_monster(depth, &mut game_rng.0, pos);
+                    world.spawn(monster);
+                }
+            }
+        }
+    }
+
     world.insert_resource(game_rng);
 }
 
-/// Handles the player using a staircase. Going up is permanently blocked by the
-/// Dungeon Lord's power; only `going_down == true` can succeed, and only while
-/// standing on a [`TileType::Downstairs`]. On success a brand new floor is
-/// generated, the player is placed in its first room, [`Depth`] increases,
-/// their `Fighter` recovers 50% of its max HP, and `true` is returned (a turn
-/// passes). Otherwise a log line is added and `false` is returned so no turn
-/// is consumed.
+/// Handles the player using a staircase.
+///
+/// Without the Element of Yoord the descent rules apply: `>` on a
+/// [`TileType::Downstairs`] works, `<` is blocked by the Dungeon Lord's power.
+/// Once the Element is in the pack the rules invert — `<` on a
+/// [`TileType::Upstairs`] carries the player back up and `>` is dead. On success
+/// a fresh floor is built, the player repositioned, [`Depth`] adjusted, 50% of
+/// max HP restored and `true` returned (a turn passes); otherwise a log line is
+/// added and `false` returned so no turn is consumed.
 pub fn change_level(world: &mut World, going_down: bool) -> bool {
     let player_entity = world
         .query_filtered::<Entity, With<Player>>()
@@ -582,26 +650,66 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         .unwrap();
     let player_pos = *world.get::<Position>(player_entity).unwrap();
     let tile = world.resource::<Map>().tile(player_pos.x, player_pos.y);
+    let has_element = holding_element_of_yoord(world);
 
-    if !going_down {
-        if tile == TileType::Upstairs {
+    if going_down {
+        if has_element {
             world
                 .resource_mut::<GameLog>()
-                .add("The Dungeon Lord's power prevents you from going upstairs.");
-        } else {
-            world
-                .resource_mut::<GameLog>()
-                .add("You cannot go up from here.");
+                .add("The Element of Yoord seeks the sun; it will not let you descend.");
+            return false;
         }
-        return false;
+        if tile != TileType::Downstairs {
+            world
+                .resource_mut::<GameLog>()
+                .add("You cannot go down from here.");
+            return false;
+        }
+        transition_level(world, true, false);
+        return true;
     }
 
-    if tile != TileType::Downstairs {
+    // Going up.
+    if !has_element {
+        world.resource_mut::<GameLog>().add(if tile == TileType::Upstairs {
+            "The Dungeon Lord's power prevents you from going upstairs."
+        } else {
+            "You cannot go up from here."
+        });
+        return false;
+    }
+    if tile != TileType::Upstairs {
         world
             .resource_mut::<GameLog>()
-            .add("You cannot go down from here.");
+            .add("You cannot go up from here.");
         return false;
     }
+    if world.resource::<Depth>().what <= 1 {
+        // The surface at last — and only ever by the player's own hand on the
+        // stair. The run is won.
+        if let Some(mut ending) = world.get_resource_mut::<Ending>() {
+            ending.player_won = true;
+        }
+        world
+            .resource_mut::<GameLog>()
+            .add("You climb the last stair into open sky, the Element of Yoord blazing in your hands.");
+        return true;
+    }
+    transition_level(world, false, false);
+    true
+}
+
+/// Moves the player one floor in the given direction: clears the current floor,
+/// builds the adjacent one, repositions the player (on the up-stair when
+/// descending, on the down-stair when ascending), re-populates, adjusts
+/// [`Depth`], heals 50% of max HP and resets the Dungeon Lord's patience.
+/// `via_portal` only changes the log line.
+fn transition_level(world: &mut World, going_down: bool, via_portal: bool) {
+    let player_entity = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+        .unwrap();
 
     // Despawn every monster and every item lying on the floor. Backpack contents
     // (which carry no Position) are left untouched.
@@ -626,8 +734,17 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
     world.insert_resource(Map { tiles });
     world.resource_mut::<BloodStains>().clear();
 
-    let start = rooms[0].center();
-    let start = (start.0 as u16, start.1 as u16);
+    let fallback = {
+        let c = rooms[0].center();
+        (c.0 as u16, c.1 as u16)
+    };
+    // Descending drops you on the new floor's up-stair (its first room);
+    // ascending brings you out at the shallower floor's down-stair.
+    let start = if going_down {
+        fallback
+    } else {
+        find_tile(&world.resource::<Map>().tiles, TileType::Downstairs).unwrap_or(fallback)
+    };
 
     if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
         pos.x = start.0;
@@ -639,23 +756,83 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         viewshed.dirty = true;
     }
 
-    populate_level(world, &rooms, start);
-
     let depth = {
         let mut depth = world.resource_mut::<Depth>();
-        depth.what = depth.what.saturating_add(1);
+        depth.what = if going_down {
+            depth.what.saturating_add(1)
+        } else {
+            depth.what.saturating_sub(1).max(1)
+        };
         depth.what
     };
+
+    populate_level(world, &rooms, start);
 
     if let Some(mut fighter) = world.get_mut::<Fighter>(player_entity) {
         let heal = fighter.max_hp / 2;
         fighter.hp = (fighter.hp + heal).min(fighter.max_hp);
     }
 
-    world
-        .resource_mut::<GameLog>()
-        .add(format!("You go down the stairs. (Depth {depth})"));
-    true
+    if let Some(mut dl) = world.get_resource_mut::<DungeonLord>() {
+        dl.idle_turns = 0;
+    }
+
+    let msg = if via_portal {
+        // Descending, it is the Dungeon Lord who wrenches you down; once you
+        // carry the Element it is the Element that tears the way open upward.
+        if going_down {
+            format!("The Dungeon Lord opens a portal beneath your feet! You fall downward. (Depth {depth})")
+        } else {
+            format!("The Element of Yoord flares and rips a portal above your head! You rise upward. (Depth {depth})")
+        }
+    } else if going_down {
+        format!("You descend the stairs. (Depth {depth})")
+    } else {
+        format!("You climb the stairs. (Depth {depth})")
+    };
+    world.resource_mut::<GameLog>().add(msg);
+}
+
+/// Exclusive system, run each turn just before visibility is recomputed. Ages
+/// the Dungeon Lord's patience; when it runs out, a portal shunts the player to
+/// the next level — deeper on the way in, back up once they carry the Element of
+/// Yoord. On the deepest floor (without the Element) or the shallowest floor
+/// (with it) the portal has nowhere to send them and only flickers.
+pub fn dungeon_lord_system(world: &mut World) {
+    if world.get_resource::<Ending>().map(|e| e.player_dead).unwrap_or(false) {
+        return;
+    }
+    match world.get_resource_mut::<DungeonLord>() {
+        Some(mut dl) => {
+            dl.idle_turns += 1;
+            if dl.idle_turns < DUNGEON_LORD_PATIENCE {
+                return;
+            }
+            dl.idle_turns = 0;
+        }
+        None => return,
+    }
+
+    let has_element = holding_element_of_yoord(world);
+    let depth = world.resource::<Depth>().what;
+
+    if has_element {
+        if depth <= 1 {
+            world
+                .resource_mut::<GameLog>()
+                .add("The Element of Yoord strains toward the sun — but the last stair you must climb yourself.");
+            return;
+        }
+        transition_level(world, false, true);
+    } else {
+        if depth >= FINAL_DEPTH {
+            world
+                .resource_mut::<GameLog>()
+                .add("The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.");
+            return;
+        }
+        transition_level(world, true, true);
+    }
 }
 
 pub fn initialize_world(world: &mut World) {

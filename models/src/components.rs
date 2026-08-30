@@ -85,6 +85,12 @@ pub struct Fighter {
 #[derive(Component)]
 pub struct Hidden;
 
+/// Marker for the Element of Yoord — the relic each run must carry up from the
+/// depths. While the player's pack holds an entity with this component the
+/// staircases invert: the up-stair works and the down-stair is dead.
+#[derive(Component)]
+pub struct Amulet;
+
 /// Present while an entity is currently inside the player's viewshed. Added the
 /// turn it first enters view (logging "you spotted ..."), removed the turn it
 /// leaves, so re-entering view spots it again. Transient, never serialised.
@@ -230,6 +236,15 @@ pub struct GameLog {
 #[derive(Resource)]
 pub struct Depth{
     pub what: u8
+}
+
+/// Tracks how long the player has lingered on one dungeon level. Every turn adds
+/// one; every level change resets it to zero. When it reaches
+/// [`crate::map::DUNGEON_LORD_PATIENCE`] the Dungeon Lord opens a portal under
+/// the player's feet and shunts them to the next level. Transient, never saved.
+#[derive(Resource, Default)]
+pub struct DungeonLord {
+    pub idle_turns: u32,
 }
 
 impl Default for GameLog {

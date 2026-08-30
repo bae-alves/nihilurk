@@ -32,6 +32,32 @@ impl ItemBundle {
         }
     }
 }
+
+/// The Element of Yoord: the relic each run retrieves from the deepest floor,
+/// spawned in place of that floor's down-stair. Carrying it flips the staircase
+/// rules (see [`crate::map::change_level`]) so the player can climb back out.
+#[derive(Bundle)]
+pub struct AmuletBundle {
+    pub name: Name,
+    pub glyph: Renderable,
+    pub position: Position,
+    pub value: Value,
+    pub item: Item,
+    pub amulet: Amulet,
+}
+
+impl AmuletBundle {
+    pub fn element_of_yoord(position: Position) -> Self {
+        Self {
+            name: Name { what: String::from("the Element of Yoord") },
+            glyph: Renderable { glyph: '&', color: Color::Yellow },
+            position,
+            value: Value { amount: 25000 },
+            item: Item,
+            amulet: Amulet,
+        }
+    }
+}
 #[derive(Bundle)]
 pub struct PotionBundle {
     pub name: Name,

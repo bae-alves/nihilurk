@@ -46,6 +46,7 @@ fn round_trip() {
     w3.spawn(ArmorBundle::plate_mail(pos));
     w3.spawn(ScrollBundle::magic_mapping(pos));
     w3.spawn(RingBundle::new(RingEffect::Regeneration, pos));
+    w3.spawn(AmuletBundle::element_of_yoord(pos));
     let path3 = std::env::temp_dir().join("roog_test_gear.sav");
     let p3 = path3.to_str().unwrap();
     save_game(&mut w3, p3).unwrap();
@@ -69,6 +70,10 @@ fn round_trip() {
         w4.query::<&PutOn>().iter(&w4).map(|p| p.effect).collect::<Vec<_>>(),
         vec![RingEffect::Regeneration],
     );
+    assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);
+
+    // An ordinary save is not clear data.
+    assert!(clear_data(p).unwrap().is_none());
 
     // Map regenerated from the seed matches the original tile-for-tile.
     assert_eq!(w.resource::<Map>().tiles, w2.resource::<Map>().tiles);
@@ -77,4 +82,24 @@ fn round_trip() {
         .tiles
         .iter()
         .any(|&t| t == TileType::Wall));
+}
+
+#[test]
+fn a_won_run_saves_as_clear_data() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
+    w.insert_resource(RngSeed(5));
+    w.init_resource::<GameLog>();
+    w.init_resource::<Ending>();
+    w.insert_resource(PlayerName { what: "VICTOR".into() });
+    initialize_world(&mut w);
+    w.resource_mut::<Ending>().player_won = true;
+
+    let path = std::env::temp_dir().join("roog_clear.sav");
+    let p = path.to_str().unwrap();
+    save_game(&mut w, p).unwrap();
+
+    let clear = clear_data(p).unwrap().expect("recognised as clear data");
+    assert_eq!(clear.player_name, "VICTOR");
+    let _ = std::fs::remove_file(p);
 }

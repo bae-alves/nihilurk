@@ -95,11 +95,20 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         }
     }
     if let Some(item_entity) = item_entity_to_pickup {
+        let mut picked_up = false;
         if let Some(mut backpack) = world.get_mut::<Backpack>(player_entity) {
             backpack.items.push(item_entity);
+            picked_up = true;
+        }
+        if picked_up {
             world.entity_mut(item_entity).remove::<Position>();
+            let is_element = world.get::<Amulet>(item_entity).is_some();
             let mut log = world.resource_mut::<GameLog>();
-            log.add("You pick up an item!".to_string());
+            log.add(if is_element {
+                "You take the Element of Yoord. \"The element of Yoord seeks the sun.\""
+            } else {
+                "You pick up an item!"
+            });
         }
     }
 

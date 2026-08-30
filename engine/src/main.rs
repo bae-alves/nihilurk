@@ -103,6 +103,25 @@ fn run_death_screens<W: std::io::Write>(
     Ok(())
 }
 
+/// The victory sequence: show the starfield. Unlike death, the save is *not*
+/// destroyed — the caller keeps it as "clear data" (see [`models::clear_data`]).
+fn run_victory_screens<W: std::io::Write>(
+    world: &mut World,
+    stdout: &mut W,
+    screen: &mut view::Screen,
+) -> std::io::Result<()> {
+    let offset = view::centering_offset(world);
+    let (name, score) = {
+        let mut q = world.query_filtered::<&Score, With<Player>>();
+        let score = q.iter(world).next().map(|s| s.value).unwrap_or(0);
+        (world.resource::<PlayerName>().what.clone(), score)
+    };
+
+    view::render_victory(stdout, screen, offset, &name, score)?;
+    wait_for_key(|_| true)?;
+    Ok(())
+}
+
 fn main() -> std::io::Result<()> {
     // 1. Argument Parsing for Seed
     let args: Vec<String> = std::env::args().collect();
@@ -143,6 +162,31 @@ fn main() -> std::io::Result<()> {
         }
     }
 
+    // Yoko Taro-style clear data: a won save is kept, not deleted. Recognise it
+    // here — before the alternate screen — and make the player consent to
+    // spending it before a new journey overwrites it. Default is No.
+    if let Some(path) = &load_path {
+        if let Some(clear) = models::clear_data(path)? {
+            println!(
+                "{} has ascended with the Element of Yoord and brought happiness back to the world. \
+If you start another journey, the Element will also return to the Dungeon Lord. Do it? ([Y]es/[N]o)",
+                clear.player_name
+            );
+            let mut answer = String::new();
+            std::io::stdin().read_line(&mut answer)?;
+            if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+                // Default No — the clear data is left untouched.
+                println!("The world keeps its light. Farewell.");
+                return Ok(());
+            }
+            // Yes: begin anew under the winner's name. Drop the load so a fresh
+            // world is built; its exit-save overwrites the clear data, and the
+            // Element goes back to the Dungeon Lord.
+            player_name = clear.player_name;
+            load_path = None;
+        }
+    }
+
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = execute!(
@@ -170,6 +214,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
     world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
     world.insert_resource(Depth {what: 1 as u8});
+    world.init_resource::<DungeonLord>();
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();
     world.init_resource::<FastMove>();
@@ -198,7 +243,8 @@ fn main() -> std::io::Result<()> {
         item_system.after(ai),
         combat_system.after(item_system),
         reaper_system.after(combat_system),
-        visibility_system.after(reaper_system),
+        dungeon_lord_system.after(reaper_system),
+        visibility_system.after(dungeon_lord_system),
     ));
 
     // [!] KICKSTART THE ENGINE [!]
@@ -250,15 +296,34 @@ fn main() -> std::io::Result<()> {
             std::thread::sleep(std::time::Duration::from_millis(35));
         }
 
-        // Step D: The player may have just been killed.
-        if world.resource::<Ending>().player_dead {
+        // Step D: The run may have just ended, in triumph or otherwise.
+        if world.resource::<Ending>().player_dead || world.resource::<Ending>().player_won {
             break;
         }
     }
 
+    if world.resource::<Ending>().player_won {
+        // A win is sticky — even a monster's parting blow the same turn can't rob
+        // a completed run. Show the starfield, then keep the save as clear data
+        // (it serialises with `cleared: true`) rather than deleting it.
+        run_victory_screens(&mut world, &mut stdout, &mut screen)?;
+        if no_save {
+            drop(guard);
+            println!("Clear data not saved (-ns).");
+        } else {
+            let save_result = models::save_game(&mut world, &save_name);
+            drop(guard);
+            match save_result {
+                Ok(()) => println!("Clear data saved to '{save_name}'."),
+                Err(e) => eprintln!("Failed to save clear data: {e}"),
+            }
+        }
+        return Ok(());
+    }
+
     if world.resource::<Ending>().player_dead {
-        // Death overrides everything: the save is gone and there is nothing to
-        // write. Show the epitaph, then restore the terminal.
+        // Death: the save is gone and there is nothing to write. Show the
+        // epitaph, then restore the terminal.
         run_death_screens(&mut world, &mut stdout, &mut screen, &save_name)?;
         drop(guard);
         return Ok(());

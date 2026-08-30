@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use crate::components::*;
-use crate::map::{regenerate_map, BloodStains, GameRng, RngSeed};
-use crate::state::GameState;
+use crate::map::{regenerate_map, BloodStains, GameRng, Map, RngSeed, TileType, FINAL_DEPTH};
+use crate::state::{Ending, GameState};
 use rand_chacha::ChaCha12Rng;
 
 /// How many log lines to persist. `GameLog::add` already trims to this, but the
@@ -71,6 +71,8 @@ struct EntitySave<'a> {
     player: bool,
     hidden: bool,
     consume: bool,
+    /// Marker for the Element of Yoord.
+    amulet: bool,
     #[serde(borrow)]
     name: Option<Cow<'a, str>>,
     /// (range, fog-of-war bitset). `visible_tiles` is never saved: the
@@ -114,6 +116,27 @@ struct SaveGame<'a> {
     rng_seed: u64,
     /// The live RNG state, so the stream continues exactly where it left off.
     rng_state: ChaCha12Rng,
+    /// "Clear data": set when the run was won. The file is kept rather than
+    /// deleted; the loader recognises it and asks before starting over.
+    cleared: bool,
+}
+
+/// The winner's details, pulled from a won game's clear-data save file.
+pub struct ClearData {
+    pub player_name: String,
+}
+
+/// If `path` holds the clear data of a won run, returns the winner's name.
+/// `Ok(None)` for an ordinary save — or one this build can no longer parse, so
+/// the normal load path can report that instead.
+pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
+    let bytes = std::fs::read(path)?;
+    let Ok(save) = postcard::from_bytes::<SaveGame>(&bytes) else {
+        return Ok(None);
+    };
+    Ok(save
+        .cleared
+        .then(|| ClearData { player_name: save.player_name.into_owned() }))
 }
 
 /// Serializes the world to a compact postcard save file. The map is not saved:
@@ -139,6 +162,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             player: er.contains::<Player>(),
             hidden: er.contains::<Hidden>(),
             consume: er.contains::<Consume>(),
+            amulet: er.contains::<Amulet>(),
             name: er.get::<Name>().map(|n| Cow::Borrowed(n.what.as_str())),
             viewshed: er
                 .get::<Viewshed>()
@@ -181,6 +205,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         depth: world.resource::<Depth>().what,
         rng_seed: world.resource::<RngSeed>().0,
         rng_state: world.resource::<GameRng>().0.clone(),
+        cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
     };
 
     let file = std::fs::File::create(path)?;
@@ -209,9 +234,20 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(Depth { what: save.depth });
     world.insert_resource(RngSeed(save.rng_seed));
     world.insert_resource(GameRng(save.rng_state));
+    world.insert_resource(DungeonLord::default());
 
     // Rebuild the map from the seed rather than the save file.
     regenerate_map(world, save.rng_seed);
+
+    // The deepest floor has no down-stair: the seed-built map still carries one,
+    // so carve it back to plain floor. The Element of Yoord entity (or its place
+    // in the pack) comes back from the save itself.
+    if save.depth >= FINAL_DEPTH {
+        let mut map = world.resource_mut::<Map>();
+        if let Some(i) = map.tiles.iter().position(|&t| t == TileType::Downstairs) {
+            map.tiles[i] = TileType::Room;
+        }
+    }
 
     let count = save.entities.len();
     let mut new_ents = Vec::with_capacity(count);
@@ -239,6 +275,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if es.consume {
             em.insert(Consume);
+        }
+        if es.amulet {
+            em.insert(Amulet);
         }
         if let Some(n) = es.name {
             em.insert(Name {
