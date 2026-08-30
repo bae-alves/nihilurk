@@ -156,8 +156,13 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
     if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
         return FastMovePlan::Blocked;
     }
-    if world.resource::<Map>().blocks(nx as u16, ny as u16) {
-        return FastMovePlan::Blocked;
+    {
+        let map = world.resource::<Map>();
+        if map.blocks(nx as u16, ny as u16)
+            || !map.diagonal_step_ok(px, py, nx as u16, ny as u16)
+        {
+            return FastMovePlan::Blocked;
+        }
     }
     FastMovePlan::Straight
 }
@@ -175,8 +180,13 @@ pub fn straight_step(world: &mut World) -> Option<(i16, i16)> {
     if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
         return None;
     }
-    if world.resource::<Map>().blocks(nx as u16, ny as u16) {
-        return None;
+    {
+        let map = world.resource::<Map>();
+        if map.blocks(nx as u16, ny as u16)
+            || !map.diagonal_step_ok(px, py, nx as u16, ny as u16)
+        {
+            return None;
+        }
     }
     Some((dx, dy))
 }

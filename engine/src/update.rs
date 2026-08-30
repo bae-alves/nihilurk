@@ -35,18 +35,26 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         if let Some((entity, pos)) = query.iter(world).next() {
             player_data = Some((
                 entity,
+                pos.x,
+                pos.y,
                 pos.x.saturating_add_signed(dx),
                 pos.y.saturating_add_signed(dy),
             ));
         }
     }
-    let Some((player_entity, new_x, new_y)) = player_data else {
+    let Some((player_entity, old_x, old_y, new_x, new_y)) = player_data else {
         return false;
     };
-    
+
     // 2. Check if the target tile is a wall
     if world.resource::<Map>().blocks(new_x, new_y) {
         return false; // Bumped into a wall, turn is NOT consumed
+    }
+
+    // 2b. A diagonal step only connects tiles of the same kind — no cutting
+    // across a doorway or squeezing between a room and a corridor.
+    if !world.resource::<Map>().diagonal_step_ok(old_x, old_y, new_x, new_y) {
+        return false; // Can't cut this corner, turn is NOT consumed
     }
 
     // 3. Check if a Mob exists at the target coordinates to attack

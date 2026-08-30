@@ -91,6 +91,12 @@ pub fn ai(
             continue;
         }
 
+        // A diagonal step only connects tiles of the same kind: no cutting the
+        // corner of a doorway or slipping between a room and a corridor.
+        if !map.diagonal_step_ok(mob_pos.x, mob_pos.y, new_x, new_y) {
+            continue;
+        }
+
         // ==========================================
         // [!] ROOM LEASH: Prevent chasing player into corridors
         // ==========================================

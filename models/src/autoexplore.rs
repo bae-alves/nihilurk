@@ -80,9 +80,16 @@ fn player_view(world: &mut World) -> Option<(u16, u16, FixedBitSet)> {
 /// Breadth-first search across tiles the caller deems `open`, from `(px, py)`,
 /// for the nearest tile satisfying `goal`. Returns the first `(dx, dy)` hop of
 /// the shortest route, or `None` if no such tile is reachable.
-pub(crate) fn first_step<O, G>(px: u16, py: u16, open: O, goal: G) -> Option<(i16, i16)>
+pub(crate) fn first_step<O, S, G>(
+    px: u16,
+    py: u16,
+    open: O,
+    step_ok: S,
+    goal: G,
+) -> Option<(i16, i16)>
 where
     O: Fn(u16, u16) -> bool,
+    S: Fn(u16, u16, u16, u16) -> bool,
     G: Fn(u16, u16) -> bool,
 {
     let start = tile_index(px, py);
@@ -106,7 +113,7 @@ where
             }
             let (nx, ny) = (nx as u16, ny as u16);
             let ni = tile_index(nx, ny);
-            if visited[ni] || !open(nx, ny) {
+            if visited[ni] || !open(nx, ny) || !step_ok(cx, cy, nx, ny) {
                 continue;
             }
             visited[ni] = true;
@@ -156,7 +163,8 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
             })
     };
 
-    first_step(px, py, &open, &is_frontier)
+    let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
+    first_step(px, py, &open, step_ok, &is_frontier)
 }
 
 /// Transient UI state for the `O` command: a free-floating cursor the player
@@ -211,7 +219,8 @@ pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> 
         x < MAP_WIDTH && y < MAP_HEIGHT && seen.contains(tile_index(x, y)) && !map.blocks(x, y)
     };
 
-    first_step(px, py, &open, |x, y| (x, y) == target)
+    let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
+    first_step(px, py, &open, step_ok, |x, y| (x, y) == target)
 }
 
 /// The revealed, walkable tile reachable from the player that lies closest to
@@ -250,7 +259,7 @@ pub fn nearest_reachable(world: &mut World, target: (u16, u16)) -> Option<(u16, 
             }
             let (nx, ny) = (nx as u16, ny as u16);
             let ni = tile_index(nx, ny);
-            if visited[ni] || !open(nx, ny) {
+            if visited[ni] || !open(nx, ny) || !map.diagonal_step_ok(cx, cy, nx, ny) {
                 continue;
             }
             visited[ni] = true;

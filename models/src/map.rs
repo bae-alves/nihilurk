@@ -57,6 +57,20 @@ impl Map {
         self.tile(x, y) == TileType::Wall
     }
 
+    /// Whether a single step from `(fx, fy)` to `(tx, ty)` is allowed by the
+    /// diagonal-movement rule. Orthogonal steps always pass; a diagonal step is
+    /// only allowed between two tiles of the same kind — you can round a bend in
+    /// a passage, but you can't cut the corner of a doorway or slip diagonally
+    /// between a room and a corridor. Says nothing about walls or occupants;
+    /// combine with [`Map::blocks`].
+    #[inline]
+    pub fn diagonal_step_ok(&self, fx: u16, fy: u16, tx: u16, ty: u16) -> bool {
+        if fx == tx || fy == ty {
+            return true; // orthogonal (or no move)
+        }
+        tile_kind(self.tile(fx, fy)) == tile_kind(self.tile(tx, ty))
+    }
+
     /// Whether the wall at `(x, y)` bounds a room (or a doorway into one). Rogue
     /// only draws these; the loose walls hugging a corridor are left as blank
     /// space so passages read as tunnels through the dark rather than trenches.
@@ -127,6 +141,19 @@ impl BloodStains {
 impl Default for BloodStains {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Coarse grouping of tiles for the diagonal-movement rule: room floor and the
+/// staircases standing on it count as one kind, so a diagonal step onto stairs
+/// still works. Walls get their own bucket but never matter — [`Map::blocks`]
+/// rejects them first.
+fn tile_kind(t: TileType) -> u8 {
+    match t {
+        TileType::Room | TileType::Upstairs | TileType::Downstairs => 0,
+        TileType::Passage => 1,
+        TileType::Door => 2,
+        TileType::Wall => 3,
     }
 }
 
