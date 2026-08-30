@@ -90,6 +90,12 @@ struct EntitySave<'a> {
     battery: Option<i8>,
     wand: Option<WandEffect>,
     ranged: Option<i32>,
+    scroll: Option<ScrollEffect>,
+    ring: Option<RingEffect>,
+    /// (pow_increase, pow_bonus). `wielder` is always rebuilt as `None`.
+    wield: Option<(i8, i8)>,
+    /// (arm_increase, arm_bonus). `wearer` is always rebuilt as `None`.
+    wear: Option<(i8, i8)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -155,6 +161,10 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             battery: er.get::<Battery>().map(|b| b.charges),
             wand: er.get::<Wand>().map(|w| w.effect),
             ranged: er.get::<Ranged>().map(|r| r.range),
+            scroll: er.get::<Scroll>().map(|s| s.effect),
+            ring: er.get::<PutOn>().map(|p| p.effect),
+            wield: er.get::<Wield>().map(|w| (w.pow_increase, w.pow_bonus)),
+            wear: er.get::<Wear>().map(|w| (w.arm_increase, w.arm_bonus)),
         });
     }
 
@@ -284,6 +294,18 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some(r) = es.ranged {
             em.insert(Ranged { range: r });
+        }
+        if let Some(effect) = es.scroll {
+            em.insert(Scroll { effect });
+        }
+        if let Some(effect) = es.ring {
+            em.insert(PutOn { bearer: None, effect });
+        }
+        if let Some((pow_increase, pow_bonus)) = es.wield {
+            em.insert(Wield { wielder: None, pow_increase, pow_bonus });
+        }
+        if let Some((arm_increase, arm_bonus)) = es.wear {
+            em.insert(Wear { wearer: None, arm_increase, arm_bonus });
         }
     }
 

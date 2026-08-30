@@ -125,7 +125,69 @@ pub struct UseQueue {
 #[derive(Component)]
 pub struct Ranged {
     pub range: i32,
-} 
+}
+
+#[derive(Component)]
+pub struct Wield {
+    pub wielder: Option<Entity>,
+    pub pow_increase: i8,
+    pub pow_bonus: i8,
+}
+
+#[derive(Component)]
+pub struct Wear {
+    pub wearer: Option<Entity>,
+    pub arm_increase: i8,
+    pub arm_bonus: i8,
+}
+
+#[derive(Component)]
+pub struct PutOn {
+    pub bearer: Option<Entity>,
+    pub effect: RingEffect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RingEffect {
+    Protection,
+    AddStrength,
+    SustainStrength,
+    Searching,
+    SeeInvisible,
+    Adornment,
+    AggravateMonster,
+    Dexterity,
+    IncreaseDamage,
+    Regeneration,
+    SlowDigestion,
+    Teleportation,
+    Stealth,
+    MaintainArmor,
+}
+
+#[derive(Component)]
+pub struct Scroll {
+    pub effect: ScrollEffect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ScrollEffect {
+    MonsterConfusion,
+    MagicMapping,
+    HoldMonster,
+    Sleep,
+    EnchantArmor,
+    Identify,
+    ScareMonster,
+    FoodDetection,
+    Teleportation,
+    EnchantWeapon,
+    CreateMonster,
+    RemoveCurse,
+    AggravateMonsters,
+    BlankPaper,
+    VorpalizeWeapon,
+}
 
 #[derive(Resource, Default)]
 pub struct TargetingState {
@@ -216,6 +278,18 @@ pub struct Wand {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WandEffect {
+    Light,
+    Striking,
+    Lightning,
+    Fire,
+    Cold,
+    Polymorph,
     MagicMissile,
-    Fireball,
+    HasteMonster,
+    SlowMonster,
+    DrainLife,
+    Nothing,
+    TeleportAway,
+    TeleportTo,
+    Cancellation,
 }

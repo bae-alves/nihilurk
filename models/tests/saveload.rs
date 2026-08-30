@@ -34,6 +34,42 @@ fn round_trip() {
     assert_eq!(q.single(&w2).items.len(), 1);
     assert!(w2.get::<Wand>(q.single(&w2).items[0]).is_some());
 
+    // Equipment / scroll / ring components survive the round trip.
+    let mut w3 = World::new();
+    w3.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
+    w3.insert_resource(RngSeed(3));
+    w3.init_resource::<GameLog>();
+    w3.insert_resource(PlayerName { what: "Y".into() });
+    initialize_world(&mut w3);
+    let pos = Position { x: 5, y: 5 };
+    w3.spawn(WeaponsBundle::long_sword(pos));
+    w3.spawn(ArmorBundle::plate_mail(pos));
+    w3.spawn(ScrollBundle::magic_mapping(pos));
+    w3.spawn(RingBundle::new(RingEffect::Regeneration, pos));
+    let path3 = std::env::temp_dir().join("roog_test_gear.sav");
+    let p3 = path3.to_str().unwrap();
+    save_game(&mut w3, p3).unwrap();
+
+    let mut w4 = World::new();
+    w4.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(9)));
+    w4.insert_resource(RngSeed(9));
+    w4.init_resource::<GameLog>();
+    w4.insert_resource(PlayerName { what: "Z".into() });
+    load_game(&mut w4, p3).unwrap();
+    assert_eq!(
+        w4.query::<&Wield>().iter(&w4).map(|w| w.pow_increase).collect::<Vec<_>>(),
+        vec![8],
+    );
+    assert_eq!(w4.query::<&Wear>().iter(&w4).map(|w| w.arm_increase).collect::<Vec<_>>(), vec![9]);
+    assert_eq!(
+        w4.query::<&Scroll>().iter(&w4).map(|s| s.effect).collect::<Vec<_>>(),
+        vec![ScrollEffect::MagicMapping],
+    );
+    assert_eq!(
+        w4.query::<&PutOn>().iter(&w4).map(|p| p.effect).collect::<Vec<_>>(),
+        vec![RingEffect::Regeneration],
+    );
+
     // Map regenerated from the seed matches the original tile-for-tile.
     assert_eq!(w.resource::<Map>().tiles, w2.resource::<Map>().tiles);
     assert!(w2

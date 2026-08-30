@@ -295,21 +295,24 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
         (p.selected, p.action_mode, p.action_selected)
     };
 
-    let item_names: Vec<String> = {
-        let mut query = world.query_filtered::<&Backpack, With<Player>>();
-        match query.iter(world).next() {
-            Some(backpack) => backpack
-                .items
-                .iter()
-                .map(|&e| {
-                    world
-                        .get::<Item>(e)
-                        .map(|it| it.name.clone())
-                        .unwrap_or_default()
-                })
-                .collect(),
-            None => Vec::new(),
-        }
+    // (display name, is-equipped) for every backpack slot.
+    let item_names: Vec<(String, bool)> = {
+        let entities: Vec<Entity> = {
+            let mut query = world.query_filtered::<&Backpack, With<Player>>();
+            match query.iter(world).next() {
+                Some(backpack) => backpack.items.clone(),
+                None => Vec::new(),
+            }
+        };
+        entities
+            .iter()
+            .map(|&e| {
+                let name = world.get::<Item>(e).map(|it| it.name.clone()).unwrap_or_default();
+                let equipped = world.get::<Wield>(e).is_some_and(|w| w.wielder.is_some())
+                    || world.get::<Wear>(e).is_some_and(|w| w.wearer.is_some());
+                (name, equipped)
+            })
+            .collect()
     };
 
     let box_width: u16 = 30;
@@ -330,15 +333,18 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
     );
 
     // Rows.
-    for (i, name) in item_names.iter().enumerate() {
+    for (i, (name, equipped)) in item_names.iter().enumerate() {
         let y = start_y + 1 + i as u16;
         let letter = (b'a' + i as u8) as char;
         let color = if i == selected_idx {
             Color::Yellow
+        } else if *equipped {
+            Color::Cyan
         } else {
             Color::White
         };
-        let text = format!(" {}) {} ", letter, name);
+        let suffix = if *equipped { " (E)" } else { "" };
+        let text = format!(" {}) {}{} ", letter, name, suffix);
         screen.put(start_x, y, '│', grey);
         screen.puts(start_x + 1, y, &format!("{:<w$}", text, w = box_width as usize), color);
         screen.put(start_x + 1 + box_width, y, '│', grey);

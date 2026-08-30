@@ -7,8 +7,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::PotionBundle;
-use crate::WandBundle;
+use crate::{ArmorBundle, ItemBundle, PotionBundle, RingBundle, ScrollBundle, WandBundle, WeaponsBundle};
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
@@ -351,6 +350,79 @@ fn pick_monster(depth: u8, rng: &mut ChaCha12Rng, pos: Position) -> MonsterBundl
     ctor(pos)
 }
 
+/// Rolls one floor item and spawns it at `pos`. Category odds follow the classic
+/// Rogue drop table (food is swapped for coins); within a category every entry
+/// is equally likely.
+///
+/// | Category | Odds |
+/// |----------|------|
+/// | Scrolls  | 30%  |
+/// | Potions  | 27%  |
+/// | Coins    | 17%  |
+/// | Armor    |  8%  |
+/// | Weapons  |  8%  |
+/// | Wands    |  5%  |
+/// | Rings    |  5%  |
+fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
+    /// Picks one constructor from `opts` uniformly and spawns its bundle.
+    fn one<F: Fn(Position) -> B, B: Bundle>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, opts: &[F]) {
+        let ctor = &opts[rng.gen_range(0..opts.len())];
+        world.spawn(ctor(pos));
+    }
+
+    match rng.gen_range(0..100) {
+        // Scrolls — 30%
+        0..=29 => one(world, rng, pos, &[
+            ScrollBundle::monster_confusion, ScrollBundle::magic_mapping, ScrollBundle::hold_monster,
+            ScrollBundle::sleep, ScrollBundle::enchant_armor, ScrollBundle::identify,
+            ScrollBundle::scare_monster, ScrollBundle::food_detection, ScrollBundle::teleportation,
+            ScrollBundle::enchant_weapon, ScrollBundle::create_monster, ScrollBundle::remove_curse,
+            ScrollBundle::aggravate_monsters, ScrollBundle::blank_paper, ScrollBundle::vorpalize_weapon,
+        ]),
+        // Potions — 27%
+        30..=56 => one(world, rng, pos, &[
+            PotionBundle::confusion, PotionBundle::paralysis, PotionBundle::poison,
+            PotionBundle::gain_strength, PotionBundle::see_invisible, PotionBundle::healing,
+            PotionBundle::monster_detection, PotionBundle::magic_detection, PotionBundle::raise_level,
+            PotionBundle::extra_healing, PotionBundle::haste_self, PotionBundle::restore_strength,
+            PotionBundle::blindness, PotionBundle::thirst_quenching,
+        ]),
+        // Coins (Rogue's food slot) — 17%
+        57..=73 => one(world, rng, pos, &[ItemBundle::gold_coin, ItemBundle::silver_coin]),
+        // Armor — 8%
+        74..=81 => one(world, rng, pos, &[
+            ArmorBundle::leather_armor, ArmorBundle::ring_mail, ArmorBundle::studded_leather_armor,
+            ArmorBundle::scale_mail, ArmorBundle::chain_mail, ArmorBundle::splint_mail,
+            ArmorBundle::banded_mail, ArmorBundle::plate_mail,
+        ]),
+        // Weapons — 8%
+        82..=89 => one(world, rng, pos, &[
+            WeaponsBundle::dagger, WeaponsBundle::mace, WeaponsBundle::long_sword,
+            WeaponsBundle::two_handed_sword,
+        ]),
+        // Wands / Staves — 5%
+        90..=94 => one(world, rng, pos, &[
+            WandBundle::light, WandBundle::striking, WandBundle::lightning, WandBundle::fire,
+            WandBundle::cold, WandBundle::polymorph, WandBundle::magic_missile,
+            WandBundle::haste_monster, WandBundle::slow_monster, WandBundle::drain_life,
+            WandBundle::nothing, WandBundle::teleport_away, WandBundle::teleport_to,
+            WandBundle::cancellation,
+        ]),
+        // Rings — 5%
+        _ => {
+            const RINGS: [RingEffect; 14] = [
+                RingEffect::Protection, RingEffect::AddStrength, RingEffect::SustainStrength,
+                RingEffect::Searching, RingEffect::SeeInvisible, RingEffect::Adornment,
+                RingEffect::AggravateMonster, RingEffect::Dexterity, RingEffect::IncreaseDamage,
+                RingEffect::Regeneration, RingEffect::SlowDigestion, RingEffect::Teleportation,
+                RingEffect::Stealth, RingEffect::MaintainArmor,
+            ];
+            let effect = RINGS[rng.gen_range(0..RINGS.len())];
+            world.spawn(RingBundle::new(effect, pos));
+        }
+    }
+}
+
 /// Spawns the monsters and items for a freshly built floor. The staircases are
 /// carved by [`build_tiles`]. Shared by [`initialize_world`] and [`change_level`].
 fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
@@ -387,7 +459,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
             let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
 
             if occupied.insert((x, y)) {
-                world.spawn(PotionBundle::healing(Position { x, y }));
+                spawn_random_item(world, &mut game_rng.0, Position { x, y });
                 break;
             }
         }
@@ -514,8 +586,8 @@ pub fn initialize_world(world: &mut World) {
         Fighter {
             hp: 12,
             max_hp: 12,
-            armor: 4,
-            power: 8,
+            armor: 2,
+            power: 4,
             armor_bonus: 0,
             power_bonus: 0,
         },

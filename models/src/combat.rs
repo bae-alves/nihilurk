@@ -20,6 +20,36 @@ fn roll_die(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
     }
 }
 
+/// Sums the `(die_increase, flat_bonus)` an entity's *equipped* weapon adds to
+/// its attack roll. An entity with no backpack or nothing wielded gets `(0, 0)`,
+/// so monsters are unaffected.
+fn equipped_wield_bonus(world: &World, entity: Entity) -> (i32, i32) {
+    world
+        .get::<Backpack>(entity)
+        .and_then(|bp| {
+            bp.items
+                .iter()
+                .filter_map(|&i| world.get::<Wield>(i))
+                .find(|w| w.wielder == Some(entity))
+                .map(|w| (w.pow_increase as i32, w.pow_bonus as i32))
+        })
+        .unwrap_or((0, 0))
+}
+
+/// As [`equipped_wield_bonus`], but for the entity's equipped armour.
+fn equipped_wear_bonus(world: &World, entity: Entity) -> (i32, i32) {
+    world
+        .get::<Backpack>(entity)
+        .and_then(|bp| {
+            bp.items
+                .iter()
+                .filter_map(|&i| world.get::<Wear>(i))
+                .find(|w| w.wearer == Some(entity))
+                .map(|w| (w.arm_increase as i32, w.arm_bonus as i32))
+        })
+        .unwrap_or((0, 0))
+}
+
 /// Looks up an entity's display name, falling back to a vague noun so the log
 /// never prints a raw entity id at the player.
 fn entity_name(world: &World, entity: Entity) -> String {
@@ -60,10 +90,15 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         return;
     }
 
-    let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1);
-    let attacker_power_bonus = world.get::<Fighter>(attacker).map(|f| f.power_bonus).unwrap_or(0);
-    let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0);
-    let target_armor_bonus = world.get::<Fighter>(target).map(|f| f.armor_bonus).unwrap_or(0);
+    let (wpn_die, wpn_flat) = equipped_wield_bonus(world, attacker);
+    let (arm_die, arm_flat) = equipped_wear_bonus(world, target);
+
+    let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1) + wpn_die;
+    let attacker_power_bonus =
+        world.get::<Fighter>(attacker).map(|f| f.power_bonus).unwrap_or(0) + wpn_flat;
+    let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0) + arm_die;
+    let target_armor_bonus =
+        world.get::<Fighter>(target).map(|f| f.armor_bonus).unwrap_or(0) + arm_flat;
     let attacker_is_player = world.get::<Player>(attacker).is_some();
 
     // --- Independent opposed rolls -----------------------------------------
