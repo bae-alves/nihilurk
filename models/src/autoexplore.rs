@@ -80,7 +80,7 @@ fn player_view(world: &mut World) -> Option<(u16, u16, FixedBitSet)> {
 /// Breadth-first search across tiles the caller deems `open`, from `(px, py)`,
 /// for the nearest tile satisfying `goal`. Returns the first `(dx, dy)` hop of
 /// the shortest route, or `None` if no such tile is reachable.
-fn first_step<O, G>(px: u16, py: u16, open: O, goal: G) -> Option<(i16, i16)>
+pub(crate) fn first_step<O, G>(px: u16, py: u16, open: O, goal: G) -> Option<(i16, i16)>
 where
     O: Fn(u16, u16) -> bool,
     G: Fn(u16, u16) -> bool,

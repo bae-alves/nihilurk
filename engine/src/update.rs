@@ -410,6 +410,25 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
                 return Ok(false);
             }
+            KeyCode::Tab => {
+                // Auto-fight: one turn spent closing on — or striking — the
+                // weakest foe in sight. Not a mode: each press is a single turn.
+                if player_too_injured(world) {
+                    world.resource_mut::<GameLog>().add("You are too injured for that now.");
+                } else if let Some(target) = auto_fight_target(world) {
+                    match fight_step(world, target) {
+                        Some((dx, dy)) => {
+                            world.resource_mut::<GameLog>().unread.clear();
+                            turn_taken = move_player(world, dx, dy);
+                        }
+                        None => {
+                            world.resource_mut::<GameLog>().add("You can't reach it from here.");
+                        }
+                    }
+                } else {
+                    world.resource_mut::<GameLog>().add("There is nothing to fight.");
+                }
+            }
             KeyCode::Char('>') | KeyCode::Char('.') => {
                 return Ok(travel_or_use_stairs(world, true));
             }
