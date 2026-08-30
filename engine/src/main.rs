@@ -172,6 +172,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(Depth {what: 1 as u8});
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();
+    world.init_resource::<FastMove>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
@@ -212,18 +213,22 @@ fn main() -> std::io::Result<()> {
     // 4. Main Loop
     while world.resource::<models::GameState>().is_running {
 
-        // Step A: Advance one turn. Normally this blocks at event::read waiting
-        // for the player's move; while auto-exploring it instead takes the next
-        // step toward unmapped ground without blocking.
-        let turn_taken = if world.resource::<AutoExplore>().active {
-            update::auto_explore_step(&mut world)?
+        // Step A: Advance the game. A fast-move run resolves entirely here,
+        // taking its own turns without repainting; otherwise we take one
+        // auto-explore step, or block at event::read for the player's move.
+        if world.resource::<FastMove>().active {
+            update::fast_move_run(&mut world, &mut schedule)?;
         } else {
-            update::process_input_and_update(&mut world)?
-        };
+            let turn_taken = if world.resource::<AutoExplore>().active {
+                update::auto_explore_step(&mut world)?
+            } else {
+                update::process_input_and_update(&mut world)?
+            };
 
-        // Step B: Only let monsters act if the player took a valid action
-        if turn_taken {
-            schedule.run(&mut world);
+            // Step B: Only let monsters act if the player took a valid action
+            if turn_taken {
+                schedule.run(&mut world);
+            }
         }
 
         // Step C: Render the world to terminal

@@ -1,9 +1,31 @@
 use std::time::Duration;
 
 use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::Schedule;
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, poll, read};
 use models::*;
 use models::{GameState, components::GameLog};
+
+/// The direction of a Shift + movement-key press, for NetHack-style running.
+/// Accepts the shifted vi keys (`H J K L Y U B N`), the shifted WASD cluster,
+/// and Shift + arrow keys. `None` for anything else.
+fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
+    match code {
+        KeyCode::Char('W') | KeyCode::Char('K') => Some((0, -1)),
+        KeyCode::Char('S') | KeyCode::Char('J') => Some((0, 1)),
+        KeyCode::Char('A') | KeyCode::Char('H') => Some((-1, 0)),
+        KeyCode::Char('D') | KeyCode::Char('L') => Some((1, 0)),
+        KeyCode::Char('Y') => Some((-1, -1)),
+        KeyCode::Char('U') => Some((1, -1)),
+        KeyCode::Char('B') => Some((-1, 1)),
+        KeyCode::Char('N') => Some((1, 1)),
+        KeyCode::Up if mods.contains(KeyModifiers::SHIFT) => Some((0, -1)),
+        KeyCode::Down if mods.contains(KeyModifiers::SHIFT) => Some((0, 1)),
+        KeyCode::Left if mods.contains(KeyModifiers::SHIFT) => Some((-1, 0)),
+        KeyCode::Right if mods.contains(KeyModifiers::SHIFT) => Some((1, 0)),
+        _ => None,
+    }
+}
 
 fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // 1. Get player entity and calculate target position
@@ -369,6 +391,31 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         // ==========================================
         // BRANCH NORMAL: Walking around the map
         // ==========================================
+
+        // Shift + direction: NetHack-style running. Either zoom in a straight
+        // line, or make a beeline for the nearest feature (stairs > door > item)
+        // roughly that way. Refused with a creature in view; the main loop drives
+        // the run to completion and only then repaints.
+        if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
+            match fast_move_plan(world, rdx, rdy) {
+                FastMovePlan::MonsterInSight => {
+                    world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+                }
+                FastMovePlan::Blocked => {
+                    world.resource_mut::<GameLog>().add("You can't run that way.");
+                }
+                FastMovePlan::Straight => {
+                    world.resource_mut::<GameLog>().unread.clear();
+                    world.resource_mut::<FastMove>().start(rdx, rdy, None);
+                }
+                FastMovePlan::Travel(tile) => {
+                    world.resource_mut::<GameLog>().unread.clear();
+                    world.resource_mut::<FastMove>().start(rdx, rdy, Some(tile));
+                }
+            }
+            return Ok(false);
+        }
+
         let mut dx = 0;
         let mut dy = 0;
         let mut action_attempted = false;
@@ -582,4 +629,81 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         world.resource_mut::<AutoExplore>().stop();
     }
     Ok(moved)
+}
+
+/// Run an entire NetHack-style fast move to completion, then hand control back.
+/// Called by the main loop in place of [`process_input_and_update`] while
+/// [`FastMove::active`] is set.
+///
+/// The screen is deliberately left untouched until this returns — the whole run
+/// reads as a single jump. Every step still advances the world by a full turn
+/// (`schedule.run`), so running costs exactly as many turns as walking.
+///
+/// The run halts the instant anything wants the player's attention: a key is
+/// pressed, a creature is (or comes) in view, a message is logged (something
+/// spotted, an item picked up, a hit taken), the beeline reaches its target, a
+/// straight run meets a door / staircase / corridor branch or a wall, or the
+/// step cap trips.
+pub fn fast_move_run(world: &mut World, schedule: &mut Schedule) -> std::io::Result<()> {
+    loop {
+        // A keypress aborts the run. Swallow it so it isn't also read as a move.
+        if poll(Duration::from_millis(0))? {
+            let _ = read()?;
+            break;
+        }
+
+        {
+            let mut fm = world.resource_mut::<FastMove>();
+            fm.steps += 1;
+            if fm.steps > FAST_MOVE_STEP_CAP {
+                break;
+            }
+        }
+
+        // Never start a step with a creature in view.
+        if monster_in_sight(world) {
+            break;
+        }
+
+        let next = match world.resource::<FastMove>().target {
+            Some(target) => travel_step(world, target),
+            None => straight_step(world),
+        };
+        let Some((dx, dy)) = next else { break };
+
+        if !move_player(world, dx, dy) {
+            break;
+        }
+
+        // One turn passes: monsters act, visibility is recomputed.
+        schedule.run(world);
+
+        if world.resource::<Ending>().player_dead {
+            break;
+        }
+        // Something entered view, or a message needs reading.
+        if monster_in_sight(world) || !world.resource::<GameLog>().unread.is_empty() {
+            break;
+        }
+
+        match world.resource::<FastMove>().target {
+            Some(target) => {
+                let here = {
+                    let mut q = world.query_filtered::<&Position, With<Player>>();
+                    q.iter(world).next().map(|p| (p.x, p.y))
+                };
+                if here == Some(target) {
+                    break;
+                }
+            }
+            None => {
+                if straight_stop_here(world) {
+                    break;
+                }
+            }
+        }
+    }
+
+    world.resource_mut::<FastMove>().stop();
+    Ok(())
 }
