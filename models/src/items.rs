@@ -816,8 +816,17 @@ fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
         world.resource_mut::<GameLog>().add(msg.to_string());
         return;
     }
+    if effect == ScrollEffect::MagicMapping {
+        // Arm the row-by-row wipe; the engine plays it out after the turn (see
+        // [`crate::magicmap`]). Headless callers with no reveal resource just
+        // don't get the animation.
+        if let Some(mut reveal) = world.get_resource_mut::<crate::magicmap::MagicMapReveal>() {
+            reveal.start();
+        }
+        world.resource_mut::<GameLog>().add("The dungeon's shape springs into your mind.".to_string());
+        return;
+    }
     let msg = match effect {
-        ScrollEffect::MagicMapping => "The dungeon's shape springs into your mind.",
         ScrollEffect::Teleportation => "You blink to somewhere else.",
         ScrollEffect::AggravateMonsters => "A shrill note rings out. Everything heard that.",
         ScrollEffect::CreateMonster => "The air curdles into something with teeth.",

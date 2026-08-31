@@ -219,6 +219,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<AutoExplore>();
     world.init_resource::<FastMove>();
     world.init_resource::<TravelCursor>();
+    world.init_resource::<MagicMapReveal>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<GameLog>();
@@ -286,6 +287,10 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         // no-op unless a system asked for particles, so auto-explore and
         // fast-move (which never fight) pass straight through.
         view::play_particles(&mut world, &mut stdout, &mut screen)?;
+
+        // Step B3: Sweep in a scroll of magic mapping, one row per frame. A
+        // no-op unless a scroll was just read.
+        view::play_magic_map(&mut world, &mut stdout, &mut screen)?;
 
         // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout, &mut screen)?;

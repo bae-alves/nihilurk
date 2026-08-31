@@ -484,6 +484,39 @@ pub fn play_particles<W: Write>(
     Ok(())
 }
 
+/// Sweep a scroll of magic mapping's reveal down the screen, one map row per
+/// frame, re-rendering between so the layout wipes in from the top.
+///
+/// Mirrors [`play_particles`]: the turn is already resolved, so freezing input
+/// here for a few hundred ms is fine, and any keypress skips straight to the
+/// finished map (the key is swallowed). A no-op when no reveal is armed.
+pub fn play_magic_map<W: Write>(
+    world: &mut World,
+    stdout: &mut W,
+    screen: &mut Screen,
+) -> std::io::Result<()> {
+    if !world.resource::<MagicMapReveal>().active {
+        return Ok(());
+    }
+
+    const FRAME_MS: u64 = 20;
+    loop {
+        if !magic_map_reveal_step(world) {
+            break;
+        }
+        render(world, stdout, screen)?;
+        if poll(Duration::from_millis(FRAME_MS))? {
+            let _ = read()?;
+            finish_magic_map_reveal(world);
+            break;
+        }
+    }
+
+    world.resource_mut::<MagicMapReveal>().stop();
+    render(world, stdout, screen)?;
+    Ok(())
+}
+
 /// Rough vertical centring helper for the full-screen end panels.
 fn centered_x(text: &str) -> u16 {
     (SCREEN_W.saturating_sub(text.chars().count() as u16)) / 2

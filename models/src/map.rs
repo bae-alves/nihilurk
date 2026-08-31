@@ -848,6 +848,7 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
     world.insert_resource(Depth { what: 1 });
     world.insert_resource(BloodStains::new());
+    world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.insert_resource(Identified::default());
     // This run's cosmetic appearance for every unidentified item type. Drawn
     // from a separate RNG keyed off the same seed (so a given seed always
