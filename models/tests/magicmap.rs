@@ -55,12 +55,13 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
         "no tiles revealed until the sweep runs"
     );
 
-    // Drive the sweep the way the engine does: one row per frame.
+    // Drive the sweep the way the engine does: one wave per frame.
     let mut frames = 0;
     while magic_map_reveal_step(&mut w) {
         frames += 1;
-        assert!(frames <= MAP_HEIGHT, "sweep must terminate within one pass");
+        assert!(frames < MAP_TILE_COUNT, "sweep must terminate");
     }
+    assert!(frames > 3, "the reveal should animate over several frames");
 
     // Every tile on the floor is now in the player's memory, and the resource
     // has switched itself back off.
@@ -76,7 +77,8 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
     }
 
     let log = w.resource::<GameLog>();
-    assert!(log.history.iter().any(|m| m.contains("The dungeon's shape springs into your mind")));
+    let style = w.resource::<MagicMapReveal>().style;
+    assert!(log.history.iter().any(|m| m.contains(style.flavour())));
 }
 
 #[test]
@@ -84,4 +86,52 @@ fn magic_map_reveal_step_is_a_noop_when_nothing_is_armed() {
     let mut w = test_world(3);
     assert!(!magic_map_reveal_step(&mut w));
     assert!(!w.resource::<MagicMapReveal>().active);
+}
+
+#[test]
+fn every_style_animates_and_reveals_the_whole_floor() {
+    for style in MagicMapStyle::ALL {
+        let mut w = test_world(11);
+        let p = player(&mut w);
+        let hero = {
+            let pos = w.get::<Position>(p).unwrap();
+            (pos.x, pos.y)
+        };
+
+        w.resource_mut::<MagicMapReveal>().start(hero, style);
+        assert_eq!(w.resource::<MagicMapReveal>().style, style);
+
+        let mut frames = 0;
+        while magic_map_reveal_step(&mut w) {
+            frames += 1;
+            assert!(frames < MAP_TILE_COUNT, "{style:?} must terminate");
+        }
+
+        // It genuinely animates (more than a couple of frames)...
+        assert!(frames > 3, "{style:?} took only {frames} frames");
+        // ...switches itself off...
+        assert!(!w.resource::<MagicMapReveal>().active, "{style:?} left the reveal armed");
+        // ...and leaves every tile on the floor in memory.
+        let vs = w.get::<Viewshed>(p).unwrap();
+        for y in 0..MAP_HEIGHT {
+            for x in 0..MAP_WIDTH {
+                assert!(
+                    vs.revealed_tiles.contains(tile_index(x, y)),
+                    "{style:?}: tile ({x},{y}) not revealed"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn style_names_and_flavour_lines_are_distinct() {
+    assert_eq!(MagicMapStyle::from_name("rows"), Some(MagicMapStyle::RowByRow));
+    assert_eq!(MagicMapStyle::from_name(" Spiral "), Some(MagicMapStyle::Spiral));
+    assert_eq!(MagicMapStyle::from_name("BLAST"), Some(MagicMapStyle::Explode));
+    assert_eq!(MagicMapStyle::from_name("nonsense"), None);
+
+    let lines: Vec<&str> = MagicMapStyle::ALL.iter().map(|s| s.flavour()).collect();
+    assert_eq!(lines.len(), 3);
+    assert!(lines.iter().collect::<std::collections::HashSet<_>>().len() == 3, "flavour lines must differ");
 }

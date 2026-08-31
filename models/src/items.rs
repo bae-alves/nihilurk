@@ -2,8 +2,9 @@ use bevy_ecs::{entity::Entity, prelude::Bundle, world::World};
 use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
-use crate::{components::*, map::{GameRng, Map}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
+use crate::{components::*, map::{GameRng, Map, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
 use crate::identify::Identified;
+use crate::magicmap::{MagicMapReveal, MagicMapStyle};
 
 #[derive(Bundle)]
 pub struct ItemBundle {
@@ -817,13 +818,22 @@ fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
         return;
     }
     if effect == ScrollEffect::MagicMapping {
-        // Arm the row-by-row wipe; the engine plays it out after the turn (see
-        // [`crate::magicmap`]). Headless callers with no reveal resource just
-        // don't get the animation.
-        if let Some(mut reveal) = world.get_resource_mut::<crate::magicmap::MagicMapReveal>() {
-            reveal.start();
+        // Roll the wipe's shape (or take the `ROOG_MAGICMAP` dev override), then
+        // arm it centred on the reader. The engine plays it out frame by frame
+        // after the turn (see [`crate::magicmap`]); headless callers with no
+        // reveal resource just skip the animation.
+        let hero = world
+            .get::<Position>(user)
+            .map(|p| (p.x, p.y))
+            .unwrap_or((MAP_WIDTH / 2, MAP_HEIGHT / 2));
+        let style = std::env::var("ROOG_MAGICMAP")
+            .ok()
+            .and_then(|v| MagicMapStyle::from_name(&v))
+            .unwrap_or_else(|| MagicMapStyle::roll(&mut world.resource_mut::<GameRng>().0));
+        if let Some(mut reveal) = world.get_resource_mut::<MagicMapReveal>() {
+            reveal.start(hero, style);
         }
-        world.resource_mut::<GameLog>().add("The dungeon's shape springs into your mind.".to_string());
+        world.resource_mut::<GameLog>().add(style.flavour().to_string());
         return;
     }
     let msg = match effect {

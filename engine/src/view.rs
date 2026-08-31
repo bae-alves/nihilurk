@@ -484,8 +484,10 @@ pub fn play_particles<W: Write>(
     Ok(())
 }
 
-/// Sweep a scroll of magic mapping's reveal down the screen, one map row per
-/// frame, re-rendering between so the layout wipes in from the top.
+/// Play a scroll of magic mapping's reveal out over a handful of frames,
+/// re-rendering between each wave so the layout wipes in — as a falling curtain,
+/// an outward spiral, or a bursting shell, depending on the rolled
+/// [`MagicMapStyle`].
 ///
 /// Mirrors [`play_particles`]: the turn is already resolved, so freezing input
 /// here for a few hundred ms is fine, and any keypress skips straight to the
@@ -499,13 +501,13 @@ pub fn play_magic_map<W: Write>(
         return Ok(());
     }
 
-    const FRAME_MS: u64 = 20;
+    let frame = Duration::from_millis(world.resource::<MagicMapReveal>().frame_ms());
     loop {
         if !magic_map_reveal_step(world) {
             break;
         }
         render(world, stdout, screen)?;
-        if poll(Duration::from_millis(FRAME_MS))? {
+        if poll(frame)? {
             let _ = read()?;
             finish_magic_map_reveal(world);
             break;
