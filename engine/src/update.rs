@@ -82,6 +82,8 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     if let Some(mut viewshed) = world.get_mut::<Viewshed>(player_entity) {
         viewshed.dirty = true;
     }
+    // Tag the move so `trap_system` checks the new tile for a trap.
+    world.entity_mut(player_entity).insert(EntityMoved);
 
     //5. Query world to see if there is an item at the new position and pick it up if so
     let mut item_entity_to_pickup = None;
@@ -123,6 +125,19 @@ fn player_attack(world: &mut World, attacker_entity: Entity, target_entity: Enti
 }
 
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
+    // A snared player (bear trap / sleeping gas) forfeits the turn outright — no
+    // key is read — as long as there's no pending --MORE-- prompt to clear
+    // first. `snare_system` ages the snare down as the turn resolves.
+    {
+        let more = {
+            let log = world.resource::<GameLog>();
+            log_view(&log.unread).2
+        };
+        if !more && player_snare(world).is_some() {
+            return Ok(true);
+        }
+    }
+
     let event = read()?;
     let mut turn_taken = false;
 

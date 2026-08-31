@@ -639,6 +639,32 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
         }
     }
 
+    // Traps: placed after the stairs, monsters and loot, before the hero drops
+    // in. The chance of each of the ten (classic Rogue's `MAXTRAPS`) slots
+    // producing a trap climbs linearly with depth, so the deep floors bristle
+    // with them and the first floor rarely has more than one.
+    const MAX_TRAPS: usize = 10;
+    let trap_chance = ((2 + depth as u32) as f64 / 26.0).min(0.7);
+    for _ in 0..MAX_TRAPS {
+        if !game_rng.0.gen_bool(trap_chance) {
+            continue;
+        }
+        for _ in 0..100 {
+            let room_idx = game_rng.0.gen_range(0..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+            if (x, y) == player_start {
+                continue;
+            }
+            if world.resource::<Map>().tiles[tile_index(x, y)] != TileType::Room {
+                continue;
+            }
+            if occupied.insert((x, y)) {
+                world.spawn(crate::TrapBundle::random(&mut game_rng.0, Position { x, y }));
+                break;
+            }
+        }
+    }
+
     world.insert_resource(game_rng);
 }
 
@@ -674,7 +700,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
                 .add("You cannot go down from here.");
             return false;
         }
-        transition_level(world, true, false);
+        transition_level(world, true, LevelChange::Stairs);
         return true;
     }
 
@@ -704,16 +730,26 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
             .add("You climb the last stair into open sky, the Element of Yoord blazing in your hands.");
         return true;
     }
-    transition_level(world, false, false);
+    transition_level(world, false, LevelChange::Stairs);
     true
+}
+
+/// Why the player is being moved between floors — only affects the log line and
+/// whether the arrival heal applies (a trapdoor plunge does not heal).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LevelChange {
+    Stairs,
+    Portal,
+    Trapdoor,
 }
 
 /// Moves the player one floor in the given direction: clears the current floor,
 /// builds the adjacent one, repositions the player (on the up-stair when
 /// descending, on the down-stair when ascending), re-populates, adjusts
 /// [`Depth`], heals 50% of max HP and resets the Dungeon Lord's patience.
-/// `via_portal` only changes the log line.
-fn transition_level(world: &mut World, going_down: bool, via_portal: bool) {
+/// `cause` only changes the log line and — for [`LevelChange::Trapdoor`] —
+/// suppresses the arrival heal.
+pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: LevelChange) {
     let player_entity = world
         .query_filtered::<Entity, With<Player>>()
         .iter(world)
@@ -777,27 +813,32 @@ fn transition_level(world: &mut World, going_down: bool, via_portal: bool) {
 
     populate_level(world, &rooms, start);
 
-    if let Some(mut fighter) = world.get_mut::<Fighter>(player_entity) {
-        let heal = fighter.max_hp / 2;
-        fighter.hp = (fighter.hp + heal).min(fighter.max_hp);
+    // A trapdoor plunge is a fall, not a rest: no arrival heal.
+    if cause != LevelChange::Trapdoor {
+        if let Some(mut fighter) = world.get_mut::<Fighter>(player_entity) {
+            let heal = fighter.max_hp / 2;
+            fighter.hp = (fighter.hp + heal).min(fighter.max_hp);
+        }
     }
 
     if let Some(mut dl) = world.get_resource_mut::<DungeonLord>() {
         dl.idle_turns = 0;
     }
 
-    let msg = if via_portal {
+    let msg = match cause {
         // Descending, it is the Dungeon Lord who wrenches you down; once you
         // carry the Element it is the Element that tears the way open upward.
-        if going_down {
+        LevelChange::Portal if going_down => {
             format!("The Dungeon Lord opens a portal beneath your feet! You fall downward. (Depth {depth})")
-        } else {
+        }
+        LevelChange::Portal => {
             format!("The Element of Yoord flares and rips a portal above your head! You rise upward. (Depth {depth})")
         }
-    } else if going_down {
-        format!("You descend the stairs. (Depth {depth})")
-    } else {
-        format!("You climb the stairs. (Depth {depth})")
+        LevelChange::Trapdoor => {
+            format!("You crash down onto the floor below in a shower of dust. (Depth {depth})")
+        }
+        LevelChange::Stairs if going_down => format!("You descend the stairs. (Depth {depth})"),
+        LevelChange::Stairs => format!("You climb the stairs. (Depth {depth})"),
     };
     world.resource_mut::<GameLog>().add(msg);
 }
@@ -832,7 +873,7 @@ pub fn dungeon_lord_system(world: &mut World) {
                 .add("The Element of Yoord strains toward the sun — but the last stair you must climb yourself.");
             return;
         }
-        transition_level(world, false, true);
+        transition_level(world, false, LevelChange::Portal);
     } else {
         if depth >= FINAL_DEPTH {
             world
@@ -840,7 +881,7 @@ pub fn dungeon_lord_system(world: &mut World) {
                 .add("The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.");
             return;
         }
-        transition_level(world, true, true);
+        transition_level(world, true, LevelChange::Portal);
     }
 }
 
@@ -884,6 +925,7 @@ pub fn initialize_world(world: &mut World) {
             max_hp: 12,
             armor: 2,
             power: 4,
+            max_power: 4,
             armor_bonus: 0,
             power_bonus: 0,
         },

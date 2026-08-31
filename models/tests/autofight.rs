@@ -54,7 +54,7 @@ fn spawn_enemy(w: &mut World, x: u16, y: u16, hp: i32) -> Entity {
         Name { what: "dummy".into() },
         Mob { movement_type: MovementType::Static },
         Position { x, y },
-        Fighter { hp, max_hp: hp, armor: 0, power: 1, armor_bonus: 0, power_bonus: 0 },
+        Fighter { hp, max_hp: hp, armor: 0, power: 1, max_power: 1, armor_bonus: 0, power_bonus: 0 },
         Faction::Monster,
         Blood,
     ))

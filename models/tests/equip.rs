@@ -115,7 +115,7 @@ fn equipped_weapon_and_armor_change_combat_math() {
     fn bag(w: &mut World) -> Entity {
         w.spawn((
             Name { what: "bag".into() },
-            Fighter { hp: 100_000, max_hp: 100_000, armor: 0, power: 0, armor_bonus: 0, power_bonus: 0 },
+            Fighter { hp: 100_000, max_hp: 100_000, armor: 0, power: 0, max_power: 0, armor_bonus: 0, power_bonus: 0 },
             Faction::Monster,
             Position { x: 1, y: 1 },
         ))

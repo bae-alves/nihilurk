@@ -8,9 +8,10 @@ use models::*;
 fn walk_a_few_floors_and_use_the_loot() {
     let mut w = World::new();
     // Seed picked so a short 8-floor run turns up at least one of every loot
-    // category (rings are only 5% of drops, so this is deliberately calibrated).
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(42)));
-    w.insert_resource(RngSeed(42));
+    // category (rings are only 5% of drops, so this is deliberately calibrated —
+    // re-pick it if the shared RNG stream shifts, e.g. new spawn logic).
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
+    w.insert_resource(RngSeed(3));
     w.init_resource::<GameLog>();
     w.init_resource::<UseQueue>();
     w.insert_resource(PlayerName { what: "TESTER".into() });

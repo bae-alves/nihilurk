@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 use crate::components::*;
+use crate::traps::{Snare, SnareKind, Trap, TrapEffect, TrapReveal};
 use crate::identify::{Identified, ItemAppearances};
 use crate::map::{regenerate_map, BloodStains, GameRng, Map, RngSeed, TileType, FINAL_DEPTH};
 use crate::state::{Ending, GameState};
@@ -79,8 +80,8 @@ struct EntitySave<'a> {
     /// (range, fog-of-war bitset). `visible_tiles` is never saved: the
     /// visibility system rebuilds it on the first frame after load.
     viewshed: Option<(u16, FixedBitSet)>,
-    /// (hp, max_hp, armor, power, armor_bonus, power_bonus)
-    fighter: Option<(i32, i32, i32, i32, i32, i32)>,
+    /// (hp, max_hp, armor, power, max_power, armor_bonus, power_bonus)
+    fighter: Option<(i32, i32, i32, i32, i32, i32, i32)>,
     faction: Option<Faction>,
     /// Indices into the saved entity list.
     backpack: Option<Vec<u32>>,
@@ -101,6 +102,10 @@ struct EntitySave<'a> {
     wear: Option<(i8, i8)>,
     /// Marker: this equipment is cursed and can't be taken off once equipped.
     curse: bool,
+    /// (effect, reveal style, already discovered) for a floor trap.
+    trap: Option<(TrapEffect, TrapReveal, bool)>,
+    /// (turns remaining, kind) for an actor held by a bear trap / asleep in gas.
+    snare: Option<(u32, SnareKind)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -179,7 +184,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 .map(|v| (v.range, v.revealed_tiles.clone())),
             fighter: er
                 .get::<Fighter>()
-                .map(|f| (f.hp, f.max_hp, f.armor, f.power, f.armor_bonus, f.power_bonus)),
+                .map(|f| (f.hp, f.max_hp, f.armor, f.power, f.max_power, f.armor_bonus, f.power_bonus)),
             faction: er.get::<Faction>().copied(),
             backpack: er.get::<Backpack>().map(|b| {
                 b.items
@@ -200,6 +205,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             wield: er.get::<Wield>().map(|w| (w.pow_increase, w.pow_bonus)),
             wear: er.get::<Wear>().map(|w| (w.arm_increase, w.arm_bonus)),
             curse: er.contains::<Curse>(),
+            trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
+            snare: er.get::<Snare>().map(|s| (s.turns, s.kind)),
         });
     }
 
@@ -307,12 +314,13 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 dirty: true,
             });
         }
-        if let Some((hp, max_hp, armor, power, armor_bonus, power_bonus)) = es.fighter {
+        if let Some((hp, max_hp, armor, power, max_power, armor_bonus, power_bonus)) = es.fighter {
             em.insert(Fighter {
                 hp,
                 max_hp,
                 armor,
                 power,
+                max_power,
                 armor_bonus,
                 power_bonus,
             });
@@ -367,6 +375,12 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if es.curse {
             em.insert(Curse);
+        }
+        if let Some((effect, reveal, revealed)) = es.trap {
+            em.insert(Trap { effect, reveal, revealed });
+        }
+        if let Some((turns, kind)) = es.snare {
+            em.insert(Snare { turns, kind });
         }
     }
 

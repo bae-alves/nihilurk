@@ -296,6 +296,20 @@ pub fn render<W: Write>(
             screen.puts(hx, 0, field, Color::Cyan);
             hx += field.chars().count() as u16;
         }
+        if let Some(kind) = world
+            .query_filtered::<&Snare, With<Player>>()
+            .iter(world)
+            .next()
+            .map(|s| s.kind)
+        {
+            let label = match kind {
+                SnareKind::Bear => "HELD",
+                SnareKind::Sleep => "ASLEEP",
+            };
+            screen.puts(hx, 0, " · ", Color::DarkGrey);
+            screen.puts(hx + 3, 0, label, Color::Red);
+            hx += 3 + label.len() as u16;
+        }
         if let Some(label) = auto_label {
             screen.puts(hx, 0, " · ", Color::DarkGrey);
             let color = if holding_element { Color::Magenta } else { Color::Green };
@@ -354,6 +368,25 @@ pub fn render<W: Write>(
                 continue;
             }
             screen.put(pos.x, pos.y + 1, renderable.glyph, renderable.color);
+        }
+    }
+
+    // ---- Traps (only the ones the player has discovered) ----
+    // A known trap is drawn like a discovered staircase: in colour while in
+    // sight, in fog-grey once seen, and never under an actor standing on it.
+    {
+        let mut query =
+            world.query_filtered::<(&Position, &Renderable), (With<Trap>, Without<Hidden>)>();
+        for (pos, renderable) in query.iter(world) {
+            let coord = (pos.x, pos.y);
+            if occupied_by_actor.contains(&coord) {
+                continue;
+            }
+            if visible.contains(&coord) {
+                screen.put(pos.x, pos.y + 1, renderable.glyph, renderable.color);
+            } else if revealed.contains(tile_index(pos.x, pos.y)) {
+                screen.put(pos.x, pos.y + 1, renderable.glyph, Color::DarkGrey);
+            }
         }
     }
 

@@ -36,7 +36,7 @@ impl MonsterBundle {
         Self {
             name: Name { what: name.to_string() },
             mob: Mob { movement_type },
-            fighter: Fighter { hp, max_hp: hp, power, power_bonus, armor, armor_bonus },
+            fighter: Fighter { hp, max_hp: hp, power, max_power: power, power_bonus, armor, armor_bonus },
             glyph: Renderable { glyph, color },
             position,
             faction: Faction::Monster,

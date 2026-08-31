@@ -240,8 +240,10 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // 3. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
-        ai,
-        item_system.after(ai),
+        snare_system,
+        ai.after(snare_system),
+        trap_system.after(ai),
+        item_system.after(trap_system),
         combat_system.after(item_system),
         reaper_system.after(combat_system),
         dungeon_lord_system.after(reaper_system),
@@ -299,6 +301,12 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         // than a teleport, and stays interruptible.
         if world.resource::<AutoExplore>().active {
             std::thread::sleep(std::time::Duration::from_millis(35));
+        }
+
+        // Pace the turns a snared player auto-forfeits, so a bear trap or a
+        // lungful of sleeping gas reads as time passing rather than a freeze.
+        if models::player_snare(&mut world).is_some() {
+            std::thread::sleep(std::time::Duration::from_millis(90));
         }
 
         // Step D: The run may have just ended, in triumph or otherwise.

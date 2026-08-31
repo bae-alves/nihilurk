@@ -2,7 +2,7 @@ use bevy_ecs::{entity::Entity, world::World};
 use rand::Rng;
 
 use crate::map::{BloodStains, GameRng};
-use crate::{Blood, Fighter, Position};
+use crate::{Backpack, Blood, Fighter, Position, PutOn, RingEffect, Wear};
 
 pub fn get_line(start: Position, end: Position) -> Vec<Position> {
     let mut points = Vec::new();
@@ -41,6 +41,39 @@ pub fn get_line(start: Position, end: Position) -> Vec<Position> {
         }
     }
     points
+}
+
+/// The defender's "armour plus": the flat `armor_bonus` on its [`Fighter`] plus
+/// the `arm_bonus` of any suit it currently has equipped. This is the *only*
+/// part of a target's defence that a trap's damage is measured against — traps
+/// ignore the armour die entirely.
+pub fn total_armor_plus(world: &World, entity: Entity) -> i32 {
+    let base = world.get::<Fighter>(entity).map(|f| f.armor_bonus).unwrap_or(0);
+    let equipped = world
+        .get::<Backpack>(entity)
+        .and_then(|bp| {
+            bp.items
+                .iter()
+                .filter_map(|&i| world.get::<Wear>(i))
+                .find(|w| w.wearer == Some(entity))
+                .map(|w| w.arm_bonus as i32)
+        })
+        .unwrap_or(0);
+    base + equipped
+}
+
+/// Whether `entity` currently has a ring with `effect` on its finger.
+pub fn has_ring_effect(world: &World, entity: Entity, effect: RingEffect) -> bool {
+    world
+        .get::<Backpack>(entity)
+        .map(|bp| {
+            bp.items.iter().any(|&i| {
+                world
+                    .get::<PutOn>(i)
+                    .is_some_and(|p| p.bearer == Some(entity) && p.effect == effect)
+            })
+        })
+        .unwrap_or(false)
 }
 
 pub fn get_entities_at_position(world: &mut World, pos: Position) -> Vec<Entity> {

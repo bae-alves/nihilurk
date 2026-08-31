@@ -2,6 +2,7 @@ use bevy_ecs::prelude::*;
 use std::collections::{HashSet, VecDeque};
 use crate::components::*;
 use crate::map::{tile_index, Map, TileType, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH};
+use crate::traps::{Trap, TrapReveal};
 
 #[inline]
 fn in_bounds(x: i16, y: i16) -> bool {
@@ -21,6 +22,9 @@ pub fn visibility_system(
         (Entity, &Position, Option<&Mob>, Option<&Name>, Option<&Spotted>),
         Or<(With<Mob>, With<Item>)>,
     >,
+
+    // Hidden traps whose reveal style might trip this turn.
+    mut trap_query: Query<(Entity, &Position, &mut Trap), With<Hidden>>,
 
     mut log: ResMut<GameLog>,
 
@@ -114,6 +118,29 @@ pub fn visibility_system(
                 commands.entity(entity).insert(Spotted);
             } else if !in_view && spotted.is_some() {
                 commands.entity(entity).remove::<Spotted>();
+            }
+        }
+
+        // Bring hidden traps to light: a `Sight` trap the instant its tile is in
+        // view, an `Adjacent` trap once the player is standing next to it. A
+        // `Triggered` trap stays invisible until something sets it off. Once
+        // revealed it latches (Hidden removed for good).
+        for (trap_entity, tpos, mut trap) in trap_query.iter_mut() {
+            if trap.revealed {
+                continue;
+            }
+            let found = match trap.reveal {
+                TrapReveal::Sight => visible_set.contains(&(tpos.x, tpos.y)),
+                TrapReveal::Adjacent => {
+                    (tpos.x as i32 - pos.x as i32).abs() <= 1
+                        && (tpos.y as i32 - pos.y as i32).abs() <= 1
+                }
+                TrapReveal::Triggered => false,
+            };
+            if found {
+                trap.revealed = true;
+                commands.entity(trap_entity).remove::<Hidden>();
+                log.add(format!("you spot {} {}", trap.effect.label_article(), trap.effect.label()));
             }
         }
 

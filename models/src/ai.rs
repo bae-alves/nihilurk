@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use bevy_ecs::prelude::*;
 use crate::components::*;
 use crate::map::{Map, TileType};
+use crate::traps::{EntityMoved, Snare};
 use std::collections::HashSet;
 
 pub fn ai(
@@ -11,6 +12,10 @@ pub fn ai(
     )>,
     map: Res<Map>,
     mut attack_queue: ResMut<AttackQueue>,
+    // Monsters caught in a bear trap or asleep in gas forfeit their turn.
+    snared: Query<(), With<Snare>>,
+    // Movers are tagged so `trap_system` can check their new tile for a trap.
+    mut commands: Commands,
 ) {
     // 1. Get player info and clone visible_tiles so p0 can be dropped immediately
     let player_data = {
@@ -43,6 +48,9 @@ pub fn ai(
 
     // 3. Iterate over every mob and update position or attack
     for (mob_entity, mob, mut mob_pos, mob_faction) in param_set.p1().iter_mut() {
+        if snared.contains(mob_entity) {
+            continue;
+        }
         if !visible_tiles.contains(&(mob_pos.x, mob_pos.y)) {
             match mob.movement_type {
                 MovementType::Chase | MovementType::Flee => continue,
@@ -134,5 +142,6 @@ pub fn ai(
         mob_pos.x = new_x;
         mob_pos.y = new_y;
         spatial_map.insert((new_x, new_y), (mob_entity, *mob_faction));
+        commands.entity(mob_entity).insert(EntityMoved);
     }
 }
