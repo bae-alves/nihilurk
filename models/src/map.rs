@@ -567,6 +567,61 @@ fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
     }
 }
 
+/// The centre tile of every distinct corridor on the floor. A "corridor" is one
+/// 4-connected blob of [`TileType::Passage`] tiles (doors and rooms break the
+/// connection); its centre is the passage tile nearest the blob's centroid, so
+/// an L-bend still resolves to a tile that is actually on the path.
+fn corridor_centers(tiles: &[TileType]) -> Vec<(u16, u16)> {
+    let width = MAP_WIDTH as usize;
+    let mut seen = vec![false; tiles.len()];
+    let mut centers = Vec::new();
+
+    for start in 0..tiles.len() {
+        if seen[start] || tiles[start] != TileType::Passage {
+            continue;
+        }
+
+        // Flood-fill this one corridor.
+        let mut stack = vec![start];
+        let mut blob: Vec<usize> = Vec::new();
+        seen[start] = true;
+        while let Some(idx) = stack.pop() {
+            blob.push(idx);
+            let x = (idx % width) as i32;
+            let y = (idx / width) as i32;
+            for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+                let (nx, ny) = (x + dx, y + dy);
+                if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
+                    continue;
+                }
+                let nidx = tile_index(nx as u16, ny as u16);
+                if !seen[nidx] && tiles[nidx] == TileType::Passage {
+                    seen[nidx] = true;
+                    stack.push(nidx);
+                }
+            }
+        }
+
+        // Centroid of the blob, then the blob tile closest to it.
+        let n = blob.len() as i64;
+        let (sx, sy) = blob.iter().fold((0i64, 0i64), |(sx, sy), &i| {
+            (sx + (i % width) as i64, sy + (i / width) as i64)
+        });
+        let (cx, cy) = (sx / n, sy / n);
+        let best = *blob
+            .iter()
+            .min_by_key(|&&i| {
+                let dx = (i % width) as i64 - cx;
+                let dy = (i / width) as i64 - cy;
+                dx * dx + dy * dy
+            })
+            .unwrap();
+        centers.push(((best % width) as u16, (best / width) as u16));
+    }
+
+    centers
+}
+
 /// Spawns the monsters and items for a freshly built floor. The staircases are
 /// carved by [`build_tiles`]. Shared by [`initialize_world`] and [`change_level`].
 fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
@@ -581,8 +636,23 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // Rough danger tier: deeper floors unlock nastier letters.
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
 
-    // Up to 3 monsters.
-    for _ in 0..3 {
+    // Both the monster and trap budgets step up every three floors: `tier` is 0
+    // on depth 1-3, 1 on depth 4-6, 2 on depth 7-9, and so on. Each tier grants
+    // one more spawn slot and widens the odds that a given slot actually fills,
+    // so the dungeon gets steadily — but smoothly — more crowded and more
+    // dangerous the deeper you go.
+    let tier = (depth.saturating_sub(1) / 3) as u32;
+
+    // Monsters: three slots at the surface, +1 per tier. The first slot always
+    // fills (no floor is ever completely empty); every later slot fills with a
+    // probability that itself climbs one step every three floors (capped so a
+    // slot is never quite certain).
+    let max_monsters = 3 + tier as usize;
+    let monster_chance = (0.60 + 0.12 * tier as f64).min(0.95);
+    for slot in 0..max_monsters {
+        if slot > 0 && !game_rng.0.gen_bool(monster_chance) {
+            continue;
+        }
         for _ in 0..100 {
             let room_idx = game_rng.0.gen_range(1..rooms.len());
             let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
@@ -592,6 +662,22 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                 let monster = pick_monster(depth, &mut game_rng.0, pos);
                 world.spawn(monster);
                 break;
+            }
+        }
+    }
+
+    // From depth 7 on, every corridor also has a small (5%) chance of hiding a
+    // lurker dead centre — right where an unwary traveller runs into it.
+    if depth >= 7 {
+        let centers = corridor_centers(&world.resource::<Map>().tiles);
+        for (cx, cy) in centers {
+            if !game_rng.0.gen_bool(0.05) {
+                continue;
+            }
+            if occupied.insert((cx, cy)) {
+                let pos = Position { x: cx, y: cy };
+                let monster = pick_monster(depth, &mut game_rng.0, pos);
+                world.spawn(monster);
             }
         }
     }
@@ -640,12 +726,13 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     }
 
     // Traps: placed after the stairs, monsters and loot, before the hero drops
-    // in. The chance of each of the ten (classic Rogue's `MAXTRAPS`) slots
-    // producing a trap climbs linearly with depth, so the deep floors bristle
-    // with them and the first floor rarely has more than one.
-    const MAX_TRAPS: usize = 10;
-    let trap_chance = ((2 + depth as u32) as f64 / 26.0).min(0.7);
-    for _ in 0..MAX_TRAPS {
+    // in. Like the monster budget, the trap budget steps up every three floors —
+    // four slots at the surface, +1 per `tier` — and each slot's chance of
+    // producing a trap climbs the same way, so the deep floors bristle with them
+    // and the first floors rarely hold more than one.
+    let max_traps = 4 + tier as usize;
+    let trap_chance = (0.12 + 0.13 * tier as f64).min(0.75);
+    for _ in 0..max_traps {
         if !game_rng.0.gen_bool(trap_chance) {
             continue;
         }

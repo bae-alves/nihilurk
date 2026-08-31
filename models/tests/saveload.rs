@@ -48,6 +48,16 @@ fn round_trip() {
     w3.init_resource::<GameLog>();
     w3.insert_resource(PlayerName { what: "Y".into() });
     initialize_world(&mut w3);
+    // Strip the floor's own spawned loot/monsters so this round trip only sees
+    // the gear the test itself places below.
+    let strays: Vec<Entity> = w3
+        .iter_entities()
+        .filter(|e| !e.contains::<Player>() && e.contains::<Position>())
+        .map(|e| e.id())
+        .collect();
+    for e in strays {
+        w3.despawn(e);
+    }
     let pos = Position { x: 5, y: 5 };
     w3.spawn(WeaponsBundle::long_sword(pos));
     let cursed_armor = w3.spawn(ArmorBundle::plate_mail(pos)).id();

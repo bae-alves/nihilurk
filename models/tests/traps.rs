@@ -458,7 +458,7 @@ fn traps_scale_with_depth_and_never_exceed_ten_per_floor() {
         let count = |w: &mut World| w.query_filtered::<(), With<Trap>>().iter(w).count();
 
         let n = count(&mut w);
-        assert!(n <= 10, "MAXTRAPS is 10, got {n}");
+        assert!(n <= 10, "trap budget stays well under ten per floor, got {n}");
         shallow += n;
         if n > 0 {
             floors_with_a_trap += 1;
@@ -477,7 +477,7 @@ fn traps_scale_with_depth_and_never_exceed_ten_per_floor() {
             assert!(change_level(&mut w, true));
         }
         let n = count(&mut w);
-        assert!(n <= 10, "MAXTRAPS is 10, got {n}");
+        assert!(n <= 10, "trap budget stays well under ten per floor, got {n}");
         deep += n;
         if n > 0 {
             floors_with_a_trap += 1;
