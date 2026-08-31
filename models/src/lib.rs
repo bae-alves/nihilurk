@@ -12,6 +12,7 @@ pub mod magicmap;
 pub mod particles;
 pub mod traps;
 mod monsters;
+pub use monsters::*;
 mod combat;
 mod items;
 mod helpers;

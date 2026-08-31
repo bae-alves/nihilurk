@@ -66,6 +66,11 @@ pub enum MovementType {
     Chase,
     Flee,
     Confused,
+    /// Set on every creature by a scroll of aggravate monsters: the mob homes in
+    /// on `(tx, ty)` — the tile the reader stood on — from anywhere on the floor,
+    /// in or out of the player's view, and lunges the moment it draws alongside
+    /// them. See [`crate::ai`].
+    Aggravated { tx: u16, ty: u16 },
 }
 
 #[derive(Component)]
@@ -188,6 +193,20 @@ pub struct PutOn {
 /// by a scroll of remove curse.
 #[derive(Component)]
 pub struct Curse;
+
+/// A weapon that has been vorpalized (scroll of vorpalize weapon). Any hit from
+/// it that draws blood slays a creature named `bane` outright — as it does any
+/// creature carrying [`VorpalTarget`], regardless of `bane`. See
+/// [`crate::combat::resolve_attack`].
+#[derive(Component)]
+pub struct Vorpal {
+    pub bane: String,
+}
+
+/// Marker for a creature that *every* [`Vorpal`] weapon slays in a single blow,
+/// whatever that weapon's rolled `bane`. Carried by the Jabberwock.
+#[derive(Component)]
+pub struct VorpalTarget;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RingEffect {

@@ -1,10 +1,13 @@
-use bevy_ecs::{entity::Entity, prelude::Bundle, world::World};
+use std::collections::HashSet;
+use bevy_ecs::{entity::Entity, prelude::{Bundle, With}, world::World};
 use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 use crate::{components::*, map::{GameRng, Map, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
 use crate::identify::Identified;
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
+use crate::monsters::{spawn_monster, BESTIARY};
+use crate::traps::random_open_tile;
 
 #[derive(Bundle)]
 pub struct ItemBundle {
@@ -586,7 +589,7 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     let bonus: i8 = match quality {
         Quality::Normal => 0,
         Quality::Exceptional => rng.gen_range(1..=3),
-        Quality::Cursed => rng.gen_range(-6..=4),
+        Quality::Cursed => rng.gen_range(-5..=5),
     };
 
     let mut entity = world.entity_mut(item);
@@ -601,17 +604,44 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     }
 }
 
-/// Strips the [`Curse`] tag from every item in `user`'s pack (a scroll of remove
-/// curse). Returns how many items were freed.
+/// Destroys every cursed item `user` currently has equipped (a scroll of remove
+/// curse): each one is unequipped, pulled out of the pack and despawned. Cursed
+/// items sitting unequipped in the pack are left untouched. Returns how many
+/// items were destroyed.
 pub(crate) fn lift_curses(world: &mut World, user: Entity) -> usize {
-    let cursed: Vec<Entity> = world
+    let equipped_by_user = |world: &World, e: Entity| -> bool {
+        world.get::<Wield>(e).is_some_and(|w| w.wielder == Some(user))
+            || world.get::<Wear>(e).is_some_and(|w| w.wearer == Some(user))
+            || world.get::<PutOn>(e).is_some_and(|p| p.bearer == Some(user))
+    };
+
+    let doomed: Vec<Entity> = world
         .get::<Backpack>(user)
-        .map(|bp| bp.items.iter().copied().filter(|&e| world.get::<Curse>(e).is_some()).collect())
+        .map(|bp| {
+            bp.items
+                .iter()
+                .copied()
+                .filter(|&e| world.get::<Curse>(e).is_some() && equipped_by_user(world, e))
+                .collect()
+        })
         .unwrap_or_default();
-    for &e in &cursed {
-        world.entity_mut(e).remove::<Curse>();
+
+    for &e in &doomed {
+        if let Some(mut w) = world.get_mut::<Wield>(e) {
+            w.wielder = None;
+        }
+        if let Some(mut w) = world.get_mut::<Wear>(e) {
+            w.wearer = None;
+        }
+        if let Some(mut p) = world.get_mut::<PutOn>(e) {
+            p.bearer = None;
+        }
+        if let Some(mut bp) = world.get_mut::<Backpack>(user) {
+            bp.items.retain(|&i| i != e);
+        }
+        world.entity_mut(e).despawn();
     }
-    cursed.len()
+    doomed.len()
 }
 
 /// An item's display name, or a vague fallback.
@@ -754,9 +784,9 @@ fn toggle_puton(world: &mut World, user: Entity, item: Entity) {
     }
 }
 
-/// Picks a uniformly random item in `user`'s backpack whose true type isn't
+/// Picks a uniformly random item in `user`'s backpack whose true type isnwhich has no interactive item picker (yet).'t
 /// identified yet and identifies it directly. Used by
-/// [`ScrollEffect::Identify`], which has no interactive item picker (yet).
+/// [`ScrollEffect::Identify`], 
 fn identify_random_unknown_item(world: &mut World, user: Entity) {
     let candidates: Vec<Entity> = world.get::<Backpack>(user).map(|bp| bp.items.clone()).unwrap_or_default();
 
@@ -810,7 +840,7 @@ fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
     if effect == ScrollEffect::RemoveCurse {
         let freed = lift_curses(world, user);
         let msg = if freed > 0 {
-            "You feel as though somebody is watching over you. Your gear loosens its grip."
+            "You feel as though somebody is watching over you. Your cursed gear crumbles away."
         } else {
             "You feel as though somebody is watching over you."
         };
@@ -836,16 +866,195 @@ fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
         world.resource_mut::<GameLog>().add(style.flavour().to_string());
         return;
     }
-    let msg = match effect {
-        ScrollEffect::Teleportation => "You blink to somewhere else.",
-        ScrollEffect::AggravateMonsters => "A shrill note rings out. Everything heard that.",
-        ScrollEffect::CreateMonster => "The air curdles into something with teeth.",
-        ScrollEffect::ScareMonster => "The parchment radiates a menacing aura.",
-        ScrollEffect::BlankPaper => "The scroll is blank. Someone got the last laugh.",
-        ScrollEffect::VorpalizeWeapon => "Your weapon hums with a keen new edge.",
-        _ => "You read the scroll, but nothing obvious happens.",
+    match effect {
+        ScrollEffect::Teleportation => teleport_reader(world, user),
+        ScrollEffect::AggravateMonsters => aggravate_floor(world, user),
+        ScrollEffect::CreateMonster => create_monster(world, user),
+        ScrollEffect::ScareMonster => {
+            let scared = scare_in_view(world, user);
+            let msg = if scared > 0 {
+                "The parchment flares. Every monster watching recoils in terror."
+            } else {
+                "The parchment radiates a menacing aura, but nothing is here to feel it."
+            };
+            world.resource_mut::<GameLog>().add(msg.to_string());
+        }
+        ScrollEffect::VorpalizeWeapon => vorpalize_wielded_weapon(world, user),
+        ScrollEffect::BlankPaper => {
+            world
+                .resource_mut::<GameLog>()
+                .add("The scroll is blank. Someone got the last laugh.".to_string());
+        }
+        _ => {
+            world
+                .resource_mut::<GameLog>()
+                .add("You read the scroll, but nothing obvious happens.".to_string());
+        }
+    }
+}
+
+/// Scroll of teleportation: whisk the reader to a random open tile somewhere on
+/// the current floor.
+fn teleport_reader(world: &mut World, user: Entity) {
+    if let Some((x, y)) = random_open_tile(world) {
+        if let Some(mut pos) = world.get_mut::<Position>(user) {
+            pos.x = x;
+            pos.y = y;
+        }
+        if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
+            vs.dirty = true;
+        }
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add("The world folds, and you are somewhere else on the floor.".to_string());
+}
+
+/// Scroll of aggravate monsters: every creature on the floor drops what it was
+/// doing and homes in on the reader's tile — in or out of sight. See
+/// [`MovementType::Aggravated`].
+fn aggravate_floor(world: &mut World, user: Entity) {
+    let Some(&hero) = world.get::<Position>(user) else { return };
+    let mobs: Vec<Entity> = world
+        .query_filtered::<Entity, With<Mob>>()
+        .iter(world)
+        .collect();
+    for m in mobs {
+        if world.get::<Faction>(m) != Some(&Faction::Monster) {
+            continue;
+        }
+        if let Some(mut mob) = world.get_mut::<Mob>(m) {
+            mob.movement_type = MovementType::Aggravated { tx: hero.x, ty: hero.y };
+        }
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add("A shrill shriek rips through the dungeon. Everything on this floor heard it — and it knows where you are.".to_string());
+}
+
+/// Scroll of scare monster: every monster currently in the reader's view turns
+/// tail for good. Returns how many were scared.
+fn scare_in_view(world: &mut World, user: Entity) -> usize {
+    let seen: HashSet<(u16, u16)> = world
+        .get::<Viewshed>(user)
+        .map(|v| v.visible_tiles.iter().copied().collect())
+        .unwrap_or_default();
+    let targets: Vec<Entity> = world
+        .query_filtered::<(Entity, &Position, &Faction), With<Mob>>()
+        .iter(world)
+        .filter(|(_, p, f)| **f == Faction::Monster && seen.contains(&(p.x, p.y)))
+        .map(|(e, _, _)| e)
+        .collect();
+    for t in &targets {
+        if let Some(mut mob) = world.get_mut::<Mob>(*t) {
+            mob.movement_type = MovementType::Flee;
+        }
+    }
+    targets.len()
+}
+
+/// A free walkable tile next to `origin` that no entity is standing on, chosen
+/// at random. `None` if the reader is boxed in.
+fn free_adjacent_tile(world: &mut World, origin: Position) -> Option<(u16, u16)> {
+    let occupied: HashSet<(u16, u16)> = world
+        .query::<&Position>()
+        .iter(world)
+        .map(|p| (p.x, p.y))
+        .collect();
+    let opts: Vec<(u16, u16)> = {
+        let map = world.resource::<Map>();
+        let mut v = Vec::new();
+        for dy in -1i32..=1 {
+            for dx in -1i32..=1 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+                let (nx, ny) = (origin.x as i32 + dx, origin.y as i32 + dy);
+                if nx < 0 || ny < 0 {
+                    continue;
+                }
+                let (nx, ny) = (nx as u16, ny as u16);
+                if !map.blocks(nx, ny) && !occupied.contains(&(nx, ny)) {
+                    v.push((nx, ny));
+                }
+            }
+        }
+        v
     };
-    world.resource_mut::<GameLog>().add(msg.to_string());
+    if opts.is_empty() {
+        return None;
+    }
+    let idx = world.resource_mut::<GameRng>().0.gen_range(0..opts.len());
+    Some(opts[idx])
+}
+
+/// Scroll of create monster: conjure any creature from the bestiary next to the
+/// reader (or, failing an open adjacent tile, anywhere on the floor).
+fn create_monster(world: &mut World, user: Entity) {
+    let origin = world.get::<Position>(user).copied();
+    let spot = origin
+        .and_then(|o| free_adjacent_tile(world, o))
+        .or_else(|| random_open_tile(world));
+    let Some((x, y)) = spot else {
+        world
+            .resource_mut::<GameLog>()
+            .add("The air curdles — then settles. Whatever was coming thought better of it.".to_string());
+        return;
+    };
+    let ctor = {
+        let mut rng = world.resource_mut::<GameRng>();
+        BESTIARY[rng.0.gen_range(0..BESTIARY.len())]
+    };
+    let e = spawn_monster(world, ctor(Position { x, y }));
+    let name = item_label(world, e);
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("The air curdles into {} {name}, teeth and all!", crate::identify::article_for(&name)));
+}
+
+/// Scroll of vorpalize weapon: brand the reader's wielded weapon [`Vorpal`]
+/// against one random species (it already bites clean through any Jabberwock).
+/// A weapon can only take the edge once — read it over an already-vorpal weapon
+/// and the blade can't hold the second enchantment: it crumbles to nothing.
+fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
+    let weapon = world.get::<Backpack>(user).and_then(|bp| {
+        bp.items
+            .iter()
+            .copied()
+            .find(|&i| world.get::<Wield>(i).is_some_and(|w| w.wielder == Some(user)))
+    });
+    let Some(weapon) = weapon else {
+        world
+            .resource_mut::<GameLog>()
+            .add("The scroll's power gropes for a blade in your hand, finds none, and gutters out.".to_string());
+        return;
+    };
+    if world.get::<Vorpal>(weapon).is_some() {
+        let wname = item_label(world, weapon);
+        if let Some(mut w) = world.get_mut::<Wield>(weapon) {
+            w.wielder = None;
+        }
+        if let Some(mut bp) = world.get_mut::<Backpack>(user) {
+            bp.items.retain(|&i| i != weapon);
+        }
+        world.entity_mut(weapon).despawn();
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("The {wname} can't hold a second edge — it shrieks once and crumbles to dust."));
+        return;
+    }
+    let bane = {
+        let ctor = {
+            let mut rng = world.resource_mut::<GameRng>();
+            BESTIARY[rng.0.gen_range(0..BESTIARY.len())]
+        };
+        ctor(Position { x: 0, y: 0 }).name.what
+    };
+    world.entity_mut(weapon).insert(Vorpal { bane: bane.clone() });
+    let wname = item_label(world, weapon);
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("The {wname} sings with a razor light. Death to any {bane} that feels its edge."));
 }
 
 pub fn item_system(world: &mut World) {

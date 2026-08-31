@@ -475,7 +475,7 @@ fn dart_effect(
 
 /// A uniformly random walkable tile on the current floor that no actor is
 /// standing on. `None` only if the map is somehow wall-to-wall.
-fn random_open_tile(world: &mut World) -> Option<(u16, u16)> {
+pub(crate) fn random_open_tile(world: &mut World) -> Option<(u16, u16)> {
     let occupied: std::collections::HashSet<(u16, u16)> = world
         .query_filtered::<&Position, Or<(With<Player>, With<Mob>)>>()
         .iter(world)

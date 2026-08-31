@@ -53,6 +53,16 @@ fn equipped_wear_bonus(world: &World, entity: Entity) -> (i32, i32) {
         .unwrap_or((0, 0))
 }
 
+/// The `bane` of the attacker's currently-wielded weapon, if that weapon has
+/// been vorpalized (scroll of vorpalize weapon). `None` for an unarmed attacker
+/// or a plain weapon — so monsters, which never wield, are unaffected.
+fn wielded_vorpal_bane(world: &World, entity: Entity) -> Option<String> {
+    world.get::<Backpack>(entity)?.items.iter().find_map(|&i| {
+        let wielded = world.get::<Wield>(i).is_some_and(|w| w.wielder == Some(entity));
+        wielded.then(|| world.get::<Vorpal>(i).map(|v| v.bane.clone())).flatten()
+    })
+}
+
 /// Looks up an entity's display name, falling back to a vague noun so the log
 /// never prints a raw entity id at the player.
 fn entity_name(world: &World, entity: Entity) -> String {
@@ -150,21 +160,40 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let mut damage = attack_total - armor_roll;
 
     // --- Player-only chip damage floor -----------------------------------
+    // The player always scrapes off at least 1 HP even when the armour roll
+    // eats the whole blow — but a blow that weak can never be the killing one.
+    // It can leave a foe on 1 HP; it can't take the last point.
     let mut glancing = false;
     if attacker_is_player && damage < 1 {
         damage = 1;
         glancing = true;
     }
-    let damage = damage.max(0);
+    let mut damage = damage.max(0);
+    if let Some(f) = world.get::<Fighter>(target).filter(|_| glancing) {
+        damage = damage.min((f.hp - 1).max(0));
+    }
 
     // --- Apply & report --------------------------------------------------
     let attacker_name = entity_name(world, attacker);
     let target_name = entity_name(world, target);
     let target_is_player = world.get::<Player>(target).is_some();
 
+    // A vorpalized weapon that draws blood slays its bane outright — and any
+    // creature tagged [`VorpalTarget`] (the Jabberwock), whatever the bane. A
+    // glancing scrape never triggers it.
+    let vorpal = !glancing
+        && damage > 0
+        && wielded_vorpal_bane(world, attacker).is_some_and(|bane| {
+            world.get::<VorpalTarget>(target).is_some()
+                || world.get::<Name>(target).is_some_and(|n| n.what == bane)
+        });
+
     let mut lethal = false;
     if let Some(mut fighter) = world.get_mut::<Fighter>(target) {
         fighter.hp -= damage;
+        if vorpal {
+            fighter.hp = 0;
+        }
         lethal = fighter.hp <= 0;
     }
     if damage > 0 {
@@ -197,6 +226,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
             log.add(format!("You hit the {target_name} for {damage} damage."));
         }
         if lethal {
+            if vorpal {
+                log.add(format!("Snicker-snack! The blade shears clean through the {target_name}!"));
+            }
             log.add(format!("You have slain the {target_name}!"));
         }
     } else {

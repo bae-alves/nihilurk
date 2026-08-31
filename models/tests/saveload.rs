@@ -59,7 +59,8 @@ fn round_trip() {
         w3.despawn(e);
     }
     let pos = Position { x: 5, y: 5 };
-    w3.spawn(WeaponsBundle::long_sword(pos));
+    let vorpal_sword = w3.spawn(WeaponsBundle::long_sword(pos)).id();
+    w3.entity_mut(vorpal_sword).insert(Vorpal { bane: "dragon".into() });
     let cursed_armor = w3.spawn(ArmorBundle::plate_mail(pos)).id();
     w3.entity_mut(cursed_armor).insert(Curse);
     w3.spawn(ScrollBundle::magic_mapping(pos));
@@ -91,6 +92,11 @@ fn round_trip() {
     assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);
     // The curse tag rides along, so cursed gear stays cursed after a reload.
     assert_eq!(w4.query::<&Curse>().iter(&w4).count(), 1);
+    // A vorpalized weapon keeps its edge — and its bane — through a reload.
+    assert_eq!(
+        w4.query::<&Vorpal>().iter(&w4).map(|v| v.bane.clone()).collect::<Vec<_>>(),
+        vec!["dragon".to_string()],
+    );
 
     // An ordinary save is not clear data.
     assert!(clear_data(p).unwrap().is_none());

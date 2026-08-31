@@ -11,7 +11,7 @@ use crate::{AmuletBundle, ArmorBundle, ItemBundle, PotionBundle, RingBundle, Scr
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
-use crate::monsters::MonsterBundle;
+use crate::monsters::{spawn_monster, MonsterBundle};
 use crate::identify::{Identified, ItemAppearances};
 
 #[derive(Resource)]
@@ -660,7 +660,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
             if occupied.insert((x, y)) {
                 let pos = Position { x, y };
                 let monster = pick_monster(depth, &mut game_rng.0, pos);
-                world.spawn(monster);
+                spawn_monster(world, monster);
                 break;
             }
         }
@@ -677,7 +677,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
             if occupied.insert((cx, cy)) {
                 let pos = Position { x: cx, y: cy };
                 let monster = pick_monster(depth, &mut game_rng.0, pos);
-                world.spawn(monster);
+                spawn_monster(world, monster);
             }
         }
     }
@@ -719,7 +719,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                 if occupied.insert((nx, ny)) {
                     let pos = Position { x: nx, y: ny };
                     let monster = pick_monster(depth, &mut game_rng.0, pos);
-                    world.spawn(monster);
+                    spawn_monster(world, monster);
                 }
             }
         }

@@ -1,4 +1,4 @@
-use bevy_ecs::prelude::Bundle;
+use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use crate::components::*;
 
@@ -183,4 +183,30 @@ impl MonsterBundle {
     pub fn zombie(position: Position) -> Self {
         Self::new("zombie", 'Z', Color::DarkGrey, MovementType::Chase, 2, 8, 0, 4, 0, position)
     }
+}
+
+/// Every monster constructor in the game — the whole bestiary plus the goblin —
+/// for effects that spawn or name a creature at random (scrolls of create
+/// monster and vorpalize weapon).
+pub const BESTIARY: [fn(Position) -> MonsterBundle; 27] = [
+    MonsterBundle::goblin,
+    MonsterBundle::aquator, MonsterBundle::bat, MonsterBundle::centaur, MonsterBundle::dragon,
+    MonsterBundle::emu, MonsterBundle::venus_flytrap, MonsterBundle::griffin, MonsterBundle::hobgoblin,
+    MonsterBundle::ice_monster, MonsterBundle::jabberwock, MonsterBundle::kestral,
+    MonsterBundle::leprechaun, MonsterBundle::medusa, MonsterBundle::nymph, MonsterBundle::orc,
+    MonsterBundle::phantom, MonsterBundle::quagga, MonsterBundle::rattlesnake, MonsterBundle::slime,
+    MonsterBundle::troll, MonsterBundle::ur_vile, MonsterBundle::vampire, MonsterBundle::wraith,
+    MonsterBundle::xeroc, MonsterBundle::yeti, MonsterBundle::zombie,
+];
+
+/// The one place a monster is brought into the world: spawns `bundle` and pins
+/// on any always-on tags its species needs (currently just [`VorpalTarget`] for
+/// the Jabberwock). Every spawn site — level population and the create-monster
+/// scroll alike — goes through here so the tagging never drifts.
+pub fn spawn_monster(world: &mut World, bundle: MonsterBundle) -> Entity {
+    let e = world.spawn(bundle).id();
+    if world.get::<Name>(e).is_some_and(|n| n.what == "jabberwock") {
+        world.entity_mut(e).insert(VorpalTarget);
+    }
+    e
 }

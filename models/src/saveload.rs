@@ -102,6 +102,11 @@ struct EntitySave<'a> {
     wear: Option<(i8, i8)>,
     /// Marker: this equipment is cursed and can't be taken off once equipped.
     curse: bool,
+    /// A vorpalized weapon's `bane` species (scroll of vorpalize weapon).
+    #[serde(borrow)]
+    vorpal: Option<Cow<'a, str>>,
+    /// Marker: every vorpal weapon slays this creature in one blow (the Jabberwock).
+    vorpal_target: bool,
     /// (effect, reveal style, already discovered) for a floor trap.
     trap: Option<(TrapEffect, TrapReveal, bool)>,
     /// (turns remaining, kind) for an actor held by a bear trap / asleep in gas.
@@ -205,6 +210,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             wield: er.get::<Wield>().map(|w| (w.pow_increase, w.pow_bonus)),
             wear: er.get::<Wear>().map(|w| (w.arm_increase, w.arm_bonus)),
             curse: er.contains::<Curse>(),
+            vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
+            vorpal_target: er.contains::<VorpalTarget>(),
             trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
             snare: er.get::<Snare>().map(|s| (s.turns, s.kind)),
         });
@@ -375,6 +382,12 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if es.curse {
             em.insert(Curse);
+        }
+        if let Some(bane) = es.vorpal {
+            em.insert(Vorpal { bane: bane.into_owned() });
+        }
+        if es.vorpal_target {
+            em.insert(VorpalTarget);
         }
         if let Some((effect, reveal, revealed)) = es.trap {
             em.insert(Trap { effect, reveal, revealed });

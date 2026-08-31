@@ -84,6 +84,22 @@ pub fn ai(
                 };
                 directions[idx]
             }
+            MovementType::Aggravated { tx, ty } => {
+                // Head for the tile the shriek came from — from anywhere on the
+                // floor, seen or unseen. But once the player is right alongside,
+                // stop navigating to a spot and go for them.
+                let pdx = (player_pos.x as i16 - mob_pos.x as i16).abs();
+                let pdy = (player_pos.y as i16 - mob_pos.y as i16).abs();
+                let (goal_x, goal_y) = if pdx <= 1 && pdy <= 1 {
+                    (player_pos.x, player_pos.y)
+                } else {
+                    (tx, ty)
+                };
+                (
+                    (goal_x as i16 - mob_pos.x as i16).signum(),
+                    (goal_y as i16 - mob_pos.y as i16).signum(),
+                )
+            }
         };
 
         let new_x = (mob_pos.x as i16 + step_x) as u16;

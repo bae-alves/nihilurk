@@ -102,11 +102,47 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
     assert!(!is_equipped(&w, plain_mail), "cursed armour blocks changing armour");
     assert!(is_equipped(&w, cursed_mail));
 
-    // Read a scroll of remove curse, then it comes off.
+    // Read a scroll of remove curse: the equipped cursed suit is destroyed
+    // outright — unequipped, pulled from the pack and despawned.
     use_item(&mut w, p, scroll);
-    assert!(w.get::<Curse>(cursed_mail).is_none(), "remove curse strips the tag");
-    use_item(&mut w, p, cursed_mail);
-    assert!(!is_equipped(&w, cursed_mail), "un-cursed armour comes off normally");
+    assert!(!w.entities().contains(cursed_mail), "the cursed armour is despawned");
+    assert!(
+        !w.get::<Backpack>(p).unwrap().items.contains(&cursed_mail),
+        "the cursed armour is gone from the pack"
+    );
+
+    // The plain armour was never cursed, so it's still there and now equippable.
+    assert!(w.get::<Backpack>(p).unwrap().items.contains(&plain_mail));
+    use_item(&mut w, p, plain_mail);
+    assert!(is_equipped(&w, plain_mail), "plain armour equips once the curse is cleared");
+}
+
+#[test]
+fn remove_curse_spares_unequipped_cursed_gear() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+
+    let worn_ring = w.spawn(RingBundle::new(RingEffect::Adornment, Position { x: 0, y: 0 })).id();
+    w.entity_mut(worn_ring).insert(Curse);
+    let stashed_sword = w.spawn(WeaponsBundle::long_sword(Position { x: 0, y: 0 })).id();
+    w.entity_mut(stashed_sword).insert(Curse);
+    let scroll = w.spawn(ScrollBundle::remove_curse(Position { x: 0, y: 0 })).id();
+    for e in [worn_ring, stashed_sword, scroll] {
+        w.entity_mut(e).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(e);
+    }
+
+    // Only the ring is equipped.
+    use_item(&mut w, p, worn_ring);
+
+    use_item(&mut w, p, scroll);
+
+    // Equipped cursed ring: destroyed.
+    assert!(!w.entities().contains(worn_ring), "the equipped cursed ring is destroyed");
+    // Cursed sword just sitting in the pack: untouched, curse and all.
+    assert!(w.entities().contains(stashed_sword), "the stashed cursed sword survives");
+    assert!(w.get::<Curse>(stashed_sword).is_some(), "its curse is left intact");
+    assert!(w.get::<Backpack>(p).unwrap().items.contains(&stashed_sword));
 }
 
 #[test]
