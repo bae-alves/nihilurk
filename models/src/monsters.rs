@@ -11,6 +11,9 @@ pub struct MonsterBundle {
     pub position: Position,
     pub faction: Faction,
     pub blood: Blood,
+    /// Innate magical properties (immunities, vorpal-target). All `false` here;
+    /// [`spawn_monster`] fills in the flags each species needs.
+    pub traits: Traits,
 }
 
 impl MonsterBundle {
@@ -41,6 +44,7 @@ impl MonsterBundle {
             position,
             faction: Faction::Monster,
             blood: Blood,
+            traits: Traits::default(),
         }
     }
 
@@ -199,14 +203,23 @@ pub const BESTIARY: [fn(Position) -> MonsterBundle; 27] = [
     MonsterBundle::xeroc, MonsterBundle::yeti, MonsterBundle::zombie,
 ];
 
-/// The one place a monster is brought into the world: spawns `bundle` and pins
-/// on any always-on tags its species needs (currently just [`VorpalTarget`] for
-/// the Jabberwock). Every spawn site — level population and the create-monster
-/// scroll alike — goes through here so the tagging never drifts.
+/// The one place a monster is brought into the world: spawns `bundle`, gives
+/// every creature a `Normal` [`Speed`], and stamps its species' innate
+/// [`Traits`] (elemental immunities, vorpal-target). Every spawn site — level
+/// population, the create-monster scroll, the polymorph wand — goes through here
+/// so the tagging never drifts.
 pub fn spawn_monster(world: &mut World, bundle: MonsterBundle) -> Entity {
     let e = world.spawn(bundle).id();
-    if world.get::<Name>(e).is_some_and(|n| n.what == "jabberwock") {
-        world.entity_mut(e).insert(VorpalTarget);
-    }
+    let name = world.get::<Name>(e).map(|n| n.what.clone()).unwrap_or_default();
+    let traits = match name.as_str() {
+        "jabberwock" => Traits { vorpal_target: true, ..Default::default() },
+        "dragon" => Traits { fire_immune: true, ..Default::default() },
+        "yeti" => Traits { cold_immune: true, ..Default::default() },
+        "zombie" | "phantom" | "vampire" | "wraith" => {
+            Traits { undead: true, ..Default::default() }
+        }
+        _ => Traits::default(),
+    };
+    world.entity_mut(e).insert((Speed::new(SpeedKind::Normal), traits));
     e
 }

@@ -3,11 +3,12 @@ use bevy_ecs::{entity::Entity, prelude::{Bundle, With}, world::World};
 use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
-use crate::{components::*, map::{GameRng, Map, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
+use std::collections::VecDeque;
+use crate::{components::*, map::{tile_index, GameRng, Map, TileType, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
 use crate::identify::Identified;
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
-use crate::monsters::{spawn_monster, BESTIARY};
-use crate::traps::random_open_tile;
+use crate::monsters::{spawn_monster, MonsterBundle, BESTIARY};
+use crate::traps::{random_open_tile, Trap};
 
 #[derive(Bundle)]
 pub struct ItemBundle {
@@ -155,10 +156,16 @@ pub struct WandBundle {
     pub battery: Battery,
 }
 
+/// Rolls a fresh wand's battery: `3d4` charges. Called at every wand spawn site
+/// (`spawn_random_item`, the starting wand in `initialize_world`).
+pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8 {
+    (0..3).map(|_| rng.gen_range(1..=4)).sum()
+}
+
 impl WandBundle {
-    /// Wands/staves draw as `/`. `range` feeds the targeting reticle and
-    /// `charges` the battery.
-    fn new(name: &str, color: Color, effect: WandEffect, range: i32, charges: i8, position: Position) -> Self {
+    /// Wands/staves draw as `/`. `range` feeds the targeting reticle. The battery
+    /// starts empty; the spawn site rolls it with [`roll_wand_charges`].
+    fn new(name: &str, color: Color, effect: WandEffect, range: i32, position: Position) -> Self {
         Self {
             name: Name { what: name.to_string() },
             glyph: Renderable { glyph: '/', color },
@@ -166,84 +173,178 @@ impl WandBundle {
             item: Item,
             wand: Wand { effect },
             ranged: Ranged { range },
-            battery: Battery { charges },
+            battery: Battery { charges: 0 },
         }
     }
 
     pub fn light(position: Position) -> Self {
-        Self::new("wand of light", Color::Yellow, WandEffect::Light, 8, 5, position)
+        Self::new("wand of light", Color::Yellow, WandEffect::Light, 8, position)
     }
     pub fn striking(position: Position) -> Self {
-        Self::new("wand of striking", Color::White, WandEffect::Striking, 6, 4, position)
+        Self::new("wand of striking", Color::White, WandEffect::Striking, 6, position)
     }
     pub fn lightning(position: Position) -> Self {
-        Self::new("wand of lightning", Color::Cyan, WandEffect::Lightning, 8, 3, position)
+        Self::new("wand of lightning", Color::Cyan, WandEffect::Lightning, 8, position)
     }
     pub fn fire(position: Position) -> Self {
-        Self::new("wand of fire", Color::Red, WandEffect::Fire, 8, 3, position)
+        Self::new("wand of fire", Color::Red, WandEffect::Fire, 8, position)
     }
     pub fn cold(position: Position) -> Self {
-        Self::new("wand of cold", Color::Blue, WandEffect::Cold, 8, 3, position)
+        Self::new("wand of cold", Color::Blue, WandEffect::Cold, 8, position)
     }
     pub fn polymorph(position: Position) -> Self {
-        Self::new("wand of polymorph", Color::Magenta, WandEffect::Polymorph, 6, 5, position)
+        Self::new("wand of polymorph", Color::Magenta, WandEffect::Polymorph, 6, position)
     }
     pub fn magic_missile(position: Position) -> Self {
-        Self::new("wand of magic missile", Color::Cyan, WandEffect::MagicMissile, 6, 5, position)
+        Self::new("wand of magic missile", Color::Cyan, WandEffect::MagicMissile, 6, position)
     }
     pub fn haste_monster(position: Position) -> Self {
-        Self::new("wand of haste monster", Color::DarkYellow, WandEffect::HasteMonster, 6, 4, position)
+        Self::new("wand of haste monster", Color::DarkYellow, WandEffect::HasteMonster, 6, position)
     }
     pub fn slow_monster(position: Position) -> Self {
-        Self::new("wand of slow monster", Color::DarkCyan, WandEffect::SlowMonster, 6, 5, position)
+        Self::new("wand of slow monster", Color::DarkCyan, WandEffect::SlowMonster, 6, position)
     }
     pub fn drain_life(position: Position) -> Self {
-        Self::new("wand of drain life", Color::DarkRed, WandEffect::DrainLife, 6, 3, position)
+        Self::new("wand of drain life", Color::DarkRed, WandEffect::DrainLife, 6, position)
     }
     pub fn nothing(position: Position) -> Self {
-        Self::new("wand of nothing", Color::DarkGrey, WandEffect::Nothing, 6, 3, position)
+        Self::new("wand of nothing", Color::DarkGrey, WandEffect::Nothing, 6, position)
     }
     pub fn teleport_away(position: Position) -> Self {
-        Self::new("wand of teleport away", Color::Green, WandEffect::TeleportAway, 8, 4, position)
+        Self::new("wand of teleport away", Color::Green, WandEffect::TeleportAway, 8, position)
     }
     pub fn teleport_to(position: Position) -> Self {
-        Self::new("wand of teleport to", Color::Green, WandEffect::TeleportTo, 8, 4, position)
+        Self::new("wand of teleport to", Color::Green, WandEffect::TeleportTo, 8, position)
     }
     pub fn cancellation(position: Position) -> Self {
-        Self::new("wand of cancellation", Color::DarkMagenta, WandEffect::Cancellation, 6, 5, position)
+        Self::new("wand of cancellation", Color::DarkMagenta, WandEffect::Cancellation, 6, position)
     }
 }
 
-fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, effect: WandEffect) {
-    let target_pos = match target {
-        Some(pos) => pos,
-        None => return, // Safety catch: Wands require targets!
-    };
+/// The three flavours of elemental wand. A creature can be immune to one (see
+/// [`Traits`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Element {
+    Fire,
+    Cold,
+    Drain,
+}
 
-    // Pega a posição do usuário para cálculos de trajetória e distância
+impl Element {
+    /// Which element a wand's damage carries, if any. Non-elemental damage
+    /// (magic missile, lightning, striking) returns `None` and is never resisted.
+    fn of(effect: WandEffect) -> Option<Element> {
+        match effect {
+            WandEffect::Fire => Some(Element::Fire),
+            WandEffect::Cold => Some(Element::Cold),
+            WandEffect::DrainLife => Some(Element::Drain),
+            _ => None,
+        }
+    }
+
+    /// The word for this element in an "unharmed by the ___" log line.
+    fn noun(self) -> &'static str {
+        match self {
+            Element::Fire => "flames",
+            Element::Cold => "cold",
+            Element::Drain => "draining magic",
+        }
+    }
+}
+
+/// Whether `entity`'s [`Traits`] make it immune to `element`.
+fn is_immune(world: &World, entity: Entity, element: Element) -> bool {
+    world.get::<Traits>(entity).is_some_and(|t| match element {
+        Element::Fire => t.fire_immune,
+        Element::Cold => t.cold_immune,
+        Element::Drain => t.undead,
+    })
+}
+
+/// A wand's damage: `3d3`, rolled once per zap and applied whole to every
+/// creature it touches (armour is never subtracted — see [`apply_damage`]).
+fn roll_wand_damage(world: &mut World) -> i32 {
+    let mut rng = world.resource_mut::<GameRng>();
+    (0..3).map(|_| rng.0.gen_range(1..=3)).sum()
+}
+
+/// The hostile monster standing on `pos`, if any.
+fn monster_at(world: &mut World, pos: Position) -> Option<Entity> {
+    world
+        .query_filtered::<(Entity, &Position, &Faction), With<Mob>>()
+        .iter(world)
+        .find(|(_, p, f)| p.x == pos.x && p.y == pos.y && **f == Faction::Monster)
+        .map(|(e, _, _)| e)
+}
+
+/// Applies `damage` of `element` (or non-elemental if `None`) to `entity`,
+/// respecting immunity. Returns how much HP was actually taken off — 0 if the
+/// creature resisted or had no [`Fighter`]. Immunity is logged for named
+/// creatures.
+fn damage_with_element(
+    world: &mut World,
+    entity: Entity,
+    damage: i32,
+    element: Option<Element>,
+) -> i32 {
+    if let Some(el) = element {
+        if is_immune(world, entity, el) {
+            if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
+                world
+                    .resource_mut::<GameLog>()
+                    .add(format!("The {name} is unharmed by the {}.", el.noun()));
+            }
+            return 0;
+        }
+    }
+    let Some(hp_before) = world.get::<Fighter>(entity).map(|f| f.hp) else {
+        return 0;
+    };
+    apply_damage(world, entity, damage);
+    damage.min(hp_before.max(0))
+}
+
+fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, effect: WandEffect) {
     let user_pos = match world.get::<Position>(user) {
         Some(pos) => *pos,
         None => return,
     };
 
+    // The wand of light takes no target: it floods the room (or passage) the
+    // zapper is standing in.
+    if effect == WandEffect::Light {
+        light_area(world, user, user_pos);
+        return;
+    }
+
+    let target_pos = match target {
+        Some(pos) => pos,
+        None => return, // Safety catch: every other wand requires a target.
+    };
+
     // Bolt wands: travel a straight line to the target, damaging everything on
     // the way. `None` means this effect isn't a damaging bolt. The colour is the
     // one the animated beam streaks in.
-    let bolt: Option<(i32, &str, Color)> = match effect {
-        WandEffect::MagicMissile => Some((10, "A brilliant cyan bolt leaps from the wand!", Color::Cyan)),
-        WandEffect::Lightning => Some((20, "A forking bolt of lightning cracks out!", Color::Yellow)),
-        WandEffect::Striking => Some((14, "An invisible fist hammers down the line!", Color::White)),
-        WandEffect::DrainLife => Some((12, "A tendril of black light drinks the life from its path.", Color::DarkMagenta)),
+    let bolt: Option<(&str, Color)> = match effect {
+        WandEffect::MagicMissile => Some(("A brilliant cyan bolt leaps from the wand!", Color::Cyan)),
+        WandEffect::Lightning => Some(("A forking bolt of lightning cracks out!", Color::Yellow)),
+        WandEffect::Striking => Some(("An invisible fist hammers down the line!", Color::White)),
+        WandEffect::DrainLife => {
+            Some(("A tendril of black light drinks the life from its path.", Color::DarkMagenta))
+        }
         _ => None,
     };
 
     match effect {
         _ if bolt.is_some() => {
-            let (damage, msg, color) = bolt.unwrap();
+            let (msg, color) = bolt.unwrap();
+            let element = Element::of(effect);
+            let damage = roll_wand_damage(world);
             world.resource_mut::<GameLog>().add(msg.to_string());
             let map = world.resource::<Map>().clone();
             let line_points = get_line(user_pos, target_pos);
             let mut beam_cells: Vec<(u16, u16)> = Vec::new();
+            let mut drained = 0;
             for pos in line_points {
                 if map.blocks(pos.x, pos.y) {
                     break;
@@ -254,21 +355,33 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
                 let entities_at_pos = get_entities_at_position(world, pos);
                 for entity in entities_at_pos {
                     if entity != user {
-                        apply_damage(world, entity, damage);
+                        drained += damage_with_element(world, entity, damage, element);
                     }
                 }
             }
             if let Some(mut fx) = world.get_resource_mut::<Particles>() {
                 fx.beam(&beam_cells, color);
             }
+            // The wand of drain life feeds the life it takes straight back to the
+            // zapper (never past their maximum).
+            if effect == WandEffect::DrainLife && drained > 0 {
+                if let Some(mut fighter) = world.get_mut::<Fighter>(user) {
+                    fighter.hp = (fighter.hp + drained).min(fighter.max_hp);
+                }
+                world
+                    .resource_mut::<GameLog>()
+                    .add(format!("You drain {drained} life."));
+            }
         }
         WandEffect::Fire | WandEffect::Cold => {
             let is_fire = effect == WandEffect::Fire;
-            let (msg, damage) = if is_fire {
-                ("A roaring sphere of fire erupts!", 25)
+            let element = Element::of(effect);
+            let msg = if is_fire {
+                "A roaring sphere of fire erupts!"
             } else {
-                ("A blast of freezing air detonates!", 18)
+                "A blast of freezing air detonates!"
             };
+            let damage = roll_wand_damage(world);
             world.resource_mut::<GameLog>().add(msg.to_string());
 
             // Radius of the blast disc, in tiles.
@@ -312,30 +425,224 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
                 }
             }
             for entity in affected_entities {
-                apply_damage(world, entity, damage);
+                damage_with_element(world, entity, damage, element);
             }
 
             if let Some(mut fx) = world.get_resource_mut::<Particles>() {
                 fx.explosion(&blast_cells, is_fire);
             }
         }
-        // Utility wands (polymorph, haste/slow, teleport, cancellation, light,
-        // nothing): flavour only for now.
+        WandEffect::Polymorph => polymorph_target(world, target_pos),
+        WandEffect::HasteMonster => shift_target_speed(world, target_pos, true),
+        WandEffect::SlowMonster => shift_target_speed(world, target_pos, false),
+        WandEffect::TeleportAway => teleport_target_away(world, target_pos),
+        WandEffect::TeleportTo => teleport_target_here(world, user_pos, target_pos),
+        WandEffect::Cancellation => cancel_target(world, target_pos),
+        WandEffect::Nothing => {
+            world
+                .resource_mut::<GameLog>()
+                .add("The wand does nothing. It was well named.".to_string());
+        }
+        // Light is handled above; the remaining arms are the damaging wands.
+        WandEffect::Light => {}
         _ => {
-            let msg = match effect {
-                WandEffect::Light => "The wand sheds a warm, steady glow.",
-                WandEffect::Polymorph => "Reality shudders around your target.",
-                WandEffect::HasteMonster => "Your target blurs with sudden speed. Nice going.",
-                WandEffect::SlowMonster => "Your target lurches into slow motion.",
-                WandEffect::TeleportAway => "Your target is yanked elsewhere.",
-                WandEffect::TeleportTo => "Your target is dragged to your feet.",
-                WandEffect::Cancellation => "Your target's magic sputters and dies.",
-                WandEffect::Nothing => "The wand does nothing. It was well named.",
-                _ => "The wand discharges with a faint hiss.",
-            };
-            world.resource_mut::<GameLog>().add(msg.to_string());
+            world
+                .resource_mut::<GameLog>()
+                .add("The wand discharges with a faint hiss.".to_string());
         }
     }
+}
+
+/// Wand of light: reveal — instantly — the whole room the zapper stands in (a
+/// dark room is lit for good), or the whole passage if they are in a corridor.
+/// Any hidden trap in the lit area comes to light too.
+fn light_area(world: &mut World, user: Entity, from: Position) {
+    let map = world.resource::<Map>().clone();
+    let here = map.tile(from.x, from.y);
+    let in_room = matches!(
+        here,
+        TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs
+    );
+
+    // Flood-fill from the zapper's tile through tiles of the same "space": room
+    // floor + doorways + stairs for a room, passage tiles for a corridor.
+    let connects = |t: TileType| {
+        if in_room {
+            matches!(
+                t,
+                TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs
+            )
+        } else {
+            t == TileType::Passage
+        }
+    };
+
+    let mut area: Vec<(u16, u16)> = Vec::new();
+    let mut seen: std::collections::HashSet<(u16, u16)> = std::collections::HashSet::new();
+    let mut queue: VecDeque<(u16, u16)> = VecDeque::new();
+    queue.push_back((from.x, from.y));
+    seen.insert((from.x, from.y));
+    while let Some((cx, cy)) = queue.pop_front() {
+        area.push((cx, cy));
+        for dy in -1i32..=1 {
+            for dx in -1i32..=1 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+                let (nx, ny) = (cx as i32 + dx, cy as i32 + dy);
+                if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
+                    continue;
+                }
+                let (nx, ny) = (nx as u16, ny as u16);
+                if seen.contains(&(nx, ny)) || !connects(map.tile(nx, ny)) {
+                    continue;
+                }
+                seen.insert((nx, ny));
+                queue.push_back((nx, ny));
+            }
+        }
+    }
+
+    // Clear the dark flag and fold every lit tile into the player's memory.
+    {
+        let mut map_mut = world.resource_mut::<Map>();
+        for &(x, y) in &area {
+            map_mut.light_tile(x, y);
+        }
+    }
+    if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
+        if vs.revealed_tiles.len() < MAP_WIDTH as usize * MAP_HEIGHT as usize {
+            vs.revealed_tiles.grow(MAP_WIDTH as usize * MAP_HEIGHT as usize);
+        }
+        for &(x, y) in &area {
+            vs.revealed_tiles.insert(tile_index(x, y));
+        }
+        vs.dirty = true;
+    }
+
+    // Bring any hidden trap in the lit area to light.
+    let lit: std::collections::HashSet<(u16, u16)> = area.iter().copied().collect();
+    let sprung: Vec<(Entity, String)> = world
+        .query_filtered::<(Entity, &Position, &Trap), With<Hidden>>()
+        .iter(world)
+        .filter(|(_, p, t)| !t.revealed && lit.contains(&(p.x, p.y)))
+        .map(|(e, _, t)| (e, format!("{} {}", t.effect.label_article(), t.effect.label())))
+        .collect();
+    for (trap, label) in sprung {
+        world.entity_mut(trap).remove::<Hidden>();
+        if let Some(mut t) = world.get_mut::<Trap>(trap) {
+            t.revealed = true;
+        }
+        world.resource_mut::<GameLog>().add(format!("The light reveals {label}!"));
+    }
+
+    let msg = if in_room {
+        "Warm light floods the room."
+    } else {
+        "Light races the length of the passage."
+    };
+    world.resource_mut::<GameLog>().add(msg.to_string());
+}
+
+/// Wand of polymorph: replace the monster on `pos` with a different species,
+/// fresh, on the same tile.
+fn polymorph_target(world: &mut World, pos: Position) {
+    let Some(victim) = monster_at(world, pos) else {
+        world
+            .resource_mut::<GameLog>()
+            .add("The bolt of change fizzles against nothing.".to_string());
+        return;
+    };
+    let old_name = item_label(world, victim);
+    world.entity_mut(victim).despawn();
+
+    // Roll a bestiary entry that isn't what we started with.
+    let bundle = loop {
+        let ctor = {
+            let mut rng = world.resource_mut::<GameRng>();
+            BESTIARY[rng.0.gen_range(0..BESTIARY.len())]
+        };
+        let b: MonsterBundle = ctor(pos);
+        if b.name.what != old_name {
+            break b;
+        }
+    };
+    let new_name = bundle.name.what.clone();
+    spawn_monster(world, bundle);
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("The {old_name} twists and warps into {} {new_name}!", crate::identify::article_for(&new_name)));
+}
+
+/// Wand of haste / slow monster: step the target one notch along the speed scale
+/// (permanently).
+fn shift_target_speed(world: &mut World, pos: Position, faster: bool) {
+    let Some(victim) = monster_at(world, pos) else {
+        world.resource_mut::<GameLog>().add("Nothing there to enchant.".to_string());
+        return;
+    };
+    let name = item_label(world, victim);
+    let Some(mut speed) = world.get_mut::<Speed>(victim) else { return };
+    let before = speed.kind;
+    speed.kind = if faster { before.faster() } else { before.slower() };
+    let after = speed.kind;
+    let msg = if after == before {
+        format!("The {name} is already as {} as it can be.", if faster { "quick" } else { "sluggish" })
+    } else if faster {
+        format!("The {name} blurs into sudden speed.")
+    } else {
+        format!("The {name} lurches into slow motion.")
+    };
+    world.resource_mut::<GameLog>().add(msg);
+}
+
+/// Wand of teleport away: fling the target monster to a random open tile.
+fn teleport_target_away(world: &mut World, pos: Position) {
+    let Some(victim) = monster_at(world, pos) else {
+        world.resource_mut::<GameLog>().add("The wand's pull finds nothing.".to_string());
+        return;
+    };
+    let name = item_label(world, victim);
+    if let Some((x, y)) = random_open_tile(world) {
+        if let Some(mut p) = world.get_mut::<Position>(victim) {
+            p.x = x;
+            p.y = y;
+        }
+    }
+    world.resource_mut::<GameLog>().add(format!("The {name} is yanked away into the dark."));
+}
+
+/// Wand of teleport to: drag the target monster to a tile next to the zapper.
+fn teleport_target_here(world: &mut World, user_pos: Position, pos: Position) {
+    let Some(victim) = monster_at(world, pos) else {
+        world.resource_mut::<GameLog>().add("The wand's pull finds nothing.".to_string());
+        return;
+    };
+    let name = item_label(world, victim);
+    let spot = free_adjacent_tile(world, user_pos).or_else(|| random_open_tile(world));
+    if let Some((x, y)) = spot {
+        if let Some(mut p) = world.get_mut::<Position>(victim) {
+            p.x = x;
+            p.y = y;
+        }
+    }
+    world.resource_mut::<GameLog>().add(format!("The {name} is dragged to your side!"));
+}
+
+/// Wand of cancellation: strip the target monster's innate magic — its whole
+/// [`Traits`] bundle — and reset its tempo to normal. It keeps its name,
+/// fighting stats, movement and everything else that makes it a creature.
+fn cancel_target(world: &mut World, pos: Position) {
+    let Some(victim) = monster_at(world, pos) else {
+        world.resource_mut::<GameLog>().add("The grey ray strikes only stone.".to_string());
+        return;
+    };
+    let name = item_label(world, victim);
+    world.entity_mut(victim).insert(Traits::default());
+    if let Some(mut speed) = world.get_mut::<Speed>(victim) {
+        speed.kind = SpeedKind::Normal;
+    }
+    world.resource_mut::<GameLog>().add(format!("The {name}'s magic sputters and dies."));
 }
 
 #[derive(Bundle)]
@@ -873,7 +1180,7 @@ fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
         ScrollEffect::ScareMonster => {
             let scared = scare_in_view(world, user);
             let msg = if scared > 0 {
-                "The parchment flares. Every monster watching recoils in terror."
+                "The parchment flares with the pathos of fear!"
             } else {
                 "The parchment radiates a menacing aura, but nothing is here to feel it."
             };
@@ -907,7 +1214,7 @@ fn teleport_reader(world: &mut World, user: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add("The world folds, and you are somewhere else on the floor.".to_string());
+        .add("BLONK! You are whisked away!".to_string());
 }
 
 /// Scroll of aggravate monsters: every creature on the floor drops what it was
@@ -1026,7 +1333,7 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
     let Some(weapon) = weapon else {
         world
             .resource_mut::<GameLog>()
-            .add("The scroll's power gropes for a blade in your hand, finds none, and gutters out.".to_string());
+            .add("The scroll gutters out, failing to brand a weapon.".to_string());
         return;
     };
     if world.get::<Vorpal>(weapon).is_some() {
@@ -1040,7 +1347,7 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
         world.entity_mut(weapon).despawn();
         world
             .resource_mut::<GameLog>()
-            .add(format!("The {wname} can't hold a second edge — it shrieks once and crumbles to dust."));
+            .add(format!("The {wname} screams in pain and crumbles to dust."));
         return;
     }
     let bane = {
@@ -1054,7 +1361,7 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
     let wname = item_label(world, weapon);
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {wname} sings with a razor light. Death to any {bane} that feels its edge."));
+        .add(format!("The {wname} sings with a razor light, an omen of death to any {bane}."));
 }
 
 pub fn item_system(world: &mut World) {

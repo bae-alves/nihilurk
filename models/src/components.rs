@@ -95,6 +95,85 @@ pub struct Fighter {
 #[derive(Component)]
 pub struct Hidden;
 
+/// The three tempos an actor can move at. `Fast` acts twice for every `Normal`
+/// action; `Slow` acts once for every two. The player is the clock: monsters
+/// bank [`Speed::energy`] each of the player's turns and spend it in
+/// [`crate::ai`], while the player's own tempo is handled by the engine loop
+/// (see [`PlayerTempo`]). Wands of haste/slow monster step a creature one notch
+/// along this scale, permanently.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum SpeedKind {
+    Slow,
+    #[default]
+    Normal,
+    Fast,
+}
+
+impl SpeedKind {
+    /// The energy an actor at this tempo banks per player turn. `Normal` is the
+    /// reference; acting costs [`Speed::COST`].
+    pub fn rate(self) -> i32 {
+        match self {
+            SpeedKind::Slow => 1,
+            SpeedKind::Normal => 2,
+            SpeedKind::Fast => 4,
+        }
+    }
+
+    /// One notch quicker (wand of haste monster). `Fast` is the ceiling.
+    pub fn faster(self) -> Self {
+        match self {
+            SpeedKind::Slow => SpeedKind::Normal,
+            SpeedKind::Normal | SpeedKind::Fast => SpeedKind::Fast,
+        }
+    }
+
+    /// One notch slower (wand of slow monster). `Slow` is the floor.
+    pub fn slower(self) -> Self {
+        match self {
+            SpeedKind::Fast => SpeedKind::Normal,
+            SpeedKind::Normal | SpeedKind::Slow => SpeedKind::Slow,
+        }
+    }
+}
+
+/// An actor's movement tempo plus its running energy pool. Every monster gets one
+/// from [`crate::spawn_monster`]; the player gets one in
+/// [`crate::initialize_world`]. `energy` is transient game state — it is not
+/// serialised and simply resets to zero on load.
+#[derive(Component)]
+pub struct Speed {
+    pub kind: SpeedKind,
+    pub energy: i32,
+}
+
+impl Speed {
+    /// The energy one action costs, in `Normal`-tempo units.
+    pub const COST: i32 = 2;
+
+    pub fn new(kind: SpeedKind) -> Self {
+        Self { kind, energy: 0 }
+    }
+}
+
+/// The bundle of innate magical properties a monster is born with, gathered into
+/// one component so a wand of cancellation can strip the lot in a single stroke.
+/// Every [`crate::MonsterBundle`] carries one (all-`false` by default);
+/// [`crate::spawn_monster`] fills in the flags a species needs.
+#[derive(Component, Clone, Copy, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct Traits {
+    /// A wand of fire cannot burn this creature (the dragon).
+    pub fire_immune: bool,
+    /// A wand of cold cannot freeze this creature (the yeti).
+    pub cold_immune: bool,
+    /// Undead: a wand of draining passes straight through, healing its wielder
+    /// nothing (zombie, phantom, vampire, wraith).
+    pub undead: bool,
+    /// Every vorpal weapon slays this creature in one blow, whatever the weapon's
+    /// rolled bane (the Jabberwock). See [`crate::combat::resolve_attack`].
+    pub vorpal_target: bool,
+}
+
 /// Marker for the Element of Yoord — the relic each run must carry up from the
 /// depths. While the player's pack holds an entity with this component the
 /// staircases invert: the up-stair works and the down-stair is dead.
@@ -162,6 +241,18 @@ pub struct UseQueue {
     pub uses: Vec<WantsToUse>,
 }
 
+/// Drives the player's half of the speed system (see [`Speed`]). The engine loop
+/// consults the player's [`SpeedKind`] after every turn: a `Fast` player takes
+/// two inputs before the monsters get a move (tracked by `fast_parity`), a
+/// `Slow` player's single move is followed by two monster rounds, and `Normal`
+/// is one-for-one. Transient, never serialised.
+#[derive(Resource, Default)]
+pub struct PlayerTempo {
+    /// Flips on each `Fast`-tempo turn; monsters move only when it flips back to
+    /// `false`, so the pattern reads skip / run / skip / run.
+    pub fast_parity: bool,
+}
+
 #[derive(Component)]
 pub struct Ranged {
     pub range: i32,
@@ -196,17 +287,12 @@ pub struct Curse;
 
 /// A weapon that has been vorpalized (scroll of vorpalize weapon). Any hit from
 /// it that draws blood slays a creature named `bane` outright — as it does any
-/// creature carrying [`VorpalTarget`], regardless of `bane`. See
+/// creature whose [`Traits::vorpal_target`] is set, regardless of `bane`. See
 /// [`crate::combat::resolve_attack`].
 #[derive(Component)]
 pub struct Vorpal {
     pub bane: String,
 }
-
-/// Marker for a creature that *every* [`Vorpal`] weapon slays in a single blow,
-/// whatever that weapon's rolled `bane`. Carried by the Jabberwock.
-#[derive(Component)]
-pub struct VorpalTarget;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RingEffect {
@@ -362,4 +448,13 @@ pub enum WandEffect {
     TeleportAway,
     TeleportTo,
     Cancellation,
+}
+
+impl WandEffect {
+    /// Whether zapping this wand opens the aiming reticle. Every wand needs a
+    /// target except the wand of light, which floods the room the zapper stands
+    /// in and so is "used" immediately like a potion or scroll.
+    pub fn needs_target(self) -> bool {
+        !matches!(self, WandEffect::Light)
+    }
 }

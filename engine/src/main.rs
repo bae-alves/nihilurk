@@ -222,6 +222,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<MagicMapReveal>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
+    world.init_resource::<PlayerTempo>();
     world.init_resource::<GameLog>();
     world.insert_resource(models::Particles::new());
 

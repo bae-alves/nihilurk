@@ -38,6 +38,12 @@ pub enum TileType {
 #[derive(Resource, Clone)]
 pub struct Map {
     pub tiles: Vec<TileType>,
+    /// One bit per tile: set on the floor of a "dark" room. Visibility inside a
+    /// dark room is cut to the always-on 3x3 (as if it were a passage) until a
+    /// wand of light is zapped there, which clears the bits for the whole room.
+    /// Rolled deterministically from the seed in [`build_tiles`]; the cleared
+    /// state is persisted in the save file.
+    pub dark: FixedBitSet,
 }
 
 impl Map {
@@ -56,6 +62,20 @@ impl Map {
     #[inline]
     pub fn blocks(&self, x: u16, y: u16) -> bool {
         self.tile(x, y) == TileType::Wall
+    }
+
+    /// Whether `(x, y)` is the floor of a still-unlit dark room.
+    #[inline]
+    pub fn is_dark(&self, x: u16, y: u16) -> bool {
+        x < MAP_WIDTH && y < MAP_HEIGHT && self.dark.contains(tile_index(x, y))
+    }
+
+    /// Clears the dark flag for a single tile (a wand of light sweeping a room).
+    #[inline]
+    pub fn light_tile(&mut self, x: u16, y: u16) {
+        if x < MAP_WIDTH && y < MAP_HEIGHT {
+            self.dark.set(tile_index(x, y), false);
+        }
     }
 
     /// Whether a single step from `(fx, fy)` to `(tx, ty)` is allowed by the
@@ -290,7 +310,7 @@ pub const fn tile_index(x: u16, y: u16) -> usize {
 /// Procedurally computes a map layout from the given RNG. Pure: the same RNG
 /// state always yields the same tiles, which is what lets us drop the map from
 /// save files and rebuild it from the seed on load.
-fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>) {
+fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet) {
     let map_width: u16 = MAP_WIDTH;
     let map_height: u16 = MAP_HEIGHT;
 
@@ -426,16 +446,34 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>) {
     let down = random_point_in_room(&rooms[down_room], rng);
     tiles[tile_index(down.0, down.1)] = TileType::Downstairs;
 
-    (tiles, rooms)
+    // Dark rooms: every room past the start room (room 0) has a small chance of
+    // being unlit. A dark room's Room floor tiles are flagged so the visibility
+    // system treats them like a passage until a wand of light is used there.
+    let mut dark = FixedBitSet::with_capacity(MAP_TILE_COUNT);
+    for room in rooms.iter().skip(1) {
+        if !rng.gen_bool(0.15) {
+            continue;
+        }
+        for y in room.y1..=room.y2 {
+            for x in room.x1..=room.x2 {
+                let (tx, ty) = (x as u16, y as u16);
+                if tiles[tile_index(tx, ty)] == TileType::Room {
+                    dark.insert(tile_index(tx, ty));
+                }
+            }
+        }
+    }
+
+    (tiles, rooms, dark)
 }
 
 /// Generates a fresh map, inserts the [`Map`] resource, and returns the player start.
 pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
     let mut game_rng = world.remove_resource::<GameRng>().unwrap();
-    let (tiles, rooms) = build_tiles(&mut game_rng.0);
+    let (tiles, rooms, dark) = build_tiles(&mut game_rng.0);
     world.insert_resource(game_rng);
 
-    world.insert_resource(Map { tiles });
+    world.insert_resource(Map { tiles, dark });
 
     // Return the center of the very first room so we can spawn the player safely away from doors
     let start_pos = rooms[0].center();
@@ -447,8 +485,8 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
 /// map is reconstructed from the seed rather than the save file.
 pub fn regenerate_map(world: &mut World, seed: u64) {
     let mut rng = ChaCha12Rng::seed_from_u64(seed);
-    let (tiles, _rooms) = build_tiles(&mut rng);
-    world.insert_resource(Map { tiles });
+    let (tiles, _rooms, dark) = build_tiles(&mut rng);
+    world.insert_resource(Map { tiles, dark });
 }
 
 /// Picks a monster bundle appropriate for `depth`. The bestiary is split into
@@ -544,13 +582,19 @@ fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
             crate::items::enchant_equipment(world, rng, e);
         }
         // Wands / Staves — 5%
-        90..=94 => { one(world, rng, pos, &[
-            WandBundle::light, WandBundle::striking, WandBundle::lightning, WandBundle::fire,
-            WandBundle::cold, WandBundle::polymorph, WandBundle::magic_missile,
-            WandBundle::haste_monster, WandBundle::slow_monster, WandBundle::drain_life,
-            WandBundle::nothing, WandBundle::teleport_away, WandBundle::teleport_to,
-            WandBundle::cancellation,
-        ]); }
+        90..=94 => {
+            let wand = one(world, rng, pos, &[
+                WandBundle::light, WandBundle::striking, WandBundle::lightning, WandBundle::fire,
+                WandBundle::cold, WandBundle::polymorph, WandBundle::magic_missile,
+                WandBundle::haste_monster, WandBundle::slow_monster, WandBundle::drain_life,
+                WandBundle::nothing, WandBundle::teleport_away, WandBundle::teleport_to,
+                WandBundle::cancellation,
+            ]);
+            let charges = crate::items::roll_wand_charges(rng);
+            if let Some(mut battery) = world.get_mut::<Battery>(wand) {
+                battery.charges = charges;
+            }
+        }
         // Rings — 5%
         _ => {
             const RINGS: [RingEffect; 14] = [
@@ -861,9 +905,9 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
 
     // Build the next floor from the live RNG stream.
     let mut game_rng = world.remove_resource::<GameRng>().unwrap();
-    let (tiles, rooms) = build_tiles(&mut game_rng.0);
+    let (tiles, rooms, dark) = build_tiles(&mut game_rng.0);
     world.insert_resource(game_rng);
-    world.insert_resource(Map { tiles });
+    world.insert_resource(Map { tiles, dark });
     world.resource_mut::<BloodStains>().clear();
 
     let fallback = {
@@ -988,8 +1032,14 @@ pub fn initialize_world(world: &mut World) {
 
     let ((player_x, player_y), rooms) = create_map(world);
 
-    // 1. Create a starting wand entity first
+    // 1. Create a starting wand entity first, and roll its battery like any drop.
     let starting_wand = world.spawn(WandBundle::magic_missile(Position { x: 0, y: 0 })).id();
+    {
+        let charges = crate::items::roll_wand_charges(&mut world.resource_mut::<GameRng>().0);
+        if let Some(mut battery) = world.get_mut::<Battery>(starting_wand) {
+            battery.charges = charges;
+        }
+    }
     let player_name = world.resource::<PlayerName>().what.clone();
 
     // 2. Spawn the player with the wand in their backpack
@@ -1020,6 +1070,7 @@ pub fn initialize_world(world: &mut World) {
         Backpack { items: vec![starting_wand] },
         Score { value: 0 },
         Blood,
+        Speed::new(SpeedKind::Normal),
     ));
 
     populate_level(world, &rooms, (player_x, player_y));

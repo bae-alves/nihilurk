@@ -179,12 +179,12 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let target_is_player = world.get::<Player>(target).is_some();
 
     // A vorpalized weapon that draws blood slays its bane outright — and any
-    // creature tagged [`VorpalTarget`] (the Jabberwock), whatever the bane. A
-    // glancing scrape never triggers it.
+    // creature whose `Traits::vorpal_target` is set (the Jabberwock), whatever
+    // the bane. A glancing scrape never triggers it.
     let vorpal = !glancing
         && damage > 0
         && wielded_vorpal_bane(world, attacker).is_some_and(|bane| {
-            world.get::<VorpalTarget>(target).is_some()
+            world.get::<Traits>(target).is_some_and(|t| t.vorpal_target)
                 || world.get::<Name>(target).is_some_and(|n| n.what == bane)
         });
 

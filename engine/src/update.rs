@@ -342,7 +342,12 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                         // 2. Route to correct action
                         if let Some(item) = item_entity {
                             if new_action_sel == 0 { // USE
-                                let is_ranged = world.get::<Ranged>(item).is_some();
+                                // Needs the aiming reticle: any ranged item,
+                                // except the wand of light (self-targeted).
+                                let is_ranged = world.get::<Ranged>(item).is_some()
+                                    && world
+                                        .get::<Wand>(item)
+                                        .map_or(true, |w| w.effect.needs_target());
 
                                 if is_ranged {
                                     // Put it right back exactly where it was!

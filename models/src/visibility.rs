@@ -55,8 +55,11 @@ pub fn visibility_system(
             }
         }
 
-        // Rule B: Flood-fill Room logic (with leak prevention!)
-        if matches!(map.tile(pos.x, pos.y), TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs) {
+        // Rule B: Flood-fill Room logic (with leak prevention!). A dark room is
+        // skipped entirely — inside one you see only the always-on 3x3, as if it
+        // were a passage, until a wand of light clears its `dark` bits.
+        if !map.is_dark(pos.x, pos.y)
+            && matches!(map.tile(pos.x, pos.y), TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs) {
             let mut queue = VecDeque::new();
             let mut visited_rooms = HashSet::new();
 
@@ -76,6 +79,11 @@ pub fn visibility_system(
                             continue;
                         }
                         let neighbor_pos = (nx as u16, ny as u16);
+
+                        // Never see into (or spread through) an unlit dark room.
+                        if map.is_dark(neighbor_pos.0, neighbor_pos.1) {
+                            continue;
+                        }
 
                         match map.tile(neighbor_pos.0, neighbor_pos.1) {
                             TileType::Room | TileType::Door | TileType::Downstairs | TileType::Upstairs => {

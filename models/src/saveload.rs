@@ -105,8 +105,10 @@ struct EntitySave<'a> {
     /// A vorpalized weapon's `bane` species (scroll of vorpalize weapon).
     #[serde(borrow)]
     vorpal: Option<Cow<'a, str>>,
-    /// Marker: every vorpal weapon slays this creature in one blow (the Jabberwock).
-    vorpal_target: bool,
+    /// A creature's innate magical properties (immunities, vorpal-target).
+    traits: Option<Traits>,
+    /// A creature's movement tempo. The energy pool is transient and resets to 0.
+    speed: Option<SpeedKind>,
     /// (effect, reveal style, already discovered) for a floor trap.
     trap: Option<(TrapEffect, TrapReveal, bool)>,
     /// (turns remaining, kind) for an actor held by a bear trap / asleep in gas.
@@ -136,6 +138,10 @@ struct SaveGame<'a> {
     item_appearances: ItemAppearances,
     /// Which true item types the player has identified so far.
     identified: Identified,
+    /// The current floor's dark-room mask (see [`Map::dark`]). Rebuilt from the
+    /// seed on load, then overwritten with this so any room a wand of light lit
+    /// stays lit.
+    dark_tiles: FixedBitSet,
     /// "Clear data": set when the run was won. The file is kept rather than
     /// deleted; the loader recognises it and asks before starting over.
     cleared: bool,
@@ -211,7 +217,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             wear: er.get::<Wear>().map(|w| (w.arm_increase, w.arm_bonus)),
             curse: er.contains::<Curse>(),
             vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
-            vorpal_target: er.contains::<VorpalTarget>(),
+            traits: er.get::<Traits>().copied(),
+            speed: er.get::<Speed>().map(|s| s.kind),
             trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
             snare: er.get::<Snare>().map(|s| (s.turns, s.kind)),
         });
@@ -232,6 +239,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         rng_state: world.resource::<GameRng>().0.clone(),
         item_appearances: world.resource::<ItemAppearances>().clone(),
         identified: world.resource::<Identified>().clone(),
+        dark_tiles: world.resource::<Map>().dark.clone(),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
     };
 
@@ -265,8 +273,10 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(save.item_appearances);
     world.insert_resource(save.identified);
 
-    // Rebuild the map from the seed rather than the save file.
+    // Rebuild the map from the seed rather than the save file, then restore the
+    // dark-room mask so wand-of-light progress survives the reload.
     regenerate_map(world, save.rng_seed);
+    world.resource_mut::<Map>().dark = save.dark_tiles;
 
     // The deepest floor has no down-stair: the seed-built map still carries one,
     // so carve it back to plain floor. The Element of Yoord entity (or its place
@@ -386,8 +396,12 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(bane) = es.vorpal {
             em.insert(Vorpal { bane: bane.into_owned() });
         }
-        if es.vorpal_target {
-            em.insert(VorpalTarget);
+        if let Some(t) = es.traits {
+            em.insert(t);
+        }
+        // Every actor moves at some tempo; the energy pool starts fresh.
+        if es.player || es.mob.is_some() {
+            em.insert(Speed::new(es.speed.unwrap_or_default()));
         }
         if let Some((effect, reveal, revealed)) = es.trap {
             em.insert(Trap { effect, reveal, revealed });
