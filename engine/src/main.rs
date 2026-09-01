@@ -242,7 +242,8 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     let mut schedule = Schedule::default();
     schedule.add_systems((
         snare_system,
-        ai.after(snare_system),
+        chance_every_turn_system.after(snare_system),
+        ai.after(chance_every_turn_system),
         trap_system.after(ai),
         item_system.after(trap_system),
         combat_system.after(item_system),

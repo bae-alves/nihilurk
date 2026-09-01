@@ -41,6 +41,10 @@ fn round_trip() {
     assert_eq!(q.single(&w2).items.len(), 1);
     assert!(w2.get::<Wand>(q.single(&w2).items[0]).is_some());
 
+    // The player's magic pool survives the round trip.
+    let magic = w2.query_filtered::<&Magic, With<Player>>().single(&w2);
+    assert_eq!((magic.points, magic.max_points), (4, 4));
+
     // Equipment / scroll / ring components survive the round trip.
     let mut w3 = World::new();
     w3.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));

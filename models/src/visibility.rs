@@ -9,36 +9,49 @@ fn in_bounds(x: i16, y: i16) -> bool {
     x >= 0 && y >= 0 && (x as u16) < MAP_WIDTH && (y as u16) < MAP_HEIGHT
 }
 
+#[allow(clippy::type_complexity)] // one query covering both mobs and floor items
 pub fn visibility_system(
     mut commands: Commands,
 
     // `With<Player>` matters: without it a future monster viewshed would reveal
     // the map for the player.
-    mut viewshed_query: Query<(&mut Viewshed, &Position), With<Player>>,
+    mut viewshed_query: Query<(Entity, &mut Viewshed, &Position, Option<&Backpack>), With<Player>>,
 
     // Everything the player can "spot": monsters and floor items. `Option`s let
     // one query cover both kinds and track the per-entity spotted state.
     spot_query: Query<
-        (Entity, &Position, Option<&Mob>, Option<&Name>, Option<&Spotted>),
+        (Entity, &Position, Option<&Mob>, Option<&Invisible>, Option<&Name>, Option<&Spotted>),
         Or<(With<Mob>, With<Item>)>,
     >,
 
     // Hidden traps whose reveal style might trip this turn.
     mut trap_query: Query<(Entity, &Position, &mut Trap), With<Hidden>>,
 
+    // Every worn ring, so we can tell whether the player has perception.
+    ring_query: Query<&PutOn>,
+
     mut log: ResMut<GameLog>,
 
     map: Res<Map>,
 ) {
-    let any_dirty = viewshed_query.iter().any(|(v, _)| v.dirty);
+    let any_dirty = viewshed_query.iter().any(|(_, v, _, _)| v.dirty);
     if !any_dirty {
         return;
     }
 
-    for (mut viewshed, pos) in viewshed_query.iter_mut() {
+    for (player_entity, mut viewshed, pos, backpack) in viewshed_query.iter_mut() {
         if !viewshed.dirty {
             continue;
         }
+
+        // A worn ring of perception makes every invisible thing visible.
+        let perception = backpack.is_some_and(|bp| {
+            bp.items.iter().any(|&i| {
+                ring_query
+                    .get(i)
+                    .is_ok_and(|r| r.bearer == Some(player_entity) && r.effect == RingEffect::Perception)
+            })
+        });
 
         let mut visible_set: HashSet<(u16, u16)> = HashSet::new();
         let center_x = pos.x as i16;
@@ -106,45 +119,60 @@ pub fn visibility_system(
             }
         }
 
-        // Hide/reveal monsters and announce anything freshly in view.
-        for (entity, target_pos, mob, name, spotted) in spot_query.iter() {
+        // Hide/reveal monsters and announce anything freshly in view. An
+        // invisible entity (phantom, stashed item) is perceptible only with a
+        // ring of perception.
+        for (entity, target_pos, mob, invisible, name, spotted) in spot_query.iter() {
             let in_view = visible_set.contains(&(target_pos.x, target_pos.y));
+            let perceptible = in_view && (invisible.is_none() || perception);
 
             if mob.is_some() {
-                if in_view {
+                if perceptible {
                     commands.entity(entity).remove::<Hidden>();
                 } else {
                     commands.entity(entity).insert(Hidden);
                 }
+            } else if invisible.is_some() && perceptible {
+                // A perception ring turns up an invisibly-stashed item for good.
+                commands.entity(entity).remove::<Hidden>();
+                commands.entity(entity).remove::<Invisible>();
+                commands.entity(entity).insert(Spotted);
+                log.add("Hey! There's something here!".to_string());
             }
 
-            if in_view && spotted.is_none() {
+            // Never announce something still out of reach of the player's
+            // senses, nor an item that hasn't been turned up yet (still
+            // `Invisible`).
+            let announce = perceptible && !(mob.is_none() && invisible.is_some());
+            if announce && spotted.is_none() {
                 match name {
                     Some(name) => log.add(format!("you spotted {} {}", name.article(), name.what)),
                     None => log.add("you spotted something"),
                 }
                 commands.entity(entity).insert(Spotted);
-            } else if !in_view && spotted.is_some() {
+            } else if !announce && spotted.is_some() {
                 commands.entity(entity).remove::<Spotted>();
             }
         }
 
         // Bring hidden traps to light: a `Sight` trap the instant its tile is in
-        // view, an `Adjacent` trap once the player is standing next to it. A
-        // `Triggered` trap stays invisible until something sets it off. Once
-        // revealed it latches (Hidden removed for good).
+        // view, an `Adjacent` trap once the player is standing next to it, a
+        // `Triggered` trap not until something sets it off — but a ring of
+        // perception reveals every trap on the floor at once. Once revealed it
+        // latches (Hidden removed for good).
         for (trap_entity, tpos, mut trap) in trap_query.iter_mut() {
             if trap.revealed {
                 continue;
             }
-            let found = match trap.reveal {
-                TrapReveal::Sight => visible_set.contains(&(tpos.x, tpos.y)),
-                TrapReveal::Adjacent => {
-                    (tpos.x as i32 - pos.x as i32).abs() <= 1
-                        && (tpos.y as i32 - pos.y as i32).abs() <= 1
-                }
-                TrapReveal::Triggered => false,
-            };
+            let found = perception
+                || match trap.reveal {
+                    TrapReveal::Sight => visible_set.contains(&(tpos.x, tpos.y)),
+                    TrapReveal::Adjacent => {
+                        (tpos.x as i32 - pos.x as i32).abs() <= 1
+                            && (tpos.y as i32 - pos.y as i32).abs() <= 1
+                    }
+                    TrapReveal::Triggered => false,
+                };
             if found {
                 trap.revealed = true;
                 commands.entity(trap_entity).remove::<Hidden>();

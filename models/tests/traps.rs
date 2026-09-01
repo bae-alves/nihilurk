@@ -293,14 +293,14 @@ fn dart_trap_saps_melee_power_for_good() {
 }
 
 #[test]
-fn a_ring_of_sustain_strength_stops_the_dart_poison() {
+fn a_ring_of_strength_stops_the_dart_poison() {
     let mut w = test_world(2);
     clear_traps(&mut w);
     let p = player(&mut w);
     w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
     let power_before = w.get::<Fighter>(p).unwrap().power;
 
-    let ring = w.spawn(RingBundle::new(RingEffect::SustainStrength, Position { x: 0, y: 0 })).id();
+    let ring = w.spawn(RingBundle::new(RingEffect::Strength, Position { x: 0, y: 0 })).id();
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<PutOn>(ring).unwrap().bearer = Some(p);
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);

@@ -4,6 +4,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
+use crate::helpers::has_ring_effect;
 use crate::map::GameRng;
 use crate::particles::Particles;
 use crate::state::Ending;
@@ -12,6 +13,11 @@ use crate::state::Ending;
 const EXCELLENT_HIT_CHANCE: f64 = 0.15;
 /// An excellent hit rolls extra weapon dice: `1d[Power]` becomes `Nd[Power]`.
 const EXCELLENT_HIT_DICE: i32 = 3;
+/// Flat bonus a worn ring of protection adds to the wearer's armour roll.
+pub const RING_PROTECTION_BONUS: i32 = 2;
+/// Flat bonus a worn ring of strength adds to the wearer's damage roll. The same
+/// ring also blocks strength drain (see [`crate::traps`]).
+pub const RING_STRENGTH_BONUS: i32 = 2;
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
 /// an unarmoured/unarmed entity simply contributes nothing to the opposed roll.
@@ -51,6 +57,12 @@ fn equipped_wear_bonus(world: &World, entity: Entity) -> (i32, i32) {
                 .map(|w| (w.arm_increase as i32, w.arm_bonus as i32))
         })
         .unwrap_or((0, 0))
+}
+
+/// `bonus` if `entity` has a ring with `effect` on its finger, `0` otherwise.
+/// Monsters never wear rings, so this always folds in `0` for them.
+fn ring_bonus(world: &World, entity: Entity, effect: RingEffect, bonus: i32) -> i32 {
+    if has_ring_effect(world, entity, effect) { bonus } else { 0 }
 }
 
 /// The `bane` of the attacker's currently-wielded weapon, if that weapon has
@@ -121,8 +133,10 @@ pub fn reaper_system(world: &mut World) {
 ///
 /// Damage is `(1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus)`: the
 /// attacker's and defender's roll totals are computed independently and then
-/// subtracted. When the *player* is
-/// the attacker two extra rules apply:
+/// subtracted. Equipped gear folds into both sides; a worn ring of strength adds
+/// [`RING_STRENGTH_BONUS`] to the attacker's damage roll and a worn ring of
+/// protection adds [`RING_PROTECTION_BONUS`] to the defender's armour roll. When
+/// the *player* is the attacker two extra rules apply:
 ///
 /// * **Excellent hit** — a [`EXCELLENT_HIT_CHANCE`] chance for a clean strike
 ///   that rolls [`EXCELLENT_HIT_DICE`] weapon dice (`Nd[Power]`) before the
@@ -139,11 +153,13 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let (arm_die, arm_flat) = equipped_wear_bonus(world, target);
 
     let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1) + wpn_die;
-    let attacker_power_bonus =
-        world.get::<Fighter>(attacker).map(|f| f.power_bonus).unwrap_or(0) + wpn_flat;
+    let attacker_power_bonus = world.get::<Fighter>(attacker).map(|f| f.power_bonus).unwrap_or(0)
+        + wpn_flat
+        + ring_bonus(world, attacker, RingEffect::Strength, RING_STRENGTH_BONUS);
     let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0) + arm_die;
-    let target_armor_bonus =
-        world.get::<Fighter>(target).map(|f| f.armor_bonus).unwrap_or(0) + arm_flat;
+    let target_armor_bonus = world.get::<Fighter>(target).map(|f| f.armor_bonus).unwrap_or(0)
+        + arm_flat
+        + ring_bonus(world, target, RingEffect::Protection, RING_PROTECTION_BONUS);
     let attacker_is_player = world.get::<Player>(attacker).is_some();
 
     // --- Independent opposed rolls -----------------------------------------
@@ -177,6 +193,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let attacker_name = entity_name(world, attacker);
     let target_name = entity_name(world, target);
     let target_is_player = world.get::<Player>(target).is_some();
+    // An attacker the player can't see — an invisible phantom, or a mob still off
+    // in the dark — is reported only as "Something".
+    let attacker_unseen = target_is_player && world.get::<Hidden>(attacker).is_some();
 
     // A vorpalized weapon that draws blood slays its bane outright — and any
     // creature whose `Traits::vorpal_target` is set (the Jabberwock), whatever
@@ -237,18 +256,21 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         } else {
             format!("the {target_name}")
         };
-        if damage == 0 {
-            log.add(format!("The {attacker_name} misses {target_label}."));
+        let atk = if attacker_unseen {
+            "Something".to_string()
         } else {
-            log.add(format!(
-                "The {attacker_name} hits {target_label} for {damage} damage."
-            ));
+            format!("The {attacker_name}")
+        };
+        if damage == 0 {
+            log.add(format!("{atk} misses {target_label}."));
+        } else {
+            log.add(format!("{atk} hits {target_label} for {damage} damage."));
         }
         if lethal {
             if target_is_player {
-                log.add(format!("The {attacker_name} strikes you down..."));
+                log.add(format!("{atk} strikes you down..."));
             } else {
-                log.add(format!("The {attacker_name} kills the {target_name}!"));
+                log.add(format!("{atk} kills the {target_name}!"));
             }
         }
     }

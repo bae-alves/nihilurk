@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use crate::{components::*, map::{tile_index, GameRng, Map, TileType, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
 use crate::identify::Identified;
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
-use crate::monsters::{spawn_monster, MonsterBundle, BESTIARY};
+use crate::monsters::{spawn_monster, BESTIARY};
 use crate::traps::{random_open_tile, Trap};
 
 #[derive(Bundle)]
@@ -557,18 +557,18 @@ fn polymorph_target(world: &mut World, pos: Position) {
     world.entity_mut(victim).despawn();
 
     // Roll a bestiary entry that isn't what we started with.
-    let bundle = loop {
-        let ctor = {
+    let def = loop {
+        let idx = {
             let mut rng = world.resource_mut::<GameRng>();
-            BESTIARY[rng.0.gen_range(0..BESTIARY.len())]
+            rng.0.gen_range(0..BESTIARY.len())
         };
-        let b: MonsterBundle = ctor(pos);
-        if b.name.what != old_name {
-            break b;
+        let candidate = &BESTIARY[idx];
+        if candidate.name != old_name {
+            break candidate;
         }
     };
-    let new_name = bundle.name.what.clone();
-    spawn_monster(world, bundle);
+    let new_name = def.name.to_string();
+    spawn_monster(world, def, pos);
     world
         .resource_mut::<GameLog>()
         .add(format!("The {old_name} twists and warps into {} {new_name}!", crate::identify::article_for(&new_name)));
@@ -836,10 +836,8 @@ impl RingBundle {
     pub fn new(effect: RingEffect, position: Position) -> Self {
         let name = match effect {
             RingEffect::Protection => "ring of protection",
-            RingEffect::AddStrength => "ring of add strength",
-            RingEffect::SustainStrength => "ring of sustain strength",
-            RingEffect::Searching => "ring of searching",
-            RingEffect::SeeInvisible => "ring of see invisible",
+            RingEffect::Strength => "ring of strength",
+            RingEffect::Perception => "ring of perception",
             RingEffect::Adornment => "ring of adornment",
             RingEffect::AggravateMonster => "ring of aggravate monster",
             RingEffect::Dexterity => "ring of dexterity",
@@ -1221,7 +1219,16 @@ fn teleport_reader(world: &mut World, user: Entity) {
 /// doing and homes in on the reader's tile — in or out of sight. See
 /// [`MovementType::Aggravated`].
 fn aggravate_floor(world: &mut World, user: Entity) {
-    let Some(&hero) = world.get::<Position>(user) else { return };
+    aggravate_all_monsters(world, user);
+    world
+        .resource_mut::<GameLog>()
+        .add("A shrill shriek rips through the dungeon. Everything on this floor heard it — and it knows where you are.".to_string());
+}
+
+/// The bare mechanic: point every hostile on the floor at `origin`'s tile. The
+/// scroll wraps this with its own flavour; the ring (below) with its own.
+fn aggravate_all_monsters(world: &mut World, origin: Entity) {
+    let Some(&hero) = world.get::<Position>(origin) else { return };
     let mobs: Vec<Entity> = world
         .query_filtered::<Entity, With<Mob>>()
         .iter(world)
@@ -1234,9 +1241,45 @@ fn aggravate_floor(world: &mut World, user: Entity) {
             mob.movement_type = MovementType::Aggravated { tx: hero.x, ty: hero.y };
         }
     }
-    world
-        .resource_mut::<GameLog>()
-        .add("A shrill shriek rips through the dungeon. Everything on this floor heard it — and it knows where you are.".to_string());
+}
+
+/// One [`CHANCE_EVERY_TURN`] row: the worn ring that arms it, its per-turn
+/// probability, the mechanic to run on the player, and the flavour line logged
+/// when it fires.
+type TurnChance = (RingEffect, f64, fn(&mut World, Entity), &'static str);
+
+/// Effects that just roll a fixed chance on every action the player takes. A new
+/// "happens at random while worn" ring is one more row.
+const CHANCE_EVERY_TURN: &[TurnChance] = &[
+    (
+        RingEffect::AggravateMonster,
+        0.10,
+        aggravate_all_monsters,
+        "Your ring gives a spiteful little shriek, and the whole floor turns your way.",
+    ),
+];
+
+/// Rolls every [`CHANCE_EVERY_TURN`] effect the player currently has armed.
+/// Registered in the turn schedule ahead of [`crate::ai`]; the schedule only
+/// runs on turns the player took an action, so "every turn" means "every
+/// action".
+pub fn chance_every_turn_system(world: &mut World) {
+    let Some(player) = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+    else {
+        return;
+    };
+    for &(ring, chance, mechanic, flavour) in CHANCE_EVERY_TURN {
+        if !crate::helpers::has_ring_effect(world, player, ring) {
+            continue;
+        }
+        if world.resource_mut::<GameRng>().0.gen_bool(chance) {
+            mechanic(world, player);
+            world.resource_mut::<GameLog>().add(flavour.to_string());
+        }
+    }
 }
 
 /// Scroll of scare monster: every monster currently in the reader's view turns
@@ -1308,11 +1351,11 @@ fn create_monster(world: &mut World, user: Entity) {
             .add("The air curdles — then settles. Whatever was coming thought better of it.".to_string());
         return;
     };
-    let ctor = {
+    let idx = {
         let mut rng = world.resource_mut::<GameRng>();
-        BESTIARY[rng.0.gen_range(0..BESTIARY.len())]
+        rng.0.gen_range(0..BESTIARY.len())
     };
-    let e = spawn_monster(world, ctor(Position { x, y }));
+    let e = spawn_monster(world, &BESTIARY[idx], Position { x, y });
     let name = item_label(world, e);
     world
         .resource_mut::<GameLog>()
@@ -1351,11 +1394,8 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
         return;
     }
     let bane = {
-        let ctor = {
-            let mut rng = world.resource_mut::<GameRng>();
-            BESTIARY[rng.0.gen_range(0..BESTIARY.len())]
-        };
-        ctor(Position { x: 0, y: 0 }).name.what
+        let mut rng = world.resource_mut::<GameRng>();
+        BESTIARY[rng.0.gen_range(0..BESTIARY.len())].name.to_string()
     };
     world.entity_mut(weapon).insert(Vorpal { bane: bane.clone() });
     let wname = item_label(world, weapon);

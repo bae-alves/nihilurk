@@ -58,7 +58,7 @@ pub enum TrapEffect {
     /// Fires a bolt; on a clean miss the arrow lands on the floor as loot.
     Arrow,
     /// A poisoned dart: light damage, and on a hit it saps 1 point of melee
-    /// power for good — unless a ring of sustain strength is worn.
+    /// power for good — unless a ring of strength is worn.
     Dart,
 }
 
@@ -448,9 +448,9 @@ fn dart_effect(
     apply_damage(world, victim, damage);
 
     // The poison saps melee power permanently — a hit to the attack die itself,
-    // not a modifier — unless sustained by a ring. A potion of restore strength
-    // (not yet wired) will heal `power` back up to `max_power`.
-    if has_ring_effect(world, victim, RingEffect::SustainStrength) {
+    // not a modifier — unless a ring of strength sustains it. A potion of restore
+    // strength (not yet wired) will heal `power` back up to `max_power`.
+    if has_ring_effect(world, victim, RingEffect::Strength) {
         if is_player {
             world
                 .resource_mut::<GameLog>()

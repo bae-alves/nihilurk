@@ -50,12 +50,11 @@ const ALL_WANDS: [WandEffect; 14] = [
 ];
 
 /// Every [`RingEffect`] variant, used to build this run's appearance map.
-const ALL_RINGS: [RingEffect; 14] = [
-    RingEffect::Protection, RingEffect::AddStrength, RingEffect::SustainStrength,
-    RingEffect::Searching, RingEffect::SeeInvisible, RingEffect::Adornment,
-    RingEffect::AggravateMonster, RingEffect::Dexterity, RingEffect::IncreaseDamage,
-    RingEffect::Regeneration, RingEffect::SlowDigestion, RingEffect::Teleportation,
-    RingEffect::Stealth, RingEffect::MaintainArmor,
+const ALL_RINGS: [RingEffect; 12] = [
+    RingEffect::Protection, RingEffect::Strength, RingEffect::Perception,
+    RingEffect::Adornment, RingEffect::AggravateMonster, RingEffect::Dexterity,
+    RingEffect::IncreaseDamage, RingEffect::Regeneration, RingEffect::SlowDigestion,
+    RingEffect::Teleportation, RingEffect::Stealth, RingEffect::MaintainArmor,
 ];
 
 /// Colours and consistencies, NetHack-style: pooled well beyond

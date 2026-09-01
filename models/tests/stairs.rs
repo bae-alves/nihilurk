@@ -20,8 +20,9 @@ fn descend_generates_new_floor_and_heals() {
     let mut w = test_world(7);
     let p = player(&mut w);
 
-    // Wound the player and confirm they start on the upstairs.
+    // Wound the player, spend some magic, and confirm they start on the upstairs.
     w.get_mut::<Fighter>(p).unwrap().hp = 4;
+    w.get_mut::<Magic>(p).unwrap().points = 1;
     let start = *w.get::<Position>(p).unwrap();
     assert_eq!(w.resource::<Map>().tile(start.x, start.y), TileType::Upstairs);
 
@@ -43,6 +44,9 @@ fn descend_generates_new_floor_and_heals() {
     assert_ne!(w.resource::<Map>().tiles, old_tiles, "a new floor was generated");
     // Healed 50% of max (12) -> 4 + 6 = 10.
     assert_eq!(w.get::<Fighter>(p).unwrap().hp, 10);
+    // Magic is fully restored on arrival.
+    let magic = w.get::<Magic>(p).unwrap();
+    assert_eq!(magic.points, magic.max_points);
     // Player is back on an upstairs in the new floor's first room.
     let np = *w.get::<Position>(p).unwrap();
     assert_eq!(w.resource::<Map>().tile(np.x, np.y), TileType::Upstairs);

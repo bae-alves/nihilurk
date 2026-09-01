@@ -216,3 +216,136 @@ fn equipped_weapon_and_armor_change_combat_math() {
         "plate mail should reduce damage taken: none={unarmored_taken}, plate={armored_taken}"
     );
 }
+
+#[test]
+fn a_worn_ring_of_protection_soaks_hits() {
+    // Hits hard enough (1d20 + 50) that the armour roll never fully absorbs a
+    // blow, so the ring's effect shows up as an exact -2 per hit.
+    fn attacker(w: &mut World) -> Entity {
+        w.spawn((
+            Name { what: "bag".into() },
+            Fighter { hp: 1, max_hp: 1, armor: 0, power: 20, max_power: 20, armor_bonus: 0, power_bonus: 50 },
+            Faction::Monster,
+            Position { x: 1, y: 1 },
+        ))
+        .id()
+    }
+
+    let hits = 600;
+
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    let foe = attacker(&mut w);
+    w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
+    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
+    for _ in 0..hits {
+        resolve_attack(&mut w, foe, p);
+    }
+    let without_ring = 100_000 - w.get::<Fighter>(p).unwrap().hp;
+
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    let foe = attacker(&mut w);
+    w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
+    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
+    let ring = w.spawn(RingBundle::new(RingEffect::Protection, Position { x: 0, y: 0 })).id();
+    w.entity_mut(ring).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+    use_item(&mut w, p, ring);
+    assert_eq!(w.get::<PutOn>(ring).unwrap().bearer, Some(p));
+    for _ in 0..hits {
+        resolve_attack(&mut w, foe, p);
+    }
+    let with_ring = 100_000 - w.get::<Fighter>(p).unwrap().hp;
+
+    // +2 to every armour roll over `hits` blows.
+    assert_eq!(with_ring, without_ring - 2 * hits, "each blow is softened by exactly 2");
+
+    // Taking the ring back off drops the protection.
+    use_item(&mut w, p, ring);
+    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
+    for _ in 0..hits {
+        resolve_attack(&mut w, foe, p);
+    }
+    let ring_off = 100_000 - w.get::<Fighter>(p).unwrap().hp;
+    assert!(ring_off > with_ring, "an unworn ring gives no protection");
+}
+
+#[test]
+fn a_worn_ring_of_strength_adds_two_to_every_blow() {
+    // Zero armour on the bag, so no roll ever absorbs the blow and the ring's
+    // +2 flows straight through as an exact +2 per hit.
+    fn bag(w: &mut World) -> Entity {
+        w.spawn((
+            Name { what: "bag".into() },
+            Fighter { hp: 100_000, max_hp: 100_000, armor: 0, power: 0, max_power: 0, armor_bonus: 0, power_bonus: 0 },
+            Faction::Monster,
+            Position { x: 1, y: 1 },
+        ))
+        .id()
+    }
+
+    let hits = 600;
+
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let target = bag(&mut w);
+    for _ in 0..hits {
+        resolve_attack(&mut w, p, target);
+    }
+    let bare = 100_000 - w.get::<Fighter>(target).unwrap().hp;
+
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let target = bag(&mut w);
+    let ring = w.spawn(RingBundle::new(RingEffect::Strength, Position { x: 0, y: 0 })).id();
+    w.entity_mut(ring).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+    use_item(&mut w, p, ring);
+    assert_eq!(w.get::<PutOn>(ring).unwrap().bearer, Some(p));
+    for _ in 0..hits {
+        resolve_attack(&mut w, p, target);
+    }
+    let ringed = 100_000 - w.get::<Fighter>(target).unwrap().hp;
+
+    assert_eq!(ringed, bare + 2 * hits, "every blow lands exactly 2 harder");
+
+    // The same ring also sustains strength — covered by the dart-trap test in
+    // tests/traps.rs.
+}
+
+#[test]
+fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
+    let mut w = test_world(9);
+    let p = player(&mut w);
+    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), Position { x: 40, y: 11 });
+
+    let ring = w.spawn(RingBundle::new(RingEffect::AggravateMonster, Position { x: 0, y: 0 })).id();
+    w.entity_mut(ring).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+
+    // Not worn yet: rolling the per-turn system does nothing.
+    for _ in 0..200 {
+        chance_every_turn_system(&mut w);
+    }
+    assert!(matches!(w.get::<Mob>(orc).unwrap().movement_type, MovementType::Chase));
+
+    // Put it on. Within a sane number of turns the ~10% roll fires and the whole
+    // floor is aggravated on the player.
+    use_item(&mut w, p, ring);
+    let mut fired_on = None;
+    for turn in 0..300 {
+        chance_every_turn_system(&mut w);
+        if matches!(w.get::<Mob>(orc).unwrap().movement_type, MovementType::Aggravated { .. }) {
+            fired_on = Some(turn);
+            break;
+        }
+    }
+    let turn = fired_on.expect("the ring never shrieked in 300 turns");
+    assert!(turn < 150, "10%/turn should trigger fast, not after {turn}");
+    let hero = *w.get::<Position>(p).unwrap();
+    match w.get::<Mob>(orc).unwrap().movement_type {
+        MovementType::Aggravated { tx, ty } => assert_eq!((tx, ty), (hero.x, hero.y)),
+        _ => panic!("expected the orc to be Aggravated on the hero"),
+    }
+}

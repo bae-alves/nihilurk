@@ -167,7 +167,7 @@ fn undead_are_immune_to_draining_and_grant_no_lifesteal() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    let zombie = spawn_monster(&mut w, MonsterBundle::zombie(spot));
+    let zombie = spawn_monster(&mut w, MonsterDef::named("zombie"), spot);
     assert!(w.get::<Traits>(zombie).unwrap().undead);
     let zhp = w.get::<Fighter>(zombie).unwrap().hp;
     w.get_mut::<Fighter>(p).unwrap().hp = 5;
@@ -190,14 +190,14 @@ fn a_dragon_shrugs_off_fire_and_a_yeti_shrugs_off_cold() {
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
 
-    let dragon = spawn_monster(&mut w, MonsterBundle::dragon(spot));
+    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), spot);
     let dhp = w.get::<Fighter>(dragon).unwrap().hp;
     let fire = give_wand(&mut w, p, WandBundle::fire);
     zap(&mut w, p, fire, spot);
     assert_eq!(w.get::<Fighter>(dragon).unwrap().hp, dhp, "fire cannot burn the dragon");
     w.entity_mut(dragon).despawn();
 
-    let yeti = spawn_monster(&mut w, MonsterBundle::yeti(spot));
+    let yeti = spawn_monster(&mut w, MonsterDef::named("yeti"), spot);
     let yhp = w.get::<Fighter>(yeti).unwrap().hp;
     let cold = give_wand(&mut w, p, WandBundle::cold);
     zap(&mut w, p, cold, spot);
@@ -213,7 +213,7 @@ fn polymorph_swaps_the_target_for_a_different_species_on_the_same_tile() {
     let mut w = test_world(5);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    let orc = spawn_monster(&mut w, MonsterBundle::orc(spot));
+    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), spot);
     let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
 
     let wand = give_wand(&mut w, p, WandBundle::polymorph);
@@ -339,7 +339,7 @@ fn cancellation_strips_the_magic_but_leaves_the_creature() {
     let mut w = test_world(6);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    let dragon = spawn_monster(&mut w, MonsterBundle::dragon(spot));
+    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), spot);
     w.get_mut::<Speed>(dragon).unwrap().kind = SpeedKind::Fast;
 
     let wand = give_wand(&mut w, p, WandBundle::cancellation);

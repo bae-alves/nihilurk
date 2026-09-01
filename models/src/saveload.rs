@@ -72,6 +72,8 @@ struct EntitySave<'a> {
     renderable: Option<(char, u8)>,
     player: bool,
     hidden: bool,
+    /// Intrinsically unseeable (phantom, stashed item).
+    invisible: bool,
     consume: bool,
     /// Marker for the Element of Yoord.
     amulet: bool,
@@ -82,6 +84,8 @@ struct EntitySave<'a> {
     viewshed: Option<(u16, FixedBitSet)>,
     /// (hp, max_hp, armor, power, max_power, armor_bonus, power_bonus)
     fighter: Option<(i32, i32, i32, i32, i32, i32, i32)>,
+    /// The player's magic-point pool.
+    magic: Option<Magic>,
     faction: Option<Faction>,
     /// Indices into the saved entity list.
     backpack: Option<Vec<u32>>,
@@ -187,6 +191,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 .map(|r| (r.glyph, color_to_u8(&r.color))),
             player: er.contains::<Player>(),
             hidden: er.contains::<Hidden>(),
+            invisible: er.contains::<Invisible>(),
             consume: er.contains::<Consume>(),
             amulet: er.contains::<Amulet>(),
             name: er.get::<Name>().map(|n| Cow::Borrowed(n.what.as_str())),
@@ -196,6 +201,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             fighter: er
                 .get::<Fighter>()
                 .map(|f| (f.hp, f.max_hp, f.armor, f.power, f.max_power, f.armor_bonus, f.power_bonus)),
+            magic: er.get::<Magic>().copied(),
             faction: er.get::<Faction>().copied(),
             backpack: er.get::<Backpack>().map(|b| {
                 b.items
@@ -312,6 +318,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.hidden {
             em.insert(Hidden);
         }
+        if es.invisible {
+            em.insert(Invisible);
+        }
         if es.consume {
             em.insert(Consume);
         }
@@ -341,6 +350,11 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 armor_bonus,
                 power_bonus,
             });
+        }
+        // The player always carries a magic pool; fall back to a full one if the
+        // save somehow lacks it.
+        if let Some(magic) = es.magic.or_else(|| es.player.then_some(Magic { points: 4, max_points: 4 })) {
+            em.insert(magic);
         }
         if let Some(f) = es.faction {
             em.insert(f);

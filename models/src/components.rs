@@ -92,8 +92,18 @@ pub struct Fighter {
     pub power_bonus: i32,
 }
 
+/// Not currently drawn or announced: an out-of-view monster, an undiscovered
+/// trap, or an invisible thing the player can't perceive. The visibility system
+/// owns this for monsters and the invisible item; traps clear it when revealed.
 #[derive(Component)]
 pub struct Hidden;
+
+/// Intrinsically unseeable without a [`RingEffect::Perception`] ring — the
+/// phantom, and the one-in-ten "invisible" floor item. Pairs with [`Hidden`]:
+/// `Invisible` says *why* a thing can't be seen, `Hidden` is the per-turn "can't
+/// be seen right now" the renderer reads.
+#[derive(Component)]
+pub struct Invisible;
 
 /// The three tempos an actor can move at. `Fast` acts twice for every `Normal`
 /// action; `Slow` acts once for every two. The player is the clock: monsters
@@ -158,8 +168,8 @@ impl Speed {
 
 /// The bundle of innate magical properties a monster is born with, gathered into
 /// one component so a wand of cancellation can strip the lot in a single stroke.
-/// Every [`crate::MonsterBundle`] carries one (all-`false` by default);
-/// [`crate::spawn_monster`] fills in the flags a species needs.
+/// The value a creature spawns with is declared in its [`crate::MonsterDef`]
+/// table row.
 #[derive(Component, Clone, Copy, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Traits {
     /// A wand of fire cannot burn this creature (the dragon).
@@ -172,6 +182,20 @@ pub struct Traits {
     /// Every vorpal weapon slays this creature in one blow, whatever the weapon's
     /// rolled bane (the Jabberwock). See [`crate::combat::resolve_attack`].
     pub vorpal_target: bool,
+}
+
+impl Traits {
+    /// No innate properties — the default for all but a handful of species.
+    pub const NONE: Self = Self { fire_immune: false, cold_immune: false, undead: false, vorpal_target: false };
+    /// Immune to a wand of fire (the dragon).
+    pub const FIRE_IMMUNE: Self = Self { fire_immune: true, ..Self::NONE };
+    /// Immune to a wand of cold (the yeti).
+    pub const COLD_IMMUNE: Self = Self { cold_immune: true, ..Self::NONE };
+    /// Undead — a wand of draining passes straight through (zombie, phantom,
+    /// vampire, wraith).
+    pub const UNDEAD: Self = Self { undead: true, ..Self::NONE };
+    /// Slain by any vorpal weapon whatever its bane (the Jabberwock).
+    pub const VORPAL_TARGET: Self = Self { vorpal_target: true, ..Self::NONE };
 }
 
 /// Marker for the Element of Yoord — the relic each run must carry up from the
@@ -297,10 +321,15 @@ pub struct Vorpal {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RingEffect {
     Protection,
-    AddStrength,
-    SustainStrength,
-    Searching,
-    SeeInvisible,
+    /// +2 to the wearer's damage roll, and immunity to strength drain (poison
+    /// dart trap). Merges Rogue's separate add-strength and sustain-strength
+    /// rings.
+    Strength,
+    /// While worn, everything invisible is visible: hidden traps (floor-wide),
+    /// invisible monsters (the phantom), and invisibly-stashed items. Merges
+    /// Rogue's separate searching and see-invisible rings. See
+    /// [`crate::visibility`].
+    Perception,
     Adornment,
     AggravateMonster,
     Dexterity,
@@ -457,4 +486,13 @@ impl WandEffect {
     pub fn needs_target(self) -> bool {
         !matches!(self, WandEffect::Light)
     }
+}
+
+/// The player's pool of magic points. Shown in the HUD as `Ma points/max_points`
+/// alongside `HP`. Every run starts with a full pool (see
+/// [`crate::initialize_world`]).
+#[derive(Component, Clone, Copy, Serialize, Deserialize)]
+pub struct Magic {
+    pub points: u8,
+    pub max_points: u8,
 }

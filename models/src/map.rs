@@ -11,7 +11,7 @@ use crate::{AmuletBundle, ArmorBundle, ItemBundle, PotionBundle, RingBundle, Scr
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
-use crate::monsters::{spawn_monster, MonsterBundle};
+use crate::monsters::{spawn_monster, MonsterDef, BESTIARY};
 use crate::identify::{Identified, ItemAppearances};
 
 #[derive(Resource)]
@@ -489,39 +489,15 @@ pub fn regenerate_map(world: &mut World, seed: u64) {
     world.insert_resource(Map { tiles, dark });
 }
 
-/// Picks a monster bundle appropriate for `depth`. The bestiary is split into
-/// danger tiers; each floor rolls from every tier it has already unlocked, so
-/// early letters keep showing up as fodder while deeper letters get mixed in.
-fn pick_monster(depth: u8, rng: &mut ChaCha12Rng, pos: Position) -> MonsterBundle {
-    type Ctor = fn(Position) -> MonsterBundle;
-
-    const TIERS: [&[Ctor]; 4] = [
-        &[
-            MonsterBundle::bat, MonsterBundle::emu, MonsterBundle::goblin,
-            MonsterBundle::hobgoblin, MonsterBundle::ice_monster, MonsterBundle::kestral,
-            MonsterBundle::orc,
-        ],
-        &[
-            MonsterBundle::aquator, MonsterBundle::centaur, MonsterBundle::leprechaun,
-            MonsterBundle::nymph, MonsterBundle::quagga, MonsterBundle::rattlesnake,
-            MonsterBundle::slime, MonsterBundle::yeti, MonsterBundle::zombie,
-        ],
-        &[
-            MonsterBundle::medusa, MonsterBundle::phantom, MonsterBundle::troll,
-            MonsterBundle::ur_vile, MonsterBundle::venus_flytrap, MonsterBundle::wraith,
-            MonsterBundle::xeroc,
-        ],
-        &[
-            MonsterBundle::dragon, MonsterBundle::griffin, MonsterBundle::jabberwock,
-            MonsterBundle::vampire,
-        ],
-    ];
-
+/// Picks a species appropriate for `depth`. The bestiary is split into danger
+/// tiers ([`MonsterDef::tier`]); each floor rolls from every tier it has already
+/// unlocked, so early letters keep showing up as fodder while deeper letters get
+/// mixed in.
+fn pick_monster(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
     // depth 1-2 -> tier 0, 3-4 -> up to tier 1, 5-6 -> tier 2, 7+ -> all tiers.
-    let unlocked = (((depth.max(1) - 1) / 2) as usize + 1).min(TIERS.len());
-    let pool: Vec<Ctor> = TIERS[..unlocked].iter().flat_map(|t| t.iter().copied()).collect();
-    let ctor = pool[rng.gen_range(0..pool.len())];
-    ctor(pos)
+    let max_tier = ((depth.max(1) - 1) / 2).min(3);
+    let pool: Vec<&MonsterDef> = BESTIARY.iter().filter(|m| m.tier <= max_tier).collect();
+    pool[rng.gen_range(0..pool.len())]
 }
 
 /// Rolls one floor item and spawns it at `pos`. Category odds follow the classic
@@ -537,7 +513,7 @@ fn pick_monster(depth: u8, rng: &mut ChaCha12Rng, pos: Position) -> MonsterBundl
 /// | Weapons  |  8%  |
 /// | Wands    |  5%  |
 /// | Rings    |  5%  |
-fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
+fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
     /// Picks one constructor from `opts` uniformly and spawns its bundle,
     /// returning the new entity.
     fn one<F: Fn(Position) -> B, B: Bundle>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, opts: &[F]) -> Entity {
@@ -547,23 +523,23 @@ fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
 
     match rng.gen_range(0..100) {
         // Scrolls — 30%
-        0..=29 => { one(world, rng, pos, &[
+        0..=29 => one(world, rng, pos, &[
             ScrollBundle::monster_confusion, ScrollBundle::magic_mapping, ScrollBundle::hold_monster,
             ScrollBundle::sleep, ScrollBundle::enchant_armor, ScrollBundle::identify,
             ScrollBundle::scare_monster, ScrollBundle::food_detection, ScrollBundle::teleportation,
             ScrollBundle::enchant_weapon, ScrollBundle::create_monster, ScrollBundle::remove_curse,
             ScrollBundle::aggravate_monsters, ScrollBundle::blank_paper, ScrollBundle::vorpalize_weapon,
-        ]); }
+        ]),
         // Potions — 27%
-        30..=56 => { one(world, rng, pos, &[
+        30..=56 => one(world, rng, pos, &[
             PotionBundle::confusion, PotionBundle::paralysis, PotionBundle::poison,
             PotionBundle::gain_strength, PotionBundle::see_invisible, PotionBundle::healing,
             PotionBundle::monster_detection, PotionBundle::magic_detection, PotionBundle::raise_level,
             PotionBundle::extra_healing, PotionBundle::haste_self, PotionBundle::restore_strength,
             PotionBundle::blindness, PotionBundle::thirst_quenching,
-        ]); }
+        ]),
         // Coins (Rogue's food slot) — 17%
-        57..=73 => { one(world, rng, pos, &[ItemBundle::gold_coin, ItemBundle::silver_coin]); }
+        57..=73 => one(world, rng, pos, &[ItemBundle::gold_coin, ItemBundle::silver_coin]),
         // Armor — 8%
         74..=81 => {
             let e = one(world, rng, pos, &[
@@ -572,6 +548,7 @@ fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
                 ArmorBundle::banded_mail, ArmorBundle::plate_mail,
             ]);
             crate::items::enchant_equipment(world, rng, e);
+            e
         }
         // Weapons — 8%
         82..=89 => {
@@ -580,6 +557,7 @@ fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
                 WeaponsBundle::two_handed_sword,
             ]);
             crate::items::enchant_equipment(world, rng, e);
+            e
         }
         // Wands / Staves — 5%
         90..=94 => {
@@ -594,19 +572,20 @@ fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) {
             if let Some(mut battery) = world.get_mut::<Battery>(wand) {
                 battery.charges = charges;
             }
+            wand
         }
         // Rings — 5%
         _ => {
-            const RINGS: [RingEffect; 14] = [
-                RingEffect::Protection, RingEffect::AddStrength, RingEffect::SustainStrength,
-                RingEffect::Searching, RingEffect::SeeInvisible, RingEffect::Adornment,
-                RingEffect::AggravateMonster, RingEffect::Dexterity, RingEffect::IncreaseDamage,
-                RingEffect::Regeneration, RingEffect::SlowDigestion, RingEffect::Teleportation,
-                RingEffect::Stealth, RingEffect::MaintainArmor,
+            const RINGS: [RingEffect; 12] = [
+                RingEffect::Protection, RingEffect::Strength, RingEffect::Perception,
+                RingEffect::Adornment, RingEffect::AggravateMonster, RingEffect::Dexterity,
+                RingEffect::IncreaseDamage, RingEffect::Regeneration, RingEffect::SlowDigestion,
+                RingEffect::Teleportation, RingEffect::Stealth, RingEffect::MaintainArmor,
             ];
             let effect = RINGS[rng.gen_range(0..RINGS.len())];
             let ring = world.spawn(RingBundle::new(effect, pos)).id();
             crate::items::enchant_equipment(world, rng, ring);
+            ring
         }
     }
 }
@@ -702,9 +681,8 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
             let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
 
             if occupied.insert((x, y)) {
-                let pos = Position { x, y };
-                let monster = pick_monster(depth, &mut game_rng.0, pos);
-                spawn_monster(world, monster);
+                let def = pick_monster(depth, &mut game_rng.0);
+                spawn_monster(world, def, Position { x, y });
                 break;
             }
         }
@@ -719,9 +697,8 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                 continue;
             }
             if occupied.insert((cx, cy)) {
-                let pos = Position { x: cx, y: cy };
-                let monster = pick_monster(depth, &mut game_rng.0, pos);
-                spawn_monster(world, monster);
+                let def = pick_monster(depth, &mut game_rng.0);
+                spawn_monster(world, def, Position { x: cx, y: cy });
             }
         }
     }
@@ -734,6 +711,22 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
 
             if occupied.insert((x, y)) {
                 spawn_random_item(world, &mut game_rng.0, Position { x, y });
+                break;
+            }
+        }
+    }
+
+    // 1 floor in 10 hides an extra item in plain sight: it draws nothing and is
+    // never announced until a ring of perception turns it up or the player walks
+    // straight onto it ("Hey! There's something here!").
+    if game_rng.0.gen_bool(0.10) {
+        for _ in 0..100 {
+            let room_idx = game_rng.0.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+
+            if occupied.insert((x, y)) {
+                let item = spawn_random_item(world, &mut game_rng.0, Position { x, y });
+                world.entity_mut(item).insert((Hidden, Invisible));
                 break;
             }
         }
@@ -761,9 +754,8 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                     break;
                 }
                 if occupied.insert((nx, ny)) {
-                    let pos = Position { x: nx, y: ny };
-                    let monster = pick_monster(depth, &mut game_rng.0, pos);
-                    spawn_monster(world, monster);
+                    let def = pick_monster(depth, &mut game_rng.0);
+                    spawn_monster(world, def, Position { x: nx, y: ny });
                 }
             }
         }
@@ -944,11 +936,14 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
 
     populate_level(world, &rooms, start);
 
-    // A trapdoor plunge is a fall, not a rest: no arrival heal.
+    // A trapdoor plunge is a fall, not a rest: no arrival heal, no magic restore.
     if cause != LevelChange::Trapdoor {
         if let Some(mut fighter) = world.get_mut::<Fighter>(player_entity) {
             let heal = fighter.max_hp / 2;
             fighter.hp = (fighter.hp + heal).min(fighter.max_hp);
+        }
+        if let Some(mut magic) = world.get_mut::<Magic>(player_entity) {
+            magic.points = magic.max_points;
         }
     }
 
@@ -1066,6 +1061,7 @@ pub fn initialize_world(world: &mut World) {
             armor_bonus: 0,
             power_bonus: 0,
         },
+        Magic { points: 4, max_points: 4 },
         Faction::Player,
         Backpack { items: vec![starting_wand] },
         Score { value: 0 },

@@ -193,15 +193,17 @@ pub fn render<W: Write>(
     let offset = centering_offset(world);
 
     // 1. Player-derived state.
-    let (visible, revealed, player_hp, player_max_hp, player_pos, mut pow_die, mut pow_flat, mut arm_die, mut arm_flat, player_score, pack_items) = {
+    let (visible, revealed, player_hp, player_max_hp, player_magic, player_max_magic, player_pos, mut pow_die, mut pow_flat, mut arm_die, mut arm_flat, player_score, pack_items) = {
         let mut query = world
-            .query_filtered::<(&Viewshed, &Fighter, &Position, &Score, &Backpack), With<Player>>();
-        if let Some((viewshed, fighter, pos, score, backpack)) = query.iter(world).next() {
+            .query_filtered::<(&Viewshed, &Fighter, Option<&Magic>, &Position, &Score, &Backpack), With<Player>>();
+        if let Some((viewshed, fighter, magic, pos, score, backpack)) = query.iter(world).next() {
             (
                 viewshed.visible_tiles.iter().copied().collect::<HashSet<_>>(),
                 viewshed.revealed_tiles.clone(),
                 fighter.hp,
                 fighter.max_hp,
+                magic.map_or(0, |m| m.points),
+                magic.map_or(0, |m| m.max_points),
                 (pos.x, pos.y),
                 fighter.power,
                 fighter.power_bonus,
@@ -211,11 +213,12 @@ pub fn render<W: Write>(
                 backpack.items.clone(),
             )
         } else {
-            (HashSet::new(), Default::default(), 10, 10, (0, 0), 1, 0, 0, 0, 0, Vec::new())
+            (HashSet::new(), Default::default(), 10, 10, 4, 4, (0, 0), 1, 0, 0, 0, 0, Vec::new())
         }
     };
 
-    // Fold equipped weapon / armour into the displayed Pow. / Arm. figures.
+    // Fold equipped weapon / armour — and worn rings of strength / protection —
+    // into the displayed Pow. / Arm. figures.
     for &it in &pack_items {
         if let Some(w) = world.get::<Wield>(it) {
             if w.wielder.is_some() {
@@ -227,6 +230,15 @@ pub fn render<W: Write>(
             if w.wearer.is_some() {
                 arm_die += w.arm_increase as i32;
                 arm_flat += w.arm_bonus as i32;
+            }
+        }
+        if let Some(r) = world.get::<PutOn>(it) {
+            if r.bearer.is_some() {
+                match r.effect {
+                    RingEffect::Strength => pow_flat += RING_STRENGTH_BONUS,
+                    RingEffect::Protection => arm_flat += RING_PROTECTION_BONUS,
+                    _ => {}
+                }
             }
         }
     }
@@ -282,6 +294,7 @@ pub fn render<W: Write>(
         let fields = [
             player_name.to_uppercase(),
             format!("HP {}/{}", player_hp, player_max_hp),
+            format!("Ma {}/{}", player_magic, player_max_magic),
             format!("Pow. {}", stat(pow_die, pow_flat)),
             format!("Arm. {}", stat(arm_die, arm_flat)),
             format!("DEPTH {}", depth),

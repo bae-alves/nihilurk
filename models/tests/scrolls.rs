@@ -252,7 +252,7 @@ fn every_vorpal_blade_beheads_a_jabberwock_whatever_its_bane() {
     w.get_mut::<Fighter>(p).unwrap().power = 100;
 
     let hero = *w.get::<Position>(p).unwrap();
-    let jab = spawn_monster(&mut w, MonsterBundle::jabberwock(Position { x: hero.x + 1, y: hero.y }));
+    let jab = spawn_monster(&mut w, MonsterDef::named("jabberwock"), Position { x: hero.x + 1, y: hero.y });
     w.get_mut::<Fighter>(jab).unwrap().hp = 999;
 
     resolve_attack(&mut w, p, jab);

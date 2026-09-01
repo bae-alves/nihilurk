@@ -97,6 +97,13 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         }
     }
     if let Some(item_entity) = item_entity_to_pickup {
+        // An invisibly-stashed item announces itself the instant you blunder onto
+        // its tile, then is picked up like anything else.
+        if world.get::<Hidden>(item_entity).is_some() {
+            world.entity_mut(item_entity).remove::<Hidden>();
+            world.entity_mut(item_entity).remove::<Invisible>();
+            world.resource_mut::<GameLog>().add("Hey! There's something here!".to_string());
+        }
         let mut picked_up = false;
         if let Some(mut backpack) = world.get_mut::<Backpack>(player_entity) {
             backpack.items.push(item_entity);
