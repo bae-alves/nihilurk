@@ -6,7 +6,14 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 
+use crate::catalog::RingDef;
 use crate::components::*;
+use crate::effects::{
+    attach_effects, effects_of, ArmorBonus, ArmorDie, EffectSet, GrantedByGear, Grants, PowerBonus,
+    PowerDie,
+};
+use crate::equipment::{Equipped, Slot};
+use crate::monsters::BESTIARY;
 use crate::traps::{Snare, SnareKind, Trap, TrapEffect, TrapReveal};
 use crate::identify::{Identified, ItemAppearances};
 use crate::map::{regenerate_map, BloodStains, GameRng, Map, RngSeed, TileType, FINAL_DEPTH};
@@ -100,17 +107,25 @@ struct EntitySave<'a> {
     ranged: Option<i32>,
     scroll: Option<ScrollEffect>,
     ring: Option<RingEffect>,
-    /// (pow_increase, pow_bonus). `wielder` is always rebuilt as `None`.
-    wield: Option<(i8, i8)>,
-    /// (arm_increase, arm_bonus). `wearer` is always rebuilt as `None`.
-    wear: Option<(i8, i8)>,
+    /// Which slot this piece of gear occupies. Who had it equipped is not saved
+    /// — gear comes off across a save, as it always has.
+    equipped: Option<Slot>,
+    /// The combat modifiers this entity contributes: weapon class, armour class,
+    /// and the flat bonuses an enchantment rolled onto them.
+    power_die: Option<i32>,
+    power_bonus: Option<i32>,
+    armor_die: Option<i32>,
+    armor_bonus: Option<i32>,
     /// Marker: this equipment is cursed and can't be taken off once equipped.
     curse: bool,
     /// A vorpalized weapon's `bane` species (scroll of vorpalize weapon).
     #[serde(borrow)]
     vorpal: Option<Cow<'a, str>>,
-    /// A creature's innate magical properties (immunities, vorpal-target).
-    traits: Option<Traits>,
+    /// The marker effects this entity owns in its own right — what it was born
+    /// with, plus or minus whatever a wand of cancellation or a polymorph has
+    /// done since. Effects merely on loan from equipped gear are excluded, since
+    /// the gear comes off on load and is re-lent when it goes back on.
+    effects: EffectSet,
     /// A creature's movement tempo. The energy pool is transient and resets to 0.
     speed: Option<SpeedKind>,
     /// (effect, reveal style, already discovered) for a floor trap.
@@ -218,12 +233,15 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             wand: er.get::<Wand>().map(|w| w.effect),
             ranged: er.get::<Ranged>().map(|r| r.range),
             scroll: er.get::<Scroll>().map(|s| s.effect),
-            ring: er.get::<PutOn>().map(|p| p.effect),
-            wield: er.get::<Wield>().map(|w| (w.pow_increase, w.pow_bonus)),
-            wear: er.get::<Wear>().map(|w| (w.arm_increase, w.arm_bonus)),
+            ring: er.get::<Ring>().map(|r| r.effect),
+            equipped: er.get::<Equipped>().map(|e| e.slot),
+            power_die: er.get::<PowerDie>().map(|m| m.0),
+            power_bonus: er.get::<PowerBonus>().map(|m| m.0),
+            armor_die: er.get::<ArmorDie>().map(|m| m.0),
+            armor_bonus: er.get::<ArmorBonus>().map(|m| m.0),
             curse: er.contains::<Curse>(),
             vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
-            traits: er.get::<Traits>().copied(),
+            effects: effects_of(world, e) & !er.get::<GrantedByGear>().map(|g| g.0).unwrap_or(0),
             speed: er.get::<Speed>().map(|s| s.kind),
             trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
             snare: er.get::<Snare>().map(|s| (s.turns, s.kind)),
@@ -327,10 +345,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.amulet {
             em.insert(Amulet);
         }
-        if let Some(n) = es.name {
-            em.insert(Name {
-                what: n.into_owned(),
-            });
+        let entity_name = es.name.map(|n| n.into_owned());
+        if let Some(n) = &entity_name {
+            em.insert(Name { what: n.clone() });
         }
         if let Some((range, revealed_tiles)) = es.viewshed {
             em.insert(Viewshed {
@@ -396,13 +413,25 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             em.insert(Scroll { effect });
         }
         if let Some(effect) = es.ring {
-            em.insert(PutOn { bearer: None, effect });
+            em.insert(Ring { effect });
+            // What a ring lends its wearer is fixed by its catalog row, so it is
+            // read back from there rather than stored in every save file.
+            em.insert(Grants(RingDef::of(effect).grants));
         }
-        if let Some((pow_increase, pow_bonus)) = es.wield {
-            em.insert(Wield { wielder: None, pow_increase, pow_bonus });
+        if let Some(slot) = es.equipped {
+            em.insert(Equipped::loose(slot));
         }
-        if let Some((arm_increase, arm_bonus)) = es.wear {
-            em.insert(Wear { wearer: None, arm_increase, arm_bonus });
+        if let Some(n) = es.power_die {
+            em.insert(PowerDie(n));
+        }
+        if let Some(n) = es.power_bonus {
+            em.insert(PowerBonus(n));
+        }
+        if let Some(n) = es.armor_die {
+            em.insert(ArmorDie(n));
+        }
+        if let Some(n) = es.armor_bonus {
+            em.insert(ArmorBonus(n));
         }
         if es.curse {
             em.insert(Curse);
@@ -410,9 +439,18 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(bane) = es.vorpal {
             em.insert(Vorpal { bane: bane.into_owned() });
         }
-        if let Some(t) = es.traits {
-            em.insert(t);
+        // A monster's innate grant list comes back from the bestiary; the
+        // effects it actually has right now come back from the save, so a
+        // cancelled dragon stays cancelled.
+        if let Some(def) = entity_name
+            .as_deref()
+            .and_then(|n| BESTIARY.iter().find(|m| m.name == n))
+        {
+            if !def.grants.is_empty() {
+                em.insert(Grants(def.grants));
+            }
         }
+        attach_effects(&mut em, es.effects);
         // Every actor moves at some tempo; the energy pool starts fresh.
         if es.player || es.mob.is_some() {
             em.insert(Speed::new(es.speed.unwrap_or_default()));

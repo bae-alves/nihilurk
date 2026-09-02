@@ -4,7 +4,8 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
-use crate::helpers::has_ring_effect;
+use crate::effects::{equipped_total, ArmorBonus, ArmorDie, PowerBonus, PowerDie, VorpalTarget};
+use crate::equipment::equipped_items;
 use crate::map::GameRng;
 use crate::particles::Particles;
 use crate::state::Ending;
@@ -13,11 +14,6 @@ use crate::state::Ending;
 const EXCELLENT_HIT_CHANCE: f64 = 0.15;
 /// An excellent hit rolls extra weapon dice: `1d[Power]` becomes `Nd[Power]`.
 const EXCELLENT_HIT_DICE: i32 = 3;
-/// Flat bonus a worn ring of protection adds to the wearer's armour roll.
-pub const RING_PROTECTION_BONUS: i32 = 2;
-/// Flat bonus a worn ring of strength adds to the wearer's damage roll. The same
-/// ring also blocks strength drain (see [`crate::traps`]).
-pub const RING_STRENGTH_BONUS: i32 = 2;
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
 /// an unarmoured/unarmed entity simply contributes nothing to the opposed roll.
@@ -29,50 +25,13 @@ fn roll_die(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
     }
 }
 
-/// Sums the `(die_increase, flat_bonus)` an entity's *equipped* weapon adds to
-/// its attack roll. An entity with no backpack or nothing wielded gets `(0, 0)`,
-/// so monsters are unaffected.
-fn equipped_wield_bonus(world: &World, entity: Entity) -> (i32, i32) {
-    world
-        .get::<Backpack>(entity)
-        .and_then(|bp| {
-            bp.items
-                .iter()
-                .filter_map(|&i| world.get::<Wield>(i))
-                .find(|w| w.wielder == Some(entity))
-                .map(|w| (w.pow_increase as i32, w.pow_bonus as i32))
-        })
-        .unwrap_or((0, 0))
-}
-
-/// As [`equipped_wield_bonus`], but for the entity's equipped armour.
-fn equipped_wear_bonus(world: &World, entity: Entity) -> (i32, i32) {
-    world
-        .get::<Backpack>(entity)
-        .and_then(|bp| {
-            bp.items
-                .iter()
-                .filter_map(|&i| world.get::<Wear>(i))
-                .find(|w| w.wearer == Some(entity))
-                .map(|w| (w.arm_increase as i32, w.arm_bonus as i32))
-        })
-        .unwrap_or((0, 0))
-}
-
-/// `bonus` if `entity` has a ring with `effect` on its finger, `0` otherwise.
-/// Monsters never wear rings, so this always folds in `0` for them.
-fn ring_bonus(world: &World, entity: Entity, effect: RingEffect, bonus: i32) -> i32 {
-    if has_ring_effect(world, entity, effect) { bonus } else { 0 }
-}
-
 /// The `bane` of the attacker's currently-wielded weapon, if that weapon has
 /// been vorpalized (scroll of vorpalize weapon). `None` for an unarmed attacker
 /// or a plain weapon — so monsters, which never wield, are unaffected.
 fn wielded_vorpal_bane(world: &World, entity: Entity) -> Option<String> {
-    world.get::<Backpack>(entity)?.items.iter().find_map(|&i| {
-        let wielded = world.get::<Wield>(i).is_some_and(|w| w.wielder == Some(entity));
-        wielded.then(|| world.get::<Vorpal>(i).map(|v| v.bane.clone())).flatten()
-    })
+    equipped_items(world, entity)
+        .into_iter()
+        .find_map(|i| world.get::<Vorpal>(i).map(|v| v.bane.clone()))
 }
 
 /// Looks up an entity's display name, falling back to a vague noun so the log
@@ -133,10 +92,10 @@ pub fn reaper_system(world: &mut World) {
 ///
 /// Damage is `(1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus)`: the
 /// attacker's and defender's roll totals are computed independently and then
-/// subtracted. Equipped gear folds into both sides; a worn ring of strength adds
-/// [`RING_STRENGTH_BONUS`] to the attacker's damage roll and a worn ring of
-/// protection adds [`RING_PROTECTION_BONUS`] to the defender's armour roll. When
-/// the *player* is the attacker two extra rules apply:
+/// subtracted. Every equipped source of a [`crate::effects::Modifier`] folds
+/// into those four numbers — a weapon's die, an enchantment's flat bonus, a
+/// ring of protection's — and this function never learns which kind of item any
+/// of them came from. When the *player* is the attacker two extra rules apply:
 ///
 /// * **Excellent hit** — a [`EXCELLENT_HIT_CHANCE`] chance for a clean strike
 ///   that rolls [`EXCELLENT_HIT_DICE`] weapon dice (`Nd[Power]`) before the
@@ -149,17 +108,16 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         return;
     }
 
-    let (wpn_die, wpn_flat) = equipped_wield_bonus(world, attacker);
-    let (arm_die, arm_flat) = equipped_wear_bonus(world, target);
-
-    let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1) + wpn_die;
+    // Every equipped source of a modifier folds in the same way — a sword, a
+    // suit of plate, a ring of strength. Nothing here knows which is which.
+    let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1)
+        + equipped_total::<PowerDie>(world, attacker);
     let attacker_power_bonus = world.get::<Fighter>(attacker).map(|f| f.power_bonus).unwrap_or(0)
-        + wpn_flat
-        + ring_bonus(world, attacker, RingEffect::Strength, RING_STRENGTH_BONUS);
-    let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0) + arm_die;
+        + equipped_total::<PowerBonus>(world, attacker);
+    let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0)
+        + equipped_total::<ArmorDie>(world, target);
     let target_armor_bonus = world.get::<Fighter>(target).map(|f| f.armor_bonus).unwrap_or(0)
-        + arm_flat
-        + ring_bonus(world, target, RingEffect::Protection, RING_PROTECTION_BONUS);
+        + equipped_total::<ArmorBonus>(world, target);
     let attacker_is_player = world.get::<Player>(attacker).is_some();
 
     // --- Independent opposed rolls -----------------------------------------
@@ -198,12 +156,12 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let attacker_unseen = target_is_player && world.get::<Hidden>(attacker).is_some();
 
     // A vorpalized weapon that draws blood slays its bane outright — and any
-    // creature whose `Traits::vorpal_target` is set (the Jabberwock), whatever
+    // creature carrying `VorpalTarget` (the Jabberwock), whatever
     // the bane. A glancing scrape never triggers it.
     let vorpal = !glancing
         && damage > 0
         && wielded_vorpal_bane(world, attacker).is_some_and(|bane| {
-            world.get::<Traits>(target).is_some_and(|t| t.vorpal_target)
+            world.get::<VorpalTarget>(target).is_some()
                 || world.get::<Name>(target).is_some_and(|n| n.what == bane)
         });
 

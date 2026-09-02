@@ -36,7 +36,7 @@ fn stash(w: &mut World, user: Entity, item: Entity) {
 fn unidentified_potion_shows_its_appearance_not_its_true_name() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let potion = w.spawn(PotionBundle::healing(Position { x: 0, y: 0 })).id();
+    let potion = spawn_potion(&mut w, PotionEffect::Healing, Position { x: 0, y: 0 });
     stash(&mut w, p, potion);
 
     let seen = display_name(&w, potion);
@@ -51,8 +51,8 @@ fn unidentified_potion_shows_its_appearance_not_its_true_name() {
 fn quaffing_a_potion_identifies_every_potion_of_that_type() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let drunk = w.spawn(PotionBundle::healing(Position { x: 0, y: 0 })).id();
-    let other = w.spawn(PotionBundle::healing(Position { x: 0, y: 0 })).id();
+    let drunk = spawn_potion(&mut w, PotionEffect::Healing, Position { x: 0, y: 0 });
+    let other = spawn_potion(&mut w, PotionEffect::Healing, Position { x: 0, y: 0 });
     stash(&mut w, p, drunk);
     stash(&mut w, p, other);
 
@@ -72,7 +72,7 @@ fn quaffing_a_potion_identifies_every_potion_of_that_type() {
 fn zapping_a_wand_identifies_it() {
     let mut w = test_world(3);
     let p = player(&mut w);
-    let wand = w.spawn(WandBundle::fire(Position { x: 0, y: 0 })).id();
+    let wand = spawn_wand(&mut w, WandEffect::Fire, Position { x: 0, y: 0 });
     stash(&mut w, p, wand);
 
     assert_ne!(display_name(&w, wand), "wand of fire");
@@ -84,7 +84,7 @@ fn zapping_a_wand_identifies_it() {
 fn wearing_a_ring_identifies_it_and_toggles_like_gear() {
     let mut w = test_world(2);
     let p = player(&mut w);
-    let ring = w.spawn(RingBundle::new(RingEffect::Regeneration, Position { x: 0, y: 0 })).id();
+    let ring = spawn_ring(&mut w, RingEffect::Regeneration, Position { x: 0, y: 0 });
     stash(&mut w, p, ring);
 
     let unseen = display_name(&w, ring);
@@ -94,21 +94,21 @@ fn wearing_a_ring_identifies_it_and_toggles_like_gear() {
     use_item(&mut w, p, ring);
     assert!(w.resource::<Identified>().rings.contains(&RingEffect::Regeneration));
     assert_eq!(display_name(&w, ring), "ring of regeneration");
-    assert_eq!(w.get::<PutOn>(ring).unwrap().bearer, Some(p));
+    assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
     // Still in the pack, just worn.
     assert!(w.get::<Backpack>(p).unwrap().items.contains(&ring));
 
     // Using it again takes it off.
     use_item(&mut w, p, ring);
-    assert_eq!(w.get::<PutOn>(ring).unwrap().bearer, None);
+    assert_eq!(w.get::<Equipped>(ring).unwrap().by, None);
 }
 
 #[test]
 fn scroll_of_identify_reveals_an_unknown_item_without_using_it() {
     let mut w = test_world(5);
     let p = player(&mut w);
-    let potion = w.spawn(PotionBundle::poison(Position { x: 0, y: 0 })).id();
-    let scroll = w.spawn(ScrollBundle::identify(Position { x: 0, y: 0 })).id();
+    let potion = spawn_potion(&mut w, PotionEffect::Poison, Position { x: 0, y: 0 });
+    let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
     stash(&mut w, p, potion);
     stash(&mut w, p, scroll);
 

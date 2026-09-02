@@ -1,6 +1,10 @@
 pub mod rect;
 pub mod visibility;
 pub mod components;
+pub mod effects;
+pub mod equipment;
+pub mod catalog;
+pub mod abilities;
 pub mod map;
 pub mod state;
 pub mod ai;
@@ -20,6 +24,10 @@ mod saveload;
 mod identify;
 
 pub use components::*;
+pub use effects::*;
+pub use equipment::*;
+pub use catalog::*;
+pub use abilities::*;
 pub use map::*;
 pub use rect::*;
 pub use state::*;

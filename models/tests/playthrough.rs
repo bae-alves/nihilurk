@@ -40,9 +40,9 @@ fn walk_a_few_floors_and_use_the_loot() {
             if in_pack {
                 continue;
             }
-            seen_weapon |= w.get::<Wield>(e).is_some();
-            seen_armor |= w.get::<Wear>(e).is_some();
-            seen_ring |= w.get::<PutOn>(e).is_some();
+            seen_weapon |= w.get::<PowerDie>(e).is_some();
+            seen_armor |= w.get::<ArmorDie>(e).is_some();
+            seen_ring |= w.get::<Ring>(e).is_some();
             w.entity_mut(e).remove::<Position>();
             w.get_mut::<Backpack>(player).unwrap().items.push(e);
         }

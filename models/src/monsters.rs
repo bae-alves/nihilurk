@@ -1,6 +1,7 @@
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use crate::components::*;
+use crate::effects::{grant_all, ColdImmune, FireImmune, Grant, Grants, Undead, VorpalTarget};
 use MovementType::{Chase, Confused, Flee, Static};
 
 /// Static, per-species description: everything about a monster that does not vary
@@ -28,16 +29,18 @@ pub struct MonsterDef {
     /// unlocked so far, so low tiers keep turning up as fodder while deeper ones
     /// mix in (see [`crate::map`]). The goblin is the tier-0 baseline.
     pub tier: u8,
-    /// Innate magical properties this species is born with (immunities,
-    /// vorpal-target). See [`Traits`].
-    pub traits: Traits,
+    /// The magic this species is born with, named the same way a ring names
+    /// what it lends its wearer (see [`crate::effects::Grant`]). A dragon's
+    /// `FireImmune` and a ring of fire resistance's `FireImmune` are the same
+    /// component, so the wand of fire has one case to handle, not two.
+    pub grants: &'static [Grant],
     /// Born [`Invisible`] — unseeable without a ring of perception (the phantom).
     pub invisible: bool,
 }
 
 impl MonsterDef {
-    /// One bestiary row. `traits` defaults to [`Traits::NONE`]; the handful of
-    /// species with an innate property chain [`MonsterDef::with`].
+    /// One bestiary row. A species with innate magic chains
+    /// [`MonsterDef::grants`].
     #[allow(clippy::too_many_arguments)]
     const fn row(
         name: &'static str,
@@ -55,14 +58,14 @@ impl MonsterDef {
             name, glyph, color, movement,
             hp, power, power_bonus, armor, armor_bonus,
             tier,
-            traits: Traits::NONE,
+            grants: &[],
             invisible: false,
         }
     }
 
-    /// Attach innate [`Traits`] to a bestiary row.
-    const fn with(mut self, traits: Traits) -> Self {
-        self.traits = traits;
+    /// Attach innate magic to a bestiary row.
+    const fn grants(mut self, grants: &'static [Grant]) -> Self {
+        self.grants = grants;
         self
     }
 
@@ -110,34 +113,35 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      3,   4,  -1,   8,  1,   1),
     MonsterDef::row("bat",           'B',   Color::DarkGrey,    Confused,   1,   4,   0,   8,  0,   0),
     MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   1),
-    MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,   3).with(Traits::FIRE_IMMUNE),
+    MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,   3).grants(&[Grant::of::<FireImmune>()]),
     MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      1,   4,   0,   4,  1,   0),
     MonsterDef::row("venus flytrap", 'F',   Color::Green,       Static,     6,  10,   0,   8,  0,   2),
     MonsterDef::row("griffin",       'G',   Color::DarkYellow,  Chase,     10,  12,   1,   8,  1,   3),
     MonsterDef::row("hobgoblin",     'H',   Color::DarkRed,     Chase,      1,   8,   0,   6,  0,   0),
     MonsterDef::row("ice monster",   'I',   Color::Cyan,        Static,     1,   4,   0,   4, -1,   0),
-    MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     12,   8,   5,   6,  0,   3).with(Traits::VORPAL_TARGET),
+    MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     12,   8,   5,   6,  0,   3).grants(&[Grant::of::<VorpalTarget>()]),
     MonsterDef::row("kestral",       'K',   Color::Grey,        Chase,      1,   4,   0,   4,  1,   0),
     MonsterDef::row("leprechaun",    'L',   Color::Green,       Flee,       2,   4,   0,   4,  0,   1),
     MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      6,  10,   0,   8,  1,   2),
     MonsterDef::row("nymph",         'N',   Color::Magenta,     Flee,       2,   4,  -1,   4, -1,   1),
     MonsterDef::row("orc",           'O',   Color::Red,         Chase,      1,   8,   0,   6,  0,   0),
-    MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      6,  10,   0,   8,  0,   2).with(Traits::UNDEAD).invisible(),
+    MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      6,  10,   0,   8,  0,   2).grants(&[Grant::of::<Undead>()]).invisible(),
     MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      2,   6,   0,   8,  1,   1),
     MonsterDef::row("rattlesnake",   'R',   Color::DarkGreen,   Chase,      2,   6,   0,   8,  0,   1),
     MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      2,   4,   0,   4,  0,   1),
     MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      4,  10,   0,   6,  1,   2),
     MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      5,  10,   0,  12,  1,   2),
-    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,   3).with(Traits::UNDEAD),
-    MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   2).with(Traits::UNDEAD),
+    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,   3).grants(&[Grant::of::<Undead>()]),
+    MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   2).grants(&[Grant::of::<Undead>()]),
     MonsterDef::row("xeroc",         'X',   Color::Yellow,      Static,     5,   8,   0,   4,  1,   2),
-    MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      3,   8,   0,   6,  0,   1).with(Traits::COLD_IMMUNE),
-    MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      2,   8,   0,   4,  0,   1).with(Traits::UNDEAD),
+    MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      3,   8,   0,   6,  0,   1).grants(&[Grant::of::<ColdImmune>()]),
+    MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      2,   8,   0,   4,  0,   1).grants(&[Grant::of::<Undead>()]),
 ];
 
 /// Every component a monster is spawned with, built wholesale from a
-/// [`MonsterDef`] — including its innate [`Traits`] and a `Normal` [`Speed`], so
-/// the entity is complete the moment it lands in the world.
+/// [`MonsterDef`] — including a record of the magic it was born with and a
+/// `Normal` [`Speed`], so the entity is complete the moment it lands in the
+/// world.
 #[derive(Bundle)]
 struct MonsterBundle {
     name: Name,
@@ -147,7 +151,9 @@ struct MonsterBundle {
     position: Position,
     faction: Faction,
     blood: Blood,
-    traits: Traits,
+    /// What this creature was born with — read by the wand of cancellation, and
+    /// by [`crate::equipment`] so a removed ring can never strip innate magic.
+    grants: Grants,
     speed: Speed,
 }
 
@@ -169,19 +175,21 @@ impl MonsterBundle {
             position,
             faction: Faction::Monster,
             blood: Blood,
-            traits: def.traits,
+            grants: Grants(def.grants),
             speed: Speed::new(SpeedKind::Normal),
         }
     }
 }
 
 /// The one place a monster is brought into the world: builds the full
-/// [`MonsterBundle`] from `def` and spawns it at `pos`, tacking on the
-/// [`Invisible`] marker for the species that need it. Every spawn site — level
-/// population, the create-monster scroll, the polymorph wand — goes through here
-/// so nothing about a creature is assembled twice.
+/// [`MonsterBundle`] from `def`, spawns it at `pos`, attaches the effect
+/// components its row grants, and tacks on the [`Invisible`] marker for the
+/// species that need it. Every spawn site — level population, the
+/// create-monster scroll, the polymorph wand — goes through here so nothing
+/// about a creature is assembled twice.
 pub fn spawn_monster(world: &mut World, def: &MonsterDef, pos: Position) -> Entity {
     let e = world.spawn(MonsterBundle::from_def(def, pos)).id();
+    grant_all(world, e, def.grants);
     if def.invisible {
         world.entity_mut(e).insert(Invisible);
     }

@@ -39,17 +39,16 @@ fn use_item(w: &mut World, user: Entity, item: Entity) {
 }
 
 fn is_equipped(w: &World, e: Entity) -> bool {
-    w.get::<Wield>(e).is_some_and(|x| x.wielder.is_some())
-        || w.get::<Wear>(e).is_some_and(|x| x.wearer.is_some())
+    w.get::<Equipped>(e).is_some_and(|x| x.by.is_some())
 }
 
 #[test]
 fn using_gear_toggles_equipped_state() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let sword = w.spawn(WeaponsBundle::long_sword(Position { x: 0, y: 0 })).id();
-    let dagger = w.spawn(WeaponsBundle::dagger(Position { x: 0, y: 0 })).id();
-    let mail = w.spawn(ArmorBundle::plate_mail(Position { x: 0, y: 0 })).id();
+    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
+    let dagger = spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
+    let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
     for e in [sword, dagger, mail] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
@@ -80,10 +79,10 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    let cursed_mail = w.spawn(ArmorBundle::plate_mail(Position { x: 0, y: 0 })).id();
+    let cursed_mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
     w.entity_mut(cursed_mail).insert(Curse);
-    let plain_mail = w.spawn(ArmorBundle::leather_armor(Position { x: 0, y: 0 })).id();
-    let scroll = w.spawn(ScrollBundle::remove_curse(Position { x: 0, y: 0 })).id();
+    let plain_mail = spawn_armor(&mut w, "leather armor", Position { x: 0, y: 0 });
+    let scroll = spawn_scroll(&mut w, ScrollEffect::RemoveCurse, Position { x: 0, y: 0 });
     for e in [cursed_mail, plain_mail, scroll] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
@@ -122,11 +121,11 @@ fn remove_curse_spares_unequipped_cursed_gear() {
     let mut w = test_world(5);
     let p = player(&mut w);
 
-    let worn_ring = w.spawn(RingBundle::new(RingEffect::Adornment, Position { x: 0, y: 0 })).id();
+    let worn_ring = spawn_ring(&mut w, RingEffect::Adornment, Position { x: 0, y: 0 });
     w.entity_mut(worn_ring).insert(Curse);
-    let stashed_sword = w.spawn(WeaponsBundle::long_sword(Position { x: 0, y: 0 })).id();
+    let stashed_sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
     w.entity_mut(stashed_sword).insert(Curse);
-    let scroll = w.spawn(ScrollBundle::remove_curse(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::RemoveCurse, Position { x: 0, y: 0 });
     for e in [worn_ring, stashed_sword, scroll] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
@@ -170,7 +169,7 @@ fn equipped_weapon_and_armor_change_combat_math() {
     let mut w = test_world(42);
     let p = player(&mut w);
     let target = bag(&mut w);
-    let ths = w.spawn(WeaponsBundle::two_handed_sword(Position { x: 0, y: 0 })).id();
+    let ths = spawn_weapon(&mut w, "two-handed sword", Position { x: 0, y: 0 });
     w.entity_mut(ths).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ths);
     use_item(&mut w, p, ths);
@@ -202,7 +201,7 @@ fn equipped_weapon_and_armor_change_combat_math() {
     w.get_mut::<Fighter>(attacker).unwrap().power = 10;
     w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
     w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
-    let mail = w.spawn(ArmorBundle::plate_mail(Position { x: 0, y: 0 })).id();
+    let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
     w.entity_mut(mail).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(mail);
     use_item(&mut w, p, mail);
@@ -248,11 +247,11 @@ fn a_worn_ring_of_protection_soaks_hits() {
     let foe = attacker(&mut w);
     w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
     w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
-    let ring = w.spawn(RingBundle::new(RingEffect::Protection, Position { x: 0, y: 0 })).id();
+    let ring = spawn_ring(&mut w, RingEffect::Protection, Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     use_item(&mut w, p, ring);
-    assert_eq!(w.get::<PutOn>(ring).unwrap().bearer, Some(p));
+    assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
     for _ in 0..hits {
         resolve_attack(&mut w, foe, p);
     }
@@ -298,11 +297,11 @@ fn a_worn_ring_of_strength_adds_two_to_every_blow() {
     let mut w = test_world(4);
     let p = player(&mut w);
     let target = bag(&mut w);
-    let ring = w.spawn(RingBundle::new(RingEffect::Strength, Position { x: 0, y: 0 })).id();
+    let ring = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     use_item(&mut w, p, ring);
-    assert_eq!(w.get::<PutOn>(ring).unwrap().bearer, Some(p));
+    assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
     for _ in 0..hits {
         resolve_attack(&mut w, p, target);
     }
@@ -320,13 +319,13 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     let p = player(&mut w);
     let orc = spawn_monster(&mut w, MonsterDef::named("orc"), Position { x: 40, y: 11 });
 
-    let ring = w.spawn(RingBundle::new(RingEffect::AggravateMonster, Position { x: 0, y: 0 })).id();
+    let ring = spawn_ring(&mut w, RingEffect::AggravateMonster, Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
 
     // Not worn yet: rolling the per-turn system does nothing.
     for _ in 0..200 {
-        chance_every_turn_system(&mut w);
+        passive_ability_system(&mut w);
     }
     assert!(matches!(w.get::<Mob>(orc).unwrap().movement_type, MovementType::Chase));
 
@@ -335,7 +334,7 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     use_item(&mut w, p, ring);
     let mut fired_on = None;
     for turn in 0..300 {
-        chance_every_turn_system(&mut w);
+        passive_ability_system(&mut w);
         if matches!(w.get::<Mob>(orc).unwrap().movement_type, MovementType::Aggravated { .. }) {
             fired_on = Some(turn);
             break;

@@ -193,10 +193,10 @@ pub fn render<W: Write>(
     let offset = centering_offset(world);
 
     // 1. Player-derived state.
-    let (visible, revealed, player_hp, player_max_hp, player_magic, player_max_magic, player_pos, mut pow_die, mut pow_flat, mut arm_die, mut arm_flat, player_score, pack_items) = {
+    let (visible, revealed, player_hp, player_max_hp, player_magic, player_max_magic, player_pos, mut pow_die, mut pow_flat, mut arm_die, mut arm_flat, player_score, pack_items, player_entity) = {
         let mut query = world
-            .query_filtered::<(&Viewshed, &Fighter, Option<&Magic>, &Position, &Score, &Backpack), With<Player>>();
-        if let Some((viewshed, fighter, magic, pos, score, backpack)) = query.iter(world).next() {
+            .query_filtered::<(Entity, &Viewshed, &Fighter, Option<&Magic>, &Position, &Score, &Backpack), With<Player>>();
+        if let Some((entity, viewshed, fighter, magic, pos, score, backpack)) = query.iter(world).next() {
             (
                 viewshed.visible_tiles.iter().copied().collect::<HashSet<_>>(),
                 viewshed.revealed_tiles.clone(),
@@ -211,37 +211,22 @@ pub fn render<W: Write>(
                 fighter.armor_bonus,
                 score.value,
                 backpack.items.clone(),
+                Some(entity),
             )
         } else {
-            (HashSet::new(), Default::default(), 10, 10, 4, 4, (0, 0), 1, 0, 0, 0, 0, Vec::new())
+            (HashSet::new(), Default::default(), 10, 10, 4, 4, (0, 0), 1, 0, 0, 0, 0, Vec::new(), None)
         }
     };
 
-    // Fold equipped weapon / armour — and worn rings of strength / protection —
-    // into the displayed Pow. / Arm. figures.
-    for &it in &pack_items {
-        if let Some(w) = world.get::<Wield>(it) {
-            if w.wielder.is_some() {
-                pow_die += w.pow_increase as i32;
-                pow_flat += w.pow_bonus as i32;
-            }
-        }
-        if let Some(w) = world.get::<Wear>(it) {
-            if w.wearer.is_some() {
-                arm_die += w.arm_increase as i32;
-                arm_flat += w.arm_bonus as i32;
-            }
-        }
-        if let Some(r) = world.get::<PutOn>(it) {
-            if r.bearer.is_some() {
-                match r.effect {
-                    RingEffect::Strength => pow_flat += RING_STRENGTH_BONUS,
-                    RingEffect::Protection => arm_flat += RING_PROTECTION_BONUS,
-                    _ => {}
-                }
-            }
-        }
+    // Fold every equipped modifier into the displayed Pow. / Arm. figures — the
+    // same fold combat runs, so the HUD can never drift from the real numbers.
+    if let Some(pe) = player_entity {
+        pow_die += equipped_total::<PowerDie>(world, pe);
+        pow_flat += equipped_total::<PowerBonus>(world, pe);
+        arm_die += equipped_total::<ArmorDie>(world, pe);
+        arm_flat += equipped_total::<ArmorBonus>(world, pe);
     }
+
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
     // Carrying the Element of Yoord recolours the auto-walk badge: the descent is
     // over, every step now heads for the surface.
@@ -732,8 +717,7 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
             .iter()
             .map(|&e| {
                 let name = models::display_name(world, e);
-                let equipped = world.get::<Wield>(e).is_some_and(|w| w.wielder.is_some())
-                    || world.get::<Wear>(e).is_some_and(|w| w.wearer.is_some());
+                let equipped = world.get::<Equipped>(e).is_some_and(|eq| eq.by.is_some());
                 (name, equipped)
             })
             .collect()

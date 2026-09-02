@@ -242,11 +242,15 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     let mut schedule = Schedule::default();
     schedule.add_systems((
         snare_system,
-        chance_every_turn_system.after(snare_system),
-        ai.after(chance_every_turn_system),
+        passive_ability_system.after(snare_system),
+        ai.after(passive_ability_system),
         trap_system.after(ai),
         item_system.after(trap_system),
-        combat_system.after(item_system),
+        // Gear changed by anything other than the pack screen — a loaded save, a
+        // curse-lifting scroll — has its lent effects reconciled here, before
+        // combat and visibility read them.
+        equipment_effects_system.after(item_system),
+        combat_system.after(equipment_effects_system),
         reaper_system.after(combat_system),
         dungeon_lord_system.after(reaper_system),
         visibility_system.after(dungeon_lord_system),

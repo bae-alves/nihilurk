@@ -68,7 +68,7 @@ fn teleportation_drops_the_reader_somewhere_else_on_the_floor() {
     let before = *w.get::<Position>(p).unwrap();
     w.get_mut::<Viewshed>(p).unwrap().dirty = false;
 
-    let scroll = w.spawn(ScrollBundle::teleportation(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::Teleportation, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -99,7 +99,7 @@ fn aggravate_turns_every_monster_into_a_hunter_that_closes_in_unseen() {
     let mob = spawn_dummy(&mut w, "orc", mob_start.0, mob_start.1, 3, MovementType::Static);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y)];
 
-    let scroll = w.spawn(ScrollBundle::aggravate_monsters(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::AggravateMonsters, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -136,7 +136,7 @@ fn scare_monster_routs_what_you_can_see_and_leaves_the_rest_alone() {
     let unseen = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
 
-    let scroll = w.spawn(ScrollBundle::scare_monster(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::ScareMonster, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -155,7 +155,7 @@ fn create_monster_conjures_a_fresh_creature_on_the_floor() {
 
     let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
 
-    let scroll = w.spawn(ScrollBundle::create_monster(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::CreateMonster, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -175,10 +175,10 @@ fn create_monster_conjures_a_fresh_creature_on_the_floor() {
 
 /// Give the player a wielded weapon and return its entity.
 fn wield_a_blade(w: &mut World, p: Entity) -> Entity {
-    let sword = w.spawn(WeaponsBundle::long_sword(Position { x: 0, y: 0 })).id();
+    let sword = spawn_weapon(w, "long sword", Position { x: 0, y: 0 });
     w.entity_mut(sword).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(sword);
-    w.get_mut::<Wield>(sword).unwrap().wielder = Some(p);
+    w.get_mut::<Equipped>(sword).unwrap().by = Some(p);
     sword
 }
 
@@ -188,7 +188,7 @@ fn vorpalize_brands_the_wielded_blade_and_names_a_bane() {
     let p = player(&mut w);
     let sword = wield_a_blade(&mut w, p);
 
-    let scroll = w.spawn(ScrollBundle::vorpalize_weapon(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::VorpalizeWeapon, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -203,7 +203,7 @@ fn vorpalizing_an_already_vorpal_weapon_crumbles_it() {
     let sword = wield_a_blade(&mut w, p);
     w.entity_mut(sword).insert(Vorpal { bane: "orc".into() });
 
-    let scroll = w.spawn(ScrollBundle::vorpalize_weapon(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::VorpalizeWeapon, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -217,7 +217,7 @@ fn vorpalize_with_empty_hands_just_fizzles() {
     let mut w = test_world(11);
     let p = player(&mut w);
 
-    let scroll = w.spawn(ScrollBundle::vorpalize_weapon(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::VorpalizeWeapon, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 

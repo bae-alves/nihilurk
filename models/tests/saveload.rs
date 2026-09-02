@@ -63,13 +63,13 @@ fn round_trip() {
         w3.despawn(e);
     }
     let pos = Position { x: 5, y: 5 };
-    let vorpal_sword = w3.spawn(WeaponsBundle::long_sword(pos)).id();
+    let vorpal_sword = spawn_weapon(&mut w3, "long sword", pos);
     w3.entity_mut(vorpal_sword).insert(Vorpal { bane: "dragon".into() });
-    let cursed_armor = w3.spawn(ArmorBundle::plate_mail(pos)).id();
+    let cursed_armor = spawn_armor(&mut w3, "plate mail", pos);
     w3.entity_mut(cursed_armor).insert(Curse);
-    w3.spawn(ScrollBundle::magic_mapping(pos));
-    w3.spawn(RingBundle::new(RingEffect::Regeneration, pos));
-    w3.spawn(AmuletBundle::element_of_yoord(pos));
+    spawn_scroll(&mut w3, ScrollEffect::MagicMapping, pos);
+    spawn_ring(&mut w3, RingEffect::Regeneration, pos);
+    spawn_element_of_yoord(&mut w3, pos);
     let path3 = std::env::temp_dir().join("roog_test_gear.sav");
     let p3 = path3.to_str().unwrap();
     save_game(&mut w3, p3).unwrap();
@@ -81,16 +81,16 @@ fn round_trip() {
     w4.insert_resource(PlayerName { what: "Z".into() });
     load_game(&mut w4, p3).unwrap();
     assert_eq!(
-        w4.query::<&Wield>().iter(&w4).map(|w| w.pow_increase).collect::<Vec<_>>(),
+        w4.query::<&PowerDie>().iter(&w4).map(|m| m.0).collect::<Vec<_>>(),
         vec![8],
     );
-    assert_eq!(w4.query::<&Wear>().iter(&w4).map(|w| w.arm_increase).collect::<Vec<_>>(), vec![9]);
+    assert_eq!(w4.query::<&ArmorDie>().iter(&w4).map(|m| m.0).collect::<Vec<_>>(), vec![9]);
     assert_eq!(
         w4.query::<&Scroll>().iter(&w4).map(|s| s.effect).collect::<Vec<_>>(),
         vec![ScrollEffect::MagicMapping],
     );
     assert_eq!(
-        w4.query::<&PutOn>().iter(&w4).map(|p| p.effect).collect::<Vec<_>>(),
+        w4.query::<&Ring>().iter(&w4).map(|r| r.effect).collect::<Vec<_>>(),
         vec![RingEffect::Regeneration],
     );
     assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);

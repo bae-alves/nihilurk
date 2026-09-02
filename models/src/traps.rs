@@ -36,7 +36,8 @@ use rand_chacha::ChaCha12Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::components::*;
-use crate::helpers::{apply_damage, has_ring_effect, total_armor_plus};
+use crate::effects::SustainsStrength;
+use crate::helpers::{apply_damage, total_armor_plus};
 use crate::map::{
     tile_index, transition_level, GameRng, LevelChange, Map, TileType, FINAL_DEPTH, MAP_HEIGHT,
     MAP_WIDTH,
@@ -448,9 +449,9 @@ fn dart_effect(
     apply_damage(world, victim, damage);
 
     // The poison saps melee power permanently — a hit to the attack die itself,
-    // not a modifier — unless a ring of strength sustains it. A potion of restore
+    // not a modifier — unless something sustains the victim's strength. A potion of restore
     // strength (not yet wired) will heal `power` back up to `max_power`.
-    if has_ring_effect(world, victim, RingEffect::Strength) {
+    if world.get::<SustainsStrength>(victim).is_some() {
         if is_player {
             world
                 .resource_mut::<GameLog>()

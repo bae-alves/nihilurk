@@ -98,7 +98,7 @@ pub struct Fighter {
 #[derive(Component)]
 pub struct Hidden;
 
-/// Intrinsically unseeable without a [`RingEffect::Perception`] ring — the
+/// Intrinsically unseeable without [`crate::effects::SeesInvisible`] — the
 /// phantom, and the one-in-ten "invisible" floor item. Pairs with [`Hidden`]:
 /// `Invisible` says *why* a thing can't be seen, `Hidden` is the per-turn "can't
 /// be seen right now" the renderer reads.
@@ -164,38 +164,6 @@ impl Speed {
     pub fn new(kind: SpeedKind) -> Self {
         Self { kind, energy: 0 }
     }
-}
-
-/// The bundle of innate magical properties a monster is born with, gathered into
-/// one component so a wand of cancellation can strip the lot in a single stroke.
-/// The value a creature spawns with is declared in its [`crate::MonsterDef`]
-/// table row.
-#[derive(Component, Clone, Copy, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub struct Traits {
-    /// A wand of fire cannot burn this creature (the dragon).
-    pub fire_immune: bool,
-    /// A wand of cold cannot freeze this creature (the yeti).
-    pub cold_immune: bool,
-    /// Undead: a wand of draining passes straight through, healing its wielder
-    /// nothing (zombie, phantom, vampire, wraith).
-    pub undead: bool,
-    /// Every vorpal weapon slays this creature in one blow, whatever the weapon's
-    /// rolled bane (the Jabberwock). See [`crate::combat::resolve_attack`].
-    pub vorpal_target: bool,
-}
-
-impl Traits {
-    /// No innate properties — the default for all but a handful of species.
-    pub const NONE: Self = Self { fire_immune: false, cold_immune: false, undead: false, vorpal_target: false };
-    /// Immune to a wand of fire (the dragon).
-    pub const FIRE_IMMUNE: Self = Self { fire_immune: true, ..Self::NONE };
-    /// Immune to a wand of cold (the yeti).
-    pub const COLD_IMMUNE: Self = Self { cold_immune: true, ..Self::NONE };
-    /// Undead — a wand of draining passes straight through (zombie, phantom,
-    /// vampire, wraith).
-    pub const UNDEAD: Self = Self { undead: true, ..Self::NONE };
-    /// Slain by any vorpal weapon whatever its bane (the Jabberwock).
-    pub const VORPAL_TARGET: Self = Self { vorpal_target: true, ..Self::NONE };
 }
 
 /// Marker for the Element of Yoord — the relic each run must carry up from the
@@ -282,26 +250,6 @@ pub struct Ranged {
     pub range: i32,
 }
 
-#[derive(Component)]
-pub struct Wield {
-    pub wielder: Option<Entity>,
-    pub pow_increase: i8,
-    pub pow_bonus: i8,
-}
-
-#[derive(Component)]
-pub struct Wear {
-    pub wearer: Option<Entity>,
-    pub arm_increase: i8,
-    pub arm_bonus: i8,
-}
-
-#[derive(Component)]
-pub struct PutOn {
-    pub bearer: Option<Entity>,
-    pub effect: RingEffect,
-}
-
 /// Tag for a cursed piece of equipment. Rolled on at spawn for the majority of
 /// weapon/armour/ring drops (see [`crate::items::enchant_equipment`]). Once a
 /// cursed item is equipped it can't be taken off again until the curse is lifted
@@ -311,24 +259,28 @@ pub struct Curse;
 
 /// A weapon that has been vorpalized (scroll of vorpalize weapon). Any hit from
 /// it that draws blood slays a creature named `bane` outright — as it does any
-/// creature whose [`Traits::vorpal_target`] is set, regardless of `bane`. See
+/// creature carrying [`crate::effects::VorpalTarget`], regardless of `bane`. See
 /// [`crate::combat::resolve_attack`].
 #[derive(Component)]
 pub struct Vorpal {
     pub bane: String,
 }
 
+/// A ring's type tag, the twin of [`Potion`] / [`Scroll`] / [`Wand`]. What the
+/// ring *does* is not read from here — it rides along as modifier components and
+/// [`crate::effects::Grants`], attached by its [`crate::catalog::RingDef`] row.
+/// This tag exists so the ring can be identified and saved.
+#[derive(Component)]
+pub struct Ring {
+    pub effect: RingEffect,
+}
+
+/// The name of a ring type — its identity for identification and saving, not a
+/// description of its behaviour. See [`crate::catalog::RINGS`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RingEffect {
     Protection,
-    /// +2 to the wearer's damage roll, and immunity to strength drain (poison
-    /// dart trap). Merges Rogue's separate add-strength and sustain-strength
-    /// rings.
     Strength,
-    /// While worn, everything invisible is visible: hidden traps (floor-wide),
-    /// invisible monsters (the phantom), and invisibly-stashed items. Merges
-    /// Rogue's separate searching and see-invisible rings. See
-    /// [`crate::visibility`].
     Perception,
     Adornment,
     AggravateMonster,

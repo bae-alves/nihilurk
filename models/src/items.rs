@@ -1,137 +1,15 @@
 use std::collections::HashSet;
-use bevy_ecs::{entity::Entity, prelude::{Bundle, With}, world::World};
+use bevy_ecs::{entity::Entity, prelude::With, world::World};
 use crossterm::style::Color;
 use rand::Rng;
-use rand_chacha::ChaCha12Rng;
 use std::collections::VecDeque;
 use crate::{components::*, map::{tile_index, GameRng, Map, TileType, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
+use crate::effects::{revoke_all, ColdImmune, FireImmune, Grant, Undead};
+use crate::equipment::{equipped_in, equipped_items, force_unequip, toggle_equipped, Slot};
 use crate::identify::Identified;
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
 use crate::monsters::{spawn_monster, BESTIARY};
 use crate::traps::{random_open_tile, Trap};
-
-#[derive(Bundle)]
-pub struct ItemBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub value: Value,
-    pub item: Item,
-}
-
-impl ItemBundle {
-    pub fn gold_coin(position: Position) -> Self {
-        Self {
-            name: Name { what: String::from("gold coin") },
-            glyph: Renderable { glyph: '$', color: Color::Yellow },
-            position,
-            value: Value { amount: 1000 },
-            item: Item,
-        }
-    }
-
-    pub fn silver_coin(position: Position) -> Self {
-        Self {
-            name: Name { what: String::from("silver coin") },
-            glyph: Renderable { glyph: '$', color: Color::Grey },
-            position,
-            value: Value { amount: 100 },
-            item: Item,
-        }
-    }
-}
-
-/// The Element of Yoord: the relic each run retrieves from the deepest floor,
-/// spawned in place of that floor's down-stair. Carrying it flips the staircase
-/// rules (see [`crate::map::change_level`]) so the player can climb back out.
-#[derive(Bundle)]
-pub struct AmuletBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub value: Value,
-    pub item: Item,
-    pub amulet: Amulet,
-}
-
-impl AmuletBundle {
-    pub fn element_of_yoord(position: Position) -> Self {
-        Self {
-            name: Name { what: String::from("The Element of Yoord") },
-            glyph: Renderable { glyph: '&', color: Color::Yellow },
-            position,
-            value: Value { amount: 25000 },
-            item: Item,
-            amulet: Amulet,
-        }
-    }
-}
-#[derive(Bundle)]
-pub struct PotionBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub item: Item,
-    pub potion: Potion,
-    pub consume: Consume,
-}
-
-impl PotionBundle {
-    /// Potions draw as `!` and are quaffed once, then gone.
-    fn new(name: &str, color: Color, effect: PotionEffect, position: Position) -> Self {
-        Self {
-            name: Name { what: name.to_string() },
-            glyph: Renderable { glyph: '!', color },
-            position,
-            item: Item,
-            potion: Potion { effect },
-            consume: Consume,
-        }
-    }
-
-    pub fn confusion(position: Position) -> Self {
-        Self::new("potion of confusion", Color::Magenta, PotionEffect::Confusion, position)
-    }
-    pub fn paralysis(position: Position) -> Self {
-        Self::new("potion of paralysis", Color::DarkGrey, PotionEffect::Paralysis, position)
-    }
-    pub fn poison(position: Position) -> Self {
-        Self::new("potion of poison", Color::Green, PotionEffect::Poison, position)
-    }
-    pub fn gain_strength(position: Position) -> Self {
-        Self::new("potion of gain strength", Color::Red, PotionEffect::GainStrength, position)
-    }
-    pub fn see_invisible(position: Position) -> Self {
-        Self::new("potion of see invisible", Color::Cyan, PotionEffect::SeeInvisible, position)
-    }
-    pub fn healing(position: Position) -> Self {
-        Self::new("potion of healing", Color::Red, PotionEffect::Healing, position)
-    }
-    pub fn monster_detection(position: Position) -> Self {
-        Self::new("potion of monster detection", Color::Yellow, PotionEffect::MonsterDetection, position)
-    }
-    pub fn magic_detection(position: Position) -> Self {
-        Self::new("potion of magic detection", Color::Yellow, PotionEffect::MagicDetection, position)
-    }
-    pub fn raise_level(position: Position) -> Self {
-        Self::new("potion of raise level", Color::White, PotionEffect::RaiseLevel, position)
-    }
-    pub fn extra_healing(position: Position) -> Self {
-        Self::new("potion of extra healing", Color::Red, PotionEffect::ExtraHealing, position)
-    }
-    pub fn haste_self(position: Position) -> Self {
-        Self::new("potion of haste self", Color::DarkYellow, PotionEffect::Haste, position)
-    }
-    pub fn restore_strength(position: Position) -> Self {
-        Self::new("potion of restore strength", Color::Red, PotionEffect::RestoreStrength, position)
-    }
-    pub fn blindness(position: Position) -> Self {
-        Self::new("potion of blindness", Color::DarkGrey, PotionEffect::Blindness, position)
-    }
-    pub fn thirst_quenching(position: Position) -> Self {
-        Self::new("potion of thirst quenching", Color::Blue, PotionEffect::Water, position)
-    }
-}
 
 fn apply_potion_effect(world: &mut World, user: Entity, effect: PotionEffect) {
     match effect {
@@ -145,84 +23,9 @@ fn apply_potion_effect(world: &mut World, user: Entity, effect: PotionEffect) {
     }
 }
 
-#[derive(Bundle)]
-pub struct WandBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub item: Item,
-    pub wand: Wand,
-    pub ranged: Ranged,
-    pub battery: Battery,
-}
-
-/// Rolls a fresh wand's battery: `3d4` charges. Called at every wand spawn site
-/// (`spawn_random_item`, the starting wand in `initialize_world`).
-pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8 {
-    (0..3).map(|_| rng.gen_range(1..=4)).sum()
-}
-
-impl WandBundle {
-    /// Wands/staves draw as `/`. `range` feeds the targeting reticle. The battery
-    /// starts empty; the spawn site rolls it with [`roll_wand_charges`].
-    fn new(name: &str, color: Color, effect: WandEffect, range: i32, position: Position) -> Self {
-        Self {
-            name: Name { what: name.to_string() },
-            glyph: Renderable { glyph: '/', color },
-            position,
-            item: Item,
-            wand: Wand { effect },
-            ranged: Ranged { range },
-            battery: Battery { charges: 0 },
-        }
-    }
-
-    pub fn light(position: Position) -> Self {
-        Self::new("wand of light", Color::Yellow, WandEffect::Light, 8, position)
-    }
-    pub fn striking(position: Position) -> Self {
-        Self::new("wand of striking", Color::White, WandEffect::Striking, 6, position)
-    }
-    pub fn lightning(position: Position) -> Self {
-        Self::new("wand of lightning", Color::Cyan, WandEffect::Lightning, 8, position)
-    }
-    pub fn fire(position: Position) -> Self {
-        Self::new("wand of fire", Color::Red, WandEffect::Fire, 8, position)
-    }
-    pub fn cold(position: Position) -> Self {
-        Self::new("wand of cold", Color::Blue, WandEffect::Cold, 8, position)
-    }
-    pub fn polymorph(position: Position) -> Self {
-        Self::new("wand of polymorph", Color::Magenta, WandEffect::Polymorph, 6, position)
-    }
-    pub fn magic_missile(position: Position) -> Self {
-        Self::new("wand of magic missile", Color::Cyan, WandEffect::MagicMissile, 6, position)
-    }
-    pub fn haste_monster(position: Position) -> Self {
-        Self::new("wand of haste monster", Color::DarkYellow, WandEffect::HasteMonster, 6, position)
-    }
-    pub fn slow_monster(position: Position) -> Self {
-        Self::new("wand of slow monster", Color::DarkCyan, WandEffect::SlowMonster, 6, position)
-    }
-    pub fn drain_life(position: Position) -> Self {
-        Self::new("wand of drain life", Color::DarkRed, WandEffect::DrainLife, 6, position)
-    }
-    pub fn nothing(position: Position) -> Self {
-        Self::new("wand of nothing", Color::DarkGrey, WandEffect::Nothing, 6, position)
-    }
-    pub fn teleport_away(position: Position) -> Self {
-        Self::new("wand of teleport away", Color::Green, WandEffect::TeleportAway, 8, position)
-    }
-    pub fn teleport_to(position: Position) -> Self {
-        Self::new("wand of teleport to", Color::Green, WandEffect::TeleportTo, 8, position)
-    }
-    pub fn cancellation(position: Position) -> Self {
-        Self::new("wand of cancellation", Color::DarkMagenta, WandEffect::Cancellation, 6, position)
-    }
-}
-
-/// The three flavours of elemental wand. A creature can be immune to one (see
-/// [`Traits`]).
+/// The three flavours of elemental wand. A creature can be immune to one — and
+/// the immunity is a plain component, so a dragon's innate `FireImmune` and a
+/// future ring of fire resistance's are the same thing to this code.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Element {
     Fire,
@@ -242,23 +45,28 @@ impl Element {
         }
     }
 
+    /// The effect that shrugs this element off.
+    fn immunity(self) -> Grant {
+        match self {
+            Element::Fire => Grant::of::<FireImmune>(),
+            Element::Cold => Grant::of::<ColdImmune>(),
+            Element::Drain => Grant::of::<Undead>(),
+        }
+    }
+
     /// The word for this element in an "unharmed by the ___" log line.
     fn noun(self) -> &'static str {
         match self {
             Element::Fire => "flames",
             Element::Cold => "cold",
-            Element::Drain => "draining magic",
+            Element::Drain => "evil magic",
         }
     }
 }
 
-/// Whether `entity`'s [`Traits`] make it immune to `element`.
+/// Whether `entity` shrugs off `element`, from any source.
 fn is_immune(world: &World, entity: Entity, element: Element) -> bool {
-    world.get::<Traits>(entity).is_some_and(|t| match element {
-        Element::Fire => t.fire_immune,
-        Element::Cold => t.cold_immune,
-        Element::Drain => t.undead,
-    })
+    element.immunity().probe(world, entity)
 }
 
 /// A wand's damage: `3d3`, rolled once per zap and applied whole to every
@@ -629,284 +437,21 @@ fn teleport_target_here(world: &mut World, user_pos: Position, pos: Position) {
     world.resource_mut::<GameLog>().add(format!("The {name} is dragged to your side!"));
 }
 
-/// Wand of cancellation: strip the target monster's innate magic — its whole
-/// [`Traits`] bundle — and reset its tempo to normal. It keeps its name,
-/// fighting stats, movement and everything else that makes it a creature.
+/// Wand of cancellation: strip every marker effect the target has and reset its
+/// tempo to normal. It keeps its name, fighting stats, movement and everything
+/// else that makes it a creature. Because it walks [`crate::effects::EFFECTS`],
+/// a newly added effect is cancellable the moment it joins the registry.
 fn cancel_target(world: &mut World, pos: Position) {
     let Some(victim) = monster_at(world, pos) else {
         world.resource_mut::<GameLog>().add("The grey ray strikes only stone.".to_string());
         return;
     };
     let name = item_label(world, victim);
-    world.entity_mut(victim).insert(Traits::default());
+    revoke_all(world, victim);
     if let Some(mut speed) = world.get_mut::<Speed>(victim) {
         speed.kind = SpeedKind::Normal;
     }
     world.resource_mut::<GameLog>().add(format!("The {name}'s magic sputters and dies."));
-}
-
-#[derive(Bundle)]
-pub struct WeaponsBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub item: Item,
-    pub wield: Wield,
-}
-
-impl WeaponsBundle {
-    /// Shared constructor. `power_increase` bumps the wielder's `power` die size
-    /// via [`Wield::pow_increase`]. Weapons all draw as `)` in the classic Rogue
-    /// style, tinted by material.
-    fn new(name: &str, color: Color, power_increase: i8, position: Position) -> Self {
-        Self {
-            name: Name { what: name.to_string() },
-            glyph: Renderable { glyph: ')', color },
-            position,
-            item: Item,
-            wield: Wield { wielder: None, pow_increase: power_increase, pow_bonus: 0 },
-        }
-    }
-
-    /// Dagger — WC 1, power increase 4.
-    pub fn dagger(position: Position) -> Self {
-        Self::new("dagger", Color::Grey, 4, position)
-    }
-
-    /// Mace — WC 2, power increase 6.
-    pub fn mace(position: Position) -> Self {
-        Self::new("mace", Color::DarkGrey, 6, position)
-    }
-
-    /// Long Sword — WC 3, power increase 8.
-    pub fn long_sword(position: Position) -> Self {
-        Self::new("long sword", Color::White, 8, position)
-    }
-
-    /// Two-Handed Sword — WC 4, power increase 10.
-    pub fn two_handed_sword(position: Position) -> Self {
-        Self::new("two-handed sword", Color::Cyan, 10, position)
-    }
-}
-
-#[derive(Bundle)]
-pub struct ArmorBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub item: Item,
-    pub wear: Wear,
-}
-
-impl ArmorBundle {
-    /// Shared constructor. `armor_increase` bumps the wearer's `armor` die size
-    /// via [`Wear::arm_increase`]. Armor draws as `]` in the classic Rogue style.
-    fn new(name: &str, color: Color, armor_increase: i8, position: Position) -> Self {
-        Self {
-            name: Name { what: name.to_string() },
-            glyph: Renderable { glyph: ']', color },
-            position,
-            item: Item,
-            wear: Wear { wearer: None, arm_increase: armor_increase, arm_bonus: 0 },
-        }
-    }
-
-    /// Leather armor — armor increase 2.
-    pub fn leather_armor(position: Position) -> Self {
-        Self::new("leather armor", Color::DarkYellow, 2, position)
-    }
-
-    /// Ring mail — armor increase 3.
-    pub fn ring_mail(position: Position) -> Self {
-        Self::new("ring mail", Color::Grey, 3, position)
-    }
-
-    /// Studded leather armor — armor increase 4.
-    pub fn studded_leather_armor(position: Position) -> Self {
-        Self::new("studded leather armor", Color::DarkYellow, 4, position)
-    }
-
-    /// Scale mail — armor increase 5.
-    pub fn scale_mail(position: Position) -> Self {
-        Self::new("scale mail", Color::Grey, 5, position)
-    }
-
-    /// Chain mail — armor increase 6.
-    pub fn chain_mail(position: Position) -> Self {
-        Self::new("chain mail", Color::Grey, 6, position)
-    }
-
-    /// Splint mail — armor increase 7.
-    pub fn splint_mail(position: Position) -> Self {
-        Self::new("splint mail", Color::White, 7, position)
-    }
-
-    /// Banded mail — armor increase 8.
-    pub fn banded_mail(position: Position) -> Self {
-        Self::new("banded mail", Color::White, 8, position)
-    }
-
-    /// Plate mail — armor increase 9.
-    pub fn plate_mail(position: Position) -> Self {
-        Self::new("plate mail", Color::Cyan, 9, position)
-    }
-}
-
-#[derive(Bundle)]
-pub struct ScrollBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub item: Item,
-    pub scroll: Scroll,
-    pub consume: Consume,
-}
-
-impl ScrollBundle {
-    /// Scrolls draw as `?` and are read once, then crumble.
-    fn new(name: &str, effect: ScrollEffect, position: Position) -> Self {
-        Self {
-            name: Name { what: name.to_string() },
-            glyph: Renderable { glyph: '?', color: Color::White },
-            position,
-            item: Item,
-            scroll: Scroll { effect },
-            consume: Consume,
-        }
-    }
-
-    pub fn monster_confusion(position: Position) -> Self {
-        Self::new("scroll of monster confusion", ScrollEffect::MonsterConfusion, position)
-    }
-    pub fn magic_mapping(position: Position) -> Self {
-        Self::new("scroll of magic mapping", ScrollEffect::MagicMapping, position)
-    }
-    pub fn hold_monster(position: Position) -> Self {
-        Self::new("scroll of hold monster", ScrollEffect::HoldMonster, position)
-    }
-    pub fn sleep(position: Position) -> Self {
-        Self::new("scroll of sleep", ScrollEffect::Sleep, position)
-    }
-    pub fn enchant_armor(position: Position) -> Self {
-        Self::new("scroll of enchant armor", ScrollEffect::EnchantArmor, position)
-    }
-    pub fn identify(position: Position) -> Self {
-        Self::new("scroll of identify", ScrollEffect::Identify, position)
-    }
-    pub fn scare_monster(position: Position) -> Self {
-        Self::new("scroll of scare monster", ScrollEffect::ScareMonster, position)
-    }
-    pub fn food_detection(position: Position) -> Self {
-        Self::new("scroll of food detection", ScrollEffect::FoodDetection, position)
-    }
-    pub fn teleportation(position: Position) -> Self {
-        Self::new("scroll of teleportation", ScrollEffect::Teleportation, position)
-    }
-    pub fn enchant_weapon(position: Position) -> Self {
-        Self::new("scroll of enchant weapon", ScrollEffect::EnchantWeapon, position)
-    }
-    pub fn create_monster(position: Position) -> Self {
-        Self::new("scroll of create monster", ScrollEffect::CreateMonster, position)
-    }
-    pub fn remove_curse(position: Position) -> Self {
-        Self::new("scroll of remove curse", ScrollEffect::RemoveCurse, position)
-    }
-    pub fn aggravate_monsters(position: Position) -> Self {
-        Self::new("scroll of aggravate monsters", ScrollEffect::AggravateMonsters, position)
-    }
-    pub fn blank_paper(position: Position) -> Self {
-        Self::new("scroll of blank paper", ScrollEffect::BlankPaper, position)
-    }
-    pub fn vorpalize_weapon(position: Position) -> Self {
-        Self::new("scroll of vorpalize weapon", ScrollEffect::VorpalizeWeapon, position)
-    }
-}
-
-#[derive(Bundle)]
-pub struct RingBundle {
-    pub name: Name,
-    pub glyph: Renderable,
-    pub position: Position,
-    pub item: Item,
-    pub puton: PutOn,
-}
-
-impl RingBundle {
-    /// Rings draw as `=` and are worn, not consumed.
-    pub fn new(effect: RingEffect, position: Position) -> Self {
-        let name = match effect {
-            RingEffect::Protection => "ring of protection",
-            RingEffect::Strength => "ring of strength",
-            RingEffect::Perception => "ring of perception",
-            RingEffect::Adornment => "ring of adornment",
-            RingEffect::AggravateMonster => "ring of aggravate monster",
-            RingEffect::Dexterity => "ring of dexterity",
-            RingEffect::IncreaseDamage => "ring of increase damage",
-            RingEffect::Regeneration => "ring of regeneration",
-            RingEffect::SlowDigestion => "ring of slow digestion",
-            RingEffect::Teleportation => "ring of teleportation",
-            RingEffect::Stealth => "ring of stealth",
-            RingEffect::MaintainArmor => "ring of maintain armor",
-        };
-        Self {
-            name: Name { what: name.to_string() },
-            glyph: Renderable { glyph: '=', color: Color::Yellow },
-            position,
-            item: Item,
-            puton: PutOn { bearer: None, effect },
-        }
-    }
-}
-
-/// The quality every weapon, armour and ring drop rolls when it spawns.
-///
-/// | Quality     | Odds | Bonus (equal-probability integer) |
-/// |-------------|------|-----------------------------------|
-/// | Normal      | 25%  | +0                                |
-/// | Exceptional | 10%  | +1 .. +3                          |
-/// | Cursed      | 65%  | -6 .. +4 (yes, a cursed item can roll positive) |
-///
-/// Weapons and armour apply the bonus as a flat modifier on the opposed combat
-/// roll (`pow_bonus` / `arm_bonus`), never to the die size. Rings carry no
-/// numeric bonus — they are simply cursed or not.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Quality {
-    Normal,
-    Exceptional,
-    Cursed,
-}
-
-impl Quality {
-    fn roll(rng: &mut ChaCha12Rng) -> Self {
-        match rng.gen_range(0..100) {
-            0..=24 => Quality::Normal,
-            25..=34 => Quality::Exceptional,
-            _ => Quality::Cursed,
-        }
-    }
-}
-
-/// Rolls quality for a freshly spawned weapon, armour or ring and stamps the
-/// result onto the entity: the flat bonus on its [`Wield`]/[`Wear`] component,
-/// and a [`Curse`] tag if it came up cursed. Rings get only the tag.
-pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) {
-    let quality = Quality::roll(rng);
-    let bonus: i8 = match quality {
-        Quality::Normal => 0,
-        Quality::Exceptional => rng.gen_range(1..=3),
-        Quality::Cursed => rng.gen_range(-5..=5),
-    };
-
-    let mut entity = world.entity_mut(item);
-    if let Some(mut wield) = entity.get_mut::<Wield>() {
-        wield.pow_bonus = bonus;
-    }
-    if let Some(mut wear) = entity.get_mut::<Wear>() {
-        wear.arm_bonus = bonus;
-    }
-    if quality == Quality::Cursed {
-        entity.insert(Curse);
-    }
 }
 
 /// Destroys every cursed item `user` currently has equipped (a scroll of remove
@@ -914,179 +459,26 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
 /// items sitting unequipped in the pack are left untouched. Returns how many
 /// items were destroyed.
 pub(crate) fn lift_curses(world: &mut World, user: Entity) -> usize {
-    let equipped_by_user = |world: &World, e: Entity| -> bool {
-        world.get::<Wield>(e).is_some_and(|w| w.wielder == Some(user))
-            || world.get::<Wear>(e).is_some_and(|w| w.wearer == Some(user))
-            || world.get::<PutOn>(e).is_some_and(|p| p.bearer == Some(user))
-    };
-
-    let doomed: Vec<Entity> = world
-        .get::<Backpack>(user)
-        .map(|bp| {
-            bp.items
-                .iter()
-                .copied()
-                .filter(|&e| world.get::<Curse>(e).is_some() && equipped_by_user(world, e))
-                .collect()
-        })
-        .unwrap_or_default();
+    let doomed: Vec<Entity> = equipped_items(world, user)
+        .into_iter()
+        .filter(|&e| world.get::<Curse>(e).is_some())
+        .collect();
 
     for &e in &doomed {
-        if let Some(mut w) = world.get_mut::<Wield>(e) {
-            w.wielder = None;
-        }
-        if let Some(mut w) = world.get_mut::<Wear>(e) {
-            w.wearer = None;
-        }
-        if let Some(mut p) = world.get_mut::<PutOn>(e) {
-            p.bearer = None;
-        }
+        force_unequip(world, e);
         if let Some(mut bp) = world.get_mut::<Backpack>(user) {
             bp.items.retain(|&i| i != e);
         }
         world.entity_mut(e).despawn();
     }
+    // The gear is gone, so whatever it was lending its wearer goes with it.
+    crate::equipment::sync_equipment_effects(world, user);
     doomed.len()
 }
 
 /// An item's display name, or a vague fallback.
 pub(crate) fn item_label(world: &World, item: Entity) -> String {
     world.get::<Name>(item).map(|n| n.what.clone()).unwrap_or_else(|| "item".to_string())
-}
-
-/// Toggles `item` as `user`'s wielded weapon. Equipping first unequips whatever
-/// else `user` had wielded — only one weapon at a time.
-fn toggle_wield(world: &mut World, user: Entity, item: Entity) {
-    let name = item_label(world, item);
-    if world.get::<Wield>(item).and_then(|w| w.wielder) == Some(user) {
-        if world.get::<Curse>(item).is_some() {
-            world.resource_mut::<GameLog>().add(format!("You can't — the {name} is welded to your grip!"));
-            return;
-        }
-        if let Some(mut w) = world.get_mut::<Wield>(item) {
-            w.wielder = None;
-        }
-        world.resource_mut::<GameLog>().add(format!("You stop wielding the {name}."));
-        return;
-    }
-
-    let others: Vec<Entity> = world
-        .get::<Backpack>(user)
-        .map(|bp| {
-            bp.items
-                .iter()
-                .copied()
-                .filter(|&e| e != item && world.get::<Wield>(e).is_some_and(|w| w.wielder == Some(user)))
-                .collect()
-        })
-        .unwrap_or_default();
-    if let Some(&stuck) = others.iter().find(|&&e| world.get::<Curse>(e).is_some()) {
-        let stuck_name = item_label(world, stuck);
-        world.resource_mut::<GameLog>().add(format!("You can't switch weapons — the {stuck_name} won't leave your hand."));
-        return;
-    }
-    for e in others {
-        if let Some(mut w) = world.get_mut::<Wield>(e) {
-            w.wielder = None;
-        }
-    }
-    if let Some(mut w) = world.get_mut::<Wield>(item) {
-        w.wielder = Some(user);
-    }
-    world.resource_mut::<GameLog>().add(format!("You wield the {name}."));
-}
-
-/// Toggles `item` as `user`'s worn armour. Equipping first removes whatever else
-/// `user` had worn — only one suit at a time.
-fn toggle_wear(world: &mut World, user: Entity, item: Entity) {
-    let name = item_label(world, item);
-    if world.get::<Wear>(item).and_then(|w| w.wearer) == Some(user) {
-        if world.get::<Curse>(item).is_some() {
-            world.resource_mut::<GameLog>().add(format!("You can't — the {name} clings to you and won't come off!"));
-            return;
-        }
-        if let Some(mut w) = world.get_mut::<Wear>(item) {
-            w.wearer = None;
-        }
-        world.resource_mut::<GameLog>().add(format!("You take off the {name}."));
-        return;
-    }
-
-    let others: Vec<Entity> = world
-        .get::<Backpack>(user)
-        .map(|bp| {
-            bp.items
-                .iter()
-                .copied()
-                .filter(|&e| e != item && world.get::<Wear>(e).is_some_and(|w| w.wearer == Some(user)))
-                .collect()
-        })
-        .unwrap_or_default();
-    if let Some(&stuck) = others.iter().find(|&&e| world.get::<Curse>(e).is_some()) {
-        let stuck_name = item_label(world, stuck);
-        world.resource_mut::<GameLog>().add(format!("You can't change armour — the {stuck_name} won't come off."));
-        return;
-    }
-    for e in others {
-        if let Some(mut w) = world.get_mut::<Wear>(e) {
-            w.wearer = None;
-        }
-    }
-    if let Some(mut w) = world.get_mut::<Wear>(item) {
-        w.wearer = Some(user);
-    }
-    world.resource_mut::<GameLog>().add(format!("You put on the {name}."));
-}
-
-/// Toggles `item` as `user`'s worn ring. Mirrors [`toggle_wear`]; only one
-/// ring at a time for now. Putting one on is a ring's only "use", so it's
-/// also where ring identification is triggered.
-fn toggle_puton(world: &mut World, user: Entity, item: Entity) {
-    let name = crate::identify::display_name(world, item);
-    if world.get::<PutOn>(item).and_then(|p| p.bearer) == Some(user) {
-        if world.get::<Curse>(item).is_some() {
-            world.resource_mut::<GameLog>().add(format!("You can't — the {name} is fused to your finger!"));
-            return;
-        }
-        if let Some(mut p) = world.get_mut::<PutOn>(item) {
-            p.bearer = None;
-        }
-        world.resource_mut::<GameLog>().add(format!("You remove the {name}."));
-        return;
-    }
-
-    let others: Vec<Entity> = world
-        .get::<Backpack>(user)
-        .map(|bp| {
-            bp.items
-                .iter()
-                .copied()
-                .filter(|&e| e != item && world.get::<PutOn>(e).is_some_and(|p| p.bearer == Some(user)))
-                .collect()
-        })
-        .unwrap_or_default();
-    if let Some(&stuck) = others.iter().find(|&&e| world.get::<Curse>(e).is_some()) {
-        let stuck_name = crate::identify::display_name(world, stuck);
-        world.resource_mut::<GameLog>().add(format!("You can't — the {stuck_name} won't leave your finger."));
-        return;
-    }
-    for e in others {
-        if let Some(mut p) = world.get_mut::<PutOn>(e) {
-            p.bearer = None;
-        }
-    }
-    if let Some(mut p) = world.get_mut::<PutOn>(item) {
-        p.bearer = Some(user);
-    }
-    world.resource_mut::<GameLog>().add(format!("You put on the {name}."));
-
-    if let Some(effect) = world.get::<PutOn>(item).map(|p| p.effect) {
-        let true_name = item_label(world, item);
-        let newly_identified = world.resource_mut::<Identified>().rings.insert(effect);
-        if newly_identified {
-            world.resource_mut::<GameLog>().add(format!("That was {} {true_name}!", crate::identify::article_for(&true_name)));
-        }
-    }
 }
 
 /// Picks a uniformly random item in `user`'s backpack whose true type isnwhich has no interactive item picker (yet).'t
@@ -1100,7 +492,7 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
         world.get::<Potion>(e).is_some_and(|p| !identified.potions.contains(&p.effect))
             || world.get::<Scroll>(e).is_some_and(|s| !identified.scrolls.contains(&s.effect))
             || world.get::<Wand>(e).is_some_and(|w| !identified.wands.contains(&w.effect))
-            || world.get::<PutOn>(e).is_some_and(|p| !identified.rings.contains(&p.effect))
+            || world.get::<Ring>(e).is_some_and(|r| !identified.rings.contains(&r.effect))
     };
 
     let unknown: Vec<Entity> = candidates.into_iter().filter(|&e| is_unidentified(world, e)).collect();
@@ -1117,7 +509,7 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
     let potion_effect = world.get::<Potion>(target).map(|p| p.effect);
     let scroll_effect = world.get::<Scroll>(target).map(|s| s.effect);
     let wand_effect = world.get::<Wand>(target).map(|w| w.effect);
-    let ring_effect = world.get::<PutOn>(target).map(|p| p.effect);
+    let ring_effect = world.get::<Ring>(target).map(|r| r.effect);
 
     let mut identified = world.resource_mut::<Identified>();
     if let Some(effect) = potion_effect {
@@ -1226,8 +618,9 @@ fn aggravate_floor(world: &mut World, user: Entity) {
 }
 
 /// The bare mechanic: point every hostile on the floor at `origin`'s tile. The
-/// scroll wraps this with its own flavour; the ring (below) with its own.
-fn aggravate_all_monsters(world: &mut World, origin: Entity) {
+/// scroll of aggravate monsters wraps this in its own flavour; so does the
+/// [`crate::effects::AggravatesMonsters`] passive (see [`crate::abilities`]).
+pub(crate) fn aggravate_all_monsters(world: &mut World, origin: Entity) {
     let Some(&hero) = world.get::<Position>(origin) else { return };
     let mobs: Vec<Entity> = world
         .query_filtered::<Entity, With<Mob>>()
@@ -1239,45 +632,6 @@ fn aggravate_all_monsters(world: &mut World, origin: Entity) {
         }
         if let Some(mut mob) = world.get_mut::<Mob>(m) {
             mob.movement_type = MovementType::Aggravated { tx: hero.x, ty: hero.y };
-        }
-    }
-}
-
-/// One [`CHANCE_EVERY_TURN`] row: the worn ring that arms it, its per-turn
-/// probability, the mechanic to run on the player, and the flavour line logged
-/// when it fires.
-type TurnChance = (RingEffect, f64, fn(&mut World, Entity), &'static str);
-
-/// Effects that just roll a fixed chance on every action the player takes. A new
-/// "happens at random while worn" ring is one more row.
-const CHANCE_EVERY_TURN: &[TurnChance] = &[
-    (
-        RingEffect::AggravateMonster,
-        0.10,
-        aggravate_all_monsters,
-        "Your ring gives a spiteful little shriek, and the whole floor turns your way.",
-    ),
-];
-
-/// Rolls every [`CHANCE_EVERY_TURN`] effect the player currently has armed.
-/// Registered in the turn schedule ahead of [`crate::ai`]; the schedule only
-/// runs on turns the player took an action, so "every turn" means "every
-/// action".
-pub fn chance_every_turn_system(world: &mut World) {
-    let Some(player) = world
-        .query_filtered::<Entity, With<Player>>()
-        .iter(world)
-        .next()
-    else {
-        return;
-    };
-    for &(ring, chance, mechanic, flavour) in CHANCE_EVERY_TURN {
-        if !crate::helpers::has_ring_effect(world, player, ring) {
-            continue;
-        }
-        if world.resource_mut::<GameRng>().0.gen_bool(chance) {
-            mechanic(world, player);
-            world.resource_mut::<GameLog>().add(flavour.to_string());
         }
     }
 }
@@ -1367,12 +721,7 @@ fn create_monster(world: &mut World, user: Entity) {
 /// A weapon can only take the edge once — read it over an already-vorpal weapon
 /// and the blade can't hold the second enchantment: it crumbles to nothing.
 fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
-    let weapon = world.get::<Backpack>(user).and_then(|bp| {
-        bp.items
-            .iter()
-            .copied()
-            .find(|&i| world.get::<Wield>(i).is_some_and(|w| w.wielder == Some(user)))
-    });
+    let weapon = equipped_in(world, user, Slot::Hand);
     let Some(weapon) = weapon else {
         world
             .resource_mut::<GameLog>()
@@ -1381,9 +730,7 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
     };
     if world.get::<Vorpal>(weapon).is_some() {
         let wname = item_label(world, weapon);
-        if let Some(mut w) = world.get_mut::<Wield>(weapon) {
-            w.wielder = None;
-        }
+        force_unequip(world, weapon);
         if let Some(mut bp) = world.get_mut::<Backpack>(user) {
             bp.items.retain(|&i| i != weapon);
         }
@@ -1420,9 +767,7 @@ pub fn item_system(world: &mut World) {
         let mut potion_effect: Option<PotionEffect> = None;
         let mut wand_effect: Option<WandEffect> = None;
         let mut scroll_effect: Option<ScrollEffect> = None;
-        let mut is_wield = false;
-        let mut is_wear = false;
-        let mut is_puton = false;
+        let mut is_equipment = false;
         let mut destroy_item = false;
         let mut return_to_inventory = false;
 
@@ -1445,14 +790,10 @@ pub fn item_system(world: &mut World) {
             }
 
             // Equipment: using it toggles the equipped state (handled below).
-            if item_entity.get::<Wield>().is_some() {
-                is_wield = true;
-            }
-            if item_entity.get::<Wear>().is_some() {
-                is_wear = true;
-            }
-            if item_entity.get::<PutOn>().is_some() {
-                is_puton = true;
+            // Weapon, armour or ring — the slot on the component says which, and
+            // nothing here needs to.
+            if item_entity.get::<crate::equipment::Equipped>().is_some() {
+                is_equipment = true;
             }
 
             // Handle Wands / Battery logic
@@ -1472,17 +813,9 @@ pub fn item_system(world: &mut World) {
             }
         } // Drop the entity_mut borrow so we can freely use the world again
 
-        // 0. Equipment toggles — these items always go back in the pack.
-        if is_wield {
-            toggle_wield(world, item_use.user, item_use.item);
-            return_to_inventory = true;
-        }
-        if is_wear {
-            toggle_wear(world, item_use.user, item_use.item);
-            return_to_inventory = true;
-        }
-        if is_puton {
-            toggle_puton(world, item_use.user, item_use.item);
+        // 0. Equipment toggle — these items always go back in the pack.
+        if is_equipment {
+            toggle_equipped(world, item_use.user, item_use.item);
             return_to_inventory = true;
         }
 

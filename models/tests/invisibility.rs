@@ -50,10 +50,11 @@ fn run_visibility(w: &mut World) {
 }
 
 fn wear_ring(w: &mut World, p: Entity, effect: RingEffect) -> Entity {
-    let ring = w.spawn(RingBundle::new(effect, Position { x: 0, y: 0 })).id();
+    let ring = spawn_ring(w, effect, Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
-    w.get_mut::<PutOn>(ring).unwrap().bearer = Some(p);
+    w.get_mut::<Equipped>(ring).unwrap().by = Some(p);
+    sync_equipment_effects(w, p);
     ring
 }
 
@@ -170,5 +171,5 @@ fn an_invisible_item_hides_until_perception_or_a_misstep() {
 
 /// A stand-in floor item: `spawn_random_item` is private, so just drop a scroll.
 fn spawn_random_item_for_test(w: &mut World, pos: Position) -> Entity {
-    w.spawn(ScrollBundle::identify(pos)).id()
+    spawn_scroll(w, ScrollEffect::Identify, pos)
 }

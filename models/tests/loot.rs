@@ -58,14 +58,14 @@ fn floor_loot_follows_the_rogue_drop_table() {
                     Option<&Potion>,
                     Option<&Scroll>,
                     Option<&Wand>,
-                    Option<&Wear>,
-                    Option<&Wield>,
-                    Option<&PutOn>,
+                    Option<&ArmorDie>,
+                    Option<&PowerDie>,
+                    Option<&Ring>,
                     Option<&Value>,
                 ),
                 (With<Item>, With<Position>),
             >();
-            for (e, potion, scroll, wand, wear, wield, puton, value) in q.iter(&w) {
+            for (e, potion, scroll, wand, armor, weapon, ring, value) in q.iter(&w) {
                 if carried.contains(&e) {
                     continue;
                 }
@@ -76,13 +76,13 @@ fn floor_loot_follows_the_rogue_drop_table() {
                     t.potions += 1;
                 } else if value.is_some() {
                     t.coins += 1;
-                } else if wear.is_some() {
+                } else if armor.is_some() {
                     t.armor += 1;
-                } else if wield.is_some() {
+                } else if weapon.is_some() {
                     t.weapons += 1;
                 } else if wand.is_some() {
                     t.wands += 1;
-                } else if puton.is_some() {
+                } else if ring.is_some() {
                     t.rings += 1;
                 } else {
                     panic!("floor item with no recognised category component");

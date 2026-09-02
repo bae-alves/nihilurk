@@ -7,7 +7,10 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::{AmuletBundle, ArmorBundle, ItemBundle, PotionBundle, RingBundle, ScrollBundle, WandBundle, WeaponsBundle};
+use crate::catalog::{
+    spawn_element_of_yoord, spawn_wand, ItemDef, ARMORS, COINS, POTIONS, RINGS, SCROLLS, WANDS,
+    WEAPONS,
+};
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
@@ -514,79 +517,20 @@ fn pick_monster(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
 /// | Wands    |  5%  |
 /// | Rings    |  5%  |
 fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
-    /// Picks one constructor from `opts` uniformly and spawns its bundle,
-    /// returning the new entity.
-    fn one<F: Fn(Position) -> B, B: Bundle>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, opts: &[F]) -> Entity {
-        let ctor = &opts[rng.gen_range(0..opts.len())];
-        world.spawn(ctor(pos)).id()
+    /// Picks one row from a catalog table uniformly and spawns it as a floor
+    /// drop — enchantment, battery charge and all, whatever that category rolls.
+    fn one<D: ItemDef>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, table: &[D]) -> Entity {
+        table[rng.gen_range(0..table.len())].spawn_as_loot(world, rng, pos)
     }
 
     match rng.gen_range(0..100) {
-        // Scrolls — 30%
-        0..=29 => one(world, rng, pos, &[
-            ScrollBundle::monster_confusion, ScrollBundle::magic_mapping, ScrollBundle::hold_monster,
-            ScrollBundle::sleep, ScrollBundle::enchant_armor, ScrollBundle::identify,
-            ScrollBundle::scare_monster, ScrollBundle::food_detection, ScrollBundle::teleportation,
-            ScrollBundle::enchant_weapon, ScrollBundle::create_monster, ScrollBundle::remove_curse,
-            ScrollBundle::aggravate_monsters, ScrollBundle::blank_paper, ScrollBundle::vorpalize_weapon,
-        ]),
-        // Potions — 27%
-        30..=56 => one(world, rng, pos, &[
-            PotionBundle::confusion, PotionBundle::paralysis, PotionBundle::poison,
-            PotionBundle::gain_strength, PotionBundle::see_invisible, PotionBundle::healing,
-            PotionBundle::monster_detection, PotionBundle::magic_detection, PotionBundle::raise_level,
-            PotionBundle::extra_healing, PotionBundle::haste_self, PotionBundle::restore_strength,
-            PotionBundle::blindness, PotionBundle::thirst_quenching,
-        ]),
-        // Coins (Rogue's food slot) — 17%
-        57..=73 => one(world, rng, pos, &[ItemBundle::gold_coin, ItemBundle::silver_coin]),
-        // Armor — 8%
-        74..=81 => {
-            let e = one(world, rng, pos, &[
-                ArmorBundle::leather_armor, ArmorBundle::ring_mail, ArmorBundle::studded_leather_armor,
-                ArmorBundle::scale_mail, ArmorBundle::chain_mail, ArmorBundle::splint_mail,
-                ArmorBundle::banded_mail, ArmorBundle::plate_mail,
-            ]);
-            crate::items::enchant_equipment(world, rng, e);
-            e
-        }
-        // Weapons — 8%
-        82..=89 => {
-            let e = one(world, rng, pos, &[
-                WeaponsBundle::dagger, WeaponsBundle::mace, WeaponsBundle::long_sword,
-                WeaponsBundle::two_handed_sword,
-            ]);
-            crate::items::enchant_equipment(world, rng, e);
-            e
-        }
-        // Wands / Staves — 5%
-        90..=94 => {
-            let wand = one(world, rng, pos, &[
-                WandBundle::light, WandBundle::striking, WandBundle::lightning, WandBundle::fire,
-                WandBundle::cold, WandBundle::polymorph, WandBundle::magic_missile,
-                WandBundle::haste_monster, WandBundle::slow_monster, WandBundle::drain_life,
-                WandBundle::nothing, WandBundle::teleport_away, WandBundle::teleport_to,
-                WandBundle::cancellation,
-            ]);
-            let charges = crate::items::roll_wand_charges(rng);
-            if let Some(mut battery) = world.get_mut::<Battery>(wand) {
-                battery.charges = charges;
-            }
-            wand
-        }
-        // Rings — 5%
-        _ => {
-            const RINGS: [RingEffect; 12] = [
-                RingEffect::Protection, RingEffect::Strength, RingEffect::Perception,
-                RingEffect::Adornment, RingEffect::AggravateMonster, RingEffect::Dexterity,
-                RingEffect::IncreaseDamage, RingEffect::Regeneration, RingEffect::SlowDigestion,
-                RingEffect::Teleportation, RingEffect::Stealth, RingEffect::MaintainArmor,
-            ];
-            let effect = RINGS[rng.gen_range(0..RINGS.len())];
-            let ring = world.spawn(RingBundle::new(effect, pos)).id();
-            crate::items::enchant_equipment(world, rng, ring);
-            ring
-        }
+        0..=29 => one(world, rng, pos, SCROLLS),
+        30..=56 => one(world, rng, pos, POTIONS),
+        57..=73 => one(world, rng, pos, COINS),
+        74..=81 => one(world, rng, pos, ARMORS),
+        82..=89 => one(world, rng, pos, WEAPONS),
+        90..=94 => one(world, rng, pos, WANDS),
+        _ => one(world, rng, pos, RINGS),
     }
 }
 
@@ -738,7 +682,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     if depth >= FINAL_DEPTH {
         if let Some((ex, ey)) = find_tile(&world.resource::<Map>().tiles, TileType::Downstairs) {
             world.resource_mut::<Map>().tiles[tile_index(ex, ey)] = TileType::Room;
-            world.spawn(AmuletBundle::element_of_yoord(Position { x: ex, y: ey }));
+            spawn_element_of_yoord(world, Position { x: ex, y: ey });
             occupied.insert((ex, ey));
 
             for (i, (dx, dy)) in RING_DIRS.iter().enumerate() {
@@ -1028,9 +972,9 @@ pub fn initialize_world(world: &mut World) {
     let ((player_x, player_y), rooms) = create_map(world);
 
     // 1. Create a starting wand entity first, and roll its battery like any drop.
-    let starting_wand = world.spawn(WandBundle::magic_missile(Position { x: 0, y: 0 })).id();
+    let starting_wand = spawn_wand(world, WandEffect::MagicMissile, Position { x: 0, y: 0 });
     {
-        let charges = crate::items::roll_wand_charges(&mut world.resource_mut::<GameRng>().0);
+        let charges = crate::catalog::roll_wand_charges(&mut world.resource_mut::<GameRng>().0);
         if let Some(mut battery) = world.get_mut::<Battery>(starting_wand) {
             battery.charges = charges;
         }

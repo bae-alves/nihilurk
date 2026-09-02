@@ -26,8 +26,8 @@ fn player(w: &mut World) -> Entity {
 
 /// Give the player a fresh, well-charged wand of the given kind, already in the
 /// pack.
-fn give_wand(w: &mut World, p: Entity, ctor: fn(Position) -> WandBundle) -> Entity {
-    let wand = w.spawn(ctor(Position { x: 0, y: 0 })).id();
+fn give_wand(w: &mut World, p: Entity, effect: WandEffect) -> Entity {
+    let wand = spawn_wand(w, effect, Position { x: 0, y: 0 });
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Battery>(wand).unwrap().charges = 9;
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);
@@ -73,7 +73,6 @@ fn dummy(w: &mut World, name: &str, at: Position, hp: i32) -> Entity {
         Faction::Monster,
         Blood,
         Speed::new(SpeedKind::Normal),
-        Traits::default(),
     ))
     .id()
 }
@@ -132,7 +131,7 @@ fn wand_damage_is_3d3_and_ignores_armour() {
         Blood,
     )).id();
 
-    let wand = give_wand(&mut w, p, WandBundle::magic_missile);
+    let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
     zap(&mut w, p, wand, spot);
 
     let lost = 40 - w.get::<Fighter>(target).unwrap().hp;
@@ -153,7 +152,7 @@ fn drain_life_heals_the_zapper_by_the_damage_dealt() {
     w.get_mut::<Fighter>(p).unwrap().max_hp = 50;
     w.get_mut::<Fighter>(p).unwrap().hp = 10;
 
-    let wand = give_wand(&mut w, p, WandBundle::drain_life);
+    let wand = give_wand(&mut w, p, WandEffect::DrainLife);
     zap(&mut w, p, wand, spot);
 
     let dealt = 30 - w.get::<Fighter>(target).unwrap().hp;
@@ -168,11 +167,11 @@ fn undead_are_immune_to_draining_and_grant_no_lifesteal() {
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
     let zombie = spawn_monster(&mut w, MonsterDef::named("zombie"), spot);
-    assert!(w.get::<Traits>(zombie).unwrap().undead);
+    assert!(w.get::<Undead>(zombie).is_some());
     let zhp = w.get::<Fighter>(zombie).unwrap().hp;
     w.get_mut::<Fighter>(p).unwrap().hp = 5;
 
-    let wand = give_wand(&mut w, p, WandBundle::drain_life);
+    let wand = give_wand(&mut w, p, WandEffect::DrainLife);
     zap(&mut w, p, wand, spot);
 
     assert_eq!(w.get::<Fighter>(zombie).unwrap().hp, zhp, "the undead takes no drain damage");
@@ -192,14 +191,14 @@ fn a_dragon_shrugs_off_fire_and_a_yeti_shrugs_off_cold() {
 
     let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), spot);
     let dhp = w.get::<Fighter>(dragon).unwrap().hp;
-    let fire = give_wand(&mut w, p, WandBundle::fire);
+    let fire = give_wand(&mut w, p, WandEffect::Fire);
     zap(&mut w, p, fire, spot);
     assert_eq!(w.get::<Fighter>(dragon).unwrap().hp, dhp, "fire cannot burn the dragon");
     w.entity_mut(dragon).despawn();
 
     let yeti = spawn_monster(&mut w, MonsterDef::named("yeti"), spot);
     let yhp = w.get::<Fighter>(yeti).unwrap().hp;
-    let cold = give_wand(&mut w, p, WandBundle::cold);
+    let cold = give_wand(&mut w, p, WandEffect::Cold);
     zap(&mut w, p, cold, spot);
     assert_eq!(w.get::<Fighter>(yeti).unwrap().hp, yhp, "cold cannot freeze the yeti");
 }
@@ -216,7 +215,7 @@ fn polymorph_swaps_the_target_for_a_different_species_on_the_same_tile() {
     let orc = spawn_monster(&mut w, MonsterDef::named("orc"), spot);
     let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
 
-    let wand = give_wand(&mut w, p, WandBundle::polymorph);
+    let wand = give_wand(&mut w, p, WandEffect::Polymorph);
     zap(&mut w, p, wand, spot);
 
     assert!(!w.entities().contains(orc), "the original is gone");
@@ -239,11 +238,11 @@ fn haste_and_slow_step_the_target_along_the_speed_scale() {
     let (_here, spot) = beside_player(&mut w);
     let mob = dummy(&mut w, "orc", spot, 5);
 
-    let haste = give_wand(&mut w, p, WandBundle::haste_monster);
+    let haste = give_wand(&mut w, p, WandEffect::HasteMonster);
     zap(&mut w, p, haste, spot);
     assert_eq!(w.get::<Speed>(mob).unwrap().kind, SpeedKind::Fast);
 
-    let slow = give_wand(&mut w, p, WandBundle::slow_monster);
+    let slow = give_wand(&mut w, p, WandEffect::SlowMonster);
     zap(&mut w, p, slow, spot);
     assert_eq!(w.get::<Speed>(mob).unwrap().kind, SpeedKind::Normal, "slow undoes a haste");
 }
@@ -300,7 +299,7 @@ fn teleport_away_relocates_the_target() {
     let (_here, spot) = beside_player(&mut w);
     let mob = dummy(&mut w, "orc", spot, 5);
 
-    let wand = give_wand(&mut w, p, WandBundle::teleport_away);
+    let wand = give_wand(&mut w, p, WandEffect::TeleportAway);
     zap(&mut w, p, wand, spot);
 
     let now = *w.get::<Position>(mob).unwrap();
@@ -323,7 +322,7 @@ fn teleport_to_drags_the_target_next_to_the_zapper() {
     };
     let mob = dummy(&mut w, "orc", far, 5);
 
-    let wand = give_wand(&mut w, p, WandBundle::teleport_to);
+    let wand = give_wand(&mut w, p, WandEffect::TeleportTo);
     zap(&mut w, p, wand, far);
 
     let now = *w.get::<Position>(mob).unwrap();
@@ -342,17 +341,17 @@ fn cancellation_strips_the_magic_but_leaves_the_creature() {
     let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), spot);
     w.get_mut::<Speed>(dragon).unwrap().kind = SpeedKind::Fast;
 
-    let wand = give_wand(&mut w, p, WandBundle::cancellation);
+    let wand = give_wand(&mut w, p, WandEffect::Cancellation);
     zap(&mut w, p, wand, spot);
 
-    assert_eq!(*w.get::<Traits>(dragon).unwrap(), Traits::default(), "its innate magic is gone");
+    assert!(w.get::<FireImmune>(dragon).is_none(), "its innate magic is gone");
     assert_eq!(w.get::<Speed>(dragon).unwrap().kind, SpeedKind::Normal, "back to a normal tempo");
     assert!(w.get::<Fighter>(dragon).is_some(), "still a fighter");
     assert_eq!(w.get::<Name>(dragon).unwrap().what, "dragon", "still a dragon by name");
 
     // With the immunity cancelled, fire now bites.
     let dhp = w.get::<Fighter>(dragon).unwrap().hp;
-    let fire = give_wand(&mut w, p, WandBundle::fire);
+    let fire = give_wand(&mut w, p, WandEffect::Fire);
     zap(&mut w, p, fire, spot);
     assert!(w.get::<Fighter>(dragon).unwrap().hp < dhp, "a cancelled dragon burns");
 }
@@ -398,7 +397,7 @@ fn light_clears_a_dark_room_and_reveals_its_traps() {
     };
     let trap = w.spawn(trap_bundle).id();
 
-    let wand = give_wand(&mut w, p, WandBundle::light);
+    let wand = give_wand(&mut w, p, WandEffect::Light);
     zap_self(&mut w, p, wand);
 
     assert!(!w.resource::<Map>().is_dark(here.x, here.y), "the room is lit for good");

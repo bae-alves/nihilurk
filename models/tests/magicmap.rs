@@ -40,7 +40,7 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
     let known_before = w.get::<Viewshed>(p).unwrap().revealed_tiles.count_ones(..);
     assert!(known_before < MAP_TILE_COUNT, "should not start with the whole map known");
 
-    let scroll = w.spawn(ScrollBundle::magic_mapping(Position { x: 0, y: 0 })).id();
+    let scroll = spawn_scroll(&mut w, ScrollEffect::MagicMapping, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 

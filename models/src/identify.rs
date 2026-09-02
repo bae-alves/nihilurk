@@ -2,7 +2,7 @@
 //! nature behind a cosmetic appearance until the player learns otherwise —
 //! the classic roguelike "unidentified item" trick (see NetHack).
 //!
-//! A [`Potion`]/[`Scroll`]/[`Wand`]/[`PutOn`] component always carries the
+//! A [`Potion`]/[`Scroll`]/[`Wand`]/[`Ring`] component always carries the
 //! item's true effect; nothing about identification changes that. What
 //! changes is how the item is *displayed*: [`ItemAppearances`] holds this
 //! run's random, shuffled cosmetic label for every true type (assigned once,
@@ -20,45 +20,28 @@ use rand_chacha::ChaCha12Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-use crate::components::{Name, PotionEffect, PutOn, RingEffect, ScrollEffect, WandEffect};
+use crate::catalog::{POTIONS, RINGS, SCROLLS, WANDS};
+use crate::components::{Name, PotionEffect, Ring, RingEffect, ScrollEffect, WandEffect};
 use crate::items::item_label;
 
-/// Every [`PotionEffect`] variant, used to build this run's appearance map.
-const ALL_POTIONS: [PotionEffect; 15] = [
-    PotionEffect::Blindness, PotionEffect::Confusion, PotionEffect::ExtraHealing,
-    PotionEffect::FruitJuice, PotionEffect::GainStrength, PotionEffect::Haste,
-    PotionEffect::Healing, PotionEffect::MagicDetection, PotionEffect::MonsterDetection,
-    PotionEffect::Paralysis, PotionEffect::Poison, PotionEffect::RaiseLevel,
-    PotionEffect::RestoreStrength, PotionEffect::SeeInvisible, PotionEffect::Water,
-];
+/// The true types in each category, taken straight from the catalog tables so a
+/// new item is never missing an appearance. There is no second list to keep in
+/// step with [`crate::catalog`].
+fn all_potions() -> Vec<PotionEffect> {
+    POTIONS.iter().map(|d| d.effect).collect()
+}
+fn all_scrolls() -> Vec<ScrollEffect> {
+    SCROLLS.iter().map(|d| d.effect).collect()
+}
+fn all_wands() -> Vec<WandEffect> {
+    WANDS.iter().map(|d| d.effect).collect()
+}
+fn all_rings() -> Vec<RingEffect> {
+    RINGS.iter().map(|d| d.effect).collect()
+}
 
-/// Every [`ScrollEffect`] variant, used to build this run's appearance map.
-const ALL_SCROLLS: [ScrollEffect; 15] = [
-    ScrollEffect::MonsterConfusion, ScrollEffect::MagicMapping, ScrollEffect::HoldMonster,
-    ScrollEffect::Sleep, ScrollEffect::EnchantArmor, ScrollEffect::Identify,
-    ScrollEffect::ScareMonster, ScrollEffect::FoodDetection, ScrollEffect::Teleportation,
-    ScrollEffect::EnchantWeapon, ScrollEffect::CreateMonster, ScrollEffect::RemoveCurse,
-    ScrollEffect::AggravateMonsters, ScrollEffect::BlankPaper, ScrollEffect::VorpalizeWeapon,
-];
-
-/// Every [`WandEffect`] variant, used to build this run's appearance map.
-const ALL_WANDS: [WandEffect; 14] = [
-    WandEffect::Light, WandEffect::Striking, WandEffect::Lightning, WandEffect::Fire,
-    WandEffect::Cold, WandEffect::Polymorph, WandEffect::MagicMissile, WandEffect::HasteMonster,
-    WandEffect::SlowMonster, WandEffect::DrainLife, WandEffect::Nothing, WandEffect::TeleportAway,
-    WandEffect::TeleportTo, WandEffect::Cancellation,
-];
-
-/// Every [`RingEffect`] variant, used to build this run's appearance map.
-const ALL_RINGS: [RingEffect; 12] = [
-    RingEffect::Protection, RingEffect::Strength, RingEffect::Perception,
-    RingEffect::Adornment, RingEffect::AggravateMonster, RingEffect::Dexterity,
-    RingEffect::IncreaseDamage, RingEffect::Regeneration, RingEffect::SlowDigestion,
-    RingEffect::Teleportation, RingEffect::Stealth, RingEffect::MaintainArmor,
-];
-
-/// Colours and consistencies, NetHack-style: pooled well beyond
-/// [`ALL_POTIONS`]'s length so a shuffle always has room to spare.
+/// Colours and consistencies, NetHack-style: pooled well beyond the potion
+/// table's length so a shuffle always has room to spare.
 const POTION_APPEARANCES: [&str; 20] = [
     "ruby", "pink", "orange", "amber", "emerald", "cyan", "violet", "brown", "grey", "yellow",
     "bubbly", "fizzy", "swirly", "milky", "murky", "cloudy", "smoky", "oily", "sparkling", "viscous",
@@ -113,10 +96,10 @@ impl ItemAppearances {
     /// Builds a fresh, randomised appearance map for a new run.
     pub fn generate(rng: &mut ChaCha12Rng) -> Self {
         Self {
-            potions: assign(&ALL_POTIONS, &POTION_APPEARANCES, rng),
-            scrolls: assign(&ALL_SCROLLS, &SCROLL_APPEARANCES, rng),
-            wands: assign(&ALL_WANDS, &WAND_APPEARANCES, rng),
-            rings: assign(&ALL_RINGS, &RING_APPEARANCES, rng),
+            potions: assign(&all_potions(), &POTION_APPEARANCES, rng),
+            scrolls: assign(&all_scrolls(), &SCROLL_APPEARANCES, rng),
+            wands: assign(&all_wands(), &WAND_APPEARANCES, rng),
+            rings: assign(&all_rings(), &RING_APPEARANCES, rng),
         }
     }
 }
@@ -174,7 +157,7 @@ pub fn display_name(world: &World, item: Entity) -> String {
             .unwrap_or_else(|| "strange".to_string());
         return format!("{appearance} wand");
     }
-    if let Some(r) = world.get::<PutOn>(item) {
+    if let Some(r) = world.get::<Ring>(item) {
         if world.resource::<Identified>().rings.contains(&r.effect) {
             return item_label(world, item);
         }
@@ -208,5 +191,20 @@ pub fn with_the(name: &str) -> String {
         name.to_string()
     } else {
         format!("the {name}")
+    }
+}
+
+/// Putting a ring on tells you what it is — a ring's only "use" is wearing it,
+/// so that is where it gets identified. Called by
+/// [`crate::equipment::toggle_equipped`] for every item; only rings answer.
+pub fn learn_by_wearing(world: &mut World, item: Entity) {
+    let Some(effect) = world.get::<Ring>(item).map(|r| r.effect) else {
+        return;
+    };
+    let true_name = item_label(world, item);
+    if world.resource_mut::<Identified>().rings.insert(effect) {
+        world
+            .resource_mut::<crate::components::GameLog>()
+            .add(format!("That was {} {true_name}!", article_for(&true_name)));
     }
 }

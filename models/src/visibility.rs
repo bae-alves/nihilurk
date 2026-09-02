@@ -1,6 +1,7 @@
 use bevy_ecs::prelude::*;
 use std::collections::{HashSet, VecDeque};
 use crate::components::*;
+use crate::effects::SeesInvisible;
 use crate::map::{tile_index, Map, TileType, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH};
 use crate::traps::{Trap, TrapReveal};
 
@@ -15,7 +16,9 @@ pub fn visibility_system(
 
     // `With<Player>` matters: without it a future monster viewshed would reveal
     // the map for the player.
-    mut viewshed_query: Query<(Entity, &mut Viewshed, &Position, Option<&Backpack>), With<Player>>,
+    // `SeesInvisible` is asked for as a plain component. It might come from a
+    // ring, from a potion, from being born that way — this system doesn't ask.
+    mut viewshed_query: Query<(Entity, &mut Viewshed, &Position, Option<&SeesInvisible>), With<Player>>,
 
     // Everything the player can "spot": monsters and floor items. `Option`s let
     // one query cover both kinds and track the per-entity spotted state.
@@ -27,9 +30,6 @@ pub fn visibility_system(
     // Hidden traps whose reveal style might trip this turn.
     mut trap_query: Query<(Entity, &Position, &mut Trap), With<Hidden>>,
 
-    // Every worn ring, so we can tell whether the player has perception.
-    ring_query: Query<&PutOn>,
-
     mut log: ResMut<GameLog>,
 
     map: Res<Map>,
@@ -39,19 +39,12 @@ pub fn visibility_system(
         return;
     }
 
-    for (player_entity, mut viewshed, pos, backpack) in viewshed_query.iter_mut() {
+    for (_player_entity, mut viewshed, pos, sees_invisible) in viewshed_query.iter_mut() {
         if !viewshed.dirty {
             continue;
         }
 
-        // A worn ring of perception makes every invisible thing visible.
-        let perception = backpack.is_some_and(|bp| {
-            bp.items.iter().any(|&i| {
-                ring_query
-                    .get(i)
-                    .is_ok_and(|r| r.bearer == Some(player_entity) && r.effect == RingEffect::Perception)
-            })
-        });
+        let perception = sees_invisible.is_some();
 
         let mut visible_set: HashSet<(u16, u16)> = HashSet::new();
         let center_x = pos.x as i16;
