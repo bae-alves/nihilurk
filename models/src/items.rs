@@ -1,25 +1,38 @@
 use std::collections::HashSet;
-use bevy_ecs::{entity::Entity, prelude::With, world::World};
+use bevy_ecs::{entity::Entity, prelude::{Or, With}, world::World};
 use crossterm::style::Color;
 use rand::Rng;
 use std::collections::VecDeque;
-use crate::{components::*, map::{tile_index, GameRng, Map, TileType, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line}};
-use crate::effects::{revoke_all, ColdImmune, FireImmune, Grant, Undead};
-use crate::equipment::{equipped_in, equipped_items, force_unequip, toggle_equipped, Slot};
+use crate::{components::*, map::{tile_index, GameRng, Map, TileType, MAP_WIDTH, MAP_HEIGHT}, particles::Particles, helpers::{apply_damage, get_entities_at_position, get_line, total_armor_plus}};
+use crate::effects::{revoke_all, ColdImmune, FireImmune, Grant, ItemUser, PowerBonus, Undead};
+use crate::equipment::{equip_silently, equipped_in, equipped_items, force_unequip, sync_equipment_effects, toggle_equipped, Equipped, Slot};
 use crate::identify::Identified;
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
 use crate::monsters::{spawn_monster, BESTIARY};
 use crate::traps::{random_open_tile, Trap};
 
-fn apply_potion_effect(world: &mut World, user: Entity, effect: PotionEffect) {
+/// Works a potion on `user`. Returns whether the dose visibly took hold — the
+/// player learns a potion by drinking it either way, but a potion *thrown* at a
+/// monster only gives itself away when something plainly happens (see
+/// [`resolve_throw`]).
+fn apply_potion_effect(world: &mut World, user: Entity, effect: PotionEffect) -> bool {
     match effect {
         PotionEffect::Healing => {
-            if let Some(mut fighter) = world.get_mut::<Fighter>(user) {
-                fighter.hp = std::cmp::min(fighter.hp + 10, fighter.max_hp);
-                world.resource_mut::<GameLog>().add("Healing!".to_string());
-            }
+            let Some(mut fighter) = world.get_mut::<Fighter>(user) else {
+                return false;
+            };
+            let before = fighter.hp;
+            fighter.hp = std::cmp::min(fighter.hp + 10, fighter.max_hp);
+            let healed = fighter.hp > before;
+            let msg = if world.get::<Player>(user).is_some() {
+                "Healing!".to_string()
+            } else {
+                format!("The {} straightens up, its wounds closing.", item_label(world, user))
+            };
+            world.resource_mut::<GameLog>().add(msg);
+            healed
         }
-        _ => { /* handle other potion effects */ }
+        _ => false, /* handle other potion effects */
     }
 }
 
@@ -69,11 +82,19 @@ fn is_immune(world: &World, entity: Entity, element: Element) -> bool {
     element.immunity().probe(world, entity)
 }
 
+/// How many `d3` a zapped wand rolls.
+const WAND_DICE: i32 = 3;
+
+/// Rolls `Nd3` — the die every wand and every blast is measured in.
+fn roll_d3s(world: &mut World, dice: i32) -> i32 {
+    let mut rng = world.resource_mut::<GameRng>();
+    (0..dice).map(|_| rng.0.gen_range(1..=3)).sum()
+}
+
 /// A wand's damage: `3d3`, rolled once per zap and applied whole to every
 /// creature it touches (armour is never subtracted — see [`apply_damage`]).
 fn roll_wand_damage(world: &mut World) -> i32 {
-    let mut rng = world.resource_mut::<GameRng>();
-    (0..3).map(|_| rng.0.gen_range(1..=3)).sum()
+    roll_d3s(world, WAND_DICE)
 }
 
 /// The hostile monster standing on `pos`, if any.
@@ -110,6 +131,78 @@ fn damage_with_element(
     };
     apply_damage(world, entity, damage);
     damage.min(hp_before.max(0))
+}
+
+/// The radius of a fire or cold wand's blast disc, in tiles.
+const BLAST_RADIUS: f32 = 3.0;
+
+/// A wand of fire that is thrown rather than zapped goes off like a grenade:
+/// twice as wide as the beam it could have thrown. Note that the blast does not
+/// care who set it off — a wand zapped at your own feet burns you, and so does
+/// one you lobbed too close (see [`elemental_blast`]). This is Roog. You'll die.
+const GRENADE_RADIUS: f32 = BLAST_RADIUS * 2.0;
+/// And twice as hot: `6d3`, rolled as six dice rather than a doubled `3d3`, so
+/// the middle of the range comes up far more often than either end.
+const GRENADE_DICE: i32 = WAND_DICE * 2;
+
+/// Blows a disc of `radius` tiles open around `center`: every creature standing
+/// on a tile the centre can see (walls stop the flames) takes `damage` of
+/// `element`, and the animation ripples outward from the core.
+///
+/// The one place an area blast is resolved — a zapped wand of fire and a thrown
+/// one differ by the number passed in, and by nothing else. Nobody is exempt,
+/// the thrower included.
+fn elemental_blast(
+    world: &mut World,
+    center: Position,
+    radius: f32,
+    damage: i32,
+    element: Option<Element>,
+    fire: bool,
+) {
+    let map = world.resource::<Map>().clone();
+    let cx = center.x as i32;
+    let cy = center.y as i32;
+    let r = radius.ceil() as i32;
+
+    // Every tile within the disc that the blast centre has line of sight to,
+    // tagged with its distance from centre so the animation can ripple outward.
+    let mut blast_cells: Vec<(u16, u16, f32)> = Vec::new();
+    for dy in -r..=r {
+        for dx in -r..=r {
+            let dist = ((dx * dx + dy * dy) as f32).sqrt();
+            if dist > radius {
+                continue;
+            }
+            let Some((tx, ty)) = crate::particles::on_map(cx + dx, cy + dy) else {
+                continue;
+            };
+            let ray = get_line(center, Position { x: tx, y: ty });
+            let blocked = ray
+                .iter()
+                .any(|p| map.blocks(p.x, p.y) && !(p.x == tx && p.y == ty));
+            if !blocked {
+                blast_cells.push((tx, ty, dist));
+            }
+        }
+    }
+
+    // Damage every fighter standing in a blast cell.
+    let cell_set: HashSet<(u16, u16)> = blast_cells.iter().map(|&(x, y, _)| (x, y)).collect();
+    let mut affected_entities = Vec::new();
+    let mut query = world.query::<(Entity, &Position)>();
+    for (entity, pos) in query.iter(world) {
+        if cell_set.contains(&(pos.x, pos.y)) {
+            affected_entities.push(entity);
+        }
+    }
+    for entity in affected_entities {
+        damage_with_element(world, entity, damage, element);
+    }
+
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.explosion(&blast_cells, fire);
+    }
 }
 
 fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, effect: WandEffect) {
@@ -183,7 +276,6 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
         }
         WandEffect::Fire | WandEffect::Cold => {
             let is_fire = effect == WandEffect::Fire;
-            let element = Element::of(effect);
             let msg = if is_fire {
                 "A roaring sphere of fire erupts!"
             } else {
@@ -191,54 +283,7 @@ fn apply_wand_effect(world: &mut World, user: Entity, target: Option<Position>, 
             };
             let damage = roll_wand_damage(world);
             world.resource_mut::<GameLog>().add(msg.to_string());
-
-            // Radius of the blast disc, in tiles.
-            let radius: f32 = 3.0;
-            let map = world.resource::<Map>().clone();
-            let cx = target_pos.x as i32;
-            let cy = target_pos.y as i32;
-            let r = radius.ceil() as i32;
-
-            // Every tile within the disc that the blast centre has line of sight
-            // to (walls stop the flames), tagged with its distance from centre
-            // so the animation can ripple outward.
-            let mut blast_cells: Vec<(u16, u16, f32)> = Vec::new();
-            for dy in -r..=r {
-                for dx in -r..=r {
-                    let dist = ((dx * dx + dy * dy) as f32).sqrt();
-                    if dist > radius {
-                        continue;
-                    }
-                    let Some((tx, ty)) = crate::particles::on_map(cx + dx, cy + dy) else {
-                        continue;
-                    };
-                    let ray = get_line(target_pos, Position { x: tx, y: ty });
-                    let blocked = ray
-                        .iter()
-                        .any(|p| map.blocks(p.x, p.y) && !(p.x == tx && p.y == ty));
-                    if !blocked {
-                        blast_cells.push((tx, ty, dist));
-                    }
-                }
-            }
-
-            // Damage every fighter standing in a blast cell.
-            let cell_set: std::collections::HashSet<(u16, u16)> =
-                blast_cells.iter().map(|&(x, y, _)| (x, y)).collect();
-            let mut affected_entities = Vec::new();
-            let mut query = world.query::<(Entity, &Position)>();
-            for (entity, pos) in query.iter(world) {
-                if cell_set.contains(&(pos.x, pos.y)) {
-                    affected_entities.push(entity);
-                }
-            }
-            for entity in affected_entities {
-                damage_with_element(world, entity, damage, element);
-            }
-
-            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                fx.explosion(&blast_cells, is_fire);
-            }
+            elemental_blast(world, target_pos, BLAST_RADIUS, damage, Element::of(effect), is_fire);
         }
         WandEffect::Polymorph => polymorph_target(world, target_pos),
         WandEffect::HasteMonster => shift_target_speed(world, target_pos, true),
@@ -749,6 +794,267 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
     world
         .resource_mut::<GameLog>()
         .add(format!("The {wname} sings with a razor light, an omen of death to any {bane}."));
+}
+
+// ---------------------------------------------------------------------------
+// Throwing
+// ---------------------------------------------------------------------------
+
+/// How far an item can be hurled, in tiles — the reticle's leash for a throw,
+/// where a wand supplies that number itself through [`Ranged`].
+pub const THROW_RANGE: i32 = 7;
+
+/// Why `user` can't throw `item`, if they can't. Two things stay in the pack:
+/// the Element of Yoord, which is the whole point of the run and is not to be
+/// flung down a corridor, and cursed gear, which is welded on — it won't come
+/// off, so it can be neither dropped nor hurled. Anything else is fair game.
+pub fn throw_refusal(world: &World, user: Entity, item: Entity) -> Option<String> {
+    if world.get::<Amulet>(item).is_some() {
+        return Some("The Element of Yoord will not leave your hand.".to_string());
+    }
+    drop_refusal(world, user, item)
+}
+
+/// Why `user` can't put `item` down, if they can't. Cursed gear is welded on;
+/// the Element of Yoord, unlike a thrown one, *can* be set down — abandoning the
+/// run's prize on the floor is the player's business.
+pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String> {
+    let equipped = world.get::<Equipped>(item)?;
+    if equipped.by != Some(user) || world.get::<Curse>(item).is_none() {
+        return None;
+    }
+    Some(equipped.slot.stuck(&crate::identify::display_name(world, item)))
+}
+
+/// Marks `item`'s true type as known, announcing it the same way using one
+/// yourself does. Watching a monster drink, read or put on what you threw at it
+/// teaches you exactly as much as doing it would have.
+fn identify_from_afar(world: &mut World, item: Entity) {
+    let true_name = item_label(world, item);
+    let potion = world.get::<Potion>(item).map(|p| p.effect);
+    let scroll = world.get::<Scroll>(item).map(|s| s.effect);
+    let wand = world.get::<Wand>(item).map(|w| w.effect);
+    let ring = world.get::<Ring>(item).map(|r| r.effect);
+    let mut known = world.resource_mut::<Identified>();
+    let newly = match (potion, scroll, wand, ring) {
+        (Some(e), _, _, _) => known.potions.insert(e),
+        (_, Some(e), _, _) => known.scrolls.insert(e),
+        (_, _, Some(e), _) => known.wands.insert(e),
+        (_, _, _, Some(e)) => known.rings.insert(e),
+        _ => false,
+    };
+    drop(known);
+    if newly {
+        world.resource_mut::<GameLog>().add(format!(
+            "That was {} {true_name}!",
+            crate::identify::article_for(&true_name)
+        ));
+    }
+}
+
+/// The creature standing on `pos` — anything that acts, friend or foe — never
+/// counting `except`, the thrower whose own tile the item is leaving.
+fn actor_at(world: &mut World, pos: Position, except: Entity) -> Option<Entity> {
+    world
+        .query_filtered::<(Entity, &Position), Or<(With<Mob>, With<Player>)>>()
+        .iter(world)
+        .find(|(e, p)| *e != except && **p == pos)
+        .map(|(e, _)| e)
+}
+
+/// Traces a throw: the tiles the item crosses (the thrower's own excluded), the
+/// tile it comes to rest on, and the creature it ran into, if any. A wall stops
+/// it short of the aimed spot; so does the first creature in the way, which is
+/// the whole point of aiming past one.
+fn flight_path(
+    world: &mut World,
+    thrower: Entity,
+    from: Position,
+    to: Position,
+) -> (Vec<(u16, u16)>, Position, Option<Entity>) {
+    let map = world.resource::<Map>().clone();
+    let mut cells = Vec::new();
+    let mut landing = from;
+    for pos in get_line(from, to) {
+        if pos == from {
+            continue;
+        }
+        if map.blocks(pos.x, pos.y) {
+            break;
+        }
+        cells.push((pos.x, pos.y));
+        landing = pos;
+        if let Some(victim) = actor_at(world, pos, thrower) {
+            return (cells, landing, Some(victim));
+        }
+    }
+    (cells, landing, None)
+}
+
+/// What a hurled object does on impact, or `None` if it is not the sort of thing
+/// that hurts anyone: only an item carrying [`ThrownDamage`] rolls at all, so a
+/// wand or a suit of armour just bounces off and falls.
+///
+/// The roll is `1d[thrown damage]` plus the item's enchantment, less the
+/// target's armour *plus*. Like a trap, a thrown item goes around the armour die
+/// — a shield helps you against a swung sword, not a dagger already in the air.
+fn roll_throw_damage(world: &mut World, item: Entity, target: Entity) -> Option<i32> {
+    let die = world.get::<ThrownDamage>(item)?.0;
+    if die < 1 {
+        return Some(0);
+    }
+    let bonus = world.get::<PowerBonus>(item).map(|b| b.0).unwrap_or(0);
+    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=die) + bonus;
+    Some((roll - total_armor_plus(world, target)).max(0))
+}
+
+/// Lays a thrown item down on the floor where it stopped, ready to be picked up
+/// again.
+fn land_item(world: &mut World, item: Entity, at: Position) {
+    world.entity_mut(item).insert(at);
+}
+
+/// The schedule step that resolves everything hurled this turn.
+pub fn throw_system(world: &mut World) {
+    let throws = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
+    for throw in throws {
+        resolve_throw(world, throw);
+    }
+}
+
+/// One thrown item, from the thrower's hand to whatever it finds at the end of
+/// its line. A potion shatters over its target and is drunk by it; a scroll is
+/// read aloud by anything literate enough and otherwise flutters to the floor;
+/// everything else simply arrives — hurting what it hits only if it carries
+/// [`ThrownDamage`], and staying with a creature that knows what to do with it
+/// ([`ItemUser`]).
+fn resolve_throw(world: &mut World, throw: WantsToThrow) {
+    let WantsToThrow { thrower, item, target } = throw;
+    let Some(&origin) = world.get::<Position>(thrower) else {
+        return;
+    };
+
+    // Gear leaves the hand the moment it is thrown, taking its bonuses with it.
+    force_unequip(world, item);
+    sync_equipment_effects(world, thrower);
+
+    let seen_name = crate::identify::display_name(world, item);
+    let announcement = if world.get::<Player>(thrower).is_some() {
+        format!("You throw the {seen_name}.")
+    } else {
+        format!("The {} throws the {seen_name}.", item_label(world, thrower))
+    };
+    world.resource_mut::<GameLog>().add(announcement);
+
+    let (cells, landing, victim) = flight_path(world, thrower, origin, target);
+    if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color)) {
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.hurl(&cells, glyph, color);
+        }
+    }
+
+    // A potion is glass: it breaks on whatever it reaches, and whoever wears it
+    // gets the dose.
+    if let Some(effect) = world.get::<Potion>(item).map(|p| p.effect) {
+        match victim {
+            Some(v) => {
+                let victim_name = item_label(world, v);
+                world.resource_mut::<GameLog>().add(format!(
+                    "The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!"
+                ));
+                // A dose that plainly did something names the potion for you; one
+                // that fizzled keeps its secret.
+                if apply_potion_effect(world, v, effect) {
+                    identify_from_afar(world, item);
+                }
+            }
+            None => {
+                world
+                    .resource_mut::<GameLog>()
+                    .add(format!("The {seen_name} shatters on the floor."));
+            }
+        }
+        world.entity_mut(item).despawn();
+        return;
+    }
+
+    // A scroll only means something to a creature that can read it. Anything
+    // else it bounces off, and it can be picked up again.
+    if let Some(effect) = world.get::<Scroll>(item).map(|s| s.effect) {
+        match victim.filter(|&v| world.get::<ItemUser>(v).is_some()) {
+            Some(reader) => {
+                let who = item_label(world, reader);
+                world
+                    .resource_mut::<GameLog>()
+                    .add(format!("The {who} unrolls the {seen_name} and reads it aloud!"));
+                apply_scroll_effect(world, reader, effect);
+                // The words were spoken out loud, in front of you: whatever the
+                // scroll was, it is no longer a mystery.
+                identify_from_afar(world, item);
+                world.entity_mut(item).despawn();
+            }
+            None => land_item(world, item, landing),
+        }
+        return;
+    }
+
+    // A wand of fire is a stick with a fire held inside it. Hurl it instead of
+    // zapping it and the fire comes out all at once, where it lands — twice as
+    // wide and twice as hard as anything you could have aimed. It does not care
+    // whose idea it was, so mind how close you are standing.
+    if world.get::<Wand>(item).map(|w| w.effect) == Some(WandEffect::Fire) {
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("The {seen_name} shatters, and everything it was holding gets out at once!"));
+        let damage = roll_d3s(world, GRENADE_DICE);
+        elemental_blast(world, landing, GRENADE_RADIUS, damage, Some(Element::Fire), true);
+        identify_from_afar(world, item);
+        world.entity_mut(item).despawn();
+        return;
+    }
+
+    // Everything else flies as a missile.
+    let Some(victim) = victim else {
+        land_item(world, item, landing);
+        return;
+    };
+
+    let victim_name = item_label(world, victim);
+    let msg = match roll_throw_damage(world, item, victim) {
+        Some(damage) if damage > 0 => {
+            apply_damage(world, victim, damage);
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                fx.hit_spark(landing.x, landing.y);
+            }
+            format!("The {seen_name} hits the {victim_name} for {damage} damage.")
+        }
+        // A weapon whose roll the armour ate.
+        Some(_) => format!("The {seen_name} glances off the {victim_name}."),
+        // Not a thing that hurts anyone: it simply arrives.
+        None => format!("The {seen_name} bounces off the {victim_name}."),
+    };
+    world.resource_mut::<GameLog>().add(msg);
+
+    // A creature the throw just killed keeps nothing; the reaper will lay the
+    // rest of its gear out beside this.
+    let slain = world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0);
+    let takes_it = !slain
+        && world.get::<ItemUser>(victim).is_some()
+        && world.get::<Equipped>(item).is_some();
+    if takes_it && equip_silently(world, victim, item) {
+        let slot = world.get::<Equipped>(item).map(|e| e.slot);
+        let verb = match slot {
+            Some(Slot::Hand) => "snatches it up and wields it",
+            Some(Slot::Body) => "pulls it on",
+            _ => "slips it on",
+        };
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("The {victim_name} {verb}!"));
+        identify_from_afar(world, item);
+        return;
+    }
+    land_item(world, item, landing);
 }
 
 pub fn item_system(world: &mut World) {

@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::catalog::RingDef;
+use crate::catalog::{RingDef, WEAPONS};
 use crate::components::*;
 use crate::effects::{
     attach_effects, effects_of, ArmorBonus, ArmorDie, EffectSet, GrantedByGear, Grants, PowerBonus,
@@ -191,6 +191,20 @@ pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
 /// straight out of the ECS, so no second copy of the world is built in RAM, and
 /// the bytes are streamed to disk through a `BufWriter` rather than buffered.
 pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
+    // Gear comes off across a save — the file records the slot, never the
+    // wearer. For the player that just means re-equipping; for a monster
+    // holding something it caught (see [`crate::items::throw_system`]) it would
+    // mean an item with no owner *and* no tile, adrift forever. So a monster
+    // lays down what it is holding first, on its own square.
+    let armed_mobs: Vec<(Entity, Position)> = world
+        .query_filtered::<(Entity, &Position), (With<Mob>, Without<Player>)>()
+        .iter(world)
+        .map(|(e, p)| (e, *p))
+        .collect();
+    for (mob, pos) in armed_mobs {
+        crate::equipment::drop_equipment(world, mob, pos);
+    }
+
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
     let index_map: HashMap<Entity, u32> =
@@ -423,6 +437,16 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some(n) = es.power_die {
             em.insert(PowerDie(n));
+        }
+        // What a weapon does when it is thrown is fixed by its catalog row, the
+        // same as what a ring lends its wearer: read back from the table rather
+        // than stored in every save file.
+        if let Some(def) = entity_name
+            .as_deref()
+            .filter(|_| es.equipped == Some(Slot::Hand))
+            .and_then(|n| WEAPONS.iter().find(|w| w.name == n))
+        {
+            em.insert(ThrownDamage(def.power_die));
         }
         if let Some(n) = es.power_bonus {
             em.insert(PowerBonus(n));

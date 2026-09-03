@@ -58,6 +58,19 @@ pub struct SeesInvisible;
 #[derive(Component, Default, Clone, Copy)]
 pub struct SustainsStrength;
 
+/// This creature knows what items are *for*. It catches gear thrown at it and
+/// puts it on — a hobgoblin that fields your dagger will be wielding it next
+/// turn — and it can read a scroll that lands on it, out loud, with whatever
+/// consequences that brings. Anything with the wits to work a sword has the wits
+/// to work a page, so it is one flag rather than two. See
+/// [`crate::items::throw_system`].
+///
+/// Hands and wits, not magic: it lives in the effect registry because that is
+/// where a creature's innate properties live — and so a wand of cancellation can
+/// knock the sense out of one.
+#[derive(Component, Default, Clone, Copy)]
+pub struct ItemUser;
+
 /// Every so often, everything on the floor learns where this creature is (a
 /// ring of aggravate monster). A *passive* ability that fires on a roll rather
 /// than continuously — the odds and the flavour belong to the ability, not to
@@ -182,6 +195,7 @@ pub const EFFECTS: &[Grant] = &[
     Grant::of::<SeesInvisible>(),
     Grant::of::<SustainsStrength>(),
     Grant::of::<AggravatesMonsters>(),
+    Grant::of::<ItemUser>(),
 ];
 
 /// The effects an entity hands out: innate magic on a monster, the effects a

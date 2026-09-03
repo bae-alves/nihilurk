@@ -224,6 +224,9 @@ impl ItemDef for WeaponDef {
                 Item,
                 Equipped::loose(Slot::Hand),
                 PowerDie(self.power_die),
+                // A weapon is as dangerous thrown as it is swung — its class is
+                // the die either way.
+                ThrownDamage(self.power_die),
             ))
             .id()
     }

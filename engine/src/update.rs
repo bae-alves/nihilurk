@@ -197,14 +197,20 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             if cancel {
                 target_state.active = false;
                 target_state.item = None;
+                target_state.throwing = false;
                 return Ok(false); // Cancelled aiming, no turn consumed
             }
 
             if dx != 0 || dy != 0 {
                 // 1. Grab what we need from TargetingState and drop it instantly
-                let (cursor_item, cursor_x, cursor_y) = {
+                let (cursor_item, cursor_x, cursor_y, throwing) = {
                     let target_state = world.resource::<TargetingState>();
-                    (target_state.item, target_state.cursor_x, target_state.cursor_y)
+                    (
+                        target_state.item,
+                        target_state.cursor_x,
+                        target_state.cursor_y,
+                        target_state.throwing,
+                    )
                 }; // target_state borrow is dead and gone here
 
                 let new_x = cursor_x.saturating_add(dx);
@@ -216,11 +222,14 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     let pos = world.get::<Position>(player_entity).unwrap();
                     let p_pos = (pos.x, pos.y);
                     
-                    let mut range = 8; // Fallback range
-                    if let Some(item_entity) = cursor_item {
-                        if let Some(ranged) = world.get::<Ranged>(item_entity) {
-                            range = ranged.range;
-                        }
+                    // A thrown item flies as far as an arm can send it; a zapped
+                    // one as far as its own `Ranged` says.
+                    let mut range = if throwing { THROW_RANGE } else { 8 };
+                    if let Some(ranged) = cursor_item
+                        .filter(|_| !throwing)
+                        .and_then(|item| world.get::<Ranged>(item))
+                    {
+                        range = ranged.range;
                     }
 
                     let viewshed = world.get::<Viewshed>(player_entity).unwrap();
@@ -251,7 +260,9 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 let tx = target_state.cursor_x;
                 let ty = target_state.cursor_y;
                 let item_entity = target_state.item.unwrap();
+                let throwing = target_state.throwing;
                 target_state.item = None;
+                target_state.throwing = false;
                 drop(target_state);
 
                 let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next().unwrap();
@@ -275,13 +286,23 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
 
                 if let Some(item) = extracted_item {
-                    let mut use_queue = world.resource_mut::<UseQueue>();
-                    use_queue.uses.push(WantsToUse { 
-                        user: player_entity, 
-                        item,
-                        target: Some(Position { x: tx as u16, y: ty as u16 }),
-                        slot_idx: original_idx,
-                    });
+                    let target = Position { x: tx as u16, y: ty as u16 };
+                    if throwing {
+                        // A thrown item is gone from the pack for good — where it
+                        // ends up is `throw_system`'s business.
+                        world.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
+                            thrower: player_entity,
+                            item,
+                            target,
+                        });
+                    } else {
+                        world.resource_mut::<UseQueue>().uses.push(WantsToUse {
+                            user: player_entity,
+                            item,
+                            target: Some(target),
+                            slot_idx: original_idx,
+                        });
+                    }
                     return Ok(true);
                 }
 
@@ -311,13 +332,14 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 let mut confirm_action = false;
                 let mut new_action_sel = action_selected;
                 
+                const ACTION_COUNT: usize = 3;
                 match key.code {
                     KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
-                    KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => { 
-                        new_action_sel = if new_action_sel == 0 { 1 } else { 0 }; 
+                    KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
+                        new_action_sel = (new_action_sel + ACTION_COUNT - 1) % ACTION_COUNT;
                     }
-                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => { 
-                        new_action_sel = if new_action_sel == 1 { 0 } else { 1 }; 
+                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
+                        new_action_sel = (new_action_sel + 1) % ACTION_COUNT;
                     }
                     KeyCode::Enter | KeyCode::Char(' ') => confirm_action = true,
                     _ => {}
@@ -346,40 +368,80 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                             } else { None }
                         } else { None };
                         
-                        // 2. Route to correct action
+                        // 2. Route to correct action. Which row is which is the
+                        // ActionMenu's business (see `-dropthrow`), not ours.
                         if let Some(item) = item_entity {
-                            if new_action_sel == 0 { // USE
-                                // Needs the aiming reticle: any ranged item,
-                                // except the wand of light (self-targeted).
-                                let is_ranged = world.get::<Ranged>(item).is_some()
-                                    && world
-                                        .get::<Wand>(item)
-                                        .map_or(true, |w| w.effect.needs_target());
+                            match world.resource::<ActionMenu>().at(new_action_sel) {
+                                ItemAction::Use => {
+                                    // Needs the aiming reticle: any ranged item,
+                                    // except the wand of light (self-targeted).
+                                    let is_ranged = world.get::<Ranged>(item).is_some()
+                                        && world
+                                            .get::<Wand>(item)
+                                            .map_or(true, |w| w.effect.needs_target());
 
-                                if is_ranged {
-                                    // Put it right back exactly where it was!
+                                    if is_ranged {
+                                        // Put it right back exactly where it was!
+                                        if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                                            backpack.items.insert(action_item_idx, item);
+                                        }
+
+                                        let player_pos = *world.get::<Position>(player).unwrap();
+                                        let mut target_state = world.resource_mut::<TargetingState>();
+                                        target_state.active = true;
+                                        target_state.item = Some(item);
+                                        target_state.throwing = false;
+                                        target_state.cursor_x = player_pos.x as i16;
+                                        target_state.cursor_y = player_pos.y as i16;
+
+                                        turn_taken = false; // Override: aiming takes no time!
+                                    } else {
+                                        let mut use_queue = world.resource_mut::<UseQueue>();
+                                        use_queue.uses.push(WantsToUse { user: player, item:item, target: None, slot_idx: Some(action_item_idx)});
+                                    }
+                                }
+                                ItemAction::Throw => {
+                                    // Aiming a throw costs nothing, and the item
+                                    // waits in the pack until it is loosed.
                                     if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
                                         backpack.items.insert(action_item_idx, item);
                                     }
+                                    turn_taken = false;
 
-                                    let player_pos = world.get::<Position>(player).unwrap().clone();
-                                    let mut target_state = world.resource_mut::<TargetingState>();
-                                    target_state.active = true;
-                                    target_state.item = Some(item);
-                                    target_state.cursor_x = player_pos.x as i16;
-                                    target_state.cursor_y = player_pos.y as i16;
-                                    
-                                    turn_taken = false; // Override: aiming takes no time!
-                                } else {
-                                    let mut use_queue = world.resource_mut::<UseQueue>();
-                                    use_queue.uses.push(WantsToUse { user: player, item:item, target: None, slot_idx: Some(action_item_idx)});
+                                    // Some things won't leave your hand: the
+                                    // Element, and anything cursed you're wearing.
+                                    if let Some(refusal) = throw_refusal(world, player, item) {
+                                        world.resource_mut::<GameLog>().add(refusal);
+                                    } else {
+                                        let player_pos = *world.get::<Position>(player).unwrap();
+                                        let mut target_state = world.resource_mut::<TargetingState>();
+                                        target_state.active = true;
+                                        target_state.item = Some(item);
+                                        target_state.throwing = true;
+                                        target_state.cursor_x = player_pos.x as i16;
+                                        target_state.cursor_y = player_pos.y as i16;
+                                    }
                                 }
-                            } else { // DROP
-                                let player_pos = world.get::<Position>(player).cloned();
-                                if let Some(pos) = player_pos {
-                                    world.entity_mut(item).insert(pos);
-                                    let mut log = world.resource_mut::<GameLog>();
-                                    log.add("You dropped an item.".to_string());
+                                ItemAction::Drop => {
+                                    // Cursed gear won't come off, so it can't be
+                                    // put down either — the same rule that stops
+                                    // it being thrown. Anything else you let go
+                                    // of is un-equipped on the way down, so a
+                                    // sword on the floor stops sharpening your
+                                    // arm.
+                                    if let Some(refusal) = drop_refusal(world, player, item) {
+                                        if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                                            backpack.items.insert(action_item_idx, item);
+                                        }
+                                        world.resource_mut::<GameLog>().add(refusal);
+                                        turn_taken = false;
+                                    } else if let Some(pos) = world.get::<Position>(player).cloned() {
+                                        force_unequip(world, item);
+                                        sync_equipment_effects(world, player);
+                                        world.entity_mut(item).insert(pos);
+                                        let name = models::display_name(world, item);
+                                        world.resource_mut::<GameLog>().add(format!("You drop the {name}."));
+                                    }
                                 }
                             }
                         }

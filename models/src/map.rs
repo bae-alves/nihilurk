@@ -823,6 +823,18 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         .next()
         .unwrap();
 
+    // Gear a monster picked up is carried without a Position, so lay it out on
+    // the floor first — otherwise the sweep below walks straight past it and it
+    // haunts the save forever.
+    let armed_mobs: Vec<(Entity, Position)> = world
+        .query_filtered::<(Entity, &Position), (With<Mob>, Without<Player>)>()
+        .iter(world)
+        .map(|(e, p)| (e, *p))
+        .collect();
+    for (mob, pos) in armed_mobs {
+        crate::equipment::drop_equipment(world, mob, pos);
+    }
+
     // Despawn every monster and every item lying on the floor. Backpack contents
     // (which carry no Position) are left untouched.
     let backpacked: HashSet<Entity> = world

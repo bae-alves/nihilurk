@@ -764,27 +764,24 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
     screen.hline(start_x + 1, bottom_y, '─', box_width, grey);
     screen.put(start_x + 1 + box_width, bottom_y, '┘', grey);
 
-    // Use / Drop action modal.
+    // Use / Throw / Drop action modal, in whatever order the ActionMenu says
+    // (`-dropthrow` swaps the last two).
     if let Some(action_idx) = action_mode {
+        let actions = world.resource::<ActionMenu>().actions();
         let mx = start_x + box_width + 2;
         let my = start_y + 1 + action_idx as u16;
         screen.puts(mx, my, "┌────────┐", grey);
-        screen.put(mx, my + 1, '│', grey);
-        screen.puts(
-            mx + 1,
-            my + 1,
-            " Use    ",
-            if action_selected == 0 { Color::Yellow } else { Color::White },
-        );
-        screen.put(mx + 9, my + 1, '│', grey);
-        screen.put(mx, my + 2, '│', grey);
-        screen.puts(
-            mx + 1,
-            my + 2,
-            " Drop   ",
-            if action_selected == 1 { Color::Yellow } else { Color::White },
-        );
-        screen.put(mx + 9, my + 2, '│', grey);
-        screen.puts(mx, my + 3, "└────────┘", grey);
+        for (row, action) in actions.iter().enumerate() {
+            let y = my + 1 + row as u16;
+            screen.put(mx, y, '│', grey);
+            screen.puts(
+                mx + 1,
+                y,
+                action.label(),
+                if action_selected == row { Color::Yellow } else { Color::White },
+            );
+            screen.put(mx + 9, y, '│', grey);
+        }
+        screen.puts(mx, my + 1 + actions.len() as u16, "└────────┘", grey);
     }
 }

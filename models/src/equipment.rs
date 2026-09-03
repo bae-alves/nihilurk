@@ -19,7 +19,7 @@
 use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{Backpack, Curse, GameLog};
+use crate::components::{Backpack, Curse, GameLog, Position};
 use crate::effects::{effect_set, EffectSet, GrantedByGear, Grants, EFFECTS};
 
 /// Where a piece of gear goes. One item per slot at a time.
@@ -51,8 +51,9 @@ impl Slot {
         }
     }
 
-    /// Why this cursed item won't come off.
-    fn stuck(self, name: &str) -> String {
+    /// Why this cursed item won't come off — and, by the same token, why it
+    /// can't be thrown (see [`crate::items::throw_refusal`]).
+    pub(crate) fn stuck(self, name: &str) -> String {
         match self {
             Slot::Hand => format!("You can't — the {name} is welded to your grip!"),
             Slot::Body => format!("You can't — the {name} clings to you and won't come off!"),
@@ -154,6 +155,36 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     sync_equipment_effects(world, user);
     crate::identify::learn_by_wearing(world, item);
     true
+}
+
+/// Puts `item` on `wearer` with none of the player-facing ceremony: no curse
+/// check, no log line, and it refuses rather than swapping if the slot is
+/// already taken. This is how a creature that is not the player comes by gear —
+/// an orc catching a thrown dagger ([`crate::items::throw_system`]). Returns
+/// whether it went on.
+pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
+    let Some(slot) = world.get::<Equipped>(item).map(|e| e.slot) else {
+        return false;
+    };
+    if equipped_in(world, wearer, slot).is_some() {
+        return false;
+    }
+    if let Some(mut e) = world.get_mut::<Equipped>(item) {
+        e.by = Some(wearer);
+    }
+    sync_equipment_effects(world, wearer);
+    true
+}
+
+/// Strips everything `wearer` has equipped and lays it out on `at` — the gear a
+/// dying creature leaves behind, and the gear a monster abandons when the floor
+/// it stands on is torn down. Curses are no obstacle: the wearer is past caring.
+pub fn drop_equipment(world: &mut World, wearer: Entity, at: Position) {
+    for item in equipped_items(world, wearer) {
+        force_unequip(world, item);
+        world.entity_mut(item).insert(at);
+    }
+    sync_equipment_effects(world, wearer);
 }
 
 /// Reconciles the effects `bearer` has on loan from its gear with the effects

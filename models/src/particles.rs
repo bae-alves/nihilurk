@@ -134,6 +134,24 @@ impl Particles {
         }
     }
 
+    /// A thrown object in flight: the item's own glyph hopping cell by cell from
+    /// the thrower's hand to wherever it stops. Slower than a wand bolt — you
+    /// can watch a dagger travel. `pts` is the traced line, thrower's own tile
+    /// excluded.
+    pub fn hurl(&mut self, pts: &[(u16, u16)], glyph: char, color: Color) {
+        const TRAVEL_MS_PER_CELL: f32 = 28.0;
+        for (i, &(x, y)) in pts.iter().enumerate() {
+            self.push(Particle {
+                x,
+                y,
+                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
+                lifetime_ms: TRAVEL_MS_PER_CELL * 1.5,
+                age_ms: 0.0,
+                frames: vec![(glyph, color)],
+            });
+        }
+    }
+
     /// A DCSS-style area blast. `cells` is `(x, y, distance_from_centre)` for
     /// every tile the blast covers (already LOS-checked by the caller); the ring
     /// of flame expands outward from the core and every cell cycles through the

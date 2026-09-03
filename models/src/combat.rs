@@ -5,7 +5,7 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
 use crate::effects::{equipped_total, ArmorBonus, ArmorDie, PowerBonus, PowerDie, VorpalTarget};
-use crate::equipment::equipped_items;
+use crate::equipment::{equipped_items, force_unequip};
 use crate::map::GameRng;
 use crate::particles::Particles;
 use crate::state::Ending;
@@ -83,7 +83,38 @@ pub fn reaper_system(world: &mut World) {
         } else {
             let name = entity_name(world, entity);
             world.resource_mut::<GameLog>().add(format!("The {name} dies."));
+            leave_gear_behind(world, entity);
             world.despawn(entity);
+        }
+    }
+}
+
+/// The odds that any one piece of a dead creature's gear is still worth picking
+/// up. The rest went down with it — snapped, fouled, or simply lost in the mess.
+const GEAR_SURVIVES_DEATH: f64 = 0.5;
+
+/// Settles what a dying creature was wearing, item by item. Each piece gets its
+/// own [`GEAR_SURVIVES_DEATH`] coin flip: heads it clatters onto the corpse's
+/// tile, announced so the player knows there is something to go back for; tails
+/// it is destroyed with its owner and never mentioned again.
+///
+/// This is what stops a thrown dagger an orc caught (see
+/// [`crate::items::throw_system`]) from either vanishing silently into the dead
+/// entity or coming back every single time.
+fn leave_gear_behind(world: &mut World, entity: Entity) {
+    let Some(pos) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    for item in equipped_items(world, entity) {
+        force_unequip(world, item);
+        if world.resource_mut::<GameRng>().0.gen_bool(GEAR_SURVIVES_DEATH) {
+            let name = crate::identify::display_name(world, item);
+            world.entity_mut(item).insert(pos);
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("The {name} clatters to the floor."));
+        } else {
+            world.entity_mut(item).despawn();
         }
     }
 }
@@ -242,6 +273,7 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
             ending.player_dead = true;
             ending.cause = format!("Slain by the {attacker_name}");
         } else {
+            leave_gear_behind(world, target);
             world.despawn(target);
         }
     }

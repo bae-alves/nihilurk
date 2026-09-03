@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use crate::components::*;
-use crate::effects::{grant_all, ColdImmune, FireImmune, Grant, Grants, Undead, VorpalTarget};
+use crate::effects::{grant_all, ColdImmune, FireImmune, Grant, Grants, ItemUser, Undead, VorpalTarget};
 use MovementType::{Chase, Confused, Flee, Static};
 
 /// Static, per-species description: everything about a monster that does not vary
@@ -85,6 +85,14 @@ impl MonsterDef {
     }
 }
 
+/// The humanoids with the wits to use what they find: they catch thrown gear and
+/// wear it, and they read thrown scrolls aloud. The brutes that already fight
+/// with steel — goblin, orc, hobgoblin, troll — and the cunning ones that covet
+/// it: the centaur, the two thieves, the medusa, the ur-vile, the vampire. The
+/// mindless humanoids are deliberately left out: a zombie has hands and no idea
+/// what to do with them.
+const ITEM_USER: &[Grant] = &[Grant::of::<ItemUser>()];
+
 /// The whole bestiary: the classic goblin plus the 26 lettered creatures, in one
 /// table. Effects that pick a creature at random (scrolls of create monster and
 /// vorpalize weapon) index straight into it.
@@ -109,29 +117,29 @@ impl MonsterDef {
 #[rustfmt::skip]
 pub const BESTIARY: &[MonsterDef] = &[
     //              name             glyph  colour              move       hp  pow  pb   ar  ab  tier
-    MonsterDef::row("goblin",        'g',   Color::Green,       Flee,       1,   4,   0,   6,  0,   0),
+    MonsterDef::row("goblin",        'g',   Color::Green,       Flee,       1,   4,   0,   6,  0,   0).grants(ITEM_USER),
     MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      3,   4,  -1,   8,  1,   1),
     MonsterDef::row("bat",           'B',   Color::DarkGrey,    Confused,   1,   4,   0,   8,  0,   0),
-    MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   1),
+    MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   1).grants(ITEM_USER),
     MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,   3).grants(&[Grant::of::<FireImmune>()]),
     MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      1,   4,   0,   4,  1,   0),
     MonsterDef::row("venus flytrap", 'F',   Color::Green,       Static,     6,  10,   0,   8,  0,   2),
     MonsterDef::row("griffin",       'G',   Color::DarkYellow,  Chase,     10,  12,   1,   8,  1,   3),
-    MonsterDef::row("hobgoblin",     'H',   Color::DarkRed,     Chase,      1,   8,   0,   6,  0,   0),
+    MonsterDef::row("hobgoblin",     'H',   Color::DarkRed,     Chase,      1,   8,   0,   6,  0,   0).grants(ITEM_USER),
     MonsterDef::row("ice monster",   'I',   Color::Cyan,        Static,     1,   4,   0,   4, -1,   0),
     MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     12,   8,   5,   6,  0,   3).grants(&[Grant::of::<VorpalTarget>()]),
     MonsterDef::row("kestral",       'K',   Color::Grey,        Chase,      1,   4,   0,   4,  1,   0),
-    MonsterDef::row("leprechaun",    'L',   Color::Green,       Flee,       2,   4,   0,   4,  0,   1),
-    MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      6,  10,   0,   8,  1,   2),
-    MonsterDef::row("nymph",         'N',   Color::Magenta,     Flee,       2,   4,  -1,   4, -1,   1),
-    MonsterDef::row("orc",           'O',   Color::Red,         Chase,      1,   8,   0,   6,  0,   0),
+    MonsterDef::row("leprechaun",    'L',   Color::Green,       Flee,       2,   4,   0,   4,  0,   1).grants(ITEM_USER),
+    MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      6,  10,   0,   8,  1,   2).grants(ITEM_USER),
+    MonsterDef::row("nymph",         'N',   Color::Magenta,     Flee,       2,   4,  -1,   4, -1,   1).grants(ITEM_USER),
+    MonsterDef::row("orc",           'O',   Color::Red,         Chase,      1,   8,   0,   6,  0,   0).grants(ITEM_USER),
     MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      6,  10,   0,   8,  0,   2).grants(&[Grant::of::<Undead>()]).invisible(),
     MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      2,   6,   0,   8,  1,   1),
     MonsterDef::row("rattlesnake",   'R',   Color::DarkGreen,   Chase,      2,   6,   0,   8,  0,   1),
     MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      2,   4,   0,   4,  0,   1),
-    MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      4,  10,   0,   6,  1,   2),
-    MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      5,  10,   0,  12,  1,   2),
-    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,   3).grants(&[Grant::of::<Undead>()]),
+    MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      4,  10,   0,   6,  1,   2).grants(ITEM_USER),
+    MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      5,  10,   0,  12,  1,   2).grants(ITEM_USER),
+    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,   3).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>()]),
     MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   2).grants(&[Grant::of::<Undead>()]),
     MonsterDef::row("xeroc",         'X',   Color::Yellow,      Static,     5,   8,   0,   4,  1,   2),
     MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      3,   8,   0,   6,  0,   1).grants(&[Grant::of::<ColdImmune>()]),

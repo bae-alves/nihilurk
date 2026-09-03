@@ -129,6 +129,7 @@ fn main() -> std::io::Result<()> {
     let mut centered_mode = false;
     let mut no_save = false;
     let mut no_blood = false;
+    let mut drop_first = false;
     let mut player_name = "Roog".to_string();
     let mut positional: Option<String> = None;
     let mut iter = args.iter();
@@ -144,6 +145,8 @@ fn main() -> std::io::Result<()> {
             no_save = true;
         } else if arg == "-nb" {
             no_blood = true;
+        } else if arg == "-dropthrow" {
+            drop_first = true;
         } else {
             positional = Some(arg.clone());
         }
@@ -211,7 +214,9 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.insert_resource(models::RngSeed(seed_value));
     world.insert_resource(PackIsOpen {open: false, selected: 0 as usize, action_mode: None, action_selected: 0});
     world.insert_resource(RenderConfig { centered: centered_mode });
-    world.insert_resource(TargetingState {active: false, item: None, cursor_x: 0, cursor_y: 0});
+    world.insert_resource(TargetingState {active: false, item: None, throwing: false, cursor_x: 0, cursor_y: 0});
+    // Use always leads the item menu; `-dropthrow` puts Drop ahead of Throw.
+    world.insert_resource(ActionMenu { drop_first });
     world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
     world.insert_resource(Depth {what: 1 as u8});
     world.init_resource::<DungeonLord>();
@@ -222,6 +227,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<MagicMapReveal>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
+    world.init_resource::<ThrowQueue>();
     world.init_resource::<PlayerTempo>();
     world.init_resource::<GameLog>();
     world.insert_resource(models::Particles::new());
@@ -245,7 +251,8 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         passive_ability_system.after(snare_system),
         ai.after(passive_ability_system),
         trap_system.after(ai),
-        item_system.after(trap_system),
+        throw_system.after(trap_system),
+        item_system.after(throw_system),
         // Gear changed by anything other than the pack screen — a loaded save, a
         // curse-lifting scroll — has its lent effects reconciled here, before
         // combat and visibility read them.

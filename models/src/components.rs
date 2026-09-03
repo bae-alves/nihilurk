@@ -208,11 +208,65 @@ pub struct WantsToUse {
     pub slot_idx: Option<usize>
 }
 
+/// A hurled item, in flight from `thrower` towards `target`. Resolved by
+/// [`crate::items::throw_system`], which is where it finds out what it hits.
+#[derive(Event, Clone, Copy)]
+pub struct WantsToThrow {
+    pub thrower: Entity,
+    pub item: Entity,
+    pub target: Position,
+}
+
 #[derive(Component, PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Faction {
     Player,
     Monster,
     Ally,
+}
+
+/// What the pack screen can do with the item under the cursor. The list itself
+/// lives in [`ActionMenu`]; nothing else in the game enumerates these.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ItemAction {
+    /// Quaff / read / zap / wear it, depending on what it is.
+    Use,
+    /// Put it down on the tile you're standing on.
+    Drop,
+    /// Hurl it at a spot you pick with the aiming reticle.
+    Throw,
+}
+
+impl ItemAction {
+    /// The label the pack screen paints, padded to the modal's inner width.
+    pub fn label(self) -> &'static str {
+        match self {
+            ItemAction::Use => " Use    ",
+            ItemAction::Drop => " Drop   ",
+            ItemAction::Throw => " Throw  ",
+        }
+    }
+}
+
+/// The order the three item actions are offered in. Use always leads; `-dropthrow`
+/// swaps the other two, for players who reach for Drop far more often than Throw.
+#[derive(Resource, Default)]
+pub struct ActionMenu {
+    pub drop_first: bool,
+}
+
+impl ActionMenu {
+    pub fn actions(&self) -> [ItemAction; 3] {
+        if self.drop_first {
+            [ItemAction::Use, ItemAction::Drop, ItemAction::Throw]
+        } else {
+            [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
+        }
+    }
+
+    /// The action sitting at menu row `idx`.
+    pub fn at(&self, idx: usize) -> ItemAction {
+        self.actions()[idx.min(2)]
+    }
 }
 
 #[derive(Resource, Default)]
@@ -231,6 +285,11 @@ pub struct AttackQueue {
 #[derive(Resource, Default)]
 pub struct UseQueue {
     pub uses: Vec<WantsToUse>,
+}
+
+#[derive(Resource, Default)]
+pub struct ThrowQueue {
+    pub throws: Vec<WantsToThrow>,
 }
 
 /// Drives the player's half of the speed system (see [`Speed`]). The engine loop
@@ -321,6 +380,10 @@ pub enum ScrollEffect {
 pub struct TargetingState {
     pub active: bool,
     pub item: Option<Entity>,
+    /// The reticle is aiming a throw rather than a zap: the range is
+    /// [`crate::items::THROW_RANGE`] instead of the item's own, and confirming
+    /// hurls the item instead of using it.
+    pub throwing: bool,
     pub cursor_x: i16,
     pub cursor_y: i16,
 }
@@ -378,6 +441,14 @@ pub struct Item;
 
 #[derive(Component)]
 pub struct Consume;
+
+/// What this item does to a creature it is thrown into: the die rolled on
+/// impact, before the target's armour plus is taken off (see
+/// [`crate::items::throw_system`]). Only things meant to hurt when they land
+/// carry it — a dagger does, a wand does not, and an item without one simply
+/// bounces off and falls at the target's feet.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThrownDamage(pub i32);
 
 #[derive(Component)]
 pub struct Battery {

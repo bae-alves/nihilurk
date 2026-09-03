@@ -176,7 +176,8 @@ fn undead_are_immune_to_draining_and_grant_no_lifesteal() {
 
     assert_eq!(w.get::<Fighter>(zombie).unwrap().hp, zhp, "the undead takes no drain damage");
     assert_eq!(w.get::<Fighter>(p).unwrap().hp, 5, "and the zapper heals nothing");
-    assert!(w.resource::<GameLog>().history.iter().any(|l| l.contains("unharmed by the draining magic")));
+    // The wand's flavour noun for draining is "evil magic" (see `Element::noun`).
+    assert!(w.resource::<GameLog>().history.iter().any(|l| l.contains("unharmed by the evil magic")));
 }
 
 // ---------------------------------------------------------------------------
