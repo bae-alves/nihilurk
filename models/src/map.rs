@@ -8,8 +8,8 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::{
-    spawn_element_of_yoord, spawn_wand, ItemDef, ARMORS, COINS, POTIONS, RINGS, SCROLLS, WANDS,
-    WEAPONS,
+    spawn_element_of_yoord, spawn_wand, ItemDef, AMMO, ARMORS, COINS, LAUNCHERS, POTIONS, RINGS,
+    SCROLLS, WANDS, WEAPONS,
 };
 use crate::rect::Rect;
 use crate::components::*;
@@ -503,6 +503,33 @@ fn pick_monster(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
     pool[rng.gen_range(0..pool.len())]
 }
 
+/// Picks one row from a catalog table uniformly and spawns it as a floor drop —
+/// enchantment, battery charge, bundle size and all, whatever that category
+/// rolls for itself.
+fn one<D: ItemDef>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, table: &[D]) -> Entity {
+    table[rng.gen_range(0..table.len())].spawn_as_loot(world, rng, pos)
+}
+
+/// One drop from the armoury. A bow and a quiver of arrows are weapons like any
+/// other, so they come out of the weapon share rather than a category of their
+/// own — finding one is finding your weapon for the floor.
+///
+/// | Roll | What                                  |
+/// |------|---------------------------------------|
+/// | 45%  | a melee weapon                        |
+/// | 35%  | a bundle of 3-12 arrows or quarrels   |
+/// | 20%  | a bow or a crossbow                   |
+///
+/// Launchers are the rarest of the three on purpose: one bow is a build, two are
+/// clutter.
+fn spawn_weapon_drop(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
+    match rng.gen_range(0..100) {
+        0..=44 => one(world, rng, pos, WEAPONS),
+        45..=79 => one(world, rng, pos, AMMO),
+        _ => one(world, rng, pos, LAUNCHERS),
+    }
+}
+
 /// Rolls one floor item and spawns it at `pos`. Category odds follow the classic
 /// Rogue drop table (food is swapped for coins); within a category every entry
 /// is equally likely.
@@ -516,19 +543,16 @@ fn pick_monster(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
 /// | Weapons  |  8%  |
 /// | Wands    |  5%  |
 /// | Rings    |  5%  |
+///
+/// "Weapons" is the whole armoury — swords, ammunition and launchers alike (see
+/// [`spawn_weapon_drop`]).
 fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
-    /// Picks one row from a catalog table uniformly and spawns it as a floor
-    /// drop — enchantment, battery charge and all, whatever that category rolls.
-    fn one<D: ItemDef>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, table: &[D]) -> Entity {
-        table[rng.gen_range(0..table.len())].spawn_as_loot(world, rng, pos)
-    }
-
     match rng.gen_range(0..100) {
         0..=29 => one(world, rng, pos, SCROLLS),
         30..=56 => one(world, rng, pos, POTIONS),
         57..=73 => one(world, rng, pos, COINS),
         74..=81 => one(world, rng, pos, ARMORS),
-        82..=89 => one(world, rng, pos, WEAPONS),
+        82..=89 => spawn_weapon_drop(world, rng, pos),
         90..=94 => one(world, rng, pos, WANDS),
         _ => one(world, rng, pos, RINGS),
     }

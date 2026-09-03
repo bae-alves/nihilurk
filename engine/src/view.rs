@@ -226,6 +226,7 @@ pub fn render<W: Write>(
         arm_die += equipped_total::<ArmorDie>(world, pe);
         arm_flat += equipped_total::<ArmorBonus>(world, pe);
     }
+    let throw_flat = player_entity.map_or(0, |pe| equipped_total::<ThrowBonus>(world, pe));
 
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
     // Carrying the Element of Yoord recolours the auto-walk badge: the descent is
@@ -276,15 +277,21 @@ pub fn render<W: Write>(
                 format!("{die}")
             }
         };
-        let fields = [
+        let mut fields = vec![
             player_name.to_uppercase(),
             format!("HP {}/{}", player_hp, player_max_hp),
             format!("Ma {}/{}", player_magic, player_max_magic),
             format!("Pow. {}", stat(pow_die, pow_flat)),
             format!("Arm. {}", stat(arm_die, arm_flat)),
-            format!("DEPTH {}", depth),
-            format!("SCORE {:06}", player_score),
         ];
+        // What a throw is worth is only worth a HUD field once something is
+        // making it worth something — a bow, a ring of dexterity. A player who
+        // never throws never sees it.
+        if throw_flat != 0 {
+            fields.push(format!("Thr. {throw_flat:+}"));
+        }
+        fields.push(format!("DEPTH {}", depth));
+        fields.push(format!("SCORE {:06}", player_score));
         let mut hx: u16 = 1;
         for (i, field) in fields.iter().enumerate() {
             if i > 0 {

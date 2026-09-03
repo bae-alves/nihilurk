@@ -104,19 +104,15 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
             world.entity_mut(item_entity).remove::<Invisible>();
             world.resource_mut::<GameLog>().add("Hey! There's something here!".to_string());
         }
-        let mut picked_up = false;
-        if let Some(mut backpack) = world.get_mut::<Backpack>(player_entity) {
-            backpack.items.push(item_entity);
-            picked_up = true;
-        }
-        if picked_up {
-            world.entity_mut(item_entity).remove::<Position>();
-            let is_element = world.get::<Amulet>(item_entity).is_some();
+        // `stow` owns the pack from here: it merges arrows into a quiver you are
+        // already carrying, and can leave part of a pile behind when that quiver
+        // is full — so the item may not survive the call.
+        let is_element = world.get::<Amulet>(item_entity).is_some();
+        if let Some(taken) = models::stow(world, player_entity, item_entity) {
             let msg = if is_element {
                 "You take the Element of Yoord. \"The element of Yoord seeks the sun.\"".to_string()
             } else {
-                let name = models::display_name(world, item_entity);
-                format!("You pick up {} {name}.", models::article_for(&name))
+                format!("You pick up {taken}.")
             };
             world.resource_mut::<GameLog>().add(msg);
         }
@@ -289,10 +285,13 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     let target = Position { x: tx as u16, y: ty as u16 };
                     if throwing {
                         // A thrown item is gone from the pack for good — where it
-                        // ends up is `throw_system`'s business.
+                        // ends up is `throw_system`'s business. A quiver is the
+                        // exception: it gives up one arrow and goes back in its
+                        // own slot.
+                        let missile = models::draw_one(world, player_entity, item, original_idx);
                         world.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
                             thrower: player_entity,
-                            item,
+                            item: missile,
                             target,
                         });
                     } else {

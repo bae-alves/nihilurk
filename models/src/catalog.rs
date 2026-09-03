@@ -7,6 +7,11 @@
 //! system shuffles appearances over the rows ([`crate::identify`]), and combat
 //! reads the components the rows attached ([`crate::effects`]).
 //!
+//! Bows are the newest case of it. A bow is not a weapon with a special "fires
+//! arrows" mode; it is an item that [`Grants`] [`FireArrow`], and an arrow is an
+//! item that says it answers to [`FireArrow`] ([`LaunchedBy`]). Neither knows the
+//! other exists, and a sling is one row in each table away.
+//!
 //! Rings are the clearest case of the design. A ring of protection is not a
 //! `RingEffect::Protection` that seven files have to recognise; it is an item
 //! carrying [`ArmorBonus`]`(2)`, which combat already folds in for plate mail.
@@ -208,13 +213,109 @@ pub const WANDS: &[WandDef] = &[
 /// A weapon. `power_die` is what wielding it adds to the attack die — the
 /// classic weapon class, expressed as the [`PowerDie`] modifier combat already
 /// knows how to fold in.
+///
+/// Every weapon can be hurled; what separates one built for it from one that
+/// merely tolerates it is `.missile()`. A mace leaves your hand as an improvised
+/// lump — worth its own class, blunted by the target's armour, and liable to be
+/// plucked out of the air by anything with hands and used on you. A dagger or a
+/// spear is balanced for the flight ([`Projectile`]) and, being balanced, does
+/// not stop at the first body it finds ([`Piercing`]).
 pub struct WeaponDef {
     pub name: &'static str,
     pub color: Color,
     pub power_die: i32,
+    /// The die it rolls when thrown. Defaults to `power_die` — a weapon is as
+    /// dangerous thrown as it is swung unless the row says otherwise.
+    thrown_die: i32,
+    /// Purpose-built for throwing: ignores armour, is spent on what it hits, and
+    /// is never caught.
+    projectile: bool,
+    /// Whether the throw carries on through everything on its line (see
+    /// [`Piercing`]).
+    piercing: bool,
+}
+
+impl WeaponDef {
+    const fn new(name: &'static str, color: Color, power_die: i32) -> Self {
+        Self { name, color, power_die, thrown_die: power_die, projectile: false, piercing: false }
+    }
+
+    /// A weapon shaped to fly: it rolls `die` on impact rather than its own
+    /// class, and behaves as a [`Projectile`].
+    const fn missile(mut self, die: i32) -> Self {
+        self.thrown_die = die;
+        self.projectile = true;
+        self
+    }
+
+    /// The throw does not stop at the first creature: it runs the whole line.
+    const fn piercing(mut self) -> Self {
+        self.piercing = true;
+        self
+    }
 }
 
 impl ItemDef for WeaponDef {
+    fn spawn(&self, world: &mut World, pos: Position) -> Entity {
+        let mut e = world.spawn((
+            Name { what: self.name.to_string() },
+            Renderable { glyph: ')', color: self.color },
+            pos,
+            Item,
+            Equipped::loose(Slot::Hand),
+            PowerDie(self.power_die),
+            ThrownDamage(self.thrown_die),
+        ));
+        attach_flight(&mut e, self.projectile, self.piercing);
+        e.id()
+    }
+
+    fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
+        let e = self.spawn(world, pos);
+        enchant_equipment(world, rng, e);
+        e
+    }
+}
+
+#[rustfmt::skip]
+pub const WEAPONS: &[WeaponDef] = &[
+    WeaponDef::new("dagger",           Color::Grey,     4).missile(4).piercing(),
+    WeaponDef::new("spear",            Color::DarkGrey, 6).missile(8).piercing(),
+    WeaponDef::new("mace",             Color::DarkGrey, 6),
+    WeaponDef::new("long sword",       Color::White,    8),
+    WeaponDef::new("two-handed sword", Color::Cyan,    10),
+];
+
+// ---------------------------------------------------------------------------
+// Ammunition and launchers
+// ---------------------------------------------------------------------------
+
+/// Ammunition: an arrow, a quarrel. Useless in the hand — it carries no
+/// [`PowerDie`] and no [`Equipped`], so there is nothing to wield and nothing to
+/// wear — and it exists only to be thrown.
+///
+/// Two things set it apart from every other item. It **stacks**: one pack slot
+/// holds up to [`STACK_LIMIT`] of them, and throwing spends one off the top. And
+/// it **answers to a launcher**: whoever throws it with `launched_by` already on
+/// them looses it properly, for double the die.
+pub struct AmmoDef {
+    pub name: &'static str,
+    pub color: Color,
+    /// The die one of these rolls, lobbed by hand. A launcher doubles it.
+    pub die: i32,
+    /// The effect that turns a lob into a shot (see [`LaunchedBy`]).
+    pub launched_by: Grant,
+}
+
+impl AmmoDef {
+    /// How many a floor drop arrives in. Never a lone arrow — finding one arrow
+    /// is not finding ammunition.
+    fn roll_bundle(rng: &mut ChaCha12Rng) -> u8 {
+        rng.gen_range(3..=12)
+    }
+}
+
+impl ItemDef for AmmoDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -222,11 +323,58 @@ impl ItemDef for WeaponDef {
                 Renderable { glyph: ')', color: self.color },
                 pos,
                 Item,
+                ThrownDamage(self.die),
+                Projectile,
+                LaunchedBy(self.launched_by),
+                Stack { count: 1 },
+            ))
+            .id()
+    }
+
+    fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
+        let bundle = Self::roll_bundle(rng);
+        let e = self.spawn(world, pos);
+        if let Some(mut stack) = world.get_mut::<Stack>(e) {
+            stack.count = bundle;
+        }
+        e
+    }
+}
+
+#[rustfmt::skip]
+pub const AMMO: &[AmmoDef] = &[
+    AmmoDef { name: "arrow",   color: Color::DarkYellow, die: 4, launched_by: Grant::of::<FireArrow>()   },
+    AmmoDef { name: "quarrel", color: Color::Grey,       die: 6, launched_by: Grant::of::<FireQuarrel>() },
+];
+
+/// A bow or a crossbow. Like a ring, and unlike every other thing you hold, it
+/// is a pure grant: no attack die, no armour die, nothing to roll. What it does
+/// is put [`FireArrow`] (or [`FireQuarrel`]) on whoever draws it, which is the
+/// only thing an arrow ever asks about.
+///
+/// Its enchantment has no melee roll to land on, so it lands on
+/// [`ThrowBonus`] — see [`enchant_equipment`]. The [`ThrowBonus(0)`] every
+/// launcher spawns with is what gives the enchantment somewhere to go.
+///
+/// [`ThrowBonus(0)`]: ThrowBonus
+pub struct LauncherDef {
+    pub name: &'static str,
+    pub color: Color,
+    pub grants: &'static [Grant],
+}
+
+impl ItemDef for LauncherDef {
+    fn spawn(&self, world: &mut World, pos: Position) -> Entity {
+        world
+            .spawn((
+                Name { what: self.name.to_string() },
+                Renderable { glyph: '}', color: self.color },
+                pos,
+                Item,
                 Equipped::loose(Slot::Hand),
-                PowerDie(self.power_die),
-                // A weapon is as dangerous thrown as it is swung — its class is
-                // the die either way.
-                ThrownDamage(self.power_die),
+                Launcher,
+                ThrowBonus(0),
+                Grants(self.grants),
             ))
             .id()
     }
@@ -239,12 +387,21 @@ impl ItemDef for WeaponDef {
 }
 
 #[rustfmt::skip]
-pub const WEAPONS: &[WeaponDef] = &[
-    WeaponDef { name: "dagger",           color: Color::Grey,     power_die:  4 },
-    WeaponDef { name: "mace",             color: Color::DarkGrey, power_die:  6 },
-    WeaponDef { name: "long sword",       color: Color::White,    power_die:  8 },
-    WeaponDef { name: "two-handed sword", color: Color::Cyan,     power_die: 10 },
+pub const LAUNCHERS: &[LauncherDef] = &[
+    LauncherDef { name: "bow",      color: Color::DarkYellow, grants: &[Grant::of::<FireArrow>()]   },
+    LauncherDef { name: "crossbow", color: Color::DarkGrey,   grants: &[Grant::of::<FireQuarrel>()] },
 ];
+
+/// Attaches the two markers that describe how a thing behaves in flight, and
+/// only when they say something — a mace carries neither.
+fn attach_flight(entity: &mut bevy_ecs::world::EntityWorldMut, projectile: bool, piercing: bool) {
+    if projectile {
+        entity.insert(Projectile);
+    }
+    if piercing {
+        entity.insert(Piercing);
+    }
+}
 
 /// A suit of armour. `armor_die` is what wearing it adds to the defence die.
 pub struct ArmorDef {
@@ -301,6 +458,7 @@ pub struct RingDef {
     power_bonus: i32,
     armor_die: i32,
     armor_bonus: i32,
+    throw_bonus: i32,
     /// The marker effects this ring lends its wearer. Read back on load, so a
     /// saved ring never has to store what its row already says.
     pub grants: &'static [Grant],
@@ -308,7 +466,16 @@ pub struct RingDef {
 
 impl RingDef {
     const fn new(effect: RingEffect, name: &'static str) -> Self {
-        Self { effect, name, power_die: 0, power_bonus: 0, armor_die: 0, armor_bonus: 0, grants: &[] }
+        Self {
+            effect,
+            name,
+            power_die: 0,
+            power_bonus: 0,
+            armor_die: 0,
+            armor_bonus: 0,
+            throw_bonus: 0,
+            grants: &[],
+        }
     }
 
     /// Flat modifier on the wearer's damage roll.
@@ -320,6 +487,12 @@ impl RingDef {
     /// Flat modifier on the wearer's armour roll.
     const fn armor_bonus(mut self, n: i32) -> Self {
         self.armor_bonus = n;
+        self
+    }
+
+    /// Flat modifier on everything the wearer throws.
+    const fn throw_bonus(mut self, n: i32) -> Self {
+        self.throw_bonus = n;
         self
     }
 
@@ -353,6 +526,7 @@ impl ItemDef for RingDef {
         insert_modifier(&mut e, PowerBonus(self.power_bonus));
         insert_modifier(&mut e, ArmorDie(self.armor_die));
         insert_modifier(&mut e, ArmorBonus(self.armor_bonus));
+        insert_modifier(&mut e, ThrowBonus(self.throw_bonus));
         if !self.grants.is_empty() {
             e.insert(Grants(self.grants));
         }
@@ -366,7 +540,7 @@ impl ItemDef for RingDef {
     }
 }
 
-/// The rings. Eight of the twelve are still inert — they have a name and an
+/// The rings. Seven of the twelve are still inert — they have a name and an
 /// appearance but no row content yet, which is exactly what "unwired" now looks
 /// like: give one a `.power_bonus(2)` or a `.grants(...)` and it works, with no
 /// other file touched.
@@ -383,8 +557,10 @@ pub const RINGS: &[RingDef] = &[
         .grants(&[Grant::of::<SeesInvisible>()]),
     RingDef::new(RingEffect::AggravateMonster, "ring of aggravate monster")
         .grants(&[Grant::of::<AggravatesMonsters>()]),
+    // A steady hand: worth as much on a hurled dagger as on a loosed arrow.
+    RingDef::new(RingEffect::Dexterity, "ring of dexterity")
+        .throw_bonus(2),
     RingDef::new(RingEffect::Adornment,      "ring of adornment"),
-    RingDef::new(RingEffect::Dexterity,      "ring of dexterity"),
     RingDef::new(RingEffect::IncreaseDamage, "ring of increase damage"),
     RingDef::new(RingEffect::Regeneration,   "ring of regeneration"),
     RingDef::new(RingEffect::SlowDigestion,  "ring of slow digestion"),
@@ -481,6 +657,49 @@ pub fn spawn_coin(world: &mut World, name: &str, pos: Position) -> Entity {
     named(COINS, name, |d| d.name, "coin").spawn(world, pos)
 }
 
+/// One arrow or quarrel. Ammunition arrives in bundles from the dungeon floor
+/// ([`AmmoDef::spawn_as_loot`]); this is the single unit tests and splits want.
+pub fn spawn_ammo(world: &mut World, name: &str, pos: Position) -> Entity {
+    named(AMMO, name, |d| d.name, "ammo").spawn(world, pos)
+}
+
+pub fn spawn_launcher(world: &mut World, name: &str, pos: Position) -> Entity {
+    named(LAUNCHERS, name, |d| d.name, "launcher").spawn(world, pos)
+}
+
+/// A fresh single unit of whatever `item` is a stack of, spawned nowhere in
+/// particular — the one arrow that leaves a quiver when you shoot it. `None` if
+/// `item` is not something the catalog knows how to make more of.
+///
+/// Re-rolling the row rather than copying the entity is the same trick the save
+/// file plays: a catalog row is the definition, so it is always cheaper to look
+/// one up by name than to remember what it said.
+pub fn split_one(world: &mut World, item: Entity) -> Option<Entity> {
+    let name = world.get::<Name>(item)?.what.clone();
+    let def = AMMO.iter().find(|d| d.name == name)?;
+    let one = def.spawn(world, Position { x: 0, y: 0 });
+    world.entity_mut(one).remove::<Position>();
+    Some(one)
+}
+
+/// Re-attaches what a catalog row gives an item that the save file does not
+/// store: how a weapon behaves in flight, what a bow lends its wielder, what a
+/// missile answers to. Keyed by name, the same way a ring's grants come back
+/// from [`RingDef::of`] — the row is the definition, so a save that stored these
+/// would only be storing the table twice.
+pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: &str) {
+    if let Some(def) = WEAPONS.iter().find(|d| d.name == name) {
+        entity.insert(ThrownDamage(def.thrown_die));
+        attach_flight(entity, def.projectile, def.piercing);
+    }
+    if let Some(def) = AMMO.iter().find(|d| d.name == name) {
+        entity.insert((ThrownDamage(def.die), Projectile, LaunchedBy(def.launched_by)));
+    }
+    if let Some(def) = LAUNCHERS.iter().find(|d| d.name == name) {
+        entity.insert((Launcher, Grants(def.grants)));
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Enchantment
 // ---------------------------------------------------------------------------
@@ -516,8 +735,9 @@ impl Quality {
 /// tag if it came up cursed.
 ///
 /// Which bonus applies is read off the item itself — a thing with a [`PowerDie`]
-/// is a weapon, a thing with an [`ArmorDie`] is armour — so a future item that
-/// does both gets both, and a ring (which has neither) gets only the tag.
+/// is a weapon, a thing with an [`ArmorDie`] is armour, a [`Launcher`] is a bow —
+/// so a future item that is two of those gets both pluses, and a ring (which is
+/// none of them) gets only the tag.
 pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) {
     let quality = Quality::roll(rng);
     let bonus: i32 = match quality {
@@ -534,6 +754,12 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     if entity.get::<ArmorDie>().is_some() {
         let base = entity.get::<ArmorBonus>().map(|b| b.0).unwrap_or(0);
         entity.insert(ArmorBonus(base + bonus));
+    }
+    // A bow rolls no die of its own — what it improves is the arrow — so its
+    // plus lands on the throw instead. A +3 bow is +3 on everything it looses.
+    if entity.contains::<Launcher>() {
+        let base = entity.get::<ThrowBonus>().map(|b| b.0).unwrap_or(0);
+        entity.insert(ThrowBonus(base + bonus));
     }
     if quality == Quality::Cursed {
         entity.insert(Curse);

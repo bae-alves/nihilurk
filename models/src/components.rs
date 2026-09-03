@@ -443,12 +443,63 @@ pub struct Item;
 pub struct Consume;
 
 /// What this item does to a creature it is thrown into: the die rolled on
-/// impact, before the target's armour plus is taken off (see
-/// [`crate::items::throw_system`]). Only things meant to hurt when they land
-/// carry it — a dagger does, a wand does not, and an item without one simply
-/// bounces off and falls at the target's feet.
+/// impact (see [`crate::items::throw_system`]). Only things meant to hurt when
+/// they land carry it — a dagger does, a wand does not, and an item without one
+/// simply bounces off and falls at the target's feet.
+///
+/// An improvised missile — a mace, a suit of plate mail — is still measured
+/// against the target's armour plus. A purpose-built one ([`Projectile`]) is not.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ThrownDamage(pub i32);
+
+/// Made to be thrown: an arrow, a quarrel, a dagger, a spear. Three things
+/// follow from it, and they are the same three for all four — the roll goes
+/// straight around the target's armour (a point already in flight does not care
+/// what you are wearing), the missile is spent on the creature it strikes rather
+/// than clattering to the floor, and nothing ever catches one out of the air.
+///
+/// A projectile that finds no target is not spent: it lands where it fell and
+/// can be picked up again.
+#[derive(Component, Clone, Copy)]
+pub struct Projectile;
+
+/// This missile does not stop at the first thing it hits. A hurled dagger or
+/// spear runs the whole line you aimed down, spending itself on every creature
+/// standing in it — the NecroDancer trick, and the reason a corridor full of
+/// kobolds is worth one spear.
+///
+/// Everything without it resolves on the first creature in the way, which is why
+/// aiming past a monster does not work.
+#[derive(Component, Clone, Copy)]
+pub struct Piercing;
+
+/// The effect that turns a lobbed missile into a loosed one, doubling its die.
+/// An arrow answers to [`crate::effects::FireArrow`], a quarrel to
+/// [`crate::effects::FireQuarrel`]; the bow and crossbow are simply things that
+/// grant those. Neither missile knows a launcher exists, and no launcher knows
+/// what ammunition is — they meet at the effect, like everything else here.
+#[derive(Component, Clone, Copy)]
+pub struct LaunchedBy(pub crate::effects::Grant);
+
+/// A bow or a crossbow: gear that is worth nothing swung and everything drawn.
+/// It contributes no attack die, so its enchantment has no melee roll to land
+/// on and lands on [`crate::effects::ThrowBonus`] instead — a +2 bow puts +2 on
+/// every arrow it looses. See [`crate::catalog::enchant_equipment`].
+#[derive(Component, Clone, Copy)]
+pub struct Launcher;
+
+/// How many identical items share one pack slot. Only ammunition stacks: a
+/// quiver of arrows is one entity carrying a number, not thirty entities
+/// crowding thirty inventory letters. Throwing spends one; picking more up tops
+/// the stack back up to at most [`STACK_LIMIT`].
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stack {
+    pub count: u8,
+}
+
+/// The most a single pack slot will hold — one for every letter the inventory
+/// screen can label, `a` through `z`.
+pub const STACK_LIMIT: u8 = 26;
 
 #[derive(Component)]
 pub struct Battery {

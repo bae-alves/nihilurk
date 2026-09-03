@@ -42,13 +42,21 @@ fn stash(w: &mut World, p: Entity, spawn: impl FnOnce(&mut World) -> Entity) -> 
 const NOWHERE: Position = Position { x: 0, y: 0 };
 
 /// The engine's "Throw" action: the item leaves the pack for good, and
-/// `throw_system` finds out where it ends up.
-fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) {
+/// `throw_system` finds out where it ends up. A quiver is the exception — it
+/// gives up one arrow and stays in its slot — so this goes through `draw_one`
+/// exactly as the engine does, and returns whatever actually took flight.
+fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Entity {
+    let mut slot = None;
     if let Some(mut bp) = w.get_mut::<Backpack>(thrower) {
+        slot = bp.items.iter().position(|&e| e == item);
         bp.items.retain(|&e| e != item);
     }
-    w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow { thrower, item, target });
+    let missile = draw_one(w, thrower, item, slot);
+    w.resource_mut::<ThrowQueue>()
+        .throws
+        .push(WantsToThrow { thrower, item: missile, target });
     throw_system(w);
+    missile
 }
 
 /// A monster of the given species, dropped onto a tile next to the player so the
@@ -79,15 +87,15 @@ fn a_thrown_weapon_is_caught_and_wielded_by_a_creature_with_hands() {
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
     let orc = monster(&mut w, "orc", spot);
-    // Enough HP that the dagger can't kill it before it can catch it.
+    // Enough HP that the mace can't kill it before it can catch it.
     w.get_mut::<Fighter>(orc).unwrap().hp = 20;
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
 
-    throw(&mut w, p, dagger, spot);
+    throw(&mut w, p, mace, spot);
 
-    assert_eq!(w.get::<Equipped>(dagger).unwrap().by, Some(orc));
+    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
     // Caught, not dropped: it is nobody's floor item now.
-    assert!(w.get::<Position>(dagger).is_none());
+    assert!(w.get::<Position>(mace).is_none());
     assert!(logged(&w, "wields it"));
 }
 
@@ -211,12 +219,12 @@ fn a_creature_without_hands_just_takes_the_hit_and_the_weapon_falls() {
     let spot = east_of_player(&mut w, 1);
     let bat = monster(&mut w, "bat", spot);
     w.get_mut::<Fighter>(bat).unwrap().hp = 20;
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
 
-    throw(&mut w, p, dagger, spot);
+    throw(&mut w, p, mace, spot);
 
-    assert!(w.get::<Equipped>(dagger).unwrap().by.is_none());
-    assert_eq!(pos_of(&w, dagger), (spot.x, spot.y));
+    assert!(w.get::<Equipped>(mace).unwrap().by.is_none());
+    assert_eq!(pos_of(&w, mace), (spot.x, spot.y));
 }
 
 #[test]
@@ -392,7 +400,7 @@ fn throwing_equipped_gear_takes_it_off_first() {
     assert_eq!(equipped_total::<PowerDie>(&w, p), 0, "the sword is not in your hand any more");
 }
 
-/// Arm a goblin with a thrown dagger, kill it, and report whether the dagger
+/// Arm a goblin with a thrown mace, kill it, and report whether the mace
 /// survived the death roll.
 fn kill_an_armed_goblin(seed: u64) -> bool {
     let mut w = test_world(seed);
@@ -400,19 +408,19 @@ fn kill_an_armed_goblin(seed: u64) -> bool {
     let spot = east_of_player(&mut w, 1);
     let goblin = monster(&mut w, "goblin", spot);
     w.get_mut::<Fighter>(goblin).unwrap().hp = 20;
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    throw(&mut w, p, dagger, spot);
-    assert_eq!(w.get::<Equipped>(dagger).unwrap().by, Some(goblin));
+    let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
+    throw(&mut w, p, mace, spot);
+    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(goblin));
 
     w.get_mut::<Fighter>(goblin).unwrap().hp = 0;
     reaper_system(&mut w);
     assert!(w.get_entity(goblin).is_none());
 
-    match w.get_entity(dagger) {
+    match w.get_entity(mace) {
         // Survived: on the floor where it fell, owned by nobody, announced.
         Some(_) => {
-            assert_eq!(pos_of(&w, dagger), (spot.x, spot.y));
-            assert!(w.get::<Equipped>(dagger).unwrap().by.is_none());
+            assert_eq!(pos_of(&w, mace), (spot.x, spot.y));
+            assert!(w.get::<Equipped>(mace).unwrap().by.is_none());
             assert!(logged(&w, "clatters to the floor"));
             true
         }
@@ -448,19 +456,19 @@ fn a_monster_lays_down_what_it_is_holding_before_a_save() {
     let spot = east_of_player(&mut w, 1);
     let orc = monster(&mut w, "orc", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 20;
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    throw(&mut w, p, dagger, spot);
-    assert_eq!(w.get::<Equipped>(dagger).unwrap().by, Some(orc));
+    let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
+    throw(&mut w, p, mace, spot);
+    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
 
-    // A save records a slot, never a wearer — so the orc puts the dagger down
-    // on its own tile first, rather than leaving it adrift with no owner and no
+    // A save records a slot, never a wearer — so the orc puts the mace down on
+    // its own tile first, rather than leaving it adrift with no owner and no
     // square to be found on.
     let path = std::env::temp_dir().join("roog-throw-save.sav");
     save_game(&mut w, path.to_str().unwrap()).unwrap();
     let _ = std::fs::remove_file(&path);
 
-    assert!(w.get::<Equipped>(dagger).unwrap().by.is_none());
-    assert_eq!(pos_of(&w, dagger), (spot.x, spot.y));
+    assert!(w.get::<Equipped>(mace).unwrap().by.is_none());
+    assert_eq!(pos_of(&w, mace), (spot.x, spot.y));
 }
 
 #[test]

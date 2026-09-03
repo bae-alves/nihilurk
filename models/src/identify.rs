@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 use crate::catalog::{POTIONS, RINGS, SCROLLS, WANDS};
-use crate::components::{Name, PotionEffect, Ring, RingEffect, ScrollEffect, WandEffect};
+use crate::components::{Name, PotionEffect, Ring, RingEffect, ScrollEffect, Stack, WandEffect};
 use crate::items::item_label;
 
 /// The true types in each category, taken straight from the catalog tables so a
@@ -119,7 +119,8 @@ pub struct Identified {
 /// What the player actually sees for `item`: its true name if the type has
 /// been identified, otherwise this run's cosmetic appearance (or a generic
 /// fallback if somehow no appearance was assigned). Non-identifiable items
-/// (weapons, armor, gold, the amulet) always show their true [`Name`].
+/// (weapons, armor, gold, the amulet) always show their true [`Name`], and a
+/// [`Stack`] of them shows how many it holds.
 pub fn display_name(world: &World, item: Entity) -> String {
     if let Some(p) = world.get::<crate::components::Potion>(item) {
         if world.resource::<Identified>().potions.contains(&p.effect) {
@@ -169,7 +170,36 @@ pub fn display_name(world: &World, item: Entity) -> String {
             .unwrap_or_else(|| "plain".to_string());
         return format!("{appearance} ring");
     }
-    world.get::<Name>(item).map(|n| n.what.clone()).unwrap_or_else(|| "item".to_string())
+    let name = world
+        .get::<Name>(item)
+        .map(|n| n.what.clone())
+        .unwrap_or_else(|| "item".to_string());
+    // A stack says how many it is: one pack slot reading "7 arrows".
+    match world.get::<Stack>(item).map(|s| s.count).filter(|&c| c > 1) {
+        Some(count) => format!("{count} {name}s"),
+        None => name,
+    }
+}
+
+/// `name` in a quantity, as it reads in a sentence: `"a dagger"`, `"7 arrows"`.
+/// Plurals are a bare `-s`, which is all the catalog ever needs.
+pub fn counted(name: &str, count: u8) -> String {
+    if count <= 1 {
+        format!("{} {name}", article_for(name))
+    } else {
+        format!("{count} {name}s")
+    }
+}
+
+/// `item` as it reads in a sentence — `"a dagger"`, `"7 arrows"`, `"The Element
+/// of Yoord"`. A stack counts itself and the relic carries its own article, so
+/// neither takes an "a".
+pub fn with_article(world: &World, item: Entity) -> String {
+    let name = display_name(world, item);
+    if name.starts_with(|c: char| c.is_ascii_digit()) || name.starts_with("The ") {
+        return name;
+    }
+    format!("{} {name}", article_for(&name))
 }
 
 /// The indefinite article that reads correctly before `s`: `"an"` before a

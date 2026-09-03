@@ -6,11 +6,11 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::catalog::{RingDef, WEAPONS};
+use crate::catalog::{restore_from_catalog, RingDef};
 use crate::components::*;
 use crate::effects::{
     attach_effects, effects_of, ArmorBonus, ArmorDie, EffectSet, GrantedByGear, Grants, PowerBonus,
-    PowerDie,
+    PowerDie, ThrowBonus,
 };
 use crate::equipment::{Equipped, Slot};
 use crate::monsters::BESTIARY;
@@ -116,6 +116,11 @@ struct EntitySave<'a> {
     power_bonus: Option<i32>,
     armor_die: Option<i32>,
     armor_bonus: Option<i32>,
+    /// A bow's plus. Every other modifier a launcher might carry is zero, so
+    /// this is the only one worth a byte.
+    throw_bonus: Option<i32>,
+    /// How many of a stacking item this slot holds — a quiver of arrows.
+    stack: Option<u8>,
     /// Marker: this equipment is cursed and can't be taken off once equipped.
     curse: bool,
     /// A vorpalized weapon's `bane` species (scroll of vorpalize weapon).
@@ -253,6 +258,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             power_bonus: er.get::<PowerBonus>().map(|m| m.0),
             armor_die: er.get::<ArmorDie>().map(|m| m.0),
             armor_bonus: er.get::<ArmorBonus>().map(|m| m.0),
+            throw_bonus: er.get::<ThrowBonus>().map(|m| m.0),
+            stack: er.get::<Stack>().map(|s| s.count),
             curse: er.contains::<Curse>(),
             vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
             effects: effects_of(world, e) & !er.get::<GrantedByGear>().map(|g| g.0).unwrap_or(0),
@@ -438,15 +445,11 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(n) = es.power_die {
             em.insert(PowerDie(n));
         }
-        // What a weapon does when it is thrown is fixed by its catalog row, the
-        // same as what a ring lends its wearer: read back from the table rather
-        // than stored in every save file.
-        if let Some(def) = entity_name
-            .as_deref()
-            .filter(|_| es.equipped == Some(Slot::Hand))
-            .and_then(|n| WEAPONS.iter().find(|w| w.name == n))
-        {
-            em.insert(ThrownDamage(def.power_die));
+        // What a thing does in flight, and what a bow lends the hand holding it,
+        // are fixed by their catalog rows — the same as what a ring lends its
+        // wearer. Read back from the table rather than stored in every save.
+        if let Some(name) = entity_name.as_deref() {
+            restore_from_catalog(&mut em, name);
         }
         if let Some(n) = es.power_bonus {
             em.insert(PowerBonus(n));
@@ -456,6 +459,12 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some(n) = es.armor_bonus {
             em.insert(ArmorBonus(n));
+        }
+        if let Some(n) = es.throw_bonus {
+            em.insert(ThrowBonus(n));
+        }
+        if let Some(count) = es.stack {
+            em.insert(Stack { count });
         }
         if es.curse {
             em.insert(Curse);

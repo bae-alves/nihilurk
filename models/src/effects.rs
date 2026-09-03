@@ -78,19 +78,29 @@ pub struct ItemUser;
 #[derive(Component, Default, Clone, Copy)]
 pub struct AggravatesMonsters;
 
+/// This creature can loose an arrow properly rather than just lobbing it — a
+/// drawn bow doubles the die of every arrow it throws. The bow lends it; nothing
+/// about the arrow knows a bow exists, only which effect it answers to (see
+/// [`crate::components::LaunchedBy`]).
+#[derive(Component, Default, Clone, Copy)]
+pub struct FireArrow;
+
+/// The crossbow's half of the same bargain, for quarrels.
+#[derive(Component, Default, Clone, Copy)]
+pub struct FireQuarrel;
+
 // ---------------------------------------------------------------------------
 // Numeric modifiers
 // ---------------------------------------------------------------------------
 
-/// A number that stacks across every equipped source. Implemented by the four
-/// combat modifiers below so [`equipped_total`] can fold any of them with one
-/// body.
+/// A number that stacks across every equipped source. Implemented by the
+/// modifiers below so [`equipped_total`] can fold any of them with one body.
 pub trait Modifier: Component + Copy {
     fn amount(self) -> i32;
 }
 
-/// Macro-free boilerplate would be four near-identical impls; this keeps the
-/// four modifier components to one line of intent each.
+/// Macro-free boilerplate would be five near-identical impls; this keeps the
+/// modifier components to one line of intent each.
 macro_rules! modifier {
     ($(#[$doc:meta])* $name:ident) => {
         $(#[$doc])*
@@ -124,6 +134,13 @@ modifier! {
     /// Flat modifier added once to the bearer's armour roll — an enchantment, or
     /// a ring of protection.
     ArmorBonus
+}
+modifier! {
+    /// Flat modifier added once to whatever the bearer *throws* — a ring of
+    /// dexterity, or the plus on the bow steadying their aim. Folded from every
+    /// equipped source the same way the melee bonus is, so it never matters
+    /// which piece of gear supplied it.
+    ThrowBonus
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +213,8 @@ pub const EFFECTS: &[Grant] = &[
     Grant::of::<SustainsStrength>(),
     Grant::of::<AggravatesMonsters>(),
     Grant::of::<ItemUser>(),
+    Grant::of::<FireArrow>(),
+    Grant::of::<FireQuarrel>(),
 ];
 
 /// The effects an entity hands out: innate magic on a monster, the effects a
