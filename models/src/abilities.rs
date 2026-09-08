@@ -37,7 +37,7 @@ pub const PASSIVE_ABILITIES: &[PassiveAbility] = &[PassiveAbility {
     effect: Grant::of::<AggravatesMonsters>(),
     chance: 0.10,
     action: crate::items::aggravate_all_monsters,
-    flavour: "Your ring gives a spiteful little shriek, and the whole floor turns your way.",
+    flavour: "You yip! The whole floor turns your way.",
 }];
 
 /// Rolls every passive ability its bearer currently has armed.
