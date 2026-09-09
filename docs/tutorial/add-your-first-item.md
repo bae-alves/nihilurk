@@ -143,7 +143,7 @@ body -- it runs the whole line you aimed down.
 
 Suppose your quarterstaff is really a javelin. Change your row to:
 
-    WeaponDef::new("quarterstaff",     Color::DarkYellow, 7).missile(6),
+    WeaponDef::new("quarterstaff", Color::DarkYellow, 7).missile(6),
 
 Rebuild, and throw it at something:
 
