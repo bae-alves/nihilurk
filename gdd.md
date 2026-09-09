@@ -1,5 +1,5 @@
 # Roog
-Roog is a classic roguelike about descending a dungeon, acquiring an item, and ascending it back again. Life is unfair and death is permanent. Some things in the game are whimsical and absurdist, the game gets weirder the more you play, but the game has most everything the original Rogue had. Except a storyline. Rogue kind of had coherent a lore/plot blurb. This game is about thrill of the arcade!
+Roog is a classic roguelike about descending a dungeon, acquiring an item, and ascending it back again. Life is unfair and death is permanent. The game's humor is pessimistic, nihilistic and absurdist without being edgy, the game gets weirder the more you play, but the game has most everything the original Rogue had. Except a storyline. Rogue kind of had coherent a lore/plot blurb. This game is about thrill of the arcade!
 
 Game plays like any classic roguelike, but has simplified controls and movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
 
@@ -94,7 +94,7 @@ The developer. Seriously. I made this game because I want to play it.
 I'll put it ou AUR with a Patreon Link
 
 ### Localization
-English and Portuguese. A classic roguelike in Portuguese would be fun.
+English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas
 - More player character options
@@ -103,3 +103,10 @@ English and Portuguese. A classic roguelike in Portuguese would be fun.
 - Tournament play
 - Achievements
 - Steam (?)
+- Nethack bones but instead of a ghost, it's the actual past failed character coming for you. A user can just rm the bones and that is okay but would be missing out on past run loot (all wearables cursed). Failed characters will be really angry about you failing them and will spout markov-chain angry nonsense. If they share names with the current character the failed character will also be treated as 'you'. This whole shebang won't happen all the time.
+- Rarely, log lines are in Spanish even if you choose something else as language
+- Forgotten beasts like in Dwarf Fortress. Sometimes they die in one hit, sometimes they are literally invincible. The description pop-up will tell which one is which
+- The Nemelex decks from DCSS but the cards will always log Yu-gi-oh references and generally be sillier
+- Trauma bonding with The Dungeon Lord because the entire game is actually a metaphor for abusive relationships. You can't seem to stop getting your head bashed in (seamlessly baked into the combat math already)
+- Game log has *the hots* for Fidel Castro. It will be hard getting into a situation where this is relevant. But it will be there somewhere.
+- There will be also a markov chain with Voltaire (philosopher) and Voltaire (musician) quotes. They will also be part of the mad logging.

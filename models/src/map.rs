@@ -270,7 +270,7 @@ pub const FINAL_DEPTH: u8 = 13;
 /// Turns the player may dawdle on one level before the Dungeon Lord loses
 /// patience and portals them onward (down on the way in, up once they carry the
 /// Element). Reset by every level change.
-pub const DUNGEON_LORD_PATIENCE: u32 = 240;
+pub const DUNGEON_LORD_PATIENCE: u32 = 260;
 
 /// The eight neighbouring offsets, ordered for the guardian ring around the
 /// Element of Yoord.
