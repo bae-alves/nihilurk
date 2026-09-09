@@ -117,10 +117,57 @@ Mechanic: `apply_scroll_effect` in `models/src/items.rs`.
 | `range`  | `i32`          | Feeds the aiming reticle. In use: 6, 8.  |
 
 Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`.
-A floor drop rolls `3d4` charges (`roll_wand_charges`).
+A floor drop rolls `2d6 + 1` charges (`roll_wand_charges`).
 Whether zapping opens the reticle: `WandEffect::needs_target`, which is
 true for everything except the wand of light.
 Mechanic: `apply_wand_effect` in `models/src/items.rs`.
+
+Neither a zap nor a throw can be aimed at the player's own tile: the
+engine refuses it with "Great idea! But no." and no turn passes.
+
+**Thrown**, a wand only bursts on *impact* — hitting a creature or a
+wall, or flying its full `THROW_RANGE` leash. Lobbed into open floor
+short of that, it just lands with its charges and its secret intact.
+
+On impact (`resolve_wand_throw`) it spends every remaining charge at
+once. The blast animation is coloured per wand (`blast_palette` →
+`particles::BlastPalette`).
+
+- *Attack* wands (fire, cold, lightning, magic missile, striking, drain
+  life — `is_attack_wand`) throw the wide grenade: `GRENADE_RADIUS`, `d4`
+  per remaining charge, armour-ignoring. Fire and cold carry their
+  element (immunities apply); the rest are non-elemental.
+- *Wand of light* throws the same wide `d4`-a-charge grenade, but instead
+  of an element it **dazzles** every creature caught (`dazzle`) — a
+  monster flips to `MovementType::Confused`, the player gains the
+  `Confused` condition. "dazzle" in the log.
+- *Utility* wands (polymorph, haste, slow, teleport away/to,
+  cancellation) throw a small `BLAST_RADIUS` blast that deals **no
+  damage** — the effect is the whole payload, worked on every creature
+  caught (`apply_thrown_wand_effect`), thrower included.
+- Wand of nothing: bursts in magenta/cyan confetti particles, no blast.
+
+Effects that can land on the **player** (via a thrown blast): polymorph
+logs "You feel like a new person"; haste/slow set the player's `Speed`;
+dazzle gives `Confused`; teleport away runs the scroll-of-teleportation
+relocation; teleport-to with no other target logs the "straight to
+yourself" joke; cancellation is `cancel_player` — zeroes every
+`PowerBonus`/`ArmorBonus` on weapons and armour, turns unread scrolls to
+`BlankPaper` and potions to `Water`, and lifts every `Curse` without
+destroying the item.
+
+**Player conditions** (`Confused`, and `Speed` haste/slow) are
+treacherous: they never wear off with time. Only two things clear them,
+both via `clear_player_conditions`, which logs "You are no longer {}."
+for each: **using a staircase** (`transition_level`) and **a wand of
+cancellation** (`cancel_player`). The HUD shows them as 4-letter
+mnemonics (`FAST` cyan / `SLOW` green / `CONF` magenta), suppressing the
+score line for space when any is lit.
+
+While `Confused`, half of every walk or swing goes off in a random
+direction ("You stumble foolishly"; `maybe_stumble` in
+`engine/src/update.rs`), and fast movement, auto-explore and auto-fight
+all refuse with "You are too confused for that right now."
 
 ### WEAPONS -- WeaponDef
 

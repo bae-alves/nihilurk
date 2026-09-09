@@ -1,19 +1,22 @@
-use std::collections::HashSet;
-use fixedbitset::FixedBitSet;
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
+use fixedbitset::FixedBitSet;
+use std::collections::HashSet;
 
 use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::catalog::{spawn_element_of_yoord, spawn_wand};
-use crate::rect::Rect;
+use crate::catalog::{
+    spawn_ammo, spawn_armor, spawn_element_of_yoord, spawn_launcher, spawn_potion, spawn_weapon,
+};
 use crate::components::*;
-use crate::state::*;
-use crate::monsters::{spawn_monster, MonsterDef};
-use crate::spawn::{roll_item, spawn_requested};
+use crate::equipment::equip_silently;
 use crate::identify::{Identified, ItemAppearances};
+use crate::monsters::{MonsterDef, spawn_monster};
+use crate::rect::Rect;
+use crate::spawn::{roll_item, spawn_requested};
+use crate::state::*;
 
 #[derive(Resource)]
 pub struct GameRng(pub ChaCha12Rng);
@@ -30,7 +33,7 @@ pub enum TileType {
     Passage,
     Door,
     Upstairs,
-    Downstairs
+    Downstairs,
 }
 
 /// The dungeon terrain for the current floor: one [`TileType`] per coordinate,
@@ -187,7 +190,7 @@ pub fn tile_appearance(t: TileType) -> (char, Color) {
         TileType::Wall => ('#', Color::DarkYellow),
         TileType::Door => ('+', Color::Yellow),
         TileType::Downstairs => ('>', Color::Cyan),
-        TileType::Upstairs => ('<', Color::Cyan)
+        TileType::Upstairs => ('<', Color::Cyan),
     }
 }
 
@@ -205,11 +208,11 @@ fn create_room(rect: &Rect, tiles: &mut [TileType], map_width: u16) {
 fn random_point_in_room(room: &Rect, rng: &mut ChaCha12Rng) -> (u16, u16) {
     let width = (room.x2 - room.x1 + 1).max(1) as u32;
     let height = (room.y2 - room.y1 + 1).max(1) as u32;
-    
+
     // Use gen_range instead of gen() % width
     let rx = room.x1 as u32 + rng.gen_range(0..width);
     let ry = room.y1 as u32 + rng.gen_range(0..height);
-    
+
     (rx as u16, ry as u16)
 }
 
@@ -222,11 +225,19 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     // 1. Calculate the L-shaped path
     while x != to.0 {
         path.push((x, y));
-        if x < to.0 { x += 1; } else { x -= 1; }
+        if x < to.0 {
+            x += 1;
+        } else {
+            x -= 1;
+        }
     }
     while y != to.1 {
         path.push((x, y));
-        if y < to.1 { y += 1; } else { y -= 1; }
+        if y < to.1 {
+            y += 1;
+        } else {
+            y -= 1;
+        }
     }
     path.push((x, y)); // Add the final destination
 
@@ -275,14 +286,23 @@ pub const DUNGEON_LORD_PATIENCE: u32 = 260;
 /// The eight neighbouring offsets, ordered for the guardian ring around the
 /// Element of Yoord.
 const RING_DIRS: [(i32, i32); 8] = [
-    (-1, -1), (0, -1), (1, -1), (-1, 0),
-    (1, 0), (-1, 1), (0, 1), (1, 1),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
 ];
 
 /// The coordinate of the first tile of `want` in `tiles`, row-major.
 fn find_tile(tiles: &[TileType], want: TileType) -> Option<(u16, u16)> {
     tiles.iter().position(|&t| t == want).map(|i| {
-        ((i % MAP_WIDTH as usize) as u16, (i / MAP_WIDTH as usize) as u16)
+        (
+            (i % MAP_WIDTH as usize) as u16,
+            (i / MAP_WIDTH as usize) as u16,
+        )
     })
 }
 
@@ -323,11 +343,15 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
     let gutter_size: u16 = 3;
     let padding: u16 = 1;
     let num_sections: u16 = 3;
-    let num_gutters: u16 = num_sections - 1_u16; 
+    let num_gutters: u16 = num_sections - 1_u16;
 
     // Usable space = Total - (Padding * 2) - (Gutters * GutterSize)
-    let usable_width: u16 = map_width.saturating_sub(padding * 2_u16).saturating_sub(num_gutters * gutter_size);
-    let usable_height: u16 = map_height.saturating_sub(padding * 2_u16).saturating_sub(num_gutters * gutter_size);
+    let usable_width: u16 = map_width
+        .saturating_sub(padding * 2_u16)
+        .saturating_sub(num_gutters * gutter_size);
+    let usable_height: u16 = map_height
+        .saturating_sub(padding * 2_u16)
+        .saturating_sub(num_gutters * gutter_size);
 
     let section_width: u16 = usable_width / num_sections;
     let section_height: u16 = usable_height / num_sections;
@@ -347,7 +371,7 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
 
     let min_room_w: u16 = 4;
     // Reduced to 3. A 4-high room physically occupies 5 tiles, which overflows the 4-tile tall sections.
-    let min_room_h: u16 = 3; 
+    let min_room_h: u16 = 3;
 
     let mut grid_rooms: [Option<usize>; 9] = [None; 9];
 
@@ -391,25 +415,25 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
             rooms.push(room);
         }
     }
-    
+
     let mut connected_pairs: HashSet<(usize, usize)> = HashSet::new();
-    
+
     // 1. Horizontal connections (Left to Right)
     for y in 0..3 {
         let mut prev_room: Option<usize> = None;
         for x in 0..3 {
             if let Some(room_idx) = grid_rooms[y * 3 + x] {
                 if let Some(prev_idx) = prev_room {
-                    let pair = if prev_idx < room_idx { 
-                        (prev_idx, room_idx) 
-                    } else { 
-                        (room_idx, prev_idx) 
+                    let pair = if prev_idx < room_idx {
+                        (prev_idx, room_idx)
+                    } else {
+                        (room_idx, prev_idx)
                     };
-                    
+
                     if connected_pairs.insert(pair) {
                         let pt1 = random_point_in_room(&rooms[prev_idx], rng);
                         let pt2 = random_point_in_room(&rooms[room_idx], rng);
-                        
+
                         create_corridor(pt1, pt2, &mut tiles, map_width);
                     }
                 }
@@ -417,19 +441,23 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
             }
         }
     }
-    
+
     // 2. Vertical connections pass (Top to Bottom)
     for x in 0..3 {
         let mut prev_room: Option<usize> = None;
         for y in 0..3 {
             if let Some(room_idx) = grid_rooms[y * 3 + x] {
                 if let Some(prev_idx) = prev_room {
-                    let pair = if prev_idx < room_idx { (prev_idx, room_idx) } else { (room_idx, prev_idx) };
+                    let pair = if prev_idx < room_idx {
+                        (prev_idx, room_idx)
+                    } else {
+                        (room_idx, prev_idx)
+                    };
 
                     if connected_pairs.insert(pair) {
                         let pt1 = random_point_in_room(&rooms[prev_idx], rng);
                         let pt2 = random_point_in_room(&rooms[room_idx], rng);
-                        
+
                         create_corridor(pt1, pt2, &mut tiles, map_width);
                     }
                 }
@@ -443,7 +471,11 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
     // and the map for every new floor — carries the same stairs.
     let up = rooms[0].center();
     tiles[tile_index(up.0 as u16, up.1 as u16)] = TileType::Upstairs;
-    let down_room = if rooms.len() > 1 { rng.gen_range(1..rooms.len()) } else { 0 };
+    let down_room = if rooms.len() > 1 {
+        rng.gen_range(1..rooms.len())
+    } else {
+        0
+    };
     let down = random_point_in_room(&rooms[down_room], rng);
     tiles[tile_index(down.0, down.1)] = TileType::Downstairs;
 
@@ -738,14 +770,25 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                 continue;
             }
             if occupied.insert((x, y)) {
-                world.spawn(crate::TrapBundle::random(&mut rng, depth, Position { x, y }));
+                world.spawn(crate::TrapBundle::random(
+                    &mut rng,
+                    depth,
+                    Position { x, y },
+                ));
                 break;
             }
         }
     }
 
     // Last of all, whatever the content author asked for on the command line.
-    spawn_requested(world, Position { x: player_x, y: player_y }, &mut occupied);
+    spawn_requested(
+        world,
+        Position {
+            x: player_x,
+            y: player_y,
+        },
+        &mut occupied,
+    );
 }
 
 /// Handles the player using a staircase.
@@ -786,11 +829,13 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
 
     // Going up.
     if !has_element {
-        world.resource_mut::<GameLog>().add(if tile == TileType::Upstairs {
-            "The Dungeon Lord's power prevents you from going upstairs."
-        } else {
-            "You cannot go up from here."
-        });
+        world
+            .resource_mut::<GameLog>()
+            .add(if tile == TileType::Upstairs {
+                "The Dungeon Lord's power prevents you from going upstairs."
+            } else {
+                "You cannot go up from here."
+            });
         return false;
     }
     if tile != TileType::Upstairs {
@@ -805,9 +850,9 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         if let Some(mut ending) = world.get_resource_mut::<Ending>() {
             ending.player_won = true;
         }
-        world
-            .resource_mut::<GameLog>()
-            .add("You climb the last stair into open sky, the Element of Yoord blazing in your hands.");
+        world.resource_mut::<GameLog>().add(
+            "You climb the last stair into open sky, the Element of Yoord blazing in your hands.",
+        );
         return true;
     }
     transition_level(world, false, LevelChange::Stairs);
@@ -857,7 +902,9 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         .collect();
     let to_despawn: Vec<Entity> = world
         .iter_entities()
-        .filter(|e| !e.contains::<Player>() && e.contains::<Position>() && !backpacked.contains(&e.id()))
+        .filter(|e| {
+            !e.contains::<Player>() && e.contains::<Position>() && !backpacked.contains(&e.id())
+        })
         .map(|e| e.id())
         .collect();
     for e in to_despawn {
@@ -921,14 +968,22 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         dl.idle_turns = 0;
     }
 
+    // Transient conditions (haste, slow, dazzle) are treacherous but they do not
+    // survive a staircase — using one is one of only two things that clears them.
+    crate::items::clear_player_conditions(world, player_entity);
+
     let msg = match cause {
         // Descending, it is the Dungeon Lord who wrenches you down; once you
         // carry the Element it is the Element that tears the way open upward.
         LevelChange::Portal if going_down => {
-            format!("The Dungeon Lord opens a portal beneath your feet! You fall downward. (Depth {depth})")
+            format!(
+                "The Dungeon Lord opens a portal beneath your feet! You fall downward. (Depth {depth})"
+            )
         }
         LevelChange::Portal => {
-            format!("The Element of Yoord flares and rips a portal above your head! You rise upward. (Depth {depth})")
+            format!(
+                "The Element of Yoord flares and rips a portal above your head! You rise upward. (Depth {depth})"
+            )
         }
         LevelChange::Trapdoor => {
             format!("You crash down onto the floor below in a shower of dust. (Depth {depth})")
@@ -945,7 +1000,11 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
 /// Yoord. On the deepest floor (without the Element) or the shallowest floor
 /// (with it) the portal has nowhere to send them and only flickers.
 pub fn dungeon_lord_system(world: &mut World) {
-    if world.get_resource::<Ending>().map(|e| e.player_dead).unwrap_or(false) {
+    if world
+        .get_resource::<Ending>()
+        .map(|e| e.player_dead)
+        .unwrap_or(false)
+    {
         return;
     }
     match world.get_resource_mut::<DungeonLord>() {
@@ -972,9 +1031,9 @@ pub fn dungeon_lord_system(world: &mut World) {
         transition_level(world, false, LevelChange::Portal);
     } else {
         if depth >= FINAL_DEPTH {
-            world
-                .resource_mut::<GameLog>()
-                .add("The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.");
+            world.resource_mut::<GameLog>().add(
+                "The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.",
+            );
             return;
         }
         transition_level(world, true, LevelChange::Portal);
@@ -997,47 +1056,93 @@ pub fn initialize_world(world: &mut World) {
 
     let ((player_x, player_y), rooms) = create_map(world);
 
-    // 1. Create a starting wand entity first, and roll its battery like any drop.
-    let starting_wand = spawn_wand(world, WandEffect::MagicMissile, Position { x: 0, y: 0 });
-    {
-        let charges = crate::catalog::roll_wand_charges(&mut world.resource_mut::<GameRng>().0);
-        if let Some(mut battery) = world.get_mut::<Battery>(starting_wand) {
-            battery.charges = charges;
-        }
+    // 1. Roll up the starting gear. Every piece is spawned at the origin like a
+    //    drop, then lifted straight into the pack (Position stripped, the way a
+    //    picked-up item loses it) so it never shows up as floor loot. The armour,
+    //    mace and bow are handed over enchanted to +1 rather than rolled; the
+    //    healing potion starts identified.
+    let origin = Position { x: 0, y: 0 };
+    let pack_up = |world: &mut World, item: Entity| {
+        world.entity_mut(item).remove::<Position>();
+    };
+
+    let ring_mail = spawn_armor(world, "ring mail", origin);
+    world
+        .entity_mut(ring_mail)
+        .insert(crate::effects::ArmorBonus(1));
+    pack_up(world, ring_mail);
+
+    let mace = spawn_weapon(world, "mace", origin);
+    world.entity_mut(mace).insert(crate::effects::PowerBonus(1));
+    pack_up(world, mace);
+
+    let shortbow = spawn_launcher(world, "bow", origin);
+    world
+        .entity_mut(shortbow)
+        .insert(crate::effects::ThrowBonus(1));
+    pack_up(world, shortbow);
+
+    let arrows = spawn_ammo(world, "arrow", origin);
+    if let Some(mut stack) = world.get_mut::<Stack>(arrows) {
+        stack.count = 26;
     }
+    pack_up(world, arrows);
+
+    let healing = spawn_potion(world, PotionEffect::Healing, origin);
+    pack_up(world, healing);
+    world
+        .resource_mut::<Identified>()
+        .potions
+        .insert(PotionEffect::Healing);
+
     let player_name = world.resource::<PlayerName>().what.clone();
 
-    // 2. Spawn the player with the wand in their backpack
-    world.spawn((
-        Player,
-        Name { what: player_name},
-        Position { x: player_x, y: player_y },
-        Renderable {
-            glyph: '@',
-            color: Color::Yellow,
-        },
-        Viewshed {
-            visible_tiles: Vec::new(),
-            revealed_tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            range: 12,
-            dirty: true,
-        },
-        Fighter {
-            hp: 12,
-            max_hp: 12,
-            armor: 2,
-            power: 4,
-            max_power: 4,
-            armor_bonus: 0,
-            power_bonus: 0,
-        },
-        Magic { points: 4, max_points: 4 },
-        Faction::Player,
-        Backpack { items: vec![starting_wand] },
-        Score { value: 0 },
-        Blood,
-        Speed::new(SpeedKind::Normal),
-    ));
+    // 2. Spawn the player with the gear in their backpack
+    let player = world
+        .spawn((
+            Player,
+            Name { what: player_name },
+            Position {
+                x: player_x,
+                y: player_y,
+            },
+            Renderable {
+                glyph: '@',
+                color: Color::Yellow,
+            },
+            Viewshed {
+                visible_tiles: Vec::new(),
+                revealed_tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+                range: 12,
+                dirty: true,
+            },
+            Fighter {
+                hp: 12,
+                max_hp: 12,
+                armor: 2,
+                power: 4,
+                max_power: 4,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
+            Magic {
+                points: 4,
+                max_points: 4,
+            },
+            Faction::Player,
+            Backpack {
+                items: vec![ring_mail, mace, shortbow, arrows, healing],
+            },
+            Score { value: 0 },
+            Blood,
+            Speed::new(SpeedKind::Normal),
+        ))
+        .id();
+
+    // 3. Wear the armour and wield the mace. The bow and arrows wait in the pack;
+    //    both weapons want the same hand.
+    equip_silently(world, player, ring_mail);
+    equip_silently(world, player, mace);
 
     populate_level(world, &rooms, (player_x, player_y));
 }

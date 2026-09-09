@@ -21,7 +21,10 @@ fn rng(seed: u64) -> ChaCha12Rng {
 fn every_content_name_is_unique() {
     let mut seen: HashSet<&str> = HashSet::new();
     for (category, name) in content_names() {
-        assert!(seen.insert(name), "two rows are both called {name:?} ({category})");
+        assert!(
+            seen.insert(name),
+            "two rows are both called {name:?} ({category})"
+        );
     }
 }
 
@@ -31,9 +34,18 @@ fn every_content_name_spawns_and_keeps_its_name() {
         let mut w = World::new();
         let entity = spawn_named(&mut w, name, at(5, 5))
             .unwrap_or_else(|| panic!("spawn_named could not build {name:?} ({category})"));
-        let spawned = &w.get::<Name>(entity).expect("everything spawns with a Name").what;
-        assert_eq!(spawned, name, "{category} row spawned under a different name");
-        assert!(w.get::<Position>(entity).is_some(), "{name:?} spawned nowhere");
+        let spawned = &w
+            .get::<Name>(entity)
+            .expect("everything spawns with a Name")
+            .what;
+        assert_eq!(
+            spawned, name,
+            "{category} row spawned under a different name"
+        );
+        assert!(
+            w.get::<Position>(entity).is_some(),
+            "{name:?} spawned nowhere"
+        );
     }
 }
 
@@ -42,8 +54,15 @@ fn a_name_the_tables_do_not_know_spawns_nothing() {
     let mut w = World::new();
     assert!(spawn_named(&mut w, "sandwich", at(1, 1)).is_none());
     assert!(spawn_named(&mut w, "", at(1, 1)).is_none());
-    assert!(spawn_named(&mut w, "Dragon", at(1, 1)).is_none(), "lookup is case-sensitive");
-    assert_eq!(w.iter_entities().count(), 0, "a failed lookup left something behind");
+    assert!(
+        spawn_named(&mut w, "Dragon", at(1, 1)).is_none(),
+        "lookup is case-sensitive"
+    );
+    assert_eq!(
+        w.iter_entities().count(),
+        0,
+        "a failed lookup left something behind"
+    );
 }
 
 #[test]
@@ -54,12 +73,18 @@ fn a_row_spawned_by_name_carries_what_its_row_says() {
     let dragon = spawn_named(&mut w, "dragon", at(1, 1)).unwrap();
     let def = MonsterDef::named("dragon");
     let fighter = w.get::<Fighter>(dragon).unwrap();
-    assert_eq!((fighter.hp, fighter.power, fighter.armor), (def.hp, def.power, def.armor));
+    assert_eq!(
+        (fighter.hp, fighter.power, fighter.armor),
+        (def.hp, def.power, def.armor)
+    );
 
     // A catalog row's components land on the item it spawns.
     let sword = spawn_named(&mut w, "long sword", at(2, 2)).unwrap();
     assert_eq!(w.get::<PowerDie>(sword).copied(), Some(PowerDie(8)));
-    assert!(w.get::<PowerBonus>(sword).is_none(), "a named spawn is unenchanted");
+    assert!(
+        w.get::<PowerBonus>(sword).is_none(),
+        "a named spawn is unenchanted"
+    );
 
     // And a ring's grant list comes from its row, not from ring-specific code.
     let ring = spawn_named(&mut w, "ring of perception", at(3, 3)).unwrap();
@@ -79,7 +104,10 @@ fn pick_weighted_is_proportional_and_skips_zeroes() {
     }
     assert_eq!(counts[1], 0, "a weight of zero must never be drawn");
     let ratio = counts[2] as f64 / counts[0] as f64;
-    assert!((2.5..3.5).contains(&ratio), "30:10 should draw about 3:1, got {ratio:.2}");
+    assert!(
+        (2.5..3.5).contains(&ratio),
+        "30:10 should draw about 3:1, got {ratio:.2}"
+    );
 
     assert!(pick_weighted(&[], &mut r).is_none());
     assert!(pick_weighted(&[0, 0], &mut r).is_none());
@@ -108,21 +136,33 @@ fn the_deep_letters_do_eventually_turn_up() {
         .map(|_| MonsterDef::pick(13, &mut r).name)
         .filter(|n| MonsterDef::named(n).min_depth >= 7)
         .collect();
-    assert!(deep.len() >= 3, "floor 13 should mix in the deepest tier, saw {deep:?}");
+    assert!(
+        deep.len() >= 3,
+        "floor 13 should mix in the deepest tier, saw {deep:?}"
+    );
 }
 
 #[test]
 fn floor_one_draws_only_from_the_shallow_bestiary() {
     let mut r = rng(17);
-    let seen: HashSet<&str> = (0..1_000).map(|_| MonsterDef::pick(1, &mut r).name).collect();
+    let seen: HashSet<&str> = (0..1_000)
+        .map(|_| MonsterDef::pick(1, &mut r).name)
+        .collect();
     assert!(seen.contains("goblin"));
-    assert!(!seen.contains("dragon"), "a dragon on floor 1 would end the run there");
+    assert!(
+        !seen.contains("dragon"),
+        "a dragon on floor 1 would end the run there"
+    );
 }
 
 #[test]
 fn every_drop_category_can_actually_produce_something() {
     for category in DROPS {
-        assert!(category.weight > 0, "{} would never be drawn", category.name);
+        assert!(
+            category.weight > 0,
+            "{} would never be drawn",
+            category.name
+        );
         assert!(
             !category.rows(category.min_depth).is_empty(),
             "{} has no row available on the floor it debuts",
@@ -168,7 +208,11 @@ fn a_traps_label_is_its_row() {
 fn the_trap_a_floor_lays_comes_from_the_table() {
     let mut r = rng(23);
     let seen: HashSet<&str> = (0..600).map(|_| TrapDef::pick(1, &mut r).name).collect();
-    assert_eq!(seen.len(), TRAPS.len(), "all six traps are equally likely on floor 1");
+    assert_eq!(
+        seen.len(),
+        TRAPS.len(),
+        "all six traps are equally likely on floor 1"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +225,9 @@ fn a_spawn_list_drops_each_name_on_its_own_free_tile() {
     w.insert_resource(GameRng(rng(29)));
     w.insert_resource(RngSeed(29));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
 
     let start = *w.query_filtered::<&Position, With<Player>>().single(&w);
@@ -213,7 +259,10 @@ fn a_spawn_list_drops_each_name_on_its_own_free_tile() {
     }
     let tiles: HashSet<(u16, u16)> = placed.iter().map(|(_, p)| (p.x, p.y)).collect();
     assert_eq!(tiles.len(), 3, "two requested things shared a tile");
-    assert!(!tiles.contains(&(start.x, start.y)), "something landed on the player");
+    assert!(
+        !tiles.contains(&(start.x, start.y)),
+        "something landed on the player"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -227,8 +276,24 @@ fn a_spawn_list_drops_each_name_on_its_own_free_tile() {
 #[test]
 fn every_identifiable_type_gets_an_appearance() {
     let appearances = ItemAppearances::generate(&mut rng(31));
-    assert_eq!(appearances.potions.len(), POTIONS.len(), "the potion appearance pool is short");
-    assert_eq!(appearances.scrolls.len(), SCROLLS.len(), "the scroll appearance pool is short");
-    assert_eq!(appearances.wands.len(), WANDS.len(), "the wand appearance pool is short");
-    assert_eq!(appearances.rings.len(), RINGS.len(), "the ring appearance pool is short");
+    assert_eq!(
+        appearances.potions.len(),
+        POTIONS.len(),
+        "the potion appearance pool is short"
+    );
+    assert_eq!(
+        appearances.scrolls.len(),
+        SCROLLS.len(),
+        "the scroll appearance pool is short"
+    );
+    assert_eq!(
+        appearances.wands.len(),
+        WANDS.len(),
+        "the wand appearance pool is short"
+    );
+    assert_eq!(
+        appearances.rings.len(),
+        RINGS.len(),
+        "the ring appearance pool is short"
+    );
 }

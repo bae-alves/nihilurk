@@ -16,7 +16,9 @@ fn test_world(seed: u64) -> World {
     w.init_resource::<AttackQueue>();
     w.init_resource::<Ending>();
     w.init_resource::<PlayerTempo>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -52,9 +54,11 @@ fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Enti
         bp.items.retain(|&e| e != item);
     }
     let missile = draw_one(w, thrower, item, slot);
-    w.resource_mut::<ThrowQueue>()
-        .throws
-        .push(WantsToThrow { thrower, item: missile, target });
+    w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
+        thrower,
+        item: missile,
+        target,
+    });
     throw_system(w);
     missile
 }
@@ -68,7 +72,10 @@ fn monster(w: &mut World, species: &str, at: Position) -> Entity {
 /// An open tile `dx` to the east of the player, and the tile beyond it.
 fn east_of_player(w: &mut World, dx: u16) -> Position {
     let p = player_pos(w);
-    Position { x: p.x + dx, y: p.y }
+    Position {
+        x: p.x + dx,
+        y: p.y,
+    }
 }
 
 /// `Position` has no `Debug`, so compare tiles as plain pairs.
@@ -78,7 +85,10 @@ fn pos_of(w: &World, e: Entity) -> (u16, u16) {
 }
 
 fn logged(w: &World, needle: &str) -> bool {
-    w.resource::<GameLog>().history.iter().any(|l| l.contains(needle))
+    w.resource::<GameLog>()
+        .history
+        .iter()
+        .any(|l| l.contains(needle))
 }
 
 #[test]
@@ -107,16 +117,16 @@ fn only_an_item_with_thrown_damage_hurts_what_it_hits() {
     let bat = monster(&mut w, "bat", spot);
     w.get_mut::<Fighter>(bat).unwrap().hp = 20;
 
-    // A wand carries no `ThrownDamage`: it bounces off and lands, charges and
-    // mystery both intact.
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Striking, NOWHERE));
-    w.get_mut::<Battery>(wand).unwrap().charges = 5;
-    throw(&mut w, p, wand, spot);
+    // A suit of armour carries no `ThrownDamage`: it bounces off and lands.
+    let mail = stash(&mut w, p, |w| spawn_armor(w, "leather armor", NOWHERE));
+    throw(&mut w, p, mail, spot);
 
-    assert_eq!(w.get::<Fighter>(bat).unwrap().hp, 20, "a wand is not a weapon");
-    assert_eq!(pos_of(&w, wand), (spot.x, spot.y));
-    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 5);
-    assert!(!w.resource::<Identified>().wands.contains(&WandEffect::Striking));
+    assert_eq!(
+        w.get::<Fighter>(bat).unwrap().hp,
+        20,
+        "armour is not a weapon"
+    );
+    assert_eq!(pos_of(&w, mail), (spot.x, spot.y));
     assert!(logged(&w, "bounces off"));
 
     // A dagger does carry one.
@@ -140,7 +150,10 @@ fn a_thrown_wand_of_fire_goes_off_like_a_grenade() {
 
     throw(&mut w, p, wand, spot);
 
-    assert!(w.get_entity(wand).is_none(), "the wand went up with the flame");
+    assert!(
+        w.get_entity(wand).is_none(),
+        "the wand went up with the flame"
+    );
     assert!(w.get::<Fighter>(orc).unwrap().hp < 40);
     // Unmistakable: you know exactly what that was.
     assert!(w.resource::<Identified>().wands.contains(&WandEffect::Fire));
@@ -157,20 +170,38 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
         let pp = player_pos(&mut w);
         let orcs: Vec<Entity> = (1..=7)
             .map(|dx| {
-                let m = monster(&mut w, "orc", Position { x: pp.x + dx, y: pp.y });
+                let m = monster(
+                    &mut w,
+                    "orc",
+                    Position {
+                        x: pp.x + dx,
+                        y: pp.y,
+                    },
+                );
                 w.get_mut::<Fighter>(m).unwrap().hp = 200;
                 m
             })
             .collect();
-        let target = Position { x: pp.x + 1, y: pp.y };
+        let target = Position {
+            x: pp.x + 1,
+            y: pp.y,
+        };
         let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
         w.get_mut::<Battery>(wand).unwrap().charges = 5;
 
         if throw_it {
             throw(&mut w, p, wand, target);
         } else {
-            let idx = w.get::<Backpack>(p).unwrap().items.iter().position(|&e| e == wand);
-            w.get_mut::<Backpack>(p).unwrap().items.retain(|&e| e != wand);
+            let idx = w
+                .get::<Backpack>(p)
+                .unwrap()
+                .items
+                .iter()
+                .position(|&e| e == wand);
+            w.get_mut::<Backpack>(p)
+                .unwrap()
+                .items
+                .retain(|&e| e != wand);
             w.resource_mut::<UseQueue>().uses.push(WantsToUse {
                 user: p,
                 item: wand,
@@ -180,7 +211,10 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
             item_system(&mut w);
         }
 
-        let burned = orcs.iter().filter(|&&o| w.get::<Fighter>(o).unwrap().hp < 200).count();
+        let burned = orcs
+            .iter()
+            .filter(|&&o| w.get::<Fighter>(o).unwrap().hp < 200)
+            .count();
         let worst = orcs
             .iter()
             .map(|&o| 200 - w.get::<Fighter>(o).unwrap().hp)
@@ -196,12 +230,13 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
         "the grenade should catch more than the beam ({thrown_count} vs {zapped_count})"
     );
 
-    // 6d3 against 3d3: every roll inside the honest range, and twice the beam on
-    // average. Sampled across seeds, because six dice are not a doubled three.
+    // A thrown wand spends every charge: 5 charges is 5d4 against the beam's
+    // 3d3. Every roll inside the honest range, and about twice the beam on
+    // average.
     let rolls: Vec<i32> = (0..60).map(|seed| burn(seed, true).1).collect();
     assert!(
-        rolls.iter().all(|&d| (6..=18).contains(&d)),
-        "a 6d3 grenade rolled outside 6..=18: {rolls:?}"
+        rolls.iter().all(|&d| (5..=20).contains(&d)),
+        "a 5d4 grenade rolled outside 5..=20: {rolls:?}"
     );
     let mean = |v: &[i32]| v.iter().sum::<i32>() as f64 / v.len() as f64;
     let beam = mean(&(0..60).map(|seed| burn(seed, false).1).collect::<Vec<_>>());
@@ -210,6 +245,179 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
         grenade > beam * 1.6 && grenade < beam * 2.4,
         "the grenade should average about twice the beam (beam {beam:.1}, grenade {grenade:.1})"
     );
+}
+
+#[test]
+fn a_wand_lobbed_into_open_floor_lands_a_dud() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    // Two tiles east, nothing in the way, well inside the throw leash.
+    let spot = east_of_player(&mut w, 2);
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    w.get_mut::<Battery>(wand).unwrap().charges = 7;
+    throw(&mut w, p, wand, spot);
+
+    assert_eq!(pos_of(&w, wand), (spot.x, spot.y), "it just lands");
+    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 7, "charges intact");
+    assert!(
+        !w.resource::<Identified>().wands.contains(&WandEffect::Fire),
+        "secret intact"
+    );
+    assert!(logged(&w, "still bottled up"));
+}
+
+#[test]
+fn a_thrown_effect_wand_works_its_effect_on_everyone_in_the_blast() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let orc = monster(&mut w, "orc", spot);
+    assert_eq!(w.get::<Speed>(orc).unwrap().kind, SpeedKind::Normal);
+
+    let wand = stash(&mut w, p, |w| {
+        spawn_wand(w, WandEffect::HasteMonster, NOWHERE)
+    });
+    w.get_mut::<Battery>(wand).unwrap().charges = 6;
+    throw(&mut w, p, wand, spot);
+
+    assert!(w.get_entity(wand).is_none(), "the wand burst");
+    assert_eq!(
+        w.get::<Speed>(orc).unwrap().kind,
+        SpeedKind::Fast,
+        "the blast hasted the orc it caught"
+    );
+}
+
+#[test]
+fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+
+    let blade = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
+    w.entity_mut(blade).insert((PowerBonus(3), Curse));
+    let scroll = stash(&mut w, p, |w| {
+        spawn_scroll(w, ScrollEffect::Teleportation, NOWHERE)
+    });
+    let potion = stash(&mut w, p, |w| {
+        spawn_potion(w, PotionEffect::Poison, NOWHERE)
+    });
+
+    // Lobbed at a rat one tile away — the wand bursts on it, and the blast disc
+    // washes back over the thrower.
+    let spot = east_of_player(&mut w, 1);
+    monster(&mut w, "bat", spot);
+    let wand = stash(&mut w, p, |w| {
+        spawn_wand(w, WandEffect::Cancellation, NOWHERE)
+    });
+    w.get_mut::<Battery>(wand).unwrap().charges = 4;
+    throw(&mut w, p, wand, spot);
+
+    assert_eq!(
+        w.get::<PowerBonus>(blade).map(|b| b.0),
+        Some(0),
+        "the plus is wiped"
+    );
+    assert!(
+        w.get::<Curse>(blade).is_none(),
+        "but the curse lifts, blade intact"
+    );
+    assert_eq!(
+        w.get::<Scroll>(scroll).unwrap().effect,
+        ScrollEffect::BlankPaper
+    );
+    assert_eq!(w.get::<Potion>(potion).unwrap().effect, PotionEffect::Water);
+}
+
+#[test]
+fn cancellation_clears_the_players_conditions() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    w.entity_mut(p).insert(Confused);
+    w.get_mut::<Speed>(p).unwrap().kind = SpeedKind::Fast;
+
+    let spot = east_of_player(&mut w, 1);
+    monster(&mut w, "bat", spot);
+    let wand = stash(&mut w, p, |w| {
+        spawn_wand(w, WandEffect::Cancellation, NOWHERE)
+    });
+    w.get_mut::<Battery>(wand).unwrap().charges = 4;
+    throw(&mut w, p, wand, spot);
+
+    assert!(w.get::<Confused>(p).is_none(), "confusion lifts");
+    assert_eq!(
+        w.get::<Speed>(p).unwrap().kind,
+        SpeedKind::Normal,
+        "haste lifts"
+    );
+    assert!(logged(&w, "You are no longer confused."));
+    assert!(logged(&w, "You are no longer hasted."));
+}
+
+#[test]
+fn a_thrown_wand_of_light_dazzles_and_burns_everyone_in_the_blast() {
+    let mut w = test_world(6);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let orc = monster(&mut w, "orc", spot);
+    w.get_mut::<Fighter>(orc).unwrap().hp = 40;
+
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Light, NOWHERE));
+    w.get_mut::<Battery>(wand).unwrap().charges = 5;
+    throw(&mut w, p, wand, spot);
+
+    assert!(w.get_entity(wand).is_none(), "the wand burst");
+    assert!(
+        w.get::<Fighter>(orc).unwrap().hp < 40,
+        "the flash still burns like an attack wand"
+    );
+    assert!(
+        matches!(
+            w.get::<Mob>(orc).unwrap().movement_type,
+            MovementType::Confused
+        ),
+        "and it dazzles what it catches"
+    );
+    assert!(logged(&w, "dazzled"));
+}
+
+#[test]
+fn a_thrown_utility_wand_blast_deals_no_damage() {
+    let mut w = test_world(8);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let orc = monster(&mut w, "orc", spot);
+    w.get_mut::<Fighter>(orc).unwrap().hp = 30;
+
+    let wand = stash(&mut w, p, |w| {
+        spawn_wand(w, WandEffect::SlowMonster, NOWHERE)
+    });
+    w.get_mut::<Battery>(wand).unwrap().charges = 9;
+    throw(&mut w, p, wand, spot);
+
+    assert_eq!(
+        w.get::<Fighter>(orc).unwrap().hp,
+        30,
+        "the payload is the effect, not damage"
+    );
+    assert_eq!(w.get::<Speed>(orc).unwrap().kind, SpeedKind::Slow);
+}
+
+#[test]
+fn a_thrown_wand_of_teleport_to_with_no_target_sends_a_victim_to_itself() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let orc = monster(&mut w, "orc", spot);
+    let before = pos_of(&w, orc);
+
+    let wand = stash(&mut w, p, |w| {
+        spawn_wand(w, WandEffect::TeleportTo, NOWHERE)
+    });
+    w.get_mut::<Battery>(wand).unwrap().charges = 5;
+    throw(&mut w, p, wand, spot);
+
+    assert_eq!(pos_of(&w, orc), before, "it arrives exactly where it stood");
+    assert!(logged(&w, "teleports directly to themselves"));
 }
 
 #[test]
@@ -254,7 +462,10 @@ fn a_thrown_weapon_hurts_what_it_hits() {
 
     throw(&mut w, p, sword, spot);
 
-    assert!(w.get::<Fighter>(bat).unwrap().hp < 20, "the sword should have drawn blood");
+    assert!(
+        w.get::<Fighter>(bat).unwrap().hp < 20,
+        "the sword should have drawn blood"
+    );
 }
 
 #[test]
@@ -268,13 +479,22 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
         f.max_hp = 10;
         f.hp = 1;
     }
-    let potion = stash(&mut w, p, |w| spawn_potion(w, PotionEffect::Healing, NOWHERE));
+    let potion = stash(&mut w, p, |w| {
+        spawn_potion(w, PotionEffect::Healing, NOWHERE)
+    });
 
     throw(&mut w, p, potion, spot);
 
-    assert!(w.get::<Fighter>(orc).unwrap().hp > 1, "the orc drank the healing");
+    assert!(
+        w.get::<Fighter>(orc).unwrap().hp > 1,
+        "the orc drank the healing"
+    );
     assert!(w.get_entity(potion).is_none(), "the bottle broke");
-    assert!(w.resource::<Identified>().potions.contains(&PotionEffect::Healing));
+    assert!(
+        w.resource::<Identified>()
+            .potions
+            .contains(&PotionEffect::Healing)
+    );
 }
 
 #[test]
@@ -283,14 +503,20 @@ fn a_potion_that_does_nothing_visible_keeps_its_secret() {
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
     let orc = monster(&mut w, "orc", spot);
-    // Already at full health: the healing has nothing to show for itself.
+    // Strength was never drained: restore strength has nothing to show for itself.
     let hp = w.get::<Fighter>(orc).unwrap().max_hp;
     w.get_mut::<Fighter>(orc).unwrap().hp = hp;
-    let potion = stash(&mut w, p, |w| spawn_potion(w, PotionEffect::Healing, NOWHERE));
+    let potion = stash(&mut w, p, |w| {
+        spawn_potion(w, PotionEffect::RestoreStrength, NOWHERE)
+    });
 
     throw(&mut w, p, potion, spot);
 
-    assert!(!w.resource::<Identified>().potions.contains(&PotionEffect::Healing));
+    assert!(
+        !w.resource::<Identified>()
+            .potions
+            .contains(&PotionEffect::RestoreStrength)
+    );
 }
 
 #[test]
@@ -302,24 +528,39 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
     let spot = east_of_player(&mut w, 1);
     let bat = monster(&mut w, "bat", spot);
     w.get_mut::<Fighter>(bat).unwrap().hp = 20;
-    let scroll = stash(&mut w, p, |w| spawn_scroll(w, ScrollEffect::BlankPaper, NOWHERE));
+    let scroll = stash(&mut w, p, |w| {
+        spawn_scroll(w, ScrollEffect::BlankPaper, NOWHERE)
+    });
 
     throw(&mut w, p, scroll, spot);
 
     // Bounced off and landed, still a mystery.
     assert_eq!(pos_of(&w, scroll), (spot.x, spot.y));
-    assert!(!w.resource::<Identified>().scrolls.contains(&ScrollEffect::BlankPaper));
+    assert!(
+        !w.resource::<Identified>()
+            .scrolls
+            .contains(&ScrollEffect::BlankPaper)
+    );
 
-    let scroll = stash(&mut w, p, |w| spawn_scroll(w, ScrollEffect::BlankPaper, NOWHERE));
+    let scroll = stash(&mut w, p, |w| {
+        spawn_scroll(w, ScrollEffect::BlankPaper, NOWHERE)
+    });
     w.despawn(bat);
     let orc = monster(&mut w, "orc", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 20;
 
     throw(&mut w, p, scroll, spot);
 
-    assert!(w.get_entity(scroll).is_none(), "the scroll crumbled as it was read");
+    assert!(
+        w.get_entity(scroll).is_none(),
+        "the scroll crumbled as it was read"
+    );
     assert!(logged(&w, "reads it aloud"));
-    assert!(w.resource::<Identified>().scrolls.contains(&ScrollEffect::BlankPaper));
+    assert!(
+        w.resource::<Identified>()
+            .scrolls
+            .contains(&ScrollEffect::BlankPaper)
+    );
 }
 
 #[test]
@@ -340,8 +581,16 @@ fn the_item_users_are_the_humanoids_with_wits() {
     assert_eq!(
         users,
         vec![
-            "goblin", "centaur", "hobgoblin", "leprechaun", "medusa", "nymph", "orc", "troll",
-            "ur-vile", "vampire",
+            "goblin",
+            "centaur",
+            "hobgoblin",
+            "leprechaun",
+            "medusa",
+            "nymph",
+            "orc",
+            "troll",
+            "ur-vile",
+            "vampire",
         ]
     );
 }
@@ -397,7 +646,11 @@ fn throwing_equipped_gear_takes_it_off_first() {
 
     throw(&mut w, p, sword, spot);
 
-    assert_eq!(equipped_total::<PowerDie>(&w, p), 0, "the sword is not in your hand any more");
+    assert_eq!(
+        equipped_total::<PowerDie>(&w, p),
+        0,
+        "the sword is not in your hand any more"
+    );
 }
 
 /// Arm a goblin with a thrown mace, kill it, and report whether the mace
@@ -443,10 +696,16 @@ fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
 #[test]
 fn the_action_menu_order_flips_with_dropthrow() {
     let default = ActionMenu { drop_first: false };
-    assert_eq!(default.actions(), [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]);
+    assert_eq!(
+        default.actions(),
+        [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
+    );
 
     let swapped = ActionMenu { drop_first: true };
-    assert_eq!(swapped.actions(), [ItemAction::Use, ItemAction::Drop, ItemAction::Throw]);
+    assert_eq!(
+        swapped.actions(),
+        [ItemAction::Use, ItemAction::Drop, ItemAction::Throw]
+    );
 }
 
 #[test]

@@ -14,7 +14,9 @@ fn test_world(seed: u64) -> World {
     w.init_resource::<UseQueue>();
     w.init_resource::<AttackQueue>();
     w.init_resource::<Ending>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -26,10 +28,20 @@ fn player(w: &mut World) -> Entity {
 /// Pull `item` out of the pack, queue it, run the item system — the engine's
 /// "Use" action.
 fn use_item(w: &mut World, user: Entity, item: Entity) {
-    let idx = w.get_mut::<Backpack>(user).unwrap().items.iter().position(|&e| e == item);
+    let idx = w
+        .get_mut::<Backpack>(user)
+        .unwrap()
+        .items
+        .iter()
+        .position(|&e| e == item);
     if let Some(i) = idx {
         w.get_mut::<Backpack>(user).unwrap().items.remove(i);
-        w.resource_mut::<UseQueue>().uses.push(WantsToUse { user, item, target: None, slot_idx: Some(i) });
+        w.resource_mut::<UseQueue>().uses.push(WantsToUse {
+            user,
+            item,
+            target: None,
+            slot_idx: Some(i),
+        });
     }
     item_system(w);
 }
@@ -44,7 +56,15 @@ fn spawn_dummy(w: &mut World, name: &str, x: u16, y: u16, hp: i32, mv: MovementT
         Name { what: name.into() },
         Mob { movement_type: mv },
         Position { x, y },
-        Fighter { hp, max_hp: hp, armor: 0, power: 1, max_power: 1, armor_bonus: 0, power_bonus: 0 },
+        Fighter {
+            hp,
+            max_hp: hp,
+            armor: 0,
+            power: 1,
+            max_power: 1,
+            armor_bonus: 0,
+            power_bonus: 0,
+        },
         Faction::Monster,
         Blood,
     ))
@@ -73,9 +93,19 @@ fn teleportation_drops_the_reader_somewhere_else_on_the_floor() {
     use_item(&mut w, p, scroll);
 
     let after = *w.get::<Position>(p).unwrap();
-    assert!((after.x, after.y) != (before.x, before.y), "the reader should have moved");
-    assert!(w.get::<Viewshed>(p).unwrap().dirty, "the viewshed must be recomputed after a blink");
-    assert!(w.resource::<Identified>().scrolls.contains(&ScrollEffect::Teleportation));
+    assert!(
+        (after.x, after.y) != (before.x, before.y),
+        "the reader should have moved"
+    );
+    assert!(
+        w.get::<Viewshed>(p).unwrap().dirty,
+        "the viewshed must be recomputed after a blink"
+    );
+    assert!(
+        w.resource::<Identified>()
+            .scrolls
+            .contains(&ScrollEffect::Teleportation)
+    );
     // Landed on a real walkable tile, not inside a wall.
     assert!(!w.resource::<Map>().blocks(after.x, after.y));
 }
@@ -94,12 +124,26 @@ fn aggravate_turns_every_monster_into_a_hunter_that_closes_in_unseen() {
     // and outside the hero's view.
     let mob_start = {
         let map = w.resource::<Map>();
-        (2..8).map(|d| (hero.x + d, hero.y)).find(|&(x, y)| !map.blocks(x, y)).unwrap()
+        (2..8)
+            .map(|d| (hero.x + d, hero.y))
+            .find(|&(x, y)| !map.blocks(x, y))
+            .unwrap()
     };
-    let mob = spawn_dummy(&mut w, "orc", mob_start.0, mob_start.1, 3, MovementType::Static);
+    let mob = spawn_dummy(
+        &mut w,
+        "orc",
+        mob_start.0,
+        mob_start.1,
+        3,
+        MovementType::Static,
+    );
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y)];
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::AggravateMonsters, Position { x: 0, y: 0 });
+    let scroll = spawn_scroll(
+        &mut w,
+        ScrollEffect::AggravateMonsters,
+        Position { x: 0, y: 0 },
+    );
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -140,8 +184,20 @@ fn scare_monster_routs_what_you_can_see_and_leaves_the_rest_alone() {
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    assert!(matches!(w.get::<Mob>(seen).unwrap().movement_type, MovementType::Flee), "a monster in view is scared off");
-    assert!(matches!(w.get::<Mob>(unseen).unwrap().movement_type, MovementType::Chase), "a monster out of view is untouched");
+    assert!(
+        matches!(
+            w.get::<Mob>(seen).unwrap().movement_type,
+            MovementType::Flee
+        ),
+        "a monster in view is scared off"
+    );
+    assert!(
+        matches!(
+            w.get::<Mob>(unseen).unwrap().movement_type,
+            MovementType::Chase
+        ),
+        "a monster out of view is untouched"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +221,9 @@ fn create_monster_conjures_a_fresh_creature_on_the_floor() {
     // It stands on a real tile that isn't the player's.
     let hero = *w.get::<Position>(p).unwrap();
     let mut q = w.query_filtered::<(&Position, &Faction), With<Mob>>();
-    let placed_ok = q.iter(&w).any(|(pos, f)| *f == Faction::Monster && (pos.x, pos.y) != (hero.x, hero.y));
+    let placed_ok = q
+        .iter(&w)
+        .any(|(pos, f)| *f == Faction::Monster && (pos.x, pos.y) != (hero.x, hero.y));
     assert!(placed_ok);
 }
 
@@ -175,6 +233,10 @@ fn create_monster_conjures_a_fresh_creature_on_the_floor() {
 
 /// Give the player a wielded weapon and return its entity.
 fn wield_a_blade(w: &mut World, p: Entity) -> Entity {
+    // Put down the starting mace first — this blade is the only thing in hand.
+    for item in equipped_items(w, p) {
+        force_unequip(w, item);
+    }
     let sword = spawn_weapon(w, "long sword", Position { x: 0, y: 0 });
     w.entity_mut(sword).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(sword);
@@ -188,11 +250,19 @@ fn vorpalize_brands_the_wielded_blade_and_names_a_bane() {
     let p = player(&mut w);
     let sword = wield_a_blade(&mut w, p);
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::VorpalizeWeapon, Position { x: 0, y: 0 });
+    let scroll = spawn_scroll(
+        &mut w,
+        ScrollEffect::VorpalizeWeapon,
+        Position { x: 0, y: 0 },
+    );
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    let bane = w.get::<Vorpal>(sword).expect("the blade is now vorpal").bane.clone();
+    let bane = w
+        .get::<Vorpal>(sword)
+        .expect("the blade is now vorpal")
+        .bane
+        .clone();
     assert!(!bane.is_empty());
 }
 
@@ -203,21 +273,43 @@ fn vorpalizing_an_already_vorpal_weapon_crumbles_it() {
     let sword = wield_a_blade(&mut w, p);
     w.entity_mut(sword).insert(Vorpal { bane: "orc".into() });
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::VorpalizeWeapon, Position { x: 0, y: 0 });
+    let scroll = spawn_scroll(
+        &mut w,
+        ScrollEffect::VorpalizeWeapon,
+        Position { x: 0, y: 0 },
+    );
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    assert!(!w.entities().contains(sword), "a twice-vorpalized blade is destroyed");
-    assert!(!w.get::<Backpack>(p).unwrap().items.contains(&sword), "…and gone from the pack");
-    assert!(w.resource::<GameLog>().history.iter().any(|l| l.contains("crumbles to dust")));
+    assert!(
+        !w.entities().contains(sword),
+        "a twice-vorpalized blade is destroyed"
+    );
+    assert!(
+        !w.get::<Backpack>(p).unwrap().items.contains(&sword),
+        "…and gone from the pack"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("crumbles to dust"))
+    );
 }
 
 #[test]
 fn vorpalize_with_empty_hands_just_fizzles() {
     let mut w = test_world(11);
     let p = player(&mut w);
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::VorpalizeWeapon, Position { x: 0, y: 0 });
+    let scroll = spawn_scroll(
+        &mut w,
+        ScrollEffect::VorpalizeWeapon,
+        Position { x: 0, y: 0 },
+    );
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -239,8 +331,16 @@ fn a_vorpal_blade_beheads_its_bane_in_one_blow() {
 
     resolve_attack(&mut w, p, orc);
 
-    assert!(!w.entities().contains(orc), "the bane is slain outright despite its 999 HP");
-    assert!(w.resource::<GameLog>().history.iter().any(|l| l.contains("Snicker-snack")));
+    assert!(
+        !w.entities().contains(orc),
+        "the bane is slain outright despite its 999 HP"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("Snicker-snack"))
+    );
 }
 
 #[test]
@@ -252,11 +352,21 @@ fn every_vorpal_blade_beheads_a_jabberwock_whatever_its_bane() {
     w.get_mut::<Fighter>(p).unwrap().power = 100;
 
     let hero = *w.get::<Position>(p).unwrap();
-    let jab = spawn_monster(&mut w, MonsterDef::named("jabberwock"), Position { x: hero.x + 1, y: hero.y });
+    let jab = spawn_monster(
+        &mut w,
+        MonsterDef::named("jabberwock"),
+        Position {
+            x: hero.x + 1,
+            y: hero.y,
+        },
+    );
     w.get_mut::<Fighter>(jab).unwrap().hp = 999;
 
     resolve_attack(&mut w, p, jab);
-    assert!(!w.entities().contains(jab), "any vorpal weapon fells the Jabberwock");
+    assert!(
+        !w.entities().contains(jab),
+        "any vorpal weapon fells the Jabberwock"
+    );
 }
 
 #[test]
@@ -271,8 +381,14 @@ fn a_vorpal_blade_is_just_a_blade_against_anything_else() {
     let bat = spawn_dummy(&mut w, "bat", hero.x + 1, hero.y, 999, MovementType::Static);
 
     resolve_attack(&mut w, p, bat);
-    assert!(w.entities().contains(bat), "a non-bane, non-jabberwock takes ordinary damage");
-    assert!(w.get::<Fighter>(bat).unwrap().hp < 999, "…ordinary damage, but damage all the same");
+    assert!(
+        w.entities().contains(bat),
+        "a non-bane, non-jabberwock takes ordinary damage"
+    );
+    assert!(
+        w.get::<Fighter>(bat).unwrap().hp < 999,
+        "…ordinary damage, but damage all the same"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -284,16 +400,34 @@ fn a_glancing_blow_chips_a_foe_down_to_one_but_never_finishes_it() {
     let mut w = test_world(4);
     let p = player(&mut w);
     // Feeble hero, heavily armoured target: every hit is a chip-damage glance.
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
     w.get_mut::<Fighter>(p).unwrap().power = 1;
     w.get_mut::<Fighter>(p).unwrap().power_bonus = 0;
 
     let hero = *w.get::<Position>(p).unwrap();
     let foe = w
         .spawn((
-            Name { what: "wall of a monster".into() },
-            Mob { movement_type: MovementType::Static },
-            Position { x: hero.x + 1, y: hero.y },
-            Fighter { hp: 5, max_hp: 5, armor: 2, power: 1, max_power: 1, armor_bonus: 10, power_bonus: 0 },
+            Name {
+                what: "wall of a monster".into(),
+            },
+            Mob {
+                movement_type: MovementType::Static,
+            },
+            Position {
+                x: hero.x + 1,
+                y: hero.y,
+            },
+            Fighter {
+                hp: 5,
+                max_hp: 5,
+                armor: 2,
+                power: 1,
+                max_power: 1,
+                armor_bonus: 10,
+                power_bonus: 0,
+            },
             Faction::Monster,
             Blood,
         ))
@@ -303,7 +437,19 @@ fn a_glancing_blow_chips_a_foe_down_to_one_but_never_finishes_it() {
         resolve_attack(&mut w, p, foe);
     }
 
-    assert!(w.entities().contains(foe), "a string of glancing blows never kills");
-    assert_eq!(w.get::<Fighter>(foe).unwrap().hp, 1, "they chip it to 1 HP and no further");
-    assert!(w.resource::<GameLog>().history.iter().any(|l| l.contains("glancing blow")));
+    assert!(
+        w.entities().contains(foe),
+        "a string of glancing blows never kills"
+    );
+    assert_eq!(
+        w.get::<Fighter>(foe).unwrap().hp,
+        1,
+        "they chip it to 1 HP and no further"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("glancing blow"))
+    );
 }

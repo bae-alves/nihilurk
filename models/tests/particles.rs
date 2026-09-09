@@ -3,7 +3,7 @@
 //! terminates and draws the right glyph at the right time.
 
 use crossterm::style::Color;
-use models::particles::Particles;
+use models::particles::{BlastPalette, Particles};
 
 #[test]
 fn a_blip_is_born_then_culled() {
@@ -31,7 +31,10 @@ fn beam_cells_light_up_in_order() {
     // its travel delay.
     fx.advance(10.0);
     assert!(fx.live[0].current().is_some(), "beam head is drawing");
-    assert!(fx.live[5].current().is_none(), "beam tail has not arrived yet");
+    assert!(
+        fx.live[5].current().is_none(),
+        "beam tail has not arrived yet"
+    );
 
     // A horizontal run draws with the horizontal beam glyph.
     assert_eq!(fx.live[0].current().unwrap().0, '-');
@@ -41,7 +44,7 @@ fn beam_cells_light_up_in_order() {
 fn an_explosion_ripples_out_and_then_ends() {
     let mut fx = Particles::new();
     let cells = [(10, 10, 0.0), (11, 10, 1.0), (13, 10, 3.0)];
-    fx.explosion(&cells, true);
+    fx.explosion(&cells, BlastPalette::Fire);
 
     // Core is lit before the rim.
     fx.advance(10.0);

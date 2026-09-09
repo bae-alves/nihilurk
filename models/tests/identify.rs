@@ -7,7 +7,9 @@ fn test_world(seed: u64) -> World {
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
     w.init_resource::<UseQueue>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -18,10 +20,20 @@ fn player(w: &mut World) -> Entity {
 
 /// Simulate the inventory "Use" action, exactly like the engine does.
 fn use_item(w: &mut World, user: Entity, item: Entity) {
-    let idx = w.get_mut::<Backpack>(user).unwrap().items.iter().position(|&e| e == item);
+    let idx = w
+        .get_mut::<Backpack>(user)
+        .unwrap()
+        .items
+        .iter()
+        .position(|&e| e == item);
     if let Some(i) = idx {
         w.get_mut::<Backpack>(user).unwrap().items.remove(i);
-        w.resource_mut::<UseQueue>().uses.push(WantsToUse { user, item, target: None, slot_idx: Some(i) });
+        w.resource_mut::<UseQueue>().uses.push(WantsToUse {
+            user,
+            item,
+            target: None,
+            slot_idx: Some(i),
+        });
     }
     item_system(w);
 }
@@ -36,14 +48,22 @@ fn stash(w: &mut World, user: Entity, item: Entity) {
 fn unidentified_potion_shows_its_appearance_not_its_true_name() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let potion = spawn_potion(&mut w, PotionEffect::Healing, Position { x: 0, y: 0 });
+    let potion = spawn_potion(
+        &mut w,
+        PotionEffect::MonsterDetection,
+        Position { x: 0, y: 0 },
+    );
     stash(&mut w, p, potion);
 
     let seen = display_name(&w, potion);
-    assert_ne!(seen, "potion of healing");
-    assert!(seen.ends_with(" potion"), "expected an appearance-based label, got {seen:?}");
+    assert_ne!(seen, "potion of monster detection");
+    assert!(
+        seen.ends_with(" potion"),
+        "expected an appearance-based label, got {seen:?}"
+    );
 
-    let appearance = w.resource::<ItemAppearances>().potions[&PotionEffect::Healing].clone();
+    let appearance =
+        w.resource::<ItemAppearances>().potions[&PotionEffect::MonsterDetection].clone();
     assert_eq!(seen, format!("{appearance} potion"));
 }
 
@@ -51,21 +71,41 @@ fn unidentified_potion_shows_its_appearance_not_its_true_name() {
 fn quaffing_a_potion_identifies_every_potion_of_that_type() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let drunk = spawn_potion(&mut w, PotionEffect::Healing, Position { x: 0, y: 0 });
-    let other = spawn_potion(&mut w, PotionEffect::Healing, Position { x: 0, y: 0 });
+    let drunk = spawn_potion(
+        &mut w,
+        PotionEffect::MonsterDetection,
+        Position { x: 0, y: 0 },
+    );
+    let other = spawn_potion(
+        &mut w,
+        PotionEffect::MonsterDetection,
+        Position { x: 0, y: 0 },
+    );
     stash(&mut w, p, drunk);
     stash(&mut w, p, other);
 
-    assert!(!w.resource::<Identified>().potions.contains(&PotionEffect::Healing));
+    assert!(
+        !w.resource::<Identified>()
+            .potions
+            .contains(&PotionEffect::MonsterDetection)
+    );
 
     use_item(&mut w, p, drunk);
 
     // Knowledge is global: the untouched sister potion is revealed too.
-    assert!(w.resource::<Identified>().potions.contains(&PotionEffect::Healing));
-    assert_eq!(display_name(&w, other), "potion of healing");
+    assert!(
+        w.resource::<Identified>()
+            .potions
+            .contains(&PotionEffect::MonsterDetection)
+    );
+    assert_eq!(display_name(&w, other), "potion of monster detection");
 
     let log = w.resource::<GameLog>();
-    assert!(log.history.iter().any(|m| m.contains("That was a potion of healing!")));
+    assert!(
+        log.history
+            .iter()
+            .any(|m| m.contains("That was a potion of monster detection!"))
+    );
 }
 
 #[test]
@@ -92,7 +132,11 @@ fn wearing_a_ring_identifies_it_and_toggles_like_gear() {
     assert!(unseen.ends_with(" ring"));
 
     use_item(&mut w, p, ring);
-    assert!(w.resource::<Identified>().rings.contains(&RingEffect::Regeneration));
+    assert!(
+        w.resource::<Identified>()
+            .rings
+            .contains(&RingEffect::Regeneration)
+    );
     assert_eq!(display_name(&w, ring), "ring of regeneration");
     assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
     // Still in the pack, just worn.
@@ -112,17 +156,24 @@ fn scroll_of_identify_reveals_an_unknown_item_without_using_it() {
     stash(&mut w, p, potion);
     stash(&mut w, p, scroll);
 
-    // The player starts with an unidentified wand too (see `initialize_world`);
-    // mark it known so it can't be the scroll's random pick instead of the potion.
-    w.resource_mut::<Identified>().wands.insert(WandEffect::MagicMissile);
-
     use_item(&mut w, p, scroll);
 
     // The potion was never drunk, but its true type is now known.
-    assert!(w.resource::<Identified>().potions.contains(&PotionEffect::Poison));
+    assert!(
+        w.resource::<Identified>()
+            .potions
+            .contains(&PotionEffect::Poison)
+    );
     assert_eq!(display_name(&w, potion), "potion of poison");
-    assert!(w.get::<Potion>(potion).is_some(), "identify must not consume the target item");
+    assert!(
+        w.get::<Potion>(potion).is_some(),
+        "identify must not consume the target item"
+    );
 
     // Scroll of Identify identifies itself too, on the same read.
-    assert!(w.resource::<Identified>().scrolls.contains(&ScrollEffect::Identify));
+    assert!(
+        w.resource::<Identified>()
+            .scrolls
+            .contains(&ScrollEffect::Identify)
+    );
 }

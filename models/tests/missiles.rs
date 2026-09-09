@@ -24,7 +24,9 @@ fn test_world(seed: u64) -> World {
     w.init_resource::<AttackQueue>();
     w.init_resource::<Ending>();
     w.init_resource::<PlayerTempo>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -50,9 +52,13 @@ fn stash(w: &mut World, p: Entity, spawn: impl FnOnce(&mut World) -> Entity) -> 
 }
 
 /// Empties the player's starting kit, so a test that asserts on the shape of the
-/// pack is asserting only about what it put there itself.
+/// pack is asserting only about what it put there itself. The items are despawned,
+/// not just unlisted, so a save written afterwards holds only what the test added.
 fn empty_pack(w: &mut World, p: Entity) {
-    w.get_mut::<Backpack>(p).unwrap().items.clear();
+    let items = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
+    for item in items {
+        w.despawn(item);
+    }
 }
 
 /// A pack slot holding `count` arrows (or quarrels).
@@ -72,9 +78,11 @@ fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Enti
         bp.items.retain(|&e| e != item);
     }
     let missile = draw_one(w, thrower, item, slot);
-    w.resource_mut::<ThrowQueue>()
-        .throws
-        .push(WantsToThrow { thrower, item: missile, target });
+    w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
+        thrower,
+        item: missile,
+        target,
+    });
     throw_system(w);
     missile
 }
@@ -112,7 +120,10 @@ fn hp(w: &World, e: Entity) -> i32 {
 }
 
 fn logged(w: &World, needle: &str) -> bool {
-    w.resource::<GameLog>().history.iter().any(|l| l.contains(needle))
+    w.resource::<GameLog>()
+        .history
+        .iter()
+        .any(|l| l.contains(needle))
 }
 
 /// Throws one piece of `ammo` at a punching bag `rounds` times and reports every
@@ -156,12 +167,18 @@ fn a_bow_doubles_the_die_of_an_arrow_and_nothing_else() {
     let from_a_bow = damage_samples(1, "arrow", 400, |w, p| {
         let bow = stash(w, p, |w| spawn_launcher(w, "bow", NOWHERE));
         toggle_equipped(w, p, bow);
-        assert!(w.get::<FireArrow>(p).is_some(), "drawing a bow arms the arrow");
+        assert!(
+            w.get::<FireArrow>(p).is_some(),
+            "drawing a bow arms the arrow"
+        );
     });
 
     // 1d4 lobbed, 1d8 loosed: the honest range of each, and twice the average.
     assert!(by_hand.iter().all(|&d| (1..=4).contains(&d)), "{by_hand:?}");
-    assert!(from_a_bow.iter().all(|&d| (1..=8).contains(&d)), "{from_a_bow:?}");
+    assert!(
+        from_a_bow.iter().all(|&d| (1..=8).contains(&d)),
+        "{from_a_bow:?}"
+    );
     assert_eq!(*by_hand.iter().max().unwrap(), 4);
     assert_eq!(*from_a_bow.iter().max().unwrap(), 8);
     let (lobbed, loosed) = (mean(&by_hand), mean(&from_a_bow));
@@ -186,7 +203,10 @@ fn a_crossbow_doubles_a_quarrel_and_a_bow_does_not() {
 
     assert_eq!(*by_hand.iter().max().unwrap(), 6, "1d6 lobbed");
     assert_eq!(*from_a_crossbow.iter().max().unwrap(), 12, "1d12 loosed");
-    assert!(wrong_launcher.iter().all(|&d| (1..=6).contains(&d)), "{wrong_launcher:?}");
+    assert!(
+        wrong_launcher.iter().all(|&d| (1..=6).contains(&d)),
+        "{wrong_launcher:?}"
+    );
 }
 
 #[test]
@@ -221,7 +241,11 @@ fn a_bow_and_a_sword_want_the_same_hand() {
     toggle_equipped(&mut w, p, bow);
 
     assert_eq!(equipped_in(&w, p, Slot::Hand), Some(bow));
-    assert_eq!(equipped_total::<PowerDie>(&w, p), 0, "the sword is back in the pack");
+    assert_eq!(
+        equipped_total::<PowerDie>(&w, p),
+        0,
+        "the sword is back in the pack"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +261,10 @@ fn a_ring_of_dexterity_adds_two_to_everything_you_throw() {
         assert_eq!(equipped_total::<ThrowBonus>(w, p), 2);
     });
 
-    assert!(deft.iter().all(|&d| (3..=6).contains(&d)), "1d4+2: {deft:?}");
+    assert!(
+        deft.iter().all(|&d| (3..=6).contains(&d)),
+        "1d4+2: {deft:?}"
+    );
     assert!((mean(&deft) - mean(&plain) - 2.0).abs() < 0.4);
 }
 
@@ -249,7 +276,10 @@ fn a_bows_plus_rides_along_on_what_it_looses() {
         w.entity_mut(bow).insert(ThrowBonus(3));
         toggle_equipped(w, p, bow);
     });
-    assert!(sharp.iter().all(|&d| (4..=11).contains(&d)), "1d8+3: {sharp:?}");
+    assert!(
+        sharp.iter().all(|&d| (4..=11).contains(&d)),
+        "1d8+3: {sharp:?}"
+    );
 }
 
 #[test]
@@ -267,7 +297,10 @@ fn a_daggers_plus_rides_along_on_the_dagger() {
         throw(&mut w, p, dagger, spot);
         seen.push(before - hp(&w, bag));
     }
-    assert!(seen.iter().all(|&d| (3..=6).contains(&d)), "1d4+2: {seen:?}");
+    assert!(
+        seen.iter().all(|&d| (3..=6).contains(&d)),
+        "1d4+2: {seen:?}"
+    );
 }
 
 #[test]
@@ -328,7 +361,10 @@ fn a_spear_runs_the_whole_line_and_an_arrow_stops_at_the_first_thing_it_hits() {
     let (mut w, p, row, far) = line_of_three(9);
     let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
     throw(&mut w, p, dagger, far);
-    assert!(row.iter().all(|&bat| hp(&w, bat) < 500), "the dagger stopped short");
+    assert!(
+        row.iter().all(|&bat| hp(&w, bat) < 500),
+        "the dagger stopped short"
+    );
 
     // An arrow aimed at the far bat never gets past the near one. This is the
     // rule for everything that is not a dagger or a spear.
@@ -389,7 +425,9 @@ fn a_projectile_that_hits_nothing_falls_where_it_landed() {
 
     throw(&mut w, p, dagger, spot);
 
-    let at = w.get::<Position>(dagger).expect("it should be on the floor");
+    let at = w
+        .get::<Position>(dagger)
+        .expect("it should be on the floor");
     assert_eq!((at.x, at.y), (spot.x, spot.y));
 }
 
@@ -407,7 +445,10 @@ fn nothing_catches_a_projectile_out_of_the_air() {
     throw(&mut w, p, spear, spot);
 
     assert!(w.get_entity(spear).is_none());
-    assert!(equipped_in(&w, orc, Slot::Hand).is_none(), "the orc caught nothing");
+    assert!(
+        equipped_in(&w, orc, Slot::Hand).is_none(),
+        "the orc caught nothing"
+    );
     assert!(!logged(&w, "wields it"));
 }
 
@@ -480,8 +521,15 @@ fn arrows_off_the_floor_top_up_the_quiver_you_are_carrying() {
 
     assert_eq!(taken, "6 arrows");
     assert_eq!(w.get::<Stack>(carried).unwrap().count, 10);
-    assert!(w.get_entity(pile).is_none(), "the pile is gone into the quiver");
-    assert_eq!(w.get::<Backpack>(p).unwrap().items, vec![carried], "still one slot");
+    assert!(
+        w.get_entity(pile).is_none(),
+        "the pile is gone into the quiver"
+    );
+    assert_eq!(
+        w.get::<Backpack>(p).unwrap().items,
+        vec![carried],
+        "still one slot"
+    );
 }
 
 #[test]
@@ -511,8 +559,16 @@ fn a_quiver_tops_out_at_twenty_six_and_the_rest_takes_a_slot_of_its_own() {
     let taken = stow(&mut w, p, pile).expect("all nine came with you");
 
     assert_eq!(taken, "9 arrows");
-    assert_eq!(w.get::<Stack>(carried).unwrap().count, STACK_LIMIT, "filled to the brim");
-    assert_eq!(w.get::<Stack>(pile).unwrap().count, 7, "and the overflow rides along");
+    assert_eq!(
+        w.get::<Stack>(carried).unwrap().count,
+        STACK_LIMIT,
+        "filled to the brim"
+    );
+    assert_eq!(
+        w.get::<Stack>(pile).unwrap().count,
+        7,
+        "and the overflow rides along"
+    );
     assert_eq!(w.get::<Backpack>(p).unwrap().items, vec![carried, pile]);
     assert!(w.get::<Position>(pile).is_none(), "it left the floor");
 
@@ -549,6 +605,7 @@ fn a_stack_counts_itself_in_the_pack_screen() {
 fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     let mut w = test_world(19);
     let p = player(&mut w);
+    empty_pack(&mut w, p);
     quiver(&mut w, p, "arrow", 13);
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
     w.entity_mut(bow).insert(ThrowBonus(2));
@@ -561,7 +618,9 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(19)));
     loaded.insert_resource(RngSeed(19));
     loaded.init_resource::<GameLog>();
-    loaded.insert_resource(PlayerName { what: "TESTER".into() });
+    loaded.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     load_game(&mut loaded, path.to_str().unwrap()).unwrap();
     let _ = std::fs::remove_file(&path);
 
@@ -642,7 +701,10 @@ fn swinging_a_bow_is_worth_a_bruise_and_no_more() {
         }
         let dealt = before - hp(&w, target);
 
-        assert!(dealt > 0, "a {launcher} should still be worth something swung");
+        assert!(
+            dealt > 0,
+            "a {launcher} should still be worth something swung"
+        );
         assert!(
             dealt <= 300,
             "a {launcher} swing must never exceed 1 point: 300 swings dealt {dealt}"
@@ -714,6 +776,7 @@ fn the_melee_cap_survives_a_save() {
 
     let mut w = test_world(5);
     let p = player(&mut w);
+    empty_pack(&mut w, p);
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
     assert_eq!(w.get::<MeleeCap>(bow).copied(), Some(MeleeCap(1)));
     save_game(&mut w, path).unwrap();
@@ -723,6 +786,10 @@ fn the_melee_cap_survives_a_save() {
     load_game(&mut w2, path).unwrap();
 
     let caps: Vec<MeleeCap> = w2.query::<&MeleeCap>().iter(&w2).copied().collect();
-    assert_eq!(caps, vec![MeleeCap(1)], "the bow came back without its ceiling");
+    assert_eq!(
+        caps,
+        vec![MeleeCap(1)],
+        "the bow came back without its ceiling"
+    );
     let _ = std::fs::remove_file(path);
 }

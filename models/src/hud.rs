@@ -22,7 +22,11 @@ pub fn pack_messages(messages: &[String], width: usize, max_lines: usize) -> (Ve
 
     for msg in messages {
         let msg_len = msg.chars().count();
-        let would_be = if cur.is_empty() { msg_len } else { cur_len + 1 + msg_len };
+        let would_be = if cur.is_empty() {
+            msg_len
+        } else {
+            cur_len + 1 + msg_len
+        };
 
         if !cur.is_empty() && would_be > width {
             lines.push(std::mem::take(&mut cur));

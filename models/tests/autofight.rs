@@ -6,9 +6,14 @@ use models::*;
 
 /// Eight-way neighbour offsets, matching the player's moves and the pathfinder.
 const DIRS: [(i32, i32); 8] = [
-    (-1, -1), (0, -1), (1, -1),
-    (-1, 0),           (1, 0),
-    (-1, 1),  (0, 1),  (1, 1),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
 ];
 
 /// A world with a generated first floor and every monster / floor item removed,
@@ -19,7 +24,9 @@ fn fresh_floor(seed: u64) -> (World, Entity) {
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
     w.init_resource::<Ending>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
 
     let clutter: Vec<Entity> = w
@@ -51,10 +58,22 @@ fn player_xy(w: &mut World, player: Entity) -> (u16, u16) {
 /// as "in sight" until the visibility system says otherwise.
 fn spawn_enemy(w: &mut World, x: u16, y: u16, hp: i32) -> Entity {
     w.spawn((
-        Name { what: "dummy".into() },
-        Mob { movement_type: MovementType::Static },
+        Name {
+            what: "dummy".into(),
+        },
+        Mob {
+            movement_type: MovementType::Static,
+        },
         Position { x, y },
-        Fighter { hp, max_hp: hp, armor: 0, power: 1, max_power: 1, armor_bonus: 0, power_bonus: 0 },
+        Fighter {
+            hp,
+            max_hp: hp,
+            armor: 0,
+            power: 1,
+            max_power: 1,
+            armor_bonus: 0,
+            power_bonus: 0,
+        },
         Faction::Monster,
         Blood,
     ))
@@ -77,7 +96,10 @@ fn player_too_injured_matches_the_quarter_hp_rule() {
     assert!(!player_too_injured(&mut w), "just above a quarter is fine");
 
     set_player_hp(&mut w, player, max / 4); // 3, i.e. exactly 25%
-    assert!(player_too_injured(&mut w), "exactly a quarter is too injured");
+    assert!(
+        player_too_injured(&mut w),
+        "exactly a quarter is too injured"
+    );
 
     set_player_hp(&mut w, player, 1);
     assert!(player_too_injured(&mut w), "one HP is too injured");
@@ -158,12 +180,17 @@ fn tab_closes_on_and_kills_a_distant_foe() {
 
         let mut steps = 0;
         loop {
-            let Some(target) = auto_fight_target(&mut w) else { break };
+            let Some(target) = auto_fight_target(&mut w) else {
+                break;
+            };
             assert_eq!(target, foe, "seed {seed}: only one foe exists");
 
             let (dx, dy) = fight_step(&mut w, target)
                 .unwrap_or_else(|| panic!("seed {seed}: lost the path to the foe"));
-            assert!(dx.abs() <= 1 && dy.abs() <= 1 && (dx != 0 || dy != 0), "seed {seed}: bad step");
+            assert!(
+                dx.abs() <= 1 && dy.abs() <= 1 && (dx != 0 || dy != 0),
+                "seed {seed}: bad step"
+            );
 
             let (px, py) = player_xy(&mut w, player);
             let (nx, ny) = ((px as i16 + dx) as u16, (py as i16 + dy) as u16);
@@ -172,7 +199,10 @@ fn tab_closes_on_and_kills_a_distant_foe() {
             if (nx, ny) == (foe_pos.x, foe_pos.y) {
                 resolve_attack(&mut w, player, foe); // a step onto the foe is a strike
             } else {
-                assert!(!w.resource::<Map>().blocks(nx, ny), "seed {seed}: stepped into a wall");
+                assert!(
+                    !w.resource::<Map>().blocks(nx, ny),
+                    "seed {seed}: stepped into a wall"
+                );
                 let mut pos = w.get_mut::<Position>(player).unwrap();
                 pos.x = nx;
                 pos.y = ny;
@@ -184,7 +214,10 @@ fn tab_closes_on_and_kills_a_distant_foe() {
             assert!(steps < 500, "seed {seed}: auto-fight never reached the foe");
         }
 
-        assert!(w.get_entity(foe).is_none(), "seed {seed}: the foe should be dead");
+        assert!(
+            w.get_entity(foe).is_none(),
+            "seed {seed}: the foe should be dead"
+        );
         assert!(steps > 0, "seed {seed}: made no moves");
     }
 }

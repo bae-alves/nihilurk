@@ -8,7 +8,9 @@ fn test_world(seed: u64) -> World {
     w.init_resource::<GameLog>();
     w.init_resource::<UseQueue>();
     w.init_resource::<AttackQueue>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -94,17 +96,26 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
 
     // Can't take it off.
     use_item(&mut w, p, cursed_mail);
-    assert!(is_equipped(&w, cursed_mail), "cursed armour should not come off");
+    assert!(
+        is_equipped(&w, cursed_mail),
+        "cursed armour should not come off"
+    );
 
     // Can't swap to other armour while the cursed suit is stuck.
     use_item(&mut w, p, plain_mail);
-    assert!(!is_equipped(&w, plain_mail), "cursed armour blocks changing armour");
+    assert!(
+        !is_equipped(&w, plain_mail),
+        "cursed armour blocks changing armour"
+    );
     assert!(is_equipped(&w, cursed_mail));
 
     // Read a scroll of remove curse: the equipped cursed suit is destroyed
     // outright — unequipped, pulled from the pack and despawned.
     use_item(&mut w, p, scroll);
-    assert!(!w.entities().contains(cursed_mail), "the cursed armour is despawned");
+    assert!(
+        !w.entities().contains(cursed_mail),
+        "the cursed armour is despawned"
+    );
     assert!(
         !w.get::<Backpack>(p).unwrap().items.contains(&cursed_mail),
         "the cursed armour is gone from the pack"
@@ -113,7 +124,10 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
     // The plain armour was never cursed, so it's still there and now equippable.
     assert!(w.get::<Backpack>(p).unwrap().items.contains(&plain_mail));
     use_item(&mut w, p, plain_mail);
-    assert!(is_equipped(&w, plain_mail), "plain armour equips once the curse is cleared");
+    assert!(
+        is_equipped(&w, plain_mail),
+        "plain armour equips once the curse is cleared"
+    );
 }
 
 #[test]
@@ -137,10 +151,19 @@ fn remove_curse_spares_unequipped_cursed_gear() {
     use_item(&mut w, p, scroll);
 
     // Equipped cursed ring: destroyed.
-    assert!(!w.entities().contains(worn_ring), "the equipped cursed ring is destroyed");
+    assert!(
+        !w.entities().contains(worn_ring),
+        "the equipped cursed ring is destroyed"
+    );
     // Cursed sword just sitting in the pack: untouched, curse and all.
-    assert!(w.entities().contains(stashed_sword), "the stashed cursed sword survives");
-    assert!(w.get::<Curse>(stashed_sword).is_some(), "its curse is left intact");
+    assert!(
+        w.entities().contains(stashed_sword),
+        "the stashed cursed sword survives"
+    );
+    assert!(
+        w.get::<Curse>(stashed_sword).is_some(),
+        "its curse is left intact"
+    );
     assert!(w.get::<Backpack>(p).unwrap().items.contains(&stashed_sword));
 }
 
@@ -150,16 +173,32 @@ fn equipped_weapon_and_armor_change_combat_math() {
     fn bag(w: &mut World) -> Entity {
         w.spawn((
             Name { what: "bag".into() },
-            Fighter { hp: 100_000, max_hp: 100_000, armor: 0, power: 0, max_power: 0, armor_bonus: 0, power_bonus: 0 },
+            Fighter {
+                hp: 100_000,
+                max_hp: 100_000,
+                armor: 0,
+                power: 0,
+                max_power: 0,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
             Faction::Monster,
             Position { x: 1, y: 1 },
         ))
         .id()
     }
 
+    // Strips whatever the player starts equipped in — the +1 ring mail and mace.
+    fn disarm(w: &mut World, p: Entity) {
+        for item in equipped_items(w, p) {
+            force_unequip(w, item);
+        }
+    }
+
     // --- Damage dealt: bare fists vs. a wielded two-handed sword. ---
     let mut w = test_world(42);
     let p = player(&mut w);
+    disarm(&mut w, p);
     let target = bag(&mut w);
     for _ in 0..400 {
         resolve_attack(&mut w, p, target);
@@ -186,6 +225,7 @@ fn equipped_weapon_and_armor_change_combat_math() {
     // --- Damage taken: plate mail should soak monster hits. ---
     let mut w = test_world(7);
     let p = player(&mut w);
+    disarm(&mut w, p);
     let attacker = bag(&mut w);
     w.get_mut::<Fighter>(attacker).unwrap().power = 10;
     w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
@@ -223,7 +263,15 @@ fn a_worn_ring_of_protection_soaks_hits() {
     fn attacker(w: &mut World) -> Entity {
         w.spawn((
             Name { what: "bag".into() },
-            Fighter { hp: 1, max_hp: 1, armor: 0, power: 20, max_power: 20, armor_bonus: 0, power_bonus: 50 },
+            Fighter {
+                hp: 1,
+                max_hp: 1,
+                armor: 0,
+                power: 20,
+                max_power: 20,
+                armor_bonus: 0,
+                power_bonus: 50,
+            },
             Faction::Monster,
             Position { x: 1, y: 1 },
         ))
@@ -258,7 +306,11 @@ fn a_worn_ring_of_protection_soaks_hits() {
     let with_ring = 100_000 - w.get::<Fighter>(p).unwrap().hp;
 
     // +2 to every armour roll over `hits` blows.
-    assert_eq!(with_ring, without_ring - 2 * hits, "each blow is softened by exactly 2");
+    assert_eq!(
+        with_ring,
+        without_ring - 2 * hits,
+        "each blow is softened by exactly 2"
+    );
 
     // Taking the ring back off drops the protection.
     use_item(&mut w, p, ring);
@@ -277,7 +329,15 @@ fn a_worn_ring_of_strength_adds_two_to_every_blow() {
     fn bag(w: &mut World) -> Entity {
         w.spawn((
             Name { what: "bag".into() },
-            Fighter { hp: 100_000, max_hp: 100_000, armor: 0, power: 0, max_power: 0, armor_bonus: 0, power_bonus: 0 },
+            Fighter {
+                hp: 100_000,
+                max_hp: 100_000,
+                armor: 0,
+                power: 0,
+                max_power: 0,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
             Faction::Monster,
             Position { x: 1, y: 1 },
         ))
@@ -319,7 +379,11 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     let p = player(&mut w);
     let orc = spawn_monster(&mut w, MonsterDef::named("orc"), Position { x: 40, y: 11 });
 
-    let ring = spawn_ring(&mut w, RingEffect::AggravateMonster, Position { x: 0, y: 0 });
+    let ring = spawn_ring(
+        &mut w,
+        RingEffect::AggravateMonster,
+        Position { x: 0, y: 0 },
+    );
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
 
@@ -327,7 +391,10 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     for _ in 0..200 {
         passive_ability_system(&mut w);
     }
-    assert!(matches!(w.get::<Mob>(orc).unwrap().movement_type, MovementType::Chase));
+    assert!(matches!(
+        w.get::<Mob>(orc).unwrap().movement_type,
+        MovementType::Chase
+    ));
 
     // Put it on. Within a sane number of turns the ~10% roll fires and the whole
     // floor is aggravated on the player.
@@ -335,7 +402,10 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     let mut fired_on = None;
     for turn in 0..300 {
         passive_ability_system(&mut w);
-        if matches!(w.get::<Mob>(orc).unwrap().movement_type, MovementType::Aggravated { .. }) {
+        if matches!(
+            w.get::<Mob>(orc).unwrap().movement_type,
+            MovementType::Aggravated { .. }
+        ) {
             fired_on = Some(turn);
             break;
         }

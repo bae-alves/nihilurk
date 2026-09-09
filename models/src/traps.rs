@@ -39,8 +39,8 @@ use crate::components::*;
 use crate::effects::SustainsStrength;
 use crate::helpers::{apply_damage, total_armor_plus};
 use crate::map::{
-    tile_index, transition_level, GameRng, LevelChange, Map, TileType, FINAL_DEPTH, MAP_HEIGHT,
-    MAP_WIDTH,
+    FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index,
+    transition_level,
 };
 use crate::particles::Particles;
 
@@ -114,7 +114,10 @@ impl TrapDef {
 
     /// A weighted draw from every trap the floor has unlocked.
     pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static TrapDef {
-        let pool: Vec<&TrapDef> = TRAPS.iter().filter(|t| t.min_depth <= depth.max(1)).collect();
+        let pool: Vec<&TrapDef> = TRAPS
+            .iter()
+            .filter(|t| t.min_depth <= depth.max(1))
+            .collect();
         let weights: Vec<u32> = pool.iter().map(|t| t.weight).collect();
         pool[crate::spawn::pick_weighted(&weights, rng).expect("a depth-1 trap row")]
     }
@@ -147,7 +150,11 @@ pub enum TrapReveal {
 }
 
 impl TrapReveal {
-    const ALL: [TrapReveal; 3] = [TrapReveal::Sight, TrapReveal::Adjacent, TrapReveal::Triggered];
+    const ALL: [TrapReveal; 3] = [
+        TrapReveal::Sight,
+        TrapReveal::Adjacent,
+        TrapReveal::Triggered,
+    ];
 }
 
 /// The trap marker component. `revealed` latches: once a trap is known it stays
@@ -200,10 +207,19 @@ impl TrapBundle {
     /// caller wants. The one place a trap entity is described.
     pub fn from_def(def: &TrapDef, reveal: TrapReveal, position: Position) -> Self {
         Self {
-            name: Name { what: def.name.to_string() },
-            glyph: Renderable { glyph: def.glyph, color: def.color },
+            name: Name {
+                what: def.name.to_string(),
+            },
+            glyph: Renderable {
+                glyph: def.glyph,
+                color: def.color,
+            },
             position,
-            trap: Trap { effect: def.effect, reveal, revealed: false },
+            trap: Trap {
+                effect: def.effect,
+                reveal,
+                revealed: false,
+            },
             hidden: Hidden,
         }
     }
@@ -243,7 +259,10 @@ impl TrapBundle {
 /// Ages every [`Snare`] down by one and lifts the ones that reach zero. Runs at
 /// the top of the turn so the turn a snare is applied is not also counted.
 pub fn snare_system(world: &mut World) {
-    if world.get_resource::<crate::state::Ending>().is_some_and(|e| e.player_dead) {
+    if world
+        .get_resource::<crate::state::Ending>()
+        .is_some_and(|e| e.player_dead)
+    {
         return;
     }
 
@@ -253,7 +272,9 @@ pub fn snare_system(world: &mut World) {
         .iter(world)
         .collect();
     for entity in ticking.drain(..) {
-        let Some(mut snare) = world.get_mut::<Snare>(entity) else { continue };
+        let Some(mut snare) = world.get_mut::<Snare>(entity) else {
+            continue;
+        };
         snare.turns = snare.turns.saturating_sub(1);
         if snare.turns == 0 {
             expired.push(entity);
@@ -283,7 +304,9 @@ pub fn trap_system(world: &mut World) {
         .collect();
 
     for mover in movers {
-        let Some(pos) = world.get::<Position>(mover).copied() else { continue };
+        let Some(pos) = world.get::<Position>(mover).copied() else {
+            continue;
+        };
         let trap = {
             let mut q = world.query_filtered::<(Entity, &Position), With<Trap>>();
             q.iter(world)
@@ -327,7 +350,9 @@ fn actor_label(world: &World, entity: Entity) -> String {
 /// Fires `trap`'s effect on `victim`, reveals the trap for good, and — for
 /// single-shot traps — despawns it.
 fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
-    let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else { return };
+    let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else {
+        return;
+    };
     let is_player = world.get::<Player>(victim).is_some();
     let trap_pos = world.get::<Position>(trap).copied();
 
@@ -337,14 +362,15 @@ fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         t.revealed = true;
     }
 
-    let seen = is_player
-        || trap_pos.is_some_and(|p| player_sees(world, p.x, p.y));
+    let seen = is_player || trap_pos.is_some_and(|p| player_sees(world, p.x, p.y));
 
     if seen && !is_player {
         let who = actor_label(world, victim);
-        world
-            .resource_mut::<GameLog>()
-            .add(format!("{who} steps on {} {}!", article(effect.label()), effect.label()));
+        world.resource_mut::<GameLog>().add(format!(
+            "{who} steps on {} {}!",
+            article(effect.label()),
+            effect.label()
+        ));
     }
 
     match effect {
@@ -450,8 +476,13 @@ fn arrow_effect(
         // A missed arrow becomes loot on the trap's tile.
         if let Some(p) = trap_pos {
             world.spawn((
-                Name { what: "arrow".to_string() },
-                Renderable { glyph: '↑', color: Color::Grey },
+                Name {
+                    what: "arrow".to_string(),
+                },
+                Renderable {
+                    glyph: '↑',
+                    color: Color::Grey,
+                },
                 p,
                 Item,
                 Value { amount: 2 },
@@ -557,7 +588,10 @@ pub(crate) fn random_open_tile(world: &mut World) -> Option<(u16, u16)> {
     if candidates.is_empty() {
         return None;
     }
-    let idx = world.resource_mut::<GameRng>().0.gen_range(0..candidates.len());
+    let idx = world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_range(0..candidates.len());
     Some(candidates[idx])
 }
 

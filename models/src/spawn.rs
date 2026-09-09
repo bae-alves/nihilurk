@@ -31,12 +31,12 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::{
-    spawn_element_of_yoord, ItemDef, AMMO, ARMORS, COINS, LAUNCHERS, POTIONS, RINGS, SCROLLS,
-    WANDS, WEAPONS,
+    AMMO, ARMORS, COINS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, WANDS, WEAPONS,
+    spawn_element_of_yoord,
 };
 use crate::components::Position;
 use crate::map::Map;
-use crate::monsters::{spawn_monster, MonsterDef};
+use crate::monsters::{MonsterDef, spawn_monster};
 use crate::traps::{TrapBundle, TrapDef, TrapReveal};
 
 /// The relic's name, so [`spawn_named`] and the save file agree on it.
@@ -73,7 +73,10 @@ pub fn pick_weighted(weights: &[u32], rng: &mut ChaCha12Rng) -> Option<usize> {
 
 /// Every row of `table` a floor at `depth` is allowed to produce.
 fn eligible<D: ItemDef>(table: &'static [D], depth: u8) -> Vec<&'static D> {
-    table.iter().filter(|d| d.min_depth() <= depth.max(1)).collect()
+    table
+        .iter()
+        .filter(|d| d.min_depth() <= depth.max(1))
+        .collect()
 }
 
 /// Rolls one row of `table` as a floor drop — enchantment, battery charge,
@@ -99,12 +102,18 @@ fn one_named<D: ItemDef>(
     pos: Position,
     table: &'static [D],
 ) -> Option<Entity> {
-    table.iter().find(|d| d.name() == name).map(|d| d.spawn(world, pos))
+    table
+        .iter()
+        .find(|d| d.name() == name)
+        .map(|d| d.spawn(world, pos))
 }
 
 /// The names of every row of `table` a floor at `depth` can produce.
 fn names_of<D: ItemDef>(table: &'static [D], depth: u8) -> Vec<&'static str> {
-    eligible(table, depth).into_iter().map(|d| d.name()).collect()
+    eligible(table, depth)
+        .into_iter()
+        .map(|d| d.name())
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +250,11 @@ pub fn spawn_named(world: &mut World, name: &str, pos: Position) -> Option<Entit
         }
     }
     if let Some(def) = TrapDef::lookup(name) {
-        return Some(world.spawn(TrapBundle::from_def(def, TrapReveal::Sight, pos)).id());
+        return Some(
+            world
+                .spawn(TrapBundle::from_def(def, TrapReveal::Sight, pos))
+                .id(),
+        );
     }
     if name == ELEMENT_OF_YOORD {
         return Some(spawn_element_of_yoord(world, pos));
@@ -254,10 +267,17 @@ pub fn spawn_named(world: &mut World, name: &str, pos: Position) -> Option<Entit
 /// Used by the `--content` listing and by the test that proves no two rows
 /// share a name.
 pub fn content_names() -> Vec<(&'static str, &'static str)> {
-    let mut names: Vec<(&'static str, &'static str)> =
-        crate::monsters::BESTIARY.iter().map(|m| ("monster", m.name)).collect();
+    let mut names: Vec<(&'static str, &'static str)> = crate::monsters::BESTIARY
+        .iter()
+        .map(|m| ("monster", m.name))
+        .collect();
     for category in DROPS {
-        names.extend(category.rows(u8::MAX).into_iter().map(|n| (category.name, n)));
+        names.extend(
+            category
+                .rows(u8::MAX)
+                .into_iter()
+                .map(|n| (category.name, n)),
+        );
     }
     names.extend(crate::traps::TRAPS.iter().map(|t| ("trap", t.name)));
     names.push(("relic", ELEMENT_OF_YOORD));
@@ -280,7 +300,9 @@ pub fn content_names() -> Vec<(&'static str, &'static str)> {
 /// not a parser. Placement walks outward from `near` and takes the first free
 /// walkable tile, so nothing lands in a wall or on top of anything else.
 pub fn spawn_requested(world: &mut World, near: Position, occupied: &mut HashSet<(u16, u16)>) {
-    let Ok(list) = std::env::var("ROOG_SPAWN") else { return };
+    let Ok(list) = std::env::var("ROOG_SPAWN") else {
+        return;
+    };
     spawn_list(world, &list, near, occupied);
 }
 
@@ -295,7 +317,9 @@ pub fn spawn_list(
 ) -> usize {
     let mut spawned = 0;
     for name in list.split(',').map(str::trim).filter(|n| !n.is_empty()) {
-        let Some(pos) = free_tile_near(world, near, occupied) else { break };
+        let Some(pos) = free_tile_near(world, near, occupied) else {
+            break;
+        };
         if spawn_named(world, name, pos).is_some() {
             occupied.insert((pos.x, pos.y));
             spawned += 1;

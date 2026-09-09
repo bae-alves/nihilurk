@@ -3,7 +3,9 @@ use crossterm::style::Color;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
-use crate::effects::{grant_all, ColdImmune, FireImmune, Grant, Grants, ItemUser, Undead, VorpalTarget};
+use crate::effects::{
+    ColdImmune, FireImmune, Grant, Grants, ItemUser, Undead, VorpalTarget, grant_all,
+};
 use crate::spawn::pick_weighted;
 use MovementType::{Chase, Confused, Flee, Static};
 
@@ -64,8 +66,15 @@ impl MonsterDef {
         min_depth: u8,
     ) -> Self {
         Self {
-            name, glyph, color, movement,
-            hp, power, power_bonus, armor, armor_bonus,
+            name,
+            glyph,
+            color,
+            movement,
+            hp,
+            power,
+            power_bonus,
+            armor,
+            armor_bonus,
             min_depth,
             weight: DEFAULT_WEIGHT,
             grants: &[],
@@ -109,8 +118,10 @@ impl MonsterDef {
     /// lives on a floor, so a new creature's rarity and debut are the two
     /// numbers on its row and nothing else.
     pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
-        let pool: Vec<&MonsterDef> =
-            BESTIARY.iter().filter(|m| m.min_depth <= depth.max(1)).collect();
+        let pool: Vec<&MonsterDef> = BESTIARY
+            .iter()
+            .filter(|m| m.min_depth <= depth.max(1))
+            .collect();
         let weights: Vec<u32> = pool.iter().map(|m| m.weight).collect();
         pool[pick_weighted(&weights, rng).expect("the bestiary always has a depth-1 row")]
     }
@@ -209,8 +220,12 @@ struct MonsterBundle {
 impl MonsterBundle {
     fn from_def(def: &MonsterDef, position: Position) -> Self {
         Self {
-            name: Name { what: def.name.to_string() },
-            mob: Mob { movement_type: def.movement },
+            name: Name {
+                what: def.name.to_string(),
+            },
+            mob: Mob {
+                movement_type: def.movement,
+            },
             fighter: Fighter {
                 hp: def.hp,
                 max_hp: def.hp,
@@ -220,7 +235,10 @@ impl MonsterBundle {
                 armor: def.armor,
                 armor_bonus: def.armor_bonus,
             },
-            glyph: Renderable { glyph: def.glyph, color: def.color },
+            glyph: Renderable {
+                glyph: def.glyph,
+                color: def.color,
+            },
             position,
             faction: Faction::Monster,
             blood: Blood,

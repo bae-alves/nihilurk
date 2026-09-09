@@ -5,7 +5,7 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
 use crate::effects::{
-    equipped_total, melee_cap, ArmorBonus, ArmorDie, PowerBonus, PowerDie, VorpalTarget,
+    ArmorBonus, ArmorDie, PowerBonus, PowerDie, VorpalTarget, equipped_total, melee_cap,
 };
 use crate::equipment::{equipped_items, force_unequip};
 use crate::map::GameRng;
@@ -84,7 +84,9 @@ pub fn reaper_system(world: &mut World) {
             }
         } else {
             let name = entity_name(world, entity);
-            world.resource_mut::<GameLog>().add(format!("The {name} dies."));
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("The {name} dies."));
             leave_gear_behind(world, entity);
             world.despawn(entity);
         }
@@ -109,7 +111,11 @@ fn leave_gear_behind(world: &mut World, entity: Entity) {
     };
     for item in equipped_items(world, entity) {
         force_unequip(world, item);
-        if world.resource_mut::<GameRng>().0.gen_bool(GEAR_SURVIVES_DEATH) {
+        if world
+            .resource_mut::<GameRng>()
+            .0
+            .gen_bool(GEAR_SURVIVES_DEATH)
+        {
             let name = crate::identify::display_name(world, item);
             world.entity_mut(item).insert(pos);
             world
@@ -149,11 +155,17 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     // suit of plate, a ring of strength. Nothing here knows which is which.
     let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1)
         + equipped_total::<PowerDie>(world, attacker);
-    let attacker_power_bonus = world.get::<Fighter>(attacker).map(|f| f.power_bonus).unwrap_or(0)
+    let attacker_power_bonus = world
+        .get::<Fighter>(attacker)
+        .map(|f| f.power_bonus)
+        .unwrap_or(0)
         + equipped_total::<PowerBonus>(world, attacker);
     let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0)
         + equipped_total::<ArmorDie>(world, target);
-    let target_armor_bonus = world.get::<Fighter>(target).map(|f| f.armor_bonus).unwrap_or(0)
+    let target_armor_bonus = world
+        .get::<Fighter>(target)
+        .map(|f| f.armor_bonus)
+        .unwrap_or(0)
         + equipped_total::<ArmorBonus>(world, target);
     let attacker_is_player = world.get::<Player>(attacker).is_some();
 
@@ -162,8 +174,10 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         let mut rng = world.resource_mut::<GameRng>();
         let excellent = attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE);
         let dice = if excellent { EXCELLENT_HIT_DICE } else { 1 };
-        let attack_total: i32 =
-            (0..dice).map(|_| roll_die(&mut rng.0, attacker_power)).sum::<i32>() + attacker_power_bonus;
+        let attack_total: i32 = (0..dice)
+            .map(|_| roll_die(&mut rng.0, attacker_power))
+            .sum::<i32>()
+            + attacker_power_bonus;
         let armor_roll = roll_die(&mut rng.0, target_armor) + target_armor_bonus;
         (attack_total, armor_roll, excellent)
     };
@@ -248,7 +262,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         }
         if lethal {
             if vorpal {
-                log.add(format!("Snicker-snack! The blade shears clean through the {target_name}!"));
+                log.add(format!(
+                    "Snicker-snack! The blade shears clean through the {target_name}!"
+                ));
             }
             log.add(format!("You have slain the {target_name}!"));
         }

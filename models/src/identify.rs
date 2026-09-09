@@ -43,29 +43,99 @@ fn all_rings() -> Vec<RingEffect> {
 /// Colours and consistencies, NetHack-style: pooled well beyond the potion
 /// table's length so a shuffle always has room to spare.
 const POTION_APPEARANCES: [&str; 20] = [
-    "ruby", "pink", "orange", "amber", "emerald", "cyan", "violet", "brown", "grey", "yellow",
-    "bubbly", "fizzy", "swirly", "milky", "murky", "cloudy", "smoky", "oily", "sparkling", "viscous",
+    "ruby",
+    "pink",
+    "orange",
+    "amber",
+    "emerald",
+    "cyan",
+    "violet",
+    "brown",
+    "grey",
+    "yellow",
+    "bubbly",
+    "fizzy",
+    "swirly",
+    "milky",
+    "murky",
+    "cloudy",
+    "smoky",
+    "oily",
+    "sparkling",
+    "viscous",
 ];
 
 /// Nonsense scroll titles, invented for roog rather than borrowed from
 /// NetHack's own in-joke set.
 const SCROLL_APPEARANCES: [&str; 20] = [
-    "XLUM QUAZAR", "GNOR VEKTIL", "ZIMBO RASHT", "PLIN DRAVOK", "MORZ ELKATH",
-    "YFEN CROSTIL", "WUBBA LENTHOR", "SKAR MUNDIL", "TAVROK ZIN", "ELDIC PHORN",
-    "QUIX SABAROTH", "NELGO VASHT", "BRIN ZORATHIL", "HULK PENDRIL", "OMFA TRIXEL",
-    "VASK ELDROON", "KYRIL BANTOX", "DREN QUOZAL", "SPLICK VORNAI", "TUM ELKHESH",
+    "XLUM QUAZAR",
+    "GNOR VEKTIL",
+    "ZIMBO RASHT",
+    "PLIN DRAVOK",
+    "MORZ ELKATH",
+    "YFEN CROSTIL",
+    "WUBBA LENTHOR",
+    "SKAR MUNDIL",
+    "TAVROK ZIN",
+    "ELDIC PHORN",
+    "QUIX SABAROTH",
+    "NELGO VASHT",
+    "BRIN ZORATHIL",
+    "HULK PENDRIL",
+    "OMFA TRIXEL",
+    "VASK ELDROON",
+    "KYRIL BANTOX",
+    "DREN QUOZAL",
+    "SPLICK VORNAI",
+    "TUM ELKHESH",
 ];
 
 /// Wand materials, from mundane woods to oddities.
 const WAND_APPEARANCES: [&str; 20] = [
-    "oak", "balsa", "maple", "teak", "ebony", "iron", "brass", "copper", "zinc", "tin",
-    "silver", "bronze", "steel", "glass", "crystal", "hexagonal", "marbled", "jeweled", "forked", "runed",
+    "oak",
+    "balsa",
+    "maple",
+    "teak",
+    "ebony",
+    "iron",
+    "brass",
+    "copper",
+    "zinc",
+    "tin",
+    "silver",
+    "bronze",
+    "steel",
+    "glass",
+    "crystal",
+    "hexagonal",
+    "marbled",
+    "jeweled",
+    "forked",
+    "runed",
 ];
 
 /// Ring gems and metals.
 const RING_APPEARANCES: [&str; 20] = [
-    "pearl", "iron", "twisted", "wire", "engagement", "diamond", "sapphire", "ruby", "wooden", "granite",
-    "opal", "clay", "tiger-eye", "moonstone", "jade", "coral", "bronze", "spinel", "agate", "onyx",
+    "pearl",
+    "iron",
+    "twisted",
+    "wire",
+    "engagement",
+    "diamond",
+    "sapphire",
+    "ruby",
+    "wooden",
+    "granite",
+    "opal",
+    "clay",
+    "tiger-eye",
+    "moonstone",
+    "jade",
+    "coral",
+    "bronze",
+    "spinel",
+    "agate",
+    "onyx",
 ];
 
 /// This run's cosmetic appearance for every true item type, one shuffled
@@ -89,7 +159,11 @@ fn assign<E: Copy + Eq + std::hash::Hash>(
 ) -> HashMap<E, String> {
     let mut shuffled: Vec<&str> = pool.to_vec();
     shuffled.shuffle(rng);
-    effects.iter().copied().zip(shuffled.into_iter().map(String::from)).collect()
+    effects
+        .iter()
+        .copied()
+        .zip(shuffled.into_iter().map(String::from))
+        .collect()
 }
 
 impl ItemAppearances {

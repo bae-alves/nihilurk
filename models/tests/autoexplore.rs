@@ -7,9 +7,14 @@ use models::*;
 /// Eight-way neighbour offsets, matching both the player's moves and the
 /// auto-explore pathfinder.
 const DIRS: [(i32, i32); 8] = [
-    (-1, -1), (0, -1), (1, -1),
-    (-1, 0),           (1, 0),
-    (-1, 1),  (0, 1),  (1, 1),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
 ];
 
 /// A bare world with a generated first floor, its visibility resolved once, and
@@ -19,7 +24,9 @@ fn fresh_floor(seed: u64) -> (World, Entity) {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
 
     let clutter: Vec<Entity> = w
@@ -80,21 +87,32 @@ fn auto_explore_reveals_every_reachable_tile_then_stops() {
 
         let mut steps = 0;
         loop {
-            let Some((dx, dy)) = explore_step(&mut w) else { break };
-            assert!(dx.abs() <= 1 && dy.abs() <= 1 && (dx != 0 || dy != 0), "seed {seed}: bad step");
+            let Some((dx, dy)) = explore_step(&mut w) else {
+                break;
+            };
+            assert!(
+                dx.abs() <= 1 && dy.abs() <= 1 && (dx != 0 || dy != 0),
+                "seed {seed}: bad step"
+            );
 
             let mut pos = w.get_mut::<Position>(player).unwrap();
             pos.x = (pos.x as i16 + dx) as u16;
             pos.y = (pos.y as i16 + dy) as u16;
-            assert!(!w.resource::<Map>().blocks(
-                w.get::<Position>(player).unwrap().x,
-                w.get::<Position>(player).unwrap().y
-            ), "seed {seed}: stepped into a wall");
+            assert!(
+                !w.resource::<Map>().blocks(
+                    w.get::<Position>(player).unwrap().x,
+                    w.get::<Position>(player).unwrap().y
+                ),
+                "seed {seed}: stepped into a wall"
+            );
             w.get_mut::<Viewshed>(player).unwrap().dirty = true;
             resolve_visibility(&mut w);
 
             steps += 1;
-            assert!(steps < AUTO_EXPLORE_STEP_CAP, "seed {seed}: auto-explore never terminated");
+            assert!(
+                steps < AUTO_EXPLORE_STEP_CAP,
+                "seed {seed}: auto-explore never terminated"
+            );
         }
 
         // Nothing reachable is left unmapped.
@@ -149,9 +167,15 @@ fn travel_walks_the_player_onto_a_known_staircase() {
             pos.x = (pos.x as i16 + dx) as u16;
             pos.y = (pos.y as i16 + dy) as u16;
             steps += 1;
-            assert!(steps < AUTO_EXPLORE_STEP_CAP, "seed {seed}: travel never arrived");
+            assert!(
+                steps < AUTO_EXPLORE_STEP_CAP,
+                "seed {seed}: travel never arrived"
+            );
         }
-        assert!(travel_step(&mut w, target).is_none(), "seed {seed}: still stepping after arrival");
+        assert!(
+            travel_step(&mut w, target).is_none(),
+            "seed {seed}: still stepping after arrival"
+        );
     }
 }
 
@@ -173,7 +197,9 @@ fn monster_in_sight_tracks_visible_mobs() {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
     w.insert_resource(RngSeed(2112));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
 
     // Clear the randomly-placed spawns so we control what is on screen.
@@ -182,18 +208,29 @@ fn monster_in_sight_tracks_visible_mobs() {
         w.despawn(e);
     }
     resolve_visibility(&mut w);
-    assert!(!monster_in_sight(&mut w), "no mobs left, nothing should be in sight");
+    assert!(
+        !monster_in_sight(&mut w),
+        "no mobs left, nothing should be in sight"
+    );
 
     // Drop a visible monster right next to the player.
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
     let ppos = *w.get::<Position>(player).unwrap();
     w.spawn((
         Name { what: "orc".into() },
-        Mob { movement_type: MovementType::Static },
-        Position { x: ppos.x + 1, y: ppos.y },
+        Mob {
+            movement_type: MovementType::Static,
+        },
+        Position {
+            x: ppos.x + 1,
+            y: ppos.y,
+        },
         Faction::Monster,
     ));
     w.get_mut::<Viewshed>(player).unwrap().dirty = true;
     resolve_visibility(&mut w);
-    assert!(monster_in_sight(&mut w), "an adjacent monster should be in sight");
+    assert!(
+        monster_in_sight(&mut w),
+        "an adjacent monster should be in sight"
+    );
 }

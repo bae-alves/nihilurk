@@ -1,9 +1,9 @@
-use bevy_ecs::prelude::*;
-use std::collections::{HashSet, VecDeque};
 use crate::components::*;
 use crate::effects::SeesInvisible;
-use crate::map::{tile_index, Map, TileType, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH};
+use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 use crate::traps::{Trap, TrapReveal};
+use bevy_ecs::prelude::*;
+use std::collections::{HashSet, VecDeque};
 
 #[inline]
 fn in_bounds(x: i16, y: i16) -> bool {
@@ -18,12 +18,22 @@ pub fn visibility_system(
     // the map for the player.
     // `SeesInvisible` is asked for as a plain component. It might come from a
     // ring, from a potion, from being born that way — this system doesn't ask.
-    mut viewshed_query: Query<(Entity, &mut Viewshed, &Position, Option<&SeesInvisible>), With<Player>>,
+    mut viewshed_query: Query<
+        (Entity, &mut Viewshed, &Position, Option<&SeesInvisible>),
+        With<Player>,
+    >,
 
     // Everything the player can "spot": monsters and floor items. `Option`s let
     // one query cover both kinds and track the per-entity spotted state.
     spot_query: Query<
-        (Entity, &Position, Option<&Mob>, Option<&Invisible>, Option<&Name>, Option<&Spotted>),
+        (
+            Entity,
+            &Position,
+            Option<&Mob>,
+            Option<&Invisible>,
+            Option<&Name>,
+            Option<&Spotted>,
+        ),
         Or<(With<Mob>, With<Item>)>,
     >,
 
@@ -65,7 +75,11 @@ pub fn visibility_system(
         // skipped entirely — inside one you see only the always-on 3x3, as if it
         // were a passage, until a wand of light clears its `dark` bits.
         if !map.is_dark(pos.x, pos.y)
-            && matches!(map.tile(pos.x, pos.y), TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs) {
+            && matches!(
+                map.tile(pos.x, pos.y),
+                TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs
+            )
+        {
             let mut queue = VecDeque::new();
             let mut visited_rooms = HashSet::new();
 
@@ -92,7 +106,10 @@ pub fn visibility_system(
                         }
 
                         match map.tile(neighbor_pos.0, neighbor_pos.1) {
-                            TileType::Room | TileType::Door | TileType::Downstairs | TileType::Upstairs => {
+                            TileType::Room
+                            | TileType::Door
+                            | TileType::Downstairs
+                            | TileType::Upstairs => {
                                 visible_set.insert(neighbor_pos);
                                 if visited_rooms.insert(neighbor_pos) {
                                     queue.push_back(neighbor_pos); // keep spreading inside rooms/doors/stairs
@@ -169,7 +186,11 @@ pub fn visibility_system(
             if found {
                 trap.revealed = true;
                 commands.entity(trap_entity).remove::<Hidden>();
-                log.add(format!("you spot {} {}", trap.effect.label_article(), trap.effect.label()));
+                log.add(format!(
+                    "you spot {} {}",
+                    trap.effect.label_article(),
+                    trap.effect.label()
+                ));
             }
         }
 

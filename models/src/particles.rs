@@ -18,6 +18,101 @@ use crossterm::style::Color;
 
 use crate::map::{MAP_HEIGHT, MAP_WIDTH};
 
+/// The colour family an area blast burns in. Each maps to a five-keyframe
+/// glyph/colour cycle every cell in the blast steps through as it fades.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlastPalette {
+    /// Wand of fire — white-hot core to dark-red embers.
+    Fire,
+    /// Wand of cold — white flash to deep frost blue.
+    Frost,
+    /// Wand of lightning — a yellow-white crackle.
+    Spark,
+    /// Wand of magic missile — clean cyan arcana.
+    Arcane,
+    /// Wand of striking — a colourless concussive thump.
+    Force,
+    /// Wand of drain life — sickly magenta bleeding to dark red.
+    Drain,
+    /// Wand of light, thrown — a blinding gold-white flash.
+    Dazzle,
+    /// Polymorph / haste / slow / teleport — unstable green warp light.
+    Warp,
+    /// Wand of cancellation — a dead grey wave.
+    Void,
+}
+
+impl BlastPalette {
+    fn frames(self) -> [(char, Color); 5] {
+        use Color::*;
+        match self {
+            BlastPalette::Fire => [
+                ('#', White),
+                ('@', Yellow),
+                ('*', DarkYellow),
+                ('+', Red),
+                ('·', DarkRed),
+            ],
+            BlastPalette::Frost => [
+                ('*', White),
+                ('+', Cyan),
+                ('+', Blue),
+                (':', DarkBlue),
+                ('·', DarkCyan),
+            ],
+            BlastPalette::Spark => [
+                ('#', White),
+                ('*', Yellow),
+                ('+', Yellow),
+                ('/', DarkYellow),
+                ('·', DarkGrey),
+            ],
+            BlastPalette::Arcane => [
+                ('*', White),
+                ('+', Cyan),
+                ('*', Cyan),
+                (':', DarkCyan),
+                ('·', DarkCyan),
+            ],
+            BlastPalette::Force => [
+                ('#', White),
+                ('*', Grey),
+                ('+', Grey),
+                (':', DarkGrey),
+                ('·', DarkGrey),
+            ],
+            BlastPalette::Drain => [
+                ('*', White),
+                ('+', Magenta),
+                ('*', DarkMagenta),
+                (':', DarkMagenta),
+                ('·', DarkRed),
+            ],
+            BlastPalette::Dazzle => [
+                ('*', White),
+                ('#', White),
+                ('@', Yellow),
+                ('+', White),
+                ('·', DarkYellow),
+            ],
+            BlastPalette::Warp => [
+                ('*', White),
+                ('+', Green),
+                ('*', Green),
+                (':', DarkGreen),
+                ('·', DarkGreen),
+            ],
+            BlastPalette::Void => [
+                ('#', White),
+                ('*', Grey),
+                ('+', DarkGrey),
+                (':', DarkGrey),
+                ('·', DarkGrey),
+            ],
+        }
+    }
+}
+
 /// One transient mote, living in map-tile coordinates.
 pub struct Particle {
     pub x: u16,
@@ -125,11 +220,7 @@ impl Particles {
                 // Cells nearer the caster linger a touch longer, leaving a tail.
                 lifetime_ms: 150.0 + (pts.len() - i) as f32 * 10.0,
                 age_ms: 0.0,
-                frames: vec![
-                    (glyph, Color::White),
-                    (glyph, color),
-                    ('·', color),
-                ],
+                frames: vec![(glyph, Color::White), (glyph, color), ('·', color)],
             });
         }
     }
@@ -154,28 +245,11 @@ impl Particles {
 
     /// A DCSS-style area blast. `cells` is `(x, y, distance_from_centre)` for
     /// every tile the blast covers (already LOS-checked by the caller); the ring
-    /// of flame expands outward from the core and every cell cycles through the
-    /// element's colours before fading. `fire` picks the fire palette, otherwise
-    /// the frost one.
-    pub fn explosion(&mut self, cells: &[(u16, u16, f32)], fire: bool) {
+    /// expands outward from the core and every cell cycles through `palette`'s
+    /// colours before fading.
+    pub fn explosion(&mut self, cells: &[(u16, u16, f32)], palette: BlastPalette) {
         const RIPPLE_MS_PER_TILE: f32 = 24.0;
-        let frames: [(char, Color); 5] = if fire {
-            [
-                ('#', Color::White),
-                ('@', Color::Yellow),
-                ('*', Color::DarkYellow),
-                ('+', Color::Red),
-                ('·', Color::DarkRed),
-            ]
-        } else {
-            [
-                ('*', Color::White),
-                ('+', Color::Cyan),
-                ('+', Color::Blue),
-                (':', Color::DarkBlue),
-                ('·', Color::DarkCyan),
-            ]
-        };
+        let frames: [(char, Color); 5] = palette.frames();
         for &(x, y, dist) in cells {
             self.push(Particle {
                 x,

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Component)]
 pub struct Name {
-    pub what: String
+    pub what: String,
 }
 
 impl Name {
@@ -70,7 +70,10 @@ pub enum MovementType {
     /// on `(tx, ty)` — the tile the reader stood on — from anywhere on the floor,
     /// in or out of the player's view, and lunges the moment it draws alongside
     /// them. See [`crate::ai`].
-    Aggravated { tx: u16, ty: u16 },
+    Aggravated {
+        tx: u16,
+        ty: u16,
+    },
 }
 
 #[derive(Component)]
@@ -205,7 +208,7 @@ pub struct WantsToUse {
     pub user: Entity,
     pub item: Entity,
     pub target: Option<Position>,
-    pub slot_idx: Option<usize>
+    pub slot_idx: Option<usize>,
 }
 
 /// A hurled item, in flight from `thrower` towards `target`. Resolved by
@@ -395,8 +398,8 @@ pub struct GameLog {
 }
 
 #[derive(Resource)]
-pub struct Depth{
-    pub what: u8
+pub struct Depth {
+    pub what: u8,
 }
 
 /// Tracks how long the player has lingered on one dungeon level. Every turn adds
@@ -422,7 +425,7 @@ impl GameLog {
         let msg = message.into();
         self.history.push(msg.clone());
         self.unread.push(msg); // Push to the unread queue!
-        
+
         if self.history.len() > 50 {
             self.history.remove(0);
         }
@@ -505,6 +508,15 @@ pub const STACK_LIMIT: u8 = 26;
 pub struct Battery {
     pub charges: i8,
 }
+
+/// A transient affliction on the **player** (a monster is confused through
+/// [`MovementType::Confused`] instead). Half of every walk or swing while it
+/// lasts goes off in a random direction ("You stumble foolishly"), and fast
+/// movement, auto-explore and auto-fight all refuse to run. It is treacherous:
+/// it does not wear off with time — only using a staircase or being caught by a
+/// wand of cancellation clears it. Shown in the HUD as `CONF`.
+#[derive(Component)]
+pub struct Confused;
 
 #[derive(Component)]
 pub struct Potion {

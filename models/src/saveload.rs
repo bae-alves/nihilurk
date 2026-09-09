@@ -6,18 +6,18 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::catalog::{restore_from_catalog, RingDef};
+use crate::catalog::{RingDef, restore_from_catalog};
 use crate::components::*;
 use crate::effects::{
-    attach_effects, effects_of, ArmorBonus, ArmorDie, EffectSet, GrantedByGear, Grants, PowerBonus,
-    PowerDie, ThrowBonus,
+    ArmorBonus, ArmorDie, EffectSet, GrantedByGear, Grants, PowerBonus, PowerDie, ThrowBonus,
+    attach_effects, effects_of,
 };
 use crate::equipment::{Equipped, Slot};
-use crate::monsters::MonsterDef;
-use crate::traps::{Snare, SnareKind, Trap, TrapEffect, TrapReveal};
 use crate::identify::{Identified, ItemAppearances};
-use crate::map::{regenerate_map, BloodStains, GameRng, Map, RngSeed, TileType, FINAL_DEPTH};
+use crate::map::{BloodStains, FINAL_DEPTH, GameRng, Map, RngSeed, TileType, regenerate_map};
+use crate::monsters::MonsterDef;
 use crate::state::{Ending, GameState};
+use crate::traps::{Snare, SnareKind, Trap, TrapEffect, TrapReveal};
 use rand_chacha::ChaCha12Rng;
 
 /// How many log lines to persist. `GameLog::add` already trims to this, but the
@@ -137,6 +137,11 @@ struct EntitySave<'a> {
     trap: Option<(TrapEffect, TrapReveal, bool)>,
     /// (turns remaining, kind) for an actor held by a bear trap / asleep in gas.
     snare: Option<(u32, SnareKind)>,
+    /// The player's `Confused` condition (a wand of light to the face). Rides
+    /// along until a staircase or a cancellation; never set on a monster (they
+    /// use `MovementType::Confused`).
+    #[serde(default)]
+    confused: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -184,9 +189,9 @@ pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
     let Ok(save) = postcard::from_bytes::<SaveGame>(&bytes) else {
         return Ok(None);
     };
-    Ok(save
-        .cleared
-        .then(|| ClearData { player_name: save.player_name.into_owned() }))
+    Ok(save.cleared.then(|| ClearData {
+        player_name: save.player_name.into_owned(),
+    }))
 }
 
 /// Serializes the world to a compact postcard save file. The map is not saved:
@@ -213,8 +218,11 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
 
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
-    let index_map: HashMap<Entity, u32> =
-        ents.iter().enumerate().map(|(i, e)| (*e, i as u32)).collect();
+    let index_map: HashMap<Entity, u32> = ents
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (*e, i as u32))
+        .collect();
 
     let mut entities = Vec::with_capacity(ents.len());
     for &e in &ents {
@@ -233,9 +241,17 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             viewshed: er
                 .get::<Viewshed>()
                 .map(|v| (v.range, v.revealed_tiles.clone())),
-            fighter: er
-                .get::<Fighter>()
-                .map(|f| (f.hp, f.max_hp, f.armor, f.power, f.max_power, f.armor_bonus, f.power_bonus)),
+            fighter: er.get::<Fighter>().map(|f| {
+                (
+                    f.hp,
+                    f.max_hp,
+                    f.armor,
+                    f.power,
+                    f.max_power,
+                    f.armor_bonus,
+                    f.power_bonus,
+                )
+            }),
             magic: er.get::<Magic>().copied(),
             faction: er.get::<Faction>().copied(),
             backpack: er.get::<Backpack>().map(|b| {
@@ -267,6 +283,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             speed: er.get::<Speed>().map(|s| s.kind),
             trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
             snare: er.get::<Snare>().map(|s| (s.turns, s.kind)),
+            confused: er.contains::<Confused>(),
         });
     }
 
@@ -278,7 +295,11 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             .iter()
             .map(|s| Cow::Borrowed(s.as_str()))
             .collect(),
-        log_unread: log.unread.iter().map(|s| Cow::Borrowed(s.as_str())).collect(),
+        log_unread: log
+            .unread
+            .iter()
+            .map(|s| Cow::Borrowed(s.as_str()))
+            .collect(),
         player_name: Cow::Borrowed(world.resource::<PlayerName>().what.as_str()),
         depth: world.resource::<Depth>().what,
         rng_seed: world.resource::<RngSeed>().0,
@@ -392,7 +413,12 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         // The player always carries a magic pool; fall back to a full one if the
         // save somehow lacks it.
-        if let Some(magic) = es.magic.or_else(|| es.player.then_some(Magic { points: 4, max_points: 4 })) {
+        if let Some(magic) = es.magic.or_else(|| {
+            es.player.then_some(Magic {
+                points: 4,
+                max_points: 4,
+            })
+        }) {
             em.insert(magic);
         }
         if let Some(f) = es.faction {
@@ -471,7 +497,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             em.insert(Curse);
         }
         if let Some(bane) = es.vorpal {
-            em.insert(Vorpal { bane: bane.into_owned() });
+            em.insert(Vorpal {
+                bane: bane.into_owned(),
+            });
         }
         // A monster's innate grant list comes back from the bestiary; the
         // effects it actually has right now come back from the save, so a
@@ -487,7 +515,14 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             em.insert(Speed::new(es.speed.unwrap_or_default()));
         }
         if let Some((effect, reveal, revealed)) = es.trap {
-            em.insert(Trap { effect, reveal, revealed });
+            em.insert(Trap {
+                effect,
+                reveal,
+                revealed,
+            });
+        }
+        if es.confused {
+            em.insert(Confused);
         }
         if let Some((turns, kind)) = es.snare {
             em.insert(Snare { turns, kind });

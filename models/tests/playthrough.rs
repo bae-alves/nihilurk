@@ -14,7 +14,9 @@ fn walk_a_few_floors_and_use_the_loot() {
     w.insert_resource(RngSeed(1));
     w.init_resource::<GameLog>();
     w.init_resource::<UseQueue>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
 
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
@@ -84,7 +86,10 @@ fn walk_a_few_floors_and_use_the_loot() {
     }
 
     assert_eq!(w.resource::<Depth>().what, 9);
-    assert!(used_consumables > 0, "never found a scroll or potion in 8 floors");
+    assert!(
+        used_consumables > 0,
+        "never found a scroll or potion in 8 floors"
+    );
     assert!(seen_weapon, "never found a weapon in 8 floors");
     assert!(seen_armor, "never found armor in 8 floors");
     assert!(seen_ring, "never found a ring in 8 floors");

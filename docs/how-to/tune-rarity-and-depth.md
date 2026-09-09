@@ -27,6 +27,38 @@ other monsters, a `DROPS` weight against other categories.
 one at 20 is twice. Nothing has to total 100, so you can add a row
 without editing another number.
 
+Dial 1: how many things per floor
+---------------------------------
+
+This is not content. It is floor generation, in `populate_level` in
+`models/src/map.rs`, and it is the same for every row.
+
+Everything scales off `tier`, which is `(depth - 1) / 3` -- so 0 on
+floors 1-3, 1 on 4-6, 2 on 7-9, and so on:
+
+    monsters      3 + tier slots. The first always fills; each later one
+                  fills with probability min(0.60 + 0.12 * tier, 0.95).
+
+    lurkers       from floor 7, each corridor centre has a 5% chance of
+                  hiding one more.
+
+    items         exactly 3 attempts, every floor, at every depth.
+
+    hidden item   one floor in ten hides one more in plain sight.
+
+    traps         4 + tier slots, each filling with probability
+                  min(0.12 + 0.13 * tier, 0.75).
+
+Change these when the dungeon feels too empty or too crowded. Do not
+change them to make one creature rarer -- that is dial 3.
+
+
+> **Turning any of these cannot move a wall.** A floor is built from
+> `layout_rng(seed, depth)` and `content_rng(seed, depth)` -- its own two
+> streams -- so nothing a player does can shift it, and neither can any
+> other part of the codebase. What your weights *do* change is what a
+> given seed produces from the table you edited, which is the whole point
+> of editing it. See `../explanation/data-driven-content.md`.
 
 Dial 2: which category of item
 ------------------------------
@@ -107,40 +139,6 @@ means "never".
 > is what keeps deep floors feeling like a dungeon rather than a boss
 > rush. If you want something to *stop* appearing, `min_depth` is the
 > wrong dial -- there isn't one, and adding one is an engine change.
-
-
-Dial 1: how many things per floor
----------------------------------
-
-This is not content. It is floor generation, in `populate_level` in
-`models/src/map.rs`, and it is the same for every row.
-
-Everything scales off `tier`, which is `(depth - 1) / 3` -- so 0 on
-floors 1-3, 1 on 4-6, 2 on 7-9, and so on:
-
-    monsters      3 + tier slots. The first always fills; each later one
-                  fills with probability min(0.60 + 0.12 * tier, 0.95).
-
-    lurkers       from floor 7, each corridor centre has a 5% chance of
-                  hiding one more.
-
-    items         exactly 3 attempts, every floor, at every depth.
-
-    hidden item   one floor in ten hides one more in plain sight.
-
-    traps         4 + tier slots, each filling with probability
-                  min(0.12 + 0.13 * tier, 0.75).
-
-Change these when the dungeon feels too empty or too crowded. Do not
-change them to make one creature rarer -- that is dial 3.
-
-
-> **Turning any of these cannot move a wall.** A floor is built from
-> `layout_rng(seed, depth)` and `content_rng(seed, depth)` -- its own two
-> streams -- so nothing a player does can shift it, and neither can any
-> other part of the codebase. What your weights *do* change is what a
-> given seed produces from the table you edited, which is the whole point
-> of editing it. See `../explanation/data-driven-content.md`.
 
 
 Verify what you changed

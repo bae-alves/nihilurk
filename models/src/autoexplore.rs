@@ -12,7 +12,7 @@ use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
 
 use crate::components::*;
-use crate::map::{tile_index, Map, TileType, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH};
+use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 
 /// Transient flag: set while the player is auto-walking. Never serialised, so a
 /// reload always starts idle.
@@ -49,9 +49,14 @@ pub const AUTO_EXPLORE_STEP_CAP: u32 = 5000;
 
 /// The eight neighbour offsets, matching the player's movement options.
 const DIRS: [(i32, i32); 8] = [
-    (-1, -1), (0, -1), (1, -1),
-    (-1, 0),           (1, 0),
-    (-1, 1),  (0, 1),  (1, 1),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
 ];
 
 /// Whether any monster is currently inside the player's viewshed (i.e. drawn on
@@ -64,9 +69,16 @@ pub fn monster_in_sight(world: &mut World) -> bool {
 /// The map coordinate of the floor's staircase, up or down. Every floor carries
 /// exactly one of each (see `build_tiles`).
 pub fn stair_location(map: &Map, going_down: bool) -> Option<(u16, u16)> {
-    let want = if going_down { TileType::Downstairs } else { TileType::Upstairs };
+    let want = if going_down {
+        TileType::Downstairs
+    } else {
+        TileType::Upstairs
+    };
     map.tiles.iter().position(|&t| t == want).map(|i| {
-        ((i % MAP_WIDTH as usize) as u16, (i / MAP_WIDTH as usize) as u16)
+        (
+            (i % MAP_WIDTH as usize) as u16,
+            (i / MAP_WIDTH as usize) as u16,
+        )
     })
 }
 

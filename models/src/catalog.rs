@@ -100,11 +100,18 @@ impl ItemDef for PotionDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
-                Name { what: self.name.to_string() },
-                Renderable { glyph: '!', color: self.color },
+                Name {
+                    what: self.name.to_string(),
+                },
+                Renderable {
+                    glyph: '!',
+                    color: self.color,
+                },
                 pos,
                 Item,
-                Potion { effect: self.effect },
+                Potion {
+                    effect: self.effect,
+                },
                 Consume,
             ))
             .id()
@@ -148,11 +155,18 @@ impl ItemDef for ScrollDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
-                Name { what: self.name.to_string() },
-                Renderable { glyph: '?', color: Color::White },
+                Name {
+                    what: self.name.to_string(),
+                },
+                Renderable {
+                    glyph: '?',
+                    color: Color::White,
+                },
                 pos,
                 Item,
-                Scroll { effect: self.effect },
+                Scroll {
+                    effect: self.effect,
+                },
                 Consume,
             ))
             .id()
@@ -190,9 +204,9 @@ pub struct WandDef {
     pub range: i32,
 }
 
-/// A wand's battery: `3d4` charges, rolled when it enters the dungeon.
+/// A wand's battery: `2d6 + 1` charges, rolled when it enters the dungeon.
 pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8 {
-    (0..3).map(|_| rng.gen_range(1..=4)).sum()
+    (0..2).map(|_| rng.gen_range(1..=6)).sum::<i8>() + 1
 }
 
 impl ItemDef for WandDef {
@@ -203,11 +217,18 @@ impl ItemDef for WandDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
-                Name { what: self.name.to_string() },
-                Renderable { glyph: '/', color: self.color },
+                Name {
+                    what: self.name.to_string(),
+                },
+                Renderable {
+                    glyph: '/',
+                    color: self.color,
+                },
                 pos,
                 Item,
-                Wand { effect: self.effect },
+                Wand {
+                    effect: self.effect,
+                },
                 Ranged { range: self.range },
                 Battery { charges: 0 },
             ))
@@ -273,7 +294,14 @@ pub struct WeaponDef {
 
 impl WeaponDef {
     const fn new(name: &'static str, color: Color, power_die: i32) -> Self {
-        Self { name, color, power_die, thrown_die: power_die, projectile: false, piercing: false }
+        Self {
+            name,
+            color,
+            power_die,
+            thrown_die: power_die,
+            projectile: false,
+            piercing: false,
+        }
     }
 
     /// A weapon shaped to fly: it rolls `die` on impact rather than its own
@@ -298,8 +326,13 @@ impl ItemDef for WeaponDef {
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         let mut e = world.spawn((
-            Name { what: self.name.to_string() },
-            Renderable { glyph: ')', color: self.color },
+            Name {
+                what: self.name.to_string(),
+            },
+            Renderable {
+                glyph: ')',
+                color: self.color,
+            },
             pos,
             Item,
             Equipped::loose(Slot::Hand),
@@ -363,8 +396,13 @@ impl ItemDef for AmmoDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
-                Name { what: self.name.to_string() },
-                Renderable { glyph: ')', color: self.color },
+                Name {
+                    what: self.name.to_string(),
+                },
+                Renderable {
+                    glyph: ')',
+                    color: self.color,
+                },
                 pos,
                 Item,
                 ThrownDamage(self.die),
@@ -425,8 +463,13 @@ impl ItemDef for LauncherDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
-                Name { what: self.name.to_string() },
-                Renderable { glyph: '}', color: self.color },
+                Name {
+                    what: self.name.to_string(),
+                },
+                Renderable {
+                    glyph: '}',
+                    color: self.color,
+                },
                 pos,
                 Item,
                 Equipped::loose(Slot::Hand),
@@ -477,8 +520,13 @@ impl ItemDef for ArmorDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
-                Name { what: self.name.to_string() },
-                Renderable { glyph: ']', color: self.color },
+                Name {
+                    what: self.name.to_string(),
+                },
+                Renderable {
+                    glyph: ']',
+                    color: self.color,
+                },
                 pos,
                 Item,
                 Equipped::loose(Slot::Body),
@@ -582,11 +630,18 @@ impl ItemDef for RingDef {
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         let mut e = world.spawn((
-            Name { what: self.name.to_string() },
-            Renderable { glyph: '=', color: Color::Yellow },
+            Name {
+                what: self.name.to_string(),
+            },
+            Renderable {
+                glyph: '=',
+                color: Color::Yellow,
+            },
             pos,
             Item,
-            Ring { effect: self.effect },
+            Ring {
+                effect: self.effect,
+            },
             Equipped::loose(Slot::Finger),
         ));
         insert_modifier(&mut e, PowerDie(self.power_die));
@@ -655,8 +710,13 @@ impl ItemDef for CoinDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
-                Name { what: self.name.to_string() },
-                Renderable { glyph: '$', color: self.color },
+                Name {
+                    what: self.name.to_string(),
+                },
+                Renderable {
+                    glyph: '$',
+                    color: self.color,
+                },
                 pos,
                 Value { amount: self.value },
                 Item,
@@ -677,8 +737,13 @@ pub const COINS: &[CoinDef] = &[
 pub fn spawn_element_of_yoord(world: &mut World, pos: Position) -> Entity {
     world
         .spawn((
-            Name { what: String::from(crate::spawn::ELEMENT_OF_YOORD) },
-            Renderable { glyph: '\"', color: Color::Magenta },
+            Name {
+                what: String::from(crate::spawn::ELEMENT_OF_YOORD),
+            },
+            Renderable {
+                glyph: '\"',
+                color: Color::Magenta,
+            },
             pos,
             Value { amount: 25000 },
             Item,
@@ -703,15 +768,27 @@ fn named<'a, D: ItemDef>(table: &'a [D], name: &str, kind: &str) -> &'a D {
 }
 
 pub fn spawn_potion(world: &mut World, effect: PotionEffect, pos: Position) -> Entity {
-    POTIONS.iter().find(|d| d.effect == effect).expect("potion row").spawn(world, pos)
+    POTIONS
+        .iter()
+        .find(|d| d.effect == effect)
+        .expect("potion row")
+        .spawn(world, pos)
 }
 
 pub fn spawn_scroll(world: &mut World, effect: ScrollEffect, pos: Position) -> Entity {
-    SCROLLS.iter().find(|d| d.effect == effect).expect("scroll row").spawn(world, pos)
+    SCROLLS
+        .iter()
+        .find(|d| d.effect == effect)
+        .expect("scroll row")
+        .spawn(world, pos)
 }
 
 pub fn spawn_wand(world: &mut World, effect: WandEffect, pos: Position) -> Entity {
-    WANDS.iter().find(|d| d.effect == effect).expect("wand row").spawn(world, pos)
+    WANDS
+        .iter()
+        .find(|d| d.effect == effect)
+        .expect("wand row")
+        .spawn(world, pos)
 }
 
 pub fn spawn_ring(world: &mut World, effect: RingEffect, pos: Position) -> Entity {
@@ -766,7 +843,11 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
         attach_flight(entity, def.projectile, def.piercing);
     }
     if let Some(def) = AMMO.iter().find(|d| d.name == name) {
-        entity.insert((ThrownDamage(def.die), Projectile, LaunchedBy(def.launched_by)));
+        entity.insert((
+            ThrownDamage(def.die),
+            Projectile,
+            LaunchedBy(def.launched_by),
+        ));
     }
     if let Some(def) = LAUNCHERS.iter().find(|d| d.name == name) {
         entity.insert((Launcher, Grants(def.grants), MeleeCap(def.melee_cap)));

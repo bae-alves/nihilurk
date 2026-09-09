@@ -17,7 +17,7 @@ use bevy_ecs::prelude::*;
 
 use crate::autoexplore::{monster_in_sight, travel_step};
 use crate::components::*;
-use crate::map::{Map, TileType, MAP_HEIGHT, MAP_WIDTH};
+use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 
 /// Transient flag: set while a fast-move run is in progress. Never serialised,
 /// so a reload always starts idle.
@@ -158,9 +158,7 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
     }
     {
         let map = world.resource::<Map>();
-        if map.blocks(nx as u16, ny as u16)
-            || !map.diagonal_step_ok(px, py, nx as u16, ny as u16)
-        {
+        if map.blocks(nx as u16, ny as u16) || !map.diagonal_step_ok(px, py, nx as u16, ny as u16) {
             return FastMovePlan::Blocked;
         }
     }
@@ -182,9 +180,7 @@ pub fn straight_step(world: &mut World) -> Option<(i16, i16)> {
     }
     {
         let map = world.resource::<Map>();
-        if map.blocks(nx as u16, ny as u16)
-            || !map.diagonal_step_ok(px, py, nx as u16, ny as u16)
-        {
+        if map.blocks(nx as u16, ny as u16) || !map.diagonal_step_ok(px, py, nx as u16, ny as u16) {
             return None;
         }
     }

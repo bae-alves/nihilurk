@@ -23,7 +23,9 @@ fn new_run(seed: u64) -> World {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -58,8 +60,16 @@ fn the_same_seed_generates_the_same_game() {
     for seed in [1u64, 42, 7777, 123_456_789] {
         let (mut a, mut b) = (new_run(seed), new_run(seed));
         for depth in 1..=4 {
-            assert_eq!(map_hash(&a), map_hash(&b), "seed {seed}, floor {depth}: maps differ");
-            assert_eq!(contents(&mut a), contents(&mut b), "seed {seed}, floor {depth}");
+            assert_eq!(
+                map_hash(&a),
+                map_hash(&b),
+                "seed {seed}, floor {depth}: maps differ"
+            );
+            assert_eq!(
+                contents(&mut a),
+                contents(&mut b),
+                "seed {seed}, floor {depth}"
+            );
             descend(&mut a);
             descend(&mut b);
         }
@@ -166,8 +176,16 @@ fn reloading_mid_run_does_not_shift_the_next_floor() {
     load_game(&mut reloaded, path).unwrap();
     descend(&mut reloaded);
 
-    assert_eq!(map_hash(&straight), map_hash(&reloaded), "reload moved the walls");
-    assert_eq!(contents(&mut straight), contents(&mut reloaded), "reload moved the contents");
+    assert_eq!(
+        map_hash(&straight),
+        map_hash(&reloaded),
+        "reload moved the walls"
+    );
+    assert_eq!(
+        contents(&mut straight),
+        contents(&mut reloaded),
+        "reload moved the contents"
+    );
     let _ = std::fs::remove_file(path);
 }
 
@@ -176,7 +194,10 @@ fn every_floor_of_a_run_is_a_different_place() {
     let mut seen = std::collections::HashSet::new();
     let mut w = new_run(42);
     for depth in 1..=8 {
-        assert!(seen.insert(map_hash(&w)), "floor {depth} repeats an earlier layout");
+        assert!(
+            seen.insert(map_hash(&w)),
+            "floor {depth} repeats an earlier layout"
+        );
         descend(&mut w);
     }
 }
@@ -233,5 +254,9 @@ fn going_back_up_returns_you_to_the_same_floor() {
     assert!(change_level(&mut w, false));
 
     assert_eq!(w.resource::<Depth>().what, 1);
-    assert_eq!(map_hash(&w), floor1, "floor 1 was rebuilt as a different place");
+    assert_eq!(
+        map_hash(&w),
+        floor1,
+        "floor 1 was rebuilt as a different place"
+    );
 }

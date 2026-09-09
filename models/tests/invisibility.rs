@@ -13,7 +13,9 @@ fn test_world(seed: u64) -> World {
     w.init_resource::<GameLog>();
     w.init_resource::<AttackQueue>();
     w.init_resource::<Ending>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     // Start from a clean floor so a test only sees what it plants.
     let traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
@@ -35,7 +37,10 @@ fn beside_player(w: &mut World) -> Position {
     for (dx, dy) in [(1i32, 0i32), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1)] {
         let (nx, ny) = (here.x as i32 + dx, here.y as i32 + dy);
         if nx >= 0 && ny >= 0 && !map.blocks(nx as u16, ny as u16) {
-            return Position { x: nx as u16, y: ny as u16 };
+            return Position {
+                x: nx as u16,
+                y: ny as u16,
+            };
         }
     }
     panic!("player is walled in");
@@ -59,7 +64,10 @@ fn wear_ring(w: &mut World, p: Entity, effect: RingEffect) -> Entity {
 }
 
 fn log_has(w: &World, needle: &str) -> bool {
-    w.resource::<GameLog>().history.iter().any(|l| l.contains(needle))
+    w.resource::<GameLog>()
+        .history
+        .iter()
+        .any(|l| l.contains(needle))
 }
 
 #[test]
@@ -82,7 +90,10 @@ fn an_invisible_phantom_in_view_stays_hidden_and_unannounced() {
 
     run_visibility(&mut w);
 
-    assert!(w.get::<Hidden>(phantom).is_some(), "invisible, so not drawn");
+    assert!(
+        w.get::<Hidden>(phantom).is_some(),
+        "invisible, so not drawn"
+    );
     assert!(w.get::<Spotted>(phantom).is_none());
     assert!(!log_has(&w, "phantom"), "never announced");
 }
@@ -106,6 +117,10 @@ fn a_ring_of_perception_turns_up_the_phantom() {
 fn an_unseen_attacker_is_only_ever_something() {
     let mut w = test_world(2);
     let p = player(&mut w);
+    // Strip the starting armour so every blow lands and logs a damage line.
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
     w.get_mut::<Fighter>(p).unwrap().hp = 500;
     w.get_mut::<Fighter>(p).unwrap().max_hp = 500;
     w.get_mut::<Fighter>(p).unwrap().armor = 0;
@@ -118,7 +133,10 @@ fn an_unseen_attacker_is_only_ever_something() {
     assert!(w.get::<Hidden>(phantom).is_some());
 
     resolve_attack(&mut w, phantom, p);
-    assert!(log_has(&w, "Something hits you for"), "no name for the unseen");
+    assert!(
+        log_has(&w, "Something hits you for"),
+        "no name for the unseen"
+    );
     assert!(!log_has(&w, "phantom hits you"));
 
     // Now perceive it: the same phantom attacks by name.

@@ -2,22 +2,24 @@ mod update;
 mod view;
 use models::*;
 
+use bevy_ecs::{
+    prelude::{With, World},
+    schedule::IntoSystemConfigs,
+    schedule::Schedule,
+};
 use crossterm::{
     cursor::{Hide, Show},
-    event::{read, Event, KeyCode, KeyEventKind},
+    event::{Event, KeyCode, KeyEventKind, read},
     execute,
-    terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-    },
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use std::io::{stdout, BufWriter};
-use bevy_ecs::{prelude::{With, World}, schedule::Schedule, schedule::IntoSystemConfigs};
+use std::io::{BufWriter, stdout};
 
 // Import our rng seed types
 use models::{ChaCha12Rng, SeedableRng};
 
-use crate::visibility::visibility_system;
 use crate::ai::ai;
+use crate::visibility::visibility_system;
 use models::combat_system;
 
 /// RAII Guard that manages Crossterm terminal setup and cleanup.
@@ -52,7 +54,10 @@ fn find_case_insensitive(name: &str) -> Option<String> {
     let file_name = std::path::Path::new(name).file_name()?.to_str()?;
     for entry in std::fs::read_dir(dir).ok()? {
         let entry = entry.ok()?;
-        if entry.file_name().to_str().is_some_and(|f| f.eq_ignore_ascii_case(file_name))
+        if entry
+            .file_name()
+            .to_str()
+            .is_some_and(|f| f.eq_ignore_ascii_case(file_name))
             && entry.path().is_file()
         {
             return entry.path().to_str().map(|s| s.to_string());
@@ -188,7 +193,9 @@ fn main() -> std::io::Result<()> {
     let mut load_path: Option<String> = None;
     if let Some(arg) = positional {
         let suffixed = format!("{arg}.sav");
-        if let Some(found) = find_case_insensitive(&arg).or_else(|| find_case_insensitive(&suffixed)) {
+        if let Some(found) =
+            find_case_insensitive(&arg).or_else(|| find_case_insensitive(&suffixed))
+        {
             load_path = Some(found);
         } else {
             player_name = arg;
@@ -222,11 +229,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
 
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        let _ = execute!(
-            std::io::stderr(),
-            LeaveAlternateScreen,
-            Show
-        );
+        let _ = execute!(std::io::stderr(), LeaveAlternateScreen, Show);
         let _ = disable_raw_mode();
         original_hook(panic_info);
     }));
@@ -242,13 +245,28 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     let seed_value = seed.unwrap_or_else(rand::random);
     world.insert_resource(models::GameRng(ChaCha12Rng::seed_from_u64(seed_value)));
     world.insert_resource(models::RngSeed(seed_value));
-    world.insert_resource(PackIsOpen {open: false, selected: 0 as usize, action_mode: None, action_selected: 0});
-    world.insert_resource(RenderConfig { centered: centered_mode });
-    world.insert_resource(TargetingState {active: false, item: None, throwing: false, cursor_x: 0, cursor_y: 0});
+    world.insert_resource(PackIsOpen {
+        open: false,
+        selected: 0 as usize,
+        action_mode: None,
+        action_selected: 0,
+    });
+    world.insert_resource(RenderConfig {
+        centered: centered_mode,
+    });
+    world.insert_resource(TargetingState {
+        active: false,
+        item: None,
+        throwing: false,
+        cursor_x: 0,
+        cursor_y: 0,
+    });
     // Use always leads the item menu; `-dropthrow` puts Drop ahead of Throw.
     world.insert_resource(ActionMenu { drop_first });
-    world.insert_resource(PlayerName { what: player_name.to_ascii_uppercase()});
-    world.insert_resource(Depth {what: 1 as u8});
+    world.insert_resource(PlayerName {
+        what: player_name.to_ascii_uppercase(),
+    });
+    world.insert_resource(Depth { what: 1 as u8 });
     world.init_resource::<DungeonLord>();
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();
@@ -264,7 +282,9 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
 
     if let Some(path) = &load_path {
         models::load_game(&mut world, path)?;
-        world.resource_mut::<GameLog>().add(format!("Loaded save '{path}'."));
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("Loaded save '{path}'."));
     } else {
         models::initialize_world(&mut world);
     }
@@ -294,7 +314,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     ));
 
     // [!] KICKSTART THE ENGINE [!]
-    // We must run the systems and render once before the loop, 
+    // We must run the systems and render once before the loop,
     // otherwise the screen will be completely black until the first keypress.
     schedule.run(&mut world);
     view::render(&mut world, &mut stdout, &mut screen)?;
@@ -306,7 +326,6 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
 
     // 4. Main Loop
     while world.resource::<models::GameState>().is_running {
-
         // Step A: Advance the game. A fast-move run resolves entirely here,
         // taking its own turns without repainting; otherwise we take one
         // auto-explore step, or block at event::read for the player's move.

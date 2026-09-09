@@ -60,7 +60,9 @@ pub fn passive_ability_system(world: &mut World) {
             }
             (ability.action)(world, bearer);
             if world.get::<Player>(bearer).is_some() {
-                world.resource_mut::<GameLog>().add(ability.flavour.to_string());
+                world
+                    .resource_mut::<GameLog>()
+                    .add(ability.flavour.to_string());
             }
         }
     }

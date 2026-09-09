@@ -7,7 +7,9 @@ fn test_world(seed: u64) -> World {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -22,12 +24,19 @@ fn player_pos(w: &mut World) -> Position {
 }
 
 /// Clear the floor of the traps `initialize_world` scattered, so a test only
-/// sees the one it plants itself.
+/// sees the one it plants itself — and strip the player's starting kit, so the
+/// hero facing the trap is the bare, unarmoured one these tests assume.
 fn clear_traps(w: &mut World) {
     let traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(w).collect();
     for t in traps {
         w.entity_mut(t).despawn();
     }
+    let p = player(w);
+    let kit = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
+    for item in kit {
+        w.despawn(item);
+    }
+    sync_equipment_effects(w, p);
 }
 
 /// Drop the player onto `(x, y)` and mark them as having moved there.
@@ -65,7 +74,11 @@ fn trapdoor_drops_the_player_a_floor_with_no_heal() {
     trap_system(&mut w);
 
     assert_eq!(w.resource::<Depth>().what, 2, "fell one floor");
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 5, "a fall is not a rest — no heal");
+    assert_eq!(
+        w.get::<Fighter>(p).unwrap().hp,
+        5,
+        "a fall is not a rest — no heal"
+    );
     assert!(log_contains(&w, "trapdoor"));
 }
 
@@ -89,14 +102,30 @@ fn a_monster_that_hits_a_trapdoor_is_gone() {
     let mut w = test_world(7);
     clear_traps(&mut w);
     let here = player_pos(&mut w);
-    let spot = Position { x: here.x + 2, y: here.y };
+    let spot = Position {
+        x: here.x + 2,
+        y: here.y,
+    };
     w.spawn(TrapBundle::trapdoor(spot));
     let mob = w
         .spawn((
             Name { what: "orc".into() },
-            Mob { movement_type: MovementType::Static },
-            Position { x: spot.x, y: spot.y },
-            Fighter { hp: 3, max_hp: 3, armor: 0, power: 1, max_power: 1, armor_bonus: 0, power_bonus: 0 },
+            Mob {
+                movement_type: MovementType::Static,
+            },
+            Position {
+                x: spot.x,
+                y: spot.y,
+            },
+            Fighter {
+                hp: 3,
+                max_hp: 3,
+                armor: 0,
+                power: 1,
+                max_power: 1,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
             Faction::Monster,
             Blood,
             EntityMoved,
@@ -128,7 +157,11 @@ fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
     let snare = w.get::<Snare>(p).expect("snared");
     assert_eq!(snare.turns, 3);
     assert_eq!(snare.kind, SnareKind::Bear);
-    assert_eq!(w.query_filtered::<(), With<Trap>>().iter(&w).count(), 0, "single activation");
+    assert_eq!(
+        w.query_filtered::<(), With<Trap>>().iter(&w).count(),
+        0,
+        "single activation"
+    );
 
     snare_system(&mut w);
     assert_eq!(w.get::<Snare>(p).unwrap().turns, 2);
@@ -153,7 +186,11 @@ fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
     let snare = w.get::<Snare>(p).expect("asleep");
     assert_eq!(snare.turns, 5);
     assert_eq!(snare.kind, SnareKind::Sleep);
-    assert_eq!(w.query_filtered::<(), With<Trap>>().iter(&w).count(), 1, "gas trap is reusable");
+    assert_eq!(
+        w.query_filtered::<(), With<Trap>>().iter(&w).count(),
+        1,
+        "gas trap is reusable"
+    );
 
     for _ in 0..5 {
         snare_system(&mut w);
@@ -169,13 +206,29 @@ fn ai_skips_a_snared_monster() {
     let here = player_pos(&mut w);
     w.init_resource::<AttackQueue>();
 
-    let spot = Position { x: here.x + 3, y: here.y };
+    let spot = Position {
+        x: here.x + 3,
+        y: here.y,
+    };
     let mob = w
         .spawn((
             Name { what: "orc".into() },
-            Mob { movement_type: MovementType::Chase },
-            Position { x: spot.x, y: spot.y },
-            Fighter { hp: 3, max_hp: 3, armor: 0, power: 1, max_power: 1, armor_bonus: 0, power_bonus: 0 },
+            Mob {
+                movement_type: MovementType::Chase,
+            },
+            Position {
+                x: spot.x,
+                y: spot.y,
+            },
+            Fighter {
+                hp: 3,
+                max_hp: 3,
+                armor: 0,
+                power: 1,
+                max_power: 1,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
             Faction::Monster,
             Blood,
         ))
@@ -184,14 +237,21 @@ fn ai_skips_a_snared_monster() {
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
         vec![(spot.x, spot.y), (spot.x - 1, spot.y), (here.x, here.y)];
 
-    w.entity_mut(mob).insert(Snare { turns: 2, kind: SnareKind::Bear });
+    w.entity_mut(mob).insert(Snare {
+        turns: 2,
+        kind: SnareKind::Bear,
+    });
 
     let mut s = Schedule::default();
     s.add_systems(ai);
     s.run(&mut w);
 
     let after = *w.get::<Position>(mob).unwrap();
-    assert_eq!((after.x, after.y), (spot.x, spot.y), "a held monster does not chase");
+    assert_eq!(
+        (after.x, after.y),
+        (spot.x, spot.y),
+        "a held monster does not chase"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -212,8 +272,14 @@ fn teleport_trap_flings_the_player_elsewhere() {
 
     let now = *w.get::<Position>(p).unwrap();
     assert_ne!((now.x, now.y), (here.x, here.y), "moved");
-    assert!(!w.resource::<Map>().blocks(now.x, now.y), "landed on open ground");
-    assert!(w.get::<Viewshed>(p).unwrap().dirty, "viewshed refresh queued");
+    assert!(
+        !w.resource::<Map>().blocks(now.x, now.y),
+        "landed on open ground"
+    );
+    assert!(
+        w.get::<Viewshed>(p).unwrap().dirty,
+        "viewshed refresh queued"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -288,8 +354,15 @@ fn dart_trap_saps_melee_power_for_good() {
 
     let f = w.get::<Fighter>(p).unwrap();
     assert!(f.hp < 12, "the dart stings");
-    assert_eq!(f.power, power_before - 1, "the attack die itself is drained");
-    assert_eq!(f.max_power, max_power_before, "max_power is the ceiling, untouched");
+    assert_eq!(
+        f.power,
+        power_before - 1,
+        "the attack die itself is drained"
+    );
+    assert_eq!(
+        f.max_power, max_power_before,
+        "max_power is the ceiling, untouched"
+    );
 }
 
 #[test]
@@ -311,7 +384,11 @@ fn a_ring_of_strength_stops_the_dart_poison() {
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
-    assert_eq!(w.get::<Fighter>(p).unwrap().power, power_before, "strength held");
+    assert_eq!(
+        w.get::<Fighter>(p).unwrap().power,
+        power_before,
+        "strength held"
+    );
 }
 
 #[test]
@@ -327,7 +404,10 @@ fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
     w.spawn(TrapBundle::dart(here));
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
-    assert!(w.get::<Fighter>(p).unwrap().hp < 12, "the armour die is ignored");
+    assert!(
+        w.get::<Fighter>(p).unwrap().hp < 12,
+        "the armour die is ignored"
+    );
 
     // ...but a big flat bonus shrugs it off entirely.
     let mut w = test_world(2);
@@ -341,8 +421,16 @@ fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
     w.spawn(TrapBundle::dart(here));
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 12, "armour plus absorbs it");
-    assert_eq!(w.get::<Fighter>(p).unwrap().power, power_before, "no hit, no poison");
+    assert_eq!(
+        w.get::<Fighter>(p).unwrap().hp,
+        12,
+        "armour plus absorbs it"
+    );
+    assert_eq!(
+        w.get::<Fighter>(p).unwrap().power,
+        power_before,
+        "no hit, no poison"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -364,7 +452,9 @@ fn far_visible_tile(w: &mut World) -> (Entity, (u16, u16)) {
     let visible: Vec<(u16, u16)> = w.get::<Viewshed>(p).unwrap().visible_tiles.clone();
     let map = w.resource::<Map>().clone();
     let cheb = |a: (u16, u16), b: (u16, u16)| {
-        (a.0 as i32 - b.0 as i32).abs().max((a.1 as i32 - b.1 as i32).abs())
+        (a.0 as i32 - b.0 as i32)
+            .abs()
+            .max((a.1 as i32 - b.1 as i32).abs())
     };
     let tile = visible
         .iter()
@@ -385,7 +475,9 @@ fn a_sight_trap_reveals_itself_as_soon_as_it_is_in_view() {
     let mut w = test_world(11);
     clear_traps(&mut w);
     let (p, (tx, ty)) = far_visible_tile(&mut w);
-    let trap = w.spawn(TrapBundle::trapdoor(Position { x: tx, y: ty })).id();
+    let trap = w
+        .spawn(TrapBundle::trapdoor(Position { x: tx, y: ty }))
+        .id();
     assert!(w.get::<Hidden>(trap).is_some());
 
     w.get_mut::<Viewshed>(p).unwrap().dirty = true;
@@ -400,7 +492,9 @@ fn an_adjacent_trap_stays_hidden_until_you_are_next_to_it() {
     let mut w = test_world(11);
     clear_traps(&mut w);
     let (p, (tx, ty)) = far_visible_tile(&mut w);
-    let trap = w.spawn(TrapBundle::trapdoor(Position { x: tx, y: ty })).id();
+    let trap = w
+        .spawn(TrapBundle::trapdoor(Position { x: tx, y: ty }))
+        .id();
     w.get_mut::<Trap>(trap).unwrap().reveal = TrapReveal::Adjacent;
 
     w.get_mut::<Viewshed>(p).unwrap().dirty = true;
@@ -459,7 +553,10 @@ fn traps_scale_with_depth_and_never_exceed_ten_per_floor() {
         let count = |w: &mut World| w.query_filtered::<(), With<Trap>>().iter(w).count();
 
         let n = count(&mut w);
-        assert!(n <= 10, "trap budget stays well under ten per floor, got {n}");
+        assert!(
+            n <= 10,
+            "trap budget stays well under ten per floor, got {n}"
+        );
         shallow += n;
         if n > 0 {
             floors_with_a_trap += 1;
@@ -478,7 +575,10 @@ fn traps_scale_with_depth_and_never_exceed_ten_per_floor() {
             assert!(change_level(&mut w, true));
         }
         let n = count(&mut w);
-        assert!(n <= 10, "trap budget stays well under ten per floor, got {n}");
+        assert!(
+            n <= 10,
+            "trap budget stays well under ten per floor, got {n}"
+        );
         deep += n;
         if n > 0 {
             floors_with_a_trap += 1;
@@ -506,7 +606,10 @@ fn traps_and_snares_survive_a_save_and_reload() {
     let known = w.spawn(TrapBundle::arrow(Position { x: 12, y: 5 })).id();
     w.entity_mut(known).remove::<Hidden>();
     w.get_mut::<Trap>(known).unwrap().revealed = true;
-    w.entity_mut(p).insert(Snare { turns: 4, kind: SnareKind::Sleep });
+    w.entity_mut(p).insert(Snare {
+        turns: 4,
+        kind: SnareKind::Sleep,
+    });
 
     let path = std::env::temp_dir().join("roog_trap_roundtrip.sav");
     let sp = path.to_str().unwrap();
@@ -519,15 +622,13 @@ fn traps_and_snares_survive_a_save_and_reload() {
     w2.insert_resource(PlayerName { what: "X".into() });
     load_game(&mut w2, sp).unwrap();
 
-    let mut effects: Vec<TrapEffect> = w2
-        .query::<&Trap>()
-        .iter(&w2)
-        .map(|t| t.effect)
-        .collect();
+    let mut effects: Vec<TrapEffect> = w2.query::<&Trap>().iter(&w2).map(|t| t.effect).collect();
     effects.sort_by_key(|e| format!("{e:?}"));
     assert_eq!(effects, vec![TrapEffect::Arrow, TrapEffect::Teleport]);
 
-    let revealed = w2.query::<(&Trap, Option<&Hidden>)>().iter(&w2)
+    let revealed = w2
+        .query::<(&Trap, Option<&Hidden>)>()
+        .iter(&w2)
         .find(|(t, _)| t.effect == TrapEffect::Arrow)
         .map(|(t, h)| (t.revealed, h.is_some()))
         .unwrap();

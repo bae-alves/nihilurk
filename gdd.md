@@ -41,7 +41,9 @@ Monsters are ECS entities assembled from the same components the player is, off 
 Also, **you cannot pass your turn**.
 
 ### Items and power-ups
-Nothing arrives identified. At world creation the seed shuffles a set of cosmetic appearances across the real potion, scroll, wand and ring types, and knowledge is stored against the effect rather than the entity, so identifying one bubbly potion identifies every bubbly potion anywhere, forever. Learning what a thing does usually costs HP.
+Nothing you find arrives identified. At world creation the seed shuffles a set of cosmetic appearances across the real potion, scroll, wand and ring types, and knowledge is stored against the effect rather than the entity, so identifying one bubbly potion identifies every bubbly potion anywhere, forever. Learning what a thing does usually costs HP.
+
+You start the run already equipped: +1 ring mail worn, +1 mace in hand, and in the pack a +1 bow with 26 arrows, a wand of magic missile, and a single potion of healing you already know the shape of.
 
 Drops follow Rogue's own category odds, with coins standing in for food:
 

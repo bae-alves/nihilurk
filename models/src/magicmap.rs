@@ -26,7 +26,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::{Player, Viewshed};
-use crate::map::{tile_index, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH};
+use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, tile_index};
 
 /// Which shape the reveal takes as it floods the map into memory. Rolled at
 /// random each time a scroll of magic mapping is read (unless the `ROOG_MAGICMAP`

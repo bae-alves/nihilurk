@@ -1,8 +1,8 @@
-use std::collections::{HashMap, HashSet};
-use bevy_ecs::prelude::*;
 use crate::components::*;
 use crate::map::{Map, TileType};
 use crate::traps::{EntityMoved, Snare};
+use bevy_ecs::prelude::*;
+use std::collections::{HashMap, HashSet};
 
 /// Monster turn. Exclusive so it can move each mob more than once: the player is
 /// the clock, and every creature banks [`Speed`] energy each of the player's
@@ -49,7 +49,14 @@ pub fn ai(world: &mut World) {
     let map = world.resource::<Map>().clone();
 
     for _round in 0..rounds {
-        monster_round(world, player_entity, player_pos, &visible_tiles, player_faction, &map);
+        monster_round(
+            world,
+            player_entity,
+            player_pos,
+            &visible_tiles,
+            player_faction,
+            &map,
+        );
     }
 }
 
@@ -84,7 +91,10 @@ fn monster_round(
         // The actor spatial map, rebuilt each pass so a mob that moved in pass 0
         // is seen in its new tile in pass 1.
         let mut spatial: HashMap<(u16, u16), (Entity, Faction)> = HashMap::new();
-        spatial.insert((player_pos.x, player_pos.y), (player_entity, player_faction));
+        spatial.insert(
+            (player_pos.x, player_pos.y),
+            (player_entity, player_faction),
+        );
         {
             let mut q = world
                 .query_filtered::<(Entity, &Position, &Faction), (With<Mob>, Without<Player>)>();
@@ -201,10 +211,13 @@ fn monster_round(
                         | (Faction::Ally, Faction::Monster)
                 );
                 if is_hostile {
-                    world.resource_mut::<AttackQueue>().attacks.push(WantsToAttack {
-                        attacker: mob_entity,
-                        target: target_entity,
-                    });
+                    world
+                        .resource_mut::<AttackQueue>()
+                        .attacks
+                        .push(WantsToAttack {
+                            attacker: mob_entity,
+                            target: target_entity,
+                        });
                     spend_energy(world, mob_entity);
                     any_acted = true;
                 }

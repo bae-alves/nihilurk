@@ -20,7 +20,9 @@ fn tile_is_revealed_follows_the_players_viewshed() {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
     w.insert_resource(RngSeed(2112));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
 
     let mut schedule = Schedule::default();
@@ -36,18 +38,35 @@ fn tile_is_revealed_follows_the_players_viewshed() {
         let i = (0..MAP_TILE_COUNT)
             .find(|&i| !vs.revealed_tiles.contains(i))
             .expect("a fresh floor should have unseen tiles");
-        ((i % MAP_WIDTH as usize) as u16, (i / MAP_WIDTH as usize) as u16)
+        (
+            (i % MAP_WIDTH as usize) as u16,
+            (i / MAP_WIDTH as usize) as u16,
+        )
     };
 
-    assert!(tile_is_revealed(&mut w, ppos.x, ppos.y), "own tile is revealed");
-    assert!(!tile_is_revealed(&mut w, ux, uy), "unseen tile is not revealed");
-    assert!(!tile_is_revealed(&mut w, MAP_WIDTH + 5, 0), "out of bounds is not revealed");
+    assert!(
+        tile_is_revealed(&mut w, ppos.x, ppos.y),
+        "own tile is revealed"
+    );
+    assert!(
+        !tile_is_revealed(&mut w, ux, uy),
+        "unseen tile is not revealed"
+    );
+    assert!(
+        !tile_is_revealed(&mut w, MAP_WIDTH + 5, 0),
+        "out of bounds is not revealed"
+    );
 }
 
 const DIRS: [(i32, i32); 8] = [
-    (-1, -1), (0, -1), (1, -1),
-    (-1, 0),           (1, 0),
-    (-1, 1),  (0, 1),  (1, 1),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
 ];
 
 /// A fully-revealed fresh floor with monsters and items removed.
@@ -56,7 +75,9 @@ fn fresh_mapped_floor(seed: u64) -> (World, Entity) {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
 
     let clutter: Vec<Entity> = w
@@ -86,11 +107,20 @@ fn nearest_reachable_returns_a_reachable_walkable_tile() {
 
         // A walkable target hands itself straight back.
         let stairs = stair_location(&map, true).unwrap();
-        assert_eq!(nearest_reachable(&mut w, stairs), Some(stairs), "seed {seed}");
+        assert_eq!(
+            nearest_reachable(&mut w, stairs),
+            Some(stairs),
+            "seed {seed}"
+        );
 
         // A wall target is redirected to a tile you can actually stand on.
         let wall = (0..MAP_TILE_COUNT)
-            .map(|i| ((i % MAP_WIDTH as usize) as u16, (i / MAP_WIDTH as usize) as u16))
+            .map(|i| {
+                (
+                    (i % MAP_WIDTH as usize) as u16,
+                    (i / MAP_WIDTH as usize) as u16,
+                )
+            })
             .find(|&(x, y)| {
                 map.blocks(x, y)
                     && DIRS.iter().any(|&(dx, dy)| {
@@ -104,6 +134,9 @@ fn nearest_reachable_returns_a_reachable_walkable_tile() {
             })
             .expect("every floor has a wall beside open ground");
         let goal = nearest_reachable(&mut w, wall).expect("seed has a reachable tile");
-        assert!(!map.blocks(goal.0, goal.1), "seed {seed}: routed onto a wall {goal:?}");
+        assert!(
+            !map.blocks(goal.0, goal.1),
+            "seed {seed}: routed onto a wall {goal:?}"
+        );
     }
 }

@@ -11,7 +11,7 @@ use bevy_ecs::prelude::*;
 
 use crate::autoexplore::first_step;
 use crate::components::*;
-use crate::map::{tile_index, Map, MAP_HEIGHT, MAP_WIDTH};
+use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, tile_index};
 
 /// Whether the player is at or below a quarter of their maximum HP — the cutoff
 /// below which auto-fight refuses. Kept in integer maths: `hp * 4 <= max_hp` is
@@ -47,7 +47,9 @@ pub fn auto_fight_target(world: &mut World) -> Option<Entity> {
     let enemies = visible_enemies(world);
 
     let chebyshev = |(x, y): (u16, u16)| -> i32 {
-        (x as i32 - px as i32).abs().max((y as i32 - py as i32).abs())
+        (x as i32 - px as i32)
+            .abs()
+            .max((y as i32 - py as i32).abs())
     };
 
     let in_melee = enemies.iter().any(|&(_, pos, _)| chebyshev(pos) <= 1);

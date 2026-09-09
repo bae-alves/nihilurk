@@ -6,7 +6,9 @@ fn test_world(seed: u64) -> World {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -24,7 +26,10 @@ fn descend_generates_new_floor_and_heals() {
     w.get_mut::<Fighter>(p).unwrap().hp = 4;
     w.get_mut::<Magic>(p).unwrap().points = 1;
     let start = *w.get::<Position>(p).unwrap();
-    assert_eq!(w.resource::<Map>().tile(start.x, start.y), TileType::Upstairs);
+    assert_eq!(
+        w.resource::<Map>().tile(start.x, start.y),
+        TileType::Upstairs
+    );
 
     // Walk to the downstairs.
     let down = w
@@ -33,7 +38,10 @@ fn descend_generates_new_floor_and_heals() {
         .iter()
         .position(|&t| t == TileType::Downstairs)
         .unwrap();
-    let (dx, dy) = ((down % MAP_WIDTH as usize) as u16, (down / MAP_WIDTH as usize) as u16);
+    let (dx, dy) = (
+        (down % MAP_WIDTH as usize) as u16,
+        (down / MAP_WIDTH as usize) as u16,
+    );
     w.get_mut::<Position>(p).unwrap().x = dx;
     w.get_mut::<Position>(p).unwrap().y = dy;
 
@@ -41,7 +49,11 @@ fn descend_generates_new_floor_and_heals() {
     assert!(change_level(&mut w, true));
 
     assert_eq!(w.resource::<Depth>().what, 2);
-    assert_ne!(w.resource::<Map>().tiles, old_tiles, "a new floor was generated");
+    assert_ne!(
+        w.resource::<Map>().tiles,
+        old_tiles,
+        "a new floor was generated"
+    );
     // Healed 50% of max (12) -> 4 + 6 = 10.
     assert_eq!(w.get::<Fighter>(p).unwrap().hp, 10);
     // Magic is fully restored on arrival.
@@ -50,9 +62,42 @@ fn descend_generates_new_floor_and_heals() {
     // Player is back on an upstairs in the new floor's first room.
     let np = *w.get::<Position>(p).unwrap();
     assert_eq!(w.resource::<Map>().tile(np.x, np.y), TileType::Upstairs);
-    // No floor items or monsters carried over (backpack wand stays).
+    // No floor items or monsters carried over (the starting kit stays).
     assert_eq!(w.query::<&Mob>().iter(&w).count() <= 3, true);
-    assert_eq!(w.query_filtered::<&Backpack, With<Player>>().single(&w).items.len(), 1);
+    assert_eq!(
+        w.query_filtered::<&Backpack, With<Player>>()
+            .single(&w)
+            .items
+            .len(),
+        5
+    );
+}
+
+#[test]
+fn a_hasted_or_slowed_player_finds_their_tempo_on_the_next_floor() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    w.get_mut::<Speed>(p).unwrap().kind = SpeedKind::Fast;
+    w.entity_mut(p).insert(Confused);
+
+    let down = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Downstairs)
+        .unwrap();
+    w.get_mut::<Position>(p).unwrap().x = (down % MAP_WIDTH as usize) as u16;
+    w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
+    assert!(change_level(&mut w, true));
+
+    assert_eq!(
+        w.get::<Speed>(p).unwrap().kind,
+        SpeedKind::Normal,
+        "the stairs wash out a haste"
+    );
+    assert!(w.get::<Confused>(p).is_none(), "and the dazzle");
+    let log = &w.resource::<GameLog>().history;
+    assert!(log.iter().any(|l| l == "You are no longer confused."));
 }
 
 /// Walk the player onto the current floor's down-stair and descend, repeating
@@ -78,14 +123,23 @@ fn deepest_floor_swaps_the_downstairs_for_the_element() {
     descend_to(&mut w, 13);
 
     // No way down remains on Depth 13.
-    assert!(!w.resource::<Map>().tiles.iter().any(|&t| t == TileType::Downstairs));
+    assert!(
+        !w.resource::<Map>()
+            .tiles
+            .iter()
+            .any(|&t| t == TileType::Downstairs)
+    );
 
     // The Element of Yoord is lying on the floor, ringed by at least one guardian.
     let elements: Vec<Entity> = w
         .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
         .iter(&w)
         .collect();
-    assert_eq!(elements.len(), 1, "exactly one Element spawned on the floor");
+    assert_eq!(
+        elements.len(),
+        1,
+        "exactly one Element spawned on the floor"
+    );
     assert!(w.query_filtered::<(), With<Mob>>().iter(&w).count() >= 1);
 
     // Standing on the down-stair spot: still can't descend (there is no stair).
@@ -112,7 +166,13 @@ fn carrying_the_element_flips_the_staircases() {
 
     // Down is now refused, wherever you stand.
     assert!(!change_level(&mut w, true));
-    assert!(w.resource::<GameLog>().history.last().unwrap().contains("seeks the sun"));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .last()
+            .unwrap()
+            .contains("seeks the sun")
+    );
 
     // Standing on the up-stair, `<` carries you back toward the surface.
     let up = w
@@ -126,8 +186,13 @@ fn carrying_the_element_flips_the_staircases() {
     assert!(change_level(&mut w, false));
     assert_eq!(w.resource::<Depth>().what, 12);
     // The Element rode along in the pack.
-    assert!(w.query_filtered::<&Backpack, With<Player>>().single(&w).items.iter()
-        .any(|&e| w.get::<Amulet>(e).is_some()));
+    assert!(
+        w.query_filtered::<&Backpack, With<Player>>()
+            .single(&w)
+            .items
+            .iter()
+            .any(|&e| w.get::<Amulet>(e).is_some())
+    );
 }
 
 /// Walk the player onto the up-stair and climb, repeating until `Depth` is 1.
@@ -161,16 +226,31 @@ fn climbing_the_last_stair_with_the_element_wins_the_run() {
 
     ascend_to_surface(&mut w);
     assert_eq!(w.resource::<Depth>().what, 1);
-    assert!(!w.resource::<Ending>().player_won, "not won until the final stair");
+    assert!(
+        !w.resource::<Ending>().player_won,
+        "not won until the final stair"
+    );
 
     // Stand on the Depth-1 up-stair and take it.
-    let up = w.resource::<Map>().tiles.iter().position(|&t| t == TileType::Upstairs).unwrap();
+    let up = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Upstairs)
+        .unwrap();
     w.get_mut::<Position>(p).unwrap().x = (up % MAP_WIDTH as usize) as u16;
     w.get_mut::<Position>(p).unwrap().y = (up / MAP_WIDTH as usize) as u16;
 
-    assert!(change_level(&mut w, false), "the final climb consumes a turn");
+    assert!(
+        change_level(&mut w, false),
+        "the final climb consumes a turn"
+    );
     assert!(w.resource::<Ending>().player_won);
-    assert_eq!(w.resource::<Depth>().what, 1, "you leave the dungeon, depth is unchanged");
+    assert_eq!(
+        w.resource::<Depth>().what,
+        1,
+        "you leave the dungeon, depth is unchanged"
+    );
 }
 
 #[test]
@@ -189,26 +269,43 @@ fn the_portal_never_wins_the_run() {
     assert_eq!(w.resource::<Depth>().what, 1);
 
     // Sit off the stairs and let the Dungeon Lord's patience run out repeatedly.
-    let plain = w.resource::<Map>().tiles.iter().position(|&t| t == TileType::Room).unwrap();
+    let plain = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Room)
+        .unwrap();
     w.get_mut::<Position>(p).unwrap().x = (plain % MAP_WIDTH as usize) as u16;
     w.get_mut::<Position>(p).unwrap().y = (plain / MAP_WIDTH as usize) as u16;
 
     for _ in 0..5 {
-        w.insert_resource(DungeonLord { idle_turns: DUNGEON_LORD_PATIENCE - 1 });
+        w.insert_resource(DungeonLord {
+            idle_turns: DUNGEON_LORD_PATIENCE - 1,
+        });
         dungeon_lord_system(&mut w);
     }
-    assert!(!w.resource::<Ending>().player_won, "a portal cannot win the run");
+    assert!(
+        !w.resource::<Ending>().player_won,
+        "a portal cannot win the run"
+    );
     assert_eq!(w.resource::<Depth>().what, 1);
 }
 
 #[test]
 fn dungeon_lord_portal_shunts_the_dawdler_onward() {
     let mut w = test_world(7);
-    w.insert_resource(DungeonLord { idle_turns: DUNGEON_LORD_PATIENCE - 2 });
+    w.insert_resource(DungeonLord {
+        idle_turns: DUNGEON_LORD_PATIENCE - 2,
+    });
     let p = w.query_filtered::<Entity, With<Player>>().single(&w);
 
     // Sit on plain floor, nowhere near a staircase.
-    let plain = w.resource::<Map>().tiles.iter().position(|&t| t == TileType::Room).unwrap();
+    let plain = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Room)
+        .unwrap();
     w.get_mut::<Position>(p).unwrap().x = (plain % MAP_WIDTH as usize) as u16;
     w.get_mut::<Position>(p).unwrap().y = (plain / MAP_WIDTH as usize) as u16;
 
@@ -220,7 +317,13 @@ fn dungeon_lord_portal_shunts_the_dawdler_onward() {
     dungeon_lord_system(&mut w);
     assert_eq!(w.resource::<Depth>().what, 2);
     assert_eq!(w.resource::<DungeonLord>().idle_turns, 0);
-    assert!(w.resource::<GameLog>().history.last().unwrap().contains("portal"));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .last()
+            .unwrap()
+            .contains("portal")
+    );
 }
 
 #[test]
@@ -241,5 +344,11 @@ fn cannot_descend_without_stairs() {
     assert!(!change_level(&mut w, true));
     assert_eq!(w.resource::<Depth>().what, 1);
     assert_eq!(w.resource::<Map>().tiles, before);
-    assert!(w.resource::<GameLog>().history.last().unwrap().contains("cannot go down"));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .last()
+            .unwrap()
+            .contains("cannot go down")
+    );
 }

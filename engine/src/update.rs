@@ -5,6 +5,7 @@ use bevy_ecs::schedule::Schedule;
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, poll, read};
 use models::*;
 use models::{GameState, components::GameLog};
+use rand::Rng;
 
 /// The direction of a Shift + movement-key press, for NetHack-style running.
 /// Accepts the shifted vi keys (`H J K L Y U B N`), the shifted WASD cluster,
@@ -27,7 +28,49 @@ fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
     }
 }
 
+/// The eight steps a confused stumble can send you.
+const STUMBLE_DIRS: [(i16, i16); 8] = [
+    (1, 0),
+    (-1, 0),
+    (0, 1),
+    (0, -1),
+    (1, 1),
+    (-1, -1),
+    (1, -1),
+    (-1, 1),
+];
+
+/// Whether the player currently carries the [`Confused`] condition.
+fn player_confused(world: &mut World) -> bool {
+    world
+        .query_filtered::<(), (With<Player>, With<Confused>)>()
+        .iter(world)
+        .next()
+        .is_some()
+}
+
+/// Confusion tax: half of every intended step goes off in a random direction
+/// instead. Returns the step to actually attempt and whether it was hijacked (a
+/// hijacked lurch into a wall still burns the turn).
+fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
+    if !player_confused(world) {
+        return (dx, dy, false);
+    }
+    let mut rng = world.resource_mut::<models::GameRng>();
+    if !rng.0.gen_bool(0.5) {
+        return (dx, dy, false);
+    }
+    let (sx, sy) = STUMBLE_DIRS[rng.0.gen_range(0..STUMBLE_DIRS.len())];
+    drop(rng);
+    world
+        .resource_mut::<GameLog>()
+        .add("You stumble foolishly.");
+    (sx, sy, true)
+}
+
 fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
+    let (dx, dy, stumbled) = maybe_stumble(world, dx, dy);
+
     // 1. Get player entity and calculate target position
     let mut player_data = None;
     {
@@ -48,13 +91,17 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
 
     // 2. Check if the target tile is a wall
     if world.resource::<Map>().blocks(new_x, new_y) {
-        return false; // Bumped into a wall, turn is NOT consumed
+        // A deliberate wall-bump is free; a confused lurch into it is not.
+        return stumbled;
     }
 
     // 2b. A diagonal step only connects tiles of the same kind — no cutting
     // across a doorway or squeezing between a room and a corridor.
-    if !world.resource::<Map>().diagonal_step_ok(old_x, old_y, new_x, new_y) {
-        return false; // Can't cut this corner, turn is NOT consumed
+    if !world
+        .resource::<Map>()
+        .diagonal_step_ok(old_x, old_y, new_x, new_y)
+    {
+        return stumbled; // Can't cut this corner
     }
 
     // 3. Check if a Mob exists at the target coordinates to attack
@@ -102,7 +149,9 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         if world.get::<Hidden>(item_entity).is_some() {
             world.entity_mut(item_entity).remove::<Hidden>();
             world.entity_mut(item_entity).remove::<Invisible>();
-            world.resource_mut::<GameLog>().add("Hey! There's something here!".to_string());
+            world
+                .resource_mut::<GameLog>()
+                .add("Hey! There's something here!".to_string());
         }
         // `stow` owns the pack from here: it merges arrows into a quiver you are
         // already carrying, and can leave part of a pile behind when that quiver
@@ -145,8 +194,10 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     let mut turn_taken = false;
 
     if let Event::Key(key) = event {
-        if key.kind != KeyEventKind::Press { return Ok(false); }
-        
+        if key.kind != KeyEventKind::Press {
+            return Ok(false);
+        }
+
         // 1. Handle logs first: while a --MORE-- prompt is up, the only input
         //    accepted is the acknowledgement, which drops the messages already
         //    shown and lets the rest flow up on the next frame.
@@ -181,10 +232,22 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => dy = 1,
                 KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => dx = -1,
                 KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => dx = 1,
-                KeyCode::Char('y') => { dx = -1; dy = -1; }
-                KeyCode::Char('u') => { dx = 1; dy = -1; }
-                KeyCode::Char('b') => { dx = -1; dy = 1; }
-                KeyCode::Char('n') => { dx = 1; dy = 1; }
+                KeyCode::Char('y') => {
+                    dx = -1;
+                    dy = -1;
+                }
+                KeyCode::Char('u') => {
+                    dx = 1;
+                    dy = -1;
+                }
+                KeyCode::Char('b') => {
+                    dx = -1;
+                    dy = 1;
+                }
+                KeyCode::Char('n') => {
+                    dx = 1;
+                    dy = 1;
+                }
                 _ => {}
             }
 
@@ -211,13 +274,17 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 
                 let new_x = cursor_x.saturating_add(dx);
                 let new_y = cursor_y.saturating_add(dy);
-                
+
                 // 2. Now world is completely free to query the player safely
                 let (player_pos, max_range, visible_tiles) = {
-                    let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next().unwrap();
+                    let player_entity = world
+                        .query_filtered::<Entity, With<Player>>()
+                        .iter(world)
+                        .next()
+                        .unwrap();
                     let pos = world.get::<Position>(player_entity).unwrap();
                     let p_pos = (pos.x, pos.y);
-                    
+
                     // A thrown item flies as far as an arm can send it; a zapped
                     // one as far as its own `Ranged` says.
                     let mut range = if throwing { THROW_RANGE } else { 8 };
@@ -232,7 +299,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     let visible = viewshed.visible_tiles.clone();
 
                     (p_pos, range, visible)
-                }; 
+                };
 
                 // 3. Range and Viewshed checks
                 let dist_x = (new_x - player_pos.0 as i16).abs();
@@ -247,8 +314,8 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     target_state.cursor_x = new_x;
                     target_state.cursor_y = new_y;
                 }
-                
-                return Ok(false); 
+
+                return Ok(false);
             }
 
             if confirm {
@@ -261,13 +328,17 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 target_state.throwing = false;
                 drop(target_state);
 
-                let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next().unwrap();
+                let player_entity = world
+                    .query_filtered::<Entity, With<Player>>()
+                    .iter(world)
+                    .next()
+                    .unwrap();
 
-                // No shooting yourself in the foot: a bolt aimed at your own
-                // tile is refused and the turn is not consumed.
+                // No shooting yourself in the foot: a wand zap or a throw aimed
+                // at your own tile is refused and the turn is not consumed.
                 if let Some(pos) = world.get::<Position>(player_entity) {
                     if pos.x == tx as u16 && pos.y == ty as u16 {
-                        world.resource_mut::<GameLog>().add("You can't target yourself.");
+                        world.resource_mut::<GameLog>().add("Great idea! But no.");
                         return Ok(false);
                     }
                 }
@@ -282,18 +353,24 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
 
                 if let Some(item) = extracted_item {
-                    let target = Position { x: tx as u16, y: ty as u16 };
+                    let target = Position {
+                        x: tx as u16,
+                        y: ty as u16,
+                    };
                     if throwing {
                         // A thrown item is gone from the pack for good — where it
                         // ends up is `throw_system`'s business. A quiver is the
                         // exception: it gives up one arrow and goes back in its
                         // own slot.
                         let missile = models::draw_one(world, player_entity, item, original_idx);
-                        world.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
-                            thrower: player_entity,
-                            item: missile,
-                            target,
-                        });
+                        world
+                            .resource_mut::<ThrowQueue>()
+                            .throws
+                            .push(WantsToThrow {
+                                thrower: player_entity,
+                                item: missile,
+                                target,
+                            });
                     } else {
                         world.resource_mut::<UseQueue>().uses.push(WantsToUse {
                             user: player_entity,
@@ -316,21 +393,29 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         // ==========================================
         let (is_open, current_selected, action_mode, action_selected) = {
             let pack_state = world.resource::<PackIsOpen>();
-            (pack_state.open, pack_state.selected, pack_state.action_mode, pack_state.action_selected)
+            (
+                pack_state.open,
+                pack_state.selected,
+                pack_state.action_mode,
+                pack_state.action_selected,
+            )
         };
 
         if is_open {
-            let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next();
+            let player_entity = world
+                .query_filtered::<Entity, With<Player>>()
+                .iter(world)
+                .next();
             let item_count = player_entity
                 .and_then(|entity| world.get::<Backpack>(entity))
                 .map_or(0, |bp| bp.items.len());
-                
+
             // Sub-Branch: Action Modal (Use/Drop)
             if let Some(action_item_idx) = action_mode {
                 let mut close_inventory = false;
                 let mut confirm_action = false;
                 let mut new_action_sel = action_selected;
-                
+
                 const ACTION_COUNT: usize = 3;
                 match key.code {
                     KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
@@ -343,30 +428,35 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     KeyCode::Enter | KeyCode::Char(' ') => confirm_action = true,
                     _ => {}
                 }
-                
+
                 let mut pack_state = world.resource_mut::<PackIsOpen>();
                 pack_state.action_selected = new_action_sel;
-                
+
                 if close_inventory {
                     pack_state.open = false;
-                    pack_state.action_mode = None; 
+                    pack_state.action_mode = None;
                 } else if confirm_action {
                     pack_state.open = false;
                     pack_state.action_mode = None;
                     turn_taken = true;
                 }
-                
+
                 drop(pack_state);
-                
+
                 if confirm_action {
                     if let Some(player) = player_entity {
                         // 1. Remove from backpack temporarily
-                        let item_entity = if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
-                            if action_item_idx < backpack.items.len() {
-                                Some(backpack.items.remove(action_item_idx))
-                            } else { None }
-                        } else { None };
-                        
+                        let item_entity =
+                            if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                                if action_item_idx < backpack.items.len() {
+                                    Some(backpack.items.remove(action_item_idx))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
                         // 2. Route to correct action. Which row is which is the
                         // ActionMenu's business (see `-dropthrow`), not ours.
                         if let Some(item) = item_entity {
@@ -381,12 +471,15 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 
                                     if is_ranged {
                                         // Put it right back exactly where it was!
-                                        if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                                        if let Some(mut backpack) =
+                                            world.get_mut::<Backpack>(player)
+                                        {
                                             backpack.items.insert(action_item_idx, item);
                                         }
 
                                         let player_pos = *world.get::<Position>(player).unwrap();
-                                        let mut target_state = world.resource_mut::<TargetingState>();
+                                        let mut target_state =
+                                            world.resource_mut::<TargetingState>();
                                         target_state.active = true;
                                         target_state.item = Some(item);
                                         target_state.throwing = false;
@@ -396,7 +489,12 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                                         turn_taken = false; // Override: aiming takes no time!
                                     } else {
                                         let mut use_queue = world.resource_mut::<UseQueue>();
-                                        use_queue.uses.push(WantsToUse { user: player, item:item, target: None, slot_idx: Some(action_item_idx)});
+                                        use_queue.uses.push(WantsToUse {
+                                            user: player,
+                                            item: item,
+                                            target: None,
+                                            slot_idx: Some(action_item_idx),
+                                        });
                                     }
                                 }
                                 ItemAction::Throw => {
@@ -413,7 +511,8 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                                         world.resource_mut::<GameLog>().add(refusal);
                                     } else {
                                         let player_pos = *world.get::<Position>(player).unwrap();
-                                        let mut target_state = world.resource_mut::<TargetingState>();
+                                        let mut target_state =
+                                            world.resource_mut::<TargetingState>();
                                         target_state.active = true;
                                         target_state.item = Some(item);
                                         target_state.throwing = true;
@@ -429,17 +528,22 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                                     // sword on the floor stops sharpening your
                                     // arm.
                                     if let Some(refusal) = drop_refusal(world, player, item) {
-                                        if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                                        if let Some(mut backpack) =
+                                            world.get_mut::<Backpack>(player)
+                                        {
                                             backpack.items.insert(action_item_idx, item);
                                         }
                                         world.resource_mut::<GameLog>().add(refusal);
                                         turn_taken = false;
-                                    } else if let Some(pos) = world.get::<Position>(player).cloned() {
+                                    } else if let Some(pos) = world.get::<Position>(player).cloned()
+                                    {
                                         force_unequip(world, item);
                                         sync_equipment_effects(world, player);
                                         world.entity_mut(item).insert(pos);
                                         let name = models::display_name(world, item);
-                                        world.resource_mut::<GameLog>().add(format!("You drop the {name}."));
+                                        world
+                                            .resource_mut::<GameLog>()
+                                            .add(format!("You drop the {name}."));
                                     }
                                 }
                             }
@@ -447,7 +551,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     }
                 }
                 return Ok(turn_taken);
-            } 
+            }
             // Sub-Branch: Navigating the main list
             else {
                 let mut new_selected = current_selected;
@@ -473,7 +577,10 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     KeyCode::Enter | KeyCode::Char(' ') => trigger_action_menu = Some(new_selected),
                     KeyCode::Char(c) if c.is_ascii_lowercase() => {
                         let idx = (c as u32 - 'a' as u32) as usize;
-                        if idx < item_count { new_selected = idx; trigger_action_menu = Some(idx);}
+                        if idx < item_count {
+                            new_selected = idx;
+                            trigger_action_menu = Some(idx);
+                        }
                     }
                     _ => {}
                 }
@@ -487,10 +594,10 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 
                 if let Some(idx) = trigger_action_menu {
                     pack_state.action_mode = Some(idx);
-                    pack_state.action_selected = 0; 
+                    pack_state.action_selected = 0;
                 }
-                
-                return Ok(false); 
+
+                return Ok(false);
             }
         }
 
@@ -503,12 +610,22 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         // roughly that way. Refused with a creature in view; the main loop drives
         // the run to completion and only then repaints.
         if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
+            if player_confused(world) {
+                world
+                    .resource_mut::<GameLog>()
+                    .add("You are too confused for that right now.");
+                return Ok(false);
+            }
             match fast_move_plan(world, rdx, rdy) {
                 FastMovePlan::MonsterInSight => {
-                    world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("Not while a creature is in sight.");
                 }
                 FastMovePlan::Blocked => {
-                    world.resource_mut::<GameLog>().add("You can't run that way.");
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("You can't run that way.");
                 }
                 FastMovePlan::Straight => {
                     world.resource_mut::<GameLog>().unread.clear();
@@ -526,14 +643,17 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         let mut dy = 0;
         let mut action_attempted = false;
         match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => {
-                    world.resource_mut::<GameState>().is_running = false;
-                }
-                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    world.resource_mut::<GameState>().is_running = false;
-                }
-                KeyCode::Char('i') => {
-                let player_entity = world.query_filtered::<Entity, With<Player>>().iter(world).next();
+            KeyCode::Char('q') | KeyCode::Esc => {
+                world.resource_mut::<GameState>().is_running = false;
+            }
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                world.resource_mut::<GameState>().is_running = false;
+            }
+            KeyCode::Char('i') => {
+                let player_entity = world
+                    .query_filtered::<Entity, With<Player>>()
+                    .iter(world)
+                    .next();
                 let is_empty = player_entity
                     .and_then(|entity| world.get::<Backpack>(entity))
                     .map_or(true, |bp| bp.items.is_empty());
@@ -545,7 +665,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 } else {
                     let mut pack_state = world.resource_mut::<PackIsOpen>();
                     pack_state.open = true;
-                    pack_state.selected = 0; 
+                    pack_state.selected = 0;
                 }
                 return Ok(false);
             }
@@ -553,10 +673,18 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 // Auto-explore: refuse to start with a creature in sight or when
                 // there is nothing left to map; otherwise arm the flag and let
                 // the main loop drive the walk one step per frame.
-                if monster_in_sight(world) {
-                    world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+                if player_confused(world) {
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("You are too confused for that right now.");
+                } else if monster_in_sight(world) {
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("Not while a creature is in sight.");
                 } else if explore_step(world).is_none() {
-                    world.resource_mut::<GameLog>().add("There is nothing left to explore.");
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("There is nothing left to explore.");
                 } else {
                     world.resource_mut::<GameLog>().unread.clear();
                     world.resource_mut::<AutoExplore>().start(None);
@@ -579,8 +707,14 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             KeyCode::Tab => {
                 // Auto-fight: one turn spent closing on — or striking — the
                 // weakest foe in sight. Not a mode: each press is a single turn.
-                if player_too_injured(world) {
-                    world.resource_mut::<GameLog>().add("You are too injured for that now.");
+                if player_confused(world) {
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("You are too confused for that right now.");
+                } else if player_too_injured(world) {
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("You are too injured for that now.");
                 } else if let Some(target) = auto_fight_target(world) {
                     match fight_step(world, target) {
                         Some((dx, dy)) => {
@@ -588,11 +722,15 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                             turn_taken = move_player(world, dx, dy);
                         }
                         None => {
-                            world.resource_mut::<GameLog>().add("You can't reach it from here.");
+                            world
+                                .resource_mut::<GameLog>()
+                                .add("You can't reach it from here.");
                         }
                     }
                 } else {
-                    world.resource_mut::<GameLog>().add("There is nothing to fight.");
+                    world
+                        .resource_mut::<GameLog>()
+                        .add("There is nothing to fight.");
                 }
             }
             KeyCode::Char('>') | KeyCode::Char('.') => {
@@ -601,15 +739,43 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             KeyCode::Char('<') | KeyCode::Char(',') => {
                 return Ok(travel_or_use_stairs(world, false));
             }
-            KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => { dy = -1; action_attempted = true; }
-            KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => { dy = 1; action_attempted = true; }
-            KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => { dx = -1; action_attempted = true; }
-            KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => { dx = 1; action_attempted = true; }
-            KeyCode::Char('y') => { dx = -1; dy = -1; action_attempted = true; }
-            KeyCode::Char('u') => { dx = 1; dy = -1; action_attempted = true; }
-            KeyCode::Char('b') => { dx = -1; dy = 1; action_attempted = true; }
-            KeyCode::Char('n') => { dx = 1; dy = 1; action_attempted = true; }
-            _ => {} 
+            KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => {
+                dy = -1;
+                action_attempted = true;
+            }
+            KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => {
+                dy = 1;
+                action_attempted = true;
+            }
+            KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => {
+                dx = -1;
+                action_attempted = true;
+            }
+            KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => {
+                dx = 1;
+                action_attempted = true;
+            }
+            KeyCode::Char('y') => {
+                dx = -1;
+                dy = -1;
+                action_attempted = true;
+            }
+            KeyCode::Char('u') => {
+                dx = 1;
+                dy = -1;
+                action_attempted = true;
+            }
+            KeyCode::Char('b') => {
+                dx = -1;
+                dy = 1;
+                action_attempted = true;
+            }
+            KeyCode::Char('n') => {
+                dx = 1;
+                dy = 1;
+                action_attempted = true;
+            }
+            _ => {}
         }
 
         if action_attempted {
@@ -627,7 +793,11 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 /// "you cannot go that way" line. Never consumes a turn itself.
 fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
     let dir = if going_down { "down" } else { "up" };
-    let want_tile = if going_down { TileType::Downstairs } else { TileType::Upstairs };
+    let want_tile = if going_down {
+        TileType::Downstairs
+    } else {
+        TileType::Upstairs
+    };
 
     let ppos = {
         let mut q = world.query_filtered::<&Position, With<Player>>();
@@ -649,16 +819,22 @@ fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
             .is_some_and(|v| v.revealed_tiles.contains(tile_index(tx, ty)))
     });
     let Some(target) = known_target else {
-        world.resource_mut::<GameLog>().add(format!("You cannot go {dir} from here."));
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You cannot go {dir} from here."));
         return false;
     };
 
     if monster_in_sight(world) {
-        world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+        world
+            .resource_mut::<GameLog>()
+            .add("Not while a creature is in sight.");
         return false;
     }
     if travel_step(world, target).is_none() {
-        world.resource_mut::<GameLog>().add(format!("You can't find a path to the {dir}-stairs."));
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You can't find a path to the {dir}-stairs."));
         return false;
     }
 
@@ -717,7 +893,9 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
     // A monster came into view (or was already there when we started).
     if monster_in_sight(world) {
         world.resource_mut::<AutoExplore>().stop();
-        world.resource_mut::<GameLog>().add("There is a monster nearby.");
+        world
+            .resource_mut::<GameLog>()
+            .add("There is a monster nearby.");
         return Ok(false);
     }
 
@@ -769,7 +947,9 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
         return Ok(());
     }
 
-    let Event::Key(key) = read()? else { return Ok(()) };
+    let Event::Key(key) = read()? else {
+        return Ok(());
+    };
     if key.kind != KeyEventKind::Press {
         return Ok(());
     }
@@ -785,10 +965,22 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
         KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => dy = 1,
         KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => dx = -1,
         KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => dx = 1,
-        KeyCode::Char('y') => { dx = -1; dy = -1; }
-        KeyCode::Char('u') => { dx = 1; dy = -1; }
-        KeyCode::Char('b') => { dx = -1; dy = 1; }
-        KeyCode::Char('n') => { dx = 1; dy = 1; }
+        KeyCode::Char('y') => {
+            dx = -1;
+            dy = -1;
+        }
+        KeyCode::Char('u') => {
+            dx = 1;
+            dy = -1;
+        }
+        KeyCode::Char('b') => {
+            dx = -1;
+            dy = 1;
+        }
+        KeyCode::Char('n') => {
+            dx = 1;
+            dy = 1;
+        }
         _ => return Ok(()),
     }
 
@@ -825,14 +1017,18 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
     world.resource_mut::<TravelCursor>().close();
 
     if monster_in_sight(world) {
-        world.resource_mut::<GameLog>().add("Not while a creature is in sight.");
+        world
+            .resource_mut::<GameLog>()
+            .add("Not while a creature is in sight.");
         return Ok(());
     }
 
     // Route to the picked tile, or — when it is a wall or somewhere unreachable
     // — to the nearest walkable tile the player can actually get to.
     let Some(goal) = nearest_reachable(world, (tx, ty)) else {
-        world.resource_mut::<GameLog>().add("You can't find a path there.");
+        world
+            .resource_mut::<GameLog>()
+            .add("You can't find a path there.");
         return Ok(());
     };
 
@@ -841,7 +1037,9 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
         q.iter(world).next().map(|p| (p.x, p.y))
     };
     if here == Some(goal) {
-        world.resource_mut::<GameLog>().add("You are already there.");
+        world
+            .resource_mut::<GameLog>()
+            .add("You are already there.");
         return Ok(());
     }
 

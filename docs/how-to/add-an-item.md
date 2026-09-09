@@ -123,9 +123,7 @@ Available chains:
     .grants(&[...])     marker effects lent while worn
 
 A bonus of zero attaches nothing, so an inert ring costs nothing at run
-time. Seven of the twelve existing rings are inert on purpose: they have
-a name and an appearance but no content yet. Giving one a body is adding
-a chain to its existing row.
+time. Giving a ring a body is adding a chain to its existing row.
 
 
 Potions, scrolls and wands

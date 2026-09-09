@@ -262,7 +262,10 @@ pub type EffectSet = u32;
 
 /// Which effects `grants` covers, as a bitmask.
 pub fn effect_set(grants: &[Grant]) -> EffectSet {
-    grants.iter().filter_map(Grant::bit).fold(0, |acc, bit| acc | bit)
+    grants
+        .iter()
+        .filter_map(Grant::bit)
+        .fold(0, |acc, bit| acc | bit)
 }
 
 /// The effects an entity currently has *on loan from its gear*, as opposed to

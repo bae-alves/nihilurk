@@ -20,7 +20,7 @@ use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{Backpack, Curse, GameLog, Position};
-use crate::effects::{effect_set, EffectSet, GrantedByGear, Grants, EFFECTS};
+use crate::effects::{EFFECTS, EffectSet, GrantedByGear, Grants, effect_set};
 
 /// Where a piece of gear goes. One item per slot at a time.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -142,7 +142,9 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     if let Some(occupant) = equipped_in(world, user, slot) {
         if world.get::<Curse>(occupant).is_some() {
             let stuck_name = crate::identify::display_name(world, occupant);
-            world.resource_mut::<GameLog>().add(slot.blocked(&stuck_name));
+            world
+                .resource_mut::<GameLog>()
+                .add(slot.blocked(&stuck_name));
             return false;
         }
         force_unequip(world, occupant);
@@ -203,7 +205,10 @@ pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
 
     // Effects the creature has innately are never on loan, so a removed ring can
     // never strip a monster's own magic.
-    let innate: EffectSet = world.get::<Grants>(bearer).map(|g| effect_set(g.0)).unwrap_or(0);
+    let innate: EffectSet = world
+        .get::<Grants>(bearer)
+        .map(|g| effect_set(g.0))
+        .unwrap_or(0);
 
     let mut e = world.entity_mut(bearer);
     for (i, grant) in EFFECTS.iter().enumerate() {

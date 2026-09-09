@@ -17,7 +17,9 @@ fn test_world(seed: u64) -> World {
     w.init_resource::<AttackQueue>();
     w.init_resource::<Ending>();
     w.init_resource::<PlayerTempo>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -42,7 +44,9 @@ fn custom_ring(
     w.spawn((
         Name { what: name.into() },
         Item,
-        Ring { effect: RingEffect::Adornment },
+        Ring {
+            effect: RingEffect::Adornment,
+        },
         Equipped::loose(Slot::Finger),
         Grants(grants),
         modifiers,
@@ -63,7 +67,11 @@ fn a_ring_can_grant_what_a_monster_is_born_with() {
     let p = player(&mut w);
 
     // The dragon's innate immunity is a component, nothing more.
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), Position { x: 10, y: 10 });
+    let dragon = spawn_monster(
+        &mut w,
+        MonsterDef::named("dragon"),
+        Position { x: 10, y: 10 },
+    );
     assert!(w.get::<FireImmune>(dragon).is_some());
     assert!(w.get::<FireImmune>(p).is_none());
 
@@ -87,13 +95,20 @@ fn taking_the_ring_off_takes_the_effect_with_it() {
     assert!(w.get::<FireImmune>(p).is_some());
 
     toggle_equipped(&mut w, p, ring);
-    assert!(w.get::<FireImmune>(p).is_none(), "lent magic goes back with the ring");
+    assert!(
+        w.get::<FireImmune>(p).is_none(),
+        "lent magic goes back with the ring"
+    );
 }
 
 #[test]
 fn a_removed_ring_never_strips_innate_magic() {
     let mut w = test_world(3);
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), Position { x: 10, y: 10 });
+    let dragon = spawn_monster(
+        &mut w,
+        MonsterDef::named("dragon"),
+        Position { x: 10, y: 10 },
+    );
     w.entity_mut(dragon).insert(Backpack { items: Vec::new() });
 
     // Hand the dragon a ring of the immunity it already has, then take it away.
@@ -112,34 +127,49 @@ fn a_rings_armor_bonus_folds_in_exactly_like_armour() {
     let mut w = test_world(4);
     let p = player(&mut w);
 
+    // The player starts in +1 ring mail, so measure the ring against that base.
+    let base = equipped_total::<ArmorBonus>(&w, p);
+
     let plus_three = custom_ring(&mut w, "ring of protection", &[], ArmorBonus(3));
-    assert_eq!(equipped_total::<ArmorBonus>(&w, p), 0);
+    assert_eq!(equipped_total::<ArmorBonus>(&w, p), base);
 
     wear(&mut w, p, plus_three);
     assert_eq!(
         equipped_total::<ArmorBonus>(&w, p),
-        3,
+        base + 3,
         "combat and the HUD both read this one number"
     );
 
-    // And a suit of armour lands in the very same fold.
+    // And a suit of armour lands in the very same fold. Wearing it swaps out the
+    // starting ring mail, so its +1 replaces the base rather than adding to it.
     let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
     w.entity_mut(mail).insert(ArmorBonus(1));
     wear(&mut w, p, mail);
     assert_eq!(equipped_total::<ArmorBonus>(&w, p), 4);
-    assert_eq!(equipped_total::<ArmorDie>(&w, p), 9, "plate mail's own class");
+    assert_eq!(
+        equipped_total::<ArmorDie>(&w, p),
+        9,
+        "plate mail's own class"
+    );
 }
 
 #[test]
 fn cancellation_strips_every_effect_in_the_registry() {
     let mut w = test_world(5);
-    let phantom = spawn_monster(&mut w, MonsterDef::named("phantom"), Position { x: 10, y: 10 });
+    let phantom = spawn_monster(
+        &mut w,
+        MonsterDef::named("phantom"),
+        Position { x: 10, y: 10 },
+    );
     assert!(w.get::<Undead>(phantom).is_some());
 
     revoke_all(&mut w, phantom);
 
     for grant in EFFECTS {
-        assert!(!grant.probe(&w, phantom), "cancellation walks the whole registry");
+        assert!(
+            !grant.probe(&w, phantom),
+            "cancellation walks the whole registry"
+        );
     }
 }
 
@@ -150,16 +180,32 @@ fn every_ring_in_the_catalog_has_an_appearance_and_a_row() {
     let w = test_world(6);
     let appearances = w.resource::<ItemAppearances>();
     for def in RINGS {
-        assert!(appearances.rings.contains_key(&def.effect), "{} has no appearance", def.name);
+        assert!(
+            appearances.rings.contains_key(&def.effect),
+            "{} has no appearance",
+            def.name
+        );
         assert_eq!(RingDef::of(def.effect).name, def.name);
     }
     for def in POTIONS {
-        assert!(appearances.potions.contains_key(&def.effect), "{} has no appearance", def.name);
+        assert!(
+            appearances.potions.contains_key(&def.effect),
+            "{} has no appearance",
+            def.name
+        );
     }
     for def in SCROLLS {
-        assert!(appearances.scrolls.contains_key(&def.effect), "{} has no appearance", def.name);
+        assert!(
+            appearances.scrolls.contains_key(&def.effect),
+            "{} has no appearance",
+            def.name
+        );
     }
     for def in WANDS {
-        assert!(appearances.wands.contains_key(&def.effect), "{} has no appearance", def.name);
+        assert!(
+            appearances.wands.contains_key(&def.effect),
+            "{} has no appearance",
+            def.name
+        );
     }
 }

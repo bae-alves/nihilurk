@@ -7,7 +7,9 @@ fn round_trip() {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(1)));
     w.insert_resource(RngSeed(1));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     // Pretend we walked down to floor 4. A floor's layout is a pure function of
     // (seed, depth), so moving the depth marker means rebuilding the map to
@@ -15,7 +17,9 @@ fn round_trip() {
     // tile comparison at the end of the test is meaningless.
     w.resource_mut::<Depth>().what = 4;
     regenerate_map(&mut w, 1, 4);
-    w.resource_mut::<Identified>().potions.insert(PotionEffect::Healing);
+    w.resource_mut::<Identified>()
+        .potions
+        .insert(PotionEffect::Healing);
     let n0 = w.iter_entities().count();
     let path = std::env::temp_dir().join("roog_test.sav");
     let p = path.to_str().unwrap();
@@ -37,14 +41,22 @@ fn round_trip() {
     assert_eq!(w2.resource::<PlayerName>().what, "TESTER");
     assert_eq!(w2.resource::<Depth>().what, 4);
     // Identification knowledge and this run's item appearances survive too.
-    assert!(w2.resource::<Identified>().potions.contains(&PotionEffect::Healing));
+    assert!(
+        w2.resource::<Identified>()
+            .potions
+            .contains(&PotionEffect::Healing)
+    );
     assert_eq!(
         w.resource::<ItemAppearances>().potions,
         w2.resource::<ItemAppearances>().potions,
     );
-    let mut q = w2.query_filtered::<&Backpack, With<Player>>();
-    assert_eq!(q.single(&w2).items.len(), 1);
-    assert!(w2.get::<Wand>(q.single(&w2).items[0]).is_some());
+    // The starting kit — ring mail, mace, bow, arrows, healing potion — round-trips.
+    let packed: Vec<Entity> = {
+        let mut q = w2.query_filtered::<&Backpack, With<Player>>();
+        q.single(&w2).items.clone()
+    };
+    assert_eq!(packed.len(), 5);
+    assert!(packed.iter().any(|&it| w2.get::<ArmorDie>(it).is_some()));
 
     // The player's magic pool survives the round trip.
     let magic = w2.query_filtered::<&Magic, With<Player>>().single(&w2);
@@ -57,8 +69,15 @@ fn round_trip() {
     w3.init_resource::<GameLog>();
     w3.insert_resource(PlayerName { what: "Y".into() });
     initialize_world(&mut w3);
-    // Strip the floor's own spawned loot/monsters so this round trip only sees
-    // the gear the test itself places below.
+    // Strip the floor's own spawned loot/monsters and the player's starting kit,
+    // so this round trip only sees the gear the test itself places below.
+    {
+        let hero = w3.query_filtered::<Entity, With<Player>>().single(&w3);
+        let kit = std::mem::take(&mut w3.get_mut::<Backpack>(hero).unwrap().items);
+        for item in kit {
+            w3.despawn(item);
+        }
+    }
     let strays: Vec<Entity> = w3
         .iter_entities()
         .filter(|e| !e.contains::<Player>() && e.contains::<Position>())
@@ -69,7 +88,9 @@ fn round_trip() {
     }
     let pos = Position { x: 5, y: 5 };
     let vorpal_sword = spawn_weapon(&mut w3, "long sword", pos);
-    w3.entity_mut(vorpal_sword).insert(Vorpal { bane: "dragon".into() });
+    w3.entity_mut(vorpal_sword).insert(Vorpal {
+        bane: "dragon".into(),
+    });
     let cursed_armor = spawn_armor(&mut w3, "plate mail", pos);
     w3.entity_mut(cursed_armor).insert(Curse);
     spawn_scroll(&mut w3, ScrollEffect::MagicMapping, pos);
@@ -86,16 +107,31 @@ fn round_trip() {
     w4.insert_resource(PlayerName { what: "Z".into() });
     load_game(&mut w4, p3).unwrap();
     assert_eq!(
-        w4.query::<&PowerDie>().iter(&w4).map(|m| m.0).collect::<Vec<_>>(),
+        w4.query::<&PowerDie>()
+            .iter(&w4)
+            .map(|m| m.0)
+            .collect::<Vec<_>>(),
         vec![8],
     );
-    assert_eq!(w4.query::<&ArmorDie>().iter(&w4).map(|m| m.0).collect::<Vec<_>>(), vec![9]);
     assert_eq!(
-        w4.query::<&Scroll>().iter(&w4).map(|s| s.effect).collect::<Vec<_>>(),
+        w4.query::<&ArmorDie>()
+            .iter(&w4)
+            .map(|m| m.0)
+            .collect::<Vec<_>>(),
+        vec![9]
+    );
+    assert_eq!(
+        w4.query::<&Scroll>()
+            .iter(&w4)
+            .map(|s| s.effect)
+            .collect::<Vec<_>>(),
         vec![ScrollEffect::MagicMapping],
     );
     assert_eq!(
-        w4.query::<&Ring>().iter(&w4).map(|r| r.effect).collect::<Vec<_>>(),
+        w4.query::<&Ring>()
+            .iter(&w4)
+            .map(|r| r.effect)
+            .collect::<Vec<_>>(),
         vec![RingEffect::Regeneration],
     );
     assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);
@@ -103,7 +139,10 @@ fn round_trip() {
     assert_eq!(w4.query::<&Curse>().iter(&w4).count(), 1);
     // A vorpalized weapon keeps its edge — and its bane — through a reload.
     assert_eq!(
-        w4.query::<&Vorpal>().iter(&w4).map(|v| v.bane.clone()).collect::<Vec<_>>(),
+        w4.query::<&Vorpal>()
+            .iter(&w4)
+            .map(|v| v.bane.clone())
+            .collect::<Vec<_>>(),
         vec!["dragon".to_string()],
     );
 
@@ -112,11 +151,12 @@ fn round_trip() {
 
     // Map regenerated from (seed, depth) matches the original tile-for-tile.
     assert_eq!(w.resource::<Map>().tiles, w2.resource::<Map>().tiles);
-    assert!(w2
-        .resource::<Map>()
-        .tiles
-        .iter()
-        .any(|&t| t == TileType::Wall));
+    assert!(
+        w2.resource::<Map>()
+            .tiles
+            .iter()
+            .any(|&t| t == TileType::Wall)
+    );
 }
 
 #[test]
@@ -126,7 +166,9 @@ fn a_won_run_saves_as_clear_data() {
     w.insert_resource(RngSeed(5));
     w.init_resource::<GameLog>();
     w.init_resource::<Ending>();
-    w.insert_resource(PlayerName { what: "VICTOR".into() });
+    w.insert_resource(PlayerName {
+        what: "VICTOR".into(),
+    });
     initialize_world(&mut w);
     w.resource_mut::<Ending>().player_won = true;
 

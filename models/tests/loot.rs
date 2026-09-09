@@ -6,7 +6,9 @@ fn test_world(seed: u64) -> World {
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "TESTER".into() });
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
     initialize_world(&mut w);
     w
 }
@@ -59,21 +61,18 @@ fn floor_loot_follows_the_rogue_drop_table() {
                 .iter()
                 .copied()
                 .collect();
-            let mut q = w.query_filtered::<
-                (
-                    Entity,
-                    Option<&Potion>,
-                    Option<&Scroll>,
-                    Option<&Wand>,
-                    Option<&ArmorDie>,
-                    Option<&PowerDie>,
-                    Option<&Ring>,
-                    Option<&Value>,
-                    Option<&Stack>,
-                    Option<&Launcher>,
-                ),
-                (With<Item>, With<Position>),
-            >();
+            let mut q = w.query_filtered::<(
+                Entity,
+                Option<&Potion>,
+                Option<&Scroll>,
+                Option<&Wand>,
+                Option<&ArmorDie>,
+                Option<&PowerDie>,
+                Option<&Ring>,
+                Option<&Value>,
+                Option<&Stack>,
+                Option<&Launcher>,
+            ), (With<Item>, With<Position>)>();
             for (e, potion, scroll, wand, armor, weapon, ring, value, stack, launcher) in q.iter(&w)
             {
                 if carried.contains(&e) {
@@ -114,7 +113,10 @@ fn floor_loot_follows_the_rogue_drop_table() {
     // Every category shows up.
     assert!(t.scrolls > 0 && t.potions > 0 && t.coins > 0);
     assert!(t.armor > 0 && t.weapons > 0 && t.wands > 0 && t.rings > 0);
-    assert!(t.melee > 0 && t.ammo > 0 && t.launchers > 0, "armoury gap: {t:?}");
+    assert!(
+        t.melee > 0 && t.ammo > 0 && t.launchers > 0,
+        "armoury gap: {t:?}"
+    );
 
     // Proportions land near the drop table (generous tolerance for sampling).
     let pct = |n: u32| 100.0 * n as f64 / t.total as f64;

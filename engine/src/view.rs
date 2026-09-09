@@ -193,12 +193,40 @@ pub fn render<W: Write>(
     let offset = centering_offset(world);
 
     // 1. Player-derived state.
-    let (visible, revealed, player_hp, player_max_hp, player_magic, player_max_magic, player_pos, mut pow_die, mut pow_flat, mut arm_die, mut arm_flat, player_score, pack_items, player_entity) = {
-        let mut query = world
-            .query_filtered::<(Entity, &Viewshed, &Fighter, Option<&Magic>, &Position, &Score, &Backpack), With<Player>>();
-        if let Some((entity, viewshed, fighter, magic, pos, score, backpack)) = query.iter(world).next() {
+    let (
+        visible,
+        revealed,
+        player_hp,
+        player_max_hp,
+        player_magic,
+        player_max_magic,
+        player_pos,
+        mut pow_die,
+        mut pow_flat,
+        mut arm_die,
+        mut arm_flat,
+        player_score,
+        pack_items,
+        player_entity,
+    ) = {
+        let mut query = world.query_filtered::<(
+            Entity,
+            &Viewshed,
+            &Fighter,
+            Option<&Magic>,
+            &Position,
+            &Score,
+            &Backpack,
+        ), With<Player>>();
+        if let Some((entity, viewshed, fighter, magic, pos, score, backpack)) =
+            query.iter(world).next()
+        {
             (
-                viewshed.visible_tiles.iter().copied().collect::<HashSet<_>>(),
+                viewshed
+                    .visible_tiles
+                    .iter()
+                    .copied()
+                    .collect::<HashSet<_>>(),
                 viewshed.revealed_tiles.clone(),
                 fighter.hp,
                 fighter.max_hp,
@@ -214,7 +242,22 @@ pub fn render<W: Write>(
                 Some(entity),
             )
         } else {
-            (HashSet::new(), Default::default(), 10, 10, 4, 4, (0, 0), 1, 0, 0, 0, 0, Vec::new(), None)
+            (
+                HashSet::new(),
+                Default::default(),
+                10,
+                10,
+                4,
+                4,
+                (0, 0),
+                1,
+                0,
+                0,
+                0,
+                0,
+                Vec::new(),
+                None,
+            )
         }
     };
 
@@ -228,10 +271,30 @@ pub fn render<W: Write>(
     }
     let throw_flat = player_entity.map_or(0, |pe| equipped_total::<ThrowBonus>(world, pe));
 
+    // Transient conditions, as 4-letter HUD mnemonics. FAST/SLOW come from the
+    // player's tempo, CONF from the dazzle condition.
+    let conditions: Vec<(&str, Color)> = {
+        let mut q = world.query_filtered::<(Option<&Speed>, Option<&Confused>), With<Player>>();
+        let mut v = Vec::new();
+        if let Some((speed, confused)) = q.iter(world).next() {
+            match speed.map(|s| s.kind) {
+                Some(SpeedKind::Fast) => v.push(("FAST", Color::Cyan)),
+                Some(SpeedKind::Slow) => v.push(("SLOW", Color::Green)),
+                _ => {}
+            }
+            if confused.is_some() {
+                v.push(("CONF", Color::Magenta));
+            }
+        }
+        v
+    };
+
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
     // Carrying the Element of Yoord recolours the auto-walk badge: the descent is
     // over, every step now heads for the surface.
-    let holding_element = pack_items.iter().any(|&it| world.get::<Amulet>(it).is_some());
+    let holding_element = pack_items
+        .iter()
+        .any(|&it| world.get::<Amulet>(it).is_some());
     let auto_label = world.get_resource::<AutoExplore>().and_then(|a| {
         a.active.then(|| {
             if holding_element {
@@ -291,7 +354,10 @@ pub fn render<W: Write>(
             fields.push(format!("Thr. {throw_flat:+}"));
         }
         fields.push(format!("DEPTH {}", depth));
-        fields.push(format!("SCORE {:06}", player_score));
+        // The score line yields its space to condition badges when any are lit.
+        if conditions.is_empty() {
+            fields.push(format!("SCORE {:06}", player_score));
+        }
         let mut hx: u16 = 1;
         for (i, field) in fields.iter().enumerate() {
             if i > 0 {
@@ -300,6 +366,11 @@ pub fn render<W: Write>(
             }
             screen.puts(hx, 0, field, Color::Cyan);
             hx += field.chars().count() as u16;
+        }
+        for (label, color) in &conditions {
+            screen.puts(hx, 0, " · ", Color::DarkGrey);
+            screen.puts(hx + 3, 0, label, *color);
+            hx += 3 + label.len() as u16;
         }
         if let Some(kind) = world
             .query_filtered::<&Snare, With<Player>>()
@@ -317,7 +388,11 @@ pub fn render<W: Write>(
         }
         if let Some(label) = auto_label {
             screen.puts(hx, 0, " · ", Color::DarkGrey);
-            let color = if holding_element { Color::Magenta } else { Color::Green };
+            let color = if holding_element {
+                Color::Magenta
+            } else {
+                Color::Green
+            };
             screen.puts(hx + 3, 0, label, color);
         }
         if world.resource::<TravelCursor>().active {
@@ -590,16 +665,16 @@ pub fn render_tombstone<W: Write>(
 ) -> std::io::Result<()> {
     screen.clear();
 
-const GRAVESTONE: [&str; 8] = [
-    "       .-'\"\"\"\"\"'-.       ",
-    "     .'           '.     ",
-    "    /     R.I.P.    \\    ",
-    "   |  _            _  |   ",
-    "   | (_)          (_) |   ",
-    "   |    HERE LIES     |   ",
-    "   |       YOU        |   ",
-    "   |__________________|   ",
-];
+    const GRAVESTONE: [&str; 8] = [
+        "       .-'\"\"\"\"\"'-.       ",
+        "     .'           '.     ",
+        "    /     R.I.P.    \\    ",
+        "   |  _            _  |   ",
+        "   | (_)          (_) |   ",
+        "   |    HERE LIES     |   ",
+        "   |       YOU        |   ",
+        "   |__________________|   ",
+    ];
 
     let top = 3u16;
     for (i, line) in GRAVESTONE.iter().enumerate() {
@@ -761,7 +836,12 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
         let suffix = if *equipped { " (E)" } else { "" };
         let text = format!(" {}) {}{} ", letter, name, suffix);
         screen.put(start_x, y, '│', grey);
-        screen.puts(start_x + 1, y, &format!("{:<w$}", text, w = box_width as usize), color);
+        screen.puts(
+            start_x + 1,
+            y,
+            &format!("{:<w$}", text, w = box_width as usize),
+            color,
+        );
         screen.put(start_x + 1 + box_width, y, '│', grey);
     }
 
@@ -785,7 +865,11 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
                 mx + 1,
                 y,
                 action.label(),
-                if action_selected == row { Color::Yellow } else { Color::White },
+                if action_selected == row {
+                    Color::Yellow
+                } else {
+                    Color::White
+                },
             );
             screen.put(mx + 9, y, '│', grey);
         }
