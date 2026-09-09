@@ -4,7 +4,9 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
-use crate::effects::{equipped_total, ArmorBonus, ArmorDie, PowerBonus, PowerDie, VorpalTarget};
+use crate::effects::{
+    equipped_total, melee_cap, ArmorBonus, ArmorDie, PowerBonus, PowerDie, VorpalTarget,
+};
 use crate::equipment::{equipped_items, force_unequip};
 use crate::map::GameRng;
 use crate::particles::Particles;
@@ -133,6 +135,10 @@ fn leave_gear_behind(world: &mut World, entity: Entity) {
 ///   armour is subtracted.
 /// * **Chip damage** — the player always deals at least 1 damage, even when the
 ///   armour roll fully absorbs the weapon roll (logged as a "glancing blow").
+///
+/// Finally, gear that carries a [`MeleeCap`](crate::effects::MeleeCap) — a bow,
+/// a crossbow — clamps the result. A launcher is worth nothing swung, which is
+/// what pays for how good it is drawn.
 pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     // Missing attacker or target: nothing to resolve.
     if world.get_entity(attacker).is_none() || world.get_entity(target).is_none() {
@@ -176,6 +182,13 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let mut damage = damage.max(0);
     if let Some(f) = world.get::<Fighter>(target).filter(|_| glancing) {
         damage = damage.min((f.hp - 1).max(0));
+    }
+
+    // Last of all, the ceiling. A bow in the hand caps the swing at a bruise
+    // however the dice fell, and it is applied after the chip-damage floor so a
+    // cap of 0 really is 0. Nothing here knows what a bow is: it asks the gear.
+    if let Some(cap) = melee_cap(world, attacker) {
+        damage = damage.min(cap);
     }
 
     // --- Apply & report --------------------------------------------------

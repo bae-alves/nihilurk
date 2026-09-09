@@ -23,7 +23,7 @@ impl Name {
 #[derive(Component)]
 pub struct Player;
 
-#[derive(Component, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Position {
     pub x: u16,
     pub y: u16,

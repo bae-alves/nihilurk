@@ -122,6 +122,24 @@ fn run_victory_screens<W: std::io::Write>(
     Ok(())
 }
 
+/// Prints every name the content tables know, grouped by category. Reads the
+/// tables themselves, so a row added today shows up here today.
+fn print_content() {
+    let names = models::content_names();
+    println!("roog content — {} entries", names.len());
+    println!("Spawn any of them with: ROOG_SPAWN=\"<name>,<name>\" roog");
+
+    let mut group = "";
+    for (category, name) in &names {
+        if *category != group {
+            group = category;
+            let count = names.iter().filter(|(c, _)| c == category).count();
+            println!("\n{group} ({count})");
+        }
+        println!("  {name}");
+    }
+}
+
 fn main() -> std::io::Result<()> {
     // 1. Argument Parsing for Seed
     let args: Vec<String> = std::env::args().collect();
@@ -130,6 +148,7 @@ fn main() -> std::io::Result<()> {
     let mut no_save = false;
     let mut no_blood = false;
     let mut drop_first = false;
+    let mut list_content = false;
     let mut player_name = "Roog".to_string();
     let mut positional: Option<String> = None;
     let mut iter = args.iter();
@@ -147,9 +166,20 @@ fn main() -> std::io::Result<()> {
             no_blood = true;
         } else if arg == "-dropthrow" {
             drop_first = true;
+        } else if arg == "-content" {
+            list_content = true;
         } else {
             positional = Some(arg.clone());
         }
+    }
+
+    // `-content` is the content author's index: every name the tables know, which
+    // is exactly the set `ROOG_SPAWN` and `models::spawn_named` answer to. Prints
+    // and exits without ever touching the terminal's alternate screen, so it
+    // pipes into `grep` and `less` like any other listing.
+    if list_content {
+        print_content();
+        return Ok(());
     }
 
     // A positional argument is a save file to load if it names an existing file

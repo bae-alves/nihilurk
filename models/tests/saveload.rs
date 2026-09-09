@@ -9,7 +9,12 @@ fn round_trip() {
     w.init_resource::<GameLog>();
     w.insert_resource(PlayerName { what: "TESTER".into() });
     initialize_world(&mut w);
+    // Pretend we walked down to floor 4. A floor's layout is a pure function of
+    // (seed, depth), so moving the depth marker means rebuilding the map to
+    // match — otherwise this world is floor 1 wearing a floor-4 label, and the
+    // tile comparison at the end of the test is meaningless.
     w.resource_mut::<Depth>().what = 4;
+    regenerate_map(&mut w, 1, 4);
     w.resource_mut::<Identified>().potions.insert(PotionEffect::Healing);
     let n0 = w.iter_entities().count();
     let path = std::env::temp_dir().join("roog_test.sav");
@@ -105,7 +110,7 @@ fn round_trip() {
     // An ordinary save is not clear data.
     assert!(clear_data(p).unwrap().is_none());
 
-    // Map regenerated from the seed matches the original tile-for-tile.
+    // Map regenerated from (seed, depth) matches the original tile-for-tile.
     assert_eq!(w.resource::<Map>().tiles, w2.resource::<Map>().tiles);
     assert!(w2
         .resource::<Map>()

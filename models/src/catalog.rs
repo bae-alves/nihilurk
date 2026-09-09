@@ -17,7 +17,10 @@
 //! carrying [`ArmorBonus`]`(2)`, which combat already folds in for plate mail.
 //! A ring of perception is an item that [`Grants`] [`SeesInvisible`] to whoever
 //! wears it, which the visibility system already asks about. Adding "ring of
-//! fire resistance" is one row here and no other edit anywhere.
+//! fire resistance" is a row here plus a [`RingEffect`] variant to be identified
+//! by — and no behaviour code at all, anywhere.
+//!
+//! The full recipes, per category, are in `docs/how-to/add-an-item.md`.
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
@@ -35,6 +38,27 @@ use crate::equipment::{Equipped, Slot};
 /// One spawnable item kind. Implemented by every table row below so the loot
 /// roller can treat all categories alike.
 pub trait ItemDef {
+    /// What the row is called. A name is a row's identity everywhere it
+    /// travels: the save file stores it instead of the row's contents, and
+    /// [`crate::spawn::spawn_named`] finds the row again from it.
+    fn name(&self) -> &'static str;
+
+    /// How often this row turns up relative to its table-mates. Ten is the
+    /// baseline, so a row at 5 is half as common and one at 20 twice.
+    ///
+    /// Every row in the game currently sits at the default — within a category
+    /// roog picks evenly, on purpose. Overriding it is how a category earns
+    /// per-row rarity: give the struct a `weight: u32` field and return it here.
+    fn weight(&self) -> u32 {
+        10
+    }
+
+    /// The shallowest floor this row may drop on. The default lets it appear
+    /// anywhere; raise it to keep a thing out of the early dungeon.
+    fn min_depth(&self) -> u8 {
+        1
+    }
+
     /// The item exactly as the table describes it — no random rolls. This is
     /// what tests and scripted spawns want.
     fn spawn(&self, world: &mut World, pos: Position) -> Entity;
@@ -69,6 +93,10 @@ pub struct PotionDef {
 }
 
 impl ItemDef for PotionDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -113,6 +141,10 @@ pub struct ScrollDef {
 }
 
 impl ItemDef for ScrollDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -164,6 +196,10 @@ pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8 {
 }
 
 impl ItemDef for WandDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -256,6 +292,10 @@ impl WeaponDef {
 }
 
 impl ItemDef for WeaponDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         let mut e = world.spawn((
             Name { what: self.name.to_string() },
@@ -316,6 +356,10 @@ impl AmmoDef {
 }
 
 impl ItemDef for AmmoDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -356,14 +400,28 @@ pub const AMMO: &[AmmoDef] = &[
 /// [`ThrowBonus`] — see [`enchant_equipment`]. The [`ThrowBonus(0)`] every
 /// launcher spawns with is what gives the enchantment somewhere to go.
 ///
+/// It is also the only gear that carries a [`MeleeCap`]: a hand holding a bow
+/// is a hand not holding a sword, and swinging the bow is worth a bruise
+/// whatever else the wielder has on. A +5 crossbow is still a stick in a
+/// corridor.
+///
 /// [`ThrowBonus(0)`]: ThrowBonus
 pub struct LauncherDef {
     pub name: &'static str,
     pub color: Color,
     pub grants: &'static [Grant],
+    /// The most this is worth swung at something. A launcher occupies the hand
+    /// a sword would have had, and this is the price of that: drawn it is the
+    /// best thing in the dungeon, clubbed it is a stick. See
+    /// [`crate::effects::MeleeCap`].
+    pub melee_cap: i32,
 }
 
 impl ItemDef for LauncherDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -375,6 +433,7 @@ impl ItemDef for LauncherDef {
                 Launcher,
                 ThrowBonus(0),
                 Grants(self.grants),
+                MeleeCap(self.melee_cap),
             ))
             .id()
     }
@@ -388,8 +447,8 @@ impl ItemDef for LauncherDef {
 
 #[rustfmt::skip]
 pub const LAUNCHERS: &[LauncherDef] = &[
-    LauncherDef { name: "bow",      color: Color::DarkYellow, grants: &[Grant::of::<FireArrow>()]   },
-    LauncherDef { name: "crossbow", color: Color::DarkGrey,   grants: &[Grant::of::<FireQuarrel>()] },
+    LauncherDef { name: "bow",      color: Color::DarkYellow, grants: &[Grant::of::<FireArrow>()],   melee_cap: 1 },
+    LauncherDef { name: "crossbow", color: Color::DarkGrey,   grants: &[Grant::of::<FireQuarrel>()], melee_cap: 1 },
 ];
 
 /// Attaches the two markers that describe how a thing behaves in flight, and
@@ -411,6 +470,10 @@ pub struct ArmorDef {
 }
 
 impl ItemDef for ArmorDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -513,6 +576,10 @@ impl RingDef {
 }
 
 impl ItemDef for RingDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         let mut e = world.spawn((
             Name { what: self.name.to_string() },
@@ -581,6 +648,10 @@ pub struct CoinDef {
 }
 
 impl ItemDef for CoinDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         world
             .spawn((
@@ -606,7 +677,7 @@ pub const COINS: &[CoinDef] = &[
 pub fn spawn_element_of_yoord(world: &mut World, pos: Position) -> Entity {
     world
         .spawn((
-            Name { what: String::from("The Element of Yoord") },
+            Name { what: String::from(crate::spawn::ELEMENT_OF_YOORD) },
             Renderable { glyph: '\"', color: Color::Magenta },
             pos,
             Value { amount: 25000 },
@@ -622,10 +693,12 @@ pub fn spawn_element_of_yoord(world: &mut World, pos: Position) -> Entity {
 
 /// Looks a row up by name in `table`, panicking on a miss — callers pass string
 /// literals straight from the catalog, same as [`crate::MonsterDef::named`].
-fn named<'a, D>(table: &'a [D], name: &str, name_of: fn(&D) -> &'static str, kind: &str) -> &'a D {
+/// The forgiving version, for callers holding a name they did not write
+/// themselves, is [`crate::spawn::spawn_named`].
+fn named<'a, D: ItemDef>(table: &'a [D], name: &str, kind: &str) -> &'a D {
     table
         .iter()
-        .find(|d| name_of(d) == name)
+        .find(|d| d.name() == name)
         .unwrap_or_else(|| panic!("no {kind} named {name:?}"))
 }
 
@@ -646,25 +719,25 @@ pub fn spawn_ring(world: &mut World, effect: RingEffect, pos: Position) -> Entit
 }
 
 pub fn spawn_weapon(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(WEAPONS, name, |d| d.name, "weapon").spawn(world, pos)
+    named(WEAPONS, name, "weapon").spawn(world, pos)
 }
 
 pub fn spawn_armor(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(ARMORS, name, |d| d.name, "armor").spawn(world, pos)
+    named(ARMORS, name, "armor").spawn(world, pos)
 }
 
 pub fn spawn_coin(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(COINS, name, |d| d.name, "coin").spawn(world, pos)
+    named(COINS, name, "coin").spawn(world, pos)
 }
 
 /// One arrow or quarrel. Ammunition arrives in bundles from the dungeon floor
 /// ([`AmmoDef::spawn_as_loot`]); this is the single unit tests and splits want.
 pub fn spawn_ammo(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(AMMO, name, |d| d.name, "ammo").spawn(world, pos)
+    named(AMMO, name, "ammo").spawn(world, pos)
 }
 
 pub fn spawn_launcher(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(LAUNCHERS, name, |d| d.name, "launcher").spawn(world, pos)
+    named(LAUNCHERS, name, "launcher").spawn(world, pos)
 }
 
 /// A fresh single unit of whatever `item` is a stack of, spawned nowhere in
@@ -696,7 +769,7 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
         entity.insert((ThrownDamage(def.die), Projectile, LaunchedBy(def.launched_by)));
     }
     if let Some(def) = LAUNCHERS.iter().find(|d| d.name == name) {
-        entity.insert((Launcher, Grants(def.grants)));
+        entity.insert((Launcher, Grants(def.grants), MeleeCap(def.melee_cap)));
     }
 }
 
@@ -710,7 +783,7 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
 /// |-------------|------|-----------------------------------|
 /// | Normal      | 25%  | +0                                |
 /// | Exceptional | 10%  | +1 .. +3                          |
-/// | Cursed      | 65%  | -6 .. +4 (yes, a cursed item can roll positive) |
+/// | Cursed      | 65%  | -5 .. +5 (yes, a cursed item can roll positive) |
 ///
 /// The bonus lands on the flat modifier, never the die size.
 #[derive(Clone, Copy, PartialEq, Eq)]

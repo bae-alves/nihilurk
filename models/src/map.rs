@@ -7,14 +7,12 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::catalog::{
-    spawn_element_of_yoord, spawn_wand, ItemDef, AMMO, ARMORS, COINS, LAUNCHERS, POTIONS, RINGS,
-    SCROLLS, WANDS, WEAPONS,
-};
+use crate::catalog::{spawn_element_of_yoord, spawn_wand};
 use crate::rect::Rect;
 use crate::components::*;
 use crate::state::*;
-use crate::monsters::{spawn_monster, MonsterDef, BESTIARY};
+use crate::monsters::{spawn_monster, MonsterDef};
+use crate::spawn::{roll_item, spawn_requested};
 use crate::identify::{Identified, ItemAppearances};
 
 #[derive(Resource)]
@@ -471,10 +469,57 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
 }
 
 /// Generates a fresh map, inserts the [`Map`] resource, and returns the player start.
+/// One floor's private RNG stream. `salt` picks *which* stream — the walls and
+/// the things standing between them draw from two independent ones, so neither
+/// can move the other.
+fn floor_stream(seed: u64, depth: u8, salt: u64) -> ChaCha12Rng {
+    ChaCha12Rng::seed_from_u64(seed ^ salt.wrapping_mul(depth as u64 + 1))
+}
+
+const LAYOUT_SALT: u64 = 0xF100_0BED_5EED;
+const CONTENT_SALT: u64 = 0x0C0F_FEE0_D00D;
+
+/// The RNG a floor's **layout** is built from — rooms, corridors, doors, stairs.
+///
+/// This is the same trick [`initialize_world`] plays for item appearances, and
+/// for the same reason. A floor's shape is a pure function of `(seed, depth)`,
+/// so nothing else can move it: not the loot rolls, not a new row in a content
+/// table, not how long the player spent fighting on the way down. Two
+/// consequences worth knowing:
+///
+/// * A save can rebuild the exact floor it was written on from the seed and the
+///   depth alone, which is why the map is not stored in the file.
+/// * Climbing back to a floor you have already visited gives you the layout you
+///   remember.
+pub fn layout_rng(seed: u64, depth: u8) -> ChaCha12Rng {
+    floor_stream(seed, depth, LAYOUT_SALT)
+}
+
+/// The RNG a floor's **contents** are drawn from — which monsters, which loot,
+/// which traps, where they stand, and what a drop rolls for enchantment and
+/// charges.
+///
+/// Also a pure function of `(seed, depth)`, and deliberately a *different*
+/// stream from [`layout_rng`]. Together they mean a seed names one dungeon,
+/// floor by floor, whatever the player did on the way down: fight everything on
+/// floor 1 or walk straight past it, and floor 2 is the same place with the same
+/// things standing in it. Reloading a save mid-run cannot shift a floor either.
+///
+/// This is not the shared [`GameRng`] and must never be. `GameRng` is the live
+/// stream the *run* spends — combat rolls, item effects, traps springing — and
+/// anything drawn from it while a floor is being built would tie that floor back
+/// to the player's history. `models/tests/determinism.rs` exists to catch that.
+pub fn content_rng(seed: u64, depth: u8) -> ChaCha12Rng {
+    floor_stream(seed, depth, CONTENT_SALT)
+}
+
+/// Builds the current floor's layout into the [`Map`] resource and returns the
+/// player's starting tile. Reads [`Depth`] and [`RngSeed`]; leaves [`GameRng`]
+/// untouched.
 pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
-    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
-    let (tiles, rooms, dark) = build_tiles(&mut game_rng.0);
-    world.insert_resource(game_rng);
+    let seed = world.resource::<RngSeed>().0;
+    let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
+    let (tiles, rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
 
     world.insert_resource(Map { tiles, dark });
 
@@ -483,80 +528,18 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
     ((start_pos.0 as u16, start_pos.1 as u16), rooms)
 }
 
-/// Rebuilds the [`Map`] resource deterministically from `seed`, without touching
-/// the live `GameRng` resource or spawning any actors. Used on load, where the
-/// map is reconstructed from the seed rather than the save file.
-pub fn regenerate_map(world: &mut World, seed: u64) {
-    let mut rng = ChaCha12Rng::seed_from_u64(seed);
-    let (tiles, _rooms, dark) = build_tiles(&mut rng);
+/// Rebuilds the [`Map`] resource for one floor, without touching the live
+/// [`GameRng`] resource or spawning any actors. Used on load, where the map is
+/// reconstructed from `(seed, depth)` rather than read out of the save file.
+pub fn regenerate_map(world: &mut World, seed: u64, depth: u8) {
+    let (tiles, _rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
     world.insert_resource(Map { tiles, dark });
 }
 
-/// Picks a species appropriate for `depth`. The bestiary is split into danger
-/// tiers ([`MonsterDef::tier`]); each floor rolls from every tier it has already
-/// unlocked, so early letters keep showing up as fodder while deeper letters get
-/// mixed in.
-fn pick_monster(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
-    // depth 1-2 -> tier 0, 3-4 -> up to tier 1, 5-6 -> tier 2, 7+ -> all tiers.
-    let max_tier = ((depth.max(1) - 1) / 2).min(3);
-    let pool: Vec<&MonsterDef> = BESTIARY.iter().filter(|m| m.tier <= max_tier).collect();
-    pool[rng.gen_range(0..pool.len())]
-}
-
-/// Picks one row from a catalog table uniformly and spawns it as a floor drop —
-/// enchantment, battery charge, bundle size and all, whatever that category
-/// rolls for itself.
-fn one<D: ItemDef>(world: &mut World, rng: &mut ChaCha12Rng, pos: Position, table: &[D]) -> Entity {
-    table[rng.gen_range(0..table.len())].spawn_as_loot(world, rng, pos)
-}
-
-/// One drop from the armoury. A bow and a quiver of arrows are weapons like any
-/// other, so they come out of the weapon share rather than a category of their
-/// own — finding one is finding your weapon for the floor.
-///
-/// | Roll | What                                  |
-/// |------|---------------------------------------|
-/// | 45%  | a melee weapon                        |
-/// | 35%  | a bundle of 3-12 arrows or quarrels   |
-/// | 20%  | a bow or a crossbow                   |
-///
-/// Launchers are the rarest of the three on purpose: one bow is a build, two are
-/// clutter.
-fn spawn_weapon_drop(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
-    match rng.gen_range(0..100) {
-        0..=44 => one(world, rng, pos, WEAPONS),
-        45..=79 => one(world, rng, pos, AMMO),
-        _ => one(world, rng, pos, LAUNCHERS),
-    }
-}
-
-/// Rolls one floor item and spawns it at `pos`. Category odds follow the classic
-/// Rogue drop table (food is swapped for coins); within a category every entry
-/// is equally likely.
-///
-/// | Category | Odds |
-/// |----------|------|
-/// | Scrolls  | 30%  |
-/// | Potions  | 27%  |
-/// | Coins    | 17%  |
-/// | Armor    |  8%  |
-/// | Weapons  |  8%  |
-/// | Wands    |  5%  |
-/// | Rings    |  5%  |
-///
-/// "Weapons" is the whole armoury — swords, ammunition and launchers alike (see
-/// [`spawn_weapon_drop`]).
-fn spawn_random_item(world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
-    match rng.gen_range(0..100) {
-        0..=29 => one(world, rng, pos, SCROLLS),
-        30..=56 => one(world, rng, pos, POTIONS),
-        57..=73 => one(world, rng, pos, COINS),
-        74..=81 => one(world, rng, pos, ARMORS),
-        82..=89 => spawn_weapon_drop(world, rng, pos),
-        90..=94 => one(world, rng, pos, WANDS),
-        _ => one(world, rng, pos, RINGS),
-    }
-}
+// What a floor is populated *with* is no longer decided here. Which creature,
+// which item and which trap are weighted draws over the content tables
+// themselves -- MonsterDef::pick, spawn::roll_item and TrapDef::pick. This file
+// decides only how many and where.
 
 /// The centre tile of every distinct corridor on the floor. A "corridor" is one
 /// 4-connected blob of [`TileType::Passage`] tiles (doors and rooms break the
@@ -618,7 +601,6 @@ fn corridor_centers(tiles: &[TileType]) -> Vec<(u16, u16)> {
 fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     let (player_x, player_y) = player_start;
 
-    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
     let mut occupied = HashSet::new();
 
     // The player's tile is already occupied.
@@ -626,6 +608,12 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
 
     // Rough danger tier: deeper floors unlock nastier letters.
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
+
+    // Everything below draws from this floor's own stream, never the shared
+    // `GameRng` — see [`content_rng`]. A seed names one dungeon, and what the
+    // player did on the way here cannot change what is waiting.
+    let seed = world.resource::<RngSeed>().0;
+    let mut rng = content_rng(seed, depth);
 
     // Both the monster and trap budgets step up every three floors: `tier` is 0
     // on depth 1-3, 1 on depth 4-6, 2 on depth 7-9, and so on. Each tier grants
@@ -641,15 +629,15 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     let max_monsters = 3 + tier as usize;
     let monster_chance = (0.60 + 0.12 * tier as f64).min(0.95);
     for slot in 0..max_monsters {
-        if slot > 0 && !game_rng.0.gen_bool(monster_chance) {
+        if slot > 0 && !rng.gen_bool(monster_chance) {
             continue;
         }
         for _ in 0..100 {
-            let room_idx = game_rng.0.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+            let room_idx = rng.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
 
             if occupied.insert((x, y)) {
-                let def = pick_monster(depth, &mut game_rng.0);
+                let def = MonsterDef::pick(depth, &mut rng);
                 spawn_monster(world, def, Position { x, y });
                 break;
             }
@@ -661,11 +649,11 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     if depth >= 7 {
         let centers = corridor_centers(&world.resource::<Map>().tiles);
         for (cx, cy) in centers {
-            if !game_rng.0.gen_bool(0.05) {
+            if !rng.gen_bool(0.05) {
                 continue;
             }
             if occupied.insert((cx, cy)) {
-                let def = pick_monster(depth, &mut game_rng.0);
+                let def = MonsterDef::pick(depth, &mut rng);
                 spawn_monster(world, def, Position { x: cx, y: cy });
             }
         }
@@ -674,11 +662,11 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // Up to 3 items.
     for _ in 0..3 {
         for _ in 0..100 {
-            let room_idx = game_rng.0.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+            let room_idx = rng.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
 
             if occupied.insert((x, y)) {
-                spawn_random_item(world, &mut game_rng.0, Position { x, y });
+                roll_item(world, &mut rng, depth, Position { x, y });
                 break;
             }
         }
@@ -687,13 +675,13 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // 1 floor in 10 hides an extra item in plain sight: it draws nothing and is
     // never announced until a ring of perception turns it up or the player walks
     // straight onto it ("Hey! There's something here!").
-    if game_rng.0.gen_bool(0.10) {
+    if rng.gen_bool(0.10) {
         for _ in 0..100 {
-            let room_idx = game_rng.0.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+            let room_idx = rng.gen_range(1..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
 
             if occupied.insert((x, y)) {
-                let item = spawn_random_item(world, &mut game_rng.0, Position { x, y });
+                let item = roll_item(world, &mut rng, depth, Position { x, y });
                 world.entity_mut(item).insert((Hidden, Invisible));
                 break;
             }
@@ -710,7 +698,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
             occupied.insert((ex, ey));
 
             for (i, (dx, dy)) in RING_DIRS.iter().enumerate() {
-                if !game_rng.0.gen_bool(0.5_f64.powi(i as i32)) {
+                if !rng.gen_bool(0.5_f64.powi(i as i32)) {
                     continue;
                 }
                 let (nx, ny) = (ex as i32 + dx, ey as i32 + dy);
@@ -722,7 +710,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                     break;
                 }
                 if occupied.insert((nx, ny)) {
-                    let def = pick_monster(depth, &mut game_rng.0);
+                    let def = MonsterDef::pick(depth, &mut rng);
                     spawn_monster(world, def, Position { x: nx, y: ny });
                 }
             }
@@ -737,12 +725,12 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     let max_traps = 4 + tier as usize;
     let trap_chance = (0.12 + 0.13 * tier as f64).min(0.75);
     for _ in 0..max_traps {
-        if !game_rng.0.gen_bool(trap_chance) {
+        if !rng.gen_bool(trap_chance) {
             continue;
         }
         for _ in 0..100 {
-            let room_idx = game_rng.0.gen_range(0..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut game_rng.0);
+            let room_idx = rng.gen_range(0..rooms.len());
+            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
             if (x, y) == player_start {
                 continue;
             }
@@ -750,13 +738,14 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                 continue;
             }
             if occupied.insert((x, y)) {
-                world.spawn(crate::TrapBundle::random(&mut game_rng.0, Position { x, y }));
+                world.spawn(crate::TrapBundle::random(&mut rng, depth, Position { x, y }));
                 break;
             }
         }
     }
 
-    world.insert_resource(game_rng);
+    // Last of all, whatever the content author asked for on the command line.
+    spawn_requested(world, Position { x: player_x, y: player_y }, &mut occupied);
 }
 
 /// Handles the player using a staircase.
@@ -875,10 +864,21 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         world.despawn(e);
     }
 
-    // Build the next floor from the live RNG stream.
-    let mut game_rng = world.remove_resource::<GameRng>().unwrap();
-    let (tiles, rooms, dark) = build_tiles(&mut game_rng.0);
-    world.insert_resource(game_rng);
+    // Settle the new depth before building anything: a floor's layout is a pure
+    // function of (seed, depth) — see [`layout_rng`] — so the depth has to be
+    // known first.
+    let depth = {
+        let mut d = world.resource_mut::<Depth>();
+        d.what = if going_down {
+            d.what.saturating_add(1)
+        } else {
+            d.what.saturating_sub(1).max(1)
+        };
+        d.what
+    };
+
+    let seed = world.resource::<RngSeed>().0;
+    let (tiles, rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
     world.insert_resource(Map { tiles, dark });
     world.resource_mut::<BloodStains>().clear();
 
@@ -903,16 +903,6 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         viewshed.revealed_tiles.clear();
         viewshed.dirty = true;
     }
-
-    let depth = {
-        let mut depth = world.resource_mut::<Depth>();
-        depth.what = if going_down {
-            depth.what.saturating_add(1)
-        } else {
-            depth.what.saturating_sub(1).max(1)
-        };
-        depth.what
-    };
 
     populate_level(world, &rooms, start);
 

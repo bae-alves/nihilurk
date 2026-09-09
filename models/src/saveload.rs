@@ -13,7 +13,7 @@ use crate::effects::{
     PowerDie, ThrowBonus,
 };
 use crate::equipment::{Equipped, Slot};
-use crate::monsters::BESTIARY;
+use crate::monsters::MonsterDef;
 use crate::traps::{Snare, SnareKind, Trap, TrapEffect, TrapReveal};
 use crate::identify::{Identified, ItemAppearances};
 use crate::map::{regenerate_map, BloodStains, GameRng, Map, RngSeed, TileType, FINAL_DEPTH};
@@ -190,7 +190,8 @@ pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
 }
 
 /// Serializes the world to a compact postcard save file. The map is not saved:
-/// it is rebuilt from the seed on load (see [`regenerate_map`]).
+/// it is rebuilt from the seed and the depth on load (see [`regenerate_map`]),
+/// which is exact because a floor's layout depends on nothing else.
 ///
 /// The save struct borrows everything it can (names, log lines, item labels)
 /// straight out of the ECS, so no second copy of the world is built in RAM, and
@@ -320,7 +321,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
 
     // Rebuild the map from the seed rather than the save file, then restore the
     // dark-room mask so wand-of-light progress survives the reload.
-    regenerate_map(world, save.rng_seed);
+    regenerate_map(world, save.rng_seed, save.depth);
     world.resource_mut::<Map>().dark = save.dark_tiles;
 
     // The deepest floor has no down-stair: the seed-built map still carries one,
@@ -475,10 +476,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         // A monster's innate grant list comes back from the bestiary; the
         // effects it actually has right now come back from the save, so a
         // cancelled dragon stays cancelled.
-        if let Some(def) = entity_name
-            .as_deref()
-            .and_then(|n| BESTIARY.iter().find(|m| m.name == n))
-        {
+        if let Some(def) = entity_name.as_deref().and_then(MonsterDef::lookup) {
             if !def.grants.is_empty() {
                 em.insert(Grants(def.grants));
             }

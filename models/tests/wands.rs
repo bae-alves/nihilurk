@@ -394,7 +394,7 @@ fn light_clears_a_dark_room_and_reveals_its_traps() {
     let trap_spot = *room_tiles.iter().find(|t| (t.x, t.y) != (here.x, here.y)).unwrap();
     let trap_bundle = {
         let mut rng = w.resource_mut::<GameRng>();
-        TrapBundle::random(&mut rng.0, trap_spot)
+        TrapBundle::random(&mut rng.0, 1, trap_spot)
     };
     let trap = w.spawn(trap_bundle).id();
 

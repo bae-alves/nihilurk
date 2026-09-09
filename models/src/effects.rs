@@ -13,6 +13,8 @@
 //! * **Modifiers** ([`PowerDie`], [`ArmorBonus`], …) — a number that stacks.
 //!   Combat folds every equipped source together with [`equipped_total`]
 //!   without caring whether it came from a sword, plate mail or a ring.
+//! * **Caps** ([`MeleeCap`]) — a ceiling the dice cannot beat. Folded with
+//!   `min` rather than `+`, since the strictest one wins.
 //!
 //! Const tables (the bestiary, the ring catalog) can't hold components
 //! directly, so they name them through [`Grant`]: `Grant::of::<FireImmune>()`
@@ -141,6 +143,35 @@ modifier! {
     /// equipped source the same way the melee bonus is, so it never matters
     /// which piece of gear supplied it.
     ThrowBonus
+}
+
+// ---------------------------------------------------------------------------
+// Caps
+// ---------------------------------------------------------------------------
+
+/// A ceiling on what the bearer can do in melee, whatever the dice say.
+///
+/// Not a [`Modifier`]: caps do not add up. Two of them do not make a smaller
+/// ceiling than the tighter one alone, so they fold with `min` — see
+/// [`melee_cap`].
+///
+/// A bow carries `MeleeCap(1)`. Drawn, it is the best thing in the dungeon;
+/// swung, it is a stick. That is the price of the hand it occupies.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MeleeCap(pub i32);
+
+/// The tightest melee ceiling anything `entity` has equipped imposes, or `None`
+/// if nothing does.
+///
+/// The counterpart to [`equipped_total`], and the reason it is a separate
+/// function: totals sum, ceilings take the strictest. If a second kind of cap
+/// ever appears, generalise this the way [`equipped_total`] is generalised over
+/// [`Modifier`].
+pub fn melee_cap(world: &World, entity: Entity) -> Option<i32> {
+    crate::equipment::equipped_items(world, entity)
+        .into_iter()
+        .filter_map(|item| world.get::<MeleeCap>(item).map(|c| c.0))
+        .min()
 }
 
 // ---------------------------------------------------------------------------
@@ -290,8 +321,9 @@ pub fn restore_effects(world: &mut World, entity: Entity, set: EffectSet) {
 // ---------------------------------------------------------------------------
 
 /// The total of modifier `C` across everything `entity` has equipped, plus any
-/// it carries itself. The one place gear turns into a number: combat and the HUD
-/// both call this, and neither knows what kind of item supplied it.
+/// it carries itself. The one place gear turns into a number: combat, the throw
+/// code and the trap damage rule all call this, and none of them knows what kind
+/// of item supplied it.
 pub fn equipped_total<C: Modifier>(world: &World, entity: Entity) -> i32 {
     let own = world.get::<C>(entity).map(|c| c.amount()).unwrap_or(0);
     let worn: i32 = crate::equipment::equipped_items(world, entity)

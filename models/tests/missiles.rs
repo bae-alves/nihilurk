@@ -595,3 +595,134 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     toggle_equipped(&mut loaded, hero, bow);
     assert!(loaded.get::<FireArrow>(hero).is_some());
 }
+
+// ---------------------------------------------------------------------------
+// The price of the hand
+// ---------------------------------------------------------------------------
+
+/// A target that cannot die and cannot defend, so what lands on it is exactly
+/// what the attacker rolled.
+fn punching_bag(w: &mut World, at: Position) -> Entity {
+    w.spawn((
+        Name { what: "bag".into() },
+        Fighter {
+            hp: 100_000,
+            max_hp: 100_000,
+            armor: 0,
+            power: 0,
+            max_power: 0,
+            armor_bonus: 0,
+            power_bonus: 0,
+        },
+        Faction::Monster,
+        at,
+    ))
+    .id()
+}
+
+/// A launcher occupies the hand a sword would have had, and that hand is the
+/// price of how good it is at range. Swung, a bow is a stick: at most one point
+/// a blow, whatever the dice, the enchantment or the rings say.
+#[test]
+fn swinging_a_bow_is_worth_a_bruise_and_no_more() {
+    for launcher in ["bow", "crossbow"] {
+        let mut w = test_world(11);
+        let p = player(&mut w);
+        let target = punching_bag(&mut w, Position { x: 1, y: 1 });
+
+        let weapon = stash(&mut w, p, |w| spawn_launcher(w, launcher, NOWHERE));
+        // A ruinously good one, to prove the cap is a ceiling and not a die.
+        w.entity_mut(weapon).insert(ThrowBonus(5));
+        w.entity_mut(weapon).insert(PowerBonus(5));
+        toggle_equipped(&mut w, p, weapon);
+
+        let before = hp(&w, target);
+        for _ in 0..300 {
+            resolve_attack(&mut w, p, target);
+        }
+        let dealt = before - hp(&w, target);
+
+        assert!(dealt > 0, "a {launcher} should still be worth something swung");
+        assert!(
+            dealt <= 300,
+            "a {launcher} swing must never exceed 1 point: 300 swings dealt {dealt}"
+        );
+    }
+}
+
+/// The cap is on the swing, not on the shot. The same bow that is a stick in a
+/// corridor still doubles an arrow's die when it is drawn.
+#[test]
+fn the_melee_cap_does_not_follow_the_arrow() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+
+    let lane = open_run(&mut w, 4);
+    let target = tough(&mut w, "troll", lane[3]);
+
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    toggle_equipped(&mut w, p, bow);
+    let arrows = quiver(&mut w, p, "arrow", 30);
+
+    let before = hp(&w, target);
+    for _ in 0..30 {
+        throw(&mut w, p, arrows, lane[3]);
+    }
+    let dealt = before - hp(&w, target);
+
+    assert!(
+        dealt > 30,
+        "30 loosed arrows should far exceed the melee ceiling, dealt {dealt}"
+    );
+}
+
+/// A bow that is not in your hand caps nothing — the ceiling comes off with the
+/// bow, and an unarmed punch is worth more than a swung one.
+#[test]
+fn the_cap_comes_off_with_the_bow() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let target = punching_bag(&mut w, Position { x: 1, y: 1 });
+
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    toggle_equipped(&mut w, p, bow);
+    let before = hp(&w, target);
+    for _ in 0..300 {
+        resolve_attack(&mut w, p, target);
+    }
+    let with_bow = before - hp(&w, target);
+
+    toggle_equipped(&mut w, p, bow);
+    let before = hp(&w, target);
+    for _ in 0..300 {
+        resolve_attack(&mut w, p, target);
+    }
+    let bare_handed = before - hp(&w, target);
+
+    assert!(
+        bare_handed > with_bow,
+        "bare fists ({bare_handed}) should beat a swung bow ({with_bow})"
+    );
+}
+
+/// The ceiling is a catalog row, so it comes back the way a bow's grant does.
+#[test]
+fn the_melee_cap_survives_a_save() {
+    let path = std::env::temp_dir().join("roog_melee_cap.sav");
+    let path = path.to_str().unwrap();
+
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    assert_eq!(w.get::<MeleeCap>(bow).copied(), Some(MeleeCap(1)));
+    save_game(&mut w, path).unwrap();
+
+    let mut w2 = World::new();
+    w2.init_resource::<GameLog>();
+    load_game(&mut w2, path).unwrap();
+
+    let caps: Vec<MeleeCap> = w2.query::<&MeleeCap>().iter(&w2).copied().collect();
+    assert_eq!(caps, vec![MeleeCap(1)], "the bow came back without its ceiling");
+    let _ = std::fs::remove_file(path);
+}

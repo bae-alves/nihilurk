@@ -64,32 +64,75 @@ pub enum TrapEffect {
 }
 
 impl TrapEffect {
-    /// The name shown once the trap is known.
+    /// The name shown once the trap is known — read straight off the row.
     pub fn label(self) -> &'static str {
-        match self {
-            TrapEffect::Trapdoor => "trapdoor",
-            TrapEffect::Bear => "bear trap",
-            TrapEffect::Sleep => "sleeping gas trap",
-            TrapEffect::Teleport => "teleport trap",
-            TrapEffect::Arrow => "arrow trap",
-            TrapEffect::Dart => "dart trap",
-        }
+        TrapDef::of(self).name
     }
 
     /// `"a"` / `"an"` to read correctly before [`TrapEffect::label`].
     pub fn label_article(self) -> &'static str {
         article(self.label())
     }
-
-    const ALL: [TrapEffect; 6] = [
-        TrapEffect::Trapdoor,
-        TrapEffect::Bear,
-        TrapEffect::Sleep,
-        TrapEffect::Teleport,
-        TrapEffect::Arrow,
-        TrapEffect::Dart,
-    ];
 }
+
+// ---------------------------------------------------------------------------
+// The trap catalog
+// ---------------------------------------------------------------------------
+
+/// One kind of trap, one row: what it is called, how it draws, how often the
+/// dungeon lays one, and the shallowest floor it lays one on. The mechanic
+/// itself lives in [`spring_trap`], keyed by [`TrapDef::effect`] — a row is
+/// description, never behaviour.
+///
+/// Adding a trap is a row here, a [`TrapEffect`] variant, and an arm in
+/// [`spring_trap`]. See `docs/how-to/add-a-trap.md`.
+pub struct TrapDef {
+    pub effect: TrapEffect,
+    pub name: &'static str,
+    pub glyph: char,
+    pub color: Color,
+    /// How often the dungeon lays this one relative to the others it could lay.
+    /// Ten is the baseline (see [`crate::spawn::pick_weighted`]).
+    pub weight: u32,
+    /// The shallowest floor it appears on.
+    pub min_depth: u8,
+}
+
+impl TrapDef {
+    /// The row for `effect`. Panics on a variant nobody gave a row.
+    pub fn of(effect: TrapEffect) -> &'static TrapDef {
+        TRAPS
+            .iter()
+            .find(|t| t.effect == effect)
+            .unwrap_or_else(|| panic!("no trap row for {effect:?}"))
+    }
+
+    /// The row called `name`, or `None`.
+    pub fn lookup(name: &str) -> Option<&'static TrapDef> {
+        TRAPS.iter().find(|t| t.name == name)
+    }
+
+    /// A weighted draw from every trap the floor has unlocked.
+    pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static TrapDef {
+        let pool: Vec<&TrapDef> = TRAPS.iter().filter(|t| t.min_depth <= depth.max(1)).collect();
+        let weights: Vec<u32> = pool.iter().map(|t| t.weight).collect();
+        pool[crate::spawn::pick_weighted(&weights, rng).expect("a depth-1 trap row")]
+    }
+}
+
+/// The six classic Rogue traps, one row each. Every one is equally likely and
+/// available from the first floor; the two dials are there so a new trap need
+/// not be.
+#[rustfmt::skip]
+pub const TRAPS: &[TrapDef] = &[
+    //        effect                  name                   glyph  colour       wt  dep
+    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
+];
 
 /// How a trap becomes known to the player before it is triggered. Rolled once,
 /// with equal probability, when the trap spawns.
@@ -153,14 +196,20 @@ pub struct TrapBundle {
 }
 
 impl TrapBundle {
-    fn new(effect: TrapEffect, reveal: TrapReveal, position: Position) -> Self {
+    /// A trap built straight from its catalog row, with the reveal style the
+    /// caller wants. The one place a trap entity is described.
+    pub fn from_def(def: &TrapDef, reveal: TrapReveal, position: Position) -> Self {
         Self {
-            name: Name { what: effect.label().to_string() },
-            glyph: Renderable { glyph: '^', color: Color::Red },
+            name: Name { what: def.name.to_string() },
+            glyph: Renderable { glyph: def.glyph, color: def.color },
             position,
-            trap: Trap { effect, reveal, revealed: false },
+            trap: Trap { effect: def.effect, reveal, revealed: false },
             hidden: Hidden,
         }
+    }
+
+    fn new(effect: TrapEffect, reveal: TrapReveal, position: Position) -> Self {
+        Self::from_def(TrapDef::of(effect), reveal, position)
     }
 
     pub fn trapdoor(position: Position) -> Self {
@@ -182,11 +231,12 @@ impl TrapBundle {
         Self::new(TrapEffect::Dart, TrapReveal::Sight, position)
     }
 
-    /// A trap of a uniformly random kind, with a uniformly random reveal style.
-    pub fn random(rng: &mut ChaCha12Rng, position: Position) -> Self {
-        let effect = TrapEffect::ALL[rng.gen_range(0..TrapEffect::ALL.len())];
+    /// The trap a floor at `depth` lays: a weighted draw from [`TRAPS`], with a
+    /// uniformly random reveal style.
+    pub fn random(rng: &mut ChaCha12Rng, depth: u8, position: Position) -> Self {
+        let def = TrapDef::pick(depth, rng);
         let reveal = TrapReveal::ALL[rng.gen_range(0..TrapReveal::ALL.len())];
-        Self::new(effect, reveal, position)
+        Self::from_def(def, reveal, position)
     }
 }
 

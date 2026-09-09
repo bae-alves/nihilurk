@@ -49,13 +49,13 @@ Drops follow Rogue's own category odds, with coins standing in for food:
 - Potions, 27%. Healing, extra healing, haste self, gain strength, restore strength, see invisible, monster detection, magic detection, raise level, and the ones that are punishments: confusion, paralysis, poison, blindness.
 - Coins, 17%. They buy nothing. Coins are the score.
 - Armor, 8%. Leather through plate mail, an armor die of 2 up to 9.
-- Weapons, 8%. Within that, 45% a melee weapon (dagger d4, spear d6, mace d6, long sword d8, two-handed sword d10), 35% a bundle of 3 to 12 arrows or quarrels, 20% a bow or crossbow. Launchers are deliberately the rarest, one bow is a build and two are clutter.
+- Weapons, 8%. Within that, 45% a melee weapon (dagger d4, spear d6, mace d6, long sword d8, two-handed sword d10), 35% a bundle of 3 to 12 arrows or quarrels, 20% a bow or crossbow. Launchers are deliberately the rarest, one bow is a build and two are clutter. A bow or crossbow is worth at most 1 damage swung, however good it is, because it takes the hand a sword would have had and you can never pass a turn to swap back.
 - Wands, 5%. Light, striking, lightning, fire, cold, magic missile, polymorph, haste monster, slow monster, drain life, teleport away, teleport to, cancellation, nothing. 3d3 damage on the offensive ones, 3d4 charges, and the range is per wand, 6 or 8.
 - Rings, 5%. Worn, always on. Protection is +2 armor, strength is +2 power plus immunity to strength drain, perception reveals invisible things, dexterity is +2 on throws, aggravate monster is a 10% chance per action of waking the floor up.
 
 The item system is one table per kind and a row per item, and a row is nothing but a name, a glyph and the components the thing carries into the world. A ring of protection is not a special case anywhere, it is an item holding ArmorBonus(2), which combat already folds in for plate mail. A bow does not know arrows exist, it grants FireArrow, and an arrow is a thing that answers to FireArrow. Adding an item is one row and no other edit. This is the part I am smug about.
 
-Gear rolls a quality when it spawns: 25% plain, 10% exceptional at +1 to +3, 65% cursed at anywhere from -6 to +4. A cursed item can roll better than a clean one, it simply won't come off once it's equipped, and it takes a scroll of remove curse to get out of it. The bonus lands on whichever roll the item feeds, never on the die itself, so a +3 dagger is still a dagger.
+Gear rolls a quality when it spawns: 25% plain, 10% exceptional at +1 to +3, 65% cursed at anywhere from -5 to +5. A cursed item can roll better than a clean one, it simply won't come off once it's equipped, and it takes a scroll of remove curse to get out of it. The bonus lands on whichever roll the item feeds, never on the die itself, so a +3 dagger is still a dagger.
 
 Everything in the pack offers use, throw and drop. Throws are aimed. A dagger or a spear is balanced for flight and pierces the whole line instead of stopping at the first body, a mace is an improvised lump that gets blunted by armor and can be caught out of the air and used back. Ammunition stacks up to 26 per slot and doubles its die when thrown by someone holding the matching launcher, d4 to d8 for an arrow out of a bow.
 
@@ -84,6 +84,8 @@ This game is made for terminal screens and is styled like the original Rogue, wi
 
 ### Technical Description
 This is a game made to run on most shells and devices that run shells. It uses keyboard controls though, that might limit the hardware scope. It is made using bevy and crossterm on rust for unnecesarrily peak performance.
+
+Content is data. Every monster, item and trap is a row in a table, and the dungeon decides what turns up by drawing from those tables with a weight and a debut depth, so adding a thing is usually adding a line. `docs/` covers how: a tutorial, a recipe per kind of content, a reference for every field, and the reasoning behind the shape. This document is the design; `docs/` is the code.
 
 ### Demographics
 The developer. Seriously. I made this game because I want to play it.
