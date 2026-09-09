@@ -98,7 +98,8 @@ Two thirds of weapon, armour and ring drops roll cursed. That sounds
 punishing until you look at the bonus range: a cursed item rolls between
 -5 and +5, so it is often *better* than the 25% that roll plain. What
 you are gambling is not the number, it is the commitment -- a cursed item
-cannot be taken off again without a scroll of remove curse.
+cannot be taken off again without a scroll of remove curse, which will
+destroy it.
 
 So the drop table is not "most of your loot is bad". It is "most of your
 loot is a decision". Picking up an unidentified sword and putting it on

@@ -399,7 +399,7 @@ Dungeon constants
     MAP_WIDTH               80
     MAP_HEIGHT              22
     FINAL_DEPTH             13      the floor holding the relic
-    DUNGEON_LORD_PATIENCE  260      turns on one floor before eviction
+    DUNGEON_LORD_PATIENCE  240      turns on one floor before eviction
     STACK_LIMIT             26      most of one item per pack slot
     THROW_RANGE              7      how far you can hurl a thing
     Speed::COST              2      energy one action costs
