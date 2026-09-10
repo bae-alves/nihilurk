@@ -117,7 +117,9 @@ Mechanic: `apply_scroll_effect` in `models/src/items.rs`.
 | `range`  | `i32`          | Feeds the aiming reticle. In use: 6, 8.  |
 
 Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`.
-A floor drop rolls `2d6 + 1` charges (`roll_wand_charges`).
+A floor drop rolls `2d6 + 1` charges (`roll_wand_charges`). Charge dice,
+zap damage dice and both blast radii live in `models/src/constants.rs` →
+`wands` (see `reference/constants.md`).
 Whether zapping opens the reticle: `WandEffect::needs_target`, which is
 true for everything except the wand of light.
 Mechanic: `apply_wand_effect` in `models/src/items.rs`.
@@ -387,7 +389,9 @@ Enchantment
 -----------
 
 Rolled by `enchant_equipment` for every weapon, armour, launcher and ring
-that arrives as a floor drop. Never for a `spawn_named` spawn.
+that arrives as a floor drop. Never for a `spawn_named` spawn. The odds
+and the bonus ranges are `models/src/constants.rs` → `loot` (see
+`reference/constants.md`).
 
 | Quality     | Odds | Bonus            |
 |-------------|------|------------------|
@@ -446,10 +450,13 @@ Dungeon constants
     MAP_WIDTH               80
     MAP_HEIGHT              22
     FINAL_DEPTH             13      the floor holding the relic
-    DUNGEON_LORD_PATIENCE  240      turns on one floor before eviction
+    DUNGEON_LORD_PATIENCE  260      turns on one floor before eviction
     STACK_LIMIT             26      most of one item per pack slot
     THROW_RANGE              7      how far you can hurl a thing
     Speed::COST              2      energy one action costs
+
+These, and every other balance number, are defined and explained in
+`models/src/constants.rs`. See `reference/constants.md` for the tour.
 
 
 See also

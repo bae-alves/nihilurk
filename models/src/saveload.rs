@@ -20,9 +20,9 @@ use crate::state::{Ending, GameState};
 use crate::traps::{Snare, SnareKind, Trap, TrapEffect, TrapReveal};
 use rand_chacha::ChaCha12Rng;
 
-/// How many log lines to persist. `GameLog::add` already trims to this, but the
-/// save path clamps too so an oversized in-memory log never bloats the file.
-const LOG_CAP: usize = 10;
+// How many past log lines a save keeps (`GameLog` itself holds more in memory;
+// the save path clamps so the file never bloats). Defined in `constants.rs`.
+use crate::constants::hud::LOG_HISTORY_CAP as LOG_CAP;
 
 /// The 16-colour terminal palette, packed to one byte instead of a debug string.
 fn color_to_u8(c: &Color) -> u8 {

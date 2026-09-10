@@ -1,12 +1,9 @@
 //! Presentation helpers shared by the renderer and the input handler so both
 //! agree on exactly what the message log is showing this frame.
 
-/// Rows available to the message log.
-pub const LOG_LINES: usize = 3;
-/// Column budget for a normal packed log line.
-pub const LOG_WIDTH: usize = 80;
-/// Narrower budget for the last line when a `--MORE--` prompt has to fit.
-pub const LOG_MORE_WIDTH: usize = 56;
+// Message-log sizing (rows shown, wrap widths). Defined and documented in
+// `constants.rs`; re-exported so `hud::LOG_LINES` etc. keep resolving.
+pub use crate::constants::hud::{LOG_LINES, LOG_MORE_WIDTH, LOG_WIDTH};
 
 /// Greedily packs `messages` into at most `max_lines` lines no wider than
 /// `width`, joining consecutive messages with a single space. A message is never

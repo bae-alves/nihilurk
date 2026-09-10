@@ -3,6 +3,11 @@ use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
 
+/// The most a single pack slot will hold before the overflow spills into a
+/// second slot. Defined and documented in `constants.rs`; re-exported here so
+/// `components::STACK_LIMIT` (and the crate-wide glob) keep resolving.
+pub use crate::constants::items::STACK_LIMIT;
+
 #[derive(Component)]
 pub struct Name {
     pub what: String,
@@ -499,10 +504,6 @@ pub struct Launcher;
 pub struct Stack {
     pub count: u8,
 }
-
-/// The most a single pack slot will hold — one for every letter the inventory
-/// screen can label, `a` through `z`.
-pub const STACK_LIMIT: u8 = 26;
 
 #[derive(Component)]
 pub struct Battery {

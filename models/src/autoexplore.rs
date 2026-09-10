@@ -14,6 +14,10 @@ use fixedbitset::FixedBitSet;
 use crate::components::*;
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 
+/// Hard ceiling on steps in a single auto-walk — paranoia against a
+/// pathfinding loop. Defined and documented in `constants.rs`.
+pub use crate::constants::travel::AUTO_EXPLORE_STEP_CAP;
+
 /// Transient flag: set while the player is auto-walking. Never serialised, so a
 /// reload always starts idle.
 #[derive(Resource, Default)]
@@ -42,10 +46,6 @@ impl AutoExplore {
         self.target = None;
     }
 }
-
-/// Hard ceiling on steps in a single auto-walk. A full 80x22 floor is a few
-/// hundred steps at most; this is pure paranoia against an unforeseen loop.
-pub const AUTO_EXPLORE_STEP_CAP: u32 = 5000;
 
 /// The eight neighbour offsets, matching the player's movement options.
 const DIRS: [(i32, i32); 8] = [

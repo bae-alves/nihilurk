@@ -9,6 +9,10 @@ use crate::effects::{
 use crate::spawn::pick_weighted;
 use MovementType::{Chase, Confused, Flee, Static};
 
+/// The spawn weight a bestiary row gets when it doesn't `.weight(n)` for itself.
+/// Defined and documented in `constants.rs`.
+use crate::constants::monsters::DEFAULT_SPAWN_WEIGHT as DEFAULT_WEIGHT;
+
 /// Static, per-species description: everything about a monster that does not vary
 /// between individuals of the same kind. The whole bestiary is one table of
 /// these ([`BESTIARY`]), and every monster in the game — level population, the
@@ -126,9 +130,6 @@ impl MonsterDef {
         pool[pick_weighted(&weights, rng).expect("the bestiary always has a depth-1 row")]
     }
 }
-
-/// The rarity a row gets when it doesn't ask for one.
-const DEFAULT_WEIGHT: u32 = 10;
 
 /// The humanoids with the wits to use what they find: they catch thrown gear and
 /// wear it, and they read thrown scrolls aloud. The brutes that already fight

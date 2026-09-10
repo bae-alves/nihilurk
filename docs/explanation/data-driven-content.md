@@ -202,7 +202,7 @@ Where it does not reach
 
 Honesty about the seams, because they are where people get stuck.
 
-**Potions, scrolls and wands still need a mechanic.** "Restore ten hit
+**Potions, scrolls and wands still need a mechanic.** "Restore hit
 points" is not expressible as a component the engine already folds, so
 those three categories keep an effect enum and a `match` in
 `models/src/items.rs`. That match has a catch-all arm, so a variant with

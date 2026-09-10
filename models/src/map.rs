@@ -18,6 +18,29 @@ use crate::rect::Rect;
 use crate::spawn::{roll_item, spawn_requested};
 use crate::state::*;
 
+// --- Tuning constants -------------------------------------------------------
+// All defined and documented in `constants.rs`; re-exported here so the old
+// paths (`map::MAP_WIDTH`, `map::FINAL_DEPTH`, ...) keep resolving.
+//
+//   MAP_WIDTH / MAP_HEIGHT   playfield size in tiles (pins seed layout)
+//   FINAL_DEPTH              deepest floor; holds the Element of Yoord
+//   DUNGEON_LORD_PATIENCE    turns per level before the forced portal
+//   DARK_ROOM_CHANCE         odds a room spawns unlit
+//   DESCENT_HEAL_DIVISOR     staircase heal = max_hp / this
+//   MONSTER_/TRAP_* , TIER_FLOORS, *_LURKER_*, *_ITEM*   floor-crowding budgets
+pub use crate::constants::map::{HEIGHT as MAP_HEIGHT, WIDTH as MAP_WIDTH};
+pub use crate::constants::progression::{DUNGEON_LORD_PATIENCE, FINAL_DEPTH};
+
+use crate::constants::map::DARK_ROOM_CHANCE;
+use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
+use crate::constants::population::{
+    CORRIDOR_LURKER_CHANCE, CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEMS_PER_FLOOR,
+    MONSTER_FILL_CHANCE_BASE, MONSTER_FILL_CHANCE_CAP, MONSTER_FILL_CHANCE_PER_TIER,
+    MONSTER_SLOTS_BASE, TIER_FLOORS, TRAP_FILL_CHANCE_BASE, TRAP_FILL_CHANCE_CAP,
+    TRAP_FILL_CHANCE_PER_TIER, TRAP_SLOTS_BASE,
+};
+use crate::constants::progression::DESCENT_HEAL_DIVISOR;
+
 #[derive(Resource)]
 pub struct GameRng(pub ChaCha12Rng);
 
@@ -271,18 +294,6 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     }
 }
 
-pub const MAP_WIDTH: u16 = 80;
-pub const MAP_HEIGHT: u16 = 22;
-
-/// The deepest floor of a run. It has no down-stair: the Element of Yoord sits
-/// where the stair would be, and retrieving it is the whole point of the descent.
-pub const FINAL_DEPTH: u8 = 13;
-
-/// Turns the player may dawdle on one level before the Dungeon Lord loses
-/// patience and portals them onward (down on the way in, up once they carry the
-/// Element). Reset by every level change.
-pub const DUNGEON_LORD_PATIENCE: u32 = 260;
-
 /// The eight neighbouring offsets, ordered for the guardian ring around the
 /// Element of Yoord.
 const RING_DIRS: [(i32, i32); 8] = [
@@ -484,7 +495,7 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
     // system treats them like a passage until a wand of light is used there.
     let mut dark = FixedBitSet::with_capacity(MAP_TILE_COUNT);
     for room in rooms.iter().skip(1) {
-        if !rng.gen_bool(0.15) {
+        if !rng.gen_bool(DARK_ROOM_CHANCE) {
             continue;
         }
         for y in room.y1..=room.y2 {
@@ -652,14 +663,15 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // one more spawn slot and widens the odds that a given slot actually fills,
     // so the dungeon gets steadily — but smoothly — more crowded and more
     // dangerous the deeper you go.
-    let tier = (depth.saturating_sub(1) / 3) as u32;
+    let tier = (depth.saturating_sub(1) / TIER_FLOORS) as u32;
 
     // Monsters: three slots at the surface, +1 per tier. The first slot always
     // fills (no floor is ever completely empty); every later slot fills with a
     // probability that itself climbs one step every three floors (capped so a
     // slot is never quite certain).
-    let max_monsters = 3 + tier as usize;
-    let monster_chance = (0.60 + 0.12 * tier as f64).min(0.95);
+    let max_monsters = MONSTER_SLOTS_BASE + tier as usize;
+    let monster_chance = (MONSTER_FILL_CHANCE_BASE + MONSTER_FILL_CHANCE_PER_TIER * tier as f64)
+        .min(MONSTER_FILL_CHANCE_CAP);
     for slot in 0..max_monsters {
         if slot > 0 && !rng.gen_bool(monster_chance) {
             continue;
@@ -678,10 +690,10 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
 
     // From depth 7 on, every corridor also has a small (5%) chance of hiding a
     // lurker dead centre — right where an unwary traveller runs into it.
-    if depth >= 7 {
+    if depth >= CORRIDOR_LURKER_MIN_DEPTH {
         let centers = corridor_centers(&world.resource::<Map>().tiles);
         for (cx, cy) in centers {
-            if !rng.gen_bool(0.05) {
+            if !rng.gen_bool(CORRIDOR_LURKER_CHANCE) {
                 continue;
             }
             if occupied.insert((cx, cy)) {
@@ -691,8 +703,8 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
         }
     }
 
-    // Up to 3 items.
-    for _ in 0..3 {
+    // Up to ITEMS_PER_FLOOR items.
+    for _ in 0..ITEMS_PER_FLOOR {
         for _ in 0..100 {
             let room_idx = rng.gen_range(1..rooms.len());
             let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
@@ -707,7 +719,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // 1 floor in 10 hides an extra item in plain sight: it draws nothing and is
     // never announced until a ring of perception turns it up or the player walks
     // straight onto it ("Hey! There's something here!").
-    if rng.gen_bool(0.10) {
+    if rng.gen_bool(HIDDEN_ITEM_CHANCE) {
         for _ in 0..100 {
             let room_idx = rng.gen_range(1..rooms.len());
             let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
@@ -754,8 +766,9 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // four slots at the surface, +1 per `tier` — and each slot's chance of
     // producing a trap climbs the same way, so the deep floors bristle with them
     // and the first floors rarely hold more than one.
-    let max_traps = 4 + tier as usize;
-    let trap_chance = (0.12 + 0.13 * tier as f64).min(0.75);
+    let max_traps = TRAP_SLOTS_BASE + tier as usize;
+    let trap_chance =
+        (TRAP_FILL_CHANCE_BASE + TRAP_FILL_CHANCE_PER_TIER * tier as f64).min(TRAP_FILL_CHANCE_CAP);
     for _ in 0..max_traps {
         if !rng.gen_bool(trap_chance) {
             continue;
@@ -956,9 +969,10 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     // A trapdoor plunge is a fall, not a rest: no arrival heal, no magic restore.
     if cause != LevelChange::Trapdoor {
         if let Some(mut fighter) = world.get_mut::<Fighter>(player_entity) {
-            let heal = fighter.max_hp / 2;
+            let heal = fighter.max_hp / DESCENT_HEAL_DIVISOR;
             fighter.hp = (fighter.hp + heal).min(fighter.max_hp);
         }
+        // A staircase also refills the magic pool in full.
         if let Some(mut magic) = world.get_mut::<Magic>(player_entity) {
             magic.points = magic.max_points;
         }
@@ -1113,21 +1127,21 @@ pub fn initialize_world(world: &mut World) {
             Viewshed {
                 visible_tiles: Vec::new(),
                 revealed_tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-                range: 12,
+                range: SIGHT_RANGE,
                 dirty: true,
             },
             Fighter {
-                hp: 12,
-                max_hp: 12,
-                armor: 2,
-                power: 4,
-                max_power: 4,
+                hp: START_HP,
+                max_hp: START_HP,
+                armor: START_ARMOR,
+                power: START_POWER,
+                max_power: START_POWER,
                 armor_bonus: 0,
                 power_bonus: 0,
             },
             Magic {
-                points: 4,
-                max_points: 4,
+                points: START_MAGIC,
+                max_points: START_MAGIC,
             },
             Faction::Player,
             Backpack {

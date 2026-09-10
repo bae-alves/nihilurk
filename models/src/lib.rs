@@ -4,6 +4,7 @@ pub mod autoexplore;
 pub mod autofight;
 pub mod catalog;
 pub mod components;
+pub mod constants;
 pub mod effects;
 pub mod equipment;
 pub mod fastmove;

@@ -65,6 +65,9 @@ one outcome a turn-based fight cannot survive.
     things alive on 1 HP. Without it, an unlucky player against a
     well-armoured monster can swing forever and never move the number.
 
+The two numbers above -- the 15% and the `3d` -- and the 1-point floor
+are `constants::combat`. See `../reference/constants.md`.
+
 Monsters get neither. A monster that cannot hurt you simply cannot hurt
 you, and that asymmetry is what makes armour worth wearing.
 
@@ -129,6 +132,7 @@ See also
 --------
 
   ../reference/content-tables.md   the fields, the enchantment odds
+  ../reference/constants.md        every balance knob and where it lives
   ../how-to/add-a-monster.md       putting a row in
   data-driven-content.md           why a creature is a row at all
   ../../gdd.md                     what the game is trying to be

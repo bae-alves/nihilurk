@@ -31,6 +31,16 @@ use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 
+// --- Tuning constants -----------------------------------------------------
+// The numbers a *drop* rolls that are not part of any one row: wand battery
+// size, ammunition bundle size, and the enchantment odds / bonus ranges.
+// All defined and documented in `constants.rs`.
+use crate::constants::loot::{
+    AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN, CURSED_BONUS_MAX, CURSED_BONUS_MIN, EXCEPTIONAL_BONUS_MAX,
+    EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, NORMAL_QUALITY_PCT,
+};
+use crate::constants::wands::{CHARGE_BONUS, CHARGE_DICE, CHARGE_SIDES};
+
 // ---------------------------------------------------------------------------
 // The shape every catalog row shares
 // ---------------------------------------------------------------------------
@@ -204,9 +214,13 @@ pub struct WandDef {
     pub range: i32,
 }
 
-/// A wand's battery: `2d6 + 1` charges, rolled when it enters the dungeon.
+/// A wand's battery: `2d6 + 1` charges (see [`crate::constants::wands`]), rolled
+/// when it enters the dungeon.
 pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8 {
-    (0..2).map(|_| rng.gen_range(1..=6)).sum::<i8>() + 1
+    (0..CHARGE_DICE)
+        .map(|_| rng.gen_range(1..=CHARGE_SIDES) as i8)
+        .sum::<i8>()
+        + CHARGE_BONUS
 }
 
 impl ItemDef for WandDef {
@@ -384,7 +398,7 @@ impl AmmoDef {
     /// How many a floor drop arrives in. Never a lone arrow — finding one arrow
     /// is not finding ammunition.
     fn roll_bundle(rng: &mut ChaCha12Rng) -> u8 {
-        rng.gen_range(3..=12)
+        rng.gen_range(AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX) as u8
     }
 }
 
@@ -876,10 +890,13 @@ enum Quality {
 
 impl Quality {
     fn roll(rng: &mut ChaCha12Rng) -> Self {
-        match rng.gen_range(0..100) {
-            0..=24 => Quality::Normal,
-            25..=34 => Quality::Exceptional,
-            _ => Quality::Cursed,
+        let roll = rng.gen_range(0..100);
+        if roll < NORMAL_QUALITY_PCT {
+            Quality::Normal
+        } else if roll < NORMAL_QUALITY_PCT + EXCEPTIONAL_QUALITY_PCT {
+            Quality::Exceptional
+        } else {
+            Quality::Cursed
         }
     }
 }
@@ -896,8 +913,8 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     let quality = Quality::roll(rng);
     let bonus: i32 = match quality {
         Quality::Normal => 0,
-        Quality::Exceptional => rng.gen_range(1..=3),
-        Quality::Cursed => rng.gen_range(-5..=5),
+        Quality::Exceptional => rng.gen_range(EXCEPTIONAL_BONUS_MIN..=EXCEPTIONAL_BONUS_MAX),
+        Quality::Cursed => rng.gen_range(CURSED_BONUS_MIN..=CURSED_BONUS_MAX),
     };
 
     let mut entity = world.entity_mut(item);

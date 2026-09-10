@@ -26,6 +26,21 @@ use rand::Rng;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 
+// --- Tuning constants ------------------------------------------------------
+// Defined and documented in `constants.rs`. Re-exported under their historical
+// names so `items::THROW_RANGE` / `items::BLAST_RADIUS` keep resolving.
+//
+//   THROW_RANGE                  how far any item can be hurled (tiles)
+//   BLAST_RADIUS / GRENADE_RADIUS zapped disc vs. thrown-attack-wand grenade
+//   wands::DAMAGE_DICE/SIDES      a zapped wand's damage roll (3d3)
+//   wands::GRENADE_/EFFECT_DIE_PER_CHARGE   per-charge dice a thrown wand spends
+pub use crate::constants::items::THROW_RANGE;
+use crate::constants::loot::LAUNCHER_DIE_MULTIPLIER;
+pub use crate::constants::wands::{BLAST_RADIUS, GRENADE_RADIUS};
+use crate::constants::wands::{
+    DAMAGE_DICE, DAMAGE_SIDES, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE,
+};
+
 /// Works a potion on `user`. Returns whether the dose visibly took hold — the
 /// player learns a potion by drinking it either way, but a potion *thrown* at a
 /// monster only gives itself away when something plainly happens (see
@@ -37,13 +52,13 @@ fn apply_potion_effect(world: &mut World, user: Entity, effect: PotionEffect) ->
                 return false;
             };
             let before = fighter.hp;
-            fighter.hp = std::cmp::min(fighter.hp + 10, fighter.max_hp);
+            fighter.hp = fighter.max_hp;
             let healed = fighter.hp > before;
             let msg = if world.get::<Player>(user).is_some() {
-                "Healing!".to_string()
+                "You feel refreshed as your wounds mend!".to_string()
             } else {
                 format!(
-                    "The {} straightens up, its wounds closing.",
+                    "The {} glows eerily, wounds closing.",
                     item_label(world, user)
                 )
             };
@@ -100,19 +115,17 @@ fn is_immune(world: &World, entity: Entity, element: Element) -> bool {
     element.immunity().probe(world, entity)
 }
 
-/// How many `d3` a zapped wand rolls.
-const WAND_DICE: i32 = 3;
-
-/// Rolls `Nd3` — the die every wand and every blast is measured in.
+/// Rolls `Nd[DAMAGE_SIDES]` — the die every wand and every blast is measured in.
 fn roll_d3s(world: &mut World, dice: i32) -> i32 {
     let mut rng = world.resource_mut::<GameRng>();
-    (0..dice).map(|_| rng.0.gen_range(1..=3)).sum()
+    (0..dice).map(|_| rng.0.gen_range(1..=DAMAGE_SIDES)).sum()
 }
 
-/// A wand's damage: `3d3`, rolled once per zap and applied whole to every
-/// creature it touches (armour is never subtracted — see [`apply_damage`]).
+/// A wand's damage: `[DAMAGE_DICE]d[DAMAGE_SIDES]`, rolled once per zap and
+/// applied whole to every creature it touches (armour is never subtracted — see
+/// [`apply_damage`]).
 fn roll_wand_damage(world: &mut World) -> i32 {
-    roll_d3s(world, WAND_DICE)
+    roll_d3s(world, DAMAGE_DICE)
 }
 
 /// The hostile monster standing on `pos`, if any.
@@ -150,16 +163,6 @@ fn damage_with_element(
     apply_damage(world, entity, damage);
     damage.min(hp_before.max(0))
 }
-
-/// The radius of a fire or cold wand's blast disc, in tiles.
-const BLAST_RADIUS: f32 = 3.0;
-
-/// A wand that is thrown rather than zapped goes off like a grenade — an attack
-/// wand twice as wide as the beam it could have thrown. Note that the blast does
-/// not care who set it off — a wand zapped at your own feet burns you, and so
-/// does one you lobbed too close (see [`elemental_blast`]). This is Roog. You'll
-/// die.
-const GRENADE_RADIUS: f32 = BLAST_RADIUS * 2.0;
 
 /// Blows a disc of `radius` tiles open around `center`: every creature standing
 /// on a tile the centre can see (walls stop the flames) takes `damage` of
@@ -306,7 +309,7 @@ fn roll_dice(world: &mut World, count: i32, sides: i32) -> i32 {
 }
 
 /// The wands that deal damage when zapped. Thrown, these go off wider and hotter
-/// than the utility ("effect") wands — the fire wand's grenade, generalised.
+/// than the utility ("effect") wands.
 fn is_attack_wand(effect: WandEffect) -> bool {
     matches!(
         effect,
@@ -1112,10 +1115,6 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
 // Throwing
 // ---------------------------------------------------------------------------
 
-/// How far an item can be hurled, in tiles — the reticle's leash for a throw,
-/// where a wand supplies that number itself through [`Ranged`].
-pub const THROW_RANGE: i32 = 7;
-
 /// Why `user` can't throw `item`, if they can't. Two things stay in the pack:
 /// the Element of Yoord, which is the whole point of the run and is not to be
 /// flung down a corridor, and cursed gear, which is welded on — it won't come
@@ -1243,7 +1242,7 @@ fn roll_throw_damage(
     let mut die = world.get::<ThrownDamage>(item)?.0;
     if let Some(&LaunchedBy(launcher)) = world.get::<LaunchedBy>(item) {
         if launcher.probe(world, thrower) {
-            die *= 2;
+            die *= LAUNCHER_DIE_MULTIPLIER;
         }
     }
     if die < 1 {
@@ -1417,9 +1416,9 @@ fn resolve_wand_throw(
     // it just blinds instead of burning through armour.
     let grenade = is_attack || is_light;
     let (radius, sides) = if grenade {
-        (GRENADE_RADIUS, 4)
+        (GRENADE_RADIUS, GRENADE_DIE_PER_CHARGE)
     } else {
-        (BLAST_RADIUS, 3)
+        (BLAST_RADIUS, EFFECT_DIE_PER_CHARGE)
     };
     // Attack wands and the light wand deal damage; the utility wands' blasts are
     // pure delivery — the effect is the whole payload.

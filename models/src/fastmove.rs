@@ -19,6 +19,10 @@ use crate::autoexplore::{monster_in_sight, travel_step};
 use crate::components::*;
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 
+/// Hard ceiling on steps in a single run — paranoia against a pathfinding
+/// loop. Defined and documented in `constants.rs`.
+pub use crate::constants::travel::FAST_MOVE_STEP_CAP;
+
 /// Transient flag: set while a fast-move run is in progress. Never serialised,
 /// so a reload always starts idle.
 #[derive(Resource, Default)]
@@ -50,11 +54,6 @@ impl FastMove {
         self.target = None;
     }
 }
-
-/// Hard ceiling on steps in a single run. A straight shot crosses the map in
-/// ~80 steps and the longest sane beeline is a few hundred; this is paranoia
-/// against an unforeseen loop.
-pub const FAST_MOVE_STEP_CAP: u32 = 1000;
 
 /// What a Shift + direction press should do from where the player stands.
 pub enum FastMovePlan {

@@ -12,10 +12,15 @@ use crate::map::GameRng;
 use crate::particles::Particles;
 use crate::state::Ending;
 
-/// Chance for the player to land an "excellent hit" (see [`resolve_attack`]).
-const EXCELLENT_HIT_CHANCE: f64 = 0.15;
-/// An excellent hit rolls extra weapon dice: `1d[Power]` becomes `Nd[Power]`.
-const EXCELLENT_HIT_DICE: i32 = 3;
+// --- Tuning constants ------------------------------------------------------
+// Defined and documented in `constants.rs`.
+//
+//   EXCELLENT_HIT_CHANCE / EXCELLENT_HIT_DICE  the player's Nd[power] crit
+//   CHIP_DAMAGE                                the player's guaranteed-1 floor
+//   GEAR_SURVIVES_DEATH                        per-item odds a corpse keeps its gear
+use crate::constants::combat::{
+    CHIP_DAMAGE, EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE, GEAR_SURVIVES_DEATH,
+};
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
 /// an unarmoured/unarmed entity simply contributes nothing to the opposed roll.
@@ -92,10 +97,6 @@ pub fn reaper_system(world: &mut World) {
         }
     }
 }
-
-/// The odds that any one piece of a dead creature's gear is still worth picking
-/// up. The rest went down with it — snapped, fouled, or simply lost in the mess.
-const GEAR_SURVIVES_DEATH: f64 = 0.5;
 
 /// Settles what a dying creature was wearing, item by item. Each piece gets its
 /// own [`GEAR_SURVIVES_DEATH`] coin flip: heads it clatters onto the corpse's
@@ -189,8 +190,8 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     // eats the whole blow — but a blow that weak can never be the killing one.
     // It can leave a foe on 1 HP; it can't take the last point.
     let mut glancing = false;
-    if attacker_is_player && damage < 1 {
-        damage = 1;
+    if attacker_is_player && damage < CHIP_DAMAGE {
+        damage = CHIP_DAMAGE;
         glancing = true;
     }
     let mut damage = damage.max(0);

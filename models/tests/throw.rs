@@ -485,9 +485,10 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
 
     throw(&mut w, p, potion, spot);
 
-    assert!(
-        w.get::<Fighter>(orc).unwrap().hp > 1,
-        "the orc drank the healing"
+    assert_eq!(
+        w.get::<Fighter>(orc).unwrap().hp,
+        10,
+        "the orc drank the healing and went to full HP"
     );
     assert!(w.get_entity(potion).is_none(), "the bottle broke");
     assert!(
