@@ -27,6 +27,7 @@ Start here
 | Look up a flag or an env var        | `reference/cli-and-env.md`          |
 | Understand why it is built this way | `explanation/data-driven-content.md`|
 | Know what good numbers look like    | `explanation/combat-and-balance.md` |
+| Know what shape to leave the code in| `explanation/code-calisthenics.md`  |
 
 And one architecture decision record, on why content is compiled into the
 binary rather than loaded from JSON raw files:

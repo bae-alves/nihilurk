@@ -175,6 +175,42 @@ fn player_attack(world: &mut World, attacker_entity: Entity, target_entity: Enti
     resolve_attack(world, attacker_entity, target_entity);
 }
 
+/// One Tab press: close on — or strike — the weakest foe in sight. Each of the
+/// refusals bows out early with its own line; only the last path spends a turn.
+/// Returns whether the turn was consumed.
+fn auto_fight_turn(world: &mut World) -> bool {
+    if player_confused(world) {
+        world
+            .resource_mut::<GameLog>()
+            .add("You are too confused for that right now.");
+        return false;
+    }
+    if player_too_injured(world) {
+        world
+            .resource_mut::<GameLog>()
+            .add("You are too injured for that now.");
+        return false;
+    }
+    let Some(target) = auto_fight_target(world) else {
+        world
+            .resource_mut::<GameLog>()
+            .add("There is nothing to fight.");
+        return false;
+    };
+    match fight_step(world, target) {
+        Some((dx, dy)) => {
+            world.resource_mut::<GameLog>().unread.clear();
+            move_player(world, dx, dy)
+        }
+        None => {
+            world
+                .resource_mut::<GameLog>()
+                .add("You can't reach it from here.");
+            false
+        }
+    }
+}
+
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     // A snared player (bear trap / sleeping gas) forfeits the turn outright — no
     // key is read — as long as there's no pending --MORE-- prompt to clear
@@ -369,14 +405,14 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                                 item: missile,
                                 target,
                             });
-                    } else {
-                        world.resource_mut::<UseQueue>().uses.push(WantsToUse {
-                            user: player_entity,
-                            item,
-                            target: Some(target),
-                            slot_idx: original_idx,
-                        });
+                        return Ok(true);
                     }
+                    world.resource_mut::<UseQueue>().uses.push(WantsToUse {
+                        user: player_entity,
+                        item,
+                        target: Some(target),
+                        slot_idx: original_idx,
+                    });
                     return Ok(true);
                 }
 
@@ -430,28 +466,23 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 let mut pack_state = world.resource_mut::<PackIsOpen>();
                 pack_state.action_selected = new_action_sel;
 
-                if close_inventory {
+                if close_inventory || confirm_action {
                     pack_state.open = false;
                     pack_state.action_mode = None;
-                } else if confirm_action {
-                    pack_state.open = false;
-                    pack_state.action_mode = None;
+                }
+                if confirm_action {
                     turn_taken = true;
                 }
 
                 if confirm_action {
                     if let Some(player) = player_entity {
                         // 1. Remove from backpack temporarily
-                        let item_entity =
-                            if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
-                                if action_item_idx < backpack.items.len() {
-                                    Some(backpack.items.remove(action_item_idx))
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            };
+                        let mut item_entity = None;
+                        if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+                            if action_item_idx < backpack.items.len() {
+                                item_entity = Some(backpack.items.remove(action_item_idx));
+                            }
+                        }
 
                         // 2. Route to correct action. Which row is which is the
                         // ActionMenu's business (see `-dropthrow`), not ours.
@@ -483,11 +514,12 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                                         target_state.cursor_y = player_pos.y as i16;
 
                                         turn_taken = false; // Override: aiming takes no time!
-                                    } else {
+                                    }
+                                    if !is_ranged {
                                         let mut use_queue = world.resource_mut::<UseQueue>();
                                         use_queue.uses.push(WantsToUse {
                                             user: player,
-                                            item: item,
+                                            item,
                                             target: None,
                                             slot_idx: Some(action_item_idx),
                                         });
@@ -503,17 +535,21 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 
                                     // Some things won't leave your hand: the
                                     // Element, and anything cursed you're wearing.
-                                    if let Some(refusal) = throw_refusal(world, player, item) {
-                                        world.resource_mut::<GameLog>().add(refusal);
-                                    } else {
-                                        let player_pos = *world.get::<Position>(player).unwrap();
-                                        let mut target_state =
-                                            world.resource_mut::<TargetingState>();
-                                        target_state.active = true;
-                                        target_state.item = Some(item);
-                                        target_state.throwing = true;
-                                        target_state.cursor_x = player_pos.x as i16;
-                                        target_state.cursor_y = player_pos.y as i16;
+                                    match throw_refusal(world, player, item) {
+                                        Some(refusal) => {
+                                            world.resource_mut::<GameLog>().add(refusal);
+                                        }
+                                        None => {
+                                            let player_pos =
+                                                *world.get::<Position>(player).unwrap();
+                                            let mut target_state =
+                                                world.resource_mut::<TargetingState>();
+                                            target_state.active = true;
+                                            target_state.item = Some(item);
+                                            target_state.throwing = true;
+                                            target_state.cursor_x = player_pos.x as i16;
+                                            target_state.cursor_y = player_pos.y as i16;
+                                        }
                                     }
                                 }
                                 ItemAction::Drop => {
@@ -523,23 +559,29 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                                     // of is un-equipped on the way down, so a
                                     // sword on the floor stops sharpening your
                                     // arm.
-                                    if let Some(refusal) = drop_refusal(world, player, item) {
-                                        if let Some(mut backpack) =
-                                            world.get_mut::<Backpack>(player)
-                                        {
-                                            backpack.items.insert(action_item_idx, item);
+                                    match drop_refusal(world, player, item) {
+                                        Some(refusal) => {
+                                            if let Some(mut backpack) =
+                                                world.get_mut::<Backpack>(player)
+                                            {
+                                                backpack.items.insert(action_item_idx, item);
+                                            }
+                                            world.resource_mut::<GameLog>().add(refusal);
+                                            turn_taken = false;
                                         }
-                                        world.resource_mut::<GameLog>().add(refusal);
-                                        turn_taken = false;
-                                    } else if let Some(pos) = world.get::<Position>(player).cloned()
-                                    {
-                                        force_unequip(world, item);
-                                        sync_equipment_effects(world, player);
-                                        world.entity_mut(item).insert(pos);
-                                        let name = models::display_name(world, item);
-                                        world
-                                            .resource_mut::<GameLog>()
-                                            .add(format!("You drop the {name}."));
+                                        None => {
+                                            if let Some(pos) =
+                                                world.get::<Position>(player).cloned()
+                                            {
+                                                force_unequip(world, item);
+                                                sync_equipment_effects(world, player);
+                                                world.entity_mut(item).insert(pos);
+                                                let name = models::display_name(world, item);
+                                                world
+                                                    .resource_mut::<GameLog>()
+                                                    .add(format!("You drop the {name}."));
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -548,53 +590,53 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 }
                 return Ok(turn_taken);
             }
-            // Sub-Branch: Navigating the main list
-            else {
-                let mut new_selected = current_selected;
-                let mut close_inventory = false;
-                let mut trigger_action_menu = None;
 
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
-                    KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
-                        new_selected = if new_selected == 0 {
-                            item_count.saturating_sub(1)
-                        } else {
-                            new_selected - 1
-                        };
-                    }
-                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
-                        new_selected = if new_selected + 1 >= item_count {
-                            0
-                        } else {
-                            new_selected + 1
-                        };
-                    }
-                    KeyCode::Enter | KeyCode::Char(' ') => trigger_action_menu = Some(new_selected),
-                    KeyCode::Char(c) if c.is_ascii_lowercase() => {
-                        let idx = (c as u32 - 'a' as u32) as usize;
-                        if idx < item_count {
-                            new_selected = idx;
-                            trigger_action_menu = Some(idx);
-                        }
-                    }
-                    _ => {}
+            // Sub-Branch: Navigating the main list. (The action-modal branch
+            // above always returns, so this is the fall-through, not an `else`.)
+            let mut new_selected = current_selected;
+            let mut close_inventory = false;
+            let mut trigger_action_menu = None;
+
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
+                KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
+                    new_selected = if new_selected == 0 {
+                        item_count.saturating_sub(1)
+                    } else {
+                        new_selected - 1
+                    };
                 }
-
-                let mut pack_state = world.resource_mut::<PackIsOpen>();
-                pack_state.selected = new_selected;
-
-                if close_inventory {
-                    pack_state.open = false;
+                KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
+                    new_selected = if new_selected + 1 >= item_count {
+                        0
+                    } else {
+                        new_selected + 1
+                    };
                 }
-
-                if let Some(idx) = trigger_action_menu {
-                    pack_state.action_mode = Some(idx);
-                    pack_state.action_selected = 0;
+                KeyCode::Enter | KeyCode::Char(' ') => trigger_action_menu = Some(new_selected),
+                KeyCode::Char(c) if c.is_ascii_lowercase() => {
+                    let idx = (c as u32 - 'a' as u32) as usize;
+                    if idx < item_count {
+                        new_selected = idx;
+                        trigger_action_menu = Some(idx);
+                    }
                 }
-
-                return Ok(false);
+                _ => {}
             }
+
+            let mut pack_state = world.resource_mut::<PackIsOpen>();
+            pack_state.selected = new_selected;
+
+            if close_inventory {
+                pack_state.open = false;
+            }
+
+            if let Some(idx) = trigger_action_menu {
+                pack_state.action_mode = Some(idx);
+                pack_state.action_selected = 0;
+            }
+
+            return Ok(false);
         }
 
         // ==========================================
@@ -658,11 +700,11 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     let mut log = world.resource_mut::<GameLog>();
                     log.add("You have no items.");
                     world.resource_mut::<PackIsOpen>().open = false;
-                } else {
-                    let mut pack_state = world.resource_mut::<PackIsOpen>();
-                    pack_state.open = true;
-                    pack_state.selected = 0;
+                    return Ok(false);
                 }
+                let mut pack_state = world.resource_mut::<PackIsOpen>();
+                pack_state.open = true;
+                pack_state.selected = 0;
                 return Ok(false);
             }
             KeyCode::Char('o') => {
@@ -673,18 +715,22 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     world
                         .resource_mut::<GameLog>()
                         .add("You are too confused for that right now.");
-                } else if monster_in_sight(world) {
+                    return Ok(false);
+                }
+                if monster_in_sight(world) {
                     world
                         .resource_mut::<GameLog>()
                         .add("Not while a creature is in sight.");
-                } else if explore_step(world).is_none() {
+                    return Ok(false);
+                }
+                if explore_step(world).is_none() {
                     world
                         .resource_mut::<GameLog>()
                         .add("There is nothing left to explore.");
-                } else {
-                    world.resource_mut::<GameLog>().unread.clear();
-                    world.resource_mut::<AutoExplore>().start(None);
+                    return Ok(false);
                 }
+                world.resource_mut::<GameLog>().unread.clear();
+                world.resource_mut::<AutoExplore>().start(None);
                 return Ok(false);
             }
             KeyCode::Char('O') => {
@@ -703,31 +749,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
             KeyCode::Tab => {
                 // Auto-fight: one turn spent closing on — or striking — the
                 // weakest foe in sight. Not a mode: each press is a single turn.
-                if player_confused(world) {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("You are too confused for that right now.");
-                } else if player_too_injured(world) {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("You are too injured for that now.");
-                } else if let Some(target) = auto_fight_target(world) {
-                    match fight_step(world, target) {
-                        Some((dx, dy)) => {
-                            world.resource_mut::<GameLog>().unread.clear();
-                            turn_taken = move_player(world, dx, dy);
-                        }
-                        None => {
-                            world
-                                .resource_mut::<GameLog>()
-                                .add("You can't reach it from here.");
-                        }
-                    }
-                } else {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("There is nothing to fight.");
-                }
+                turn_taken = auto_fight_turn(world);
             }
             KeyCode::Char('>') | KeyCode::Char('.') => {
                 return Ok(travel_or_use_stairs(world, true));

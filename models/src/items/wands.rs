@@ -315,14 +315,13 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
     // Flood-fill from the zapper's tile through tiles of the same "space": room
     // floor + doorways + stairs for a room, passage tiles for a corridor.
     let connects = |t: TileType| {
-        if in_room {
-            matches!(
-                t,
-                TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs
-            )
-        } else {
-            t == TileType::Passage
+        if !in_room {
+            return t == TileType::Passage;
         }
+        matches!(
+            t,
+            TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs
+        )
     };
 
     let mut area: Vec<(u16, u16)> = Vec::new();
@@ -478,26 +477,26 @@ pub(super) fn shift_entity_speed(world: &mut World, victim: Entity, faster: bool
         before.slower()
     };
     let after = speed.kind;
-    let msg = if after == before && is_player {
-        format!(
-            "You are already as {} as you can be.",
-            if faster { "quick" } else { "sluggish" }
-        )
-    } else if after == before {
-        format!(
-            "The {name} is already as {} as it can be.",
-            if faster { "quick" } else { "sluggish" }
-        )
-    } else if is_player && faster {
-        "The world lurches into slow motion around you.".to_string()
-    } else if is_player {
-        "Your limbs turn to lead.".to_string()
-    } else if faster {
-        format!("The {name} blurs into sudden speed.")
-    } else {
-        format!("The {name} lurches into slow motion.")
-    };
+    let msg = speed_shift_message(&name, faster, is_player, after != before);
     world.resource_mut::<GameLog>().add(msg);
+}
+
+/// The line the speed shift prints, split out so it can early-return its way
+/// through the cases instead of threading one `if`/`else` chain.
+fn speed_shift_message(name: &str, faster: bool, is_player: bool, changed: bool) -> String {
+    let extreme = if faster { "quick" } else { "sluggish" };
+    if !changed && is_player {
+        return format!("You are already as {extreme} as you can be.");
+    }
+    if !changed {
+        return format!("The {name} is already as {extreme} as it can be.");
+    }
+    match (is_player, faster) {
+        (true, true) => "The world lurches into slow motion around you.".to_string(),
+        (true, false) => "Your limbs turn to lead.".to_string(),
+        (false, true) => format!("The {name} blurs into sudden speed."),
+        (false, false) => format!("The {name} lurches into slow motion."),
+    }
 }
 
 /// Wand of teleport away: fling the target monster to a random open tile.
@@ -625,12 +624,14 @@ fn cancel_player(world: &mut World, player: Entity) {
             }
         }
         em.remove::<Curse>();
+        // An item is only ever one of these, so the two blocks never both fire.
         if let Some(mut scroll) = em.get_mut::<Scroll>() {
             scroll.effect = ScrollEffect::BlankPaper;
             if let Some(mut name) = em.get_mut::<Name>() {
                 name.what = "scroll of blank paper".to_string();
             }
-        } else if let Some(mut potion) = em.get_mut::<Potion>() {
+        }
+        if let Some(mut potion) = em.get_mut::<Potion>() {
             potion.effect = PotionEffect::Water;
             if let Some(mut name) = em.get_mut::<Name>() {
                 name.what = "potion of thirst quenching".to_string();

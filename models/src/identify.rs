@@ -259,10 +259,9 @@ pub fn display_name(world: &World, item: Entity) -> String {
 /// Plurals are a bare `-s`, which is all the catalog ever needs.
 pub fn counted(name: &str, count: u8) -> String {
     if count <= 1 {
-        format!("{} {name}", article_for(name))
-    } else {
-        format!("{count} {name}s")
+        return format!("{} {name}", article_for(name));
     }
+    format!("{count} {name}s")
 }
 
 /// `item` as it reads in a sentence — `"a dagger"`, `"7 arrows"`, `"The Element
@@ -292,10 +291,9 @@ pub fn article_for(s: &str) -> &'static str {
 /// "You can't use the The Element of Yoord right now."
 pub fn with_the(name: &str) -> String {
     if name.starts_with("The ") {
-        name.to_string()
-    } else {
-        format!("the {name}")
+        return name.to_string();
     }
+    format!("the {name}")
 }
 
 /// Putting a ring on tells you what it is — a ring's only "use" is wearing it,

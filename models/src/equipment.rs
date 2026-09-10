@@ -215,7 +215,8 @@ pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
         let bit = 1 << i;
         if wanted & bit != 0 && had & bit == 0 {
             grant.attach(&mut e);
-        } else if had & bit != 0 && wanted & bit == 0 && innate & bit == 0 {
+        }
+        if had & bit != 0 && wanted & bit == 0 && innate & bit == 0 {
             grant.detach(&mut e);
         }
     }

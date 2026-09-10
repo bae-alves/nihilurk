@@ -362,9 +362,9 @@ fn resolve_wand_throw(
         }
         if is_light {
             dazzle(world, entity);
-        } else {
-            apply_thrown_wand_effect(world, entity, effect);
+            continue;
         }
+        apply_thrown_wand_effect(world, entity, effect);
     }
 }
 
@@ -494,12 +494,12 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
             resolve_wand_throw(world, item, landing, effect, &seen_name);
             identify_from_afar(world, item);
             world.entity_mut(item).despawn();
-        } else {
-            world.resource_mut::<GameLog>().add(format!(
-                "The {seen_name} clatters to the floor, its magic still bottled up."
-            ));
-            land_item(world, item, landing);
+            return;
         }
+        world.resource_mut::<GameLog>().add(format!(
+            "The {seen_name} clatters to the floor, its magic still bottled up."
+        ));
+        land_item(world, item, landing);
         return;
     }
 

@@ -106,7 +106,8 @@ pub fn item_system(world: &mut World) {
                 battery.charges -= 1;
                 if battery.charges <= 0 {
                     destroy_item = true;
-                } else {
+                }
+                if battery.charges > 0 {
                     // Item survives! We need to put it back in the user's bag.
                     return_to_inventory = true;
                 }
@@ -142,12 +143,13 @@ pub fn item_system(world: &mut World) {
         // 1. Manage the item's physical existence
         if return_to_inventory {
             if let Some(mut backpack) = world.get_mut::<Backpack>(item_use.user) {
-                if let Some(idx) = item_use.slot_idx {
+                match item_use.slot_idx {
                     // Put it back in its exact slot (clamp if inventory shifted somehow)
-                    let insert_pos = std::cmp::min(idx, backpack.items.len());
-                    backpack.items.insert(insert_pos, item_use.item);
-                } else {
-                    backpack.items.push(item_use.item); // Fallback
+                    Some(idx) => {
+                        let insert_pos = std::cmp::min(idx, backpack.items.len());
+                        backpack.items.insert(insert_pos, item_use.item);
+                    }
+                    None => backpack.items.push(item_use.item), // Fallback
                 }
             }
         }
@@ -158,18 +160,16 @@ pub fn item_system(world: &mut World) {
             let is_scroll = world.get::<Scroll>(item_use.item).is_some();
 
             let mut log = world.resource_mut::<GameLog>();
-            if is_wand {
-                log.add(format!("The {seen_name} crumbles to dust!"));
-            } else if is_potion {
-                log.add(format!("You drink the {seen_name}."));
-            } else if is_scroll {
-                log.add(format!("You read the {seen_name}."));
-            } else {
-                log.add("The item turns to dust!".to_string());
+            match (is_wand, is_potion, is_scroll) {
+                (true, _, _) => log.add(format!("The {seen_name} crumbles to dust!")),
+                (_, true, _) => log.add(format!("You drink the {seen_name}.")),
+                (_, _, true) => log.add(format!("You read the {seen_name}.")),
+                _ => log.add("The item turns to dust!".to_string()),
             }
 
             world.entity_mut(item_use.item).despawn();
-        } else if wand_effect.is_some() {
+        }
+        if !destroy_item && wand_effect.is_some() {
             // Wands survive a zap (until their battery runs dry, handled
             // above), so the "you use it" beat lives here instead.
             world

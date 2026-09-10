@@ -79,10 +79,9 @@ impl Map {
     #[inline]
     pub fn tile(&self, x: u16, y: u16) -> TileType {
         if x >= MAP_WIDTH || y >= MAP_HEIGHT {
-            TileType::Wall
-        } else {
-            self.tiles[tile_index(x, y)]
+            return TileType::Wall;
         }
+        self.tiles[tile_index(x, y)]
     }
 
     /// Whether `(x, y)` blocks movement.
@@ -248,18 +247,16 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     // 1. Calculate the L-shaped path
     while x != to.0 {
         path.push((x, y));
-        if x < to.0 {
-            x += 1;
-        } else {
-            x -= 1;
+        match x < to.0 {
+            true => x += 1,
+            false => x -= 1,
         }
     }
     while y != to.1 {
         path.push((x, y));
-        if y < to.1 {
-            y += 1;
-        } else {
-            y -= 1;
+        match y < to.1 {
+            true => y += 1,
+            false => y -= 1,
         }
     }
     path.push((x, y)); // Add the final destination
@@ -275,20 +272,25 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
             prev_was_room = is_room;
             continue;
         }
-        if is_room && !prev_was_room {
-            // Stepped INTO a room. The previous tile becomes a door.
-            let prev_idx = (path[i - 1].1 * map_width + path[i - 1].0) as usize;
-            if tiles[prev_idx] != TileType::Room {
-                tiles[prev_idx] = TileType::Door;
+        match (is_room, prev_was_room) {
+            (true, false) => {
+                // Stepped INTO a room. The previous tile becomes a door.
+                let prev_idx = (path[i - 1].1 * map_width + path[i - 1].0) as usize;
+                if tiles[prev_idx] != TileType::Room {
+                    tiles[prev_idx] = TileType::Door;
+                }
             }
-        } else if !is_room && prev_was_room {
-            // Stepped OUT of a room. The current tile becomes a door.
-            tiles[idx] = TileType::Door;
-        } else if !is_room {
-            // Outside of a room, dig a regular passage.
-            if tiles[idx] != TileType::Door {
-                tiles[idx] = TileType::Passage;
+            (false, true) => {
+                // Stepped OUT of a room. The current tile becomes a door.
+                tiles[idx] = TileType::Door;
             }
+            (false, false) => {
+                // Outside of a room, dig a regular passage.
+                if tiles[idx] != TileType::Door {
+                    tiles[idx] = TileType::Passage;
+                }
+            }
+            (true, true) => {}
         }
         prev_was_room = is_room;
     }
@@ -435,11 +437,7 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
         for x in 0..3 {
             if let Some(room_idx) = grid_rooms[y * 3 + x] {
                 if let Some(prev_idx) = prev_room {
-                    let pair = if prev_idx < room_idx {
-                        (prev_idx, room_idx)
-                    } else {
-                        (room_idx, prev_idx)
-                    };
+                    let pair = (prev_idx.min(room_idx), prev_idx.max(room_idx));
 
                     if connected_pairs.insert(pair) {
                         let pt1 = random_point_in_room(&rooms[prev_idx], rng);
@@ -459,11 +457,7 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
         for y in 0..3 {
             if let Some(room_idx) = grid_rooms[y * 3 + x] {
                 if let Some(prev_idx) = prev_room {
-                    let pair = if prev_idx < room_idx {
-                        (prev_idx, room_idx)
-                    } else {
-                        (room_idx, prev_idx)
-                    };
+                    let pair = (prev_idx.min(room_idx), prev_idx.max(room_idx));
 
                     if connected_pairs.insert(pair) {
                         let pt1 = random_point_in_room(&rooms[prev_idx], rng);
@@ -1043,15 +1037,15 @@ pub fn dungeon_lord_system(world: &mut World) {
             return;
         }
         transition_level(world, false, LevelChange::Portal);
-    } else {
-        if depth >= FINAL_DEPTH {
-            world.resource_mut::<GameLog>().add(
-                "The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.",
-            );
-            return;
-        }
-        transition_level(world, true, LevelChange::Portal);
+        return;
     }
+    if depth >= FINAL_DEPTH {
+        world
+            .resource_mut::<GameLog>()
+            .add("The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.");
+        return;
+    }
+    transition_level(world, true, LevelChange::Portal);
 }
 
 pub fn initialize_world(world: &mut World) {

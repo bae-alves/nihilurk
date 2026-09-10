@@ -26,10 +26,9 @@ use crate::constants::combat::{
 /// an unarmoured/unarmed entity simply contributes nothing to the opposed roll.
 fn roll_die(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
     if sides <= 0 {
-        0
-    } else {
-        rng.gen_range(1..=sides)
+        return 0;
     }
+    rng.gen_range(1..=sides)
 }
 
 /// The `bane` of the attacker's currently-wielded weapon, if that weapon has
@@ -79,19 +78,19 @@ pub fn reaper_system(world: &mut World) {
     };
 
     for entity in doomed {
-        if world.get::<Player>(entity).is_some() {
-            let mut ending = world.resource_mut::<Ending>();
-            if !ending.player_dead {
-                ending.player_dead = true;
-                ending.cause = "Killer unknown".to_string();
-            }
-        } else {
+        if world.get::<Player>(entity).is_none() {
             let name = entity_name(world, entity);
             world
                 .resource_mut::<GameLog>()
                 .add(format!("The {name} dies."));
             leave_gear_behind(world, entity);
             world.despawn(entity);
+            continue;
+        }
+        let mut ending = world.resource_mut::<Ending>();
+        if !ending.player_dead {
+            ending.player_dead = true;
+            ending.cause = "Killer unknown".to_string();
         }
     }
 }
@@ -110,19 +109,19 @@ fn leave_gear_behind(world: &mut World, entity: Entity) {
     };
     for item in equipped_items(world, entity) {
         force_unequip(world, item);
-        if world
+        if !world
             .resource_mut::<GameRng>()
             .0
             .gen_bool(GEAR_SURVIVES_DEATH)
         {
-            let name = crate::identify::display_name(world, item);
-            world.entity_mut(item).insert(pos);
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("The {name} clatters to the floor."));
-        } else {
             world.entity_mut(item).despawn();
+            continue;
         }
+        let name = crate::identify::display_name(world, item);
+        world.entity_mut(item).insert(pos);
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("The {name} clatters to the floor."));
     }
 }
 
@@ -240,34 +239,26 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     if let Some(tpos) = world.get::<Position>(target).copied() {
         // The effect layer is optional (tests run without it).
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            if damage > 0 {
-                fx.hit_spark(tpos.x, tpos.y);
-            } else {
-                fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey);
+            match damage {
+                0 => fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey),
+                _ => fx.hit_spark(tpos.x, tpos.y),
             }
         }
     }
 
     let mut log = world.resource_mut::<GameLog>();
     if attacker_is_player {
-        if excellent {
-            log.add(format!(
-                "You score an excellent hit on the {target_name} for {damage} damage!"
-            ));
-        } else if glancing {
-            log.add(format!("You deal a glancing blow to the {target_name}."));
-        } else {
-            log.add(format!("You hit the {target_name} for {damage} damage."));
-        }
-        if lethal {
-            if vorpal {
-                log.add(format!(
-                    "Snicker-snack! The blade shears clean through the {target_name}!"
-                ));
-            }
-            log.add(format!("You have slain the {target_name}!"));
-        }
-    } else {
+        report_player_hit(
+            &mut log,
+            &target_name,
+            damage,
+            excellent,
+            glancing,
+            lethal,
+            vorpal,
+        );
+    }
+    if !attacker_is_player {
         let target_label = if target_is_player {
             "you".to_string()
         } else {
@@ -278,30 +269,79 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         } else {
             format!("The {attacker_name}")
         };
-        if damage == 0 {
-            log.add(format!("{atk} misses {target_label}."));
-        } else {
-            log.add(format!("{atk} hits {target_label} for {damage} damage."));
-        }
-        if lethal {
-            if target_is_player {
-                log.add(format!("{atk} strikes you down..."));
-            } else {
-                log.add(format!("{atk} kills the {target_name}!"));
-            }
-        }
+        report_monster_hit(
+            &mut log,
+            &atk,
+            &target_label,
+            &target_name,
+            damage,
+            lethal,
+            target_is_player,
+        );
     }
 
+    if lethal && target_is_player {
+        // The player does not leave the world; the main loop notices the
+        // Ending resource, tears down the save, and shows the death screen.
+        let mut ending = world.resource_mut::<Ending>();
+        ending.player_dead = true;
+        ending.cause = format!("Slain by the {attacker_name}");
+    }
+    if lethal && !target_is_player {
+        leave_gear_behind(world, target);
+        world.despawn(target);
+    }
+}
+
+/// Writes the player-attacked-something lines to the log: the hit line (an
+/// excellent hit, a glancing scrape, or a plain blow) and, on a kill, the
+/// vorpal flourish and the slain line.
+fn report_player_hit(
+    log: &mut GameLog,
+    target_name: &str,
+    damage: i32,
+    excellent: bool,
+    glancing: bool,
+    lethal: bool,
+    vorpal: bool,
+) {
+    match (excellent, glancing) {
+        (true, _) => log.add(format!(
+            "You score an excellent hit on the {target_name} for {damage} damage!"
+        )),
+        (_, true) => log.add(format!("You deal a glancing blow to the {target_name}.")),
+        _ => log.add(format!("You hit the {target_name} for {damage} damage.")),
+    }
+    if lethal && vorpal {
+        log.add(format!(
+            "Snicker-snack! The blade shears clean through the {target_name}!"
+        ));
+    }
     if lethal {
-        if target_is_player {
-            // The player does not leave the world; the main loop notices the
-            // Ending resource, tears down the save, and shows the death screen.
-            let mut ending = world.resource_mut::<Ending>();
-            ending.player_dead = true;
-            ending.cause = format!("Slain by the {attacker_name}");
-        } else {
-            leave_gear_behind(world, target);
-            world.despawn(target);
-        }
+        log.add(format!("You have slain the {target_name}!"));
+    }
+}
+
+/// Writes the something-attacked-a-creature lines to the log. `atk` and
+/// `target_label` are pre-rendered ("The orc" / "Something", "you" / "the rat")
+/// so this never has to know whether the player was on either end.
+fn report_monster_hit(
+    log: &mut GameLog,
+    atk: &str,
+    target_label: &str,
+    target_name: &str,
+    damage: i32,
+    lethal: bool,
+    target_is_player: bool,
+) {
+    match damage {
+        0 => log.add(format!("{atk} misses {target_label}.")),
+        _ => log.add(format!("{atk} hits {target_label} for {damage} damage.")),
+    }
+    if lethal && target_is_player {
+        log.add(format!("{atk} strikes you down..."));
+    }
+    if lethal && !target_is_player {
+        log.add(format!("{atk} kills the {target_name}!"));
     }
 }

@@ -301,9 +301,8 @@ fn beam_glyph(pts: &[(u16, u16)], i: usize) -> char {
 
 /// Clamp helper: keep an animation tile on the map before it is queued.
 pub fn on_map(x: i32, y: i32) -> Option<(u16, u16)> {
-    if x >= 0 && y >= 0 && (x as u16) < MAP_WIDTH && (y as u16) < MAP_HEIGHT {
-        Some((x as u16, y as u16))
-    } else {
-        None
+    if x < 0 || y < 0 || (x as u16) >= MAP_WIDTH || (y as u16) >= MAP_HEIGHT {
+        return None;
     }
+    Some((x as u16, y as u16))
 }

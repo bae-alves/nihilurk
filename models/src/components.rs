@@ -711,10 +711,9 @@ pub struct ActionMenu {
 impl ActionMenu {
     pub fn actions(&self) -> [ItemAction; 3] {
         if self.drop_first {
-            [ItemAction::Use, ItemAction::Drop, ItemAction::Throw]
-        } else {
-            [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
+            return [ItemAction::Use, ItemAction::Drop, ItemAction::Throw];
         }
+        [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
     }
 
     /// The action sitting at menu row `idx`.

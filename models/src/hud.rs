@@ -33,14 +33,12 @@ pub fn pack_messages(messages: &[String], width: usize, max_lines: usize) -> (Ve
             }
         }
 
-        if cur.is_empty() {
-            cur.push_str(msg);
-            cur_len = msg_len;
-        } else {
+        if !cur.is_empty() {
             cur.push(' ');
-            cur.push_str(msg);
-            cur_len += 1 + msg_len;
+            cur_len += 1;
         }
+        cur.push_str(msg);
+        cur_len += msg_len;
         consumed += 1;
     }
 

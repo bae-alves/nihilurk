@@ -79,11 +79,10 @@ impl Screen {
 
     #[inline]
     fn get(&self, x: u16, y: u16) -> Cell {
-        if x < SCREEN_W && y < SCREEN_H {
-            self.cur[(y * SCREEN_W + x) as usize]
-        } else {
-            BLANK_CELL
+        if x >= SCREEN_W || y >= SCREEN_H {
+            return BLANK_CELL;
         }
+        self.cur[(y * SCREEN_W + x) as usize]
     }
 
     fn puts(&mut self, x: u16, y: u16, s: &str, color: Color) {
@@ -172,15 +171,14 @@ pub fn centering_offset(world: &World) -> (u16, u16) {
         .get_resource::<RenderConfig>()
         .map(|cfg| cfg.centered)
         .unwrap_or(false);
-    if is_centered {
-        let (term_width, term_height) = size().unwrap_or((SCREEN_W, SCREEN_H));
-        (
-            term_width.saturating_sub(SCREEN_W) / 2,
-            term_height.saturating_sub(SCREEN_H) / 2,
-        )
-    } else {
-        (0, 0)
+    if !is_centered {
+        return (0, 0);
     }
+    let (term_width, term_height) = size().unwrap_or((SCREEN_W, SCREEN_H));
+    (
+        term_width.saturating_sub(SCREEN_W) / 2,
+        term_height.saturating_sub(SCREEN_H) / 2,
+    )
 }
 
 pub fn render<W: Write>(
@@ -218,10 +216,8 @@ pub fn render<W: Write>(
             &Score,
             &Backpack,
         ), With<Player>>();
-        if let Some((entity, viewshed, fighter, magic, pos, score, backpack)) =
-            query.iter(world).next()
-        {
-            (
+        match query.iter(world).next() {
+            Some((entity, viewshed, fighter, magic, pos, score, backpack)) => (
                 viewshed
                     .visible_tiles
                     .iter()
@@ -240,9 +236,8 @@ pub fn render<W: Write>(
                 score.value,
                 backpack.items.clone(),
                 Some(entity),
-            )
-        } else {
-            (
+            ),
+            None => (
                 HashSet::new(),
                 Default::default(),
                 10,
@@ -257,7 +252,7 @@ pub fn render<W: Write>(
                 0,
                 Vec::new(),
                 None,
-            )
+            ),
         }
     };
 
@@ -296,15 +291,12 @@ pub fn render<W: Write>(
         .iter()
         .any(|&it| world.get::<Amulet>(it).is_some());
     let auto_label = world.get_resource::<AutoExplore>().and_then(|a| {
-        a.active.then(|| {
-            if holding_element {
-                "ASCENDING"
-            } else if a.target.is_some() {
-                "TRAVELING"
-            } else {
-                "EXPLORING"
-            }
-        })
+        a.active
+            .then(|| match (holding_element, a.target.is_some()) {
+                (true, _) => "ASCENDING",
+                (_, true) => "TRAVELING",
+                _ => "EXPLORING",
+            })
     });
 
     // 2. Targeting beam.
@@ -413,14 +405,12 @@ pub fn render<W: Write>(
                 continue;
             }
             let (glyph, lit) = tile_appearance(tile);
-            let (ch, color) = if visible.contains(&coord) {
-                (glyph, lit)
-            } else if revealed.contains(tile_index(x, y)) {
-                (glyph, Color::DarkGrey)
-            } else {
+            let visible_here = visible.contains(&coord);
+            if !visible_here && !revealed.contains(tile_index(x, y)) {
                 continue; // unexplored: leave blank
-            };
-            screen.put(x, y + 1, ch, color);
+            }
+            let color = if visible_here { lit } else { Color::DarkGrey };
+            screen.put(x, y + 1, glyph, color);
         }
     }
 
@@ -464,7 +454,9 @@ pub fn render<W: Write>(
             }
             if visible.contains(&coord) {
                 screen.put(pos.x, pos.y + 1, renderable.glyph, renderable.color);
-            } else if revealed.contains(tile_index(pos.x, pos.y)) {
+                continue;
+            }
+            if revealed.contains(tile_index(pos.x, pos.y)) {
                 screen.put(pos.x, pos.y + 1, renderable.glyph, Color::DarkGrey);
             }
         }
@@ -505,9 +497,9 @@ pub fn render<W: Write>(
                 // Keep the actor's glyph but recolour it.
                 let (ch, _, _) = screen.get(tx, ty + 1);
                 screen.put(tx, ty + 1, ch, Color::Yellow);
-            } else {
-                screen.put(tx, ty + 1, '*', Color::Yellow);
+                continue;
             }
+            screen.put(tx, ty + 1, '*', Color::Yellow);
         }
     }
 
@@ -530,11 +522,9 @@ pub fn render<W: Write>(
         for (i, line) in lines.iter().enumerate() {
             let y = 22 + i as u16;
             let last = i + 1 == lines.len();
+            screen.puts(0, y, line, Color::White);
             if last && more {
-                screen.puts(0, y, line, Color::White);
                 screen.puts(57, y, "--MORE-- (Press Space)", Color::Yellow);
-            } else {
-                screen.puts(0, y, line, Color::White);
             }
         }
     }
@@ -766,13 +756,15 @@ fn wrap_words(text: &str, width: usize) -> Vec<String> {
     for word in text.split_whitespace() {
         if cur.is_empty() {
             cur.push_str(word);
-        } else if cur.chars().count() + 1 + word.chars().count() <= width {
+            continue;
+        }
+        if cur.chars().count() + 1 + word.chars().count() <= width {
             cur.push(' ');
             cur.push_str(word);
-        } else {
-            lines.push(std::mem::take(&mut cur));
-            cur.push_str(word);
+            continue;
         }
+        lines.push(std::mem::take(&mut cur));
+        cur.push_str(word);
     }
     if !cur.is_empty() {
         lines.push(cur);
@@ -826,12 +818,10 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
     for (i, (name, equipped)) in item_names.iter().enumerate() {
         let y = start_y + 1 + i as u16;
         let letter = (b'a' + i as u8) as char;
-        let color = if i == selected_idx {
-            Color::Yellow
-        } else if *equipped {
-            Color::Cyan
-        } else {
-            Color::White
+        let color = match (i == selected_idx, *equipped) {
+            (true, _) => Color::Yellow,
+            (_, true) => Color::Cyan,
+            _ => Color::White,
         };
         let suffix = if *equipped { " (E)" } else { "" };
         let text = format!(" {}) {}{} ", letter, name, suffix);

@@ -145,6 +145,20 @@ fn print_content() {
     }
 }
 
+/// One player-side step of the main loop: an auto-explore tick, a travel-cursor
+/// tick, or a blocking read of the player's own move. Returns whether a turn was
+/// spent (and monsters should therefore act).
+fn player_step(world: &mut World) -> std::io::Result<bool> {
+    if world.resource::<AutoExplore>().active {
+        return update::auto_explore_step(world);
+    }
+    if world.resource::<TravelCursor>().active {
+        update::travel_cursor_step(world)?;
+        return Ok(false);
+    }
+    update::process_input_and_update(world)
+}
+
 fn main() -> std::io::Result<()> {
     // 1. Argument Parsing for Seed
     let args: Vec<String> = std::env::args().collect();
@@ -159,22 +173,18 @@ fn main() -> std::io::Result<()> {
     let mut iter = args.iter();
     iter.next(); // skip the executable path
     while let Some(arg) = iter.next() {
-        if arg == "-s" {
-            if let Some(seed_str) = iter.next() {
-                seed = seed_str.parse::<u64>().ok();
+        match arg.as_str() {
+            "-s" => {
+                if let Some(seed_str) = iter.next() {
+                    seed = seed_str.parse::<u64>().ok();
+                }
             }
-        } else if arg == "-c" {
-            centered_mode = true;
-        } else if arg == "-ns" {
-            no_save = true;
-        } else if arg == "-nb" {
-            no_blood = true;
-        } else if arg == "-dropthrow" {
-            drop_first = true;
-        } else if arg == "-content" {
-            list_content = true;
-        } else {
-            positional = Some(arg.clone());
+            "-c" => centered_mode = true,
+            "-ns" => no_save = true,
+            "-nb" => no_blood = true,
+            "-dropthrow" => drop_first = true,
+            "-content" => list_content = true,
+            _ => positional = Some(arg.clone()),
         }
     }
 
@@ -193,12 +203,9 @@ fn main() -> std::io::Result<()> {
     let mut load_path: Option<String> = None;
     if let Some(arg) = positional {
         let suffixed = format!("{arg}.sav");
-        if let Some(found) =
-            find_case_insensitive(&arg).or_else(|| find_case_insensitive(&suffixed))
-        {
-            load_path = Some(found);
-        } else {
-            player_name = arg;
+        match find_case_insensitive(&arg).or_else(|| find_case_insensitive(&suffixed)) {
+            Some(found) => load_path = Some(found),
+            None => player_name = arg,
         }
     }
 
@@ -280,13 +287,14 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<GameLog>();
     world.insert_resource(models::Particles::new());
 
-    if let Some(path) = &load_path {
-        models::load_game(&mut world, path)?;
-        world
-            .resource_mut::<GameLog>()
-            .add(format!("Loaded save '{path}'."));
-    } else {
-        models::initialize_world(&mut world);
+    match &load_path {
+        Some(path) => {
+            models::load_game(&mut world, path)?;
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("Loaded save '{path}'."));
+        }
+        None => models::initialize_world(&mut world),
     }
 
     // `-nb`: disable bloodstains entirely for this run.
@@ -329,17 +337,14 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         // Step A: Advance the game. A fast-move run resolves entirely here,
         // taking its own turns without repainting; otherwise we take one
         // auto-explore step, or block at event::read for the player's move.
-        if world.resource::<FastMove>().active {
+        // A fast-move run resolves entirely inside `fast_move_run`; capture the
+        // flag first so clearing it there doesn't also trigger a player step.
+        let fast_moving = world.resource::<FastMove>().active;
+        if fast_moving {
             update::fast_move_run(&mut world, &mut schedule)?;
-        } else {
-            let turn_taken = if world.resource::<AutoExplore>().active {
-                update::auto_explore_step(&mut world)?
-            } else if world.resource::<TravelCursor>().active {
-                update::travel_cursor_step(&mut world)?;
-                false
-            } else {
-                update::process_input_and_update(&mut world)?
-            };
+        }
+        if !fast_moving {
+            let turn_taken = player_step(&mut world)?;
 
             // Step B: Only let monsters act if the player took a valid action
             if turn_taken {
@@ -385,13 +390,13 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         if no_save {
             drop(guard);
             println!("Clear data not saved (-ns).");
-        } else {
-            let save_result = models::save_game(&mut world, &save_name);
-            drop(guard);
-            match save_result {
-                Ok(()) => println!("Clear data saved to '{save_name}'."),
-                Err(e) => eprintln!("Failed to save clear data: {e}"),
-            }
+            return Ok(());
+        }
+        let save_result = models::save_game(&mut world, &save_name);
+        drop(guard);
+        match save_result {
+            Ok(()) => println!("Clear data saved to '{save_name}'."),
+            Err(e) => eprintln!("Failed to save clear data: {e}"),
         }
         return Ok(());
     }
@@ -408,13 +413,13 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     if no_save {
         drop(guard);
         println!("Game not saved (-ns).");
-    } else {
-        let save_result = models::save_game(&mut world, &save_name);
-        drop(guard);
-        match save_result {
-            Ok(()) => println!("Game saved to '{save_name}'. Resume with: roog {save_name}"),
-            Err(e) => eprintln!("Failed to save game: {e}"),
-        }
+        return Ok(());
+    }
+    let save_result = models::save_game(&mut world, &save_name);
+    drop(guard);
+    match save_result {
+        Ok(()) => println!("Game saved to '{save_name}'. Resume with: roog {save_name}"),
+        Err(e) => eprintln!("Failed to save game: {e}"),
     }
 
     Ok(())

@@ -136,13 +136,13 @@ pub fn visibility_system(
             let in_view = visible_set.contains(&(target_pos.x, target_pos.y));
             let perceptible = in_view && (invisible.is_none() || perception);
 
-            if mob.is_some() {
-                if perceptible {
-                    commands.entity(entity).remove::<Hidden>();
-                } else {
-                    commands.entity(entity).insert(Hidden);
-                }
-            } else if invisible.is_some() && perceptible {
+            if mob.is_some() && perceptible {
+                commands.entity(entity).remove::<Hidden>();
+            }
+            if mob.is_some() && !perceptible {
+                commands.entity(entity).insert(Hidden);
+            }
+            if mob.is_none() && invisible.is_some() && perceptible {
                 // A perception ring turns up an invisibly-stashed item for good.
                 commands.entity(entity).remove::<Hidden>();
                 commands.entity(entity).remove::<Invisible>();
@@ -160,7 +160,8 @@ pub fn visibility_system(
                     None => log.add("you spotted something"),
                 }
                 commands.entity(entity).insert(Spotted);
-            } else if !announce && spotted.is_some() {
+            }
+            if !announce && spotted.is_some() {
                 commands.entity(entity).remove::<Spotted>();
             }
         }

@@ -892,12 +892,12 @@ impl Quality {
     fn roll(rng: &mut ChaCha12Rng) -> Self {
         let roll = rng.gen_range(0..100);
         if roll < NORMAL_QUALITY_PCT {
-            Quality::Normal
-        } else if roll < NORMAL_QUALITY_PCT + EXCEPTIONAL_QUALITY_PCT {
-            Quality::Exceptional
-        } else {
-            Quality::Cursed
+            return Quality::Normal;
         }
+        if roll < NORMAL_QUALITY_PCT + EXCEPTIONAL_QUALITY_PCT {
+            return Quality::Exceptional;
+        }
+        Quality::Cursed
     }
 }
 
