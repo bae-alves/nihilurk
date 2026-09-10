@@ -566,23 +566,20 @@ pub(crate) fn random_open_tile(world: &mut World) -> Option<(u16, u16)> {
 
     let candidates: Vec<(u16, u16)> = {
         let map = world.resource::<Map>();
-        let mut v = Vec::new();
-        for y in 0..MAP_HEIGHT {
-            for x in 0..MAP_WIDTH {
-                let walkable = matches!(
-                    map.tiles[tile_index(x, y)],
-                    TileType::Room
-                        | TileType::Passage
-                        | TileType::Door
-                        | TileType::Upstairs
-                        | TileType::Downstairs
-                );
-                if walkable && !occupied.contains(&(x, y)) {
-                    v.push((x, y));
-                }
-            }
-        }
-        v
+        let walkable = |x, y| {
+            matches!(
+                map.tiles[tile_index(x, y)],
+                TileType::Room
+                    | TileType::Passage
+                    | TileType::Door
+                    | TileType::Upstairs
+                    | TileType::Downstairs
+            )
+        };
+        (0..MAP_HEIGHT)
+            .flat_map(|y| (0..MAP_WIDTH).map(move |x| (x, y)))
+            .filter(|&(x, y)| walkable(x, y) && !occupied.contains(&(x, y)))
+            .collect()
     };
 
     if candidates.is_empty() {

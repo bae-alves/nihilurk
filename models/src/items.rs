@@ -37,6 +37,7 @@ pub(crate) use scrolls::aggravate_all_monsters;
 /// and documented in [`crate::constants::items`].
 pub use crate::constants::items::THROW_RANGE;
 
+use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;
 
 use crate::components::*;
@@ -60,154 +61,145 @@ use self::wands::apply_wand_effect;
 /// inside [`crate::equipment`].
 pub fn item_system(world: &mut World) {
     let uses = std::mem::take(&mut world.resource_mut::<UseQueue>().uses);
-
     for item_use in uses {
-        // What the player sees right now (appearance if unidentified, true
-        // name otherwise) and the item's true name, captured before any
-        // despawn below could make `item_use.item` unqueryable.
-        let seen_name = crate::identify::display_name(world, item_use.item);
-        let true_name = item_label(world, item_use.item);
-
-        // We store the "work to be done" here
-        let mut potion_effect: Option<PotionEffect> = None;
-        let mut wand_effect: Option<WandEffect> = None;
-        let mut scroll_effect: Option<ScrollEffect> = None;
-        let mut is_equipment = false;
-        let mut destroy_item = false;
-        let mut return_to_inventory = false;
-
-        {
-            let mut item_entity = world.entity_mut(item_use.item);
-
-            // Check for Potion
-            if let Some(p) = item_entity.get::<Potion>() {
-                potion_effect = Some(p.effect);
-            }
-
-            // Check for Wand
-            if let Some(w) = item_entity.get::<Wand>() {
-                wand_effect = Some(w.effect);
-            }
-
-            // Check for Scroll
-            if let Some(s) = item_entity.get::<Scroll>() {
-                scroll_effect = Some(s.effect);
-            }
-
-            // Equipment: using it toggles the equipped state (handled below).
-            // Weapon, armour or ring — the slot on the component says which, and
-            // nothing here needs to.
-            if item_entity.get::<crate::equipment::Equipped>().is_some() {
-                is_equipment = true;
-            }
-
-            // Handle Wands / Battery logic
-            if let Some(mut battery) = item_entity.get_mut::<Battery>() {
-                battery.charges -= 1;
-                if battery.charges <= 0 {
-                    destroy_item = true;
-                }
-                if battery.charges > 0 {
-                    // Item survives! We need to put it back in the user's bag.
-                    return_to_inventory = true;
-                }
-            }
-
-            // Handle basic consumables
-            if let Some(_consume) = item_entity.get::<Consume>() {
-                destroy_item = true;
-            }
-        } // Drop the entity_mut borrow so we can freely use the world again
-
-        // 0. Equipment toggle — these items always go back in the pack.
-        if is_equipment {
-            toggle_equipped(world, item_use.user, item_use.item);
-            return_to_inventory = true;
-        }
-
-        // Anything the game doesn't know how to "use" is handed straight back
-        // rather than vanishing into limbo.
-        if !destroy_item
-            && !return_to_inventory
-            && potion_effect.is_none()
-            && wand_effect.is_none()
-            && scroll_effect.is_none()
-        {
-            let name = crate::identify::with_the(&item_label(world, item_use.item));
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("You can't use {name} right now."));
-            return_to_inventory = true;
-        }
-
-        // 1. Manage the item's physical existence
-        if return_to_inventory {
-            if let Some(mut backpack) = world.get_mut::<Backpack>(item_use.user) {
-                match item_use.slot_idx {
-                    // Put it back in its exact slot (clamp if inventory shifted somehow)
-                    Some(idx) => {
-                        let insert_pos = std::cmp::min(idx, backpack.items.len());
-                        backpack.items.insert(insert_pos, item_use.item);
-                    }
-                    None => backpack.items.push(item_use.item), // Fallback
-                }
-            }
-        }
-
-        if destroy_item {
-            let is_wand = world.get::<Wand>(item_use.item).is_some();
-            let is_potion = world.get::<Potion>(item_use.item).is_some();
-            let is_scroll = world.get::<Scroll>(item_use.item).is_some();
-
-            let mut log = world.resource_mut::<GameLog>();
-            match (is_wand, is_potion, is_scroll) {
-                (true, _, _) => log.add(format!("The {seen_name} crumbles to dust!")),
-                (_, true, _) => log.add(format!("You drink the {seen_name}.")),
-                (_, _, true) => log.add(format!("You read the {seen_name}.")),
-                _ => log.add("The item turns to dust!".to_string()),
-            }
-
-            world.entity_mut(item_use.item).despawn();
-        }
-        if !destroy_item && wand_effect.is_some() {
-            // Wands survive a zap (until their battery runs dry, handled
-            // above), so the "you use it" beat lives here instead.
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("You zap the {seen_name}."));
-        }
-
-        // 2. Dispatch to the right submodule. Using a potion, scroll or wand
-        // always identifies its true type — every roguelike's use-to-identify
-        // convention (rings identify on wear instead, inside `toggle_puton`).
-        if let Some(eff) = potion_effect {
-            apply_potion_effect(world, item_use.user, eff);
-            if world.resource_mut::<Identified>().potions.insert(eff) {
-                world.resource_mut::<GameLog>().add(format!(
-                    "That was {} {true_name}!",
-                    crate::identify::article_for(&true_name)
-                ));
-            }
-        }
-
-        if let Some(eff) = wand_effect {
-            apply_wand_effect(world, item_use.user, item_use.target, eff);
-            if world.resource_mut::<Identified>().wands.insert(eff) {
-                world.resource_mut::<GameLog>().add(format!(
-                    "That was {} {true_name}!",
-                    crate::identify::article_for(&true_name)
-                ));
-            }
-        }
-
-        if let Some(eff) = scroll_effect {
-            apply_scroll_effect(world, item_use.user, eff);
-            if world.resource_mut::<Identified>().scrolls.insert(eff) {
-                world.resource_mut::<GameLog>().add(format!(
-                    "That was {} {true_name}!",
-                    crate::identify::article_for(&true_name)
-                ));
-            }
-        }
+        resolve_use(world, item_use);
     }
+}
+
+/// What a single queued use is: the kinds of thing the item might be, and what
+/// should become of it. Filled in from the item's components, then acted on.
+#[derive(Default)]
+struct UsePlan {
+    potion: Option<PotionEffect>,
+    wand: Option<WandEffect>,
+    scroll: Option<ScrollEffect>,
+    is_equipment: bool,
+    destroy: bool,
+    keep: bool,
+}
+
+/// Reads what `item` is off its components: which effect enum (if any) it
+/// carries, whether it is equipment, and — for a wand — whether this zap
+/// empties the battery (`destroy`) or leaves charges (`keep`).
+fn plan_use(world: &mut World, item: Entity) -> UsePlan {
+    let mut plan = UsePlan::default();
+    let mut e = world.entity_mut(item);
+    plan.potion = e.get::<Potion>().map(|p| p.effect);
+    plan.wand = e.get::<Wand>().map(|w| w.effect);
+    plan.scroll = e.get::<Scroll>().map(|s| s.effect);
+    plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
+    if let Some(mut battery) = e.get_mut::<Battery>() {
+        battery.charges -= 1;
+        plan.destroy = battery.charges <= 0;
+        plan.keep = battery.charges > 0;
+    }
+    plan.destroy |= e.get::<Consume>().is_some();
+    plan
+}
+
+/// Resolves one queued use start to finish: work out what the item is, settle
+/// where it physically ends up, log the "you drink / read / zap it" beat, then
+/// apply the effect (which also identifies the type on first use).
+fn resolve_use(world: &mut World, item_use: WantsToUse) {
+    // What the player sees it called now, and its true name — captured before a
+    // despawn below could make the entity unqueryable.
+    let seen_name = crate::identify::display_name(world, item_use.item);
+    let true_name = item_label(world, item_use.item);
+
+    let mut plan = plan_use(world, item_use.item);
+
+    // Equipment toggles its equipped state and always goes back in the pack.
+    if plan.is_equipment {
+        toggle_equipped(world, item_use.user, item_use.item);
+        plan.keep = true;
+    }
+
+    // Anything the game can't "use" is handed straight back, not lost.
+    let inert = !plan.destroy
+        && !plan.keep
+        && plan.potion.is_none()
+        && plan.wand.is_none()
+        && plan.scroll.is_none();
+    if inert {
+        let name = crate::identify::with_the(&item_label(world, item_use.item));
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You can't use {name} right now."));
+        plan.keep = true;
+    }
+
+    if plan.keep {
+        return_used_item(world, &item_use);
+    }
+    if plan.destroy {
+        log_destruction(world, item_use.item, &seen_name);
+        world.entity_mut(item_use.item).despawn();
+    }
+    if !plan.destroy && plan.wand.is_some() {
+        // A wand survives its zap, so its "you use it" beat lives here.
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You zap the {seen_name}."));
+    }
+
+    // Dispatch to the right submodule; each apply identifies the type on the
+    // first use (rings identify on wear instead, inside `crate::equipment`).
+    if let Some(eff) = plan.potion {
+        apply_potion_effect(world, item_use.user, eff);
+        let newly = world.resource_mut::<Identified>().potions.insert(eff);
+        announce_first_id(world, newly, &true_name);
+    }
+    if let Some(eff) = plan.wand {
+        apply_wand_effect(world, item_use.user, item_use.target, eff);
+        let newly = world.resource_mut::<Identified>().wands.insert(eff);
+        announce_first_id(world, newly, &true_name);
+    }
+    if let Some(eff) = plan.scroll {
+        apply_scroll_effect(world, item_use.user, eff);
+        let newly = world.resource_mut::<Identified>().scrolls.insert(eff);
+        announce_first_id(world, newly, &true_name);
+    }
+}
+
+/// Puts a used-but-surviving item back in its owner's pack — at its old slot if
+/// we still know it, otherwise on the end.
+fn return_used_item(world: &mut World, item_use: &WantsToUse) {
+    let Some(mut backpack) = world.get_mut::<Backpack>(item_use.user) else {
+        return;
+    };
+    match item_use.slot_idx {
+        Some(idx) => {
+            let at = idx.min(backpack.items.len());
+            backpack.items.insert(at, item_use.item);
+        }
+        None => backpack.items.push(item_use.item),
+    }
+}
+
+/// Logs the line for an item consumed by use — a wand crumbling, a potion
+/// drunk, a scroll read, or a plain consumable turning to dust.
+fn log_destruction(world: &mut World, item: Entity, seen_name: &str) {
+    let kinds = (
+        world.get::<Wand>(item).is_some(),
+        world.get::<Potion>(item).is_some(),
+        world.get::<Scroll>(item).is_some(),
+    );
+    let mut log = world.resource_mut::<GameLog>();
+    match kinds {
+        (true, _, _) => log.add(format!("The {seen_name} crumbles to dust!")),
+        (_, true, _) => log.add(format!("You drink the {seen_name}.")),
+        (_, _, true) => log.add(format!("You read the {seen_name}.")),
+        _ => log.add("The item turns to dust!".to_string()),
+    }
+}
+
+/// Logs the reveal line the first time an item type is identified by use.
+fn announce_first_id(world: &mut World, newly_identified: bool, true_name: &str) {
+    if !newly_identified {
+        return;
+    }
+    world.resource_mut::<GameLog>().add(format!(
+        "That was {} {true_name}!",
+        crate::identify::article_for(true_name)
+    ));
 }

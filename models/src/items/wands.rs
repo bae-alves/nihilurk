@@ -48,21 +48,81 @@ fn damage_with_element(
     damage: i32,
     element: Option<Element>,
 ) -> i32 {
-    if let Some(el) = element {
-        if is_immune(world, entity, el) {
-            if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
-                world
-                    .resource_mut::<GameLog>()
-                    .add(format!("The {name} is unharmed by the {}.", el.noun()));
-            }
-            return 0;
+    if let Some(el) = element.filter(|&el| is_immune(world, entity, el)) {
+        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("The {name} is unharmed by the {}.", el.noun()));
         }
+        return 0;
     }
     let Some(hp_before) = world.get::<Fighter>(entity).map(|f| f.hp) else {
         return 0;
     };
     apply_damage(world, entity, damage);
     damage.min(hp_before.max(0))
+}
+
+/// Fires one of the straight-line "bolt" wands: a beam from the zapper to the
+/// aimed tile that hurts everything caught along the way. Drain-life feeds the
+/// HP it takes straight back to the zapper, never past their maximum.
+fn fire_bolt(
+    world: &mut World,
+    user: Entity,
+    user_pos: Position,
+    target_pos: Position,
+    effect: WandEffect,
+    msg: &str,
+    color: Color,
+) {
+    let element = Element::of(effect);
+    let damage = roll_wand_damage(world);
+    world.resource_mut::<GameLog>().add(msg.to_string());
+
+    let (beam_cells, drained) = trace_bolt(world, user, user_pos, target_pos, damage, element);
+
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.beam(&beam_cells, color);
+    }
+    if effect == WandEffect::DrainLife && drained > 0 {
+        if let Some(mut fighter) = world.get_mut::<Fighter>(user) {
+            fighter.hp = (fighter.hp + drained).min(fighter.max_hp);
+        }
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You drain {drained} life."));
+    }
+}
+
+/// Walks the line from `user_pos` to `target_pos`, stopping at the first wall,
+/// and damages every entity but the zapper along it. Returns the tiles the beam
+/// animation streaks through and the total HP drained.
+fn trace_bolt(
+    world: &mut World,
+    user: Entity,
+    user_pos: Position,
+    target_pos: Position,
+    damage: i32,
+    element: Option<Element>,
+) -> (Vec<(u16, u16)>, i32) {
+    let map = world.resource::<Map>().clone();
+    let mut beam_cells: Vec<(u16, u16)> = Vec::new();
+    let mut drained = 0;
+    for pos in get_line(user_pos, target_pos) {
+        if map.blocks(pos.x, pos.y) {
+            break;
+        }
+        if pos.x != user_pos.x || pos.y != user_pos.y {
+            beam_cells.push((pos.x, pos.y));
+        }
+        let victims = get_entities_at_position(world, pos)
+            .into_iter()
+            .filter(|&e| e != user);
+        for entity in victims {
+            drained += damage_with_element(world, entity, damage, element);
+        }
+    }
+    (beam_cells, drained)
 }
 
 /// Blows a disc of `radius` tiles open around `center`: every creature standing
@@ -227,40 +287,7 @@ pub(super) fn apply_wand_effect(
     match effect {
         _ if bolt.is_some() => {
             let (msg, color) = bolt.unwrap();
-            let element = Element::of(effect);
-            let damage = roll_wand_damage(world);
-            world.resource_mut::<GameLog>().add(msg.to_string());
-            let map = world.resource::<Map>().clone();
-            let line_points = get_line(user_pos, target_pos);
-            let mut beam_cells: Vec<(u16, u16)> = Vec::new();
-            let mut drained = 0;
-            for pos in line_points {
-                if map.blocks(pos.x, pos.y) {
-                    break;
-                }
-                if !(pos.x == user_pos.x && pos.y == user_pos.y) {
-                    beam_cells.push((pos.x, pos.y));
-                }
-                let entities_at_pos = get_entities_at_position(world, pos);
-                for entity in entities_at_pos {
-                    if entity != user {
-                        drained += damage_with_element(world, entity, damage, element);
-                    }
-                }
-            }
-            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                fx.beam(&beam_cells, color);
-            }
-            // The wand of drain life feeds the life it takes straight back to the
-            // zapper (never past their maximum).
-            if effect == WandEffect::DrainLife && drained > 0 {
-                if let Some(mut fighter) = world.get_mut::<Fighter>(user) {
-                    fighter.hp = (fighter.hp + drained).min(fighter.max_hp);
-                }
-                world
-                    .resource_mut::<GameLog>()
-                    .add(format!("You drain {drained} life."));
-            }
+            fire_bolt(world, user, user_pos, target_pos, effect, msg, color);
         }
         WandEffect::Fire | WandEffect::Cold => {
             let is_fire = effect == WandEffect::Fire;

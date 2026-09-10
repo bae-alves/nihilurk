@@ -125,28 +125,18 @@ impl Map {
         if self.tile(x, y) != TileType::Wall {
             return false;
         }
-        for dy in -1i32..=1 {
-            for dx in -1i32..=1 {
-                if dx == 0 && dy == 0 {
-                    continue;
-                }
-                let nx = x as i32 + dx;
-                let ny = y as i32 + dy;
-                if nx < 0 || ny < 0 {
-                    continue;
-                }
-                // Only room floor (and the stairs that sit on it) makes a wall
-                // worth drawing. A wall that merely touches a Door — but no room
-                // tile — is outside the room, hugging the corridor, and stays dark.
-                match self.tile(nx as u16, ny as u16) {
-                    TileType::Room | TileType::Upstairs | TileType::Downstairs => {
-                        return true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-        false
+        // Only room floor (and the stairs that sit on it) makes a wall worth
+        // drawing. A wall that merely touches a Door — but no room tile — is
+        // outside the room, hugging the corridor, and stays dark.
+        RING_DIRS.iter().any(|&(dx, dy)| {
+            let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+            nx >= 0
+                && ny >= 0
+                && matches!(
+                    self.tile(nx as u16, ny as u16),
+                    TileType::Room | TileType::Upstairs | TileType::Downstairs
+                )
+        })
     }
 }
 
@@ -238,6 +228,31 @@ fn random_point_in_room(room: &Rect, rng: &mut ChaCha12Rng) -> (u16, u16) {
     (rx as u16, ry as u16)
 }
 
+/// Digs a corridor between each consecutive pair of present rooms along one
+/// line (a row or a column) of the 3x3 grid, skipping any pair already joined.
+fn connect_line(
+    cells: [Option<usize>; 3],
+    rooms: &[Rect],
+    tiles: &mut [TileType],
+    map_width: u16,
+    connected: &mut HashSet<(usize, usize)>,
+    rng: &mut ChaCha12Rng,
+) {
+    let mut prev: Option<usize> = None;
+    for room_idx in cells.into_iter().flatten() {
+        let Some(prev_idx) = prev.replace(room_idx) else {
+            continue;
+        };
+        let pair = (prev_idx.min(room_idx), prev_idx.max(room_idx));
+        if !connected.insert(pair) {
+            continue;
+        }
+        let a = random_point_in_room(&rooms[prev_idx], rng);
+        let b = random_point_in_room(&rooms[room_idx], rng);
+        create_corridor(a, b, tiles, map_width);
+    }
+}
+
 /// Helper function to create a corridor and place doors automatically
 fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map_width: u16) {
     let mut x = from.0;
@@ -296,8 +311,9 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     }
 }
 
-/// The eight neighbouring offsets, ordered for the guardian ring around the
-/// Element of Yoord.
+/// The eight neighbouring offsets. Read order also happens to be the order the
+/// guardian ring around the Element of Yoord wants (first the top-left, then
+/// clockwise-ish), so [`place_element_of_yoord`] leans on it too.
 const RING_DIRS: [(i32, i32); 8] = [
     (-1, -1),
     (0, -1),
@@ -431,44 +447,33 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
 
     let mut connected_pairs: HashSet<(usize, usize)> = HashSet::new();
 
-    // 1. Horizontal connections (Left to Right)
+    // Connect consecutive rooms along each row, then each column of the 3x3
+    // grid. A pair joined by the first pass is skipped by the second.
     for y in 0..3 {
-        let mut prev_room: Option<usize> = None;
-        for x in 0..3 {
-            if let Some(room_idx) = grid_rooms[y * 3 + x] {
-                if let Some(prev_idx) = prev_room {
-                    let pair = (prev_idx.min(room_idx), prev_idx.max(room_idx));
-
-                    if connected_pairs.insert(pair) {
-                        let pt1 = random_point_in_room(&rooms[prev_idx], rng);
-                        let pt2 = random_point_in_room(&rooms[room_idx], rng);
-
-                        create_corridor(pt1, pt2, &mut tiles, map_width);
-                    }
-                }
-                prev_room = Some(room_idx);
-            }
-        }
+        let row = [
+            grid_rooms[y * 3],
+            grid_rooms[y * 3 + 1],
+            grid_rooms[y * 3 + 2],
+        ];
+        connect_line(
+            row,
+            &rooms,
+            &mut tiles,
+            map_width,
+            &mut connected_pairs,
+            rng,
+        );
     }
-
-    // 2. Vertical connections pass (Top to Bottom)
     for x in 0..3 {
-        let mut prev_room: Option<usize> = None;
-        for y in 0..3 {
-            if let Some(room_idx) = grid_rooms[y * 3 + x] {
-                if let Some(prev_idx) = prev_room {
-                    let pair = (prev_idx.min(room_idx), prev_idx.max(room_idx));
-
-                    if connected_pairs.insert(pair) {
-                        let pt1 = random_point_in_room(&rooms[prev_idx], rng);
-                        let pt2 = random_point_in_room(&rooms[room_idx], rng);
-
-                        create_corridor(pt1, pt2, &mut tiles, map_width);
-                    }
-                }
-                prev_room = Some(room_idx);
-            }
-        }
+        let col = [grid_rooms[x], grid_rooms[x + 3], grid_rooms[x + 6]];
+        connect_line(
+            col,
+            &rooms,
+            &mut tiles,
+            map_width,
+            &mut connected_pairs,
+            rng,
+        );
     }
 
     // Staircases: up in the first room (where the player spawns), down in a
@@ -591,46 +596,136 @@ fn corridor_centers(tiles: &[TileType]) -> Vec<(u16, u16)> {
         if seen[start] || tiles[start] != TileType::Passage {
             continue;
         }
-
-        // Flood-fill this one corridor.
-        let mut stack = vec![start];
-        let mut blob: Vec<usize> = Vec::new();
-        seen[start] = true;
-        while let Some(idx) = stack.pop() {
-            blob.push(idx);
-            let x = (idx % width) as i32;
-            let y = (idx / width) as i32;
-            for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                let (nx, ny) = (x + dx, y + dy);
-                if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
-                    continue;
-                }
-                let nidx = tile_index(nx as u16, ny as u16);
-                if !seen[nidx] && tiles[nidx] == TileType::Passage {
-                    seen[nidx] = true;
-                    stack.push(nidx);
-                }
-            }
-        }
-
-        // Centroid of the blob, then the blob tile closest to it.
-        let n = blob.len() as i64;
-        let (sx, sy) = blob.iter().fold((0i64, 0i64), |(sx, sy), &i| {
-            (sx + (i % width) as i64, sy + (i / width) as i64)
-        });
-        let (cx, cy) = (sx / n, sy / n);
-        let best = *blob
-            .iter()
-            .min_by_key(|&&i| {
-                let dx = (i % width) as i64 - cx;
-                let dy = (i / width) as i64 - cy;
-                dx * dx + dy * dy
-            })
-            .unwrap();
-        centers.push(((best % width) as u16, (best / width) as u16));
+        let blob = flood_corridor(start, width, tiles, &mut seen);
+        centers.push(corridor_center(&blob, width));
     }
 
     centers
+}
+
+/// Flood-fills one 4-connected run of [`TileType::Passage`] tiles from `start`,
+/// marking every tile it reaches in `seen` and returning them.
+fn flood_corridor(start: usize, width: usize, tiles: &[TileType], seen: &mut [bool]) -> Vec<usize> {
+    let mut stack = vec![start];
+    let mut blob: Vec<usize> = Vec::new();
+    seen[start] = true;
+    while let Some(idx) = stack.pop() {
+        blob.push(idx);
+        let (x, y) = ((idx % width) as i32, (idx / width) as i32);
+        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+            let (nx, ny) = (x + dx, y + dy);
+            if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
+                continue;
+            }
+            let nidx = tile_index(nx as u16, ny as u16);
+            if !seen[nidx] && tiles[nidx] == TileType::Passage {
+                seen[nidx] = true;
+                stack.push(nidx);
+            }
+        }
+    }
+    blob
+}
+
+/// The passage tile nearest a corridor blob's centroid — an L-bend still
+/// resolves to a tile that is actually on the path.
+fn corridor_center(blob: &[usize], width: usize) -> (u16, u16) {
+    let n = blob.len() as i64;
+    let (sx, sy) = blob.iter().fold((0i64, 0i64), |(sx, sy), &i| {
+        (sx + (i % width) as i64, sy + (i / width) as i64)
+    });
+    let (cx, cy) = (sx / n, sy / n);
+    let best = *blob
+        .iter()
+        .min_by_key(|&&i| {
+            let dx = (i % width) as i64 - cx;
+            let dy = (i / width) as i64 - cy;
+            dx * dx + dy * dy
+        })
+        .unwrap();
+    ((best % width) as u16, (best / width) as u16)
+}
+
+/// Tries up to 100 times to reserve a free tile in a random room other than the
+/// start room (index 0). Returns the tile it claimed in `occupied`, or `None`.
+fn claim_random_spot(
+    rooms: &[Rect],
+    occupied: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+) -> Option<(u16, u16)> {
+    for _ in 0..100 {
+        let room_idx = rng.gen_range(1..rooms.len());
+        let spot = random_point_in_room(&rooms[room_idx], rng);
+        if occupied.insert(spot) {
+            return Some(spot);
+        }
+    }
+    None
+}
+
+/// On the deepest floor, replaces the down-stair with the Element of Yoord and
+/// rings it with guardians — the first certain, each next one half as likely. A
+/// guardian that would land off the map or in a wall cuts the ring short. A
+/// no-op on every shallower floor.
+fn place_element_of_yoord(
+    world: &mut World,
+    occupied: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+    depth: u8,
+) {
+    if depth < FINAL_DEPTH {
+        return;
+    }
+    let Some((ex, ey)) = find_tile(&world.resource::<Map>().tiles, TileType::Downstairs) else {
+        return;
+    };
+    world.resource_mut::<Map>().tiles[tile_index(ex, ey)] = TileType::Room;
+    spawn_element_of_yoord(world, Position { x: ex, y: ey });
+    occupied.insert((ex, ey));
+
+    for (i, (dx, dy)) in RING_DIRS.iter().enumerate() {
+        if !rng.gen_bool(0.5_f64.powi(i as i32)) {
+            continue;
+        }
+        let (nx, ny) = (ex as i32 + dx, ey as i32 + dy);
+        if nx < 0 || ny < 0 {
+            break;
+        }
+        let (nx, ny) = (nx as u16, ny as u16);
+        if world.resource::<Map>().blocks(nx, ny) {
+            break;
+        }
+        if occupied.insert((nx, ny)) {
+            let def = MonsterDef::pick(depth, rng);
+            spawn_monster(world, def, Position { x: nx, y: ny });
+        }
+    }
+}
+
+/// One trap attempt: up to 100 tries to find a free room tile that isn't the
+/// player's landing spot, then spawns a random trap there.
+fn place_one_trap(
+    world: &mut World,
+    rooms: &[Rect],
+    occupied: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+    depth: u8,
+    player_start: (u16, u16),
+) {
+    for _ in 0..100 {
+        let room_idx = rng.gen_range(0..rooms.len());
+        let (x, y) = random_point_in_room(&rooms[room_idx], rng);
+        if (x, y) == player_start {
+            continue;
+        }
+        if world.resource::<Map>().tiles[tile_index(x, y)] != TileType::Room {
+            continue;
+        }
+        if occupied.insert((x, y)) {
+            world.spawn(crate::TrapBundle::random(rng, depth, Position { x, y }));
+            return;
+        }
+    }
 }
 
 /// Spawns the monsters and items for a freshly built floor. The staircases are
@@ -670,16 +765,11 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
         if slot > 0 && !rng.gen_bool(monster_chance) {
             continue;
         }
-        for _ in 0..100 {
-            let room_idx = rng.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
-
-            if occupied.insert((x, y)) {
-                let def = MonsterDef::pick(depth, &mut rng);
-                spawn_monster(world, def, Position { x, y });
-                break;
-            }
-        }
+        let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) else {
+            continue;
+        };
+        let def = MonsterDef::pick(depth, &mut rng);
+        spawn_monster(world, def, Position { x, y });
     }
 
     // From depth 7 on, every corridor also has a small (5%) chance of hiding a
@@ -699,61 +789,23 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
 
     // Up to ITEMS_PER_FLOOR items.
     for _ in 0..ITEMS_PER_FLOOR {
-        for _ in 0..100 {
-            let room_idx = rng.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
-
-            if occupied.insert((x, y)) {
-                roll_item(world, &mut rng, depth, Position { x, y });
-                break;
-            }
-        }
+        let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) else {
+            continue;
+        };
+        roll_item(world, &mut rng, depth, Position { x, y });
     }
 
     // 1 floor in 10 hides an extra item in plain sight: it draws nothing and is
     // never announced until a ring of perception turns it up or the player walks
     // straight onto it ("Hey! There's something here!").
     if rng.gen_bool(HIDDEN_ITEM_CHANCE) {
-        for _ in 0..100 {
-            let room_idx = rng.gen_range(1..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
-
-            if occupied.insert((x, y)) {
-                let item = roll_item(world, &mut rng, depth, Position { x, y });
-                world.entity_mut(item).insert((Hidden, Invisible));
-                break;
-            }
+        if let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) {
+            let item = roll_item(world, &mut rng, depth, Position { x, y });
+            world.entity_mut(item).insert((Hidden, Invisible));
         }
     }
 
-    // The deepest floor: replace the down-stair with the Element of Yoord and
-    // ring it with guardians — the first certain, each further one half as
-    // likely. A guardian that would land in a wall cuts the ring short.
-    if depth >= FINAL_DEPTH {
-        if let Some((ex, ey)) = find_tile(&world.resource::<Map>().tiles, TileType::Downstairs) {
-            world.resource_mut::<Map>().tiles[tile_index(ex, ey)] = TileType::Room;
-            spawn_element_of_yoord(world, Position { x: ex, y: ey });
-            occupied.insert((ex, ey));
-
-            for (i, (dx, dy)) in RING_DIRS.iter().enumerate() {
-                if !rng.gen_bool(0.5_f64.powi(i as i32)) {
-                    continue;
-                }
-                let (nx, ny) = (ex as i32 + dx, ey as i32 + dy);
-                if nx < 0 || ny < 0 {
-                    break;
-                }
-                let (nx, ny) = (nx as u16, ny as u16);
-                if world.resource::<Map>().blocks(nx, ny) {
-                    break;
-                }
-                if occupied.insert((nx, ny)) {
-                    let def = MonsterDef::pick(depth, &mut rng);
-                    spawn_monster(world, def, Position { x: nx, y: ny });
-                }
-            }
-        }
-    }
+    place_element_of_yoord(world, &mut occupied, &mut rng, depth);
 
     // Traps: placed after the stairs, monsters and loot, before the hero drops
     // in. Like the monster budget, the trap budget steps up every three floors —
@@ -767,24 +819,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
         if !rng.gen_bool(trap_chance) {
             continue;
         }
-        for _ in 0..100 {
-            let room_idx = rng.gen_range(0..rooms.len());
-            let (x, y) = random_point_in_room(&rooms[room_idx], &mut rng);
-            if (x, y) == player_start {
-                continue;
-            }
-            if world.resource::<Map>().tiles[tile_index(x, y)] != TileType::Room {
-                continue;
-            }
-            if occupied.insert((x, y)) {
-                world.spawn(crate::TrapBundle::random(
-                    &mut rng,
-                    depth,
-                    Position { x, y },
-                ));
-                break;
-            }
-        }
+        place_one_trap(world, rooms, &mut occupied, &mut rng, depth, player_start);
     }
 
     // Last of all, whatever the content author asked for on the command line.

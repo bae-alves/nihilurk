@@ -287,31 +287,7 @@ fn resolve_wand_throw(
             "The {seen_name} bursts in a shower of colourful confetti. That's it. That's the whole spell."
         ));
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            for (i, (dx, dy)) in [
-                (0i32, 0i32),
-                (1, 0),
-                (-1, 0),
-                (0, 1),
-                (0, -1),
-                (1, 1),
-                (-1, -1),
-                (1, -1),
-                (-1, 1),
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                if let Some((x, y)) =
-                    crate::particles::on_map(landing.x as i32 + dx, landing.y as i32 + dy)
-                {
-                    let color = if i % 2 == 0 {
-                        Color::Magenta
-                    } else {
-                        Color::Cyan
-                    };
-                    fx.blip(x, y, '*', color);
-                }
-            }
+            confetti_burst(&mut fx, landing);
         }
         return;
     }
@@ -432,25 +408,7 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     // A potion is glass: it breaks on whatever it reaches, and whoever wears it
     // gets the dose.
     if let Some(effect) = world.get::<Potion>(item).map(|p| p.effect) {
-        match victim {
-            Some(v) => {
-                let victim_name = item_label(world, v);
-                world.resource_mut::<GameLog>().add(format!(
-                    "The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!"
-                ));
-                // A dose that plainly did something names the potion for you; one
-                // that fizzled keeps its secret.
-                if apply_potion_effect(world, v, effect) {
-                    identify_from_afar(world, item);
-                }
-            }
-            None => {
-                world
-                    .resource_mut::<GameLog>()
-                    .add(format!("The {seen_name} shatters on the floor."));
-            }
-        }
-        world.entity_mut(item).despawn();
+        shatter_potion(world, item, victim, &seen_name, effect);
         return;
     }
 
@@ -512,21 +470,7 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     };
 
     for &hit in &victims {
-        let hit_name = item_label(world, hit);
-        let msg = match roll_throw_damage(world, thrower, item, hit) {
-            Some(damage) if damage > 0 => {
-                let at = world.get::<Position>(hit).copied().unwrap_or(landing);
-                apply_damage(world, hit, damage);
-                if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                    fx.hit_spark(at.x, at.y);
-                }
-                format!("The {seen_name} hits the {hit_name} for {damage} damage.")
-            }
-            // A weapon whose roll the armour ate.
-            Some(_) => format!("The {seen_name} glances off the {hit_name}."),
-            // Not a thing that hurts anyone: it simply arrives.
-            None => format!("The {seen_name} bounces off the {hit_name}."),
-        };
+        let msg = strike_victim(world, thrower, item, hit, landing, &seen_name);
         world.resource_mut::<GameLog>().add(msg);
     }
 
@@ -558,4 +502,87 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
         return;
     }
     land_item(world, item, landing);
+}
+
+/// A ring of alternating magenta / cyan sparks around `center` — the wand of
+/// nothing's entire contribution to the dungeon.
+fn confetti_burst(fx: &mut Particles, center: Position) {
+    const RING: [(i32, i32); 9] = [
+        (0, 0),
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1),
+        (1, 1),
+        (-1, -1),
+        (1, -1),
+        (-1, 1),
+    ];
+    for (i, (dx, dy)) in RING.into_iter().enumerate() {
+        let Some((x, y)) = crate::particles::on_map(center.x as i32 + dx, center.y as i32 + dy)
+        else {
+            continue;
+        };
+        let color = if i % 2 == 0 {
+            Color::Magenta
+        } else {
+            Color::Cyan
+        };
+        fx.blip(x, y, '*', color);
+    }
+}
+
+/// A thrown potion is glass: it breaks on the first thing it reaches and doses
+/// whoever that was, or just wets the floor with nobody in the way. Either way
+/// the vial is gone.
+fn shatter_potion(
+    world: &mut World,
+    item: Entity,
+    victim: Option<Entity>,
+    seen_name: &str,
+    effect: PotionEffect,
+) {
+    let Some(v) = victim else {
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("The {seen_name} shatters on the floor."));
+        world.entity_mut(item).despawn();
+        return;
+    };
+    let victim_name = item_label(world, v);
+    world.resource_mut::<GameLog>().add(format!(
+        "The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!"
+    ));
+    // A dose that plainly did something names the potion; a fizzle keeps its secret.
+    if apply_potion_effect(world, v, effect) {
+        identify_from_afar(world, item);
+    }
+    world.entity_mut(item).despawn();
+}
+
+/// One victim in a thrown missile's path: roll damage, apply it, spark the hit,
+/// and return the line for the log.
+fn strike_victim(
+    world: &mut World,
+    thrower: Entity,
+    item: Entity,
+    hit: Entity,
+    landing: Position,
+    seen_name: &str,
+) -> String {
+    let hit_name = item_label(world, hit);
+    let Some(damage) = roll_throw_damage(world, thrower, item, hit) else {
+        // Not a thing that hurts anyone: it simply arrives.
+        return format!("The {seen_name} bounces off the {hit_name}.");
+    };
+    if damage <= 0 {
+        // A weapon whose roll the armour ate.
+        return format!("The {seen_name} glances off the {hit_name}.");
+    }
+    let at = world.get::<Position>(hit).copied().unwrap_or(landing);
+    apply_damage(world, hit, damage);
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.hit_spark(at.x, at.y);
+    }
+    format!("The {seen_name} hits the {hit_name} for {damage} damage.")
 }

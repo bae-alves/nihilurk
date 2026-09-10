@@ -177,22 +177,94 @@ else is a regression.
 Run it before the first edit and after the last; it does not move.
 
 
-Later phases
-------------
+Phase 2: shallow nesting
+------------------------
 
-Not yet started. Candidates, roughly in order of how much they would
-tighten roog specifically:
+**Done in `models/` and `engine/`.** No function nests more than about
+three blocks deep -- a function body, a loop, and one conditional inside
+it, give or take. The `match` inside an `if` inside a `for` inside a
+`while` inside a `for` is gone.
 
-  * **One level of indentation per function.** Falls out of "no `else`"
-    most of the way; the rest is extracting nested loops.
-  * **Wrap primitives that travel together.** `(x, y)` pairs are
-    everywhere; a `Point` would carry the arithmetic that is currently
-    inlined at every call site.
-  * **No getters/setters on the ECS components** -- already mostly true,
-    worth making a rule.
+### The limit is ~3, not 1, on purpose
 
-Each will get a section here when it is done, with the crate it covers
-and the grep that checks it.
+The strict calisthenics rule is *one* level of indentation per method.
+That is the right pressure but the wrong stopping point for roog. Pushed
+all the way it turns one readable 40-line function into eight
+three-line ones, each named, each taking six `world`-threading
+parameters, and you now read a call graph instead of a procedure. The
+bloat costs more than the nesting did.
+
+So the rule here is a **ceiling, not a target**: get out of the deep
+nests, stop when the function reads top to bottom without scrolling your
+eye rightward. In practice that lands around three levels.
+
+### How the depth comes down
+
+Mostly the same moves as Phase 1, plus two:
+
+**Extract the loop body.** A `for` whose body is 60 lines and three
+levels deep is a function that has not been written yet. `ai::monster_round`
+became a `for` over `step_one_mob`; `items::item_system` a `for` over
+`resolve_use`; `update::process_input_and_update` -- a 600-line, 13-deep
+input handler -- split into `handle_targeting_input`,
+`handle_inventory_input`, `handle_movement_input` and their callees.
+
+**Reach for iterators before nesting.** `.filter().map().flat_map()` and
+`.any()` / `.find_map()` flatten a loop-plus-conditional into one
+expression with no indentation at all. `visibility::flood_fill_room`
+walks `neighbours(x, y)` -- an iterator that yields the in-bounds
+neighbours -- instead of a `for dy { for dx { if in_bounds ...`.
+
+Iterator chains are *not* subject to a "one method call per line" rule.
+Chaining is how idiomatic Rust expresses a data-structure transform, and
+breaking a chain across statements to satisfy a dot budget makes it
+harder to read, not easier. A long chain is one thought; leave it whole.
+
+### Checking a pass
+
+    # statements indented 24+ spaces (6+ levels) -- should print nothing
+    grep -rnP '^ {24,}\S' models/src engine/src --include='*.rs' \
+      | grep -v '^\S*:[0-9]*: *//'
+
+A handful of 4-5 level spots remain by choice -- the renderer's
+cell-diff double loop, a couple of `for` / `match` / `if` combinations
+where the extraction would be pure ceremony. The test suite is again the
+proof the pass changed only shape.
+
+
+Rules roog deliberately does *not* adopt
+----------------------------------------
+
+The rest of the classic Object Calisthenics list, and why each is a poor
+fit here rather than an oversight:
+
+**Wrap every primitive in a type.** roog passes `(u16, u16)` tile
+coordinates and `(i16, i16)` steps around by the hundred. A `Point`
+newtype would carry the arithmetic, but Rust tuples already destructure,
+`Copy`, and pattern-match cleanly, and the operations are mostly
+one-liners (`.signum()`, `saturating_add_signed`) that read fine inline.
+The wrapper would be ceremony without a payoff. If a coordinate type ever
+grows real behaviour -- distance metrics, neighbour iteration used
+everywhere -- revisit it then.
+
+**First-class collections** (wrap every `Vec`/`HashMap` in a domain
+type). This one would actively hurt. The collections in roog are
+short-lived locals -- a `HashSet` of visible tiles, a `Vec` of mob
+entities for this pass, a spatial `HashMap` rebuilt every tick. Wrapping
+each in a named type with its own methods would couple call sites to an
+interface that exists for one function's benefit, and make the loose,
+rearrange-it-in-five-minutes character of this code stiff. The ECS
+already supplies the real domain structure; the collections are just
+scratch space, and scratch space benefits from staying informal.
+
+**One dot per line.** Covered above: chaining is load-bearing in Rust
+and roog uses it deliberately. Not adopted.
+
+**Keep entities (structs) small.** This one is *sound* -- a component
+with eight fields is usually two components -- and worth keeping in mind
+when you add one. It is not enforced here only because roog's components
+already tend to be small (`Position` is two fields, most grants are
+zero), so there is nothing to clean up. Treat it as advice, not a pass.
 
 
 See also

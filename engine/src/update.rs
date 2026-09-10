@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, poll, read};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, poll, read};
 use models::*;
 use models::{GameState, components::GameLog};
 use rand::Rng;
@@ -47,6 +47,27 @@ fn player_confused(world: &mut World) -> bool {
         .iter(world)
         .next()
         .is_some()
+}
+
+/// The player entity, if one exists.
+fn player_entity_opt(world: &mut World) -> Option<Entity> {
+    world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+}
+
+/// The player entity. Panics if there is none — by the time input is handled
+/// there always is one.
+fn player_entity(world: &mut World) -> Entity {
+    player_entity_opt(world).expect("player entity exists during input handling")
+}
+
+/// How many items are in the player's pack (0 if there is no player or no pack).
+fn player_backpack_len(world: &mut World) -> usize {
+    player_entity_opt(world)
+        .and_then(|e| world.get::<Backpack>(e))
+        .map_or(0, |bp| bp.items.len())
 }
 
 /// Confusion tax: half of every intended step goes off in a random direction
@@ -215,594 +236,505 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     // A snared player (bear trap / sleeping gas) forfeits the turn outright — no
     // key is read — as long as there's no pending --MORE-- prompt to clear
     // first. `snare_system` ages the snare down as the turn resolves.
+    let more_pending = {
+        let log = world.resource::<GameLog>();
+        log_view(&log.unread).2
+    };
+    if !more_pending && player_snare(world).is_some() {
+        return Ok(true);
+    }
+
+    let Event::Key(key) = read()? else {
+        return Ok(false);
+    };
+    if key.kind != KeyEventKind::Press {
+        return Ok(false);
+    }
+
+    // While a --MORE-- prompt is up, the only input accepted is the
+    // acknowledgement: it drops the messages already shown and lets the rest
+    // flow up on the next frame.
+    let (_lines, shown, more) = {
+        let log = world.resource::<GameLog>();
+        log_view(&log.unread)
+    };
+    if more {
+        if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
+            world.resource_mut::<GameLog>().unread.drain(0..shown);
+        }
+        return Ok(false);
+    }
+
+    // Three input contexts, each with its own handler: aiming a wand or a
+    // throw, navigating the pack, or walking the map.
+    if world.resource::<TargetingState>().active {
+        return handle_targeting_input(world, key);
+    }
+    if world.resource::<PackIsOpen>().open {
+        return handle_inventory_input(world, key);
+    }
+    handle_movement_input(world, key)
+}
+
+/// A keypress while the aiming reticle is up: move it, fire it, or cancel.
+fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    let mut cancel = false;
+    let mut confirm = false;
+    let mut dx = 0i16;
+    let mut dy = 0i16;
+    match key.code {
+        KeyCode::Esc => cancel = true,
+        KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
+        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => dy = -1,
+        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => dy = 1,
+        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => dx = -1,
+        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => dx = 1,
+        KeyCode::Char('y') => (dx, dy) = (-1, -1),
+        KeyCode::Char('u') => (dx, dy) = (1, -1),
+        KeyCode::Char('b') => (dx, dy) = (-1, 1),
+        KeyCode::Char('n') => (dx, dy) = (1, 1),
+        _ => {}
+    }
+
+    if cancel {
+        let mut ts = world.resource_mut::<TargetingState>();
+        ts.active = false;
+        ts.item = None;
+        ts.throwing = false;
+        return Ok(false); // cancelled aiming, no turn consumed
+    }
+    if dx != 0 || dy != 0 {
+        move_target_cursor(world, dx, dy);
+        return Ok(false);
+    }
+    if confirm {
+        return fire_at_target(world);
+    }
+    Ok(false) // any other key: ignored while aiming
+}
+
+/// A directional key while aiming: nudge the reticle one tile, but only onto a
+/// tile that is both in view and inside the item's reach.
+fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
+    let (item, cursor_x, cursor_y, throwing) = {
+        let ts = world.resource::<TargetingState>();
+        (ts.item, ts.cursor_x, ts.cursor_y, ts.throwing)
+    };
+    let new_x = cursor_x.saturating_add(dx);
+    let new_y = cursor_y.saturating_add(dy);
+
+    let player = player_entity(world);
+    let player_pos = *world.get::<Position>(player).unwrap();
+    let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
+    let max_range = aim_range(world, item, throwing);
+
+    let distance = (new_x - player_pos.x as i16)
+        .abs()
+        .max((new_y - player_pos.y as i16).abs());
+    let in_view = visible.contains(&(new_x as u16, new_y as u16));
+    if distance > max_range as i16 || !in_view {
+        return;
+    }
+    let mut ts = world.resource_mut::<TargetingState>();
+    ts.cursor_x = new_x;
+    ts.cursor_y = new_y;
+}
+
+/// How far the aimed item reaches: an arm's length for a throw, the item's own
+/// `Ranged` for a zap, a bare 8 for anything without one.
+fn aim_range(world: &World, item: Option<Entity>, throwing: bool) -> i32 {
+    if throwing {
+        return THROW_RANGE;
+    }
+    item.and_then(|i| world.get::<Ranged>(i))
+        .map_or(8, |r| r.range)
+}
+
+/// Enter/Space while aiming: pull the item from the pack and hand it to the
+/// throw or use queue. A shot at the player's own tile is refused.
+fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
+    let (tx, ty, item_entity, throwing) = {
+        let mut ts = world.resource_mut::<TargetingState>();
+        ts.active = false;
+        let grabbed = (ts.cursor_x, ts.cursor_y, ts.item.unwrap(), ts.throwing);
+        ts.item = None;
+        ts.throwing = false;
+        grabbed
+    };
+    let player = player_entity(world);
+    let target = Position {
+        x: tx as u16,
+        y: ty as u16,
+    };
+
+    let at_self = world
+        .get::<Position>(player)
+        .is_some_and(|p| p.x == target.x && p.y == target.y);
+    if at_self {
+        world.resource_mut::<GameLog>().add("Great idea! But no.");
+        return Ok(false);
+    }
+
+    let Some((slot, item)) = world.get_mut::<Backpack>(player).and_then(|mut bp| {
+        let pos = bp.items.iter().position(|&e| e == item_entity)?;
+        Some((pos, bp.items.remove(pos)))
+    }) else {
+        return Ok(false);
+    };
+
+    if throwing {
+        // The item is gone from the pack; where it lands is `throw_system`'s
+        // business. (A quiver is the exception — `draw_one` splits one arrow off
+        // and puts the rest back in the slot.)
+        let missile = models::draw_one(world, player, item, Some(slot));
+        world
+            .resource_mut::<ThrowQueue>()
+            .throws
+            .push(WantsToThrow {
+                thrower: player,
+                item: missile,
+                target,
+            });
+        return Ok(true);
+    }
+    world.resource_mut::<UseQueue>().uses.push(WantsToUse {
+        user: player,
+        item,
+        target: Some(target),
+        slot_idx: Some(slot),
+    });
+    Ok(true)
+}
+
+/// A keypress while the pack is open: routed to the action modal (Use / Throw /
+/// Drop) when one is up, otherwise to the item list underneath it.
+fn handle_inventory_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    let (selected, action_mode, action_selected) = {
+        let pack = world.resource::<PackIsOpen>();
+        (pack.selected, pack.action_mode, pack.action_selected)
+    };
+    if let Some(item_idx) = action_mode {
+        return Ok(run_action_modal(world, key, item_idx, action_selected));
+    }
+    navigate_pack(world, key, selected);
+    Ok(false)
+}
+
+/// The Use / Throw / Drop modal. Returns whether the keypress spent a turn —
+/// true only when it committed to a plain (non-aimed) Use or a successful Drop.
+fn run_action_modal(
+    world: &mut World,
+    key: KeyEvent,
+    item_idx: usize,
+    action_selected: usize,
+) -> bool {
+    const ACTION_COUNT: usize = 3;
+    let mut close = false;
+    let mut confirm = false;
+    let mut sel = action_selected;
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('i') => close = true,
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
+            sel = (sel + ACTION_COUNT - 1) % ACTION_COUNT;
+        }
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
+            sel = (sel + 1) % ACTION_COUNT;
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
+        _ => {}
+    }
+
     {
-        let more = {
-            let log = world.resource::<GameLog>();
-            log_view(&log.unread).2
-        };
-        if !more && player_snare(world).is_some() {
-            return Ok(true);
+        let mut pack = world.resource_mut::<PackIsOpen>();
+        pack.action_selected = sel;
+        if close || confirm {
+            pack.open = false;
+            pack.action_mode = None;
         }
     }
 
-    let event = read()?;
-    let mut turn_taken = false;
+    if !confirm {
+        return false;
+    }
+    let Some(player) = player_entity_opt(world) else {
+        return true;
+    };
+    let action = world.resource::<ActionMenu>().at(sel);
+    commit_item_action(world, player, item_idx, action)
+}
 
-    if let Event::Key(key) = event {
-        if key.kind != KeyEventKind::Press {
-            return Ok(false);
+/// Pulls the chosen item out of the pack and carries out `action` on it: queue
+/// a use, open the aiming reticle, or drop it. Returns whether a turn was spent
+/// (a plain Use or a completed Drop; aiming and refusals do not).
+fn commit_item_action(
+    world: &mut World,
+    player: Entity,
+    item_idx: usize,
+    action: ItemAction,
+) -> bool {
+    let Some(item) = take_pack_item(world, player, item_idx) else {
+        return true;
+    };
+    match action {
+        ItemAction::Use => use_or_aim(world, player, item, item_idx),
+        ItemAction::Throw => {
+            aim_throw(world, player, item, item_idx);
+            false
         }
+        ItemAction::Drop => drop_from_pack(world, player, item, item_idx),
+    }
+}
 
-        // 1. Handle logs first: while a --MORE-- prompt is up, the only input
-        //    accepted is the acknowledgement, which drops the messages already
-        //    shown and lets the rest flow up on the next frame.
-        {
-            let (_lines, shown, more) = {
-                let log = world.resource::<GameLog>();
-                log_view(&log.unread)
+/// Use: a plain item goes straight to the use queue (turn spent); a ranged one
+/// goes back in the pack and opens the aiming reticle instead (no turn).
+fn use_or_aim(world: &mut World, player: Entity, item: Entity, item_idx: usize) -> bool {
+    // The wand of light is ranged but self-targeted, so it skips the reticle.
+    let needs_reticle = world.get::<Ranged>(item).is_some()
+        && world
+            .get::<Wand>(item)
+            .map_or(true, |w| w.effect.needs_target());
+    if !needs_reticle {
+        world.resource_mut::<UseQueue>().uses.push(WantsToUse {
+            user: player,
+            item,
+            target: None,
+            slot_idx: Some(item_idx),
+        });
+        return true;
+    }
+    return_to_pack(world, player, item, item_idx);
+    open_reticle(world, player, item, false);
+    false
+}
+
+/// Throw: the item waits in the pack and the aiming reticle opens — unless
+/// something (the Element, cursed worn gear) refuses to leave the hand.
+fn aim_throw(world: &mut World, player: Entity, item: Entity, item_idx: usize) {
+    return_to_pack(world, player, item, item_idx);
+    if let Some(refusal) = throw_refusal(world, player, item) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return;
+    }
+    open_reticle(world, player, item, true);
+}
+
+/// Drop: cursed gear won't come off and so can't be put down (it goes back in
+/// the pack); anything else is un-equipped on the way to the floor. Returns
+/// whether the drop actually happened.
+fn drop_from_pack(world: &mut World, player: Entity, item: Entity, item_idx: usize) -> bool {
+    if let Some(refusal) = drop_refusal(world, player, item) {
+        return_to_pack(world, player, item, item_idx);
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
+    let Some(pos) = world.get::<Position>(player).cloned() else {
+        return true;
+    };
+    force_unequip(world, item);
+    sync_equipment_effects(world, player);
+    world.entity_mut(item).insert(pos);
+    let name = models::display_name(world, item);
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("You drop the {name}."));
+    true
+}
+
+/// Removes pack row `idx` and hands back the item, or `None` if the row is out
+/// of range (the pack shifted since the menu opened).
+fn take_pack_item(world: &mut World, player: Entity, idx: usize) -> Option<Entity> {
+    let mut backpack = world.get_mut::<Backpack>(player)?;
+    (idx < backpack.items.len()).then(|| backpack.items.remove(idx))
+}
+
+/// Puts `item` back at pack row `idx`.
+fn return_to_pack(world: &mut World, player: Entity, item: Entity, idx: usize) {
+    if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+        backpack.items.insert(idx, item);
+    }
+}
+
+/// Arms the aiming reticle on `item`, centred on the player.
+fn open_reticle(world: &mut World, player: Entity, item: Entity, throwing: bool) {
+    let pos = *world.get::<Position>(player).unwrap();
+    let mut ts = world.resource_mut::<TargetingState>();
+    ts.active = true;
+    ts.item = Some(item);
+    ts.throwing = throwing;
+    ts.cursor_x = pos.x as i16;
+    ts.cursor_y = pos.y as i16;
+}
+
+/// A keypress in the item list: move the highlight, close the pack, or open the
+/// action modal on the highlighted row.
+fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) {
+    let item_count = player_backpack_len(world);
+    let mut new_selected = current_selected;
+    let mut close = false;
+    let mut trigger = None;
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('i') => close = true,
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
+            new_selected = if new_selected == 0 {
+                item_count.saturating_sub(1)
+            } else {
+                new_selected - 1
             };
-            if more {
-                if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
-                    world.resource_mut::<GameLog>().unread.drain(0..shown);
-                }
-                return Ok(false);
-            }
         }
-
-        // ==========================================
-        // BRANCH TARGETING: We are aiming a wand
-        // ==========================================
-        let is_targeting = world.resource::<TargetingState>().active;
-
-        if is_targeting {
-            let mut cancel = false;
-            let mut confirm = false;
-            let mut dx = 0;
-            let mut dy = 0;
-
-            match key.code {
-                KeyCode::Esc => cancel = true,
-                KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
-                KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => dy = -1,
-                KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => dy = 1,
-                KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => dx = -1,
-                KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => dx = 1,
-                KeyCode::Char('y') => {
-                    dx = -1;
-                    dy = -1;
-                }
-                KeyCode::Char('u') => {
-                    dx = 1;
-                    dy = -1;
-                }
-                KeyCode::Char('b') => {
-                    dx = -1;
-                    dy = 1;
-                }
-                KeyCode::Char('n') => {
-                    dx = 1;
-                    dy = 1;
-                }
-                _ => {}
-            }
-
-            let mut target_state = world.resource_mut::<TargetingState>();
-
-            if cancel {
-                target_state.active = false;
-                target_state.item = None;
-                target_state.throwing = false;
-                return Ok(false); // Cancelled aiming, no turn consumed
-            }
-
-            if dx != 0 || dy != 0 {
-                // 1. Grab what we need from TargetingState and drop it instantly
-                let (cursor_item, cursor_x, cursor_y, throwing) = {
-                    let target_state = world.resource::<TargetingState>();
-                    (
-                        target_state.item,
-                        target_state.cursor_x,
-                        target_state.cursor_y,
-                        target_state.throwing,
-                    )
-                }; // target_state borrow is dead and gone here
-
-                let new_x = cursor_x.saturating_add(dx);
-                let new_y = cursor_y.saturating_add(dy);
-
-                // 2. Now world is completely free to query the player safely
-                let (player_pos, max_range, visible_tiles) = {
-                    let player_entity = world
-                        .query_filtered::<Entity, With<Player>>()
-                        .iter(world)
-                        .next()
-                        .unwrap();
-                    let pos = world.get::<Position>(player_entity).unwrap();
-                    let p_pos = (pos.x, pos.y);
-
-                    // A thrown item flies as far as an arm can send it; a zapped
-                    // one as far as its own `Ranged` says.
-                    let mut range = if throwing { THROW_RANGE } else { 8 };
-                    if let Some(ranged) = cursor_item
-                        .filter(|_| !throwing)
-                        .and_then(|item| world.get::<Ranged>(item))
-                    {
-                        range = ranged.range;
-                    }
-
-                    let viewshed = world.get::<Viewshed>(player_entity).unwrap();
-                    let visible = viewshed.visible_tiles.clone();
-
-                    (p_pos, range, visible)
-                };
-
-                // 3. Range and Viewshed checks
-                let dist_x = (new_x - player_pos.0 as i16).abs();
-                let dist_y = (new_y - player_pos.1 as i16).abs();
-                let distance = std::cmp::max(dist_x, dist_y);
-
-                let target_coord = (new_x as u16, new_y as u16);
-                let is_visible = visible_tiles.contains(&target_coord);
-
-                if distance <= max_range as i16 && is_visible {
-                    let mut target_state = world.resource_mut::<TargetingState>();
-                    target_state.cursor_x = new_x;
-                    target_state.cursor_y = new_y;
-                }
-
-                return Ok(false);
-            }
-
-            if confirm {
-                target_state.active = false;
-                let tx = target_state.cursor_x;
-                let ty = target_state.cursor_y;
-                let item_entity = target_state.item.unwrap();
-                let throwing = target_state.throwing;
-                target_state.item = None;
-                target_state.throwing = false;
-
-                let player_entity = world
-                    .query_filtered::<Entity, With<Player>>()
-                    .iter(world)
-                    .next()
-                    .unwrap();
-
-                // No shooting yourself in the foot: a wand zap or a throw aimed
-                // at your own tile is refused and the turn is not consumed.
-                if let Some(pos) = world.get::<Position>(player_entity) {
-                    if pos.x == tx as u16 && pos.y == ty as u16 {
-                        world.resource_mut::<GameLog>().add("Great idea! But no.");
-                        return Ok(false);
-                    }
-                }
-
-                let mut extracted_item = None;
-                let mut original_idx = None;
-                if let Some(mut backpack) = world.get_mut::<Backpack>(player_entity) {
-                    if let Some(pos) = backpack.items.iter().position(|&e| e == item_entity) {
-                        original_idx = Some(pos);
-                        extracted_item = Some(backpack.items.remove(pos));
-                    }
-                }
-
-                if let Some(item) = extracted_item {
-                    let target = Position {
-                        x: tx as u16,
-                        y: ty as u16,
-                    };
-                    if throwing {
-                        // A thrown item is gone from the pack for good — where it
-                        // ends up is `throw_system`'s business. A quiver is the
-                        // exception: it gives up one arrow and goes back in its
-                        // own slot.
-                        let missile = models::draw_one(world, player_entity, item, original_idx);
-                        world
-                            .resource_mut::<ThrowQueue>()
-                            .throws
-                            .push(WantsToThrow {
-                                thrower: player_entity,
-                                item: missile,
-                                target,
-                            });
-                        return Ok(true);
-                    }
-                    world.resource_mut::<UseQueue>().uses.push(WantsToUse {
-                        user: player_entity,
-                        item,
-                        target: Some(target),
-                        slot_idx: original_idx,
-                    });
-                    return Ok(true);
-                }
-
-                return Ok(false);
-            }
-
-            return Ok(false); // Ignore all other keys while targeting
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
+            new_selected = if new_selected + 1 >= item_count {
+                0
+            } else {
+                new_selected + 1
+            };
         }
-
-        // ==========================================
-        // BRANCH INVENTORY: Navigating Pack / Modal
-        // ==========================================
-        let (is_open, current_selected, action_mode, action_selected) = {
-            let pack_state = world.resource::<PackIsOpen>();
-            (
-                pack_state.open,
-                pack_state.selected,
-                pack_state.action_mode,
-                pack_state.action_selected,
-            )
-        };
-
-        if is_open {
-            let player_entity = world
-                .query_filtered::<Entity, With<Player>>()
-                .iter(world)
-                .next();
-            let item_count = player_entity
-                .and_then(|entity| world.get::<Backpack>(entity))
-                .map_or(0, |bp| bp.items.len());
-
-            // Sub-Branch: Action Modal (Use/Drop)
-            if let Some(action_item_idx) = action_mode {
-                let mut close_inventory = false;
-                let mut confirm_action = false;
-                let mut new_action_sel = action_selected;
-
-                const ACTION_COUNT: usize = 3;
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
-                    KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
-                        new_action_sel = (new_action_sel + ACTION_COUNT - 1) % ACTION_COUNT;
-                    }
-                    KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
-                        new_action_sel = (new_action_sel + 1) % ACTION_COUNT;
-                    }
-                    KeyCode::Enter | KeyCode::Char(' ') => confirm_action = true,
-                    _ => {}
-                }
-
-                let mut pack_state = world.resource_mut::<PackIsOpen>();
-                pack_state.action_selected = new_action_sel;
-
-                if close_inventory || confirm_action {
-                    pack_state.open = false;
-                    pack_state.action_mode = None;
-                }
-                if confirm_action {
-                    turn_taken = true;
-                }
-
-                if confirm_action {
-                    if let Some(player) = player_entity {
-                        // 1. Remove from backpack temporarily
-                        let mut item_entity = None;
-                        if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
-                            if action_item_idx < backpack.items.len() {
-                                item_entity = Some(backpack.items.remove(action_item_idx));
-                            }
-                        }
-
-                        // 2. Route to correct action. Which row is which is the
-                        // ActionMenu's business (see `-dropthrow`), not ours.
-                        if let Some(item) = item_entity {
-                            match world.resource::<ActionMenu>().at(new_action_sel) {
-                                ItemAction::Use => {
-                                    // Needs the aiming reticle: any ranged item,
-                                    // except the wand of light (self-targeted).
-                                    let is_ranged = world.get::<Ranged>(item).is_some()
-                                        && world
-                                            .get::<Wand>(item)
-                                            .map_or(true, |w| w.effect.needs_target());
-
-                                    if is_ranged {
-                                        // Put it right back exactly where it was!
-                                        if let Some(mut backpack) =
-                                            world.get_mut::<Backpack>(player)
-                                        {
-                                            backpack.items.insert(action_item_idx, item);
-                                        }
-
-                                        let player_pos = *world.get::<Position>(player).unwrap();
-                                        let mut target_state =
-                                            world.resource_mut::<TargetingState>();
-                                        target_state.active = true;
-                                        target_state.item = Some(item);
-                                        target_state.throwing = false;
-                                        target_state.cursor_x = player_pos.x as i16;
-                                        target_state.cursor_y = player_pos.y as i16;
-
-                                        turn_taken = false; // Override: aiming takes no time!
-                                    }
-                                    if !is_ranged {
-                                        let mut use_queue = world.resource_mut::<UseQueue>();
-                                        use_queue.uses.push(WantsToUse {
-                                            user: player,
-                                            item,
-                                            target: None,
-                                            slot_idx: Some(action_item_idx),
-                                        });
-                                    }
-                                }
-                                ItemAction::Throw => {
-                                    // Aiming a throw costs nothing, and the item
-                                    // waits in the pack until it is loosed.
-                                    if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
-                                        backpack.items.insert(action_item_idx, item);
-                                    }
-                                    turn_taken = false;
-
-                                    // Some things won't leave your hand: the
-                                    // Element, and anything cursed you're wearing.
-                                    match throw_refusal(world, player, item) {
-                                        Some(refusal) => {
-                                            world.resource_mut::<GameLog>().add(refusal);
-                                        }
-                                        None => {
-                                            let player_pos =
-                                                *world.get::<Position>(player).unwrap();
-                                            let mut target_state =
-                                                world.resource_mut::<TargetingState>();
-                                            target_state.active = true;
-                                            target_state.item = Some(item);
-                                            target_state.throwing = true;
-                                            target_state.cursor_x = player_pos.x as i16;
-                                            target_state.cursor_y = player_pos.y as i16;
-                                        }
-                                    }
-                                }
-                                ItemAction::Drop => {
-                                    // Cursed gear won't come off, so it can't be
-                                    // put down either — the same rule that stops
-                                    // it being thrown. Anything else you let go
-                                    // of is un-equipped on the way down, so a
-                                    // sword on the floor stops sharpening your
-                                    // arm.
-                                    match drop_refusal(world, player, item) {
-                                        Some(refusal) => {
-                                            if let Some(mut backpack) =
-                                                world.get_mut::<Backpack>(player)
-                                            {
-                                                backpack.items.insert(action_item_idx, item);
-                                            }
-                                            world.resource_mut::<GameLog>().add(refusal);
-                                            turn_taken = false;
-                                        }
-                                        None => {
-                                            if let Some(pos) =
-                                                world.get::<Position>(player).cloned()
-                                            {
-                                                force_unequip(world, item);
-                                                sync_equipment_effects(world, player);
-                                                world.entity_mut(item).insert(pos);
-                                                let name = models::display_name(world, item);
-                                                world
-                                                    .resource_mut::<GameLog>()
-                                                    .add(format!("You drop the {name}."));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                return Ok(turn_taken);
-            }
-
-            // Sub-Branch: Navigating the main list. (The action-modal branch
-            // above always returns, so this is the fall-through, not an `else`.)
-            let mut new_selected = current_selected;
-            let mut close_inventory = false;
-            let mut trigger_action_menu = None;
-
-            match key.code {
-                KeyCode::Esc | KeyCode::Char('i') => close_inventory = true,
-                KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
-                    new_selected = if new_selected == 0 {
-                        item_count.saturating_sub(1)
-                    } else {
-                        new_selected - 1
-                    };
-                }
-                KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
-                    new_selected = if new_selected + 1 >= item_count {
-                        0
-                    } else {
-                        new_selected + 1
-                    };
-                }
-                KeyCode::Enter | KeyCode::Char(' ') => trigger_action_menu = Some(new_selected),
-                KeyCode::Char(c) if c.is_ascii_lowercase() => {
-                    let idx = (c as u32 - 'a' as u32) as usize;
-                    if idx < item_count {
-                        new_selected = idx;
-                        trigger_action_menu = Some(idx);
-                    }
-                }
-                _ => {}
-            }
-
-            let mut pack_state = world.resource_mut::<PackIsOpen>();
-            pack_state.selected = new_selected;
-
-            if close_inventory {
-                pack_state.open = false;
-            }
-
-            if let Some(idx) = trigger_action_menu {
-                pack_state.action_mode = Some(idx);
-                pack_state.action_selected = 0;
-            }
-
-            return Ok(false);
+        KeyCode::Enter | KeyCode::Char(' ') => trigger = Some(new_selected),
+        KeyCode::Char(c) if c.is_ascii_lowercase() => {
+            let idx = (c as u32 - 'a' as u32) as usize;
+            trigger = (idx < item_count).then_some(idx);
+            new_selected = trigger.unwrap_or(new_selected);
         }
-
-        // ==========================================
-        // BRANCH NORMAL: Walking around the map
-        // ==========================================
-
-        // Shift + direction: NetHack-style running. Either zoom in a straight
-        // line, or make a beeline for the nearest feature (stairs > door > item)
-        // roughly that way. Refused with a creature in view; the main loop drives
-        // the run to completion and only then repaints.
-        if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
-            if player_confused(world) {
-                world
-                    .resource_mut::<GameLog>()
-                    .add("You are too confused for that right now.");
-                return Ok(false);
-            }
-            match fast_move_plan(world, rdx, rdy) {
-                FastMovePlan::MonsterInSight => {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("Not while a creature is in sight.");
-                }
-                FastMovePlan::Blocked => {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("You can't run that way.");
-                }
-                FastMovePlan::Straight => {
-                    world.resource_mut::<GameLog>().unread.clear();
-                    world.resource_mut::<FastMove>().start(rdx, rdy, None);
-                }
-                FastMovePlan::Travel(tile) => {
-                    world.resource_mut::<GameLog>().unread.clear();
-                    world.resource_mut::<FastMove>().start(rdx, rdy, Some(tile));
-                }
-            }
-            return Ok(false);
-        }
-
-        let mut dx = 0;
-        let mut dy = 0;
-        let mut action_attempted = false;
-        match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => {
-                world.resource_mut::<GameState>().is_running = false;
-            }
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                world.resource_mut::<GameState>().is_running = false;
-            }
-            KeyCode::Char('i') => {
-                let player_entity = world
-                    .query_filtered::<Entity, With<Player>>()
-                    .iter(world)
-                    .next();
-                let is_empty = player_entity
-                    .and_then(|entity| world.get::<Backpack>(entity))
-                    .map_or(true, |bp| bp.items.is_empty());
-
-                if is_empty {
-                    let mut log = world.resource_mut::<GameLog>();
-                    log.add("You have no items.");
-                    world.resource_mut::<PackIsOpen>().open = false;
-                    return Ok(false);
-                }
-                let mut pack_state = world.resource_mut::<PackIsOpen>();
-                pack_state.open = true;
-                pack_state.selected = 0;
-                return Ok(false);
-            }
-            KeyCode::Char('o') => {
-                // Auto-explore: refuse to start with a creature in sight or when
-                // there is nothing left to map; otherwise arm the flag and let
-                // the main loop drive the walk one step per frame.
-                if player_confused(world) {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("You are too confused for that right now.");
-                    return Ok(false);
-                }
-                if monster_in_sight(world) {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("Not while a creature is in sight.");
-                    return Ok(false);
-                }
-                if explore_step(world).is_none() {
-                    world
-                        .resource_mut::<GameLog>()
-                        .add("There is nothing left to explore.");
-                    return Ok(false);
-                }
-                world.resource_mut::<GameLog>().unread.clear();
-                world.resource_mut::<AutoExplore>().start(None);
-                return Ok(false);
-            }
-            KeyCode::Char('O') => {
-                // Open the travel cursor: steer a blinking highlight over seen
-                // ground, then Enter to auto-walk there. Takes no turn.
-                let ppos = {
-                    let mut q = world.query_filtered::<&Position, With<Player>>();
-                    q.iter(world).next().copied()
-                };
-                if let Some(p) = ppos {
-                    world.resource_mut::<GameLog>().unread.clear();
-                    world.resource_mut::<TravelCursor>().open(p.x, p.y);
-                }
-                return Ok(false);
-            }
-            KeyCode::Tab => {
-                // Auto-fight: one turn spent closing on — or striking — the
-                // weakest foe in sight. Not a mode: each press is a single turn.
-                turn_taken = auto_fight_turn(world);
-            }
-            KeyCode::Char('>') | KeyCode::Char('.') => {
-                return Ok(travel_or_use_stairs(world, true));
-            }
-            KeyCode::Char('<') | KeyCode::Char(',') => {
-                return Ok(travel_or_use_stairs(world, false));
-            }
-            KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => {
-                dy = -1;
-                action_attempted = true;
-            }
-            KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => {
-                dy = 1;
-                action_attempted = true;
-            }
-            KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => {
-                dx = -1;
-                action_attempted = true;
-            }
-            KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => {
-                dx = 1;
-                action_attempted = true;
-            }
-            KeyCode::Char('y') => {
-                dx = -1;
-                dy = -1;
-                action_attempted = true;
-            }
-            KeyCode::Char('u') => {
-                dx = 1;
-                dy = -1;
-                action_attempted = true;
-            }
-            KeyCode::Char('b') => {
-                dx = -1;
-                dy = 1;
-                action_attempted = true;
-            }
-            KeyCode::Char('n') => {
-                dx = 1;
-                dy = 1;
-                action_attempted = true;
-            }
-            _ => {}
-        }
-
-        if action_attempted {
-            world.resource_mut::<GameLog>().unread.clear();
-            turn_taken = move_player(world, dx, dy);
-        }
+        _ => {}
     }
 
-    Ok(turn_taken)
+    let mut pack = world.resource_mut::<PackIsOpen>();
+    pack.selected = new_selected;
+    if close {
+        pack.open = false;
+    }
+    if let Some(idx) = trigger {
+        pack.action_mode = Some(idx);
+        pack.action_selected = 0;
+    }
+}
+
+/// A keypress while walking the map: a run, a command, or a single step.
+fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    // Shift + direction: NetHack-style running. Either zoom in a straight line,
+    // or make a beeline for the nearest feature (stairs > door > item) roughly
+    // that way. Refused with a creature in view; the main loop drives the run to
+    // completion and only then repaints.
+    if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
+        start_run(world, rdx, rdy);
+        return Ok(false);
+    }
+
+    let step = match key.code {
+        KeyCode::Char('q') | KeyCode::Esc => {
+            world.resource_mut::<GameState>().is_running = false;
+            None
+        }
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            world.resource_mut::<GameState>().is_running = false;
+            None
+        }
+        KeyCode::Char('i') => return open_pack(world),
+        KeyCode::Char('o') => return begin_auto_explore(world),
+        KeyCode::Char('O') => {
+            open_travel_cursor(world);
+            return Ok(false);
+        }
+        KeyCode::Tab => return Ok(auto_fight_turn(world)),
+        KeyCode::Char('>') | KeyCode::Char('.') => return Ok(travel_or_use_stairs(world, true)),
+        KeyCode::Char('<') | KeyCode::Char(',') => return Ok(travel_or_use_stairs(world, false)),
+        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => Some((0, -1)),
+        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => Some((0, 1)),
+        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => Some((-1, 0)),
+        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => Some((1, 0)),
+        KeyCode::Char('y') => Some((-1, -1)),
+        KeyCode::Char('u') => Some((1, -1)),
+        KeyCode::Char('b') => Some((-1, 1)),
+        KeyCode::Char('n') => Some((1, 1)),
+        _ => None,
+    };
+
+    let Some((dx, dy)) = step else {
+        return Ok(false);
+    };
+    world.resource_mut::<GameLog>().unread.clear();
+    Ok(move_player(world, dx, dy))
+}
+
+/// Shift + direction: kick off a NetHack-style run, or say why it can't start.
+fn start_run(world: &mut World, rdx: i16, rdy: i16) {
+    if player_confused(world) {
+        world
+            .resource_mut::<GameLog>()
+            .add("You are too confused for that right now.");
+        return;
+    }
+    match fast_move_plan(world, rdx, rdy) {
+        FastMovePlan::MonsterInSight => {
+            world
+                .resource_mut::<GameLog>()
+                .add("Not while a creature is in sight.");
+        }
+        FastMovePlan::Blocked => {
+            world
+                .resource_mut::<GameLog>()
+                .add("You can't run that way.");
+        }
+        FastMovePlan::Straight => {
+            world.resource_mut::<GameLog>().unread.clear();
+            world.resource_mut::<FastMove>().start(rdx, rdy, None);
+        }
+        FastMovePlan::Travel(tile) => {
+            world.resource_mut::<GameLog>().unread.clear();
+            world.resource_mut::<FastMove>().start(rdx, rdy, Some(tile));
+        }
+    }
+}
+
+/// `i`: open the pack, or say so when it is empty.
+fn open_pack(world: &mut World) -> std::io::Result<bool> {
+    if player_backpack_len(world) == 0 {
+        world.resource_mut::<GameLog>().add("You have no items.");
+        world.resource_mut::<PackIsOpen>().open = false;
+        return Ok(false);
+    }
+    let mut pack = world.resource_mut::<PackIsOpen>();
+    pack.open = true;
+    pack.selected = 0;
+    Ok(false)
+}
+
+/// `o`: arm auto-explore, unless confused, a monster is in view, or the map is
+/// already fully known.
+fn begin_auto_explore(world: &mut World) -> std::io::Result<bool> {
+    if player_confused(world) {
+        world
+            .resource_mut::<GameLog>()
+            .add("You are too confused for that right now.");
+        return Ok(false);
+    }
+    if monster_in_sight(world) {
+        world
+            .resource_mut::<GameLog>()
+            .add("Not while a creature is in sight.");
+        return Ok(false);
+    }
+    if explore_step(world).is_none() {
+        world
+            .resource_mut::<GameLog>()
+            .add("There is nothing left to explore.");
+        return Ok(false);
+    }
+    world.resource_mut::<GameLog>().unread.clear();
+    world.resource_mut::<AutoExplore>().start(None);
+    Ok(false)
+}
+
+/// `O`: drop the blinking travel cursor on the player's own tile to steer it.
+fn open_travel_cursor(world: &mut World) {
+    let pos = {
+        let mut q = world.query_filtered::<&Position, With<Player>>();
+        q.iter(world).next().copied()
+    };
+    let Some(pos) = pos else {
+        return;
+    };
+    world.resource_mut::<GameLog>().unread.clear();
+    world.resource_mut::<TravelCursor>().open(pos.x, pos.y);
 }
 
 /// Handles `>` / `<`. Standing on the matching staircase, it uses it. Otherwise,
@@ -1121,24 +1053,22 @@ pub fn fast_move_run(world: &mut World, schedule: &mut Schedule) -> std::io::Res
             break;
         }
 
-        match world.resource::<FastMove>().target {
-            Some(target) => {
-                let here = {
-                    let mut q = world.query_filtered::<&Position, With<Player>>();
-                    q.iter(world).next().map(|p| (p.x, p.y))
-                };
-                if here == Some(target) {
-                    break;
-                }
-            }
-            None => {
-                if straight_stop_here(world) {
-                    break;
-                }
-            }
+        let target = world.resource::<FastMove>().target;
+        if fast_move_done(world, target) {
+            break;
         }
     }
 
     world.resource_mut::<FastMove>().stop();
     Ok(())
+}
+
+/// Whether the fast move should stop before its next step: a beeline that has
+/// reached its target, or a straight run that has met a junction.
+fn fast_move_done(world: &mut World, target: Option<(u16, u16)>) -> bool {
+    let Some(target) = target else {
+        return straight_stop_here(world);
+    };
+    let mut q = world.query_filtered::<&Position, With<Player>>();
+    q.iter(world).next().map(|p| (p.x, p.y)) == Some(target)
 }
