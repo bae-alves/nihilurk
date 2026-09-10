@@ -63,10 +63,7 @@ impl Name {
     /// `"an"` before a vowel sound, `"a"` otherwise. Good enough for the
     /// bestiary and item list (no "an hour" / "a unicorn" edge cases here).
     pub fn article(&self) -> &'static str {
-        match self.what.chars().next() {
-            Some(c) if matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u') => "an",
-            _ => "a",
-        }
+        crate::identify::article_for(&self.what)
     }
 }
 

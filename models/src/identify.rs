@@ -276,8 +276,10 @@ pub fn with_article(world: &World, item: Entity) -> String {
 }
 
 /// The indefinite article that reads correctly before `s`: `"an"` before a
-/// vowel sound, `"a"` otherwise. Same rule as [`Name::article`], but usable
-/// on an arbitrary display string (an appearance is not a [`Name`]).
+/// vowel sound, `"a"` otherwise. The one place this rule lives — [`Name::article`]
+/// and [`crate::TrapEffect::label_article`] both defer here, and it works on any
+/// display string, not just a [`Name`] (an appearance is not a [`Name`]).
+/// Good enough for roog's vocabulary — no "an hour" / "a unicorn" edge cases.
 pub fn article_for(s: &str) -> &'static str {
     match s.chars().next() {
         Some(c) if matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u') => "an",

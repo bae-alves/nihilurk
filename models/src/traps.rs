@@ -71,7 +71,7 @@ impl TrapEffect {
 
     /// `"a"` / `"an"` to read correctly before [`TrapEffect::label`].
     pub fn label_article(self) -> &'static str {
-        article(self.label())
+        crate::identify::article_for(self.label())
     }
 }
 
@@ -129,12 +129,12 @@ impl TrapDef {
 #[rustfmt::skip]
 pub const TRAPS: &[TrapDef] = &[
     //        effect                  name                   glyph  colour       wt  dep
-    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Green, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::DarkGreen, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Blue, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::DarkCyan, weight: 10, min_depth: 1 },
+    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Cyan, weight: 10, min_depth: 1 },
 ];
 
 /// How a trap becomes known to the player before it is triggered. Rolled once,
@@ -368,7 +368,7 @@ fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         let who = actor_label(world, victim);
         world.resource_mut::<GameLog>().add(format!(
             "{who} steps on {} {}!",
-            article(effect.label()),
+            crate::identify::article_for(effect.label()),
             effect.label()
         ));
     }
@@ -392,13 +392,6 @@ fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
 fn trap_spark(world: &mut World, trap_pos: Option<Position>) {
     if let (Some(p), Some(mut fx)) = (trap_pos, world.get_resource_mut::<Particles>()) {
         fx.hit_spark(p.x, p.y);
-    }
-}
-
-fn article(word: &str) -> &'static str {
-    match word.chars().next() {
-        Some(c) if matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u') => "an",
-        _ => "a",
     }
 }
 
@@ -431,7 +424,7 @@ fn snare_victim(world: &mut World, victim: Entity, kind: SnareKind, turns: u32, 
     world.entity_mut(victim).insert(Snare { turns, kind });
     if is_player {
         let msg = match kind {
-            SnareKind::Bear => "Steel jaws snap shut on your leg — you're held fast!",
+            SnareKind::Bear => "Steel jaws snap shut on your leg — you're held fast in blinding pain!",
             SnareKind::Sleep => "Gas billows up around you. Your eyelids turn to lead...",
         };
         world.resource_mut::<GameLog>().add(msg);
@@ -451,7 +444,7 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
     if is_player {
         world
             .resource_mut::<GameLog>()
-            .add("The floor blinks out from under you and the world lurches sideways.");
+            .add("The walls change! You are whisked to a different part of the dungeon.");
     }
 }
 
@@ -463,7 +456,7 @@ fn arrow_effect(
     trap_pos: Option<Position>,
 ) {
     let armor_plus = total_armor_plus(world, victim);
-    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=8) + 2; // 1d8 + 2
+    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=4) + 1; // 1d4 + 2
     let damage = (roll - armor_plus).max(0);
     let who = actor_label(world, victim);
 
@@ -494,7 +487,7 @@ fn arrow_effect(
     if is_player || seen {
         world
             .resource_mut::<GameLog>()
-            .add(format!("An arrow thuds into {who} for {damage} damage!"));
+            .add(format!("An arrow plinks into {who} for {damage} damage!"));
     }
     trap_spark(world, trap_pos);
     apply_damage(world, victim, damage);
@@ -508,7 +501,7 @@ fn dart_effect(
     trap_pos: Option<Position>,
 ) {
     let armor_plus = total_armor_plus(world, victim);
-    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=4); // 1d4
+    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=2); // 1d2
     let damage = (roll - armor_plus).max(0);
     let who = actor_label(world, victim);
 
