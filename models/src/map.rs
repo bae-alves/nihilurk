@@ -1084,7 +1084,7 @@ pub fn initialize_world(world: &mut World) {
 
     let arrows = spawn_ammo(world, "arrow", origin);
     if let Some(mut stack) = world.get_mut::<Stack>(arrows) {
-        stack.count = 26;
+        stack.count = 13;
     }
     pack_up(world, arrows);
 
