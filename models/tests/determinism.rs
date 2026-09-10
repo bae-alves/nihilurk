@@ -1,9 +1,15 @@
 //! The seed contract.
 //!
 //! A run's dungeon must be reproducible, and a floor's *layout* must depend on
-//! nothing but the seed and the depth. That second property is what lets a save
-//! rebuild its floor from two numbers, and what stops a new row in a content
-//! table from quietly rearranging everybody's dungeon.
+//! nothing but the seed and the depth. That is what lets a save rebuild its
+//! floor from two numbers, and what stops a new row in a content table from
+//! quietly rearranging everybody's dungeon.
+//!
+//! A floor's *contents* are looser: they depend on the seed, the depth, and the
+//! staircase count (`FloorChanges`), so a repeat visit re-stocks the same
+//! layout with different things. What they must still *not* depend on is the
+//! shared `GameRng` — the blow-by-blow of the run — because that would tie a
+//! floor to how a fight went rather than to a clean count.
 
 use bevy_ecs::prelude::*;
 use models::*;
@@ -121,14 +127,15 @@ fn a_floors_layout_depends_only_on_seed_and_depth() {
 }
 
 /// The other half of the contract. A floor's *contents* are drawn from
-/// `content_rng(seed, depth)`, so they cannot depend on the player's history
-/// either: two runs on one seed that spend wildly different amounts of the
-/// shared `GameRng` on floor 1 must still walk into the same floor 2.
+/// `content_rng(seed, depth, floor_changes)`, so they cannot depend on the
+/// player's blow-by-blow history: two runs on one seed that spend wildly
+/// different amounts of the shared `GameRng` on floor 1 — but take the same
+/// number of staircases — must still walk into the same floor 2.
 ///
 /// If this fails, something inside floor generation has started drawing from
 /// the shared stream again.
 #[test]
-fn a_floors_contents_depend_only_on_seed_and_depth() {
+fn a_floors_contents_ignore_the_shared_rng_stream() {
     for seed in [1u64, 42, 7777] {
         let mut quiet = new_run(seed);
 
@@ -258,5 +265,56 @@ fn going_back_up_returns_you_to_the_same_floor() {
         map_hash(&w),
         floor1,
         "floor 1 was rebuilt as a different place"
+    );
+}
+
+/// Every monster and floor item on the current floor, sorted — the player and
+/// anything in a pack left out, so only the floor's own stock is compared.
+fn floor_stock(w: &mut World) -> Vec<String> {
+    let mut v: Vec<String> = w
+        .query_filtered::<(&Name, &Position), Without<Player>>()
+        .iter(w)
+        .map(|(n, p)| format!("{}@{},{}", n.what, p.x, p.y))
+        .collect();
+    v.sort();
+    v
+}
+
+/// The layout comes back identical on a repeat visit — but the contents do not.
+/// Walk 1 -> 2 -> 1 and the corridors of floor 1 are the same corridors,
+/// re-stocked with different monsters and loot.
+#[test]
+fn a_repeat_visit_keeps_the_layout_but_rerolls_the_contents() {
+    let mut w = new_run(7);
+    let layout_first = map_hash(&w);
+    let stock_first = floor_stock(&mut w);
+
+    descend(&mut w); // 1 -> 2
+
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    let relic = spawn_named(&mut w, ELEMENT_OF_YOORD, Position { x: 0, y: 0 }).unwrap();
+    w.entity_mut(relic).remove::<Position>();
+    w.get_mut::<Backpack>(player).unwrap().items.push(relic);
+
+    let up = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Upstairs)
+        .unwrap();
+    w.get_mut::<Position>(player).unwrap().x = (up % MAP_WIDTH as usize) as u16;
+    w.get_mut::<Position>(player).unwrap().y = (up / MAP_WIDTH as usize) as u16;
+    assert!(change_level(&mut w, false)); // 2 -> 1
+
+    assert_eq!(w.resource::<Depth>().what, 1);
+    assert_eq!(
+        map_hash(&w),
+        layout_first,
+        "the layout of floor 1 moved between visits"
+    );
+    assert_ne!(
+        stock_first,
+        floor_stock(&mut w),
+        "floor 1 came back with exactly the same things in exactly the same places"
     );
 }

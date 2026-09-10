@@ -112,6 +112,32 @@ The bonus always lands on the flat modifier and never on the die size, so
 a +3 dagger is still a dagger. Weapon class is a property of the weapon;
 enchantment is a property of the copy you found.
 
+Traps that scale
+----------------
+
+A trap on floor 2 and the same trap on floor 11 are the same row in the
+same table, but they should not bite the same. The two damage traps --
+arrow and dart -- grow with depth in three bands, ending at floors 4, 8
+and 13 (`constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`). Each band adds
+one point to the arrow trap's damage roll and one point to the dart
+trap's *permanent* strength drain -- a depth-13 dart trap that connects
+costs three points of `power` for the rest of the run.
+
+Those bands are deliberately coarser than the floor-crowding ones
+(`DIFFICULTY_TIER_LAST_DEPTH = [3, 6, 9, 12]`, which steps five times so
+the deepest floor gets its own worst budget). A trap that stepped that
+often would out-scale the player; three bands is enough to make depth
+felt.
+
+The bear trap took a different fix. It used to eat three whole turns,
+which on a bad floor is just a death sentence with a delay. Now it pins
+your feet and nothing else: you can still swing at whatever walked up to
+you while you were stuck, and the three turns are spent shrinking, not
+frozen. Trying to *walk* out, though, tears the leg -- a point of damage,
+a wasted turn, and a floor tile you will recognise later. The dial is
+`constants::traps::BEAR_TRAP_THRASH_DAMAGE`; the gore is cosmetic and
+separate.
+
 
 Reading the existing table
 --------------------------
@@ -120,8 +146,8 @@ Rough shape of the bestiary, if you want a new creature to sit in it
 without standing out:
 
     fodder      hp 1-2    power 4-8     armor 4-8       depth 1
-    mid         hp 3-6    power 6-10    armor 6-10      depth 3-5
-    deep        hp 8-12   power 8-12    armor 6-10      depth 7, with bonuses
+    mid         hp 3-6    power 6-10    armor 6-10      depth 5
+    deep        hp 8-12   power 8-12    armor 6-10      depth 10, with bonuses
 
 Each row also keeps its original Rogue level and armour class in a
 comment table at the top of `models/src/monsters.rs`, as a design anchor.

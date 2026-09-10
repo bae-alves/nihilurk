@@ -17,7 +17,6 @@ use crate::identify::{Identified, ItemAppearances};
 use crate::map::{BloodStains, FINAL_DEPTH, GameRng, Map, RngSeed, TileType, regenerate_map};
 use crate::monsters::MonsterDef;
 use crate::state::{Ending, GameState};
-use crate::traps::{Snare, SnareKind, Trap, TrapEffect, TrapReveal};
 use rand_chacha::ChaCha12Rng;
 
 // How many past log lines a save keeps (`GameLog` itself holds more in memory;
@@ -156,6 +155,9 @@ struct SaveGame<'a> {
     player_name: Cow<'a, str>,
     /// The current dungeon depth.
     depth: u8,
+    /// How many times the player has changed floors — salts `content_rng`, so a
+    /// reload lands on the same re-roll of the current floor's contents.
+    floor_changes: u32,
     /// The seed the run was originally created from.
     rng_seed: u64,
     /// The live RNG state, so the stream continues exactly where it left off.
@@ -302,6 +304,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             .collect(),
         player_name: Cow::Borrowed(world.resource::<PlayerName>().what.as_str()),
         depth: world.resource::<Depth>().what,
+        floor_changes: world.get_resource::<FloorChanges>().map_or(0, |c| c.count),
         rng_seed: world.resource::<RngSeed>().0,
         rng_state: world.resource::<GameRng>().0.clone(),
         item_appearances: world.resource::<ItemAppearances>().clone(),
@@ -318,7 +321,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
 }
 
 /// Rebuilds the world from a postcard save file. Inserts GameState, GameLog,
-/// PlayerName and Depth resources; all other resources must already be present.
+/// PlayerName, Depth and FloorChanges resources; all other resources must
+/// already be present.
 pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     let bytes = std::fs::read(path)?;
     let save: SaveGame = postcard::from_bytes(&bytes)
@@ -334,6 +338,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         what: save.player_name.into_owned(),
     });
     world.insert_resource(Depth { what: save.depth });
+    world.insert_resource(FloorChanges {
+        count: save.floor_changes,
+    });
     world.insert_resource(RngSeed(save.rng_seed));
     world.insert_resource(GameRng(save.rng_state));
     world.insert_resource(DungeonLord::default());

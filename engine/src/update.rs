@@ -141,6 +141,14 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return true; // Attacking consumes a turn
     }
 
+    // 3b. A bear trap has your leg. A swing at an adjacent foe (above) still
+    // lands, but the step you were about to take becomes a bloody lurch against
+    // the jaws — one wasted turn, a scratch of damage, and a lot of blood.
+    if matches!(player_snare(world), Some(SnareKind::Bear)) {
+        bear_trap_thrash(world, player_entity);
+        return true;
+    }
+
     // 4. Move player if the path is completely clear
     if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
         pos.x = new_x;
@@ -233,14 +241,16 @@ fn auto_fight_turn(world: &mut World) -> bool {
 }
 
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
-    // A snared player (bear trap / sleeping gas) forfeits the turn outright — no
-    // key is read — as long as there's no pending --MORE-- prompt to clear
-    // first. `snare_system` ages the snare down as the turn resolves.
+    // A player asleep in sleeping gas forfeits the turn outright — no key is
+    // read — as long as there's no pending --MORE-- prompt to clear first.
+    // `snare_system` ages the snare down as the turn resolves. A bear trap does
+    // *not* forfeit the turn: it only blocks movement (see `move_player`), so
+    // input is still read and the player can swing or thrash.
     let more_pending = {
         let log = world.resource::<GameLog>();
         log_view(&log.unread).2
     };
-    if !more_pending && player_snare(world).is_some() {
+    if !more_pending && player_incapacitated(world) {
         return Ok(true);
     }
 

@@ -200,6 +200,97 @@ fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
 }
 
 #[test]
+fn a_bear_trap_blocks_your_feet_not_your_fists() {
+    let mut w = test_world(1);
+    clear_traps(&mut w);
+    let p = player(&mut w);
+    w.get_mut::<Fighter>(p).unwrap().hp = 12;
+
+    let here = player_pos(&mut w);
+    w.spawn(TrapBundle::bear(here));
+    step_player_onto(&mut w, here.x, here.y);
+    trap_system(&mut w);
+
+    // Held, but not "incapacitated" — the engine still reads a key, so a swing
+    // at an adjacent foe is possible.
+    assert!(
+        !models::player_incapacitated(&mut w),
+        "a bear trap is not a sleep"
+    );
+
+    // Thrashing toward open ground, though, wastes the turn and tears the leg.
+    let hp_before = w.get::<Fighter>(p).unwrap().hp;
+    models::bear_trap_thrash(&mut w, p);
+    assert_eq!(
+        w.get::<Fighter>(p).unwrap().hp,
+        hp_before - 1,
+        "a scratch of damage for the thrash"
+    );
+    assert!(log_contains(&w, "flays your leg"));
+}
+
+#[test]
+fn sleeping_gas_leaves_you_incapacitated() {
+    let mut w = test_world(1);
+    clear_traps(&mut w);
+    let here = player_pos(&mut w);
+    w.spawn(TrapBundle::sleep(here));
+    step_player_onto(&mut w, here.x, here.y);
+    trap_system(&mut w);
+
+    assert!(models::player_incapacitated(&mut w), "out cold");
+}
+
+#[test]
+fn a_bear_trapped_monster_still_bites_an_adjacent_foe() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let here = player_pos(&mut w);
+    w.init_resource::<AttackQueue>();
+
+    let spot = Position {
+        x: here.x + 1,
+        y: here.y,
+    };
+    let mob = w
+        .spawn((
+            Name { what: "orc".into() },
+            Mob {
+                movement_type: MovementType::Chase,
+            },
+            spot,
+            Fighter {
+                hp: 3,
+                max_hp: 3,
+                armor: 0,
+                power: 1,
+                max_power: 1,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
+            Faction::Monster,
+            Blood,
+        ))
+        .id();
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(spot.x, spot.y), (here.x, here.y)];
+    w.entity_mut(mob).insert(Snare {
+        turns: 2,
+        kind: SnareKind::Bear,
+    });
+
+    let mut s = Schedule::default();
+    s.add_systems(ai);
+    s.run(&mut w);
+
+    let bit = w
+        .resource::<AttackQueue>()
+        .attacks
+        .iter()
+        .any(|a| a.attacker == mob && a.target == p);
+    assert!(bit, "the held orc can't step, but it can still lash out");
+}
+
+#[test]
 fn ai_skips_a_snared_monster() {
     let mut w = test_world(1);
     let p = player(&mut w);
@@ -314,7 +405,7 @@ fn a_missed_arrow_lands_on_the_floor_as_loot() {
     let mut w = test_world(2);
     clear_traps(&mut w);
     let p = player(&mut w);
-    // Armour plus of 20 guarantees the 1d8+2 bolt cannot connect.
+    // Armour plus of 20 guarantees the bolt cannot connect.
     w.get_mut::<Fighter>(p).unwrap().armor_bonus = 20;
     w.get_mut::<Fighter>(p).unwrap().hp = 12;
 
@@ -430,6 +521,65 @@ fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
         w.get::<Fighter>(p).unwrap().power,
         power_before,
         "no hit, no poison"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Depth scaling — three tiers ending at floors 4, 8, 13
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_dart_trap_drains_more_strength_the_deeper_you_are() {
+    for (depth, expected_drain) in [(1u8, 1i32), (4, 1), (5, 2), (8, 2), (9, 3), (13, 3)] {
+        let mut w = test_world(2);
+        clear_traps(&mut w);
+        w.resource_mut::<Depth>().what = depth;
+        let p = player(&mut w);
+        w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
+        w.get_mut::<Fighter>(p).unwrap().hp = 12;
+        w.get_mut::<Fighter>(p).unwrap().power = 12;
+        let power_before = w.get::<Fighter>(p).unwrap().power;
+
+        let here = player_pos(&mut w);
+        w.spawn(TrapBundle::dart(here));
+        step_player_onto(&mut w, here.x, here.y);
+        trap_system(&mut w);
+
+        assert_eq!(
+            power_before - w.get::<Fighter>(p).unwrap().power,
+            expected_drain,
+            "at depth {depth} the dart should drain {expected_drain}"
+        );
+    }
+}
+
+#[test]
+fn the_arrow_trap_hits_harder_the_deeper_you_are() {
+    // Same seeds, same unarmoured target: sum the damage a shallow arrow trap
+    // deals against a deep one. The per-tier bonus should make the deep floor
+    // visibly nastier.
+    let total_at = |depth: u8| -> i32 {
+        (0..40u64)
+            .map(|seed| {
+                let mut w = test_world(seed);
+                clear_traps(&mut w);
+                w.resource_mut::<Depth>().what = depth;
+                let p = player(&mut w);
+                w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
+                w.get_mut::<Fighter>(p).unwrap().hp = 100;
+
+                let here = player_pos(&mut w);
+                w.spawn(TrapBundle::arrow(here));
+                step_player_onto(&mut w, here.x, here.y);
+                trap_system(&mut w);
+                100 - w.get::<Fighter>(p).unwrap().hp
+            })
+            .sum()
+    };
+
+    assert!(
+        total_at(13) > total_at(1),
+        "a depth-13 arrow trap should out-hit a depth-1 one"
     );
 }
 

@@ -33,8 +33,12 @@ Dial 1: how many things per floor
 This is not content. It is floor generation, in `populate_level` in
 `models/src/map.rs`, and it is the same for every row.
 
-Everything scales off `tier`, which is `(depth - 1) / 3` -- so 0 on
-floors 1-3, 1 on 4-6, 2 on 7-9, and so on:
+Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps
+at the depths in `constants::progression::DIFFICULTY_TIER_LAST_DEPTH`
+(`[3, 6, 9, 12]`): tier 0 on floors 1-3, tier 1 on 4-6, tier 2 on 7-9,
+tier 3 on 10-12, tier 4 on floor 13 alone. The damage traps scale too,
+but on their own coarser three bands
+(`constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`, `[4, 8]`).
 
     monsters      3 + tier slots. The first always fills; each later one
                   fills with probability min(0.60 + 0.12 * tier, 0.95).
@@ -42,9 +46,10 @@ floors 1-3, 1 on 4-6, 2 on 7-9, and so on:
     lurkers       from floor 7, each corridor centre has a 5% chance of
                   hiding one more.
 
-    items         exactly 3 attempts, every floor, at every depth.
+    items         3 + tier attempts. Every attempt that finds a free
+                  tile drops an item (no fill roll).
 
-    hidden item   one floor in ten hides one more in plain sight.
+    hidden item   one floor in five hides one more in plain sight.
 
     traps         4 + tier slots, each filling with probability
                   min(0.12 + 0.13 * tier, 0.75).
@@ -53,12 +58,13 @@ Change these when the dungeon feels too empty or too crowded. Do not
 change them to make one creature rarer -- that is dial 3.
 
 
-> **Turning any of these cannot move a wall.** A floor is built from
-> `layout_rng(seed, depth)` and `content_rng(seed, depth)` -- its own two
-> streams -- so nothing a player does can shift it, and neither can any
-> other part of the codebase. What your weights *do* change is what a
-> given seed produces from the table you edited, which is the whole point
-> of editing it. See `../explanation/data-driven-content.md`.
+> **Turning any of these cannot move a wall.** A floor's layout is built
+> from `layout_rng(seed, depth)` and its contents from
+> `content_rng(seed, depth, changes)` -- neither is the shared run stream,
+> so nothing a player does mid-fight can shift a floor. (The contents
+> *do* re-roll each visit, off the staircase count.) What your weights
+> change is what a given seed produces from the table you edited, which is
+> the whole point of editing it. See `../explanation/data-driven-content.md`.
 
 Dial 2: which category of item
 ------------------------------
@@ -126,13 +132,16 @@ gate, not a weight: below it the row is not in the draw.
 Monsters use it as the last column of the row:
 
     //              name         glyph  colour     move   hp pow pb  ar ab  dep
-    MonsterDef::row("dragon",    'D',   Color::Red, Chase, 8, 12, 2, 10, 2,  7),
+    MonsterDef::row("dragon",    'D',   Color::Red, Chase, 8, 12, 2, 10, 2, 10),
 
-The bestiary uses 1, 3, 5 and 7 -- fodder from the start, the nastiest
-letters from floor 7. Nothing stops you using 2 or 11.
+The bestiary uses 1, 5 and 10 -- fodder from the start, the mid tier from
+floor 5, the nastiest letters from floor 10. Nothing stops you using 2 or 11.
 
 The dungeon is 13 floors deep (`FINAL_DEPTH`), so a `min_depth` above 13
-means "never".
+means "never" -- on the way in. The climb out is the exception: once the
+Element of Yoord is in the pack, floor population switches from `pick` to
+`MonsterDef::pick_any`, which drops the gate entirely, so a `min_depth` of
+10 (or 99) is no protection on the ascent.
 
 > **Every floor still draws from everything it has unlocked.** A goblin
 > does not stop appearing on floor 9; it competes with the dragon. That

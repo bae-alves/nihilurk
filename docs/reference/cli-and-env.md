@@ -29,11 +29,14 @@ error.
     cargo run -p engine -- -content | grep ring
     cargo run -p engine -- -content | less
 
-`-s` fixes the whole dungeon. Every floor -- its walls, its monsters, its
-loot, its traps -- is a pure function of `(seed, depth)`, so floor 7 of
-seed 1234 is the same place today, tomorrow, after you reload a save, and
-after somebody adds a monster to the bestiary. How you play changes what
-happens to you there; it does not change what is there.
+`-s` fixes the dungeon's *maps*. Every floor's walls are a pure function
+of `(seed, depth)`, so floor 7 of seed 1234 is the same maze today,
+tomorrow, after you reload a save, and after somebody adds a monster to
+the bestiary. Its *contents* -- monsters, loot, traps -- are re-rolled
+each time you enter the floor (they key off the staircase count as well),
+so walking back up through floor 7 finds the same corridors freshly
+stocked. How you play still does not reach into generation: two runs on
+one seed that take the same staircases see the same everything.
 
 
 The positional argument

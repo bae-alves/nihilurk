@@ -28,10 +28,10 @@
 //! through `crate::saveload`.
 //!
 //! **Ordering matters for saved types.** Every enum that derives `Serialize`
-//! ([`MovementType`], [`Faction`], [`SpeedKind`], the four `*Effect` enums) is
-//! written to the save by variant position, and every serialised struct by
-//! field order. Append new variants and fields; do not reorder existing ones, or
-//! old saves change meaning.
+//! ([`MovementType`], [`Faction`], [`SpeedKind`], [`SnareKind`], [`TrapReveal`],
+//! the `*Effect` enums) is written to the save by variant position, and every
+//! serialised struct by field order. Append new variants and fields; do not
+//! reorder existing ones, or old saves change meaning.
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
@@ -270,7 +270,7 @@ pub struct Viewshed {
 pub struct Hidden;
 
 /// Intrinsically unseeable without [`crate::effects::SeesInvisible`] — the
-/// phantom, and the one-in-ten "invisible" floor item. Pairs with [`Hidden`]:
+/// phantom, and the one-floor-in-five "invisible" hidden floor item. Pairs with [`Hidden`]:
 /// `Invisible` says *why* a thing can't be seen, `Hidden` is the per-turn "can't
 /// be seen right now" the renderer reads.
 #[derive(Component)]
@@ -594,6 +594,88 @@ pub struct Launcher;
 pub struct Confused;
 
 // ===========================================================================
+// Traps and snares
+// ===========================================================================
+
+/// Which of the six trap kinds a [`Trap`] entity is. The effect always fires
+/// when the trap is stepped on — there is no saving throw. The mechanic keyed
+/// off each variant lives in `crate::traps` (`spring_trap`); the catalog row
+/// (name, glyph, rarity, debut depth) is [`crate::traps::TrapDef`].
+///
+/// Serialised by variant position — append, never reorder (a saved trapdoor
+/// would become something else).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrapEffect {
+    /// Drops the victim straight to the next floor down. No escape.
+    Trapdoor,
+    /// Clamps shut: the victim is [`Snare`]d and cannot move — though it may
+    /// still strike an adjacent foe — until it works free.
+    Bear,
+    /// A hiss of gas: the victim sleeps through its next few turns.
+    Sleep,
+    /// Flings the victim to a random open tile on the current floor.
+    Teleport,
+    /// Fires a bolt; on a clean miss the arrow lands on the floor as loot.
+    /// Damage scales with depth (`crate::constants::traps`).
+    Arrow,
+    /// A poisoned dart: light damage, and on a hit it saps melee power for good
+    /// — more of it the deeper you are — unless a ring of strength is worn.
+    Dart,
+}
+
+/// How a trap becomes known to the player before it is triggered. Rolled once,
+/// with equal probability, when the trap spawns; read by `crate::visibility`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TrapReveal {
+    /// Revealed as soon as its tile is in the player's viewshed.
+    Sight,
+    /// Revealed once the player is on an orthogonally/diagonally adjacent tile.
+    Adjacent,
+    /// Never revealed until it goes off.
+    Triggered,
+}
+
+/// The trap marker component. `revealed` latches: once a trap is known it stays
+/// drawn (in fog-of-war grey when out of sight), like a discovered staircase.
+/// Owned by `crate::traps` (`trap_system`, `spring_trap`) and
+/// `crate::visibility`.
+#[derive(Component)]
+pub struct Trap {
+    pub effect: TrapEffect,
+    pub reveal: TrapReveal,
+    pub revealed: bool,
+}
+
+/// Marker inserted on any actor that changed [`Position`] this turn, so
+/// `crate::traps::trap_system` knows whose feet to check. Transient: cleared at
+/// the end of every `trap_system` run and never serialised.
+#[derive(Component)]
+pub struct EntityMoved;
+
+/// Why an actor is losing turns to a [`Snare`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SnareKind {
+    /// Bear trap: physically pinned. Movement is impossible — a thrash against
+    /// the jaws wastes the turn and draws blood
+    /// ([`crate::constants::traps::BEAR_TRAP_THRASH_DAMAGE`]) — but the victim
+    /// can still attack an adjacent foe.
+    Bear,
+    /// Sleeping gas: out cold. No action of any kind until it wears off.
+    Sleep,
+}
+
+/// An actor that cannot act freely for `turns` more turns. Aged by
+/// `crate::traps::snare_system`; removed (with a wake-up log line for the
+/// player) when it hits zero. A [`SnareKind::Sleep`] snare forfeits the turn
+/// outright; a [`SnareKind::Bear`] snare only blocks movement. `crate::ai`
+/// applies the same rule to snared monsters.
+#[derive(Component)]
+pub struct Snare {
+    pub turns: u32,
+    pub kind: SnareKind,
+}
+
+// ===========================================================================
 // Score
 // ===========================================================================
 
@@ -780,6 +862,17 @@ impl GameLog {
 #[derive(Resource)]
 pub struct Depth {
     pub what: u8,
+}
+
+/// How many times the player has moved between floors this run — every
+/// staircase, portal and trapdoor bumps it by one. It salts
+/// [`crate::map::content_rng`], so a floor's *layout* is still a pure function
+/// of `(seed, depth)` but its *contents* are re-rolled every time it is built:
+/// climb back up and the corridors you remember are stocked with different
+/// monsters and loot. Saved, so a reload lands on the same re-roll.
+#[derive(Resource, Default)]
+pub struct FloorChanges {
+    pub count: u32,
 }
 
 /// Tracks how long the player has lingered on one dungeon level. Every turn adds

@@ -153,3 +153,68 @@ fn floor_loot_follows_the_rogue_drop_table() {
         "a bundle averaged {per_bundle:.1} arrows, outside 3..=12 (tally: {t:?})"
     );
 }
+
+/// Every loose item on the current floor, excluding the player's starting kit
+/// (which keeps a stale [`Position`] while sitting in the backpack).
+fn floor_item_count(w: &mut World) -> usize {
+    let carried: std::collections::HashSet<Entity> = w
+        .query_filtered::<&Backpack, With<Player>>()
+        .single(w)
+        .items
+        .iter()
+        .copied()
+        .collect();
+    w.query_filtered::<Entity, (With<Item>, With<Position>)>()
+        .iter(w)
+        .filter(|e| !carried.contains(e))
+        .count()
+}
+
+#[test]
+fn the_item_budget_scales_with_depth() {
+    // Items are `3 + tier` attempts, so depth-13 floors (tier 4) run seven
+    // attempts to a surface floor's three. Sampled across seeds, the deep
+    // floors should carry noticeably more loot.
+    let mut shallow = 0usize;
+    let mut deep = 0usize;
+
+    for seed in 0..40u64 {
+        let mut w = test_world(seed);
+        shallow += floor_item_count(&mut w);
+        while w.resource::<Depth>().what < 13 {
+            descend(&mut w);
+        }
+        deep += floor_item_count(&mut w);
+    }
+
+    assert!(
+        deep > shallow + shallow / 2,
+        "deep floors ({deep}) should out-loot shallow ones ({shallow}) by half again"
+    );
+}
+
+#[test]
+fn about_one_floor_in_five_hides_an_extra_item() {
+    let mut floors = 0usize;
+    let mut with_hidden = 0usize;
+
+    for seed in 0..120u64 {
+        let mut w = test_world(seed);
+        for _ in 0..5 {
+            floors += 1;
+            let any_hidden = w
+                .query_filtered::<Entity, (With<Item>, With<Hidden>, With<Invisible>)>()
+                .iter(&w)
+                .next()
+                .is_some();
+            with_hidden += any_hidden as usize;
+            descend(&mut w);
+        }
+    }
+
+    let rate = with_hidden as f64 / floors as f64;
+    assert!(
+        (0.13..=0.27).contains(&rate),
+        "hidden-item rate {rate:.2} strayed from the 0.20 target ({with_hidden}/{floors})"
+    );
+}

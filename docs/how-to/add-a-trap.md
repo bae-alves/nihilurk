@@ -11,15 +11,20 @@ How to add a trap
 Three edits, and the compiler enforces the third.
 
 
-Everything about traps is in one file:
+The mechanics are one file:
 
     models/src/traps.rs
+
+The components a trap is built from -- `Trap`, `TrapEffect`, `TrapReveal`,
+`Snare`, `SnareKind`, `EntityMoved` -- are nouns and live in
+`models/src/components.rs` with everything else the ECS is made of. You
+add a `TrapEffect` *variant* there; the row and the mechanic stay here.
 
 
 The recipe
 ----------
 
-1. **Append a variant** to `TrapEffect`:
+1. **Append a variant** to `TrapEffect` (in `components.rs`):
 
        pub enum TrapEffect {
            ...
@@ -27,7 +32,7 @@ The recipe
            Pit,        // <- at the end; see the save-format warning
        }
 
-2. **Add the row** to `TRAPS`:
+2. **Add the row** to `TRAPS` (in `traps.rs`):
 
        TrapDef { effect: TrapEffect::Pit, name: "pit trap",
                  glyph: '^', color: Color::Red, weight: 10, min_depth: 1 },
@@ -59,10 +64,21 @@ Writing the mechanic
 Look at what the existing six do, and reuse the pieces:
 
     trapdoor_effect       moves the victim to the next floor down
-    snare_victim(...)     costs the victim N turns (bear trap, sleep gas)
+    snare_victim(...)     Snares the victim for `TrapDef.snare_turns` turns
+                          (bear trap pins the feet, gas takes the turn)
     teleport_effect       relocates the victim on this floor
     arrow_effect          damage, and drops a real arrow on a miss
-    dart_effect           damage, plus a permanent point of strength
+    dart_effect           damage, plus a permanent bite of strength
+
+If your trap snares, put the duration in the row's `snare_turns` and let
+`spring_trap` pass it through -- no constant to add.
+
+The arrow and dart also scale with depth. `trap_damage_tier(depth)` is
+0/1/2, stepping at floors 4 and 8, and it adds to the arrow's roll and
+the dart's drain. The bands and every per-tier amount are in
+`constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and friends). This band
+is the trap's own -- coarser than the floor-crowding
+`map::difficulty_tier`, on purpose.
 
 Your arm receives:
 
@@ -83,9 +99,11 @@ Your arm receives:
 > make armour far better against traps than the design intends.
 
 If your trap costs the victim turns, use `Snare`. It is aged down once
-per turn by `snare_system`, the engine forfeits the player's input while
-it is present, and the AI skips snared monsters. You do not have to
-implement any of that; you attach the component.
+per turn by `snare_system`. A `SnareKind::Sleep` snare forfeits the
+victim's turn outright (`player_incapacitated`, and the AI skips the
+monster); a `SnareKind::Bear` snare only blocks movement -- a swing still
+lands, a step is a `bear_trap_thrash`. You do not have to implement any
+of that; you attach the component and pick the kind.
 
 
 Reveal styles

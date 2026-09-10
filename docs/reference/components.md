@@ -15,6 +15,12 @@ Every `Component`, `Resource` and `Event` is declared in
 what a thing *is*, never what happens as a result. The verbs are the
 systems: `combat.rs`, `ai.rs`, `items/`, `visibility.rs`, `traps.rs`.
 
+A `Bundle` — the struct that assembles components for one spawn
+(`MonsterBundle`, `TrapBundle`) — is **not** here. It lives next to its
+content table (`monsters.rs`, `traps.rs`), because it names that table's
+`Def` row and is the one place an entity of that kind is described. See
+`../explanation/data-driven-content.md`, "Where the pieces live".
+
 Two shapes recur:
 
   * **Marker** — no fields. Presence is the fact (`Player`, `Blood`,
@@ -66,7 +72,8 @@ Components — creatures and combat
 
 Combat: `damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)`,
 both sides rolled independently, nothing ever misses. `power` is dropped
-by a poisoned dart trap and healed back toward `max_power`.
+by a poisoned dart trap — one point per depth tier — and healed back
+toward `max_power`.
 
 
 Components — speed and tempo
@@ -203,6 +210,31 @@ with time. Only a staircase or a wand of cancellation clears them, both
 through `crate::helpers::clear_player_conditions`.
 
 
+Components — traps and snares
+-----------------------------
+
+Defined in `components.rs` (nouns); the mechanics are `traps.rs`.
+
+| Component     | Data                                        | Meaning | Saved? |
+|---------------|---------------------------------------------|---------|--------|
+| `Trap`        | `effect: TrapEffect`, `reveal: TrapReveal`, `revealed: bool` | a `^` entity; `revealed` latches once known | yes |
+| `EntityMoved` | marker                                       | changed `Position` this turn — `trap_system` checks its tile | **transient** (cleared each `trap_system` run) |
+| `Snare`       | `turns: u32`, `kind: SnareKind`              | losing turns to a trap | yes |
+
+`TrapEffect` — enum, **saved by variant order** (`Trapdoor`, `Bear`,
+`Sleep`, `Teleport`, `Arrow`, `Dart`). Keys the mechanic in `spring_trap`;
+the catalog row (`TrapDef`) is name / glyph / rarity / `snare_turns`.
+Arrow and dart damage scale with depth — `constants::traps`.
+
+`TrapReveal` — enum, saved by variant order (`Sight`, `Adjacent`,
+`Triggered`). Rolled equal-odds at spawn; read by `visibility.rs`.
+
+`SnareKind` — enum, saved by variant order (`Bear`, `Sleep`). `Sleep`
+forfeits the turn outright (`player_incapacitated`); `Bear` blocks
+movement only — a swing still lands, a step is a bloody thrash
+(`bear_trap_thrash`). `ai.rs` applies the same rule to snared monsters.
+
+
 Components — score
 ------------------
 
@@ -245,9 +277,10 @@ Resources
 | Resource      | Fields                              | Saved? |
 |---------------|-------------------------------------|--------|
 | `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<String>` (waiting for `--MORE--`) | last few `history` lines only |
-| `Depth`       | `what: u8` — current floor, 1-based | yes    |
-| `PlayerName`  | `what: String`                      | yes    |
-| `DungeonLord` | `idle_turns: u32` — turns lingered on this floor; at `DUNGEON_LORD_PATIENCE` (260) a portal opens | **transient** (resets to 0) |
+| `Depth`        | `what: u8` — current floor, 1-based | yes    |
+| `FloorChanges` | `count: u32` — staircase/portal/trapdoor traversals this run; salts `content_rng` so a repeat visit re-stocks the same layout | yes |
+| `PlayerName`   | `what: String`                      | yes    |
+| `DungeonLord`  | `idle_turns: u32` — turns lingered on this floor; at `DUNGEON_LORD_PATIENCE` (260) a portal opens | **transient** (resets to 0) |
 
 `GameLog::add()` pushes to both `history` and `unread`.
 

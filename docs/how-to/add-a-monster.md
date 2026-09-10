@@ -64,15 +64,15 @@ Choosing the numbers
 Copy the band your creature belongs to:
 
     fodder      hp 1-2    power 4-8     armor 4-8       min_depth 1
-    mid         hp 3-6    power 6-10    armor 6-10      min_depth 3-5
-    deep        hp 8-12   power 8-12    armor 6-10      min_depth 7
+    mid         hp 3-6    power 6-10    armor 6-10      min_depth 5
+    deep        hp 8-12   power 8-12    armor 6-10      min_depth 10
 
 Raise `armor` to make it hard to kill, `power` to make it frightening to
 stand next to, `hp` only to buy it one more exchange. Why that is so --
 and why nothing in the bestiary has thirty hit points -- is
 `../explanation/combat-and-balance.md`.
 
-`min_depth` in use is 1, 3, 5 and 7. Nothing stops you using 2 or 11.
+`min_depth` in use is 1, 5 and 10. Nothing stops you using 2 or 11.
 
 Optional extras, chained on
 ---------------------------

@@ -370,9 +370,10 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
             std::thread::sleep(std::time::Duration::from_millis(35));
         }
 
-        // Pace the turns a snared player auto-forfeits, so a bear trap or a
-        // lungful of sleeping gas reads as time passing rather than a freeze.
-        if models::player_snare(&mut world).is_some() {
+        // Pace the turns a sleeping player auto-forfeits, so a lungful of gas
+        // reads as time passing rather than a freeze. A bear trap is not paced
+        // here — the player is still pressing keys.
+        if models::player_incapacitated(&mut world) {
             std::thread::sleep(std::time::Duration::from_millis(90));
         }
 

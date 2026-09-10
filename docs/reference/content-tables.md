@@ -281,27 +281,35 @@ magenta, worth 25000, carries `Amulet`. Its name is the constant
 TRAPS -- TrapDef
 ----------------
 
-| Field       | Type          | Notes                                    |
-|-------------|---------------|------------------------------------------|
-| `effect`    | `TrapEffect`  | Keys the mechanic; identity in saves.    |
-| `name`      | `&'static str`| What `TrapEffect::label()` returns.      |
-| `glyph`     | `char`        | `'^'` for all six.                       |
-| `color`     | `Color`       | `Red` for all six.                       |
-| `weight`    | `u32`         | Rarity. All six are `10`.                |
-| `min_depth` | `u8`          | All six are `1`.                         |
+| Field         | Type          | Notes                                          |
+|---------------|---------------|------------------------------------------------|
+| `effect`      | `TrapEffect`  | Keys the mechanic; identity in saves.          |
+| `name`        | `&'static str`| What `TrapEffect::label()` returns.            |
+| `glyph`       | `char`        | `'^'` for all six.                             |
+| `color`       | `Color`       | One per row.                                   |
+| `weight`      | `u32`         | Rarity. All six are `10`.                      |
+| `min_depth`   | `u8`          | All six are `1`.                               |
+| `snare_turns` | `u32`         | Turns a bear / gas trap holds you; `0` otherwise. |
 
 A trap entity carries `Name`, `Renderable`, `Position`, `Trap`, `Hidden`.
 It is never an `Item` and never a tile type.
 
 Mechanic: `spring_trap` in `models/src/traps.rs`. That match has no
 catch-all, so a new `TrapEffect` variant will not compile until it has an
-arm.
+arm. A snaring trap reads its duration straight off the row, so it stays a
+one-file change.
 
 Reveal style is rolled per trap at spawn, equal odds, not per row:
 `Sight` / `Adjacent` / `Triggered`.
 
 Damage traps ignore the defender's armour *die* but still subtract the
-armour *plus* (`total_armor_plus`).
+armour *plus* (`total_armor_plus`). Their bite also scales with depth in
+three bands (floors 1-4, 5-8, 9-13): each band adds a point to the arrow
+trap's roll and a point to the dart trap's permanent power drain. Dial:
+`constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier steps).
+
+The `Trap`, `TrapEffect`, `TrapReveal`, `Snare` and `SnareKind` types are
+defined in `components.rs`, not `traps.rs` -- see `components.md`.
 
 
 DROPS -- DropCategory

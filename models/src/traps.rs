@@ -15,6 +15,11 @@
 //! roog has no "wait a turn and search" action, so those three modes are the
 //! only ways a trap ever comes to light before it bites.
 //!
+//! The trap components themselves ([`Trap`], [`Snare`], [`SnareKind`],
+//! [`TrapEffect`], [`TrapReveal`], [`EntityMoved`]) are nouns and live in
+//! [`crate::components`]; this module is the verbs — the catalog row
+//! ([`TrapDef`]), the spring, and the per-effect mechanics.
+//!
 //! ## Turn wiring
 //!
 //! Movement code (the player in `move_player`, monsters in [`crate::ai`]) tags
@@ -23,45 +28,41 @@
 //! runs at the very top of the turn and ages [`Snare`] (bear trap / sleep gas)
 //! down, so the turn a snare is applied is never the turn it is decremented.
 //!
+//! ## Bear trap
+//!
+//! A [`SnareKind::Bear`] snare impedes *movement only*. The victim can still
+//! strike an adjacent foe; a step, though, becomes a bloody lurch against the
+//! jaws — one wasted turn and [`bear_trap_thrash`]. [`SnareKind::Sleep`] is the
+//! total one: no action of any kind.
+//!
 //! ## Armour rule
 //!
 //! The damage traps (arrow, dart) *ignore the defender's armour die* but still
 //! subtract its flat bonus — "armour plus", i.e. `armor_bonus` plus any equipped
 //! suit's `arm_bonus` (see [`crate::helpers::total_armor_plus`]).
+//!
+//! Their bite also scales with depth, in three tiers ending at floors 4, 8 and
+//! 13: each tier adds a point to the arrow trap's roll and a point to the dart
+//! trap's permanent power drain. The dials are [`crate::constants::traps`].
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
-use serde::{Deserialize, Serialize};
 
 use crate::components::*;
+use crate::constants::traps::{
+    ARROW_DAMAGE_BONUS, ARROW_DAMAGE_DICE, ARROW_DAMAGE_PER_TIER, ARROW_DAMAGE_SIDES,
+    BEAR_TRAP_THRASH_DAMAGE, BEAR_TRAP_THRASH_GORE, DART_DAMAGE_DICE, DART_DAMAGE_SIDES,
+    DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER, TRAP_DAMAGE_TIER_LAST_DEPTH,
+};
 use crate::effects::SustainsStrength;
-use crate::helpers::{apply_damage, total_armor_plus};
+use crate::helpers::{apply_damage, roll_dice, spill_blood, total_armor_plus};
 use crate::map::{
     FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index,
     transition_level,
 };
 use crate::particles::Particles;
-
-/// Which of the six trap kinds this is. The effect always fires when the trap
-/// is stepped on — there is no saving throw.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TrapEffect {
-    /// Drops the victim straight to the next floor down. No escape.
-    Trapdoor,
-    /// Clamps shut: the victim loses its next 3 turns entirely.
-    Bear,
-    /// A hiss of gas: the victim sleeps through its next 5 turns.
-    Sleep,
-    /// Flings the victim to a random open tile on the current floor.
-    Teleport,
-    /// Fires a bolt; on a clean miss the arrow lands on the floor as loot.
-    Arrow,
-    /// A poisoned dart: light damage, and on a hit it saps 1 point of melee
-    /// power for good — unless a ring of strength is worn.
-    Dart,
-}
 
 impl TrapEffect {
     /// The name shown once the trap is known — read straight off the row.
@@ -80,9 +81,10 @@ impl TrapEffect {
 // ---------------------------------------------------------------------------
 
 /// One kind of trap, one row: what it is called, how it draws, how often the
-/// dungeon lays one, and the shallowest floor it lays one on. The mechanic
-/// itself lives in [`spring_trap`], keyed by [`TrapDef::effect`] — a row is
-/// description, never behaviour.
+/// dungeon lays one, the shallowest floor it lays one on, and — for the two
+/// snaring traps — how many turns it holds the victim. The mechanic itself
+/// lives in [`spring_trap`], keyed by [`TrapDef::effect`] — a row is
+/// description and the numbers its mechanic needs, never behaviour.
 ///
 /// Adding a trap is a row here, a [`TrapEffect`] variant, and an arm in
 /// [`spring_trap`]. See `docs/how-to/add-a-trap.md`.
@@ -96,6 +98,10 @@ pub struct TrapDef {
     pub weight: u32,
     /// The shallowest floor it appears on.
     pub min_depth: u8,
+    /// Turns the victim is [`Snare`]d for — bear trap, sleeping gas. `0` for
+    /// every trap that does not snare. Kept on the row (not in
+    /// `constants.rs`) so a snaring trap is still one file to add.
+    pub snare_turns: u32,
 }
 
 impl TrapDef {
@@ -124,30 +130,18 @@ impl TrapDef {
 }
 
 /// The six classic Rogue traps, one row each. Every one is equally likely and
-/// available from the first floor; the two dials are there so a new trap need
-/// not be.
+/// available from the first floor; the dials are there so a new trap need not
+/// be. `snare_turns` is `0` for everything that does not pin the victim.
 #[rustfmt::skip]
 pub const TRAPS: &[TrapDef] = &[
-    //        effect                  name                   glyph  colour       wt  dep
-    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Green, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::DarkGreen, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Blue, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::DarkCyan, weight: 10, min_depth: 1 },
-    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Cyan, weight: 10, min_depth: 1 },
+    //        effect                       name                 glyph  colour                  wt  dep  snare
+    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Green,       weight: 10, min_depth: 1, snare_turns: 0 },
+    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: 10, min_depth: 1, snare_turns: 3 },
+    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Blue,        weight: 10, min_depth: 1, snare_turns: 5 },
+    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: 10, min_depth: 1, snare_turns: 0 },
+    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: 10, min_depth: 1, snare_turns: 0 },
+    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Cyan,        weight: 10, min_depth: 1, snare_turns: 0 },
 ];
-
-/// How a trap becomes known to the player before it is triggered. Rolled once,
-/// with equal probability, when the trap spawns.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TrapReveal {
-    /// Revealed as soon as its tile is in the player's viewshed.
-    Sight,
-    /// Revealed once the player is on an orthogonally/diagonally adjacent tile.
-    Adjacent,
-    /// Never revealed until it goes off.
-    Triggered,
-}
 
 impl TrapReveal {
     const ALL: [TrapReveal; 3] = [
@@ -157,38 +151,40 @@ impl TrapReveal {
     ];
 }
 
-/// The trap marker component. `revealed` latches: once a trap is known it stays
-/// drawn (in fog-of-war grey when out of sight), like a discovered staircase.
-#[derive(Component)]
-pub struct Trap {
-    pub effect: TrapEffect,
-    pub reveal: TrapReveal,
-    pub revealed: bool,
+/// Which damage tier governs a trap's bite at `depth`: `0` on the shallowest
+/// floors, rising at each boundary in [`TRAP_DAMAGE_TIER_LAST_DEPTH`]. Coarser
+/// than `map::difficulty_tier` on purpose — a trap steps up three times over a
+/// run, not four.
+fn trap_damage_tier(depth: u8) -> i32 {
+    TRAP_DAMAGE_TIER_LAST_DEPTH
+        .iter()
+        .position(|&last| depth <= last)
+        .unwrap_or(TRAP_DAMAGE_TIER_LAST_DEPTH.len()) as i32
 }
 
-/// Marker inserted on any actor that changed [`Position`] this turn, so
-/// [`trap_system`] knows whose feet to check. Transient: cleared at the end of
-/// every [`trap_system`] run and never serialised.
-#[derive(Component)]
-pub struct EntityMoved;
-
-/// Why an actor is losing turns.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SnareKind {
-    /// Bear trap: physically pinned.
-    Bear,
-    /// Sleeping gas: out cold.
-    Sleep,
+/// The player is trying to walk while a sprung bear trap has their leg. Logs
+/// the lurch, spends [`BEAR_TRAP_THRASH_DAMAGE`], and leaves the turn consumed.
+/// The caller has already ruled out an attack — a swing at an adjacent foe
+/// still lands.
+///
+/// The HP hit is tiny, but the mess is not: the torn leg splatters as if it
+/// were a [`BEAR_TRAP_THRASH_GORE`] wound, and an impact spark flashes on the
+/// tile.
+pub fn bear_trap_thrash(world: &mut World, victim: Entity) {
+    world
+        .resource_mut::<GameLog>()
+        .add("As you stumble drunkenly, the trap flays your leg.");
+    apply_damage(world, victim, BEAR_TRAP_THRASH_DAMAGE);
+    spill_blood(world, victim, BEAR_TRAP_THRASH_GORE, false);
+    let spot = world.get::<Position>(victim).copied();
+    trap_spark(world, spot);
 }
 
-/// An actor that cannot act for `turns` more turns. Aged by [`snare_system`];
-/// removed (with a wake-up log line for the player) when it hits zero. The
-/// engine forfeits the player's input while this is present; [`crate::ai`] skips
-/// snared monsters.
-#[derive(Component)]
-pub struct Snare {
-    pub turns: u32,
-    pub kind: SnareKind,
+/// Whether the player is unable to take *any* action this turn — asleep in gas.
+/// A bear trap does **not** count: it blocks movement only (the engine still
+/// reads a key, so the player can strike or thrash).
+pub fn player_incapacitated(world: &mut World) -> bool {
+    matches!(player_snare(world), Some(SnareKind::Sleep))
 }
 
 /// Everything a floor trap needs. Deliberately has no [`Item`] — traps are not
@@ -373,14 +369,17 @@ fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         ));
     }
 
+    // Snaring traps hold the victim for as many turns as their row says.
+    let snare_turns = TrapDef::of(effect).snare_turns;
+
     match effect {
         TrapEffect::Trapdoor => trapdoor_effect(world, victim, is_player, seen),
         TrapEffect::Bear => {
-            snare_victim(world, victim, SnareKind::Bear, 3, is_player);
+            snare_victim(world, victim, SnareKind::Bear, snare_turns, is_player);
             // A bear trap only bites once.
             world.entity_mut(trap).despawn();
         }
-        TrapEffect::Sleep => snare_victim(world, victim, SnareKind::Sleep, 5, is_player),
+        TrapEffect::Sleep => snare_victim(world, victim, SnareKind::Sleep, snare_turns, is_player),
         TrapEffect::Teleport => teleport_effect(world, victim, is_player),
         TrapEffect::Arrow => arrow_effect(world, victim, is_player, seen, trap_pos),
         TrapEffect::Dart => dart_effect(world, victim, is_player, seen, trap_pos),
@@ -424,7 +423,9 @@ fn snare_victim(world: &mut World, victim: Entity, kind: SnareKind, turns: u32, 
     world.entity_mut(victim).insert(Snare { turns, kind });
     if is_player {
         let msg = match kind {
-            SnareKind::Bear => "Steel jaws snap shut on your leg — you're held fast in blinding pain!",
+            SnareKind::Bear => {
+                "Steel jaws snap shut on your leg — you can't take a step, but your arms are free!"
+            }
             SnareKind::Sleep => "Gas billows up around you. Your eyelids turn to lead...",
         };
         world.resource_mut::<GameLog>().add(msg);
@@ -455,8 +456,12 @@ fn arrow_effect(
     seen: bool,
     trap_pos: Option<Position>,
 ) {
+    let tier = trap_damage_tier(world.resource::<Depth>().what);
     let armor_plus = total_armor_plus(world, victim);
-    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=4) + 1; // 1d4 + 2
+    // 1d4 + 1 at the surface, one more point of head start per depth tier.
+    let roll = roll_dice(world, ARROW_DAMAGE_DICE, ARROW_DAMAGE_SIDES)
+        + ARROW_DAMAGE_BONUS
+        + tier * ARROW_DAMAGE_PER_TIER;
     let damage = (roll - armor_plus).max(0);
     let who = actor_label(world, victim);
 
@@ -500,8 +505,9 @@ fn dart_effect(
     seen: bool,
     trap_pos: Option<Position>,
 ) {
+    let tier = trap_damage_tier(world.resource::<Depth>().what);
     let armor_plus = total_armor_plus(world, victim);
-    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=2); // 1d2
+    let roll = roll_dice(world, DART_DAMAGE_DICE, DART_DAMAGE_SIDES); // 1d2
     let damage = (roll - armor_plus).max(0);
     let who = actor_label(world, victim);
 
@@ -524,7 +530,8 @@ fn dart_effect(
 
     // The poison saps melee power permanently — a hit to the attack die itself,
     // not a modifier — unless something sustains the victim's strength. A potion of restore
-    // strength (not yet wired) will heal `power` back up to `max_power`.
+    // strength (not yet wired) will heal `power` back up to `max_power`. The
+    // deeper the dart, the harder the bite: one point per depth tier.
     if world.get::<SustainsStrength>(victim).is_some() {
         if is_player {
             world
@@ -533,11 +540,12 @@ fn dart_effect(
         }
         return;
     }
+    let drain = DART_POWER_DRAIN_BASE + tier * DART_POWER_DRAIN_PER_TIER;
     let drained = world
         .get_mut::<Fighter>(victim)
         .map(|mut f| {
             let before = f.power;
-            f.power = (f.power - 1).max(1);
+            f.power = (f.power - drain).max(1);
             f.power != before
         })
         .unwrap_or(false);

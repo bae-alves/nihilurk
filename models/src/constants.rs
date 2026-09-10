@@ -21,9 +21,8 @@
 //!   `monsters.rs` / `traps.rs`. See `docs/reference/content-tables.md`.
 //! * **Map-layout geometry** (room sizes, corridor carving), RNG salts, and the
 //!   neighbour-offset tables. Structural, not balance.
-//! * A handful of one-off rolls still inline where they are used: the trapdoor
-//!   guardian ring's `0.5^n` falloff, the arrow trap's `1d8+2`, the dart trap's
-//!   `1d4`. Called out in `docs/reference/constants.md`.
+//! * A couple of one-off rolls still inline where they fire. Called out in
+//!   `docs/reference/constants.md`.
 
 // ===========================================================================
 // Combat
@@ -106,7 +105,7 @@ pub mod progression {
     /// The deepest floor of a run. It has no down-stair — the Element of Yoord
     /// sits where the stair would be, and carrying it back out is the game.
     ///
-    /// **If you change this:** the final-floor guardian ring and the
+    /// **If you change this:** the Element-of-Yoord placement and the
     /// staircase-inversion logic key off it automatically, but
     /// `docs/reference/content-tables.md` and `gdd.md` name "depth 13" in prose
     /// and would need a pass. Monster/trap `min_depth` values in the catalog
@@ -127,6 +126,19 @@ pub mod progression {
     /// a full heal on every floor (a much easier run); a larger divisor makes
     /// attrition bite sooner.
     pub const DESCENT_HEAL_DIVISOR: i32 = 2;
+
+    /// The last floor of each floor-crowding tier below the deepest one. The
+    /// monster and trap *budgets* (`constants::population`, spent in `map.rs`)
+    /// gain a slot and widen their fill odds at each of these depths. `[3, 6,
+    /// 9, 12]` against a 13-floor dungeon gives five tiers spanning depths 1-3,
+    /// 4-6, 7-9, 10-12, and 13 alone — the deepest floor its own hardest band.
+    ///
+    /// The damage traps scale on their own, coarser bands
+    /// ([`crate::constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`]).
+    ///
+    /// **If you change this:** `map::difficulty_tier` reads it, and `gdd.md`
+    /// and `docs/how-to/tune-rarity-and-depth.md` name the boundaries.
+    pub const DIFFICULTY_TIER_LAST_DEPTH: [u8; 4] = [3, 6, 9, 12];
 }
 
 // ===========================================================================
@@ -157,13 +169,10 @@ pub mod map {
 // ===========================================================================
 
 /// The monster, trap and item budgets a floor spends when it is populated.
-/// Everything here scales with `tier` = `(depth - 1) / TIER_FLOORS`, so the
-/// dungeon gets smoothly nastier with depth.
+/// Everything here scales with `map::difficulty_tier(depth)` — `0` through `4`,
+/// stepping at [`crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH`] —
+/// so the dungeon gets nastier in bands as you descend.
 pub mod population {
-    /// Floors per difficulty tier. Both budgets below gain one slot and one
-    /// step of fill-chance every this-many floors.
-    pub const TIER_FLOORS: u8 = 3;
-
     /// Monster slots on floor 1, before the per-tier bonus. The first slot
     /// always fills; the rest roll [`MONSTER_FILL_CHANCE_BASE`].
     pub const MONSTER_SLOTS_BASE: usize = 3;
@@ -198,12 +207,73 @@ pub mod population {
     /// [`CORRIDOR_LURKER_MIN_DEPTH`].
     pub const CORRIDOR_LURKER_CHANCE: f64 = 0.05;
 
-    /// Ordinary item drops rolled per floor (each still needs a free tile).
-    pub const ITEMS_PER_FLOOR: usize = 3;
+    /// Ordinary item drops attempted on floor 1, before the per-tier bonus.
+    /// Like the monster and trap budgets, the item budget gains one attempt per
+    /// `map::difficulty_tier(depth)` — `ITEM_SLOTS_BASE + tier` tries, each of
+    /// which still needs a free tile. Every attempt that lands a tile drops an
+    /// item (no fill roll — deeper floors are simply richer).
+    pub const ITEM_SLOTS_BASE: usize = 3;
 
     /// Chance a floor also hides one extra item — no glyph, no announcement —
-    /// until a ring of perception turns it up or the player walks onto it.
-    pub const HIDDEN_ITEM_CHANCE: f64 = 0.10;
+    /// until a ring of perception turns it up or the player walks onto it. One
+    /// in five.
+    pub const HIDDEN_ITEM_CHANCE: f64 = 0.20;
+}
+
+// ===========================================================================
+// Traps
+// ===========================================================================
+
+/// The bite of the two damage traps (arrow, dart), and how it grows with
+/// depth. The trap *table* — which trap is which glyph, how often the dungeon
+/// lays one, how long a snare holds — is data in `traps.rs`; the mechanics are
+/// `arrow_effect` / `dart_effect` there. Background: the "Traps that scale"
+/// section of `docs/explanation/combat-and-balance.md`.
+pub mod traps {
+    /// The last floor of each damage tier below the deepest. Coarser than the
+    /// floor-crowding bands
+    /// ([`crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH`]): `[4,
+    /// 8]` gives three tiers — depths 1-4, 5-8, 9-13 — so the arrow and dart
+    /// step up three times over a run, not four. Read by
+    /// `traps::trap_damage_tier`.
+    pub const TRAP_DAMAGE_TIER_LAST_DEPTH: [u8; 2] = [4, 8];
+
+    /// An arrow trap's hit rolls `ARROW_DAMAGE_DICE d ARROW_DAMAGE_SIDES +
+    /// ARROW_DAMAGE_BONUS` before armour-plus. Today: `1d4 + 1`.
+    pub const ARROW_DAMAGE_DICE: i32 = 1;
+    /// See [`ARROW_DAMAGE_DICE`].
+    pub const ARROW_DAMAGE_SIDES: i32 = 4;
+    /// See [`ARROW_DAMAGE_DICE`].
+    pub const ARROW_DAMAGE_BONUS: i32 = 1;
+
+    /// Added to an arrow trap's damage roll for each depth tier past the first
+    /// (tier 0: +0, tier 1: +1, tier 2: +2).
+    pub const ARROW_DAMAGE_PER_TIER: i32 = 1;
+
+    /// A dart trap's hit rolls `DART_DAMAGE_DICE d DART_DAMAGE_SIDES` before
+    /// armour-plus. Today: `1d2`.
+    pub const DART_DAMAGE_DICE: i32 = 1;
+    /// See [`DART_DAMAGE_DICE`].
+    pub const DART_DAMAGE_SIDES: i32 = 2;
+
+    /// Permanent melee power a dart trap drains on a hit in the first depth
+    /// tier; each deeper tier drains [`DART_POWER_DRAIN_PER_TIER`] more (tier 0:
+    /// 1, tier 1: 2, tier 2: 3). Floored so `power` never drops below 1, and
+    /// negated entirely by a ring of strength.
+    pub const DART_POWER_DRAIN_BASE: i32 = 1;
+    /// See [`DART_POWER_DRAIN_BASE`].
+    pub const DART_POWER_DRAIN_PER_TIER: i32 = 1;
+
+    /// Damage the player takes for thrashing against a sprung bear trap — one
+    /// wasted turn and this much blood ("As you stumble drunkenly, the trap
+    /// flays your leg"). A bear trap does not otherwise deal damage.
+    pub const BEAR_TRAP_THRASH_DAMAGE: i32 = 1;
+
+    /// Cosmetic only: the wound the thrash *reads* as when
+    /// `traps::bear_trap_thrash` splatters blood. Far above
+    /// [`BEAR_TRAP_THRASH_DAMAGE`] on purpose — the leg tears against the steel
+    /// and the tile should show it — but it costs no extra HP.
+    pub const BEAR_TRAP_THRASH_GORE: i32 = 32;
 }
 
 // ===========================================================================

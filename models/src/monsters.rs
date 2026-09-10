@@ -36,8 +36,8 @@ pub struct MonsterDef {
     pub armor_bonus: i32,
     /// The shallowest floor this species appears on. A floor rolls from every
     /// row it has unlocked so far, so shallow letters keep turning up as fodder
-    /// while deeper ones mix in. The goblin is the depth-1 baseline; the dragon
-    /// waits until floor 7.
+    /// while deeper ones mix in. The goblin is the depth-1 baseline; the mid
+    /// tier holds off until floor 5 and the dragon waits until floor 10.
     pub min_depth: u8,
     /// How often this species turns up relative to the rest of the eligible
     /// pool. Ten is the baseline: a row at 5 is half as common, one at 20 twice
@@ -122,10 +122,21 @@ impl MonsterDef {
     /// lives on a floor, so a new creature's rarity and debut are the two
     /// numbers on its row and nothing else.
     pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
-        let pool: Vec<&MonsterDef> = BESTIARY
-            .iter()
-            .filter(|m| m.min_depth <= depth.max(1))
-            .collect();
+        Self::draw(rng, |m| m.min_depth <= depth.max(1))
+    }
+
+    /// A weighted draw from the *whole* bestiary, depth gate and all. Once the
+    /// Element of Yoord is in the pack the dungeon stops holding anything back:
+    /// the climb out re-populates each floor through here, so a dragon can turn
+    /// up on floor 1. See [`crate::map::holding_element_of_yoord`].
+    pub fn pick_any(rng: &mut ChaCha12Rng) -> &'static MonsterDef {
+        Self::draw(rng, |_| true)
+    }
+
+    /// The shared body of [`pick`](Self::pick) and [`pick_any`](Self::pick_any):
+    /// a weighted draw from every bestiary row `eligible` accepts.
+    fn draw(rng: &mut ChaCha12Rng, eligible: impl Fn(&MonsterDef) -> bool) -> &'static MonsterDef {
+        let pool: Vec<&MonsterDef> = BESTIARY.iter().filter(|m| eligible(m)).collect();
         let weights: Vec<u32> = pool.iter().map(|m| m.weight).collect();
         pool[pick_weighted(&weights, rng).expect("the bestiary always has a depth-1 row")]
     }
@@ -171,32 +182,32 @@ pub const BESTIARY: &[MonsterDef] = &[
     // and `.weight(n)` are chained on when a row wants more than the default.
     //              name             glyph  colour              move       hp  pow  pb   ar  ab  dep
     MonsterDef::row("goblin",        'g',   Color::Green,       Flee,       1,   4,   0,   6,  0,   1).grants(ITEM_USER),
-    MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      3,   4,  -1,   8,  1,   3),
+    MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      3,   4,  -1,   8,  1,   5),
     MonsterDef::row("bat",           'B',   Color::DarkGrey,    Confused,   1,   4,   0,   8,  0,   1),
-    MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   3).grants(ITEM_USER),
-    MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,   7).grants(&[Grant::of::<FireImmune>()]),
+    MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   5).grants(ITEM_USER),
+    MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,  10).grants(&[Grant::of::<FireImmune>()]),
     MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      1,   4,   0,   4,  1,   1),
     MonsterDef::row("venus flytrap", 'F',   Color::Green,       Static,     6,  10,   0,   8,  0,   5),
-    MonsterDef::row("griffin",       'G',   Color::DarkYellow,  Chase,     10,  12,   1,   8,  1,   7),
+    MonsterDef::row("griffin",       'G',   Color::DarkYellow,  Chase,     10,  12,   1,   8,  1,  10),
     MonsterDef::row("hobgoblin",     'H',   Color::DarkRed,     Chase,      1,   8,   0,   6,  0,   1).grants(ITEM_USER),
     MonsterDef::row("ice monster",   'I',   Color::Cyan,        Static,     1,   4,   0,   4, -1,   1),
-    MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     12,   8,   5,   6,  0,   7).grants(&[Grant::of::<VorpalTarget>()]),
+    MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     12,   8,   5,   6,  0,  10).grants(&[Grant::of::<VorpalTarget>()]),
     MonsterDef::row("kestral",       'K',   Color::Grey,        Chase,      1,   4,   0,   4,  1,   1),
-    MonsterDef::row("leprechaun",    'L',   Color::Green,       Flee,       2,   4,   0,   4,  0,   3).grants(ITEM_USER),
+    MonsterDef::row("leprechaun",    'L',   Color::Green,       Flee,       2,   4,   0,   4,  0,   5).grants(ITEM_USER),
     MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      6,  10,   0,   8,  1,   5).grants(ITEM_USER),
-    MonsterDef::row("nymph",         'N',   Color::Magenta,     Flee,       2,   4,  -1,   4, -1,   3).grants(ITEM_USER),
+    MonsterDef::row("nymph",         'N',   Color::Magenta,     Flee,       2,   4,  -1,   4, -1,   5).grants(ITEM_USER),
     MonsterDef::row("orc",           'O',   Color::Red,         Chase,      1,   8,   0,   6,  0,   1).grants(ITEM_USER),
     MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      6,  10,   0,   8,  0,   5).grants(&[Grant::of::<Undead>()]).invisible(),
-    MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      2,   6,   0,   8,  1,   3),
-    MonsterDef::row("rattlesnake",   'R',   Color::DarkGreen,   Chase,      2,   6,   0,   8,  0,   3),
-    MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      2,   4,   0,   4,  0,   3),
+    MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      2,   6,   0,   8,  1,   5),
+    MonsterDef::row("rattlesnake",   'R',   Color::DarkGreen,   Chase,      2,   6,   0,   8,  0,   5),
+    MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      2,   4,   0,   4,  0,   5),
     MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      4,  10,   0,   6,  1,   5).grants(ITEM_USER),
     MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      5,  10,   0,  12,  1,   5).grants(ITEM_USER),
-    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,   7).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>()]),
+    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,  10).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>()]),
     MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   5).grants(&[Grant::of::<Undead>()]),
     MonsterDef::row("xeroc",         'X',   Color::Yellow,      Static,     5,   8,   0,   4,  1,   5),
-    MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      3,   8,   0,   6,  0,   3).grants(&[Grant::of::<ColdImmune>()]),
-    MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      2,   8,   0,   4,  0,   3).grants(&[Grant::of::<Undead>()]),
+    MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      3,   8,   0,   6,  0,   5).grants(&[Grant::of::<ColdImmune>()]),
+    MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      2,   8,   0,   4,  0,   5).grants(&[Grant::of::<Undead>()]),
 ];
 
 /// Every component a monster is spawned with, built wholesale from a

@@ -101,12 +101,16 @@ row asked. Every spawn site goes through it.
         pub fn named(name: &str) -> &'static MonsterDef      // panics
         pub fn lookup(name: &str) -> Option<&'static MonsterDef>
         pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef
+        pub fn pick_any(rng: &mut ChaCha12Rng) -> &'static MonsterDef
     }
 
 `named` is for string literals you wrote yourself -- it panics on a miss,
 which is what you want in a test. `lookup` is for a name from outside the
 source, such as a save file. `pick` is the weighted, depth-gated draw
-floor generation uses.
+floor generation uses. `pick_any` is the same weighted draw with the depth
+gate removed -- floor population switches to it once the player carries the
+Element of Yoord (`map::holding_element_of_yoord`), so the climb out can
+throw the whole bestiary at any floor.
 
 
 Traps
@@ -264,17 +268,25 @@ Floors and seeds
     models/src/map.rs
 
     pub fn layout_rng(seed: u64, depth: u8) -> ChaCha12Rng
-    pub fn content_rng(seed: u64, depth: u8) -> ChaCha12Rng
+    pub fn content_rng(seed: u64, depth: u8, changes: u32) -> ChaCha12Rng
+    pub fn difficulty_tier(depth: u8) -> u32
 
 A floor's two private streams: `layout_rng` builds its walls,
-`content_rng` fills it. Both derive from the run's seed and the depth and
-from nothing else, and they are independent of each other, so a change to
-one cannot move the other.
+`content_rng` fills it. `layout_rng` is a pure function of `(seed,
+depth)`, so the walls of a floor never move. `content_rng` also takes
+`changes` -- the run's `FloorChanges` count, bumped by every staircase,
+portal and trapdoor -- so the contents are re-rolled each time the floor
+is entered. The two streams are independent, so a change to one cannot
+move the other.
+
+`difficulty_tier(depth)` is the 0-4 crowding band the monster and trap
+budgets read (`DIFFICULTY_TIER_LAST_DEPTH`).
 
 Floor generation draws from these and never from the shared `GameRng`.
-That is what makes a seed name one dungeon regardless of how the player
-got there. `GameRng` is for the live run -- combat, item effects, traps
-springing.
+That is what keeps a seed's *maps* fixed regardless of how the player
+fought their way through -- and keeps the contents keyed to a clean
+staircase count rather than to the blow-by-blow. `GameRng` is for the
+live run -- combat, item effects, traps springing.
 
     pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>)
 
@@ -285,7 +297,8 @@ resource and returns the player's start tile. Leaves `GameRng` untouched.
 
 Rebuilds one floor's tiles without spawning anything. This is why the
 save file does not store a map: `(seed, depth)` is enough to get the
-exact floor back.
+exact layout back (the save carries the staircase count so the contents
+come back too).
 
 Held by `models/tests/determinism.rs`.
 

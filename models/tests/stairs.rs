@@ -123,13 +123,9 @@ fn deepest_floor_swaps_the_downstairs_for_the_element() {
     descend_to(&mut w, 13);
 
     // No way down remains on Depth 13.
-    assert!(
-        !w.resource::<Map>()
-            .tiles
-            .contains(&TileType::Downstairs)
-    );
+    assert!(!w.resource::<Map>().tiles.contains(&TileType::Downstairs));
 
-    // The Element of Yoord is lying on the floor, ringed by at least one guardian.
+    // The Element of Yoord is lying on the floor where the down-stair would be.
     let elements: Vec<Entity> = w
         .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
         .iter(&w)
@@ -139,7 +135,6 @@ fn deepest_floor_swaps_the_downstairs_for_the_element() {
         1,
         "exactly one Element spawned on the floor"
     );
-    assert!(w.query_filtered::<(), With<Mob>>().iter(&w).count() >= 1);
 
     // Standing on the down-stair spot: still can't descend (there is no stair).
     let epos = *w.get::<Position>(elements[0]).unwrap();

@@ -134,11 +134,25 @@ fn the_deep_letters_do_eventually_turn_up() {
     let mut r = rng(13);
     let deep: HashSet<&str> = (0..2_000)
         .map(|_| MonsterDef::pick(13, &mut r).name)
-        .filter(|n| MonsterDef::named(n).min_depth >= 7)
+        .filter(|n| MonsterDef::named(n).min_depth >= 10)
         .collect();
     assert!(
         deep.len() >= 3,
         "floor 13 should mix in the deepest tier, saw {deep:?}"
+    );
+}
+
+#[test]
+fn pick_any_ignores_the_depth_gate() {
+    // The climb out with the Element of Yoord: every floor draws from the whole
+    // bestiary, so the deepest letters can turn up regardless of depth.
+    let mut r = rng(19);
+    let seen: HashSet<&str> = (0..3_000)
+        .map(|_| MonsterDef::pick_any(&mut r).name)
+        .collect();
+    assert!(
+        seen.contains("dragon") && seen.contains("goblin"),
+        "pick_any should mix the whole table, saw {seen:?}"
     );
 }
 

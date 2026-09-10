@@ -1,7 +1,6 @@
 use crate::components::*;
 use crate::effects::SeesInvisible;
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
-use crate::traps::{Trap, TrapReveal};
 use bevy_ecs::prelude::*;
 use std::collections::{HashSet, VecDeque};
 

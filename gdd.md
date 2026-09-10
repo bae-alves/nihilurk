@@ -34,7 +34,7 @@ Automation covers everything that isn't a decision. o auto-explores the floor, O
 
 Sight works the way Rogue's did. The player always sees the 3x3 around them, and standing anywhere in a lit room floods the whole room into view, its enclosing walls and the mouths of its corridors included. Everywhere else is corridor sight. The rest of the floor is remembered dim once it has been seen, and monsters drop off the map when they leave the viewshed. 15% of the rooms past the starting one spawn unlit and behave like corridors until a wand of light goes off in them. Invisible things are only visible with see-invisible up, otherwise they announce themselves by hitting you. Blood stains the floor under the fighting and stays there for the rest of the run.
 
-Six traps: trapdoor, bear trap, sleeping gas, teleport, arrow, dart. They reveal in three different ways at equal odds so searching a corridor is never a solved procedure. Trap damage ignores the armor die but not the armor bonus.
+Six traps: trapdoor, bear trap, sleeping gas, teleport, arrow, dart. They reveal in three different ways at equal odds so searching a corridor is never a solved procedure. Trap damage ignores the armor die but not the armor bonus, and the arrow and dart get nastier in three depth bands. A bear trap pins your feet, not your fists: you can still swing at whatever is next to you, but every step you try to take tears the leg for a point and wastes the turn.
 
 Monsters are ECS entities assembled from the same components the player is, off a bestiary table of 27 rows. They wield, wear, drink and read, which mostly means they use whatever gets thrown at them.
 
@@ -68,7 +68,9 @@ Thirteen floors down, then thirteen back up. Depth 13 has no down staircase, the
 
 There are no experience levels and no skill tree. The player does not get stronger, the kit gets stronger and the player gets better at reading the floor, which is a different thing.
 
-The dungeon does the scaling. Monsters are sorted into four danger tiers and a floor rolls from every tier it has unlocked, tier 0 on depths 1 and 2, tier 1 by 3, tier 2 by 5, everything by 7, so early fodder never stops appearing, it just starts arriving in worse company. The budgets step every three floors: 3 monster slots plus one per tier, filled at 60% rising 12 points a tier to a cap of 95%, and 4 trap slots plus one per tier, filled at 12% rising 13 points a tier to a cap of 75%.
+The dungeon does the scaling. Monsters are sorted into three danger tiers and a floor rolls from every tier it has unlocked: fodder from depth 1, the mid tier from depth 5, the deepest letters from depth 10, so early fodder never stops appearing, it just starts arriving in worse company. Claiming the Element of Yoord tears that gate off its hinges: for the whole climb out every floor draws from the entire bestiary, so a dragon on floor 1 is not just possible, it is the dungeon's parting gift. The crowding budgets step in five depth bands ending at floors 3, 6, 9, 12 and 13 — the deepest floor its own worst band: 3 monster slots plus one per band, filled at 60% rising 12 points a band to a cap of 95%, and 4 trap slots plus one per band, filled at 12% rising 13 points a band to a cap of 75%. The two damage traps climb their own coarser three bands, ending at 4, 8 and 13, a point of arrow damage and a point of dart strength-drain each.
+
+A seed fixes the maps, not the mob. Every floor's walls are a pure function of the seed and the depth, so floor 7 is the same maze every time you set foot on it and every reload lands you back in it exactly — but the monsters, loot and traps are re-rolled on every entry, keyed to how many staircases you have taken. Walking the Element of Yoord back up the thirteen floors is a trip through corridors you recognise, restocked with things you don't, and the fog of war is blank again each time (the save does not carry per-floor memory).
 
 The Dungeon Lord allows 260 turns a floor. Past that a portal opens under the player and drops them one level deeper whether or not they were ready, which is most of the reason the automation exists. On the climb out the same impatience works the other way and the portal throws them up instead. The final stair out of depth 1 has to be climbed on foot, a portal can never be the thing that wins the game.
 
@@ -85,7 +87,7 @@ Winning is walking out of depth 1 with the Element. Everything else is losing, a
 This game is made for terminal screens and is styled like the original Rogue, with colored glyphs representing game objects.
 
 ### Technical Description
-This is a game made to run on most shells and devices that run shells. It uses keyboard controls though, that might limit the hardware scope. It is made using bevy and crossterm on rust for unnecesarrily peak performance.
+This is a game made to run on most shells and devices that run shells. It uses keyboard controls though, that might limit the hardware scope. It is made using bevy and crossterm on rust for unnecesarily peak performance.
 
 Content is data. Every monster, item and trap is a row in a table, and the dungeon decides what turns up by drawing from those tables with a weight and a debut depth, so adding a thing is usually adding a line. `docs/` covers how: a tutorial, a recipe per kind of content, a reference for every field, and the reasoning behind the shape. This document is the design; `docs/` is the code.
 
@@ -98,7 +100,7 @@ I'll put it ou AUR with a Patreon Link
 ### Localization
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
-### Other ideas
+### Other ideas/Expansion backlog
 - More player character options
 - Leaderboards, local and global
 - Puzzle level creator and platform for sharing and rating them

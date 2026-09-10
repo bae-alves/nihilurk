@@ -1,6 +1,5 @@
 use crate::components::*;
 use crate::map::{Map, TileType};
-use crate::traps::{EntityMoved, Snare};
 use bevy_ecs::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -130,9 +129,10 @@ fn actor_positions(
     spatial
 }
 
-/// One mob's turn within a pass: forfeit if snared or out of energy, work out
-/// where it wants to go, then either queue an attack or take the step. Returns
-/// whether it did anything — a whole idle pass ends the round.
+/// One mob's turn within a pass: forfeit if asleep or out of energy (a
+/// bear-trapped mob may still strike but not step), work out where it wants to
+/// go, then either queue an attack or take the step. Returns whether it did
+/// anything — a whole idle pass ends the round.
 fn step_one_mob(
     world: &mut World,
     mob: Entity,
@@ -142,10 +142,13 @@ fn step_one_mob(
     map: &Map,
     spatial: &mut HashMap<(u16, u16), (Entity, Faction)>,
 ) -> bool {
-    // Held fast by a bear trap or asleep in gas: forfeit the turn.
-    if world.get::<Snare>(mob).is_some() {
-        return false;
-    }
+    // Asleep in gas: forfeit the turn outright. Held in a bear trap: the mob
+    // can't take a step, but a foe within reach still gets bitten.
+    let held_by_bear = match world.get::<Snare>(mob).map(|s| s.kind) {
+        Some(SnareKind::Sleep) => return false,
+        Some(SnareKind::Bear) => true,
+        None => false,
+    };
     if !can_afford_step(world, mob, pass) {
         return false;
     }
@@ -178,6 +181,12 @@ fn step_one_mob(
             });
         spend_energy(world, mob);
         return true;
+    }
+
+    // A bear trap pins the mob where it stands: it may lash out (above) but not
+    // step.
+    if held_by_bear {
+        return false;
     }
 
     // Path clear: move.

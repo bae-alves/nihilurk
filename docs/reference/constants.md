@@ -31,9 +31,10 @@ The modules
 |---------------|-------|-----------------------------|
 | `combat`      | Excellent-hit odds and dice, the chip-damage floor, the odds a corpse keeps each piece of gear | how swingy a fight is |
 | `player`      | Starting HP / armour / power / magic, sight radius | the hero's opening position (new games only) |
-| `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor | how long a run is and how hard attrition bites |
+| `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor, `DIFFICULTY_TIER_LAST_DEPTH` (the depth bands the crowding budgets step at) | how long a run is and how hard attrition bites |
 | `map`         | `WIDTH`, `HEIGHT`, dark-room chance | the playfield (see the determinism caveat below) |
-| `population`  | Monster / trap / item budgets per floor, how they scale with depth, corridor lurkers, hidden items | how crowded and dangerous a floor is |
+| `population`  | Monster / trap / item budgets per floor, how they scale with the difficulty tier, corridor lurkers, hidden items | how crowded and dangerous a floor is |
+| `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash | how much a trap hurts and how fast it scales |
 | `wands`       | Charge dice, zap damage dice, both blast radii, per-charge dice a thrown wand spends | how good a wand is |
 | `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the launcher die multiplier | how the drop table feels |
 | `items`       | `THROW_RANGE`, `STACK_LIMIT` | reach and pack density |
@@ -69,9 +70,7 @@ What is deliberately *not* in `constants.rs`
   feel, wound tightly around the code that reads them.
 * **Map-layout geometry**, RNG salts, and the neighbour-offset tables.
   Structural, not balance.
-* A few one-off rolls still inline where they fire: the final-floor
-  guardian ring's `0.5^n` falloff (`map.rs`), the arrow trap's `1d8+2`
-  and the dart trap's `1d4` (`traps.rs`).
+* A couple of one-off rolls still inline where they fire (`map.rs`).
 
 
 See also

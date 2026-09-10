@@ -21,7 +21,7 @@ use crate::helpers::{
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index};
 use crate::monsters::{BESTIARY, spawn_monster};
 use crate::particles::{BlastPalette, Particles};
-use crate::traps::{Trap, random_open_tile};
+use crate::traps::random_open_tile;
 
 use super::scrolls::teleport_reader;
 use crate::constants::wands::{BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES};

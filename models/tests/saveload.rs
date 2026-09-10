@@ -151,11 +151,7 @@ fn round_trip() {
 
     // Map regenerated from (seed, depth) matches the original tile-for-tile.
     assert_eq!(w.resource::<Map>().tiles, w2.resource::<Map>().tiles);
-    assert!(
-        w2.resource::<Map>()
-            .tiles
-            .contains(&TileType::Wall)
-    );
+    assert!(w2.resource::<Map>().tiles.contains(&TileType::Wall));
 }
 
 #[test]

@@ -34,10 +34,10 @@ use crate::catalog::{
     AMMO, ARMORS, COINS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, WANDS, WEAPONS,
     spawn_element_of_yoord,
 };
-use crate::components::Position;
+use crate::components::{Position, TrapReveal};
 use crate::map::Map;
 use crate::monsters::{MonsterDef, spawn_monster};
-use crate::traps::{TrapBundle, TrapDef, TrapReveal};
+use crate::traps::{TrapBundle, TrapDef};
 
 /// The relic's name, so [`spawn_named`] and the save file agree on it.
 pub const ELEMENT_OF_YOORD: &str = "The Element of Yoord";

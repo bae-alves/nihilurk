@@ -27,19 +27,20 @@ use crate::state::*;
 //   DUNGEON_LORD_PATIENCE    turns per level before the forced portal
 //   DARK_ROOM_CHANCE         odds a room spawns unlit
 //   DESCENT_HEAL_DIVISOR     staircase heal = max_hp / this
-//   MONSTER_/TRAP_* , TIER_FLOORS, *_LURKER_*, *_ITEM*   floor-crowding budgets
+//   MONSTER_/TRAP_* , *_LURKER_*, *_ITEM*   floor-crowding budgets
+//   DIFFICULTY_TIER_LAST_DEPTH   the depths every budget steps up at
 pub use crate::constants::map::{HEIGHT as MAP_HEIGHT, WIDTH as MAP_WIDTH};
 pub use crate::constants::progression::{DUNGEON_LORD_PATIENCE, FINAL_DEPTH};
 
 use crate::constants::map::DARK_ROOM_CHANCE;
 use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
 use crate::constants::population::{
-    CORRIDOR_LURKER_CHANCE, CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEMS_PER_FLOOR,
+    CORRIDOR_LURKER_CHANCE, CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEM_SLOTS_BASE,
     MONSTER_FILL_CHANCE_BASE, MONSTER_FILL_CHANCE_CAP, MONSTER_FILL_CHANCE_PER_TIER,
-    MONSTER_SLOTS_BASE, TIER_FLOORS, TRAP_FILL_CHANCE_BASE, TRAP_FILL_CHANCE_CAP,
-    TRAP_FILL_CHANCE_PER_TIER, TRAP_SLOTS_BASE,
+    MONSTER_SLOTS_BASE, TRAP_FILL_CHANCE_BASE, TRAP_FILL_CHANCE_CAP, TRAP_FILL_CHANCE_PER_TIER,
+    TRAP_SLOTS_BASE,
 };
-use crate::constants::progression::DESCENT_HEAL_DIVISOR;
+use crate::constants::progression::{DESCENT_HEAL_DIVISOR, DIFFICULTY_TIER_LAST_DEPTH};
 
 #[derive(Resource)]
 pub struct GameRng(pub ChaCha12Rng);
@@ -128,7 +129,7 @@ impl Map {
         // Only room floor (and the stairs that sit on it) makes a wall worth
         // drawing. A wall that merely touches a Door — but no room tile — is
         // outside the room, hugging the corridor, and stays dark.
-        RING_DIRS.iter().any(|&(dx, dy)| {
+        NEIGHBOUR_DIRS.iter().any(|&(dx, dy)| {
             let (nx, ny) = (x as i32 + dx, y as i32 + dy);
             nx >= 0
                 && ny >= 0
@@ -311,10 +312,8 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
     }
 }
 
-/// The eight neighbouring offsets. Read order also happens to be the order the
-/// guardian ring around the Element of Yoord wants (first the top-left, then
-/// clockwise-ish), so [`place_element_of_yoord`] leans on it too.
-const RING_DIRS: [(i32, i32); 8] = [
+/// The eight neighbouring offsets, in row-major read order.
+const NEIGHBOUR_DIRS: [(i32, i32); 8] = [
     (-1, -1),
     (0, -1),
     (1, -1),
@@ -510,16 +509,21 @@ fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet)
     (tiles, rooms, dark)
 }
 
-/// Generates a fresh map, inserts the [`Map`] resource, and returns the player start.
 /// One floor's private RNG stream. `salt` picks *which* stream — the walls and
 /// the things standing between them draw from two independent ones, so neither
-/// can move the other.
-fn floor_stream(seed: u64, depth: u8, salt: u64) -> ChaCha12Rng {
-    ChaCha12Rng::seed_from_u64(seed ^ salt.wrapping_mul(depth as u64 + 1))
+/// can move the other — and `generation` advances a stream to a fresh state
+/// without changing which stream it is (used to re-roll a floor's contents on a
+/// repeat visit; `0` for the layout, which never changes).
+fn floor_stream(seed: u64, depth: u8, salt: u64, generation: u64) -> ChaCha12Rng {
+    let base = seed ^ salt.wrapping_mul(depth as u64 + 1);
+    ChaCha12Rng::seed_from_u64(base ^ generation.wrapping_mul(GENERATION_SALT))
 }
 
 const LAYOUT_SALT: u64 = 0xF100_0BED_5EED;
 const CONTENT_SALT: u64 = 0x0C0F_FEE0_D00D;
+/// Odd multiplier that scatters [`FloorChanges`] across the seed space, so
+/// consecutive visits to a floor are as unlike each other as two random seeds.
+const GENERATION_SALT: u64 = 0x9E37_79B9_7F4A_7C15;
 
 /// The RNG a floor's **layout** is built from — rooms, corridors, doors, stairs.
 ///
@@ -532,27 +536,31 @@ const CONTENT_SALT: u64 = 0x0C0F_FEE0_D00D;
 /// * A save can rebuild the exact floor it was written on from the seed and the
 ///   depth alone, which is why the map is not stored in the file.
 /// * Climbing back to a floor you have already visited gives you the layout you
-///   remember.
+///   remember (the contents, though, are re-rolled — see [`content_rng`]).
 pub fn layout_rng(seed: u64, depth: u8) -> ChaCha12Rng {
-    floor_stream(seed, depth, LAYOUT_SALT)
+    floor_stream(seed, depth, LAYOUT_SALT, 0)
 }
 
 /// The RNG a floor's **contents** are drawn from — which monsters, which loot,
 /// which traps, where they stand, and what a drop rolls for enchantment and
 /// charges.
 ///
-/// Also a pure function of `(seed, depth)`, and deliberately a *different*
-/// stream from [`layout_rng`]. Together they mean a seed names one dungeon,
-/// floor by floor, whatever the player did on the way down: fight everything on
-/// floor 1 or walk straight past it, and floor 2 is the same place with the same
-/// things standing in it. Reloading a save mid-run cannot shift a floor either.
+/// A different stream from [`layout_rng`], and a function of `(seed, depth,
+/// changes)` where `changes` is [`crate::components::FloorChanges`] — how many
+/// times the player has taken a staircase, portal or trapdoor. So the *layout*
+/// of a floor is fixed for a seed, but its *contents* change every time it is
+/// built: walk back up through floor 7 and it is the same maze re-stocked with
+/// different monsters and loot. Two runs on one seed that descend in lockstep
+/// still see the same floors; a reload restores `changes`, so it lands on the
+/// same re-roll.
 ///
 /// This is not the shared [`GameRng`] and must never be. `GameRng` is the live
 /// stream the *run* spends — combat rolls, item effects, traps springing — and
 /// anything drawn from it while a floor is being built would tie that floor back
-/// to the player's history. `models/tests/determinism.rs` exists to catch that.
-pub fn content_rng(seed: u64, depth: u8) -> ChaCha12Rng {
-    floor_stream(seed, depth, CONTENT_SALT)
+/// to the player's blow-by-blow history rather than to the clean
+/// staircase count. `models/tests/determinism.rs` exists to catch that.
+pub fn content_rng(seed: u64, depth: u8, changes: u32) -> ChaCha12Rng {
+    floor_stream(seed, depth, CONTENT_SALT, changes as u64)
 }
 
 /// Builds the current floor's layout into the [`Map`] resource and returns the
@@ -663,16 +671,9 @@ fn claim_random_spot(
     None
 }
 
-/// On the deepest floor, replaces the down-stair with the Element of Yoord and
-/// rings it with guardians — the first certain, each next one half as likely. A
-/// guardian that would land off the map or in a wall cuts the ring short. A
+/// On the deepest floor, replaces the down-stair with the Element of Yoord. A
 /// no-op on every shallower floor.
-fn place_element_of_yoord(
-    world: &mut World,
-    occupied: &mut HashSet<(u16, u16)>,
-    rng: &mut ChaCha12Rng,
-    depth: u8,
-) {
+fn place_element_of_yoord(world: &mut World, occupied: &mut HashSet<(u16, u16)>, depth: u8) {
     if depth < FINAL_DEPTH {
         return;
     }
@@ -682,24 +683,6 @@ fn place_element_of_yoord(
     world.resource_mut::<Map>().tiles[tile_index(ex, ey)] = TileType::Room;
     spawn_element_of_yoord(world, Position { x: ex, y: ey });
     occupied.insert((ex, ey));
-
-    for (i, (dx, dy)) in RING_DIRS.iter().enumerate() {
-        if !rng.gen_bool(0.5_f64.powi(i as i32)) {
-            continue;
-        }
-        let (nx, ny) = (ex as i32 + dx, ey as i32 + dy);
-        if nx < 0 || ny < 0 {
-            break;
-        }
-        let (nx, ny) = (nx as u16, ny as u16);
-        if world.resource::<Map>().blocks(nx, ny) {
-            break;
-        }
-        if occupied.insert((nx, ny)) {
-            let def = MonsterDef::pick(depth, rng);
-            spawn_monster(world, def, Position { x: nx, y: ny });
-        }
-    }
 }
 
 /// One trap attempt: up to 100 tries to find a free room tile that isn't the
@@ -728,6 +711,18 @@ fn place_one_trap(
     }
 }
 
+/// Which floor-crowding tier `depth` falls in — `0` on the shallowest floors,
+/// rising by one at each boundary in [`DIFFICULTY_TIER_LAST_DEPTH`]. The
+/// monster, trap and item budgets all read this. `[3, 6, 9, 12]` gives five tiers:
+/// depths 1-3, 4-6, 7-9, 10-12, and 13 on its own. (The damage traps scale on
+/// their own coarser bands — `traps::trap_damage_tier`.)
+pub fn difficulty_tier(depth: u8) -> u32 {
+    DIFFICULTY_TIER_LAST_DEPTH
+        .iter()
+        .position(|&last| depth <= last)
+        .unwrap_or(DIFFICULTY_TIER_LAST_DEPTH.len()) as u32
+}
+
 /// Spawns the monsters and items for a freshly built floor. The staircases are
 /// carved by [`build_tiles`]. Shared by [`initialize_world`] and [`change_level`].
 fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
@@ -741,23 +736,34 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
     // Rough danger tier: deeper floors unlock nastier letters.
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
 
-    // Everything below draws from this floor's own stream, never the shared
-    // `GameRng` — see [`content_rng`]. A seed names one dungeon, and what the
-    // player did on the way here cannot change what is waiting.
-    let seed = world.resource::<RngSeed>().0;
-    let mut rng = content_rng(seed, depth);
+    // Once the Element of Yoord is in the pack, the climb out lifts every depth
+    // gate: each floor draws from the whole bestiary, so a dragon can be waiting
+    // on floor 1. `pick_species` routes every spawn below through the right draw.
+    let anything_goes = holding_element_of_yoord(world);
+    let pick_species = |rng: &mut ChaCha12Rng| match anything_goes {
+        true => MonsterDef::pick_any(rng),
+        false => MonsterDef::pick(depth, rng),
+    };
 
-    // Both the monster and trap budgets step up every three floors: `tier` is 0
-    // on depth 1-3, 1 on depth 4-6, 2 on depth 7-9, and so on. Each tier grants
-    // one more spawn slot and widens the odds that a given slot actually fills,
-    // so the dungeon gets steadily — but smoothly — more crowded and more
-    // dangerous the deeper you go.
-    let tier = (depth.saturating_sub(1) / TIER_FLOORS) as u32;
+    // Everything below draws from this floor's own stream, never the shared
+    // `GameRng` — see [`content_rng`]. The stream is keyed off the staircase
+    // count, so a repeat visit re-stocks the same layout; but nothing the
+    // player did *on* a floor (fighting, looting) can reach into how the next
+    // one is built.
+    let seed = world.resource::<RngSeed>().0;
+    let changes = world.get_resource::<FloorChanges>().map_or(0, |c| c.count);
+    let mut rng = content_rng(seed, depth, changes);
+
+    // Both the monster and trap budgets step up in five depth bands (1-3, 4-6,
+    // 7-9, 10-12, and 13 alone — see `difficulty_tier`). Each tier grants one
+    // more spawn slot and widens the odds that a given slot actually fills, so
+    // the dungeon gets more crowded and more dangerous the deeper you go.
+    let tier = difficulty_tier(depth);
 
     // Monsters: three slots at the surface, +1 per tier. The first slot always
     // fills (no floor is ever completely empty); every later slot fills with a
-    // probability that itself climbs one step every three floors (capped so a
-    // slot is never quite certain).
+    // probability that itself climbs one step per tier (capped so a slot is
+    // never quite certain).
     let max_monsters = MONSTER_SLOTS_BASE + tier as usize;
     let monster_chance = (MONSTER_FILL_CHANCE_BASE + MONSTER_FILL_CHANCE_PER_TIER * tier as f64)
         .min(MONSTER_FILL_CHANCE_CAP);
@@ -768,7 +774,7 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
         let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) else {
             continue;
         };
-        let def = MonsterDef::pick(depth, &mut rng);
+        let def = pick_species(&mut rng);
         spawn_monster(world, def, Position { x, y });
     }
 
@@ -781,21 +787,23 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
                 continue;
             }
             if occupied.insert((cx, cy)) {
-                let def = MonsterDef::pick(depth, &mut rng);
+                let def = pick_species(&mut rng);
                 spawn_monster(world, def, Position { x: cx, y: cy });
             }
         }
     }
 
-    // Up to ITEMS_PER_FLOOR items.
-    for _ in 0..ITEMS_PER_FLOOR {
+    // Items: three attempts at the surface, +1 per tier (like the monster and
+    // trap budgets). Every attempt that finds a free tile drops an item.
+    let max_items = ITEM_SLOTS_BASE + tier as usize;
+    for _ in 0..max_items {
         let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) else {
             continue;
         };
         roll_item(world, &mut rng, depth, Position { x, y });
     }
 
-    // 1 floor in 10 hides an extra item in plain sight: it draws nothing and is
+    // 1 floor in 5 hides an extra item in plain sight: it draws nothing and is
     // never announced until a ring of perception turns it up or the player walks
     // straight onto it ("Hey! There's something here!").
     if rng.gen_bool(HIDDEN_ITEM_CHANCE) {
@@ -805,10 +813,10 @@ fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u16, u16)) {
         }
     }
 
-    place_element_of_yoord(world, &mut occupied, &mut rng, depth);
+    place_element_of_yoord(world, &mut occupied, depth);
 
     // Traps: placed after the stairs, monsters and loot, before the hero drops
-    // in. Like the monster budget, the trap budget steps up every three floors —
+    // in. Like the monster budget, the trap budget steps up a tier at a time —
     // four slots at the surface, +1 per `tier` — and each slot's chance of
     // producing a trap climbs the same way, so the deep floors bristle with them
     // and the first floors rarely hold more than one.
@@ -966,6 +974,13 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         d.what
     };
 
+    // Every floor change re-rolls the destination's contents (not its layout):
+    // `content_rng` reads this count, so the same corridors come back stocked
+    // differently. Bumped before `populate_level` runs.
+    if let Some(mut fc) = world.get_resource_mut::<FloorChanges>() {
+        fc.count = fc.count.saturating_add(1);
+    }
+
     let seed = world.resource::<RngSeed>().0;
     let (tiles, rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
     world.insert_resource(Map { tiles, dark });
@@ -1086,6 +1101,7 @@ pub fn dungeon_lord_system(world: &mut World) {
 pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
     world.insert_resource(Depth { what: 1 });
+    world.insert_resource(FloorChanges::default());
     world.insert_resource(BloodStains::new());
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.insert_resource(Identified::default());
