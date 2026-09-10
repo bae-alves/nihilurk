@@ -126,8 +126,7 @@ fn deepest_floor_swaps_the_downstairs_for_the_element() {
     assert!(
         !w.resource::<Map>()
             .tiles
-            .iter()
-            .any(|&t| t == TileType::Downstairs)
+            .contains(&TileType::Downstairs)
     );
 
     // The Element of Yoord is lying on the floor, ringed by at least one guardian.

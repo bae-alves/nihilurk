@@ -54,9 +54,7 @@ fn entity_name(world: &World, entity: Entity) -> String {
 /// pending attack (currently these are all monster-initiated; the player's
 /// melee is resolved inline by the input handler).
 pub fn combat_system(world: &mut World) {
-    let mut attack_queue = world.resource_mut::<AttackQueue>();
-    let attacks = std::mem::take(&mut attack_queue.attacks);
-    drop(attack_queue);
+    let attacks = std::mem::take(&mut world.resource_mut::<AttackQueue>().attacks);
 
     for attack in attacks {
         resolve_attack(world, attack.attacker, attack.target);
@@ -293,7 +291,6 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
             }
         }
     }
-    drop(log);
 
     if lethal {
         if target_is_player {

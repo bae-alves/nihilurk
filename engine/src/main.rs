@@ -247,7 +247,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.insert_resource(models::RngSeed(seed_value));
     world.insert_resource(PackIsOpen {
         open: false,
-        selected: 0 as usize,
+        selected: 0,
         action_mode: None,
         action_selected: 0,
     });
@@ -266,7 +266,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.insert_resource(PlayerName {
         what: player_name.to_ascii_uppercase(),
     });
-    world.insert_resource(Depth { what: 1 as u8 });
+    world.insert_resource(Depth { what: 1 });
     world.init_resource::<DungeonLord>();
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();

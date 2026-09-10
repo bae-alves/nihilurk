@@ -86,10 +86,7 @@ fn auto_explore_reveals_every_reachable_tile_then_stops() {
         let (mut w, player) = fresh_floor(seed);
 
         let mut steps = 0;
-        loop {
-            let Some((dx, dy)) = explore_step(&mut w) else {
-                break;
-            };
+        while let Some((dx, dy)) = explore_step(&mut w) {
             assert!(
                 dx.abs() <= 1 && dy.abs() <= 1 && (dx != 0 || dy != 0),
                 "seed {seed}: bad step"

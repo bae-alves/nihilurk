@@ -61,7 +61,6 @@ fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
         return (dx, dy, false);
     }
     let (sx, sy) = STUMBLE_DIRS[rng.0.gen_range(0..STUMBLE_DIRS.len())];
-    drop(rng);
     world
         .resource_mut::<GameLog>()
         .add("You stumble foolishly.");
@@ -326,7 +325,6 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                 let throwing = target_state.throwing;
                 target_state.item = None;
                 target_state.throwing = false;
-                drop(target_state);
 
                 let player_entity = world
                     .query_filtered::<Entity, With<Player>>()
@@ -440,8 +438,6 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
                     pack_state.action_mode = None;
                     turn_taken = true;
                 }
-
-                drop(pack_state);
 
                 if confirm_action {
                     if let Some(player) = player_entity {

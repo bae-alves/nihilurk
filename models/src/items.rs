@@ -59,9 +59,7 @@ use self::wands::apply_wand_effect;
 /// the classic use-to-identify convention; rings identify on wear instead,
 /// inside [`crate::equipment`].
 pub fn item_system(world: &mut World) {
-    let mut use_queue = world.resource_mut::<UseQueue>();
-    let uses = std::mem::take(&mut use_queue.uses);
-    drop(use_queue);
+    let uses = std::mem::take(&mut world.resource_mut::<UseQueue>().uses);
 
     for item_use in uses {
         // What the player sees right now (appearance if unidentified, true

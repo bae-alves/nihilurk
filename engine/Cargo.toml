@@ -3,6 +3,9 @@ name = "engine"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 # Link to your local models crate
 models = { path = "../models" }

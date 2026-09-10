@@ -99,7 +99,6 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
     if let Some(effect) = ring_effect {
         identified.rings.insert(effect);
     }
-    drop(identified);
 
     world
         .resource_mut::<GameLog>()

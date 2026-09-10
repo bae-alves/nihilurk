@@ -179,10 +179,7 @@ fn tab_closes_on_and_kills_a_distant_foe() {
         resolve_visibility(&mut w);
 
         let mut steps = 0;
-        loop {
-            let Some(target) = auto_fight_target(&mut w) else {
-                break;
-            };
+        while let Some(target) = auto_fight_target(&mut w) {
             assert_eq!(target, foe, "seed {seed}: only one foe exists");
 
             let (dx, dy) = fight_step(&mut w, target)

@@ -154,8 +154,7 @@ fn round_trip() {
     assert!(
         w2.resource::<Map>()
             .tiles
-            .iter()
-            .any(|&t| t == TileType::Wall)
+            .contains(&TileType::Wall)
     );
 }
 

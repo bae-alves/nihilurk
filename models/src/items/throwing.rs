@@ -78,7 +78,6 @@ fn identify_from_afar(world: &mut World, item: Entity) {
         (_, _, _, Some(e)) => known.rings.insert(e),
         _ => false,
     };
-    drop(known);
     if newly {
         world.resource_mut::<GameLog>().add(format!(
             "That was {} {true_name}!",

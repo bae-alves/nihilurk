@@ -3,6 +3,9 @@ name = "models"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 crossterm = "0.29.0"
 bevy_ecs = "0.12" 
