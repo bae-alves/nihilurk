@@ -121,10 +121,11 @@ Step 5: make it do something
 ----------------------------
 
 Everything so far is description. If your item needs behaviour, that
-lives where behaviour lives -- usually `models/src/items.rs`, in
-`item_system`, keyed off the component your row attached. Follow how
-`Potion` is handled: a component the row put on, read by a system that
-does not know the catalog exists.
+lives where behaviour lives -- `item_system` in `models/src/items.rs`
+dispatches on the component your row attached, handing off to a file
+under `models/src/items/` (`potions.rs`, `scrolls.rs`, `wands.rs`,
+`throwing.rs`). Follow how `Potion` is handled: a component the row put
+on, read by a system that does not know the catalog exists.
 
 
 Step 6: teach the save file, if it needs teaching

@@ -28,7 +28,9 @@ At a glance
 | Wand      | `WANDS`     | no         | a `WandEffect` variant + a mechanic |
 
 Every table is in `models/src/catalog.rs`. Every effect enum is in
-`models/src/components.rs`. Every mechanic is in `models/src/items.rs`.
+`models/src/components.rs`. Every mechanic is in `models/src/items/`, one
+file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `throwing.rs`
+(`models/src/items.rs` itself is just the `item_system` dispatcher).
 
 
 Row-only categories
@@ -151,12 +153,11 @@ The pattern is identical for all three; only the names change.
    A wand's `range` feeds the aiming reticle; a wand also spawns with a
    `3d4` battery, rolled when it enters the dungeon.
 
-3. **Write the mechanic** in `models/src/items.rs`, as one arm of the
-   matching function:
+3. **Write the mechanic** as one arm of the matching function:
 
-       apply_potion_effect(world, user, effect) -> bool
-       apply_scroll_effect(world, user, effect)
-       apply_wand_effect(world, user, target, effect)
+       apply_potion_effect(world, user, effect) -> bool   models/src/items/potions.rs
+       apply_scroll_effect(world, user, effect)            models/src/items/scrolls.rs
+       apply_wand_effect(world, user, target, effect)      models/src/items/wands.rs
 
    A potion's mechanic returns whether it visibly did anything, which is
    what lets a potion thrown at a monster identify itself.

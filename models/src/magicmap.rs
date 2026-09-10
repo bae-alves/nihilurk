@@ -5,7 +5,7 @@
 //! animated wipe — roog's take on the row-by-row `MagicMapReveal` run-state from
 //! the "Rust Roguelike" tutorial (chapter 20). There is no run-state machine
 //! here, so the wipe is driven the same way the particle layer is:
-//! [`crate::items::apply_scroll_effect`] arms [`MagicMapReveal`] while resolving
+//! the scroll-of-magic-mapping mechanic (in `crate::items`) arms [`MagicMapReveal`] while resolving
 //! the read, and once the turn is over the engine plays it out over a handful of
 //! frames, folding one [`magic_map_reveal_step`] into the player's fog-of-war
 //! memory per frame and re-rendering between.

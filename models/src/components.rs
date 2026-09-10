@@ -1,13 +1,58 @@
+//! The ECS vocabulary — every [`Component`], [`Resource`] and [`Event`] the
+//! game is made of, in one file.
+//!
+//! This module is nouns, not verbs. A component here says *what a thing is* — it
+//! has a position, it bleeds, it is a scroll of type X — and nothing about what
+//! happens as a result. The verbs live in the systems (`crate::combat`,
+//! `crate::ai`, `crate::items`, `crate::visibility`, and so on). If you are
+//! looking for "what does a potion of healing do", it is not here; it is in
+//! `crate::items` (the `potions` submodule).
+//!
+//! Two recurring shapes are worth knowing before you read:
+//!
+//! * **Marker components** carry no data — [`Player`], [`Blood`], [`Curse`],
+//!   [`Confused`]. Their presence *is* the fact. A system asks
+//!   `world.get::<Blood>(e).is_some()` and that is the whole check.
+//!
+//! * **Type-key components** — [`Potion`], [`Scroll`], [`Wand`], [`Ring`] — hold
+//!   one enum value ([`PotionEffect`] &c.) that names *which* one it is. The key
+//!   is the item's identity for identification and for the save file; it is
+//!   never a description of behaviour. The catalog row ([`crate::catalog`])
+//!   turns a key into the components that actually do something, and the
+//!   mechanic (`crate::items`) is a `match` on the key.
+//!
+//! **Transient vs serialised.** Some fields are rebuilt from scratch every frame
+//! or every load and are deliberately left out of the save format —
+//! [`Viewshed::visible_tiles`], [`Speed::energy`], [`Spotted`], [`DungeonLord`].
+//! Each says so in its doc comment. Everything else is expected to round-trip
+//! through `crate::saveload`.
+//!
+//! **Ordering matters for saved types.** Every enum that derives `Serialize`
+//! ([`MovementType`], [`Faction`], [`SpeedKind`], the four `*Effect` enums) is
+//! written to the save by variant position, and every serialised struct by
+//! field order. Append new variants and fields; do not reorder existing ones, or
+//! old saves change meaning.
+
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
+
+use crate::effects::{ColdImmune, FireImmune, Grant, Undead};
 
 /// The most a single pack slot will hold before the overflow spills into a
 /// second slot. Defined and documented in `constants.rs`; re-exported here so
 /// `components::STACK_LIMIT` (and the crate-wide glob) keep resolving.
 pub use crate::constants::items::STACK_LIMIT;
 
+// ===========================================================================
+// Identity, position, appearance
+// ===========================================================================
+
+/// The display name of anything the player can be told about — a monster, an
+/// item on the floor, the hero. Item type-keys ([`Potion`] &c.) still carry
+/// this: the appearance shown before identification is swapped in on top of it
+/// by `crate::identify`.
 #[derive(Component)]
 pub struct Name {
     pub what: String,
@@ -25,46 +70,51 @@ impl Name {
     }
 }
 
+/// The one entity the keyboard drives and the camera follows. A marker: exactly
+/// one entity in a run has it.
 #[derive(Component)]
 pub struct Player;
 
+/// A tile coordinate. Every entity that exists *somewhere* on the current floor
+/// has one; an item tucked into a [`Backpack`] has its `Position` removed until
+/// it is dropped again.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Position {
     pub x: u16,
     pub y: u16,
 }
 
+/// How an entity draws: one glyph in one colour. The colour is packed to a byte
+/// against a fixed 16-entry palette on save (see `crate::saveload`).
 #[derive(Component)]
 pub struct Renderable {
     pub glyph: char,
     pub color: Color,
 }
 
-#[derive(Component)]
-pub struct Viewshed {
-    /// Transient: recomputed every frame by the visibility system, never saved.
-    pub visible_tiles: Vec<(u16, u16)>,
-    /// Fog-of-war memory, one bit per map tile (see [`crate::map::tile_index`]).
-    pub revealed_tiles: FixedBitSet,
-    pub range: u16,
-    pub dirty: bool,
+/// Whose side an actor is on. Monsters fight the player and (in principle) spare
+/// each other; `Ally` is reserved and currently unused.
+#[derive(Component, PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum Faction {
+    Player,
+    Monster,
+    Ally,
 }
 
-#[derive(Component)]
-pub struct Backpack {
-    pub items: Vec<Entity>,
-}
+// ===========================================================================
+// Creatures and combat
+// ===========================================================================
 
-#[derive(Component)]
-pub struct Score {
-    pub value: i32,
-}
-
+/// Marks an entity as a monster — something the AI drives. Carries the tactic it
+/// uses to pick a move each turn.
 #[derive(Component)]
 pub struct Mob {
     pub movement_type: MovementType,
 }
 
+/// A monster's movement tactic. `Static` holds still, `Chase` walks toward the
+/// player when it can see them, `Flee` walks away, `Confused` staggers at
+/// random.
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub enum MovementType {
     Static,
@@ -81,6 +131,10 @@ pub enum MovementType {
     },
 }
 
+/// Everything needed to resolve a fight. Combat is a pair of opposed rolls with
+/// no to-hit step: `damage = (1d[power] + power_bonus) - (1d[armor] +
+/// armor_bonus)`, each side rolled independently, nothing ever missing. See
+/// `crate::combat`.
 #[derive(Component)]
 pub struct Fighter {
     pub hp: i32,
@@ -100,18 +154,28 @@ pub struct Fighter {
     pub power_bonus: i32,
 }
 
-/// Not currently drawn or announced: an out-of-view monster, an undiscovered
-/// trap, or an invisible thing the player can't perceive. The visibility system
-/// owns this for monsters and the invisible item; traps clear it when revealed.
+/// Creatures that bleed. When an entity carrying this takes damage, the tile it
+/// is standing on is recorded in [`crate::map::BloodStains`] and rendered with a
+/// red background while it stays in the player's view.
 #[derive(Component)]
-pub struct Hidden;
+pub struct Blood;
 
-/// Intrinsically unseeable without [`crate::effects::SeesInvisible`] — the
-/// phantom, and the one-in-ten "invisible" floor item. Pairs with [`Hidden`]:
-/// `Invisible` says *why* a thing can't be seen, `Hidden` is the per-turn "can't
-/// be seen right now" the renderer reads.
-#[derive(Component)]
-pub struct Invisible;
+/// The player's pool of magic points. Shown in the HUD as `Ma points/max_points`
+/// alongside `HP`. Every run starts with a full pool (see
+/// [`crate::initialize_world`]).
+#[derive(Component, Clone, Copy, Serialize, Deserialize)]
+pub struct Magic {
+    pub points: u8,
+    pub max_points: u8,
+}
+
+// ===========================================================================
+// Speed and tempo
+//
+// The player is the clock. Monsters bank energy on each of the player's turns
+// and spend it in `crate::ai`; the player's own tempo is run by the engine loop
+// through `PlayerTempo`.
+// ===========================================================================
 
 /// The three tempos an actor can move at. `Fast` acts twice for every `Normal`
 /// action; `Slow` acts once for every two. The player is the clock: monsters
@@ -174,132 +238,6 @@ impl Speed {
     }
 }
 
-/// Marker for the Element of Yoord — the relic each run must carry up from the
-/// depths. While the player's pack holds an entity with this component the
-/// staircases invert: the up-stair works and the down-stair is dead.
-#[derive(Component)]
-pub struct Amulet;
-
-/// Present while an entity is currently inside the player's viewshed. Added the
-/// turn it first enters view (logging "you spotted ..."), removed the turn it
-/// leaves, so re-entering view spots it again. Transient, never serialised.
-#[derive(Component)]
-pub struct Spotted;
-
-/// Creatures that bleed. When an entity carrying this takes damage, the tile it
-/// is standing on is recorded in [`crate::map::BloodStains`] and rendered with a
-/// red background while it stays in the player's view.
-#[derive(Component)]
-pub struct Blood;
-
-#[derive(Resource, Default)]
-pub struct PlayerName {
-    pub what: String,
-}
-
-#[derive(Resource, Default)]
-pub struct RenderConfig {
-    pub centered: bool,
-}
-
-#[derive(Event, Clone, Copy)]
-pub struct WantsToAttack {
-    pub attacker: Entity,
-    pub target: Entity,
-}
-
-#[derive(Event, Clone, Copy)]
-pub struct WantsToUse {
-    pub user: Entity,
-    pub item: Entity,
-    pub target: Option<Position>,
-    pub slot_idx: Option<usize>,
-}
-
-/// A hurled item, in flight from `thrower` towards `target`. Resolved by
-/// [`crate::items::throw_system`], which is where it finds out what it hits.
-#[derive(Event, Clone, Copy)]
-pub struct WantsToThrow {
-    pub thrower: Entity,
-    pub item: Entity,
-    pub target: Position,
-}
-
-#[derive(Component, PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum Faction {
-    Player,
-    Monster,
-    Ally,
-}
-
-/// What the pack screen can do with the item under the cursor. The list itself
-/// lives in [`ActionMenu`]; nothing else in the game enumerates these.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ItemAction {
-    /// Quaff / read / zap / wear it, depending on what it is.
-    Use,
-    /// Put it down on the tile you're standing on.
-    Drop,
-    /// Hurl it at a spot you pick with the aiming reticle.
-    Throw,
-}
-
-impl ItemAction {
-    /// The label the pack screen paints, padded to the modal's inner width.
-    pub fn label(self) -> &'static str {
-        match self {
-            ItemAction::Use => " Use    ",
-            ItemAction::Drop => " Drop   ",
-            ItemAction::Throw => " Throw  ",
-        }
-    }
-}
-
-/// The order the three item actions are offered in. Use always leads; `-dropthrow`
-/// swaps the other two, for players who reach for Drop far more often than Throw.
-#[derive(Resource, Default)]
-pub struct ActionMenu {
-    pub drop_first: bool,
-}
-
-impl ActionMenu {
-    pub fn actions(&self) -> [ItemAction; 3] {
-        if self.drop_first {
-            [ItemAction::Use, ItemAction::Drop, ItemAction::Throw]
-        } else {
-            [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
-        }
-    }
-
-    /// The action sitting at menu row `idx`.
-    pub fn at(&self, idx: usize) -> ItemAction {
-        self.actions()[idx.min(2)]
-    }
-}
-
-#[derive(Resource, Default)]
-pub struct PackIsOpen {
-    pub open: bool,
-    pub selected: usize,
-    pub action_mode: Option<usize>,
-    pub action_selected: usize,
-}
-
-#[derive(Resource, Default)]
-pub struct AttackQueue {
-    pub attacks: Vec<WantsToAttack>,
-}
-
-#[derive(Resource, Default)]
-pub struct UseQueue {
-    pub uses: Vec<WantsToUse>,
-}
-
-#[derive(Resource, Default)]
-pub struct ThrowQueue {
-    pub throws: Vec<WantsToThrow>,
-}
-
 /// Drives the player's half of the speed system (see [`Speed`]). The engine loop
 /// consults the player's [`SpeedKind`] after every turn: a `Fast` player takes
 /// two inputs before the monsters get a move (tracked by `fast_parity`), a
@@ -312,28 +250,198 @@ pub struct PlayerTempo {
     pub fast_parity: bool,
 }
 
+// ===========================================================================
+// Perception and memory
+// ===========================================================================
+
+/// One actor's field of view and its remembered map. Owned by
+/// `crate::visibility`.
+#[derive(Component)]
+pub struct Viewshed {
+    /// Transient: recomputed every frame by the visibility system, never saved.
+    pub visible_tiles: Vec<(u16, u16)>,
+    /// Fog-of-war memory, one bit per map tile (see [`crate::map::tile_index`]).
+    pub revealed_tiles: FixedBitSet,
+    pub range: u16,
+    pub dirty: bool,
+}
+
+/// Not currently drawn or announced: an out-of-view monster, an undiscovered
+/// trap, or an invisible thing the player can't perceive. The visibility system
+/// owns this for monsters and the invisible item; traps clear it when revealed.
+#[derive(Component)]
+pub struct Hidden;
+
+/// Intrinsically unseeable without [`crate::effects::SeesInvisible`] — the
+/// phantom, and the one-in-ten "invisible" floor item. Pairs with [`Hidden`]:
+/// `Invisible` says *why* a thing can't be seen, `Hidden` is the per-turn "can't
+/// be seen right now" the renderer reads.
+#[derive(Component)]
+pub struct Invisible;
+
+/// Present while an entity is currently inside the player's viewshed. Added the
+/// turn it first enters view (logging "you spotted ..."), removed the turn it
+/// leaves, so re-entering view spots it again. Transient, never serialised.
+#[derive(Component)]
+pub struct Spotted;
+
+// ===========================================================================
+// Items: on the floor and in the pack
+// ===========================================================================
+
+/// Marker for anything that can sit on the floor and be picked up. The display
+/// name lives on the [`Name`] component, same as monsters.
+#[derive(Component)]
+pub struct Item;
+
+/// What an item cashes in for at the end of a run. Coins and the relic carry it;
+/// nothing spends it during play.
+#[derive(Component)]
+pub struct Value {
+    pub amount: i32,
+}
+
+/// An actor's carried items, in inventory-letter order. An item in here has had
+/// its [`Position`] removed; dropping or throwing puts one back.
+#[derive(Component)]
+pub struct Backpack {
+    pub items: Vec<Entity>,
+}
+
+/// Used up on use: a potion or a scroll. [`item_system`](crate::items::item_system)
+/// despawns anything carrying this once its effect has been applied.
+#[derive(Component)]
+pub struct Consume;
+
+/// A wand's remaining charges. Each zap spends one; at zero the wand crumbles.
+/// A floor drop rolls `2d6 + 1` (see [`crate::catalog::roll_wand_charges`]).
+#[derive(Component)]
+pub struct Battery {
+    pub charges: i8,
+}
+
+/// How many identical items share one pack slot. Only ammunition stacks: a
+/// quiver of arrows is one entity carrying a number, not thirty entities
+/// crowding thirty inventory letters. Throwing spends one; picking more up tops
+/// the stack back up to at most [`STACK_LIMIT`].
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Stack {
+    pub count: u8,
+}
+
+/// An item with a firing range of its own: a wand. Feeds the aiming reticle when
+/// the item is zapped (a thrown item uses [`crate::items::THROW_RANGE`] instead).
 #[derive(Component)]
 pub struct Ranged {
     pub range: i32,
 }
 
-/// Tag for a cursed piece of equipment. Rolled on at spawn for the majority of
-/// weapon/armour/ring drops (see [`crate::items::enchant_equipment`]). Once a
-/// cursed item is equipped it can't be taken off again until the curse is lifted
-/// by a scroll of remove curse.
+/// Marker for the Element of Yoord — the relic each run must carry up from the
+/// depths. While the player's pack holds an entity with this component the
+/// staircases invert: the up-stair works and the down-stair is dead.
 #[derive(Component)]
-pub struct Curse;
+pub struct Amulet;
 
-/// A weapon that has been vorpalized (scroll of vorpalize weapon). Any hit from
-/// it that draws blood slays a creature named `bane` outright — as it does any
-/// creature carrying [`crate::effects::VorpalTarget`], regardless of `bane`. See
-/// [`crate::combat::resolve_attack`].
+// ===========================================================================
+// Items: type keys
+//
+// One component + one enum per identifiable kind. The enum value is the item's
+// identity for `crate::identify` and the save file, and the thing the mechanic
+// in `crate::items` matches on. It is never a description of behaviour — that is
+// assembled from other components by the catalog row.
+// ===========================================================================
+
+/// Type-key for a potion. Mechanic: the `potions` submodule of `crate::items`.
 #[derive(Component)]
-pub struct Vorpal {
-    pub bane: String,
+pub struct Potion {
+    pub effect: PotionEffect,
 }
 
-/// A ring's type tag, the twin of [`Potion`] / [`Scroll`] / [`Wand`]. What the
+/// Which potion this is. Identity for identification and saves — see
+/// [`crate::catalog::POTIONS`].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PotionEffect {
+    Blindness,
+    Confusion,
+    ExtraHealing,
+    FruitJuice,
+    GainStrength,
+    Haste,
+    Healing,
+    MagicDetection,
+    MonsterDetection,
+    Paralysis,
+    Poison,
+    RaiseLevel,
+    RestoreStrength,
+    SeeInvisible,
+    Water,
+}
+
+/// Type-key for a scroll. Mechanic: the `scrolls` submodule of `crate::items`.
+#[derive(Component)]
+pub struct Scroll {
+    pub effect: ScrollEffect,
+}
+
+/// Which scroll this is. Identity for identification and saves — see
+/// [`crate::catalog::SCROLLS`].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ScrollEffect {
+    MonsterConfusion,
+    MagicMapping,
+    HoldMonster,
+    Sleep,
+    EnchantArmor,
+    Identify,
+    ScareMonster,
+    FoodDetection,
+    Teleportation,
+    EnchantWeapon,
+    CreateMonster,
+    RemoveCurse,
+    AggravateMonsters,
+    BlankPaper,
+    VorpalizeWeapon,
+}
+
+/// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`
+/// (zapped), and `throwing` (hurled).
+#[derive(Component)]
+pub struct Wand {
+    pub effect: WandEffect,
+}
+
+/// Which wand this is. Identity for identification and saves — see
+/// [`crate::catalog::WANDS`].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WandEffect {
+    Light,
+    Striking,
+    Lightning,
+    Fire,
+    Cold,
+    Polymorph,
+    MagicMissile,
+    HasteMonster,
+    SlowMonster,
+    DrainLife,
+    Nothing,
+    TeleportAway,
+    TeleportTo,
+    Cancellation,
+}
+
+impl WandEffect {
+    /// Whether zapping this wand opens the aiming reticle. Every wand needs a
+    /// target except the wand of light, which floods the room the zapper stands
+    /// in and so is "used" immediately like a potion or scroll.
+    pub fn needs_target(self) -> bool {
+        !matches!(self, WandEffect::Light)
+    }
+}
+
+/// Type-key for a ring, the twin of [`Potion`] / [`Scroll`] / [`Wand`]. What the
 /// ring *does* is not read from here — it rides along as modifier components and
 /// [`crate::effects::Grants`], attached by its [`crate::catalog::RingDef`] row.
 /// This tag exists so the ring can be identified and saved.
@@ -360,95 +468,73 @@ pub enum RingEffect {
     MaintainArmor,
 }
 
+/// Tag for a cursed piece of equipment. Rolled on at spawn for the majority of
+/// weapon/armour/ring drops (see [`crate::catalog::enchant_equipment`]). Once a
+/// cursed item is equipped it can't be taken off again until the curse is lifted
+/// by a scroll of remove curse.
 #[derive(Component)]
-pub struct Scroll {
-    pub effect: ScrollEffect,
+pub struct Curse;
+
+/// A weapon that has been vorpalized (scroll of vorpalize weapon). Any hit from
+/// it that draws blood slays a creature named `bane` outright — as it does any
+/// creature carrying [`crate::effects::VorpalTarget`], regardless of `bane`. See
+/// [`crate::combat::resolve_attack`].
+#[derive(Component)]
+pub struct Vorpal {
+    pub bane: String,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ScrollEffect {
-    MonsterConfusion,
-    MagicMapping,
-    HoldMonster,
-    Sleep,
-    EnchantArmor,
-    Identify,
-    ScareMonster,
-    FoodDetection,
-    Teleportation,
-    EnchantWeapon,
-    CreateMonster,
-    RemoveCurse,
-    AggravateMonsters,
-    BlankPaper,
-    VorpalizeWeapon,
+/// The three flavours of elemental damage a wand or a blast can carry. A
+/// creature can be immune to one — and the immunity is a plain component, so a
+/// dragon's innate [`FireImmune`] and a future ring of fire resistance's are the
+/// same thing to the code that checks. Lives here rather than in
+/// `crate::items` because both the wand mechanic and the throwing mechanic
+/// reach for it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Element {
+    Fire,
+    Cold,
+    Drain,
 }
 
-#[derive(Resource, Default)]
-pub struct TargetingState {
-    pub active: bool,
-    pub item: Option<Entity>,
-    /// The reticle is aiming a throw rather than a zap: the range is
-    /// [`crate::items::THROW_RANGE`] instead of the item's own, and confirming
-    /// hurls the item instead of using it.
-    pub throwing: bool,
-    pub cursor_x: i16,
-    pub cursor_y: i16,
-}
+impl Element {
+    /// Which element a wand's damage carries, if any. Non-elemental damage
+    /// (magic missile, lightning, striking) returns `None` and is never
+    /// resisted.
+    pub fn of(effect: WandEffect) -> Option<Element> {
+        match effect {
+            WandEffect::Fire => Some(Element::Fire),
+            WandEffect::Cold => Some(Element::Cold),
+            WandEffect::DrainLife => Some(Element::Drain),
+            _ => None,
+        }
+    }
 
-#[derive(Resource)]
-pub struct GameLog {
-    pub history: Vec<String>,
-    pub unread: Vec<String>, // The queue of messages waiting for a --MORE-- acknowledgment
-}
+    /// The marker effect that shrugs this element off.
+    pub fn immunity(self) -> Grant {
+        match self {
+            Element::Fire => Grant::of::<FireImmune>(),
+            Element::Cold => Grant::of::<ColdImmune>(),
+            Element::Drain => Grant::of::<Undead>(),
+        }
+    }
 
-#[derive(Resource)]
-pub struct Depth {
-    pub what: u8,
-}
-
-/// Tracks how long the player has lingered on one dungeon level. Every turn adds
-/// one; every level change resets it to zero. When it reaches
-/// [`crate::map::DUNGEON_LORD_PATIENCE`] the Dungeon Lord opens a portal under
-/// the player's feet and shunts them to the next level. Transient, never saved.
-#[derive(Resource, Default)]
-pub struct DungeonLord {
-    pub idle_turns: u32,
-}
-
-impl Default for GameLog {
-    fn default() -> Self {
-        Self {
-            history: Vec::new(),
-            unread: vec!["Welcome to ROOG! Use arrow keys to move.".to_string()],
+    /// The word for this element in an "unharmed by the ___" log line.
+    pub fn noun(self) -> &'static str {
+        match self {
+            Element::Fire => "flames",
+            Element::Cold => "cold",
+            Element::Drain => "evil magic",
         }
     }
 }
 
-impl GameLog {
-    pub fn add<S: Into<String>>(&mut self, message: S) {
-        let msg = message.into();
-        self.history.push(msg.clone());
-        self.unread.push(msg); // Push to the unread queue!
-
-        if self.history.len() > 50 {
-            self.history.remove(0);
-        }
-    }
-}
-
-#[derive(Component)]
-pub struct Value {
-    pub amount: i32,
-}
-
-/// Marker for anything that can sit on the floor and be picked up. The display
-/// name lives on the [`Name`] component, same as monsters.
-#[derive(Component)]
-pub struct Item;
-
-#[derive(Component)]
-pub struct Consume;
+// ===========================================================================
+// Items: throwing and launchers
+//
+// A missile and a launcher never name each other — they meet at an effect (see
+// `crate::effects::FireArrow`). Resolution is `crate::items::throwing`.
+// ===========================================================================
 
 /// What this item does to a creature it is thrown into: the die rolled on
 /// impact (see [`crate::items::throw_system`]). Only things meant to hurt when
@@ -496,90 +582,215 @@ pub struct LaunchedBy(pub crate::effects::Grant);
 #[derive(Component, Clone, Copy)]
 pub struct Launcher;
 
-/// How many identical items share one pack slot. Only ammunition stacks: a
-/// quiver of arrows is one entity carrying a number, not thirty entities
-/// crowding thirty inventory letters. Throwing spends one; picking more up tops
-/// the stack back up to at most [`STACK_LIMIT`].
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Stack {
-    pub count: u8,
-}
-
-#[derive(Component)]
-pub struct Battery {
-    pub charges: i8,
-}
+// ===========================================================================
+// Player conditions
+// ===========================================================================
 
 /// A transient affliction on the **player** (a monster is confused through
 /// [`MovementType::Confused`] instead). Half of every walk or swing while it
 /// lasts goes off in a random direction ("You stumble foolishly"), and fast
 /// movement, auto-explore and auto-fight all refuse to run. It is treacherous:
 /// it does not wear off with time — only using a staircase or being caught by a
-/// wand of cancellation clears it. Shown in the HUD as `CONF`.
+/// wand of cancellation clears it (both through
+/// `crate::helpers::clear_player_conditions`). Shown in the HUD as `CONF`.
 #[derive(Component)]
 pub struct Confused;
 
+// ===========================================================================
+// Score
+// ===========================================================================
+
+/// The running score shown on the HUD. Coins and the relic add to it on pickup.
 #[derive(Component)]
-pub struct Potion {
-    pub effect: PotionEffect,
+pub struct Score {
+    pub value: i32,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PotionEffect {
-    Blindness,
-    Confusion,
-    ExtraHealing,
-    FruitJuice,
-    GainStrength,
-    Haste,
-    Healing,
-    MagicDetection,
-    MonsterDetection,
-    Paralysis,
-    Poison,
-    RaiseLevel,
-    RestoreStrength,
-    SeeInvisible,
-    Water,
+// ===========================================================================
+// Events and their queues
+//
+// An input handler pushes an intent onto a queue resource; the matching system
+// drains the queue once per turn and resolves each one. The `Event` derive is
+// kept for the types even though they travel by queue.
+// ===========================================================================
+
+/// Intent: `attacker` swings at `target`. Drained by `crate::combat`.
+#[derive(Event, Clone, Copy)]
+pub struct WantsToAttack {
+    pub attacker: Entity,
+    pub target: Entity,
 }
 
-#[derive(Component)]
-pub struct Wand {
-    pub effect: WandEffect,
+/// Intent: `user` uses `item` — quaff, read, zap or (un)equip, depending on what
+/// it is. `target` is the aimed tile for a wand; `slot_idx` is the pack row it
+/// came from, so it can go back exactly there. Drained by
+/// [`item_system`](crate::items::item_system).
+#[derive(Event, Clone, Copy)]
+pub struct WantsToUse {
+    pub user: Entity,
+    pub item: Entity,
+    pub target: Option<Position>,
+    pub slot_idx: Option<usize>,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WandEffect {
-    Light,
-    Striking,
-    Lightning,
-    Fire,
-    Cold,
-    Polymorph,
-    MagicMissile,
-    HasteMonster,
-    SlowMonster,
-    DrainLife,
-    Nothing,
-    TeleportAway,
-    TeleportTo,
-    Cancellation,
+/// A hurled item, in flight from `thrower` towards `target`. Resolved by
+/// [`crate::items::throw_system`], which is where it finds out what it hits.
+#[derive(Event, Clone, Copy)]
+pub struct WantsToThrow {
+    pub thrower: Entity,
+    pub item: Entity,
+    pub target: Position,
 }
 
-impl WandEffect {
-    /// Whether zapping this wand opens the aiming reticle. Every wand needs a
-    /// target except the wand of light, which floods the room the zapper stands
-    /// in and so is "used" immediately like a potion or scroll.
-    pub fn needs_target(self) -> bool {
-        !matches!(self, WandEffect::Light)
+/// The turn's pending attacks. Filled by input / AI, drained by
+/// `crate::combat`.
+#[derive(Resource, Default)]
+pub struct AttackQueue {
+    pub attacks: Vec<WantsToAttack>,
+}
+
+/// The turn's pending item uses. Drained by
+/// [`item_system`](crate::items::item_system).
+#[derive(Resource, Default)]
+pub struct UseQueue {
+    pub uses: Vec<WantsToUse>,
+}
+
+/// The turn's pending throws. Drained by [`crate::items::throw_system`].
+#[derive(Resource, Default)]
+pub struct ThrowQueue {
+    pub throws: Vec<WantsToThrow>,
+}
+
+// ===========================================================================
+// UI and input state (resources)
+// ===========================================================================
+
+/// The name the player typed at the start of the run, shown on the death screen.
+#[derive(Resource, Default)]
+pub struct PlayerName {
+    pub what: String,
+}
+
+/// Whether the viewport scrolls to keep the player centred (`-centered`).
+#[derive(Resource, Default)]
+pub struct RenderConfig {
+    pub centered: bool,
+}
+
+/// What the pack screen can do with the item under the cursor. The list itself
+/// lives in [`ActionMenu`]; nothing else in the game enumerates these.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ItemAction {
+    /// Quaff / read / zap / wear it, depending on what it is.
+    Use,
+    /// Put it down on the tile you're standing on.
+    Drop,
+    /// Hurl it at a spot you pick with the aiming reticle.
+    Throw,
+}
+
+impl ItemAction {
+    /// The label the pack screen paints, padded to the modal's inner width.
+    pub fn label(self) -> &'static str {
+        match self {
+            ItemAction::Use => " Use    ",
+            ItemAction::Drop => " Drop   ",
+            ItemAction::Throw => " Throw  ",
+        }
     }
 }
 
-/// The player's pool of magic points. Shown in the HUD as `Ma points/max_points`
-/// alongside `HP`. Every run starts with a full pool (see
-/// [`crate::initialize_world`]).
-#[derive(Component, Clone, Copy, Serialize, Deserialize)]
-pub struct Magic {
-    pub points: u8,
-    pub max_points: u8,
+/// The order the three item actions are offered in. Use always leads; `-dropthrow`
+/// swaps the other two, for players who reach for Drop far more often than Throw.
+#[derive(Resource, Default)]
+pub struct ActionMenu {
+    pub drop_first: bool,
+}
+
+impl ActionMenu {
+    pub fn actions(&self) -> [ItemAction; 3] {
+        if self.drop_first {
+            [ItemAction::Use, ItemAction::Drop, ItemAction::Throw]
+        } else {
+            [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
+        }
+    }
+
+    /// The action sitting at menu row `idx`.
+    pub fn at(&self, idx: usize) -> ItemAction {
+        self.actions()[idx.min(2)]
+    }
+}
+
+/// Whether the pack modal is open and where its two cursors sit — the item row,
+/// and (once an item is picked) the action row.
+#[derive(Resource, Default)]
+pub struct PackIsOpen {
+    pub open: bool,
+    pub selected: usize,
+    pub action_mode: Option<usize>,
+    pub action_selected: usize,
+}
+
+/// The aiming reticle: which item is being aimed, whether this is a throw or a
+/// zap, and where the cursor is.
+#[derive(Resource, Default)]
+pub struct TargetingState {
+    pub active: bool,
+    pub item: Option<Entity>,
+    /// The reticle is aiming a throw rather than a zap: the range is
+    /// [`crate::items::THROW_RANGE`] instead of the item's own, and confirming
+    /// hurls the item instead of using it.
+    pub throwing: bool,
+    pub cursor_x: i16,
+    pub cursor_y: i16,
+}
+
+// ===========================================================================
+// Run state (resources)
+// ===========================================================================
+
+/// The message log: everything that has happened (`history`, capped at 50) and
+/// everything the player has not yet acknowledged with `--MORE--` (`unread`).
+#[derive(Resource)]
+pub struct GameLog {
+    pub history: Vec<String>,
+    pub unread: Vec<String>, // The queue of messages waiting for a --MORE-- acknowledgment
+}
+
+impl Default for GameLog {
+    fn default() -> Self {
+        Self {
+            history: Vec::new(),
+            unread: vec!["Welcome to ROOG! Use arrow keys to move.".to_string()],
+        }
+    }
+}
+
+impl GameLog {
+    pub fn add<S: Into<String>>(&mut self, message: S) {
+        let msg = message.into();
+        self.history.push(msg.clone());
+        self.unread.push(msg); // Push to the unread queue!
+
+        if self.history.len() > 50 {
+            self.history.remove(0);
+        }
+    }
+}
+
+/// The current dungeon floor, 1-based.
+#[derive(Resource)]
+pub struct Depth {
+    pub what: u8,
+}
+
+/// Tracks how long the player has lingered on one dungeon level. Every turn adds
+/// one; every level change resets it to zero. When it reaches
+/// [`crate::map::DUNGEON_LORD_PATIENCE`] the Dungeon Lord opens a portal under
+/// the player's feet and shunts them to the next level. Transient, never saved.
+#[derive(Resource, Default)]
+pub struct DungeonLord {
+    pub idle_turns: u32,
 }

@@ -1,14 +1,40 @@
-use bevy_ecs::{entity::Entity, world::World};
+//! Small, item-and-system-agnostic utilities that several modules reach for.
+//!
+//! Nothing here owns any game rule — these are the plumbing the rules are built
+//! from. If a function encodes a decision about how *roog* plays (what a wand
+//! does, how loot is rolled), it belongs in the module that owns that decision,
+//! not here. What lives here instead:
+//!
+//! * **Geometry** — [`get_line`] (Bresenham between two tiles).
+//! * **Spatial queries** — [`get_entities_at_position`], [`monster_at`],
+//!   [`actor_at`], [`free_adjacent_tile`].
+//! * **Dice** — [`roll_dice`] (`NdM` summed off the shared [`GameRng`]).
+//! * **Naming** — [`item_label`] (an entity's display name, or a vague noun).
+//! * **Damage & cosmetics** — [`apply_damage`], [`spill_blood`].
+//! * **Defence maths** — [`total_armor_plus`].
+//! * **Player conditions** — [`clear_player_conditions`].
+
+use bevy_ecs::{
+    entity::Entity,
+    prelude::{Or, With},
+    world::World,
+};
 use rand::Rng;
+use std::collections::HashSet;
 
 use crate::effects::{ArmorBonus, equipped_total};
-use crate::map::{BloodStains, GameRng};
-use crate::{Blood, Fighter, Position};
+use crate::map::{BloodStains, GameRng, Map};
+use crate::{
+    Blood, Confused, Faction, Fighter, GameLog, Mob, Name, Player, Position, Speed, SpeedKind,
+};
 
+/// Every tile a straight line from `start` to `end` passes through, endpoints
+/// included, in order. Plain integer Bresenham — the line a bolt, a beam, a
+/// thrown dagger or a line-of-sight check follows.
 pub fn get_line(start: Position, end: Position) -> Vec<Position> {
     let mut points = Vec::new();
 
-    // Converte para i32 para permitir números negativos e cálculos seguros
+    // Work in i32 so the deltas can go negative without underflowing.
     let mut x0 = start.x as i32;
     let mut y0 = start.y as i32;
     let x1 = end.x as i32;
@@ -21,7 +47,7 @@ pub fn get_line(start: Position, end: Position) -> Vec<Position> {
     let mut err = dx - dy;
 
     loop {
-        // Converte de volta para u16 ao empurrar para o Position
+        // Back to u16 on the way into a Position.
         points.push(Position {
             x: x0 as u16,
             y: y0 as u16,
@@ -46,8 +72,8 @@ pub fn get_line(start: Position, end: Position) -> Vec<Position> {
 
 /// The defender's "armour plus": the flat `armor_bonus` on its [`Fighter`] plus
 /// every [`ArmorBonus`] its equipped gear contributes. This is the *only* part
-/// of a target's defence that a trap's damage is measured against — traps ignore
-/// the armour die entirely.
+/// of a target's defence that a trap's — or a hurled weapon's — damage is
+/// measured against; the armour *die* is never rolled for either.
 pub fn total_armor_plus(world: &World, entity: Entity) -> i32 {
     let base = world
         .get::<Fighter>(entity)
@@ -56,6 +82,7 @@ pub fn total_armor_plus(world: &World, entity: Entity) -> i32 {
     base + equipped_total::<ArmorBonus>(world, entity)
 }
 
+/// Every entity — creature, item, feature — standing on `pos`.
 pub fn get_entities_at_position(world: &mut World, pos: Position) -> Vec<Entity> {
     let mut query = world.query::<(Entity, &Position)>();
     query
@@ -65,14 +92,119 @@ pub fn get_entities_at_position(world: &mut World, pos: Position) -> Vec<Entity>
         .collect()
 }
 
-// Aplica dano reduzindo a vida da entidade
+/// The hostile monster standing on `pos`, if any. Skips the player, allied
+/// creatures and anything that isn't a [`Mob`].
+pub fn monster_at(world: &mut World, pos: Position) -> Option<Entity> {
+    world
+        .query_filtered::<(Entity, &Position, &Faction), With<Mob>>()
+        .iter(world)
+        .find(|(_, p, f)| p.x == pos.x && p.y == pos.y && **f == Faction::Monster)
+        .map(|(e, _, _)| e)
+}
+
+/// The creature standing on `pos` — anything that acts, friend or foe — never
+/// counting `except` (the thrower whose own tile an item is leaving, say).
+pub fn actor_at(world: &mut World, pos: Position, except: Entity) -> Option<Entity> {
+    world
+        .query_filtered::<(Entity, &Position), Or<(With<Mob>, With<Player>)>>()
+        .iter(world)
+        .find(|(e, p)| *e != except && **p == pos)
+        .map(|(e, _)| e)
+}
+
+/// A walkable tile next to `origin` that no entity is standing on, chosen at
+/// random. `None` if `origin` is boxed in. Used to place a conjured monster, or
+/// to land a creature dragged to the zapper's side.
+pub fn free_adjacent_tile(world: &mut World, origin: Position) -> Option<(u16, u16)> {
+    let occupied: HashSet<(u16, u16)> = world
+        .query::<&Position>()
+        .iter(world)
+        .map(|p| (p.x, p.y))
+        .collect();
+    let opts: Vec<(u16, u16)> = {
+        let map = world.resource::<Map>();
+        let mut v = Vec::new();
+        for dy in -1i32..=1 {
+            for dx in -1i32..=1 {
+                if dx == 0 && dy == 0 {
+                    continue;
+                }
+                let (nx, ny) = (origin.x as i32 + dx, origin.y as i32 + dy);
+                if nx < 0 || ny < 0 {
+                    continue;
+                }
+                let (nx, ny) = (nx as u16, ny as u16);
+                if !map.blocks(nx, ny) && !occupied.contains(&(nx, ny)) {
+                    v.push((nx, ny));
+                }
+            }
+        }
+        v
+    };
+    if opts.is_empty() {
+        return None;
+    }
+    let idx = world.resource_mut::<GameRng>().0.gen_range(0..opts.len());
+    Some(opts[idx])
+}
+
+/// Rolls `count` dice of `sides` each and sums them — `count d sides`, off the
+/// shared [`GameRng`] so the result is part of the seeded run. A non-positive
+/// `count` rolls nothing and sums to 0.
+pub fn roll_dice(world: &mut World, count: i32, sides: i32) -> i32 {
+    let mut rng = world.resource_mut::<GameRng>();
+    (0..count.max(0)).map(|_| rng.0.gen_range(1..=sides)).sum()
+}
+
+/// An entity's display name, or a vague fallback so a log line never prints a
+/// raw id. Works on anything with a [`Name`] — a potion, a monster, the player's
+/// own corpse.
+pub fn item_label(world: &World, item: Entity) -> String {
+    world
+        .get::<Name>(item)
+        .map(|n| n.what.clone())
+        .unwrap_or_else(|| "item".to_string())
+}
+
+/// Applies `amount` damage to `entity`'s [`Fighter`] (no-op if it has none), and
+/// stains the floor if it bleeds. Death is not handled here — a later system
+/// reaps anything that dropped to zero HP.
 pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
     if let Some(mut fighter) = world.get_mut::<Fighter>(entity) {
         fighter.hp -= amount;
-        // Aqui você também pode checar se a vida chegou a 0 para despawnar a entidade
     }
     if amount > 0 {
         spill_blood(world, entity, amount, false);
+    }
+}
+
+/// Clears every transient condition the player is carrying — [`Speed`]
+/// haste/slow and [`Confused`] — and logs each one it lifts. Only two things
+/// trigger it: taking a staircase ([`crate::map::transition_level`]) and being
+/// caught by a wand of cancellation.
+pub fn clear_player_conditions(world: &mut World, player: Entity) {
+    let mut lifted: Vec<&str> = Vec::new();
+    if let Some(mut speed) = world.get_mut::<Speed>(player) {
+        match speed.kind {
+            SpeedKind::Fast => {
+                speed.kind = SpeedKind::Normal;
+                lifted.push("hasted");
+            }
+            SpeedKind::Slow => {
+                speed.kind = SpeedKind::Normal;
+                lifted.push("slowed");
+            }
+            SpeedKind::Normal => {}
+        }
+    }
+    if world.get::<Confused>(player).is_some() {
+        world.entity_mut(player).remove::<Confused>();
+        lifted.push("confused");
+    }
+    for cond in lifted {
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You are no longer {cond}."));
     }
 }
 

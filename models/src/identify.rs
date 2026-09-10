@@ -22,7 +22,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::catalog::{POTIONS, RINGS, SCROLLS, WANDS};
 use crate::components::{Name, PotionEffect, Ring, RingEffect, ScrollEffect, Stack, WandEffect};
-use crate::items::item_label;
+use crate::helpers::item_label;
 
 /// The true types in each category, taken straight from the catalog tables so a
 /// new item is never missing an appearance. There is no second list to keep in

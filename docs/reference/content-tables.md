@@ -94,7 +94,7 @@ roog picks evenly on purpose.
 | `color`  | `Color`        |                                          |
 
 Draws `!`. Attaches `Item`, `Potion`, `Consume`.
-Mechanic: `apply_potion_effect` in `models/src/items.rs`.
+Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`.
 
 ### SCROLLS -- ScrollDef
 
@@ -105,7 +105,7 @@ Mechanic: `apply_potion_effect` in `models/src/items.rs`.
 
 Draws `?`, always white -- a scroll has no colour field.
 Attaches `Item`, `Scroll`, `Consume`.
-Mechanic: `apply_scroll_effect` in `models/src/items.rs`.
+Mechanic: `apply_scroll_effect` in `models/src/items/scrolls.rs`.
 
 ### WANDS -- WandDef
 
@@ -122,7 +122,8 @@ zap damage dice and both blast radii live in `models/src/constants.rs` →
 `wands` (see `reference/constants.md`).
 Whether zapping opens the reticle: `WandEffect::needs_target`, which is
 true for everything except the wand of light.
-Mechanic: `apply_wand_effect` in `models/src/items.rs`.
+Mechanic: `apply_wand_effect` in `models/src/items/wands.rs`. Throwing a
+wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`).
 
 Neither a zap nor a throw can be aimed at the player's own tile: the
 engine refuses it with "Great idea! But no." and no turn passes.

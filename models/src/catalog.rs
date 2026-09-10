@@ -94,8 +94,8 @@ fn insert_modifier<C: Modifier>(entity: &mut bevy_ecs::world::EntityWorldMut, va
 // Potions
 // ---------------------------------------------------------------------------
 
-/// A potion: quaffed once, then gone. What it *does* lives in
-/// [`crate::items::apply_potion_effect`], keyed by [`PotionDef::effect`].
+/// A potion: quaffed once, then gone. What it *does* lives in the `potions`
+/// submodule of `crate::items`, keyed by [`PotionDef::effect`].
 pub struct PotionDef {
     pub effect: PotionEffect,
     pub name: &'static str,
@@ -150,8 +150,8 @@ pub const POTIONS: &[PotionDef] = &[
 // Scrolls
 // ---------------------------------------------------------------------------
 
-/// A scroll: read once, then it crumbles. Its mechanic lives in
-/// [`crate::items::apply_scroll_effect`], keyed by [`ScrollDef::effect`].
+/// A scroll: read once, then it crumbles. Its mechanic lives in the `scrolls`
+/// submodule of `crate::items`, keyed by [`ScrollDef::effect`].
 pub struct ScrollDef {
     pub effect: ScrollEffect,
     pub name: &'static str,

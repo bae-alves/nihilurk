@@ -204,8 +204,9 @@ Honesty about the seams, because they are where people get stuck.
 
 **Potions, scrolls and wands still need a mechanic.** "Restore hit
 points" is not expressible as a component the engine already folds, so
-those three categories keep an effect enum and a `match` in
-`models/src/items.rs`. That match has a catch-all arm, so a variant with
+those three categories keep an effect enum and a `match` (in
+`models/src/items/potions.rs`, `scrolls.rs` and `wands.rs`
+respectively). That match has a catch-all arm, so a variant with
 no mechanic compiles and ships as a dud. Traps do it better -- their
 match is exhaustive, so a new trap does not build until it does
 something.

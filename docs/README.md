@@ -21,6 +21,7 @@ Start here
 | Make something rarer, or deeper     | `how-to/tune-rarity-and-depth.md`   |
 | Add a whole new *kind* of item      | `how-to/add-an-item-category.md`    |
 | Look up a field, a type, a default  | `reference/content-tables.md`       |
+| Look up a component, resource, event| `reference/components.md`           |
 | Change a balance number             | `reference/constants.md`            |
 | Look up a function I have to call   | `reference/spawn-api.md`            |
 | Look up a flag or an env var        | `reference/cli-and-env.md`          |

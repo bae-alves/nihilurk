@@ -984,7 +984,7 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
 
     // Transient conditions (haste, slow, dazzle) are treacherous but they do not
     // survive a staircase — using one is one of only two things that clears them.
-    crate::items::clear_player_conditions(world, player_entity);
+    crate::helpers::clear_player_conditions(world, player_entity);
 
     let msg = match cause {
         // Descending, it is the Dungeon Lord who wrenches you down; once you
