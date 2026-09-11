@@ -158,14 +158,17 @@ fn carrying_the_element_flips_the_staircases() {
     w.entity_mut(element).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(element);
 
-    // Down is now refused, wherever you stand.
+    // Down is now refused, wherever you stand — here, on Depth 13's up-stair
+    // (there is no down-stair on this floor to begin with), so the message is
+    // the plain refusal, not the Element's flavor text (see
+    // `element_message_only_shows_on_the_actual_downstairs`).
     assert!(!change_level(&mut w, true));
     assert!(
         w.resource::<GameLog>()
             .history
             .last()
             .unwrap()
-            .contains("seeks the sun")
+            .contains("cannot go down")
     );
 
     // Standing on the up-stair, `<` carries you back toward the surface.
@@ -344,5 +347,104 @@ fn cannot_descend_without_stairs() {
             .last()
             .unwrap()
             .contains("cannot go down")
+    );
+}
+
+/// Standing anywhere but the downstairs, carrying the Element, `>` still
+/// refuses — but the message should say you're not on a staircase, not blame
+/// the Element for blocking a descent you were never lined up for. Mirrors
+/// the tile-aware message `change_level` already gives for `<` without the
+/// Element (see `cannot_ascend_without_the_dungeon_lords_blessing`, below).
+#[test]
+fn element_message_only_shows_on_the_actual_downstairs() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let plain = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Room)
+        .unwrap();
+    w.get_mut::<Position>(p).unwrap().x = (plain % MAP_WIDTH as usize) as u16;
+    w.get_mut::<Position>(p).unwrap().y = (plain / MAP_WIDTH as usize) as u16;
+    let element = w
+        .spawn((
+            Amulet,
+            Name {
+                what: "the Element of Yoord".into(),
+            },
+        ))
+        .id();
+    w.get_mut::<Backpack>(p).unwrap().items.push(element);
+
+    assert!(!change_level(&mut w, true));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .last()
+            .unwrap()
+            .contains("cannot go down"),
+        "not on the downstairs at all -- the generic refusal, not the Element flavor text"
+    );
+}
+
+/// Standing on the actual downstairs while carrying the Element still gets the
+/// flavor text -- only the message picked for every *other* tile changed.
+#[test]
+fn element_message_shows_on_the_actual_downstairs() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let down = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Downstairs)
+        .unwrap();
+    w.get_mut::<Position>(p).unwrap().x = (down % MAP_WIDTH as usize) as u16;
+    w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
+    let element = w
+        .spawn((
+            Amulet,
+            Name {
+                what: "the Element of Yoord".into(),
+            },
+        ))
+        .id();
+    w.get_mut::<Backpack>(p).unwrap().items.push(element);
+
+    assert!(!change_level(&mut w, true));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .last()
+            .unwrap()
+            .contains("seeks the sun")
+    );
+}
+
+/// The Dungeon Lord's blocked-ascent flavor message only shows when actually
+/// standing on the up-stair; anywhere else without the Element, `<` gives the
+/// plain refusal instead.
+#[test]
+fn cannot_ascend_without_the_dungeon_lords_blessing() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let down = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Downstairs)
+        .unwrap();
+    w.get_mut::<Position>(p).unwrap().x = (down % MAP_WIDTH as usize) as u16;
+    w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
+
+    assert!(!change_level(&mut w, false));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .last()
+            .unwrap()
+            .contains("cannot go up"),
+        "standing on the downstairs, not the upstairs -- the generic refusal, not the Dungeon Lord's"
     );
 }

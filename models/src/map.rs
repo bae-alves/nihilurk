@@ -864,7 +864,11 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         if has_element {
             world
                 .resource_mut::<GameLog>()
-                .add("The Element of Yoord seeks the sun; it will not let you descend.");
+                .add(if tile == TileType::Downstairs {
+                    "The Element of Yoord seeks the sun; it will not let you descend."
+                } else {
+                    "You cannot go down from here."
+                });
             return false;
         }
         if tile != TileType::Downstairs {
