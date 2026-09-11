@@ -21,7 +21,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 use crate::catalog::{POTIONS, RINGS, SCROLLS, WANDS};
-use crate::components::{Name, PotionEffect, Ring, RingEffect, ScrollEffect, Stack, WandEffect};
+use crate::components::{
+    Curse, KnownQuality, Name, PotionEffect, Ring, RingEffect, ScrollEffect, Stack, Vorpal,
+    WandEffect,
+};
+use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
 use crate::helpers::item_label;
 
 /// The true types in each category, taken straight from the catalog tables so a
@@ -194,9 +198,11 @@ pub struct Identified {
 /// been identified, otherwise this run's cosmetic appearance (or a generic
 /// fallback if somehow no appearance was assigned). Non-identifiable items
 /// (weapons, armor, gold, the amulet) always show their true [`Name`], and a
-/// [`Stack`] of them shows how many it holds.
+/// [`Stack`] of them shows how many it holds. A weapon, suit of armour or
+/// launcher additionally gets an enchantment plus in front and a `(cursed)`
+/// tag after, once [`known_quality`] says either is actually known.
 pub fn display_name(world: &World, item: Entity) -> String {
-    named_display(
+    let base = named_display(
         world.get::<crate::components::Potion>(item),
         world.get::<crate::components::Scroll>(item),
         world.get::<crate::components::Wand>(item),
@@ -205,7 +211,56 @@ pub fn display_name(world: &World, item: Entity) -> String {
         world.get::<Stack>(item),
         world.resource::<Identified>(),
         world.resource::<ItemAppearances>(),
-    )
+    );
+    annotate_quality(world, item, base)
+}
+
+/// Whether `item`'s own enchantment plus and curse status are visible yet.
+/// Deliberately *not* the same question as whether its type is identified: two
+/// rings of protection share one [`Identified`] entry the moment either is
+/// worn, but each is its own roll of the curse dice, so knowing one is a ring
+/// of protection must not leak whether some *other* one is cursed. Every kind
+/// of gear therefore answers through its own [`KnownQuality`], set the moment
+/// it's worn (see [`crate::equipment::toggle_equipped`]) or a scroll of
+/// identify singles it out.
+pub fn known_quality(world: &World, item: Entity) -> bool {
+    world.get::<KnownQuality>(item).is_some()
+}
+
+/// The enchantment plus `item` carries — whichever bonus its kind rolled
+/// (a weapon's [`PowerBonus`], a suit of armour's [`ArmorBonus`], a launcher's
+/// [`ThrowBonus`]) — or `0` for anything [`crate::catalog::enchant_equipment`]
+/// never touched. Never more than one of the three is actually nonzero; adding
+/// them saves asking which kind of gear this is.
+fn enchantment_plus(world: &World, item: Entity) -> i32 {
+    world.get::<PowerBonus>(item).map(|b| b.0).unwrap_or(0)
+        + world.get::<ArmorBonus>(item).map(|b| b.0).unwrap_or(0)
+        + world.get::<ThrowBonus>(item).map(|b| b.0).unwrap_or(0)
+}
+
+/// Adds `item`'s enchantment plus, curse status and vorpal bane to `base`,
+/// once [`known_quality`] says they're visible — `"+1 ring mail"`, `"-2
+/// dagger (cursed)"`, `"long sword (vorpal vs. orc)"`. Silently returns `base`
+/// untouched beforehand, and for anything with none of the three to show.
+fn annotate_quality(world: &World, item: Entity, base: String) -> String {
+    if !known_quality(world, item) {
+        return base;
+    }
+    let plus = enchantment_plus(world, item);
+    let name = if plus != 0 {
+        format!("{plus:+} {base}")
+    } else {
+        base
+    };
+    let name = if world.get::<Curse>(item).is_some() {
+        format!("{name} (cursed)")
+    } else {
+        name
+    };
+    match world.get::<Vorpal>(item) {
+        Some(v) => format!("{name} (vorpal vs. {})", v.bane),
+        None => name,
+    }
 }
 
 /// The [`display_name`] logic, decoupled from `&World` so a `Query`-based

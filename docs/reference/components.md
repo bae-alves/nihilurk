@@ -140,10 +140,18 @@ Components — item type keys
 | `Ring`    | `RingEffect`  | none — numbers + `Grants`, from the `RingDef` row | key yes |
 | `Curse`   | marker        | equipped-and-stuck until remove curse | yes |
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
+| `KnownQuality` | marker   | this instance's enchantment plus/curse/vorpal bane are known — set by wearing it (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singling it out | yes |
 
 All four key enums are **saved by variant order** — append, never
 reorder. The catalog tables (`crate::catalog`) and the appearance pools
 (`crate::identify`) are the other things keyed off these enums.
+
+`KnownQuality` is per-*instance*, unlike `Identified` (`crate::identify`),
+which is per-*effect*: two rings of protection share one `Identified`
+entry the moment either is worn, but each rolled its own curse, so each
+needs its own `KnownQuality`. `identify::display_name` reads it to decide
+whether to print a weapon/armour/launcher's `+N` prefix, a `(cursed)`
+suffix, or a `(vorpal vs. X)` suffix — hidden for anything not yet known.
 
 `WandEffect::needs_target()` is `false` only for the wand of light (it
 floods the room, no reticle).

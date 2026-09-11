@@ -10,6 +10,7 @@ use rand::Rng;
 use std::collections::HashSet;
 
 use crate::components::*;
+use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
 use crate::equipment::{Slot, equipped_in, equipped_items, force_unequip, sync_equipment_effects};
 use crate::helpers::{free_adjacent_tile, item_label};
 use crate::identify::Identified;
@@ -40,9 +41,26 @@ pub(super) fn lift_curses(world: &mut World, user: Entity) -> usize {
     doomed.len()
 }
 
-/// Picks a uniformly random item in `user`'s backpack whose true type isn't
-/// identified yet and identifies it directly. Used by [`ScrollEffect::Identify`],
-/// which has no interactive item picker (yet).
+/// Whether `e` is a weapon, suit of armour or launcher with an enchantment
+/// plus or a curse still hidden — the one thing a scroll of identify can teach
+/// about it that isn't already covered by [`Identified`]. Skips gear with
+/// nothing to reveal (a plain +0, uncursed item) so the scroll never burns
+/// itself on a target that would look no different afterward.
+fn has_hidden_quality(world: &World, e: Entity) -> bool {
+    if world.get::<KnownQuality>(e).is_some() {
+        return false;
+    }
+    world.get::<Curse>(e).is_some()
+        || world.get::<PowerBonus>(e).is_some_and(|b| b.0 != 0)
+        || world.get::<ArmorBonus>(e).is_some_and(|b| b.0 != 0)
+        || world.get::<ThrowBonus>(e).is_some_and(|b| b.0 != 0)
+}
+
+/// Picks a uniformly random item in `user`'s backpack that still has something
+/// to learn — a potion, scroll, wand or ring whose true type isn't identified,
+/// or a piece of gear whose plus/curse isn't ([`has_hidden_quality`]) — and
+/// identifies it directly. Used by [`ScrollEffect::Identify`], which has no
+/// interactive item picker (yet).
 fn identify_random_unknown_item(world: &mut World, user: Entity) {
     let candidates: Vec<Entity> = world
         .get::<Backpack>(user)
@@ -63,6 +81,7 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
             || world
                 .get::<Ring>(e)
                 .is_some_and(|r| !identified.rings.contains(&r.effect))
+            || has_hidden_quality(world, e)
     };
 
     let unknown: Vec<Entity> = candidates
@@ -99,6 +118,7 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
     if let Some(effect) = ring_effect {
         identified.rings.insert(effect);
     }
+    world.entity_mut(target).insert(KnownQuality);
 
     world
         .resource_mut::<GameLog>()

@@ -19,7 +19,7 @@
 use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{Backpack, Curse, GameLog, Position};
+use crate::components::{Backpack, Curse, GameLog, KnownQuality, Position};
 use crate::effects::{EFFECTS, EffectSet, GrantedByGear, Grants, effect_set};
 
 /// Where a piece of gear goes. One item per slot at a time.
@@ -58,6 +58,16 @@ impl Slot {
             Slot::Hand => format!("You can't — the {name} is welded to your grip!"),
             Slot::Body => format!("You can't — the {name} clings to you and won't come off!"),
             Slot::Finger => format!("You can't — the {name} is fused to your finger!"),
+        }
+    }
+
+    /// "It is cursed!" — logged the instant a freshly-worn item reveals itself
+    /// as one, right after [`Slot::donned`].
+    fn cursed_reveal(self, name: &str) -> String {
+        match self {
+            Slot::Hand => format!("The {name} welds itself to your grip! It is cursed!"),
+            Slot::Body => format!("The {name} clings to your body! It is cursed!"),
+            Slot::Finger => format!("The {name} welds to your finger! It is cursed!"),
         }
     }
 
@@ -156,6 +166,18 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     world.resource_mut::<GameLog>().add(slot.donned(&name));
     sync_equipment_effects(world, user);
     crate::identify::learn_by_wearing(world, item);
+
+    // Wearing something is how its plus and curse status come to light — the
+    // same moment a ring's effect does. Announce the curse only the first
+    // time; after that it's just what the name already says.
+    let freshly_known = world.get::<KnownQuality>(item).is_none();
+    world.entity_mut(item).insert(KnownQuality);
+    if freshly_known && world.get::<Curse>(item).is_some() {
+        let true_name = crate::helpers::item_label(world, item);
+        world
+            .resource_mut::<GameLog>()
+            .add(slot.cursed_reveal(&true_name));
+    }
     true
 }
 
@@ -175,6 +197,10 @@ pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
         e.by = Some(wearer);
     }
     sync_equipment_effects(world, wearer);
+    // Wearing it — even without the ceremony — still reveals its plus and
+    // curse status. This is also how the player's own starting gear (handed
+    // over already worn) ends up known from turn one.
+    world.entity_mut(item).insert(KnownQuality);
     true
 }
 

@@ -785,14 +785,21 @@ fn wrap_words(text: &str, width: usize) -> Vec<String> {
     lines
 }
 
+/// One inventory row's full text: `" a) +1 ring mail (E) "`. The one place
+/// this shape lives, so sizing the box and drawing a row can never disagree.
+fn row_text(letter: char, name: &str, equipped: bool) -> String {
+    let suffix = if equipped { " (E)" } else { "" };
+    format!(" {letter}) {name}{suffix} ")
+}
+
 fn draw_inventory(world: &mut World, screen: &mut Screen) {
     let (selected_idx, action_mode, action_selected) = {
         let p = world.resource::<PackIsOpen>();
         (p.selected, p.action_mode, p.action_selected)
     };
 
-    // (display name, is-equipped) for every backpack slot.
-    let item_names: Vec<(String, bool)> = {
+    // (display name, is-equipped, is-known-cursed) for every backpack slot.
+    let item_names: Vec<(String, bool, bool)> = {
         let entities: Vec<Entity> = {
             let mut query = world.query_filtered::<&Backpack, With<Player>>();
             match query.iter(world).next() {
@@ -805,21 +812,35 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
             .map(|&e| {
                 let name = models::display_name(world, e);
                 let equipped = world.get::<Equipped>(e).is_some_and(|eq| eq.by.is_some());
-                (name, equipped)
+                let cursed_known =
+                    models::known_quality(world, e) && world.get::<Curse>(e).is_some();
+                (name, equipped, cursed_known)
             })
             .collect()
     };
 
-    let box_width: u16 = 30;
     let start_x: u16 = 5;
     let start_y: u16 = 3;
     let grey = Color::DarkGrey;
+    let title = " INVENTORY ";
+    // Wide enough for the title and every row's full text (letter, name,
+    // "(E)" suffix), so a long identified name is never clipped.
+    let box_width: u16 = item_names
+        .iter()
+        .enumerate()
+        .map(|(i, (name, equipped, _))| {
+            let letter = (b'a' + i as u8) as char;
+            row_text(letter, name, *equipped).chars().count() as u16
+        })
+        .chain([title.len() as u16])
+        .max()
+        .unwrap_or(0)
+        .max(30);
 
     // Top border + title.
     screen.put(start_x, start_y, '┌', grey);
     screen.hline(start_x + 1, start_y, '─', box_width, grey);
     screen.put(start_x + 1 + box_width, start_y, '┐', grey);
-    let title = " INVENTORY ";
     screen.puts(
         start_x + box_width / 2 - title.len() as u16 / 2,
         start_y,
@@ -828,16 +849,18 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
     );
 
     // Rows.
-    for (i, (name, equipped)) in item_names.iter().enumerate() {
+    for (i, (name, equipped, cursed_known)) in item_names.iter().enumerate() {
         let y = start_y + 1 + i as u16;
         let letter = (b'a' + i as u8) as char;
-        let color = match (i == selected_idx, *equipped) {
-            (true, _) => Color::Yellow,
-            (_, true) => Color::Cyan,
-            _ => Color::White,
+        let selected = i == selected_idx;
+        let color = match (selected, *cursed_known, *equipped) {
+            (true, true, _) => Color::Red,
+            (false, true, _) => Color::DarkRed,
+            (true, false, _) => Color::Yellow,
+            (false, false, true) => Color::Cyan,
+            (false, false, false) => Color::White,
         };
-        let suffix = if *equipped { " (E)" } else { "" };
-        let text = format!(" {}) {}{} ", letter, name, suffix);
+        let text = row_text(letter, name, *equipped);
         screen.put(start_x, y, '│', grey);
         screen.puts(
             start_x + 1,

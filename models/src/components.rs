@@ -472,6 +472,16 @@ pub enum RingEffect {
 #[derive(Component)]
 pub struct Curse;
 
+/// A weapon, suit of armour or launcher whose enchantment plus and curse status
+/// the player has actually learned — by wearing it or by a scroll of identify
+/// singling it out (see [`crate::equipment::toggle_equipped`] and
+/// [`crate::items::scrolls`]). Until then [`crate::identify::display_name`]
+/// keeps both hidden, the same way a potion hides its effect. A potion, scroll,
+/// wand or ring never needs this — their own [`crate::identify::Identified`]
+/// registry already answers the question.
+#[derive(Component)]
+pub struct KnownQuality;
+
 /// A weapon that has been vorpalized (scroll of vorpalize weapon). Any hit from
 /// it that draws blood slays a creature named `bane` outright — as it does any
 /// creature carrying [`crate::effects::VorpalTarget`], regardless of `bane`. See

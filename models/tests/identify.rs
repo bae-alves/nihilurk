@@ -18,6 +18,17 @@ fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
 
+/// Empties the player's starting kit and despawns it — the starting short bow
+/// carries its own hidden +1 (never worn, so never identified), which would
+/// otherwise compete with whatever a test stashes as a candidate for a scroll
+/// of identify's random pick.
+fn empty_pack(w: &mut World, p: Entity) {
+    let items = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
+    for item in items {
+        w.despawn(item);
+    }
+}
+
 /// Simulate the inventory "Use" action, exactly like the engine does.
 fn use_item(w: &mut World, user: Entity, item: Entity) {
     let idx = w
@@ -151,6 +162,7 @@ fn wearing_a_ring_identifies_it_and_toggles_like_gear() {
 fn scroll_of_identify_reveals_an_unknown_item_without_using_it() {
     let mut w = test_world(5);
     let p = player(&mut w);
+    empty_pack(&mut w, p);
     let potion = spawn_potion(&mut w, PotionEffect::Poison, Position { x: 0, y: 0 });
     let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
     stash(&mut w, p, potion);

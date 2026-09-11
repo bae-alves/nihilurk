@@ -122,6 +122,9 @@ struct EntitySave<'a> {
     stack: Option<u8>,
     /// Marker: this equipment is cursed and can't be taken off once equipped.
     curse: bool,
+    /// Marker: this equipment's enchantment plus and curse status are known —
+    /// worn at least once, or singled out by a scroll of identify.
+    known_quality: bool,
     /// A vorpalized weapon's `bane` species (scroll of vorpalize weapon).
     #[serde(borrow)]
     vorpal: Option<Cow<'a, str>>,
@@ -280,6 +283,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             throw_bonus: er.get::<ThrowBonus>().map(|m| m.0),
             stack: er.get::<Stack>().map(|s| s.count),
             curse: er.contains::<Curse>(),
+            known_quality: er.contains::<KnownQuality>(),
             vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
             effects: effects_of(world, e) & !er.get::<GrantedByGear>().map(|g| g.0).unwrap_or(0),
             speed: er.get::<Speed>().map(|s| s.kind),
@@ -502,6 +506,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if es.curse {
             em.insert(Curse);
+        }
+        if es.known_quality {
+            em.insert(KnownQuality);
         }
         if let Some(bane) = es.vorpal {
             em.insert(Vorpal {

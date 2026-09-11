@@ -418,3 +418,78 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
         _ => panic!("expected the orc to be Aggravated on the hero"),
     }
 }
+
+#[test]
+fn a_plus_and_curse_stay_hidden_until_the_item_is_worn() {
+    let mut w = test_world(9);
+    let p = player(&mut w);
+
+    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
+    w.entity_mut(sword).insert(PowerBonus(1));
+    let cursed_mace = spawn_weapon(&mut w, "mace", Position { x: 0, y: 0 });
+    w.entity_mut(cursed_mace).insert((PowerBonus(-2), Curse));
+    for e in [sword, cursed_mace] {
+        w.entity_mut(e).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(e);
+    }
+
+    assert_eq!(display_name(&w, sword), "long sword");
+    assert_eq!(display_name(&w, cursed_mace), "mace");
+
+    use_item(&mut w, p, sword);
+    assert_eq!(display_name(&w, sword), "+1 long sword");
+
+    use_item(&mut w, p, cursed_mace);
+    assert_eq!(display_name(&w, cursed_mace), "-2 mace (cursed)");
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("welds itself to your grip! It is cursed!")),
+        "wearing a cursed weapon should announce the curse: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+#[test]
+fn a_scroll_of_identify_can_single_out_an_unworn_plus_or_curse() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    let items = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
+    for item in items {
+        w.despawn(item);
+    }
+
+    let mail = spawn_armor(&mut w, "ring mail", Position { x: 0, y: 0 });
+    w.entity_mut(mail).insert((ArmorBonus(2), Curse));
+    let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
+    for e in [mail, scroll] {
+        w.entity_mut(e).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(e);
+    }
+
+    assert_eq!(display_name(&w, mail), "ring mail", "still unworn, unread");
+    use_item(&mut w, p, scroll);
+    assert_eq!(
+        display_name(&w, mail),
+        "+2 ring mail (cursed)",
+        "the scroll should have singled out the only thing left to learn"
+    );
+}
+
+#[test]
+fn a_vorpal_weapons_bane_only_shows_once_its_quality_is_known() {
+    let mut w = test_world(13);
+    let p = player(&mut w);
+
+    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
+    w.entity_mut(sword).insert(Vorpal {
+        bane: "orc".to_string(),
+    });
+    w.entity_mut(sword).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(sword);
+
+    assert_eq!(display_name(&w, sword), "long sword");
+    use_item(&mut w, p, sword);
+    assert_eq!(display_name(&w, sword), "long sword (vorpal vs. orc)");
+}
