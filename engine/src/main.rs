@@ -170,6 +170,12 @@ fn main() -> std::io::Result<()> {
     let mut list_content = false;
     let mut player_name = "Roog".to_string();
     let mut positional: Option<String> = None;
+    // Multiplier on every animation frame's on-screen hold time (particles,
+    // magic mapping's reveal wipe): the escape hatch for a terminal whose
+    // redraw can't keep up with the default pacing, or that renders too
+    // slowly for a fast one. `1.0` is the default pacing; clamped so a typo'd
+    // value can't freeze the loop or blur every animation into nothing.
+    let mut anim_rate: f32 = 1.0;
     let mut iter = args.iter();
     iter.next(); // skip the executable path
     while let Some(arg) = iter.next() {
@@ -184,6 +190,13 @@ fn main() -> std::io::Result<()> {
             "-nb" => no_blood = true,
             "-dropthrow" => drop_first = true,
             "-content" => list_content = true,
+            "-anim-rate" => {
+                if let Some(rate_str) = iter.next() {
+                    if let Ok(rate) = rate_str.parse::<f32>() {
+                        anim_rate = rate.clamp(0.1, 5.0);
+                    }
+                }
+            }
             _ => positional = Some(arg.clone()),
         }
     }
@@ -286,6 +299,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<PlayerTempo>();
     world.init_resource::<GameLog>();
     world.insert_resource(models::Particles::new());
+    world.insert_resource(models::AnimRate(anim_rate));
 
     match &load_path {
         Some(path) => {
@@ -305,6 +319,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // 3. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
+        smoke_system.before(snare_system),
         snare_system,
         passive_ability_system.after(snare_system),
         ai.after(passive_ability_system),

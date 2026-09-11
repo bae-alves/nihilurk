@@ -125,6 +125,26 @@ true for everything except the wand of light.
 Mechanic: `apply_wand_effect` in `models/src/items/wands.rs`. Throwing a
 wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`).
 
+A zapped bolt (`fire_bolt` → `Particles::beam`) flickers white/its own
+colour twice per cell rather than fading once, and lands with
+`Particles::impact_sparks` — a brighter flash on the hit tile plus a small
+ring of offset sparks around it, timed off `beam`'s returned flight time so
+they pop right as the bolt arrives. Flashier and denser than the beam
+alone, on every bolt-type wand (fire, cold, lightning, magic missile,
+striking, drain life).
+
+Teleport away/to (`teleport_entity_away`, `teleport_target_here`) leaves a
+`Particles::poof` and a short `map::Smoke` puff (`TRANSMUTATION_SMOKE_TURNS`,
+2 turns) where the creature stood — the wand's own signature; the scroll of
+teleportation gets no such flourish. Polymorph (`polymorph_entity`) puffs
+the same smoke in a small ring around the transformed creature's tile
+(`leave_smoke_ring`), staggered so it reads as smoke rolling outward.
+
+Every particle animation's frame pacing (a zap's beam, a blast's ripple, a
+teleport's poof, the magic-mapping reveal wipe) scales with the `AnimRate`
+resource, set once at startup from `-anim-rate` — see
+`reference/cli-and-env.md`.
+
 Neither a zap nor a throw can be aimed at the player's own tile: the
 engine refuses it with "Great idea! But no." and no turn passes.
 
@@ -134,7 +154,22 @@ short of that, it just lands with its charges and its secret intact.
 
 On impact (`resolve_wand_throw`) it spends every remaining charge at
 once. The blast animation is coloured per wand (`blast_palette` →
-`particles::BlastPalette`).
+`particles::BlastPalette`) and always opens on that palette's bright
+first frame — a primary blast never reads as dark. On a light or
+utility wand's throw (never an attack wand's — it returns before the
+per-creature loop), every creature the blast actually caught also gets
+a small, darker `Particles::secondary_burst` a beat after the primary
+ripple passes its tile — purely cosmetic, confirming who the effect
+landed on, no gameplay of its own.
+
+Fire and cold blasts (zapped or thrown — both run through the one
+`elemental_blast`) also billow a grey/white `Particles::smoke_burst`
+across the blast cells a beat after the flames. Fire's smoke additionally
+lingers on the map for `SMOKE_LINGER_TURNS` (4) real turns afterward,
+DCSS-style — the `map::Smoke` resource, ticked once a turn by
+`smoke_system`, ages every puff down and the renderer draws a grey `≈`
+over any smoky tile currently in view (never on a tile an actor stands
+on, like blood). Cold's puff is animation only; nothing persists.
 
 - *Attack* wands (fire, cold, lightning, magic missile, striking, drain
   life — `is_attack_wand`) throw the wide grenade: `GRENADE_RADIUS`, `d4`
@@ -461,6 +496,7 @@ Dungeon constants
     FINAL_DEPTH             13      the floor holding the relic
     DUNGEON_LORD_PATIENCE  260      turns on one floor before eviction
     STACK_LIMIT             26      most of one item per pack slot
+    PACK_CAPACITY            13      most slots a pack will hold at once
     THROW_RANGE              7      how far you can hurl a thing
     Speed::COST              2      energy one action costs
 

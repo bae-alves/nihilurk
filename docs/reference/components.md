@@ -126,7 +126,9 @@ Components — items on the floor and in the pack
 | `Ranged`  | `range: i32` — feeds the zap reticle | wands | yes |
 | `Amulet`  | marker — the Element of Yoord; carrying it inverts the staircases | the relic | yes |
 
-`Stack` tops back up to `STACK_LIMIT` (26) on pickup.
+`Stack` tops back up to `STACK_LIMIT` (26) on pickup. `Backpack` holds at most
+`PACK_CAPACITY` (13) slots; `stow` refuses anything past that ("Your pack is
+full.") and leaves it on the floor.
 
 
 Components — item type keys
@@ -292,11 +294,24 @@ Resources
 
 `GameLog::add()` pushes to both `history` and `unread`.
 
+The log panel is plain white except for a sparing set of colours
+(`hud::log_line_color`), applied only to a packed line that mentions the
+player ("you"/"your") and falls into one of: a curse taking hold (dark
+red), a dazzle (magenta), the low-HP warning (red — "You are badly
+wounded!", fired once as HP crosses down through
+`constants::player::LOW_HP_WARNING_FRACTION` of max, see
+`helpers::apply_damage`), the player's own speed shifting (cyan hasted,
+dark cyan slowed), or the player's own throw/fire (yellow). Matched by
+substring, not by threading a colour through every `GameLog::add()` call
+— see `hud::log_line_color` for the exact phrases it keys on.
+
 Other run-state resources live outside this file: `Map`, `GameRng` /
 `RngSeed`, `Identified` / `ItemAppearances` (`identify.rs`), `BloodStains`
-(`map.rs`), `GameState` (`state.rs`). The save file also persists the
-RNG state, the identification tables and the dark-tile set — see
-`models/src/saveload.rs`.
+and `Smoke` (`map.rs`), `GameState` (`state.rs`). The save file also
+persists the RNG state, the identification tables and the dark-tile set —
+see `models/src/saveload.rs`. `Smoke` is not saved, like `BloodStains`:
+a fire blast's lingering puffs (`SMOKE_LINGER_TURNS`, 4 real turns,
+ticked by `smoke_system`) are cosmetic and reset to empty on load.
 
 
 See also

@@ -29,7 +29,7 @@ use super::wands::{
     shift_entity_speed, teleport_entity_away, teleport_entity_to_self,
 };
 
-use crate::constants::items::THROW_RANGE;
+use crate::constants::items::{PACK_CAPACITY, THROW_RANGE};
 use crate::constants::loot::LAUNCHER_DIE_MULTIPLIER;
 use crate::constants::wands::{
     BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
@@ -201,7 +201,8 @@ pub fn draw_one(world: &mut World, thrower: Entity, item: Entity, slot: Option<u
 
 /// Takes `item` into `carrier`'s pack, and returns what was taken as it reads in
 /// a sentence — `"a dagger"`, `"7 arrows"` — or `None` if there was no pack to
-/// put it in.
+/// put it in, or the pack is already at [`PACK_CAPACITY`] and this item can't
+/// merge into a slot already there.
 ///
 /// Ammunition merges. A bundle off the floor tops up the quivers already in the
 /// pack rather than claiming a fresh inventory letter for every arrow, and only
@@ -209,6 +210,10 @@ pub fn draw_one(world: &mut World, thrower: Entity, item: Entity, slot: Option<u
 /// its own. Everything else claims its own slot, exactly as it always has.
 pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> {
     let Some(mut left) = world.get::<Stack>(item).map(|s| s.count) else {
+        let backpack = world.get::<Backpack>(carrier)?;
+        if backpack.items.len() >= PACK_CAPACITY {
+            return None;
+        }
         let label = crate::identify::with_article(world, item);
         world.get_mut::<Backpack>(carrier)?.items.push(item);
         world.entity_mut(item).remove::<Position>();
@@ -247,10 +252,16 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
         0 => {
             world.entity_mut(item).despawn();
         }
-        // The overflow takes a slot of its own rather than being left behind.
+        // The overflow takes a slot of its own rather than being left behind —
+        // unless the pack has no slot left to give it, in which case what
+        // didn't fit into a quiver stays behind on the floor.
         _ => {
             if let Some(mut stack) = world.get_mut::<Stack>(item) {
                 stack.count = left;
+            }
+            let backpack = world.get::<Backpack>(carrier)?;
+            if backpack.items.len() >= PACK_CAPACITY {
+                return None;
             }
             world.get_mut::<Backpack>(carrier)?.items.push(item);
             world.entity_mut(item).remove::<Position>();
@@ -315,14 +326,8 @@ fn resolve_wand_throw(
         "The {seen_name} shatters, and {charges} charges' worth of magic gets out at once!"
     ));
 
-    let caught = elemental_blast(
-        world,
-        landing,
-        radius,
-        damage,
-        element,
-        blast_palette(effect),
-    );
+    let palette = blast_palette(effect);
+    let caught = elemental_blast(world, landing, radius, damage, element, palette);
 
     if is_attack {
         return;
@@ -333,14 +338,22 @@ fn resolve_wand_throw(
         // teleported clear or replaced outright.
         let is_creature =
             world.get::<Mob>(entity).is_some() || world.get::<Player>(entity).is_some();
-        if !is_creature || world.get::<Position>(entity).is_none() {
+        let Some(pos) = world.get::<Position>(entity).copied() else {
+            continue;
+        };
+        if !is_creature {
             continue;
         }
         if is_light {
             dazzle(world, entity);
-            continue;
+        } else {
+            apply_thrown_wand_effect(world, entity, effect);
         }
-        apply_thrown_wand_effect(world, entity, effect);
+        // A cosmetic-only echo confirming the effect actually landed on this
+        // creature — no gameplay rides on it, just the darker follow-up pop.
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.secondary_burst(pos.x, pos.y, radius, palette);
+        }
     }
 }
 

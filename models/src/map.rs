@@ -182,6 +182,59 @@ impl Default for BloodStains {
     }
 }
 
+/// Lingering smoke from a fire blast — unlike a [`BloodStains`] mark, a puff
+/// fades on its own after a few turns instead of staying for the floor's
+/// life, DCSS-style. Purely cosmetic: it never blocks movement or sight.
+/// Rebuilt per floor and not saved, like the map itself.
+#[derive(Resource)]
+pub struct Smoke {
+    /// Turns left before each tile's puff burns off; 0 means clear.
+    turns_left: Vec<u8>,
+}
+
+impl Smoke {
+    pub fn new() -> Self {
+        Self {
+            turns_left: vec![0; MAP_TILE_COUNT],
+        }
+    }
+
+    /// Lays (or refreshes) a puff of smoke on `(x, y)`, good for `turns` more
+    /// calls to [`Smoke::tick`].
+    pub fn puff(&mut self, x: u16, y: u16, turns: u8) {
+        if x < MAP_WIDTH && y < MAP_HEIGHT {
+            let slot = &mut self.turns_left[tile_index(x, y)];
+            *slot = (*slot).max(turns);
+        }
+    }
+
+    pub fn is_smoky(&self, x: u16, y: u16) -> bool {
+        x < MAP_WIDTH && y < MAP_HEIGHT && self.turns_left[tile_index(x, y)] > 0
+    }
+
+    /// Ages every puff down by one turn — one call per game turn.
+    pub fn tick(&mut self) {
+        for slot in &mut self.turns_left {
+            *slot = slot.saturating_sub(1);
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.turns_left.fill(0);
+    }
+}
+
+impl Default for Smoke {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Schedule step: ages every lingering smoke puff down by one turn.
+pub fn smoke_system(world: &mut World) {
+    world.resource_mut::<Smoke>().tick();
+}
+
 /// Coarse grouping of tiles for the diagonal-movement rule: room floor and the
 /// staircases standing on it count as one kind, so a diagonal step onto stairs
 /// still works. Walls get their own bucket but never matter — [`Map::blocks`]
@@ -989,6 +1042,7 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     let (tiles, rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
     world.insert_resource(Map { tiles, dark });
     world.resource_mut::<BloodStains>().clear();
+    world.resource_mut::<Smoke>().clear();
 
     let fallback = {
         let c = rooms[0].center();
@@ -1107,6 +1161,7 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(Depth { what: 1 });
     world.insert_resource(FloorChanges::default());
     world.insert_resource(BloodStains::new());
+    world.insert_resource(Smoke::new());
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.insert_resource(Identified::default());
     // This run's cosmetic appearance for every unidentified item type. Drawn

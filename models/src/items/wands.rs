@@ -18,13 +18,13 @@ use crate::helpers::{
     apply_damage, clear_player_conditions, get_entities_at_position, get_line, item_label,
     monster_at, roll_dice,
 };
-use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index};
+use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index};
 use crate::monsters::{BESTIARY, spawn_monster};
 use crate::particles::{BlastPalette, Particles};
 use crate::traps::random_open_tile;
 
 use super::scrolls::teleport_reader;
-use crate::constants::wands::{BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES};
+use crate::constants::wands::{BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES, SMOKE_LINGER_TURNS};
 
 /// Whether `entity` shrugs off `element`, from any source.
 fn is_immune(world: &World, entity: Entity, element: Element) -> bool {
@@ -82,7 +82,10 @@ fn fire_bolt(
     let (beam_cells, drained) = trace_bolt(world, user, user_pos, target_pos, damage, element);
 
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        fx.beam(&beam_cells, color);
+        let flight_ms = fx.beam(&beam_cells, color);
+        if let Some(&(lx, ly)) = beam_cells.last() {
+            fx.impact_sparks(lx, ly, color, flight_ms);
+        }
     }
     if effect == WandEffect::DrainLife && drained > 0 {
         if let Some(mut fighter) = world.get_mut::<Fighter>(user) {
@@ -182,9 +185,78 @@ pub(super) fn elemental_blast(
 
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.explosion(&blast_cells, palette);
+        // Fire and cold both billow smoke a beat after the flames — purely
+        // cosmetic. Only fire's actually lingers on the tiles afterward,
+        // DCSS-style; cold's puff is just the one animation.
+        if matches!(element, Some(Element::Fire) | Some(Element::Cold)) {
+            fx.smoke_burst(&blast_cells);
+        }
+    }
+    if element == Some(Element::Fire) {
+        let mut smoke = world.resource_mut::<Smoke>();
+        for &(x, y, _) in &blast_cells {
+            smoke.puff(x, y, SMOKE_LINGER_TURNS);
+        }
     }
 
     affected_entities
+}
+
+/// How many turns a teleport's or a polymorph's smoke lingers — shorter than
+/// a fire blast's [`SMOKE_LINGER_TURNS`], since it's a puff marking a spot,
+/// not a fire actually still smouldering.
+const TRANSMUTATION_SMOKE_TURNS: u8 = 2;
+
+/// Poofs smoke at `pos` — a teleport's calling card, marking where a creature
+/// used to stand. Lays a short puff in the persistent [`Smoke`] overlay
+/// alongside the instant [`Particles::poof`] flash, so the spot keeps
+/// smouldering a couple of turns after the animation itself has finished.
+fn leave_smoke(world: &mut World, pos: Position) {
+    world
+        .resource_mut::<Smoke>()
+        .puff(pos.x, pos.y, TRANSMUTATION_SMOKE_TURNS);
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.poof(pos.x, pos.y, 0.0);
+    }
+}
+
+/// Puffs a small ring of smoke around `center` — the polymorph flourish.
+/// Every open neighbouring tile (never through a wall) gets its own puff,
+/// staggered a beat apart so it reads as smoke rolling outward from the
+/// transformed creature rather than every tile igniting at once.
+fn leave_smoke_ring(world: &mut World, center: Position) {
+    const RING: [(i32, i32); 8] = [
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (-1, 0),
+        (1, 0),
+        (-1, 1),
+        (0, 1),
+        (1, 1),
+    ];
+    let map = world.resource::<Map>().clone();
+    let mut cells: Vec<(u16, u16)> = vec![(center.x, center.y)];
+    for &(dx, dy) in RING.iter() {
+        let Some((x, y)) = crate::particles::on_map(center.x as i32 + dx, center.y as i32 + dy)
+        else {
+            continue;
+        };
+        if !map.blocks(x, y) {
+            cells.push((x, y));
+        }
+    }
+    {
+        let mut smoke = world.resource_mut::<Smoke>();
+        for &(x, y) in &cells {
+            smoke.puff(x, y, TRANSMUTATION_SMOKE_TURNS);
+        }
+    }
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        for (i, &(x, y)) in cells.iter().enumerate() {
+            fx.poof(x, y, i as f32 * 40.0);
+        }
+    }
 }
 
 /// The blast-animation palette a wand's explosion burns in.
@@ -475,6 +547,7 @@ pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
         "The {old_name} twists and warps into {} {new_name}!",
         crate::identify::article_for(&new_name)
     ));
+    leave_smoke_ring(world, pos);
 }
 
 /// Wand of haste / slow monster: step the target one notch along the speed scale
@@ -539,18 +612,27 @@ fn teleport_target_away(world: &mut World, pos: Position) {
 
 /// Fling one creature to a random open tile. For the player this is exactly the
 /// scroll of teleportation (see [`teleport_reader`]); for a monster it is a
-/// yank into the dark.
+/// yank into the dark. Either way, the wand's own signature — smoke left where
+/// they stood — marks the departure; the scroll gets no such flourish.
 pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
     if world.get::<Player>(victim).is_some() {
+        let old_pos = world.get::<Position>(victim).copied();
         teleport_reader(world, victim);
+        if let Some(old_pos) = old_pos {
+            leave_smoke(world, old_pos);
+        }
         return;
     }
     let name = item_label(world, victim);
+    let old_pos = world.get::<Position>(victim).copied();
     if let Some((x, y)) = random_open_tile(world) {
         if let Some(mut p) = world.get_mut::<Position>(victim) {
             p.x = x;
             p.y = y;
         }
+    }
+    if let Some(old_pos) = old_pos {
+        leave_smoke(world, old_pos);
     }
     world
         .resource_mut::<GameLog>()
@@ -566,6 +648,7 @@ fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos
         return;
     };
     let name = item_label(world, victim);
+    let old_pos = world.get::<Position>(victim).copied();
     let spot =
         crate::helpers::free_adjacent_tile(world, user_pos).or_else(|| random_open_tile(world));
     if let Some((x, y)) = spot {
@@ -573,6 +656,9 @@ fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos
             p.x = x;
             p.y = y;
         }
+    }
+    if let Some(old_pos) = old_pos {
+        leave_smoke(world, old_pos);
     }
     world
         .resource_mut::<GameLog>()

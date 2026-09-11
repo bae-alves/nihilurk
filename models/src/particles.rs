@@ -18,6 +18,12 @@ use crossterm::style::Color;
 
 use crate::map::{MAP_HEIGHT, MAP_WIDTH};
 
+/// How long an explosion's ripple takes to cross one tile of radius. Above the
+/// ~33ms frame period so the ring visibly steps outward ring by ring instead
+/// of flashing all at once; shared with [`Particles::secondary_burst`] so a
+/// target's cosmetic echo is timed to land after the primary ripple reaches it.
+const RIPPLE_MS_PER_TILE: f32 = 40.0;
+
 /// The colour family an area blast burns in. Each maps to a five-keyframe
 /// glyph/colour cycle every cell in the blast steps through as it fades.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -154,6 +160,29 @@ impl Particle {
     }
 }
 
+/// Global multiplier on every animation frame's on-screen hold time —
+/// particles and the magic-mapping reveal wipe alike. `1.0` is the default
+/// pacing; the escape hatch for a terminal whose redraw can't keep up (raise
+/// it) or that renders the default pacing too slowly to feel snappy (lower
+/// it). Set once at startup from the `-anim-rate` CLI flag; never changes
+/// mid-run.
+#[derive(Resource, Clone, Copy)]
+pub struct AnimRate(pub f32);
+
+impl Default for AnimRate {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
+impl AnimRate {
+    /// Scales a base frame duration (ms) by this rate, floored at 1ms so a
+    /// pathological rate can never freeze the animation loop outright.
+    pub fn scale(self, base_ms: u64) -> u64 {
+        ((base_ms as f32) * self.0).max(1.0) as u64
+    }
+}
+
 /// The effect layer. Systems push requests in during a turn; the engine drains
 /// it afterwards.
 #[derive(Resource, Default)]
@@ -204,12 +233,55 @@ impl Particles {
         });
     }
 
+    /// The instant a spray of blood physically lands — the wound tile itself,
+    /// or wherever a droplet's streak comes to rest, floor or wall alike. A
+    /// short, sharp red flash; `delay_ms` lets it land right as its
+    /// [`Particles::blood_streak`] finishes travelling.
+    pub fn blood_hit(&mut self, x: u16, y: u16, delay_ms: f32) {
+        self.push(Particle {
+            x,
+            y,
+            delay_ms,
+            lifetime_ms: 90.0,
+            age_ms: 0.0,
+            frames: vec![('*', Color::Red), ('.', Color::DarkRed)],
+        });
+    }
+
+    /// A droplet's flight from a wound to wherever it splatters: a trail of red
+    /// dots — unlike [`Particles::beam`], blood doesn't need a directional
+    /// glyph to read as a spray. A little faster than a thrown item's
+    /// [`Particles::hurl`] (70ms/cell) — droplets fly quicker than a hand can
+    /// throw — but not by much; it should still read as a spray, not a shot.
+    /// `pts` is the traced line, the wound tile excluded. Returns the flight's
+    /// total duration in ms, so a caller can time a [`Particles::blood_hit`] to
+    /// land right as this finishes.
+    pub fn blood_streak(&mut self, pts: &[(u16, u16)]) -> f32 {
+        const TRAVEL_MS_PER_CELL: f32 = 55.0;
+        for (i, &(x, y)) in pts.iter().enumerate() {
+            self.push(Particle {
+                x,
+                y,
+                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
+                lifetime_ms: TRAVEL_MS_PER_CELL,
+                age_ms: 0.0,
+                frames: vec![('·', Color::Red), ('·', Color::DarkRed)],
+            });
+        }
+        pts.len() as f32 * TRAVEL_MS_PER_CELL
+    }
+
     /// A wand bolt: a directional streak (`- | \ /`) that races cell by cell
     /// from the caster to the point of impact, each cell flaring white then
     /// settling to `color` then guttering out. `pts` is the traversed line in
-    /// map coordinates, caster's own tile excluded.
-    pub fn beam(&mut self, pts: &[(u16, u16)], color: Color) {
-        const TRAVEL_MS_PER_CELL: f32 = 12.0;
+    /// map coordinates, caster's own tile excluded. Returns the flight's total
+    /// duration in ms, so a caller can time a [`Particles::impact_sparks`] to
+    /// land right as the beam arrives.
+    pub fn beam(&mut self, pts: &[(u16, u16)], color: Color) -> f32 {
+        // Above the ~33ms frame period, so the head visibly advances cell by
+        // cell instead of the whole line's long-lived cells all lighting up
+        // together on the first frame or two.
+        const TRAVEL_MS_PER_CELL: f32 = 40.0;
         for (i, &(x, y)) in pts.iter().enumerate() {
             let glyph = beam_glyph(pts, i);
             self.push(Particle {
@@ -219,7 +291,54 @@ impl Particles {
                 // Cells nearer the caster linger a touch longer, leaving a tail.
                 lifetime_ms: 150.0 + (pts.len() - i) as f32 * 10.0,
                 age_ms: 0.0,
-                frames: vec![(glyph, Color::White), (glyph, color), ('·', color)],
+                // Flickers white/colour twice before settling into a dim dot —
+                // flashier than a single white-to-colour fade.
+                frames: vec![
+                    (glyph, Color::White),
+                    (glyph, color),
+                    (glyph, Color::White),
+                    (glyph, color),
+                    ('·', color),
+                ],
+            });
+        }
+        pts.len() as f32 * TRAVEL_MS_PER_CELL
+    }
+
+    /// A denser, more colourful flourish at a wand bolt's point of impact — a
+    /// small ring of offset sparks around the landing cell, on top of the
+    /// beam's own last frame there, so a wand hit reads as an actual event and
+    /// not just the beam quietly stopping. Each spark flickers white/`color`
+    /// like the beam itself, staggered a beat apart so the ring reads as a
+    /// quick outward flash rather than everything popping at once. `delay_ms`
+    /// times it to land right as the beam (see [`Particles::beam`]'s return)
+    /// actually arrives.
+    pub fn impact_sparks(&mut self, x: u16, y: u16, color: Color, delay_ms: f32) {
+        const RING: [(i32, i32); 4] = [(0, -1), (0, 1), (-1, 0), (1, 0)];
+        self.push(Particle {
+            x,
+            y,
+            delay_ms,
+            lifetime_ms: 170.0,
+            age_ms: 0.0,
+            frames: vec![
+                ('‼', Color::White),
+                ('*', color),
+                ('+', Color::White),
+                ('·', color),
+            ],
+        });
+        for (i, &(dx, dy)) in RING.iter().enumerate() {
+            let Some((sx, sy)) = on_map(x as i32 + dx, y as i32 + dy) else {
+                continue;
+            };
+            self.push(Particle {
+                x: sx,
+                y: sy,
+                delay_ms: delay_ms + 15.0 + i as f32 * 12.0,
+                lifetime_ms: 130.0,
+                age_ms: 0.0,
+                frames: vec![('*', Color::White), ('+', color), ('.', color)],
             });
         }
     }
@@ -229,13 +348,15 @@ impl Particles {
     /// can watch a dagger travel. `pts` is the traced line, thrower's own tile
     /// excluded.
     pub fn hurl(&mut self, pts: &[(u16, u16)], glyph: char, color: Color) {
-        const TRAVEL_MS_PER_CELL: f32 = 28.0;
+        // Well above the ~33ms frame period, so every cell gets its own visible
+        // frame (or two) instead of the flight blurring past between samples.
+        const TRAVEL_MS_PER_CELL: f32 = 70.0;
         for (i, &(x, y)) in pts.iter().enumerate() {
             self.push(Particle {
                 x,
                 y,
                 delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
-                lifetime_ms: TRAVEL_MS_PER_CELL * 1.5,
+                lifetime_ms: TRAVEL_MS_PER_CELL * 1.4,
                 age_ms: 0.0,
                 frames: vec![(glyph, color)],
             });
@@ -245,9 +366,9 @@ impl Particles {
     /// A DCSS-style area blast. `cells` is `(x, y, distance_from_centre)` for
     /// every tile the blast covers (already LOS-checked by the caller); the ring
     /// expands outward from the core and every cell cycles through `palette`'s
-    /// colours before fading.
+    /// colours before fading. Always opens on the palette's bright first frame —
+    /// a primary blast never reads as dark.
     pub fn explosion(&mut self, cells: &[(u16, u16, f32)], palette: BlastPalette) {
-        const RIPPLE_MS_PER_TILE: f32 = 24.0;
         let frames: [(char, Color); 5] = palette.frames();
         for &(x, y, dist) in cells {
             self.push(Particle {
@@ -259,6 +380,69 @@ impl Particles {
                 frames: frames.to_vec(),
             });
         }
+    }
+
+    /// A small, muted echo of an area blast — the cosmetic-only flash on one
+    /// creature an effect wand's grenade actually caught, timed to land a beat
+    /// after the primary blast's ripple has passed that tile. It marks who the
+    /// effect landed on and nothing more: no separate gameplay effect rides on
+    /// it. Skips the palette's bright opening frame (that belongs to the
+    /// primary blast alone) and starts straight into its darker back half, so
+    /// it reads as a fainter secondary pop rather than a second bright flash.
+    pub fn secondary_burst(&mut self, x: u16, y: u16, radius: f32, palette: BlastPalette) {
+        const FOLLOW_MS: f32 = 120.0;
+        let frames = palette.frames();
+        self.push(Particle {
+            x,
+            y,
+            delay_ms: radius.ceil() * RIPPLE_MS_PER_TILE + FOLLOW_MS,
+            lifetime_ms: 200.0,
+            age_ms: 0.0,
+            frames: frames[2..].to_vec(),
+        });
+    }
+
+    /// Smoke billowing up over a fire or cold blast, a beat after its flames
+    /// have already rippled through — grey and white, cosmetic only. `cells`
+    /// is the same distance-tagged set [`Particles::explosion`] used for the
+    /// primary blast, so the smoke follows the same ring pattern outward.
+    pub fn smoke_burst(&mut self, cells: &[(u16, u16, f32)]) {
+        const FOLLOW_MS: f32 = 150.0;
+        let frames = [
+            ('≈', Color::White),
+            ('≈', Color::Grey),
+            ('≈', Color::DarkGrey),
+        ];
+        for &(x, y, dist) in cells {
+            self.push(Particle {
+                x,
+                y,
+                delay_ms: dist * RIPPLE_MS_PER_TILE + FOLLOW_MS,
+                lifetime_ms: 260.0,
+                age_ms: 0.0,
+                frames: frames.to_vec(),
+            });
+        }
+    }
+
+    /// A quick "poof" of smoke — the signature left behind by a teleport or a
+    /// polymorph. Grey/white like [`Particles::smoke_burst`], but immediate:
+    /// there's no primary blast for it to follow, so no ripple delay beyond
+    /// whatever `delay_ms` the caller wants (0 for a single poof, a small
+    /// stagger per tile for a ring of them).
+    pub fn poof(&mut self, x: u16, y: u16, delay_ms: f32) {
+        self.push(Particle {
+            x,
+            y,
+            delay_ms,
+            lifetime_ms: 220.0,
+            age_ms: 0.0,
+            frames: vec![
+                ('≈', Color::White),
+                ('≈', Color::Grey),
+                ('≈', Color::DarkGrey),
+            ],
+        });
     }
 
     /// Advance every mote by `dt_ms` and cull the dead ones.

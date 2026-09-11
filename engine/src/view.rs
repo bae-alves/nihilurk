@@ -462,6 +462,20 @@ pub fn render<W: Write>(
         }
     }
 
+    // ---- Lingering smoke (DCSS-style; fades on its own over a few turns) ----
+    // Drawn over the floor and anything lying on it, only where currently
+    // visible, and never on a tile an actor stands on — like blood, it marks
+    // the floor, not whatever is standing there.
+    {
+        let smoke = world.resource::<Smoke>();
+        for &(x, y) in &visible {
+            if !smoke.is_smoky(x, y) || occupied_by_actor.contains(&(x, y)) {
+                continue;
+            }
+            screen.put(x, y + 1, '≈', Color::Grey);
+        }
+    }
+
     // ---- Actors (visibility system already tags out-of-sight mobs Hidden) ----
     {
         let mut query = world
@@ -535,7 +549,7 @@ pub fn render<W: Write>(
         for (i, line) in lines.iter().enumerate() {
             let y = 22 + i as u16;
             let last = i + 1 == lines.len();
-            screen.puts(0, y, line, Color::White);
+            screen.puts(0, y, line, log_line_color(line));
             if last && more {
                 screen.puts(57, y, "--MORE-- (Press Space)", Color::Yellow);
             }
@@ -579,18 +593,19 @@ pub fn play_particles<W: Write>(
     }
     world.resource_mut::<Particles>().pending = false;
 
-    const FRAME_MS: u64 = 33;
+    const BASE_FRAME_MS: u64 = 33;
+    let frame_ms = world.resource::<AnimRate>().scale(BASE_FRAME_MS);
     loop {
         {
             let mut fx = world.resource_mut::<Particles>();
-            fx.advance(FRAME_MS as f32);
+            fx.advance(frame_ms as f32);
             if !fx.any_alive() {
                 break;
             }
         }
         render(world, stdout, screen)?;
         // The frame delay doubles as an "abort on keypress" poll.
-        if poll(Duration::from_millis(FRAME_MS))? {
+        if poll(Duration::from_millis(frame_ms))? {
             let _ = read()?;
             break;
         }
@@ -617,7 +632,8 @@ pub fn play_magic_map<W: Write>(
         return Ok(());
     }
 
-    let frame = Duration::from_millis(world.resource::<MagicMapReveal>().frame_ms());
+    let base_frame_ms = world.resource::<MagicMapReveal>().frame_ms();
+    let frame = Duration::from_millis(world.resource::<AnimRate>().scale(base_frame_ms));
     loop {
         if !magic_map_reveal_step(world) {
             break;

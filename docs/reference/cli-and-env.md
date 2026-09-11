@@ -23,6 +23,7 @@ error.
 | `-nb`        | No blood. Suppresses bloodstain rendering entirely.       |
 | `-dropthrow` | Swap the pack menu order to Use / Drop / Throw.           |
 | `-content`   | Print every name the content tables know, then exit.      |
+| `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
 
 `-content` never touches the alternate screen, so it pipes:
 

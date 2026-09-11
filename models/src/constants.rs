@@ -94,6 +94,11 @@ pub mod player {
     /// A loaded save keeps the range it was saved with (`saveload.rs` restores
     /// it), so this too only affects new games.
     pub const SIGHT_RANGE: u16 = 12;
+
+    /// Fraction of max HP at or below which the player gets a one-time "badly
+    /// wounded" warning as they cross down into it. See
+    /// [`crate::helpers::apply_damage`].
+    pub const LOW_HP_WARNING_FRACTION: f32 = 0.25;
 }
 
 // ===========================================================================
@@ -319,6 +324,11 @@ pub mod wands {
     /// but the roll still drives the animation's reach). See
     /// [`crate::items`]`::resolve_wand_throw`.
     pub const EFFECT_DIE_PER_CHARGE: i32 = 3;
+
+    /// How many turns a fire blast's smoke lingers on the tiles it covered,
+    /// DCSS-style — purely cosmetic, never blocks movement or sight. Zapped
+    /// or thrown, makes no difference; see `elemental_blast`.
+    pub const SMOKE_LINGER_TURNS: u8 = 4;
 }
 
 // ===========================================================================
@@ -389,6 +399,11 @@ pub mod items {
     /// `docs/reference/content-tables.md` name the current value and would need
     /// a pass.
     pub const STACK_LIMIT: u8 = 26;
+
+    /// The most inventory slots a pack will hold at once. Kept below 26 so
+    /// every slot's letter stays inside `w`/`s`, which the pack menu already
+    /// reserves for up/down navigation and so can never reach a letter row.
+    pub const PACK_CAPACITY: usize = 13;
 }
 
 // ===========================================================================

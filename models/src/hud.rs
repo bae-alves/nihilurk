@@ -1,9 +1,51 @@
 //! Presentation helpers shared by the renderer and the input handler so both
 //! agree on exactly what the message log is showing this frame.
 
+use crossterm::style::Color;
+
 // Message-log sizing (rows shown, wrap widths). Defined and documented in
 // `constants.rs`; re-exported so `hud::LOG_LINES` etc. keep resolving.
 pub use crate::constants::hud::{LOG_LINES, LOG_MORE_WIDTH, LOG_WIDTH};
+
+/// Sparingly colours a packed log line — only when it reads as happening *to
+/// the player* (contains "you"), and only for a handful of categories worth
+/// calling out: a curse taking hold (dark red), a dazzle (magenta), the
+/// low-HP warning (red), the player's own speed shifting (cyan hasted, dark
+/// cyan slowed), or the player throwing/firing something (yellow, to make it
+/// read as juicier than an ordinary log line). Everything else stays the
+/// plain log colour. A packed line can join several original messages (see
+/// [`pack_messages`]); if any of them matches, the whole line takes that
+/// colour.
+pub fn log_line_color(line: &str) -> Color {
+    let lower = line.to_ascii_lowercase();
+    if !lower.contains("you") {
+        return Color::White;
+    }
+    if lower.contains("curse") {
+        return Color::DarkRed;
+    }
+    if lower.contains("dazzl") {
+        return Color::Magenta;
+    }
+    if lower.contains("wounded") {
+        return Color::Red;
+    }
+    // The haste/slow messages ("the world lurches into slow motion around
+    // you", "your limbs turn to lead", and the two "already as
+    // quick/sluggish as you can be" refusals) are matched on their distinct
+    // halves rather than a generic "fast"/"slow" — the haste line's own text
+    // ironically contains "slow motion".
+    if lower.contains("quick") || lower.contains("slow motion around you") {
+        return Color::Cyan;
+    }
+    if lower.contains("sluggish") || lower.contains("limbs turn to lead") {
+        return Color::DarkCyan;
+    }
+    if lower.contains("you throw") || lower.contains("you fire") {
+        return Color::Yellow;
+    }
+    Color::White
+}
 
 /// Greedily packs `messages` into at most `max_lines` lines no wider than
 /// `width`, joining consecutive messages with a single space. A message is never
@@ -94,6 +136,63 @@ mod tests {
         let (_lines, consumed, more) = log_view(&v(&["a", "b", "c"]));
         assert!(!more);
         assert_eq!(consumed, 3);
+    }
+
+    #[test]
+    fn colors_only_apply_to_lines_about_the_player() {
+        assert_eq!(
+            log_line_color("The goblin is dazzled!"),
+            Color::White,
+            "no \"you\" in it, so it stays plain even though it's a dazzle line"
+        );
+        assert_eq!(
+            log_line_color("The rat is cursed!"),
+            Color::White,
+            "no \"you\" in it, so it stays plain even though it's a curse line"
+        );
+    }
+
+    #[test]
+    fn curse_dazzle_and_low_hp_lines_get_their_colours() {
+        assert_eq!(
+            log_line_color("The ring welds itself to your grip! It is cursed!"),
+            Color::DarkRed
+        );
+        assert_eq!(
+            log_line_color("The flash leaves you reeling — you are dazzled!"),
+            Color::Magenta
+        );
+        assert_eq!(log_line_color("You are badly wounded!"), Color::Red);
+    }
+
+    #[test]
+    fn the_haste_lines_beat_the_word_slow_in_their_own_text() {
+        // The haste message ironically contains "slow motion" — it must still
+        // read as the fast colour, not the slow one.
+        assert_eq!(
+            log_line_color("The world lurches into slow motion around you."),
+            Color::Cyan
+        );
+        assert_eq!(
+            log_line_color("You are already as quick as you can be."),
+            Color::Cyan
+        );
+        assert_eq!(log_line_color("Your limbs turn to lead."), Color::DarkCyan);
+        assert_eq!(
+            log_line_color("You are already as sluggish as you can be."),
+            Color::DarkCyan
+        );
+    }
+
+    #[test]
+    fn the_players_own_throw_is_yellow() {
+        assert_eq!(log_line_color("You throw the dagger."), Color::Yellow);
+        assert_eq!(log_line_color("You fire an arrow."), Color::Yellow);
+        assert_eq!(
+            log_line_color("The orc throws a dagger."),
+            Color::White,
+            "not the player's own throw"
+        );
     }
 }
 

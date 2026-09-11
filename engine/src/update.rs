@@ -194,16 +194,17 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         }
         // `stow` owns the pack from here: it merges arrows into a quiver you are
         // already carrying, and can leave part of a pile behind when that quiver
-        // is full — so the item may not survive the call.
+        // is full — so the item may not survive the call. `None` back means the
+        // pack has no room left for it, and it stays on the floor.
         let is_element = world.get::<Amulet>(item_entity).is_some();
-        if let Some(taken) = models::stow(world, player_entity, item_entity) {
-            let msg = if is_element {
+        let msg = match (models::stow(world, player_entity, item_entity), is_element) {
+            (Some(_), true) => {
                 "You take the Element of Yoord. \"The element of Yoord seeks the sun.\"".to_string()
-            } else {
-                format!("You pick up {taken}.")
-            };
-            world.resource_mut::<GameLog>().add(msg);
-        }
+            }
+            (Some(taken), false) => format!("You pick up {taken}."),
+            (None, _) => "Your pack is full.".to_string(),
+        };
+        world.resource_mut::<GameLog>().add(msg);
     }
 
     true // Successfully moved, consuming a turn
@@ -286,6 +287,12 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     }
 
+    // 'x' is the universal escape hatch: from any modal (aiming, the pack, its
+    // action menu) it drops straight back to plain movement, no turn spent.
+    if key.code == KeyCode::Char('x') && close_all_modals(world) {
+        return Ok(false);
+    }
+
     // Three input contexts, each with its own handler: aiming a wand or a
     // throw, navigating the pack, or walking the map.
     if world.resource::<TargetingState>().active {
@@ -295,6 +302,27 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         return handle_inventory_input(world, key);
     }
     handle_movement_input(world, key)
+}
+
+/// Slams every modal shut and returns to plain movement. Returns whether
+/// anything was actually open (so a bare `x` on the map doesn't eat the
+/// keypress movement would otherwise want).
+fn close_all_modals(world: &mut World) -> bool {
+    let mut closed = false;
+    let mut ts = world.resource_mut::<TargetingState>();
+    if ts.active {
+        ts.active = false;
+        ts.item = None;
+        ts.throwing = false;
+        closed = true;
+    }
+    let mut pack = world.resource_mut::<PackIsOpen>();
+    if pack.open {
+        pack.open = false;
+        pack.action_mode = None;
+        closed = true;
+    }
+    closed
 }
 
 /// A keypress while the aiming reticle is up: move it, fire it, or cancel.
@@ -454,7 +482,7 @@ fn run_action_modal(
     let mut confirm = false;
     let mut sel = action_selected;
     match key.code {
-        KeyCode::Esc | KeyCode::Char('i') => close = true,
+        KeyCode::Esc => close = true,
         KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') | KeyCode::Char('8') => {
             sel = (sel + ACTION_COUNT - 1) % ACTION_COUNT;
         }
@@ -594,7 +622,7 @@ fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) {
     let mut close = false;
     let mut trigger = None;
     match key.code {
-        KeyCode::Esc | KeyCode::Char('i') => close = true,
+        KeyCode::Esc => close = true,
         KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') | KeyCode::Char('8') => {
             new_selected = if new_selected == 0 {
                 item_count.saturating_sub(1)

@@ -24,6 +24,7 @@ use std::collections::HashSet;
 
 use crate::effects::{ArmorBonus, equipped_total};
 use crate::map::{BloodStains, GameRng, Map};
+use crate::particles::Particles;
 use crate::{
     Blood, Confused, Faction, Fighter, GameLog, Mob, Name, Player, Position, Speed, SpeedKind,
 };
@@ -170,11 +171,40 @@ pub fn item_label(world: &World, item: Entity) -> String {
 /// stains the floor if it bleeds. Death is not handled here — a later system
 /// reaps anything that dropped to zero HP.
 pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
+    let hp_before = world.get::<Fighter>(entity).map(|f| f.hp);
     if let Some(mut fighter) = world.get_mut::<Fighter>(entity) {
         fighter.hp -= amount;
     }
     if amount > 0 {
         spill_blood(world, entity, amount, false);
+        warn_if_newly_low(world, entity, hp_before);
+    }
+}
+
+/// Logs a one-time "badly wounded" warning as the player's HP crosses down
+/// through [`crate::constants::player::LOW_HP_WARNING_FRACTION`] of max — never
+/// for a monster, and it only fires on the transition, so it won't repeat
+/// every hit while they stay down there. Healing back up and getting hurt low
+/// again fires it afresh, which is the point.
+fn warn_if_newly_low(world: &mut World, entity: Entity, hp_before: Option<i32>) {
+    if world.get::<Player>(entity).is_none() {
+        return;
+    }
+    let Some(hp_before) = hp_before else {
+        return;
+    };
+    let Some(fighter) = world.get::<Fighter>(entity) else {
+        return;
+    };
+    let (hp_after, max_hp) = (fighter.hp, fighter.max_hp);
+    if hp_after <= 0 {
+        return; // dying, not "wounded" — the reaper handles this
+    }
+    let threshold = (max_hp as f32 * crate::constants::player::LOW_HP_WARNING_FRACTION) as i32;
+    if hp_before > threshold && hp_after <= threshold {
+        world
+            .resource_mut::<GameLog>()
+            .add("You are badly wounded!".to_string());
     }
 }
 
@@ -239,12 +269,16 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         return;
     }
 
-    // Droplet count and reach both grow with the wound. A glancing blow only
-    // wets the tile underfoot.
+    // Droplet count and reach both grow with the wound — a further 25% heavier
+    // than a bare damage/4 would give. A glancing blow only wets the tile
+    // underfoot.
     let (droplets, max_reach) = if glancing {
         (0, 0)
     } else {
-        ((damage / 4).clamp(0, 8), (1 + damage / 8).clamp(1, 4))
+        (
+            (damage * 5 / 16).clamp(0, 10),
+            (1 + damage * 5 / 32).clamp(1, 5),
+        )
     };
 
     let splats: Vec<(i32, i32)> = {
@@ -258,13 +292,51 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
             .collect()
     };
 
-    let mut stains = world.resource_mut::<BloodStains>();
-    stains.stain(pos.x, pos.y);
+    world.resource_mut::<BloodStains>().stain(pos.x, pos.y);
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.blood_hit(pos.x, pos.y, 0.0);
+    }
+    if splats.is_empty() {
+        return;
+    }
+
+    // Blood can't fly through a wall: each droplet streaks along its rolled
+    // line and splatters on the first wall it meets instead of wherever the
+    // roll aimed it — the streak animation and the hit flash both land there,
+    // whether that's open floor or a wall.
+    let map = world.resource::<Map>().clone();
     for (dx, dy) in splats {
-        let sx = pos.x as i32 + dx;
-        let sy = pos.y as i32 + dy;
-        if sx >= 0 && sy >= 0 {
-            stains.stain(sx as u16, sy as u16);
+        let tx = pos.x as i32 + dx;
+        let ty = pos.y as i32 + dy;
+        if tx < 0 || ty < 0 {
+            continue;
+        }
+        let target = Position {
+            x: tx as u16,
+            y: ty as u16,
+        };
+        let mut path: Vec<Position> = Vec::new();
+        for step in get_line(pos, target) {
+            if step != pos {
+                path.push(step);
+            }
+            if map.blocks(step.x, step.y) {
+                break;
+            }
+        }
+        let Some(&landing) = path.last() else {
+            continue;
+        };
+        if !map.blocks(landing.x, landing.y) {
+            world
+                .resource_mut::<BloodStains>()
+                .stain(landing.x, landing.y);
+        }
+
+        let pts: Vec<(u16, u16)> = path.iter().map(|p| (p.x, p.y)).collect();
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            let flight_ms = fx.blood_streak(&pts);
+            fx.blood_hit(landing.x, landing.y, flight_ms);
         }
     }
 }

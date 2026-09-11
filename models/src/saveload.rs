@@ -14,7 +14,9 @@ use crate::effects::{
 };
 use crate::equipment::{Equipped, Slot};
 use crate::identify::{Identified, ItemAppearances};
-use crate::map::{BloodStains, FINAL_DEPTH, GameRng, Map, RngSeed, TileType, regenerate_map};
+use crate::map::{
+    BloodStains, FINAL_DEPTH, GameRng, Map, RngSeed, Smoke, TileType, regenerate_map,
+};
 use crate::monsters::MonsterDef;
 use crate::state::{Ending, GameState};
 use rand_chacha::ChaCha12Rng;
@@ -334,6 +336,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
 
     world.insert_resource(GameState::new());
     world.insert_resource(BloodStains::new());
+    world.insert_resource(Smoke::new());
     world.insert_resource(GameLog {
         history: save.log_history.into_iter().map(Cow::into_owned).collect(),
         unread: save.log_unread.into_iter().map(Cow::into_owned).collect(),
