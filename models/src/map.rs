@@ -50,6 +50,25 @@ pub struct GameRng(pub ChaCha12Rng);
 #[derive(Resource)]
 pub struct RngSeed(pub u64);
 
+/// A second RNG stream for animation and particle cosmetics only — a death
+/// burst's fling direction, a blood splatter's spray — seeded from the same
+/// run seed but salted apart from [`GameRng`], the same way
+/// [`crate::identify::ItemAppearances`] gets its own stream. Nothing that
+/// reads this ever feeds back into gameplay, so cosmetic rolls (or a feature
+/// like `-nb` skipping them entirely) can never perturb the shared gameplay
+/// stream everything else depends on for determinism.
+///
+/// Not saved: purely cosmetic, and nothing here is ever replayed, so a
+/// reload just reseeds it fresh from the run's seed.
+#[derive(Resource)]
+pub struct FxRng(pub ChaCha12Rng);
+
+impl FxRng {
+    pub fn new(seed: u64) -> Self {
+        Self(ChaCha12Rng::seed_from_u64(seed ^ 0xF12E_A5A5_C05E_u64))
+    }
+}
+
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum TileType {
     Wall,
@@ -177,6 +196,46 @@ impl BloodStains {
 }
 
 impl Default for BloodStains {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Where a dead creature's corpse has come to rest: a decorative `%` with
+/// nothing behind it — not lootable, not steppable-on-specially, just a mark
+/// left by [`crate::helpers::death_burst`]. Rebuilt per floor and never saved,
+/// like [`BloodStains`]; with blood switched off (`-nb`) this is the *entire*
+/// death effect, since the animation that would otherwise fling a corpse here
+/// is skipped along with the RNG it would spend.
+#[derive(Resource)]
+pub struct Corpses {
+    tiles: FixedBitSet,
+}
+
+impl Corpses {
+    pub fn new() -> Self {
+        Self {
+            tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        }
+    }
+
+    /// Marks `(x, y)` as holding a corpse.
+    pub fn mark(&mut self, x: u16, y: u16) {
+        if x < MAP_WIDTH && y < MAP_HEIGHT {
+            self.tiles.insert(tile_index(x, y));
+        }
+    }
+
+    pub fn has(&self, x: u16, y: u16) -> bool {
+        x < MAP_WIDTH && y < MAP_HEIGHT && self.tiles.contains(tile_index(x, y))
+    }
+
+    pub fn clear(&mut self) {
+        self.tiles.clear();
+    }
+}
+
+impl Default for Corpses {
     fn default() -> Self {
         Self::new()
     }
@@ -1043,6 +1102,7 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     world.insert_resource(Map { tiles, dark });
     world.resource_mut::<BloodStains>().clear();
     world.resource_mut::<Smoke>().clear();
+    world.resource_mut::<Corpses>().clear();
 
     let fallback = {
         let c = rooms[0].center();
@@ -1162,6 +1222,7 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(FloorChanges::default());
     world.insert_resource(BloodStains::new());
     world.insert_resource(Smoke::new());
+    world.insert_resource(Corpses::new());
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.insert_resource(Identified::default());
     // This run's cosmetic appearance for every unidentified item type. Drawn
@@ -1171,6 +1232,7 @@ pub fn initialize_world(world: &mut World) {
     let seed = world.resource::<RngSeed>().0;
     let mut appearance_rng = ChaCha12Rng::seed_from_u64(seed ^ 0x1DEA_5117_FEED_u64);
     world.insert_resource(ItemAppearances::generate(&mut appearance_rng));
+    world.insert_resource(FxRng::new(seed));
 
     let ((player_x, player_y), rooms) = create_map(world);
 

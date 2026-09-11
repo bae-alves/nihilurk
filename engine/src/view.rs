@@ -428,6 +428,17 @@ pub fn render<W: Write>(
         }
     }
 
+    // ---- Corpses (cosmetic `%`; same visibility rule as blood) ----
+    {
+        let corpses = world.resource::<Corpses>();
+        for &(x, y) in &visible {
+            if !corpses.has(x, y) || occupied_by_actor.contains(&(x, y)) {
+                continue;
+            }
+            screen.put(x, y + 1, '%', Color::DarkGrey);
+        }
+    }
+
     // ---- Floor items (only where currently visible and not under an actor) ----
     {
         let mut query =

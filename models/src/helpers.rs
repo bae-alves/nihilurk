@@ -22,11 +22,14 @@ use bevy_ecs::{
 use rand::Rng;
 use std::collections::HashSet;
 
+use crossterm::style::Color;
+
 use crate::effects::{ArmorBonus, equipped_total};
-use crate::map::{BloodStains, GameRng, Map};
+use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map};
 use crate::particles::Particles;
 use crate::{
-    Blood, Confused, Faction, Fighter, GameLog, Mob, Name, Player, Position, Speed, SpeedKind,
+    Blood, Confused, Faction, Fighter, GameLog, Mob, Name, Player, Position, Renderable, Speed,
+    SpeedKind,
 };
 
 /// Every tile a straight line from `start` to `end` passes through, endpoints
@@ -264,7 +267,7 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         return;
     };
 
-    // Bail before touching the RNG stream if blood is switched off.
+    // Bail before touching the animation RNG stream if blood is switched off.
     if !world.resource::<BloodStains>().enabled {
         return;
     }
@@ -282,7 +285,7 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
     };
 
     let splats: Vec<(i32, i32)> = {
-        let mut rng = world.resource_mut::<GameRng>();
+        let mut rng = world.resource_mut::<FxRng>();
         (0..droplets)
             .map(|_| {
                 let (dx, dy) = DIRS[rng.0.gen_range(0..DIRS.len())];
@@ -337,6 +340,143 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             let flight_ms = fx.blood_streak(&pts);
             fx.blood_hit(landing.x, landing.y, flight_ms);
+        }
+    }
+}
+
+/// The glyphs a death burst's bone shrapnel picks from — angled shards so a
+/// burst reads as varied fragments, not one symbol repeated.
+const BONE_GLYPHS: [char; 4] = ['/', '\\', '|', '¡'];
+
+/// How many bone shards a death burst throws.
+const BONE_SHARD_COUNT: usize = 4;
+
+/// A dying creature's Mortal-Kombat-style flourish, played once right when a
+/// hit is determined lethal and *before* the entity is despawned (it still
+/// needs the corpse's [`Position`], [`Renderable`] and [`Blood`]): the corpse
+/// (`%`) is flung away from the blow that killed it, bone shrapnel scatters
+/// outward in every direction, and — if the corpse slams into a wall and the
+/// creature bled — the impact splatters blood there too. Purely cosmetic.
+///
+/// `source` is the attacker's position, when there was one (a melee or thrown
+/// hit) — the corpse flies away from it, continuing the line the blow came
+/// in on. `None` (an indirect kill: a wand bolt, a fire blast) picks a random
+/// direction instead.
+///
+/// When [`BloodStains`] is disabled (`-nb`), the whole animation — and the RNG
+/// it would consume — is skipped, same as [`spill_blood`] going quiet under
+/// the flag: the creature simply becomes a corpse where it stood.
+pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) {
+    let Some(pos) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+
+    // Bail before touching the animation RNG stream if blood is switched off
+    // — the creature still leaves a corpse, just with no animation to get
+    // there.
+    if !world.resource::<BloodStains>().enabled {
+        world.resource_mut::<Corpses>().mark(pos.x, pos.y);
+        return;
+    }
+
+    let has_blood = world.get::<Blood>(entity).is_some();
+    let color = world
+        .get::<Renderable>(entity)
+        .map(|r| r.color)
+        .unwrap_or(Color::White);
+
+    let (dx, dy) = match source {
+        Some(src) if src != pos => (
+            (pos.x as i32 - src.x as i32).signum(),
+            (pos.y as i32 - src.y as i32).signum(),
+        ),
+        _ => {
+            let mut rng = world.resource_mut::<FxRng>();
+            DIRS[rng.0.gen_range(0..DIRS.len())]
+        }
+    };
+    let reach = world.resource_mut::<FxRng>().0.gen_range(2..=4);
+
+    let map = world.resource::<Map>().clone();
+    let target = Position {
+        x: (pos.x as i32 + dx * reach).max(0) as u16,
+        y: (pos.y as i32 + dy * reach).max(0) as u16,
+    };
+    let mut path: Vec<Position> = Vec::new();
+    let mut hit_wall = false;
+    for step in get_line(pos, target) {
+        if step != pos {
+            path.push(step);
+        }
+        if map.blocks(step.x, step.y) {
+            hit_wall = true;
+            break;
+        }
+    }
+    let Some(&landing) = path.last() else {
+        return;
+    };
+
+    // The corpse itself always rests on open floor — if the flight ended on a
+    // wall, walk back along the path to the last passable tile.
+    let corpse_tile = if hit_wall {
+        path.iter()
+            .rev()
+            .find(|p| !map.blocks(p.x, p.y))
+            .copied()
+            .unwrap_or(pos)
+    } else {
+        landing
+    };
+    world
+        .resource_mut::<Corpses>()
+        .mark(corpse_tile.x, corpse_tile.y);
+
+    let pts: Vec<(u16, u16)> = path.iter().map(|p| (p.x, p.y)).collect();
+    let flight_ms = world
+        .get_resource_mut::<Particles>()
+        .map(|mut fx| fx.death_fling(&pts, color))
+        .unwrap_or(0.0);
+
+    if hit_wall && has_blood {
+        world
+            .resource_mut::<BloodStains>()
+            .stain(corpse_tile.x, corpse_tile.y);
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.blood_hit(landing.x, landing.y, flight_ms);
+        }
+    }
+
+    // Bone shrapnel: a handful of shards scattering outward from the death
+    // tile, each along its own random line and stopped at the first wall.
+    let shard_dirs: Vec<(i32, i32)> = {
+        let mut rng = world.resource_mut::<FxRng>();
+        (0..BONE_SHARD_COUNT)
+            .map(|_| DIRS[rng.0.gen_range(0..DIRS.len())])
+            .collect()
+    };
+    for (i, (sdx, sdy)) in shard_dirs.into_iter().enumerate() {
+        let shard_reach = world.resource_mut::<FxRng>().0.gen_range(1..=3);
+        let starget = Position {
+            x: (pos.x as i32 + sdx * shard_reach).max(0) as u16,
+            y: (pos.y as i32 + sdy * shard_reach).max(0) as u16,
+        };
+        let mut spath: Vec<Position> = Vec::new();
+        for step in get_line(pos, starget) {
+            if step != pos {
+                spath.push(step);
+            }
+            if map.blocks(step.x, step.y) {
+                break;
+            }
+        }
+        if spath.is_empty() {
+            continue;
+        }
+        let glyph = BONE_GLYPHS[i % BONE_GLYPHS.len()];
+        let spts: Vec<(u16, u16)> = spath.iter().map(|p| (p.x, p.y)).collect();
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.bone_shard(&spts, glyph);
         }
     }
 }

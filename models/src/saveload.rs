@@ -15,15 +15,12 @@ use crate::effects::{
 use crate::equipment::{Equipped, Slot};
 use crate::identify::{Identified, ItemAppearances};
 use crate::map::{
-    BloodStains, FINAL_DEPTH, GameRng, Map, RngSeed, Smoke, TileType, regenerate_map,
+    BloodStains, Corpses, FINAL_DEPTH, FxRng, GameRng, Map, RngSeed, Smoke, TileType,
+    regenerate_map,
 };
 use crate::monsters::MonsterDef;
 use crate::state::{Ending, GameState};
 use rand_chacha::ChaCha12Rng;
-
-// How many past log lines a save keeps (`GameLog` itself holds more in memory;
-// the save path clamps so the file never bloats). Defined in `constants.rs`.
-use crate::constants::hud::LOG_HISTORY_CAP as LOG_CAP;
 
 /// The 16-colour terminal palette, packed to one byte instead of a debug string.
 fn color_to_u8(c: &Color) -> u8 {
@@ -153,10 +150,6 @@ struct SaveGame<'a> {
     #[serde(borrow)]
     entities: Vec<EntitySave<'a>>,
     #[serde(borrow)]
-    log_history: Vec<Cow<'a, str>>,
-    #[serde(borrow)]
-    log_unread: Vec<Cow<'a, str>>,
-    #[serde(borrow)]
     player_name: Cow<'a, str>,
     /// The current dungeon depth.
     depth: u8,
@@ -203,11 +196,13 @@ pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
 
 /// Serializes the world to a compact postcard save file. The map is not saved:
 /// it is rebuilt from the seed and the depth on load (see [`regenerate_map`]),
-/// which is exact because a floor's layout depends on nothing else.
+/// which is exact because a floor's layout depends on nothing else. Nor is the
+/// message log — a reload starts with a blank one rather than paying for its
+/// history in every save file.
 ///
-/// The save struct borrows everything it can (names, log lines, item labels)
-/// straight out of the ECS, so no second copy of the world is built in RAM, and
-/// the bytes are streamed to disk through a `BufWriter` rather than buffered.
+/// The save struct borrows everything it can (names, item labels) straight out
+/// of the ECS, so no second copy of the world is built in RAM, and the bytes
+/// are streamed to disk through a `BufWriter` rather than buffered.
 pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
     // Gear comes off across a save — the file records the slot, never the
     // wearer. For the player that just means re-equipping; for a monster
@@ -295,19 +290,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         });
     }
 
-    let log = world.resource::<GameLog>();
-    let hist_start = log.history.len().saturating_sub(LOG_CAP);
     let save = SaveGame {
         entities,
-        log_history: log.history[hist_start..]
-            .iter()
-            .map(|s| Cow::Borrowed(s.as_str()))
-            .collect(),
-        log_unread: log
-            .unread
-            .iter()
-            .map(|s| Cow::Borrowed(s.as_str()))
-            .collect(),
         player_name: Cow::Borrowed(world.resource::<PlayerName>().what.as_str()),
         depth: world.resource::<Depth>().what,
         floor_changes: world.get_resource::<FloorChanges>().map_or(0, |c| c.count),
@@ -329,6 +313,9 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
 /// Rebuilds the world from a postcard save file. Inserts GameState, GameLog,
 /// PlayerName, Depth and FloorChanges resources; all other resources must
 /// already be present.
+///
+/// The message log is not part of the save — a reload always starts with a
+/// fresh [`GameLog`] (just the welcome line), same as a brand new run.
 pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     let bytes = std::fs::read(path)?;
     let save: SaveGame = postcard::from_bytes(&bytes)
@@ -337,10 +324,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(GameState::new());
     world.insert_resource(BloodStains::new());
     world.insert_resource(Smoke::new());
-    world.insert_resource(GameLog {
-        history: save.log_history.into_iter().map(Cow::into_owned).collect(),
-        unread: save.log_unread.into_iter().map(Cow::into_owned).collect(),
-    });
+    world.insert_resource(Corpses::new());
+    world.insert_resource(GameLog::default());
     world.insert_resource(PlayerName {
         what: save.player_name.into_owned(),
     });
@@ -350,6 +335,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     });
     world.insert_resource(RngSeed(save.rng_seed));
     world.insert_resource(GameRng(save.rng_state));
+    world.insert_resource(FxRng::new(save.rng_seed));
     world.insert_resource(DungeonLord::default());
     world.insert_resource(save.item_appearances);
     world.insert_resource(save.identified);

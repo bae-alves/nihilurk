@@ -452,8 +452,4 @@ pub mod hud {
     /// Wrap width for a log line in the "-- more --" backlog pager, which is
     /// inset from the edges.
     pub const LOG_MORE_WIDTH: usize = 56;
-
-    /// How many past messages a save file keeps, so the log after a load isn't
-    /// blank. Purely cosmetic; costs a few bytes per entry in the save.
-    pub const LOG_HISTORY_CAP: usize = 10;
 }

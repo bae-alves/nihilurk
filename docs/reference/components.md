@@ -286,7 +286,7 @@ Resources
 
 | Resource      | Fields                              | Saved? |
 |---------------|-------------------------------------|--------|
-| `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<String>` (waiting for `--MORE--`) | last few `history` lines only |
+| `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<String>` (waiting for `--MORE--`) | **transient** — not saved; a reload starts with a fresh log ("Welcome back to roog!") |
 | `Depth`        | `what: u8` — current floor, 1-based | yes    |
 | `FloorChanges` | `count: u32` — staircase/portal/trapdoor traversals this run; salts `content_rng` so a repeat visit re-stocks the same layout | yes |
 | `PlayerName`   | `what: String`                      | yes    |
@@ -306,12 +306,21 @@ substring, not by threading a colour through every `GameLog::add()` call
 — see `hud::log_line_color` for the exact phrases it keys on.
 
 Other run-state resources live outside this file: `Map`, `GameRng` /
-`RngSeed`, `Identified` / `ItemAppearances` (`identify.rs`), `BloodStains`
-and `Smoke` (`map.rs`), `GameState` (`state.rs`). The save file also
+`RngSeed`, `Identified` / `ItemAppearances` (`identify.rs`), `BloodStains`,
+`Smoke` and `Corpses` (`map.rs`), `GameState` (`state.rs`). The save file also
 persists the RNG state, the identification tables and the dark-tile set —
-see `models/src/saveload.rs`. `Smoke` is not saved, like `BloodStains`:
-a fire blast's lingering puffs (`SMOKE_LINGER_TURNS`, 4 real turns,
-ticked by `smoke_system`) are cosmetic and reset to empty on load.
+see `models/src/saveload.rs`. `Smoke` and `Corpses` are not saved, like
+`BloodStains`: a fire blast's lingering puffs (`SMOKE_LINGER_TURNS`, 4 real
+turns, ticked by `smoke_system`) and a death's corpse marks
+(`helpers::death_burst`) are cosmetic and reset to empty on load.
+
+`FxRng` (`map.rs`) is a second RNG stream, seeded from the run seed but
+salted apart from `GameRng` the same way `ItemAppearances` gets its own —
+for animation/particle randomness only (a death burst's fling direction and
+reach, a blood splatter's spray). Nothing that reads it feeds back into
+gameplay, so a purely cosmetic feature (`-nb` skipping the roll entirely,
+say) can never perturb the shared `GameRng` stream everything else depends
+on for determinism. Not saved — a reload just reseeds it fresh.
 
 
 See also

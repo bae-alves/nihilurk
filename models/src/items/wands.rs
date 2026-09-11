@@ -183,6 +183,16 @@ pub(super) fn elemental_blast(
         damage_with_element(world, entity, damage, element);
     }
 
+    // Anyone the blast just killed is finished off right here, rather than
+    // waiting for the reaper's next sweep — so their death burst knows the
+    // blast's own centre and flings the corpse radially outward, Mortal-
+    // Kombat-style, instead of picking a random direction.
+    for &entity in &affected_entities {
+        if world.get::<Fighter>(entity).is_some_and(|f| f.hp <= 0) {
+            crate::combat::finish_indirect_kill(world, entity, Some(center));
+        }
+    }
+
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.explosion(&blast_cells, palette);
         // Fire and cold both billow smoke a beat after the flames — purely

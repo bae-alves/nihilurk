@@ -363,6 +363,57 @@ impl Particles {
         }
     }
 
+    /// A dying creature's corpse (`%`), flung away from the blow that killed
+    /// it — see [`crate::helpers::death_burst`]. Heavier and a touch slower
+    /// than a thrown item's [`Particles::hurl`] (this is a body, not a
+    /// dagger), and unlike a thrown item it doesn't just wink out on landing:
+    /// its final cell lingers much longer, flashing white on impact before
+    /// settling into a dim, dead rest frame. `pts` is the traced flight path,
+    /// the death tile excluded. Returns the flight's total duration in ms, so
+    /// a caller can time a wall splatter to land right as the corpse arrives.
+    pub fn death_fling(&mut self, pts: &[(u16, u16)], color: Color) -> f32 {
+        const TRAVEL_MS_PER_CELL: f32 = 65.0;
+        for (i, &(x, y)) in pts.iter().enumerate() {
+            let last = i + 1 == pts.len();
+            self.push(Particle {
+                x,
+                y,
+                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
+                lifetime_ms: if last {
+                    380.0
+                } else {
+                    TRAVEL_MS_PER_CELL * 1.3
+                },
+                age_ms: 0.0,
+                frames: if last {
+                    vec![('%', Color::White), ('%', color), ('%', Color::DarkGrey)]
+                } else {
+                    vec![('%', color)]
+                },
+            });
+        }
+        pts.len() as f32 * TRAVEL_MS_PER_CELL
+    }
+
+    /// One shard of a death burst's bone shrapnel — a Mortal-Kombat-style
+    /// flourish flying outward from the death tile alongside
+    /// [`Particles::death_fling`]. Quicker and shorter-lived than the corpse
+    /// itself, so the bones visibly outrace it before clattering out of
+    /// sight. `pts` is the traced flight path, the death tile excluded.
+    pub fn bone_shard(&mut self, pts: &[(u16, u16)], glyph: char) {
+        const TRAVEL_MS_PER_CELL: f32 = 45.0;
+        for (i, &(x, y)) in pts.iter().enumerate() {
+            self.push(Particle {
+                x,
+                y,
+                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
+                lifetime_ms: TRAVEL_MS_PER_CELL * 1.6,
+                age_ms: 0.0,
+                frames: vec![(glyph, Color::White), (glyph, Color::Grey)],
+            });
+        }
+    }
+
     /// A DCSS-style area blast. `cells` is `(x, y, distance_from_centre)` for
     /// every tile the blast covers (already LOS-checked by the caller); the ring
     /// expands outward from the core and every cell cycles through `palette`'s

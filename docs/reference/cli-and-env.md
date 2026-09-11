@@ -20,7 +20,7 @@ error.
 | `-s <seed>`  | Start the run from a specific `u64` seed. Reproducible.   |
 | `-c`         | Centre the map on the player instead of a fixed viewport. |
 | `-ns`        | No save. The run is never written to disk.                |
-| `-nb`        | No blood. Suppresses bloodstain rendering entirely.       |
+| `-nb`        | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
 | `-dropthrow` | Swap the pack menu order to Use / Drop / Throw.           |
 | `-content`   | Print every name the content tables know, then exit.      |
 | `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |

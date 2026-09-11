@@ -304,9 +304,12 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     match &load_path {
         Some(path) => {
             models::load_game(&mut world, path)?;
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("Loaded save '{path}'."));
+            // `load_game` already left a fresh (unloaded-game) GameLog behind;
+            // swap its welcome line for the loaded-game version.
+            world.insert_resource(GameLog {
+                history: Vec::new(),
+                unread: vec!["Welcome back to roog! Good luck and have fun!".to_string()],
+            });
         }
         None => models::initialize_world(&mut world),
     }

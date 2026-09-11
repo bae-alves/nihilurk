@@ -171,6 +171,15 @@ DCSS-style — the `map::Smoke` resource, ticked once a turn by
 over any smoky tile currently in view (never on a tile an actor stands
 on, like blood). Cold's puff is animation only; nothing persists.
 
+Anyone `elemental_blast` kills outright is finished off right there
+(`combat::finish_indirect_kill`) rather than left for `reaper_system`'s
+next sweep, so their death burst knows the blast's centre and flings the
+corpse radially outward through where they stood — an edge casualty gets
+launched straight on away from the blast, not a random direction like an
+ordinary indirect kill. A casualty standing exactly on the blast's own
+centre has no "outward" to speak of, so it falls back to the usual random
+fling.
+
 - *Attack* wands (fire, cold, lightning, magic missile, striking, drain
   life — `is_attack_wand`) throw the wide grenade: `GRENADE_RADIUS`, `d4`
   per remaining charge, armour-ignoring. Fire and cold carry their

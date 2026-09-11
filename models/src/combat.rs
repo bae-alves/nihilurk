@@ -61,13 +61,12 @@ pub fn combat_system(world: &mut World) {
 }
 
 /// Sweeps up anything that has been reduced to 0 HP by a source that doesn't
-/// resolve its own lethality — wand bolts, fire/cold blasts, and any future
-/// indirect damage. Melee kills are still finalised inline by [`resolve_attack`],
-/// so by the time this runs the only casualties left are the indirect ones.
-///
-/// A dead monster is despawned with a plain death line. A dead player does not
-/// leave the world; we just flag the [`Ending`]. Because no attacker entity is
-/// available here, the cause of death is recorded as "Killer unknown".
+/// resolve its own lethality — a wand bolt, and any blast casualty
+/// [`crate::items::wands::elemental_blast`] didn't already finish off itself
+/// (it does, when it has a blast centre to fling a corpse away from; this is
+/// the catch-all for the rest). Melee kills are still finalised inline by
+/// [`resolve_attack`], so by the time this runs the only casualties left are
+/// indirect ones with no known source to fling a corpse away from.
 pub fn reaper_system(world: &mut World) {
     let doomed: Vec<Entity> = {
         let mut q = world.query::<(Entity, &Fighter)>();
@@ -78,21 +77,53 @@ pub fn reaper_system(world: &mut World) {
     };
 
     for entity in doomed {
-        if world.get::<Player>(entity).is_none() {
-            let name = entity_name(world, entity);
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("The {name} dies."));
-            leave_gear_behind(world, entity);
-            world.despawn(entity);
-            continue;
-        }
-        let mut ending = world.resource_mut::<Ending>();
-        if !ending.player_dead {
-            ending.player_dead = true;
-            ending.cause = "Killer unknown".to_string();
-        }
+        finish_indirect_kill(world, entity, None);
     }
+}
+
+/// Blanks an entity's on-screen glyph to a blank space — used only to hide
+/// the player's `@` the instant they die, so the death burst's flung corpse
+/// and bone shrapnel read as *them* exploding rather than a corpse detaching
+/// from a body still visibly standing there. The player entity is never
+/// despawned (the death screen still needs it), so there's nothing to
+/// restore it: the run is over.
+fn blank_player_glyph(world: &mut World, entity: Entity) {
+    if let Some(mut r) = world.get_mut::<Renderable>(entity) {
+        r.glyph = ' ';
+    }
+}
+
+/// Finalises one creature that dropped to lethal HP through a source with no
+/// attacker entity to report — a wand bolt, or a blast casualty
+/// [`crate::items::wands::elemental_blast`] hands off directly rather than
+/// waiting for [`reaper_system`]'s next sweep. Plays the death burst, then
+/// either despawns a monster (gear settled first, a plain "dies" line
+/// logged) or, for the player, blanks their glyph and flags [`Ending`] —
+/// guarded so a player already marked dead this run is neither burst nor
+/// re-flagged a second time by a later casualty in the same blast.
+///
+/// `source` is where the corpse should fly away from — a blast's centre, say
+/// — or `None` for a random fling direction.
+pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Option<Position>) {
+    if world.get::<Player>(entity).is_some() {
+        if world.resource::<Ending>().player_dead {
+            return;
+        }
+        crate::helpers::death_burst(world, entity, source);
+        blank_player_glyph(world, entity);
+        let mut ending = world.resource_mut::<Ending>();
+        ending.player_dead = true;
+        ending.cause = "Killer unknown".to_string();
+        return;
+    }
+
+    let name = entity_name(world, entity);
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("The {name} dies."));
+    crate::helpers::death_burst(world, entity, source);
+    leave_gear_behind(world, entity);
+    world.despawn(entity);
 }
 
 /// Settles what a dying creature was wearing, item by item. Each piece gets its
@@ -204,6 +235,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     }
 
     // --- Apply & report --------------------------------------------------
+    // Captured before the target (on a lethal hit) or the attacker (should
+    // this ever run after the attacker itself died) leaves the world.
+    let attacker_pos = world.get::<Position>(attacker).copied();
     let attacker_name = entity_name(world, attacker);
     let target_name = entity_name(world, target);
     let target_is_player = world.get::<Player>(target).is_some();
@@ -246,6 +280,13 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         }
     }
 
+    // The Mortal-Kombat-style death flourish — flung corpse, bone shrapnel,
+    // a wall splatter if it earns one. Needs `target`'s Position/Renderable,
+    // so it must run before the despawn further down.
+    if lethal {
+        crate::helpers::death_burst(world, target, attacker_pos);
+    }
+
     let mut log = world.resource_mut::<GameLog>();
     if attacker_is_player {
         report_player_hit(
@@ -283,6 +324,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     if lethal && target_is_player {
         // The player does not leave the world; the main loop notices the
         // Ending resource, tears down the save, and shows the death screen.
+        // Their `@` is blanked so the death burst's flung corpse reads as
+        // them exploding, not detaching from a body still standing there.
+        blank_player_glyph(world, target);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
         ending.cause = format!("Slain by the {attacker_name}");
