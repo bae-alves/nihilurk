@@ -9,7 +9,10 @@ use rand::Rng;
 
 /// The direction of a Shift + movement-key press, for NetHack-style running.
 /// Accepts the shifted vi keys (`H J K L Y U B N`), the shifted WASD cluster,
-/// and Shift + arrow keys. `None` for anything else.
+/// Shift + arrow keys, and Shift + a numpad direction (a numpad digit never
+/// changes character under Shift the way a letter does, so it only reads as a
+/// run when the modifier comes through on the key event itself). `None` for
+/// anything else.
 fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
     match code {
         KeyCode::Char('W') | KeyCode::Char('K') => Some((0, -1)),
@@ -24,6 +27,14 @@ fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
         KeyCode::Down if mods.contains(KeyModifiers::SHIFT) => Some((0, 1)),
         KeyCode::Left if mods.contains(KeyModifiers::SHIFT) => Some((-1, 0)),
         KeyCode::Right if mods.contains(KeyModifiers::SHIFT) => Some((1, 0)),
+        KeyCode::Char('8') if mods.contains(KeyModifiers::SHIFT) => Some((0, -1)),
+        KeyCode::Char('2') if mods.contains(KeyModifiers::SHIFT) => Some((0, 1)),
+        KeyCode::Char('4') if mods.contains(KeyModifiers::SHIFT) => Some((-1, 0)),
+        KeyCode::Char('6') if mods.contains(KeyModifiers::SHIFT) => Some((1, 0)),
+        KeyCode::Char('7') if mods.contains(KeyModifiers::SHIFT) => Some((-1, -1)),
+        KeyCode::Char('9') if mods.contains(KeyModifiers::SHIFT) => Some((1, -1)),
+        KeyCode::Char('1') if mods.contains(KeyModifiers::SHIFT) => Some((-1, 1)),
+        KeyCode::Char('3') if mods.contains(KeyModifiers::SHIFT) => Some((1, 1)),
         _ => None,
     }
 }
@@ -295,14 +306,14 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
     match key.code {
         KeyCode::Esc => cancel = true,
         KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
-        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => dy = -1,
-        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => dy = 1,
-        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => dx = -1,
-        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => dx = 1,
-        KeyCode::Char('y') => (dx, dy) = (-1, -1),
-        KeyCode::Char('u') => (dx, dy) = (1, -1),
-        KeyCode::Char('b') => (dx, dy) = (-1, 1),
-        KeyCode::Char('n') => (dx, dy) = (1, 1),
+        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
+        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
+        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
+        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => dx = 1,
+        KeyCode::Char('y') | KeyCode::Char('7') => (dx, dy) = (-1, -1),
+        KeyCode::Char('u') | KeyCode::Char('9') => (dx, dy) = (1, -1),
+        KeyCode::Char('b') | KeyCode::Char('1') => (dx, dy) = (-1, 1),
+        KeyCode::Char('n') | KeyCode::Char('3') => (dx, dy) = (1, 1),
         _ => {}
     }
 
@@ -444,10 +455,10 @@ fn run_action_modal(
     let mut sel = action_selected;
     match key.code {
         KeyCode::Esc | KeyCode::Char('i') => close = true,
-        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') | KeyCode::Char('8') => {
             sel = (sel + ACTION_COUNT - 1) % ACTION_COUNT;
         }
-        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') | KeyCode::Char('2') => {
             sel = (sel + 1) % ACTION_COUNT;
         }
         KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
@@ -584,14 +595,14 @@ fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) {
     let mut trigger = None;
     match key.code {
         KeyCode::Esc | KeyCode::Char('i') => close = true,
-        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') => {
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') | KeyCode::Char('8') => {
             new_selected = if new_selected == 0 {
                 item_count.saturating_sub(1)
             } else {
                 new_selected - 1
             };
         }
-        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') => {
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') | KeyCode::Char('2') => {
             new_selected = if new_selected + 1 >= item_count {
                 0
             } else {
@@ -647,14 +658,20 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         KeyCode::Tab => return Ok(auto_fight_turn(world)),
         KeyCode::Char('>') | KeyCode::Char('.') => return Ok(travel_or_use_stairs(world, true)),
         KeyCode::Char('<') | KeyCode::Char(',') => return Ok(travel_or_use_stairs(world, false)),
-        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => Some((0, -1)),
-        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => Some((0, 1)),
-        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => Some((-1, 0)),
-        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => Some((1, 0)),
-        KeyCode::Char('y') => Some((-1, -1)),
-        KeyCode::Char('u') => Some((1, -1)),
-        KeyCode::Char('b') => Some((-1, 1)),
-        KeyCode::Char('n') => Some((1, 1)),
+        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => Some((0, -1)),
+        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => {
+            Some((0, 1))
+        }
+        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => {
+            Some((-1, 0))
+        }
+        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => {
+            Some((1, 0))
+        }
+        KeyCode::Char('y') | KeyCode::Char('7') => Some((-1, -1)),
+        KeyCode::Char('u') | KeyCode::Char('9') => Some((1, -1)),
+        KeyCode::Char('b') | KeyCode::Char('1') => Some((-1, 1)),
+        KeyCode::Char('n') | KeyCode::Char('3') => Some((1, 1)),
         _ => None,
     };
 
@@ -921,23 +938,23 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
             return Ok(());
         }
         KeyCode::Enter | KeyCode::Char(' ') => return confirm_travel_cursor(world),
-        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => dy = -1,
-        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => dy = 1,
-        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => dx = -1,
-        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => dx = 1,
-        KeyCode::Char('y') => {
+        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
+        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
+        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
+        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => dx = 1,
+        KeyCode::Char('y') | KeyCode::Char('7') => {
             dx = -1;
             dy = -1;
         }
-        KeyCode::Char('u') => {
+        KeyCode::Char('u') | KeyCode::Char('9') => {
             dx = 1;
             dy = -1;
         }
-        KeyCode::Char('b') => {
+        KeyCode::Char('b') | KeyCode::Char('1') => {
             dx = -1;
             dy = 1;
         }
-        KeyCode::Char('n') => {
+        KeyCode::Char('n') | KeyCode::Char('3') => {
             dx = 1;
             dy = 1;
         }
@@ -1081,4 +1098,77 @@ fn fast_move_done(world: &mut World, target: Option<(u16, u16)>) -> bool {
     };
     let mut q = world.query_filtered::<&Position, With<Player>>();
     q.iter(world).next().map(|p| (p.x, p.y)) == Some(target)
+}
+
+#[cfg(test)]
+mod numpad_tests {
+    use super::*;
+    use crossterm::event::KeyEvent;
+
+    fn test_world(seed: u64) -> World {
+        let mut w = World::new();
+        w.insert_resource(GameRng(models::ChaCha12Rng::seed_from_u64(seed)));
+        w.insert_resource(RngSeed(seed));
+        w.init_resource::<GameLog>();
+        w.insert_resource(PlayerName {
+            what: "TESTER".into(),
+        });
+        initialize_world(&mut w);
+        w
+    }
+
+    fn player_pos(w: &mut World) -> Position {
+        let mut q = w.query_filtered::<&Position, With<Player>>();
+        *q.iter(w).next().unwrap()
+    }
+
+    #[test]
+    fn numpad_digits_move_the_same_as_their_vi_key_equivalents() {
+        for (digit, letter) in [
+            ('8', 'k'),
+            ('2', 'j'),
+            ('4', 'h'),
+            ('6', 'l'),
+            ('7', 'y'),
+            ('9', 'u'),
+            ('1', 'b'),
+            ('3', 'n'),
+        ] {
+            let mut w = test_world(2112);
+            handle_movement_input(
+                &mut w,
+                KeyEvent::new(KeyCode::Char(digit), KeyModifiers::NONE),
+            )
+            .unwrap();
+            let after_digit = player_pos(&mut w);
+
+            let mut w2 = test_world(2112);
+            handle_movement_input(
+                &mut w2,
+                KeyEvent::new(KeyCode::Char(letter), KeyModifiers::NONE),
+            )
+            .unwrap();
+            let after_letter = player_pos(&mut w2);
+
+            assert_eq!(
+                (after_digit.x, after_digit.y),
+                (after_letter.x, after_letter.y),
+                "numpad {digit} should move exactly like {letter}"
+            );
+        }
+    }
+
+    #[test]
+    fn shift_numpad_direction_reads_as_a_run_direction_like_shift_arrows() {
+        assert_eq!(
+            run_direction(KeyCode::Char('8'), KeyModifiers::SHIFT),
+            run_direction(KeyCode::Up, KeyModifiers::SHIFT)
+        );
+        assert_eq!(
+            run_direction(KeyCode::Char('7'), KeyModifiers::SHIFT),
+            Some((-1, -1))
+        );
+        // Without Shift, a numpad digit is a plain step, not a run.
+        assert_eq!(run_direction(KeyCode::Char('8'), KeyModifiers::NONE), None);
+    }
 }
