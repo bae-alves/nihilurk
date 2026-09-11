@@ -390,10 +390,20 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     sync_equipment_effects(world, thrower);
 
     let seen_name = crate::identify::display_name(world, item);
-    let announcement = if world.get::<Player>(thrower).is_some() {
-        format!("You throw the {seen_name}.")
-    } else {
-        format!("The {} throws the {seen_name}.", item_label(world, thrower))
+    // Loosed from the launcher it's matched to (a bow's arrow, a crossbow's
+    // quarrel), this reads as firing it, not just chucking it by hand.
+    let fired = world
+        .get::<LaunchedBy>(item)
+        .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, thrower));
+    let announcement = match (world.get::<Player>(thrower).is_some(), fired) {
+        (true, true) => format!("You fire {}.", crate::identify::phrase_for(&seen_name)),
+        (true, false) => format!("You throw the {seen_name}."),
+        (false, true) => format!(
+            "The {} fires {}.",
+            item_label(world, thrower),
+            crate::identify::phrase_for(&seen_name)
+        ),
+        (false, false) => format!("The {} throws the {seen_name}.", item_label(world, thrower)),
     };
     world.resource_mut::<GameLog>().add(announcement);
 

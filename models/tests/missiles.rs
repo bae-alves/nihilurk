@@ -248,6 +248,59 @@ fn a_bow_and_a_sword_want_the_same_hand() {
     );
 }
 
+#[test]
+fn firing_an_arrow_from_a_bow_reads_differently_than_throwing_one_by_hand() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+
+    let lobbed = quiver(&mut w, p, "arrow", 1);
+    throw(&mut w, p, lobbed, spot);
+    assert!(
+        logged(&w, "You throw the arrow."),
+        "by hand, it's a throw: {:?}",
+        w.resource::<GameLog>().history
+    );
+
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    toggle_equipped(&mut w, p, bow);
+    let loosed = quiver(&mut w, p, "arrow", 1);
+    throw(&mut w, p, loosed, spot);
+    assert!(
+        logged(&w, "You fire an arrow."),
+        "from a bow, it's fired: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+#[test]
+fn firing_a_quarrel_from_a_crossbow_says_fire_not_throw() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+
+    // The wrong launcher (a bow) is no launcher: still a throw.
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    toggle_equipped(&mut w, p, bow);
+    let mishandled = quiver(&mut w, p, "quarrel", 1);
+    throw(&mut w, p, mishandled, spot);
+    assert!(
+        logged(&w, "You throw the quarrel."),
+        "wrong launcher, still a throw: {:?}",
+        w.resource::<GameLog>().history
+    );
+
+    let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
+    toggle_equipped(&mut w, p, crossbow);
+    let loosed = quiver(&mut w, p, "quarrel", 1);
+    throw(&mut w, p, loosed, spot);
+    assert!(
+        logged(&w, "You fire a quarrel."),
+        "from a crossbow, it's fired: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
 // ---------------------------------------------------------------------------
 // The pluses
 // ---------------------------------------------------------------------------
