@@ -289,8 +289,12 @@ fn create_monster(world: &mut World, user: Entity) {
 /// against one random species (it already bites clean through any Jabberwock).
 /// A weapon can only take the edge once — read it over an already-vorpal weapon
 /// and the blade can't hold the second enchantment: it crumbles to nothing.
+///
+/// A bow or crossbow in hand doesn't count — the edge has nothing to bite
+/// with — so it fizzles exactly as if the hand were empty.
 fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
-    let weapon = equipped_in(world, user, Slot::Hand);
+    let weapon =
+        equipped_in(world, user, Slot::Hand).filter(|&e| world.get::<Launcher>(e).is_none());
     let Some(weapon) = weapon else {
         world
             .resource_mut::<GameLog>()

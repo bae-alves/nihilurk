@@ -318,6 +318,36 @@ fn vorpalize_with_empty_hands_just_fizzles() {
 }
 
 #[test]
+fn vorpalize_with_a_bow_in_hand_also_just_fizzles() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
+    let bow = spawn_launcher(&mut w, "short bow", Position { x: 0, y: 0 });
+    stash(&mut w, p, bow);
+    toggle_equipped(&mut w, p, bow);
+
+    let scroll = spawn_scroll(
+        &mut w,
+        ScrollEffect::VorpalizeWeapon,
+        Position { x: 0, y: 0 },
+    );
+    stash(&mut w, p, scroll);
+    use_item(&mut w, p, scroll);
+
+    // A launcher has no edge to enchant — the scroll fizzles as if the hand
+    // were empty, and the bow stays a plain bow.
+    assert_eq!(w.query::<&Vorpal>().iter(&w).count(), 0);
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("gutters out"))
+    );
+}
+
+#[test]
 fn a_vorpal_blade_beheads_its_bane_in_one_blow() {
     let mut w = test_world(1);
     let p = player(&mut w);
