@@ -296,6 +296,126 @@ fn explore_step_wont_walk_onto_a_known_trap() {
     );
 }
 
+/// Once auto-explore has committed to a frontier, a nearer alternative
+/// appearing elsewhere doesn't hijack the walk — the whole point of
+/// [`AutoExplore::frontier`]: finish the approach you're already on instead
+/// of trekking back to it later.
+#[test]
+fn explore_step_keeps_walking_toward_its_committed_frontier() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
+    w.insert_resource(RngSeed(2112));
+    w.init_resource::<GameLog>();
+    w.init_resource::<AutoExplore>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+
+    let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
+    for e in existing_traps {
+        w.despawn(e);
+    }
+
+    // A T-junction: a one-tile west nook (an immediate, 1-hop frontier) and a
+    // four-tile east corridor (its frontier 4 hops away).
+    {
+        let mut map = w.resource_mut::<Map>();
+        for t in map.tiles.iter_mut() {
+            *t = TileType::Wall;
+        }
+        for x in 9..=14u16 {
+            map.tiles[tile_index(x, 10)] = TileType::Passage;
+        }
+    }
+
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    {
+        let mut p = w.get_mut::<Position>(player).unwrap();
+        p.x = 10;
+        p.y = 10;
+    }
+    {
+        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+        for x in 9..=14u16 {
+            for y in 9..=11u16 {
+                vs.revealed_tiles.insert(tile_index(x, y));
+            }
+        }
+    }
+
+    // Already committed to the far end of the east corridor.
+    w.resource_mut::<AutoExplore>().frontier = Some((14, 10));
+
+    assert_eq!(
+        explore_step(&mut w),
+        Some((1, 0)),
+        "should keep heading east toward the committed frontier, not detour to the nearer west nook"
+    );
+    assert_eq!(
+        w.resource::<AutoExplore>().frontier,
+        Some((14, 10)),
+        "the commitment should survive the step unchanged"
+    );
+}
+
+/// When auto-explore has to pick a fresh frontier and more than one is
+/// equally close, it favours the one that heads toward the still-unseen
+/// downstairs, so finishing the floor doesn't end with a separate walk back
+/// to find them.
+#[test]
+fn explore_step_picks_the_frontier_toward_unseen_downstairs_on_a_tie() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
+    w.insert_resource(RngSeed(2112));
+    w.init_resource::<GameLog>();
+    w.init_resource::<AutoExplore>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+
+    let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
+    for e in existing_traps {
+        w.despawn(e);
+    }
+
+    // A straight corridor, x 7..=13 at y = 10, hub at x = 10 — symmetric
+    // frontiers 3 hops away in each direction. The downstairs sit far to the
+    // west, still unseen.
+    {
+        let mut map = w.resource_mut::<Map>();
+        for t in map.tiles.iter_mut() {
+            *t = TileType::Wall;
+        }
+        for x in 7..=13u16 {
+            map.tiles[tile_index(x, 10)] = TileType::Passage;
+        }
+        map.tiles[tile_index(2, 10)] = TileType::Downstairs;
+    }
+
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    {
+        let mut p = w.get_mut::<Position>(player).unwrap();
+        p.x = 10;
+        p.y = 10;
+    }
+    {
+        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+        for x in 7..=13u16 {
+            for y in 9..=11u16 {
+                vs.revealed_tiles.insert(tile_index(x, y));
+            }
+        }
+    }
+
+    assert_eq!(
+        explore_step(&mut w),
+        Some((-1, 0)),
+        "both frontiers are 3 hops away; the one toward the downstairs should win"
+    );
+}
+
 #[test]
 fn monster_in_sight_tracks_visible_mobs() {
     let mut w = World::new();

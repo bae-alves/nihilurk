@@ -2,9 +2,13 @@
 //! staircase you have already found walks you to it. Either way the player moves
 //! one step per turn until the goal is reached or something interrupts the walk.
 //!
-//! The pathfinding here is deliberately pure — the `*_step` functions only read
-//! the world — so the engine can own the parts that touch the terminal (polling
-//! for a keypress) and the message log, and the interesting logic stays testable.
+//! The pathfinding here mostly only reads the world — so the engine can own the
+//! parts that touch the terminal (polling for a keypress) and the message log,
+//! and the interesting logic stays testable. [`explore_step`] is the one
+//! exception: it remembers, in [`AutoExplore::frontier`], the unexplored tile
+//! it's currently walking toward, so a single-step recompute doesn't abandon
+//! an almost-finished approach the instant something else looks marginally
+//! closer — see its doc comment.
 
 use std::collections::{HashSet, VecDeque};
 
@@ -29,6 +33,12 @@ pub struct AutoExplore {
     /// `Some` while travelling to a fixed tile (a known staircase); `None` for
     /// open-ended exploration.
     pub target: Option<(u16, u16)>,
+    /// The frontier tile open-ended exploration (`target == None`) is
+    /// currently committed to walking toward. [`explore_step`] keeps heading
+    /// here — rather than re-picking the globally nearest frontier every
+    /// single turn — until it's reached or stops being a frontier, so a room
+    /// that's 95% mapped gets finished before something else takes over.
+    pub frontier: Option<(u16, u16)>,
 }
 
 impl AutoExplore {
@@ -38,12 +48,14 @@ impl AutoExplore {
         self.active = true;
         self.steps = 0;
         self.target = target;
+        self.frontier = None;
     }
 
     /// Halt any auto-walk.
     pub fn stop(&mut self) {
         self.active = false;
         self.target = None;
+        self.frontier = None;
     }
 }
 
@@ -143,13 +155,81 @@ where
         }
     }
 
-    // Walk the predecessor chain back until we sit on the tile right after the
-    // player: that first hop is the move to make this turn.
-    let mut cur = found?;
+    first_hop(px, py, start, found?, &prev)
+}
+
+/// Breadth-first search across tiles `open`, from `(px, py)`, for the nearest
+/// tile satisfying `goal` — same shortest-path search as [`first_step`], but
+/// returning the tile's coordinates rather than the hop toward it.
+///
+/// `bias`, when given, breaks ties among a node's several open neighbours in
+/// the same BFS layer by preferring whichever lies closest to that point, so
+/// that when two frontiers are equally near, the one heading toward it wins.
+/// [`explore_step`] uses this to favour the still-unseen downstairs.
+fn nearest_open_tile<O, S, G>(
+    px: u16,
+    py: u16,
+    open: O,
+    step_ok: S,
+    goal: G,
+    bias: Option<(u16, u16)>,
+) -> Option<(u16, u16)>
+where
+    O: Fn(u16, u16) -> bool,
+    S: Fn(u16, u16, u16, u16) -> bool,
+    G: Fn(u16, u16) -> bool,
+{
+    let start = tile_index(px, py);
+    let mut visited = vec![false; MAP_TILE_COUNT];
+    visited[start] = true;
+    let mut queue: VecDeque<(u16, u16)> = VecDeque::new();
+    queue.push_back((px, py));
+
+    let dist_to_bias = |x: u16, y: u16| -> i64 {
+        let Some((bx, by)) = bias else {
+            return 0;
+        };
+        let dx = x as i64 - bx as i64;
+        let dy = y as i64 - by as i64;
+        dx * dx + dy * dy
+    };
+
+    while let Some((cx, cy)) = queue.pop_front() {
+        if (cx != px || cy != py) && goal(cx, cy) {
+            return Some((cx, cy));
+        }
+        let mut candidates: Vec<(u16, u16)> = Vec::new();
+        for &(dx, dy) in &DIRS {
+            let nx = cx as i32 + dx;
+            let ny = cy as i32 + dy;
+            if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
+                continue;
+            }
+            let (nx, ny) = (nx as u16, ny as u16);
+            let ni = tile_index(nx, ny);
+            if visited[ni] || !open(nx, ny) || !step_ok(cx, cy, nx, ny) {
+                continue;
+            }
+            visited[ni] = true;
+            candidates.push((nx, ny));
+        }
+        // Closest to the bias point first: within the batch this node
+        // contributes to the next layer, that one is dequeued soonest.
+        candidates.sort_by_key(|&(x, y)| dist_to_bias(x, y));
+        queue.extend(candidates);
+    }
+    None
+}
+
+/// Shared tail of [`first_step`]: walks `prev`'s predecessor chain from
+/// `found` back to the tile right after the player — that first hop is the
+/// move to make this turn.
+fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Option<(i16, i16)> {
+    let mut cur = found;
     while prev[cur] != start {
         cur = prev[cur];
         if cur == usize::MAX {
-            return None; // unreachable in practice; the goal came off the queue
+            return None; // unreachable in practice; the goal came off the search
         }
     }
     let tx = (cur % MAP_WIDTH as usize) as i16;
@@ -157,13 +237,27 @@ where
     Some((tx - px as i16, ty - py as i16))
 }
 
-/// The single `(dx, dy)` step the player should take toward the closest tile that
-/// borders unexplored ground, or `None` when every reachable tile has already
-/// been seen. Pure: reads the world, never mutates it.
+/// The single `(dx, dy)` step the player should take to keep exploring, or
+/// `None` when every reachable tile has already been seen.
+///
+/// Keeps heading toward [`AutoExplore::frontier`] — the frontier tile it last
+/// committed to — for as long as that's still a real frontier, rather than
+/// re-picking the globally nearest one fresh every turn. Recomputing "nearest"
+/// on every step is what let auto-explore abandon a room that was 95% mapped
+/// the moment something elsewhere became marginally closer, only to trek back
+/// through it later; sticking to one destination until it's actually reached
+/// (or made moot) avoids that. Once a new frontier needs picking, ties toward
+/// the still-unseen downstairs when there's a real choice of direction.
+///
+/// Reads the world like the rest of this module's `*_step` functions, but
+/// also writes the frontier it commits to back into [`AutoExplore`].
 pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     let traps = known_trap_tiles(world);
     let (px, py, seen) = player_view(world)?;
-    let map = world.resource::<Map>();
+    // `AutoExplore` isn't inserted in every test world; treat it as having no
+    // committed frontier yet rather than panicking.
+    let cached_frontier = world.get_resource::<AutoExplore>().and_then(|a| a.frontier);
+    let map = world.resource::<Map>().clone();
 
     let is_seen = |x: u16, y: u16| -> bool {
         x < MAP_WIDTH && y < MAP_HEIGHT && seen.contains(tile_index(x, y))
@@ -188,7 +282,25 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     };
 
     let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
-    first_step(px, py, &open, step_ok, &is_frontier)
+
+    // Still committed to a real frontier: keep walking there.
+    if let Some(target) = cached_frontier {
+        if is_frontier(target.0, target.1) {
+            if let Some(hop) = first_step(px, py, &open, step_ok, |x, y| (x, y) == target) {
+                return Some(hop);
+            }
+        }
+    }
+
+    // Time to pick a new one — steer toward the downstairs while they're
+    // still unseen, so finishing the floor doesn't end with a separate walk
+    // back to find them.
+    let bias = stair_location(&map, true).filter(|&(sx, sy)| !is_seen(sx, sy));
+    let next = nearest_open_tile(px, py, &open, step_ok, &is_frontier, bias)?;
+    if let Some(mut auto) = world.get_resource_mut::<AutoExplore>() {
+        auto.frontier = Some(next);
+    }
+    first_step(px, py, &open, step_ok, |x, y| (x, y) == next)
 }
 
 /// Transient UI state for the `O` command: a free-floating cursor the player
