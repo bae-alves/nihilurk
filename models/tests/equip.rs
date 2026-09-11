@@ -493,3 +493,84 @@ fn a_vorpal_weapons_bane_only_shows_once_its_quality_is_known() {
     use_item(&mut w, p, sword);
     assert_eq!(display_name(&w, sword), "long sword (vorpal vs. orc)");
 }
+
+#[test]
+fn two_rings_can_be_worn_at_once_and_both_effects_stack() {
+    let mut w = test_world(17);
+    let p = player(&mut w);
+    // The starting mace carries its own +1; clear the whole kit so the totals
+    // below are the rings' contribution alone.
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
+    let items = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
+    for item in items {
+        w.despawn(item);
+    }
+
+    let protection = spawn_ring(&mut w, RingEffect::Protection, Position { x: 0, y: 0 });
+    let strength = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
+    for e in [protection, strength] {
+        w.entity_mut(e).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(e);
+    }
+
+    use_item(&mut w, p, protection);
+    assert!(is_equipped(&w, protection));
+    use_item(&mut w, p, strength);
+    assert!(
+        is_equipped(&w, protection),
+        "putting on a second ring should not bump the first"
+    );
+    assert!(is_equipped(&w, strength));
+
+    // Both rings' bonuses fold in together, not one replacing the other.
+    assert_eq!(equipped_total::<ArmorBonus>(&w, p), 2);
+    assert_eq!(equipped_total::<PowerBonus>(&w, p), 2);
+}
+
+#[test]
+fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
+    let mut w = test_world(19);
+    let p = player(&mut w);
+
+    let first = spawn_ring(&mut w, RingEffect::Protection, Position { x: 0, y: 0 });
+    let second = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
+    let third = spawn_ring(&mut w, RingEffect::Dexterity, Position { x: 0, y: 0 });
+    for e in [first, second, third] {
+        w.entity_mut(e).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(e);
+    }
+    use_item(&mut w, p, first);
+    use_item(&mut w, p, second);
+
+    // Both fingers full, neither cursed: the third bumps one of them off.
+    use_item(&mut w, p, third);
+    assert!(is_equipped(&w, third));
+    let still_on = [first, second]
+        .into_iter()
+        .filter(|&e| is_equipped(&w, e))
+        .count();
+    assert_eq!(
+        still_on, 1,
+        "putting on a third ring should evict exactly one"
+    );
+
+    // Now curse both worn rings: nothing can budge them for a fourth.
+    let worn: Vec<Entity> = [first, second, third]
+        .into_iter()
+        .filter(|&e| is_equipped(&w, e))
+        .collect();
+    assert_eq!(worn.len(), 2);
+    for &e in &worn {
+        w.entity_mut(e).insert(Curse);
+    }
+    let fourth = spawn_ring(&mut w, RingEffect::Adornment, Position { x: 0, y: 0 });
+    w.entity_mut(fourth).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(fourth);
+    use_item(&mut w, p, fourth);
+    assert!(
+        !is_equipped(&w, fourth),
+        "both fingers cursed shut should refuse a fourth ring"
+    );
+}

@@ -22,18 +22,27 @@ use serde::{Deserialize, Serialize};
 use crate::components::{Backpack, Curse, GameLog, KnownQuality, Position};
 use crate::effects::{EFFECTS, EffectSet, GrantedByGear, Grants, effect_set};
 
-/// Where a piece of gear goes. One item per slot at a time.
+/// Where a piece of gear goes. One item per slot at a time, except
+/// [`Slot::Finger`] — a hand has room for two rings.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Slot {
     /// Weapons.
     Hand,
     /// Armour.
     Body,
-    /// Rings.
+    /// Rings. Holds up to [`Slot::capacity`], not just one.
     Finger,
 }
 
 impl Slot {
+    /// How many items this slot holds at once — one, except a pair of rings.
+    fn capacity(self) -> usize {
+        match self {
+            Slot::Finger => 2,
+            Slot::Hand | Slot::Body => 1,
+        }
+    }
+
     /// "You ___ the dagger." — logged when the item goes on.
     fn donned(self, name: &str) -> String {
         match self {
@@ -111,11 +120,20 @@ pub fn equipped_items(world: &World, entity: Entity) -> Vec<Entity> {
         .collect()
 }
 
-/// What `entity` has equipped in `slot`, if anything.
-pub fn equipped_in(world: &World, entity: Entity, slot: Slot) -> Option<Entity> {
+/// Everything `entity` currently has equipped in `slot` — usually zero or one,
+/// but up to [`Slot::capacity`] for [`Slot::Finger`].
+fn equipped_in_slot(world: &World, entity: Entity, slot: Slot) -> Vec<Entity> {
     equipped_items(world, entity)
         .into_iter()
-        .find(|&i| world.get::<Equipped>(i).is_some_and(|e| e.slot == slot))
+        .filter(|&i| world.get::<Equipped>(i).is_some_and(|e| e.slot == slot))
+        .collect()
+}
+
+/// What `entity` has equipped in `slot`, if anything. For [`Slot::Finger`],
+/// which can hold two, this is only the first one found — callers that care
+/// about both rings want [`equipped_in_slot`] instead.
+pub fn equipped_in(world: &World, entity: Entity, slot: Slot) -> Option<Entity> {
+    equipped_in_slot(world, entity, slot).into_iter().next()
 }
 
 /// Takes `item` off `user`, no questions asked (no curse check, no logging).
@@ -129,7 +147,8 @@ pub fn force_unequip(world: &mut World, item: Entity) {
 /// Puts `item` on, or takes it off if it's already on — the one path for every
 /// slot. Returns `true` if the equipped state actually changed.
 ///
-/// Equipping first frees the slot, and a cursed occupant refuses to budge.
+/// Equipping first frees room in the slot if it's full — both rings, for
+/// [`Slot::Finger`] — and a cursed occupant refuses to budge.
 pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     let Some(slot) = world.get::<Equipped>(item).map(|e| e.slot) else {
         return false;
@@ -148,16 +167,20 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         return true;
     }
 
-    // Free the slot first — a cursed occupant blocks the swap.
-    if let Some(occupant) = equipped_in(world, user, slot) {
-        if world.get::<Curse>(occupant).is_some() {
-            let stuck_name = crate::identify::display_name(world, occupant);
-            world
-                .resource_mut::<GameLog>()
-                .add(slot.blocked(&stuck_name));
-            return false;
+    // Full up: make room, evicting an uncursed occupant over a cursed one. A
+    // hand short one ring, say, has room to spare and skips this entirely.
+    let occupants = equipped_in_slot(world, user, slot);
+    if occupants.len() >= slot.capacity() {
+        match occupants.iter().find(|&&e| world.get::<Curse>(e).is_none()) {
+            Some(&evictable) => force_unequip(world, evictable),
+            None => {
+                let stuck_name = crate::identify::display_name(world, occupants[0]);
+                world
+                    .resource_mut::<GameLog>()
+                    .add(slot.blocked(&stuck_name));
+                return false;
+            }
         }
-        force_unequip(world, occupant);
     }
 
     if let Some(mut e) = world.get_mut::<Equipped>(item) {
@@ -190,7 +213,7 @@ pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
     let Some(slot) = world.get::<Equipped>(item).map(|e| e.slot) else {
         return false;
     };
-    if equipped_in(world, wearer, slot).is_some() {
+    if equipped_in_slot(world, wearer, slot).len() >= slot.capacity() {
         return false;
     }
     if let Some(mut e) = world.get_mut::<Equipped>(item) {
