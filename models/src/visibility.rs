@@ -1,5 +1,6 @@
 use crate::components::*;
 use crate::effects::SeesInvisible;
+use crate::identify::{Identified, ItemAppearances, named_display, phrase_for};
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 use bevy_ecs::prelude::*;
 use std::collections::{HashSet, VecDeque};
@@ -10,6 +11,7 @@ fn in_bounds(x: i16, y: i16) -> bool {
 }
 
 #[allow(clippy::type_complexity)] // one query covering both mobs and floor items
+#[allow(clippy::too_many_arguments)]
 pub fn visibility_system(
     mut commands: Commands,
 
@@ -24,13 +26,18 @@ pub fn visibility_system(
 
     // Everything the player can "spot": monsters and floor items. `Option`s let
     // one query cover both kinds and track the per-entity spotted state.
-    spot_query: Query<
+    #[allow(clippy::type_complexity)] spot_query: Query<
         (
             Entity,
             &Position,
             Option<&Mob>,
             Option<&Invisible>,
             Option<&Name>,
+            Option<&Stack>,
+            Option<&Potion>,
+            Option<&Scroll>,
+            Option<&Wand>,
+            Option<&Ring>,
             Option<&Spotted>,
         ),
         Or<(With<Mob>, With<Item>)>,
@@ -42,6 +49,8 @@ pub fn visibility_system(
     mut log: ResMut<GameLog>,
 
     map: Res<Map>,
+    identified: Res<Identified>,
+    appearances: Res<ItemAppearances>,
 ) {
     let any_dirty = viewshed_query.iter().any(|(_, v, _, _)| v.dirty);
     if !any_dirty {
@@ -55,7 +64,15 @@ pub fn visibility_system(
         let perception = sees_invisible.is_some();
         let visible = visible_from(&map, pos);
 
-        hide_and_announce(&mut commands, &mut log, &spot_query, &visible, perception);
+        hide_and_announce(
+            &mut commands,
+            &mut log,
+            &spot_query,
+            &visible,
+            perception,
+            &identified,
+            &appearances,
+        );
         reveal_traps(
             &mut commands,
             &mut log,
@@ -163,14 +180,23 @@ fn hide_and_announce(
             Option<&Mob>,
             Option<&Invisible>,
             Option<&Name>,
+            Option<&Stack>,
+            Option<&Potion>,
+            Option<&Scroll>,
+            Option<&Wand>,
+            Option<&Ring>,
             Option<&Spotted>,
         ),
         Or<(With<Mob>, With<Item>)>,
     >,
     visible: &HashSet<(u16, u16)>,
     perception: bool,
+    identified: &Identified,
+    appearances: &ItemAppearances,
 ) {
-    for (entity, pos, mob, invisible, name, spotted) in spot_query.iter() {
+    for (entity, pos, mob, invisible, name, stack, potion, scroll, wand, ring, spotted) in
+        spot_query.iter()
+    {
         let in_view = visible.contains(&(pos.x, pos.y));
         let perceptible = in_view && (invisible.is_none() || perception);
 
@@ -192,7 +218,17 @@ fn hide_and_announce(
         // item that hasn't been turned up yet (still `Invisible`).
         let announce = perceptible && !(mob.is_none() && invisible.is_some());
         if announce && spotted.is_none() {
-            log.add(spotted_line(name));
+            let seen_name = named_display(
+                potion,
+                scroll,
+                wand,
+                ring,
+                name,
+                stack,
+                identified,
+                appearances,
+            );
+            log.add(spotted_line(&seen_name));
             commands.entity(entity).insert(Spotted);
         }
         if !announce && spotted.is_some() {
@@ -201,12 +237,10 @@ fn hide_and_announce(
     }
 }
 
-/// The sighting line for a freshly spotted thing.
-fn spotted_line(name: Option<&Name>) -> String {
-    match name {
-        Some(name) => format!("you spotted {} {}", name.article(), name.what),
-        None => "you spotted something".to_string(),
-    }
+/// The sighting line for a freshly spotted thing, using its identification-aware
+/// display name rather than its (possibly still-secret) true [`Name`].
+fn spotted_line(seen_name: &str) -> String {
+    format!("You spotted {}.", phrase_for(seen_name))
 }
 
 /// Brings hidden traps to light: a `Sight` trap the instant its tile is in
@@ -231,7 +265,7 @@ fn reveal_traps(
         trap.revealed = true;
         commands.entity(entity).remove::<Hidden>();
         log.add(format!(
-            "you spot {} {}",
+            "You spot {} {}.",
             trap.effect.label_article(),
             trap.effect.label()
         ));

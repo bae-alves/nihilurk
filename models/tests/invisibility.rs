@@ -110,7 +110,7 @@ fn a_ring_of_perception_turns_up_the_phantom() {
 
     assert!(w.get::<Hidden>(phantom).is_none(), "the ring reveals it");
     assert!(w.get::<Spotted>(phantom).is_some());
-    assert!(log_has(&w, "you spotted a phantom"));
+    assert!(log_has(&w, "You spotted a phantom"));
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn perception_reveals_every_trap_on_the_floor() {
     run_visibility(&mut w);
     assert!(w.get::<Hidden>(trap).is_none(), "the ring lays it bare");
     assert!(w.get::<Trap>(trap).unwrap().revealed);
-    assert!(log_has(&w, "you spot"));
+    assert!(log_has(&w, "You spot"));
 }
 
 #[test]

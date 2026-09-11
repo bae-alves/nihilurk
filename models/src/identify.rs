@@ -196,60 +196,83 @@ pub struct Identified {
 /// (weapons, armor, gold, the amulet) always show their true [`Name`], and a
 /// [`Stack`] of them shows how many it holds.
 pub fn display_name(world: &World, item: Entity) -> String {
-    if let Some(p) = world.get::<crate::components::Potion>(item) {
-        if world.resource::<Identified>().potions.contains(&p.effect) {
-            return item_label(world, item);
+    named_display(
+        world.get::<crate::components::Potion>(item),
+        world.get::<crate::components::Scroll>(item),
+        world.get::<crate::components::Wand>(item),
+        world.get::<Ring>(item),
+        world.get::<Name>(item),
+        world.get::<Stack>(item),
+        world.resource::<Identified>(),
+        world.resource::<ItemAppearances>(),
+    )
+}
+
+/// The [`display_name`] logic, decoupled from `&World` so a `Query`-based
+/// system (which never holds a whole-`World` reference) can render the same
+/// identification-aware label — see [`crate::visibility::spotted_line`].
+#[allow(clippy::too_many_arguments)]
+pub fn named_display(
+    potion: Option<&crate::components::Potion>,
+    scroll: Option<&crate::components::Scroll>,
+    wand: Option<&crate::components::Wand>,
+    ring: Option<&Ring>,
+    name: Option<&Name>,
+    stack: Option<&Stack>,
+    identified: &Identified,
+    appearances: &ItemAppearances,
+) -> String {
+    let true_name = || {
+        name.map(|n| n.what.clone())
+            .unwrap_or_else(|| "item".to_string())
+    };
+    if let Some(p) = potion {
+        if identified.potions.contains(&p.effect) {
+            return true_name();
         }
-        let appearance = world
-            .resource::<ItemAppearances>()
+        let appearance = appearances
             .potions
             .get(&p.effect)
             .cloned()
             .unwrap_or_else(|| "strange".to_string());
         return format!("{appearance} potion");
     }
-    if let Some(s) = world.get::<crate::components::Scroll>(item) {
-        if world.resource::<Identified>().scrolls.contains(&s.effect) {
-            return item_label(world, item);
+    if let Some(s) = scroll {
+        if identified.scrolls.contains(&s.effect) {
+            return true_name();
         }
-        let appearance = world
-            .resource::<ItemAppearances>()
+        let appearance = appearances
             .scrolls
             .get(&s.effect)
             .cloned()
             .unwrap_or_else(|| "unreadable".to_string());
         return format!("scroll labeled {appearance}");
     }
-    if let Some(w) = world.get::<crate::components::Wand>(item) {
-        if world.resource::<Identified>().wands.contains(&w.effect) {
-            return item_label(world, item);
+    if let Some(w) = wand {
+        if identified.wands.contains(&w.effect) {
+            return true_name();
         }
-        let appearance = world
-            .resource::<ItemAppearances>()
+        let appearance = appearances
             .wands
             .get(&w.effect)
             .cloned()
             .unwrap_or_else(|| "strange".to_string());
         return format!("{appearance} wand");
     }
-    if let Some(r) = world.get::<Ring>(item) {
-        if world.resource::<Identified>().rings.contains(&r.effect) {
-            return item_label(world, item);
+    if let Some(r) = ring {
+        if identified.rings.contains(&r.effect) {
+            return true_name();
         }
-        let appearance = world
-            .resource::<ItemAppearances>()
+        let appearance = appearances
             .rings
             .get(&r.effect)
             .cloned()
             .unwrap_or_else(|| "plain".to_string());
         return format!("{appearance} ring");
     }
-    let name = world
-        .get::<Name>(item)
-        .map(|n| n.what.clone())
-        .unwrap_or_else(|| "item".to_string());
+    let name = true_name();
     // A stack says how many it is: one pack slot reading "7 arrows".
-    match world.get::<Stack>(item).map(|s| s.count).filter(|&c| c > 1) {
+    match stack.map(|s| s.count).filter(|&c| c > 1) {
         Some(count) => format!("{count} {name}s"),
         None => name,
     }
@@ -264,15 +287,21 @@ pub fn counted(name: &str, count: u8) -> String {
     format!("{count} {name}s")
 }
 
+/// `name` as it reads in a sentence, prefixed with an article unless it
+/// already carries its own count or built-in definite article — `"a dagger"`,
+/// but `"7 arrows"` and `"The Element of Yoord"` stand as they are.
+pub fn phrase_for(name: &str) -> String {
+    if name.starts_with(|c: char| c.is_ascii_digit()) || name.starts_with("The ") {
+        return name.to_string();
+    }
+    format!("{} {name}", article_for(name))
+}
+
 /// `item` as it reads in a sentence — `"a dagger"`, `"7 arrows"`, `"The Element
 /// of Yoord"`. A stack counts itself and the relic carries its own article, so
 /// neither takes an "a".
 pub fn with_article(world: &World, item: Entity) -> String {
-    let name = display_name(world, item);
-    if name.starts_with(|c: char| c.is_ascii_digit()) || name.starts_with("The ") {
-        return name;
-    }
-    format!("{} {name}", article_for(&name))
+    phrase_for(&display_name(world, item))
 }
 
 /// The indefinite article that reads correctly before `s`: `"an"` before a
