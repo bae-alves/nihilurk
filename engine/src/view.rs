@@ -300,17 +300,17 @@ pub fn render<W: Write>(
     });
 
     // 2. Targeting beam.
-    let targeting = world.resource::<TargetingState>();
-    let is_targeting = targeting.active;
-    let target_line: HashSet<(u16, u16)> = if is_targeting {
-        bresenham_line(
-            player_pos.0,
-            player_pos.1,
-            targeting.cursor_x as u16,
-            targeting.cursor_y as u16,
+    let (is_targeting, targeting_tip) = {
+        let targeting = world.resource::<TargetingState>();
+        (
+            targeting.active,
+            (targeting.cursor_x as u16, targeting.cursor_y as u16),
         )
-        .into_iter()
-        .collect()
+    };
+    let target_line: HashSet<(u16, u16)> = if is_targeting {
+        bresenham_line(player_pos.0, player_pos.1, targeting_tip.0, targeting_tip.1)
+            .into_iter()
+            .collect()
     } else {
         HashSet::new()
     };
@@ -494,12 +494,25 @@ pub fn render<W: Write>(
                 continue;
             }
             if visible.contains(&(tx, ty)) && occupied_by_actor.contains(&(tx, ty)) {
-                // Keep the actor's glyph but recolour it.
-                let (ch, _, _) = screen.get(tx, ty + 1);
-                screen.put(tx, ty + 1, ch, Color::Yellow);
-                continue;
+                // Keep the actor's glyph, but recolour it — unless it was
+                // already yellow (or close to it), in which case switch to
+                // black instead, so a naturally-yellow monster doesn't just
+                // disappear into the beam's own colour.
+                let (ch, fg, _) = screen.get(tx, ty + 1);
+                let recolor = if matches!(fg, Color::Yellow | Color::DarkYellow) {
+                    Color::Black
+                } else {
+                    Color::Yellow
+                };
+                screen.put(tx, ty + 1, ch, recolor);
+            } else {
+                screen.put(tx, ty + 1, '*', Color::Yellow);
             }
-            screen.put(tx, ty + 1, '*', Color::Yellow);
+            // The reticle's own tip gets a background too, so it doesn't read
+            // as just another yellow monster along the beam.
+            if (tx, ty) == targeting_tip {
+                screen.set_bg(tx, ty + 1, Color::DarkBlue);
+            }
         }
     }
 
