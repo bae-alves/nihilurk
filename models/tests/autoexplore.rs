@@ -176,6 +176,48 @@ fn travel_walks_the_player_onto_a_known_staircase() {
     }
 }
 
+/// A known trap sitting on the travel target itself is refused rather than
+/// walked onto — the player can still step there by hand, but auto-travel
+/// won't do it for them.
+#[test]
+fn travel_step_wont_walk_onto_a_known_trap() {
+    let (mut w, player) = fresh_floor(2112);
+    {
+        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+        for i in 0..MAP_TILE_COUNT {
+            vs.revealed_tiles.insert(i);
+        }
+    }
+    let (px, py) = {
+        let p = w.get::<Position>(player).unwrap();
+        (p.x, p.y)
+    };
+    // Any open tile next to the player will do as the target.
+    let map = w.resource::<Map>().clone();
+    let target = DIRS
+        .iter()
+        .map(|&(dx, dy)| ((px as i32 + dx) as u16, (py as i32 + dy) as u16))
+        .find(|&(x, y)| !map.blocks(x, y))
+        .expect("a player never stands fully walled in");
+
+    w.spawn((
+        Position {
+            x: target.0,
+            y: target.1,
+        },
+        Trap {
+            effect: TrapEffect::Dart,
+            reveal: TrapReveal::Sight,
+            revealed: true,
+        },
+    ));
+
+    assert!(
+        travel_step(&mut w, target).is_none(),
+        "auto-travel should refuse to step onto a known trap"
+    );
+}
+
 #[test]
 fn explore_step_is_none_when_the_whole_map_is_known() {
     let (mut w, player) = fresh_floor(2112);
@@ -186,6 +228,72 @@ fn explore_step_is_none_when_the_whole_map_is_known() {
         }
     }
     assert!(explore_step(&mut w).is_none());
+}
+
+/// A known trap sitting on the only tile bordering unexplored ground takes it
+/// out of consideration as a frontier: auto-explore refuses to walk onto it
+/// rather than treating it like any other open tile.
+#[test]
+fn explore_step_wont_walk_onto_a_known_trap() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
+    w.insert_resource(RngSeed(2112));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+
+    // Only the trap this test plants should be in play.
+    let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
+    for e in existing_traps {
+        w.despawn(e);
+    }
+
+    // A bare corridor, x 0..=6 at y = 5, walled everywhere else.
+    {
+        let mut map = w.resource_mut::<Map>();
+        for t in map.tiles.iter_mut() {
+            *t = TileType::Wall;
+        }
+        for x in 0..=6u16 {
+            map.tiles[tile_index(x, 5)] = TileType::Passage;
+        }
+    }
+
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    {
+        let mut p = w.get_mut::<Position>(player).unwrap();
+        p.x = 0;
+        p.y = 5;
+    }
+    // Reveal x = 0..=3 (passage row y=5, plus the walls hugging it at y=4/6,
+    // exactly as the real visibility system would have when the player stood
+    // there). x = 3 borders the unrevealed x = 4 and is the only tile with an
+    // unseen neighbour — the lone frontier auto-explore would head for.
+    {
+        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+        for x in 0..=3u16 {
+            for y in 4..=6u16 {
+                vs.revealed_tiles.insert(tile_index(x, y));
+            }
+        }
+    }
+
+    // A known trap parked right on that frontier tile.
+    w.spawn((
+        Position { x: 3, y: 5 },
+        Trap {
+            effect: TrapEffect::Dart,
+            reveal: TrapReveal::Sight,
+            revealed: true,
+        },
+    ));
+
+    assert!(
+        explore_step(&mut w).is_none(),
+        "the only frontier tile is a known trap; explore should refuse it"
+    );
 }
 
 #[test]

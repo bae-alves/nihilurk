@@ -183,6 +183,48 @@ fn straight_step_stops_at_a_wall() {
     assert_eq!(straight_step(&mut w), None);
 }
 
+/// A trap the player has already seen — [`Hidden`] lifted — sitting directly in
+/// a run's path stops the run cold, the same as a wall would.
+#[test]
+fn straight_step_stops_before_a_known_trap() {
+    let (mut w, _player) = arena();
+    w.spawn((
+        Position { x: 18, y: 9 }, // one step east of the player
+        Trap {
+            effect: TrapEffect::Dart,
+            reveal: TrapReveal::Sight,
+            revealed: true,
+        },
+    ));
+    w.resource_mut::<FastMove>().start(1, 0, None);
+
+    assert_eq!(
+        straight_step(&mut w),
+        None,
+        "a known trap should block a run like a wall"
+    );
+}
+
+/// The same known trap makes the planner report the run as blocked rather than
+/// kicking off a straight run that would immediately stop on it.
+#[test]
+fn fast_move_plan_is_blocked_by_a_known_trap_dead_ahead() {
+    let (mut w, _player) = arena();
+    w.spawn((
+        Position { x: 18, y: 9 },
+        Trap {
+            effect: TrapEffect::Dart,
+            reveal: TrapReveal::Sight,
+            revealed: true,
+        },
+    ));
+
+    assert!(matches!(
+        fast_move_plan(&mut w, 1, 0),
+        FastMovePlan::Blocked
+    ));
+}
+
 #[test]
 fn straight_run_halts_on_a_door_and_at_a_corridor_branch() {
     let (mut w, player) = arena();

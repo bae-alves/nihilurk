@@ -15,7 +15,7 @@ use std::collections::HashSet;
 
 use bevy_ecs::prelude::*;
 
-use crate::autoexplore::{monster_in_sight, travel_step};
+use crate::autoexplore::{known_trap_tiles, monster_in_sight, travel_step};
 use crate::components::*;
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 
@@ -161,6 +161,9 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
             return FastMovePlan::Blocked;
         }
     }
+    if known_trap_tiles(world).contains(&(nx as u16, ny as u16)) {
+        return FastMovePlan::Blocked;
+    }
     FastMovePlan::Straight
 }
 
@@ -182,6 +185,9 @@ pub fn straight_step(world: &mut World) -> Option<(i16, i16)> {
         if map.blocks(nx as u16, ny as u16) || !map.diagonal_step_ok(px, py, nx as u16, ny as u16) {
             return None;
         }
+    }
+    if known_trap_tiles(world).contains(&(nx as u16, ny as u16)) {
+        return None;
     }
     Some((dx, dy))
 }

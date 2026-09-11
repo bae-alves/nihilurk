@@ -6,7 +6,7 @@
 //! the world — so the engine can own the parts that touch the terminal (polling
 //! for a keypress) and the message log, and the interesting logic stays testable.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
@@ -89,6 +89,15 @@ fn player_view(world: &mut World) -> Option<(u16, u16, FixedBitSet)> {
     Some((pos.x, pos.y, viewshed.revealed_tiles.clone()))
 }
 
+/// Every tile carrying a trap the player already knows about — [`Trap`]s whose
+/// [`Hidden`] tag has been lifted, whether by sight or by something else
+/// springing it. Auto-walk and fast-move both route around these rather than
+/// march the player onto a hazard they've already seen.
+pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
+    let mut query = world.query_filtered::<&Position, (With<Trap>, Without<Hidden>)>();
+    query.iter(world).map(|p| (p.x, p.y)).collect()
+}
+
 /// Breadth-first search across tiles the caller deems `open`, from `(px, py)`,
 /// for the nearest tile satisfying `goal`. Returns the first `(dx, dy)` hop of
 /// the shortest route, or `None` if no such tile is reachable.
@@ -152,14 +161,17 @@ where
 /// borders unexplored ground, or `None` when every reachable tile has already
 /// been seen. Pure: reads the world, never mutates it.
 pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
+    let traps = known_trap_tiles(world);
     let (px, py, seen) = player_view(world)?;
     let map = world.resource::<Map>();
 
     let is_seen = |x: u16, y: u16| -> bool {
         x < MAP_WIDTH && y < MAP_HEIGHT && seen.contains(tile_index(x, y))
     };
-    // A tile the search may stand on and route through: revealed and walkable.
-    let open = |x: u16, y: u16| -> bool { is_seen(x, y) && !map.blocks(x, y) };
+    // A tile the search may stand on and route through: revealed, walkable, and
+    // not a trap the player already knows to avoid.
+    let open =
+        |x: u16, y: u16| -> bool { is_seen(x, y) && !map.blocks(x, y) && !traps.contains(&(x, y)) };
 
     // An `open` tile that touches at least one still-unseen tile.
     let is_frontier = |x: u16, y: u16| -> bool {
@@ -221,6 +233,7 @@ pub fn tile_is_revealed(world: &mut World, x: u16, y: u16) -> bool {
 /// The single `(dx, dy)` step toward `target` over already-revealed, walkable
 /// ground, or `None` if the player is already there or no known path reaches it.
 pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> {
+    let traps = known_trap_tiles(world);
     let (px, py, seen) = player_view(world)?;
     if (px, py) == target {
         return None;
@@ -228,7 +241,11 @@ pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> 
     let map = world.resource::<Map>();
 
     let open = |x: u16, y: u16| -> bool {
-        x < MAP_WIDTH && y < MAP_HEIGHT && seen.contains(tile_index(x, y)) && !map.blocks(x, y)
+        x < MAP_WIDTH
+            && y < MAP_HEIGHT
+            && seen.contains(tile_index(x, y))
+            && !map.blocks(x, y)
+            && !traps.contains(&(x, y))
     };
 
     let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
@@ -239,11 +256,16 @@ pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> 
 /// `target` — which may itself be a wall, or in a spot the player cannot get to.
 /// Returns the player's own tile when nothing better is reachable. Pure.
 pub fn nearest_reachable(world: &mut World, target: (u16, u16)) -> Option<(u16, u16)> {
+    let traps = known_trap_tiles(world);
     let (px, py, seen) = player_view(world)?;
     let map = world.resource::<Map>();
 
     let open = |x: u16, y: u16| -> bool {
-        x < MAP_WIDTH && y < MAP_HEIGHT && seen.contains(tile_index(x, y)) && !map.blocks(x, y)
+        x < MAP_WIDTH
+            && y < MAP_HEIGHT
+            && seen.contains(tile_index(x, y))
+            && !map.blocks(x, y)
+            && !traps.contains(&(x, y))
     };
     let dist2 = |x: u16, y: u16| -> i64 {
         let dx = x as i64 - target.0 as i64;
