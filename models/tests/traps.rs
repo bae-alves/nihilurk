@@ -789,3 +789,54 @@ fn traps_and_snares_survive_a_save_and_reload() {
 
     let _ = std::fs::remove_file(sp);
 }
+
+/// A trap sprung by a monster is revealed just as if the player had found it —
+/// `spring_trap` unhides and marks it known regardless of who steps on it —
+/// even for a reveal style (`Adjacent`) that would otherwise keep it hidden
+/// from the player alone.
+#[test]
+fn a_trap_a_monster_steps_on_is_revealed_even_unseen() {
+    let mut w = test_world(9);
+    clear_traps(&mut w);
+    let here = player_pos(&mut w);
+    let spot = Position {
+        x: here.x + 5,
+        y: here.y + 5,
+    };
+    let trap = w
+        .spawn(TrapBundle::from_def(
+            TrapDef::of(TrapEffect::Dart),
+            TrapReveal::Adjacent,
+            spot,
+        ))
+        .id();
+    assert!(w.get::<Hidden>(trap).is_some(), "starts hidden");
+
+    w.spawn((
+        Name { what: "orc".into() },
+        Mob {
+            movement_type: MovementType::Static,
+        },
+        spot,
+        Fighter {
+            hp: 3,
+            max_hp: 3,
+            armor: 0,
+            power: 1,
+            max_power: 1,
+            armor_bonus: 0,
+            power_bonus: 0,
+        },
+        Faction::Monster,
+        Blood,
+        EntityMoved,
+    ));
+
+    trap_system(&mut w);
+
+    assert!(
+        w.get::<Hidden>(trap).is_none(),
+        "revealed once the orc steps on it, even out of the player's sight"
+    );
+    assert!(w.get::<Trap>(trap).unwrap().revealed);
+}
