@@ -173,7 +173,7 @@ fn trap_damage_tier(depth: u8) -> i32 {
 pub fn bear_trap_thrash(world: &mut World, victim: Entity) {
     world
         .resource_mut::<GameLog>()
-        .add("As you stumble drunkenly, the trap flays your leg.");
+        .add("As you try to free yourself, the trap flays your leg.");
     apply_damage(world, victim, BEAR_TRAP_THRASH_DAMAGE);
     spill_blood(world, victim, BEAR_TRAP_THRASH_GORE, false);
     let spot = world.get::<Position>(victim).copied();
