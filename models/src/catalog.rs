@@ -504,7 +504,7 @@ impl ItemDef for LauncherDef {
 
 #[rustfmt::skip]
 pub const LAUNCHERS: &[LauncherDef] = &[
-    LauncherDef { name: "bow",      color: Color::DarkYellow, grants: &[Grant::of::<FireArrow>()],   melee_cap: 1 },
+    LauncherDef { name: "short bow", color: Color::DarkYellow, grants: &[Grant::of::<FireArrow>()],   melee_cap: 1 },
     LauncherDef { name: "crossbow", color: Color::DarkGrey,   grants: &[Grant::of::<FireQuarrel>()], melee_cap: 1 },
 ];
 

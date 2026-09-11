@@ -8,7 +8,7 @@
 //! holding the bow or crossbow that answers to it.
 //!
 //! Ammunition is also the only thing in the game that stacks, so half of this
-//! file is about one pack slot holding thirty arrows and giving them up one at a
+//! file is about one pack slot holding thirteen arrows and giving them up one at a
 //! time.
 
 use bevy_ecs::prelude::*;
@@ -165,7 +165,7 @@ fn mean(v: &[i32]) -> f64 {
 fn a_bow_doubles_the_die_of_an_arrow_and_nothing_else() {
     let by_hand = damage_samples(1, "arrow", 400, |_, _| {});
     let from_a_bow = damage_samples(1, "arrow", 400, |w, p| {
-        let bow = stash(w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+        let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
         toggle_equipped(w, p, bow);
         assert!(
             w.get::<FireArrow>(p).is_some(),
@@ -197,7 +197,7 @@ fn a_crossbow_doubles_a_quarrel_and_a_bow_does_not() {
     });
     // The wrong launcher is no launcher: a bow does nothing for a quarrel.
     let wrong_launcher = damage_samples(2, "quarrel", 400, |w, p| {
-        let bow = stash(w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+        let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
         toggle_equipped(w, p, bow);
     });
 
@@ -215,7 +215,7 @@ fn a_launcher_is_a_grant_and_nothing_more() {
     // is the price of what it does to an arrow.
     let mut w = test_world(3);
     let p = player(&mut w);
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
 
     assert!(w.get::<PowerDie>(bow).is_none());
     assert!(w.get::<ArmorDie>(bow).is_none());
@@ -235,7 +235,7 @@ fn a_bow_and_a_sword_want_the_same_hand() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
 
     toggle_equipped(&mut w, p, sword);
     toggle_equipped(&mut w, p, bow);
@@ -272,7 +272,7 @@ fn a_ring_of_dexterity_adds_two_to_everything_you_throw() {
 fn a_bows_plus_rides_along_on_what_it_looses() {
     // The enchantment has no melee roll to land on, so it lands on the throw.
     let sharp = damage_samples(6, "arrow", 300, |w, p| {
-        let bow = stash(w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+        let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
         w.entity_mut(bow).insert(ThrowBonus(3));
         toggle_equipped(w, p, bow);
     });
@@ -607,7 +607,7 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     let p = player(&mut w);
     empty_pack(&mut w, p);
     quiver(&mut w, p, "arrow", 13);
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     w.entity_mut(bow).insert(ThrowBonus(2));
     stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
 
@@ -640,7 +640,7 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     assert!(loaded.get::<Projectile>(arrows).is_some());
     assert!(loaded.get::<LaunchedBy>(arrows).is_some());
 
-    let bow = find(&mut loaded, "bow");
+    let bow = find(&mut loaded, "short bow");
     assert!(loaded.get::<Launcher>(bow).is_some());
     assert_eq!(loaded.get::<ThrowBonus>(bow), Some(&ThrowBonus(2)));
 
@@ -684,7 +684,7 @@ fn punching_bag(w: &mut World, at: Position) -> Entity {
 /// a blow, whatever the dice, the enchantment or the rings say.
 #[test]
 fn swinging_a_bow_is_worth_a_bruise_and_no_more() {
-    for launcher in ["bow", "crossbow"] {
+    for launcher in ["short bow", "crossbow"] {
         let mut w = test_world(11);
         let p = player(&mut w);
         let target = punching_bag(&mut w, Position { x: 1, y: 1 });
@@ -723,7 +723,7 @@ fn the_melee_cap_does_not_follow_the_arrow() {
     let lane = open_run(&mut w, 4);
     let target = tough(&mut w, "troll", lane[3]);
 
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     toggle_equipped(&mut w, p, bow);
     let arrows = quiver(&mut w, p, "arrow", 30);
 
@@ -747,7 +747,7 @@ fn the_cap_comes_off_with_the_bow() {
     let p = player(&mut w);
     let target = punching_bag(&mut w, Position { x: 1, y: 1 });
 
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     toggle_equipped(&mut w, p, bow);
     let before = hp(&w, target);
     for _ in 0..300 {
@@ -777,7 +777,7 @@ fn the_melee_cap_survives_a_save() {
     let mut w = test_world(5);
     let p = player(&mut w);
     empty_pack(&mut w, p);
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "bow", NOWHERE));
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     assert_eq!(w.get::<MeleeCap>(bow).copied(), Some(MeleeCap(1)));
     save_game(&mut w, path).unwrap();
 

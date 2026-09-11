@@ -1135,7 +1135,7 @@ pub fn initialize_world(world: &mut World) {
     world.entity_mut(mace).insert(crate::effects::PowerBonus(1));
     pack_up(world, mace);
 
-    let shortbow = spawn_launcher(world, "bow", origin);
+    let shortbow = spawn_launcher(world, "short bow", origin);
     world
         .entity_mut(shortbow)
         .insert(crate::effects::ThrowBonus(1));
