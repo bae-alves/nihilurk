@@ -26,7 +26,9 @@ mod scrolls;
 mod throwing;
 mod wands;
 
-pub use throwing::{draw_one, drop_refusal, stow, throw_refusal, throw_system};
+pub use throwing::{
+    ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_refusal, throw_system,
+};
 
 /// Re-exported so the passive-ability table can name it as
 /// `crate::items::aggravate_all_monsters` (see [`crate::abilities`]).

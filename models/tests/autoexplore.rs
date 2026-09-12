@@ -459,3 +459,64 @@ fn monster_in_sight_tracks_visible_mobs() {
         "an adjacent monster should be in sight"
     );
 }
+
+/// A spotted item on the floor outranks frontier exploration: even mid-walk,
+/// already committed to a frontier in the opposite direction, auto-explore
+/// beelines for the item instead.
+#[test]
+fn explore_step_beelines_for_a_known_item_over_the_committed_frontier() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
+    w.insert_resource(RngSeed(2112));
+    w.init_resource::<GameLog>();
+    w.init_resource::<AutoExplore>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+
+    let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
+    for e in existing_traps {
+        w.despawn(e);
+    }
+    let existing_items: Vec<Entity> = w.query_filtered::<Entity, With<Item>>().iter(&w).collect();
+    for e in existing_items {
+        w.despawn(e);
+    }
+
+    // A corridor, x 7..=13 at y = 10, player at the hub (x = 10). Committed to
+    // a frontier three hops east; a spotted item sits two hops west.
+    {
+        let mut map = w.resource_mut::<Map>();
+        for t in map.tiles.iter_mut() {
+            *t = TileType::Wall;
+        }
+        for x in 7..=13u16 {
+            map.tiles[tile_index(x, 10)] = TileType::Passage;
+        }
+    }
+
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    {
+        let mut p = w.get_mut::<Position>(player).unwrap();
+        p.x = 10;
+        p.y = 10;
+    }
+    {
+        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+        for x in 7..=13u16 {
+            for y in 9..=11u16 {
+                vs.revealed_tiles.insert(tile_index(x, y));
+            }
+        }
+    }
+    w.resource_mut::<AutoExplore>().frontier = Some((13, 10));
+
+    w.spawn((Position { x: 8, y: 10 }, Item));
+
+    assert_eq!(
+        explore_step(&mut w),
+        Some((-1, 0)),
+        "should divert west toward the spotted item instead of the committed east frontier"
+    );
+}

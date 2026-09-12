@@ -398,12 +398,12 @@ pub mod items {
     /// **If you change it:** `models/tests/missiles.rs` and
     /// `docs/reference/content-tables.md` name the current value and would need
     /// a pass.
-    pub const STACK_LIMIT: u8 = 26;
+    pub const STACK_LIMIT: u8 = 13;
 
     /// The most inventory slots a pack will hold at once. Kept below 26 so
     /// every slot's letter stays inside `w`/`s`, which the pack menu already
     /// reserves for up/down navigation and so can never reach a letter row.
-    pub const PACK_CAPACITY: usize = 13;
+    pub const PACK_CAPACITY: usize = 9;
 }
 
 // ===========================================================================

@@ -102,9 +102,10 @@ you have to go around. Attacking walls is likewise not possible.
 | Key | Does |
 |-----|------|
 | Shift + a direction | **Run** that way (or toward the nearest stairs/door/item roughly that way) until something interesting happens |
-| `o` | **Auto-explore** the floor |
+| `o` | **Auto-explore** the floor — beelines for any spotted item before resuming |
 | `O` | Drop a **travel cursor** — steer it with the direction keys, Enter to walk there |
-| `Tab` | **Auto-fight** whatever's closest (refuses below 25% HP or while confused) |
+| `Tab` | **Auto-fight** whatever's closest (refuses below 25% HP or while confused); with a bow/crossbow drawn, fires at it instead of closing in |
+| `f` | **Fire** the wielded launcher's first matching arrow/quarrel — opens the aiming reticle, same as Throw |
 | `>` or `.` | Go down / walk to the down stairs |
 | `<` or `,` | Go up / walk to the up stairs |
 | `i` | Open your **pack** |
@@ -138,8 +139,8 @@ on the command line to put Drop before Throw).
   — it won't come off (see Curses, below) — and refused for the Element of
   Yoord, which doesn't leave your hands until the game is over.
 
-Ammunition and coins stack (up to 26 per slot); everything else takes its
-own slot. You have 13 slots, capped there on purpose so every slot's letter
+Ammunition and coins stack (up to 13 per slot); everything else takes its
+own slot. You have 9 slots, capped there on purpose so every slot's letter
 stays out of the way of the ones the game reserves for scrolling the list.
 
 
@@ -297,11 +298,18 @@ recognise.
 
 ### Ammunition and launchers
 
-Arrows (d4) and quarrels (d6) stack up to 26 to a slot and are useless
+Arrows (d4) and quarrels (d6) stack up to 13 to a slot and are useless
 without a matching bow or crossbow — with one, the die doubles. A bow or
 crossbow itself has nothing to swing with; it occupies the hand a sword
 would have, and clubbing someone with one is worth at most 1 damage
 whatever its enchantment. One is a build; a second is dead weight.
+
+With a bow or crossbow drawn, `f` skips the pack: it grabs the first
+matching arrow/quarrel and opens the aiming reticle straight away, same as
+`i` → item → Throw but one key. `Tab` changes meaning too — instead of
+walking up to the nearest threat, it fires at it on the spot, refusing with
+"You're out of ammo." or "No clear shot." rather than ever closing the
+distance by hand.
 
 ### Wands
 
@@ -455,6 +463,7 @@ Quick reference
     Auto-explore   o
     Travel      O, steer, Enter
     Auto-fight  Tab
+    Fire        f        (bow/crossbow drawn)
     Stairs      > down, < up (or . and ,)
     Pack        i        Use / Throw / Drop
     Cancel      x        (never spends a turn)

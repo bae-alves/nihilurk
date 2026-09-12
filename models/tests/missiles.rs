@@ -231,6 +231,70 @@ fn a_launcher_is_a_grant_and_nothing_more() {
 }
 
 #[test]
+fn wielded_launcher_only_answers_once_a_launcher_is_drawn() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+    assert!(wielded_launcher(&w, p).is_none());
+
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    assert!(
+        wielded_launcher(&w, p).is_none(),
+        "sitting in the pack is not the same as drawn"
+    );
+
+    toggle_equipped(&mut w, p, bow);
+    assert_eq!(wielded_launcher(&w, p), Some(bow));
+
+    // A sword in hand instead is not a launcher, drawn or not.
+    let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
+    toggle_equipped(&mut w, p, sword);
+    assert!(wielded_launcher(&w, p).is_none());
+}
+
+#[test]
+fn first_matching_ammo_picks_pack_order_and_only_the_right_kind() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    toggle_equipped(&mut w, p, bow);
+    assert_eq!(
+        first_matching_ammo(&w, p),
+        None,
+        "an empty pack has nothing to fire"
+    );
+
+    // A quarrel first in the pack, then arrows behind it: a drawn bow reaches
+    // past the quarrel for the first arrow, not just the first pack row.
+    let quarrels = quiver(&mut w, p, "quarrel", 5);
+    let arrows = quiver(&mut w, p, "arrow", 5);
+    assert_eq!(first_matching_ammo(&w, p), Some(arrows));
+
+    // Swap to a crossbow: now the quarrel is the match.
+    toggle_equipped(&mut w, p, bow);
+    let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
+    toggle_equipped(&mut w, p, crossbow);
+    assert_eq!(first_matching_ammo(&w, p), Some(quarrels));
+}
+
+#[test]
+fn ammo_noun_names_whichever_the_drawn_launcher_takes() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    toggle_equipped(&mut w, p, bow);
+    assert_eq!(ammo_noun(&w, p), "arrows");
+
+    toggle_equipped(&mut w, p, bow);
+    let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
+    toggle_equipped(&mut w, p, crossbow);
+    assert_eq!(ammo_noun(&w, p), "quarrels");
+}
+
+#[test]
 fn a_bow_and_a_sword_want_the_same_hand() {
     let mut w = test_world(3);
     let p = player(&mut w);
@@ -601,7 +665,7 @@ fn quarrels_never_go_in_with_arrows() {
 }
 
 #[test]
-fn a_quiver_tops_out_at_twenty_six_and_the_rest_takes_a_slot_of_its_own() {
+fn a_quiver_tops_out_at_stack_limit_and_the_rest_takes_a_slot_of_its_own() {
     let mut w = test_world(17);
     let p = player(&mut w);
     empty_pack(&mut w, p);

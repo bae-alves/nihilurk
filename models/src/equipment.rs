@@ -19,7 +19,7 @@
 use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{Backpack, Curse, GameLog, KnownQuality, Position};
+use crate::components::{Backpack, Curse, GameLog, KnownQuality, Launcher, Position};
 use crate::effects::{EFFECTS, EffectSet, GrantedByGear, Grants, effect_set};
 
 /// Where a piece of gear goes. One item per slot at a time, except
@@ -134,6 +134,12 @@ fn equipped_in_slot(world: &World, entity: Entity, slot: Slot) -> Vec<Entity> {
 /// about both rings want [`equipped_in_slot`] instead.
 pub fn equipped_in(world: &World, entity: Entity, slot: Slot) -> Option<Entity> {
     equipped_in_slot(world, entity, slot).into_iter().next()
+}
+
+/// The bow or crossbow `entity` currently has in `Slot::Hand`, if any. `f`
+/// (fire) and ranged auto-fight both gate on this before reaching for ammo.
+pub fn wielded_launcher(world: &World, entity: Entity) -> Option<Entity> {
+    equipped_in(world, entity, Slot::Hand).filter(|&w| world.get::<Launcher>(w).is_some())
 }
 
 /// Takes `item` off `user`, no questions asked (no curse check, no logging).

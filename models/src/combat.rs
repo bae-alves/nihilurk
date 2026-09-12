@@ -167,9 +167,13 @@ fn leave_gear_behind(world: &mut World, entity: Entity) {
 ///
 /// * **Excellent hit** — a [`EXCELLENT_HIT_CHANCE`] chance for a clean strike
 ///   that rolls [`EXCELLENT_HIT_DICE`] weapon dice (`Nd[Power]`) before the
-///   armour is subtracted.
-/// * **Chip damage** — the player always deals at least 1 damage, even when the
-///   armour roll fully absorbs the weapon roll (logged as a "glancing blow").
+///   armour is subtracted. Always lands for at least [`CHIP_DAMAGE`], whatever
+///   the armour roll or a melee cap left it at — a crit is never reported as
+///   having done nothing.
+/// * **Chip damage** — a non-excellent player swing still deals at least 1
+///   damage, even when the armour roll fully absorbs the weapon roll (logged
+///   as a "glancing blow"). Unlike an excellent hit, a glancing blow can never
+///   be the killing one — it leaves a foe on 1 HP.
 ///
 /// Finally, gear that carries a [`MeleeCap`](crate::effects::MeleeCap) — a bow,
 /// a crossbow — clamps the result. A launcher is worth nothing swung, which is
@@ -216,9 +220,12 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     // --- Player-only chip damage floor -----------------------------------
     // The player always scrapes off at least 1 HP even when the armour roll
     // eats the whole blow — but a blow that weak can never be the killing one.
-    // It can leave a foe on 1 HP; it can't take the last point.
+    // It can leave a foe on 1 HP; it can't take the last point. An excellent
+    // hit is not this: it is a good roll that still happened to net under the
+    // floor after a hard armour roll, not a whiff — so it skips the "can't
+    // finish them" clamp entirely and gets its own floor below instead.
     let mut glancing = false;
-    if attacker_is_player && damage < CHIP_DAMAGE {
+    if attacker_is_player && !excellent && damage < CHIP_DAMAGE {
         damage = CHIP_DAMAGE;
         glancing = true;
     }
@@ -232,6 +239,13 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     // cap of 0 really is 0. Nothing here knows what a bow is: it asks the gear.
     if let Some(cap) = melee_cap(world, attacker) {
         damage = damage.min(cap);
+    }
+
+    // An excellent hit is never reported as having done nothing — whatever the
+    // armour roll or a launcher's melee cap left it at, it lands for at least
+    // [`CHIP_DAMAGE`].
+    if excellent {
+        damage = damage.max(CHIP_DAMAGE);
     }
 
     // --- Apply & report --------------------------------------------------

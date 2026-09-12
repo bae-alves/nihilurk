@@ -126,8 +126,8 @@ Components — items on the floor and in the pack
 | `Ranged`  | `range: i32` — feeds the zap reticle | wands | yes |
 | `Amulet`  | marker — the Element of Yoord; carrying it inverts the staircases | the relic | yes |
 
-`Stack` tops back up to `STACK_LIMIT` (26) on pickup. `Backpack` holds at most
-`PACK_CAPACITY` (13) slots; `stow` refuses anything past that ("Your pack is
+`Stack` tops back up to `STACK_LIMIT` (13) on pickup. `Backpack` holds at most
+`PACK_CAPACITY` (9) slots; `stow` refuses anything past that ("Your pack is
 full.") and leaves it on the floor.
 
 

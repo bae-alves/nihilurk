@@ -199,6 +199,39 @@ pub fn draw_one(world: &mut World, thrower: Entity, item: Entity, slot: Option<u
     one
 }
 
+/// The first projectile in `holder`'s pack that answers to whatever launcher
+/// effect they currently carry (`FireArrow` from a drawn bow, `FireQuarrel`
+/// from a crossbow) — pack order, same as the letters the pack screen lists
+/// them under. `None` if nothing in the pack matches, whether because the
+/// pack has no ammunition at all or because it's the wrong kind for what's in
+/// hand.
+///
+/// This is the shot `f` (fire) reaches for, and the one ranged auto-fight
+/// looses.
+pub fn first_matching_ammo(world: &World, holder: Entity) -> Option<Entity> {
+    world
+        .get::<Backpack>(holder)?
+        .items
+        .iter()
+        .copied()
+        .find(|&item| {
+            world
+                .get::<LaunchedBy>(item)
+                .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, holder))
+        })
+}
+
+/// "arrows" or "quarrels" — whichever a drawn launcher on `holder` calls for,
+/// for a "you have no ___ to fire" refusal. Only meaningful once the caller
+/// has already confirmed a launcher is wielded.
+pub fn ammo_noun(world: &World, holder: Entity) -> &'static str {
+    if world.get::<FireQuarrel>(holder).is_some() {
+        "quarrels"
+    } else {
+        "arrows"
+    }
+}
+
 /// Takes `item` into `carrier`'s pack, and returns what was taken as it reads in
 /// a sentence — `"a dagger"`, `"7 arrows"` — or `None` if there was no pack to
 /// put it in, or the pack is already at [`PACK_CAPACITY`] and this item can't
