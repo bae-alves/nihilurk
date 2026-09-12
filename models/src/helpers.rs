@@ -25,7 +25,7 @@ use std::collections::HashSet;
 use crossterm::style::Color;
 
 use crate::effects::{ArmorBonus, equipped_total};
-use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map};
+use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map, Smoke};
 use crate::particles::Particles;
 use crate::{
     Blood, Confused, Faction, Fighter, GameLog, Mob, Name, Player, Position, Renderable, Speed,
@@ -365,6 +365,33 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
             let flight_ms = fx.blood_streak(&pts);
             fx.blood_hit(landing.x, landing.y, flight_ms);
         }
+    }
+}
+
+/// How many turns the puff marking a vanishing lingers — shorter than a fire
+/// blast's [`crate::constants::wands::SMOKE_LINGER_TURNS`], since it marks a
+/// spot rather than being a fire still smouldering on it.
+pub(crate) const VANISHING_SMOKE_TURNS: u8 = 2;
+
+/// Poofs smoke at `pos` — the calling card of a creature that is suddenly not
+/// there any more. A teleport's departure, a polymorph, a body dropping through
+/// a trapdoor: whatever left, this marks where it stood. Lays a short puff in
+/// the persistent [`Smoke`] overlay alongside the instant [`Particles::poof`]
+/// flash, so the spot keeps smouldering a couple of turns after the animation
+/// has finished.
+pub(crate) fn leave_smoke(world: &mut World, pos: Position) {
+    leave_tinted_smoke(world, pos, Color::Grey);
+}
+
+/// [`leave_smoke`] in a colour: the lingering overlay is the same grey smoke,
+/// but the instant puff carries `color`, so a creature yanked away by magic can
+/// read differently from one that simply fell.
+pub(crate) fn leave_tinted_smoke(world: &mut World, pos: Position, color: Color) {
+    world
+        .resource_mut::<Smoke>()
+        .puff(pos.x, pos.y, VANISHING_SMOKE_TURNS);
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.tinted_poof(pos.x, pos.y, 0.0, color);
     }
 }
 

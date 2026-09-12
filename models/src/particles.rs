@@ -491,17 +491,22 @@ impl Particles {
     /// whatever `delay_ms` the caller wants (0 for a single poof, a small
     /// stagger per tile for a ring of them).
     pub fn poof(&mut self, x: u16, y: u16, delay_ms: f32) {
+        self.tinted_poof(x, y, delay_ms, Color::Grey);
+    }
+
+    /// A [`Particles::poof`] that carries a colour through its middle frame, so
+    /// the puff says *what kind* of vanishing it was — magenta for a creature
+    /// yanked away by a teleport trap, against the plain grey of one that simply
+    /// fell through a trapdoor. It opens white and settles to the same dark grey
+    /// wisp either way; only the beat between them is tinted.
+    pub fn tinted_poof(&mut self, x: u16, y: u16, delay_ms: f32, color: Color) {
         self.push(Particle {
             x,
             y,
             delay_ms,
             lifetime_ms: 220.0,
             age_ms: 0.0,
-            frames: vec![
-                ('≈', Color::White),
-                ('≈', Color::Grey),
-                ('≈', Color::DarkGrey),
-            ],
+            frames: vec![('≈', Color::White), ('≈', color), ('≈', Color::DarkGrey)],
         });
     }
 

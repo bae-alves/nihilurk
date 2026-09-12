@@ -840,3 +840,258 @@ fn a_trap_a_monster_steps_on_is_revealed_even_unseen() {
     );
     assert!(w.get::<Trap>(trap).unwrap().revealed);
 }
+
+// ---------------------------------------------------------------------------
+// Trick shots — a trap set off from a distance
+// ---------------------------------------------------------------------------
+
+const RING: [(i32, i32); 8] = [
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
+];
+
+/// Clear the floor of the monsters `initialize_world` scattered, so a burst
+/// test only counts the ones it stood up itself.
+fn clear_mobs(w: &mut World) {
+    let mobs: Vec<Entity> = w.query_filtered::<Entity, With<Mob>>().iter(w).collect();
+    for m in mobs {
+        w.entity_mut(m).despawn();
+    }
+}
+
+/// Every open tile touching `at`.
+fn open_ring(w: &World, at: Position) -> Vec<Position> {
+    let map = w.resource::<Map>();
+    RING.iter()
+        .map(|&(dx, dy)| Position {
+            x: (at.x as i32 + dx) as u16,
+            y: (at.y as i32 + dy) as u16,
+        })
+        .filter(|p| !map.blocks(p.x, p.y))
+        .collect()
+}
+
+/// Somewhere out of the player's sight with real floor around it: a tile, two
+/// open neighbours to stand monsters on, and one open tile two steps off to
+/// prove the burst stops where it says it does.
+fn blast_site(w: &mut World) -> (Position, Vec<Position>, Position) {
+    let hero = player_pos(w);
+    let far_from_hero = |x: u16, y: u16| {
+        (x as i32 - hero.x as i32)
+            .abs()
+            .max((y as i32 - hero.y as i32).abs())
+            > 4
+    };
+    let candidates: Vec<Position> = {
+        let map = w.resource::<Map>();
+        (2..MAP_HEIGHT - 2)
+            .flat_map(|y| (2..MAP_WIDTH - 2).map(move |x| Position { x, y }))
+            .filter(|p| !map.blocks(p.x, p.y) && far_from_hero(p.x, p.y))
+            .collect()
+    };
+    for site in candidates {
+        let ring = open_ring(w, site);
+        let two_off = Position {
+            x: site.x + 2,
+            y: site.y,
+        };
+        if ring.len() >= 2 && !w.resource::<Map>().blocks(two_off.x, two_off.y) {
+            return (site, ring.into_iter().take(2).collect(), two_off);
+        }
+    }
+    panic!("no open tile with room around it on this floor");
+}
+
+/// A hardy monster on `at`, tough enough to survive a burst and be measured.
+fn orc_at(w: &mut World, at: Position) -> Entity {
+    w.spawn((
+        Name { what: "orc".into() },
+        Mob {
+            movement_type: MovementType::Static,
+        },
+        at,
+        Fighter {
+            hp: 30,
+            max_hp: 30,
+            armor: 0,
+            power: 1,
+            max_power: 1,
+            armor_bonus: 0,
+            power_bonus: 0,
+        },
+        Faction::Monster,
+        Blood,
+    ))
+    .id()
+}
+
+#[test]
+fn a_detonated_trap_bursts_over_its_whole_three_by_three_and_no_further() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (site, ring, two_off) = blast_site(&mut w);
+
+    let trap = w.spawn(TrapBundle::bear(site)).id();
+    let near = [orc_at(&mut w, ring[0]), orc_at(&mut w, ring[1])];
+    let clear = orc_at(&mut w, two_off);
+
+    assert!(detonate_trap(&mut w, trap), "there was a trap to set off");
+
+    let hp = |w: &World, e: Entity| w.get::<Fighter>(e).unwrap().hp;
+    assert_eq!(
+        hp(&w, near[0]),
+        hp(&w, near[1]),
+        "one roll, applied whole to everyone caught"
+    );
+    assert!(
+        (24..=28).contains(&hp(&w, near[0])),
+        "2d3 off a 30 HP orc, got {}",
+        hp(&w, near[0])
+    );
+    assert_eq!(hp(&w, clear), 30, "two tiles off is out of the burst");
+    assert!(
+        w.get_entity(trap).is_none(),
+        "the trap is spent by going off"
+    );
+    assert!(
+        !log_contains(&w, "trick shot"),
+        "a burst the player cannot see stays quiet"
+    );
+}
+
+#[test]
+fn a_trick_shot_in_sight_shouts_bam() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (_, (tx, ty)) = far_visible_tile(&mut w);
+    let site = Position { x: tx, y: ty };
+
+    let trap = w.spawn(TrapBundle::bear(site)).id();
+    let orc = orc_at(&mut w, Position { x: tx - 1, y: ty });
+
+    detonate_trap(&mut w, trap);
+
+    assert!(log_contains(&w, "BAM! Trick shot!"));
+    assert!(
+        w.get::<Fighter>(orc).unwrap().hp < 30,
+        "caught in the burst"
+    );
+    assert_eq!(
+        w.get::<Snare>(orc).map(|s| s.kind),
+        Some(SnareKind::Bear),
+        "and the trap's own jaws close on it"
+    );
+}
+
+#[test]
+fn a_trap_that_is_merely_stepped_on_does_not_burst() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (site, ring, _) = blast_site(&mut w);
+
+    w.spawn(TrapBundle::bear(site));
+    let bystander = orc_at(&mut w, ring[0]);
+    let victim = orc_at(&mut w, site);
+    w.entity_mut(victim).insert(EntityMoved);
+
+    trap_system(&mut w);
+
+    assert!(w.get::<Snare>(victim).is_some(), "the jaws close on it");
+    assert_eq!(
+        w.get::<Fighter>(bystander).unwrap().hp,
+        30,
+        "a trap underfoot bites one victim, it does not go off"
+    );
+    assert!(!log_contains(&w, "trick shot"));
+}
+
+#[test]
+fn a_trick_shot_that_catches_you_asks_why() {
+    let mut w = test_world(12);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let p = player(&mut w);
+    w.get_mut::<Fighter>(p).unwrap().hp = 30;
+    let (site, ring, _) = blast_site(&mut w);
+
+    // Standing right next to your own shot.
+    *w.get_mut::<Position>(p).unwrap() = ring[0];
+
+    let trap = w.spawn(TrapBundle::bear(site)).id();
+    detonate_trap(&mut w, trap);
+
+    assert!(log_contains(&w, "WHY! Trick shot!"));
+    assert!(!log_contains(&w, "BAM!"));
+    assert!(
+        w.get::<Fighter>(p).unwrap().hp < 30,
+        "your own burst does not spare you"
+    );
+    assert_eq!(
+        w.get::<Snare>(p).map(|s| s.kind),
+        Some(SnareKind::Bear),
+        "and the trap's own effect lands on you too"
+    );
+}
+
+#[test]
+fn a_detonated_trap_works_its_effect_on_everyone_it_catches() {
+    let mut w = test_world(13);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (site, ring, _) = blast_site(&mut w);
+
+    let trap = w.spawn(TrapBundle::sleep(site)).id();
+    let caught = [orc_at(&mut w, ring[0]), orc_at(&mut w, ring[1])];
+
+    detonate_trap(&mut w, trap);
+
+    for orc in caught {
+        let snare = w.get::<Snare>(orc).expect("a lungful of gas each");
+        assert_eq!(snare.kind, SnareKind::Sleep);
+    }
+}
+
+#[test]
+fn a_teleport_trap_leaves_smoke_where_the_victim_stood() {
+    let mut w = test_world(14);
+    clear_traps(&mut w);
+    let here = player_pos(&mut w);
+    w.spawn(TrapBundle::teleport(here));
+    step_player_onto(&mut w, here.x, here.y);
+
+    trap_system(&mut w);
+
+    assert!(
+        w.resource::<Smoke>().is_smoky(here.x, here.y),
+        "a puff marks the spot they vanished from"
+    );
+}
+
+#[test]
+fn a_monster_that_falls_through_a_trapdoor_leaves_smoke() {
+    let mut w = test_world(15);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (site, _, _) = blast_site(&mut w);
+
+    w.spawn(TrapBundle::trapdoor(site));
+    let doomed = orc_at(&mut w, site);
+    w.entity_mut(doomed).insert(EntityMoved);
+
+    trap_system(&mut w);
+
+    assert!(w.get_entity(doomed).is_none(), "gone through the floor");
+    assert!(
+        w.resource::<Smoke>().is_smoky(site.x, site.y),
+        "dust where the floor used to be"
+    );
+}

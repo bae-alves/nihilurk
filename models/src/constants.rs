@@ -279,6 +279,18 @@ pub mod traps {
     /// [`BEAR_TRAP_THRASH_DAMAGE`] on purpose — the leg tears against the steel
     /// and the tile should show it — but it costs no extra HP.
     pub const BEAR_TRAP_THRASH_GORE: i32 = 32;
+
+    /// Radius, in tiles, of the burst a trap makes when something sets it off
+    /// from a distance — `1` is the 3×3 around it. See `traps::detonate_trap`.
+    pub const TRICK_SHOT_RADIUS: i32 = 1;
+
+    /// A trick shot's burst deals `TRICK_SHOT_DAMAGE_DICE d
+    /// TRICK_SHOT_DAMAGE_SIDES`, rolled once and applied whole to everything
+    /// caught — no armour of any kind is subtracted, not even the armour plus
+    /// that a trap's own damage still allows. Today: `2d3`.
+    pub const TRICK_SHOT_DAMAGE_DICE: i32 = 2;
+    /// See [`TRICK_SHOT_DAMAGE_DICE`].
+    pub const TRICK_SHOT_DAMAGE_SIDES: i32 = 3;
 }
 
 // ===========================================================================

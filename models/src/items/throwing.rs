@@ -21,6 +21,7 @@ use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, to
 use crate::identify::Identified;
 use crate::map::{GameRng, Map};
 use crate::particles::Particles;
+use crate::traps::{detonate_trap, trap_at};
 
 use super::potions::apply_potion_effect;
 use super::scrolls::apply_scroll_effect;
@@ -412,8 +413,25 @@ pub fn throw_system(world: &mut World) {
     }
 }
 
-/// One thrown item, from the thrower's hand to whatever it finds along its line.
-/// A potion shatters over its target and is drunk by it; a scroll is read aloud
+/// One thrown item, from the thrower's hand to wherever it comes to rest — and
+/// then whatever is waiting on the tile it landed on.
+///
+/// A shot that comes down on a trap sets it off, and a trap with nobody
+/// standing on it does not bite one victim: it bursts (see [`detonate_trap`]).
+/// That is the trick shot, and it is why this is a wrapper rather than the
+/// whole job — it happens whatever the item was, whether or not the shot hit
+/// anyone, and whether or not it was the shot the thrower had in mind.
+fn resolve_throw(world: &mut World, throw: WantsToThrow) {
+    let Some(landing) = deliver_throw(world, throw) else {
+        return;
+    };
+    if let Some(trap) = trap_at(world, landing) {
+        detonate_trap(world, trap);
+    }
+}
+
+/// The throw itself: from the thrower's hand to whatever it finds along its
+/// line. A potion shatters over its target and is drunk by it; a scroll is read aloud
 /// by anything literate enough and otherwise flutters to the floor; everything
 /// else simply arrives — hurting what it hits only if it carries
 /// [`ThrownDamage`], and staying with a creature that knows what to do with it
@@ -421,15 +439,16 @@ pub fn throw_system(world: &mut World) {
 ///
 /// Everything except a [`Piercing`] weapon resolves on the *first* creature in
 /// the way and goes no further, whatever tile it was aimed at.
-fn resolve_throw(world: &mut World, throw: WantsToThrow) {
+///
+/// Returns the tile the throw came down on, or `None` if there was no throw to
+/// make.
+fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     let WantsToThrow {
         thrower,
         item,
         target,
     } = throw;
-    let Some(&origin) = world.get::<Position>(thrower) else {
-        return;
-    };
+    let &origin = world.get::<Position>(thrower)?;
 
     // Gear leaves the hand the moment it is thrown, taking its bonuses with it.
     force_unequip(world, item);
@@ -465,7 +484,7 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     // gets the dose.
     if let Some(effect) = world.get::<Potion>(item).map(|p| p.effect) {
         shatter_potion(world, item, victim, &seen_name, effect);
-        return;
+        return Some(landing);
     }
 
     // A scroll only means something to a creature that can read it. Anything
@@ -485,7 +504,7 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
             }
             None => land_item(world, item, landing),
         }
-        return;
+        return Some(landing);
     }
 
     // A wand is a stick with its magic held inside it. Hurl it instead of
@@ -508,13 +527,13 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
             resolve_wand_throw(world, item, landing, effect, &seen_name);
             identify_from_afar(world, item);
             world.entity_mut(item).despawn();
-            return;
+            return Some(landing);
         }
         world.resource_mut::<GameLog>().add(format!(
             "The {seen_name} clatters to the floor, its magic still bottled up."
         ));
         land_item(world, item, landing);
-        return;
+        return Some(landing);
     }
 
     // Everything else flies as a missile. A dagger or a spear spends itself on
@@ -522,7 +541,7 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     // none.
     let Some(victim) = victim else {
         land_item(world, item, landing);
-        return;
+        return Some(landing);
     };
 
     for &hit in &victims {
@@ -535,7 +554,7 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     // left on the floor to collect.
     if world.get::<Projectile>(item).is_some() {
         world.entity_mut(item).despawn();
-        return;
+        return Some(landing);
     }
 
     // A creature the throw just killed keeps nothing; the reaper will lay the
@@ -555,9 +574,10 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
             .resource_mut::<GameLog>()
             .add(format!("The {victim_name} {verb}!"));
         identify_from_afar(world, item);
-        return;
+        return Some(landing);
     }
     land_item(world, item, landing);
+    Some(landing)
 }
 
 /// A ring of alternating magenta / cyan sparks around `center` — the wand of

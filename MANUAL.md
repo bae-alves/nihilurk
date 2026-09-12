@@ -267,6 +267,20 @@ same *plus* permanently drains a point of Power — a ring of strength is
 the only protection. A trapdoor, a bear trap, sleeping gas, and a teleport
 fill out the rest.
 
+**Trick shots.** A trap only bites what stands on it — so don't stand on
+it. Put a shot on a trap's tile instead (throw or fire anything at it), or
+catch it in a wand's blast (fire, cold, or any wand thrown as a grenade),
+and the whole mechanism lets go at once: a 3×3 burst of `2d3` that no
+armour of any kind reduces, *plus* the trap's own effect on everyone caught
+in it. Six arrows at once, gas over the whole knot of them, a trapdoor that
+swallows the pack. It's the best thing you can do with a corridor full of
+monsters and a `^` in the middle of them.
+
+It is also completely indiscriminate, so mind where you're standing: catch
+yourself in your own trick shot and the log stops saying `BAM!` and starts
+asking `WHY!`. A burst is loud but not clairvoyant — one you can't see
+neither prints nor shakes.
+
 **The Dungeon Lord's patience.** You get 260 turns on any one floor. Run
 past that and a portal opens under you and drops you a level deeper whether
 you were ready or not (or, once you're carrying the Element, a level

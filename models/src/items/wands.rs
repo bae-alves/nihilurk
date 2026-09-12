@@ -16,7 +16,7 @@ use crate::effects::*;
 use crate::equipment::{equipped_items, sync_equipment_effects};
 use crate::helpers::{
     apply_damage, clear_player_conditions, get_entities_at_position, get_line, item_label,
-    monster_at, roll_dice,
+    leave_smoke, monster_at, roll_dice,
 };
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index};
 use crate::monsters::{BESTIARY, spawn_monster};
@@ -217,25 +217,25 @@ pub(super) fn elemental_blast(
         }
     }
 
+    // A trap caught in the blast goes off with it — the trick shot, worked by a
+    // wand instead of a bowstring. Its own burst is not a blast and never comes
+    // back through here, so a row of traps does not chain.
+    for trap in traps_in(world, &cell_set) {
+        crate::traps::detonate_trap(world, trap);
+    }
+
     affected_entities
 }
 
-/// How many turns a teleport's or a polymorph's smoke lingers — shorter than
-/// a fire blast's [`SMOKE_LINGER_TURNS`], since it's a puff marking a spot,
-/// not a fire actually still smouldering.
-const TRANSMUTATION_SMOKE_TURNS: u8 = 2;
-
-/// Poofs smoke at `pos` — a teleport's calling card, marking where a creature
-/// used to stand. Lays a short puff in the persistent [`Smoke`] overlay
-/// alongside the instant [`Particles::poof`] flash, so the spot keeps
-/// smouldering a couple of turns after the animation itself has finished.
-fn leave_smoke(world: &mut World, pos: Position) {
+/// Every trap standing on one of `cells`. Collected up front because setting
+/// one off mutates the world out from under the query.
+fn traps_in(world: &mut World, cells: &HashSet<(u16, u16)>) -> Vec<Entity> {
     world
-        .resource_mut::<Smoke>()
-        .puff(pos.x, pos.y, TRANSMUTATION_SMOKE_TURNS);
-    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        fx.poof(pos.x, pos.y, 0.0);
-    }
+        .query_filtered::<(Entity, &Position), With<Trap>>()
+        .iter(world)
+        .filter(|(_, p)| cells.contains(&(p.x, p.y)))
+        .map(|(e, _)| e)
+        .collect()
 }
 
 /// Puffs a small ring of smoke around `center` — the polymorph flourish.
@@ -267,7 +267,7 @@ fn leave_smoke_ring(world: &mut World, center: Position) {
     {
         let mut smoke = world.resource_mut::<Smoke>();
         for &(x, y) in &cells {
-            smoke.puff(x, y, TRANSMUTATION_SMOKE_TURNS);
+            smoke.puff(x, y, crate::helpers::VANISHING_SMOKE_TURNS);
         }
     }
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
@@ -361,7 +361,7 @@ pub(super) fn apply_wand_effect(
     // Exhaustive over `WandEffect`, deliberately with no catch-all: a wand
     // effect added to the enum and not given an arm here fails the build
     // instead of discharging with a generic "nothing happens" — the same
-    // guarantee `crate::traps::spring_trap` gives a new `TrapEffect`. See
+    // guarantee `crate::traps::apply_trap_effect` gives a new `TrapEffect`. See
     // `docs/explanation/data-driven-content.md`.
     match effect {
         WandEffect::MagicMissile => fire_bolt(
