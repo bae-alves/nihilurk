@@ -1,0 +1,24 @@
+[package]
+name = "particle-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "The arithmetic half of roog's particle layer. `no_std`, no allocator, no dependencies."
+
+[lints]
+workspace = true
+
+[features]
+# The crate is `no_std` unconditionally; this flag does not change that. It
+# changes exactly one thing: `ceil`. `f32::ceil` is in `std` rather than `core`
+# because it lowers to a libm call, so a hosted build takes the intrinsic and a
+# bare-metal build takes the hand-rolled branch. `models` turns it on; the
+# ESP32 and RISC-V checks in `compat/` leave it off, which is the difference
+# between the two builds and the only one.
+#
+# The flag must stay *observationally* additive -- both branches have to return
+# the same number, or the game and the bare-metal build have stopped agreeing
+# and the whole point of the split is gone. `tests/parity.rs` is what holds
+# that line; run it with `cargo test -p particle-core --all-features`.
+default = []
+std = []

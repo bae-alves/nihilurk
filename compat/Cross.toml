@@ -1,0 +1,99 @@
+# cross-rs configuration for roog's compatibility matrix.
+#
+# This file is not at the workspace root on purpose. `cross` looks for
+# `Cross.toml` next to `Cargo.toml`, and also honours `CROSS_CONFIG`; every
+# script in compat/ exports `CROSS_CONFIG=compat/Cross.toml`, which keeps the
+# root holding the game and the pipeline holding its own tooling. Building by
+# hand works the same way:
+#
+#     CROSS_CONFIG=compat/Cross.toml cross build --release \
+#         --target aarch64-unknown-linux-musl -p engine
+#
+# WHY MUSL, EVERY TIME
+#
+# Every Linux row of the matrix is a `-musl` triple, and none is `-gnu`. A glibc
+# binary is bound to the glibc it was linked against: build on a current Arch
+# and the binary refuses to start on a Debian oldstable or a Pi OS image with an
+# older libc, with a `GLIBC_2.38 not found` that has nothing to do with roog.
+# A musl target links the whole libc in, so what comes out is one file with no
+# `INTERP` segment and no runtime dependency of any kind. That is the only build
+# that honours the claim in gdd.md: roog runs on anything with a terminal.
+#
+# It costs a little size (a static musl binary carries its own libc) and that
+# cost is on the report, per target, in `cross_build.sh`'s footprint table.
+#
+# WHY THE IMAGE TAGS ARE PINNED
+#
+# `:main` is a moving target: the same command on two machines a month apart is
+# two different toolchains, and "the aarch64 build got 40 KiB bigger" then means
+# nothing. Pinned to the release of `cross` the pipeline was written against.
+# Bump them deliberately, and expect the footprint table to move when you do.
+
+[build]
+# The one thing worth passing through. A profile's settings live in the
+# workspace Cargo.toml, but `-C force-frame-pointers` and friends arrive by
+# environment, and a build that silently drops them would be measuring a
+# different binary than the one asked for.
+[build.env]
+passthrough = [
+    "RUSTFLAGS",
+    "CARGO_INCREMENTAL",
+    # roog's own dev overrides, so a container can be told what to spawn when a
+    # build is being chased rather than measured.
+    "ROOG_SPAWN",
+    "ROOG_MAGICMAP",
+]
+
+# ---------------------------------------------------------------------------
+# Lightweight cloud / standard
+# ---------------------------------------------------------------------------
+
+# The control row. It is the host's own architecture, so the binary runs on the
+# host CPU with no emulation in the way -- which is what makes it the yardstick
+# every emulated row is read against.
+[target.x86_64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl:0.2.5"
+
+# AWS Graviton, an Ampere box, a Raspberry Pi 4/5 running a 64-bit OS, or the
+# Linux VM on an Apple Silicon Mac. The most likely non-x86 machine roog will
+# actually be played on.
+[target.aarch64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5"
+
+# ---------------------------------------------------------------------------
+# Potato Intel
+# ---------------------------------------------------------------------------
+
+# 32-bit x86: an Atom netbook, a Pentium M laptop, a thin client someone put
+# Alpine on. Worth keeping in the matrix because it is the row most likely to
+# break in a way nothing else catches -- `usize` is 32 bits here, and an
+# allocation count or a tile index that quietly assumed 64 shows up as a
+# compile error on this row and nowhere else.
+[target.i686-unknown-linux-musl]
+image = "ghcr.io/cross-rs/i686-unknown-linux-musl:0.2.5"
+
+# ---------------------------------------------------------------------------
+# Raspberry Pi
+# ---------------------------------------------------------------------------
+
+# ARMv7 with hardware float: Pi 2/3/Zero 2 W on a 32-bit OS, and close enough to
+# a Pi 1 or Zero W to be the right row to point at them. `hf` matters -- the
+# soft-float triple exists and produces a binary that runs, slowly, doing in
+# software what this one does in silicon.
+[target.armv7-unknown-linux-musleabihf]
+image = "ghcr.io/cross-rs/armv7-unknown-linux-musleabihf:0.2.5"
+
+# ---------------------------------------------------------------------------
+# Bare metal -- see nostd_check.sh
+# ---------------------------------------------------------------------------
+#
+# `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf` are deliberately
+# absent from this file. They are never linked into an executable and never run,
+# so they need no container and no linker: `cargo check -p particle-core
+# --target <triple>` is the whole job, and it runs on the host toolchain in
+# under a second. `nostd_check.sh` does that, and reaches for a container only
+# for the Xtensa target, whose compiler is a fork rustup does not carry.
+#
+# What is *not* being claimed there: that roog runs on a microcontroller. It
+# does not, it is not meant to, and a bare-metal row failing to produce a game
+# is not a bug. See docs/explanation/cross-platform-testing.md.

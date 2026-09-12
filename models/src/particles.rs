@@ -18,11 +18,18 @@ use crossterm::style::Color;
 
 use crate::map::{MAP_HEIGHT, MAP_WIDTH};
 
-/// How long an explosion's ripple takes to cross one tile of radius. Above the
-/// ~33ms frame period so the ring visibly steps outward ring by ring instead
-/// of flashing all at once; shared with [`Particles::secondary_burst`] so a
-/// target's cosmetic echo is timed to land after the primary ripple reaches it.
-const RIPPLE_MS_PER_TILE: f32 = 40.0;
+/// Every decision this module makes about *time* -- when a mote is visible,
+/// which keyframe it is showing, how long a ripple takes to reach a tile --
+/// lives in `particle-core`, a `no_std` crate with no dependencies at all. This
+/// module owns what a microcontroller cannot have: the `Vec` of keyframes, the
+/// crossterm colour, and the ECS resource.
+///
+/// The split is what makes `compat/`'s bare-metal check worth running. It
+/// compiles `particle-core` for an ESP32 and a RISC-V board, and because the
+/// game calls the same functions rather than a copy of them, a green check
+/// there is a statement about roog. See
+/// `docs/explanation/cross-platform-testing.md`.
+use particle_core as core_math;
 
 /// The colour family an area blast burns in. Each maps to a five-keyframe
 /// glyph/colour cycle every cell in the blast steps through as it fades.
@@ -138,25 +145,27 @@ pub struct Particle {
 }
 
 impl Particle {
-    /// Whether the mote has been born and is not yet dead.
-    fn visible(&self) -> bool {
-        self.age_ms >= self.delay_ms && self.age_ms < self.delay_ms + self.lifetime_ms
-    }
-
-    /// Age past which the mote can be culled.
+    /// Age past which the mote can be culled. Not the inverse of "drawing": a
+    /// mote still waiting out its `delay_ms` is neither, and culling it would
+    /// delete a ripple before it arrived.
     fn finished(&self) -> bool {
-        self.age_ms >= self.delay_ms + self.lifetime_ms
+        core_math::finished(self.age_ms, self.delay_ms, self.lifetime_ms)
     }
 
     /// The `(glyph, colour)` to paint this frame, or `None` if the mote is still
     /// waiting out its delay or has already expired.
+    ///
+    /// The keyframe *choice* is arithmetic and lives in `particle-core`; what
+    /// stays here is the one indexing step, because the keyframes are a `Vec`
+    /// of a colour type that crate deliberately knows nothing about.
     pub fn current(&self) -> Option<(char, Color)> {
-        if !self.visible() {
-            return None;
-        }
-        let t = ((self.age_ms - self.delay_ms) / self.lifetime_ms).clamp(0.0, 0.999);
-        let idx = (t * self.frames.len() as f32) as usize;
-        Some(self.frames[idx.min(self.frames.len() - 1)])
+        let idx = core_math::keyframe(
+            self.age_ms,
+            self.delay_ms,
+            self.lifetime_ms,
+            self.frames.len(),
+        )?;
+        Some(self.frames[idx])
     }
 }
 
@@ -425,7 +434,7 @@ impl Particles {
             self.push(Particle {
                 x,
                 y,
-                delay_ms: dist * RIPPLE_MS_PER_TILE,
+                delay_ms: core_math::ripple_delay(dist),
                 lifetime_ms: 280.0,
                 age_ms: 0.0,
                 frames: frames.to_vec(),
@@ -446,7 +455,7 @@ impl Particles {
         self.push(Particle {
             x,
             y,
-            delay_ms: radius.ceil() * RIPPLE_MS_PER_TILE + FOLLOW_MS,
+            delay_ms: core_math::follow_delay(radius, FOLLOW_MS),
             lifetime_ms: 200.0,
             age_ms: 0.0,
             frames: frames[2..].to_vec(),
@@ -468,7 +477,7 @@ impl Particles {
             self.push(Particle {
                 x,
                 y,
-                delay_ms: dist * RIPPLE_MS_PER_TILE + FOLLOW_MS,
+                delay_ms: core_math::ripple_delay(dist) + FOLLOW_MS,
                 lifetime_ms: 260.0,
                 age_ms: 0.0,
                 frames: frames.to_vec(),
@@ -519,25 +528,10 @@ impl Particles {
 /// horizontal, `|` vertical, `\` and `/` for the two diagonals (screen space, so
 /// y grows downward). Direction is taken from the neighbouring points.
 fn beam_glyph(pts: &[(u16, u16)], i: usize) -> char {
-    if pts.len() < 2 {
-        return '*';
-    }
-    let (ax, ay) = pts[i.saturating_sub(1).min(pts.len() - 2)];
-    let (bx, by) = pts[(i + 1).min(pts.len() - 1)];
-    let dx = bx as i32 - ax as i32;
-    let dy = by as i32 - ay as i32;
-    match (dx.signum(), dy.signum()) {
-        (_, 0) => '-',
-        (0, _) => '|',
-        (a, b) if a == b => '\\',
-        _ => '/',
-    }
+    core_math::beam_glyph(pts, i)
 }
 
 /// Clamp helper: keep an animation tile on the map before it is queued.
 pub fn on_map(x: i32, y: i32) -> Option<(u16, u16)> {
-    if x < 0 || y < 0 || (x as u16) >= MAP_WIDTH || (y as u16) >= MAP_HEIGHT {
-        return None;
-    }
-    Some((x as u16, y as u16))
+    core_math::on_map(x, y, MAP_WIDTH, MAP_HEIGHT)
 }

@@ -7,6 +7,12 @@ edition = "2024"
 workspace = true
 
 [dependencies]
+# The particle layer's arithmetic, kept in a `no_std` crate with no dependencies
+# so `compat/` can compile it for a microcontroller and have that mean something
+# about the game rather than about a copy of it. `std` is on here because a
+# hosted build has an `f32::ceil` intrinsic worth using; see the crate's own
+# `Cargo.toml` for why that flag cannot change an answer.
+particle-core = { path = "../particle-core", features = ["std"] }
 crossterm = "0.29.0"
 bevy_ecs = "0.12" 
 getrandom = "0.4.3"

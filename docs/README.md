@@ -11,23 +11,27 @@ plain text, wide enough to `cat` and short enough to `head`.
 Start here
 ----------
 
-| I want to...                        | Read                                |
-|-------------------------------------|-------------------------------------|
-| Add my first thing, hand-held       | `tutorial/add-your-first-item.md`   |
-| Add a monster                       | `how-to/add-a-monster.md`           |
-| Add a potion, wand, weapon, ring    | `how-to/add-an-item.md`             |
-| Add a trap                          | `how-to/add-a-trap.md`              |
-| Add a property like "fire immune"   | `how-to/add-an-effect.md`           |
-| Make something rarer, or deeper     | `how-to/tune-rarity-and-depth.md`   |
-| Add a whole new *kind* of item      | `how-to/add-an-item-category.md`    |
-| Look up a field, a type, a default  | `reference/content-tables.md`       |
-| Look up a component, resource, event| `reference/components.md`           |
-| Change a balance number             | `reference/constants.md`            |
-| Look up a function I have to call   | `reference/spawn-api.md`            |
-| Look up a flag or an env var        | `reference/cli-and-env.md`          |
-| Understand why it is built this way | `explanation/data-driven-content.md`|
-| Know what good numbers look like    | `explanation/combat-and-balance.md` |
-| Know what shape to leave the code in| `explanation/code-calisthenics.md`  |
+| I want to...                        | Read                                    |
+|-------------------------------------|-----------------------------------------|
+| Add my first thing, hand-held       | `tutorial/add-your-first-item.md`       |
+| Add a monster                       | `how-to/add-a-monster.md`               |
+| Add a potion, wand, weapon, ring    | `how-to/add-an-item.md`                 |
+| Add a trap                          | `how-to/add-a-trap.md`                  |
+| Add a property like "fire immune"   | `how-to/add-an-effect.md`               |
+| Make something rarer, or deeper     | `how-to/tune-rarity-and-depth.md`       |
+| Add a whole new *kind* of item      | `how-to/add-an-item-category.md`        |
+| Look up a field, a type, a default  | `reference/content-tables.md`           |
+| Look up a component, resource, event| `reference/components.md`               |
+| Change a balance number             | `reference/constants.md`                |
+| Look up a function I have to call   | `reference/spawn-api.md`                |
+| Look up a flag or an env var        | `reference/cli-and-env.md`              |
+| Understand why it is built this way | `explanation/data-driven-content.md`    |
+| Know what good numbers look like    | `explanation/combat-and-balance.md`     |
+| Know what shape to leave the code in| `explanation/code-calisthenics.md`      |
+| Check I did not make it slower      | `how-to/run-the-perf-pipeline.md`       |
+| Know how performance is measured    | `explanation/performance-testing.md`    |
+| Check it still runs on a Pi         | `how-to/run-the-compat-pipeline.md`     |
+| Know how portability is tested      | `explanation/cross-platform-testing.md` |
 
 And one architecture decision record, on why content is compiled into the
 binary rather than loaded from JSON raw files:
@@ -107,3 +111,8 @@ Quick sanity check
     cargo test --test determinism             # seeds still mean what they meant
     cargo run -p engine -- -content           # what the game knows
     ROOG_SPAWN="dragon" cargo run -p engine   # put one in front of me
+
+And the two pipelines, which are slower and answer different questions:
+
+    ./perf_test.sh                            # did I make it slower?
+    ./compat_test.sh                          # does it still run on a Pi?

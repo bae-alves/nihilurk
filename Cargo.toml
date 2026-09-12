@@ -1,8 +1,27 @@
 [workspace]
 resolver = "3"
 members = [
+    "compat",
     "engine",
-    "models"
+    "models",
+    "particle-core",
+    "perf"
+]
+
+# `perf` and `compat` are test rigs, not part of the game: they pull in ratatui,
+# sysinfo and criterion, none of which the shipped binary is allowed to depend
+# on (see the portability note in `gdd.md`). Keeping them out of
+# `default-members` means a bare `cargo build` / `cargo test` at the workspace
+# root never compiles them; reaching one is always explicit, via `-p roog-perf`
+# / `-p roog-compat`, or via `perf_test.sh` / `compat_test.sh`.
+#
+# `compat` is the odder of the two: it is a rig that builds and runs the game
+# for *other machines*, so it is the one crate here that is never itself part of
+# what is being measured.
+default-members = [
+    "engine",
+    "models",
+    "particle-core"
 ]
 
 # Clippy: only the `correctness`, `suspicious`, `complexity` and `perf` lint
@@ -15,3 +34,52 @@ correctness = { level = "deny", priority = -1 }
 suspicious = { level = "warn", priority = -1 }
 complexity = { level = "warn", priority = -1 }
 perf = { level = "warn", priority = -1 }
+
+# ---------------------------------------------------------------------------
+# Profiles
+# ---------------------------------------------------------------------------
+
+# What actually ships. Every knob here costs compile time and buys either
+# runtime speed or bytes on disk; none of them change behaviour.
+#
+#   lto = "fat"          one LTO pass over the whole dependency graph, so
+#                        `Particle::current` can inline into the render loop
+#                        across the models/engine crate boundary.
+#   codegen-units = 1    no parallel-codegen inlining barriers. Worth it here
+#                        because the hot loop is small and inlining-sensitive.
+#   panic = "abort"      drops the unwind tables. Safe for roog: there is not a
+#                        single `#[should_panic]` in the suite, and a panic
+#                        mid-turn is unrecoverable anyway. Cargo ignores this
+#                        key for the `test`/`bench` profiles, so benches and
+#                        `cargo test` are unaffected.
+#   strip = "symbols"    a ~2-3x smaller binary. This is *also* why profiling
+#                        does not run on this profile -- see below.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+# The profile every tool in `perf_test.sh` builds with.
+#
+# It is byte-for-byte the same machine code as `release` -- same opt-level,
+# same LTO, same codegen-units -- with the symbols put back. That matters: a
+# flamegraph of a *differently optimised* binary is a flamegraph of a program
+# you do not ship, and `cargo bloat` on a stripped binary has nothing to read.
+# Inheriting rather than redeclaring is what keeps the two from drifting.
+#
+# Frame pointers are not a profile key; `perf_test.sh` passes
+# `-C force-frame-pointers=yes` in RUSTFLAGS, without which `perf record -g`
+# cannot walk the stack out of an LTO'd, codegen-units=1 build.
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
+
+# Criterion measures the code as shipped, plus symbols so a bench can be fed
+# straight to `perf`/flamegraph when a regression needs chasing.
+[profile.bench]
+inherits = "release"
+debug = true
+strip = "none"

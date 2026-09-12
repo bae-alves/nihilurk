@@ -17,6 +17,15 @@ Where things are
     gdd.md         what roog is trying to be. Design, not code.
     models/        the game: rules, content tables, ECS systems.
     engine/        the terminal front end: input, rendering, the loop.
+    particle-core/ the particle arithmetic, `no_std` and dependency-free.
+    perf/          the stress rig. Did I make it slower?
+    compat/        the machine matrix. Does it still run on a Pi?
+
+The last three are test rigs, kept out of the workspace's default members,
+so a bare `cargo build` or `cargo test` never compiles them:
+
+    ./perf_test.sh                       # the particle layer, measured
+    ./compat_test.sh                     # roog, built and run on six machines
 
 
 Adding content
