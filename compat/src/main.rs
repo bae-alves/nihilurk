@@ -187,18 +187,26 @@ fn report(results: &Results) -> ExitCode {
         let run = results.run(&row.id, Load::Game);
         let band = run.map(verdict::grade).unwrap_or(Band::Unknown);
         let footprint = results.footprint(&row.id).unwrap_or_default();
+        // A skipped or build-only row has a `Run` (so `status_note` below can
+        // still explain why) but nothing was ever measured -- its zeroed
+        // numeric fields are a placeholder, not a reading of "0 dropped, 0 B
+        // peak", and printing them as such next to the verdict would say the
+        // opposite of what happened.
+        let measured = run.filter(|r| !matches!(r.status, Status::Skipped | Status::BuildOnly));
         let _ = writeln!(
             w,
             "  {:<9} {:<7} {:>9} {:>9} {:>9} {:>6} {:>9}  {}{}",
             row.id,
             exec_word(row.exec),
             cell(footprint.game, ui::bytes),
-            run.map(|r| format!("{:.2}ms", r.mean_ms))
+            measured
+                .map(|r| format!("{:.2}ms", r.mean_ms))
                 .unwrap_or_else(dash),
-            run.map(|r| format!("{:.2}ms", r.p99_ms))
+            measured
+                .map(|r| format!("{:.2}ms", r.p99_ms))
                 .unwrap_or_else(dash),
-            run.map(|r| r.dropped.to_string()).unwrap_or_else(dash),
-            run.map(|r| ui::bytes(r.peak_rss)).unwrap_or_else(dash),
+            measured.map(|r| r.dropped.to_string()).unwrap_or_else(dash),
+            measured.map(|r| ui::bytes(r.peak_rss)).unwrap_or_else(dash),
             band.label(),
             run.map(ui::status_note).unwrap_or(""),
         );
@@ -359,6 +367,12 @@ fn report_what_ran(w: &mut String, results: &Results, linux: &[matrix::Row]) {
         let Some(run) = results.run(&row.id, Load::Game) else {
             continue;
         };
+        // A skipped or build-only row never started a container -- there is
+        // no "what ran" to report, and a zeroed line here would read as a
+        // row that started and instantly died, which did not happen.
+        if matches!(run.status, Status::Skipped | Status::BuildOnly) {
+            continue;
+        }
         let _ = writeln!(
             w,
             "  {:<9} {:<32} {:>7} {:>8} {:>7} {:>9}",
@@ -428,16 +442,19 @@ fn report_footprint(w: &mut String, results: &Results, linux: &[matrix::Row]) {
     );
 }
 
-/// Where to go when a row did not run. A failed container is the one result
-/// that cannot be read off a number, so the report hands over the log.
+/// Where to go when a row did not run cleanly. A failed or timed-out
+/// container is the one result that cannot be read off a number, so the
+/// report hands over the log -- a skipped or build-only row never started a
+/// container in the first place, so there is neither a log worth reading nor
+/// one to clean up, and listing it here would send someone chasing nothing.
 fn report_failures(w: &mut String, results: &Results, linux: &[matrix::Row]) {
     let broken: Vec<_> = linux
         .iter()
         .filter_map(|row| {
             let run = results.run(&row.id, Load::Game)?;
             match run.status {
-                Status::Ok => None,
-                _ => Some((row, run)),
+                Status::Failed | Status::Timeout => Some((row, run)),
+                Status::Ok | Status::Skipped | Status::BuildOnly => None,
             }
         })
         .collect();

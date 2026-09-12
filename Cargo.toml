@@ -35,6 +35,17 @@ suspicious = { level = "warn", priority = -1 }
 complexity = { level = "warn", priority = -1 }
 perf = { level = "warn", priority = -1 }
 
+# Cargo's own unused-dependency lint is target-scoped: a plain `cargo test`
+# builds only the lib, bins and integration tests, never `benches/`, so a
+# dev-dependency used solely by a `harness = false` bench target (`perf`'s
+# `criterion`) reads as unused even though `cargo bench` / `--all-targets`
+# needs it. That is a false positive baked into how the lint works, not a
+# stale dependency, so it is allowed workspace-wide rather than chased crate
+# by crate. A genuinely unused dependency is still caught by
+# `cargo clippy --all-targets`, which every touched crate is built with.
+[workspace.lints.cargo]
+unused_dependencies = "allow"
+
 # ---------------------------------------------------------------------------
 # Profiles
 # ---------------------------------------------------------------------------

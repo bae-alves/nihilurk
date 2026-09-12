@@ -178,14 +178,6 @@ check_in_container() {
     >>"$OUT/nostd-$id.log" 2>&1
 }
 
-# The shell the user asked for, checked rather than assumed. An SDK image with
-# no shell in it cannot be poked at by hand, and `--shell` would fail at the
-# worst possible moment -- when someone is already debugging something else.
-check_has_shell() {
-  local id=$1 image=$2
-  docker run --rm "$image" /bin/sh -c 'echo shell-ok' 2>/dev/null | grep -q shell-ok
-}
-
 CHECKED=""
 while IFS=$'\t' read -r id target class platform image exec cpus memory note_text; do
   stage "$id  ($target)"
@@ -217,7 +209,7 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
   # separately: a row can compile on the host and still have an unusable
   # image, and you want to know that before you need it.
   if docker info >/dev/null 2>&1; then
-    if check_has_shell "$id" "$image"; then
+    if check_has_shell "$image"; then
       note "shell image ok: docker run --rm -it $image /bin/bash -l"
       note "  or: ./compat/nostd_check.sh --shell $id"
     else

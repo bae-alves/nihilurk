@@ -25,10 +25,11 @@ Quick commands
 
     ./compat_test.sh                  everything (~20 min cold)
     ./compat_test.sh --targets cloud  one machine
-    ./compat_test.sh --quick          gate only; skip the Bad Apple ceiling
+    ./compat_test.sh --quick          gate only; skip the ceiling and screen check
     ./compat_test.sh --no-build       reuse what is already built
     ./compat_test.sh --targets pi-zero --no-bare     one row, no ESP32
     ./compat_test.sh --no-bare        skip the microcontroller check
+    ./compat_test.sh --no-screen      skip the pty/screen check on its own
     ./compat_test.sh --gui            finish in the dashboard
     ./compat_test.sh --help
 
@@ -64,19 +65,43 @@ machine, tab-separated; adding a machine is adding a line.
     cloud      x86_64 musl     1 cpu    512m   t3.micro, and the control
     graviton   aarch64 musl    2 cpu      1g   AWS Graviton, an M-series VM
     pi-zero    armv7 musl    0.4 cpu    512m   Raspberry Pi Zero 2 W
+    pi2        armv7 musl      1 cpu      1g   Raspberry Pi 2 B
+    pi3        aarch64 musl  1.2 cpu      1g   Raspberry Pi 3 B
+    pi4        aarch64 musl  1.5 cpu      2g   Raspberry Pi 4 B
+    cm         aarch64 musl  1.5 cpu      1g   Compute Module 4 (1GB Lite)
     potato     i686 musl       1 cpu    512m   32-bit netbook, ca. 2008
     esp32c3    riscv32imc         -         -  ESP32-C3, compiled only
     esp32      xtensa-esp32       -         -  ESP32, compiled only
 
 The limits are handed straight to Docker, and swap is disabled, so the
-memory cap is a real ceiling. `cloud` and `potato` run on the host CPU;
-`graviton` and `pi-zero` run under a qemu-user-static interpreter the
-pipeline fetches on its own the first time it is needed -- no
-`binfmt_misc`, no `--privileged` setup step required.
+memory cap is a real ceiling. `cloud` and `potato` run on the host CPU.
+Every other `linux` row is a `qemu` row: cross-compiled and
+static-link-checked always, but only actually run under a
+qemu-user-static interpreter -- fetched by the pipeline on its own, no
+`binfmt_misc`, no `--privileged` -- when `--exec-emulated` asks for it.
 
-The last two rows are never executed. See "The microcontroller rows"
-below, and `../explanation/cross-platform-testing.md` for why they are
-in the matrix at all.
+Every `linux` row's image is checked for a shell before it is run --
+that is not optional, roog cannot start without a real terminal under
+it -- and a row that fails the check is skipped rather than run. See
+"why every `linux` row must have a shell" in
+`../explanation/cross-platform-testing.md`.
+
+An emulated (`qemu`) row is not run by default: it is still
+cross-compiled and static-link-checked by `cross_build.sh`, and that is
+treated as sufficient, because roog's own frame loop asks far less of a
+machine than the Rust toolchain that just cross-compiled it does.
+qemu-user-static's syscall translation also does not reliably extend to
+the architecture-specific ioctls crossterm needs (terminal size, raw
+mode), so there is a real reason not to lean on it here beyond the
+build. A build failure still fails the pipeline -- that part is
+unchanged and non-negotiable. `--exec-emulated` opts back into real
+execution for anyone with actual hardware, or a qemu build, to check it
+against. See "why emulated rows are build-only" in
+`../explanation/cross-platform-testing.md`.
+
+The two `esp32*` rows are never executed, under any flag: they are
+`no_std`, and there is no "run it for real" for a target with no OS to
+run it under. See "The microcontroller rows" below.
 
 
 1. Does roog still run everywhere?
@@ -90,24 +115,31 @@ in the matrix at all.
 
        machine   exec       binary      mean       p99  drops  peak rss  verdict
        cloud     native    1.8 MiB    0.04ms    0.15ms      0   1.7 MiB  plays
-       graviton  qemu            -         -         -      -         -  -
-       pi-zero   qemu            -         -         -      -         -  -
+       graviton  qemu      1.6 MiB         -         -      -         -  builds
+       pi-zero   qemu      1.6 MiB         -         -      -         -  builds
        potato    native    1.8 MiB    0.05ms    0.07ms      0   1.6 MiB  plays
 
-   A row of dashes is a machine that was not run -- here because
-   Docker could not pull the qemu-user-static interpreter the two ARM
-   rows need, so they were skipped rather than failed. The verdict is
-   the column that matters:
+   `builds` is the verdict for every emulated row by default: the table
+   is the whole story for it, not a hedge -- cross-compiled, statically
+   linked (the binary column is a real size, not a placeholder), and
+   trusted on that basis. It is not the same as a dash. A dash means
+   compat/ has nothing to say about the row at all -- a missing shell in
+   its image, or Docker failing to pull the qemu-user-static interpreter
+   for a row run with `--exec-emulated` -- and is rare precisely because
+   `builds` covers the routine, expected case. Neither fails the
+   pipeline; only a row that was actually run and lost does. The verdict
+   is the column that matters:
 
+       builds        cross-compiled and statically linked; not run here
        plays         the frame is done in under half the budget
        playable      keeps up; roog is playable on this hardware
        janky         over budget, or dropping frames you can see
        unplayable    cannot hold the frame rate at all
        does not run  the container failed, was killed, or OOMed
 
-3. `plays`, `playable` and `janky` all exit 0. `unplayable` and
-   `does not run` fail the pipeline, because they mean a machine that
-   used to run roog no longer does.
+3. `builds`, `plays`, `playable` and `janky` all exit 0. `unplayable`
+   and `does not run` fail the pipeline, because they mean a machine
+   that used to run roog no longer does.
 
 A `!` beside a verdict means the run finished but came within 10% of
 that machine's memory cap. Not a failure -- it passed -- but it is one
@@ -135,6 +167,18 @@ ceiling row says `timeout -- too slow for the reel, which is allowed`,
 that is not a failure.
 
 `--quick` skips the ceiling and roughly halves the runtime.
+
+An executed row also gets one more pass: the same game load, run through
+roog-perf's redraw viewer instead of the numeric report, with a
+pseudo-terminal attached and sized from inside the container
+(`docker run -t`, then `stty`) so crossterm has an actual terminal to
+draw into instead of the counting sink the two runs above use. It is not
+timed and prints no numbers -- it only has to come up and keep drawing
+for its frame count without falling over. A `bad` line under a row's
+name naming `screen` is that check failing; `--no-screen` skips it, same
+as `--no-reel` skips the ceiling. See "why every row also gets a real
+screen" in
+`../explanation/cross-platform-testing.md`.
 
 If you shorten the ceiling run with `--reel-frames`, keep it above 300.
 Bad Apple opens on a nearly black screen, so a 60-frame run measures
@@ -244,17 +288,19 @@ for poking at the toolchain by hand:
 
 Add a line to `compat/matrix.tsv`. Nine tab-separated fields:
 
-    id        pi4
+    id        pi5
     target    aarch64-unknown-linux-musl
     class     linux            has an OS and a shell; roog runs here
     platform  linux/arm64      docker --platform for a native row; for a
                                qemu row, only picks the interpreter --
                                see stress_test_matrix.sh
-    image     alpine:3.22      what the binary is executed in
+    image     alpine:3.22      what the binary is executed in -- checked
+                               for a shell before it is trusted, see
+                               "the machines" above
     exec      qemu             native | qemu | none
-    cpus      1                docker --cpus
-    memory    1g               docker --memory
-    note      Raspberry Pi 4, 64-bit OS
+    cpus      2                docker --cpus
+    memory    2g               docker --memory
+    note      Raspberry Pi 5, 64-bit OS
 
 Then, if it is a new triple, add its cross image to `compat/Cross.toml`:
 
@@ -335,6 +381,24 @@ A row says `does not run` and the log ends abruptly
     On a memory-capped row that is usually the OOM killer, and it is a
     result rather than a bug: roog does not fit in that much RAM. The
     report points at `target/compat/run-<machine>-game.log`.
+
+The report contradicts what the pipeline just printed live
+
+    The matrix loop and `roog-compat report` disagree -- a row the loop
+    just logged `ok  builds: ...` for shows up as `does not run`, or is
+    missing from the table entirely. `matrix.tsv` is compiled into
+    `roog-compat` with `include_str!`, so a `target/release/roog-compat`
+    built before the last change to it, or to `compat/src/*.rs`, is
+    reading fresh results with stale code -- an unrecognised status
+    string falls back to `Failed`, and a row added to the table since
+    the binary was built never appears at all. Both scripts now build
+    `roog-compat` unconditionally rather than only when the binary is
+    missing, specifically because "it already exists" and "it matches
+    the current source" are different questions and only `cargo build`
+    can answer the second one. If you still see this on an older
+    checkout:
+
+        cargo build --release -p roog-compat
 
 `llvm-nm cannot read a <triple> binary`
 

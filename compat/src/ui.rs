@@ -172,6 +172,10 @@ fn row_line(app: &App, row: &matrix::Row, selected: bool) -> Line<'static> {
     let run = app.results.run(&row.id, Load::Game);
     let band = run.map(verdict::grade).unwrap_or(Band::Unknown);
     let footprint = app.results.footprint(&row.id).unwrap_or_default();
+    // See the matching comment in main.rs::report: a skipped or build-only
+    // row's numeric fields are a placeholder, not a reading, and must print
+    // as `-` like an absent run rather than "0.00ms, 0 dropped".
+    let measured = run.filter(|r| !matches!(r.status, Status::Skipped | Status::BuildOnly));
     let marker = match selected {
         true => ">",
         false => " ",
@@ -181,10 +185,10 @@ fn row_line(app: &App, row: &matrix::Row, selected: bool) -> Line<'static> {
         row.id,
         exec_label(row.exec),
         size_cell(footprint),
-        ms_cell(run.map(|r| r.mean_ms)),
-        ms_cell(run.map(|r| r.p99_ms)),
-        drops_cell(run),
-        rss_cell(run),
+        ms_cell(measured.map(|r| r.mean_ms)),
+        ms_cell(measured.map(|r| r.p99_ms)),
+        drops_cell(measured),
+        rss_cell(measured),
     );
     let style = match selected {
         true => Style::default().add_modifier(Modifier::BOLD),
@@ -261,6 +265,7 @@ fn rss_cell(run: Option<&Run>) -> String {
 
 fn band_color(band: Band) -> Color {
     match band {
+        Band::Builds => Color::Cyan,
         Band::Plays => Color::LightGreen,
         Band::Playable => Color::Green,
         Band::Janky => Color::Yellow,
@@ -517,6 +522,7 @@ pub fn status_note(run: &Run) -> &'static str {
         }
         Status::Timeout => "  (killed by the runner's clock -- too slow to finish)",
         Status::Skipped => "  (not attempted)",
+        Status::BuildOnly => "  (not run by default -- --exec-emulated runs it for real)",
     }
 }
 
@@ -634,6 +640,7 @@ mod tests {
         // A band added without a colour would draw in the terminal's default
         // and read as a different kind of result than it is.
         for band in [
+            Band::Builds,
             Band::Plays,
             Band::Playable,
             Band::Janky,

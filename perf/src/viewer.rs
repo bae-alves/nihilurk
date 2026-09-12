@@ -83,14 +83,27 @@ fn run(scene: &mut Scene, opts: &Options) -> std::io::Result<()> {
     let mut canvas = Canvas::new();
     let mut next_frame = Instant::now();
     let mut worst_ms = 0.0f64;
+    let mut frames = 0u64;
 
     loop {
         let work_start = Instant::now();
         let phases = crate::tick(scene, &mut canvas, dt_ms);
         let work_ms = work_start.elapsed().as_secs_f64() * 1000.0;
         worst_ms = worst_ms.max(work_ms);
+        frames += 1;
 
         status(scene, opts, phases.flush_ns, work_ms, worst_ms)?;
+
+        // Same bound `headless` and the dashboard stop at. Left out, this loop
+        // only ever ends on a quit key -- "the reel loops, so it runs until you
+        // stop it" above is right for a human at a keyboard, and wrong for
+        // compat/'s screen check, which drives this over a detached container
+        // with nothing able to press `q`.
+        if let Some(limit) = opts.frames {
+            if frames >= limit {
+                return Ok(());
+            }
+        }
 
         next_frame += frame_dur;
         let now = Instant::now();

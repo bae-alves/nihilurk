@@ -270,7 +270,9 @@ OPTIONS
     --workload <W>     particles | screen | both   [default: particles]
                        `all` runs the three in turn off one parse of the
                        reel and prints a comparison. Headless only.
-    --frames <N>       stop after N frames         [default: 450, headless]
+    --frames <N>       stop after N frames         [default: 450, headless;
+                                                   also bounds the dashboard,
+                                                   for driving it unattended]
     --full             run the whole reel instead  (6572 frames, 3m39s)
     --duration <SECS>  stop after SECS             [default: none; when
                                                    given it bounds the run
@@ -479,6 +481,15 @@ fn dashboard_loop(
 
         if let Some(limit) = opts.duration {
             if start.elapsed() >= limit {
+                return Ok(());
+            }
+        }
+        // Same bound headless runs stop at. Without this the dashboard only
+        // ever exits on `--duration` or a keypress, and compat/'s screen check
+        // drives this over a detached, keyboard-less container -- an unbounded
+        // dashboard there would run until the row's own timeout killed it.
+        if let Some(limit) = opts.frames {
+            if m.frames >= limit {
                 return Ok(());
             }
         }

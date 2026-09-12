@@ -6,14 +6,24 @@
 # One container per row of matrix.tsv. The row's `--cpus` and `--memory` are
 # handed straight to Docker, swap is disabled so the memory cap is a real
 # ceiling rather than a suggestion, and the binary inside is the static musl
-# one `cross_build.sh` produced for that row's architecture. Foreign
-# architectures run under a directly-invoked qemu-user-static interpreter,
-# fetched into target/compat/qemu/ the first time it is needed -- see
-# "Foreign architectures, without binfmt_misc" below.
+# one `cross_build.sh` produced for that row's architecture.
+#
+# A `qemu` row is not actually executed by default. qemu-user-static
+# translates syscalls, not ioctls with architecture-specific encodings, and
+# roog draws through crossterm, whose terminal-size and raw-mode ioctls are
+# exactly the ones it gets wrong -- reliably enough that a "does this row run"
+# question asked of an emulated crossterm program is really "does qemu's
+# ioctl translation work today", which is not what this pipeline is for. See
+# "Why emulated rows are build-only" below. `--exec-emulated` overrides this
+# for anyone who does have real hardware, or a qemu build good enough to
+# trust, to actually check against -- see "Foreign architectures, without
+# binfmt_misc" below for how that path still works, unchanged, when asked for.
 #
 # WHAT IS BEING MEASURED
 #
-# Whether roog runs on the machine, and how well. Each row is run twice:
+# Whether roog runs on the machine, and how well. A row that is actually
+# executed (a native row always; a `qemu` row only with `--exec-emulated` --
+# see below) is run three times:
 #
 #   --load game   a real dungeon floor, animated by the batches the game
 #                 actually queues. This is roog running, and it is the only
@@ -23,17 +33,60 @@
 #                 ceiling -- how much harder you could push the machine
 #                 before the particle layer gives out. Nothing is gated on
 #                 it, and on the slowest rows it is expected to lose.
+#   the screen    roog-perf's redraw viewer, not headless, with a pseudo-TTY
+#                 sized from inside the container so crossterm believes it
+#                 has a real terminal to draw on. Bounded by frames rather
+#                 than a keypress -- see "The screen" below. Not timed, but
+#                 it must come up clean.
 #
 # A machine that cannot keep up with Bad Apple may still play roog perfectly
 # well. Grading on the reel would fail the rows that matter and would answer
 # a question nobody asked.
 #
+# THE SCREEN
+#
+# The game and reel runs above are deliberately headless: `--headless` sends
+# the frame's diff-and-flush into a counting sink instead of a terminal, which
+# is what makes the frame-time numbers reproducible rather than a measurement
+# of that day's pty. But defaulting an entire compat pipeline to headless,
+# for a game, would mean never actually proving the thing draws -- so an
+# executed row also gets one pty-attached, non-headless run of roog-perf's
+# redraw viewer (`docker run -t`, no `--headless`), bounded by `--frames`
+# like the gate is. It is not graded on speed and is not the reel's ceiling;
+# it only has to come up and run to the frame bound without crossterm or the
+# viewer falling over. `--no-screen` skips it, for the same reason
+# `--no-reel` exists: sometimes you only want the gate. See "The screen"
+# below for why this needs a shell, not just a pty.
+#
+# WHY EMULATED ROWS ARE BUILD-ONLY
+#
+# `cross_build.sh` already proves more than the game asks of the machine it
+# names: it cross-compiles roog with a full Rust toolchain, which is heavier,
+# by every measure that matters here, than roog's own frame loop ever is. A
+# static, correctly-linked ARM binary coming out of that (checked by
+# cross_build.sh's own `file` inspection) is a real claim about the hardware
+# roog will run on, and it is a claim this pipeline can actually stand behind
+# without also standing behind qemu-user's ioctl translation. A `does not run`
+# because the emulator mishandled `TIOCGWINSZ`, not because roog broke, is a
+# false alarm dressed as a compat failure -- worse than no answer, because it
+# reads exactly like the real thing until someone spends an afternoon on the
+# log.
+#
+# So an emulated row's contribution to "does roog run on these machines" is
+# the build, same as a `bare` row's is compiling `particle-core` -- neither is
+# executed by default, and both say plainly, on that row, why not.
+# `--exec-emulated` is there for whoever eventually points this at real
+# hardware, or a qemu build worth trusting for this.
+#
 # Usage:
 #   ./compat/stress_test_matrix.sh                  every Linux row
 #   ./compat/stress_test_matrix.sh --targets pi-zero,potato
-#   ./compat/stress_test_matrix.sh --no-reel        the gate only, much faster
+#   ./compat/stress_test_matrix.sh --no-reel        skip the ceiling
+#   ./compat/stress_test_matrix.sh --no-screen      skip the pty/screen check
+#   ./compat/stress_test_matrix.sh --exec-emulated  actually run the qemu rows too
 #   ./compat/stress_test_matrix.sh --frames 900     longer gate run
 #   ./compat/stress_test_matrix.sh --reel-frames 300  shorter ceiling run
+#   ./compat/stress_test_matrix.sh --screen-frames 300  longer screen check
 #   ./compat/stress_test_matrix.sh --timeout 900    per-run seconds
 #   ./compat/stress_test_matrix.sh --gui            finish in the dashboard
 #   ./compat/stress_test_matrix.sh --help
@@ -64,22 +117,37 @@ FRAMES=450
 REEL_FRAMES=450
 REEL_FRAMES_HONEST=300
 
+# The screen check only has to prove the redraw viewer comes up and keeps
+# drawing -- five seconds at 30 fps is plenty, and it is not measured on
+# speed so there is no honesty floor to warn about the way there is for the
+# reel.
+SCREEN_FRAMES=150
+
 FPS=30
 TIMEOUT=600
 ONLY=""
 WITH_REEL=1
+WITH_SCREEN=1
+EXEC_EMULATED=0
 RUN_GUI=0
+# Rows build-checked rather than executed by design (see "why emulated rows
+# are build-only" above) -- distinct from $SKIPPED, which is a row this run
+# genuinely could not say anything about.
+BUILD_ONLY=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --targets)      ONLY="${2:?--targets needs a list}"; shift ;;
-    --frames)       FRAMES="${2:?--frames needs a number}"; shift ;;
-    --reel-frames)  REEL_FRAMES="${2:?--reel-frames needs a number}"; shift ;;
-    --fps)          FPS="${2:?--fps needs a number}"; shift ;;
-    --timeout)      TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
-    --no-reel)      WITH_REEL=0 ;;
-    --gui)          RUN_GUI=1 ;;
-    --help|-h)      sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+    --targets)       ONLY="${2:?--targets needs a list}"; shift ;;
+    --frames)        FRAMES="${2:?--frames needs a number}"; shift ;;
+    --reel-frames)   REEL_FRAMES="${2:?--reel-frames needs a number}"; shift ;;
+    --screen-frames) SCREEN_FRAMES="${2:?--screen-frames needs a number}"; shift ;;
+    --fps)           FPS="${2:?--fps needs a number}"; shift ;;
+    --timeout)       TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
+    --no-reel)       WITH_REEL=0 ;;
+    --no-screen)     WITH_SCREEN=0 ;;
+    --exec-emulated) EXEC_EMULATED=1 ;;
+    --gui)           RUN_GUI=1 ;;
+    --help|-h)       sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) echo "stress_test_matrix.sh: unknown option $1 (try --help)" >&2; exit 1 ;;
   esac
   shift
@@ -101,6 +169,14 @@ case "$WITH_REEL" in
        note "  $REEL_FRAMES_HONEST or more for a ceiling worth quoting"
      fi ;;
   *) note "ceiling: skipped (--no-reel)" ;;
+esac
+case "$WITH_SCREEN" in
+  1) note "screen: redraw viewer under a sized pty, $SCREEN_FRAMES frames. Not timed, must come up clean." ;;
+  *) note "screen: skipped (--no-screen)" ;;
+esac
+case "$EXEC_EMULATED" in
+  1) note "emulated (qemu) rows: executed like any other, per --exec-emulated" ;;
+  *) note "emulated (qemu) rows: build-verified only, not run -- see the header" ;;
 esac
 
 # ---------------------------------------------------------------------------
@@ -339,7 +415,11 @@ run_row() {
 
   local started ended wall exit_code status
   started=$(date +%s)
-  if ! docker run -d --name "$name" \
+  # `-t` allocates a pseudo-TTY even though nothing is attached to it (`-d`,
+  # no `-i`): it costs nothing on a headless run, and it is what lets the
+  # screen check below get a real terminal for crossterm to find, on the same
+  # code path every other row uses.
+  if ! docker run -d -t --name "$name" \
         "${docker_platform[@]}" \
         --cpus "$cpus" --memory "$memory" --memory-swap "$memory" \
         "${mounts[@]}" \
@@ -394,6 +474,106 @@ run_row() {
   esac
 }
 
+# ---------------------------------------------------------------------------
+# The screen
+# ---------------------------------------------------------------------------
+#
+# Same binary, same row, no `--headless`: `--workload both` (and `screen`)
+# redraw, so `run_stress` in perf/src/main.rs sends this to `viewer::watch` in
+# perf/src/viewer.rs, not the dashboard -- see the parity note in
+# perf/src/scene.rs's `Workload::redraws`. `viewer::watch` takes the terminal
+# directly and refuses to run under its 80x26 minimum, which a bare
+# `docker run -t` does not clear on its own: nothing is attached to the pty's
+# other end to send it a window-change ioctl, so it reads back as 0x0. The
+# `stty rows 26 cols 80` below sets that size on the pty from inside the
+# container before roog-perf starts, which is the concrete reason a shell is
+# not optional here (see check_has_shell above) -- this is what it is for.
+#
+# `--frames` bounds the loop the same way it bounds the headless gate (see the
+# frame-count check `viewer::run` gained in perf/src/main.rs), which is what
+# lets this run unattended in a detached, keyboard-less container instead of
+# sitting there until someone presses `q`.
+#
+# There is nothing to parse out of this run -- the viewer has no textual
+# report -- so it feeds nothing into results.tsv/roog-compat. All that matters
+# is the exit code: 0 means the row drew its own screen without crossterm or
+# the viewer falling over, which a headless-only pipeline would never prove.
+# By default this only ever runs for a native row -- see "why emulated rows
+# are build-only" at the top of this file.
+run_screen_check() {
+  local id=$1 target=$2 platform=$3 image=$4 exec_kind=$5 cpus=$6 memory=$7
+  local name="roog-compat-$id-screen"
+  local log="$OUT/run-$id-screen.log"
+  local bin
+  bin=$(target_bin "$target" "$RIG" release)
+
+  if [ ! -x "$bin" ]; then
+    warn "$id/screen: no binary at $bin"
+    return 1
+  fi
+
+  docker rm -f "$name" >/dev/null 2>&1
+
+  local mounts=(-v "$bin:/roog-perf:ro")
+  local cmd=(/roog-perf --workload both --load game --frames "$SCREEN_FRAMES" --fps "$FPS")
+
+  local docker_platform=(--platform "$platform")
+  if [ "$exec_kind" = "qemu" ]; then
+    local handler qemu_bin
+    handler=$(qemu_handler_for "$platform")
+    qemu_bin=$(ensure_qemu_interpreter "$handler") || {
+      warn "$id/screen: could not fetch $handler from $QEMU_IMAGE"
+      return 1
+    }
+    docker_platform=()
+    mounts+=(-v "$qemu_bin:/qemu-static:ro")
+    cmd=(/qemu-static "${cmd[@]}")
+  fi
+
+  # `-t` allocates the pty but does not size it: with nothing attached to the
+  # other end to send a window-change ioctl, an unresized pty reads back as
+  # 0x0, and `--workload both` draws through perf/src/viewer.rs, which refuses
+  # to run below its 80x26 minimum -- correctly, since a real Pi's actual
+  # terminal has a real size and a silent 0x0 run would prove nothing. `stty`
+  # sets that size on the pty from inside the container, which is exactly why
+  # a shell is not optional here either (see check_has_shell above): this is
+  # what it is for. 80x26 mirrors `SCREEN_W`/`SCREEN_H + 1` in
+  # perf/src/screen.rs and perf/src/viewer.rs; if those move, this must too.
+  cmd=(/bin/sh -c 'stty rows 26 cols 80 2>/dev/null; exec "$@"' sh "${cmd[@]}")
+
+  if ! docker run -d -t --name "$name" \
+        "${docker_platform[@]}" \
+        --cpus "$cpus" --memory "$memory" --memory-swap "$memory" \
+        "${mounts[@]}" \
+        "$image" "${cmd[@]}" >/dev/null 2>"$log"; then
+    bad "screen: container would not start"
+    tail -3 "$log" | sed 's/^/      /'
+    FAILED="${FAILED}$id/screen "
+    return 1
+  fi
+
+  local exit_code
+  exit_code=$(timeout "$TIMEOUT" docker wait "$name" 2>/dev/null)
+  if [ -z "$exit_code" ]; then
+    docker kill "$name" >/dev/null 2>&1
+  fi
+  docker logs "$name" > "$log" 2>&1
+  docker rm -f "$name" >/dev/null 2>&1
+
+  if [ -z "$exit_code" ]; then
+    bad "screen: still going after ${TIMEOUT}s -- the viewer never reached $SCREEN_FRAMES frames"
+    FAILED="${FAILED}$id/screen "
+    return 1
+  fi
+  if [ "$exit_code" != "0" ]; then
+    bad "screen: exit $exit_code; see $log"
+    tail -6 "$log" | sed 's/^/      /'
+    FAILED="${FAILED}$id/screen "
+    return 1
+  fi
+  ok "screen: rendered $SCREEN_FRAMES frames under a real, sized pty"
+}
+
 # One line per finished run. The columns are read by `roog-compat`; see
 # compat/src/results.rs, which is the other half of this contract.
 record() {
@@ -426,6 +606,30 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
   stage "$id  ($cpus cpu, $memory)"
   note "$note_text"
 
+  # A shell is not optional here (see matrix.tsv's house rule): a `linux` row
+  # is a claim that roog runs there, and it cannot even start without a real
+  # terminal under it. Checked per run rather than trusted from the `class`
+  # column, because "alpine has a shell" is true until someone points a row
+  # at a distroless or scratch image and finds out the hard way mid-run. This
+  # needs no interpreter and no qemu, so it runs even for a row execution is
+  # about to skip -- an unexecuted row is still a claim, and this is the part
+  # of that claim that costs nothing to check.
+  if ! check_has_shell "$image"; then
+    bad "$id: $image has no usable shell -- roog cannot run without one"
+    record "$id" "$target" game skipped 0 0 0 0 0 0 0 0 0
+    SKIPPED="$SKIPPED$id "
+    continue
+  fi
+
+  if [ "$exec" = "qemu" ] && [ "$EXEC_EMULATED" -eq 0 ]; then
+    ok "builds: cross-compiled and statically linked; not run here by default"
+    note "  roog's own frame loop asks far less of the machine than rustc just did"
+    note "  --exec-emulated runs it for real, if you have hardware or a qemu build to trust"
+    record "$id" "$target" game build-only 0 0 0 0 0 0 0 0 0
+    BUILD_ONLY="$BUILD_ONLY$id "
+    continue
+  fi
+
   if ! have_qemu_for "$platform"; then
     bad "$id needs $(qemu_handler_for "$platform") and could not fetch it from $QEMU_IMAGE"
     note "  is docker able to pull images right now?"
@@ -437,6 +641,8 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
   run_row "$id" "$target" "$platform" "$image" "$exec" "$cpus" "$memory" game "$FRAMES"
   [ "$WITH_REEL" -eq 1 ] && \
     run_row "$id" "$target" "$platform" "$image" "$exec" "$cpus" "$memory" reel "$REEL_FRAMES"
+  [ "$WITH_SCREEN" -eq 1 ] && \
+    run_screen_check "$id" "$target" "$platform" "$image" "$exec" "$cpus" "$memory"
 done < <(matrix_rows_or_die linux)
 
 # ---------------------------------------------------------------------------
@@ -450,10 +656,16 @@ done < <(matrix_rows_or_die linux)
 
 stage "Report"
 REPORT_BIN="$ROOT/target/release/roog-compat"
-if [ ! -x "$REPORT_BIN" ]; then
-  note "building roog-compat..."
-  cargo build --release -p roog-compat >/dev/null 2>&1
-fi
+# Always asked to build, never gated on whether a binary is already sitting
+# there: `-x` only proves *a* roog-compat exists, not that it was built after
+# the last change to matrix.tsv or the verdict/results/report source. A stale
+# reporter reading a fresh results.tsv is worse than a slow one -- it silently
+# mis-grades rows the current code would have graded right, and every symptom
+# points at the row rather than at the binary. `cargo build` is the one thing
+# that actually knows whether a rebuild is needed, so let it decide; it is
+# fast and does nothing when nothing changed.
+note "building roog-compat..."
+cargo build --release -p roog-compat >/dev/null 2>&1
 if [ -x "$REPORT_BIN" ]; then
   "$REPORT_BIN" report --dir "$OUT"
 else
@@ -461,6 +673,7 @@ else
 fi
 
 printf '      artifacts in %s/\n' "$OUT"
+[ -n "$BUILD_ONLY" ] && note "builds, not run by default (--exec-emulated runs them): $BUILD_ONLY"
 [ -n "$SKIPPED" ] && note "skipped: $SKIPPED"
 
 if [ "$RUN_GUI" -eq 1 ] && [ -t 1 ] && [ -x "$REPORT_BIN" ]; then
