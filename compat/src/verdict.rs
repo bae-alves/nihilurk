@@ -34,6 +34,23 @@ use crate::results::{Load, Run, Status};
 /// of them -- which is what a CI exit code wants.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Band {
+    /// Nothing was measured for this row -- not measured yet, or (for a
+    /// `Load::Game` run) deliberately not attempted, such as an emulated row
+    /// compat/ chose to build-check rather than execute. Ordered first, and
+    /// therefore least severe: a row with no information about it must never
+    /// outrank a row that was actually run, in either direction. A skipped
+    /// row silently reading worse than an unplayable one, or silently
+    /// swallowing an unplayable one out of "worst machine", are the same bug.
+    Unknown,
+    /// Not run, on purpose, because the build already said enough: an
+    /// emulated row, cross-compiled and statically linked but not executed by
+    /// default (see `--exec-emulated`). This is a claim -- "roog runs here"
+    /// -- not an absence of one, and it must read as one: `Builds` is a
+    /// distinct, positive band, not a shade of `Unknown`. It still ranks
+    /// below every band an actual run can produce, because a real
+    /// measurement is always more informative than a trusted assumption, and
+    /// a real problem elsewhere must never be hidden behind it.
+    Builds,
     /// Room to spare: the frame is done in under half the budget and nothing
     /// was dropped. roog will feel the same here as on a workstation.
     Plays,
@@ -49,13 +66,12 @@ pub enum Band {
     /// binary. On a memory-capped row this is usually the OOM killer, and that
     /// is a finding, not an error in the pipeline.
     DoesNotRun,
-    /// Nothing was measured for this row yet.
-    Unknown,
 }
 
 impl Band {
     pub fn label(self) -> &'static str {
         match self {
+            Band::Builds => "builds",
             Band::Plays => "plays",
             Band::Playable => "playable",
             Band::Janky => "janky",
@@ -69,6 +85,10 @@ impl Band {
     /// than about the numbers: the numbers are printed beside it already.
     pub fn gloss(self) -> &'static str {
         match self {
+            Band::Builds => {
+                "cross-compiled and statically linked; not run here, but roog asks less \
+                 of a machine than the compiler that just targeted it"
+            }
             Band::Plays => "comfortable; the frame is done with the budget to spare",
             Band::Playable => "keeps up; roog is playable on this hardware",
             Band::Janky => "over budget or dropping frames -- it runs, but it shows",
@@ -121,6 +141,21 @@ const MEMORY_TIGHT: f64 = 0.90;
 /// as a claim about the game and it is not one.
 pub fn grade(run: &Run) -> Band {
     if run.load != Load::Game {
+        return Band::Unknown;
+    }
+    // Deliberately not executed, and the build already made the case: see
+    // "why emulated rows are build-only" in stress_test_matrix.sh. This is a
+    // positive claim, so it gets its own band rather than `Unknown` -- a
+    // dash next to a row we are actively vouching for would read as doubt.
+    if run.status == Status::BuildOnly {
+        return Band::Builds;
+    }
+    // A row compat/ chose not to execute for a reason that is *not* a claim
+    // either way -- no shell to check, no qemu interpreter to fetch, no
+    // binary built -- is not a finding about the machine the way `Failed` or
+    // `Timeout` are. Grading it `DoesNotRun` would fail a pipeline over a row
+    // it never claimed to have tested.
+    if run.status == Status::Skipped {
         return Band::Unknown;
     }
     if run.status != Status::Ok {
@@ -244,6 +279,60 @@ mod tests {
         let mut empty = run(Load::Game, Status::Ok, 0.0, 0);
         empty.frames = 0;
         assert_eq!(grade(&empty), Band::DoesNotRun);
+    }
+
+    #[test]
+    fn a_skipped_row_is_unknown_not_a_failure() {
+        // compat/ genuinely has nothing to say about this row -- no shell in
+        // its image, no qemu interpreter to fetch, no binary built. That is
+        // not the same claim `Failed` makes, and must not fail the gate the
+        // way `Failed` does.
+        let skipped = grade(&run(Load::Game, Status::Skipped, 0.0, 0));
+        assert_eq!(skipped, Band::Unknown);
+        assert!(!skipped.is_failure());
+    }
+
+    #[test]
+    fn a_build_only_row_is_a_positive_band_not_a_shade_of_unknown() {
+        // An emulated row, not executed by default: the build already made
+        // the claim. `Builds` must read as that claim -- distinct from
+        // `Unknown`, which means compat/ has nothing to say -- and must not
+        // fail the gate.
+        let builds = grade(&run(Load::Game, Status::BuildOnly, 0.0, 0));
+        assert_eq!(builds, Band::Builds);
+        assert_ne!(builds, Band::Unknown);
+        assert!(!builds.is_failure());
+        assert!(Band::Builds > Band::Unknown);
+    }
+
+    #[test]
+    fn a_skipped_row_never_hides_a_real_failure_or_poses_as_the_worst_one() {
+        // Band::Unknown must sit below every real verdict, in both
+        // directions: it must not out-rank a genuine problem in `overall`
+        // (a skipped row masking an unplayable one), and it must not be
+        // picked as the answer to "which row is worst" over one that
+        // actually ran and lost.
+        let runs = vec![
+            run(Load::Game, Status::Ok, 0.4, 0),
+            run(Load::Game, Status::Skipped, 0.0, 0),
+            run(Load::Game, Status::Ok, 90.0, 0),
+        ];
+        assert_eq!(overall(&runs), Band::Unplayable);
+    }
+
+    #[test]
+    fn a_build_only_row_never_hides_a_real_failure_either() {
+        // Same guarantee as `Unknown`, for the same reason: a trusted
+        // assumption must never outrank or hide an actual measurement.
+        let runs = vec![
+            run(Load::Game, Status::BuildOnly, 0.0, 0),
+            run(Load::Game, Status::Ok, 90.0, 0),
+        ];
+        assert_eq!(overall(&runs), Band::Unplayable);
+        // But with nothing else in the matrix, it is the honest answer --
+        // not `Unknown`, which would read as "we found out nothing at all".
+        let only_builds = vec![run(Load::Game, Status::BuildOnly, 0.0, 0)];
+        assert_eq!(overall(&only_builds), Band::Builds);
     }
 
     #[test]

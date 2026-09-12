@@ -81,9 +81,15 @@ pub enum Status {
     /// Killed by the runner's own clock. Not a crash -- the machine is simply
     /// too slow to finish the run in the time allowed.
     Timeout,
-    /// Never attempted: no binary was built for this row, or `--targets`
-    /// excluded it.
+    /// Never attempted, and nothing stands in for it: no shell in the row's
+    /// image, no qemu interpreter to fetch, `--targets` excluded it, or no
+    /// binary was built. There is genuinely nothing to say about this row.
     Skipped,
+    /// Deliberately not executed because the build already said enough: an
+    /// emulated row, by default (see `stress_test_matrix.sh`'s
+    /// `--exec-emulated`). Distinct from `Skipped` -- this is a claim, not an
+    /// absence of one, and it must read as one.
+    BuildOnly,
 }
 
 impl Status {
@@ -92,6 +98,7 @@ impl Status {
             "ok" => Status::Ok,
             "timeout" => Status::Timeout,
             "skipped" => Status::Skipped,
+            "build-only" => Status::BuildOnly,
             _ => Status::Failed,
         }
     }
@@ -102,6 +109,7 @@ impl Status {
             Status::Failed => "failed",
             Status::Timeout => "timeout",
             Status::Skipped => "skipped",
+            Status::BuildOnly => "build-only",
         }
     }
 }

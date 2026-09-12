@@ -37,7 +37,9 @@ a second, because roog does not animate music videos -- it animates a
 dozen sparks when something dies. Grading the Pi on the reel would fail
 the machine and tell you nothing about the game.
 
-So every row is run twice, and only one of the two counts:
+So a row that is actually executed -- a native row always, an emulated
+one only with `--exec-emulated`, see "why emulated rows are build-only"
+below -- is run three times, and only one of the three counts:
 
     --load game   a real dungeon floor, generated from a fixed seed and
                   animated by the batches the game actually queues, one
@@ -46,17 +48,76 @@ So every row is run twice, and only one of the two counts:
                   machine could be pushed before the layer gives out.
                   Nothing is ever gated on it, and on the slowest rows
                   it is expected to lose.
+    the screen    the redraw viewer, not headless, with a pty sized from
+                  inside the container so it has a real terminal to draw
+                  into. Not timed; it only has to come up and keep
+                  drawing. See below.
 
 `compat/src/verdict.rs` refuses to grade a reel run at all -- it returns
 `Unknown` rather than a band -- because a reel verdict printed next to a
 machine's name would be read as a claim about the game, and it is not
-one.
+one. The screen run is not graded either, and for a related reason: it
+answers "does this row draw", not "how fast", so it has no place in a
+frame-time verdict.
 
-Both runs use `--workload both`: the floor repainted, the live motes
-composited over it, one diff and one flush over the result. That is what
-`engine/src/view.rs` does every frame. Measuring the particle layer
-alone would leave out the redraw, which on a slow machine is most of the
-cost.
+Both the game and reel runs use `--workload both`: the floor repainted,
+the live motes composited over it, one diff and one flush over the
+result. That is what `engine/src/view.rs` does every frame. Measuring
+the particle layer alone would leave out the redraw, which on a slow
+machine is most of the cost.
+
+
+Why every row also gets a real screen
+--------------------------------------
+
+The game and reel runs are deliberately headless. `--headless` sends the
+frame's diff-and-flush into a counting sink instead of a real terminal --
+see `perf/src/screen.rs` -- which is what makes the frame-time numbers
+reproducible run to run. A number that includes that day's pty latency,
+the host's TERM setting, or however Docker felt about allocating a
+terminal that morning would not be a number worth comparing against last
+week's.
+
+But a pipeline that only ever ran roog headless would be answering "how
+fast is the particle layer" and quietly never answering "does this
+machine's terminal stack let roog draw on it at all" -- and for a game,
+that second question is not optional. crossterm and ratatui are real
+dependencies with real platform-specific behaviour (raw mode, cursor
+control, colour support), and none of that is exercised by a run that
+never touches a terminal.
+
+So `stress_test_matrix.sh` also runs roog-perf without `--headless`,
+`--workload both --load game`, inside a container started with
+`docker run -t`. `-t` allocates a pseudo-TTY even though nothing is
+attached to it (there is no `-i`, and nothing ever sends the container a
+keystroke) -- but `-t` only allocates the pty, it does not size it.
+
+`--workload both` redraws, and `run_stress` in `perf/src/main.rs` sends
+every redrawing workload to `viewer::watch` in `perf/src/viewer.rs`
+rather than the dashboard -- see the parity comment on
+`Workload::redraws` in `perf/src/scene.rs`. `viewer::watch` takes the
+terminal directly and checks its size before it touches raw mode,
+refusing to run under its 80x26 minimum. An unresized pty reads back as
+0x0 -- nothing at the other end ever sent it a window-change ioctl --
+so `stress_test_matrix.sh`'s `run_screen_check` wraps the command as
+`sh -c 'stty rows 26 cols 80; exec "$@"'`, setting that size on the pty
+from inside the container before roog-perf starts. That is the concrete
+reason a shell is not optional on these rows, beyond "roog needs one to
+run" in the abstract: this is what it is actually used for.
+
+Left alone, `viewer::watch`'s loop has no exit condition but a quit
+keypress -- right for a human at a keyboard, and wrong for a detached,
+keyboard-less container, which would just run forever. So it also
+honours `--frames`, exactly the way the headless run does: the same flag
+bounds both code paths, and the screen check runs to completion the same
+way the gate does, unattended.
+
+There is nothing to parse out of a viewer run -- it has no textual
+report -- so the screen check feeds nothing into `results.tsv` or
+`roog-compat`. Its only signal is the exit code: zero means the row drew
+its own screen under whatever emulation stands between it and the host,
+without crossterm or ratatui falling over. `--no-screen` skips it, for
+the same reason `--no-reel` does: sometimes the gate is all you want.
 
 
 One table, three readers
@@ -108,6 +169,38 @@ honours the claim in `gdd.md`, so `matrix.rs` has a test that fails if a
 
 It costs a little size, because a static binary carries its own libc,
 and that cost is on the report per target rather than hidden.
+
+
+Why every `linux` row must have a shell
+----------------------------------------
+
+A row's `class` of `linux` is a claim: this machine has an operating
+system, a terminal and a shell, and roog can therefore run on it. That
+is not a decorative distinction from `bare` -- it is the one thing that
+determines whether `stress_test_matrix.sh` will even try to execute a
+row, and it is checked, not assumed. `check_has_shell` in `compat/lib.sh`
+runs `/bin/sh -c 'echo shell-ok'` in the row's image before the game or
+reel run starts, and a row that fails it is skipped with the same
+`skipped` status a missing qemu interpreter gets. An image with no shell
+in it cannot host a terminal program no matter how the binary was built,
+so there is no point spending a build and a run finding that out --
+`bare` already exists for "compiled, never executed", and a `linux` row
+that cannot prove a shell is effectively a `bare` row with the wrong
+label.
+
+This is also why the ARM lineup is Raspberry Pi boards -- `pi-zero`,
+`pi2`, `pi3`, `pi4`, `cm` -- rather than a longer list of cloud SKUs.
+`graviton` earns its place because an M-series Mac's Linux VM is a
+common, real way roog gets built and played, but a cloud instance is
+otherwise an abstraction over hardware someone else runs. A Pi is
+hardware: it is a board with a shell on it that someone might actually
+plug a keyboard into, which is closer to what "does roog run on that
+machine" is asking than a t4g-family instance size is. `pi2` and
+`pi3`/`pi4`/`cm` share `pi-zero` and `graviton`'s existing triples
+(`armv7-unknown-linux-musleabihf` and `aarch64-unknown-linux-musl`
+respectively) rather than needing new `Cross.toml` entries -- the point
+of adding them was a wider, more realistic spread of real ARM boards,
+not a new architecture.
 
 
 Why the limits are mean
@@ -165,25 +258,96 @@ The emulation tax, and how to read around it
 `x86_64` runs natively. So does `i686`: a 64-bit kernel runs 32-bit user
 space directly, so the potato row is starved rather than emulated.
 
-`aarch64` and `armv7` are emulated, by a qemu-user-static interpreter
+`aarch64` and `armv7` *can* run under a qemu-user-static interpreter
 `stress_test_matrix.sh` fetches and runs directly -- no `binfmt_misc`,
-no `--privileged`. It can do that because every binary the matrix runs
-is static: the interpreter never needs a foreign sysroot, only to
-translate the guest's syscalls, so it works as the container's own
-command on a container built for the *host's* architecture. Everything
-measured on those rows still carries the emulator's tax, and that tax
-is not a constant -- it is heavier on branchy code than on arithmetic,
-so it does not divide out.
+no `--privileged` -- when asked to with `--exec-emulated`. It can do
+that because every binary the matrix runs is static: the interpreter
+never needs a foreign sysroot, only to translate the guest's syscalls,
+so it works as the container's own command on a container built for the
+*host's* architecture. Anything measured that way still carries the
+emulator's tax, and that tax is not a constant -- it is heavier on
+branchy code than on arithmetic, so it does not divide out.
 
-Which is why the report prints two CPU figures per row. The in-process
-one is what roog saw of itself; the cgroup one is what Docker saw of the
-whole container, qemu included. The gap between them is the tax. Read
-the emulated rows as an upper bound on cost: real Graviton hardware is
-faster than the row that stands for it, never slower.
+Which is why, on the runs where it applies, the report prints two CPU
+figures per row. The in-process one is what roog saw of itself; the
+cgroup one is what Docker saw of the whole container, qemu included.
+The gap between them is the tax. Read an emulated row actually executed
+this way as an upper bound on cost: real Graviton hardware is faster
+than the row that stands for it, never slower.
 
 The `cloud` row is the control. It is the host's own architecture with
-no emulation in the way, which is what makes it the yardstick the
-emulated rows are read against.
+no emulation in the way, which is what makes it the yardstick an
+executed emulated row is read against.
+
+By default, though, no `qemu` row is executed at all -- see "why
+emulated rows are build-only" below.
+
+
+Why emulated rows are build-only
+---------------------------------
+
+qemu-user-static's job is narrower than it sounds: it translates the
+guest's *syscalls*, which is what makes running a static binary this way
+safe and simple in the first place. It does not promise to get every
+architecture-specific `ioctl` right, and the ones a terminal program
+needs -- `TIOCGWINSZ` to ask the window's size, the raw-mode toggles
+underneath `enable_raw_mode` -- are exactly the kind that varies by
+architecture and is easy for a translation layer to get subtly wrong.
+roog draws through crossterm, which leans on precisely those ioctls, so
+an emulated row running roog is really testing two things at once: does
+roog run here, and does this qemu build's ioctl translation hold up --
+and there is no clean way to tell the two apart from a container that
+exited 1.
+
+That is a bad trade for a compat gate. A row reporting `does not run`
+because of the second question, not the first, is a false alarm dressed
+as a real one: it reads exactly like roog having broken on that
+architecture, and by the time someone has read the log and ruled out
+their own code, the false alarm has cost more than a true one would
+have.
+
+So `stress_test_matrix.sh` does not execute a `qemu` row by default. What
+it still does, unconditionally, is what `cross_build.sh` already proves:
+a full cross-compile with a real Rust toolchain, checked afterward to be
+a correctly statically-linked binary for that architecture (see "why
+every Linux row is musl"). That is not a token gesture at "we still
+checked something" -- cross-compiling roog is, by every measure that
+matters here (time, memory, code paths exercised), a heavier task than
+roog's own frame loop ever asks of the machine it is built for. A row
+that survives that build is a real claim about the hardware, made
+without leaning on qemu's ioctl handling at all.
+
+An unexecuted emulated row is graded `Band::Builds` -- and deliberately
+not `Band::Unknown`, even though both are non-failing and both sit below
+every band a real run can produce. `Unknown` means compat/ has nothing
+to say about a row: no shell in its image, no qemu interpreter fetched,
+no binary built. `Builds` means the opposite -- a specific, positive
+claim was made and backed by a real cross-compile -- and a row's verdict
+column has to say which of those two happened, not paper over the
+difference with the same dash. Reusing `Unknown` for "chose not to run
+it" was tried first and reads exactly as confusing as it sounds: the
+table would show a row this pipeline is actively vouching for next to a
+row it knows nothing about, both as `-`, both glossed "not measured".
+That is what "the table should be enough" actually requires -- not
+fewer bands, but the *right* one on each row.
+
+`verdict::grade` checks `Status::BuildOnly` before it would otherwise
+fall through to `DoesNotRun`, exactly the way it already special-cased
+`Status::Skipped`. Both bands sit below every real verdict in `Band`'s
+severity order -- below `Plays`, not just below `DoesNotRun` -- so
+neither can mask a real failure elsewhere in `overall()`, and neither
+can get picked as the "worst machine" ahead of a row that actually ran
+and lost. `Band::Builds` sits directly above `Unknown`: a matrix that is
+all build-only rows reports `builds` as its overall verdict, not `-`,
+because that is the honest, positive answer for the case where nothing
+was executed but everything that was attempted compiled clean.
+
+`--exec-emulated` is the escape hatch, unchanged from before this
+default existed: point it at real hardware, or at a qemu build you trust
+for this, and every `qemu` row runs exactly the way `cloud` and `potato`
+always have -- graded `Plays`/`Playable`/`Janky`/`Unplayable`/
+`DoesNotRun` like any executed row, never `Builds`, because at that
+point a real measurement exists and `Builds` would be the smaller claim.
 
 
 Why microcontrollers are in a matrix of machines that run the game

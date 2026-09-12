@@ -170,6 +170,17 @@ target_bin() {
   echo "$ROOT/$(cross_target_dir "$1")/$1/$3/$2"   # $1 triple, $2 binary, $3 profile
 }
 
+# A row's claim to have a shell, checked rather than assumed. Used two ways:
+# nostd_check.sh's bare rows use it to say whether `--shell <id>` will work;
+# stress_test_matrix.sh's linux rows use it as a hard gate, because a shell is
+# not a nicety there -- roog needs a real terminal under it, an image with no
+# shell can't give it one, and a row that can't run the game has no business
+# being in "does roog run on these machines".
+check_has_shell() {
+  local image=$1
+  docker run --rm "$image" /bin/sh -c 'echo shell-ok' 2>/dev/null | grep -q shell-ok
+}
+
 human_bytes() {
   awk -v b="${1:-0}" 'BEGIN {
     split("B KiB MiB GiB", u, " ")

@@ -34,9 +34,11 @@
 # Usage:
 #   ./compat_test.sh                  everything (~20 min cold, mostly pulls)
 #   ./compat_test.sh --targets cloud  one machine (comma-separated)
-#   ./compat_test.sh --quick          the gate only; skip the Bad Apple ceiling
+#   ./compat_test.sh --quick          the gate only; skip the ceiling and screen check
 #   ./compat_test.sh --no-build       reuse the binaries already built
 #   ./compat_test.sh --no-bare        skip the microcontroller check
+#   ./compat_test.sh --no-screen      skip the pty/screen check on its own
+#   ./compat_test.sh --exec-emulated  actually run the qemu rows too
 #   ./compat_test.sh --frames 900     longer gate run       [default 450]
 #   ./compat_test.sh --timeout 900    per-run seconds       [default 600]
 #   ./compat_test.sh --gui            finish in the dashboard
@@ -50,6 +52,8 @@ cd "$(dirname "$0")" || exit 1
 ONLY=""
 DO_BUILD=1
 DO_BARE=1
+DO_SCREEN=1
+EXEC_EMULATED=0
 QUICK=0
 RUN_GUI=0
 FRAMES=450
@@ -57,14 +61,16 @@ TIMEOUT=600
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --targets)   ONLY="${2:?--targets needs a list}"; shift ;;
-    --frames)    FRAMES="${2:?--frames needs a number}"; shift ;;
-    --timeout)   TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
-    --no-build)  DO_BUILD=0 ;;
-    --no-bare)   DO_BARE=0 ;;
-    --quick)     QUICK=1 ;;
-    --gui)       RUN_GUI=1 ;;
-    --help|-h)   sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+    --targets)       ONLY="${2:?--targets needs a list}"; shift ;;
+    --frames)        FRAMES="${2:?--frames needs a number}"; shift ;;
+    --timeout)       TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
+    --no-build)      DO_BUILD=0 ;;
+    --no-bare)       DO_BARE=0 ;;
+    --no-screen)     DO_SCREEN=0 ;;
+    --exec-emulated) EXEC_EMULATED=1 ;;
+    --quick)         QUICK=1 ;;
+    --gui)           RUN_GUI=1 ;;
+    --help|-h)       sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) echo "compat_test.sh: unknown option $1 (try --help)" >&2; exit 1 ;;
   esac
   shift
@@ -111,7 +117,9 @@ fi
 # ---------------------------------------------------------------------------
 
 STRESS_ARGS=("${TARGET_ARGS[@]}" --frames "$FRAMES" --timeout "$TIMEOUT")
-[ "$QUICK" -eq 1 ] && STRESS_ARGS+=(--no-reel)
+[ "$QUICK" -eq 1 ] && STRESS_ARGS+=(--no-reel --no-screen)
+[ "$DO_SCREEN" -eq 0 ] && STRESS_ARGS+=(--no-screen)
+[ "$EXEC_EMULATED" -eq 1 ] && STRESS_ARGS+=(--exec-emulated)
 
 ./compat/stress_test_matrix.sh "${STRESS_ARGS[@]}"
 STRESS_STATUS=$?
@@ -122,7 +130,10 @@ STRESS_STATUS=$?
 
 heading "Verdict"
 BIN="$ROOT/target/release/roog-compat"
-[ -x "$BIN" ] || cargo build --release -p roog-compat >/dev/null 2>&1
+# Not gated on `-x BIN`: see the matching comment in stress_test_matrix.sh's
+# own Report stage. Cheap here too -- stress_test_matrix.sh just built it
+# moments ago, so this is normally a no-op cargo already knows is a no-op.
+cargo build --release -p roog-compat >/dev/null 2>&1
 
 GATE=0
 if [ -x "$BIN" ]; then
