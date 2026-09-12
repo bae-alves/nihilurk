@@ -11,10 +11,14 @@
 #   target    rust target triple
 #   class     linux  -- has an OS, a terminal and a shell; roog runs here
 #             bare   -- no OS; only `particle-core` is built, and only checked
-#   platform  docker --platform value, or "-" for a bare-metal row
+#   platform  docker --platform value for a `native` row, or "-" for bare
+#             metal. A `qemu` row's container runs as the host's own
+#             architecture instead (see stress_test_matrix.sh), so this
+#             column only tells it which static interpreter to fetch.
 #   image     runtime image the binary is executed in, or the SDK image for bare
 #   exec      native -- the host CPU runs it directly
-#             qemu   -- needs binfmt_misc + qemu-user to run on an x86_64 host
+#             qemu   -- run under a directly-invoked qemu-user-static
+#                        interpreter; needs no binfmt_misc and no --privileged
 #             none   -- not executed at all (bare metal)
 #   cpus      docker --cpus, the CPU budget that stands in for the hardware
 #   memory    docker --memory, the RAM the machine actually has

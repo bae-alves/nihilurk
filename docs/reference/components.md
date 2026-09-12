@@ -328,5 +328,6 @@ See also
 
   content-tables.md            the tables that attach these components
   spawn-api.md                 the functions that build entities
+  input-and-turn-loop.md       what reads and writes the UI resources above
   ../how-to/add-an-effect.md   adding a new marker / modifier component
   ../explanation/data-driven-content.md  why behaviour is not in the row

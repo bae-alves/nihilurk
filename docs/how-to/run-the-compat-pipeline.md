@@ -70,7 +70,9 @@ machine, tab-separated; adding a machine is adding a line.
 
 The limits are handed straight to Docker, and swap is disabled, so the
 memory cap is a real ceiling. `cloud` and `potato` run on the host CPU;
-`graviton` and `pi-zero` run under qemu-user.
+`graviton` and `pi-zero` run under a qemu-user-static interpreter the
+pipeline fetches on its own the first time it is needed -- no
+`binfmt_misc`, no `--privileged` setup step required.
 
 The last two rows are never executed. See "The microcontroller rows"
 below, and `../explanation/cross-platform-testing.md` for why they are
@@ -92,9 +94,10 @@ in the matrix at all.
        pi-zero   qemu            -         -         -      -         -  -
        potato    native    1.8 MiB    0.05ms    0.07ms      0   1.6 MiB  plays
 
-   A row of dashes is a machine that was not run -- here because the
-   QEMU hooks were not registered, so the two ARM rows were skipped.
-   The verdict is the column that matters:
+   A row of dashes is a machine that was not run -- here because
+   Docker could not pull the qemu-user-static interpreter the two ARM
+   rows need, so they were skipped rather than failed. The verdict is
+   the column that matters:
 
        plays         the frame is done in under half the budget
        playable      keeps up; roog is playable on this hardware
@@ -244,7 +247,9 @@ Add a line to `compat/matrix.tsv`. Nine tab-separated fields:
     id        pi4
     target    aarch64-unknown-linux-musl
     class     linux            has an OS and a shell; roog runs here
-    platform  linux/arm64      docker --platform
+    platform  linux/arm64      docker --platform for a native row; for a
+                               qemu row, only picks the interpreter --
+                               see stress_test_matrix.sh
     image     alpine:3.22      what the binary is executed in
     exec      qemu             native | qemu | none
     cpus      1                docker --cpus
@@ -273,16 +278,19 @@ Two rules the tests enforce, so you will hear about it:
 Troubleshooting
 ---------------
 
-`exec format error`, or a row skipped saying binfmt lacks qemu-arm
+A qemu row skipped saying it could not fetch its interpreter
 
-    The kernel does not know to hand a foreign binary to an emulator.
+    `stress_test_matrix.sh` pulls the static qemu-user interpreter it
+    needs from `tonistiigi/binfmt` the first time a qemu row runs, and
+    caches it in `target/compat/qemu/`. If that pull fails -- no
+    network, registry unreachable -- the row is skipped rather than
+    run against the wrong thing. Check docker can reach the registry:
 
-        ./compat/stress_test_matrix.sh --install-qemu
+        docker pull tonistiigi/binfmt
 
-    That needs `--privileged` once; it writes to
-    `/proc/sys/fs/binfmt_misc`. It does not survive a reboot on every
-    setup, so if a row that worked yesterday is skipped today, run it
-    again.
+    No `--privileged`, no binfmt_misc, and nothing written outside
+    this pipeline's own output directory -- see
+    `../explanation/cross-platform-testing.md`.
 
 `docker is not answering`
 

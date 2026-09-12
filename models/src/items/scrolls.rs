@@ -125,43 +125,49 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
         .add(format!("The scroll identifies your {name}!"));
 }
 
+/// Exhaustive over `ScrollEffect`, deliberately with no catch-all: a scroll
+/// effect added to the enum and not given an arm here fails the build instead
+/// of reading as a generic "nothing obvious happens" — the same guarantee
+/// `crate::traps::spring_trap` gives a new `TrapEffect`. See
+/// `docs/explanation/data-driven-content.md`.
+///
+/// `MonsterConfusion`, `HoldMonster`, `Sleep`, `EnchantArmor`,
+/// `FoodDetection` and `EnchantWeapon` are rows in the catalog with no
+/// mechanic behind them yet — that gap is unchanged by this match being
+/// exhaustive; it is just no longer possible to add a *seventh* such gap by
+/// accident.
 pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
-    if effect == ScrollEffect::Identify {
-        identify_random_unknown_item(world, user);
-        return;
-    }
-    if effect == ScrollEffect::RemoveCurse {
-        let freed = lift_curses(world, user);
-        let msg = if freed > 0 {
-            "You feel as though somebody is watching over you. Your cursed gear crumbles away."
-        } else {
-            "You feel as though somebody is watching over you."
-        };
-        world.resource_mut::<GameLog>().add(msg.to_string());
-        return;
-    }
-    if effect == ScrollEffect::MagicMapping {
-        // Roll the wipe's shape (or take the `ROOG_MAGICMAP` dev override), then
-        // arm it centred on the reader. The engine plays it out frame by frame
-        // after the turn (see [`crate::magicmap`]); headless callers with no
-        // reveal resource just skip the animation.
-        let hero = world
-            .get::<Position>(user)
-            .map(|p| (p.x, p.y))
-            .unwrap_or((MAP_WIDTH / 2, MAP_HEIGHT / 2));
-        let style = std::env::var("ROOG_MAGICMAP")
-            .ok()
-            .and_then(|v| MagicMapStyle::from_name(&v))
-            .unwrap_or_else(|| MagicMapStyle::roll(&mut world.resource_mut::<GameRng>().0));
-        if let Some(mut reveal) = world.get_resource_mut::<MagicMapReveal>() {
-            reveal.start(hero, style);
-        }
-        world
-            .resource_mut::<GameLog>()
-            .add(style.flavour().to_string());
-        return;
-    }
     match effect {
+        ScrollEffect::Identify => identify_random_unknown_item(world, user),
+        ScrollEffect::RemoveCurse => {
+            let freed = lift_curses(world, user);
+            let msg = if freed > 0 {
+                "You feel as though somebody is watching over you. Your cursed gear crumbles away."
+            } else {
+                "You feel as though somebody is watching over you."
+            };
+            world.resource_mut::<GameLog>().add(msg.to_string());
+        }
+        ScrollEffect::MagicMapping => {
+            // Roll the wipe's shape (or take the `ROOG_MAGICMAP` dev override),
+            // then arm it centred on the reader. The engine plays it out frame
+            // by frame after the turn (see [`crate::magicmap`]); headless
+            // callers with no reveal resource just skip the animation.
+            let hero = world
+                .get::<Position>(user)
+                .map(|p| (p.x, p.y))
+                .unwrap_or((MAP_WIDTH / 2, MAP_HEIGHT / 2));
+            let style = std::env::var("ROOG_MAGICMAP")
+                .ok()
+                .and_then(|v| MagicMapStyle::from_name(&v))
+                .unwrap_or_else(|| MagicMapStyle::roll(&mut world.resource_mut::<GameRng>().0));
+            if let Some(mut reveal) = world.get_resource_mut::<MagicMapReveal>() {
+                reveal.start(hero, style);
+            }
+            world
+                .resource_mut::<GameLog>()
+                .add(style.flavour().to_string());
+        }
         ScrollEffect::Teleportation => teleport_reader(world, user),
         ScrollEffect::AggravateMonsters => aggravate_floor(world, user),
         ScrollEffect::CreateMonster => create_monster(world, user),
@@ -180,7 +186,12 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
                 .resource_mut::<GameLog>()
                 .add("The scroll is blank. Someone got the last laugh.".to_string());
         }
-        _ => {
+        ScrollEffect::MonsterConfusion
+        | ScrollEffect::HoldMonster
+        | ScrollEffect::Sleep
+        | ScrollEffect::EnchantArmor
+        | ScrollEffect::FoodDetection
+        | ScrollEffect::EnchantWeapon => {
             world
                 .resource_mut::<GameLog>()
                 .add("You read the scroll, but nothing obvious happens.".to_string());

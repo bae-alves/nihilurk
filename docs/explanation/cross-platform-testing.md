@@ -165,10 +165,15 @@ The emulation tax, and how to read around it
 `x86_64` runs natively. So does `i686`: a 64-bit kernel runs 32-bit user
 space directly, so the potato row is starved rather than emulated.
 
-`aarch64` and `armv7` are emulated, by qemu-user through `binfmt_misc`.
-Everything measured on those rows carries the emulator's tax, and that
-tax is not a constant -- it is heavier on branchy code than on
-arithmetic, so it does not divide out.
+`aarch64` and `armv7` are emulated, by a qemu-user-static interpreter
+`stress_test_matrix.sh` fetches and runs directly -- no `binfmt_misc`,
+no `--privileged`. It can do that because every binary the matrix runs
+is static: the interpreter never needs a foreign sysroot, only to
+translate the guest's syscalls, so it works as the container's own
+command on a container built for the *host's* architecture. Everything
+measured on those rows still carries the emulator's tax, and that tax
+is not a constant -- it is heavier on branchy code than on arithmetic,
+so it does not divide out.
 
 Which is why the report prints two CPU figures per row. The in-process
 one is what roog saw of itself; the cgroup one is what Docker saw of the

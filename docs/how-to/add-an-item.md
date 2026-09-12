@@ -162,12 +162,19 @@ The pattern is identical for all three; only the names change.
    A potion's mechanic returns whether it visibly did anything, which is
    what lets a potion thrown at a monster identify itself.
 
-> **Step 3 is the one nothing will remind you about.** All three of those
-> functions end in a catch-all arm, so a variant with no arm compiles
-> cleanly and ships as a dud: an unwired scroll reads "nothing obvious
-> happens", an unwired wand "discharges with a faint hiss", and an
-> unwired potion is drunk in silence. If your new item does nothing in
-> game, this is why. There is no compiler error to wait for.
+> **Step 3 is the one the compiler now makes you do.** All three of
+> those functions are exhaustive matches over their effect enum, the
+> same as `spring_trap` is over `TrapEffect` -- no catch-all arm, so
+> step 1's new variant will not build until step 3 gives it one. The
+> error names the function and the missing variant, so there is no
+> guessing which of the three you forgot.
+>
+> An explicit arm is still allowed to do nothing on purpose -- several
+> existing potions and scrolls sit in a shared do-nothing arm today,
+> each variant named rather than caught by a wildcard (see
+> `../explanation/data-driven-content.md`, "Where it does not reach").
+> The guarantee is only that you *chose* nothing, not that you *forgot*
+> to write something.
 
 Wands only: if your wand should *not* open the aiming reticle -- it acts
 on the zapper or the room, like the wand of light -- add it to

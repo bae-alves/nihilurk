@@ -7,7 +7,9 @@
 # handed straight to Docker, swap is disabled so the memory cap is a real
 # ceiling rather than a suggestion, and the binary inside is the static musl
 # one `cross_build.sh` produced for that row's architecture. Foreign
-# architectures run under qemu-user via binfmt_misc.
+# architectures run under a directly-invoked qemu-user-static interpreter,
+# fetched into target/compat/qemu/ the first time it is needed -- see
+# "Foreign architectures, without binfmt_misc" below.
 #
 # WHAT IS BEING MEASURED
 #
@@ -33,7 +35,6 @@
 #   ./compat/stress_test_matrix.sh --frames 900     longer gate run
 #   ./compat/stress_test_matrix.sh --reel-frames 300  shorter ceiling run
 #   ./compat/stress_test_matrix.sh --timeout 900    per-run seconds
-#   ./compat/stress_test_matrix.sh --install-qemu   register the binfmt hooks
 #   ./compat/stress_test_matrix.sh --gui            finish in the dashboard
 #   ./compat/stress_test_matrix.sh --help
 
@@ -67,7 +68,6 @@ FPS=30
 TIMEOUT=600
 ONLY=""
 WITH_REEL=1
-INSTALL_QEMU=0
 RUN_GUI=0
 
 while [ $# -gt 0 ]; do
@@ -78,7 +78,6 @@ while [ $# -gt 0 ]; do
     --fps)          FPS="${2:?--fps needs a number}"; shift ;;
     --timeout)      TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
     --no-reel)      WITH_REEL=0 ;;
-    --install-qemu) INSTALL_QEMU=1 ;;
     --gui)          RUN_GUI=1 ;;
     --help|-h)      sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) echo "stress_test_matrix.sh: unknown option $1 (try --help)" >&2; exit 1 ;;
@@ -114,25 +113,35 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# A foreign-architecture binary only runs here if the kernel knows to hand it
-# to qemu. Docker Desktop ships these hooks; a plain Arch install does not, and
-# without them an aarch64 container dies with `exec format error`, which looks
-# like a broken build rather than a missing emulator.
+# ---------------------------------------------------------------------------
+# Foreign architectures, without binfmt_misc
+# ---------------------------------------------------------------------------
+#
+# A foreign-arch binary needs *something* to translate its instructions for
+# the host CPU. The usual way -- registering qemu-user with the kernel's
+# binfmt_misc, so `execve` on a foreign ELF is transparently handed to it --
+# needs `--privileged` once per machine (it writes to
+# /proc/sys/fs/binfmt_misc), does not survive every reboot, and fails exactly
+# the same way ("exec format error") whether the hooks were never installed
+# or just did not survive the last one. None of that is necessary here.
+#
+# Every binary this pipeline runs is static (cross_build.sh checks it), so a
+# qemu-user interpreter never needs a foreign sysroot -- it only has to
+# translate the guest's syscalls to the host kernel. That means it can be
+# invoked directly, as the container's own command, on a container built for
+# the *host's* architecture: no `--platform`, no binfmt_misc, no
+# `--privileged`, nothing written outside this pipeline's own output
+# directory. `docker run --platform linux/arm64 alpine ...` is what needs the
+# kernel's help; `docker run alpine /qemu-aarch64 /roog-perf ...` does
+# not, because nothing is asking the kernel to exec a foreign ELF -- only the
+# native `qemu-aarch64` binary is, and it does that in user space.
 QEMU_IMAGE=tonistiigi/binfmt
-if [ "$INSTALL_QEMU" -eq 1 ]; then
-  stage "Registering qemu-user with binfmt_misc"
-  note "this needs --privileged; it writes to /proc/sys/fs/binfmt_misc"
-  if docker run --privileged --rm "$QEMU_IMAGE" --install arm64,arm,386 >/dev/null 2>&1; then
-    ok "registered"
-  else
-    bad "could not register the binfmt hooks"
-    note "  docker run --privileged --rm $QEMU_IMAGE --install all"
-  fi
-fi
+QEMU_DIR="$OUT/qemu"
 
-# Which interpreter a row needs, by docker platform. Empty for a row the host
-# CPU runs itself: x86_64 obviously, and i686 too -- a 64-bit kernel runs
-# 32-bit user space natively, so the potato row is starved rather than emulated.
+# Which static interpreter a row needs, by docker platform. Empty for a row
+# the host CPU runs itself: x86_64 obviously, and i686 too -- a 64-bit kernel
+# runs 32-bit user space natively, so the potato row is starved rather than
+# emulated.
 qemu_handler_for() {
   case "$1" in
     linux/arm64)  echo qemu-aarch64 ;;
@@ -141,11 +150,32 @@ qemu_handler_for() {
   esac
 }
 
+# Fetches one static interpreter out of $QEMU_IMAGE's filesystem and caches it
+# in $QEMU_DIR, without ever running that image -- `docker create` plus
+# `docker cp` touches nothing but this pipeline's own output directory, so it
+# needs no more privilege than pulling any other image. Prints the cached
+# path on success.
+ensure_qemu_interpreter() {
+  local handler="$1" dest cid
+  dest="$QEMU_DIR/$handler"
+  if [ -s "$dest" ]; then
+    echo "$dest"
+    return 0
+  fi
+  mkdir -p "$QEMU_DIR"
+  cid=$(docker create "$QEMU_IMAGE" true 2>/dev/null) || return 1
+  docker cp "$cid:/usr/bin/$handler" "$dest" >/dev/null 2>&1
+  docker rm -f "$cid" >/dev/null 2>&1
+  [ -s "$dest" ] || return 1
+  chmod +x "$dest"
+  echo "$dest"
+}
+
 have_qemu_for() {
   local handler
   handler=$(qemu_handler_for "$1")
   [ -z "$handler" ] && return 0
-  [ -r "/proc/sys/fs/binfmt_misc/$handler" ]
+  ensure_qemu_interpreter "$handler" >/dev/null
 }
 
 # ---------------------------------------------------------------------------
@@ -248,7 +278,7 @@ parse_report() {
 # a result, not a reason to hang the pipeline.
 
 run_row() {
-  local id=$1 target=$2 platform=$3 image=$4 cpus=$5 memory=$6 load=$7 frames=$8
+  local id=$1 target=$2 platform=$3 image=$4 exec_kind=$5 cpus=$6 memory=$7 load=$8 frames=$9
   local name="roog-compat-$id-$load"
   local log="$OUT/run-$id-$load.log"
   local stats="$OUT/stats-$id-$load.tsv"
@@ -286,14 +316,34 @@ run_row() {
     mounts+=(-v "$REEL:/bad-apple:ro")
     args+=(--reel /bad-apple)
   fi
+  local cmd=(/roog-perf "${args[@]}")
+
+  # A qemu row runs as a plain host-architecture container -- no `--platform`
+  # -- with a native qemu-user-static interpreter mounted in and put in front
+  # of the command. See "Foreign architectures, without binfmt_misc" above:
+  # the guest binary is static, so the interpreter needs nothing else from
+  # this row's own architecture, and the container's platform stops mattering.
+  local docker_platform=(--platform "$platform")
+  if [ "$exec_kind" = "qemu" ]; then
+    local handler qemu_bin
+    handler=$(qemu_handler_for "$platform")
+    qemu_bin=$(ensure_qemu_interpreter "$handler") || {
+      warn "$id/$load: could not fetch $handler from $QEMU_IMAGE"
+      record "$id" "$target" "$load" skipped 0 0 0 0 0 0 0 0 0
+      return 1
+    }
+    docker_platform=()
+    mounts+=(-v "$qemu_bin:/qemu-static:ro")
+    cmd=(/qemu-static "${cmd[@]}")
+  fi
 
   local started ended wall exit_code status
   started=$(date +%s)
   if ! docker run -d --name "$name" \
-        --platform "$platform" \
+        "${docker_platform[@]}" \
         --cpus "$cpus" --memory "$memory" --memory-swap "$memory" \
         "${mounts[@]}" \
-        "$image" /roog-perf "${args[@]}" >/dev/null 2>"$log"; then
+        "$image" "${cmd[@]}" >/dev/null 2>"$log"; then
     bad "$id/$load: container would not start"
     tail -3 "$log" | sed 's/^/      /'
     record "$id" "$target" "$load" failed 0 0 0 0 0 0 0 0 0
@@ -377,17 +427,16 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
   note "$note_text"
 
   if ! have_qemu_for "$platform"; then
-    bad "$id needs $(qemu_handler_for "$platform"), and binfmt_misc does not have it"
-    note "  ./compat/stress_test_matrix.sh --install-qemu"
-    note "  or: docker run --privileged --rm $QEMU_IMAGE --install all"
+    bad "$id needs $(qemu_handler_for "$platform") and could not fetch it from $QEMU_IMAGE"
+    note "  is docker able to pull images right now?"
     record "$id" "$target" game skipped 0 0 0 0 0 0 0 0 0
     SKIPPED="$SKIPPED$id "
     continue
   fi
 
-  run_row "$id" "$target" "$platform" "$image" "$cpus" "$memory" game "$FRAMES"
+  run_row "$id" "$target" "$platform" "$image" "$exec" "$cpus" "$memory" game "$FRAMES"
   [ "$WITH_REEL" -eq 1 ] && \
-    run_row "$id" "$target" "$platform" "$image" "$cpus" "$memory" reel "$REEL_FRAMES"
+    run_row "$id" "$target" "$platform" "$image" "$exec" "$cpus" "$memory" reel "$REEL_FRAMES"
 done < <(matrix_rows_or_die linux)
 
 # ---------------------------------------------------------------------------

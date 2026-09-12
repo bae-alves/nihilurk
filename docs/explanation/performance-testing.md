@@ -179,8 +179,9 @@ The grid is a copy, and it can drift
 ------------------------------------
 
 `Screen` -- the double-buffered grid, the diff, the escape-sequence
-emitter -- lives in `engine/src/view.rs`. `engine` is a binary crate with
-no library target, and `Screen::put`, `clear` and `flush` are private to
+emitter -- lives in `engine/src/view.rs` (see
+`../reference/rendering.md`). `engine` is a binary crate with no
+library target, and `Screen::put`, `clear` and `flush` are private to
 that module, so the rig cannot reach it. Three ways out were weighed:
 
   1. give `engine` a library target and depend on it

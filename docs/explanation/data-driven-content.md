@@ -243,10 +243,22 @@ Honesty about the seams, because they are where people get stuck.
 points" is not expressible as a component the engine already folds, so
 those three categories keep an effect enum and a `match` (in
 `models/src/items/potions.rs`, `scrolls.rs` and `wands.rs`
-respectively). That match has a catch-all arm, so a variant with
-no mechanic compiles and ships as a dud. Traps do it better -- their
-match is exhaustive, so a new trap does not build until it does
-something.
+respectively). Those matches are exhaustive now, the same as traps: no
+catch-all arm, so a variant given no arm does not build, rather than
+compiling and shipping as a silent dud.
+
+That buys the missing-arm case, not the missing-*behaviour* case --
+exhaustiveness only proves every variant was mentioned, not that what
+it does is finished. Fourteen of `PotionEffect`'s fifteen variants
+(everything but `Healing`) and six of `ScrollEffect`'s fifteen
+(`MonsterConfusion`, `HoldMonster`, `Sleep`, `EnchantArmor`,
+`FoodDetection`, `EnchantWeapon`) sit in an explicit do-nothing arm
+today, each one named rather than swallowed by a wildcard. That is the
+same trade as the ring gap just above: the missing mechanic is still
+missing, but it is visible in the match instead of indistinguishable
+from a bug. What changed is that nobody can add a *sixteenth* such gap
+by accident -- a new variant has to be named in the match, whether the
+arm you give it is real behaviour or an honest placeholder.
 
 **Numeric modifiers need a place to be added.** A new `SightBonus`
 component is easy to declare, but somebody has to fold it into the

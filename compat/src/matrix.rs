@@ -32,8 +32,10 @@ pub enum Exec {
     /// a 64-bit kernel runs 32-bit user space natively, so the "potato" row is
     /// not emulated either, only starved.
     Native,
-    /// binfmt_misc hands it to qemu-user. Everything measured on such a row
-    /// carries the emulator's tax; see `docs/explanation/cross-platform-testing.md`.
+    /// A directly-invoked qemu-user-static interpreter runs it -- no
+    /// binfmt_misc, no `--privileged` (see `stress_test_matrix.sh`).
+    /// Everything measured on such a row carries the emulator's tax; see
+    /// `docs/explanation/cross-platform-testing.md`.
     Qemu,
     /// Never executed.
     None,
@@ -45,7 +47,10 @@ pub struct Row {
     pub id: String,
     pub target: String,
     pub class: Class,
-    /// `docker --platform` value.
+    /// `docker --platform` value for a `Native` row. A `Qemu` row's
+    /// container instead runs as the host's own architecture, so this only
+    /// tells `stress_test_matrix.sh` which qemu-user-static interpreter to
+    /// fetch.
     pub platform: String,
     pub image: String,
     pub exec: Exec,

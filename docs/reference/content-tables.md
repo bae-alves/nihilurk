@@ -94,7 +94,12 @@ roog picks evenly on purpose.
 | `color`  | `Color`        |                                          |
 
 Draws `!`. Attaches `Item`, `Potion`, `Consume`.
-Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`.
+Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`. That
+match has no catch-all, so a new `PotionEffect` variant will not
+compile until it has an arm -- same rule as `TrapEffect` above. An arm
+is allowed to do nothing on purpose: fourteen of the fifteen variants
+(everything but `Healing`) do today, each named explicitly rather than
+caught by a wildcard.
 
 ### SCROLLS -- ScrollDef
 
@@ -105,7 +110,12 @@ Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`.
 
 Draws `?`, always white -- a scroll has no colour field.
 Attaches `Item`, `Scroll`, `Consume`.
-Mechanic: `apply_scroll_effect` in `models/src/items/scrolls.rs`.
+Mechanic: `apply_scroll_effect` in `models/src/items/scrolls.rs`. That
+match has no catch-all, so a new `ScrollEffect` variant will not
+compile until it has an arm -- same rule as `TrapEffect` above.
+`MonsterConfusion`, `HoldMonster`, `Sleep`, `EnchantArmor`,
+`FoodDetection` and `EnchantWeapon` share an explicit "nothing obvious
+happens" arm today; the row exists, the mechanic does not, yet.
 
 ### WANDS -- WandDef
 
@@ -122,8 +132,14 @@ zap damage dice and both blast radii live in `models/src/constants.rs` →
 `wands` (see `reference/constants.md`).
 Whether zapping opens the reticle: `WandEffect::needs_target`, which is
 true for everything except the wand of light.
-Mechanic: `apply_wand_effect` in `models/src/items/wands.rs`. Throwing a
-wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`).
+Mechanic: `apply_wand_effect` in `models/src/items/wands.rs`. That
+match has no catch-all, so a new `WandEffect` variant will not compile
+until it has an arm -- same rule as `TrapEffect` above; every existing
+variant already does something real. Throwing a wand is resolved in
+`models/src/items/throwing.rs` (`resolve_wand_throw`), a narrower,
+still-`_`-fallback dispatch over only the six utility effects a thrown
+blast can carry (`apply_thrown_wand_effect`) -- it is not the
+"unwired effect" checkpoint; `apply_wand_effect` is.
 
 A zapped bolt (`fire_bolt` → `Particles::beam`) flickers white/its own
 colour twice per cell rather than fading once, and lands with
@@ -518,4 +534,5 @@ See also
 
   spawn-api.md                  the functions that read these tables
   cli-and-env.md                flags and environment variables
+  input-and-turn-loop.md        how confusion, snares, etc. play out at the keyboard
   ../how-to/add-an-item.md      how to add a row to one of these

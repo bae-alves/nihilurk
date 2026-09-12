@@ -13,6 +13,15 @@ use crate::helpers::item_label;
 /// player learns a potion by drinking it either way, but a potion *thrown* at a
 /// monster only gives itself away when something plainly happens (see
 /// [`super::throwing`]).
+///
+/// Exhaustive over `PotionEffect`, deliberately with no catch-all: a potion
+/// effect added to the enum and not given an arm here fails the build instead
+/// of silently doing nothing — the same guarantee `crate::traps::spring_trap`
+/// gives a new `TrapEffect`. See `docs/explanation/data-driven-content.md`.
+///
+/// Every variant below `Healing` is a row in the catalog with no mechanic
+/// behind it yet — that gap is unchanged by this match being exhaustive; it
+/// is just no longer possible to add a *fifteenth* such gap by accident.
 pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: PotionEffect) -> bool {
     match effect {
         PotionEffect::Healing => {
@@ -33,6 +42,19 @@ pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: Potio
             world.resource_mut::<GameLog>().add(msg);
             healed
         }
-        _ => false, /* handle other potion effects */
+        PotionEffect::Blindness
+        | PotionEffect::Confusion
+        | PotionEffect::ExtraHealing
+        | PotionEffect::FruitJuice
+        | PotionEffect::GainStrength
+        | PotionEffect::Haste
+        | PotionEffect::MagicDetection
+        | PotionEffect::MonsterDetection
+        | PotionEffect::Paralysis
+        | PotionEffect::Poison
+        | PotionEffect::RaiseLevel
+        | PotionEffect::RestoreStrength
+        | PotionEffect::SeeInvisible
+        | PotionEffect::Water => false,
     }
 }
