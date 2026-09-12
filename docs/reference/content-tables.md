@@ -354,13 +354,20 @@ TRAPS -- TrapDef
 A trap entity carries `Name`, `Renderable`, `Position`, `Trap`, `Hidden`.
 It is never an `Item` and never a tile type.
 
-Mechanic: `spring_trap` in `models/src/traps.rs`. That match has no
+Mechanic: `apply_trap_effect` in `models/src/traps.rs`. That match has no
 catch-all, so a new `TrapEffect` variant will not compile until it has an
 arm. A snaring trap reads its duration straight off the row, so it stays a
 one-file change.
 
 Reveal style is rolled per trap at spawn, equal odds, not per row:
 `Sight` / `Adjacent` / `Triggered`.
+
+A trap set off *from a distance* -- a missile that lands on it, a wand's
+blast that covers it -- has nobody standing on it to bite, so it bursts
+instead: `detonate_trap` deals `TRICK_SHOT_DAMAGE_DICE d
+TRICK_SHOT_DAMAGE_SIDES` (armour-ignoring) over the `TRICK_SHOT_RADIUS`
+around its tile and then runs the mechanic once per creature caught.
+Dials: `constants::traps`.
 
 Damage traps ignore the defender's armour *die* but still subtract the
 armour *plus* (`total_armor_plus`). Their bite also scales with depth in

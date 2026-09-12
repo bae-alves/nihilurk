@@ -164,7 +164,7 @@ The pattern is identical for all three; only the names change.
 
 > **Step 3 is the one the compiler now makes you do.** All three of
 > those functions are exhaustive matches over their effect enum, the
-> same as `spring_trap` is over `TrapEffect` -- no catch-all arm, so
+> same as `apply_trap_effect` is over `TrapEffect` -- no catch-all arm, so
 > step 1's new variant will not build until step 3 gives it one. The
 > error names the function and the missing variant, so there is no
 > guessing which of the three you forgot.

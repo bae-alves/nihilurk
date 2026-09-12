@@ -7,8 +7,9 @@ use crossterm::style::Color;
 // `constants.rs`; re-exported so `hud::LOG_LINES` etc. keep resolving.
 pub use crate::constants::hud::{LOG_LINES, LOG_MORE_WIDTH, LOG_WIDTH};
 
-/// Sparingly colours a packed log line — only when it reads as happening *to
-/// the player* (contains "you"), and only for a handful of categories worth
+/// Sparingly colours a packed log line — with one exception (a trick shot,
+/// magenta) only when it reads as happening *to the player* (contains "you"),
+/// and only for a handful of categories worth
 /// calling out: a curse taking hold (dark red), a dazzle (magenta), the
 /// low-HP warning (red), the player's own speed shifting (cyan hasted, dark
 /// cyan slowed), or the player throwing/firing something (yellow, to make it
@@ -18,6 +19,12 @@ pub use crate::constants::hud::{LOG_LINES, LOG_MORE_WIDTH, LOG_WIDTH};
 /// colour.
 pub fn log_line_color(line: &str) -> Color {
     let lower = line.to_ascii_lowercase();
+    // The one line that shouts before the "you" gate below: a trap going off
+    // because something *shot* it is the player's doing whether or not the
+    // sentence says so, and it is worth seeing from across the room.
+    if lower.contains("trick shot") {
+        return Color::Magenta;
+    }
     if !lower.contains("you") {
         return Color::White;
     }
@@ -163,6 +170,14 @@ mod tests {
             Color::Magenta
         );
         assert_eq!(log_line_color("You are badly wounded!"), Color::Red);
+    }
+
+    #[test]
+    fn a_trick_shot_shouts_in_magenta_with_no_you_in_it() {
+        // The one line coloured without the player being named in it: it is
+        // their shot either way.
+        assert_eq!(log_line_color("BAM! Trick shot!"), Color::Magenta);
+        assert_eq!(log_line_color("WHY! Trick shot!"), Color::Magenta);
     }
 
     #[test]

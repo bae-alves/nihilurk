@@ -28,6 +28,15 @@
 //! runs at the very top of the turn and ages [`Snare`] (bear trap / sleep gas)
 //! down, so the turn a snare is applied is never the turn it is decremented.
 //!
+//! ## Trick shots
+//!
+//! A trap only *bites* something standing on it. Set one off from across the
+//! room — put a missile on its tile, or wash a wand's blast over it — and it
+//! has nobody to bite, so the whole mechanism lets go at once instead:
+//! [`detonate_trap`] bursts it over the 3×3 around the tile, armour-ignoring,
+//! and works the trap's own effect on everyone caught. It is nobody's friend;
+//! stand a tile away from your own shot and it catches you too.
+//!
 //! ## Bear trap
 //!
 //! A [`SnareKind::Bear`] snare impedes *movement only*. The victim can still
@@ -55,14 +64,18 @@ use crate::constants::traps::{
     ARROW_DAMAGE_BONUS, ARROW_DAMAGE_DICE, ARROW_DAMAGE_PER_TIER, ARROW_DAMAGE_SIDES,
     BEAR_TRAP_THRASH_DAMAGE, BEAR_TRAP_THRASH_GORE, DART_DAMAGE_DICE, DART_DAMAGE_SIDES,
     DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER, TRAP_DAMAGE_TIER_LAST_DEPTH,
+    TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES, TRICK_SHOT_RADIUS,
 };
 use crate::effects::SustainsStrength;
-use crate::helpers::{apply_damage, player_sees, roll_dice, spill_blood, total_armor_plus};
+use crate::helpers::{
+    apply_damage, leave_smoke, leave_tinted_smoke, player_sees, roll_dice, spill_blood,
+    total_armor_plus,
+};
 use crate::map::{
     FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index,
     transition_level,
 };
-use crate::particles::Particles;
+use crate::particles::{BlastPalette, Particles};
 
 impl TrapEffect {
     /// The name shown once the trap is known — read straight off the row.
@@ -83,11 +96,11 @@ impl TrapEffect {
 /// One kind of trap, one row: what it is called, how it draws, how often the
 /// dungeon lays one, the shallowest floor it lays one on, and — for the two
 /// snaring traps — how many turns it holds the victim. The mechanic itself
-/// lives in [`spring_trap`], keyed by [`TrapDef::effect`] — a row is
+/// lives in [`apply_trap_effect`], keyed by [`TrapDef::effect`] — a row is
 /// description and the numbers its mechanic needs, never behaviour.
 ///
 /// Adding a trap is a row here, a [`TrapEffect`] variant, and an arm in
-/// [`spring_trap`]. See `docs/how-to/add-a-trap.md`.
+/// [`apply_trap_effect`]. See `docs/how-to/add-a-trap.md`.
 pub struct TrapDef {
     pub effect: TrapEffect,
     pub name: &'static str,
@@ -303,13 +316,7 @@ pub fn trap_system(world: &mut World) {
         let Some(pos) = world.get::<Position>(mover).copied() else {
             continue;
         };
-        let trap = {
-            let mut q = world.query_filtered::<(Entity, &Position), With<Trap>>();
-            q.iter(world)
-                .find(|(_, tp)| tp.x == pos.x && tp.y == pos.y)
-                .map(|(e, _)| e)
-        };
-        if let Some(trap) = trap {
+        if let Some(trap) = trap_at(world, pos) {
             spring_trap(world, trap, mover);
         }
     }
@@ -332,6 +339,15 @@ fn actor_label(world: &World, entity: Entity) -> String {
         .get::<Name>(entity)
         .map(|n| format!("the {}", n.what))
         .unwrap_or_else(|| "something".to_string())
+}
+
+/// The trap sitting on `pos`, if there is one. At most one trap is ever laid
+/// on a tile.
+pub fn trap_at(world: &mut World, pos: Position) -> Option<Entity> {
+    let mut q = world.query_filtered::<(Entity, &Position), With<Trap>>();
+    q.iter(world)
+        .find(|(_, tp)| tp.x == pos.x && tp.y == pos.y)
+        .map(|(e, _)| e)
 }
 
 /// Fires `trap`'s effect on `victim`, reveals the trap for good, and — for
@@ -360,21 +376,170 @@ fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         ));
     }
 
+    // A bear trap only bites once, and it bites the moment it is stepped on.
+    if effect == TrapEffect::Bear {
+        world.entity_mut(trap).despawn();
+    }
+
+    apply_trap_effect(world, effect, victim, is_player, seen, trap_pos);
+}
+
+/// What a trap *does* to one victim, with the trap entity already dealt with by
+/// the caller. Split out from [`spring_trap`] because a trap has two ways of
+/// going off — something stood on it, or something shot it (see
+/// [`detonate_trap`]) — and only the mechanics below are common to both.
+///
+/// Exhaustive over [`TrapEffect`], deliberately with no catch-all: a trap
+/// effect added to the enum and not given an arm here fails the build instead
+/// of quietly doing nothing.
+fn apply_trap_effect(
+    world: &mut World,
+    effect: TrapEffect,
+    victim: Entity,
+    is_player: bool,
+    seen: bool,
+    trap_pos: Option<Position>,
+) {
     // Snaring traps hold the victim for as many turns as their row says.
     let snare_turns = TrapDef::of(effect).snare_turns;
 
     match effect {
         TrapEffect::Trapdoor => trapdoor_effect(world, victim, is_player, seen),
-        TrapEffect::Bear => {
-            snare_victim(world, victim, SnareKind::Bear, snare_turns, is_player);
-            // A bear trap only bites once.
-            world.entity_mut(trap).despawn();
-        }
+        TrapEffect::Bear => snare_victim(world, victim, SnareKind::Bear, snare_turns, is_player),
         TrapEffect::Sleep => snare_victim(world, victim, SnareKind::Sleep, snare_turns, is_player),
         TrapEffect::Teleport => teleport_effect(world, victim, is_player),
         TrapEffect::Arrow => arrow_effect(world, victim, is_player, seen, trap_pos),
         TrapEffect::Dart => dart_effect(world, victim, is_player, seen, trap_pos),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Trick shots
+// ---------------------------------------------------------------------------
+
+/// A trap that something set off *from a distance* — a missile that came down
+/// on it, a wand's blast that washed over it — and which therefore has nobody
+/// standing on it to bite. So it goes off all at once instead: the whole
+/// mechanism lets go in a [`TRICK_SHOT_RADIUS`] burst that deals
+/// `TRICK_SHOT_DAMAGE_DICE d TRICK_SHOT_DAMAGE_SIDES` to everything caught —
+/// no armour of any kind turns this aside — and then works the trap's own
+/// effect on each survivor. Six arrows at once, a lungful of gas for the whole
+/// room, a trapdoor that swallows the pack of them.
+///
+/// The trap is spent either way, and the shot is nobody's friend: stand within
+/// a tile of your own trick shot and it catches you too.
+///
+/// Returns whether there was a trap here to set off at all, so a caller can
+/// hand the same tile to it without checking first.
+pub fn detonate_trap(world: &mut World, trap: Entity) -> bool {
+    let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else {
+        return false;
+    };
+    let Some(center) = world.get::<Position>(trap).copied() else {
+        return false;
+    };
+
+    let cells = burst_cells(world, center);
+    let victims = creatures_in(world, &cells);
+    let caught_player = victims.iter().any(|&v| world.get::<Player>(v).is_some());
+    let seen = caught_player || player_sees(world, center.x, center.y);
+
+    // The trap is gone the instant it lets go, before anything below can put a
+    // second victim on its tile — nothing sets off the same trap twice.
+    world.entity_mut(trap).despawn();
+
+    if seen {
+        // The player standing in their own blast has a different word for it.
+        let shout = if caught_player { "WHY!" } else { "BAM!" };
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("{shout} Trick shot!"));
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+    }
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.explosion(&cells, BlastPalette::Force);
+    }
+
+    // One roll, applied whole to everyone caught — this is a blast, not a
+    // volley of separate hits.
+    let damage = roll_dice(world, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES);
+    for &victim in &victims {
+        apply_damage(world, victim, damage);
+    }
+
+    for victim in victims {
+        if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
+            finish_burst_casualty(world, victim, center, effect);
+            continue;
+        }
+        // An earlier victim's effect may have taken this one off the floor
+        // between the two loops — a trapdoor under the player empties the
+        // whole level behind them.
+        if world.get::<Position>(victim).is_none() {
+            continue;
+        }
+        let is_player = world.get::<Player>(victim).is_some();
+        apply_trap_effect(world, effect, victim, is_player, seen, Some(center));
+    }
+    true
+}
+
+/// Finishes one creature the burst killed, here rather than at the reaper's
+/// next sweep, so the corpse is flung away from the trap it was standing next
+/// to — and so the trap's effect is never worked on something already dead.
+/// A dead player gets the trap named on their tombstone; "killer unknown" is a
+/// poor epitaph for a shot you lined up yourself.
+fn finish_burst_casualty(world: &mut World, victim: Entity, center: Position, effect: TrapEffect) {
+    let is_player = world.get::<Player>(victim).is_some();
+    let already_dead = world
+        .get_resource::<crate::state::Ending>()
+        .is_some_and(|e| e.player_dead);
+    crate::combat::finish_indirect_kill(world, victim, Some(center));
+    if !is_player || already_dead {
+        return;
+    }
+    if let Some(mut ending) = world.get_resource_mut::<crate::state::Ending>() {
+        ending.cause = format!("Blown up by {} {}", effect.label_article(), effect.label());
+    }
+}
+
+/// Every tile a trick shot's burst covers: the trap's own and each open tile
+/// within [`TRICK_SHOT_RADIUS`] of it, tagged with its distance from the centre
+/// so the animation ripples outward. Walls are not covered — the blast rolls
+/// into the room, not through the stone.
+fn burst_cells(world: &World, center: Position) -> Vec<(u16, u16, f32)> {
+    let map = world.resource::<Map>();
+    let mut cells = Vec::new();
+    for dy in -TRICK_SHOT_RADIUS..=TRICK_SHOT_RADIUS {
+        for dx in -TRICK_SHOT_RADIUS..=TRICK_SHOT_RADIUS {
+            let Some((x, y)) = crate::particles::on_map(center.x as i32 + dx, center.y as i32 + dy)
+            else {
+                continue;
+            };
+            if map.blocks(x, y) {
+                continue;
+            }
+            cells.push((x, y, ((dx * dx + dy * dy) as f32).sqrt()));
+        }
+    }
+    cells
+}
+
+/// Every creature standing in `cells`, in reading order — top row first, then
+/// left to right. Fixed on purpose: the arms that roll dice roll them once per
+/// victim, so the order they are worked in has to be the same on a replay as it
+/// was on the run.
+fn creatures_in(world: &mut World, cells: &[(u16, u16, f32)]) -> Vec<Entity> {
+    let area: std::collections::HashSet<(u16, u16)> =
+        cells.iter().map(|&(x, y, _)| (x, y)).collect();
+    let mut caught: Vec<(u16, u16, Entity)> = world
+        .query_filtered::<(Entity, &Position), Or<(With<Player>, With<Mob>)>>()
+        .iter(world)
+        .filter(|(_, p)| area.contains(&(p.x, p.y)))
+        .map(|(e, p)| (p.y, p.x, e))
+        .collect();
+    caught.sort_unstable();
+    caught.into_iter().map(|(_, _, e)| e).collect()
 }
 
 /// A one-off impact spark on the trap's tile, if there is an effect layer at
@@ -392,6 +557,11 @@ fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: boo
             world
                 .resource_mut::<GameLog>()
                 .add(format!("{who} drops through the trapdoor and is gone."));
+        }
+        // Dust where the floor used to be: a body falling through leaves the
+        // plain grey puff, against the magenta of one wrenched away by magic.
+        if let Some(pos) = world.get::<Position>(victim).copied() {
+            leave_smoke(world, pos);
         }
         world.entity_mut(victim).despawn();
         return;
@@ -424,6 +594,7 @@ fn snare_victim(world: &mut World, victim: Entity, kind: SnareKind, turns: u32, 
 }
 
 fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
+    let was = world.get::<Position>(victim).copied();
     if let Some((x, y)) = random_open_tile(world) {
         if let Some(mut pos) = world.get_mut::<Position>(victim) {
             pos.x = x;
@@ -432,6 +603,11 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
         if let Some(mut vs) = world.get_mut::<Viewshed>(victim) {
             vs.dirty = true;
         }
+    }
+    // A magenta puff where they stood — the wand of teleportation's calling
+    // card, and the trap works the same magic.
+    if let Some(was) = was {
+        leave_tinted_smoke(world, was, Color::Magenta);
     }
     if is_player {
         world

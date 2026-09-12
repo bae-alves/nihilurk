@@ -167,6 +167,13 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
     fn burn(seed: u64, throw_it: bool) -> (usize, i32) {
         let mut w = test_world(seed);
         let p = player(&mut w);
+        // What this measures is the grenade's own roll, so clear the floor's
+        // traps first: one caught in the blast bursts and adds its own bite
+        // (see `traps::detonate_trap`).
+        let traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
+        for t in traps {
+            w.entity_mut(t).despawn();
+        }
         let pp = player_pos(&mut w);
         let orcs: Vec<Entity> = (1..=7)
             .map(|dx| {
@@ -750,4 +757,38 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
         .filter_map(|e| e.get::<ThrownDamage>().map(|t| t.0))
         .collect();
     assert_eq!(dice, vec![8]);
+}
+
+/// A shot that comes down on a trap sets it off — and a trap nobody is
+/// standing on bursts instead of biting. The dagger never touched the orc
+/// beside the trap; the trap did.
+#[test]
+fn a_shot_that_lands_on_a_trap_sets_it_off() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 2);
+    assert!(!w.resource::<Map>().blocks(spot.x, spot.y), "open floor");
+
+    let trap = w.spawn(TrapBundle::sleep(spot)).id();
+    let beside_it = east_of_player(&mut w, 3);
+    let bystander = monster(&mut w, "orc", beside_it);
+    // Tough enough to survive the burst and be asked about it afterwards.
+    w.get_mut::<Fighter>(bystander).unwrap().hp = 30;
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+
+    throw(&mut w, p, dagger, spot);
+
+    assert!(
+        w.get_entity(trap).is_none(),
+        "the trap went off with the shot"
+    );
+    assert!(
+        w.get::<Fighter>(bystander).unwrap().hp < 30,
+        "the burst caught the orc standing next to the trap"
+    );
+    assert_eq!(
+        w.get::<Snare>(bystander).map(|s| s.kind),
+        Some(SnareKind::Sleep),
+        "and so did the gas the trap was holding"
+    );
 }

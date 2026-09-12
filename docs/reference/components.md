@@ -239,7 +239,7 @@ Defined in `components.rs` (nouns); the mechanics are `traps.rs`.
 | `Snare`       | `turns: u32`, `kind: SnareKind`              | losing turns to a trap | yes |
 
 `TrapEffect` — enum, **saved by variant order** (`Trapdoor`, `Bear`,
-`Sleep`, `Teleport`, `Arrow`, `Dart`). Keys the mechanic in `spring_trap`;
+`Sleep`, `Teleport`, `Arrow`, `Dart`). Keys the mechanic in `apply_trap_effect`;
 the catalog row (`TrapDef`) is name / glyph / rarity / `snare_turns`.
 Arrow and dart damage scale with depth — `constants::traps`.
 

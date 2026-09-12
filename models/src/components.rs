@@ -609,7 +609,7 @@ pub struct Confused;
 
 /// Which of the six trap kinds a [`Trap`] entity is. The effect always fires
 /// when the trap is stepped on — there is no saving throw. The mechanic keyed
-/// off each variant lives in `crate::traps` (`spring_trap`); the catalog row
+/// off each variant lives in `crate::traps` (`apply_trap_effect`); the catalog row
 /// (name, glyph, rarity, debut depth) is [`crate::traps::TrapDef`].
 ///
 /// Serialised by variant position — append, never reorder (a saved trapdoor

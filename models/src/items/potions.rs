@@ -16,7 +16,7 @@ use crate::helpers::item_label;
 ///
 /// Exhaustive over `PotionEffect`, deliberately with no catch-all: a potion
 /// effect added to the enum and not given an arm here fails the build instead
-/// of silently doing nothing — the same guarantee `crate::traps::spring_trap`
+/// of silently doing nothing — the same guarantee `crate::traps::apply_trap_effect`
 /// gives a new `TrapEffect`. See `docs/explanation/data-driven-content.md`.
 ///
 /// Every variant below `Healing` is a row in the catalog with no mechanic

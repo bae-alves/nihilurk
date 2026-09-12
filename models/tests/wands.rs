@@ -593,3 +593,30 @@ fn light_clears_a_dark_room_and_reveals_its_traps() {
             .contains(&WandEffect::Light)
     );
 }
+
+/// Fire and cold are the wands that *blast*, and a blast that washes over a
+/// trap sets it off — the same trick shot a missile makes, worked with a stick.
+#[test]
+fn a_blast_sets_off_a_trap_it_washes_over() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let (_, next_door) = beside_player(&mut w);
+    let trap = w.spawn(TrapBundle::sleep(next_door)).id();
+
+    let wand = give_wand(&mut w, p, WandEffect::Fire);
+    zap(&mut w, p, wand, next_door);
+
+    assert!(w.get_entity(trap).is_none(), "the blast set the trap off");
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("Trick shot!")),
+        "and said so"
+    );
+    assert_eq!(
+        w.get::<Snare>(p).map(|s| s.kind),
+        Some(SnareKind::Sleep),
+        "the gas rolls over the zapper standing right beside it"
+    );
+}

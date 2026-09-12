@@ -34,7 +34,7 @@ The modules
 | `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor, `DIFFICULTY_TIER_LAST_DEPTH` (the depth bands the crowding budgets step at) | how long a run is and how hard attrition bites |
 | `map`         | `WIDTH`, `HEIGHT`, dark-room chance | the playfield (see the determinism caveat below) |
 | `population`  | Monster / trap / item budgets per floor, how they scale with the difficulty tier, corridor lurkers, hidden items | how crowded and dangerous a floor is |
-| `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash | how much a trap hurts and how fast it scales |
+| `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash, the trick-shot burst (`TRICK_SHOT_RADIUS` and its dice) | how much a trap hurts and how fast it scales |
 | `wands`       | Charge dice, zap damage dice, both blast radii, per-charge dice a thrown wand spends | how good a wand is |
 | `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the launcher die multiplier | how the drop table feels |
 | `items`       | `THROW_RANGE`, `STACK_LIMIT` | reach and pack density |

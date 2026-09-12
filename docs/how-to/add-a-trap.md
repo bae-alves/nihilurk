@@ -43,13 +43,13 @@ The recipe
    first floor it appears on. All six existing traps are `10` and `1`,
    which is to say equally likely from the start.
 
-3. **Write the mechanic** as an arm of `spring_trap`:
+3. **Write the mechanic** as an arm of `apply_trap_effect`:
 
        TrapEffect::Pit => pit_effect(world, victim, is_player, seen),
 
-   `spring_trap`'s match has no catch-all, so the compiler will refuse to
-   build until you write this arm. That is deliberate: a trap that does
-   nothing is not a trap.
+   `apply_trap_effect`'s match has no catch-all, so the compiler will
+   refuse to build until you write this arm. That is deliberate: a trap
+   that does nothing is not a trap.
 
 Then:
 
@@ -71,7 +71,7 @@ Look at what the existing six do, and reuse the pieces:
     dart_effect           damage, plus a permanent bite of strength
 
 If your trap snares, put the duration in the row's `snare_turns` and let
-`spring_trap` pass it through -- no constant to add.
+`apply_trap_effect` pass it through -- no constant to add.
 
 The arrow and dart also scale with depth. `trap_damage_tier(depth)` is
 0/1/2, stepping at floors 4 and 8, and it adds to the arrow's roll and
@@ -83,15 +83,26 @@ is the trap's own -- coarser than the floor-crowding
 Your arm receives:
 
     world       the ECS world
-    victim      whoever stepped on it -- may be a monster, not the player
+    victim      whoever the trap got -- may be a monster, not the player
     is_player   whether it was
     seen        whether the player can see this happen
-    trap_pos    where the trap is, if you need it
+    trap_pos    where the trap is (or was), if you need it
 
 > **A trap fires for monsters too.** `victim` is whoever moved onto the
 > tile. Write the log line through the `seen` / `is_player` pair the way
 > the existing arms do, or the player will read second-person messages
 > about a goblin.
+
+> **A trap fires for whoever is *near* it too.** Shoot a trap, or catch
+> one in a wand's blast, and `detonate_trap` bursts it over the 3x3
+> around its tile: your arm then runs once per creature caught, none of
+> whom is standing on the trap. So read `victim`'s own `Position` if you
+> need where they are, take `trap_pos` as where the trap *was*, and do
+> not assume the two are the same tile. The burst's own damage
+> (`TRICK_SHOT_*` in `constants::traps`) is dealt before your arm runs,
+> and the trap entity is already despawned by then -- an arm must never
+> despawn it itself. `spring_trap` handles the stepped-on case; the bear
+> trap's "bites once" despawn lives there, not in the arm.
 
 > **Damage traps ignore the armour die but not the armour bonus.** If your
 > trap deals damage, subtract `total_armor_plus(world, victim)` and

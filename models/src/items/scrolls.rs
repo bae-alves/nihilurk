@@ -128,7 +128,7 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
 /// Exhaustive over `ScrollEffect`, deliberately with no catch-all: a scroll
 /// effect added to the enum and not given an arm here fails the build instead
 /// of reading as a generic "nothing obvious happens" — the same guarantee
-/// `crate::traps::spring_trap` gives a new `TrapEffect`. See
+/// `crate::traps::apply_trap_effect` gives a new `TrapEffect`. See
 /// `docs/explanation/data-driven-content.md`.
 ///
 /// `MonsterConfusion`, `HoldMonster`, `Sleep`, `EnchantArmor`,
