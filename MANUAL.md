@@ -66,7 +66,7 @@ The map itself, glyph by glyph:
 |-------|---------|
 | `.`   | Room floor |
 | `▒`   | Corridor |
-| `#`   | Wall |
+| `#`,`\|`, etc.   | Wall |
 | `+`   | Door |
 | `>` / `<` | Stairs down / up |
 | `@`   | You |
@@ -97,14 +97,14 @@ they're all live at once:
 
 Walking into a monster attacks it instead — there's no separate attack key.
 Walking into a wall diagonally when it would "cut the corner" is refused;
-you have to go around.
+you have to go around. Attacking walls is likewise not possible.
 
 | Key | Does |
 |-----|------|
 | Shift + a direction | **Run** that way (or toward the nearest stairs/door/item roughly that way) until something interesting happens |
 | `o` | **Auto-explore** the floor |
 | `O` | Drop a **travel cursor** — steer it with the direction keys, Enter to walk there |
-| `Tab` | **Auto-fight** whatever's adjacent (refuses below 25% HP or while confused) |
+| `Tab` | **Auto-fight** whatever's closest (refuses below 25% HP or while confused) |
 | `>` or `.` | Go down / walk to the down stairs |
 | `<` or `,` | Go up / walk to the up stairs |
 | `i` | Open your **pack** |
@@ -114,8 +114,7 @@ you have to go around.
 Any run/auto-explore/travel stops dead the instant a monster comes into
 view, so it's safe to spam. **You cannot pass your turn** — if you press a
 key that isn't a real action, nothing happens and no turn is spent, but
-there's no "wait here" command either. Standing still means fighting or
-moving.
+there's no "wait here" or "search" command either.
 
 
 The pack
@@ -214,20 +213,17 @@ visits — walk back up through a floor you already cleared and it's blank
 again, even though the walls are identical.
 
 Traps come in six kinds and reveal themselves in one of three ways, picked
-at random per trap, so a corridor is never a solved puzzle:
+at random per trap, so a room is never a solved puzzle:
 
 - Some show the moment the tile enters your view.
 - Some stay hidden until you're standing right next to them.
 - Some are invisible until they actually go off.
 
-| Trap | Effect |
-|------|--------|
-| Trapdoor | Drops you one floor deeper, no rest, no heal |
-| Bear trap | Pins you in place for a few turns (see Held, above) |
-| Sleeping gas | Puts you to sleep for a few turns (see Asleep, above) |
-| Teleport | Whisks you to a random spot on the floor |
-| Arrow | Damage that ignores your armour die (not your armour bonus); gets nastier the deeper you are |
-| Dart | Same, plus it permanently drains a point of Power — a ring of strength makes you immune |
+The arrow trap's damage ignores your armour die entirely (not your armour
+bonus) and gets nastier the deeper you are, and the dart trap does the
+same *plus* permanently drains a point of Power — a ring of strength is
+the only protection. A trapdoor, a bear trap, sleeping gas, and a teleport
+fill out the rest.
 
 **The Dungeon Lord's patience.** You get 260 turns on any one floor. Run
 past that and a portal opens under you and drops you a level deeper whether
@@ -282,7 +278,7 @@ recognise.
 |--------|-----|-------|
 | Dagger | d4 | Thrown: pierces the whole line |
 | Spear | d6 | Thrown: rolls d8, pierces the whole line |
-| Mace | d6 | Thrown as an improvised lump — a monster with hands can catch it |
+| Mace | d6 | |
 | Long sword | d8 | |
 | Two-handed sword | d10 | |
 
@@ -311,44 +307,27 @@ whatever its enchantment. One is a build; a second is dead weight.
 
 `3d3` damage on the attack wands, `2d6+1` charges rolled when a wand
 enters the dungeon, range 6 or 8 depending on the wand. All fourteen do
-something when zapped:
+something when zapped — nothing here is a dud. A few worth knowing about
+in advance: light needs no target at all, floods the room or passage
+you're standing in, and reveals any hidden trap in it; polymorph and the
+haste/slow-monster wands change a creature rather than just hurting it;
+and cancellation is the one to dread catching yourself in — it strips
+every magic effect off whatever it hits, and on you that's a catastrophe:
+every enchantment on your gear zeroes out, every unread scroll goes blank,
+every potion turns to water.
 
-| Wand | Effect |
-|------|--------|
-| Magic missile | A bolt down a line |
-| Lightning | A forking bolt down a line |
-| Striking | An invisible-fist bolt down a line |
-| Drain life | A bolt that heals you for what it takes |
-| Fire | A blast at the target tile; sets lingering smoke |
-| Cold | A blast at the target tile |
-| Light | Floods the room or passage you're standing in and reveals any hidden trap in it — no target needed |
-| Polymorph | Swaps the target monster for a random new species |
-| Haste monster / Slow monster | Shifts the target one notch on the speed scale, permanently |
-| Teleport away | Flings the target to a random spot on the floor |
-| Teleport to | Drags the target next to you |
-| Cancellation | Strips every magic effect (and curse) off the target and resets its speed. Caught in it yourself, it's a catastrophe: every enchantment on your gear zeroes out, every unread scroll goes blank, every potion turns to water |
-| Nothing | Exactly what it says |
-
-A thrown wand dumps its whole remaining charge at once and bursts wider and
-hotter than a zap does.
+A thrown wand dumps its whole remaining charge at once and bursts wider
+and hotter than a zap does.
 
 ### Rings
 
 Worn on a finger — you have two slots. Five of the twelve do something
-right now:
-
-| Ring | Effect |
-|------|--------|
-| Protection | +2 armour |
-| Strength | +2 power, and immune to the dart trap's strength drain |
-| Perception | See invisible things, and hidden stashed items |
-| Dexterity | +2 on everything you throw |
-| Aggravate monster | 10% chance per action of waking the whole floor up — a cursed ring's idea of a joke |
-
-Adornment, increase damage, regeneration, slow digestion, teleportation,
-stealth, and maintain armour exist, are findable, and are entirely inert —
-they're real rings, correctly identified, that currently do nothing when
-worn.
+right now: straightforward, permanent effects like extra armour, extra
+power, and seeing what's normally invisible, plus one whose curse is a
+genuine trap rather than a stat penalty — a flat chance per action of
+aggravating the entire floor. The other seven are real, correctly
+identified, and findable, but currently inert (see "What doesn't do
+anything yet" below).
 
 ### Potions
 
@@ -364,17 +343,15 @@ do nothing beyond telling you what they are the first time you try one.
 
 ### Scrolls
 
-| Scroll | Effect |
-|--------|--------|
-| Identify | Identifies one random unknown thing in your pack |
-| Remove curse | Frees (and destroys) every cursed item you have equipped |
-| Magic mapping | Reveals the whole floor's layout, animated |
-| Teleportation | Whisks you to a random spot on the floor |
-| Aggravate monsters | Every monster on the floor beelines for you, in or out of sight, for good |
-| Create monster | Conjures a random monster next to you |
-| Scare monster | Every monster currently in view flees for good |
-| Vorpalize weapon | Brands your wielded weapon as the bane of one random species — reading it twice destroys the weapon instead |
-| Blank paper | Nothing, on purpose |
+Nine scroll types do something on purpose (a tenth, blank paper, does
+nothing — also on purpose). Remove curse frees every cursed item you're
+wearing, but destroys it rather than handing it back clean; vorpalize
+weapon brands your wielded weapon as the bane of one random species, and
+reading it a second time destroys the weapon instead of stacking; and
+magic mapping reveals the floor as an animated wipe instead of snapping
+the whole layout into view at once. Identify, teleportation, aggravate
+monsters, create monster, and scare monster round out the rest of the
+working list.
 
 Monster confusion, hold monster, sleep, enchant armor, enchant weapon, and
 food detection exist and are readable, and currently do nothing beyond
@@ -388,47 +365,22 @@ Gold (1000) and silver (100). They buy nothing — they *are* the score.
 The bestiary
 -------------
 
-Twenty-six species, one letter each. `Chase` walks toward you on sight,
-`Flee` walks away, `Static` never moves on its own, and a bat staggers at
-random the way you do while confused.
+Twenty-six species, one letter each, sorted into three danger tiers:
+fodder appears from floor 1, a middle tier joins from floor 5, and the
+nastiest letters start showing up from floor 10 — early fodder never
+stops appearing, it just starts arriving in worse company. Most letters
+chase you on sight; a few flee instead, a few never move at all, and one
+staggers around at random the same way you do while confused.
 
-| Glyph | Name | Moves | Notes |
-|-------|------|-------|-------|
-| g | goblin | Flee | Uses items |
-| A | aquator | Chase | |
-| B | bat | Confused | |
-| C | centaur | Chase | Uses items |
-| D | dragon | Chase | Immune to fire |
-| E | emu | Chase | |
-| F | venus flytrap | Static | |
-| G | griffin | Chase | |
-| H | hobgoblin | Chase | Uses items |
-| I | ice monster | Static | |
-| J | jabberwock | Chase | A legal target for a vorpal weapon |
-| K | kestral | Chase | |
-| L | leprechaun | Flee | Uses items |
-| M | medusa | Chase | Uses items |
-| N | nymph | Flee | Uses items |
-| O | orc | Chase | Uses items |
-| P | phantom | Chase | Invisible; undead |
-| Q | quagga | Chase | |
-| R | rattlesnake | Chase | |
-| S | slime | Chase | |
-| T | troll | Chase | Uses items |
-| U | ur-vile | Chase | Uses items |
-| V | vampire | Chase | Uses items; undead |
-| W | wraith | Chase | Undead |
-| X | xeroc | Static | |
-| Y | yeti | Chase | Immune to cold |
-| Z | zombie | Chase | Undead |
+A handful are worth knowing about before you meet them: several species
+will pick up whatever you throw at them and use it right back at you, a
+few are undead, a couple are outright immune to a specific element, one is
+permanently invisible, and exactly one is a legal target for any vorpal
+weapon. The rest is for you to find out on the way down.
 
-"Uses items" means exactly that — throw a weapon at one of these and it may
-pick it up and use it right back. Everything is sorted into three danger
-tiers: fodder appears from floor 1, the middle tier joins from floor 5, and
-the nastiest letters start from floor 10 — early fodder never stops
-showing up, it just starts arriving in worse company. Claiming the Element
-of Yoord tears that gate off its hinges: for the whole climb back up,
-every floor draws from the entire bestiary, no exceptions.
+Claiming the Element of Yoord tears every one of those depth gates off its
+hinges: for the whole climb back up, every floor draws from the entire
+bestiary, no exceptions.
 
 
 The Element of Yoord, and winning
@@ -436,7 +388,7 @@ The Element of Yoord, and winning
 
 Depth 13 has no down staircase. The Element sits where it would be.
 Picking it up flips the rule for the rest of the run: down is dead, up is
-the only way, and the Dungeon Lord's 260-turn impatience now throws you
+the only way, and the 260-turn impatience now throws you
 *upward* through a level instead of down if you dawdle. The very last
 climb, out of depth 1, has to be walked on foot — a portal can never be the
 thing that wins the game for you.
@@ -449,10 +401,7 @@ Dying (and everything else)
 ------------------------------
 
 Death is permanent, there is no retry. A "You die..." panel, a
-`--MORE--`, then a tombstone with your name, what killed you, and your
-score — the coins you were carrying, so hoarding them instead of spending
-them on... nothing, since coins buy nothing... counts for exactly as much
-as that sounds like it should.
+`--MORE--`, then a tombstone, what killed you, and your score.
 
 Most runs end from attrition, not a single big monster: a string of fights
 with no healing potion left, and something ordinary finishes what a
