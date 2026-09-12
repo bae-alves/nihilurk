@@ -219,6 +219,11 @@ fn player_attack(world: &mut World, attacker_entity: Entity, target_entity: Enti
 /// One Tab press: close on — or strike — the weakest foe in sight. Each of the
 /// refusals bows out early with its own line; only the last path spends a turn.
 /// Returns whether the turn was consumed.
+///
+/// A launcher in hand changes the whole shape of the press: see
+/// [`ranged_auto_fight`]. It never falls back to the walk-and-strike path
+/// below — a bow means Tab either shoots or refuses, on the theory that a
+/// player who drew a bow did not mean to go melee it.
 fn auto_fight_turn(world: &mut World) -> bool {
     if player_confused(world) {
         world
@@ -231,6 +236,10 @@ fn auto_fight_turn(world: &mut World) -> bool {
             .resource_mut::<GameLog>()
             .add("You are too injured for that now.");
         return false;
+    }
+    let player = player_entity(world);
+    if wielded_launcher(world, player).is_some() {
+        return ranged_auto_fight(world, player);
     }
     let Some(target) = auto_fight_target(world) else {
         world
@@ -250,6 +259,47 @@ fn auto_fight_turn(world: &mut World) -> bool {
             false
         }
     }
+}
+
+/// Tab, with a launcher wielded: fire the first matching projectile at the
+/// auto-fight target instead of walking toward it. Refuses — no turn spent —
+/// when there's nothing to shoot at, nothing left to shoot with, or the shot
+/// to the target isn't clear; it never falls back to closing the distance by
+/// hand.
+fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
+    let Some(target) = auto_fight_target(world) else {
+        world
+            .resource_mut::<GameLog>()
+            .add("There is nothing to fight.");
+        return false;
+    };
+    let Some(item) = first_matching_ammo(world, player) else {
+        world.resource_mut::<GameLog>().add("You're out of ammo.");
+        return false;
+    };
+    if !has_clear_shot(world, target) {
+        world.resource_mut::<GameLog>().add("No clear shot.");
+        return false;
+    }
+
+    let Some((slot, item)) = world.get_mut::<Backpack>(player).and_then(|mut bp| {
+        let pos = bp.items.iter().position(|&e| e == item)?;
+        Some((pos, bp.items.remove(pos)))
+    }) else {
+        return false;
+    };
+    let target_pos = *world.get::<Position>(target).unwrap();
+    let missile = draw_one(world, player, item, Some(slot));
+    world.resource_mut::<GameLog>().unread.clear();
+    world
+        .resource_mut::<ThrowQueue>()
+        .throws
+        .push(WantsToThrow {
+            thrower: player,
+            item: missile,
+            target: target_pos,
+        });
+    true
 }
 
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
@@ -679,6 +729,7 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         }
         KeyCode::Char('i') => return open_pack(world),
         KeyCode::Char('o') => return begin_auto_explore(world),
+        KeyCode::Char('f') => return begin_fire(world),
         KeyCode::Char('O') => {
             open_travel_cursor(world);
             return Ok(false);
@@ -750,6 +801,34 @@ fn open_pack(world: &mut World) -> std::io::Result<bool> {
     let mut pack = world.resource_mut::<PackIsOpen>();
     pack.open = true;
     pack.selected = 0;
+    Ok(false)
+}
+
+/// `f`: fire the wielded launcher's first matching projectile — a shortcut for
+/// the pack's `i` → item → Throw path when what's in hand is a bow or
+/// crossbow. Opens the aiming reticle exactly as that path does, pre-loaded
+/// with the first arrow (or quarrel) in the pack; Enter/Space looses it via
+/// the ordinary [`fire_at_target`].
+fn begin_fire(world: &mut World) -> std::io::Result<bool> {
+    let player = player_entity(world);
+    if wielded_launcher(world, player).is_none() {
+        world
+            .resource_mut::<GameLog>()
+            .add("You aren't wielding a launcher.");
+        return Ok(false);
+    }
+    let Some(item) = first_matching_ammo(world, player) else {
+        let noun = ammo_noun(world, player);
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You have no {noun} to fire."));
+        return Ok(false);
+    };
+    if let Some(refusal) = throw_refusal(world, player, item) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return Ok(false);
+    }
+    open_reticle(world, player, item, true);
     Ok(false)
 }
 

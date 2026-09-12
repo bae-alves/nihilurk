@@ -110,6 +110,16 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
     query.iter(world).map(|p| (p.x, p.y)).collect()
 }
 
+/// Every tile holding an item the player has already spotted — an [`Item`]
+/// still lying on the floor (still carries [`Position`]) whose [`Hidden`] tag
+/// has been lifted. [`explore_step`] beelines for these ahead of frontier
+/// exploration, so a visible item doesn't get left behind while the walk
+/// wanders off toward unseen ground.
+pub fn known_item_tiles(world: &mut World) -> Vec<(u16, u16)> {
+    let mut query = world.query_filtered::<&Position, (With<Item>, Without<Hidden>)>();
+    query.iter(world).map(|p| (p.x, p.y)).collect()
+}
+
 /// Breadth-first search across tiles the caller deems `open`, from `(px, py)`,
 /// for the nearest tile satisfying `goal`. Returns the first `(dx, dy)` hop of
 /// the shortest route, or `None` if no such tile is reachable.
@@ -240,19 +250,24 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
 /// The single `(dx, dy)` step the player should take to keep exploring, or
 /// `None` when every reachable tile has already been seen.
 ///
-/// Keeps heading toward [`AutoExplore::frontier`] — the frontier tile it last
-/// committed to — for as long as that's still a real frontier, rather than
-/// re-picking the globally nearest one fresh every turn. Recomputing "nearest"
-/// on every step is what let auto-explore abandon a room that was 95% mapped
-/// the moment something elsewhere became marginally closer, only to trek back
-/// through it later; sticking to one destination until it's actually reached
-/// (or made moot) avoids that. Once a new frontier needs picking, ties toward
-/// the still-unseen downstairs when there's a real choice of direction.
+/// A known item still sitting on the floor (see [`known_item_tiles`]) always
+/// wins over frontier exploration: the walk beelines straight for it, `move_player`
+/// picks it up on arrival, and only once it's gone does frontier picking resume.
+///
+/// Otherwise keeps heading toward [`AutoExplore::frontier`] — the frontier tile
+/// it last committed to — for as long as that's still a real frontier, rather
+/// than re-picking the globally nearest one fresh every turn. Recomputing
+/// "nearest" on every step is what let auto-explore abandon a room that was
+/// 95% mapped the moment something elsewhere became marginally closer, only to
+/// trek back through it later; sticking to one destination until it's actually
+/// reached (or made moot) avoids that. Once a new frontier needs picking, ties
+/// toward the still-unseen downstairs when there's a real choice of direction.
 ///
 /// Reads the world like the rest of this module's `*_step` functions, but
 /// also writes the frontier it commits to back into [`AutoExplore`].
 pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     let traps = known_trap_tiles(world);
+    let items = known_item_tiles(world);
     let (px, py, seen) = player_view(world)?;
     // `AutoExplore` isn't inserted in every test world; treat it as having no
     // committed frontier yet rather than panicking.
@@ -282,6 +297,15 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     };
 
     let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
+
+    // A spotted item outranks frontier exploration entirely: head straight for
+    // the nearest one. Once it's picked up it drops out of `items` and normal
+    // exploration takes back over.
+    if !items.is_empty() {
+        if let Some(hop) = first_step(px, py, &open, step_ok, |x, y| items.contains(&(x, y))) {
+            return Some(hop);
+        }
+    }
 
     // Still committed to a real frontier: keep walking there.
     if let Some(target) = cached_frontier {

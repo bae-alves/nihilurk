@@ -200,6 +200,14 @@ in `models/` (`fastmove.rs`, `autoexplore.rs`):
 | Travel | `>`/`<` to a known but distant staircase, or the `O` cursor | `AutoExplore` (`target: Some(tile)`) | `travel_step` | same, plus arrival |
 | Travel cursor | `O` | `TravelCursor` | (none — it's just a cursor) | Esc/`O`, or Enter to commit into a travel `AutoExplore` |
 
+`explore_step` gives a spotted item (see `known_item_tiles`) priority
+over frontier exploration outright: while `Item`s without `Hidden`
+remain on the floor, it beelines for the nearest one via `first_step`
+rather than consulting `AutoExplore::frontier` at all. `move_player`'s
+own pickup-on-arrival logic (see above) does the actual stowing; once
+the item is gone from the floor, frontier exploration resumes as
+before.
+
 Fast move (`fast_move_run`) is the odd one out: it runs its entire
 walk **inside one call**, stepping `schedule.run` itself between moves
 and never repainting until it returns, so a run reads as a single

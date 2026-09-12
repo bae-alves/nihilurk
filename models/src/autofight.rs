@@ -7,10 +7,13 @@
 //! world. The engine owns the terminal, the message log, and the actual attack
 //! resolution (a step onto a mob's tile becomes a melee strike).
 
+use std::collections::HashSet;
+
 use bevy_ecs::prelude::*;
 
 use crate::autoexplore::first_step;
 use crate::components::*;
+use crate::helpers::get_line;
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, tile_index};
 
 /// Whether the player is at or below a quarter of their maximum HP — the cutoff
@@ -110,4 +113,44 @@ pub fn fight_step(world: &mut World, target: Entity) -> Option<(i16, i16)> {
         let ay = (y as i32 - ty as i32).abs();
         ax <= 1 && ay <= 1 && (ax != 0 || ay != 0)
     })
+}
+
+/// Whether a shot loosed from the player's own tile would actually reach
+/// `target` — a straight line to it broken by neither a wall nor another
+/// creature standing in the way first. Mirrors the wall/first-body rule
+/// [`crate::items::throwing`]'s own flight path resolves a throw with, so
+/// ranged auto-fight only ever takes a shot a manual aimed throw would also
+/// land.
+pub fn has_clear_shot(world: &mut World, target: Entity) -> bool {
+    let Some((px, py)) = player_pos(world) else {
+        return false;
+    };
+    let Some(tpos) = world.get::<Position>(target).copied() else {
+        return false;
+    };
+    let map = world.resource::<Map>().clone();
+    let from = Position { x: px, y: py };
+    let occupied: HashSet<(u16, u16)> = {
+        let mut q = world.query_filtered::<(Entity, &Position), Or<(With<Mob>, With<Player>)>>();
+        q.iter(world)
+            .filter(|&(e, _)| e != target)
+            .map(|(_, p)| (p.x, p.y))
+            .collect()
+    };
+
+    for pos in get_line(from, tpos) {
+        if pos == from {
+            continue;
+        }
+        if map.blocks(pos.x, pos.y) {
+            return false;
+        }
+        if pos == tpos {
+            return true;
+        }
+        if occupied.contains(&(pos.x, pos.y)) {
+            return false;
+        }
+    }
+    false
 }

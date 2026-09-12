@@ -427,7 +427,13 @@ fn a_vorpal_blade_is_just_a_blade_against_anything_else() {
 
 #[test]
 fn a_glancing_blow_chips_a_foe_down_to_one_but_never_finishes_it() {
-    let mut w = test_world(4);
+    // Seed picked to roll no excellent hit across the 40 swings below. An
+    // excellent hit is not a glancing one — see
+    // `an_excellent_hit_can_finish_a_foe_a_glancing_blow_could_not` — so a
+    // seed that rolled one here would (correctly) kill the target partway
+    // through and this test would no longer be exercising a pure string of
+    // glancing blows.
+    let mut w = test_world(564);
     let p = player(&mut w);
     // Feeble hero, heavily armoured target: every hit is a chip-damage glance.
     for item in equipped_items(&w, p) {

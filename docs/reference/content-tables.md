@@ -270,7 +270,7 @@ Draws `)`. Attaches `Item`, `ThrownDamage`, `Projectile`, `LaunchedBy`,
 `Stack { count: 1 }`. No `PowerDie` and no `Equipped` -- there is nothing
 to wield and nothing to wear.
 
-Stacks to `STACK_LIMIT` (26) per pack slot. A floor drop arrives as a
+Stacks to `STACK_LIMIT` (13) per pack slot. A floor drop arrives as a
 bundle of 3-12.
 
 ### LAUNCHERS -- LauncherDef
@@ -520,8 +520,8 @@ Dungeon constants
     MAP_HEIGHT              22
     FINAL_DEPTH             13      the floor holding the relic
     DUNGEON_LORD_PATIENCE  260      turns on one floor before eviction
-    STACK_LIMIT             26      most of one item per pack slot
-    PACK_CAPACITY            13      most slots a pack will hold at once
+    STACK_LIMIT             13      most of one item per pack slot
+    PACK_CAPACITY             9      most slots a pack will hold at once
     THROW_RANGE              7      how far you can hurl a thing
     Speed::COST              2      energy one action costs
 

@@ -522,7 +522,11 @@ pub fn render<W: Write>(
                 // Keep the actor's glyph, but recolour it — unless it was
                 // already yellow (or close to it), in which case switch to
                 // black instead, so a naturally-yellow monster doesn't just
-                // disappear into the beam's own colour.
+                // disappear into the beam's own colour. `put` always resets
+                // the background to the default, so a glyph recoloured to
+                // black needs a background of its own here or it vanishes
+                // outright — this is what used to blank the player out the
+                // instant the reticle passed over their own tile.
                 let (ch, fg, _) = screen.get(tx, ty + 1);
                 let recolor = if matches!(fg, Color::Yellow | Color::DarkYellow) {
                     Color::Black
@@ -530,11 +534,15 @@ pub fn render<W: Write>(
                     Color::Yellow
                 };
                 screen.put(tx, ty + 1, ch, recolor);
+                if recolor == Color::Black {
+                    screen.set_bg(tx, ty + 1, Color::DarkYellow);
+                }
             } else {
                 screen.put(tx, ty + 1, '*', Color::Yellow);
             }
             // The reticle's own tip gets a background too, so it doesn't read
-            // as just another yellow monster along the beam.
+            // as just another yellow monster along the beam. Applied after the
+            // recolour above so it wins over the black-recolour background.
             if (tx, ty) == targeting_tip {
                 screen.set_bg(tx, ty + 1, Color::DarkBlue);
             }

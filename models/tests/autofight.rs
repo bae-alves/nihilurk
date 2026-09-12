@@ -157,6 +157,71 @@ fn fight_step_steps_straight_onto_an_adjacent_target() {
     assert_eq!(fight_step(&mut w, target2), Some((-1, 0)));
 }
 
+/// A bare corridor, x 0..=6 at y = 5, walled everywhere else — same shape
+/// `autoexplore.rs`'s trap tests use, so a wall or another mob can be placed
+/// exactly where wanted.
+fn corridor_world(seed: u64) -> (World, Entity) {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
+    w.insert_resource(RngSeed(seed));
+    w.init_resource::<GameLog>();
+    w.init_resource::<Ending>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+
+    let clutter: Vec<Entity> = w
+        .iter_entities()
+        .filter(|e| !e.contains::<Player>() && (e.contains::<Mob>() || e.contains::<Item>()))
+        .map(|e| e.id())
+        .collect();
+    for e in clutter {
+        w.despawn(e);
+    }
+
+    {
+        let mut map = w.resource_mut::<Map>();
+        for t in map.tiles.iter_mut() {
+            *t = TileType::Wall;
+        }
+        for x in 0..=6u16 {
+            map.tiles[tile_index(x, 5)] = TileType::Passage;
+        }
+    }
+
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    {
+        let mut p = w.get_mut::<Position>(player).unwrap();
+        p.x = 0;
+        p.y = 5;
+    }
+    (w, player)
+}
+
+#[test]
+fn has_clear_shot_is_true_down_an_open_corridor() {
+    let (mut w, _player) = corridor_world(2112);
+    let target = spawn_enemy(&mut w, 5, 5, 3);
+    assert!(has_clear_shot(&mut w, target));
+}
+
+#[test]
+fn has_clear_shot_is_false_when_a_wall_stands_between() {
+    let (mut w, _player) = corridor_world(2112);
+    let target = spawn_enemy(&mut w, 5, 5, 3);
+    w.resource_mut::<Map>().tiles[tile_index(3, 5)] = TileType::Wall;
+    assert!(!has_clear_shot(&mut w, target));
+}
+
+#[test]
+fn has_clear_shot_is_false_when_another_mob_blocks_the_line() {
+    let (mut w, _player) = corridor_world(2112);
+    let target = spawn_enemy(&mut w, 5, 5, 3);
+    spawn_enemy(&mut w, 3, 5, 3);
+    assert!(!has_clear_shot(&mut w, target));
+}
+
 #[test]
 fn tab_closes_on_and_kills_a_distant_foe() {
     for seed in [1u64, 7, 42, 2112, 55555] {
