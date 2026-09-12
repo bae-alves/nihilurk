@@ -7,19 +7,20 @@ Reference: rendering
     Prerequisites  A passing familiarity with bevy_ecs and
                    `crossterm`, and `reference/components.md` for the
                    resources read below (`BloodStains`, `Corpses`,
-                   `Smoke`, `Particles`, `MagicMapReveal`, `AnimRate`).
+                   `Smoke`, `Particles`, `Shake`, `MagicMapReveal`, `AnimRate`).
     Status         Describes `engine/src/view.rs` as it is in the
                    source. If this page and the source disagree, the
                    source is right and this page is a bug.
 
 **Higher-risk ground than a content table.** `engine/` carries almost
-no automated tests, and `view.rs` has none at all — it is checked by
-looking at the terminal. Two things make a change here easy to get
-subtly wrong: the draw order in `render` (a later layer silently
-covers an earlier one), and `Screen`'s shape being hand-duplicated in
-`perf/src/screen.rs` for the performance-testing rig — see "The frame
-buffer" below. Change it, then run the game and look, in more than one
-terminal if you can.
+no automated tests, and `view.rs` carries only a handful — the map/screen
+coordinate split and the screen shake's clipping, which are geometry and
+can be asserted. Everything else here is still checked by looking at the
+terminal. Two things make a change easy to get subtly wrong: the draw
+order in `render` (a later layer silently covers an earlier one), and
+`Screen`'s shape being hand-duplicated in `perf/src/screen.rs` for the
+performance-testing rig — see "The frame buffer" below. Change it, then
+run the game and look, in more than one terminal if you can.
 
 
 The frame buffer
@@ -27,8 +28,9 @@ The frame buffer
 
 ```
 pub struct Screen {
-    cur: Vec<Cell>,   // this frame, being painted
-    prev: Vec<Cell>,  // last frame, as flushed
+    cur: Vec<Cell>,        // this frame, being painted
+    prev: Vec<Cell>,       // last frame, as flushed
+    map_shift: (i16, i16), // where the screen shake has thrown the map
     ...
 }
 type Cell = (char, Color, Color); // glyph, foreground, background
@@ -51,6 +53,27 @@ rather than panicking, since a couple of callers (the targeting beam,
 the travel cursor) compute a tile position that can legitimately fall
 off the 80x25 frame.
 
+**Two coordinate systems, and the map layers use the second one.**
+`put`/`puts`/`hline` take *screen* coordinates and are what the status
+line, the message log and the pack overlay paint in.
+`put_map`/`fg_map`/`bg_map`/`get_map` take *map* coordinates and are
+what every layer from Terrain to the travel cursor paints in; they run
+the coordinate through `map_cell`, which adds `MAP_TOP` (the map starts
+on row 1, under the status line) and `map_shift` (the screen shake),
+then clips to the map's own rows. That is why the layers below carry no
+`y + 1` of their own any more, and it is the one place the shake can
+affect what is drawn.
+
+`map_cell` returning `None` means "not drawn". It never clamps: a tile
+the shake pushes off the left edge is dropped, not piled onto column 0,
+and a tile pushed off the top is dropped, not smeared into the status
+line. Nothing is rendered to fill the gap either — **the shake does not
+change the game's resolution, and what leaves the viewport is simply
+not drawn.** With `map_shift` at `(0, 0)` every map tile still maps to
+exactly the cell it always did, so a resting frame is the frame roog
+drew before any of this existed. `view.rs`'s tests pin all of that
+down.
+
 `centering_offset` reads `RenderConfig.centered` (`-c`) and the real
 terminal size to compute the top-left offset that keeps the fixed
 80x25 frame centred; `(0, 0)` when not centred.
@@ -62,7 +85,10 @@ with no library target, so the performance-testing rig
 enforces that the two stay in step — see
 `../explanation/performance-testing.md`, "The grid is a copy, and it
 can drift". If you change `Screen`'s public shape or its diffing
-logic, check that file's copy by hand.
+logic, check that file's copy by hand. (`map_shift` and the map-space
+painters are deliberately *not* mirrored: the rig measures the diff and
+the escape-sequence generation, and neither cares which coordinate
+system put a glyph in a cell.)
 
 
 `render`: the layers, in order
@@ -73,7 +99,9 @@ pub fn render<W: Write>(world, stdout, screen) -> std::io::Result<()>
 ```
 
 Painted in this order — everything after "Terrain" draws over
-whatever came before it on the same cell:
+whatever came before it on the same cell. Layers 2-11 paint in map
+coordinates (so the screen shake moves them); 1, 12 and 13 paint in
+screen coordinates (so it does not):
 
   1. **Top HUD** (row 0) — see below.
   2. **Terrain** — every tile with `visible` or `revealed` set;
@@ -141,7 +169,9 @@ Animation playback
 Both of these are **blocking** loops called once per main-loop
 iteration, after the schedule runs and before the frame's own
 `render`. Both are no-ops when nothing armed them, so a turn that
-fought nothing and read no scroll passes straight through.
+fought nothing and read no scroll passes straight through. (The third
+playback loop, `play_shake`, is the one that does not block — it has
+its own section below.)
 
 ```
 pub fn play_particles<W: Write>(world, stdout, screen) -> std::io::Result<()>
@@ -163,6 +193,57 @@ code changing.
 The turn itself is already fully resolved by the time either of these
 runs — they only animate what already happened, which is what makes
 it safe to block input here the way NetHack and DCSS do for a bolt.
+
+Both also call `age_shake` once per frame and `settle_shake` on the
+skip-keypress, so a shake armed by the same turn keeps decaying over
+whichever animation happens to be on screen — which is the common case,
+not an edge one: a blast arms the shake and queues its particles in the
+same breath, and the two are meant to be seen together. Skipping the
+sparks skips the shake with them; they are one effect.
+
+
+The screen shake
+------------------
+
+```
+pub fn play_shake<W: Write>(world, stdout, screen) -> std::io::Result<()>
+```
+
+Same shape as the two loops above — advance, `render`, `poll` — with
+one deliberate difference that is the whole reason it is a separate
+function: **it never blocks on the player.**
+
+`play_particles` can afford to freeze for 200 ms because it animates an
+aftermath the player asked for by swinging. A shake is armed *by the
+dungeon*, at exactly the moments a player is most likely to be typing
+ahead: mid-fight, or half a second from dying. A flourish that eats a
+keystroke there is a flourish that gets a flag turned off. So
+`play_shake` runs only in the gap where nothing is waiting to be read,
+and the moment `poll` reports a key it settles the map, repaints one
+steady frame, and returns **without consuming the key** — leaving it
+for the input handler that was about to block on it anyway. Worst case,
+a player typing through a shake sees one frame of it and no more.
+
+It runs as Step C1 of the main loop, straight after the frame that
+armed it and before the loop can block again, which is what guarantees
+the map is never left frozen mid-lurch on screen: either the shake runs
+out inside `play_shake` or a keypress settles it there.
+
+What is armed, and by what, is the table in
+`components.md`, "The screen shake". `render` reads the current
+displacement into `Screen::map_shift` at the top of every frame, so
+nothing else in this file has to know the feature exists. `-nshake`
+turns it off at the source (`Shake::enabled`), so nothing is ever
+armed; `-anim-rate` scales its frames like every other animation's.
+
+The one shake with nothing left to protect is `ShakeKind::Death`, and it
+still goes through the same loop: the main loop reaches Step C1 before
+it checks `Ending`, so the map takes its last lurch and settles, and
+only then does `run_death_screens` paint over it.
+
+One thing to know if you are measuring: a shake frame changes most of
+the map's ~1700 cells, so it is the one situation where `flush`'s
+cell-diff has little left to skip. It lasts 4-28 frames.
 
 
 End-of-run panels
@@ -200,8 +281,23 @@ a small decision table on `(selected, cursed_known, equipped)` —
 `known_quality` gates the cursed colouring, so an unidentified cursed
 item still reads as ordinary. The Use/Throw/Drop action modal, when
 open, is a second small box floated to the right of the item row it
-belongs to, its three labels coming from `ActionMenu::actions()` in
-whatever order `-dropthrow` put them in.
+belongs to, its three labels coming from `ItemAction::MENU`.
+
+`draw_quit_prompt` is the overlay's sibling and the last thing painted
+in the frame, so "Really quit?" sits over everything: a two-line box
+centred on the map, spelling out both answers rather than leaning on
+"any key". It is the only modal in the game whose job is to *slow the
+player down*, which is also why it is centred instead of tucked into a
+corner where a key could be answered by reflex.
+
+Which rows the inventory box has, and the heading over them, come from
+`PackIsOpen::mode`: `models::pack_rows` for the rows and
+`PackMode::title` for the heading, so the drawing code holds no filter
+of its own and can never show a row the cursor cannot reach. The rows
+it gets back are backpack indices — the row's *letter* is that index,
+while its *screen line* is its position in the filtered list, which is
+why the two are tracked separately in the loop. See
+`components.md`, "The pack screen".
 
 
 See also
@@ -209,5 +305,5 @@ See also
 
   input-and-turn-loop.md        the other half of the frame: keyboard and turns
   ../reference/components.md    the resources named throughout this page
-  ../reference/cli-and-env.md   `-c`, `-anim-rate`, `-nb`
+  ../reference/cli-and-env.md   `-c`, `-anim-rate`, `-nb`, `-nshake`
   ../explanation/performance-testing.md   how this file is benchmarked, and the `perf/src/screen.rs` copy

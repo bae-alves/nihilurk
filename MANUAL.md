@@ -83,6 +83,16 @@ A tile you've seen but can't currently see is drawn dim grey — remembered,
 not live. Blood stains the floor wherever fighting happened and stays for
 the rest of the run (`-nb` turns this off if you'd rather not see it).
 
+The map itself lurches when something lands hard: a short kick every time
+something dies where you can see it, a heavier one for your own excellent
+hits and for a blast going off in sight, a long one the moment a wound
+drops you into "You are badly wounded!" territory, and the biggest of the
+lot when you die. Only the map moves — the status line and the message log stay
+put, so the line telling you what just happened is readable while it is
+happening. It never costs you a keystroke either: press anything and the
+map settles at once and your key is taken as normal. `-nshake` turns it
+off entirely.
+
 
 Controls
 --------
@@ -90,10 +100,13 @@ Controls
 Movement is eight-directional. Use whichever scheme you already know —
 they're all live at once:
 
-| Direction | Arrows | WASD | vi (hjkl) | Numpad |
-|-----------|--------|------|-----------|--------|
-| N / S / W / E | ↑ ↓ ← → | w s a d | k j h l | 8 2 4 6 |
-| NW / NE / SW / SE | — | — | y u b n | 7 9 1 3 |
+| Direction | Arrows | vi (hjkl) | Numpad |
+|-----------|--------|-----------|--------|
+| N / S / W / E | ↑ ↓ ← → | k j h l | 8 2 4 6 |
+| NW / NE / SW / SE | — | y u b n | 7 9 1 3 |
+
+**WASD no longer moves you** — those letters are commands now (and so is
+`q`, so quit with `Esc`).
 
 Walking into a monster attacks it instead — there's no separate attack key.
 Walking into a wall diagonally when it would "cut the corner" is refused;
@@ -103,14 +116,41 @@ you have to go around. Attacking walls is likewise not possible.
 |-----|------|
 | Shift + a direction | **Run** that way (or toward the nearest stairs/door/item roughly that way) until something interesting happens |
 | `o` | **Auto-explore** the floor — beelines for any spotted item before resuming |
+| `A` | Turn that beelining **off or on** (`Pick-up on auto-explore OFF/ON.`) — it also switches itself off while your pack is full |
 | `O` | Drop a **travel cursor** — steer it with the direction keys, Enter to walk there |
 | `Tab` | **Auto-fight** whatever's closest (refuses below 25% HP or while confused); with a bow/crossbow drawn, fires at it instead of closing in |
 | `f` | **Fire** the wielded launcher's first matching arrow/quarrel — opens the aiming reticle, same as Throw |
 | `>` or `.` | Go down / walk to the down stairs |
 | `<` or `,` | Go up / walk to the up stairs |
-| `i` | Open your **pack** |
-| `x` | Close whatever's open — the universal escape hatch, never spends a turn |
-| `q`, `Esc`, or Ctrl+C | Quit |
+| `x` or `X` | Close whatever's open — the universal escape hatch, never spends a turn |
+| `Q` or `X` | With nothing open: quit — asks **Really quit?** first, `y` to confirm, `n` to think better of it |
+| Ctrl+C | Quit at once, no question asked |
+
+`X` is only ever a quit key with nothing on screen to close; with a menu,
+a reticle or the prompt itself up it just closes that, same as `x`. And
+`Esc` does **not** quit at all — it backs out of menus, and that's all.
+Quitting saves your run (there's exactly one save; see above).
+
+And ten keys that open the pack, each showing only what it can act on:
+
+| Key | Menu | Shows |
+|-----|------|-------|
+| `i` | your **pack** | everything, and asks Use / Throw / Drop afterwards |
+| `a` | **use** what? | everything — the one-key version of `i` → Use |
+| `t` | **throw** what? | everything (the aiming reticle opens next) |
+| `d` | **drop** what? | everything |
+| `e` | **equip** what? | anything wearable or wieldable |
+| `q` | **quaff** what? | potions |
+| `r` | **read** what? | scrolls |
+| `w` | **wield** what? | weapons, bows and crossbows |
+| `W` | **wear** what? | armour |
+| `P` | **put on** what? | rings |
+
+Pick a row with its letter (or the direction keys and Enter) and it
+happens at once — no second menu. An item keeps the same letter in every
+one of these menus, so the potion that's `c` in your pack is `c` in the
+quaff menu too. If there's nothing to show, the game just says so
+("You have nothing to read.") and you keep your turn.
 
 Any run/auto-explore/travel stops dead the instant a monster comes into
 view, so it's safe to spam. **You cannot pass your turn** — if you press a
@@ -122,8 +162,9 @@ The pack
 --------
 
 `i` opens it: arrow keys or the item's own letter to select, Enter for the
-action menu — **Use**, **Throw**, **Drop** (in that order; add `-dropthrow`
-on the command line to put Drop before Throw).
+action menu — **Use**, **Throw**, **Drop**. The other nine pack keys above
+skip that menu and do one of those three directly, so `i` is for when you
+want to look at what you're carrying first.
 
 - **Use** on a potion or scroll drinks/reads it immediately. On a wand, a
   bow, or anything else that needs a target, it opens an aiming reticle
@@ -449,25 +490,28 @@ The full list, with every environment variable, is
 | `-s <seed>` | Play a specific, reproducible seed |
 | `-ns` | Don't write a save file at all |
 | `-nb` | Turn off blood and the corpse-fling death animation |
+| `-nshake` | Turn off the screen shake |
 | `-c` | Centre the map on you instead of a fixed viewport |
-| `-dropthrow` | Swap the pack menu to Use / Drop / Throw |
-| `-anim-rate <n>` | Speed up (`<1`) or slow down (`>1`) particle and magic-map animations |
+| `-anim-rate <n>` | Speed up (`<1`) or slow down (`>1`) particle, magic-map and screen-shake animations |
 
 
 Quick reference
 ------------------
 
-    Move        arrows / wasd / hjkl / numpad, diagonals yubn or 7913
+    Move        arrows / hjkl / numpad, diagonals yubn or 7913
     Attack      walk into it
     Run         Shift + direction
-    Auto-explore   o
+    Auto-explore   o        A toggles picking things up
     Travel      O, steer, Enter
     Auto-fight  Tab
     Fire        f        (bow/crossbow drawn)
     Stairs      > down, < up (or . and ,)
     Pack        i        Use / Throw / Drop
-    Cancel      x        (never spends a turn)
-    Quit        q / Esc / Ctrl+C
+    Use/throw/drop  a / t / d
+    Quaff/read  q / r
+    Equip       e        w wield, W wear, P put on
+    Cancel      x or X   (never spends a turn)
+    Quit        Q or X   with nothing open; asks first · Ctrl+C doesn't
 
     damage = (1d[Power] + bonus) - (1d[Armor] + bonus)
     15% of your swings roll 3 dice instead of 1

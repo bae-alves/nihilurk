@@ -202,6 +202,14 @@ pub(super) fn elemental_blast(
             fx.smoke_burst(&blast_cells);
         }
     }
+
+    // Every blast in the game comes through here — a zapped wand, a thrown one
+    // bursting on impact — so this is the one place the thump has to be armed.
+    // Gated on actually seeing it: a shake for a blast in a room you have never
+    // been in would hand you information the renderer is careful not to draw.
+    if crate::helpers::player_sees(world, center.x, center.y) {
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+    }
     if element == Some(Element::Fire) {
         let mut smoke = world.resource_mut::<Smoke>();
         for &(x, y, _) in &blast_cells {

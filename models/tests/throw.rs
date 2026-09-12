@@ -695,18 +695,16 @@ fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
 }
 
 #[test]
-fn the_action_menu_order_flips_with_dropthrow() {
-    let default = ActionMenu { drop_first: false };
+fn throw_is_the_middle_row_of_the_browse_modal_and_has_a_key_of_its_own() {
+    // The order is fixed now — `-dropthrow` swapped the last two rows back when
+    // this modal was the only way to reach any of the three verbs, and `t`, `a`
+    // and `d` are what replaced it.
     assert_eq!(
-        default.actions(),
+        ItemAction::MENU,
         [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
     );
-
-    let swapped = ActionMenu { drop_first: true };
-    assert_eq!(
-        swapped.actions(),
-        [ItemAction::Use, ItemAction::Drop, ItemAction::Throw]
-    );
+    assert_eq!(ItemAction::at(1), ItemAction::Throw);
+    assert_eq!(PackMode::Throw.action(), Some(ItemAction::Throw));
 }
 
 #[test]

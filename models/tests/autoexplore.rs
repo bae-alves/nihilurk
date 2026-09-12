@@ -520,3 +520,93 @@ fn explore_step_beelines_for_a_known_item_over_the_committed_frontier() {
         "should divert west toward the spotted item instead of the committed east frontier"
     );
 }
+
+/// The corridor from the test above, ready to divert: player at the hub, a
+/// spotted item two hops west, a committed frontier three hops east.
+fn corridor_with_loot_to_the_west() -> (World, Entity) {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
+    w.insert_resource(RngSeed(2112));
+    w.init_resource::<GameLog>();
+    w.init_resource::<AutoExplore>();
+    w.init_resource::<AutoPickup>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+
+    let clutter: Vec<Entity> = w
+        .iter_entities()
+        .filter(|e| e.contains::<Trap>() || e.contains::<Item>())
+        .map(|e| e.id())
+        .collect();
+    for e in clutter {
+        w.despawn(e);
+    }
+
+    {
+        let mut map = w.resource_mut::<Map>();
+        for t in map.tiles.iter_mut() {
+            *t = TileType::Wall;
+        }
+        for x in 7..=13u16 {
+            map.tiles[tile_index(x, 10)] = TileType::Passage;
+        }
+    }
+
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    {
+        let mut p = w.get_mut::<Position>(player).unwrap();
+        p.x = 10;
+        p.y = 10;
+    }
+    {
+        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+        for x in 7..=13u16 {
+            for y in 9..=11u16 {
+                vs.revealed_tiles.insert(tile_index(x, y));
+            }
+        }
+    }
+    w.resource_mut::<AutoExplore>().frontier = Some((13, 10));
+    w.spawn((Position { x: 8, y: 10 }, Item));
+    (w, player)
+}
+
+/// `A` off: the walk stops noticing loot and goes back to exploring. The item
+/// is still there, still spotted — it is simply no longer a destination.
+#[test]
+fn the_pickup_toggle_calls_off_the_beeline() {
+    let (mut w, _) = corridor_with_loot_to_the_west();
+    assert_eq!(
+        explore_step(&mut w),
+        Some((-1, 0)),
+        "the detour is the default"
+    );
+
+    w.resource_mut::<AutoPickup>().enabled = false;
+    assert_eq!(
+        explore_step(&mut w),
+        Some((1, 0)),
+        "with pick-up off the walk should resume its committed frontier east"
+    );
+}
+
+/// A full pack calls the beeline off by itself. Without this the walk marches
+/// to an item it cannot lift, is halted by "Your pack is full.", and does the
+/// same thing again on the next `o` — the floor never gets explored.
+#[test]
+fn a_full_pack_calls_off_the_beeline_without_being_told_to() {
+    let (mut w, player) = corridor_with_loot_to_the_west();
+
+    let junk: Vec<Entity> = (0..models::constants::items::PACK_CAPACITY)
+        .map(|_| w.spawn(Item).id())
+        .collect();
+    w.get_mut::<Backpack>(player).unwrap().items = junk;
+
+    assert_eq!(
+        explore_step(&mut w),
+        Some((1, 0)),
+        "with nowhere to put it, the walk should explore instead of fetching"
+    );
+}

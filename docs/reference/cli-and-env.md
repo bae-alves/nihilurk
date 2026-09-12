@@ -21,9 +21,9 @@ error.
 | `-c`         | Centre the map on the player instead of a fixed viewport. |
 | `-ns`        | No save. The run is never written to disk.                |
 | `-nb`        | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
-| `-dropthrow` | Swap the pack menu order to Use / Drop / Throw.           |
+| `-nshake`    | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
 | `-content`   | Print every name the content tables know, then exit.      |
-| `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
+| `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
 
 `-content` never touches the alternate screen, so it pipes:
 
@@ -124,5 +124,5 @@ See also
   spawn-api.md                  spawn_named, spawn_requested
   content-tables.md             what the names refer to
   input-and-turn-loop.md        where these flags are read (`engine/src/main.rs`)
-  rendering.md                  `-c` and `-anim-rate` in the renderer
+  rendering.md                  `-c`, `-anim-rate` and `-nshake` in the renderer
   ../tutorial/add-your-first-item.md   these tools in context

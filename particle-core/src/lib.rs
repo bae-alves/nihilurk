@@ -146,6 +146,63 @@ pub fn follow_delay(radius: f32, follow_ms: f32) -> f32 {
     ceil(radius) * RIPPLE_MS_PER_TILE + follow_ms
 }
 
+/// How long the screen shake holds one displacement before snapping to the
+/// next.
+///
+/// Deliberately a touch *under* the ~33 ms animation frame rather than over it,
+/// which is the opposite of [`RIPPLE_MS_PER_TILE`]'s reasoning and for the
+/// opposite reason. A ripple wants to be seen stepping outward, so its step is
+/// slower than a frame. A shake wants every frame to land somewhere new: hold a
+/// displacement across two frames and the eye reads a map that has *moved*
+/// rather than one that is shaking. At 35 ms it did exactly that on the opening
+/// two frames, which is the worst place to do it.
+///
+/// Under it, but only just. Drop much below the frame period and the sampling
+/// starts *skipping* steps instead of repeating them, and a skipped step lands
+/// twice in a row on the same side of the axis — the alternation
+/// [`SHAKE_PATTERN`] exists for, quietly lost. At 32 ms against a 33 ms frame
+/// the two stay in lockstep for 32 frames, which is longer than any shake roog
+/// has.
+///
+/// It stays a duration rather than "one step per frame" so `-anim-rate` retunes
+/// how long the shake *lasts* without also retuning how fast it vibrates.
+pub const SHAKE_STEP_MS: f32 = 32.0;
+
+/// The displacements a shake cycles through, one per [`SHAKE_STEP_MS`].
+///
+/// Every entry flips the sign of its x against the one before it, so the map
+/// is always being thrown back across the axis it just crossed -- that
+/// alternation is what makes it read as a shake and not a drift. The y column
+/// runs `0 + - 0 + -`, off-phase with x, so the pattern doesn't collapse into
+/// a single diagonal line the eye can predict.
+const SHAKE_PATTERN: [(i8, i8); 6] = [(1, 0), (-1, 1), (1, -1), (-1, 0), (1, 1), (-1, -1)];
+
+/// Where the screen sits `age_ms` into a shake of `duration_ms` that started at
+/// `amplitude` cells, as a whole-cell displacement.
+///
+/// A terminal cannot displace by half a cell, so the decay is in the
+/// *amplitude*, not in a smooth position: the shake steps through
+/// [`SHAKE_PATTERN`] at a fixed rate while the radius it throws the map to
+/// shrinks from `amplitude` to 1, then stops dead. Rounded *up* (like
+/// [`follow_delay`], and for a kindred reason): the last few steps of a decay
+/// that rounded down would be displacements of zero -- a shake that is still
+/// nominally running while nothing on screen moves, which reads as a stutter
+/// at the end rather than a finish.
+///
+/// Returns `(0, 0)` once the shake is spent, and for a zero or negative
+/// `duration_ms`, so a caller need not special-case the resting state.
+#[inline]
+pub fn shake_offset(age_ms: f32, duration_ms: f32, amplitude: i8) -> (i8, i8) {
+    if duration_ms <= 0.0 || age_ms >= duration_ms || amplitude <= 0 {
+        return (0, 0);
+    }
+    let step = (age_ms.max(0.0) / SHAKE_STEP_MS) as usize;
+    let (dx, dy) = SHAKE_PATTERN[step % SHAKE_PATTERN.len()];
+    let remaining = 1.0 - age_ms.max(0.0) / duration_ms;
+    let magnitude = ceil(amplitude as f32 * remaining) as i8;
+    (dx * magnitude, dy * magnitude)
+}
+
 /// `f32::ceil`, on a target that may not have one.
 ///
 /// This is the crate's one real fork in the road, and the reason it has a
@@ -247,6 +304,53 @@ mod tests {
         assert_eq!(on_map(4, 22, 80, 22), None);
         assert_eq!(on_map(0, 0, 80, 22), Some((0, 0)));
         assert_eq!(on_map(79, 21, 80, 22), Some((79, 21)));
+    }
+
+    #[test]
+    fn a_shake_starts_at_its_amplitude_and_ends_at_rest() {
+        assert_eq!(shake_offset(0.0, 200.0, 2), (2, 0), "opens at full throw");
+        assert_eq!(shake_offset(200.0, 200.0, 2), (0, 0), "spent");
+        assert_eq!(shake_offset(999.0, 200.0, 2), (0, 0), "long spent");
+        assert_eq!(shake_offset(0.0, 0.0, 2), (0, 0), "no duration, no shake");
+        assert_eq!(shake_offset(10.0, 200.0, 0), (0, 0), "no amplitude");
+    }
+
+    #[test]
+    fn every_step_of_a_shake_actually_displaces_something() {
+        // The stutter this function exists to prevent: a decay that rounds down
+        // spends its last steps sitting at (0, 0) while still claiming to run.
+        let duration = 460.0;
+        let mut age = 0.0;
+        while age < duration {
+            let (dx, dy) = shake_offset(age, duration, 2);
+            assert!(
+                dx != 0 || dy != 0,
+                "{age}ms into a {duration}ms shake the map stood still"
+            );
+            age += SHAKE_STEP_MS;
+        }
+    }
+
+    #[test]
+    fn consecutive_steps_throw_the_map_back_the_other_way() {
+        // What separates a shake from a drift: x never repeats its sign.
+        let duration = 1000.0; // long enough that amplitude never decays to 0
+        let signs: [i8; 6] = core::array::from_fn(|i| {
+            shake_offset(i as f32 * SHAKE_STEP_MS, duration, 1)
+                .0
+                .signum()
+        });
+        for pair in signs.windows(2) {
+            assert_eq!(pair[0], -pair[1], "two steps ran the same way: {signs:?}");
+        }
+    }
+
+    #[test]
+    fn the_throw_shrinks_as_the_shake_runs_out() {
+        // Amplitude 2 spends its first half at 2 cells and its second at 1.
+        assert_eq!(shake_offset(0.0, 400.0, 2).0.abs(), 2);
+        assert_eq!(shake_offset(210.0, 400.0, 2).0.abs(), 1);
+        assert_eq!(shake_offset(399.0, 400.0, 2).0.abs(), 1);
     }
 
     #[test]

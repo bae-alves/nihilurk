@@ -8,17 +8,21 @@ use models::{GameState, components::GameLog};
 use rand::Rng;
 
 /// The direction of a Shift + movement-key press, for NetHack-style running.
-/// Accepts the shifted vi keys (`H J K L Y U B N`), the shifted WASD cluster,
-/// Shift + arrow keys, and Shift + a numpad direction (a numpad digit never
-/// changes character under Shift the way a letter does, so it only reads as a
-/// run when the modifier comes through on the key event itself). `None` for
-/// anything else.
+/// Accepts the shifted vi keys (`H J K L Y U B N`), Shift + arrow keys, and
+/// Shift + a numpad direction (a numpad digit never changes character under
+/// Shift the way a letter does, so it only reads as a run when the modifier
+/// comes through on the key event itself). `None` for anything else.
+///
+/// The shifted WASD cluster used to run too. It doesn't any more: `w`, `a`, `s`
+/// and `d` are commands now (see [`handle_movement_input`]), and a movement
+/// scheme whose *shifted* half still steered would be a trap laid for the exact
+/// player who hasn't noticed the change yet.
 fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
     match code {
-        KeyCode::Char('W') | KeyCode::Char('K') => Some((0, -1)),
-        KeyCode::Char('S') | KeyCode::Char('J') => Some((0, 1)),
-        KeyCode::Char('A') | KeyCode::Char('H') => Some((-1, 0)),
-        KeyCode::Char('D') | KeyCode::Char('L') => Some((1, 0)),
+        KeyCode::Char('K') => Some((0, -1)),
+        KeyCode::Char('J') => Some((0, 1)),
+        KeyCode::Char('H') => Some((-1, 0)),
+        KeyCode::Char('L') => Some((1, 0)),
         KeyCode::Char('Y') => Some((-1, -1)),
         KeyCode::Char('U') => Some((1, -1)),
         KeyCode::Char('B') => Some((-1, 1)),
@@ -72,13 +76,6 @@ fn player_entity_opt(world: &mut World) -> Option<Entity> {
 /// there always is one.
 fn player_entity(world: &mut World) -> Entity {
     player_entity_opt(world).expect("player entity exists during input handling")
-}
-
-/// How many items are in the player's pack (0 if there is no player or no pack).
-fn player_backpack_len(world: &mut World) -> usize {
-    player_entity_opt(world)
-        .and_then(|e| world.get::<Backpack>(e))
-        .map_or(0, |bp| bp.items.len())
 }
 
 /// Confusion tax: half of every intended step goes off in a random direction
@@ -338,13 +335,24 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     }
 
     // 'x' is the universal escape hatch: from any modal (aiming, the pack, its
-    // action menu) it drops straight back to plain movement, no turn spent.
-    if key.code == KeyCode::Char('x') && close_all_modals(world) {
+    // action menu, the quit prompt) it drops straight back to plain movement,
+    // no turn spent. 'X' does the same, which is the whole reason it is checked
+    // here rather than alongside 'Q' in `handle_movement_input`: it is one
+    // shift away from the escape hatch, so with something open it must escape
+    // rather than ask about ending the run. Only with nothing open does it fall
+    // through to the quit prompt.
+    let escape_hatch = matches!(key.code, KeyCode::Char('x') | KeyCode::Char('X'));
+    if escape_hatch && close_all_modals(world) {
         return Ok(false);
     }
 
-    // Three input contexts, each with its own handler: aiming a wand or a
-    // throw, navigating the pack, or walking the map.
+    // Four input contexts, each with its own handler: answering "Really quit?",
+    // aiming a wand or a throw, navigating the pack, or walking the map. The
+    // quit prompt outranks the rest — it is only ever raised from the map, and
+    // while it is up the only question on the table is that one.
+    if world.resource::<QuitPrompt>().open {
+        return Ok(answer_quit_prompt(world, key));
+    }
     if world.resource::<TargetingState>().active {
         return handle_targeting_input(world, key);
     }
@@ -368,11 +376,33 @@ fn close_all_modals(world: &mut World) -> bool {
     }
     let mut pack = world.resource_mut::<PackIsOpen>();
     if pack.open {
-        pack.open = false;
-        pack.action_mode = None;
+        pack.close();
+        closed = true;
+    }
+    let mut quit = world.resource_mut::<QuitPrompt>();
+    if quit.open {
+        quit.open = false;
         closed = true;
     }
     closed
+}
+
+/// A keypress while "Really quit?" is up: `y` ends the run, `n` or `Esc` goes
+/// back to the dungeon, and anything else is ignored rather than guessed at.
+/// Never spends a turn. (`x` and `X` also cancel, via `close_all_modals`
+/// upstream — the prompt is a modal like any other.)
+fn answer_quit_prompt(world: &mut World, key: KeyEvent) -> bool {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') => {
+            world.resource_mut::<QuitPrompt>().open = false;
+            world.resource_mut::<GameState>().is_running = false;
+        }
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+            world.resource_mut::<QuitPrompt>().open = false;
+        }
+        _ => {}
+    }
+    false
 }
 
 /// A keypress while the aiming reticle is up: move it, fire it, or cancel.
@@ -384,10 +414,10 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
     match key.code {
         KeyCode::Esc => cancel = true,
         KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
-        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
-        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
-        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
-        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => dx = 1,
+        KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
+        KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
+        KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
+        KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => dx = 1,
         KeyCode::Char('y') | KeyCode::Char('7') => (dx, dy) = (-1, -1),
         KeyCode::Char('u') | KeyCode::Char('9') => (dx, dy) = (1, -1),
         KeyCode::Char('b') | KeyCode::Char('1') => (dx, dy) = (-1, 1),
@@ -515,8 +545,7 @@ fn handle_inventory_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
     if let Some(item_idx) = action_mode {
         return Ok(run_action_modal(world, key, item_idx, action_selected));
     }
-    navigate_pack(world, key, selected);
-    Ok(false)
+    Ok(navigate_pack(world, key, selected))
 }
 
 /// The Use / Throw / Drop modal. Returns whether the keypress spent a turn —
@@ -527,16 +556,16 @@ fn run_action_modal(
     item_idx: usize,
     action_selected: usize,
 ) -> bool {
-    const ACTION_COUNT: usize = 3;
+    const ACTION_COUNT: usize = ItemAction::MENU.len();
     let mut close = false;
     let mut confirm = false;
     let mut sel = action_selected;
     match key.code {
         KeyCode::Esc => close = true,
-        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') | KeyCode::Char('8') => {
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('8') => {
             sel = (sel + ACTION_COUNT - 1) % ACTION_COUNT;
         }
-        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') | KeyCode::Char('2') => {
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('2') => {
             sel = (sel + 1) % ACTION_COUNT;
         }
         KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
@@ -547,8 +576,7 @@ fn run_action_modal(
         let mut pack = world.resource_mut::<PackIsOpen>();
         pack.action_selected = sel;
         if close || confirm {
-            pack.open = false;
-            pack.action_mode = None;
+            pack.close();
         }
     }
 
@@ -558,7 +586,7 @@ fn run_action_modal(
     let Some(player) = player_entity_opt(world) else {
         return true;
     };
-    let action = world.resource::<ActionMenu>().at(sel);
+    let action = ItemAction::at(sel);
     commit_item_action(world, player, item_idx, action)
 }
 
@@ -664,50 +692,87 @@ fn open_reticle(world: &mut World, player: Entity, item: Entity, throwing: bool)
     ts.cursor_y = pos.y as i16;
 }
 
-/// A keypress in the item list: move the highlight, close the pack, or open the
-/// action modal on the highlighted row.
-fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) {
-    let item_count = player_backpack_len(world);
+/// The row `dir` steps around the ring from `from`. `rows` are backpack
+/// indices and `from` is normally one of them; if it isn't (the pack shifted
+/// under the cursor) the highlight lands on the first row rather than nowhere.
+fn step_row(rows: &[usize], from: usize, dir: isize) -> usize {
+    let fallback = rows.first().copied().unwrap_or(from);
+    let Some(at) = rows.iter().position(|&r| r == from) else {
+        return fallback;
+    };
+    let next = (at as isize + dir).rem_euclid(rows.len() as isize) as usize;
+    rows[next]
+}
+
+/// A keypress in the item list: move the highlight, close the pack, or act on
+/// the highlighted row.
+///
+/// Which rows exist at all is [`PackMode`]'s business (`pack_rows`), and so is
+/// what "act" means: browsing opens the Use / Throw / Drop modal, every other
+/// mode carries its own verb and commits on the spot. Returns whether a turn
+/// was spent — only a committed Use or Drop can.
+fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) -> bool {
+    let mode = world.resource::<PackIsOpen>().mode;
+    let rows = pack_rows(world, mode);
     let mut new_selected = current_selected;
     let mut close = false;
     let mut trigger = None;
     match key.code {
         KeyCode::Esc => close = true,
-        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('w') | KeyCode::Char('8') => {
-            new_selected = if new_selected == 0 {
-                item_count.saturating_sub(1)
-            } else {
-                new_selected - 1
-            };
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('8') => {
+            new_selected = step_row(&rows, new_selected, -1);
         }
-        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('s') | KeyCode::Char('2') => {
-            new_selected = if new_selected + 1 >= item_count {
-                0
-            } else {
-                new_selected + 1
-            };
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('2') => {
+            new_selected = step_row(&rows, new_selected, 1);
         }
-        KeyCode::Enter | KeyCode::Char(' ') => trigger = Some(new_selected),
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            trigger = rows.contains(&new_selected).then_some(new_selected);
+        }
         KeyCode::Char(c) if c.is_ascii_lowercase() => {
             let idx = (c as u32 - 'a' as u32) as usize;
-            trigger = (idx < item_count).then_some(idx);
+            trigger = rows.contains(&idx).then_some(idx);
             new_selected = trigger.unwrap_or(new_selected);
         }
         _ => {}
     }
 
-    let mut pack = world.resource_mut::<PackIsOpen>();
-    pack.selected = new_selected;
-    if close {
-        pack.open = false;
+    {
+        let mut pack = world.resource_mut::<PackIsOpen>();
+        pack.selected = new_selected;
+        if close {
+            pack.close();
+        }
     }
-    if let Some(idx) = trigger {
+
+    let Some(idx) = trigger else {
+        return false;
+    };
+    // Browsing asks which verb; the branch below is every mode that already
+    // knows, so it closes the menu and does the thing.
+    let Some(action) = mode.action() else {
+        let mut pack = world.resource_mut::<PackIsOpen>();
         pack.action_mode = Some(idx);
         pack.action_selected = 0;
-    }
+        return false;
+    };
+    world.resource_mut::<PackIsOpen>().close();
+    let Some(player) = player_entity_opt(world) else {
+        return false;
+    };
+    commit_item_action(world, player, idx, action)
 }
 
 /// A keypress while walking the map: a run, a command, or a single step.
+///
+/// Movement is vi keys, arrows and the numpad. WASD used to be a fourth scheme
+/// and is not one any more: those four letters are commands (`a` use, `d` drop,
+/// `w` wield, plus `W` wear), which is the whole reason they had to stop being
+/// directions. Nothing else changed about how you move.
+///
+/// Quitting is `Q` or `X`, both of which raise the "Really quit?" prompt, or
+/// Ctrl+C, which doesn't. `Esc` does *not* quit: it is the key a player mashes
+/// to get out of a menu, and the last thing that should do from the map is end
+/// the run.
 fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     // Shift + direction: NetHack-style running. Either zoom in a straight line,
     // or make a beeline for the nearest feature (stairs > door > item) roughly
@@ -719,16 +784,33 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
     }
 
     let step = match key.code {
-        KeyCode::Char('q') | KeyCode::Esc => {
-            world.resource_mut::<GameState>().is_running = false;
-            None
-        }
+        // Ctrl+C is the shell's own kill and takes no answer. `Q` and `X` ask.
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             world.resource_mut::<GameState>().is_running = false;
             None
         }
-        KeyCode::Char('i') => return open_pack(world),
+        // `X` only reaches this far with nothing open — see the escape hatch in
+        // `process_input_and_update`.
+        KeyCode::Char('Q') | KeyCode::Char('X') => {
+            world.resource_mut::<QuitPrompt>().open = true;
+            return Ok(false);
+        }
+        // The pack, one key per verb. `i` is the one that asks afterwards.
+        KeyCode::Char('i') => return open_pack(world, PackMode::Browse),
+        KeyCode::Char('a') => return open_pack(world, PackMode::Use),
+        KeyCode::Char('t') => return open_pack(world, PackMode::Throw),
+        KeyCode::Char('d') => return open_pack(world, PackMode::Drop),
+        KeyCode::Char('e') => return open_pack(world, PackMode::Equip),
+        KeyCode::Char('q') => return open_pack(world, PackMode::Quaff),
+        KeyCode::Char('r') => return open_pack(world, PackMode::Read),
+        KeyCode::Char('w') => return open_pack(world, PackMode::Wield),
+        KeyCode::Char('W') => return open_pack(world, PackMode::Wear),
+        KeyCode::Char('P') => return open_pack(world, PackMode::PutOn),
         KeyCode::Char('o') => return begin_auto_explore(world),
+        KeyCode::Char('A') => {
+            toggle_auto_pickup(world);
+            return Ok(false);
+        }
         KeyCode::Char('f') => return begin_fire(world),
         KeyCode::Char('O') => {
             open_travel_cursor(world);
@@ -737,16 +819,10 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         KeyCode::Tab => return Ok(auto_fight_turn(world)),
         KeyCode::Char('>') | KeyCode::Char('.') => return Ok(travel_or_use_stairs(world, true)),
         KeyCode::Char('<') | KeyCode::Char(',') => return Ok(travel_or_use_stairs(world, false)),
-        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => Some((0, -1)),
-        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => {
-            Some((0, 1))
-        }
-        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => {
-            Some((-1, 0))
-        }
-        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => {
-            Some((1, 0))
-        }
+        KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => Some((0, -1)),
+        KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => Some((0, 1)),
+        KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => Some((-1, 0)),
+        KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => Some((1, 0)),
         KeyCode::Char('y') | KeyCode::Char('7') => Some((-1, -1)),
         KeyCode::Char('u') | KeyCode::Char('9') => Some((1, -1)),
         KeyCode::Char('b') | KeyCode::Char('1') => Some((-1, 1)),
@@ -791,17 +867,33 @@ fn start_run(world: &mut World, rdx: i16, rdy: i16) {
     }
 }
 
-/// `i`: open the pack, or say so when it is empty.
-fn open_pack(world: &mut World) -> std::io::Result<bool> {
-    if player_backpack_len(world) == 0 {
-        world.resource_mut::<GameLog>().add("You have no items.");
-        world.resource_mut::<PackIsOpen>().open = false;
+/// `i` / `a` / `d` / `e` / `q` / `r` / `w` / `W` / `P`: open the pack in `mode`
+/// with the cursor on its first row, or — when that mode has no rows to show —
+/// say so and stay on the map. Never spends a turn; the row that gets picked
+/// might.
+fn open_pack(world: &mut World, mode: PackMode) -> std::io::Result<bool> {
+    let rows = pack_rows(world, mode);
+    let Some(&first) = rows.first() else {
+        world.resource_mut::<GameLog>().add(mode.nothing_line());
+        world.resource_mut::<PackIsOpen>().close();
         return Ok(false);
-    }
-    let mut pack = world.resource_mut::<PackIsOpen>();
-    pack.open = true;
-    pack.selected = 0;
+    };
+    world.resource_mut::<PackIsOpen>().open_at(mode, first);
     Ok(false)
+}
+
+/// `A`: flip whether auto-explore detours to pick things up, and say which way
+/// it landed. A preference, not an action — no turn is spent.
+fn toggle_auto_pickup(world: &mut World) {
+    let enabled = {
+        let mut pickup = world.resource_mut::<AutoPickup>();
+        pickup.enabled = !pickup.enabled;
+        pickup.enabled
+    };
+    let state = if enabled { "ON" } else { "OFF" };
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("Pick-up on auto-explore {state}."));
 }
 
 /// `f`: fire the wielded launcher's first matching projectile — a shortcut for
@@ -1019,7 +1111,7 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
 /// One tick of the `O` travel cursor, called by the main loop in place of
 /// [`process_input_and_update`] while [`TravelCursor::active`] is set.
 ///
-/// Blocks up to one blink interval for a keypress. Arrow / vi / WASD keys walk
+/// Blocks up to one blink interval for a keypress. Arrow / vi / numpad keys walk
 /// the cursor over revealed ground — sliding along a single axis when the
 /// diagonal tile is still unseen — Enter or Space commits the destination to an
 /// auto-travel, and Esc or `O` cancels. A bare timeout just flips the
@@ -1040,15 +1132,18 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
 
     let (mut dx, mut dy) = (0i32, 0i32);
     match key.code {
-        KeyCode::Esc | KeyCode::Char('O') => {
+        // `x` / `X` close this the way they close every other modal. The cursor
+        // runs its own loop outside `process_input_and_update`, so the universal
+        // escape hatch there never sees these keys — this arm is that hatch.
+        KeyCode::Esc | KeyCode::Char('O') | KeyCode::Char('x') | KeyCode::Char('X') => {
             world.resource_mut::<TravelCursor>().close();
             return Ok(());
         }
         KeyCode::Enter | KeyCode::Char(' ') => return confirm_travel_cursor(world),
-        KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
-        KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
-        KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
-        KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => dx = 1,
+        KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
+        KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
+        KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
+        KeyCode::Char('l') | KeyCode::Right | KeyCode::Char('6') => dx = 1,
         KeyCode::Char('y') | KeyCode::Char('7') => {
             dx = -1;
             dy = -1;

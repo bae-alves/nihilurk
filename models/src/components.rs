@@ -767,58 +767,21 @@ pub struct RenderConfig {
     pub centered: bool,
 }
 
-/// What the pack screen can do with the item under the cursor. The list itself
-/// lives in [`ActionMenu`]; nothing else in the game enumerates these.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ItemAction {
-    /// Quaff / read / zap / wear it, depending on what it is.
-    Use,
-    /// Put it down on the tile you're standing on.
-    Drop,
-    /// Hurl it at a spot you pick with the aiming reticle.
-    Throw,
-}
+// The pack screen's own state — `ItemAction`, `PackMode` and `PackIsOpen` —
+// lives in [`crate::pack`], next to the row filtering that decides what each of
+// its ten modes shows.
 
-impl ItemAction {
-    /// The label the pack screen paints, padded to the modal's inner width.
-    pub fn label(self) -> &'static str {
-        match self {
-            ItemAction::Use => " Use    ",
-            ItemAction::Drop => " Drop   ",
-            ItemAction::Throw => " Throw  ",
-        }
-    }
-}
-
-/// The order the three item actions are offered in. Use always leads; `-dropthrow`
-/// swaps the other two, for players who reach for Drop far more often than Throw.
+/// Whether the "Really quit?" prompt is up.
+///
+/// Quitting is the one irreversible thing a keystroke can do — the run is
+/// written out and the terminal goes away — so `Q` and `X` ask first, and a
+/// misfire costs a `n` instead of a session. Ctrl+C is deliberately *not*
+/// routed through here: it is the shell's own kill, a player reaching for it
+/// means it, and a program that argues with Ctrl+C is a program you have to
+/// kill twice.
 #[derive(Resource, Default)]
-pub struct ActionMenu {
-    pub drop_first: bool,
-}
-
-impl ActionMenu {
-    pub fn actions(&self) -> [ItemAction; 3] {
-        if self.drop_first {
-            return [ItemAction::Use, ItemAction::Drop, ItemAction::Throw];
-        }
-        [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
-    }
-
-    /// The action sitting at menu row `idx`.
-    pub fn at(&self, idx: usize) -> ItemAction {
-        self.actions()[idx.min(2)]
-    }
-}
-
-/// Whether the pack modal is open and where its two cursors sit — the item row,
-/// and (once an item is picked) the action row.
-#[derive(Resource, Default)]
-pub struct PackIsOpen {
+pub struct QuitPrompt {
     pub open: bool,
-    pub selected: usize,
-    pub action_mode: Option<usize>,
-    pub action_selected: usize,
 }
 
 /// The aiming reticle: which item is being aimed, whether this is a throw or a

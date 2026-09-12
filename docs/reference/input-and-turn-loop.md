@@ -60,12 +60,21 @@ Each pass through `while world.resource::<GameState>().is_running`:
      if it consumed a turn, `schedule.run` fires once.
   2. **Play any queued animation.** `view::play_particles` then
      `view::play_magic_map` — both no-ops unless something armed
-     them this turn.
+     them this turn. Both **block**: input is frozen for the length
+     of the effect, and a keypress skips to the end and is swallowed.
   3. **Render.** `view::render`.
-  4. **Pace it.** A 35ms sleep per step while auto-exploring, a 90ms
+  4. **Let the screen shake settle.** `view::play_shake`, and this one
+     is the odd step out: it does **not** block. It animates only while
+     nothing is waiting to be read, and the moment a key arrives it
+     settles the map and returns *leaving the key unread* for step 1 of
+     the next pass. That is also what guarantees the map is never left
+     skewed while the loop blocks — the shake either runs out here or is
+     settled here. A no-op unless a turn armed one (and `-nshake` means
+     none ever is); see `rendering.md`, "The screen shake".
+  5. **Pace it.** A 35ms sleep per step while auto-exploring, a 90ms
      sleep per turn while the player is incapacitated (asleep in gas),
      so both read as time passing rather than a freeze or a blur.
-  5. **Check the ending.** `Ending::player_dead` or `player_won`
+  6. **Check the ending.** `Ending::player_dead` or `player_won`
      breaks the loop into the death or victory screens.
 
 ```
@@ -93,20 +102,30 @@ the turn is forfeited outright with no key read; a bear trap does
 *not* forfeit the turn, since it only blocks movement, not the whole
 turn — see "Movement and attack" below).
 
-Once a key is read, `x` is checked first, everywhere: it is the
-universal escape hatch, closing whichever modal is open
-(`close_all_modals`) and returning to plain movement with no turn
-spent. After that, exactly one of three contexts owns the keypress:
+Once a key is read, `x` and `X` are checked first, everywhere: they are
+the universal escape hatch, closing whichever modal is open
+(`close_all_modals`, the quit prompt included) and returning to plain
+movement with no turn spent. `X` is checked *here*, rather than next to
+`Q` in `handle_movement_input`, precisely so that it escapes rather than
+asks about ending the run — it is one shift away from `x`, and only
+falls through to the quit prompt when `close_all_modals` reports there
+was nothing to close. After that, exactly one of four contexts owns the
+keypress:
 
 | Context (checked in this order) | Resource      | Handler                    |
 |----------------------------------|---------------|-----------------------------|
+| "Really quit?"                   | `QuitPrompt.open` | `answer_quit_prompt`   |
 | Aiming (a throw or a ranged use)| `TargetingState.active` | `handle_targeting_input` |
 | Pack open                        | `PackIsOpen.open` | `handle_inventory_input` |
 | Walking the map                  | (default)     | `handle_movement_input`    |
 
 They nest one level deep only: the pack can open the aiming reticle
 (`Throw`, or a `Use` that needs a target), but the reticle itself has
-no modal under it.
+no modal under it. The quit prompt is raised only from the map, so it
+never has anything under it either — it is first in the list because
+while it is up, that question is the only one on the table. `y` quits,
+`n` / `Esc` cancels (and so do `x` / `X`, upstream), every other key is
+ignored rather than guessed at.
 
 
 Movement and attack
@@ -149,14 +168,51 @@ Every one of steps 2–5 can return early; only reaching the move at
 step 6 (or a hijacked stumble into a wall) consumes a turn.
 
 
+The keyboard on the map
+------------------------
+
+Movement is vi keys, arrows and the numpad, eight ways, plus
+Shift+direction to run (`run_direction`). **WASD is not a movement
+scheme any more**, shifted or otherwise: those letters are commands.
+
+**`Esc` does not quit.** It is the key a player mashes to get out of a
+menu; from the map it now does nothing at all. Quitting is `Q` or `X`
+through the prompt, or Ctrl+C without one.
+
+| Key | `handle_movement_input` does |
+|-----|------------------------------|
+| `i` `a` `t` `d` `e` `q` `r` `w` `W` `P` | `open_pack(world, PackMode::…)` — see below |
+| `o` / `O` | auto-explore / travel cursor |
+| `A` | `toggle_auto_pickup` — flips `AutoPickup::enabled`, logs which way it landed, spends no turn |
+| `f` / `Tab` | fire the wielded launcher / auto-fight |
+| `>` `.` / `<` `,` | stairs, or travel to them |
+| `Q` / `X` | raise `QuitPrompt` — the "Really quit?" modal. `X` only reaches here with nothing open; otherwise it is the escape hatch above |
+| Ctrl+C | clear `GameState::is_running` on the spot, no prompt |
+
+Adding a command key is a row in that `match` and (if it opens the pack)
+a row in `PackMode`. Check it against the pack's own letters first: the
+item rows are `a`..`i` (`PACK_CAPACITY` is 9), and `navigate_pack`'s
+letter arm claims every lowercase key that isn't already navigation.
+
+
 The pack and the action modal
 -------------------------------
 
-Opening the pack (`i`) puts up a plain list (`navigate_pack`): arrow
-keys move the highlight, a letter jumps straight to that row, Enter
-opens the action modal on the highlighted item. The action modal
-(`run_action_modal`) is a fixed three-row menu — order controlled by
-`ActionMenu::drop_first` (the `-dropthrow` flag) — that dispatches to
+Ten keys open the pack, each in a `PackMode` (`models/src/pack.rs`) that
+decides the title, which rows are shown (`pack_rows`) and what picking
+one does (`PackMode::action`). `i` is the only one that asks afterwards;
+the rest carry their own verb and commit on the spot, closing the pack
+as they go. `open_pack` refuses with the mode's own line ("You have
+nothing to read.") rather than opening an empty box.
+
+Rows are **backpack indices**, not row numbers, everywhere —
+`PackIsOpen::selected`, `pack_rows`, `commit_item_action`'s `item_idx`,
+and the letter `draw_inventory` paints. That is what keeps an item's
+letter the same in every menu; `step_row` walks the cursor between the
+admitted indices, skipping the rest.
+
+The action modal (`run_action_modal`, `PackMode::Browse` only) is a fixed
+three-row menu — `ItemAction::MENU` — that dispatches to
 `commit_item_action`:
 
 | `ItemAction` | What happens | Spends a turn? |
@@ -198,7 +254,7 @@ in `models/` (`fastmove.rs`, `autoexplore.rs`):
 | Fast move ("run") | Shift+direction | `FastMove` | `fast_move_plan`, then `travel_step`/`straight_step` each step | keypress, a monster in view, a message logged, junction/target reached, `FAST_MOVE_STEP_CAP` |
 | Auto-explore | `o` | `AutoExplore` (`target: None`) | `explore_step` | same, plus "nowhere left to explore" |
 | Travel | `>`/`<` to a known but distant staircase, or the `O` cursor | `AutoExplore` (`target: Some(tile)`) | `travel_step` | same, plus arrival |
-| Travel cursor | `O` | `TravelCursor` | (none — it's just a cursor) | Esc/`O`, or Enter to commit into a travel `AutoExplore` |
+| Travel cursor | `O` | `TravelCursor` | (none — it's just a cursor) | Esc/`O`/`x`/`X`, or Enter to commit into a travel `AutoExplore` |
 
 `explore_step` gives a spotted item (see `known_item_tiles`) priority
 over frontier exploration outright: while `Item`s without `Hidden`
@@ -207,6 +263,13 @@ rather than consulting `AutoExplore::frontier` at all. `move_player`'s
 own pickup-on-arrival logic (see above) does the actual stowing; once
 the item is gone from the floor, frontier exploration resumes as
 before.
+
+`detours_for_loot` is what can call that beeline off, on either of two
+counts: the `A` toggle (`AutoPickup::enabled`) is off, or the pack is
+already at `PACK_CAPACITY`. The second is not politeness — without it,
+a full pack walks to an item, is halted by "Your pack is full.", and
+beelines to the same item on the next `o`, so the floor never gets
+explored.
 
 Fast move (`fast_move_run`) is the odd one out: it runs its entire
 walk **inside one call**, stepping `schedule.run` itself between moves
@@ -223,10 +286,13 @@ walk needs to abort — otherwise that keypress would also be read as a
 move on the next frame.
 
 `travel_cursor_step` is different again: it isn't a walk at all, just
-a blinking highlight the player steers with arrow/vi keys over
+a blinking highlight the player steers with arrow/vi/numpad keys over
 already-`revealed` ground (sliding along one axis when the diagonal
 neighbour is still unseen), gated to 400ms polls so the blink phase
-flips on a timeout. Enter commits the tile to a travel `AutoExplore`
+flips on a timeout. It runs its own loop outside
+`process_input_and_update`, so the universal escape hatch never sees its
+keys — `x` / `X` are handled in its own cancel arm instead, which is the
+only reason closing it works at all. Enter commits the tile to a travel `AutoExplore`
 via `nearest_reachable` if the chosen tile isn't itself walkable.
 
 
@@ -238,7 +304,10 @@ The only tests in `engine/` live inline in `update.rs`, under
 to its vi-key equivalent, and that Shift+numpad reads as a run
 direction like Shift+arrow. Everything else in this page — the modal
 stack, the run/travel/auto-explore state machines, `move_player`'s
-ordering — is exercised only by playing the game. When you add a new
+ordering — is exercised only by playing the game. What *can* be tested
+is tested one level down, in `models/`: `tests/pack.rs` pins what each
+menu shows, and `tests/autoexplore.rs` pins when the loot beeline is
+called off. When you add a new
 branch here, prefer moving any *decision* logic (what should happen)
 down into a pure, testable function in `models/`, and leave `engine/`
 holding only the parts that must touch the terminal.
@@ -249,5 +318,5 @@ See also
 
   rendering.md                  the other half of the frame: `view.rs`
   ../reference/components.md    the resources named throughout this page
-  ../reference/cli-and-env.md   the flags this code reads (`-dropthrow`, `-anim-rate`)
+  ../reference/cli-and-env.md   the flags this code reads (`-anim-rate`, `-nshake`)
   ../explanation/code-calisthenics.md   the shape this code (and all engine code) is held to

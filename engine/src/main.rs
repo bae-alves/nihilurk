@@ -166,7 +166,7 @@ fn main() -> std::io::Result<()> {
     let mut centered_mode = false;
     let mut no_save = false;
     let mut no_blood = false;
-    let mut drop_first = false;
+    let mut no_shake = false;
     let mut list_content = false;
     let mut player_name = "Roog".to_string();
     let mut positional: Option<String> = None;
@@ -188,7 +188,7 @@ fn main() -> std::io::Result<()> {
             "-c" => centered_mode = true,
             "-ns" => no_save = true,
             "-nb" => no_blood = true,
-            "-dropthrow" => drop_first = true,
+            "-nshake" => no_shake = true,
             "-content" => list_content = true,
             "-anim-rate" => {
                 if let Some(rate_str) = iter.next() {
@@ -265,12 +265,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     let seed_value = seed.unwrap_or_else(rand::random);
     world.insert_resource(models::GameRng(ChaCha12Rng::seed_from_u64(seed_value)));
     world.insert_resource(models::RngSeed(seed_value));
-    world.insert_resource(PackIsOpen {
-        open: false,
-        selected: 0,
-        action_mode: None,
-        action_selected: 0,
-    });
+    world.init_resource::<PackIsOpen>();
     world.insert_resource(RenderConfig {
         centered: centered_mode,
     });
@@ -281,8 +276,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         cursor_x: 0,
         cursor_y: 0,
     });
-    // Use always leads the item menu; `-dropthrow` puts Drop ahead of Throw.
-    world.insert_resource(ActionMenu { drop_first });
+    world.init_resource::<QuitPrompt>();
     world.insert_resource(PlayerName {
         what: player_name.to_ascii_uppercase(),
     });
@@ -290,6 +284,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<DungeonLord>();
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();
+    world.init_resource::<AutoPickup>();
     world.init_resource::<FastMove>();
     world.init_resource::<TravelCursor>();
     world.init_resource::<MagicMapReveal>();
@@ -299,6 +294,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<PlayerTempo>();
     world.init_resource::<GameLog>();
     world.insert_resource(models::Particles::new());
+    world.insert_resource(models::Shake::new());
     world.insert_resource(models::AnimRate(anim_rate));
 
     match &load_path {
@@ -317,6 +313,11 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // `-nb`: disable bloodstains entirely for this run.
     if no_blood {
         world.resource_mut::<BloodStains>().enabled = false;
+    }
+
+    // `-nshake`: nail the map down. Nothing arms a shake for the rest of the run.
+    if no_shake {
+        world.resource_mut::<Shake>().enabled = false;
     }
 
     // 3. Create the schedule and register systems in execution order
@@ -381,6 +382,14 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
 
         // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout, &mut screen)?;
+
+        // Step C1: Let any screen shake this turn armed finish rocking. Unlike
+        // B2 and B3 this never blocks the player: it runs only while nothing is
+        // waiting to be read, and a keypress settles the map and is handed
+        // straight back to Step A unread. It also guarantees the map is home
+        // before the loop blocks again, so a shake can never be left frozen
+        // mid-lurch on screen.
+        view::play_shake(&mut world, &mut stdout, &mut screen)?;
 
         // Step C2: Pace the auto-explore walk so it reads as movement rather
         // than a teleport, and stays interruptible.
