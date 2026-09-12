@@ -4,7 +4,7 @@ Roog is a classic roguelike about descending a dungeon, acquiring an item, and a
 Game plays like any classic roguelike, but has simplified controls and movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
 
 ## Vibe
-Fairytale logic, the dungeon is only normal on the surface, getting madder and madder the more the player descends. The game is not really about anything. It's just fun and scoring and strategizing, doing hallucinating combos!
+Absurdist wonderland gorefest! The dungeon is only normal on the surface, getting madder and madder the more the player descends. The game is not really about anything. It's just fun and scoring and strategizing, doing hallucinating combos!
 
 ## Progression
 The game is a dungeon crawl with 13 levels, the last one has the Element of Yoord. Once the player character claims it, they must climb back out of the dungeon!
@@ -102,11 +102,9 @@ English, Portuguese and Spanish. A classic roguelike in non-English is important
 
 ### Other ideas/Expansion backlog
 - More player character options
-- Leaderboards, local and global
-- Puzzle level creator and platform for sharing and rating them
+- Leaderboards
 - Tournament play
-- Achievements
-- Steam (?)
+- Steam (?) + Achievements
 - Nethack bones but instead of a ghost, it's the actual past failed character coming for you. A user can just rm the bones and that is okay but would be missing out on past run loot (all wearables cursed). Failed characters will be really angry about you failing them and will spout markov-chain angry nonsense. If they share names with the current character the failed character will also be treated as 'you'. This whole shebang won't happen all the time.
 - Rarely, log lines are in Spanish even if you choose something else as language
 - Forgotten beasts like in Dwarf Fortress. Sometimes they die in one hit, sometimes they are literally invincible. The description pop-up will tell which one is which

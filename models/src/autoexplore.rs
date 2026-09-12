@@ -16,6 +16,7 @@ use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
 
 use crate::components::*;
+use crate::constants::items::PACK_CAPACITY;
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 
 /// Hard ceiling on steps in a single auto-walk — paranoia against a
@@ -56,6 +57,25 @@ impl AutoExplore {
         self.active = false;
         self.target = None;
         self.frontier = None;
+    }
+}
+
+/// Whether an auto-explore walk detours to pick things up, toggled in-game with
+/// `A`. Transient like [`AutoExplore`] itself — a fresh run, and a reloaded one,
+/// starts with the detour on.
+///
+/// It exists because the detour is a strong rule (a spotted item outranks
+/// exploring outright, see [`explore_step`]) and a strong rule needs an off
+/// switch: a player clearing a floor for the stairs does not want the walk
+/// doubling back for every dart it can see.
+#[derive(Resource)]
+pub struct AutoPickup {
+    pub enabled: bool,
+}
+
+impl Default for AutoPickup {
+    fn default() -> Self {
+        Self { enabled: true }
     }
 }
 
@@ -118,6 +138,28 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
 pub fn known_item_tiles(world: &mut World) -> Vec<(u16, u16)> {
     let mut query = world.query_filtered::<&Position, (With<Item>, Without<Hidden>)>();
     query.iter(world).map(|p| (p.x, p.y)).collect()
+}
+
+/// Whether a walk should still detour for loot: the `A` toggle
+/// ([`AutoPickup`]) is on, *and* there is somewhere to put what it finds.
+///
+/// A full pack calls the detour off by itself. Walking to an item that can only
+/// be answered with "Your pack is full." halts the walk on arrival and leaves
+/// the item exactly where it was — so the next `o` beelines straight back to it
+/// and halts again, and the floor never gets explored. Not looking is the only
+/// way out that doesn't involve the walk picking your pockets for you.
+fn detours_for_loot(world: &mut World) -> bool {
+    let wanted = world
+        .get_resource::<AutoPickup>()
+        .map_or(true, |p| p.enabled);
+    if !wanted {
+        return false;
+    }
+    world
+        .query_filtered::<&Backpack, With<Player>>()
+        .iter(world)
+        .next()
+        .map_or(true, |b| b.items.len() < PACK_CAPACITY)
 }
 
 /// Breadth-first search across tiles the caller deems `open`, from `(px, py)`,
@@ -253,6 +295,8 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
 /// A known item still sitting on the floor (see [`known_item_tiles`]) always
 /// wins over frontier exploration: the walk beelines straight for it, `move_player`
 /// picks it up on arrival, and only once it's gone does frontier picking resume.
+/// [`detours_for_loot`] is what can call that rule off — the `A` toggle, or a
+/// pack with no room left in it.
 ///
 /// Otherwise keeps heading toward [`AutoExplore::frontier`] — the frontier tile
 /// it last committed to — for as long as that's still a real frontier, rather
@@ -267,7 +311,9 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
 /// also writes the frontier it commits to back into [`AutoExplore`].
 pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     let traps = known_trap_tiles(world);
-    let items = known_item_tiles(world);
+    let items = detours_for_loot(world)
+        .then(|| known_item_tiles(world))
+        .unwrap_or_default();
     let (px, py, seen) = player_view(world)?;
     // `AutoExplore` isn't inserted in every test world; treat it as having no
     // committed frontier yet rather than panicking.

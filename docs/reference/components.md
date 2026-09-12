@@ -10,10 +10,17 @@ Reference: components, resources and events
                    source. If this page and the source disagree, the
                    source is right and this page is a bug.
 
-Every `Component`, `Resource` and `Event` is declared in
+Almost every `Component`, `Resource` and `Event` is declared in
 `models/src/components.rs`. That file is **nouns only** — a component says
 what a thing *is*, never what happens as a result. The verbs are the
 systems: `combat.rs`, `ai.rs`, `items/`, `visibility.rs`, `traps.rs`.
+
+The exceptions are the handful of resources that come with real logic
+attached and live with it instead: `Shake` (`shake.rs`), `AutoExplore` /
+`AutoPickup` (`autoexplore.rs`), `FastMove` (`fastmove.rs`), and the pack
+screen's `PackIsOpen` / `PackMode` / `ItemAction` (`pack.rs`). All of them
+are re-exported from `models`, so a call site never has to know which
+file they came from.
 
 A `Bundle` — the struct that assembles components for one spawn
 (`MonsterBundle`, `TrapBundle`) — is **not** here. It lives next to its
@@ -276,11 +283,79 @@ Resources
 | Resource        | Fields                                                    | Notes |
 |-----------------|----------------------------------------------------------|-------|
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
-| `ActionMenu`    | `drop_first: bool`                                        | `-dropthrow` flag. `actions()` / `at(idx)` give the Use/Throw/Drop order. |
-| `PackIsOpen`    | `open`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors. |
+| `QuitPrompt`    | `open: bool`                                              | the "Really quit?" modal, raised by `Q` / `X` **with nothing else open** and answered `y` / `n`. Ctrl+C bypasses it; `Esc` never raises it. |
+| `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
+| `PackMode`      | enum: `Browse` `Use` `Drop` `Equip` `Quaff` `Read` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
+| `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |
 | `TargetingState`| `active`, `item: Option<Entity>`, `throwing: bool`, `cursor_x`, `cursor_y: i16` | aiming reticle; `throwing` swaps the range to `THROW_RANGE` and confirm to a hurl. |
 | `PlayerTempo`   | `fast_parity: bool`                                       | the player half of the speed system: a `Fast` turn flips it, monsters move only when it flips back. |
 | `AttackQueue` / `UseQueue` / `ThrowQueue` | `Vec<…>`                        | see Events above. |
+| `Shake`         | `enabled: bool` (`-nshake`), plus a private kind + age    | screen shake. Gameplay arms one with `shake::kick_shake(world, ShakeKind::…)` and forgets; the engine ages it, reads `offset()` and `settle()`s it. See below. |
+
+### The pack screen
+
+`PackMode` (`pack.rs`) is a four-column table — title, "nothing to show"
+line, verb, row filter — with one row per key that opens the pack:
+
+| Mode     | Key | Shows                     | Picking a row |
+|----------|-----|---------------------------|---------------|
+| `Browse` | `i` | everything                | opens the `ItemAction::MENU` modal |
+| `Use`    | `a` | everything                | `ItemAction::Use` |
+| `Throw`  | `t` | everything                | `ItemAction::Throw` |
+| `Drop`   | `d` | everything                | `ItemAction::Drop` |
+| `Equip`  | `e` | anything with `Equipped`  | `ItemAction::Use` |
+| `Quaff`  | `q` | anything with `Potion`    | `ItemAction::Use` |
+| `Read`   | `r` | anything with `Scroll`    | `ItemAction::Use` |
+| `Wield`  | `w` | `Equipped { slot: Hand }` | `ItemAction::Use` |
+| `Wear`   | `W` | `Equipped { slot: Body }` | `ItemAction::Use` |
+| `PutOn`  | `P` | `Equipped { slot: Finger }` | `ItemAction::Use` |
+
+Everything but Browse, Throw and Drop is `Use`, because "quaff", "read"
+and "wear" are all one verb once `item_system` has the item in hand —
+the mode only decides what you were offered.
+
+`ItemAction::MENU` is the fixed Use / Throw / Drop order of the Browse
+modal (`ItemAction::at(idx)` indexes it). It was a resource with a flag
+behind it (`ActionMenu`, `-dropthrow`) while that modal was the only
+route to any of the three; `a`, `t` and `d` are what replaced the flag.
+
+`pack_rows(world, mode)` is the single place the filter is applied, and
+it returns **backpack indices**. Both the renderer and the cursor key off
+that list, so a menu can never highlight or act on a row it isn't
+showing, and a row keeps its pack letter in every mode (the potion that
+is `c` in the pack is `c` in the quaff menu, alone on screen or not).
+
+Worn gear still appears on the equip menus — that is how it comes back
+off.
+
+### The screen shake
+
+`Shake` (`shake.rs`) is the effect layer's second half, and the only
+cosmetic resource that is deliberately *not* played the way
+[`Particles`] is. Five things arm it, and nothing else may:
+
+| `ShakeKind` | Armed by | Shape |
+|-------------|----------|-------|
+| `Kill`      | `combat::kill_shake`, from `resolve_attack` and `finish_indirect_kill`, when the player can see the victim's tile | 120 ms, 1 cell — short |
+| `Heavy`     | `combat::resolve_attack` on the player's own excellent hit, and `items::wands::elemental_blast` if the player can see the blast centre | 260 ms, 2 cells — medium |
+| `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | 460 ms, 2 cells — long |
+| `Death`     | both player-death paths in `combat.rs`, next to where `Ending::player_dead` is set | 900 ms, 3 cells — the last thing the map does |
+
+The durations are on `ShakeKind::shape()`, not in `constants.rs`. A
+kick only displaces an already-running shake if it is worth more than
+what is *left* of it, so a kill mid-blast cannot truncate the blast.
+Amplitude 2 means the first half throws the map two cells and the rest
+one; a terminal has no half-cell to decay through.
+
+The sight gate on `elemental_blast` and `kill_shake` is a real rule, not
+politeness: a shake for a blast — or a death — in an unexplored room
+would hand the player information the renderer goes out of its way not
+to draw. `helpers::player_sees` is the shared check, the same one the
+trap messages use. `Death` has no gate, for the obvious reason.
+
+Unlike every other animation in the game the shake **never blocks
+input** — see `rendering.md`, "The screen shake", for why and for how
+`play_shake` enforces it.
 
 ### Run state
 
@@ -299,8 +374,11 @@ The log panel is plain white except for a sparing set of colours
 player ("you"/"your") and falls into one of: a curse taking hold (dark
 red), a dazzle (magenta), the low-HP warning (red — "You are badly
 wounded!", fired once as HP crosses down through
-`constants::player::LOW_HP_WARNING_FRACTION` of max, see
-`helpers::apply_damage`), the player's own speed shifting (cyan hasted,
+`constants::player::LOW_HP_WARNING_FRACTION` of max, by
+`helpers::warn_if_newly_low` — which `helpers::apply_damage` calls for
+every trap, dart and bolt, and `combat::resolve_attack` calls directly,
+melee being the one damage path that applies its own damage and would
+otherwise never report the crossing), the player's own speed shifting (cyan hasted,
 dark cyan slowed), or the player's own throw/fire (yellow). Matched by
 substring, not by threading a colour through every `GameLog::add()` call
 — see `hud::log_line_color` for the exact phrases it keys on.

@@ -57,7 +57,7 @@ use crate::constants::traps::{
     DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER, TRAP_DAMAGE_TIER_LAST_DEPTH,
 };
 use crate::effects::SustainsStrength;
-use crate::helpers::{apply_damage, roll_dice, spill_blood, total_armor_plus};
+use crate::helpers::{apply_damage, player_sees, roll_dice, spill_blood, total_armor_plus};
 use crate::map::{
     FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index,
     transition_level,
@@ -321,15 +321,6 @@ pub fn trap_system(world: &mut World) {
     for e in marked {
         world.entity_mut(e).remove::<EntityMoved>();
     }
-}
-
-/// Whether the player's viewshed currently covers `(x, y)`.
-fn player_sees(world: &mut World, x: u16, y: u16) -> bool {
-    world
-        .query_filtered::<&Viewshed, With<Player>>()
-        .iter(world)
-        .next()
-        .is_some_and(|v| v.visible_tiles.iter().any(|&(vx, vy)| vx == x && vy == y))
 }
 
 /// A short display name for `entity` in a trap log line (`"you"` for the hero).

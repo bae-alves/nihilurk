@@ -81,6 +81,25 @@ pub fn reaper_system(world: &mut World) {
     }
 }
 
+/// A tick of recoil for a creature dying where the player can see it: a kill is
+/// worth exactly one frame of punctuation, which is why it takes the short kick
+/// rather than the heavy one an excellent hit gets. Gated on sight like every
+/// other cosmetic, so a monster dying in a room the player has never entered
+/// doesn't announce itself through the floor.
+///
+/// It never steps on a bigger shake: a blast that killed a whole room is
+/// already rocking harder than this, and [`Shake::kick`](crate::shake::Shake::kick)
+/// keeps whichever is worth more.
+fn kill_shake(world: &mut World, victim: Entity) {
+    let Some(pos) = world.get::<Position>(victim).copied() else {
+        return;
+    };
+    if !crate::helpers::player_sees(world, pos.x, pos.y) {
+        return;
+    }
+    crate::shake::kick_shake(world, crate::shake::ShakeKind::Kill);
+}
+
 /// Blanks an entity's on-screen glyph to a blank space — used only to hide
 /// the player's `@` the instant they die, so the death burst's flung corpse
 /// and bone shrapnel read as *them* exploding rather than a corpse detaching
@@ -111,6 +130,7 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         }
         crate::helpers::death_burst(world, entity, source);
         blank_player_glyph(world, entity);
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Death);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
         ending.cause = "Killer unknown".to_string();
@@ -121,6 +141,7 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     world
         .resource_mut::<GameLog>()
         .add(format!("The {name} dies."));
+    kill_shake(world, entity);
     crate::helpers::death_burst(world, entity, source);
     leave_gear_behind(world, entity);
     world.despawn(entity);
@@ -270,6 +291,7 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         });
 
     let mut lethal = false;
+    let hp_before = world.get::<Fighter>(target).map(|f| f.hp);
     if let Some(mut fighter) = world.get_mut::<Fighter>(target) {
         fighter.hp -= damage;
         if vorpal {
@@ -279,6 +301,11 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     }
     if damage > 0 {
         crate::helpers::spill_blood(world, target, damage, glancing);
+        // A blow landed in melee crosses the low-HP threshold exactly the way a
+        // dart or a bolt does, and reports it the same way. This is the only
+        // damage path that doesn't run through `helpers::apply_damage`, so the
+        // warning has to be asked for by hand here.
+        crate::helpers::warn_if_newly_low(world, target, hp_before);
     }
 
     // Instant hit feedback: a spark where the blow landed, or a faint tick for a
@@ -292,6 +319,20 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
                 _ => fx.hit_spark(tpos.x, tpos.y),
             }
         }
+    }
+
+    // ...and a thump through the whole map for the one swing in seven that
+    // lands clean. The spark says *where* the blow landed; the shake says how
+    // hard. Only the player's own crits shake the screen — `excellent` is
+    // never set for a monster's attack.
+    if excellent {
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+    }
+
+    // A kill is worth its own, shorter kick — and it has to be asked for here,
+    // while the corpse still has the Position the sight gate reads.
+    if lethal && !target_is_player {
+        kill_shake(world, target);
     }
 
     // The Mortal-Kombat-style death flourish — flung corpse, bone shrapnel,
@@ -339,8 +380,10 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         // The player does not leave the world; the main loop notices the
         // Ending resource, tears down the save, and shows the death screen.
         // Their `@` is blanked so the death burst's flung corpse reads as
-        // them exploding, not detaching from a body still standing there.
+        // them exploding, not detaching from a body still standing there, and
+        // the map takes the biggest lurch it has in it on the way out.
         blank_player_glyph(world, target);
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Death);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
         ending.cause = format!("Slain by the {attacker_name}");

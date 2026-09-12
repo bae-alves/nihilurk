@@ -189,7 +189,16 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
 /// for a monster, and it only fires on the transition, so it won't repeat
 /// every hit while they stay down there. Healing back up and getting hurt low
 /// again fires it afresh, which is the point.
-fn warn_if_newly_low(world: &mut World, entity: Entity, hp_before: Option<i32>) {
+///
+/// The same transition kicks the long screen shake. Deliberately *this* moment
+/// and not "HP is low": the shake is the room reeling as the floor drops out
+/// from under you, so it belongs to the crossing, and tying it to the warning
+/// means the two can never disagree about when that was.
+///
+/// Reachable from outside this module because melee does not run through
+/// [`apply_damage`] — [`crate::combat::resolve_attack`] applies its own damage
+/// and calls this directly.
+pub(crate) fn warn_if_newly_low(world: &mut World, entity: Entity, hp_before: Option<i32>) {
     if world.get::<Player>(entity).is_none() {
         return;
     }
@@ -204,11 +213,26 @@ fn warn_if_newly_low(world: &mut World, entity: Entity, hp_before: Option<i32>) 
         return; // dying, not "wounded" — the reaper handles this
     }
     let threshold = (max_hp as f32 * crate::constants::player::LOW_HP_WARNING_FRACTION) as i32;
-    if hp_before > threshold && hp_after <= threshold {
-        world
-            .resource_mut::<GameLog>()
-            .add("You are badly wounded!".to_string());
+    if hp_before <= threshold || hp_after > threshold {
+        return;
     }
+    world
+        .resource_mut::<GameLog>()
+        .add("You are badly wounded!".to_string());
+    crate::shake::kick_shake(world, crate::shake::ShakeKind::Wounded);
+}
+
+/// Whether the player's viewshed currently covers `(x, y)`.
+///
+/// The gate on anything cosmetic that would otherwise leak information: a
+/// screen shake for a blast in a room you have never seen tells you a blast
+/// went off in a room you have never seen.
+pub(crate) fn player_sees(world: &mut World, x: u16, y: u16) -> bool {
+    world
+        .query_filtered::<&crate::Viewshed, With<Player>>()
+        .iter(world)
+        .next()
+        .is_some_and(|v| v.visible_tiles.iter().any(|&(vx, vy)| vx == x && vy == y))
 }
 
 /// Clears every transient condition the player is carrying — [`Speed`]

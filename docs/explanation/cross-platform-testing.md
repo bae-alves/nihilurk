@@ -361,8 +361,9 @@ cross-compilation will change that. A bare-metal row failing to produce
 a game is not a bug, because no game was ever being built.
 
 What the bare rows prove is narrower. `particle-core` -- when a mote is
-visible, which keyframe is showing, which glyph a beam segment draws --
-is `no_std`, allocates nothing, and depends on no crate at all. It
+visible, which keyframe is showing, which glyph a beam segment draws,
+and which way the screen shake throws the map on a given frame -- is
+`no_std`, allocates nothing, and depends on no crate at all. It
 compiles for `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf`,
 and `nostd_check.sh` proves it on demand.
 
