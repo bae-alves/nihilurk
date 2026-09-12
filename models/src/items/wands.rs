@@ -350,27 +350,48 @@ pub(super) fn apply_wand_effect(
         None => return, // Safety catch: every other wand requires a target.
     };
 
-    // Bolt wands: travel a straight line to the target, damaging everything on
-    // the way. `None` means this effect isn't a damaging bolt. The colour is the
-    // one the animated beam streaks in.
-    let bolt: Option<(&str, Color)> = match effect {
-        WandEffect::MagicMissile => {
-            Some(("A brilliant cyan bolt leaps from the wand!", Color::Cyan))
-        }
-        WandEffect::Lightning => Some(("A forking bolt of lightning cracks out!", Color::Yellow)),
-        WandEffect::Striking => Some(("An invisible fist hammers down the line!", Color::White)),
-        WandEffect::DrainLife => Some((
+    // Exhaustive over `WandEffect`, deliberately with no catch-all: a wand
+    // effect added to the enum and not given an arm here fails the build
+    // instead of discharging with a generic "nothing happens" — the same
+    // guarantee `crate::traps::spring_trap` gives a new `TrapEffect`. See
+    // `docs/explanation/data-driven-content.md`.
+    match effect {
+        WandEffect::MagicMissile => fire_bolt(
+            world,
+            user,
+            user_pos,
+            target_pos,
+            effect,
+            "A brilliant cyan bolt leaps from the wand!",
+            Color::Cyan,
+        ),
+        WandEffect::Lightning => fire_bolt(
+            world,
+            user,
+            user_pos,
+            target_pos,
+            effect,
+            "A forking bolt of lightning cracks out!",
+            Color::Yellow,
+        ),
+        WandEffect::Striking => fire_bolt(
+            world,
+            user,
+            user_pos,
+            target_pos,
+            effect,
+            "An invisible fist hammers down the line!",
+            Color::White,
+        ),
+        WandEffect::DrainLife => fire_bolt(
+            world,
+            user,
+            user_pos,
+            target_pos,
+            effect,
             "A tendril of black light drinks the life from its path.",
             Color::DarkMagenta,
-        )),
-        _ => None,
-    };
-
-    match effect {
-        _ if bolt.is_some() => {
-            let (msg, color) = bolt.unwrap();
-            fire_bolt(world, user, user_pos, target_pos, effect, msg, color);
-        }
+        ),
         WandEffect::Fire | WandEffect::Cold => {
             let is_fire = effect == WandEffect::Fire;
             let msg = if is_fire {
@@ -400,13 +421,10 @@ pub(super) fn apply_wand_effect(
                 .resource_mut::<GameLog>()
                 .add("The wand does nothing. It was well named.".to_string());
         }
-        // Light is handled above; the remaining arms are the damaging wands.
+        // Light has no target and returns above, before this match — it can
+        // never actually reach here, but the arm still has to exist for the
+        // match to stay exhaustive over the whole enum.
         WandEffect::Light => {}
-        _ => {
-            world
-                .resource_mut::<GameLog>()
-                .add("The wand discharges with a faint hiss.".to_string());
-        }
     }
 }
 

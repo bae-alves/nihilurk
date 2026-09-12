@@ -25,6 +25,8 @@ Start here
 | Change a balance number             | `reference/constants.md`                |
 | Look up a function I have to call   | `reference/spawn-api.md`                |
 | Look up a flag or an env var        | `reference/cli-and-env.md`              |
+| Look up how input and the turn loop work | `reference/input-and-turn-loop.md` |
+| Look up how a frame gets to the screen | `reference/rendering.md`             |
 | Understand why it is built this way | `explanation/data-driven-content.md`    |
 | Know what good numbers look like    | `explanation/combat-and-balance.md`     |
 | Know what shape to leave the code in| `explanation/code-calisthenics.md`      |
@@ -73,6 +75,12 @@ Every page names its own audience and prerequisites in a header. Broadly:
 
   Engine developer  Adds systems, changes how content is spawned or
                     resolved. Lives in `reference/` and `explanation/`.
+                    `engine/` itself (input handling, rendering) is
+                    thinner ground than `models/`: it has almost no
+                    test coverage of its own, so a change there is
+                    checked by playing the game, not by `cargo test`.
+                    See `reference/input-and-turn-loop.md` and
+                    `reference/rendering.md`.
 
 The game design document (`../gdd.md`) is a third thing again: what roog
 is trying to *be*. It is not a spec of the code.

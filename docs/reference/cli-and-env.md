@@ -123,4 +123,6 @@ See also
 
   spawn-api.md                  spawn_named, spawn_requested
   content-tables.md             what the names refer to
+  input-and-turn-loop.md        where these flags are read (`engine/src/main.rs`)
+  rendering.md                  `-c` and `-anim-rate` in the renderer
   ../tutorial/add-your-first-item.md   these tools in context
