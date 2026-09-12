@@ -1,1 +1,9 @@
 /target
+
+# `perf record` and `cargo flamegraph` write these into the working directory;
+# the pipeline's own copies live under /target/perf and are covered above.
+/perf.data*
+/flamegraph.svg
+
+# roog saves as <player name>.sav next to wherever it was started.
+*.sav

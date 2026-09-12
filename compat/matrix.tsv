@@ -1,0 +1,33 @@
+# roog's compatibility matrix: one row per machine roog claims to run on.
+#
+# This file is the pipeline. `cross_build.sh` builds a row, `stress_test_matrix.sh`
+# runs a row under emulation with the row's limits applied, and the report prints
+# a row per row. Adding a machine is adding a line here; nothing else knows the
+# list. (Same rule as the content tables -- see docs/explanation/adr-0001-tables-not-raws.md.)
+#
+# Columns, tab-separated:
+#
+#   id        short name, used for file names and report rows
+#   target    rust target triple
+#   class     linux  -- has an OS, a terminal and a shell; roog runs here
+#             bare   -- no OS; only `particle-core` is built, and only checked
+#   platform  docker --platform value, or "-" for a bare-metal row
+#   image     runtime image the binary is executed in, or the SDK image for bare
+#   exec      native -- the host CPU runs it directly
+#             qemu   -- needs binfmt_misc + qemu-user to run on an x86_64 host
+#             none   -- not executed at all (bare metal)
+#   cpus      docker --cpus, the CPU budget that stands in for the hardware
+#   memory    docker --memory, the RAM the machine actually has
+#   note      what real machine this row is standing in for
+#
+# The limits are deliberately mean. A container that can use four modern cores
+# tells you nothing about a Pi; the point of a row is to be as slow as the thing
+# it names, not to pass.
+
+#id	target	class	platform	image	exec	cpus	memory	note
+cloud	x86_64-unknown-linux-musl	linux	linux/amd64	alpine:3.22	native	1	512m	t3.micro / any x86_64 box, and the control: no emulation
+graviton	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	2	1g	AWS Graviton (t4g.nano), an M-series Mac's Linux VM
+pi-zero	armv7-unknown-linux-musleabihf	linux	linux/arm/v7	alpine:3.22	qemu	0.4	512m	Raspberry Pi Zero 2 W, Pi 1/2 class hardware
+potato	i686-unknown-linux-musl	linux	linux/386	i386/alpine:3.22	native	1	512m	32-bit Atom or Pentium M netbook, ca. 2008
+esp32c3	riscv32imc-unknown-none-elf	bare	-	espressif/idf-rust:all_latest	none	-	-	ESP32-C3 / any RISC-V microcontroller
+esp32	xtensa-esp32-none-elf	bare	-	espressif/idf-rust:all_latest	none	-	-	ESP32 (Xtensa LX6), the original Arduino-adjacent one

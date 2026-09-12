@@ -1,0 +1,25 @@
+[package]
+name = "roog-compat"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Cross-compilation matrix and emulated hardware stress test for roog."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "roog-compat"
+path = "src/main.rs"
+
+[dependencies]
+# The only dependency, and the same version `roog-perf` pins. The two
+# dashboards are meant to look like two views of one project, and a second
+# ratatui in the graph would be a second set of widgets with the same names.
+#
+# Note what is *not* here: `models`. The compat rig never touches the game's
+# types -- it builds the game, runs the perf rig inside a container, and reads
+# what comes back on stdout. Keeping the dependency out means this crate cannot
+# accidentally become a second place where game logic lives, and it means the
+# matrix can be driven against a binary this workspace did not build.
+ratatui = "0.30.2"
