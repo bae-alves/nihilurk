@@ -522,7 +522,7 @@ pub mod rings {
 /// What the number on the HUD is made of. The verbs are in `score.rs`, which
 /// documents the whole table in one place.
 pub mod score {
-    /// Score paid per point of a slain creature's `max_hp`. A goblin is a
+    /// Score paid per point of a slain creature's `max_hp`. A bat is a
     /// rounding error next to a griffin, which is the intent: the scoreboard
     /// rewards fighting things that could have killed you.
     pub const KILL_PER_MAX_HP: i32 = 100;
@@ -561,6 +561,39 @@ pub mod monsters {
     /// for less is rarer, more is more common. Relative only — the absolute
     /// value just sets the granularity.
     pub const DEFAULT_SPAWN_WEIGHT: u32 = 10;
+
+    /// The dragon's odds, on a turn it would otherwise land a melee blow, of
+    /// breathing fire instead. See [`crate::items::dragon_breath`].
+    pub const DRAGON_FIREBALL_CHANCE: f64 = 1.0 / 6.0;
+
+    /// The ice monster's odds, on a blow that lands, of paralysing what it hit.
+    pub const ICE_MONSTER_PARALYZE_CHANCE: f64 = 1.0 / 6.0;
+
+    /// A centaur's odds of arriving already carrying a bow and arrows.
+    pub const CENTAUR_BOW_CHANCE: f64 = 0.40;
+
+    /// A medusa's odds of arriving already carrying a bow and arrows.
+    pub const MEDUSA_BOW_CHANCE: f64 = 0.20;
+
+    /// A hobgoblin's odds, rolled once per equipment slot (weapon, armour,
+    /// ring), of arriving with a piece in it.
+    pub const HOBGOBLIN_GEAR_CHANCE: f64 = 0.35;
+
+    /// An orc's odds, rolled once per equipment slot (weapon, armour, ring),
+    /// of arriving with a piece in it.
+    pub const ORC_GEAR_CHANCE: f64 = 0.15;
+
+    /// How many points of base power a rattlesnake's bite drains — permanently,
+    /// and unlike the dart trap's, with no floor of 1: a rattlesnake can drive a
+    /// victim's power negative.
+    pub const RATTLESNAKE_POWER_DRAIN: i32 = 1;
+
+    /// How many points of max HP a vampire's touch drains per hit.
+    pub const VAMPIRE_MAX_HP_DRAIN: i32 = 1;
+
+    /// How far a launcher-wielding monster (a centaur, a medusa) can loose a
+    /// shot. Shares the player's own throw reach.
+    pub use crate::constants::items::THROW_RANGE as MONSTER_SHOT_RANGE;
 }
 
 // ===========================================================================

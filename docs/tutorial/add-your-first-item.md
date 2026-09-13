@@ -139,7 +139,7 @@ Suppose your quarterstaff is really a javelin. Change your row to:
 
 Rebuild, and throw it at something:
 
-    ROOG_SPAWN="quarterstaff,goblin" cargo run -p engine
+    ROOG_SPAWN="quarterstaff,bat" cargo run -p engine
 
 It now flies properly: it goes around the target's armour die instead of being blunted by it, it is spent on what it hits, and nothing can pluck it out of the air. You did not implement any of that. Those three behaviours belong to `.missile(...)`, and every row that asks for them gets all three.
 

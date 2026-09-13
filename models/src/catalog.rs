@@ -737,6 +737,45 @@ pub const RINGS: &[RingDef] = &[
 ];
 
 // ---------------------------------------------------------------------------
+// Active moves
+// ---------------------------------------------------------------------------
+
+/// An active move: the identity and numbers behind a [`MoveEffect`], the way
+/// [`WandDef`] is behind a [`WandEffect`]. Unlike every other row in this
+/// file, a move is never spawned — it is not an [`ItemDef`], has no
+/// [`Position`] on the floor and no pack slot. Its mechanic lives in
+/// `crate::items::moves`, keyed by [`MoveDef::effect`].
+pub struct MoveDef {
+    pub effect: MoveEffect,
+    pub name: &'static str,
+    /// [`Magic`] points one use costs.
+    pub cost: u8,
+    /// How far the aiming reticle reaches.
+    pub range: i32,
+}
+
+impl MoveDef {
+    /// The catalog row for `effect`. Panics on a move that isn't in the table
+    /// — which would mean a [`MoveEffect`] variant nobody ever gave a row.
+    pub fn of(effect: MoveEffect) -> &'static MoveDef {
+        MOVES
+            .iter()
+            .find(|m| m.effect == effect)
+            .unwrap_or_else(|| panic!("no move row for {effect:?}"))
+    }
+}
+
+/// Every active move in the game. One row today — the dragon's own trick, on
+/// loan to the player for testing under its own name. Unlike a player's,
+/// a *monster's* use of the same trick ([`crate::items::dragon_breath`], the
+/// dragon's own innate attack) spends no [`Magic`] at all — the cost here is
+/// the price of the player borrowing it, not a property of the trick itself.
+#[rustfmt::skip]
+pub const MOVES: &[MoveDef] = &[
+    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8 },
+];
+
+// ---------------------------------------------------------------------------
 // Coins and the relic
 // ---------------------------------------------------------------------------
 

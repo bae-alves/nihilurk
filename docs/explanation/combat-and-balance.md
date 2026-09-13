@@ -8,7 +8,7 @@ Why monsters are so fragile
                    themselves see `../reference/content-tables.md`; for
                    the act of adding a row, `../how-to/add-a-monster.md`.
 
-A goblin has one hit point. That is not a placeholder.
+A bat has one hit point. That is not a placeholder.
 
 
 One exchange, two dice
@@ -32,7 +32,7 @@ A creature's survival comes from winning the armour roll, not from absorbing man
 
 The practical rule: **raise `armor` and `armor_bonus` to make a thing hard to kill; raise `power` and `power_bonus` to make it frightening to stand next to; raise `hp` only to buy a creature one more exchange.**
 
-The tension this buys is Rogue's: every fight is short, every fight can go wrong, and a goblin with a lucky roll can end a run that had a plan. Fragility cuts both ways -- the player has twelve hit points.
+The tension this buys is Rogue's: every fight is short, every fight can go wrong, and a bat with a lucky roll can end a run that had a plan. Fragility cuts both ways -- the player has twelve hit points.
 
 
 The two rules that apply only to the player

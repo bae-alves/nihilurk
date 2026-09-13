@@ -23,16 +23,32 @@
 //! [`crate::helpers::free_adjacent_tile`] — live in [`crate::helpers`]. The
 //! verbs that put an affliction on or take one off are [`crate::conditions`].
 
+mod moves;
 mod pickups;
 mod potions;
 pub(crate) mod rings;
 mod scrolls;
+mod theft;
 mod throwing;
 mod wands;
+
+pub use moves::move_system;
+
+/// The leprechaun's and the nymph's on-hit tricks, named by
+/// [`crate::abilities::ON_HIT_ABILITIES`] without that table knowing anything
+/// about potions, scrolls or teleportation.
+pub(crate) use theft::{leprechaun_theft, nymph_theft};
 
 pub use throwing::{
     ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_refusal, throw_system,
 };
+
+/// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
+/// melee attack for as long as it has one drawn.
+pub(crate) use throwing::monster_ranged_attack;
+
+/// A dragon's fireball, called by [`crate::ai`] in place of a melee attack.
+pub(crate) use wands::dragon_breath;
 
 /// The `T` key's whole implementation — the deliberate teleport a ring of
 /// teleportation makes possible. Public because the input loop calls it; silent
@@ -47,6 +63,10 @@ pub use pickups::{break_promises, pick_up, settle_promises, would_help};
 /// A coin claimed by shooting it rather than stepping on it — see
 /// [`crate::traps::detonate_pickup`].
 pub(crate) use pickups::claim_from_afar;
+
+/// A coin-greedy monster claiming one it stepped on — see
+/// [`crate::ai::monster_pickup_system`].
+pub(crate) use pickups::monster_claim;
 
 /// The enchantment a forge coin buys, borrowed from the scroll that invented it.
 pub(crate) use scrolls::enchant_equipped;

@@ -82,7 +82,7 @@ Your arm receives:
 > **A trap fires for monsters too.** `victim` is whoever moved onto the
 > tile. Write the log line through the `seen` / `is_player` pair the way
 > the existing arms do, or the player will read second-person messages
-> about a goblin.
+> about a bat.
 
 > **A trap fires for whoever is *near* it too.** Shoot a trap, or catch
 > one in a wand's blast, and `detonate_trap` bursts it over the 3x3

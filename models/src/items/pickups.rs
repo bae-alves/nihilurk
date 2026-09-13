@@ -96,6 +96,32 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
     Some(format!("You pick up the {name}. {line}"))
 }
 
+/// A coin-greedy monster (an orc) stepping onto a coin it can actually use —
+/// health, magic, a cleared affliction, restored strength. It never touches
+/// the two score coins or the two promise coins, which pay off only for the
+/// player anyway — [`crate::ai::orc_coin_goal`] only ever points one at a red
+/// coin in the first place, but this is what stops an orc that stumbles onto
+/// a gold coin mid-chase from "spending" it for nothing.
+///
+/// Silent: a monster patching itself up is not something the player reads a
+/// line about, unlike the player's own pickups. The coin is spent and gone
+/// either way. Returns whether anything was actually claimed.
+pub(crate) fn monster_claim(world: &mut World, monster: Entity, item: Entity) -> bool {
+    let Some((effect, amount)) = world.get::<Pickup>(item).map(|p| (p.effect, p.amount)) else {
+        return false;
+    };
+    let usable = matches!(
+        effect,
+        PickupEffect::Health | PickupEffect::Power | PickupEffect::Cleanse | PickupEffect::Strength
+    );
+    if !usable || !would_help(world, monster, effect) {
+        return false;
+    }
+    apply(world, monster, effect, amount);
+    world.entity_mut(item).despawn();
+    true
+}
+
 /// The coin somebody *shot* instead of stepping on: its effect reaches the
 /// shooter across the room, and its score with it.
 ///

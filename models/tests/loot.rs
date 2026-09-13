@@ -73,11 +73,18 @@ fn floor_loot_follows_the_rogue_drop_table() {
                 Option<&Pickup>,
                 Option<&Stack>,
                 Option<&Launcher>,
+                Option<&Equipped>,
             ), (With<Item>, With<Position>)>();
-            for (e, potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher) in
+            for (e, potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher, equipped) in
                 q.iter(&w)
             {
                 if carried.contains(&e) {
+                    continue;
+                }
+                // A monster's starting gear (a centaur's bow, a hobgoblin's
+                // sword) is bestiary-driven, not a roll of `DROPS` — it would
+                // skew the very table this test is checking.
+                if equipped.is_some_and(|eq| eq.by.is_some()) {
                     continue;
                 }
                 t.total += 1;
@@ -180,9 +187,9 @@ fn floor_item_count(w: &mut World) -> usize {
         .iter()
         .copied()
         .collect();
-    w.query_filtered::<Entity, (With<Item>, With<Position>)>()
+    w.query_filtered::<(Entity, Option<&Equipped>), (With<Item>, With<Position>)>()
         .iter(w)
-        .filter(|e| !carried.contains(e))
+        .filter(|(e, eq)| !carried.contains(e) && !eq.is_some_and(|eq| eq.by.is_some()))
         .count()
 }
 

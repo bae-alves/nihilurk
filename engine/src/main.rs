@@ -313,9 +313,12 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         active: false,
         item: None,
         throwing: false,
+        move_effect: None,
+        looking: false,
         cursor_x: 0,
         cursor_y: 0,
     });
+    world.init_resource::<MovesMenu>();
     world.init_resource::<QuitPrompt>();
     world.insert_resource(PlayerName {
         what: player_name.to_ascii_uppercase(),
@@ -336,6 +339,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<ThrowQueue>();
+    world.init_resource::<MoveQueue>();
     world.init_resource::<PlayerTempo>();
     world.init_resource::<GameLog>();
     world.insert_resource(models::Particles::new());
@@ -375,14 +379,26 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     schedule.add_systems((
         smoke_system.before(snare_system),
         snare_system,
-        ai.after(snare_system),
-        trap_system.after(ai),
+        // A xeroc's disguise falls away the instant the player is adjacent to
+        // it — before `ai` runs, so the very turn that happens it also gets
+        // to lash out as the `Ambush` mob it always was.
+        reveal_mimics.after(snare_system),
+        ai.after(reveal_mimics),
+        // A coin-greedy orc that just stepped onto a coin it can use claims it
+        // here, while `EntityMoved` still marks it — the same tag the trap
+        // system reads right after.
+        monster_pickup_system.after(ai),
+        trap_system.after(monster_pickup_system),
         throw_system.after(trap_system),
         item_system.after(throw_system),
+        // An active move resolves the same moment a zapped wand would; there's
+        // no ordering reason it has to follow items rather than sit beside
+        // them, only that it needs somewhere fixed to be.
+        move_system.after(item_system),
         // Gear changed by anything other than the pack screen — a loaded save, a
         // curse-lifting scroll — has its lent effects reconciled here, before
         // combat and visibility read them.
-        equipment_effects_system.after(item_system),
+        equipment_effects_system.after(move_system),
         combat_system.after(equipment_effects_system),
         reaper_system.after(combat_system),
         dungeon_lord_system.after(reaper_system),

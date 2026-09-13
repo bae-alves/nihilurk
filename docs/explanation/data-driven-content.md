@@ -17,7 +17,7 @@ The problem this solves
 The default shape of a roguelike codebase is a constructor per monster and a `match` per item kind:
 
     fn spawn_dragon(world, pos) { /* twenty lines */ }
-    fn spawn_goblin(world, pos) { /* twenty lines */ }
+    fn spawn_bat(world, pos) { /* twenty lines */ }
 
     match ring.effect {
         RingEffect::Protection => armor += 2,

@@ -13,8 +13,10 @@ Start here
 |-------------------------------------|-----------------------------------------|
 | Add my first item, hand-held        | `tutorial/add-your-first-item.md`       |
 | Add my first monster, hand-held     | `tutorial/add-your-first-monster.md`    |
+| Add my first move, hand-held        | `tutorial/add-your-first-move.md`       |
 | Add a monster                       | `how-to/add-a-monster.md`               |
 | Add a potion, wand, weapon, ring    | `how-to/add-an-item.md`                 |
+| Add an active move                  | `how-to/add-a-move.md`                  |
 | Add a trap                          | `how-to/add-a-trap.md`                  |
 | Add a property like "fire immune"   | `how-to/add-an-effect.md`               |
 | Make something rarer, or deeper     | `how-to/tune-rarity-and-depth.md`       |

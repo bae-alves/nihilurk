@@ -37,7 +37,7 @@ flowchart LR
 What you are about to learn
 ---------------------------
 
-There is no goblin class in roog. There is no `Monster` trait, no `impl Dragon`, and no file called `monsters/` full of behaviour. There is one table, and a goblin is a line in it.
+There is no bat class in roog. There is no `Monster` trait, no `impl Dragon`, and no file called `monsters/` full of behaviour. There is one table, and a bat is a line in it.
 
 By the end you will have added a basilisk that is immune to fire, invisible, rare, and waiting on the deep floors -- and you will not have written a single line of behaviour to get any of that.
 
@@ -49,11 +49,11 @@ Every creature in the game lives in one file:
 
     models/src/monsters.rs
 
-Open it and search for `BESTIARY`. Twenty-seven lines, one per species. Read the goblin:
+Open it and search for `BESTIARY`. Twenty-six lines, one per species. Read the bat:
 
-    //              name        glyph  colour        move   hp  pow  pb  ar  ab  dep
-    MonsterDef::row("goblin",   'g',   Color::Green, Flee,   1,   4,  0,  6,  0,   1)
-        .grants(ITEM_USER),
+    //              name       glyph  colour            move   hp  pow  pb  ar  ab  dep
+    MonsterDef::row("bat",     'B',   Color::DarkGrey,  Chase,  1,   4,  0,  8,  0,   1)
+        .grants(&[Grant::of::<Batty>()]),
 
 Ten columns, and the header comment above the table names them. The four that decide how a fight goes are the middle ones:
 
@@ -65,7 +65,7 @@ Ten columns, and the header comment above the table names them. The four that de
 
 There is no to-hit roll and nothing ever misses. A blow is your roll minus its roll, and what is left comes off somebody's hit points. That is the whole of combat; see `../explanation/combat-and-balance.md` when you want to know why the numbers are small.
 
-The last column, `dep`, is the shallowest floor the creature appears on. The goblin starts at 1. The dragon starts at 10.
+The last column, `dep`, is the shallowest floor the creature appears on. The bat starts at 1. The dragon starts at 10.
 
 
 Step 2: add a row
@@ -75,7 +75,7 @@ A basilisk should be a mid-tier horror: tough, slow to kill, hits hard. Add this
 
     MonsterDef::row("basilisk",  'b',   Color::DarkGreen,  Chase,  5,   8,  1,   8,  1,   5),
 
-`Chase` is one of four tactics, and it is the only one that walks toward you. The others are `Flee` (walks away), `Static` (does not move at all -- the venus flytrap, the ice monster lying in wait) and `Confused` (staggers at random, which is what a bat does all the time and what anything does after a flash of light).
+`Chase` is one of five tactics, and it is the only one that walks toward you. The others are `Flee` (walks away), `Static` (never acts at all -- the inert placeholder the test suite reaches for), `Ambush` (lies in wait and never approaches, but lunges the instant you draw alongside it -- the venus flytrap, the ice monster) and `Confused` (staggers at random, which is what anything does after a flash of light).
 
 The table carries `#[rustfmt::skip]`, so `cargo fmt` will leave your alignment alone. These tables are meant to be read as columns.
 
@@ -102,7 +102,7 @@ That listing is not a hand-maintained document. It walks the tables at run time.
 More than the listing changed, and this is the part worth pausing on. Your basilisk is now:
 
   * something a floor at depth 5 or deeper can populate itself with,
-  * something a wand of polymorph can turn a goblin into,
+  * something a wand of polymorph can turn a bat into,
   * something a scroll of create monster can conjure,
   * a legal bane for a scroll of vorpalize weapon,
   * and something that comes back correctly out of a save file.

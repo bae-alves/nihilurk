@@ -120,7 +120,7 @@ Checks that will catch you
   * your row cannot be built by name (`every_content_name_spawns_and_...`)
   * a species turns up above its `min_depth` (`a_species_never_appears_above_its_min_depth`)
 
-Glyph collisions are *not* checked. Two creatures may share a letter; the existing bestiary uses one letter per species by convention, and `g` is already the goblin's.
+Glyph collisions are *not* checked. Two creatures may share a letter; the existing bestiary uses one letter per species by convention, and `D` is already the dragon's.
 
 
 See also

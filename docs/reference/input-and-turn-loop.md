@@ -59,11 +59,13 @@ flowchart LR
 
 One `Schedule`, run once per turn, in this fixed order:
 
-    smoke_system -> snare_system -> ai
-      -> trap_system -> throw_system -> item_system
+    smoke_system -> snare_system -> reveal_mimics -> ai -> monster_pickup_system
+      -> trap_system -> throw_system -> item_system -> move_system
       -> equipment_effects_system -> combat_system -> reaper_system
       -> dungeon_lord_system -> passive_ability_system
       -> visibility_system
+
+`reveal_mimics` runs right before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `monster_pickup_system` runs right after `ai`, while `EntityMoved` still marks whoever just stepped: a coin-greedy monster (an orc) that walked onto a coin it can use claims it there, before `trap_system` clears the tag. `move_system` sits beside `item_system` for the same reason a wand's zap does — an active move (`Z`, or `Alt`+`Q`/`W`/`E`/`R`) spends its `Magic` cost and resolves there.
 
 `passive_ability_system` sits second-to-last on purpose. A passive that merely happens to you can roll anywhere; one that *moves* you cannot. Rolled after `ai`, a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again — and there is still a visibility pass and a render left in the turn to show it to them.
 
@@ -252,7 +254,9 @@ The action modal (`run_action_modal`, `PackMode::Browse` only) is a fixed three-
 The aiming reticle
 --------------------
 
-`TargetingState` holds which item, whether it's a throw or a zap, and the cursor. `move_target_cursor` only allows the cursor onto a tile that is both currently visible and within `aim_range` — `THROW_RANGE` for a throw, the item's own `Ranged.range` for a zap, `8` as a fallback. Confirming (`fire_at_target`) refuses a shot at the player's own tile ("Great idea! But no.") and otherwise removes the item from the pack and pushes a `WantsToThrow` or `WantsToUse` onto the matching queue for `throw_system` / `item_system` to resolve next schedule run. A throw of a stacked item (arrows) goes through `models::draw_one` first, which splits one unit off and leaves the rest in the pack slot.
+`TargetingState` holds which of an item, an active move, or a plain look the reticle is for (exactly one of `item` / `move_effect` / `looking`), plus whether it's a throw, and the cursor. `move_target_cursor` only allows the cursor onto a tile that is both currently visible and within `aim_range` — `THROW_RANGE` for a throw, the move's own `MoveDef.range`, the item's own `Ranged.range` for a zap, a look's own reach the width of the map (the `in_view` check does the real bounding), `8` as a fallback. `Tab` (`cycle_target`) snaps the cursor to the next monster or item in view instead of nudging it one tile. Confirming (`fire_at_target`) refuses a shot at the player's own tile ("Great idea! But no.") for every purpose except looking — that one is allowed on your own tile, and spends no turn at all. Otherwise it removes the item from the pack and pushes a `WantsToThrow` or `WantsToUse` onto the matching queue, or a `WantsToMove` onto `MoveQueue`, for `throw_system` / `item_system` / `move_system` to resolve next schedule run. A throw of a stacked item (arrows) goes through `models::draw_one` first, which splits one unit off and leaves the rest in the pack slot.
+
+`L` opens the reticle in look mode; every cursor move (arrows or `Tab`) reads the tile out loud through `announce_look` rather than waiting for `Enter` — `l` then `Tab Tab Tab` walks everything in view. On a monster, it also lists `"Beware {its/their} ___."` for each notable move or on-hit trick it carries (`MONSTER_DANGERS` in `engine/src/update.rs`), `"their"` for anything with `ItemUser`, `"its"` otherwise.
 
 
 Running, auto-explore, and travel

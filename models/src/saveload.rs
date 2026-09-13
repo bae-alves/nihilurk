@@ -217,6 +217,9 @@ struct EntitySave<'a> {
     plated: bool,
     #[serde(default)]
     forged: bool,
+    /// The player's active-move bar. Nothing else in the game carries one yet.
+    #[serde(default)]
+    moveset: Option<Vec<MoveEffect>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -369,6 +372,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
             plated: er.contains::<Plated>(),
             forged: er.contains::<Forged>(),
+            moveset: er.get::<Moveset>().map(|m| m.slots.clone()),
         });
     }
 
@@ -634,6 +638,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if es.forged {
             em.insert(Forged);
+        }
+        if let Some(slots) = es.moveset {
+            em.insert(Moveset { slots });
         }
         if es.floor_grants != 0 {
             em.insert(GrantedForFloor(es.floor_grants));

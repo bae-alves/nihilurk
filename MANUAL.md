@@ -345,7 +345,7 @@ Dying (and everything else)
 
 Death is permanent, there is no retry. A "You die..." panel, a `--MORE--`, then a tombstone, what killed you, and your score.
 
-Score, in full: **100 points per hit point of every creature that dies** (a goblin is a rounding error, a griffin is a thousand), **500 points per difficulty tier every time you take a staircase** — 500 a flight down to depth 3, 1000 through depth 6, and so on, paid on the way down and again on the way back up — and **treasure, the moment you pick it up**: 5000 for a gold coin, 1000 for a silver one, 25000 for the Element of Yoord itself. Then there are the two things that double the lot: a ring of adornment, and getting out alive.
+Score, in full: **100 points per hit point of every creature that dies** (a bat is a rounding error, a griffin is a thousand), **500 points per difficulty tier every time you take a staircase** — 500 a flight down to depth 3, 1000 through depth 6, and so on, paid on the way down and again on the way back up — and **treasure, the moment you pick it up**: 5000 for a gold coin, 1000 for a silver one, 25000 for the Element of Yoord itself. Then there are the two things that double the lot: a ring of adornment, and getting out alive.
 
 **Kill more than one thing in a turn and the whole turn's killing is worth more**: +50% for each corpse past the first, applied to all of them together. Two at once is worth 1.5x, three is worth double, and a thrown wand that clears a room is worth far more than the same room cleared one swing at a time. The score line shouts `COMBO!` when it happens, and the log says "With style."
 

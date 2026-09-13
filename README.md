@@ -43,7 +43,7 @@ That is: name, glyph, colour, how it moves, then hit points, attack die, attack 
 
     cargo build
 
-That is the change. The pink dragon now populates floors from depth 7, is something a wand of polymorph can turn a goblin into, something a scroll of create monster can summon, a legal bane for a vorpal weapon, and it comes back correctly out of a save file. Nothing else in the codebase had to be told it exists, because nothing else enumerates species.
+That is the change. The pink dragon now populates floors from depth 7, is something a wand of polymorph can turn a bat into, something a scroll of create monster can summon, a legal bane for a vorpal weapon, and it comes back correctly out of a save file. Nothing else in the codebase had to be told it exists, because nothing else enumerates species.
 
 Items are the same shape, in `models/src/catalog.rs` -- one table per kind, one row per thing:
 

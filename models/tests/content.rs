@@ -38,10 +38,16 @@ fn every_content_name_spawns_and_keeps_its_name() {
             .get::<Name>(entity)
             .expect("everything spawns with a Name")
             .what;
-        assert_eq!(
-            spawned, name,
-            "{category} row spawned under a different name"
-        );
+        // A mimic is the one deliberate exception: it is born wearing a false
+        // name on purpose, and only [`crate::monsters::reveal_mimics`] gives it
+        // back.
+        let mimics = MonsterDef::lookup(name).is_some_and(|m| m.mimics);
+        if !mimics {
+            assert_eq!(
+                spawned, name,
+                "{category} row spawned under a different name"
+            );
+        }
         assert!(
             w.get::<Position>(entity).is_some(),
             "{name:?} spawned nowhere"
@@ -135,10 +141,19 @@ fn a_species_never_appears_above_its_min_depth() {
 
 #[test]
 fn the_deep_letters_do_eventually_turn_up() {
-    // "Deepest tier" is whatever the bestiary's largest `min_depth` is, read
-    // off the table — rebalancing which floor the dragon debuts on must not
-    // turn this red.
-    let deepest = BESTIARY.iter().map(|m| m.min_depth).max().unwrap();
+    // "The deepest tier" is the deepest `min_depth` shared by at least three
+    // species, read off the table — rebalancing which floor a monster debuts
+    // on must not turn this red. A single rarer capstone above it (the xeroc,
+    // deeper still and alone up there) is deliberately not what this checks:
+    // that one is asked for on its own in `xeroc_only_turns_up_past_its_debut`.
+    let mut tiers: Vec<u8> = BESTIARY.iter().map(|m| m.min_depth).collect();
+    tiers.sort_unstable();
+    tiers.dedup();
+    let deepest = *tiers
+        .iter()
+        .rev()
+        .find(|&&d| BESTIARY.iter().filter(|m| m.min_depth == d).count() >= 3)
+        .expect("some tier in the bestiary holds at least three species");
     let mut r = rng(13);
     let deep: HashSet<&str> = (0..2_000)
         .map(|_| MonsterDef::pick(FINAL_DEPTH, &mut r).name)
@@ -151,6 +166,26 @@ fn the_deep_letters_do_eventually_turn_up() {
 }
 
 #[test]
+fn xeroc_only_turns_up_past_its_debut() {
+    // The mimic is the one final-tier species deeper than the D/G/J/V tier,
+    // and alone up there on purpose.
+    assert_eq!(MonsterDef::named("xeroc").min_depth, FINAL_DEPTH);
+    let mut r = rng(37);
+    for depth in 1..FINAL_DEPTH {
+        for _ in 0..300 {
+            assert_ne!(MonsterDef::pick(depth, &mut r).name, "xeroc");
+        }
+    }
+    let seen: HashSet<&str> = (0..500)
+        .map(|_| MonsterDef::pick(FINAL_DEPTH, &mut r).name)
+        .collect();
+    assert!(
+        seen.contains("xeroc"),
+        "the xeroc should turn up once its own floor unlocks it"
+    );
+}
+
+#[test]
 fn pick_any_ignores_the_depth_gate() {
     // The climb out with the Element of Yoord: every floor draws from the whole
     // bestiary, so the deepest letters can turn up regardless of depth.
@@ -159,7 +194,7 @@ fn pick_any_ignores_the_depth_gate() {
         .map(|_| MonsterDef::pick_any(&mut r).name)
         .collect();
     assert!(
-        seen.contains("dragon") && seen.contains("goblin"),
+        seen.contains("dragon") && seen.contains("bat"),
         "pick_any should mix the whole table, saw {seen:?}"
     );
 }
@@ -170,7 +205,7 @@ fn floor_one_draws_only_from_the_shallow_bestiary() {
     let seen: HashSet<&str> = (0..1_000)
         .map(|_| MonsterDef::pick(1, &mut r).name)
         .collect();
-    assert!(seen.contains("goblin"));
+    assert!(seen.contains("bat"));
     assert!(
         !seen.contains("dragon"),
         "a dragon on floor 1 would end the run there"

@@ -223,6 +223,10 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         return;
     }
 
+    // Looking upon a medusa costs you before your blade ever lands — see
+    // `crate::abilities::medusa_gaze`.
+    crate::abilities::medusa_gaze(world, attacker, target);
+
     let matchup = fold_matchup(world, attacker, target);
     let swing = roll_swing(world, &matchup);
     let swing = clamp_swing(world, target, &matchup, swing);

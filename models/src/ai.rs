@@ -1,13 +1,18 @@
 use crate::components::*;
-use crate::effects::Stealthy;
+use crate::effects::{CoinGreedy, FireBreath, Stealthy};
+use crate::helpers::get_line;
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
+use rand::Rng;
 use std::collections::{HashMap, HashSet};
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `constants.rs`.
 //
-//   STEALTH_RANGE  how close a stealthy player must be to be noticed
+//   STEALTH_RANGE         how close a stealthy player must be to be noticed
+//   DRAGON_FIREBALL_CHANCE  odds a dragon breathes fire instead of clawing
+//   MONSTER_SHOT_RANGE      how far a launcher-wielding monster can loose a shot
+use crate::constants::monsters::{DRAGON_FIREBALL_CHANCE, MONSTER_SHOT_RANGE};
 use crate::constants::rings::STEALTH_RANGE;
 
 /// Monster turn. Exclusive so it can move each mob more than once: the player is
@@ -150,6 +155,7 @@ fn monster_round(
                 world,
                 mob,
                 pass,
+                player_entity,
                 player_pos,
                 visible_tiles,
                 player_stealthy,
@@ -185,14 +191,16 @@ fn actor_positions(
 }
 
 /// One mob's turn within a pass: forfeit if asleep or out of energy (a
-/// bear-trapped mob may still strike but not step), work out where it wants to
-/// go, then either queue an attack or take the step. Returns whether it did
-/// anything — a whole idle pass ends the round.
+/// bear-trapped mob may still strike but not step), take a ranged shot if it
+/// has one drawn, work out where it wants to go, then either queue an attack
+/// or take the step. Returns whether it did anything — a whole idle pass ends
+/// the round.
 #[allow(clippy::too_many_arguments)] // one mob's whole turn, and the turn's facts
 fn step_one_mob(
     world: &mut World,
     mob: Entity,
     pass: usize,
+    player_entity: Entity,
     player_pos: Position,
     visible_tiles: &HashSet<(u16, u16)>,
     player_stealthy: bool,
@@ -217,7 +225,28 @@ fn step_one_mob(
 
     let in_view = visible_tiles.contains(&(mob_pos.x, mob_pos.y));
     let seen = notices(in_view, player_stealthy, player_pos, mob_pos);
-    let Some((step_x, step_y)) = desired_step(movement_type, player_pos, mob_pos, seen) else {
+
+    // A launcher drawn is worth nothing swung, so anything wielding one uses
+    // it exactly the way it was found: a centaur or a medusa that can see the
+    // player and has a clear line to them shoots rather than closes — even at
+    // arm's reach, since stepping into melee would only trade the bow for a
+    // stick. Monsters keep no quiver, so this never runs dry.
+    if !pinned
+        && mob_faction == Faction::Monster
+        && seen
+        && chebyshev(mob_pos, player_pos) <= MONSTER_SHOT_RANGE
+        && crate::equipment::wielded_launcher(world, mob).is_some()
+        && has_line_of_sight(map, mob_pos, player_pos)
+    {
+        crate::items::monster_ranged_attack(world, mob, player_entity);
+        spend_energy(world, mob);
+        return true;
+    }
+
+    let goal = orc_coin_goal(world, mob, mob_pos)
+        .map(|target| step_toward(mob_pos, target))
+        .or_else(|| desired_step(movement_type, player_pos, mob_pos, seen));
+    let Some((step_x, step_y)) = goal else {
         return false;
     };
     let new_x = (mob_pos.x as i16 + step_x) as u16;
@@ -231,13 +260,21 @@ fn step_one_mob(
         if !hostile(mob_faction, target_faction) {
             return false;
         }
-        world
-            .resource_mut::<AttackQueue>()
-            .attacks
-            .push(WantsToAttack {
-                attacker: mob,
-                target: target_entity,
-            });
+        let breathes_fire = world.get::<FireBreath>(mob).is_some()
+            && world
+                .resource_mut::<crate::map::GameRng>()
+                .0
+                .gen_bool(DRAGON_FIREBALL_CHANCE);
+        match breathes_fire {
+            true => crate::items::dragon_breath(world, mob, target_entity),
+            false => world
+                .resource_mut::<AttackQueue>()
+                .attacks
+                .push(WantsToAttack {
+                    attacker: mob,
+                    target: target_entity,
+                }),
+        }
         spend_energy(world, mob);
         return true;
     }
@@ -257,6 +294,78 @@ fn step_one_mob(
     world.entity_mut(mob).insert(EntityMoved);
     spend_energy(world, mob);
     true
+}
+
+/// The Chebyshev (chessboard) distance between two tiles — the same "closest
+/// diagonal counts as one step" measure the rest of the AI uses for adjacency.
+fn chebyshev(a: Position, b: Position) -> i32 {
+    (a.x as i32 - b.x as i32)
+        .abs()
+        .max((a.y as i32 - b.y as i32).abs())
+}
+
+/// The one-tile step from `from` toward `to`.
+fn step_toward(from: Position, to: Position) -> (i16, i16) {
+    (
+        (to.x as i16 - from.x as i16).signum(),
+        (to.y as i16 - from.y as i16).signum(),
+    )
+}
+
+/// Whether a shot could travel clean from `from` to `to` — no wall standing in
+/// the way. Doesn't care what else is standing in the line: a monster's own
+/// kin are not a good enough reason to hold its fire.
+fn has_line_of_sight(map: &Map, from: Position, to: Position) -> bool {
+    get_line(from, to)
+        .into_iter()
+        .filter(|&p| (p.x, p.y) != (from.x, from.y) && (p.x, p.y) != (to.x, to.y))
+        .all(|p| !map.blocks(p.x, p.y))
+}
+
+/// Where a coin-greedy, damaged orc should head instead of the player: the
+/// nearest red (healing) coin still lying on the floor. Ignores every other
+/// coin on purpose — a distracted orc wants to patch itself up, not cash in a
+/// promise or pad the score. `None` for anything else, a coin-greedy orc at
+/// full health included.
+fn orc_coin_goal(world: &mut World, mob: Entity, mob_pos: Position) -> Option<Position> {
+    if world.get::<CoinGreedy>(mob).is_none() {
+        return None;
+    }
+    if !world.get::<Fighter>(mob).is_some_and(|f| f.hp < f.max_hp) {
+        return None;
+    }
+    let mut q = world.query_filtered::<(&Position, &Pickup), ()>();
+    q.iter(world)
+        .filter(|(_, p)| p.effect == PickupEffect::Health)
+        .map(|(pos, _)| *pos)
+        .min_by_key(|&pos| chebyshev(mob_pos, pos))
+}
+
+/// The other half of an orc's greed: any [`CoinGreedy`] mob that just stepped
+/// onto a coin it can use ([`crate::items::monster_claim`]) scoops it up.
+/// Scheduled right after [`ai`] itself, while [`EntityMoved`] still marks
+/// whoever moved this turn — the same tag [`crate::traps::trap_system`] reads
+/// straight after this.
+pub fn monster_pickup_system(world: &mut World) {
+    let movers: Vec<Entity> = world
+        .query_filtered::<Entity, (With<EntityMoved>, With<CoinGreedy>)>()
+        .iter(world)
+        .collect();
+    for mover in movers {
+        let Some(pos) = world.get::<Position>(mover).copied() else {
+            continue;
+        };
+        let Some(item) = pickup_at(world, pos) else {
+            continue;
+        };
+        crate::items::monster_claim(world, mover, item);
+    }
+}
+
+/// The [`Pickup`] sitting on `pos`, if there is one.
+fn pickup_at(world: &mut World, pos: Position) -> Option<Entity> {
+    let mut q = world.query_filtered::<(Entity, &Position), With<Pickup>>();
+    q.iter(world).find(|(_, p)| **p == pos).map(|(e, _)| e)
 }
 
 /// Whether `mob` can spend a step this pass: with a tempo it must be able to
@@ -313,6 +422,14 @@ fn desired_step(
                 (tx, ty)
             };
             Some(toward(gx, gy))
+        }
+        MovementType::Ambush => {
+            // Lies in wait: never approaches, but a player who draws
+            // alongside it gets lunged at exactly like an aggravated mob
+            // closing the last step.
+            let adjacent = (player_pos.x as i16 - mob_pos.x as i16).abs() <= 1
+                && (player_pos.y as i16 - mob_pos.y as i16).abs() <= 1;
+            adjacent.then(|| toward(player_pos.x, player_pos.y))
         }
     }
 }

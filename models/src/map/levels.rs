@@ -524,6 +524,11 @@ pub fn initialize_world(world: &mut World) {
             Score { value: 0 },
             Blood,
             Speed::new(SpeedKind::Normal),
+            // Dragon's breath, on loan to the player for testing the active-move
+            // system (`Z`, or `Alt`+`Q`/`W`/`E`/`R`).
+            Moveset {
+                slots: vec![MoveEffect::DragonBreath],
+            },
         ))
         .id();
 
