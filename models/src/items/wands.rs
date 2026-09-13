@@ -722,6 +722,9 @@ pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
             p.y = y;
         }
     }
+    world
+        .entity_mut(victim)
+        .remove::<crate::components::Snare>();
     if let Some(old_pos) = old_pos {
         leave_smoke(world, old_pos);
     }

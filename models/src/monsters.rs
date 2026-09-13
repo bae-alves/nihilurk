@@ -13,7 +13,7 @@ use crate::effects::{
 use crate::equipment::equip_silently;
 use crate::map::{FINAL_DEPTH, GameRng};
 use crate::spawn::pick_weighted;
-use MovementType::{Ambush, Chase, Flee};
+use MovementType::{Ambush, Chase};
 
 /// The spawn weight a bestiary row gets when it doesn't `.weight(n)` for itself.
 /// Defined and documented in `constants.rs`.
@@ -273,7 +273,7 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      6,  10,   0,   8,  1,   5)
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<Gorgon>()])
         .equip(&[EquipRoll { chance: MEDUSA_BOW_CHANCE, kind: EquipKind::Bow }]),
-    MonsterDef::row("nymph",         'N',   Color::Magenta,     Flee,       2,   4,  -1,   4, -1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndVanishes>()]),
+    MonsterDef::row("nymph",         'N',   Color::Magenta,     Chase,      2,   4,  -1,   4, -1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndVanishes>()]),
     MonsterDef::row("orc",           'O',   Color::Red,         Chase,      1,   8,   0,   6,  0,   1)
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<CoinGreedy>()])
         .equip(&[

@@ -218,6 +218,10 @@ pub(super) fn teleport_reader(world: &mut World, user: Entity) {
             vs.dirty = true;
         }
     }
+    // A teleport carries you clean out of whatever was holding you in place —
+    // otherwise a bear trap's Snare survives the jump and keeps thrashing a
+    // leg on a tile nowhere near the actual trap.
+    world.entity_mut(user).remove::<crate::components::Snare>();
     world
         .resource_mut::<GameLog>()
         .add("BLONK! You are whisked away!".to_string());
