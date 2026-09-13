@@ -1,3 +1,9 @@
+//! An inclusive tile rectangle — one room, as `crate::map` lays it out.
+
+/// A room's footprint: `x1..=x2` by `y1..=y2`, inclusive on every edge.
+///
+/// Rooms never need an overlap test: `build_tiles` places at most one per
+/// section of a 3x3 grid with gutters between, so two of them cannot touch.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Rect {
     pub x1: i32,
@@ -16,11 +22,8 @@ impl Rect {
         }
     }
 
-    // Returns true if this overlaps with other
-    pub fn intersect(&self, other: &Rect) -> bool {
-        self.x1 <= other.x2 && self.x2 >= other.x1 && self.y1 <= other.y2 && self.y2 >= other.y1
-    }
-
+    /// The room's middle tile — where the up-stair goes, and where the player
+    /// lands on arriving.
     pub fn center(&self) -> (i32, i32) {
         ((self.x1 + self.x2) / 2, (self.y1 + self.y2) / 2)
     }

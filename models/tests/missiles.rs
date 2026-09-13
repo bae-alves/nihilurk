@@ -11,6 +11,8 @@
 //! file is about one pack slot holding thirteen arrows and giving them up one at a
 //! time.
 
+mod common;
+
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -728,8 +730,8 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     w.entity_mut(bow).insert(ThrowBonus(2));
     stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
 
-    let path = std::env::temp_dir().join("roog-missiles.sav");
-    save_game(&mut w, path.to_str().unwrap()).unwrap();
+    let save = common::SaveFile::new("missiles");
+    save_game(&mut w, save.path()).unwrap();
     // A bare world: `load_game` builds the whole thing, player included.
     let mut loaded = World::new();
     loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(19)));
@@ -738,8 +740,7 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     loaded.insert_resource(PlayerName {
         what: "TESTER".into(),
     });
-    load_game(&mut loaded, path.to_str().unwrap()).unwrap();
-    let _ = std::fs::remove_file(&path);
+    load_game(&mut loaded, save.path()).unwrap();
 
     let find = |w: &mut World, what: &str| -> Entity {
         let what = what.to_string();
@@ -888,8 +889,8 @@ fn the_cap_comes_off_with_the_bow() {
 /// The ceiling is a catalog row, so it comes back the way a bow's grant does.
 #[test]
 fn the_melee_cap_survives_a_save() {
-    let path = std::env::temp_dir().join("roog_melee_cap.sav");
-    let path = path.to_str().unwrap();
+    let save = common::SaveFile::new("melee-cap");
+    let path = save.path();
 
     let mut w = test_world(5);
     let p = player(&mut w);
@@ -908,5 +909,4 @@ fn the_melee_cap_survives_a_save() {
         vec![MeleeCap(1)],
         "the bow came back without its ceiling"
     );
-    let _ = std::fs::remove_file(path);
 }

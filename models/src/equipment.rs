@@ -17,6 +17,7 @@
 //! [`SeesInvisible`]: crate::effects::SeesInvisible
 
 use bevy_ecs::prelude::*;
+use bevy_ecs::world::EntityRef;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position};
@@ -24,6 +25,8 @@ use crate::effects::{
     ArmorBonus, EFFECTS, EffectSet, GrantedByGear, GrantedForFloor, Grants, OnWear, SustainsArmor,
     effect_set,
 };
+use crate::helpers::item_label;
+use crate::identify::{display_name, learn_by_wearing};
 
 /// Where a piece of gear goes. One item per slot at a time, except
 /// [`Slot::Finger`] — a hand has room for two rings.
@@ -109,26 +112,38 @@ impl Equipped {
     }
 }
 
-/// Everything `entity` currently has equipped.
+/// Everything `wearer` currently has equipped, as a borrowing iterator.
 ///
 /// The item's own [`Equipped`] component is the only thing consulted — not the
 /// bearer's pack. That matters: the item system lifts an item out of the pack
 /// while it resolves a "use", and a ring must not stop working for those few
-/// lines.
-pub fn equipped_items(world: &World, entity: Entity) -> Vec<Entity> {
+/// lines. A monster that caught a thrown dagger is wearing it with no pack to
+/// look in at all.
+///
+/// It is a full-world scan, and that is a constraint rather than a choice:
+/// gear points at its wearer, so the only narrow query — `Query<&Equipped>` —
+/// needs `&mut World`, and every caller here holds `&World` while it is part
+/// way through reading something else off the same world. The scan is cheap
+/// (a floor holds tens of entities, not thousands) and allocation-free; the
+/// allocating [`equipped_items`] is for callers that go on to mutate.
+pub fn equipped(world: &World, wearer: Entity) -> impl Iterator<Item = EntityRef<'_>> {
     world
         .iter_entities()
-        .filter(|e| e.get::<Equipped>().is_some_and(|eq| eq.by == Some(entity)))
-        .map(|e| e.id())
-        .collect()
+        .filter(move |e| e.get::<Equipped>().is_some_and(|eq| eq.by == Some(wearer)))
+}
+
+/// [`equipped`], collected — for the callers that mutate the world as they go
+/// and so cannot hold a borrow of it across the loop.
+pub fn equipped_items(world: &World, entity: Entity) -> Vec<Entity> {
+    equipped(world, entity).map(|e| e.id()).collect()
 }
 
 /// Everything `entity` currently has equipped in `slot` — usually zero or one,
 /// but up to [`Slot::capacity`] for [`Slot::Finger`].
 fn equipped_in_slot(world: &World, entity: Entity, slot: Slot) -> Vec<Entity> {
-    equipped_items(world, entity)
-        .into_iter()
-        .filter(|&i| world.get::<Equipped>(i).is_some_and(|e| e.slot == slot))
+    equipped(world, entity)
+        .filter(|i| i.get::<Equipped>().is_some_and(|e| e.slot == slot))
+        .map(|i| i.id())
         .collect()
 }
 
@@ -162,7 +177,7 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     let Some(slot) = world.get::<Equipped>(item).map(|e| e.slot) else {
         return false;
     };
-    let name = crate::identify::display_name(world, item);
+    let name = display_name(world, item);
 
     // Already on: take it off, unless it's cursed.
     if world.get::<Equipped>(item).and_then(|e| e.by) == Some(user) {
@@ -183,7 +198,7 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         match occupants.iter().find(|&&e| world.get::<Curse>(e).is_none()) {
             Some(&evictable) => force_unequip(world, evictable),
             None => {
-                let stuck_name = crate::identify::display_name(world, occupants[0]);
+                let stuck_name = display_name(world, occupants[0]);
                 world
                     .resource_mut::<GameLog>()
                     .add(slot.blocked(&stuck_name));
@@ -197,7 +212,7 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     }
     world.resource_mut::<GameLog>().add(slot.donned(&name));
     sync_equipment_effects(world, user);
-    crate::identify::learn_by_wearing(world, item);
+    learn_by_wearing(world, item);
 
     // Wearing something is how its plus and curse status come to light — the
     // same moment a ring's effect does. Announce the curse only the first
@@ -205,7 +220,7 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     let freshly_known = world.get::<KnownQuality>(item).is_none();
     world.entity_mut(item).insert(KnownQuality);
     if freshly_known && world.get::<Curse>(item).is_some() {
-        let true_name = crate::helpers::item_label(world, item);
+        let true_name = item_label(world, item);
         world
             .resource_mut::<GameLog>()
             .add(slot.cursed_reveal(&true_name));
@@ -287,7 +302,7 @@ pub fn corrode_armor(world: &mut World, victim: Entity) -> bool {
     let was = world.get::<ArmorBonus>(armor).map_or(0, |b| b.0);
     world.entity_mut(armor).insert(ArmorBonus(was - 1));
     if is_player {
-        let name = crate::identify::display_name(world, armor);
+        let name = display_name(world, armor);
         world
             .resource_mut::<GameLog>()
             .add(format!("Your {name} corrodes! It is weaker."));
@@ -299,9 +314,8 @@ pub fn corrode_armor(world: &mut World, victim: Entity) -> bool {
 /// its gear actually grants right now: attaches what was just put on, strips
 /// what was just taken off, and never touches what the creature was born with.
 pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
-    let wanted: EffectSet = equipped_items(world, bearer)
-        .into_iter()
-        .filter_map(|i| world.get::<Grants>(i).map(|g| effect_set(g.0)))
+    let wanted: EffectSet = equipped(world, bearer)
+        .filter_map(|i| i.get::<Grants>().map(|g| effect_set(g.0)))
         .fold(0, |acc, set| acc | set);
 
     let had: EffectSet = world.get::<GrantedByGear>(bearer).map(|g| g.0).unwrap_or(0);

@@ -7,13 +7,16 @@
 //!
 //! * **Geometry** — [`get_line`] (Bresenham between two tiles).
 //! * **Spatial queries** — [`get_entities_at_position`], [`monster_at`],
-//!   [`actor_at`], [`tile_of`], [`hostiles_in_view`], [`free_adjacent_tile`].
-//! * **Cosmetics on an entity** — [`spark_burst_at`], [`mark_conditions`].
-//! * **Naming an actor** — [`actor_line`].
+//!   [`actor_at`], [`tile_of`], [`hostiles_in_view`], [`free_adjacent_tile`],
+//!   [`player_sees`].
 //! * **Dice** — [`roll_dice`] (`NdM` summed off the shared [`GameRng`]).
-//! * **Naming** — [`item_label`] (an entity's display name, or a vague noun).
-//! * **Damage & cosmetics** — [`apply_damage`], [`spill_blood`].
+//! * **Naming** — [`item_label`] (an entity's display name, or a vague noun)
+//!   and [`actor_line`] (the line an effect prints about whoever used it).
+//! * **Damage** — [`apply_damage`], and [`took_damage`], which is everything
+//!   that happens to a creature *because* it was hurt.
 //! * **Defence maths** — [`total_armor_plus`].
+//! * **Cosmetics on an entity** — [`spark_burst_at`], [`mark_conditions`],
+//!   [`spill_blood`], [`death_burst`], [`leave_smoke`].
 //!
 //! Player conditions used to live here too; they are their own vocabulary now,
 //! in [`crate::conditions`].
@@ -31,6 +34,7 @@ use crossterm::style::Color;
 use crate::effects::{ArmorBonus, equipped_total};
 use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map, Smoke};
 use crate::particles::Particles;
+use crate::shake::{ShakeKind, kick_shake};
 use crate::{Blood, Faction, Fighter, GameLog, Mob, Name, Player, Position, Renderable};
 
 /// Every tile a straight line from `start` to `end` passes through, endpoints
@@ -305,7 +309,7 @@ pub(crate) fn warn_if_newly_low(world: &mut World, entity: Entity, hp_before: Op
     world
         .resource_mut::<GameLog>()
         .add("You are badly wounded!".to_string());
-    crate::shake::kick_shake(world, crate::shake::ShakeKind::Wounded);
+    kick_shake(world, ShakeKind::Wounded);
 }
 
 /// Whether the player's viewshed currently covers `(x, y)`.

@@ -21,11 +21,13 @@ use crate::effects::*;
 use crate::equipment::{equipped_items, sync_equipment_effects};
 use crate::helpers::{
     apply_damage, get_entities_at_position, get_line, item_label, leave_smoke, monster_at,
-    roll_dice,
+    player_sees, roll_dice,
 };
+use crate::identify::article_for;
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index};
 use crate::monsters::{BESTIARY, spawn_monster};
 use crate::particles::{BlastPalette, Particles};
+use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::random_open_tile;
 
 use super::scrolls::teleport_reader;
@@ -103,7 +105,7 @@ fn fire_bolt(
     // down an unlit corridor would say there is a creature there, which is
     // the same leak the blast's own sight gate exists to close.
     if world.get::<Player>(user).is_some() && bolt.bit_something_seen {
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Hit);
+        kick_shake(world, ShakeKind::Hit);
     }
 
     if effect == WandEffect::DrainLife && bolt.hp_taken > 0 {
@@ -160,8 +162,7 @@ fn trace_bolt(
         for entity in victims {
             let taken = damage_with_element(world, entity, damage, element);
             bolt.hp_taken += taken;
-            bolt.bit_something_seen |=
-                taken > 0 && crate::helpers::player_sees(world, pos.x, pos.y);
+            bolt.bit_something_seen |= taken > 0 && player_sees(world, pos.x, pos.y);
         }
     }
     bolt
@@ -252,8 +253,8 @@ pub(super) fn elemental_blast(
     // bursting on impact — so this is the one place the thump has to be armed.
     // Gated on actually seeing it: a shake for a blast in a room you have never
     // been in would hand you information the renderer is careful not to draw.
-    if crate::helpers::player_sees(world, center.x, center.y) {
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+    if player_sees(world, center.x, center.y) {
+        kick_shake(world, ShakeKind::Heavy);
     }
     if element == Some(Element::Fire) {
         let mut smoke = world.resource_mut::<Smoke>();
@@ -606,23 +607,27 @@ pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
     let old_name = item_label(world, victim);
     world.entity_mut(victim).despawn();
 
-    // Roll a bestiary entry that isn't what we started with.
-    let def = loop {
-        let idx = {
-            let mut rng = world.resource_mut::<GameRng>();
-            rng.0.gen_range(0..BESTIARY.len())
-        };
-        let candidate = &BESTIARY[idx];
-        if candidate.name != old_name {
-            break candidate;
-        }
+    // One roll, not a re-roll until it differs. A loop that spins until the
+    // bestiary hands back something else is a hang waiting for the day the
+    // table is short enough — and the dungeon has a better answer anyway:
+    // the magic worked, the creature changed, it simply changed into another
+    // one of itself. A rat that is visibly not the rat you were fighting is
+    // funnier than a guarantee, and costs one branch instead of a loop.
+    let idx = {
+        let mut rng = world.resource_mut::<GameRng>();
+        rng.0.gen_range(0..BESTIARY.len())
     };
+    let def = &BESTIARY[idx];
     let new_name = def.name.to_string();
     spawn_monster(world, def, pos);
-    world.resource_mut::<GameLog>().add(format!(
-        "The {old_name} twists and warps into {} {new_name}!",
-        crate::identify::article_for(&new_name)
-    ));
+    let line = match new_name == old_name {
+        true => format!("The {old_name} twists and warps into a different-looking {new_name}!"),
+        false => format!(
+            "The {old_name} twists and warps into {} {new_name}!",
+            article_for(&new_name)
+        ),
+    };
+    world.resource_mut::<GameLog>().add(line);
     leave_smoke_ring(world, pos);
 }
 
@@ -767,14 +772,19 @@ fn cancel_player(world: &mut World, player: Entity) {
 
     for item in carried {
         let mut em = world.entity_mut(item);
-        let is_gear = em.contains::<PowerDie>() || em.contains::<ArmorDie>();
-        if is_gear {
-            if em.contains::<PowerBonus>() {
-                em.insert(PowerBonus(0));
-            }
-            if em.contains::<ArmorBonus>() {
-                em.insert(ArmorBonus(0));
-            }
+        // Which plus a piece of gear wears is read off the item, exactly as
+        // `catalog::enchant_equipment` reads it when the dungeon rolls one on:
+        // a `PowerDie` is a weapon, an `ArmorDie` is armour, a `Launcher` is a
+        // bow whose enchantment had no melee roll to land on. Miss the third
+        // and a +3 bow walks out of a grey wave still +3.
+        if em.contains::<PowerDie>() && em.contains::<PowerBonus>() {
+            em.insert(PowerBonus(0));
+        }
+        if em.contains::<ArmorDie>() && em.contains::<ArmorBonus>() {
+            em.insert(ArmorBonus(0));
+        }
+        if em.contains::<Launcher>() && em.contains::<ThrowBonus>() {
+            em.insert(ThrowBonus(0));
         }
         em.remove::<Curse>();
         // An item is only ever one of these, so the two blocks never both fire.

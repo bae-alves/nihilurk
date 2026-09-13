@@ -215,8 +215,9 @@ pub struct WandDef {
     pub range: i32,
 }
 
-/// A wand's battery: `2d6 + 1` charges (see [`crate::constants::wands`]), rolled
-/// when it enters the dungeon.
+/// A wand's battery, rolled when it enters the dungeon:
+/// `CHARGE_DICE d CHARGE_SIDES + CHARGE_BONUS`, all three from
+/// [`crate::constants::wands`].
 pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8 {
     (0..CHARGE_DICE)
         .map(|_| rng.gen_range(1..=CHARGE_SIDES) as i8)
@@ -871,10 +872,6 @@ pub fn spawn_weapon(world: &mut World, name: &str, pos: Position) -> Entity {
 
 pub fn spawn_armor(world: &mut World, name: &str, pos: Position) -> Entity {
     named(ARMORS, name, "armor").spawn(world, pos)
-}
-
-pub fn spawn_coin(world: &mut World, name: &str, pos: Position) -> Entity {
-    named(COINS, name, "coin").spawn(world, pos)
 }
 
 /// One arrow or quarrel. Ammunition arrives in bundles from the dungeon floor

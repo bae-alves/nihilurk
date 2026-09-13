@@ -101,10 +101,16 @@ fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
     (sx, sy, true)
 }
 
+/// The one path every step and every melee attack goes through — the arrow
+/// keys, auto-explore, fast-move and auto-fight all end up here.
+///
+/// The checks below run in a fixed order and each can end the attempt; only
+/// reaching the move itself (or a confused lurch into a wall) spends the turn.
+/// `docs/reference/input-and-turn-loop.md` walks that order, so keep the two in
+/// step if you add a check.
 fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     let (dx, dy, stumbled) = maybe_stumble(world, dx, dy);
 
-    // 1. Get player entity and calculate target position
     let mut player_data = None;
     {
         let mut query = world.query_filtered::<(Entity, &Position), With<Player>>();
@@ -122,14 +128,13 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return false;
     };
 
-    // 2. Check if the target tile is a wall
     if world.resource::<Map>().blocks(new_x, new_y) {
         // A deliberate wall-bump is free; a confused lurch into it is not.
         return stumbled;
     }
 
-    // 2b. A diagonal step only connects tiles of the same kind — no cutting
-    // across a doorway or squeezing between a room and a corridor.
+    // A diagonal step only connects tiles of the same kind — no cutting across
+    // a doorway or squeezing between a room and a corridor.
     if !world
         .resource::<Map>()
         .diagonal_step_ok(old_x, old_y, new_x, new_y)
@@ -137,7 +142,7 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return stumbled; // Can't cut this corner
     }
 
-    // 3. Check if a Mob exists at the target coordinates to attack
+    // Walking into a creature is how you hit it; there is no attack key.
     let mut target_mob_entity = None;
     {
         let mut query = world.query_filtered::<(Entity, &Position), With<Mob>>();
@@ -154,7 +159,7 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return true; // Attacking consumes a turn
     }
 
-    // 3b. Something has your leg. A swing at an adjacent foe (above) still
+    // Something has your leg. A swing at an adjacent foe (above) still
     // lands either way, but the step you were about to take does not: against a
     // bear trap it becomes a bloody lurch at the jaws — one wasted turn, a
     // scratch of damage, a lot of blood — and against a scroll's hold it is
@@ -174,7 +179,7 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         _ => {}
     }
 
-    // 4. Move player if the path is completely clear
+    // The path is clear: take the step.
     if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
         pos.x = new_x;
         pos.y = new_y;
@@ -185,7 +190,9 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // Tag the move so `trap_system` checks the new tile for a trap.
     world.entity_mut(player_entity).insert(EntityMoved);
 
-    //5. Query world to see if there is an item at the new position and pick it up if so
+    // Arriving on an item picks it up. There is no `,` key: roog has nine pack
+    // slots and a floor full of coins that are spent where they lie, so walking
+    // over a thing is decision enough.
     let mut item_entity_to_pickup = None;
     {
         let mut query = world.query_filtered::<(Entity, &Position), With<Item>>();
@@ -336,7 +343,17 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     if key.kind != KeyEventKind::Press {
         return Ok(false);
     }
+    dispatch_key(world, key)
+}
 
+/// Everything [`process_input_and_update`] does once it is holding a key: the
+/// `--MORE--` gate, the universal escape hatch, and the four input contexts.
+///
+/// Split out from the read so the whole modal stack can be exercised without a
+/// terminal — `read()` blocks, and a state machine that can only be tested by
+/// a person pressing keys is a state machine nobody tests. Everything above
+/// this line needs a real keyboard; nothing below it does.
+pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     // While a --MORE-- prompt is up, the only input accepted is the
     // acknowledgement: it drops the messages already shown and lets the rest
     // flow up on the next frame.
@@ -1325,7 +1342,7 @@ fn fast_move_done(world: &mut World, target: Option<(u16, u16)>) -> bool {
 }
 
 #[cfg(test)]
-mod numpad_tests {
+mod tests {
     use super::*;
     use crossterm::event::KeyEvent;
 
@@ -1339,6 +1356,49 @@ mod numpad_tests {
         });
         initialize_world(&mut w);
         w
+    }
+
+    /// The resources the modal stack reads, on top of a built world. `main.rs`
+    /// inserts these at startup; a test world has to do it too.
+    fn modal_world(seed: u64) -> World {
+        let mut w = test_world(seed);
+        w.init_resource::<PackIsOpen>();
+        w.init_resource::<QuitPrompt>();
+        w.init_resource::<AutoExplore>();
+        w.init_resource::<AutoPickup>();
+        w.init_resource::<FastMove>();
+        w.init_resource::<TravelCursor>();
+        w.init_resource::<UseQueue>();
+        w.init_resource::<ThrowQueue>();
+        w.init_resource::<AttackQueue>();
+        w.insert_resource(TargetingState {
+            active: false,
+            item: None,
+            throwing: false,
+            cursor_x: 0,
+            cursor_y: 0,
+        });
+        w
+    }
+
+    fn press(c: char) -> KeyEvent {
+        KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE)
+    }
+
+    /// Queue enough unread messages that `log_view` has to raise `--MORE--`.
+    fn flood_the_log(w: &mut World) -> usize {
+        let mut log = w.resource_mut::<GameLog>();
+        log.unread.clear();
+        for i in 0..12 {
+            log.unread
+                .push(format!("Message number {i} is a fairly long one."));
+        }
+        let unread = w.resource::<GameLog>().unread.len();
+        assert!(
+            log_view(&w.resource::<GameLog>().unread).2,
+            "the fixture did not actually raise a --MORE-- prompt"
+        );
+        unread
     }
 
     fn player_pos(w: &mut World) -> Position {
@@ -1394,5 +1454,229 @@ mod numpad_tests {
         );
         // Without Shift, a numpad digit is a plain step, not a run.
         assert_eq!(run_direction(KeyCode::Char('8'), KeyModifiers::NONE), None);
+    }
+
+    // -----------------------------------------------------------------------
+    // The --MORE-- gate
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn a_more_prompt_accepts_the_acknowledgement_and_swallows_everything_else() {
+        // The gate's whole job: while messages are waiting, no key does
+        // anything except the one that says "I have read them".
+        for key in ['j', 'i', 'Q', 'a', '>'] {
+            let mut w = modal_world(3);
+            let queued = flood_the_log(&mut w);
+            let turn = dispatch_key(&mut w, press(key)).unwrap();
+            assert!(!turn, "'{key}' spent a turn through a --MORE-- prompt");
+            assert_eq!(
+                w.resource::<GameLog>().unread.len(),
+                queued,
+                "'{key}' dropped a message the player had not acknowledged"
+            );
+        }
+    }
+
+    #[test]
+    fn acknowledging_drops_exactly_the_messages_that_were_on_screen() {
+        // Not all of them, and not one: the ones the panel actually showed.
+        // Dropping more loses messages the player never saw.
+        for ack in [KeyCode::Char(' '), KeyCode::Enter] {
+            let mut w = modal_world(4);
+            let queued = flood_the_log(&mut w);
+            let shown = log_view(&w.resource::<GameLog>().unread).1;
+            assert!(shown > 0 && shown < queued, "the fixture proves nothing");
+
+            let turn = dispatch_key(&mut w, KeyEvent::new(ack, KeyModifiers::NONE)).unwrap();
+            assert!(!turn, "acknowledging a prompt is not a turn");
+            assert_eq!(w.resource::<GameLog>().unread.len(), queued - shown);
+        }
+    }
+
+    #[test]
+    fn the_gate_outranks_the_escape_hatch() {
+        // `x` closes modals everywhere else. Behind a --MORE-- prompt it must
+        // not, or a player mashing it loses the line telling them why they are
+        // about to die.
+        let mut w = modal_world(5);
+        w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
+        let queued = flood_the_log(&mut w);
+
+        dispatch_key(&mut w, press('x')).unwrap();
+        assert!(
+            w.resource::<PackIsOpen>().open,
+            "the pack closed behind the prompt"
+        );
+        assert_eq!(w.resource::<GameLog>().unread.len(), queued);
+    }
+
+    // -----------------------------------------------------------------------
+    // The x / X escape hatch
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn x_and_shift_x_close_whichever_modal_is_open() {
+        for key in ['x', 'X'] {
+            // The pack.
+            let mut w = modal_world(6);
+            w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
+            assert!(
+                !dispatch_key(&mut w, press(key)).unwrap(),
+                "escaping is not a turn"
+            );
+            assert!(
+                !w.resource::<PackIsOpen>().open,
+                "'{key}' left the pack open"
+            );
+
+            // The aiming reticle.
+            let mut w = modal_world(6);
+            w.resource_mut::<TargetingState>().active = true;
+            dispatch_key(&mut w, press(key)).unwrap();
+            assert!(
+                !w.resource::<TargetingState>().active,
+                "'{key}' left the reticle up"
+            );
+
+            // And the quit prompt, which is a modal like any other.
+            let mut w = modal_world(6);
+            w.resource_mut::<QuitPrompt>().open = true;
+            dispatch_key(&mut w, press(key)).unwrap();
+            assert!(
+                !w.resource::<QuitPrompt>().open,
+                "'{key}' left the prompt up"
+            );
+            assert!(
+                w.resource::<GameState>().is_running,
+                "'{key}' answered the prompt instead of closing it"
+            );
+        }
+    }
+
+    #[test]
+    fn shift_x_escapes_a_modal_rather_than_asking_about_quitting() {
+        // The whole reason `X` is checked before `handle_movement_input`: it is
+        // one shift away from the escape hatch, so with something open it must
+        // escape. Asking "Really quit?" because a player overshot `x` is the
+        // bug this ordering exists to prevent.
+        let mut w = modal_world(7);
+        w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
+        dispatch_key(&mut w, press('X')).unwrap();
+        assert!(!w.resource::<PackIsOpen>().open);
+        assert!(
+            !w.resource::<QuitPrompt>().open,
+            "X raised the quit prompt with the pack open"
+        );
+    }
+
+    #[test]
+    fn shift_x_falls_through_to_the_quit_prompt_with_nothing_open() {
+        // ...and only then. `close_all_modals` reporting "nothing was open" is
+        // what lets the key through.
+        let mut w = modal_world(8);
+        dispatch_key(&mut w, press('X')).unwrap();
+        assert!(
+            w.resource::<QuitPrompt>().open,
+            "X on the bare map did nothing"
+        );
+    }
+
+    #[test]
+    fn lowercase_x_on_the_bare_map_is_not_swallowed() {
+        // `close_all_modals` returns whether anything was actually shut, so a
+        // bare `x` falls through to the movement handler rather than being
+        // eaten. It is not a movement key, so nothing happens — but the
+        // distinction is what keeps the hatch from stealing keypresses.
+        let mut w = modal_world(9);
+        assert!(
+            !close_all_modals(&mut w),
+            "nothing was open, so nothing closed"
+        );
+        let turn = dispatch_key(&mut w, press('x')).unwrap();
+        assert!(!turn);
+    }
+
+    #[test]
+    fn closing_everything_at_once_leaves_no_modal_behind() {
+        let mut w = modal_world(10);
+        w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
+        w.resource_mut::<TargetingState>().active = true;
+        w.resource_mut::<QuitPrompt>().open = true;
+
+        assert!(close_all_modals(&mut w));
+        assert!(!w.resource::<PackIsOpen>().open);
+        assert!(!w.resource::<TargetingState>().active);
+        assert!(w.resource::<TargetingState>().item.is_none());
+        assert!(!w.resource::<QuitPrompt>().open);
+    }
+
+    // -----------------------------------------------------------------------
+    // The quit prompt
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn the_quit_prompt_answers_yes_and_no_and_guesses_at_nothing() {
+        for yes in ['y', 'Y'] {
+            let mut w = modal_world(11);
+            w.resource_mut::<QuitPrompt>().open = true;
+            dispatch_key(&mut w, press(yes)).unwrap();
+            assert!(
+                !w.resource::<GameState>().is_running,
+                "'{yes}' did not quit"
+            );
+        }
+        for no in ['n', 'N'] {
+            let mut w = modal_world(11);
+            w.resource_mut::<QuitPrompt>().open = true;
+            dispatch_key(&mut w, press(no)).unwrap();
+            assert!(
+                !w.resource::<QuitPrompt>().open,
+                "'{no}' left the prompt up"
+            );
+            assert!(w.resource::<GameState>().is_running);
+        }
+        // Every other key is ignored rather than guessed at — the prompt stays
+        // up, and the run stays alive.
+        for other in ['j', 'q', 'i', ' '] {
+            let mut w = modal_world(11);
+            w.resource_mut::<QuitPrompt>().open = true;
+            dispatch_key(&mut w, press(other)).unwrap();
+            assert!(
+                w.resource::<QuitPrompt>().open,
+                "'{other}' answered a question it was not asked"
+            );
+            assert!(w.resource::<GameState>().is_running);
+        }
+    }
+
+    #[test]
+    fn the_quit_prompt_outranks_every_other_context() {
+        // It is checked first because while it is up, that question is the only
+        // one on the table. A movement key must not walk out from under it.
+        let mut w = modal_world(12);
+        let before = *w.query_filtered::<&Position, With<Player>>().single(&w);
+        w.resource_mut::<QuitPrompt>().open = true;
+        dispatch_key(&mut w, press('j')).unwrap();
+        let after = *w.query_filtered::<&Position, With<Player>>().single(&w);
+        assert_eq!((before.x, before.y), (after.x, after.y), "the player moved");
+        assert!(w.resource::<QuitPrompt>().open);
+    }
+
+    #[test]
+    fn escape_closes_the_quit_prompt_but_never_raises_one() {
+        // Esc is the key a player mashes to get out of a menu; from the map it
+        // must do nothing at all, and certainly not end the run.
+        let mut w = modal_world(13);
+        w.resource_mut::<QuitPrompt>().open = true;
+        dispatch_key(&mut w, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)).unwrap();
+        assert!(!w.resource::<QuitPrompt>().open);
+
+        let mut w = modal_world(13);
+        dispatch_key(&mut w, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)).unwrap();
+        assert!(
+            !w.resource::<QuitPrompt>().open,
+            "Esc raised the quit prompt"
+        );
+        assert!(w.resource::<GameState>().is_running);
     }
 }

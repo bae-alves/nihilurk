@@ -72,11 +72,13 @@ use crate::helpers::{
     apply_damage, leave_smoke, leave_tinted_smoke, player_sees, roll_dice, spill_blood,
     total_armor_plus,
 };
+use crate::identify::article_for;
 use crate::map::{
     FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index,
     transition_level,
 };
 use crate::particles::{BlastPalette, Particles};
+use crate::shake::{ShakeKind, kick_shake};
 
 impl TrapEffect {
     /// The name shown once the trap is known — read straight off the row.
@@ -86,7 +88,7 @@ impl TrapEffect {
 
     /// `"a"` / `"an"` to read correctly before [`TrapEffect::label`].
     pub fn label_article(self) -> &'static str {
-        crate::identify::article_for(self.label())
+        article_for(self.label())
     }
 }
 
@@ -373,7 +375,7 @@ fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         let who = actor_label(world, victim);
         world.resource_mut::<GameLog>().add(format!(
             "{who} steps on {} {}!",
-            crate::identify::article_for(effect.label()),
+            article_for(effect.label()),
             effect.label()
         ));
     }
@@ -574,7 +576,7 @@ fn burst(
         world
             .resource_mut::<GameLog>()
             .add(format!("{shout} Trick shot!"));
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+        kick_shake(world, ShakeKind::Heavy);
     }
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.explosion(&cells, palette);
@@ -857,9 +859,9 @@ fn dart_effect(
     apply_damage(world, victim, damage);
 
     // The poison saps melee power permanently — a hit to the attack die itself,
-    // not a modifier — unless something sustains the victim's strength. A potion of restore
-    // strength (not yet wired) will heal `power` back up to `max_power`. The
-    // deeper the dart, the harder the bite: one point per depth tier.
+    // not a modifier — unless something sustains the victim's strength. A potion
+    // of restore strength puts `power` back up to `max_power`. The deeper the
+    // dart, the harder the bite: one point per depth tier.
     if world.get::<SustainsStrength>(victim).is_some() {
         if is_player {
             world

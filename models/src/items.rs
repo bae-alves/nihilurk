@@ -20,8 +20,8 @@
 //!
 //! Generic, item-agnostic helpers these submodules lean on —
 //! [`crate::helpers::item_label`], [`crate::helpers::roll_dice`],
-//! [`crate::helpers::free_adjacent_tile`],
-//! [`crate::helpers::clear_player_conditions`] — live in [`crate::helpers`].
+//! [`crate::helpers::free_adjacent_tile`] — live in [`crate::helpers`]. The
+//! verbs that put an affliction on or take one off are [`crate::conditions`].
 
 mod pickups;
 mod potions;
@@ -74,7 +74,7 @@ use bevy_ecs::world::World;
 use crate::components::*;
 use crate::equipment::toggle_equipped;
 use crate::helpers::item_label;
-use crate::identify::Identified;
+use crate::identify::{Identified, article_for, display_name, with_the};
 
 use self::potions::apply_potion_effect;
 use self::scrolls::apply_scroll_effect;
@@ -134,7 +134,7 @@ fn plan_use(world: &mut World, item: Entity) -> UsePlan {
 fn resolve_use(world: &mut World, item_use: WantsToUse) {
     // What the player sees it called now, and its true name — captured before a
     // despawn below could make the entity unqueryable.
-    let seen_name = crate::identify::display_name(world, item_use.item);
+    let seen_name = display_name(world, item_use.item);
     let true_name = item_label(world, item_use.item);
 
     let mut plan = plan_use(world, item_use.item);
@@ -160,7 +160,7 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         && plan.wand.is_none()
         && plan.scroll.is_none();
     if inert {
-        let name = crate::identify::with_the(&item_label(world, item_use.item));
+        let name = with_the(&item_label(world, item_use.item));
         world
             .resource_mut::<GameLog>()
             .add(format!("You can't use {name} right now."));
@@ -243,8 +243,7 @@ fn announce_first_id(world: &mut World, newly_identified: bool, true_name: &str)
     if !newly_identified {
         return;
     }
-    world.resource_mut::<GameLog>().add(format!(
-        "That was {} {true_name}!",
-        crate::identify::article_for(true_name)
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(format!("That was {} {true_name}!", article_for(true_name)));
 }

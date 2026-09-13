@@ -1,0 +1,13 @@
+[package]
+name = "view"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+# The playfield's dimensions, and nothing else. `view` knows how big a frame is
+# and how to get one onto a terminal; what is *in* it is `engine`'s business.
+models = { path = "../models" }
+crossterm = "0.29.0"

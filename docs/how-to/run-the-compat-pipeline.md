@@ -46,21 +46,15 @@ The dashboard and the report:
     target/release/roog-compat report     plain text, for CI and pipes
     target/release/roog-compat gate       one line, and an exit code
 
-Reports, logs and metrics land in `target/compat/`. The binaries
-themselves land in `target/cross/<triple>/<triple>/release/`.
+Reports, logs and metrics land in `target/compat/`. The binaries themselves land in `target/cross/<triple>/<triple>/release/`.
 
-Each stress run replaces `target/compat/results.tsv` rather than adding
-to it, `--targets` included. So a one-row run reports one row, and the
-machines it skipped show `-`. That is deliberate: a report mixing rows
-measured against two different builds of the game, with nothing on the
-page saying which was which, is worse than a report with gaps in it.
+Each stress run replaces `target/compat/results.tsv` rather than adding to it, `--targets` included. So a one-row run reports one row, and the machines it skipped show `-`. That is deliberate: a report mixing rows measured against two different builds of the game, with nothing on the page saying which was which, is worse than a report with gaps in it.
 
 
 The machines
 ------------
 
-`compat/matrix.tsv` is the list, and it is the only list. One row per
-machine, tab-separated; adding a machine is adding a line.
+`compat/matrix.tsv` is the list, and it is the only list. One row per machine, tab-separated; adding a machine is adding a line.
 
     cloud      x86_64 musl     1 cpu    512m   t3.micro, and the control
     graviton   aarch64 musl    2 cpu      1g   AWS Graviton, an M-series VM
@@ -73,35 +67,13 @@ machine, tab-separated; adding a machine is adding a line.
     esp32c3    riscv32imc         -         -  ESP32-C3, compiled only
     esp32      xtensa-esp32       -         -  ESP32, compiled only
 
-The limits are handed straight to Docker, and swap is disabled, so the
-memory cap is a real ceiling. `cloud` and `potato` run on the host CPU.
-Every other `linux` row is a `qemu` row: cross-compiled and
-static-link-checked always, but only actually run under a
-qemu-user-static interpreter -- fetched by the pipeline on its own, no
-`binfmt_misc`, no `--privileged` -- when `--exec-emulated` asks for it.
+The limits are handed straight to Docker, and swap is disabled, so the memory cap is a real ceiling. `cloud` and `potato` run on the host CPU. Every other `linux` row is a `qemu` row: cross-compiled and static-link-checked always, but only actually run under a qemu-user-static interpreter -- fetched by the pipeline on its own, no `binfmt_misc`, no `--privileged` -- when `--exec-emulated` asks for it.
 
-Every `linux` row's image is checked for a shell before it is run --
-that is not optional, roog cannot start without a real terminal under
-it -- and a row that fails the check is skipped rather than run. See
-"why every `linux` row must have a shell" in
-`../explanation/cross-platform-testing.md`.
+Every `linux` row's image is checked for a shell before it is run -- that is not optional, roog cannot start without a real terminal under it -- and a row that fails the check is skipped rather than run. See "why every `linux` row must have a shell" in `../explanation/cross-platform-testing.md`.
 
-An emulated (`qemu`) row is not run by default: it is still
-cross-compiled and static-link-checked by `cross_build.sh`, and that is
-treated as sufficient, because roog's own frame loop asks far less of a
-machine than the Rust toolchain that just cross-compiled it does.
-qemu-user-static's syscall translation also does not reliably extend to
-the architecture-specific ioctls crossterm needs (terminal size, raw
-mode), so there is a real reason not to lean on it here beyond the
-build. A build failure still fails the pipeline -- that part is
-unchanged and non-negotiable. `--exec-emulated` opts back into real
-execution for anyone with actual hardware, or a qemu build, to check it
-against. See "why emulated rows are build-only" in
-`../explanation/cross-platform-testing.md`.
+An emulated (`qemu`) row is not run by default: it is still cross-compiled and static-link-checked by `cross_build.sh`, and that is treated as sufficient, because roog's own frame loop asks far less of a machine than the Rust toolchain that just cross-compiled it does. qemu-user-static's syscall translation also does not reliably extend to the architecture-specific ioctls crossterm needs (terminal size, raw mode), so there is a real reason not to lean on it here beyond the build. A build failure still fails the pipeline -- that part is unchanged and non-negotiable. `--exec-emulated` opts back into real execution for anyone with actual hardware, or a qemu build, to check it against. See "why emulated rows are build-only" in `../explanation/cross-platform-testing.md`.
 
-The two `esp32*` rows are never executed, under any flag: they are
-`no_std`, and there is no "run it for real" for a target with no OS to
-run it under. See "The microcontroller rows" below.
+The two `esp32*` rows are never executed, under any flag: they are `no_std`, and there is no "run it for real" for a target with no OS to run it under. See "The microcontroller rows" below.
 
 
 1. Does roog still run everywhere?
@@ -137,73 +109,43 @@ run it under. See "The microcontroller rows" below.
        unplayable    cannot hold the frame rate at all
        does not run  the container failed, was killed, or OOMed
 
-3. `builds`, `plays`, `playable` and `janky` all exit 0. `unplayable`
-   and `does not run` fail the pipeline, because they mean a machine
-   that used to run roog no longer does.
+3. `builds`, `plays`, `playable` and `janky` all exit 0. `unplayable` and `does not run` fail the pipeline, because they mean a machine that used to run roog no longer does.
 
-A `!` beside a verdict means the run finished but came within 10% of
-that machine's memory cap. Not a failure -- it passed -- but it is one
-dungeon level away from not passing.
+A `!` beside a verdict means the run finished but came within 10% of that machine's memory cap. Not a failure -- it passed -- but it is one dungeon level away from not passing.
 
 
 2. What is being measured
 -------------------------
 
-roog. A real dungeon floor from a fixed seed, animated by the batches
-the game actually queues, one per turn, with the whole frame drawn:
-floor repainted, motes composited over it, one diff and one flush.
+roog. A real dungeon floor from a fixed seed, animated by the batches the game actually queues, one per turn, with the whole frame drawn: floor repainted, motes composited over it, one diff and one flush.
 
-Every row is also run against the Bad Apple reel, at ~800 motes a
-frame. That is the *ceiling*, printed under "THE CEILING", and nothing
-is graded on it:
+Every row is also run against the Bad Apple reel, at ~800 motes a frame. That is the *ceiling*, printed under "THE CEILING", and nothing is graded on it:
 
        machine        mean       p99  drops  headroom over the game's load
        cloud        0.28ms    0.79ms      0  7x the work
        potato       0.38ms    0.69ms      0  8x the work
 
-A machine that cannot keep up with Bad Apple may still play roog
-perfectly well, because roog does not animate music videos. If a
-ceiling row says `timeout -- too slow for the reel, which is allowed`,
-that is not a failure.
+A machine that cannot keep up with Bad Apple may still play roog perfectly well, because roog does not animate music videos. If a ceiling row says `timeout -- too slow for the reel, which is allowed`, that is not a failure.
 
 `--quick` skips the ceiling and roughly halves the runtime.
 
-An executed row also gets one more pass: the same game load, run through
-roog-perf's redraw viewer instead of the numeric report, with a
-pseudo-terminal attached and sized from inside the container
-(`docker run -t`, then `stty`) so crossterm has an actual terminal to
-draw into instead of the counting sink the two runs above use. It is not
-timed and prints no numbers -- it only has to come up and keep drawing
-for its frame count without falling over. A `bad` line under a row's
-name naming `screen` is that check failing; `--no-screen` skips it, same
-as `--no-reel` skips the ceiling. See "why every row also gets a real
-screen" in
-`../explanation/cross-platform-testing.md`.
+An executed row also gets one more pass: the same game load, run through roog-perf's redraw viewer instead of the numeric report, with a pseudo-terminal attached and sized from inside the container (`docker run -t`, then `stty`) so crossterm has an actual terminal to draw into instead of the counting sink the two runs above use. It is not timed and prints no numbers -- it only has to come up and keep drawing for its frame count without falling over. A `bad` line under a row's name naming `screen` is that check failing; `--no-screen` skips it, same as `--no-reel` skips the ceiling. See "why every row also gets a real screen" in `../explanation/cross-platform-testing.md`.
 
-If you shorten the ceiling run with `--reel-frames`, keep it above 300.
-Bad Apple opens on a nearly black screen, so a 60-frame run measures
-the titles and reports a machine with far more headroom than it has.
-The script warns you.
+If you shorten the ceiling run with `--reel-frames`, keep it above 300. Bad Apple opens on a nearly black screen, so a 60-frame run measures the titles and reports a machine with far more headroom than it has. The script warns you.
 
 
 3. How big is it, and whose fault is that?
 ------------------------------------------
 
-Phase 1 prints it per target, for the binary that actually ships --
-`--release`, fat LTO, one codegen unit, symbols stripped:
+Phase 1 prints it per target, for the binary that actually ships -- `--release`, fat LTO, one codegen unit, symbols stripped:
 
        target     triple                                 game      bytes        rig
        cloud      x86_64-unknown-linux-musl           1.8 MiB    1934384    1.6 MiB
        potato     i686-unknown-linux-musl             1.8 MiB    1846016    1.6 MiB
 
-The exact byte count is there because this is a table you diff against
-the last run, and the 32-bit rows come out about 4% smaller -- which
-rounds to the same "1.8 MiB" and would otherwise be invisible.
+The exact byte count is there because this is a table you diff against the last run, and the 32-bit rows come out about 4% smaller -- which rounds to the same "1.8 MiB" and would otherwise be invisible.
 
-Do not read too much into the last few kilobytes. A fat-LTO build is
-not reproducible to the byte, and the same source rebuilt can move by a
-page either way. A crate's *share* moving, or a target gaining tens of
-kilobytes, is the signal.
+Do not read too much into the last few kilobytes. A fat-LTO build is not reproducible to the byte, and the same source rebuilt can move by a page either way. A crate's *share* moving, or a target gaining tens of kilobytes, is the signal.
 
 Then it attributes those bytes per crate:
 
@@ -216,16 +158,11 @@ Then it attributes those bytes per crate:
        libc + compiler builtins                65823     4.0%
        total in symbols                      1662671
 
-Those are *symbol* bytes, not file bytes -- the difference is section
-headers, padding, relocations and the constant pool -- so the total
-comes in under the size printed above it. Read the shares.
+Those are *symbol* bytes, not file bytes -- the difference is section headers, padding, relocations and the constant pool -- so the total comes in under the size printed above it. Read the shares.
 
-The full table per machine is in `target/compat/blame-<machine>.txt`.
-`--no-blame` skips the stage; `--top 20` lists more crates.
+The full table per machine is in `target/compat/blame-<machine>.txt`. `--no-blame` skips the stage; `--top 20` lists more crates.
 
-For the host binary specifically, `cargo bloat` via `./perf_test.sh` is
-the better tool. It cannot be pointed at a foreign target without that
-target's linker, which is the whole reason this uses `llvm-nm` instead.
+For the host binary specifically, `cargo bloat` via `./perf_test.sh` is the better tool. It cannot be pointed at a foreign target without that target's linker, which is the whole reason this uses `llvm-nm` instead.
 
 
 4. Watching it run
@@ -235,23 +172,16 @@ The dashboard, in another terminal, while the matrix is going:
 
     target/release/roog-compat --watch
 
-One row per machine with the verdict, and below it what Docker saw the
-selected container doing -- CPU against the row's core budget, memory
-against the row's cap, both as time series.
+One row per machine with the verdict, and below it what Docker saw the selected container doing -- CPU against the row's core budget, memory against the row's cap, both as time series.
 
     up / down   select a machine
     l           graph the reel instead of the game
     r           reload now
     q           quit
 
-Or `./compat_test.sh --gui` to land in it when the run finishes. It
-needs a 92x24 terminal; `roog-compat report` is the same information as
-text and needs nothing.
+Or `./compat_test.sh --gui` to land in it when the run finishes. It needs a 92x24 terminal; `roog-compat report` is the same information as text and needs nothing.
 
-Note which numbers are which. The table's `peak rss` is what roog saw
-of itself, inside the container. The graphs are the cgroup's, from
-outside, and on a `qemu` row they include the emulator. The gap between
-them is the emulation tax.
+Note which numbers are which. The table's `peak rss` is what roog saw of itself, inside the container. The graphs are the cgroup's, from outside, and on a `qemu` row they include the emulator. The gap between them is the emulation tax.
 
 
 5. The microcontroller rows
@@ -259,24 +189,13 @@ them is the emulation tax.
 
     ./compat/nostd_check.sh
 
-This does not build roog for an ESP32. roog draws with crossterm,
-crossterm needs a terminal, and a microcontroller has neither a
-terminal nor an OS to provide one.
+This does not build roog for an ESP32. roog draws with crossterm, crossterm needs a terminal, and a microcontroller has neither a terminal nor an OS to provide one.
 
-What it checks is that `particle-core` -- the arithmetic of the
-particle layer, which the game itself calls -- still compiles with no
-operating system under it, for `riscv32imc-unknown-none-elf` and
-`xtensa-esp32-none-elf`. It is a standing structural check: the moment
-that arithmetic is given a `Vec`, a `String`, or a libm call, this goes
-red.
+What it checks is that `particle-core` -- the arithmetic of the particle layer, which the game itself calls -- still compiles with no operating system under it, for `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf`. It is a standing structural check: the moment that arithmetic is given a `Vec`, a `String`, or a libm call, this goes red.
 
-It runs the parity test first, which is what makes the rest mean
-anything -- see the explanation page.
+It runs the parity test first, which is what makes the rest mean anything -- see the explanation page.
 
-RISC-V is a rustup target, so that row is a one-second `cargo check` on
-the host. Xtensa needs Espressif's rustc fork, so that row runs in
-`espressif/idf-rust:all_latest`. Both rows name an image with a shell,
-for poking at the toolchain by hand:
+RISC-V is a rustup target, so that row is a one-second `cargo check` on the host. Xtensa needs Espressif's rustc fork, so that row runs in `espressif/idf-rust:all_latest`. Both rows name an image with a shell, for poking at the toolchain by hand:
 
     ./compat/nostd_check.sh --shell esp32
     ./compat/nostd_check.sh --shell esp32c3
@@ -307,16 +226,12 @@ Then, if it is a new triple, add its cross image to `compat/Cross.toml`:
     [target.aarch64-unknown-linux-musl]
     image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5"
 
-That is all. `cross_build.sh`, `stress_test_matrix.sh`, the dashboard
-and the report all read the table.
+That is all. `cross_build.sh`, `stress_test_matrix.sh`, the dashboard and the report all read the table.
 
 Two rules the tests enforce, so you will hear about it:
 
-  - Every `linux` row must be a `-musl` triple. A `-gnu` binary is
-    bound to the glibc it was linked against, which is the one thing
-    the matrix exists to rule out.
-  - Every `bare` row must have `exec` of `none`. Those rows are
-    compiled, never run.
+  - Every `linux` row must be a `-musl` triple. A `-gnu` binary is bound to the glibc it was linked against, which is the one thing the matrix exists to rule out.
+  - Every `bare` row must have `exec` of `none`. Those rows are compiled, never run.
 
     cargo test -p roog-compat
 
@@ -419,8 +334,7 @@ See also
     run-the-perf-pipeline.md                   the host-side rig
     ../../compat/matrix.tsv                    the machine list itself
 
-Every script takes `--help`, and each one's help is the authority on its
-own flags:
+Every script takes `--help`, and each one's help is the authority on its own flags:
 
     ./compat_test.sh --help
     ./compat/cross_build.sh --help

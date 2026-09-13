@@ -80,7 +80,11 @@ fn a_row_spawned_by_name_carries_what_its_row_says() {
 
     // A catalog row's components land on the item it spawns.
     let sword = spawn_named(&mut w, "long sword", at(2, 2)).unwrap();
-    assert_eq!(w.get::<PowerDie>(sword).copied(), Some(PowerDie(8)));
+    let row = WEAPONS.iter().find(|d| d.name == "long sword").unwrap();
+    assert_eq!(
+        w.get::<PowerDie>(sword).copied(),
+        Some(PowerDie(row.power_die))
+    );
     assert!(
         w.get::<PowerBonus>(sword).is_none(),
         "a named spawn is unenchanted"
@@ -116,7 +120,7 @@ fn pick_weighted_is_proportional_and_skips_zeroes() {
 #[test]
 fn a_species_never_appears_above_its_min_depth() {
     let mut r = rng(11);
-    for depth in 1..=13u8 {
+    for depth in 1..=FINAL_DEPTH {
         for _ in 0..300 {
             let def = MonsterDef::pick(depth, &mut r);
             assert!(
@@ -131,14 +135,18 @@ fn a_species_never_appears_above_its_min_depth() {
 
 #[test]
 fn the_deep_letters_do_eventually_turn_up() {
+    // "Deepest tier" is whatever the bestiary's largest `min_depth` is, read
+    // off the table — rebalancing which floor the dragon debuts on must not
+    // turn this red.
+    let deepest = BESTIARY.iter().map(|m| m.min_depth).max().unwrap();
     let mut r = rng(13);
     let deep: HashSet<&str> = (0..2_000)
-        .map(|_| MonsterDef::pick(13, &mut r).name)
-        .filter(|n| MonsterDef::named(n).min_depth >= 10)
+        .map(|_| MonsterDef::pick(FINAL_DEPTH, &mut r).name)
+        .filter(|n| MonsterDef::named(n).min_depth >= deepest)
         .collect();
     assert!(
         deep.len() >= 3,
-        "floor 13 should mix in the deepest tier, saw {deep:?}"
+        "the deepest floor should mix in the deepest tier, saw {deep:?}"
     );
 }
 
@@ -185,22 +193,38 @@ fn every_drop_category_can_actually_produce_something() {
     }
 }
 
+/// Every loot category can actually be drawn, and has something to give when
+/// it is.
+///
+/// This used to roll 20,000 items off a hand-picked seed and check that each
+/// category had turned up at least once. That measured the sampler rather than
+/// the table: it was the slowest test in the suite, it depended on a seed
+/// nobody could re-derive, and a category whose rows had all become
+/// unreachable would have been indistinguishable from a run of bad luck. Worse,
+/// it could only ever get *weaker* as the table grew -- add a category rarer
+/// than `launcher` and 20,000 draws stops being enough.
+///
+/// The claim is about the table, so it is asked of the table. A zero weight
+/// means `pick_weighted` can never choose the category; an empty row list means
+/// choosing it would have nothing to hand back. Neither can hide behind a seed.
 #[test]
-fn the_loot_table_covers_every_category_over_a_long_run() {
-    let mut w = World::new();
-    let mut r = rng(19);
-    let mut seen: HashSet<String> = HashSet::new();
-    for _ in 0..20_000 {
-        let item = roll_item(&mut w, &mut r, 13, at(1, 1));
-        seen.insert(w.get::<Name>(item).unwrap().what.clone());
-        w.despawn(item);
-    }
+fn every_loot_category_can_be_drawn_and_has_rows_to_give() {
     for category in DROPS {
         assert!(
-            category.rows(13).iter().any(|n| seen.contains(*n)),
-            "20k drops produced nothing from {}",
+            category.weight > 0,
+            "{} has no weight, so it can never be drawn",
             category.name
         );
+        // At the shallowest floor it claims, and at the deepest in the game:
+        // a category that empties out at depth is a category that stops
+        // existing without saying so.
+        for depth in [category.min_depth, FINAL_DEPTH] {
+            assert!(
+                !category.rows(depth).is_empty(),
+                "{} has no rows at depth {depth}",
+                category.name
+            );
+        }
     }
 }
 
@@ -225,7 +249,7 @@ fn the_trap_a_floor_lays_comes_from_the_table() {
     assert_eq!(
         seen.len(),
         TRAPS.len(),
-        "all six traps are equally likely on floor 1"
+        "every trap in the table is available on floor 1"
     );
 }
 

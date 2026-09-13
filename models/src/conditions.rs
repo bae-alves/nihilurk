@@ -88,10 +88,10 @@ pub fn stagger(world: &mut World, entity: Entity, mob_verb: &str) -> bool {
 // Blindness
 // ---------------------------------------------------------------------------
 
-/// Puts out the player's eyes: while [`Blind`] their view collapses to the tile
-/// they are standing on, so the map stops filling in, monsters stop being
-/// spotted, and everything they already knew stays on screen as cold memory
-/// (see [`crate::visibility`]).
+/// Puts out the player's eyes: while [`Blind`] their view collapses to the 3x3
+/// they could reach out and touch, so the map stops filling in, monsters stop
+/// being spotted, and everything they already knew stays on screen as cold
+/// memory (see [`crate::visibility`]).
 ///
 /// A monster has no viewshed to put out, so blindness reads on it the way a
 /// dazzle does — it gropes about at random.
@@ -311,12 +311,6 @@ pub fn shift_entity_speed(world: &mut World, victim: Entity, faster: bool) {
 /// self. Returns whether the tempo actually moved.
 pub fn hasten(world: &mut World, victim: Entity) -> bool {
     set_speed(world, victim, SpeedKind::Fast, true)
-}
-
-/// Straight to [`SpeedKind::Slow`] — what a potion of paralysis does to a
-/// monster that swallows it. Returns whether the tempo actually moved.
-pub fn slow_down(world: &mut World, victim: Entity) -> bool {
-    set_speed(world, victim, SpeedKind::Slow, false)
 }
 
 /// Puts `victim` at `kind` and logs it. `faster` is the *intent*, not the

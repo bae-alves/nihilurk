@@ -140,7 +140,8 @@ pub struct Fighter {
     pub armor: i32,
     /// Attack die size: weapon damage rolls `1d[power] + power_bonus`. A
     /// poisoned dart trap permanently drops this; a potion of restore strength
-    /// (not yet wired) will heal it back up to [`Fighter::max_power`].
+    /// heals it back up to [`Fighter::max_power`], and a green coin gives back
+    /// a few points of it.
     pub power: i32,
     /// The unpoisoned value of [`Fighter::power`] — the ceiling that strength
     /// restoration returns it to. Set equal to `power` at creation.
@@ -270,9 +271,10 @@ pub struct Viewshed {
 pub struct Hidden;
 
 /// Intrinsically unseeable without [`crate::effects::SeesInvisible`] — the
-/// phantom, and the one-floor-in-five "invisible" hidden floor item. Pairs with [`Hidden`]:
-/// `Invisible` says *why* a thing can't be seen, `Hidden` is the per-turn "can't
-/// be seen right now" the renderer reads.
+/// phantom, and the invisibly-stashed floor item some floors hide
+/// ([`crate::constants::population::HIDDEN_ITEM_CHANCE`]). Pairs with
+/// [`Hidden`]: `Invisible` says *why* a thing can't be seen, `Hidden` is the
+/// per-turn "can't be seen right now" the renderer reads.
 #[derive(Component)]
 pub struct Invisible;
 
@@ -368,7 +370,8 @@ pub struct Backpack {
 pub struct Consume;
 
 /// A wand's remaining charges. Each zap spends one; at zero the wand crumbles.
-/// A floor drop rolls `2d6 + 1` (see [`crate::catalog::roll_wand_charges`]).
+/// A floor drop rolls them off [`crate::constants::wands`] — see
+/// [`crate::catalog::roll_wand_charges`].
 #[derive(Component)]
 pub struct Battery {
     pub charges: i8,

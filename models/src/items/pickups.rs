@@ -23,6 +23,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::equipment::Slot;
+use crate::identify::display_name;
 use crate::map::GameRng;
 use crate::score::award;
 
@@ -88,7 +89,7 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
     if !would_help(world, taker, effect) {
         return None;
     }
-    let name = crate::identify::display_name(world, item);
+    let name = display_name(world, item);
     pay_out_value(world, item);
     let line = apply(world, taker, effect, amount);
     world.entity_mut(item).despawn();
@@ -110,7 +111,7 @@ pub(crate) fn claim_from_afar(world: &mut World, shooter: Entity, coin: Entity) 
     let Some((effect, amount)) = world.get::<Pickup>(coin).map(|p| (p.effect, p.amount)) else {
         return;
     };
-    let name = crate::identify::display_name(world, coin);
+    let name = display_name(world, coin);
     pay_out_value(world, coin);
     let line = apply(world, shooter, effect, amount);
     if world.get::<Player>(shooter).is_none() {

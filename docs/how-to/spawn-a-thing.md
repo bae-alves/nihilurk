@@ -13,33 +13,26 @@ One function covers nearly every case:
 
     spawn_named(&mut world, "dragon", Position { x: 10, y: 4 })
 
-It searches every table by name and returns `Option<Entity>`. Four
-recipes follow -- looking at something now, one in a test, one from game
-code mid-run, and loot the way the dungeon rolls it. Take the one you are
-standing in.
+It searches every table by name and returns `Option<Entity>`. Four recipes follow -- looking at something now, one in a test, one from game code mid-run, and loot the way the dungeon rolls it. Take the one you are standing in.
 
 
 Recipe 1: look at it right now
 ------------------------------
 
-No code. `ROOG_SPAWN` drops names on free tiles around the player on
-every floor it builds:
+No code. `ROOG_SPAWN` drops names on free tiles around the player on every floor it builds:
 
     cargo run -p engine -- -content              # 1. what are the names?
     cargo run -p engine -- -content | grep -i wand
     ROOG_SPAWN="dragon" cargo run -p engine      # 2. put one in front of me
     ROOG_SPAWN="bow,arrow,arrow,dart trap" cargo run -p engine
 
-Names are comma-separated and trimmed; a name the tables do not know is
-skipped **silently**, so check it against `-content` rather than trusting
-an empty floor. Full rules: `../reference/cli-and-env.md`.
+Names are comma-separated and trimmed; a name the tables do not know is skipped **silently**, so check it against `-content` rather than trusting an empty floor. Full rules: `../reference/cli-and-env.md`.
 
 
 Recipe 2: one specific thing in a test
 --------------------------------------
 
-1. **Build a world.** A bare one is enough to spawn into and assert
-   about, and needs no resources at all:
+1. **Build a world.** A bare one is enough to spawn into and assert about, and needs no resources at all:
 
        use bevy_ecs::prelude::*;
        use models::*;
@@ -51,9 +44,7 @@ Recipe 2: one specific thing in a test
    Use it whenever the thing itself is the subject -- its components, its
    name, its glyph.
 
-2. **Or build a real floor**, when the thing has to be *somewhere* -- a
-   monster that walks, an item auto-explore has to find, anything that
-   reads `Map`:
+2. **Or build a real floor**, when the thing has to be *somewhere* -- a monster that walks, an item auto-explore has to find, anything that reads `Map`:
 
        fn test_world(seed: u64) -> World {
            let mut w = World::new();
@@ -70,8 +61,7 @@ Recipe 2: one specific thing in a test
    you are about to run one. The player is
    `w.query_filtered::<Entity, With<Player>>().single(&w)`.
 
-3. **Put it where the test needs it.** Three places a thing can be, and
-   the second and third are alternatives:
+3. **Put it where the test needs it.** Three places a thing can be, and the second and third are alternatives:
 
        // on the floor -- it already is, from the Position you passed
        let pos = Position { x: 5, y: 5 };
@@ -96,17 +86,13 @@ Recipe 2: one specific thing in a test
    on the body, empty the pack first -- `empty_pack` in
    `models/tests/identify.rs` is the pattern.
 
-4. **Name it in a literal and let it panic.** `MonsterDef::named("dragon")`
-   and `TrapDef::of(TrapEffect::Bear)` panic on a miss, which is what you
-   want from a typo in a test. Save `lookup` for names that came from
-   outside the source.
+4. **Name it in a literal and let it panic.** `MonsterDef::named("dragon")` and `TrapDef::of(TrapEffect::Bear)` panic on a miss, which is what you want from a typo in a test. Save `lookup` for names that came from outside the source.
 
 
 Recipe 3: one from game code, mid-run
 -------------------------------------
 
-The scroll of create monster (`models/src/items/scrolls.rs`,
-`create_monster`) is the worked example. Four steps, in this order:
+The scroll of create monster (`models/src/items/scrolls.rs`, `create_monster`) is the worked example. Four steps, in this order:
 
 1. **Find a free tile.** Never assume one:
 
@@ -125,10 +111,7 @@ The scroll of create monster (`models/src/items/scrolls.rs`,
    either pick the tile yourself against `Map::blocks` or call
    `spawn_list`, which does the searching for you.
 
-2. **Roll from `GameRng`, in a scoped block.** The live run rolls from
-   `GameRng` and never from `layout_rng`/`content_rng` -- those two belong
-   to floor generation, and borrowing one while spawning will not compile
-   anyway:
+2. **Roll from `GameRng`, in a scoped block.** The live run rolls from `GameRng` and never from `layout_rng`/`content_rng` -- those two belong to floor generation, and borrowing one while spawning will not compile anyway:
 
        let idx = {
            let mut rng = world.resource_mut::<GameRng>();
@@ -152,10 +135,7 @@ The scroll of create monster (`models/src/items/scrolls.rs`,
    `ChaCha12Rng` of its own -- floor generation hands it a `content_rng`.
    From a live system, name the trap you mean.
 
-4. **Say so in the log.** Use `item_label(world, entity)` (`helpers`,
-   models-internal again) for the name the player is allowed to know -- an
-   unidentified wand is "a copper wand", not "a wand of fire" -- and
-   `article_for(&name)` for the "a"/"an" in front of it.
+4. **Say so in the log.** Use `item_label(world, entity)` (`helpers`, models-internal again) for the name the player is allowed to know -- an unidentified wand is "a copper wand", not "a wand of fire" -- and `article_for(&name)` for the "a"/"an" in front of it.
 
 
 Recipe 4: loot the way the dungeon rolls it
@@ -165,15 +145,9 @@ Recipe 4: loot the way the dungeon rolls it
 
     let item = roll_item(world, &mut rng, depth, pos);
 
-Weighted category, weighted row within it, then `spawn_as_loot` -- so it
-arrives enchanted, charged and bundled, gated to the depth you passed.
-This is the only place the dungeon decides what loot exists; call it
-rather than re-rolling quality yourself.
+Weighted category, weighted row within it, then `spawn_as_loot` -- so it arrives enchanted, charged and bundled, gated to the depth you passed. This is the only place the dungeon decides what loot exists; call it rather than re-rolling quality yourself.
 
-The `rng` is the caller's, not `GameRng`: floor generation passes its own
-`content_rng(seed, depth, changes)`, which is what keeps a floor's
-contents keyed to the seed and the staircase count rather than to the
-fighting. A test can pass any `ChaCha12Rng::seed_from_u64`.
+The `rng` is the caller's, not `GameRng`: floor generation passes its own `content_rng(seed, depth, changes)`, which is what keeps a floor's contents keyed to the seed and the staircase count rather than to the fighting. A test can pass any `ChaCha12Rng::seed_from_u64`.
 
 To roll one piece of quality onto something you spawned by name:
 
@@ -189,58 +163,35 @@ To roll one piece of quality onto something you spawned by name:
 What comes out is the bare row
 ------------------------------
 
-`spawn_named` and the `spawn_*` wrappers build the thing **exactly as its
-table row describes it** -- no dice are rolled. What that means per kind:
+`spawn_named` and the `spawn_*` wrappers build the thing **exactly as its table row describes it** -- no dice are rolled. What that means per kind:
 
 | You spawn | You get | Not |
 |-----------|---------|-----|
-| a wand    | `Battery { charges: 0 }` -- one zap and it crumbles | a rolled `2d6+1` battery |
+| a wand    | `Battery { charges: 0 }` -- one zap and it crumbles | a battery rolled off `constants::wands` |
 | a weapon, armour, a ring | no bonus, no `Curse` | an enchantment roll |
 | arrows, quarrels | `Stack { count: 1 }` | a bundle |
 | a trap    | `TrapReveal::Sight`, so you can see what you placed | a rolled reveal style |
 | a monster | the row, effects and invisibility included | anything depth-scaled |
 
-That is deliberate: a test that spawns a thing needs it to be the same
-thing every time. When you want the randomised version, use Recipe 4.
+That is deliberate: a test that spawns a thing needs it to be the same thing every time. When you want the randomised version, use Recipe 4.
 
 
 When it does not work
 ---------------------
 
-**`spawn_named` returned `None`.** The lookup is a case-sensitive exact
-match on the row's name -- `"Dragon"` and `"long Sword"` find nothing.
-Check `cargo run -p engine -- -content`.
+**`spawn_named` returned `None`.** The lookup is a case-sensitive exact match on the row's name -- `"Dragon"` and `"long Sword"` find nothing. Check `cargo run -p engine -- -content`.
 
-**It spawned but nothing is drawn.** Either it has no `Position` (being in
-a `Backpack` means exactly that: `stow` removes it, and the renderer draws
-the pack separately), or the tile is not currently visible -- floor items
-are only drawn on revealed tiles, and a monster gets `Hidden` until the
-player's viewshed reaches it.
+**It spawned but nothing is drawn.** Either it has no `Position` (being in a `Backpack` means exactly that: `stow` removes it, and the renderer draws the pack separately), or the tile is not currently visible -- floor items are only drawn on revealed tiles, and a monster gets `Hidden` until the player's viewshed reaches it.
 
-**It landed in a wall.** Nothing in the spawn API validates the tile you
-hand it; `Position` is whatever you said. Use `free_adjacent_tile`,
-`random_open_tile`, or `spawn_list`, which searches outward in rings and
-skips anything `Map::blocks`.
+**It landed in a wall.** Nothing in the spawn API validates the tile you hand it; `Position` is whatever you said. Use `free_adjacent_tile`, `random_open_tile`, or `spawn_list`, which searches outward in rings and skips anything `Map::blocks`.
 
-**`equip_silently` returned `false`.** Either the item has no `Equipped`
-component (it is not gear), or the slot is full -- and on a world built by
-`initialize_world` the body and hand slots start full. `force_unequip` the
-incumbent first (Recipe 2, step 3).
+**`equip_silently` returned `false`.** Either the item has no `Equipped` component (it is not gear), or the slot is full -- and on a world built by `initialize_world` the body and hand slots start full. `force_unequip` the incumbent first (Recipe 2, step 3).
 
-**The borrow checker refuses the RNG line.** A `resource_mut::<GameRng>()`
-guard is still alive at the spawn. Roll inside a block and let it drop
-(Recipe 3, step 2).
+**The borrow checker refuses the RNG line.** A `resource_mut::<GameRng>()` guard is still alive at the spawn. Roll inside a block and let it drop (Recipe 3, step 2).
 
-**Two things landed on the same tile.** Only `spawn_list` and
-`spawn_requested` track occupancy, via the `&mut HashSet<(u16, u16)>` you
-pass in. Spawning in a loop yourself means keeping that set yourself.
+**Two things landed on the same tile.** Only `spawn_list` and `spawn_requested` track occupancy, via the `&mut HashSet<(u16, u16)>` you pass in. Spawning in a loop yourself means keeping that set yourself.
 
-**A seeded test started failing after you added content.** Floor layout is
-a pure function of `(seed, depth)` and cannot move -- but the *contents*
-are drawn from a weighted table, so adding a row changes which rows a
-given roll lands on. Assert on what you spawned by name, not on what a
-seed happened to produce. `models/tests/determinism.rs` holds the line
-that matters.
+**A seeded test started failing after you added content.** Floor layout is a pure function of `(seed, depth)` and cannot move -- but the *contents* are drawn from a weighted table, so adding a row changes which rows a given roll lands on. Assert on what you spawned by name, not on what a seed happened to produce. `models/tests/determinism.rs` holds the line that matters.
 
 
 Check yourself
@@ -254,8 +205,9 @@ Check yourself
 See also
 --------
 
-  ../reference/spawn-api.md      every signature on this page
-  ../reference/cli-and-env.md    ROOG_SPAWN and -content in full
-  ../reference/content-tables.md the tables these functions read
-  add-a-monster.md               adding the row you want to spawn
-  add-an-item.md                 the same, for items
+  ../reference/spawn-api.md       every signature on this page
+  ../reference/cli-and-env.md     ROOG_SPAWN and -content in full
+  ../reference/content-tables.md  the tables these functions read
+  add-a-monster.md                adding the row you want to spawn
+  add-an-item.md                  the same, for items
+  work-with-the-ecs.md            spawning from inside a system

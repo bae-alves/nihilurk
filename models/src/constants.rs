@@ -84,8 +84,8 @@ pub mod player {
     pub const START_POWER: i32 = 2;
 
     /// Starting (and maximum) magic points — the pool abilities draw on, shown
-    /// as `Ma X/Y` on the HUD. Refilled in full by every staircase
-    /// ([`crate::constants::progression::DESCENT_RESTORES_MAGIC`]).
+    /// as `Ma X/Y` on the HUD. Refilled in full by every staircase, alongside
+    /// the arrival heal ([`crate::constants::progression::DESCENT_HEAL_DIVISOR`]).
     pub const START_MAGIC: u8 = 4;
 
     /// Sight radius, in tiles, for the player's Viewshed. Rooms flood-fill on
@@ -243,7 +243,7 @@ pub mod traps {
     pub const TRAP_DAMAGE_TIER_LAST_DEPTH: [u8; 2] = [4, 8];
 
     /// An arrow trap's hit rolls `ARROW_DAMAGE_DICE d ARROW_DAMAGE_SIDES +
-    /// ARROW_DAMAGE_BONUS` before armour-plus. Today: `1d4 + 1`.
+    /// ARROW_DAMAGE_BONUS` before armour-plus.
     pub const ARROW_DAMAGE_DICE: i32 = 1;
     /// See [`ARROW_DAMAGE_DICE`].
     pub const ARROW_DAMAGE_SIDES: i32 = 4;
@@ -255,7 +255,7 @@ pub mod traps {
     pub const ARROW_DAMAGE_PER_TIER: i32 = 1;
 
     /// A dart trap's hit rolls `DART_DAMAGE_DICE d DART_DAMAGE_SIDES` before
-    /// armour-plus. Today: `1d2`.
+    /// armour-plus.
     pub const DART_DAMAGE_DICE: i32 = 1;
     /// See [`DART_DAMAGE_DICE`].
     pub const DART_DAMAGE_SIDES: i32 = 2;
@@ -292,7 +292,7 @@ pub mod traps {
     /// A trick shot's burst deals `TRICK_SHOT_DAMAGE_DICE d
     /// TRICK_SHOT_DAMAGE_SIDES`, rolled once and applied whole to everything
     /// caught — no armour of any kind is subtracted, not even the armour plus
-    /// that a trap's own damage still allows. Today: `2d3`.
+    /// that a trap's own damage still allows.
     pub const TRICK_SHOT_DAMAGE_DICE: i32 = 2;
     /// See [`TRICK_SHOT_DAMAGE_DICE`].
     pub const TRICK_SHOT_DAMAGE_SIDES: i32 = 3;
@@ -376,15 +376,17 @@ pub mod scrolls {
 /// is which colour, which range, which effect) is data in `catalog.rs`.
 pub mod wands {
     /// A fresh wand's battery is `CHARGE_DICE d CHARGE_SIDES + CHARGE_BONUS`
-    /// charges, rolled when it enters the dungeon. Today: `2d4 + 1`, i.e. 3..9.
+    /// charges, rolled when it enters the dungeon. The floor of that range is
+    /// what matters: a wand nobody can afford to zap twice is a wand nobody
+    /// experiments with.
     pub const CHARGE_DICE: i32 = 2;
     /// See [`CHARGE_DICE`].
     pub const CHARGE_SIDES: i32 = 4;
     /// See [`CHARGE_DICE`].
     pub const CHARGE_BONUS: i8 = 1;
 
-    /// A *zapped* attack wand deals `DAMAGE_DICE d DAMAGE_SIDES`, armour-ignoring,
-    /// rolled once and applied whole to everyone it touches. Today: `2d3`.
+    /// A *zapped* attack wand deals `DAMAGE_DICE d DAMAGE_SIDES`,
+    /// armour-ignoring, rolled once and applied whole to everyone it touches.
     pub const DAMAGE_DICE: i32 = 2;
     /// See [`DAMAGE_DICE`].
     pub const DAMAGE_SIDES: i32 = 3;
