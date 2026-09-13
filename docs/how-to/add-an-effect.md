@@ -94,7 +94,7 @@ and the wand of cancellation all work immediately, because all three walk
 > **`EFFECTS` is append-only, and it holds 32.** An effect's index in that
 > array is the bit it occupies in the save file. Reordering it rewrites
 > the meaning of every existing save. And an `EffectSet` is a `u32`, so
-> the 33rd marker effect will need a wider type -- there are 10 today.
+> the 33rd marker effect will need a wider type -- there are 16 today.
 
 > **An effect missing from `EFFECTS` half-works.** It will attach, and it
 > will do its job for the rest of the session. It will not be saved, will
@@ -106,8 +106,11 @@ Making an effect act on its own
 -------------------------------
 
 Most effects are answers to a question something else asks. Some act by
-themselves -- while you carry it, something keeps happening. Those are
-rows too, in:
+themselves, and there are two moments they can pick. Both are tables in
+`models/src/abilities.rs`, and both answer the same two questions: *when*
+does this fire, and *what* does it do.
+
+**Every turn** -- while you carry it, something keeps happening:
 
     models/src/abilities.rs     ->  PASSIVE_ABILITIES
 
@@ -119,13 +122,62 @@ rows too, in:
     }
 
 `chance` is the probability it fires on each turn its bearer acts;
-`action` is the mechanic, run on the bearer; `flavour` is logged only
-when the bearer is the player, so write it in the second person.
+`action` is the mechanic, run on the bearer, returning whether it
+actually did anything; `flavour` is logged only when the bearer is the
+player *and* the action returned `true`, so write it in the second
+person. Return `false` for a no-op -- a ring of regeneration wins its
+coin flip every other turn, and most of those turns there is nothing
+wrong with the player to mend.
 
 The row names the effect with the same `Grant` handle everything else
 uses, so the ability never learns what granted it. A ring grants it
 today; a cursed blade could grant it tomorrow and the behaviour would
 follow, untouched.
+
+The system runs at the **tail** of the turn schedule (after `ai`, before
+`visibility_system`), which is deliberate: a passive that *moves* its
+bearer -- teleportitis -- lands the jump at the top of the bearer's next
+turn, so the player sees where they ended up and acts from there before
+anything else moves.
+
+**On a blow that lands** -- the attacker's magic doing something to what
+it just hit:
+
+    models/src/abilities.rs     ->  ON_HIT_ABILITIES
+
+    OnHitAbility {
+        effect: Grant::of::<RustsArmor>(),
+        on_glancing: true,
+        on_lethal: true,
+        action: corrode,
+    }
+
+`effect` is the marker on the **attacker**; `action` is run as
+`(attacker, target)`. The two booleans are the only gating there is: does
+a glancing scrape count (acid says yes, a charm that needs skin says no),
+and does the killing blow count (there is no point charming a corpse).
+`combat::resolve_attack` fires the table for every hit that dealt damage
+and has no idea what is in it -- which is why the aquator's corrosion and
+a scroll of monster confusion's charm stopped being two special cases in
+that function.
+
+
+Making an effect fire once, when gear goes on
+---------------------------------------------
+
+A `Grant` is a property held while the gear is worn. An *event* at the
+moment of wearing is a different component, and it is not in `EFFECTS`:
+
+    #[derive(Component, Clone, Copy)]
+    pub struct OnWear(pub fn(&mut World, Entity, Entity));
+
+`equipment::toggle_equipped` fires it with `(wearer, item)` after the
+item is worn, named and known, and the function owns everything that
+follows -- including tagging the item `Consume` if wearing it is what
+spends it (`item_system` re-checks for that tag after the toggle and
+destroys the item instead of stowing it). The ring of adornment is the
+only thing in the game that uses it. A row attaches it the way it
+attaches grants, and `saveload` reads it back off the row.
 
 
 Adding a numeric modifier

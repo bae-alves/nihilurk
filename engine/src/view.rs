@@ -353,18 +353,57 @@ pub fn render<W: Write>(
     let throw_flat = player_entity.map_or(0, |pe| equipped_total::<ThrowBonus>(world, pe));
 
     // Transient conditions, as 4-letter HUD mnemonics. FAST/SLOW come from the
-    // player's tempo, CONF from the dazzle condition.
+    // player's tempo, STLH from a ring of stealth, CONF from the dazzle
+    // condition, BLND/PARL from the two potions that take your eyes and your
+    // limbs, GLOW from a scroll of monster confusion still waiting on the next
+    // blow to land, PLAT/FORG from the two coins whose reward the next
+    // staircase pays. A paralysed player shows both SLOW and PARL, which is
+    // honest: paralysis slows you *and* eats turns.
+    //
+    // The tempo is read through `models::tempo` rather than off the component,
+    // so gear that weighs the player down — a ring of slow digestion — reads
+    // SLOW exactly like a potion of paralysis does. It *is* the same slowing.
+    let tempo = player_entity.map(|pe| models::tempo(world, pe));
+    let stealthy = player_entity.is_some_and(|pe| world.get::<Stealthy>(pe).is_some());
     let conditions: Vec<(&str, Color)> = {
-        let mut q = world.query_filtered::<(Option<&Speed>, Option<&Confused>), With<Player>>();
+        let mut q = world.query_filtered::<(
+            Option<&Confused>,
+            Option<&Blind>,
+            Option<&Paralyzed>,
+            Option<&ConfusingTouch>,
+            Option<&Plated>,
+            Option<&Forged>,
+        ), With<Player>>();
         let mut v = Vec::new();
-        if let Some((speed, confused)) = q.iter(world).next() {
-            match speed.map(|s| s.kind) {
+        if let Some((confused, blind, paralyzed, charmed, plated, forged)) = q.iter(world).next() {
+            match tempo {
                 Some(SpeedKind::Fast) => v.push(("FAST", Color::Cyan)),
                 Some(SpeedKind::Slow) => v.push(("SLOW", Color::Green)),
                 _ => {}
             }
+            if stealthy {
+                v.push(("STLH", Color::DarkGreen));
+            }
             if confused.is_some() {
                 v.push(("CONF", Color::Magenta));
+            }
+            if blind.is_some() {
+                v.push(("BLND", Color::DarkGrey));
+            }
+            if paralyzed.is_some() {
+                v.push(("PARL", Color::DarkMagenta));
+            }
+            if charmed.is_some() {
+                v.push(("GLOW", Color::Magenta));
+            }
+            // The two promises. Not afflictions — they are the only badges that
+            // are good news — but they are lost the same way a condition is,
+            // and the player needs to know they are still holding one.
+            if plated.is_some() {
+                v.push(("PLAT", Color::White));
+            }
+            if forged.is_some() {
+                v.push(("FORG", Color::DarkYellow));
             }
         }
         v
@@ -384,6 +423,17 @@ pub fn render<W: Write>(
                 _ => "EXPLORING",
             })
     });
+
+    // 1b. Blindness. A blinded player is down to touch: the 3x3 the visibility
+    // system left them, and no colour in it — every glyph they can make out is
+    // painted white, and the blood underfoot (colour and nothing else) is not
+    // painted at all. Monsters are already `Hidden` by the visibility system, so
+    // nothing below has to think about them.
+    let blind = player_entity.is_some_and(|pe| world.get::<Blind>(pe).is_some());
+    let by_touch = |color: Color| match blind {
+        true => Color::White,
+        false => color,
+    };
 
     // 2. Targeting beam.
     let (is_targeting, targeting_tip) = {
@@ -432,8 +482,21 @@ pub fn render<W: Write>(
             fields.push(format!("Thr. {throw_flat:+}"));
         }
         fields.push(format!("DEPTH {}", depth));
-        // The score line yields its space to condition badges when any are lit.
-        if conditions.is_empty() {
+        // The score line yields its space to condition badges when any are lit
+        // — but never to a flash, which takes the scorekeeper's own place. A
+        // payment is worth seeing whatever else is going on.
+        let flash = world
+            .get_resource::<ScoreFlash>()
+            .filter(|f| f.lit())
+            .map(|f| {
+                (
+                    f.text.clone(),
+                    (0..f.text.chars().count())
+                        .map(|i| f.color_at(i))
+                        .collect::<Vec<_>>(),
+                )
+            });
+        if conditions.is_empty() && flash.is_none() {
             fields.push(format!("SCORE {:06}", player_score));
         }
         let mut hx: u16 = 1;
@@ -444,6 +507,16 @@ pub fn render<W: Write>(
             }
             screen.puts(hx, 0, field, Color::Cyan);
             hx += field.chars().count() as u16;
+        }
+        // The scorekeeper shouting: `+700` in one bright colour, or DOUBLE a
+        // letter at a time in the six of the flag.
+        if let Some((text, colors)) = flash {
+            screen.puts(hx, 0, " · ", Color::DarkGrey);
+            hx += 3;
+            for (ch, color) in text.chars().zip(colors) {
+                screen.puts(hx, 0, &ch.to_string(), color);
+                hx += 1;
+            }
         }
         for (label, color) in &conditions {
             screen.puts(hx, 0, " · ", Color::DarkGrey);
@@ -457,7 +530,7 @@ pub fn render<W: Write>(
             .map(|s| s.kind)
         {
             let label = match kind {
-                SnareKind::Bear => "HELD",
+                SnareKind::Bear | SnareKind::Hold => "HELD",
                 SnareKind::Sleep => "ASLEEP",
             };
             screen.puts(hx, 0, " · ", Color::DarkGrey);
@@ -495,7 +568,11 @@ pub fn render<W: Write>(
             if !visible_here && !revealed.contains(tile_index(x, y)) {
                 continue; // unexplored: leave blank
             }
-            let color = if visible_here { lit } else { Color::DarkGrey };
+            let color = if visible_here {
+                by_touch(lit)
+            } else {
+                Color::DarkGrey
+            };
             screen.put_map(x, y, glyph, color);
         }
     }
@@ -503,8 +580,9 @@ pub fn render<W: Write>(
     // ---- Blood overlay ----
     // Bloody tiles are reddened in place by recolouring their glyph, only where
     // the player can currently see, and never on a tile an actor stands on (the
-    // red marks the floor, not whatever is on it).
-    {
+    // red marks the floor, not whatever is on it). A blind player gets none of
+    // it: blood is carried entirely by colour, and they have no colour.
+    if !blind {
         let stains = world.resource::<BloodStains>();
         for &(x, y) in &visible {
             if !stains.is_bloody(x, y) || occupied_by_actor.contains(&(x, y)) {
@@ -521,7 +599,7 @@ pub fn render<W: Write>(
             if !corpses.has(x, y) || occupied_by_actor.contains(&(x, y)) {
                 continue;
             }
-            screen.put_map(x, y, '%', Color::DarkGrey);
+            screen.put_map(x, y, '%', by_touch(Color::DarkGrey));
         }
     }
 
@@ -534,7 +612,7 @@ pub fn render<W: Write>(
             if !visible.contains(&coord) || occupied_by_actor.contains(&coord) {
                 continue;
             }
-            screen.put_map(pos.x, pos.y, renderable.glyph, renderable.color);
+            screen.put_map(pos.x, pos.y, renderable.glyph, by_touch(renderable.color));
         }
     }
 
@@ -550,7 +628,7 @@ pub fn render<W: Write>(
                 continue;
             }
             if visible.contains(&coord) {
-                screen.put_map(pos.x, pos.y, renderable.glyph, renderable.color);
+                screen.put_map(pos.x, pos.y, renderable.glyph, by_touch(renderable.color));
                 continue;
             }
             if revealed.contains(tile_index(pos.x, pos.y)) {
@@ -569,7 +647,7 @@ pub fn render<W: Write>(
             if !smoke.is_smoky(x, y) || occupied_by_actor.contains(&(x, y)) {
                 continue;
             }
-            screen.put_map(x, y, '≈', Color::Grey);
+            screen.put_map(x, y, '≈', by_touch(Color::Grey));
         }
     }
 
@@ -581,7 +659,56 @@ pub fn render<W: Write>(
             if !visible.contains(&(pos.x, pos.y)) {
                 continue;
             }
-            screen.put_map(pos.x, pos.y, renderable.glyph, renderable.color);
+            screen.put_map(pos.x, pos.y, renderable.glyph, by_touch(renderable.color));
+        }
+    }
+
+    // ---- Monster status tints ----
+    // A monster that can't fight back properly is worth seeing from across the
+    // room, so its cell takes a background: dark blue for one that has lost its
+    // turns outright (asleep in gas, or paralysed), dark green for one held in
+    // a bear trap, dark cyan for one bound by a scroll of hold monster, dark
+    // magenta for one staggering about confused. Painted after
+    // the actors so it lands under a glyph that is actually drawn, and only in
+    // that order of precedence — a monster that is both asleep and confused is
+    // first of all asleep.
+    {
+        let mut query = world.query_filtered::<
+            (&Position, &Mob, Option<&Snare>, Option<&Paralyzed>),
+            Without<Hidden>,
+        >();
+        for (pos, mob, snare, paralyzed) in query.iter(world) {
+            if !visible.contains(&(pos.x, pos.y)) {
+                continue;
+            }
+            let snared = snare.map(|s| s.kind);
+            let confused = matches!(mob.movement_type, MovementType::Confused);
+            let tint = match (snared, paralyzed.is_some(), confused) {
+                (Some(SnareKind::Sleep), _, _) | (_, true, _) => Some(Color::DarkBlue),
+                (Some(SnareKind::Bear), _, _) => Some(Color::DarkGreen),
+                (Some(SnareKind::Hold), _, _) => Some(Color::DarkCyan),
+                (_, _, true) => Some(Color::DarkMagenta),
+                _ => None,
+            };
+            if let Some(tint) = tint {
+                screen.bg_map(pos.x, pos.y, tint);
+            }
+        }
+    }
+
+    // ---- Detected things (a potion of magic / monster detection) ----
+    // Only where the player *can't* see: anything in view is already drawn
+    // above, in its own colour and with the fog rules that apply to it. A
+    // detection is a sense, not a window, so what it turns up is painted in one
+    // flat magic-magenta — the glyph says what, the colour says "you are not
+    // looking at this, you are feeling it".
+    {
+        let mut query = world.query_filtered::<(&Position, &Renderable), With<Detected>>();
+        for (pos, renderable) in query.iter(world) {
+            if visible.contains(&(pos.x, pos.y)) {
+                continue;
+            }
+            screen.put_map(pos.x, pos.y, renderable.glyph, Color::DarkMagenta);
         }
     }
 
@@ -647,14 +774,26 @@ pub fn render<W: Write>(
 
     // ---- Message log (rows 22..=24) ----
     // Messages are packed onto shared lines and only wrap when the next one
-    // would overflow; a message is never split across the wrap.
+    // would overflow; a message is never split across the wrap. Each keeps its
+    // own colour on the line it shares — a shouting message must never repaint
+    // the sentences beside it — and one of them is painted a letter at a time.
     {
+        let stripes = models::pride::stripes(world);
         let log = world.resource::<GameLog>();
         let (lines, _consumed, more) = log_view(&log.unread);
-        for (i, line) in lines.iter().enumerate() {
+        for (i, segments) in lines.iter().enumerate() {
             let y = 22 + i as u16;
             let last = i + 1 == lines.len();
-            screen.puts(0, y, line, log_line_color(line));
+            let mut x: u16 = 0;
+            for message in segments {
+                let paint = log_paint(message, stripes);
+                for (n, ch) in message.chars().enumerate() {
+                    screen.put(x, y, ch, paint.color_at(n));
+                    x += 1;
+                }
+                // The joining space, in nobody's colour.
+                x += 1;
+            }
             if last && more {
                 screen.puts(57, y, "--MORE-- (Press Space)", Color::Yellow);
             }

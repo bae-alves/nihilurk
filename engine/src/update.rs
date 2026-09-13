@@ -43,6 +43,11 @@ fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
     }
 }
 
+/// How long a turn lost to paralysis holds the screen, so the monsters' free
+/// move is something the player watches happen rather than finds already done.
+/// The same pacing `main.rs` gives a player asleep in gas.
+const PARALYSIS_PAUSE_MS: u64 = 90;
+
 /// The eight steps a confused stumble can send you.
 const STUMBLE_DIRS: [(i16, i16); 8] = [
     (1, 0),
@@ -149,12 +154,24 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return true; // Attacking consumes a turn
     }
 
-    // 3b. A bear trap has your leg. A swing at an adjacent foe (above) still
-    // lands, but the step you were about to take becomes a bloody lurch against
-    // the jaws — one wasted turn, a scratch of damage, and a lot of blood.
-    if matches!(player_snare(world), Some(SnareKind::Bear)) {
-        bear_trap_thrash(world, player_entity);
-        return true;
+    // 3b. Something has your leg. A swing at an adjacent foe (above) still
+    // lands either way, but the step you were about to take does not: against a
+    // bear trap it becomes a bloody lurch at the jaws — one wasted turn, a
+    // scratch of damage, a lot of blood — and against a scroll's hold it is
+    // simply a turn spent straining at nothing. Nothing a monster can read
+    // holds the player today; this is here so it stays true if one ever does.
+    match player_snare(world) {
+        Some(SnareKind::Bear) => {
+            bear_trap_thrash(world, player_entity);
+            return true;
+        }
+        Some(SnareKind::Hold) => {
+            world
+                .resource_mut::<GameLog>()
+                .add("You strain against whatever is holding you, and go nowhere.");
+            return true;
+        }
+        _ => {}
     }
 
     // 4. Move player if the path is completely clear
@@ -180,28 +197,19 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         }
     }
     if let Some(item_entity) = item_entity_to_pickup {
-        // An invisibly-stashed item announces itself the instant you blunder onto
-        // its tile, then is picked up like anything else.
-        if world.get::<Hidden>(item_entity).is_some() {
-            world.entity_mut(item_entity).remove::<Hidden>();
-            world.entity_mut(item_entity).remove::<Invisible>();
-            world
-                .resource_mut::<GameLog>()
-                .add("Hey! There's something here!".to_string());
+        // `models::pick_up` owns everything from here: the stash reveal, a
+        // coin spent where it lies, the score a treasure is worth, and the pack.
+        // `None` back means the item is still on the floor — either the pack is
+        // full, or it is a pickup that would have done nothing yet.
+        let stowable = world.get::<Pickup>(item_entity).is_none();
+        match models::pick_up(world, player_entity, item_entity) {
+            Some(msg) => world.resource_mut::<GameLog>().add(msg),
+            // Anything that needs a pack slot and did not get one says so; a
+            // coin left where it lies says nothing, because a coin you cannot
+            // use yet being still there is not news.
+            None if stowable => world.resource_mut::<GameLog>().add("Your pack is full."),
+            None => {}
         }
-        // `stow` owns the pack from here: it merges arrows into a quiver you are
-        // already carrying, and can leave part of a pile behind when that quiver
-        // is full — so the item may not survive the call. `None` back means the
-        // pack has no room left for it, and it stays on the floor.
-        let is_element = world.get::<Amulet>(item_entity).is_some();
-        let msg = match (models::stow(world, player_entity, item_entity), is_element) {
-            (Some(_), true) => {
-                "You take the Element of Yoord. \"The element of Yoord seeks the sun.\"".to_string()
-            }
-            (Some(taken), false) => format!("You pick up {taken}."),
-            (None, _) => "Your pack is full.".to_string(),
-        };
-        world.resource_mut::<GameLog>().add(msg);
     }
 
     true // Successfully moved, consuming a turn
@@ -310,6 +318,15 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         log_view(&log.unread).2
     };
     if !more_pending && player_incapacitated(world) {
+        return Ok(true);
+    }
+
+    // Paralysis eats a share of the turns its slowing still leaves you. The coin
+    // is flipped here, once, before a key is read — so a lost turn is a turn the
+    // monsters get and the player doesn't, rather than a swallowed keystroke —
+    // and the pause is what makes it read as time passing instead of a freeze.
+    if !more_pending && paralysis_forfeits_turn(world) {
+        std::thread::sleep(Duration::from_millis(PARALYSIS_PAUSE_MS));
         return Ok(true);
     }
 
@@ -813,6 +830,10 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
             return Ok(false);
         }
         KeyCode::Char('f') => return begin_fire(world),
+        // The one undocumented key in the game: with a ring of teleportation on
+        // and magic to spend, it jumps you. Without either it does nothing and
+        // says nothing — see `models::willed_teleport`.
+        KeyCode::Char('T') => return Ok(models::willed_teleport(world)),
         KeyCode::Char('O') => {
             open_travel_cursor(world);
             return Ok(false);

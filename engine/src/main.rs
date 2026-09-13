@@ -11,6 +11,7 @@ use crossterm::{
     cursor::{Hide, Show},
     event::{Event, KeyCode, KeyEventKind, read},
     execute,
+    style::{Color as CrosstermColor, Print, ResetColor, SetForegroundColor},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use std::io::{BufWriter, stdout};
@@ -168,6 +169,12 @@ fn main() -> std::io::Result<()> {
     let mut no_blood = false;
     let mut no_shake = false;
     let mut list_content = false;
+    let mut pride_off = false;
+    // The flag this run flies: the stripes the scorekeeper's DOUBLE and COMBO!
+    // and the log's proudest line are painted in. `-pride <name>`; an
+    // unrecognised name says so and flies the rainbow anyway.
+    let mut pride = models::pride::PrideFlag::default_flag();
+    let mut unknown_flag: Option<String> = None;
     let mut player_name = "Roog".to_string();
     let mut positional: Option<String> = None;
     // Multiplier on every animation frame's on-screen hold time (particles,
@@ -190,6 +197,15 @@ fn main() -> std::io::Result<()> {
             "-nb" => no_blood = true,
             "-nshake" => no_shake = true,
             "-content" => list_content = true,
+            "-pride" => {
+                if let Some(name) = iter.next() {
+                    match models::pride::PrideFlag::named(name) {
+                        Some(flag) => pride = flag,
+                        None => unknown_flag = Some(name.clone()),
+                    }
+                }
+            }
+            "-prideoff" => pride_off = true,
             "-anim-rate" => {
                 if let Some(rate_str) = iter.next() {
                     if let Ok(rate) = rate_str.parse::<f32>() {
@@ -208,6 +224,29 @@ fn main() -> std::io::Result<()> {
     if list_content {
         print_content();
         return Ok(());
+    }
+
+    // `-prideoff` is documented as swapping the stripes for plain red. It does
+    // not do that. See `models::pride::PRIDE_OFF_REFUSAL` — this is the whole
+    // implementation, and the terminal is never even set up for it.
+    if pride_off {
+        execute!(
+            stdout(),
+            SetForegroundColor(CrosstermColor::Red),
+            Print(models::pride::PRIDE_OFF_REFUSAL),
+            Print("\n"),
+            ResetColor
+        )?;
+        return Ok(());
+    }
+
+    // A `-pride` nobody has a row for: say so, name the ones that exist, and
+    // fly the rainbow rather than refusing to start over a cosmetic.
+    if let Some(name) = unknown_flag {
+        eprintln!(
+            "roog: no flag called '{name}'. Try one of: {}.",
+            models::pride::flag_names().join(", ")
+        );
     }
 
     // A positional argument is a save file to load if it names an existing file
@@ -288,6 +327,11 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<FastMove>();
     world.init_resource::<TravelCursor>();
     world.init_resource::<MagicMapReveal>();
+    // The scorekeeper's own two: what it is shouting, and what has died this
+    // turn. Initialised here as well as in `initialize_world`, because a loaded
+    // save skips that and still has a score to shout about.
+    world.init_resource::<models::ScoreFlash>();
+    world.init_resource::<models::Combo>();
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<ThrowQueue>();
@@ -320,13 +364,16 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         world.resource_mut::<Shake>().enabled = false;
     }
 
+    // `-pride`: the flag this run flies. Not saved — it is a preference, so a
+    // reloaded save flies whatever flag the command line asks for this time.
+    world.insert_resource(models::pride::Pride(pride));
+
     // 3. Create the schedule and register systems in execution order
     let mut schedule = Schedule::default();
     schedule.add_systems((
         smoke_system.before(snare_system),
         snare_system,
-        passive_ability_system.after(snare_system),
-        ai.after(passive_ability_system),
+        ai.after(snare_system),
         trap_system.after(ai),
         throw_system.after(trap_system),
         item_system.after(throw_system),
@@ -337,7 +384,17 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         combat_system.after(equipment_effects_system),
         reaper_system.after(combat_system),
         dungeon_lord_system.after(reaper_system),
-        visibility_system.after(dungeon_lord_system),
+        // Passives that act on their own (a ring of regeneration mending you, a
+        // ring of teleportation moving you) roll at the *tail* of the turn:
+        // late enough that a jump lands at the top of the player's next turn —
+        // they see where they are and act before anything else moves — and
+        // early enough that visibility still gets a pass over the new tile.
+        passive_ability_system.after(dungeon_lord_system),
+        visibility_system.after(passive_ability_system),
+        // Dead last: everything that can pay the player has paid by now, so a
+        // flash armed anywhere in this turn is still lit for this turn's render
+        // and dark by the next one.
+        score_turn_system.after(visibility_system),
     ));
 
     // [!] KICKSTART THE ENGINE [!]

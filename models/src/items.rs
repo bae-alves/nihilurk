@@ -9,6 +9,8 @@
 //! * [`wands`] — zapping a wand ([`wands::apply_wand_effect`]), plus the blast
 //!   and bolt machinery a thrown wand also borrows
 //! * [`throwing`] — hurling anything at anything, and what catches it
+//! * [`rings`] — the three rings whose effect is a verb rather than a number
+//! * [`pickups`] — coins: what happens the instant you step on one
 //!
 //! [`item_system`] is the single schedule step: it drains the use-queue, works
 //! out what kind of thing each queued item is, manages its physical existence
@@ -21,7 +23,9 @@
 //! [`crate::helpers::free_adjacent_tile`],
 //! [`crate::helpers::clear_player_conditions`] — live in [`crate::helpers`].
 
+mod pickups;
 mod potions;
+pub(crate) mod rings;
 mod scrolls;
 mod throwing;
 mod wands;
@@ -30,9 +34,34 @@ pub use throwing::{
     ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_refusal, throw_system,
 };
 
-/// Re-exported so the passive-ability table can name it as
-/// `crate::items::aggravate_all_monsters` (see [`crate::abilities`]).
+/// The `T` key's whole implementation — the deliberate teleport a ring of
+/// teleportation makes possible. Public because the input loop calls it; silent
+/// on every path that isn't a jump, because the key is a secret.
+pub use rings::willed_teleport;
+
+/// Taking something off the floor, in one verb — the pack, the score, and the
+/// coins that are spent where they lie. The input handler calls this and knows
+/// nothing about any of it.
+pub use pickups::{break_promises, pick_up, settle_promises, would_help};
+
+/// A coin claimed by shooting it rather than stepping on it — see
+/// [`crate::traps::detonate_pickup`].
+pub(crate) use pickups::claim_from_afar;
+
+/// The enchantment a forge coin buys, borrowed from the scroll that invented it.
+pub(crate) use scrolls::enchant_equipped;
+
+/// Re-exported so the passive-ability table can name them as
+/// `crate::items::aggravate_all_monsters` and friends (see
+/// [`crate::abilities`]). Everything in that table has the same shape — run on
+/// a bearer, report whether it did anything — whichever submodule it lives in.
+pub(crate) use rings::{regenerate, teleportitis};
 pub(crate) use scrolls::aggravate_all_monsters;
+
+/// Re-exported so [`crate::combat`] can spend a charmed pair of hands on the
+/// blow that lands (a scroll of monster confusion) without knowing what the
+/// charm does.
+pub(crate) use scrolls::discharge_confusing_touch;
 
 /// The furthest any item can be hurled, re-exported under its historical path so
 /// `models::THROW_RANGE` / `crate::items::THROW_RANGE` keep resolving. Defined
@@ -110,10 +139,18 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
 
     let mut plan = plan_use(world, item_use.item);
 
-    // Equipment toggles its equipped state and always goes back in the pack.
+    // Equipment toggles its equipped state and always goes back in the pack —
+    // unless wearing it is what spent it. A ring of adornment fires the moment
+    // it goes on and tags itself [`Consume`] on the way out, so the plan is
+    // asked again afterwards: it is the one item whose fate is decided *by*
+    // being equipped rather than before.
     if plan.is_equipment {
         toggle_equipped(world, item_use.user, item_use.item);
         plan.keep = true;
+        if world.get::<Consume>(item_use.item).is_some() {
+            plan.keep = false;
+            plan.destroy = true;
+        }
     }
 
     // Anything the game can't "use" is handed straight back, not lost.
@@ -185,12 +222,18 @@ fn log_destruction(world: &mut World, item: Entity, seen_name: &str) {
         world.get::<Wand>(item).is_some(),
         world.get::<Potion>(item).is_some(),
         world.get::<Scroll>(item).is_some(),
+        world.get::<Ring>(item).is_some(),
     );
     let mut log = world.resource_mut::<GameLog>();
     match kinds {
-        (true, _, _) => log.add(format!("The {seen_name} crumbles to dust!")),
-        (_, true, _) => log.add(format!("You drink the {seen_name}.")),
-        (_, _, true) => log.add(format!("You read the {seen_name}.")),
+        (true, _, _, _) => log.add(format!("The {seen_name} crumbles to dust!")),
+        (_, true, _, _) => log.add(format!("You drink the {seen_name}.")),
+        (_, _, true, _) => log.add(format!("You read the {seen_name}.")),
+        // Only one ring is ever spent this way, and it does not merely crumble:
+        // it goes out the way it came in.
+        (_, _, _, true) => log.add(format!(
+            "The {seen_name} shivers apart into a thousand glittering motes."
+        )),
         _ => log.add("The item turns to dust!".to_string()),
     }
 }

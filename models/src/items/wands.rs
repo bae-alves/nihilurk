@@ -6,17 +6,22 @@
 //! most of its machinery ([`elemental_blast`], [`blast_palette`], the
 //! per-creature effects) from here.
 
-use bevy_ecs::{entity::Entity, prelude::With, world::World};
+use bevy_ecs::{
+    entity::Entity,
+    prelude::{Component, With},
+    world::World,
+};
 use crossterm::style::Color;
 use rand::Rng;
 use std::collections::{HashSet, VecDeque};
 
 use crate::components::*;
+use crate::conditions::{clear_player_conditions, confuse, shift_entity_speed};
 use crate::effects::*;
 use crate::equipment::{equipped_items, sync_equipment_effects};
 use crate::helpers::{
-    apply_damage, clear_player_conditions, get_entities_at_position, get_line, item_label,
-    leave_smoke, monster_at, roll_dice,
+    apply_damage, get_entities_at_position, get_line, item_label, leave_smoke, monster_at,
+    roll_dice,
 };
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index};
 use crate::monsters::{BESTIARY, spawn_monster};
@@ -79,27 +84,55 @@ fn fire_bolt(
     let damage = roll_wand_damage(world);
     world.resource_mut::<GameLog>().add(msg.to_string());
 
-    let (beam_cells, drained) = trace_bolt(world, user, user_pos, target_pos, damage, element);
+    let bolt = trace_bolt(world, user, user_pos, target_pos, damage, element);
 
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        let flight_ms = fx.beam(&beam_cells, color);
-        if let Some(&(lx, ly)) = beam_cells.last() {
+        let flight_ms = fx.beam(&bolt.cells, color);
+        if let Some(&(lx, ly)) = bolt.cells.last() {
             fx.impact_sparks(lx, ly, color, flight_ms);
         }
     }
-    if effect == WandEffect::DrainLife && drained > 0 {
+
+    // A bolt of the player's that actually bit something in sight gets the
+    // same light thump a sword landing does: a wand is their weapon at range
+    // and should land like one. Two gates, and each is one this file already
+    // keeps elsewhere. Only *their* zap counts — a monster's reaches the map
+    // the way its claws do, through the low-HP crossing or not at all. And it
+    // has to have been seen, because unlike a melee blow or a thrown missile
+    // nothing logs a bolt's damage: a shake for a bolt landing on something
+    // down an unlit corridor would say there is a creature there, which is
+    // the same leak the blast's own sight gate exists to close.
+    if world.get::<Player>(user).is_some() && bolt.bit_something_seen {
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Hit);
+    }
+
+    if effect == WandEffect::DrainLife && bolt.hp_taken > 0 {
+        let taken = bolt.hp_taken;
         if let Some(mut fighter) = world.get_mut::<Fighter>(user) {
-            fighter.hp = (fighter.hp + drained).min(fighter.max_hp);
+            fighter.hp = (fighter.hp + taken).min(fighter.max_hp);
         }
         world
             .resource_mut::<GameLog>()
-            .add(format!("You drain {drained} life."));
+            .add(format!("You drain {taken} life."));
     }
 }
 
+/// What one traced bolt did, on its way to wherever it stopped.
+struct Bolt {
+    /// The tiles the beam animation streaks through, the zapper's own excluded.
+    cells: Vec<(u16, u16)>,
+    /// HP the bolt actually took off, summed over everything it touched — what
+    /// drain-life feeds back to the zapper.
+    hp_taken: i32,
+    /// Whether any of that came off a creature standing where the player could
+    /// see it. The sight gate on the bolt's screen shake, kept here because
+    /// this is the only place that still knows *which tile* each victim was
+    /// standing on.
+    bit_something_seen: bool,
+}
+
 /// Walks the line from `user_pos` to `target_pos`, stopping at the first wall,
-/// and damages every entity but the zapper along it. Returns the tiles the beam
-/// animation streaks through and the total HP drained.
+/// and damages every entity but the zapper along it.
 fn trace_bolt(
     world: &mut World,
     user: Entity,
@@ -107,25 +140,31 @@ fn trace_bolt(
     target_pos: Position,
     damage: i32,
     element: Option<Element>,
-) -> (Vec<(u16, u16)>, i32) {
+) -> Bolt {
     let map = world.resource::<Map>().clone();
-    let mut beam_cells: Vec<(u16, u16)> = Vec::new();
-    let mut drained = 0;
+    let mut bolt = Bolt {
+        cells: Vec::new(),
+        hp_taken: 0,
+        bit_something_seen: false,
+    };
     for pos in get_line(user_pos, target_pos) {
         if map.blocks(pos.x, pos.y) {
             break;
         }
         if pos.x != user_pos.x || pos.y != user_pos.y {
-            beam_cells.push((pos.x, pos.y));
+            bolt.cells.push((pos.x, pos.y));
         }
         let victims = get_entities_at_position(world, pos)
             .into_iter()
             .filter(|&e| e != user);
         for entity in victims {
-            drained += damage_with_element(world, entity, damage, element);
+            let taken = damage_with_element(world, entity, damage, element);
+            bolt.hp_taken += taken;
+            bolt.bit_something_seen |=
+                taken > 0 && crate::helpers::player_sees(world, pos.x, pos.y);
         }
     }
-    (beam_cells, drained)
+    bolt
 }
 
 /// Blows a disc of `radius` tiles open around `center`: every creature standing
@@ -135,8 +174,14 @@ fn trace_bolt(
 /// The one place an area blast is resolved — a zapped wand of fire and a thrown
 /// one differ by the number passed in, and by nothing else. Nobody is exempt,
 /// the thrower included.
+///
+/// `shooter` is whoever let it off. The blast itself does not care; the chain
+/// reaction at the end of it does — a coin caught in a blast pays its effect to
+/// whoever caused the blast, exactly as if they had shot the coin.
+#[allow(clippy::too_many_arguments)] // one blast, and everything one is made of
 pub(super) fn elemental_blast(
     world: &mut World,
+    shooter: Option<Entity>,
     center: Position,
     radius: f32,
     damage: i32,
@@ -217,21 +262,26 @@ pub(super) fn elemental_blast(
         }
     }
 
-    // A trap caught in the blast goes off with it — the trick shot, worked by a
-    // wand instead of a bowstring. Its own burst is not a blast and never comes
-    // back through here, so a row of traps does not chain.
-    for trap in traps_in(world, &cell_set) {
+    // Anything in the blast that a shot could have set off goes off with it —
+    // the trick shot, worked by a wand instead of a bowstring. Traps first,
+    // then coins, and a coin hands its effect to whoever let the blast off.
+    // None of these bursts is itself a blast, so nothing comes back through
+    // here and a row of them cannot chain forever.
+    for trap in things_in::<Trap>(world, &cell_set) {
         crate::traps::detonate_trap(world, trap);
+    }
+    for coin in things_in::<Pickup>(world, &cell_set) {
+        crate::traps::detonate_pickup(world, coin, shooter);
     }
 
     affected_entities
 }
 
-/// Every trap standing on one of `cells`. Collected up front because setting
-/// one off mutates the world out from under the query.
-fn traps_in(world: &mut World, cells: &HashSet<(u16, u16)>) -> Vec<Entity> {
+/// Everything carrying `C` standing on one of `cells`. Collected up front
+/// because setting one off mutates the world out from under the query.
+fn things_in<C: Component>(world: &mut World, cells: &HashSet<(u16, u16)>) -> Vec<Entity> {
     world
-        .query_filtered::<(Entity, &Position), With<Trap>>()
+        .query_filtered::<(Entity, &Position), With<C>>()
         .iter(world)
         .filter(|(_, p)| cells.contains(&(p.x, p.y)))
         .map(|(e, _)| e)
@@ -297,28 +347,17 @@ pub(super) fn blast_palette(effect: WandEffect) -> BlastPalette {
     }
 }
 
-/// Dazzle — the wand of light's confusion. A monster is switched to a
-/// random-walk ([`MovementType::Confused`]); the player picks up the [`Confused`]
-/// condition, which rides along until they take a staircase or are cancelled.
+/// Dazzle — the wand of light's confusion: the flash in the eyes, and then
+/// [`crate::conditions::confuse`] does the rest. The wand owns the *flavour*
+/// (a flash) and nothing else; what confusion means to a player as against a
+/// monster is not this file's business.
 pub(super) fn dazzle(world: &mut World, entity: Entity) {
-    if world.get::<Player>(entity).is_some() {
-        if world.get::<Confused>(entity).is_none() {
-            world.entity_mut(entity).insert(Confused);
-            world
-                .resource_mut::<GameLog>()
-                .add("The flash leaves you reeling — you are dazzled!".to_string());
-        }
-        return;
-    }
-    if world.get::<Mob>(entity).is_some() {
-        let name = item_label(world, entity);
-        if let Some(mut mob) = world.get_mut::<Mob>(entity) {
-            mob.movement_type = MovementType::Confused;
-        }
-        world
-            .resource_mut::<GameLog>()
-            .add(format!("The {name} is dazzled!"));
-    }
+    confuse(
+        world,
+        entity,
+        "The flash leaves you reeling — you are dazzled!",
+        "is dazzled",
+    );
 }
 
 /// The wands that deal damage when zapped. Thrown, these go off wider and hotter
@@ -411,6 +450,7 @@ pub(super) fn apply_wand_effect(
             world.resource_mut::<GameLog>().add(msg.to_string());
             elemental_blast(
                 world,
+                Some(user),
                 target_pos,
                 BLAST_RADIUS,
                 damage,
@@ -597,42 +637,6 @@ fn shift_target_speed(world: &mut World, pos: Position, faster: bool) {
         return;
     };
     shift_entity_speed(world, victim, faster);
-}
-
-/// Step one creature — monster or player — along the speed scale.
-pub(super) fn shift_entity_speed(world: &mut World, victim: Entity, faster: bool) {
-    let is_player = world.get::<Player>(victim).is_some();
-    let name = item_label(world, victim);
-    let Some(mut speed) = world.get_mut::<Speed>(victim) else {
-        return;
-    };
-    let before = speed.kind;
-    speed.kind = if faster {
-        before.faster()
-    } else {
-        before.slower()
-    };
-    let after = speed.kind;
-    let msg = speed_shift_message(&name, faster, is_player, after != before);
-    world.resource_mut::<GameLog>().add(msg);
-}
-
-/// The line the speed shift prints, split out so it can early-return its way
-/// through the cases instead of threading one `if`/`else` chain.
-fn speed_shift_message(name: &str, faster: bool, is_player: bool, changed: bool) -> String {
-    let extreme = if faster { "quick" } else { "sluggish" };
-    if !changed && is_player {
-        return format!("You are already as {extreme} as you can be.");
-    }
-    if !changed {
-        return format!("The {name} is already as {extreme} as it can be.");
-    }
-    match (is_player, faster) {
-        (true, true) => "The world lurches into slow motion around you.".to_string(),
-        (true, false) => "Your limbs turn to lead.".to_string(),
-        (false, true) => format!("The {name} blurs into sudden speed."),
-        (false, false) => format!("The {name} lurches into slow motion."),
-    }
 }
 
 /// Wand of teleport away: fling the target monster to a random open tile.

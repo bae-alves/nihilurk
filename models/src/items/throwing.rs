@@ -21,14 +21,15 @@ use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, to
 use crate::identify::Identified;
 use crate::map::{GameRng, Map};
 use crate::particles::Particles;
-use crate::traps::{detonate_trap, trap_at};
+use crate::traps::detonate_at;
 
 use super::potions::apply_potion_effect;
 use super::scrolls::apply_scroll_effect;
 use super::wands::{
     blast_palette, cancel_entity, dazzle, elemental_blast, is_attack_wand, polymorph_entity,
-    shift_entity_speed, teleport_entity_away, teleport_entity_to_self,
+    teleport_entity_away, teleport_entity_to_self,
 };
+use crate::conditions::shift_entity_speed;
 
 use crate::constants::items::{PACK_CAPACITY, THROW_RANGE};
 use crate::constants::loot::LAUNCHER_DIE_MULTIPLIER;
@@ -316,6 +317,7 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
 /// * The **wand of nothing** just makes confetti.
 fn resolve_wand_throw(
     world: &mut World,
+    thrower: Entity,
     item: Entity,
     landing: Position,
     effect: WandEffect,
@@ -361,7 +363,15 @@ fn resolve_wand_throw(
     ));
 
     let palette = blast_palette(effect);
-    let caught = elemental_blast(world, landing, radius, damage, element, palette);
+    let caught = elemental_blast(
+        world,
+        Some(thrower),
+        landing,
+        radius,
+        damage,
+        element,
+        palette,
+    );
 
     if is_attack {
         return;
@@ -422,11 +432,22 @@ pub fn throw_system(world: &mut World) {
 /// whole job — it happens whatever the item was, whether or not the shot hit
 /// anyone, and whether or not it was the shot the thrower had in mind.
 fn resolve_throw(world: &mut World, throw: WantsToThrow) {
+    // Whether this was a shot or a lob has to be asked before the throw: a
+    // potion that shatters is not around afterwards to be asked anything.
+    let by_hand = world.get::<LaunchedBy>(throw.item).is_none();
+    let thrower_is_player = world.get::<Player>(throw.thrower).is_some();
+
     let Some(landing) = deliver_throw(world, throw) else {
         return;
     };
-    if let Some(trap) = trap_at(world, landing) {
-        detonate_trap(world, trap);
+    let Some(_shot) = detonate_at(world, landing, Some(throw.thrower)) else {
+        return;
+    };
+    // Ammunition setting something off is what ammunition is for. A dagger, a
+    // potion, somebody's spare ring — that is a choice, and the dungeon
+    // notices.
+    if by_hand && thrower_is_player {
+        world.resource_mut::<GameLog>().add("Very clever.");
     }
 }
 
@@ -524,7 +545,7 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
         let spent_its_leash = range_flown >= THROW_RANGE;
 
         if hit_creature || hit_wall || spent_its_leash {
-            resolve_wand_throw(world, item, landing, effect, &seen_name);
+            resolve_wand_throw(world, thrower, item, landing, effect, &seen_name);
             identify_from_afar(world, item);
             world.entity_mut(item).despawn();
             return Some(landing);
@@ -651,14 +672,29 @@ fn strike_victim(
         // Not a thing that hurts anyone: it simply arrives.
         return format!("The {seen_name} bounces off the {hit_name}.");
     };
+    let at = world.get::<Position>(hit).copied().unwrap_or(landing);
     if damage <= 0 {
-        // A weapon whose roll the armour ate.
+        // A weapon whose roll the armour ate — melee's glancing blow, at
+        // range, and it reads the same way: the cold clink and no shake.
+        // Harsher than melee, which has a chip-damage floor under it; a
+        // missile that can't beat armour does nothing at all.
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.clink_spark(at.x, at.y);
+        }
         return format!("The {seen_name} glances off the {hit_name}.");
     }
-    let at = world.get::<Position>(hit).copied().unwrap_or(landing);
     apply_damage(world, hit, damage);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.hit_spark(at.x, at.y);
+    }
+    // A shot of the player's that drew blood thumps exactly as much as their
+    // sword landing would. Two exclusions, the same two melee has: a monster's
+    // shot never shakes, and a kill takes its own kick from the reaper — which
+    // is also the sight gate for one, since `apply_damage` leaves a lethal
+    // missile hit for `finish_indirect_kill` to finalise.
+    let slain = world.get::<Fighter>(hit).is_some_and(|f| f.hp <= 0);
+    if world.get::<Player>(thrower).is_some() && !slain {
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Hit);
     }
     format!("The {seen_name} hits the {hit_name} for {damage} damage.")
 }

@@ -7,12 +7,16 @@
 //!
 //! * **Geometry** — [`get_line`] (Bresenham between two tiles).
 //! * **Spatial queries** — [`get_entities_at_position`], [`monster_at`],
-//!   [`actor_at`], [`free_adjacent_tile`].
+//!   [`actor_at`], [`tile_of`], [`hostiles_in_view`], [`free_adjacent_tile`].
+//! * **Cosmetics on an entity** — [`spark_burst_at`], [`mark_conditions`].
+//! * **Naming an actor** — [`actor_line`].
 //! * **Dice** — [`roll_dice`] (`NdM` summed off the shared [`GameRng`]).
 //! * **Naming** — [`item_label`] (an entity's display name, or a vague noun).
 //! * **Damage & cosmetics** — [`apply_damage`], [`spill_blood`].
 //! * **Defence maths** — [`total_armor_plus`].
-//! * **Player conditions** — [`clear_player_conditions`].
+//!
+//! Player conditions used to live here too; they are their own vocabulary now,
+//! in [`crate::conditions`].
 
 use bevy_ecs::{
     entity::Entity,
@@ -27,10 +31,7 @@ use crossterm::style::Color;
 use crate::effects::{ArmorBonus, equipped_total};
 use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map, Smoke};
 use crate::particles::Particles;
-use crate::{
-    Blood, Confused, Faction, Fighter, GameLog, Mob, Name, Player, Position, Renderable, Speed,
-    SpeedKind,
-};
+use crate::{Blood, Faction, Fighter, GameLog, Mob, Name, Player, Position, Renderable};
 
 /// Every tile a straight line from `start` to `end` passes through, endpoints
 /// included, in order. Plain integer Bresenham — the line a bolt, a beam, a
@@ -116,6 +117,58 @@ pub fn actor_at(world: &mut World, pos: Position, except: Entity) -> Option<Enti
         .map(|(e, _)| e)
 }
 
+/// Where `entity` is standing, as a plain tile pair — what the animation layer
+/// and the map overlays want, as against the [`Position`] component itself.
+/// `None` for anything with no place in the world.
+pub fn tile_of(world: &World, entity: Entity) -> Option<(u16, u16)> {
+    world.get::<Position>(entity).map(|p| (p.x, p.y))
+}
+
+/// Every hostile standing on a tile `watcher` can currently see. The reach of
+/// anything that goes off across a room rather than along a line — the three
+/// scrolls that catch a roomful, and whatever else comes to want it.
+///
+/// A watcher with no viewshed of its own sees nothing: a monster that reads a
+/// room-wide scroll aloud is shouting into a room it has no eyes for.
+pub fn hostiles_in_view(world: &mut World, watcher: Entity) -> Vec<Entity> {
+    let seen: HashSet<(u16, u16)> = world
+        .get::<crate::Viewshed>(watcher)
+        .map(|v| v.visible_tiles.iter().copied().collect())
+        .unwrap_or_default();
+    world
+        .query_filtered::<(Entity, &Position, &Faction), With<Mob>>()
+        .iter(world)
+        .filter(|(_, p, f)| **f == Faction::Monster && seen.contains(&(p.x, p.y)))
+        .map(|(e, _, _)| e)
+        .collect()
+}
+
+/// Throws sparks off `entity`'s own tile ([`Particles::spark_burst`]) — the
+/// flourish for magic that lands on a creature or on what it is holding, rather
+/// than out in the room. A no-op in a headless world with no effect layer.
+pub(crate) fn spark_burst_at(world: &mut World, entity: Entity, color: Color) {
+    let Some((x, y)) = tile_of(world, entity) else {
+        return;
+    };
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.spark_burst(x, y, color);
+    }
+}
+
+/// Flashes one condition's glyph over each of `caught`
+/// ([`Particles::condition_mark`]), a beat apart, so an effect that took a
+/// roomful reads as a wave crossing the room rather than every tile blinking at
+/// once.
+pub(crate) fn mark_conditions(world: &mut World, caught: &[Entity], glyph: char, color: Color) {
+    let tiles: Vec<(u16, u16)> = caught.iter().filter_map(|&e| tile_of(world, e)).collect();
+    let Some(mut fx) = world.get_resource_mut::<Particles>() else {
+        return;
+    };
+    for (i, &(x, y)) in tiles.iter().enumerate() {
+        fx.condition_mark(x, y, glyph, color, i as f32 * 45.0);
+    }
+}
+
 /// A walkable tile next to `origin` that no entity is standing on, chosen at
 /// random. `None` if `origin` is boxed in. Used to place a conjured monster, or
 /// to land a creature dragged to the zapper's side.
@@ -170,6 +223,26 @@ pub fn item_label(world: &World, item: Entity) -> String {
         .unwrap_or_else(|| "item".to_string())
 }
 
+/// The line an item's effect prints about whoever used it: `player_line`
+/// verbatim when the player did, "The kobold `mob_verb`." when anything else
+/// did.
+///
+/// Every consumable in the game can end up in somebody else's hands — a potion
+/// shatters over a monster and is drunk by it, a scroll that lands on something
+/// literate is read aloud — so no effect can assume it is talking to the player,
+/// and this is the one place that split is written down.
+pub(crate) fn actor_line(
+    world: &World,
+    actor: Entity,
+    player_line: &str,
+    mob_verb: &str,
+) -> String {
+    if world.get::<Player>(actor).is_some() {
+        return player_line.to_string();
+    }
+    format!("The {} {mob_verb}.", item_label(world, actor))
+}
+
 /// Applies `amount` damage to `entity`'s [`Fighter`] (no-op if it has none), and
 /// stains the floor if it bleeds. Death is not handled here — a later system
 /// reaps anything that dropped to zero HP.
@@ -180,8 +253,21 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
     }
     if amount > 0 {
         spill_blood(world, entity, amount, false);
-        warn_if_newly_low(world, entity, hp_before);
+        took_damage(world, entity, hp_before);
     }
+}
+
+/// Everything that happens to a creature *because it was hurt*, whatever hurt
+/// it: a promise the dungeon made it is off ([`crate::items::break_promises`]),
+/// and the player gets the low-HP warning if this blow crossed the line
+/// ([`warn_if_newly_low`]).
+///
+/// Called from the two places damage is dealt — here and
+/// [`crate::combat::resolve_attack`], which applies its own. Anything that
+/// should notice a wound goes in here rather than in one of them.
+pub(crate) fn took_damage(world: &mut World, entity: Entity, hp_before: Option<i32>) {
+    crate::items::break_promises(world, entity);
+    warn_if_newly_low(world, entity, hp_before);
 }
 
 /// Logs a one-time "badly wounded" warning as the player's HP crosses down
@@ -233,36 +319,6 @@ pub(crate) fn player_sees(world: &mut World, x: u16, y: u16) -> bool {
         .iter(world)
         .next()
         .is_some_and(|v| v.visible_tiles.iter().any(|&(vx, vy)| vx == x && vy == y))
-}
-
-/// Clears every transient condition the player is carrying — [`Speed`]
-/// haste/slow and [`Confused`] — and logs each one it lifts. Only two things
-/// trigger it: taking a staircase ([`crate::map::transition_level`]) and being
-/// caught by a wand of cancellation.
-pub fn clear_player_conditions(world: &mut World, player: Entity) {
-    let mut lifted: Vec<&str> = Vec::new();
-    if let Some(mut speed) = world.get_mut::<Speed>(player) {
-        match speed.kind {
-            SpeedKind::Fast => {
-                speed.kind = SpeedKind::Normal;
-                lifted.push("hasted");
-            }
-            SpeedKind::Slow => {
-                speed.kind = SpeedKind::Normal;
-                lifted.push("slowed");
-            }
-            SpeedKind::Normal => {}
-        }
-    }
-    if world.get::<Confused>(player).is_some() {
-        world.entity_mut(player).remove::<Confused>();
-        lifted.push("confused");
-    }
-    for cond in lifted {
-        world
-            .resource_mut::<GameLog>()
-            .add(format!("You are no longer {cond}."));
-    }
 }
 
 const DIRS: [(i32, i32); 8] = [

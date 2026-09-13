@@ -130,36 +130,67 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
     query.iter(world).map(|p| (p.x, p.y)).collect()
 }
 
-/// Every tile holding an item the player has already spotted — an [`Item`]
-/// still lying on the floor (still carries [`Position`]) whose [`Hidden`] tag
-/// has been lifted. [`explore_step`] beelines for these ahead of frontier
-/// exploration, so a visible item doesn't get left behind while the walk
-/// wanders off toward unseen ground.
+/// Every tile holding an item the player has already spotted and would
+/// actually take — an [`Item`] still lying on the floor (still carries
+/// [`Position`]) whose [`Hidden`] tag has been lifted. [`explore_step`]
+/// beelines for these ahead of frontier exploration, so a visible item doesn't
+/// get left behind while the walk wanders off toward unseen ground.
+///
+/// Two kinds are left out, and for the same reason: walking to something the
+/// arrival will refuse halts the walk, leaves the thing where it was, and sends
+/// the next `o` straight back to it forever.
+///
+/// * A [`Pickup`] the player has no use for yet — a red coin at full health
+///   ([`crate::items::would_help`]). It stays visible and stays skipped until
+///   the day it would help, and then the walk goes and gets it.
+/// * Everything that needs a pack slot, once the pack is full
+///   ([`stowable_room`]). A coin needs no slot, which is why the pack no longer
+///   calls the whole detour off.
 pub fn known_item_tiles(world: &mut World) -> Vec<(u16, u16)> {
-    let mut query = world.query_filtered::<&Position, (With<Item>, Without<Hidden>)>();
-    query.iter(world).map(|p| (p.x, p.y)).collect()
+    let Some(player) = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+    else {
+        return Vec::new();
+    };
+    let room = stowable_room(world);
+    let mut query = world.query_filtered::<(Entity, &Position), (With<Item>, Without<Hidden>)>();
+    let candidates: Vec<(Entity, (u16, u16))> =
+        query.iter(world).map(|(e, p)| (e, (p.x, p.y))).collect();
+    candidates
+        .into_iter()
+        .filter(|&(item, _)| worth_the_walk(world, player, item, room))
+        .map(|(_, tile)| tile)
+        .collect()
 }
 
-/// Whether a walk should still detour for loot: the `A` toggle
-/// ([`AutoPickup`]) is on, *and* there is somewhere to put what it finds.
-///
-/// A full pack calls the detour off by itself. Walking to an item that can only
-/// be answered with "Your pack is full." halts the walk on arrival and leaves
-/// the item exactly where it was — so the next `o` beelines straight back to it
-/// and halts again, and the floor never gets explored. Not looking is the only
-/// way out that doesn't involve the walk picking your pockets for you.
-fn detours_for_loot(world: &mut World) -> bool {
-    let wanted = world
-        .get_resource::<AutoPickup>()
-        .map_or(true, |p| p.enabled);
-    if !wanted {
-        return false;
+/// Whether arriving at `item` would actually achieve something: a pickup has to
+/// be one the player can use, and anything else has to have a slot to go into.
+fn worth_the_walk(world: &World, player: Entity, item: Entity, room: bool) -> bool {
+    match world.get::<Pickup>(item).map(|p| p.effect) {
+        Some(effect) => crate::items::would_help(world, player, effect),
+        None => room,
     }
+}
+
+/// Whether the pack has room for one more thing that needs a slot.
+fn stowable_room(world: &mut World) -> bool {
     world
         .query_filtered::<&Backpack, With<Player>>()
         .iter(world)
         .next()
         .map_or(true, |b| b.items.len() < PACK_CAPACITY)
+}
+
+/// Whether a walk should detour for loot at all: the `A` toggle
+/// ([`AutoPickup`]) and nothing else. What is *worth* detouring for is
+/// [`known_item_tiles`]'s question, item by item — a full pack no longer calls
+/// the whole thing off, because a coin still gets picked up with a full pack.
+fn detours_for_loot(world: &mut World) -> bool {
+    world
+        .get_resource::<AutoPickup>()
+        .map_or(true, |p| p.enabled)
 }
 
 /// Breadth-first search across tiles the caller deems `open`, from `(px, py)`,

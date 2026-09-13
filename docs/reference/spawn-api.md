@@ -194,7 +194,8 @@ on. Reads the item to decide which bonus applies.
 
     pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8
 
-`3d4`.
+`2d6 + 1`, i.e. 3..13 (`constants::wands`). A wand spawned any other way
+carries `Battery { charges: 0 }`.
 
     pub fn split_one(world: &mut World, item: Entity) -> Option<Entity>
 
@@ -314,4 +315,5 @@ See also
 
   content-tables.md             the tables these functions read
   cli-and-env.md                ROOG_SPAWN and the -content flag
+  ../how-to/spawn-a-thing.md    recipes for the functions above
   ../how-to/add-an-item-category.md   implementing ItemDef yourself

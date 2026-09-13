@@ -63,8 +63,9 @@ use crate::components::*;
 use crate::constants::traps::{
     ARROW_DAMAGE_BONUS, ARROW_DAMAGE_DICE, ARROW_DAMAGE_PER_TIER, ARROW_DAMAGE_SIDES,
     BEAR_TRAP_THRASH_DAMAGE, BEAR_TRAP_THRASH_GORE, DART_DAMAGE_DICE, DART_DAMAGE_SIDES,
-    DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER, TRAP_DAMAGE_TIER_LAST_DEPTH,
-    TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES, TRICK_SHOT_RADIUS,
+    DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER, PICKUP_TRICK_SHOT_RADIUS,
+    TRAP_DAMAGE_TIER_LAST_DEPTH, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES,
+    TRICK_SHOT_RADIUS,
 };
 use crate::effects::SustainsStrength;
 use crate::helpers::{
@@ -72,7 +73,7 @@ use crate::helpers::{
     total_armor_plus,
 };
 use crate::map::{
-    FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index,
+    FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index,
     transition_level,
 };
 use crate::particles::{BlastPalette, Particles};
@@ -296,6 +297,7 @@ pub fn snare_system(world: &mut World) {
         if world.get::<Player>(entity).is_some() {
             let msg = match kind {
                 Some(SnareKind::Bear) => "You wrench your leg free of the bear trap.",
+                Some(SnareKind::Hold) => "Whatever was holding you lets go.",
                 _ => "You shake off the drowsiness and come to.",
             };
             world.resource_mut::<GameLog>().add(msg);
@@ -439,33 +441,10 @@ pub fn detonate_trap(world: &mut World, trap: Entity) -> bool {
         return false;
     };
 
-    let cells = burst_cells(world, center);
-    let victims = creatures_in(world, &cells);
-    let caught_player = victims.iter().any(|&v| world.get::<Player>(v).is_some());
-    let seen = caught_player || player_sees(world, center.x, center.y);
-
     // The trap is gone the instant it lets go, before anything below can put a
     // second victim on its tile — nothing sets off the same trap twice.
     world.entity_mut(trap).despawn();
-
-    if seen {
-        // The player standing in their own blast has a different word for it.
-        let shout = if caught_player { "WHY!" } else { "BAM!" };
-        world
-            .resource_mut::<GameLog>()
-            .add(format!("{shout} Trick shot!"));
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
-    }
-    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        fx.explosion(&cells, BlastPalette::Force);
-    }
-
-    // One roll, applied whole to everyone caught — this is a blast, not a
-    // volley of separate hits.
-    let damage = roll_dice(world, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES);
-    for &victim in &victims {
-        apply_damage(world, victim, damage);
-    }
+    let victims = burst(world, center, TRICK_SHOT_RADIUS, BlastPalette::Force, true);
 
     for victim in victims {
         if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
@@ -479,9 +458,188 @@ pub fn detonate_trap(world: &mut World, trap: Entity) -> bool {
             continue;
         }
         let is_player = world.get::<Player>(victim).is_some();
+        let seen = player_sees(world, center.x, center.y);
         apply_trap_effect(world, effect, victim, is_player, seen, Some(center));
     }
     true
+}
+
+/// The other thing on a floor worth shooting: a coin.
+///
+/// A pickup has no mechanism to let go, so what goes off is the shot itself —
+/// which is why it covers [`PICKUP_TRICK_SHOT_RADIUS`], twice a trap's reach.
+/// And `shooter` **gets the coin's effect**, across the room, before the burst
+/// rolls out: a red coin heals whoever shot it, a gold one pays them, a
+/// platinum one makes them its promise. That is the whole appeal — a coin you
+/// cannot reach in time is a coin you can still use, and a coin in the middle
+/// of a crowd is worth using that way even when you could have walked to it.
+///
+/// The effect goes nowhere at all when nothing shot it (a coin caught in
+/// somebody else's chain reaction with no author): it is spent, and that is it.
+///
+/// Returns whether there was a pickup here to set off.
+pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity>) -> bool {
+    let Some(center) = world.get::<Position>(pickup).copied() else {
+        return false;
+    };
+    if world.get::<Pickup>(pickup).is_none() {
+        return false;
+    }
+    if let Some(shooter) = shooter {
+        crate::items::claim_from_afar(world, shooter, pickup);
+    }
+    world.entity_mut(pickup).despawn();
+    burst(
+        world,
+        center,
+        PICKUP_TRICK_SHOT_RADIUS,
+        BlastPalette::Force,
+        true,
+    );
+    true
+}
+
+/// The ULTIMATE TRICK SHOT: a missile comes down on the Element of Yoord.
+///
+/// The relic does not break, does not move and is not spent — it is the run,
+/// and nothing the player does to it can cost them it. What it does instead is
+/// answer. One wide burst where it lies; then a second burst centred on every
+/// creature that one caught; then a third on one of them, whoever the reading
+/// order reaches first. Each one can catch somebody the last one missed, which
+/// is the whole point of firing an arrow at the artifact you came for.
+///
+/// Returns whether the relic was here to hit.
+pub fn ultimate_trick_shot(world: &mut World, relic: Entity) -> bool {
+    let Some(center) = world.get::<Position>(relic).copied() else {
+        return false;
+    };
+    world
+        .resource_mut::<GameLog>()
+        .add("The Element of Yoord takes the hit — and answers.".to_string());
+
+    let caught = burst(
+        world,
+        center,
+        PICKUP_TRICK_SHOT_RADIUS,
+        BlastPalette::Ultimate,
+        true,
+    );
+    let mut echoes = Vec::new();
+    for victim in caught {
+        let Some(at) = world.get::<Position>(victim).copied() else {
+            continue;
+        };
+        echoes.push(at);
+        burst(world, at, TRICK_SHOT_RADIUS, BlastPalette::Ultimate, false);
+    }
+    // And one more, on whoever the reading order reached first. Not the worst
+    // hurt, not the nearest — just one of them, because "any one hit" is what
+    // an ULTIMATE TRICK SHOT promises and it owes nobody fairness.
+    if let Some(&unlucky) = echoes.first() {
+        world
+            .resource_mut::<GameLog>()
+            .add("ULTIMATE TRICK SHOT!".to_string());
+        burst(
+            world,
+            unlucky,
+            TRICK_SHOT_RADIUS,
+            BlastPalette::Ultimate,
+            false,
+        );
+    }
+    true
+}
+
+/// One burst of a trick shot: the tiles it covers, the shout, the shake, the
+/// animation, and one roll of damage applied whole to everyone standing in it.
+/// Returns who was caught, in reading order, so a caller can follow up on them.
+///
+/// `announce` is for the first burst of a shot only — a shot that goes off
+/// three times is still one trick shot and shouts once.
+fn burst(
+    world: &mut World,
+    center: Position,
+    radius: i32,
+    palette: BlastPalette,
+    announce: bool,
+) -> Vec<Entity> {
+    let cells = burst_cells(world, center, radius);
+    let victims = creatures_in(world, &cells);
+    let caught_player = victims.iter().any(|&v| world.get::<Player>(v).is_some());
+    let seen = caught_player || player_sees(world, center.x, center.y);
+
+    if seen && announce {
+        // The player standing in their own blast has a different word for it.
+        let shout = if caught_player { "WHY!" } else { "BAM!" };
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("{shout} Trick shot!"));
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+    }
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.explosion(&cells, palette);
+        // The one palette that smoulders afterwards. A trap's burst is over
+        // when it is over; the relic's leaves the room full of it.
+        if palette == BlastPalette::Ultimate {
+            fx.smoke_burst(&cells);
+        }
+    }
+    if palette == BlastPalette::Ultimate {
+        let mut smoke = world.resource_mut::<Smoke>();
+        for &(x, y, _) in &cells {
+            smoke.puff(x, y, crate::constants::wands::SMOKE_LINGER_TURNS);
+        }
+    }
+
+    // One roll, applied whole to everyone caught — this is a blast, not a
+    // volley of separate hits.
+    let damage = roll_dice(world, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES);
+    for &victim in &victims {
+        apply_damage(world, victim, damage);
+    }
+    victims
+}
+
+/// Whatever is lying on `pos` that a shot can set off, set off. This is the
+/// whole of "what happens where the missile lands", so a thrown dagger, a
+/// loosed arrow and a wand's blast all get the same answers.
+///
+/// `shooter` is whoever loosed it, and matters for exactly one of the three
+/// answers: a coin pays its effect to them.
+///
+/// Returns what went off, or `None` for a tile with nothing on it worth
+/// hitting.
+pub fn detonate_at(world: &mut World, pos: Position, shooter: Option<Entity>) -> Option<TrickShot> {
+    if let Some(trap) = trap_at(world, pos) {
+        detonate_trap(world, trap);
+        return Some(TrickShot::Trap);
+    }
+    if let Some(pickup) = thing_at::<Pickup>(world, pos) {
+        detonate_pickup(world, pickup, shooter);
+        return Some(TrickShot::Pickup);
+    }
+    if let Some(relic) = thing_at::<Amulet>(world, pos) {
+        ultimate_trick_shot(world, relic);
+        return Some(TrickShot::Ultimate);
+    }
+    None
+}
+
+/// What a shot set off. The thrower's own comment on it is
+/// `crate::items::throw_system`'s business — this only says what happened.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TrickShot {
+    Trap,
+    Pickup,
+    Ultimate,
+}
+
+/// The first entity carrying `C` standing on `pos`.
+fn thing_at<C: Component>(world: &mut World, pos: Position) -> Option<Entity> {
+    let mut q = world.query_filtered::<(Entity, &Position), With<C>>();
+    q.iter(world)
+        .find(|(_, p)| p.x == pos.x && p.y == pos.y)
+        .map(|(e, _)| e)
 }
 
 /// Finishes one creature the burst killed, here rather than at the reaper's
@@ -507,11 +665,11 @@ fn finish_burst_casualty(world: &mut World, victim: Entity, center: Position, ef
 /// within [`TRICK_SHOT_RADIUS`] of it, tagged with its distance from the centre
 /// so the animation ripples outward. Walls are not covered — the blast rolls
 /// into the room, not through the stone.
-fn burst_cells(world: &World, center: Position) -> Vec<(u16, u16, f32)> {
+fn burst_cells(world: &World, center: Position, radius: i32) -> Vec<(u16, u16, f32)> {
     let map = world.resource::<Map>();
     let mut cells = Vec::new();
-    for dy in -TRICK_SHOT_RADIUS..=TRICK_SHOT_RADIUS {
-        for dx in -TRICK_SHOT_RADIUS..=TRICK_SHOT_RADIUS {
+    for dy in -radius..=radius {
+        for dx in -radius..=radius {
             let Some((x, y)) = crate::particles::on_map(center.x as i32 + dx, center.y as i32 + dy)
             else {
                 continue;
@@ -581,13 +739,16 @@ fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: boo
 }
 
 fn snare_victim(world: &mut World, victim: Entity, kind: SnareKind, turns: u32, is_player: bool) {
-    world.entity_mut(victim).insert(Snare { turns, kind });
+    crate::conditions::snare(world, victim, kind, turns);
     if is_player {
         let msg = match kind {
             SnareKind::Bear => {
                 "Steel jaws snap shut on your leg — you can't take a step, but your arms are free!"
             }
             SnareKind::Sleep => "Gas billows up around you. Your eyelids turn to lead...",
+            // No trap holds anything: that is a scroll of hold monster's doing,
+            // and it prints its own line (`crate::items`'s `scrolls`).
+            SnareKind::Hold => "Something roots you to the spot.",
         };
         world.resource_mut::<GameLog>().add(msg);
     }

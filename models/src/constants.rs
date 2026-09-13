@@ -81,7 +81,7 @@ pub mod player {
     pub const START_ARMOR: i32 = 2;
 
     /// Starting power die (`1d[power]` on the attack roll), before the +1 mace.
-    pub const START_POWER: i32 = 4;
+    pub const START_POWER: i32 = 2;
 
     /// Starting (and maximum) magic points — the pool abilities draw on, shown
     /// as `Ma X/Y` on the HUD. Refilled in full by every staircase
@@ -98,7 +98,7 @@ pub mod player {
     /// Fraction of max HP at or below which the player gets a one-time "badly
     /// wounded" warning as they cross down into it. See
     /// [`crate::helpers::apply_damage`].
-    pub const LOW_HP_WARNING_FRACTION: f32 = 0.25;
+    pub const LOW_HP_WARNING_FRACTION: f32 = 0.3;
 }
 
 // ===========================================================================
@@ -166,7 +166,7 @@ pub mod map {
     /// Chance that a given room past the starting one spawns unlit. A dark room
     /// behaves like a corridor (sight cut to the 3x3) until a wand of light
     /// goes off in it. Raise for a darker, more wand-of-light-dependent game.
-    pub const DARK_ROOM_CHANCE: f64 = 0.15;
+    pub const DARK_ROOM_CHANCE: f64 = 0.1;
 }
 
 // ===========================================================================
@@ -183,10 +183,10 @@ pub mod population {
     pub const MONSTER_SLOTS_BASE: usize = 3;
 
     /// Chance a non-first monster slot actually spawns something, at tier 0.
-    pub const MONSTER_FILL_CHANCE_BASE: f64 = 0.60;
+    pub const MONSTER_FILL_CHANCE_BASE: f64 = 0.75;
 
     /// Added to the monster fill chance per tier.
-    pub const MONSTER_FILL_CHANCE_PER_TIER: f64 = 0.12;
+    pub const MONSTER_FILL_CHANCE_PER_TIER: f64 = 0.10;
 
     /// Ceiling on the monster fill chance, so a slot is never quite certain.
     pub const MONSTER_FILL_CHANCE_CAP: f64 = 0.95;
@@ -195,13 +195,13 @@ pub mod population {
     pub const TRAP_SLOTS_BASE: usize = 4;
 
     /// Chance a trap slot produces a trap, at tier 0.
-    pub const TRAP_FILL_CHANCE_BASE: f64 = 0.12;
+    pub const TRAP_FILL_CHANCE_BASE: f64 = 0.75;
 
     /// Added to the trap fill chance per tier.
-    pub const TRAP_FILL_CHANCE_PER_TIER: f64 = 0.13;
+    pub const TRAP_FILL_CHANCE_PER_TIER: f64 = 0.10;
 
     /// Ceiling on the trap fill chance.
-    pub const TRAP_FILL_CHANCE_CAP: f64 = 0.75;
+    pub const TRAP_FILL_CHANCE_CAP: f64 = 0.95;
 
     /// From this depth on, every corridor centre has a small chance
     /// ([`CORRIDOR_LURKER_CHANCE`]) of hiding a monster right in the traveller's
@@ -220,9 +220,8 @@ pub mod population {
     pub const ITEM_SLOTS_BASE: usize = 3;
 
     /// Chance a floor also hides one extra item — no glyph, no announcement —
-    /// until a ring of perception turns it up or the player walks onto it. One
-    /// in five.
-    pub const HIDDEN_ITEM_CHANCE: f64 = 0.20;
+    /// until a ring of perception turns it up or the player walks onto it.
+    pub const HIDDEN_ITEM_CHANCE: f64 = 0.5;
 }
 
 // ===========================================================================
@@ -284,6 +283,12 @@ pub mod traps {
     /// from a distance — `1` is the 3×3 around it. See `traps::detonate_trap`.
     pub const TRICK_SHOT_RADIUS: i32 = 1;
 
+    /// The reach of a trick shot set off on something that is not a trap — a
+    /// coin, or the Element of Yoord itself. Wider than a trap's on purpose:
+    /// a trap has a mechanism to let go and this has only the shot, so the
+    /// spectacle is all there is to it. `2` is the 5x5 around the tile.
+    pub const PICKUP_TRICK_SHOT_RADIUS: i32 = 2;
+
     /// A trick shot's burst deals `TRICK_SHOT_DAMAGE_DICE d
     /// TRICK_SHOT_DAMAGE_SIDES`, rolled once and applied whole to everything
     /// caught — no armour of any kind is subtracted, not even the armour plus
@@ -294,6 +299,76 @@ pub mod traps {
 }
 
 // ===========================================================================
+// Potions
+// ===========================================================================
+
+/// What a dose is worth. The potion *table* (which potion is which colour) is
+/// data in `catalog.rs`; the mechanics keyed off each effect are
+/// `crate::items`'s `potions` submodule.
+///
+/// Every number here is permanent: a potion of healing's point of max HP and a
+/// potion of poison's lost power both outlive the floor they were drunk on. The
+/// only way back up from poison is a potion of restore strength.
+pub mod potions {
+    /// A potion of healing refills the drinker and raises their ceiling by this
+    /// much — the slow, reliable way the hero's HP pool grows over a run, since
+    /// nothing else raises it.
+    pub const HEALING_MAX_HP_GAIN: i32 = 1;
+
+    /// A potion of extra healing does the same, three times over.
+    pub const EXTRA_HEALING_MAX_HP_GAIN: i32 = 3;
+
+    /// A potion of gain strength adds this to the drinker's attack die, floor
+    /// and ceiling both.
+    pub const GAIN_STRENGTH_POWER: i32 = 1;
+
+    /// A potion of poison takes this much off the drinker's attack die, never
+    /// below [`POISON_POWER_FLOOR`]. Restore strength puts it all back.
+    pub const POISON_POWER_LOSS: i32 = 2;
+    /// See [`POISON_POWER_LOSS`]. Poison can leave you feeble but never
+    /// weaponless.
+    pub const POISON_POWER_FLOOR: i32 = 1;
+
+    /// The chance a paralysed player's turn is forfeited outright, on top of the
+    /// slowing paralysis already imposes. Rolled once per turn — see
+    /// [`crate::conditions::paralysis_forfeits_turn`].
+    pub const PARALYSIS_LOST_TURN_CHANCE: f64 = 0.5;
+}
+
+// ===========================================================================
+// Scrolls
+// ===========================================================================
+
+/// What the words on a page are worth. The scroll *table* (which scroll is
+/// which label) is data in `catalog.rs`; the mechanics keyed off each effect are
+/// `crate::items`'s `scrolls` submodule.
+///
+/// Only the scrolls with a *number* in them appear here — the rest are shapes
+/// (whatever is in view, whatever is in the pack) rather than magnitudes.
+pub mod scrolls {
+    /// What one reading of enchant weapon / enchant armor adds to the plus on
+    /// the gear it is read over. A minus is not merely nudged by this: it is
+    /// mended straight to `+0` (see `crate::items`'s `enchant_gear`), so a
+    /// single scroll always redeems the worst cursed item in one go.
+    pub const ENCHANT_BONUS: i32 = 1;
+
+    /// Chance a scroll of sleep goes off in the reader's own face instead of
+    /// rolling out over the room. The gamble is the point: it is a panic button
+    /// that occasionally *is* the emergency.
+    pub const SLEEP_BACKFIRE_CHANCE: f64 = 0.25;
+
+    /// How many turns a scroll of sleep puts its victims under — the same
+    /// helplessness a sleeping gas trap deals, whether it caught the room or
+    /// the reader.
+    pub const SLEEP_TURNS: u32 = 5;
+
+    /// How many turns a scroll of hold monster roots what it catches. Longer
+    /// than sleep, because a held monster is only pinned and can still fight:
+    /// it buys distance, not a free kill.
+    pub const HOLD_TURNS: u32 = 8;
+}
+
+// ===========================================================================
 // Wands and their blasts
 // ===========================================================================
 
@@ -301,16 +376,16 @@ pub mod traps {
 /// is which colour, which range, which effect) is data in `catalog.rs`.
 pub mod wands {
     /// A fresh wand's battery is `CHARGE_DICE d CHARGE_SIDES + CHARGE_BONUS`
-    /// charges, rolled when it enters the dungeon. Today: `2d6 + 1`, i.e. 3..13.
+    /// charges, rolled when it enters the dungeon. Today: `2d4 + 1`, i.e. 3..9.
     pub const CHARGE_DICE: i32 = 2;
     /// See [`CHARGE_DICE`].
-    pub const CHARGE_SIDES: i32 = 6;
+    pub const CHARGE_SIDES: i32 = 4;
     /// See [`CHARGE_DICE`].
     pub const CHARGE_BONUS: i8 = 1;
 
     /// A *zapped* attack wand deals `DAMAGE_DICE d DAMAGE_SIDES`, armour-ignoring,
-    /// rolled once and applied whole to everyone it touches. Today: `3d3`.
-    pub const DAMAGE_DICE: i32 = 3;
+    /// rolled once and applied whole to everyone it touches. Today: `2d3`.
+    pub const DAMAGE_DICE: i32 = 2;
     /// See [`DAMAGE_DICE`].
     pub const DAMAGE_SIDES: i32 = 3;
 
@@ -331,11 +406,11 @@ pub mod wands {
 
     /// A thrown wand spends *every* remaining charge at once. An attack-wand
     /// grenade rolls this many sides per charge...
-    pub const GRENADE_DIE_PER_CHARGE: i32 = 4;
+    pub const GRENADE_DIE_PER_CHARGE: i32 = 3;
     /// ...and a thrown utility wand's blast rolls this many (it deals no damage,
     /// but the roll still drives the animation's reach). See
     /// [`crate::items`]`::resolve_wand_throw`.
-    pub const EFFECT_DIE_PER_CHARGE: i32 = 3;
+    pub const EFFECT_DIE_PER_CHARGE: i32 = 2;
 
     /// How many turns a fire blast's smoke lingers on the tiles it covered,
     /// DCSS-style — purely cosmetic, never blocks movement or sight. Zapped
@@ -381,9 +456,9 @@ pub mod loot {
     /// A dropped ammunition bundle holds this many, uniformly — never a lone
     /// arrow, because finding one arrow is not finding ammunition. Capped by
     /// [`crate::constants::items::STACK_LIMIT`] once it lands in a pack slot.
-    pub const AMMO_BUNDLE_MIN: i32 = 3;
+    pub const AMMO_BUNDLE_MIN: i32 = 4;
     /// See [`AMMO_BUNDLE_MIN`].
-    pub const AMMO_BUNDLE_MAX: i32 = 12;
+    pub const AMMO_BUNDLE_MAX: i32 = 8;
 
     /// A launcher (bow, crossbow) multiplies the die of the ammunition it looses.
     /// This is the whole point of the bow — see the "price of a hand" section of
@@ -419,6 +494,61 @@ pub mod items {
 }
 
 // ===========================================================================
+// Rings
+// ===========================================================================
+
+/// What the rings whose effect is a *verb* are worth. The eleven rings that are
+/// only a number or a marker have no knobs here — their whole content is the
+/// row in `catalog.rs`. See `models/src/items/rings.rs`.
+pub mod rings {
+    /// How close a stealthy player has to be before anything on the floor
+    /// notices them, in tiles (Chebyshev — a diagonal counts as one). At 1 a
+    /// ring of stealth makes you effectively untouchable outside melee; much
+    /// past 3 and it stops changing how a room plays.
+    pub const STEALTH_RANGE: i32 = 2;
+
+    /// Magic points one deliberate teleport costs a wearer of the ring of
+    /// teleportation. The pool is [`crate::constants::player::START_MAGIC`] and
+    /// only a staircase refills it, so this is how many jumps a floor is worth.
+    pub const TELEPORT_MAGIC_COST: u8 = 2;
+}
+
+// ===========================================================================
+// Score
+// ===========================================================================
+
+/// What the number on the HUD is made of. The verbs are in `score.rs`, which
+/// documents the whole table in one place.
+pub mod score {
+    /// Score paid per point of a slain creature's `max_hp`. A goblin is a
+    /// rounding error next to a griffin, which is the intent: the scoreboard
+    /// rewards fighting things that could have killed you.
+    pub const KILL_PER_MAX_HP: i32 = 100;
+
+    /// What each corpse past the first adds to a turn's kill score, as a
+    /// fraction of the whole pile: at `0.5`, two in one turn pay 1.5x and
+    /// three pay 2x — applied to the turn's kills together, not to the last one
+    /// alone. This is the dial that decides whether a thrown wand is worth more
+    /// than the same six kills one at a time.
+    pub const COMBO_BONUS_PER_KILL: f32 = 0.5;
+
+    /// How often a combo is logged as done "With pride." instead of the usual
+    /// "With style." Rare on purpose: the joke is the one you don't expect, and
+    /// a line that shows up every other fight stops being one.
+    pub const COMBO_PRIDE_CHANCE: f64 = 0.10;
+
+    /// Score paid per difficulty tier every time a staircase is used, counting
+    /// the shallowest band as tier one so the first flight still pays. Raise it
+    /// and diving outscores clearing; lower it and the reverse.
+    pub const STAIR_PER_TIER: i32 = 500;
+
+    /// Turns a payment stays lit on the scorekeeper. Two is one full frame of
+    /// screen time: the flash is aged at the tail of the turn it was armed in,
+    /// shown by that turn's render, and dark by the player's next action.
+    pub const SCORE_FLASH_TURNS: u8 = 2;
+}
+
+// ===========================================================================
 // Monsters
 // ===========================================================================
 
@@ -439,10 +569,10 @@ pub mod monsters {
 /// bounded number of times instead of forever.
 pub mod travel {
     /// Hard stop on a single autoexplore invocation.
-    pub const AUTO_EXPLORE_STEP_CAP: u32 = 5000;
+    pub const AUTO_EXPLORE_STEP_CAP: u32 = 260;
 
     /// Hard stop on a single fast-move (travel-to-cursor / run) invocation.
-    pub const FAST_MOVE_STEP_CAP: u32 = 1000;
+    pub const FAST_MOVE_STEP_CAP: u32 = 260;
 }
 
 // ===========================================================================

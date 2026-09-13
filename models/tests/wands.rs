@@ -1,9 +1,17 @@
-//! The wand table: 3d3 armour-ignoring damage, 2d6+1 charges, the drain-life
+//! The wand table: armour-ignoring bolt damage, the charge roll, the drain-life
 //! lifesteal, elemental immunities, and the utility wands (light, polymorph,
 //! haste/slow, teleport, cancellation) plus the speed system they lean on.
+//!
+//! Where a test needs to know how big a wand's dice are it reads
+//! `constants::wands` rather than naming a number: the dice are a balance
+//! decision, and a test that pins one is a test that fails the next time
+//! somebody makes one.
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
+use models::constants::wands::{
+    CHARGE_BONUS, CHARGE_DICE, CHARGE_SIDES, DAMAGE_DICE, DAMAGE_SIDES,
+};
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -130,11 +138,16 @@ fn beside_player(w: &mut World) -> (Position, Position) {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_fresh_wand_rolls_2d6_plus_1_charges() {
+fn a_fresh_wand_rolls_its_charges_from_the_table() {
+    let floor = CHARGE_DICE as i8 + CHARGE_BONUS;
+    let ceiling = (CHARGE_DICE * CHARGE_SIDES) as i8 + CHARGE_BONUS;
     let mut rng = ChaCha12Rng::seed_from_u64(42);
     for _ in 0..200 {
         let c = roll_wand_charges(&mut rng);
-        assert!((3..=13).contains(&c), "2d6+1 is 3..=13, got {c}");
+        assert!(
+            (floor..=ceiling).contains(&c),
+            "charges {c} outside {floor}..={ceiling}"
+        );
     }
     // A wand entering the dungeon as loot is charged from that same roll.
     let mut w = test_world(1);
@@ -142,11 +155,14 @@ fn a_fresh_wand_rolls_2d6_plus_1_charges() {
     let mut loot_rng = ChaCha12Rng::seed_from_u64(7);
     w.get_mut::<Battery>(wand).unwrap().charges = roll_wand_charges(&mut loot_rng);
     let charges = w.get::<Battery>(wand).unwrap().charges;
-    assert!((3..=13).contains(&charges), "wand charges {charges}");
+    assert!(
+        (floor..=ceiling).contains(&charges),
+        "wand charges {charges}"
+    );
 }
 
 #[test]
-fn wand_damage_is_3d3_and_ignores_armour() {
+fn a_wand_bolt_ignores_armour_entirely() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
@@ -177,10 +193,15 @@ fn wand_damage_is_3d3_and_ignores_armour() {
     let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
     zap(&mut w, p, wand, spot);
 
+    // The dice are `wands::DAMAGE_DICE d DAMAGE_SIDES` and belong to whoever is
+    // balancing wands. What this test is for is the *armour* clause: the target
+    // above is wearing the best armour the numbers allow and the bolt goes
+    // through all of it, so the loss has to be a bare roll of those dice.
     let lost = 40 - w.get::<Fighter>(target).unwrap().hp;
+    let (floor, ceiling) = (DAMAGE_DICE, DAMAGE_DICE * DAMAGE_SIDES);
     assert!(
-        (3..=9).contains(&lost),
-        "3d3 through any armour, lost {lost}"
+        (floor..=ceiling).contains(&lost),
+        "a bolt through armour 99+99 lost {lost}, outside {floor}..={ceiling}"
     );
     assert!(
         w.resource::<Identified>()

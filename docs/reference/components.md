@@ -115,8 +115,14 @@ Components — perception and memory
 | `Hidden`   | marker — not drawn or announced right now | out-of-view monsters, undiscovered traps, unperceived invisibles | **transient** (visibility rebuilds it; traps clear it on reveal) |
 | `Invisible`| marker — intrinsically unseeable without `SeesInvisible` | the phantom, the 1-in-10 invisible floor item | yes |
 | `Spotted`  | marker — inside the player's viewshed this turn | anything currently seen | **transient** |
+| `Detected` | marker — drawn on the map even out of view, in `DarkMagenta` | whatever a potion of magic / monster detection turned up | yes |
 
 `revealed_tiles` is indexed by `crate::map::tile_index`.
+
+`Detected` is floor-scoped without anything clearing it: leaving the floor
+despawns every entity that carries one. It says *where*, not what is
+happening there — a detected monster is never announced and never
+animates.
 
 
 Components — items on the floor and in the pack
@@ -125,7 +131,8 @@ Components — items on the floor and in the pack
 | Component | Data | On | Saved? |
 |-----------|------|-----|--------|
 | `Item`    | marker — can be picked up | every item | yes |
-| `Value`   | `amount: i32` — end-of-run score | coins, the relic | yes |
+| `Value`   | `amount: i32` — score, paid the moment it is picked up | treasure coins, the relic | yes |
+| `Pickup`  | `effect: PickupEffect`, `amount: i32` — works where it lies and is gone; never carried | every coin | yes |
 | `Backpack`| `items: Vec<Entity>` — inventory order | actors that carry | yes |
 | `Consume` | marker — used up on use | potions, scrolls | yes |
 | `Battery` | `charges: i8` | wands | yes |
@@ -137,6 +144,26 @@ Components — items on the floor and in the pack
 `PACK_CAPACITY` (9) slots; `stow` refuses anything past that ("Your pack is
 full.") and leaves it on the floor.
 
+**`items::pick_up` is the only way anything leaves the floor.** The input
+handler calls it and knows none of what follows: the invisible-stash
+reveal, `Value` into the score, a `Pickup` spent where it lies, or `stow`.
+`None` back means the item is still there.
+
+A `Pickup` is a different kind of thing from an item you stow, in three
+ways that all follow from "never carried":
+
+* **A full pack is no obstacle.** There is nothing to find room for.
+* **It is left alone when it would do nothing.** `items::would_help`
+  gates it — a red coin at full health stays on the floor, and
+  `autoexplore::known_item_tiles` skips it so a walk never beelines for
+  something it will refuse. It keeps until the day it helps.
+* **It can be shot** — and the shooter gets the effect across the room,
+  plus a burst twice a trap's width. See `content-tables.md`, "Trick
+  shots".
+
+`PickupEffect`: Coin, Health, Power, Cleanse, Strength, Platinum, Forge —
+saved by variant order, mechanic in `models/src/items/pickups.rs`.
+
 
 Components — item type keys
 ---------------------------
@@ -146,8 +173,8 @@ Components — item type keys
 | `Potion`  | `PotionEffect`| `items/potions.rs`                    | key yes |
 | `Scroll`  | `ScrollEffect`| `items/scrolls.rs`                    | key yes |
 | `Wand`    | `WandEffect`  | `items/wands.rs`; thrown, `items/throwing.rs` | key yes |
-| `Ring`    | `RingEffect`  | none — numbers + `Grants`, from the `RingDef` row | key yes |
-| `Curse`   | marker        | equipped-and-stuck until remove curse | yes |
+| `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
+| `Curse`   | marker        | equipped-and-stuck until remove curse destroys it, or a scroll of enchantment burns it off | yes |
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
 | `KnownQuality` | marker   | this instance's enchantment plus/curse/vorpal bane are known — set by wearing it (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singling it out | yes |
 
@@ -169,7 +196,8 @@ floods the room, no reticle).
 GainStrength, Haste, Healing, MagicDetection, MonsterDetection,
 Paralysis, Poison, RaiseLevel, RestoreStrength, SeeInvisible, Water.
 
-`ScrollEffect`: MonsterConfusion, MagicMapping, HoldMonster, Sleep,
+`ScrollEffect` (every arm wired; `BlankPaper` does nothing on purpose):
+MonsterConfusion, MagicMapping, HoldMonster, Sleep,
 EnchantArmor, Identify, ScareMonster, FoodDetection, Teleportation,
 EnchantWeapon, CreateMonster, RemoveCurse, AggravateMonsters, BlankPaper,
 VorpalizeWeapon.
@@ -218,13 +246,41 @@ A missile and a launcher never name each other; they meet at an effect
 Components — player conditions
 ------------------------------
 
-| Component  | Data   | Meaning | Saved? |
-|------------|--------|---------|--------|
-| `Confused` | marker | player-only stumble (a monster uses `MovementType::Confused`); blocks fast-move / auto-explore / auto-fight; HUD `CONF` | yes |
+| Component   | Data   | Meaning | Saved? |
+|-------------|--------|---------|--------|
+| `Confused`  | marker | player-only stumble (a monster uses `MovementType::Confused`); blocks fast-move / auto-explore / auto-fight; HUD `CONF` | yes |
+| `Blind`     | marker | player-only: viewshed cut to the 3x3, every glyph in it painted white, every mob `Hidden` (so auto-walk and auto-fight stall too). The AI is unaffected — see below. HUD `BLND` | yes |
+| `Paralyzed` | marker | `Speed` dropped to `Slow`, and for the player a `PARALYSIS_LOST_TURN_CHANCE` share of turns forfeited outright before a key is read. A monster carries it for the renderer's tint only. HUD `PARL` | yes |
+| `ConfusingTouch` | marker | hands charged by a scroll of monster confusion: the next blow the bearer *lands* confuses what it hits and is spent doing it (an `ON_HIT_ABILITIES` row — see `content-tables.md`). Not an impairment, and it survives a staircase. HUD `GLOW` | yes |
+| `Plated` | marker | the platinum coin's promise: reach the next **staircase** unhurt and it pays a permanent point of attack or defence *die*, the dungeon's coin flip. HUD `PLAT` | yes |
+| `Forged` | marker | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon or worn armour, exactly as the matching scroll would. HUD `FORG` | yes |
 
-`Confused` and `Speed` haste/slow are treacherous — they never wear off
-with time. Only a staircase or a wand of cancellation clears them, both
-through `crate::helpers::clear_player_conditions`.
+`Plated` and `Forged` are the only conditions a staircase does not lift —
+the staircase is what *settles* them (`items::settle_promises`, and only
+for `LevelChange::Stairs`: a trapdoor is falling, not arriving). Any
+damage at all takes them back, through `helpers::took_damage`, which is
+also where the low-HP warning lives: the two things that happen to a
+creature *because it was hurt*, in one place, called from both damage
+paths.
+
+`Confused`, `Blind`, `Paralyzed` and `Speed` haste/slow are treacherous —
+they never wear off with time. Only a staircase or a wand of cancellation
+clears them, all through `crate::conditions::clear_player_conditions`,
+which also hands back anything `GrantedForFloor`.
+
+The verbs that put them on — `confuse`, `blind`, `paralyse`, `hasten`,
+`slow_down`, `shift_entity_speed`, `snare` — live in `crate::conditions`,
+one per affliction, and each one already knows the difference between the
+player and a monster. `snare` is the exception to the "never wears off"
+rule above: it is counted in turns from the moment it lands, and it logs
+nothing, because the sentence belongs to whatever pinned you. A blinded monster has no viewshed to put out, so it gets
+`MovementType::Confused`; a paralysed one gets the slowing and no coin
+flip.
+
+**Blindness does not blind the dungeon.** `crate::ai` recomputes the view
+the player *would* have (`visibility::visible_from(map, pos, false)`) when
+they are `Blind`, so the monsters in the room still know exactly where
+they are. Drinking one is never a way to hide.
 
 
 Components — traps and snares
@@ -236,7 +292,7 @@ Defined in `components.rs` (nouns); the mechanics are `traps.rs`.
 |---------------|---------------------------------------------|---------|--------|
 | `Trap`        | `effect: TrapEffect`, `reveal: TrapReveal`, `revealed: bool` | a `^` entity; `revealed` latches once known | yes |
 | `EntityMoved` | marker                                       | changed `Position` this turn — `trap_system` checks its tile | **transient** (cleared each `trap_system` run) |
-| `Snare`       | `turns: u32`, `kind: SnareKind`              | losing turns to a trap | yes |
+| `Snare`       | `turns: u32`, `kind: SnareKind`              | losing turns to a trap, or to a scroll | yes |
 
 `TrapEffect` — enum, **saved by variant order** (`Trapdoor`, `Bear`,
 `Sleep`, `Teleport`, `Arrow`, `Dart`). Keys the mechanic in `apply_trap_effect`;
@@ -246,10 +302,12 @@ Arrow and dart damage scale with depth — `constants::traps`.
 `TrapReveal` — enum, saved by variant order (`Sight`, `Adjacent`,
 `Triggered`). Rolled equal-odds at spawn; read by `visibility.rs`.
 
-`SnareKind` — enum, saved by variant order (`Bear`, `Sleep`). `Sleep`
-forfeits the turn outright (`player_incapacitated`); `Bear` blocks
+`SnareKind` — enum, saved by variant order (`Bear`, `Sleep`, `Hold`).
+`Sleep` forfeits the turn outright (`player_incapacitated`); `Bear` blocks
 movement only — a swing still lands, a step is a bloody thrash
-(`bear_trap_thrash`). `ai.rs` applies the same rule to snared monsters.
+(`bear_trap_thrash`). `Hold` is `Bear` without the teeth: rooted, still
+biting, no thrash damage — a scroll of hold monster's doing, and the one
+kind no trap lays. `ai.rs` applies the same rules to snared monsters.
 
 
 Components — score
@@ -258,6 +316,45 @@ Components — score
 | Component | Data         | On       | Saved? |
 |-----------|--------------|----------|--------|
 | `Score`   | `value: i32` | the hero | yes    |
+
+Every change to it goes through `models/src/score.rs`, which is the whole
+scoring table in one screen:
+
+| What | Worth | Where |
+|---|---|---|
+| A creature dies | `KILL_PER_MAX_HP` × its `max_hp` | `combat::pay_for_the_corpse`, from both the melee path and `finish_indirect_kill` |
+| More than one dies in a turn | the turn's kills together, ×(1 + `COMBO_BONUS_PER_KILL` per corpse past the first) | `score::Combo`, settled by `score_turn_system` |
+| A staircase is used | `STAIR_PER_TIER` × (difficulty tier + 1) | `map::award_stair_score` |
+| A ring of adornment goes on | doubled | `items::rings::wear_adornment` |
+| Treasure picked up | its `Value` | `items::pick_up` → `score::award` |
+| The run is won | doubled | `map::win_with_style` |
+
+Deaths are paid for without asking whose blade it was: half the ways a
+monster dies have no attacker entity to ask about. Only a *staircase*
+pays — a trapdoor, the Dungeon Lord's portal and a potion of raise level
+all move you between floors for free. Treasure pays as it is *taken*, not
+at the end of the run: a gold coin's `amount`, and the relic's 25000 the
+moment it is in hand — and the `Value` comes off with the payment, so the
+one item that can be paid for and then set down again is not a
+drop-and-take-again money press.
+
+Kills are **not** paid one at a time. `award_kill` only files the corpse
+under `Combo`, the turn's pile; `score_turn_system` — dead last in the
+schedule, after everything that can kill — totals it with the combo
+multiplier, pays it in one go, and empties the pile. A multiplier applied
+to a number that is still growing is not one anybody can read, and one
+turn's killing never combos into the next. `score::double` settles the
+pile first, so a run that ends on the same turn as a kill doubles a score
+that already counts it.
+
+Every payment lights the `ScoreFlash` resource, which the HUD shows in the
+scorekeeper's place for exactly one frame (armed during the turn, aged at
+the same tail, dark by the next): `+700` in a random bright colour,
+`COMBO! +2400` with the word in the stripes `pride::stripes(world)`
+returns, or `DOUBLE` in the same. A combo also
+writes one log line — "With style.", or `COMBO_PRIDE_CHANCE` of the time
+"With pride." All of its rolls are off `FxRng`, never `GameRng`:
+decoration does not get to move the gameplay dice.
 
 
 Events and their queues
@@ -333,26 +430,57 @@ off.
 
 `Shake` (`shake.rs`) is the effect layer's second half, and the only
 cosmetic resource that is deliberately *not* played the way
-[`Particles`] is. Five things arm it, and nothing else may:
+[`Particles`] is. Eight things arm it, and nothing else may:
 
 | `ShakeKind` | Armed by | Shape |
 |-------------|----------|-------|
+| `Hit`       | anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see | 80 ms, 1 cell — a tick |
 | `Kill`      | `combat::kill_shake`, from `resolve_attack` and `finish_indirect_kill`, when the player can see the victim's tile | 120 ms, 1 cell — short |
 | `Heavy`     | `combat::resolve_attack` on the player's own excellent hit, and `items::wands::elemental_blast` if the player can see the blast centre | 260 ms, 2 cells — medium |
 | `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | 460 ms, 2 cells — long |
-| `Death`     | both player-death paths in `combat.rs`, next to where `Ending::player_dead` is set | 900 ms, 3 cells — the last thing the map does |
+| `Death`     | both player-death paths in `combat.rs`, next to where `Ending::player_dead` is set | 500 ms, 2 cells — the last thing the map does |
 
 The durations are on `ShakeKind::shape()`, not in `constants.rs`. A
 kick only displaces an already-running shake if it is worth more than
-what is *left* of it, so a kill mid-blast cannot truncate the blast.
+what is *left* of it, so a kill mid-blast cannot truncate the blast —
+and an ordinary hit landed during either cannot truncate anything.
 Amplitude 2 means the first half throws the map two cells and the rest
 one; a terminal has no half-cell to decay through.
 
-The sight gate on `elemental_blast` and `kill_shake` is a real rule, not
-politeness: a shake for a blast — or a death — in an unexplored room
-would hand the player information the renderer goes out of its way not
-to draw. `helpers::player_sees` is the shared check, the same one the
-trap messages use. `Death` has no gate, for the obvious reason.
+No kind may be shorter than two of `play_shake`'s 33 ms frames: it ages
+the shake *before* it draws, so anything shorter would retire without
+ever displacing a frame the player saw. `Hit`'s 80 ms is that floor,
+and a test in `shake.rs` holds every kind above it.
+
+A glancing blow is the one hit that draws blood and arms no shake. It
+gets `Particles::clink_spark` instead of the landed hit's
+`hit_spark` — same shape, no warm colour, gone quicker — because the
+chip-damage floor exists so a turned-aside swing isn't *nothing*, not
+so it lands like a real one. A throw or shot the armour turned aside
+(`strike_victim`'s "glances off" branch) is the same rule at range, and
+takes the same spark — harsher, in fact: there is no chip-damage floor
+out there, so it deals nothing at all.
+
+Melee excludes a lethal blow from the `Hit` kick by hand; the ranged
+path excludes it by asking whether the victim is at 0 HP, because
+`helpers::apply_damage` leaves a lethal shot for `reaper_system` to
+finalise. Either way the kill's own kick — the sight-gated one — is the
+only shake a killing hit arms.
+
+The sight gate on `elemental_blast`, `kill_shake` and `fire_bolt` is a
+real rule, not politeness: a shake for a blast — or a death — in an
+unexplored room would hand the player information the renderer goes out
+of its way not to draw. `helpers::player_sees` is the shared check, the
+same one the trap messages use. `Death` has no gate, for the obvious
+reason.
+
+Melee and the throw path need no such gate, because both *log* the
+damage they deal whether or not it was seen — the shake says nothing the
+message line hasn't. A bolt is the one damage source that logs nothing
+per victim, so `trace_bolt` reports whether any of the HP it took came
+off a creature on a visible tile (`Bolt::bit_something_seen`), which is
+why that answer is computed there rather than in `fire_bolt`: the walk
+is the only place that still knows which tile each victim stood on.
 
 Unlike every other animation in the game the shake **never blocks
 input** — see `rendering.md`, "The screen shake", for why and for how
@@ -371,7 +499,7 @@ input** — see `rendering.md`, "The screen shake", for why and for how
 `GameLog::add()` pushes to both `history` and `unread`.
 
 The log panel is plain white except for a sparing set of colours
-(`hud::log_line_color`), applied only to a packed line that mentions the
+(`hud::log_line_color`), applied only to a message that mentions the
 player ("you"/"your") and falls into one of: a curse taking hold (dark
 red), a dazzle (magenta), the low-HP warning (red — "You are badly
 wounded!", fired once as HP crosses down through
@@ -380,9 +508,26 @@ wounded!", fired once as HP crosses down through
 every trap, dart and bolt, and `combat::resolve_attack` calls directly,
 melee being the one damage path that applies its own damage and would
 otherwise never report the crossing), the player's own speed shifting (cyan hasted,
-dark cyan slowed), or the player's own throw/fire (yellow). Matched by
-substring, not by threading a colour through every `GameLog::add()` call
-— see `hud::log_line_color` for the exact phrases it keys on.
+dark cyan slowed), or the player's own throw/fire (yellow). Two lines are
+coloured without naming the player at all: a trick shot and a combo's
+"With style.", both magenta. Matched by substring, not by threading a
+colour through every `GameLog::add()` call — see `hud::log_line_color`
+for the exact phrases it keys on.
+
+**Colour is per message, not per painted row.** Several messages share a
+row (`hud::pack_line_segments`, which is what `log_view` now returns — the
+messages on each row, in order, displayed joined by one space), and the
+renderer paints each one with its own colour. Asking the question of the
+joined row instead is the bug that had one shouting message repainting
+every sentence beside it.
+
+`hud::log_paint(message, stripes)` is the painter's entry point and
+returns a `LogPaint`: `Solid(Color)` for everything, except `Striped` for
+the one line that comes out in colours rather than a colour —
+`hud::PRIDE_LINE` ("With pride.", the rare alternative to "With style." on
+a combo), painted a character at a time, cycling the stripes so red
+follows purple and no two neighbouring letters match. The stripes come
+from `pride::stripes(world)`; see `models/src/pride.rs`.
 
 Other run-state resources live outside this file: `Map`, `GameRng` /
 `RngSeed`, `Identified` / `ItemAppearances` (`identify.rs`), `BloodStains`,

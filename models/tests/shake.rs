@@ -7,9 +7,12 @@
 //! absent from a world that never inserted the resource, and silent under
 //! `-nshake`.
 //!
-//! Five triggers across four kinds: a kill in sight (short), an excellent hit
-//! and a blast in sight (heavy), crossing into the low-HP warning (long), and
-//! the player's own death (the biggest, and the last thing the map does).
+//! Five kinds. Anything of the player's that gets through armour — a swing, a
+//! throw or shot, a bolt that bit — takes the tick; a kill in sight is short;
+//! an excellent hit and a blast in sight are heavy; crossing into the low-HP
+//! warning is long; their own death is the longest, and the last thing the map
+//! does. Plus the hits that deliberately arm nothing: a glancing blow and the
+//! shot equivalent, which clink instead, and anything out of sight.
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
@@ -21,6 +24,7 @@ fn test_world(seed: u64) -> World {
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
     w.init_resource::<UseQueue>();
+    w.init_resource::<ThrowQueue>();
     w.init_resource::<AttackQueue>();
     w.init_resource::<Ending>();
     w.init_resource::<PlayerTempo>();
@@ -67,6 +71,47 @@ fn spawn_dummy(w: &mut World, hp: i32) -> Entity {
         },
     ))
     .id()
+}
+
+/// A punching bag standing one *open* tile from the player, plus that tile — a
+/// throw needs a clear lane, which `spawn_dummy`'s blind `x + 1` cannot
+/// promise. Which way the lane points is nobody's business.
+fn dummy_down_the_lane(w: &mut World, hp: i32) -> (Entity, Position) {
+    let p = player_pos(w);
+    let map = w.resource::<Map>().clone();
+    let at = [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)]
+        .into_iter()
+        .map(|(dx, dy)| Position {
+            x: (p.x as i32 + dx) as u16,
+            y: (p.y as i32 + dy) as u16,
+        })
+        .find(|q| !map.blocks(q.x, q.y))
+        .expect("the player is walled in on all four sides");
+    let dummy = spawn_dummy(w, hp);
+    *w.get_mut::<Position>(dummy).unwrap() = at;
+    (dummy, at)
+}
+
+/// Hurl `item` at a tile: the engine's Throw action from the point where the
+/// item has already left the pack, which is all a scripted throw needs.
+fn hurl(w: &mut World, thrower: Entity, item: Entity, target: Position) {
+    w.entity_mut(item).remove::<Position>();
+    w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
+        thrower,
+        item,
+        target,
+    });
+    throw_system(w);
+}
+
+/// The opening glyphs of every mote queued so far — how a test tells a landed
+/// hit's spark (`‼`) from a glancing one's clink (`+`).
+fn spark_glyphs(w: &World) -> Vec<char> {
+    w.resource::<Particles>()
+        .live
+        .iter()
+        .map(|p| p.frames[0].0)
+        .collect()
 }
 
 /// Refresh the player's viewshed, so the "did you see it?" gates on cosmetic
@@ -124,13 +169,15 @@ fn poise_on_the_threshold(w: &mut World, p: Entity) -> i32 {
     threshold
 }
 
-// --- Excellent hit: heavy ---------------------------------------------------
+// --- The player's own swing: tick, or heavy ---------------------------------
 
 #[test]
-fn an_excellent_hit_shakes_the_screen_and_an_ordinary_one_does_not() {
+fn every_blow_the_player_lands_shakes_and_a_crit_shakes_harder() {
     // Sweeps seeds until both outcomes have been seen, then checks each one
     // armed exactly what it should have. `resolve_attack` is the only thing
     // that decides a hit is excellent, so this is also the only place to look.
+    // The dummy has no armour, so no swing here can be a glancing one — that
+    // case is `a_glancing_blow_clinks_instead_of_shaking` below.
     let (mut saw_excellent, mut saw_ordinary) = (false, false);
     for seed in 0..2000u64 {
         let mut w = test_world(seed);
@@ -143,19 +190,16 @@ fn an_excellent_hit_shakes_the_screen_and_an_ordinary_one_does_not() {
             .history
             .iter()
             .any(|l| l.contains("excellent hit"));
-        let shaking = w.resource::<Shake>().active();
-
+        let expected = match excellent {
+            true => ShakeKind::Heavy,
+            false => ShakeKind::Hit,
+        };
         assert_eq!(
-            excellent, shaking,
-            "seed {seed}: excellent={excellent} but shaking={shaking}"
+            w.resource::<Shake>().remaining_ms(),
+            expected.duration_ms(),
+            "seed {seed}: a hit with excellent={excellent} armed the wrong kick"
         );
-        if excellent {
-            assert_eq!(
-                w.resource::<Shake>().remaining_ms(),
-                ShakeKind::Heavy.duration_ms(),
-                "seed {seed}: a crit armed something other than the heavy shake"
-            );
-        }
+
         saw_excellent |= excellent;
         saw_ordinary |= !excellent;
         if saw_excellent && saw_ordinary {
@@ -163,6 +207,131 @@ fn an_excellent_hit_shakes_the_screen_and_an_ordinary_one_does_not() {
         }
     }
     panic!("never saw both an excellent and an ordinary hit");
+}
+
+#[test]
+fn a_glancing_blow_clinks_instead_of_shaking() {
+    // The one hit that draws blood and moves nothing: the armour turned the
+    // swing aside and only the chip-damage floor got through. It says so with
+    // a cold spark — checked by the glyph it opens on, since that is the whole
+    // difference between it and a landed hit's — and with a map that holds
+    // still. A crit skips the floor entirely, so keep swinging past those.
+    let mut w = test_world(7);
+    let attacker = player(&mut w);
+    // Armour deep enough that the armour roll eats an ordinary weapon roll
+    // almost every time.
+    let target = spawn_dummy(&mut w, 100);
+    w.get_mut::<Fighter>(target).unwrap().armor = 40;
+    w.insert_resource(Particles::new());
+
+    for _ in 0..200 {
+        w.resource_mut::<Shake>().settle();
+        w.resource_mut::<Particles>().clear();
+        w.resource_mut::<GameLog>().history.clear();
+        resolve_attack(&mut w, attacker, target);
+
+        let glancing = w
+            .resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("glancing blow"));
+        if !glancing {
+            continue;
+        }
+        assert!(
+            !w.resource::<Shake>().active(),
+            "a glancing blow shook the screen"
+        );
+        let opening = spark_glyphs(&w);
+        assert!(
+            opening.contains(&'+'),
+            "a glancing blow queued no clink spark (glyphs: {opening:?})"
+        );
+        return;
+    }
+    panic!("never saw a glancing blow against armour 40");
+}
+
+// --- The player's own shot: the same tick -----------------------------------
+
+#[test]
+fn a_shot_that_draws_blood_shakes_like_a_sword_hit() {
+    // A missile hit is a hit. It arrives through `helpers::apply_damage`
+    // rather than `resolve_attack`, which is exactly why it needs its own
+    // test: the two damage paths have to agree about this.
+    let mut w = test_world(3);
+    look(&mut w);
+    let p = player(&mut w);
+    let (dummy, at) = dummy_down_the_lane(&mut w, 500);
+    w.insert_resource(Particles::new());
+    // An arrow ignores armour, so this cannot come out a glance.
+    let arrow = spawn_ammo(&mut w, "arrow", Position { x: 0, y: 0 });
+
+    hurl(&mut w, p, arrow, at);
+
+    assert!(
+        w.get::<Fighter>(dummy).unwrap().hp < 500,
+        "the arrow missed the dummy it was aimed at"
+    );
+    assert_eq!(
+        w.resource::<Shake>().remaining_ms(),
+        ShakeKind::Hit.duration_ms(),
+        "a shot that drew blood armed the wrong kick"
+    );
+}
+
+#[test]
+fn a_shot_the_armour_turns_aside_clinks_instead_of_shaking() {
+    // The ranged glancing blow, and harsher than melee's: a non-projectile
+    // throw is blunted by the armour *plus*, with no chip-damage floor under
+    // it, so a mace against enough armour does nothing at all. It still says
+    // where it struck, and the map still holds still.
+    let mut w = test_world(3);
+    look(&mut w);
+    let p = player(&mut w);
+    let (dummy, at) = dummy_down_the_lane(&mut w, 500);
+    w.get_mut::<Fighter>(dummy).unwrap().armor_bonus = 20;
+    w.insert_resource(Particles::new());
+    let mace = spawn_weapon(&mut w, "mace", Position { x: 0, y: 0 });
+
+    hurl(&mut w, p, mace, at);
+
+    assert_eq!(
+        w.get::<Fighter>(dummy).unwrap().hp,
+        500,
+        "the mace got through armour 20 — pick a heavier suit"
+    );
+    assert!(
+        !w.resource::<Shake>().active(),
+        "a shot that glanced off shook the screen"
+    );
+    let opening = spark_glyphs(&w);
+    assert!(
+        opening.contains(&'+'),
+        "a glancing shot queued no clink spark (glyphs: {opening:?})"
+    );
+}
+
+#[test]
+fn a_monsters_shot_never_shakes_the_screen_either() {
+    // The melee gate, at range: only the player's own hits move the map.
+    let mut w = test_world(3);
+    look(&mut w);
+    let p = player(&mut w);
+    let (shooter, _) = dummy_down_the_lane(&mut w, 500);
+    let max_hp = w.get::<Fighter>(p).unwrap().max_hp;
+    let target = player_pos(&mut w);
+
+    for _ in 0..20 {
+        // Healed back up each shot so the low-HP crossing can't be what fires.
+        w.get_mut::<Fighter>(p).unwrap().hp = max_hp;
+        let arrow = spawn_ammo(&mut w, "arrow", Position { x: 0, y: 0 });
+        hurl(&mut w, shooter, arrow, target);
+        assert!(
+            !w.resource::<Shake>().active(),
+            "a monster's shot shook the screen"
+        );
+    }
 }
 
 #[test]
@@ -305,6 +474,82 @@ fn a_blast_the_player_cannot_see_shakes_nothing() {
     );
 }
 
+// --- A bolt: the same tick as a hit -----------------------------------------
+
+#[test]
+fn a_bolt_that_bites_something_in_sight_shakes_like_a_hit() {
+    // A bolt wand is the player's weapon at range, and lands like one. Striking
+    // is the plainest of the four — no element, so nothing in the bestiary can
+    // shrug it off and leave this testing an empty beam.
+    let mut w = test_world(4);
+    let (dummy, at) = dummy_down_the_lane(&mut w, 500);
+    look(&mut w);
+    let p = player(&mut w);
+    let wand = give_wand(&mut w, p, WandEffect::Striking);
+
+    zap(&mut w, p, wand, at);
+
+    assert!(
+        w.get::<Fighter>(dummy).unwrap().hp < 500,
+        "the bolt went past the dummy standing in it"
+    );
+    assert_eq!(
+        w.resource::<Shake>().remaining_ms(),
+        ShakeKind::Hit.duration_ms(),
+        "a bolt that drew blood armed the wrong kick"
+    );
+}
+
+#[test]
+fn a_bolt_that_hits_nothing_shakes_nothing() {
+    // Down an empty lane it is just a light show. The kick is for landing on
+    // something, not for zapping.
+    let mut w = test_world(4);
+    let (dummy, at) = dummy_down_the_lane(&mut w, 500);
+    w.despawn(dummy);
+    look(&mut w);
+    let p = player(&mut w);
+    let wand = give_wand(&mut w, p, WandEffect::Striking);
+
+    zap(&mut w, p, wand, at);
+
+    assert!(
+        !w.resource::<Shake>().active(),
+        "a bolt through thin air shook the screen"
+    );
+}
+
+#[test]
+fn a_bolt_landing_out_of_sight_shakes_nothing() {
+    // The blast's information leak, at bolt scale — and worse, because nothing
+    // logs a bolt's damage: without this gate a zap down a dark corridor would
+    // announce, through the floor, that there is something standing in it.
+    let mut w = test_world(4);
+    look(&mut w);
+    let p = player(&mut w);
+
+    let unseen = {
+        let seen: Vec<(u16, u16)> = w.get::<Viewshed>(p).unwrap().visible_tiles.clone();
+        (1..MAP_WIDTH - 1)
+            .flat_map(|x| (1..MAP_HEIGHT - 1).map(move |y| (x, y)))
+            .find(|t| !seen.contains(t))
+            .map(|(x, y)| Position { x, y })
+            .expect("the whole floor cannot be visible at once")
+    };
+    // A dummy out in the dark, and a bolt aimed straight at it. `trace_bolt`
+    // walks the line whatever the lighting; only the sight gate cares.
+    let dummy = spawn_dummy(&mut w, 500);
+    *w.get_mut::<Position>(dummy).unwrap() = unseen;
+    let wand = give_wand(&mut w, p, WandEffect::Striking);
+
+    zap(&mut w, p, wand, unseen);
+
+    assert!(
+        !w.resource::<Shake>().active(),
+        "a bolt landing out of sight shook the screen"
+    );
+}
+
 // --- Low HP: long -----------------------------------------------------------
 
 #[test]
@@ -385,10 +630,10 @@ fn a_melee_blow_into_the_red_warns_and_shakes_like_any_other_damage() {
     );
 }
 
-// --- Death: the biggest -----------------------------------------------------
+// --- Death: the longest -----------------------------------------------------
 
 #[test]
-fn the_killing_blow_shakes_hardest_of_all() {
+fn the_killing_blow_arms_the_longest_shake_there_is() {
     // Dying is not "being wounded" — it is the end of the run, and the last
     // thing the map does before the death screen slides in over it.
     let mut w = test_world(5);
@@ -410,7 +655,7 @@ fn the_killing_blow_shakes_hardest_of_all() {
     assert_eq!(
         w.resource::<Shake>().remaining_ms(),
         ShakeKind::Death.duration_ms(),
-        "the last shake of a run is the biggest one there is"
+        "the last shake of a run outlasts every other one"
     );
 }
 
@@ -440,7 +685,7 @@ fn dying_to_something_with_no_killer_shakes_just_as_hard() {
 
 #[test]
 fn nothing_shakes_with_the_feature_switched_off() {
-    // `-nshake`, over all three triggers at once.
+    // `-nshake`, over every trigger at once.
     let mut w = test_world(7);
     w.resource_mut::<Shake>().enabled = false;
     look(&mut w);
@@ -459,10 +704,17 @@ fn nothing_shakes_with_the_feature_switched_off() {
     );
 
     w.get_mut::<Fighter>(p).unwrap().hp = 50;
-    let target = spawn_dummy(&mut w, 100);
+    let (target, lane) = dummy_down_the_lane(&mut w, 100);
     for _ in 0..200 {
+        w.get_mut::<Fighter>(target).unwrap().hp = 100;
         resolve_attack(&mut w, p, target);
-        assert!(!w.resource::<Shake>().active(), "a crit shook with -nshake");
+        assert!(
+            !w.resource::<Shake>().active(),
+            "a swing shook with -nshake"
+        );
+        let arrow = spawn_ammo(&mut w, "arrow", Position { x: 0, y: 0 });
+        hurl(&mut w, p, arrow, lane);
+        assert!(!w.resource::<Shake>().active(), "a shot shook with -nshake");
     }
 }
 

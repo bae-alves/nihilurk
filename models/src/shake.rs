@@ -33,10 +33,17 @@ use particle_core as core_math;
 /// [`ShakeKind::shape`]: how long it rocks for, and how far it throws the map
 /// on the first frame.
 ///
-/// Four kinds is the whole set, and that is the point — a shake is a
-/// punctuation mark. Give one to every hit and it stops meaning anything.
+/// Five kinds is the whole set, and the spread between them is the point — a
+/// shake is punctuation, so the lightest one has to be light enough that the
+/// heavier ones still read as heavier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShakeKind {
+    /// The player's own weapon biting: every ordinary blow of theirs that gets
+    /// through armour. The smallest shake there is — two frames, one cell —
+    /// because it is by far the most frequent thing in the game, and a swing
+    /// that lands has to feel like it connected without turning the map into a
+    /// permanent tremble. Everything below outranks it.
+    Hit,
     /// Something died where the player could see it. A single sharp tick of
     /// recoil — short, because on a good floor it fires several times a
     /// minute, and anything longer would have the map permanently trembling.
@@ -51,27 +58,36 @@ pub enum ShakeKind {
     /// room reeling, under a log line the player needs to read, so it runs on
     /// well past the hit and fades out rather than stopping.
     Wounded,
-    /// The player died. The biggest and last thing the map ever does: it is
-    /// the end of the run, there is no keystroke left to protect, and the
-    /// death screen is coming in behind it. Nothing outranks this one.
+    /// The player died. The last thing the map ever does, and it outranks
+    /// everything — but only just longer than `Wounded` and no further-thrown,
+    /// because this is the one shake nobody is typing through. Every other
+    /// kind is cut short the instant the player acts; a dying player is
+    /// looking at the screen, so they sit through all of this one, and it has
+    /// to be over before the wait becomes the thing they remember.
     Death,
 }
 
 impl ShakeKind {
     /// `(duration_ms, amplitude_in_cells)`. The per-kind dials, on the kind
-    /// itself rather than off in `constants.rs`: there are four of them, they
-    /// are only ever read here, and "short / medium / long / final" is only
-    /// legible as a table if you can see all four pairs at once.
+    /// itself rather than off in `constants.rs`: there are five of them, they
+    /// are only ever read here, and "tick / short / medium / long / final" is
+    /// only legible as a table if you can see all five pairs at once.
     ///
     /// Amplitude 2 means the first frames throw the map two cells and the rest
     /// one — a shake that decays in *reach*, since a terminal has no half-cell
     /// to decay through. Amplitude 1 is a shake that only decays in time.
+    ///
+    /// No duration may drop to a single animation frame's worth (`play_shake`
+    /// ages the shake *before* it draws, so a 33 ms kind would retire without
+    /// ever displacing a frame the player sees). `Hit`'s 80 ms is the floor:
+    /// two shaken frames, which is the least a shake can be and still be one.
     const fn shape(self) -> (f32, i8) {
         match self {
+            ShakeKind::Hit => (80.0, 1),
             ShakeKind::Kill => (120.0, 1),
             ShakeKind::Heavy => (260.0, 2),
             ShakeKind::Wounded => (460.0, 2),
-            ShakeKind::Death => (900.0, 3),
+            ShakeKind::Death => (500.0, 2),
         }
     }
 
@@ -251,6 +267,7 @@ mod tests {
         let mut shake = Shake::new();
         shake.enabled = false;
         for kind in [
+            ShakeKind::Hit,
             ShakeKind::Kill,
             ShakeKind::Heavy,
             ShakeKind::Wounded,
@@ -264,11 +281,48 @@ mod tests {
     #[test]
     fn short_medium_long_stay_in_that_order() {
         // The one property the request was actually written in terms of, with
-        // death on the end of it: the last shake of a run is the biggest.
+        // death on the end of it: the last shake of a run outlasts the rest.
+        assert!(ShakeKind::Hit.duration_ms() < ShakeKind::Kill.duration_ms());
         assert!(ShakeKind::Kill.duration_ms() < ShakeKind::Heavy.duration_ms());
         assert!(ShakeKind::Heavy.duration_ms() < ShakeKind::Wounded.duration_ms());
         assert!(ShakeKind::Wounded.duration_ms() < ShakeKind::Death.duration_ms());
-        assert!(ShakeKind::Death.amplitude() > ShakeKind::Wounded.amplitude());
+        // Death is the longest, but it is not thrown any further than the
+        // wound that led to it: it is the one shake the player cannot cut
+        // short, so its budget went into outlasting the others, not out-
+        // lurching them.
+        assert_eq!(ShakeKind::Death.amplitude(), ShakeKind::Wounded.amplitude());
+    }
+
+    #[test]
+    fn every_kind_survives_long_enough_to_be_seen() {
+        // `play_shake` ages the shake before it renders, so a kind shorter than
+        // two of its frames would retire having never moved a frame the player
+        // saw: a shake that exists only in the resource. 33 ms is that loop's
+        // base frame (`-anim-rate` can only lengthen it, never shorten it).
+        const TWO_FRAMES_MS: f32 = 66.0;
+        for kind in [
+            ShakeKind::Hit,
+            ShakeKind::Kill,
+            ShakeKind::Heavy,
+            ShakeKind::Wounded,
+            ShakeKind::Death,
+        ] {
+            assert!(
+                kind.duration_ms() > TWO_FRAMES_MS,
+                "{kind:?} is too short to reach the screen"
+            );
+        }
+    }
+
+    #[test]
+    fn a_landed_blow_never_truncates_the_kill_it_leads_into() {
+        // The ordinary-hit kick and the kill kick are mutually exclusive at the
+        // call site, but a hit on one foe landing during another's death throes
+        // is not: the smaller kick has to lose.
+        let mut shake = Shake::new();
+        shake.kick(ShakeKind::Kill);
+        shake.kick(ShakeKind::Hit);
+        assert_eq!(shake.remaining_ms(), ShakeKind::Kill.duration_ms());
     }
 
     #[test]

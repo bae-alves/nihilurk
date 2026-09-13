@@ -4,6 +4,7 @@
 //! a page of instructions for anything literate enough to follow them.
 
 use bevy_ecs::prelude::*;
+use models::constants::wands::GRENADE_DIE_PER_CHARGE;
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -237,20 +238,23 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
         "the grenade should catch more than the beam ({thrown_count} vs {zapped_count})"
     );
 
-    // A thrown wand spends every charge: 5 charges is 5d4 against the beam's
-    // 3d3. Every roll inside the honest range, and about twice the beam on
-    // average.
+    // A thrown wand spends every charge at once, so its roll is one die per
+    // charge — inside the range those dice can produce, whatever the dice are
+    // today, and harder on average than the single zap it gave up.
+    const CHARGES: i32 = 5;
     let rolls: Vec<i32> = (0..60).map(|seed| burn(seed, true).1).collect();
+    let floor = CHARGES;
+    let ceiling = CHARGES * GRENADE_DIE_PER_CHARGE;
     assert!(
-        rolls.iter().all(|&d| (5..=20).contains(&d)),
-        "a 5d4 grenade rolled outside 5..=20: {rolls:?}"
+        rolls.iter().all(|&d| (floor..=ceiling).contains(&d)),
+        "a grenade rolled outside {floor}..={ceiling}: {rolls:?}"
     );
     let mean = |v: &[i32]| v.iter().sum::<i32>() as f64 / v.len() as f64;
     let beam = mean(&(0..60).map(|seed| burn(seed, false).1).collect::<Vec<_>>());
     let grenade = mean(&rolls);
     assert!(
-        grenade > beam * 1.6 && grenade < beam * 2.4,
-        "the grenade should average about twice the beam (beam {beam:.1}, grenade {grenade:.1})"
+        grenade > beam,
+        "the grenade should hit harder than the beam (beam {beam:.1}, grenade {grenade:.1})"
     );
 }
 
@@ -492,11 +496,14 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
 
     throw(&mut w, p, potion, spot);
 
+    // A dose of healing lifts the ceiling by a point as well as refilling to
+    // it, monster or hero alike — see `models::constants::potions`.
     assert_eq!(
         w.get::<Fighter>(orc).unwrap().hp,
-        10,
-        "the orc drank the healing and went to full HP"
+        11,
+        "the orc drank the healing and went to full HP, one point higher than before"
     );
+    assert_eq!(w.get::<Fighter>(orc).unwrap().max_hp, 11);
     assert!(w.get_entity(potion).is_none(), "the bottle broke");
     assert!(
         w.resource::<Identified>()

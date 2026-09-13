@@ -99,8 +99,8 @@ pub fn render<W: Write>(world, stdout, screen) -> std::io::Result<()>
 ```
 
 Painted in this order — everything after "Terrain" draws over
-whatever came before it on the same cell. Layers 2-11 paint in map
-coordinates (so the screen shake moves them); 1, 12 and 13 paint in
+whatever came before it on the same cell. Layers 2-13 paint in map
+coordinates (so the screen shake moves them); 1, 14 and 15 paint in
 screen coordinates (so it does not):
 
   1. **Top HUD** (row 0) — see below.
@@ -112,7 +112,8 @@ screen coordinates (so it does not):
   3. **Blood overlay** — recolours a tile's existing glyph
      (`set_fg`, not `put`) `DarkRed`, only where currently `visible`
      and never where `occupied_by_actor` — the stain marks the floor,
-     not whatever is standing on it.
+     not whatever is standing on it. Skipped entirely while the player
+     is `Blind`: blood is carried by colour alone, and they have none.
   4. **Corpses** — same visibility rule as blood, drawn as a `%`.
   5. **Floor items** — visible and not actor-occupied.
   6. **Traps** — the one exception to "unseen means blank": a
@@ -121,22 +122,44 @@ screen coordinates (so it does not):
   7. **Smoke** — visible, not actor-occupied, `≈` in grey; fades on
      its own over a few turns (see `Smoke` in components.md).
   8. **Actors** — the player and every non-`Hidden` `Mob`, visible
-     only.
-  9. **Particles** — drawn over actors deliberately, so a hit motes
-     over the thing it hit rather than under it.
-  10. **Targeting beam** — a Bresenham line from the player to the
+     only. (While the player is `Blind` the visibility system has
+     already tagged every mob `Hidden`, so nothing here has to know
+     about blindness.)
+  9. **Monster status tints** — a background (`set_bg`) on a visible,
+     non-`Hidden` mob that cannot fight back properly, in this
+     precedence: `DarkBlue` for one asleep in gas or `Paralyzed`,
+     `DarkGreen` for one held in a bear trap, `DarkCyan` for one bound by
+     a scroll of hold monster, `DarkMagenta` for one staggering under
+     `MovementType::Confused`. Painted after the
+     actors so it lands under a glyph that is actually drawn.
+  10. **Detected things** — everything carrying `Detected` (a potion of
+      magic or monster detection, or a scroll of food detection) that is
+      *not* currently visible,
+      painted in one flat `DarkMagenta`. Anything in view is already
+      drawn above in its own colour; this layer is the sense, not the
+      sight.
+  11. **Particles** — drawn over actors deliberately, so a hit motes
+      over the thing it hit rather than under it.
+  12. **Targeting beam** — a Bresenham line from the player to the
       reticle, drawn as `*` in yellow, except where it crosses an
       actor: the actor's own glyph is kept but recoloured yellow (or
       black, if the actor was already yellow-ish, so it doesn't
       vanish into the beam). The reticle's own tip additionally gets a
       `DarkBlue` background.
-  11. **Travel cursor** — a background-only highlight (`set_bg`), so
+  13. **Travel cursor** — a background-only highlight (`set_bg`), so
       the glyph and colour of whatever's on that tile stay readable.
-  12. **Message log** (rows 22–24).
-  13. **Inventory overlay** — drawn last, on top of everything.
+  14. **Message log** (rows 22–24).
+  15. **Inventory overlay** — drawn last, on top of everything.
 
 `occupied_by_actor`, computed once up front, is the set every "don't
 draw under a mob" rule in steps 3–8 checks against.
+
+**Blindness takes the colour out of the map.** While the player carries
+`Blind`, every map-space colour in steps 2, 4, 5, 6, 7 and 8 goes through
+`by_touch`, which returns `Color::White` for all of them — the 3x3 the
+visibility system left them reads as bare shapes felt out by hand.
+Remembered tiles keep their `DarkGrey`, and the detection layer keeps its
+magenta: neither is something the player is looking at.
 
 
 The HUD
@@ -147,6 +170,13 @@ Built as an ordered list of fields — name, `HP x/y`, `Ma x/y`, `Pow.`,
 `DarkGrey`, then either a `SCORE` field or, if any transient condition
 badge is lit, the badges in its place (there's only room for one).
 
+**The scorekeeper flashes.** While `models::ScoreFlash` is lit — one
+frame per payment; see `components.md`, "Components — score" — it takes
+the `SCORE` field's place whatever else is on the line, painted a
+character at a time from the flash's own colour list: `+700` in one
+random bright colour, `COMBO! +2400` with the word in the six flag
+stripes and the number in one colour, or `DOUBLE`.
+
 The displayed `Pow.`/`Arm.`/`Thr.` figures are **not** just
 `Fighter.power` etc. — they fold in every equipped modifier via
 `equipped_total::<PowerDie>` and friends, the same fold `combat_system`
@@ -155,8 +185,13 @@ against. `Thr.` only appears once it's nonzero, since a player who
 never picked up something that boosts throws never needs to see a
 field that would always read `+0`.
 
-Condition badges, in the order checked: `FAST`/`SLOW` (`Speed.kind`),
-`CONF` (`Confused`), then a snare label (`HELD` for a bear trap,
+Condition badges, in the order checked: `FAST`/`SLOW` (read through
+`conditions::tempo`, not off `Speed.kind` — so a ring of slow digestion
+reads `SLOW` exactly like a potion of paralysis does), `STLH`
+(`Stealthy`, a ring of stealth), `CONF` (`Confused`), `BLND` (`Blind`), `PARL` (`Paralyzed` — shown
+alongside the `SLOW` its slowing earns), `GLOW` (`ConfusingTouch`, a
+scroll of monster confusion still waiting on the next blow to land), then
+a snare label (`HELD` for a bear trap or a scroll of hold monster,
 `ASLEEP` for sleeping gas), then an auto-walk badge
 (`EXPLORING`/`TRAVELING`, or `ASCENDING` — magenta — once the player
 carries the Element of Yoord), then `TRAVEL?` while the `O` cursor is
@@ -243,7 +278,7 @@ only then does `run_death_screens` paint over it.
 
 One thing to know if you are measuring: a shake frame changes most of
 the map's ~1700 cells, so it is the one situation where `flush`'s
-cell-diff has little left to skip. It lasts 4-28 frames.
+cell-diff has little left to skip. It lasts 2-15 frames.
 
 
 End-of-run panels

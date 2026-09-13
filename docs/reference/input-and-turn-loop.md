@@ -46,10 +46,18 @@ The main loop
 
 One `Schedule`, run once per turn, in this fixed order:
 
-    smoke_system -> snare_system -> passive_ability_system -> ai
+    smoke_system -> snare_system -> ai
       -> trap_system -> throw_system -> item_system
       -> equipment_effects_system -> combat_system -> reaper_system
-      -> dungeon_lord_system -> visibility_system
+      -> dungeon_lord_system -> passive_ability_system
+      -> visibility_system
+
+`passive_ability_system` sits second-to-last on purpose. A passive that
+merely happens to you can roll anywhere; one that *moves* you cannot.
+Rolled after `ai`, a ring of teleportation's jump lands at the top of the
+player's next turn — they see the new tile and act from it before
+anything on the floor moves again — and there is still a visibility pass
+and a render left in the turn to show it to them.
 
 Each pass through `while world.resource::<GameState>().is_running`:
 
@@ -72,7 +80,7 @@ Each pass through `while world.resource::<GameState>().is_running`:
      settled here. A no-op unless a turn armed one (and `-nshake` means
      none ever is); see `rendering.md`, "The screen shake".
   5. **Pace it.** A 35ms sleep per step while auto-exploring, a 90ms
-     sleep per turn while the player is incapacitated (asleep in gas),
+     sleep per turn while the player is incapacitated (asleep),
      so both read as time passing rather than a freeze or a blur.
   6. **Check the ending.** `Ending::player_dead` or `player_won`
      breaks the loop into the death or victory screens.
@@ -95,12 +103,18 @@ The modal stack
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool>
 ```
 
-Before reading a key at all, two things can consume the frame without
+Before reading a key at all, three things can consume the frame without
 one: a pending `--MORE--` prompt (only Space/Enter clears it; every
-other key is swallowed) and `player_incapacitated` (asleep in gas —
-the turn is forfeited outright with no key read; a bear trap does
-*not* forfeit the turn, since it only blocks movement, not the whole
-turn — see "Movement and attack" below).
+other key is swallowed), `player_incapacitated` (asleep — in gas, or in
+a scroll of sleep that turned in your own mouth: the turn is forfeited
+outright with no key read; a bear trap or a scroll's hold does *not*
+forfeit the turn, since either only blocks movement, not the whole turn —
+see "Movement and attack" below), and
+`paralysis_forfeits_turn` (a potion of paralysis: the coin is flipped
+**once per turn**, here, before any key is read, so a lost turn is a turn
+the monsters get and the player does not, rather than a swallowed
+keystroke; a forfeited one holds the screen `PARALYSIS_PAUSE_MS` so it
+reads as time passing).
 
 Once a key is read, `x` and `X` are checked first, everywhere: they are
 the universal escape hatch, closing whichever modal is open
@@ -139,6 +153,10 @@ The single path every step and every melee attack goes through
 (auto-explore, fast-move and the plain arrow keys all call this).
 Checked in order, each one able to end the attempt:
 
+  0. **Paralysis** — not checked here at all: a potion of paralysis eats
+     its turns upstream, in `process_input_and_update`, and drops the
+     player's `Speed` to `Slow` for the ones it leaves. By the time a
+     step reaches `move_player` the turn is the player's to spend.
   1. **Confusion stumble** (`maybe_stumble`) — while `Confused`, a
      coin flip hijacks the step into one of the eight
      `STUMBLE_DIRS` at random, logging "You stumble foolishly." A
@@ -151,10 +169,14 @@ Checked in order, each one able to end the attempt:
   4. **A `Mob` on the target tile** — attacks instead of moving
      (`player_attack`, which is `resolve_attack`, the same opposed-roll
      resolution monsters use).
-  5. **A bear trap holding the player** (`SnareKind::Bear`) — an
+  5. **Something holding the player** (`SnareKind::Bear`, `Hold`) — an
      adjacent swing above still lands as an attack (step 4), but a
-     plain step becomes `bear_trap_thrash`: a wasted turn, a scratch
-     of damage, blood. See `docs/*traps*` for the trap itself.
+     plain step does not. A bear trap makes it `bear_trap_thrash`: a
+     wasted turn, a scratch of damage, blood. A scroll's hold costs the
+     turn and nothing else. See `docs/*traps*` for the trap itself.
+     (Nothing in the dungeon holds the *player* today — no monster has a
+     viewshed to read a scroll of hold monster by — the branch is there so
+     that stays true if one ever does.)
   6. **The move.** Position updates, the player's `Viewshed` is
      marked dirty, and `EntityMoved` is tagged on the player so
      `trap_system` checks the new tile.
@@ -181,10 +203,11 @@ through the prompt, or Ctrl+C without one.
 
 | Key | `handle_movement_input` does |
 |-----|------------------------------|
-| `i` `a` `t` `d` `e` `q` `r` `w` `W` `P` | `open_pack(world, PackMode::…)` — see below |
+| `i` `a` `t` `d` `e` `q` `r` `z` `w` `W` `P` | `open_pack(world, PackMode::…)` — see below |
 | `o` / `O` | auto-explore / travel cursor |
 | `A` | `toggle_auto_pickup` — flips `AutoPickup::enabled`, logs which way it landed, spends no turn |
 | `f` / `Tab` | fire the wielded launcher / auto-fight |
+| `T` | **undocumented on purpose.** `models::willed_teleport`: with `Teleportitis` on the player (a worn ring of teleportation) and at least `rings::TELEPORT_MAGIC_COST` magic points, it spends them and jumps. Every other path returns `false` and **logs nothing at all** — no refusal, no hint the key exists. Keep it out of `MANUAL.md`. |
 | `>` `.` / `<` `,` | stairs, or travel to them |
 | `Q` / `X` | raise `QuitPrompt` — the "Really quit?" modal. `X` only reaches here with nothing open; otherwise it is the escape hatch above |
 | Ctrl+C | clear `GameState::is_running` on the spot, no prompt |
@@ -198,7 +221,7 @@ letter arm claims every lowercase key that isn't already navigation.
 The pack and the action modal
 -------------------------------
 
-Ten keys open the pack, each in a `PackMode` (`models/src/pack.rs`) that
+Eleven keys open the pack, each in a `PackMode` (`models/src/pack.rs`) that
 decides the title, which rows are shown (`pack_rows`) and what picking
 one does (`PackMode::action`). `i` is the only one that asks afterwards;
 the rest carry their own verb and commit on the spot, closing the pack

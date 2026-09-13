@@ -1,6 +1,8 @@
-//! The "back half" of the scroll table: teleportation, aggravate monsters,
-//! scare monster, create monster, and vorpalize weapon (plus the rule that a
-//! glancing blow can never be the killing one).
+//! The scroll table, now that every row does something: teleportation,
+//! aggravate monsters, scare monster, create monster and vorpalize weapon (plus
+//! the rule that a glancing blow can never be the killing one), then the six
+//! that used to be readable and inert — the two enchantments, monster
+//! confusion, hold monster, sleep and food detection.
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
@@ -49,6 +51,20 @@ fn use_item(w: &mut World, user: Entity, item: Entity) {
 fn stash(w: &mut World, user: Entity, item: Entity) {
     w.entity_mut(item).remove::<Position>();
     w.get_mut::<Backpack>(user).unwrap().items.push(item);
+}
+
+/// Put a fresh scroll of `effect` in `user`'s pack and read it.
+fn read(w: &mut World, user: Entity, effect: ScrollEffect) {
+    let scroll = spawn_scroll(w, effect, Position { x: 0, y: 0 });
+    stash(w, user, scroll);
+    use_item(w, user, scroll);
+}
+
+fn logged(w: &World, needle: &str) -> bool {
+    w.resource::<GameLog>()
+        .history
+        .iter()
+        .any(|l| l.contains(needle))
 }
 
 fn spawn_dummy(w: &mut World, name: &str, x: u16, y: u16, hp: i32, mv: MovementType) -> Entity {
@@ -488,4 +504,372 @@ fn a_glancing_blow_chips_a_foe_down_to_one_but_never_finishes_it() {
             .iter()
             .any(|l| l.contains("glancing blow"))
     );
+}
+
+// ---------------------------------------------------------------------------
+// Enchant weapon / enchant armor
+// ---------------------------------------------------------------------------
+
+#[test]
+fn enchant_weapon_adds_a_plus_to_the_blade_in_hand() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let sword = wield_a_blade(&mut w, p);
+
+    read(&mut w, p, ScrollEffect::EnchantWeapon);
+
+    assert_eq!(
+        w.get::<PowerBonus>(sword).map(|b| b.0),
+        Some(1),
+        "a plain blade comes out +1"
+    );
+    assert!(
+        w.get::<KnownQuality>(sword).is_some(),
+        "you watched it take — there is nothing left to be coy about"
+    );
+    assert!(logged(&w, "orange sparks"));
+}
+
+#[test]
+fn enchant_weapon_mends_a_minus_all_the_way_to_plus_zero_and_burns_the_curse_off() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let sword = wield_a_blade(&mut w, p);
+    w.entity_mut(sword).insert(PowerBonus(-4));
+    w.entity_mut(sword).insert(Curse);
+
+    read(&mut w, p, ScrollEffect::EnchantWeapon);
+
+    assert_eq!(
+        w.get::<PowerBonus>(sword).map(|b| b.0),
+        Some(0),
+        "a minus is mended whole, not nudged one point"
+    );
+    assert!(
+        w.get::<Curse>(sword).is_none(),
+        "…and the curse goes with it, without destroying the blade"
+    );
+    assert!(logged(&w, "curse on the long sword burns away"));
+}
+
+#[test]
+fn enchant_armor_raises_the_armour_actually_being_worn() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let worn = equipped_in(&w, p, Slot::Body).expect("the hero starts in ring mail");
+    let before = w.get::<ArmorBonus>(worn).map_or(0, |b| b.0);
+
+    read(&mut w, p, ScrollEffect::EnchantArmor);
+
+    assert_eq!(w.get::<ArmorBonus>(worn).map(|b| b.0), Some(before + 1));
+}
+
+#[test]
+fn enchanting_a_bow_lands_on_the_throw_the_way_the_dungeon_rolls_one() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
+    let bow = spawn_launcher(&mut w, "short bow", Position { x: 0, y: 0 });
+    stash(&mut w, p, bow);
+    toggle_equipped(&mut w, p, bow);
+
+    read(&mut w, p, ScrollEffect::EnchantWeapon);
+
+    assert_eq!(
+        w.get::<ThrowBonus>(bow).map(|b| b.0),
+        Some(1),
+        "a bow's plus steadies its aim"
+    );
+    assert!(
+        w.get::<PowerBonus>(bow).is_none(),
+        "a bow has no melee roll for a plus to land on"
+    );
+}
+
+#[test]
+fn enchanting_with_nothing_in_the_slot_just_gutters_out() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
+
+    read(&mut w, p, ScrollEffect::EnchantArmor);
+
+    assert!(logged(&w, "bare skin"));
+}
+
+// ---------------------------------------------------------------------------
+// Monster confusion
+// ---------------------------------------------------------------------------
+
+#[test]
+fn monster_confusion_charges_the_hands_and_the_next_landed_blow_spends_them() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+
+    read(&mut w, p, ScrollEffect::MonsterConfusion);
+    assert!(
+        w.get::<ConfusingTouch>(p).is_some(),
+        "the charm waits on the hands rather than going off now"
+    );
+
+    // Big power against a fat, unarmoured target: the blow lands, and can't kill.
+    w.get_mut::<Fighter>(p).unwrap().power = 20;
+    let hero = *w.get::<Position>(p).unwrap();
+    let orc = spawn_dummy(&mut w, "orc", hero.x + 1, hero.y, 999, MovementType::Chase);
+
+    resolve_attack(&mut w, p, orc);
+
+    assert!(
+        matches!(
+            w.get::<Mob>(orc).unwrap().movement_type,
+            MovementType::Confused
+        ),
+        "what you hit reels"
+    );
+    assert!(
+        w.get::<ConfusingTouch>(p).is_none(),
+        "and the charge is spent doing it"
+    );
+}
+
+#[test]
+fn a_glancing_scrape_never_passes_the_charm_on() {
+    // The seed `a_glancing_blow_chips_a_foe...` uses: no excellent hit, so this
+    // single swing really is the glancing one the test is about.
+    let mut w = test_world(564);
+    let p = player(&mut w);
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
+    w.get_mut::<Fighter>(p).unwrap().power = 1;
+    w.get_mut::<Fighter>(p).unwrap().power_bonus = 0;
+
+    read(&mut w, p, ScrollEffect::MonsterConfusion);
+
+    let hero = *w.get::<Position>(p).unwrap();
+    let wall = spawn_dummy(&mut w, "orc", hero.x + 1, hero.y, 30, MovementType::Chase);
+    w.get_mut::<Fighter>(wall).unwrap().armor_bonus = 10;
+
+    resolve_attack(&mut w, p, wall);
+
+    assert!(
+        w.get::<ConfusingTouch>(p).is_some(),
+        "a scrape off armour never gets close enough to pass the charm on"
+    );
+    assert!(matches!(
+        w.get::<Mob>(wall).unwrap().movement_type,
+        MovementType::Chase
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// Hold monster
+// ---------------------------------------------------------------------------
+
+#[test]
+fn hold_monster_roots_what_you_can_see_and_leaves_the_rest_alone() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let hero = *w.get::<Position>(p).unwrap();
+
+    let seen = spawn_dummy(&mut w, "troll", hero.x + 1, hero.y, 4, MovementType::Chase);
+    let unseen = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
+
+    read(&mut w, p, ScrollEffect::HoldMonster);
+
+    let held = w.get::<Snare>(seen).expect("a monster in sight is bound");
+    assert_eq!(held.kind, SnareKind::Hold);
+    assert!(held.turns > 0);
+    assert!(
+        w.get::<Snare>(unseen).is_none(),
+        "a monster out of view is untouched"
+    );
+}
+
+#[test]
+fn a_held_monster_cannot_step_but_still_bites_what_comes_in_reach() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let hero = *w.get::<Position>(p).unwrap();
+
+    // One two tiles off (it would close), one already in reach (it would bite).
+    let far = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
+    let near = spawn_dummy(&mut w, "troll", hero.x, hero.y + 1, 4, MovementType::Chase);
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
+        vec![(hero.x, hero.y), (hero.x + 2, hero.y), (hero.x, hero.y + 1)];
+
+    read(&mut w, p, ScrollEffect::HoldMonster);
+    let stood = *w.get::<Position>(far).unwrap();
+    run_ai(&mut w);
+
+    assert_eq!(
+        *w.get::<Position>(far).unwrap(),
+        stood,
+        "rooted where it stands"
+    );
+    assert!(
+        w.resource::<AttackQueue>()
+            .attacks
+            .iter()
+            .any(|a| a.attacker == near),
+        "…but a held monster is pinned, not helpless: in reach, it still bites"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Sleep
+// ---------------------------------------------------------------------------
+
+/// Reads a scroll of sleep with one monster in view, and reports whether the
+/// room went down (`false`) or the reader did (`true`).
+fn read_sleep_once(seed: u64) -> bool {
+    let mut w = test_world(seed);
+    let p = player(&mut w);
+    let hero = *w.get::<Position>(p).unwrap();
+    let mob = spawn_dummy(&mut w, "rat", hero.x + 1, hero.y, 4, MovementType::Chase);
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
+
+    read(&mut w, p, ScrollEffect::Sleep);
+
+    let reader_out = w.get::<Snare>(p).map(|s| s.kind) == Some(SnareKind::Sleep);
+    let room_out = w.get::<Snare>(mob).map(|s| s.kind) == Some(SnareKind::Sleep);
+    assert!(
+        reader_out != room_out,
+        "seed {seed}: the scroll takes the room or the reader, never both and never neither"
+    );
+    reader_out
+}
+
+#[test]
+fn sleep_usually_takes_the_room_and_sometimes_the_reader() {
+    let backfires = (0..40u64).filter(|&s| read_sleep_once(s)).count();
+    assert!(
+        backfires > 0,
+        "the backfire is the whole gamble — it has to actually happen"
+    );
+    assert!(
+        backfires * 2 < 40,
+        "…but it is the minority case (backfired {backfires} times in 40)"
+    );
+}
+
+#[test]
+fn a_sleeping_monster_forfeits_its_turn_outright() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let hero = *w.get::<Position>(p).unwrap();
+    let mob = spawn_dummy(&mut w, "rat", hero.x, hero.y + 1, 4, MovementType::Chase);
+    w.entity_mut(mob).insert(Snare {
+        turns: 3,
+        kind: SnareKind::Sleep,
+    });
+
+    run_ai(&mut w);
+
+    assert!(
+        w.resource::<AttackQueue>().attacks.is_empty(),
+        "asleep in reach of the player and it still does nothing"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Food detection, and the one thing both detections find
+// ---------------------------------------------------------------------------
+
+#[test]
+fn food_detection_turns_up_the_plain_things_and_leaves_the_magic_alone() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let spot = Position { x: 1, y: 1 };
+
+    let plain = spawn_weapon(&mut w, "dagger", spot);
+    let potion = spawn_potion(&mut w, PotionEffect::Healing, spot);
+    let cursed = spawn_weapon(&mut w, "mace", spot);
+    w.entity_mut(cursed).insert(Curse);
+
+    read(&mut w, p, ScrollEffect::FoodDetection);
+
+    assert!(
+        w.get::<Detected>(plain).is_some(),
+        "a plain +0 dagger is exactly what this scroll is for"
+    );
+    assert!(
+        w.get::<Detected>(potion).is_none(),
+        "a potion is the other scroll's business"
+    );
+    assert!(
+        w.get::<Detected>(cursed).is_none(),
+        "so is a cursed mace — a curse is magic, and being warned is the potion's job"
+    );
+}
+
+#[test]
+fn both_detections_find_the_element_of_yoord() {
+    let spot = Position { x: 1, y: 1 };
+
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let relic = spawn_element_of_yoord(&mut w, spot);
+    read(&mut w, p, ScrollEffect::FoodDetection);
+    assert!(
+        w.get::<Detected>(relic).is_some(),
+        "the scroll finds the relic"
+    );
+
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let relic = spawn_element_of_yoord(&mut w, spot);
+    let potion = spawn_potion(
+        &mut w,
+        PotionEffect::MagicDetection,
+        Position { x: 0, y: 0 },
+    );
+    stash(&mut w, p, potion);
+    use_item(&mut w, p, potion);
+    assert!(
+        w.get::<Detected>(relic).is_some(),
+        "and so does the potion — it is the run, and neither sense misses it"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The juice
+// ---------------------------------------------------------------------------
+
+/// The effect layer is optional — every test above runs without one, the way a
+/// headless caller does. With one present the new scrolls have to actually
+/// queue their flourish, which is the half those tests can't see.
+#[test]
+fn the_new_scrolls_queue_their_flourish_when_there_is_an_effect_layer() {
+    let cases = [
+        ScrollEffect::EnchantWeapon,
+        ScrollEffect::EnchantArmor,
+        ScrollEffect::MonsterConfusion,
+        ScrollEffect::HoldMonster,
+        ScrollEffect::Sleep,
+        ScrollEffect::FoodDetection,
+        ScrollEffect::Teleportation,
+    ];
+    for effect in cases {
+        let mut w = test_world(6);
+        w.insert_resource(Particles::new());
+        let p = player(&mut w);
+        let hero = *w.get::<Position>(p).unwrap();
+        spawn_dummy(&mut w, "rat", hero.x + 1, hero.y, 4, MovementType::Chase);
+        w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
+            vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
+
+        read(&mut w, p, effect);
+
+        let fx = w.resource::<Particles>();
+        assert!(
+            fx.pending && fx.any_alive(),
+            "{effect:?} should have queued something to look at"
+        );
+    }
 }

@@ -9,8 +9,8 @@ use std::io::Write;
 use crate::catalog::{RingDef, restore_from_catalog};
 use crate::components::*;
 use crate::effects::{
-    ArmorBonus, ArmorDie, EffectSet, GrantedByGear, Grants, PowerBonus, PowerDie, ThrowBonus,
-    attach_effects, effects_of,
+    ArmorBonus, ArmorDie, EffectSet, GrantedByGear, GrantedForFloor, Grants, PowerBonus, PowerDie,
+    ThrowBonus, attach_effects, effects_of,
 };
 use crate::equipment::{Equipped, Slot};
 use crate::identify::{Identified, ItemAppearances};
@@ -136,13 +136,47 @@ struct EntitySave<'a> {
     speed: Option<SpeedKind>,
     /// (effect, reveal style, already discovered) for a floor trap.
     trap: Option<(TrapEffect, TrapReveal, bool)>,
-    /// (turns remaining, kind) for an actor held by a bear trap / asleep in gas.
+    /// (turns remaining, kind) for an actor pinned by a bear trap, held by a
+    /// scroll, or asleep in gas.
     snare: Option<(u32, SnareKind)>,
     /// The player's `Confused` condition (a wand of light to the face). Rides
     /// along until a staircase or a cancellation; never set on a monster (they
     /// use `MovementType::Confused`).
     #[serde(default)]
     confused: bool,
+    /// The player's `Blind` condition (a potion of blindness). Same lifetime as
+    /// [`EntitySave::confused`], and never set on a monster either.
+    #[serde(default)]
+    blind: bool,
+    /// The player's `Paralyzed` condition (a potion of paralysis). The slowing
+    /// half of it rides along in [`EntitySave::speed`].
+    #[serde(default)]
+    paralyzed: bool,
+    /// Marker: turned up by a potion of detection or a scroll of food
+    /// detection, so a reload on the same floor still shows what it showed.
+    #[serde(default)]
+    detected: bool,
+    /// `ConfusingTouch`: hands charged by a scroll of monster confusion and not
+    /// yet spent. Unlike the conditions above it survives a staircase, so a save
+    /// that forgot it would quietly eat a scroll.
+    #[serde(default)]
+    confusing_touch: bool,
+    /// Which of [`EntitySave::effects`] were lent for this floor only (a potion
+    /// of see invisible) rather than owned outright.
+    #[serde(default)]
+    floor_grants: EffectSet,
+    /// A coin's effect and the dial it works with — see `Pickup`. Both are on
+    /// the catalog row, but a coin is spent by the entity rather than looked up
+    /// by name, so the entity carries them.
+    #[serde(default)]
+    pickup: Option<(PickupEffect, i32)>,
+    /// The two promises a staircase settles (`Plated`, `Forged`). Unlike every
+    /// other condition they are not lifted by the stairs, so a save that forgot
+    /// them would quietly eat a coin.
+    #[serde(default)]
+    plated: bool,
+    #[serde(default)]
+    forged: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -287,6 +321,14 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
             snare: er.get::<Snare>().map(|s| (s.turns, s.kind)),
             confused: er.contains::<Confused>(),
+            blind: er.contains::<Blind>(),
+            paralyzed: er.contains::<Paralyzed>(),
+            detected: er.contains::<Detected>(),
+            confusing_touch: er.contains::<ConfusingTouch>(),
+            floor_grants: er.get::<GrantedForFloor>().map(|g| g.0).unwrap_or(0),
+            pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
+            plated: er.contains::<Plated>(),
+            forged: er.contains::<Forged>(),
         });
     }
 
@@ -462,9 +504,14 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some(effect) = es.ring {
             em.insert(Ring { effect });
-            // What a ring lends its wearer is fixed by its catalog row, so it is
-            // read back from there rather than stored in every save file.
-            em.insert(Grants(RingDef::of(effect).grants));
+            // What a ring lends its wearer — and what it does the moment it goes
+            // on — is fixed by its catalog row, so both are read back from there
+            // rather than stored in every save file.
+            let def = RingDef::of(effect);
+            em.insert(Grants(def.grants));
+            if let Some(on_wear) = def.on_wear {
+                em.insert(on_wear);
+            }
         }
         if let Some(slot) = es.equipped {
             em.insert(Equipped::loose(slot));
@@ -526,6 +573,30 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if es.confused {
             em.insert(Confused);
+        }
+        if es.blind {
+            em.insert(Blind);
+        }
+        if es.paralyzed {
+            em.insert(Paralyzed);
+        }
+        if es.detected {
+            em.insert(Detected);
+        }
+        if es.confusing_touch {
+            em.insert(ConfusingTouch);
+        }
+        if let Some((effect, amount)) = es.pickup {
+            em.insert(Pickup { effect, amount });
+        }
+        if es.plated {
+            em.insert(Plated);
+        }
+        if es.forged {
+            em.insert(Forged);
+        }
+        if es.floor_grants != 0 {
+            em.insert(GrantedForFloor(es.floor_grants));
         }
         if let Some((turns, kind)) = es.snare {
             em.insert(Snare { turns, kind });

@@ -19,8 +19,16 @@ pub fn visibility_system(
     // the map for the player.
     // `SeesInvisible` is asked for as a plain component. It might come from a
     // ring, from a potion, from being born that way — this system doesn't ask.
+    // `Blind` is the other end of the same question: whatever put it there, the
+    // viewshed shrinks to the tile underfoot.
     mut viewshed_query: Query<
-        (Entity, &mut Viewshed, &Position, Option<&SeesInvisible>),
+        (
+            Entity,
+            &mut Viewshed,
+            &Position,
+            Option<&SeesInvisible>,
+            Option<&Blind>,
+        ),
         With<Player>,
     >,
 
@@ -52,17 +60,18 @@ pub fn visibility_system(
     identified: Res<Identified>,
     appearances: Res<ItemAppearances>,
 ) {
-    let any_dirty = viewshed_query.iter().any(|(_, v, _, _)| v.dirty);
+    let any_dirty = viewshed_query.iter().any(|(_, v, _, _, _)| v.dirty);
     if !any_dirty {
         return;
     }
 
-    for (_player_entity, mut viewshed, pos, sees_invisible) in viewshed_query.iter_mut() {
+    for (_player_entity, mut viewshed, pos, sees_invisible, blind) in viewshed_query.iter_mut() {
         if !viewshed.dirty {
             continue;
         }
         let perception = sees_invisible.is_some();
-        let visible = visible_from(&map, pos);
+        let blind = blind.is_some();
+        let visible = visible_from(&map, pos, blind);
 
         hide_and_announce(
             &mut commands,
@@ -70,6 +79,7 @@ pub fn visibility_system(
             &spot_query,
             &visible,
             perception,
+            blind,
             &identified,
             &appearances,
         );
@@ -80,6 +90,7 @@ pub fn visibility_system(
             &visible,
             pos,
             perception,
+            blind,
         );
 
         if viewshed.revealed_tiles.len() < MAP_TILE_COUNT {
@@ -119,7 +130,12 @@ fn neighbours(x: u16, y: u16) -> impl Iterator<Item = (u16, u16)> {
 /// when standing in a lit room — a flood-fill of that room out to its walls. A
 /// dark room gives only the 3x3, as if it were a passage, until a wand of light
 /// clears its `dark` bits.
-fn visible_from(map: &Map, pos: &Position) -> HashSet<(u16, u16)> {
+///
+/// `blind` (a potion of blindness) cuts it to the 3x3 and stops there: the tiles
+/// you could reach out and touch, and no room around them however well lit. What
+/// was explored before stays explored — the player keeps their memory, just not
+/// their eyes.
+pub(crate) fn visible_from(map: &Map, pos: &Position, blind: bool) -> HashSet<(u16, u16)> {
     let mut visible = HashSet::new();
     let (cx, cy) = (pos.x as i16, pos.y as i16);
 
@@ -129,6 +145,10 @@ fn visible_from(map: &Map, pos: &Position) -> HashSet<(u16, u16)> {
                 visible.insert(((cx + dx) as u16, (cy + dy) as u16));
             }
         }
+    }
+
+    if blind {
+        return visible;
     }
 
     let in_lit_room = !map.is_dark(pos.x, pos.y)
@@ -169,7 +189,14 @@ fn flood_fill_room(map: &Map, start: (u16, u16), visible: &mut HashSet<(u16, u16
 
 /// Hides or reveals every mob and floor item against what the player can see,
 /// and logs the first sighting of anything new.
+///
+/// `blind` settles the whole question at once: a blinded player perceives
+/// *nothing*, not even the monster in the next square. Every mob goes [`Hidden`]
+/// (so it is not drawn, and auto-walk and auto-fight refuse to run — they have
+/// nothing to look at), and nothing is ever announced as spotted. It does not
+/// touch what the monsters know; see [`crate::ai`].
 #[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)] // the whole per-entity spotting decision
 fn hide_and_announce(
     commands: &mut Commands,
     log: &mut GameLog,
@@ -191,13 +218,14 @@ fn hide_and_announce(
     >,
     visible: &HashSet<(u16, u16)>,
     perception: bool,
+    blind: bool,
     identified: &Identified,
     appearances: &ItemAppearances,
 ) {
     for (entity, pos, mob, invisible, name, stack, potion, scroll, wand, ring, spotted) in
         spot_query.iter()
     {
-        let in_view = visible.contains(&(pos.x, pos.y));
+        let in_view = !blind && visible.contains(&(pos.x, pos.y));
         let perceptible = in_view && (invisible.is_none() || perception);
 
         if mob.is_some() && perceptible {
@@ -246,7 +274,8 @@ fn spotted_line(seen_name: &str) -> String {
 /// Brings hidden traps to light: a `Sight` trap the instant its tile is in
 /// view, an `Adjacent` trap once the player is next to it, a `Triggered` trap
 /// not until something sets it off — but a ring of perception reveals every
-/// trap on the floor at once. Revealing latches (`Hidden` removed for good).
+/// trap on the floor at once, and blindness finds none of them (the perception
+/// short-circuit still holds: that is second sight, not eyesight).
 fn reveal_traps(
     commands: &mut Commands,
     log: &mut GameLog,
@@ -254,12 +283,14 @@ fn reveal_traps(
     visible: &HashSet<(u16, u16)>,
     player: &Position,
     perception: bool,
+    blind: bool,
 ) {
     for (entity, tpos, mut trap) in trap_query.iter_mut() {
         if trap.revealed {
             continue;
         }
-        if !perception && !trap_tripped(trap.reveal, tpos, player, visible) {
+        let spotted_it = !blind && trap_tripped(trap.reveal, tpos, player, visible);
+        if !perception && !spotted_it {
             continue;
         }
         trap.revealed = true;

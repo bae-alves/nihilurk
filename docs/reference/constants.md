@@ -34,10 +34,14 @@ The modules
 | `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor, `DIFFICULTY_TIER_LAST_DEPTH` (the depth bands the crowding budgets step at) | how long a run is and how hard attrition bites |
 | `map`         | `WIDTH`, `HEIGHT`, dark-room chance | the playfield (see the determinism caveat below) |
 | `population`  | Monster / trap / item budgets per floor, how they scale with the difficulty tier, corridor lurkers, hidden items | how crowded and dangerous a floor is |
-| `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash, the trick-shot burst (`TRICK_SHOT_RADIUS` and its dice) | how much a trap hurts and how fast it scales |
+| `potions`     | What a dose is worth: the max-HP a healing / extra healing potion adds, the power gain strength adds and poison takes (with its floor), the share of turns paralysis eats | how much a potion swings a run |
+| `scrolls`     | What one enchantment is worth (and that a minus is mended whole), how long sleep and hold last, how often sleep backfires on the reader | how strong the room-clearing scrolls are |
+| `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash, the trick-shot burst (`TRICK_SHOT_RADIUS`, `PICKUP_TRICK_SHOT_RADIUS` and the shared dice) | how much a trap hurts and how fast it scales |
 | `wands`       | Charge dice, zap damage dice, both blast radii, per-charge dice a thrown wand spends | how good a wand is |
 | `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the launcher die multiplier | how the drop table feels |
 | `items`       | `THROW_RANGE`, `STACK_LIMIT` | reach and pack density |
+| `rings`       | `STEALTH_RANGE` (how close a stealthy player is noticed at), `TELEPORT_MAGIC_COST` | the two rings with a number that isn't on their row |
+| `score`       | `KILL_PER_MAX_HP`, `COMBO_BONUS_PER_KILL`, `COMBO_PRIDE_CHANCE`, `STAIR_PER_TIER`, `SCORE_FLASH_TURNS` | what the run is scored on, and how loudly |
 | `monsters`    | `DEFAULT_SPAWN_WEIGHT` | the baseline rarity a bestiary row gets |
 | `travel`      | Step caps on autoexplore / fast-move | only if a walk loops |
 | `hud`         | Message-log rows and wrap widths, save-file log history | the log's footprint on screen |

@@ -4,7 +4,7 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
 use crate::effects::{
-    ColdImmune, FireImmune, Grant, Grants, ItemUser, Undead, VorpalTarget, grant_all,
+    ColdImmune, FireImmune, Grant, Grants, ItemUser, RustsArmor, Undead, VorpalTarget, grant_all,
 };
 use crate::spawn::pick_weighted;
 use MovementType::{Chase, Confused, Flee, Static};
@@ -182,7 +182,7 @@ pub const BESTIARY: &[MonsterDef] = &[
     // and `.weight(n)` are chained on when a row wants more than the default.
     //              name             glyph  colour              move       hp  pow  pb   ar  ab  dep
     MonsterDef::row("goblin",        'g',   Color::Green,       Flee,       1,   4,   0,   6,  0,   1).grants(ITEM_USER),
-    MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      3,   4,  -1,   8,  1,   5),
+    MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      3,   4,  -1,   8,  1,   5).grants(&[Grant::of::<RustsArmor>()]),
     MonsterDef::row("bat",           'B',   Color::DarkGrey,    Confused,   1,   4,   0,   8,  0,   1),
     MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   5).grants(ITEM_USER),
     MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,  10).grants(&[Grant::of::<FireImmune>()]),
