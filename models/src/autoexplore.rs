@@ -326,8 +326,9 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
 /// A known item still sitting on the floor (see [`known_item_tiles`]) always
 /// wins over frontier exploration: the walk beelines straight for it, `move_player`
 /// picks it up on arrival, and only once it's gone does frontier picking resume.
-/// [`detours_for_loot`] is what can call that rule off — the `A` toggle, or a
-/// pack with no room left in it.
+/// [`detours_for_loot`] is what can call that rule off, and it is the `A`
+/// toggle and nothing else — whether a *particular* item is worth the walk is
+/// [`known_item_tiles`]'s question, item by item.
 ///
 /// Otherwise keeps heading toward [`AutoExplore::frontier`] — the frontier tile
 /// it last committed to — for as long as that's still a real frontier, rather

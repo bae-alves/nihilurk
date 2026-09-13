@@ -15,10 +15,7 @@ The table
 
     models/src/monsters.rs      ->  BESTIARY
 
-Every creature in the game is a row in it. Level population, the scroll
-of create monster, the wand of polymorph and the scroll of vorpalize
-weapon all draw from this table, so a row is a species everywhere at
-once.
+Every creature in the game is a row in it. Level population, the scroll of create monster, the wand of polymorph and the scroll of vorpalize weapon all draw from this table, so a row is a species everywhere at once.
 
 
 The recipe
@@ -26,8 +23,7 @@ The recipe
 
 1. Open `models/src/monsters.rs` and find `BESTIARY`.
 
-2. Copy a row that is close to what you want and change it. A basilisk,
-   say -- slow, armoured, nasty, and not something floor 1 should meet:
+2. Copy a row that is close to what you want and change it. A basilisk, say -- slow, armoured, nasty, and not something floor 1 should meet:
 
        MonsterDef::row("basilisk", 'b', Color::DarkGreen, Chase,
                        5, 10, 1, 10, 2, 5),
@@ -54,8 +50,7 @@ The recipe
 
        cargo test --test content
 
-That is the whole procedure. Nothing else in the codebase needs to be
-told that basilisks exist.
+That is the whole procedure. Nothing else in the codebase needs to be told that basilisks exist.
 
 
 Choosing the numbers
@@ -67,34 +62,26 @@ Copy the band your creature belongs to:
     mid         hp 3-6    power 6-10    armor 6-10      min_depth 5
     deep        hp 8-12   power 8-12    armor 6-10      min_depth 10
 
-Raise `armor` to make it hard to kill, `power` to make it frightening to
-stand next to, `hp` only to buy it one more exchange. Why that is so --
-and why nothing in the bestiary has thirty hit points -- is
-`../explanation/combat-and-balance.md`.
+Raise `armor` to make it hard to kill, `power` to make it frightening to stand next to, `hp` only to buy it one more exchange. Why that is so -- and why nothing in the bestiary has thirty hit points -- is `../explanation/combat-and-balance.md`.
 
 `min_depth` in use is 1, 5 and 10. Nothing stops you using 2 or 11.
 
 Optional extras, chained on
 ---------------------------
 
-Anything past the ten numbers is chained, so a plain creature stays one
-readable line.
+Anything past the ten numbers is chained, so a plain creature stays one readable line.
 
 **Innate magic** -- attach effect components at birth:
 
     MonsterDef::row("basilisk", ...).grants(&[Grant::of::<ColdImmune>()]),
 
-The effect must already exist. See `add-an-effect.md`. There is a
-shorthand for the common one -- `.grants(ITEM_USER)` -- which makes a
-creature clever enough to catch thrown gear, wear it, and read scrolls
-that land on it.
+The effect must already exist. See `add-an-effect.md`. There is a shorthand for the common one -- `.grants(ITEM_USER)` -- which makes a creature clever enough to catch thrown gear, wear it, and read scrolls that land on it.
 
 **Born invisible** -- unseeable without see-invisible (the phantom):
 
     MonsterDef::row("basilisk", ...).invisible(),
 
-**Rarity** -- how often it is drawn against the rest of the floor's
-eligible pool. The default is 10; leave it alone unless you mean it:
+**Rarity** -- how often it is drawn against the rest of the floor's eligible pool. The default is 10; leave it alone unless you mean it:
 
     MonsterDef::row("basilisk", ...).weight(3),
 
@@ -131,16 +118,15 @@ Checks that will catch you
 
   * two rows share a name (`every_content_name_is_unique`)
   * your row cannot be built by name (`every_content_name_spawns_and_...`)
-  * a species turns up above its `min_depth`
-    (`a_species_never_appears_above_its_min_depth`)
+  * a species turns up above its `min_depth` (`a_species_never_appears_above_its_min_depth`)
 
-Glyph collisions are *not* checked. Two creatures may share a letter; the
-existing bestiary uses one letter per species by convention, and `g` is
-already the goblin's.
+Glyph collisions are *not* checked. Two creatures may share a letter; the existing bestiary uses one letter per species by convention, and `g` is already the goblin's.
 
 
 See also
 --------
+
+  ../tutorial/add-your-first-monster.md  the long version, as a lesson
 
   add-an-effect.md                 give it a property nothing else has
   tune-rarity-and-depth.md         where and how often it shows up

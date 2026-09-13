@@ -16,7 +16,6 @@ use crossterm::{
 };
 use std::io::{BufWriter, stdout};
 
-// Import our rng seed types
 use models::{ChaCha12Rng, SeedableRng};
 
 use crate::ai::ai;
@@ -161,7 +160,6 @@ fn player_step(world: &mut World) -> std::io::Result<bool> {
 }
 
 fn main() -> std::io::Result<()> {
-    // 1. Argument Parsing for Seed
     let args: Vec<String> = std::env::args().collect();
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
@@ -300,7 +298,10 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     let mut screen = view::Screen::new();
     let mut world = World::new();
 
-    // 2. Initialize Seeded GameRng
+    // Every resource the schedule and the renderer read has to exist before
+    // either runs. A loaded save replaces the run-state ones below; the
+    // presentation ones (`Particles`, `Shake`, `AnimRate`, `Pride`) are never
+    // saved and are set from the command line either way.
     let seed_value = seed.unwrap_or_else(rand::random);
     world.insert_resource(models::GameRng(ChaCha12Rng::seed_from_u64(seed_value)));
     world.insert_resource(models::RngSeed(seed_value));
@@ -368,7 +369,8 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // reloaded save flies whatever flag the command line asks for this time.
     world.insert_resource(models::pride::Pride(pride));
 
-    // 3. Create the schedule and register systems in execution order
+    // The turn, in order. Every `.after()` here is load-bearing; the order is
+    // documented in `docs/reference/input-and-turn-loop.md`.
     let mut schedule = Schedule::default();
     schedule.add_systems((
         smoke_system.before(snare_system),
@@ -397,9 +399,8 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         score_turn_system.after(visibility_system),
     ));
 
-    // [!] KICKSTART THE ENGINE [!]
-    // We must run the systems and render once before the loop,
-    // otherwise the screen will be completely black until the first keypress.
+    // One turn and one frame before the loop, so the player is looking at a
+    // dungeon rather than a black screen when the first `read()` blocks.
     schedule.run(&mut world);
     view::render(&mut world, &mut stdout, &mut screen)?;
 
@@ -408,7 +409,8 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         world.resource::<PlayerName>().what.to_ascii_lowercase()
     );
 
-    // 4. Main Loop
+    // The main loop. Its steps are named A..D because
+    // `docs/reference/input-and-turn-loop.md` walks them in that order.
     while world.resource::<models::GameState>().is_running {
         // Step A: Advance the game. A fast-move run resolves entirely here,
         // taking its own turns without repainting; otherwise we take one

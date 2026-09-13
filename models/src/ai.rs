@@ -1,6 +1,6 @@
 use crate::components::*;
 use crate::effects::Stealthy;
-use crate::map::{Map, TileType};
+use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -22,7 +22,9 @@ use crate::constants::rings::STEALTH_RANGE;
 /// Every other schedule step (traps, visibility, the Dungeon Lord's patience)
 /// still ticks exactly once per player turn.
 pub fn ai(world: &mut World) {
-    // 1. Player snapshot: entity, position, the tiles it can see, its faction.
+    // The whole turn is decided against one snapshot of the player, taken
+    // before any monster moves — so a mob that steps aside in pass 0 cannot
+    // change what the mob after it can see.
     #[allow(clippy::type_complexity)] // one query for the whole player snapshot
     let Some((player_entity, player_pos, visible_tiles, player_blind, player_faction)) = ({
         let mut q = world
@@ -43,7 +45,7 @@ pub fn ai(world: &mut World) {
     // they are within arm's reach (see [`notices`]).
     let player_stealthy = world.get::<Stealthy>(player_entity).is_some();
 
-    // 2. How many monster rounds this one player turn is worth.
+    // How many monster rounds this one player turn is worth.
     let rounds = match player_speed {
         SpeedKind::Normal => 1,
         SpeedKind::Slow => 2,
@@ -332,7 +334,7 @@ fn mob_can_enter(
     new_x: u16,
     new_y: u16,
 ) -> bool {
-    if new_x >= 80 || new_y >= 22 {
+    if new_x >= MAP_WIDTH || new_y >= MAP_HEIGHT {
         return false;
     }
     if map.blocks(new_x, new_y) {

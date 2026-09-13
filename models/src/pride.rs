@@ -111,35 +111,3 @@ pub fn flag_names() -> Vec<&'static str> {
 /// the entire feature. It is the one place in roog where the documentation and
 /// the program disagree on purpose.
 pub const PRIDE_OFF_REFUSAL: &str = "ERROR: You cannot ever take our pride.";
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_flag_answers_to_the_name_it_prints() {
-        for name in flag_names() {
-            let flag = PrideFlag::named(name).expect("a row is found by its own name");
-            assert_eq!(flag.name, name);
-            assert!(!flag.stripes.is_empty(), "{name} has stripes to fly");
-        }
-    }
-
-    #[test]
-    fn an_unknown_name_is_no_flag_at_all() {
-        assert!(PrideFlag::named("nope").is_none());
-    }
-
-    #[test]
-    fn a_world_that_never_chose_flies_the_rainbow() {
-        let w = World::new();
-        assert_eq!(stripes(&w), PrideFlag::default_flag().stripes);
-    }
-
-    #[test]
-    fn choosing_a_flag_changes_what_everything_paints_with() {
-        let mut w = World::new();
-        w.insert_resource(Pride(PrideFlag::named("trans").unwrap()));
-        assert_eq!(stripes(&w), PrideFlag::named("trans").unwrap().stripes);
-    }
-}

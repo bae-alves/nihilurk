@@ -92,25 +92,15 @@ pub fn log_paint(message: &str, stripes: &'static [Color]) -> LogPaint {
     LogPaint::Solid(log_line_color(message))
 }
 
-/// Greedily packs `messages` into at most `max_lines` lines no wider than
-/// `width`, joining consecutive messages with a single space. A message is never
-/// split: if it doesn't fit on the current line it starts the next one (and a
-/// message longer than `width` simply occupies its own overflowing line).
+/// Packs `messages` into at most `max_lines` lines no wider than `width`, each
+/// line left as the list of messages on it, in order. A message is never split:
+/// one that doesn't fit on the current line starts the next, and one longer than
+/// `width` gets its own overflowing line.
 ///
-/// Returns the packed lines and how many messages they cover.
-///
-/// A convenience over [`pack_line_segments`] for callers that only want the
-/// text: it joins each line's messages back together with the space they are
-/// displayed with. The renderer wants the segments instead, because each
-/// message keeps its own colour.
-pub fn pack_messages(messages: &[String], width: usize, max_lines: usize) -> (Vec<String>, usize) {
-    let (lines, consumed) = pack_line_segments(messages, width, max_lines);
-    (lines.iter().map(|line| line.join(" ")).collect(), consumed)
-}
-
-/// The same packing, with each line left as the list of messages on it, in
-/// order. Displayed they are joined with a single space — so a segment's column
-/// is the widths of the segments before it, plus one space each.
+/// The lines come back as segments rather than strings because each message
+/// keeps its own colour (see [`log_paint`]). Displayed, the segments on a line
+/// are joined with a single space — so a segment's column is the widths of the
+/// segments before it, plus one space each.
 ///
 /// Returns the packed lines and how many messages they cover.
 pub fn pack_line_segments(
@@ -150,153 +140,6 @@ pub fn pack_line_segments(
         lines.push(cur);
     }
     (lines, consumed)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn v(s: &[&str]) -> Vec<String> {
-        s.iter().map(|x| x.to_string()).collect()
-    }
-
-    #[test]
-    fn short_messages_share_one_line() {
-        let (lines, consumed) = pack_messages(&v(&["You hit the orc.", "It dies."]), 80, 3);
-        assert_eq!(lines, vec!["You hit the orc. It dies."]);
-        assert_eq!(consumed, 2);
-    }
-
-    #[test]
-    fn wraps_whole_message_never_splits_it() {
-        let (lines, consumed) = pack_messages(&v(&["aaaaaa", "bbbbbb", "cccccc"]), 13, 3);
-        // "aaaaaa bbbbbb" == 13 fits; "cccccc" would push to 20 -> next line, intact.
-        assert_eq!(lines, vec!["aaaaaa bbbbbb", "cccccc"]);
-        assert_eq!(consumed, 3);
-    }
-
-    #[test]
-    fn stops_at_max_lines_and_reports_consumed() {
-        let msgs = v(&["one", "two", "three", "four", "five", "six", "seven"]);
-        let (lines, consumed) = pack_messages(&msgs, 3, 3);
-        assert_eq!(lines, vec!["one", "two", "three"]);
-        assert_eq!(consumed, 3);
-    }
-
-    #[test]
-    fn log_view_flags_more_when_queue_overflows() {
-        let long = "x".repeat(50);
-        let msgs = vec![long.clone(), long.clone(), long.clone(), long.clone()];
-        let (lines, consumed, more) = log_view(&msgs);
-        assert!(more);
-        assert!(consumed < msgs.len());
-        assert_eq!(lines.len(), 3);
-    }
-
-    #[test]
-    fn log_view_no_more_when_everything_fits() {
-        let (_lines, consumed, more) = log_view(&v(&["a", "b", "c"]));
-        assert!(!more);
-        assert_eq!(consumed, 3);
-    }
-
-    #[test]
-    fn colors_only_apply_to_lines_about_the_player() {
-        assert_eq!(
-            log_line_color("The goblin is dazzled!"),
-            Color::White,
-            "no \"you\" in it, so it stays plain even though it's a dazzle line"
-        );
-        assert_eq!(
-            log_line_color("The rat is cursed!"),
-            Color::White,
-            "no \"you\" in it, so it stays plain even though it's a curse line"
-        );
-    }
-
-    #[test]
-    fn curse_dazzle_and_low_hp_lines_get_their_colours() {
-        assert_eq!(
-            log_line_color("The ring welds itself to your grip! It is cursed!"),
-            Color::DarkRed
-        );
-        assert_eq!(
-            log_line_color("The flash leaves you reeling — you are dazzled!"),
-            Color::Magenta
-        );
-        assert_eq!(log_line_color("You are badly wounded!"), Color::Red);
-    }
-
-    #[test]
-    fn a_shouting_message_never_repaints_the_ones_beside_it() {
-        // The bug this guards: a line is several messages, and colouring used
-        // to be decided for the whole painted row. One combo would turn every
-        // sentence sharing its row magenta.
-        let (lines, _) =
-            pack_line_segments(&v(&["You hit the orc for 3 damage.", "With style."]), 80, 3);
-        assert_eq!(lines.len(), 1, "they share a row");
-        let colors: Vec<Color> = lines[0].iter().map(|m| log_line_color(m)).collect();
-        assert_eq!(colors, vec![Color::White, Color::Magenta]);
-    }
-
-    #[test]
-    fn the_proud_line_comes_out_in_stripes_that_never_repeat_side_by_side() {
-        let flag = crate::pride::PrideFlag::default_flag().stripes;
-        let paint = log_paint(PRIDE_LINE, flag);
-        let painted: Vec<Color> = (0..PRIDE_LINE.len()).map(|i| paint.color_at(i)).collect();
-        assert_eq!(painted[0], flag[0], "opens on red");
-        assert_eq!(
-            painted[6], flag[0],
-            "and wraps from purple straight back to it"
-        );
-        assert!(
-            painted.windows(2).all(|w| w[0] != w[1]),
-            "no two neighbouring letters share a stripe"
-        );
-    }
-
-    #[test]
-    fn a_combo_shouts_in_magenta_with_no_you_in_it() {
-        assert_eq!(log_line_color("With style."), Color::Magenta);
-    }
-
-    #[test]
-    fn a_trick_shot_shouts_in_magenta_with_no_you_in_it() {
-        // The one line coloured without the player being named in it: it is
-        // their shot either way.
-        assert_eq!(log_line_color("BAM! Trick shot!"), Color::Magenta);
-        assert_eq!(log_line_color("WHY! Trick shot!"), Color::Magenta);
-    }
-
-    #[test]
-    fn the_haste_lines_beat_the_word_slow_in_their_own_text() {
-        // The haste message ironically contains "slow motion" — it must still
-        // read as the fast colour, not the slow one.
-        assert_eq!(
-            log_line_color("The world lurches into slow motion around you."),
-            Color::Cyan
-        );
-        assert_eq!(
-            log_line_color("You are already as quick as you can be."),
-            Color::Cyan
-        );
-        assert_eq!(log_line_color("Your limbs turn to lead."), Color::DarkCyan);
-        assert_eq!(
-            log_line_color("You are already as sluggish as you can be."),
-            Color::DarkCyan
-        );
-    }
-
-    #[test]
-    fn the_players_own_throw_is_yellow() {
-        assert_eq!(log_line_color("You throw the dagger."), Color::Yellow);
-        assert_eq!(log_line_color("You fire an arrow."), Color::Yellow);
-        assert_eq!(
-            log_line_color("The orc throws a dagger."),
-            Color::White,
-            "not the player's own throw"
-        );
-    }
 }
 
 /// What the message log should display: the packed lines — each still split

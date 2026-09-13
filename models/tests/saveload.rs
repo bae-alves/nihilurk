@@ -1,4 +1,9 @@
+//! The save file: what survives a round trip, and what deliberately does not.
+
+mod common;
+
 use bevy_ecs::prelude::*;
+use models::constants::player::START_MAGIC;
 use models::*;
 
 #[test]
@@ -21,8 +26,8 @@ fn round_trip() {
         .potions
         .insert(PotionEffect::Healing);
     let n0 = w.iter_entities().count();
-    let path = std::env::temp_dir().join("roog_test.sav");
-    let p = path.to_str().unwrap();
+    let save = common::SaveFile::new("roundtrip");
+    let p = save.path();
     save_game(&mut w, p).unwrap();
 
     let mut w2 = World::new();
@@ -60,7 +65,7 @@ fn round_trip() {
 
     // The player's magic pool survives the round trip.
     let magic = w2.query_filtered::<&Magic, With<Player>>().single(&w2);
-    assert_eq!((magic.points, magic.max_points), (4, 4));
+    assert_eq!((magic.points, magic.max_points), (START_MAGIC, START_MAGIC));
 
     // Equipment / scroll / ring components survive the round trip.
     let mut w3 = World::new();
@@ -96,8 +101,8 @@ fn round_trip() {
     spawn_scroll(&mut w3, ScrollEffect::MagicMapping, pos);
     spawn_ring(&mut w3, RingEffect::Regeneration, pos);
     spawn_element_of_yoord(&mut w3, pos);
-    let path3 = std::env::temp_dir().join("roog_test_gear.sav");
-    let p3 = path3.to_str().unwrap();
+    let save3 = common::SaveFile::new("gear");
+    let p3 = save3.path();
     save_game(&mut w3, p3).unwrap();
 
     let mut w4 = World::new();
@@ -106,19 +111,32 @@ fn round_trip() {
     w4.init_resource::<GameLog>();
     w4.insert_resource(PlayerName { what: "Z".into() });
     load_game(&mut w4, p3).unwrap();
+    // The dice come off the catalog rows, not off a number copied into this
+    // test: what is being checked is that the save carried them, not what the
+    // balance happens to be this week.
+    let sword_die = WEAPONS
+        .iter()
+        .find(|d| d.name == "long sword")
+        .unwrap()
+        .power_die;
+    let plate_die = ARMORS
+        .iter()
+        .find(|d| d.name == "plate mail")
+        .unwrap()
+        .armor_die;
     assert_eq!(
         w4.query::<&PowerDie>()
             .iter(&w4)
             .map(|m| m.0)
             .collect::<Vec<_>>(),
-        vec![8],
+        vec![sword_die],
     );
     assert_eq!(
         w4.query::<&ArmorDie>()
             .iter(&w4)
             .map(|m| m.0)
             .collect::<Vec<_>>(),
-        vec![9]
+        vec![plate_die]
     );
     assert_eq!(
         w4.query::<&Scroll>()
@@ -167,11 +185,67 @@ fn a_won_run_saves_as_clear_data() {
     initialize_world(&mut w);
     w.resource_mut::<Ending>().player_won = true;
 
-    let path = std::env::temp_dir().join("roog_clear.sav");
-    let p = path.to_str().unwrap();
+    let save = common::SaveFile::new("clear");
+    let p = save.path();
     save_game(&mut w, p).unwrap();
 
     let clear = clear_data(p).unwrap().expect("recognised as clear data");
     assert_eq!(clear.player_name, "VICTOR");
-    let _ = std::fs::remove_file(p);
+}
+
+/// The save carries no cosmetic state at all, and that is a decision rather
+/// than an oversight: none of it is gameplay, none of it is replayed, and the
+/// three map-sized overlays alone would outweigh the rest of the file.
+///
+/// The invariant a change could quietly break is "a reloaded floor is the
+/// floor you left, scrubbed of the mess you made on it" — so this stains,
+/// marks and smokes a tile, round-trips, and asks for all three back empty.
+#[test]
+fn the_mess_a_fight_leaves_behind_is_not_in_the_save() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(77)));
+    w.insert_resource(RngSeed(77));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName {
+        what: "MESSY".into(),
+    });
+    initialize_world(&mut w);
+
+    let here = {
+        let p = w.query_filtered::<Entity, With<Player>>().single(&w);
+        *w.get::<Position>(p).unwrap()
+    };
+    w.resource_mut::<BloodStains>().stain(here.x, here.y);
+    w.resource_mut::<Corpses>().mark(here.x, here.y);
+    w.resource_mut::<Smoke>().puff(here.x, here.y, 4);
+    assert!(
+        w.resource::<BloodStains>().is_bloody(here.x, here.y)
+            && w.resource::<Corpses>().has(here.x, here.y)
+            && w.resource::<Smoke>().is_smoky(here.x, here.y),
+        "the fixture did not actually dirty the tile, so this test proves nothing"
+    );
+
+    let save = common::SaveFile::new("juice");
+    let p = save.path();
+    save_game(&mut w, p).unwrap();
+
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(1)));
+    w2.insert_resource(RngSeed(1));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, p).unwrap();
+
+    assert!(
+        !w2.resource::<BloodStains>().is_bloody(here.x, here.y),
+        "blood was carried across a reload"
+    );
+    assert!(
+        !w2.resource::<Corpses>().has(here.x, here.y),
+        "a corpse mark was carried across a reload"
+    );
+    assert!(
+        !w2.resource::<Smoke>().is_smoky(here.x, here.y),
+        "smoke was carried across a reload"
+    );
 }

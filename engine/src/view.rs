@@ -4,209 +4,17 @@ use std::time::Duration;
 
 use bevy_ecs::prelude::*;
 use crossterm::{
-    cursor::MoveTo,
     event::{poll, read},
-    queue,
-    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
+    style::Color,
     terminal::size,
 };
 
 use models::*;
 
-/// Screen dimensions. The classic 80x25: row 0 is the status line, rows 1..=22
-/// hold the map, and rows 22..25 hold the message log.
-pub const SCREEN_W: u16 = 80;
-pub const SCREEN_H: u16 = 25;
-
-/// The screen row map row 0 paints on — row 0 being the status line.
-///
-/// Every map-space painter folds this in, which is why `render`'s map layers
-/// pass a raw map coordinate instead of each carrying its own `y + 1`.
-const MAP_TOP: u16 = 1;
-
-/// A screen cell: glyph, foreground colour, background colour.
-type Cell = (char, Color, Color);
-const BLANK_CELL: Cell = (' ', Color::Reset, Color::Reset);
-
-/// Double-buffered character grid. `render` paints the whole frame into `cur`;
-/// `flush` then emits terminal commands only for the cells that differ from the
-/// previously displayed frame, so a typical turn writes a few dozen cells
-/// instead of repainting all 2000.
-pub struct Screen {
-    cur: Vec<Cell>,
-    prev: Vec<Cell>,
-    /// Force a full repaint on the next flush (first frame, or the centering
-    /// offset changed and stale cells would otherwise be left behind).
-    dirty_all: bool,
-    last_offset: (u16, u16),
-    /// Where the screen shake has thrown the map this frame, in whole cells
-    /// right and down. Read only by the map-space painters below, so the
-    /// status line, the message log and the pack overlay stay nailed down
-    /// while the floor rocks.
-    ///
-    /// This is *not* a second viewport. The grid is 80x25 whatever this says,
-    /// and a tile the displacement pushes past the edge of the map rows is
-    /// dropped by `map_cell` rather than drawn somewhere else — the game
-    /// renders no more of the map mid-shake than it does at rest, and no less
-    /// of anything else.
-    map_shift: (i16, i16),
-}
-
-impl Screen {
-    pub fn new() -> Self {
-        let len = (SCREEN_W * SCREEN_H) as usize;
-        Self {
-            cur: vec![BLANK_CELL; len],
-            prev: vec![BLANK_CELL; len],
-            dirty_all: true,
-            last_offset: (0, 0),
-            map_shift: (0, 0),
-        }
-    }
-
-    fn clear(&mut self) {
-        for c in &mut self.cur {
-            *c = BLANK_CELL;
-        }
-    }
-
-    #[inline]
-    fn put(&mut self, x: u16, y: u16, ch: char, color: Color) {
-        if x < SCREEN_W && y < SCREEN_H {
-            self.cur[(y * SCREEN_W + x) as usize] = (ch, color, Color::Reset);
-        }
-    }
-
-    /// Sets only the foreground colour of a cell, leaving its glyph untouched.
-    /// Used by the blood overlay to redden a tile in place.
-    #[inline]
-    fn set_fg(&mut self, x: u16, y: u16, fg: Color) {
-        if x < SCREEN_W && y < SCREEN_H {
-            self.cur[(y * SCREEN_W + x) as usize].1 = fg;
-        }
-    }
-
-    /// Sets only the background colour of a cell, leaving its glyph and
-    /// foreground untouched. Used by the travel cursor to highlight a tile.
-    #[inline]
-    fn set_bg(&mut self, x: u16, y: u16, bg: Color) {
-        if x < SCREEN_W && y < SCREEN_H {
-            self.cur[(y * SCREEN_W + x) as usize].2 = bg;
-        }
-    }
-
-    #[inline]
-    fn get(&self, x: u16, y: u16) -> Cell {
-        if x >= SCREEN_W || y >= SCREEN_H {
-            return BLANK_CELL;
-        }
-        self.cur[(y * SCREEN_W + x) as usize]
-    }
-
-    /// The screen cell a map tile lands on, with [`Screen::map_shift`] folded
-    /// in — or `None` when the shake has thrown that tile clean out of the map
-    /// viewport.
-    ///
-    /// The clip is against the map's own rows, not the whole grid, and that is
-    /// the whole safety property of the shake: a displaced map can never smear
-    /// a tile up into the status line or down into the message log, and a
-    /// tile pushed off the left or right edge is not drawn at all rather than
-    /// wrapping onto the next row. Off-viewport is off — nothing is rendered
-    /// to fill the gap it leaves, which is why the shake reads as the map
-    /// moving inside a fixed frame rather than as the frame resizing.
-    #[inline]
-    fn map_cell(&self, x: u16, y: u16) -> Option<(u16, u16)> {
-        let sx = x as i32 + self.map_shift.0 as i32;
-        let sy = y as i32 + MAP_TOP as i32 + self.map_shift.1 as i32;
-        if sx < 0 || sx >= SCREEN_W as i32 {
-            return None;
-        }
-        if sy < MAP_TOP as i32 || sy >= (MAP_TOP + MAP_HEIGHT) as i32 {
-            return None;
-        }
-        Some((sx as u16, sy as u16))
-    }
-
-    /// [`Screen::put`], in map coordinates.
-    #[inline]
-    fn put_map(&mut self, x: u16, y: u16, ch: char, color: Color) {
-        if let Some((sx, sy)) = self.map_cell(x, y) {
-            self.put(sx, sy, ch, color);
-        }
-    }
-
-    /// [`Screen::set_fg`], in map coordinates.
-    #[inline]
-    fn fg_map(&mut self, x: u16, y: u16, fg: Color) {
-        if let Some((sx, sy)) = self.map_cell(x, y) {
-            self.set_fg(sx, sy, fg);
-        }
-    }
-
-    /// [`Screen::set_bg`], in map coordinates.
-    #[inline]
-    fn bg_map(&mut self, x: u16, y: u16, bg: Color) {
-        if let Some((sx, sy)) = self.map_cell(x, y) {
-            self.set_bg(sx, sy, bg);
-        }
-    }
-
-    /// [`Screen::get`], in map coordinates. A tile the shake has pushed out of
-    /// the viewport reads as blank, which is what the targeting beam's
-    /// recolour wants: there is nothing under it to preserve.
-    #[inline]
-    fn get_map(&self, x: u16, y: u16) -> Cell {
-        match self.map_cell(x, y) {
-            Some((sx, sy)) => self.get(sx, sy),
-            None => BLANK_CELL,
-        }
-    }
-
-    fn puts(&mut self, x: u16, y: u16, s: &str, color: Color) {
-        for (i, ch) in s.chars().enumerate() {
-            self.put(x + i as u16, y, ch, color);
-        }
-    }
-
-    fn hline(&mut self, x: u16, y: u16, ch: char, n: u16, color: Color) {
-        for i in 0..n {
-            self.put(x + i, y, ch, color);
-        }
-    }
-
-    fn flush<W: Write>(&mut self, out: &mut W, offset: (u16, u16)) -> std::io::Result<()> {
-        if offset != self.last_offset {
-            self.dirty_all = true;
-            self.last_offset = offset;
-        }
-
-        let mut cur_fg: Option<Color> = None;
-        let mut cur_bg: Option<Color> = None;
-        for y in 0..SCREEN_H {
-            for x in 0..SCREEN_W {
-                let idx = (y * SCREEN_W + x) as usize;
-                if !self.dirty_all && self.cur[idx] == self.prev[idx] {
-                    continue;
-                }
-                let (ch, fg, bg) = self.cur[idx];
-                if cur_fg != Some(fg) {
-                    queue!(out, SetForegroundColor(fg))?;
-                    cur_fg = Some(fg);
-                }
-                if cur_bg != Some(bg) {
-                    queue!(out, SetBackgroundColor(bg))?;
-                    cur_bg = Some(bg);
-                }
-                queue!(out, MoveTo(offset.0 + x, offset.1 + y), Print(ch))?;
-            }
-        }
-        out.flush()?;
-
-        std::mem::swap(&mut self.cur, &mut self.prev);
-        self.dirty_all = false;
-        Ok(())
-    }
-}
+// The grid itself lives in its own crate, so `perf/` measures the renderer the
+// game actually has rather than a copy of it. This file is what goes *in* the
+// grid: the layers, the HUD, the overlays and the playback loops.
+pub use view::{MAP_TOP, SCREEN_H, SCREEN_W, Screen};
 
 // Targeting-beam trajectory, in map coordinates.
 fn bresenham_line(x0: u16, y0: u16, x1: u16, y1: u16) -> Vec<(u16, u16)> {
@@ -276,7 +84,9 @@ pub fn render<W: Write>(
         .get_resource::<Shake>()
         .map_or((0, 0), |shake| shake.offset());
 
-    // 1. Player-derived state.
+    // Everything the HUD and the map layers below read off the player, in one
+    // query. The `None` arm is what lets a headless or mid-teardown world still
+    // paint a frame instead of panicking.
     let (
         visible,
         revealed,
@@ -342,15 +152,18 @@ pub fn render<W: Write>(
         }
     };
 
-    // Fold every equipped modifier into the displayed Pow. / Arm. figures — the
-    // same fold combat runs, so the HUD can never drift from the real numbers.
-    if let Some(pe) = player_entity {
-        pow_die += equipped_total::<PowerDie>(world, pe);
-        pow_flat += equipped_total::<PowerBonus>(world, pe);
-        arm_die += equipped_total::<ArmorDie>(world, pe);
-        arm_flat += equipped_total::<ArmorBonus>(world, pe);
-    }
-    let throw_flat = player_entity.map_or(0, |pe| equipped_total::<ThrowBonus>(world, pe));
+    // Fold every equipped modifier into the displayed Pow. / Arm. / Thr.
+    // figures — the same fold combat runs, so the HUD can never drift from the
+    // real numbers. One pass over the player's gear, not one per field: this
+    // runs on every frame of every animation, and there are five fields.
+    let worn = player_entity
+        .map(|pe| models::loadout(world, pe))
+        .unwrap_or_default();
+    pow_die += worn.power_die;
+    pow_flat += worn.power_bonus;
+    arm_die += worn.armor_die;
+    arm_flat += worn.armor_bonus;
+    let throw_flat = worn.throw_bonus;
 
     // Transient conditions, as 4-letter HUD mnemonics. FAST/SLOW come from the
     // player's tempo, STLH from a ring of stealth, CONF from the dazzle
@@ -424,7 +237,7 @@ pub fn render<W: Write>(
             })
     });
 
-    // 1b. Blindness. A blinded player is down to touch: the 3x3 the visibility
+    // Blindness. A blinded player is down to touch: the 3x3 the visibility
     // system left them, and no colour in it — every glyph they can make out is
     // painted white, and the blood underfoot (colour and nothing else) is not
     // painted at all. Monsters are already `Hidden` by the visibility system, so
@@ -435,7 +248,6 @@ pub fn render<W: Write>(
         false => color,
     };
 
-    // 2. Targeting beam.
     let (is_targeting, targeting_tip) = {
         let targeting = world.resource::<TargetingState>();
         (
@@ -451,7 +263,9 @@ pub fn render<W: Write>(
         HashSet::new()
     };
 
-    // 3. Tiles occupied by an actor (so we don't draw a floor item under a mob).
+    // Tiles an actor is standing on, so no later layer draws the floor under
+    // one: blood, corpses, items, traps and smoke all mark the ground, not
+    // whatever is on it.
     let occupied_by_actor: HashSet<(u16, u16)> = {
         let mut query = world.query_filtered::<&Position, Or<(With<Player>, With<Mob>)>>();
         query.iter(world).map(|pos| (pos.x, pos.y)).collect()
@@ -461,13 +275,6 @@ pub fn render<W: Write>(
 
     // ---- Top HUD ----
     {
-        let stat = |die: i32, flat: i32| {
-            if flat != 0 {
-                format!("{die}+{flat}")
-            } else {
-                format!("{die}")
-            }
-        };
         let mut fields = vec![
             player_name.to_uppercase(),
             format!("HP {}/{}", player_hp, player_max_hp),
@@ -731,11 +538,17 @@ pub fn render<W: Write>(
             if tx >= MAP_WIDTH || ty >= MAP_HEIGHT {
                 continue;
             }
-            if visible.contains(&(tx, ty)) && occupied_by_actor.contains(&(tx, ty)) {
-                // Keep the actor's glyph, but recolour it — unless it was
-                // already yellow (or close to it), in which case switch to
-                // black instead, so a naturally-yellow monster doesn't just
-                // disappear into the beam's own colour. `put` always resets
+            // Open ground under the beam is a plain yellow spark. An actor
+            // keeps its own glyph and only takes the beam's colour, so the
+            // player can still see what they are aiming at.
+            let over_actor = visible.contains(&(tx, ty)) && occupied_by_actor.contains(&(tx, ty));
+            if !over_actor {
+                screen.put_map(tx, ty, '*', Color::Yellow);
+            }
+            if over_actor {
+                // Unless it was already yellow (or close to it), in which case
+                // recolour to black instead, so a naturally-yellow monster
+                // doesn't disappear into the beam's own colour. `put` resets
                 // the background to the default, so a glyph recoloured to
                 // black needs a background of its own here or it vanishes
                 // outright — this is what used to blank the player out the
@@ -750,8 +563,6 @@ pub fn render<W: Write>(
                 if recolor == Color::Black {
                     screen.bg_map(tx, ty, Color::DarkYellow);
                 }
-            } else {
-                screen.put_map(tx, ty, '*', Color::Yellow);
             }
             // The reticle's own tip gets a background too, so it doesn't read
             // as just another yellow monster along the beam. Applied after the
@@ -822,7 +633,8 @@ pub fn render<W: Write>(
         draw_quit_prompt(screen);
     }
 
-    screen.flush(stdout, offset)
+    screen.flush(stdout, offset)?;
+    Ok(())
 }
 
 /// Ages the screen shake by one animation frame.
@@ -978,6 +790,20 @@ pub fn play_shake<W: Write>(
     render(world, stdout, screen)
 }
 
+/// A die and its flat bonus, as the HUD prints them: `10`, `10+2`, `10-2`.
+///
+/// The sign comes from the number, never from a `+` glued on in front of it —
+/// which is what used to render a cursed weapon as `Pow. 10+-2`. A bonus of
+/// zero is not shown at all: a plain weapon is a die and nothing else, and a
+/// trailing `+0` on every field would be four characters of noise on a status
+/// line that has to fit eight of them.
+fn stat(die: i32, flat: i32) -> String {
+    match flat {
+        0 => format!("{die}"),
+        _ => format!("{die}{flat:+}"),
+    }
+}
+
 /// Rough vertical centring helper for the full-screen end panels.
 fn centered_x(text: &str) -> u16 {
     (SCREEN_W.saturating_sub(text.chars().count() as u16)) / 2
@@ -997,7 +823,8 @@ pub fn render_you_died<W: Write>(
     let more = "--MORE-- (Press Space)";
     screen.puts(centered_x(more), y + 2, more, Color::Yellow);
     screen.dirty_all = true;
-    screen.flush(stdout, offset)
+    screen.flush(stdout, offset)?;
+    Ok(())
 }
 
 /// The tombstone. Shown once the player has acknowledged the death prompt.
@@ -1046,7 +873,8 @@ pub fn render_tombstone<W: Write>(
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
 
     screen.dirty_all = true;
-    screen.flush(stdout, offset)
+    screen.flush(stdout, offset)?;
+    Ok(())
 }
 
 /// The victory starfield. Shown when the player carries the Element of Yoord up
@@ -1101,7 +929,8 @@ pub fn render_victory<W: Write>(
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
 
     screen.dirty_all = true;
-    screen.flush(stdout, offset)
+    screen.flush(stdout, offset)?;
+    Ok(())
 }
 
 /// Greedily breaks `text` into lines no wider than `width` on word boundaries. A
@@ -1289,216 +1118,5 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
             screen.put(mx + 9, y, '│', grey);
         }
         screen.puts(mx, my + 1 + actions.len() as u16, "└────────┘", grey);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The map rows, as everything above assumes them: `MAP_TOP` through the
-    /// last row the map is allowed to touch.
-    const LAST_MAP_ROW: u16 = MAP_TOP + MAP_HEIGHT - 1;
-
-    fn shaken(shift: (i16, i16)) -> Screen {
-        let mut screen = Screen::new();
-        screen.map_shift = shift;
-        screen
-    }
-
-    #[test]
-    fn at_rest_a_map_tile_lands_one_row_down_for_the_status_line() {
-        let screen = shaken((0, 0));
-        assert_eq!(screen.map_cell(0, 0), Some((0, MAP_TOP)));
-        assert_eq!(
-            screen.map_cell(MAP_WIDTH - 1, MAP_HEIGHT - 1),
-            Some((MAP_WIDTH - 1, LAST_MAP_ROW))
-        );
-    }
-
-    #[test]
-    fn a_shake_never_smears_the_map_into_the_status_line_or_the_log() {
-        // The whole safety property. Every displacement the shake can produce,
-        // over every map tile: whatever comes back is inside the map rows.
-        let shifts = (-2i16..=2).flat_map(|dy| (-2i16..=2).map(move |dx| (dx, dy)));
-        let tiles: Vec<(u16, u16)> = (0..MAP_HEIGHT)
-            .flat_map(|y| (0..MAP_WIDTH).map(move |x| (x, y)))
-            .collect();
-        for (dx, dy) in shifts {
-            let screen = shaken((dx, dy));
-            for &(x, y) in &tiles {
-                let Some((sx, sy)) = screen.map_cell(x, y) else {
-                    continue;
-                };
-                assert!(
-                    (MAP_TOP..=LAST_MAP_ROW).contains(&sy),
-                    "shift ({dx},{dy}) put map tile ({x},{y}) on row {sy}"
-                );
-                assert!(sx < SCREEN_W, "shift ({dx},{dy}) ran off the right edge");
-            }
-        }
-    }
-
-    #[test]
-    fn a_tile_thrown_past_the_edge_is_dropped_rather_than_wrapped() {
-        // What the user asked for in as many words: the shake does not change
-        // the resolution, and what leaves the viewport is not drawn. A wrap
-        // would show column 79's tile at column 0, one row down — the classic
-        // way a shifted terminal grid goes wrong.
-        let left = shaken((-1, 0));
-        assert_eq!(left.map_cell(0, 5), None, "left column falls off");
-        assert_eq!(left.map_cell(1, 5), Some((0, 5 + MAP_TOP)));
-
-        let right = shaken((1, 0));
-        assert_eq!(
-            right.map_cell(MAP_WIDTH - 1, 5),
-            None,
-            "right column falls off"
-        );
-
-        let up = shaken((-1, -1));
-        assert_eq!(up.map_cell(4, 0), None, "top row falls off");
-
-        let down = shaken((0, 1));
-        assert_eq!(
-            down.map_cell(4, MAP_HEIGHT - 1),
-            None,
-            "bottom row falls off"
-        );
-    }
-
-    #[test]
-    fn a_dropped_tile_paints_nothing_at_all() {
-        // `put_map` must no-op on a clipped tile, not clamp it to the edge —
-        // clamping would pile the whole off-screen column onto column 0.
-        let mut screen = shaken((-1, 0));
-        screen.put_map(0, 3, '#', Color::Red);
-        assert_eq!(
-            screen.get(0, 3 + MAP_TOP),
-            BLANK_CELL,
-            "a clipped tile was clamped onto the edge instead of dropped"
-        );
-    }
-
-    /// A world with everything `render` reaches for, and nothing it doesn't.
-    /// Mirrors `main`'s startup, which is the only other place this list lives.
-    fn rendered_world() -> World {
-        let mut world = World::new();
-        world.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(9)));
-        world.insert_resource(RngSeed(9));
-        world.init_resource::<PackIsOpen>();
-        world.insert_resource(RenderConfig { centered: false });
-        world.insert_resource(TargetingState {
-            active: false,
-            item: None,
-            throwing: false,
-            cursor_x: 0,
-            cursor_y: 0,
-        });
-        world.init_resource::<QuitPrompt>();
-        world.insert_resource(PlayerName {
-            what: "TESTER".to_string(),
-        });
-        world.insert_resource(Depth { what: 1 });
-        world.init_resource::<DungeonLord>();
-        world.init_resource::<Ending>();
-        world.init_resource::<AutoExplore>();
-        world.init_resource::<FastMove>();
-        world.init_resource::<TravelCursor>();
-        world.init_resource::<MagicMapReveal>();
-        world.init_resource::<AttackQueue>();
-        world.init_resource::<UseQueue>();
-        world.init_resource::<ThrowQueue>();
-        world.init_resource::<PlayerTempo>();
-        world.init_resource::<GameLog>();
-        world.insert_resource(Particles::new());
-        world.insert_resource(Shake::new());
-        world.insert_resource(AnimRate(1.0));
-        initialize_world(&mut world);
-        // A real viewshed, so the frame actually has tiles and a player in it.
-        let mut schedule = bevy_ecs::schedule::Schedule::default();
-        schedule.add_systems(visibility_system);
-        schedule.run(&mut world);
-        world
-    }
-
-    /// One row of the frame `flush` just emitted. The buffers swap at the end
-    /// of a flush, so the frame on screen is the one in `prev`.
-    fn row(screen: &Screen, y: u16) -> String {
-        (0..SCREEN_W)
-            .map(|x| screen.prev[(y * SCREEN_W + x) as usize].0)
-            .collect()
-    }
-
-    fn map_rows(screen: &Screen) -> Vec<String> {
-        (MAP_TOP..=LAST_MAP_ROW).map(|y| row(screen, y)).collect()
-    }
-
-    #[test]
-    fn a_shaking_frame_moves_the_map_and_nothing_else() {
-        // The end-to-end check: not that the arithmetic is right (particle-core
-        // covers that) but that `render` actually reads it, that it reaches the
-        // map layers, and that it reaches nothing else.
-        let mut world = rendered_world();
-        let mut screen = Screen::new();
-        let mut out: Vec<u8> = Vec::new();
-
-        render(&mut world, &mut out, &mut screen).unwrap();
-        let (still_hud, still_map) = (row(&screen, 0), map_rows(&screen));
-        assert!(
-            still_map.iter().any(|r| r.contains('@')),
-            "the resting frame drew no player, so this test proves nothing"
-        );
-
-        world.resource_mut::<Shake>().kick(ShakeKind::Heavy);
-        render(&mut world, &mut out, &mut screen).unwrap();
-
-        assert_ne!(map_rows(&screen), still_map, "the map did not move");
-        assert_eq!(row(&screen, 0), still_hud, "the status line moved with it");
-
-        // ...and it goes home again on its own.
-        world
-            .resource_mut::<Shake>()
-            .advance(ShakeKind::Heavy.duration_ms());
-        render(&mut world, &mut out, &mut screen).unwrap();
-        assert_eq!(map_rows(&screen), still_map, "the map did not settle back");
-        assert_eq!(row(&screen, 0), still_hud);
-    }
-
-    #[test]
-    fn a_shaking_frame_is_the_same_size_as_a_still_one() {
-        // The constraint the shake was asked to respect: it does not change the
-        // resolution. Every row is 80 cells and there are 25 of them, shaken or
-        // not, and the log rows keep whatever the log put there.
-        let mut world = rendered_world();
-        let mut screen = Screen::new();
-        let mut out: Vec<u8> = Vec::new();
-
-        render(&mut world, &mut out, &mut screen).unwrap();
-        let still_log: Vec<String> = (22..SCREEN_H).map(|y| row(&screen, y)).collect();
-
-        world.resource_mut::<Shake>().kick(ShakeKind::Wounded);
-        for _ in 0..12 {
-            render(&mut world, &mut out, &mut screen).unwrap();
-            assert_eq!(screen.prev.len(), (SCREEN_W * SCREEN_H) as usize);
-            for y in 0..SCREEN_H {
-                assert_eq!(row(&screen, y).chars().count(), SCREEN_W as usize);
-            }
-            let log: Vec<String> = (22..SCREEN_H).map(|y| row(&screen, y)).collect();
-            assert_eq!(log, still_log, "the message log moved with the map");
-            world.resource_mut::<Shake>().advance(33.0);
-        }
-    }
-
-    #[test]
-    fn the_whole_map_still_fits_when_it_is_not_shaking() {
-        // No displacement means no tile is ever dropped: the resting frame is
-        // byte-for-byte the frame the game drew before the shake existed.
-        let screen = shaken((0, 0));
-        for y in 0..MAP_HEIGHT {
-            for x in 0..MAP_WIDTH {
-                assert!(screen.map_cell(x, y).is_some(), "({x},{y}) went missing");
-            }
-        }
     }
 }

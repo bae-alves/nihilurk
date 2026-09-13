@@ -1,3 +1,5 @@
+mod common;
+
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -761,8 +763,8 @@ fn traps_and_snares_survive_a_save_and_reload() {
         kind: SnareKind::Sleep,
     });
 
-    let path = std::env::temp_dir().join("roog_trap_roundtrip.sav");
-    let sp = path.to_str().unwrap();
+    let save = common::SaveFile::new("trap-roundtrip");
+    let sp = save.path();
     save_game(&mut w, sp).unwrap();
 
     let mut w2 = World::new();
@@ -786,8 +788,6 @@ fn traps_and_snares_survive_a_save_and_reload() {
 
     let snare = w2.query_filtered::<&Snare, With<Player>>().single(&w2);
     assert_eq!((snare.turns, snare.kind), (4, SnareKind::Sleep));
-
-    let _ = std::fs::remove_file(sp);
 }
 
 /// A trap sprung by a monster is revealed just as if the player had found it —

@@ -32,6 +32,9 @@ harness = false
 # The system under test. Nothing in this crate is allowed to flow back the
 # other way: `models` must never depend on `roog-perf`.
 models = { path = "../models" }
+# The real `Screen`, so the rig measures the renderer the game has rather than
+# a copy of it. See `perf/src/screen.rs`.
+view = { path = "../view" }
 
 # Same version `models` uses, and for the same reason as crossterm below: the
 # `--load game` floor is built by handing `models::initialize_world` a real

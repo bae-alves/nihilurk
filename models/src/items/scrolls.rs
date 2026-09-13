@@ -18,7 +18,7 @@ use crate::helpers::{
     actor_line, free_adjacent_tile, hostiles_in_view, item_label, mark_conditions, spark_burst_at,
     tile_of,
 };
-use crate::identify::Identified;
+use crate::identify::{Identified, article_for};
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH};
 use crate::monsters::{BESTIARY, spawn_monster};
@@ -298,7 +298,7 @@ fn create_monster(world: &mut World, user: Entity) {
     let name = item_label(world, e);
     world.resource_mut::<GameLog>().add(format!(
         "The air curdles into {} {name}, teeth and all!",
-        crate::identify::article_for(&name)
+        article_for(&name)
     ));
 }
 

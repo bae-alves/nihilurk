@@ -5,7 +5,8 @@ members = [
     "engine",
     "models",
     "particle-core",
-    "perf"
+    "perf",
+    "view"
 ]
 
 # `perf` and `compat` are test rigs, not part of the game: they pull in ratatui,
@@ -18,10 +19,20 @@ members = [
 # `compat` is the odder of the two: it is a rig that builds and runs the game
 # for *other machines*, so it is the one crate here that is never itself part of
 # what is being measured.
+#
+# Cargo has no `default-exclude`, so this has to be written as an include-list:
+# four names to mean "not those two", kept in step by hand. Two lists that have
+# to agree and nothing checking that they do is how the perf rig ended up with
+# its own private copy of the renderer, so there is a third thing here --
+# `engine/tests/workspace.rs` asserts that the difference between `members` and
+# `default-members` is exactly the two rigs, and that no crate in the tree is
+# missing from `members` altogether. Add a crate to one list and forget the
+# other and a bare `cargo test` says so.
 default-members = [
     "engine",
     "models",
-    "particle-core"
+    "particle-core",
+    "view"
 ]
 
 # Clippy: only the `correctness`, `suspicious`, `complexity` and `perf` lint

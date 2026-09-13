@@ -1,4 +1,4 @@
-//! Regression coverage for `resolve_attack`'s excellent-hit floor.
+//! The damage rule itself, and `resolve_attack`'s excellent-hit floor.
 
 use bevy_ecs::prelude::*;
 use models::*;
@@ -96,4 +96,77 @@ fn an_excellent_hit_can_finish_a_foe_a_glancing_blow_could_not() {
         }
     }
     panic!("no excellent hit finished a 1-HP target across 2000 seeds");
+}
+
+// ---------------------------------------------------------------------------
+// The damage rule, with the dice taken out of it
+// ---------------------------------------------------------------------------
+// `roll_die` resolves `1d1` to exactly 1, so a fighter whose die is 1 rolls a
+// known number and the whole exchange becomes arithmetic. That is deliberate:
+// a test of the damage rule should not be able to fail because something
+// upstream started drawing from the RNG in a different order.
+
+/// A monster, so no excellent-hit roll and no chip-damage floor apply.
+fn spawn_monster_attacker(w: &mut World, power: i32, power_bonus: i32) -> Entity {
+    w.spawn((
+        Name { what: "orc".into() },
+        Fighter {
+            hp: 10,
+            max_hp: 10,
+            armor: 0,
+            power,
+            max_power: power,
+            armor_bonus: 0,
+            power_bonus,
+        },
+    ))
+    .id()
+}
+
+fn spawn_armored_target(w: &mut World, hp: i32, armor: i32, armor_bonus: i32) -> Entity {
+    w.spawn((
+        Name {
+            what: "dummy".into(),
+        },
+        Fighter {
+            hp,
+            max_hp: hp,
+            armor,
+            power: 1,
+            max_power: 1,
+            armor_bonus,
+            power_bonus: 0,
+        },
+    ))
+    .id()
+}
+
+#[test]
+fn a_blow_is_exactly_the_attack_total_minus_the_armour_total() {
+    let mut w = combat_world(1);
+    // Attacking: 1d1 + 14 = 15. Defending: 1d1 + 9 = 10. Five gets through.
+    let foe = spawn_monster_attacker(&mut w, 1, 14);
+    let target = spawn_armored_target(&mut w, 40, 1, 9);
+
+    resolve_attack(&mut w, foe, target);
+    assert_eq!(w.get::<Fighter>(target).unwrap().hp, 35, "40 - 5");
+
+    // Again, to show it is the rule rather than one lucky roll.
+    resolve_attack(&mut w, foe, target);
+    assert_eq!(w.get::<Fighter>(target).unwrap().hp, 30, "40 - 5 - 5");
+}
+
+/// The chip-damage floor is the hero's alone. Armour that outrolls a monster's
+/// swing leaves the defender completely untouched.
+#[test]
+fn armour_that_outrolls_a_monsters_blow_lets_nothing_through() {
+    let mut w = combat_world(1);
+    let foe = spawn_monster_attacker(&mut w, 1, 0); // 1
+    let target = spawn_armored_target(&mut w, 40, 1, 20); // 21
+    resolve_attack(&mut w, foe, target);
+    assert_eq!(
+        w.get::<Fighter>(target).unwrap().hp,
+        40,
+        "a monster gets no chip through armour"
+    );
 }

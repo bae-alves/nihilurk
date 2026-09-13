@@ -3,6 +3,8 @@
 //! the way, and then behaves like what it is — a missile, a bottle of glass, or
 //! a page of instructions for anything literate enough to follow them.
 
+mod common;
+
 use bevy_ecs::prelude::*;
 use models::constants::wands::GRENADE_DIE_PER_CHARGE;
 use models::*;
@@ -306,6 +308,10 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
 
     let blade = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
     w.entity_mut(blade).insert((PowerBonus(3), Curse));
+    // A bow wears its plus on the throw, not on a melee roll — the third kind
+    // of gear, and the one a "weapons and armour" reading of the rule misses.
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    w.entity_mut(bow).insert(ThrowBonus(3));
     let scroll = stash(&mut w, p, |w| {
         spawn_scroll(w, ScrollEffect::Teleportation, NOWHERE)
     });
@@ -331,6 +337,11 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
     assert!(
         w.get::<Curse>(blade).is_none(),
         "but the curse lifts, blade intact"
+    );
+    assert_eq!(
+        w.get::<ThrowBonus>(bow).map(|b| b.0),
+        Some(0),
+        "a bow's plus is an enchantment like any other, and goes the same way"
     );
     assert_eq!(
         w.get::<Scroll>(scroll).unwrap().effect,
@@ -735,9 +746,8 @@ fn a_monster_lays_down_what_it_is_holding_before_a_save() {
     // A save records a slot, never a wearer — so the orc puts the mace down on
     // its own tile first, rather than leaving it adrift with no owner and no
     // square to be found on.
-    let path = std::env::temp_dir().join("roog-throw-save.sav");
-    save_game(&mut w, path.to_str().unwrap()).unwrap();
-    let _ = std::fs::remove_file(&path);
+    let save = common::SaveFile::new("throw-save");
+    save_game(&mut w, save.path()).unwrap();
 
     assert!(w.get::<Equipped>(mace).unwrap().by.is_none());
     assert_eq!(pos_of(&w, mace), (spot.x, spot.y));
@@ -752,11 +762,10 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
     assert_eq!(w.get::<ThrownDamage>(sword), Some(&ThrownDamage(8)));
 
-    let path = std::env::temp_dir().join("roog-thrown-damage.sav");
-    save_game(&mut w, path.to_str().unwrap()).unwrap();
+    let save = common::SaveFile::new("thrown-damage");
+    save_game(&mut w, save.path()).unwrap();
     let mut loaded = test_world(2);
-    load_game(&mut loaded, path.to_str().unwrap()).unwrap();
-    let _ = std::fs::remove_file(&path);
+    load_game(&mut loaded, save.path()).unwrap();
 
     let dice: Vec<i32> = loaded
         .iter_entities()

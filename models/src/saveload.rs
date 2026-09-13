@@ -1,3 +1,42 @@
+//! The save file: one postcard blob, and the rules about what goes in it.
+//!
+//! There is exactly one save per run. It is written when the player quits,
+//! destroyed when they die, and kept as "clear data" when they win (see
+//! [`clear_data`]).
+//!
+//! ## Four things are deliberately left out
+//!
+//! Every one of them is cheaper to rebuild than to store, and leaving it out
+//! is what keeps the file at roughly two kilobytes.
+//!
+//! 1. **The map.** A floor's layout is a pure function of `(seed, depth)`
+//!    ([`crate::map::layout_rng`]), so [`regenerate_map`] rebuilds it exactly
+//!    on load. Only the dark-room mask rides along, because a wand of light
+//!    edits it.
+//! 2. **The whole cosmetic layer** — bloodstains, corpse marks, lingering
+//!    smoke, live particles, the screen shake, the scorekeeper's flash, and
+//!    `FxRng` itself. None of it is gameplay, none of it is replayed, and
+//!    none of it is worth a byte: the three map-sized overlays alone
+//!    ([`BloodStains`], [`Corpses`], [`Smoke`]) would come to 2.2 KB — more
+//!    than the entire save file they would be joining. [`load_game`] hands
+//!    back a clean set of them, so a reloaded floor is the floor you left,
+//!    scrubbed of the mess you made on it.
+//! 3. **The message log.** A reload opens on a fresh welcome line rather than
+//!    paying for a run's history in every write.
+//! 4. **Anything a catalog row already says** — what a weapon does in flight,
+//!    what a bow lends its wielder, what a ring grants. A row is the
+//!    definition, so a save that stored these would only be storing the table
+//!    twice; [`restore_from_catalog`] and [`RingDef::of`] read them back by
+//!    name.
+//!
+//! ## Two things that must be
+//!
+//! * **Every serialised enum is written by variant position** and every
+//!   struct by field order. Append variants and fields; never reorder one, or
+//!   a saved trapdoor comes back as something else.
+//! * **A new field gets `#[serde(default)]`** so a file written by an older
+//!   build still loads.
+
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
@@ -8,6 +47,7 @@ use std::io::Write;
 
 use crate::catalog::{RingDef, restore_from_catalog};
 use crate::components::*;
+use crate::constants::player::START_MAGIC;
 use crate::effects::{
     ArmorBonus, ArmorDie, EffectSet, GrantedByGear, GrantedForFloor, Grants, PowerBonus, PowerDie,
     ThrowBonus, attach_effects, effects_of,
@@ -457,8 +497,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         // save somehow lacks it.
         if let Some(magic) = es.magic.or_else(|| {
             es.player.then_some(Magic {
-                points: 4,
-                max_points: 4,
+                points: START_MAGIC,
+                max_points: START_MAGIC,
             })
         }) {
             em.insert(magic);

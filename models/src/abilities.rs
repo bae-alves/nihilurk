@@ -18,7 +18,7 @@
 use bevy_ecs::prelude::*;
 use rand::Rng;
 
-use crate::components::{ConfusingTouch, GameLog, Player};
+use crate::components::{ConfusingTouch, GameLog, Mob, Player};
 use crate::effects::{AggravatesMonsters, Grant, Regenerates, RustsArmor, Teleportitis};
 use crate::map::GameRng;
 
@@ -151,10 +151,19 @@ pub struct Blow {
 /// The system asks only "who carries this effect" — it never asks where the
 /// effect came from, which is the whole point.
 pub fn passive_ability_system(world: &mut World) {
+    // Only creatures. An effect never lands on an item: a ring carries
+    // `Grants`, and it is the *wearer* who ends up with `Regenerates` on them
+    // (see `crate::equipment::sync_equipment_effects`). Asking the whole world
+    // would walk every scroll and every wall-bound arrow to find that out.
+    let actors: Vec<Entity> = world
+        .query_filtered::<Entity, Or<(With<Player>, With<Mob>)>>()
+        .iter(world)
+        .collect();
+
     for ability in PASSIVE_ABILITIES {
-        let bearers: Vec<Entity> = world
-            .iter_entities()
-            .map(|e| e.id())
+        let bearers: Vec<Entity> = actors
+            .iter()
+            .copied()
             .filter(|&e| ability.effect.probe(world, e))
             .collect();
 

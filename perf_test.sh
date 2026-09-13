@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
 #
-# perf_test.sh -- roog's particle-layer performance pipeline.
+# perf_test.sh -- roog's performance pipeline.
 #
-# Static analysis, then micro-benchmarks, then a live stress test, then a
-# profile. Every stage prints what it found and moves on; a stage whose tool is
+# Static analysis, then micro-benchmarks, then **the game measured under its own
+# load**, then the same layer driven past the cliff, then a profile.
+#
+# Two workloads, two questions, and the pipeline wants both. `--load game`
+# builds a real floor and animates it with the batches the real constructors
+# queue -- one per turn, the way `view.rs::play_particles` plays them -- and
+# answers "is roog fast enough". The reel drives the particle layer two to
+# three orders of magnitude past anything roog produces and answers "where is
+# the cliff". On a desktop the second is the interesting one; on a Pi Zero it
+# is the first, which is why `compat/` gates its matrix on the game load and
+# keeps the reel as the ceiling. Every stage prints what it found and moves on; a stage whose tool is
 # not installed is skipped with a note saying how to get it, never fataled.
 # That is deliberate. roog is meant to build and run on anything with a
 # terminal, and a pipeline that only works on a workstation with `perf`,
@@ -16,7 +25,7 @@
 # Usage:
 #   ./perf_test.sh                  everything available
 #   ./perf_test.sh --quick          skip the benchmarks (they are the slow part)
-#   ./perf_test.sh --frames 900     longer stress run (default 450)
+#   ./perf_test.sh --frames 900     longer game / stress runs (default 450)
 #   ./perf_test.sh --duration 30    seconds to record the profile for
 #   ./perf_test.sh --density 8      eight motes per lit cell
 #   ./perf_test.sh --fps 60         drive the reel at 60 fps
@@ -237,12 +246,40 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Stress run
+# 7. The game, measured
+# ---------------------------------------------------------------------------
+# The load roog actually produces: a real floor from `models::initialize_world`,
+# drawn the way `view.rs` draws it, animated by the batches the real
+# `models::Particles` constructors queue when something is hit, zapped or
+# killed. One batch per turn, played out frame by frame -- exactly the loop
+# `view.rs::play_particles` runs.
+#
+# This is the stage that answers "is the game fast enough", and it is the one
+# `compat/` gates its whole matrix on. The reel below is the *ceiling*: it
+# drives the particle layer two to three orders of magnitude past anything roog
+# asks for, which is how you find the cliff, and which is a different question.
+# Running only the reel measures a load the game never produces.
+#
+# `--density` is deliberately not passed: the game queues what it queues.
+
+stage "The game, measured (headless)"
+if "$BIN" --headless --load game --workload all --frames "$FRAMES" --fps "$FPS" \
+    2>&1 | tee "$OUT/game.txt" | sed 's/^/  /'; then
+  ok "saved to $OUT/game.txt"
+else
+  bad "game run failed; see $OUT/game.txt"
+  FAILED="${FAILED}game "
+fi
+
+# ---------------------------------------------------------------------------
+# 8. Stress run: the ceiling
 # ---------------------------------------------------------------------------
 # Headless, so it needs no terminal and can run in CI. This is also the exact
-# workload the profile in stage 8 is taken from.
+# workload the profile in the next stage is taken from -- the reel and not the
+# game, because a profile wants the layer under load, and under the game's own
+# load 92% of frames queue nothing at all.
 
-stage "Stress run (headless)"
+stage "Stress run: the ceiling (headless)"
 # All three workloads off one parse of the reel: the particle layer alone, the
 # redraw alone, and the two composed the way the game composes them. Sharing the
 # parse is what makes the three reports comparable -- same frames, same machine,
@@ -257,7 +294,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 8. CPU profile
+# 9. CPU profile
 # ---------------------------------------------------------------------------
 # Rendered in the terminal. `perf` is Linux-only and needs permission to open a
 # performance counter, so when it is unavailable the stage says so and points
@@ -268,8 +305,8 @@ stage "CPU profile"
 PARANOID=$(cat /proc/sys/kernel/perf_event_paranoid 2>/dev/null || echo 99)
 if ! have perf; then
   skip perf "perf not installed (Arch: sudo pacman -S perf)"
-  note "stage 7's PHASES block is the portable substitute: it splits the"
-  note "frame budget across advance/spawn/raster without any profiler."
+  note "the stress run's PHASES block is the portable substitute: it splits"
+  note "the frame budget across advance/spawn/raster without a profiler."
 elif [ "$PARANOID" -gt 2 ]; then
   # 2 is the kernel default and is fine: it forbids kernel-symbol sampling, not
   # user-space sampling of a process you own, which is all this stage wants.
@@ -316,9 +353,15 @@ fi
 # ---------------------------------------------------------------------------
 
 stage "Summary"
-# The comparison table the stress run ends with already is the summary: one row
-# per workload, and the three ran off one parse of the reel, so they are directly
-# comparable. Everything above it in the file is the three reports it draws from.
+# Both comparison tables, in the order the questions matter: what the game
+# costs, then how far past that the layer can be pushed before it breaks. Each
+# is one row per workload off a single parse, so the rows within a table are
+# directly comparable -- and the two tables are not, which is the point of
+# printing them apart.
+printf '\n  %sThe game, under its own load%s\n' "$B" "$R"
+sed -n '/^=== comparison/,$p' "$OUT/game.txt" 2>/dev/null | sed 's/^/  /'
+
+printf '\n  %sThe ceiling: the reel, well past what roog asks for%s\n' "$B" "$R"
 sed -n '/^=== comparison/,$p' "$OUT/stress.txt" 2>/dev/null | sed 's/^/  /'
 
 if [ -n "$SKIPPED" ]; then
@@ -342,5 +385,5 @@ if [ "$RUN_GUI" -eq 1 ]; then
   warn "--gui needs a terminal; skipping"
 fi
 
-printf '\n%s  done.%s  Watch it: %s            (particle dashboard)\n' "$GREEN$B" "$R" "$BIN"
-printf '            %s --workload both  (the redraw, for real)\n\n' "$BIN"
+printf '\n%s  done.%s  Watch it: %s                     (particle dashboard)\n' "$GREEN$B" "$R" "$BIN"
+printf '            %s --load game --workload both  (the game, for real)\n\n' "$BIN"

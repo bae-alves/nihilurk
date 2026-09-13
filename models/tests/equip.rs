@@ -168,92 +168,82 @@ fn remove_curse_spares_unequipped_cursed_gear() {
 }
 
 #[test]
-fn equipped_weapon_and_armor_change_combat_math() {
-    // A punching bag with a big HP pool and no rolls of its own.
-    fn bag(w: &mut World) -> Entity {
-        w.spawn((
-            Name { what: "bag".into() },
-            Fighter {
-                hp: 100_000,
-                max_hp: 100_000,
-                armor: 0,
-                power: 0,
-                max_power: 0,
-                armor_bonus: 0,
-                power_bonus: 0,
-            },
-            Faction::Monster,
-            Position { x: 1, y: 1 },
-        ))
-        .id()
-    }
-
-    // Strips whatever the player starts equipped in — the +1 ring mail and mace.
-    fn disarm(w: &mut World, p: Entity) {
-        for item in equipped_items(w, p) {
-            force_unequip(w, item);
-        }
-    }
-
-    // --- Damage dealt: bare fists vs. a wielded two-handed sword. ---
+fn equipping_gear_moves_the_folded_numbers_by_exactly_the_rows_values() {
+    // This used to swing 400 times bare-handed, 400 times with a two-handed
+    // sword, and assert the second total was more than twice the first. That
+    // measured the dice, not the rule: it was slow, it only held for one seed,
+    // and it would have gone red for any change that shifted how many draws a
+    // blow makes -- while still passing if a weapon's die had stopped being
+    // read at all, as long as the totals happened to stay far enough apart.
+    //
+    // The rule it was reaching for is exact and has no dice in it: what a piece
+    // of gear is worth in the fold is what its catalog row says it is worth.
+    // The expected numbers are read off the spawned item rather than written
+    // here, so the row stays the only place they live.
     let mut w = test_world(42);
     let p = player(&mut w);
-    disarm(&mut w, p);
-    let target = bag(&mut w);
-    for _ in 0..400 {
-        resolve_attack(&mut w, p, target);
-    }
-    let bare_dealt = 100_000 - w.get::<Fighter>(target).unwrap().hp;
 
-    let mut w = test_world(42);
-    let p = player(&mut w);
-    let target = bag(&mut w);
-    let ths = spawn_weapon(&mut w, "two-handed sword", Position { x: 0, y: 0 });
-    w.entity_mut(ths).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(ths);
-    use_item(&mut w, p, ths);
-    for _ in 0..400 {
-        resolve_attack(&mut w, p, target);
+    // The hero starts in a +1 ring mail with a mace in hand. Strip both, so
+    // what is measured below is the gear going on rather than one row swapping
+    // for another -- the swap is `two_rings_can_be_worn_at_once`'s business.
+    for item in equipped_items(&mut w, p) {
+        force_unequip(&mut w, item);
     }
-    let armed_dealt = 100_000 - w.get::<Fighter>(target).unwrap().hp;
+    let bare = loadout(&w, p);
+    assert_eq!((bare.power_die, bare.armor_die), (0, 0), "stripped");
 
-    assert!(
-        armed_dealt > bare_dealt * 2,
-        "two-handed sword should hit far harder: bare={bare_dealt}, armed={armed_dealt}"
+    let sword = spawn_weapon(&mut w, "two-handed sword", Position { x: 0, y: 0 });
+    w.entity_mut(sword).remove::<Position>();
+    let sword_die = w
+        .get::<PowerDie>(sword)
+        .expect("a weapon row carries a die")
+        .0;
+    w.get_mut::<Backpack>(p).unwrap().items.push(sword);
+
+    let before = loadout(&w, p);
+    use_item(&mut w, p, sword);
+    let after = loadout(&w, p);
+
+    assert_eq!(
+        after.power_die - before.power_die,
+        sword_die,
+        "wielding the sword adds exactly its row's die"
+    );
+    assert_eq!(
+        after.power_die, sword_die,
+        "and it is the only weapon in hand"
+    );
+    assert_eq!(
+        after.armor_die, before.armor_die,
+        "a weapon is worth nothing on the armour roll"
     );
 
-    // --- Damage taken: plate mail should soak monster hits. ---
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    disarm(&mut w, p);
-    let attacker = bag(&mut w);
-    w.get_mut::<Fighter>(attacker).unwrap().power = 10;
-    w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
-    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
-    for _ in 0..400 {
-        resolve_attack(&mut w, attacker, p);
-    }
-    let unarmored_taken = 100_000 - w.get::<Fighter>(p).unwrap().hp;
-
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let attacker = bag(&mut w);
-    w.get_mut::<Fighter>(attacker).unwrap().power = 10;
-    w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
-    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
     let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
     w.entity_mut(mail).remove::<Position>();
+    let mail_die = w
+        .get::<ArmorDie>(mail)
+        .expect("an armour row carries a die")
+        .0;
     w.get_mut::<Backpack>(p).unwrap().items.push(mail);
-    use_item(&mut w, p, mail);
-    for _ in 0..400 {
-        resolve_attack(&mut w, attacker, p);
-    }
-    let armored_taken = 100_000 - w.get::<Fighter>(p).unwrap().hp;
 
-    assert!(
-        armored_taken < unarmored_taken,
-        "plate mail should reduce damage taken: none={unarmored_taken}, plate={armored_taken}"
+    let before = loadout(&w, p);
+    use_item(&mut w, p, mail);
+    let after = loadout(&w, p);
+
+    assert_eq!(
+        after.armor_die - before.armor_die,
+        mail_die,
+        "wearing the mail adds exactly its row's die"
     );
+    assert_eq!(
+        after.power_die, before.power_die,
+        "armour is worth nothing on the attack roll"
+    );
+
+    // And taking it back off gives the numbers back. An `Equipped` slot that
+    // leaked would show up here and nowhere else in this file.
+    use_item(&mut w, p, mail);
+    assert_eq!(loadout(&w, p).armor_die, before.armor_die);
 }
 
 #[test]

@@ -15,10 +15,7 @@ The mechanics are one file:
 
     models/src/traps.rs
 
-The components a trap is built from -- `Trap`, `TrapEffect`, `TrapReveal`,
-`Snare`, `SnareKind`, `EntityMoved` -- are nouns and live in
-`models/src/components.rs` with everything else the ECS is made of. You
-add a `TrapEffect` *variant* there; the row and the mechanic stay here.
+The components a trap is built from -- `Trap`, `TrapEffect`, `TrapReveal`, `Snare`, `SnareKind`, `EntityMoved` -- are nouns and live in `models/src/components.rs` with everything else the ECS is made of. You add a `TrapEffect` *variant* there; the row and the mechanic stay here.
 
 
 The recipe
@@ -70,15 +67,9 @@ Look at what the existing six do, and reuse the pieces:
     arrow_effect          damage, and drops a real arrow on a miss
     dart_effect           damage, plus a permanent bite of strength
 
-If your trap snares, put the duration in the row's `snare_turns` and let
-`apply_trap_effect` pass it through -- no constant to add.
+If your trap snares, put the duration in the row's `snare_turns` and let `apply_trap_effect` pass it through -- no constant to add.
 
-The arrow and dart also scale with depth. `trap_damage_tier(depth)` is
-0/1/2, stepping at floors 4 and 8, and it adds to the arrow's roll and
-the dart's drain. The bands and every per-tier amount are in
-`constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and friends). This band
-is the trap's own -- coarser than the floor-crowding
-`map::difficulty_tier`, on purpose.
+The arrow and dart also scale with depth. `trap_damage_tier(depth)` is 0/1/2, stepping at floors 4 and 8, and it adds to the arrow's roll and the dart's drain. The bands and every per-tier amount are in `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and friends). This band is the trap's own -- coarser than the floor-crowding `map::difficulty_tier`, on purpose.
 
 Your arm receives:
 
@@ -109,27 +100,19 @@ Your arm receives:
 > nothing else -- see `arrow_effect`. Rolling a full opposed defence would
 > make armour far better against traps than the design intends.
 
-If your trap costs the victim turns, use `Snare`. It is aged down once
-per turn by `snare_system`. A `SnareKind::Sleep` snare forfeits the
-victim's turn outright (`player_incapacitated`, and the AI skips the
-monster); a `SnareKind::Bear` snare only blocks movement -- a swing still
-lands, a step is a `bear_trap_thrash`. You do not have to implement any
-of that; you attach the component and pick the kind.
+If your trap costs the victim turns, use `Snare`. It is aged down once per turn by `snare_system`. A `SnareKind::Sleep` snare forfeits the victim's turn outright (`player_incapacitated`, and the AI skips the monster); a `SnareKind::Bear` snare only blocks movement -- a swing still lands, a step is a `bear_trap_thrash`. You do not have to implement any of that; you attach the component and pick the kind.
 
 
 Reveal styles
 -------------
 
-Every trap rolls one of three discovery styles at spawn, with equal odds,
-and you do not choose it per row:
+Every trap rolls one of three discovery styles at spawn, with equal odds, and you do not choose it per row:
 
     Sight       shows itself as soon as its tile enters the viewshed
     Adjacent    stays hidden until the player is standing next to it
     Triggered   invisible until it goes off
 
-roog has no "search" action, so these three are the only ways a trap ever
-comes to light before it bites. If you want a trap that is always visible
-or never visible, that is a change to `TrapBundle::random`, not to a row.
+roog has no "search" action, so these three are the only ways a trap ever comes to light before it bites. If you want a trap that is always visible or never visible, that is a change to `TrapBundle::random`, not to a row.
 
 
 > **Append `TrapEffect` variants; never insert or reorder.** A saved trap
@@ -143,8 +126,7 @@ What you never have to do
   * Give the trap a label. `TrapEffect::label()` reads the row.
   * Add it to a list of trap kinds. `TrapDef::pick` walks the table.
   * Teach the save file about it, beyond the enum variant.
-  * Place it. Floor generation decides how many traps and where; the
-    table decides which.
+  * Place it. Floor generation decides how many traps and where; the table decides which.
 
 
 See also

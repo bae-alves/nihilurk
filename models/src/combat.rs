@@ -3,13 +3,16 @@ use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
+use crate::abilities::{Blow, fire_on_hit};
 use crate::components::*;
-use crate::effects::{
-    ArmorBonus, ArmorDie, PowerBonus, PowerDie, VorpalTarget, equipped_total, melee_cap,
-};
+use crate::effects::{VorpalTarget, loadout};
 use crate::equipment::{equipped_items, force_unequip};
+use crate::helpers::{death_burst, player_sees, spill_blood, took_damage};
+use crate::identify::display_name;
 use crate::map::GameRng;
 use crate::particles::Particles;
+use crate::score::award_kill;
+use crate::shake::{ShakeKind, kick_shake};
 use crate::state::Ending;
 
 // --- Tuning constants ------------------------------------------------------
@@ -94,10 +97,10 @@ fn kill_shake(world: &mut World, victim: Entity) {
     let Some(pos) = world.get::<Position>(victim).copied() else {
         return;
     };
-    if !crate::helpers::player_sees(world, pos.x, pos.y) {
+    if !player_sees(world, pos.x, pos.y) {
         return;
     }
-    crate::shake::kick_shake(world, crate::shake::ShakeKind::Kill);
+    kick_shake(world, ShakeKind::Kill);
 }
 
 /// Blanks an entity's on-screen glyph to a blank space — used only to hide
@@ -128,9 +131,9 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         if world.resource::<Ending>().player_dead {
             return;
         }
-        crate::helpers::death_burst(world, entity, source);
+        death_burst(world, entity, source);
         blank_player_glyph(world, entity);
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Death);
+        kick_shake(world, ShakeKind::Death);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
         ending.cause = "Killer unknown".to_string();
@@ -143,7 +146,7 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         .add(format!("The {name} dies."));
     pay_for_the_corpse(world, entity);
     kill_shake(world, entity);
-    crate::helpers::death_burst(world, entity, source);
+    death_burst(world, entity, source);
     leave_gear_behind(world, entity);
     world.despawn(entity);
 }
@@ -159,7 +162,7 @@ fn pay_for_the_corpse(world: &mut World, victim: Entity) {
     let Some(max_hp) = world.get::<Fighter>(victim).map(|f| f.max_hp) else {
         return;
     };
-    crate::score::award_kill(world, max_hp);
+    award_kill(world, max_hp);
 }
 
 /// Settles what a dying creature was wearing, item by item. Each piece gets its
@@ -184,7 +187,7 @@ fn leave_gear_behind(world: &mut World, entity: Entity) {
             world.entity_mut(item).despawn();
             continue;
         }
-        let name = crate::identify::display_name(world, item);
+        let name = display_name(world, item);
         world.entity_mut(item).insert(pos);
         world
             .resource_mut::<GameLog>()
@@ -220,216 +223,409 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         return;
     }
 
-    // Every equipped source of a modifier folds in the same way — a sword, a
-    // suit of plate, a ring of strength. Nothing here knows which is which.
-    let attacker_power = world.get::<Fighter>(attacker).map(|f| f.power).unwrap_or(1)
-        + equipped_total::<PowerDie>(world, attacker);
-    let attacker_power_bonus = world
-        .get::<Fighter>(attacker)
-        .map(|f| f.power_bonus)
-        .unwrap_or(0)
-        + equipped_total::<PowerBonus>(world, attacker);
-    let target_armor = world.get::<Fighter>(target).map(|f| f.armor).unwrap_or(0)
-        + equipped_total::<ArmorDie>(world, target);
-    let target_armor_bonus = world
-        .get::<Fighter>(target)
-        .map(|f| f.armor_bonus)
-        .unwrap_or(0)
-        + equipped_total::<ArmorBonus>(world, target);
-    let attacker_is_player = world.get::<Player>(attacker).is_some();
-
-    // --- Independent opposed rolls -----------------------------------------
-    let (attack_total, armor_roll, excellent) = {
-        let mut rng = world.resource_mut::<GameRng>();
-        let excellent = attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE);
-        let dice = if excellent { EXCELLENT_HIT_DICE } else { 1 };
-        let attack_total: i32 = (0..dice)
-            .map(|_| roll_die(&mut rng.0, attacker_power))
-            .sum::<i32>()
-            + attacker_power_bonus;
-        let armor_roll = roll_die(&mut rng.0, target_armor) + target_armor_bonus;
-        (attack_total, armor_roll, excellent)
+    let matchup = fold_matchup(world, attacker, target);
+    let swing = roll_swing(world, &matchup);
+    let swing = clamp_swing(world, target, &matchup, swing);
+    let outcome = land_swing(world, attacker, target, &swing);
+    let blow = Landed {
+        attacker,
+        target,
+        // Both roles, read once. `fold_matchup` has already asked about the
+        // attacker, so asking about the target here is what lets the three
+        // stages below never ask the world again.
+        attacker_is_player: matchup.attacker_is_player,
+        target_is_player: world.get::<Player>(target).is_some(),
+        swing,
+        outcome,
     };
 
-    let mut damage = attack_total - armor_roll;
+    // The aftermath, in the order it has to happen: the punctuation while the
+    // corpse still has a tile to be flung off, then the log, then the despawn.
+    punctuate(world, &blow);
+    report_blow(world, &blow);
+    settle_the_dead(world, &blow);
+}
 
-    // --- Player-only chip damage floor -----------------------------------
-    // The player always scrapes off at least 1 HP even when the armour roll
-    // eats the whole blow — but a blow that weak can never be the killing one.
-    // It can leave a foe on 1 HP; it can't take the last point. An excellent
-    // hit is not this: it is a good roll that still happened to net under the
-    // floor after a hard armour roll, not a whiff — so it skips the "can't
-    // finish them" clamp entirely and gets its own floor below instead.
-    let mut glancing = false;
-    if attacker_is_player && !excellent && damage < CHIP_DAMAGE {
-        damage = CHIP_DAMAGE;
-        glancing = true;
+/// Everything a blow is resolved from, folded out of both sides' gear in one
+/// pass: the four dice numbers, the ceiling the attacker's gear imposes, and
+/// which side is the hero.
+///
+/// The four numbers have every equipped source of a
+/// [`crate::effects::Modifier`] already folded in — a weapon's die, an
+/// enchantment's flat bonus, a ring of protection's — and nothing downstream
+/// knows which kind of item supplied any of them.
+///
+/// It is called a matchup rather than the odds because only four of the six
+/// fields are odds. The cap is a ceiling and the last is a role, and they ride
+/// here because they come off the same pass over the same gear; a name that
+/// covered only the dice would have to be apologised for.
+struct Matchup {
+    power: i32,
+    power_bonus: i32,
+    armor: i32,
+    armor_bonus: i32,
+    /// The strictest ceiling the attacker's gear imposes, if any — a bow.
+    /// Folded here rather than looked up again in [`clamp_swing`], because it
+    /// comes off the same pass the four numbers above do.
+    melee_cap: Option<i32>,
+    /// Two rules apply only to the hero's own swing: the excellent hit and the
+    /// chip-damage floor. Carried here so the three stages below each ask once.
+    attacker_is_player: bool,
+}
+
+/// A blow that has already happened: who swung at whom, what the dice said,
+/// and what it did to the creature on the end of it.
+///
+/// The three aftermath stages — [`punctuate`], [`report_blow`],
+/// [`settle_the_dead`] — each need all of it, and each used to take the same
+/// five arguments in the same order. One of them wanted a sixth. This is that
+/// argument list, named, so adding to it is a field rather than a fresh
+/// parameter threaded through three signatures.
+struct Landed {
+    attacker: Entity,
+    target: Entity,
+    /// Read once in [`resolve_attack`], never re-read. Which side is the
+    /// player decides the log's voice, the chip floor and who shakes the
+    /// screen, so all three stages want it and none should ask again.
+    attacker_is_player: bool,
+    target_is_player: bool,
+    swing: Swing,
+    outcome: Outcome,
+}
+
+/// One exchange of dice, and what kind of blow it turned out to be.
+struct Swing {
+    damage: i32,
+    /// The hero's `Nd[power]` crit. Never reported as having done nothing.
+    excellent: bool,
+    /// The armour ate the whole roll and the chip floor is all that got
+    /// through. Draws blood, cannot be the killing blow, arms no shake.
+    glancing: bool,
+}
+
+/// What the blow did to the creature on the end of it.
+struct Outcome {
+    lethal: bool,
+    /// A vorpalized weapon found its bane. Skips the HP arithmetic entirely.
+    vorpal: bool,
+}
+
+/// Reads both sides' [`Fighter`] once and folds their gear in.
+///
+/// An entity with no `Fighter` at all still swings for a bare `1d1` and
+/// defends with nothing, which is what lets a test dummy fight without one.
+fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
+    let (power, power_bonus) = world
+        .get::<Fighter>(attacker)
+        .map_or((1, 0), |f| (f.power, f.power_bonus));
+    let (armor, armor_bonus) = world
+        .get::<Fighter>(target)
+        .map_or((0, 0), |f| (f.armor, f.armor_bonus));
+    // One pass over each side's gear rather than one per number. `Fighter`
+    // carries the creature's own dice, and the `Loadout` carries what it is
+    // wearing; a monster's innate `PowerBonus` lands in the second, which is
+    // why the two are added rather than one of them chosen.
+    let attackers = loadout(world, attacker);
+    let targets = loadout(world, target);
+    Matchup {
+        power: power + attackers.power_die,
+        power_bonus: power_bonus + attackers.power_bonus,
+        armor: armor + targets.armor_die,
+        armor_bonus: armor_bonus + targets.armor_bonus,
+        melee_cap: attackers.melee_cap,
+        attacker_is_player: world.get::<Player>(attacker).is_some(),
     }
-    let mut damage = damage.max(0);
-    if let Some(f) = world.get::<Fighter>(target).filter(|_| glancing) {
-        damage = damage.min((f.hp - 1).max(0));
+}
+
+/// The two opposed rolls, made independently, and the player-only chip floor
+/// under the difference.
+///
+/// The chip floor is why a fight against good armour is a grind rather than a
+/// stalemate: the hero always scrapes off [`CHIP_DAMAGE`], and the blow is
+/// flagged `glancing` so everything downstream knows the armour won anyway. An
+/// excellent hit is deliberately not this — it is a good roll that happened to
+/// net low, not a whiff — so it skips the flag and takes its own floor in
+/// [`clamp_swing`].
+fn roll_swing(world: &mut World, matchup: &Matchup) -> Swing {
+    let mut rng = world.resource_mut::<GameRng>();
+    let excellent = matchup.attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE);
+    let dice = if excellent { EXCELLENT_HIT_DICE } else { 1 };
+    let attack_total: i32 = (0..dice)
+        .map(|_| roll_die(&mut rng.0, matchup.power))
+        .sum::<i32>()
+        + matchup.power_bonus;
+    let armor_roll = roll_die(&mut rng.0, matchup.armor) + matchup.armor_bonus;
+
+    let net = attack_total - armor_roll;
+    let glancing = matchup.attacker_is_player && !excellent && net < CHIP_DAMAGE;
+    let damage = match glancing {
+        true => CHIP_DAMAGE,
+        false => net.max(0),
+    };
+    Swing {
+        damage,
+        excellent,
+        glancing,
     }
+}
 
-    // Last of all, the ceiling. A bow in the hand caps the swing at a bruise
-    // however the dice fell, and it is applied after the chip-damage floor so a
-    // cap of 0 really is 0. Nothing here knows what a bow is: it asks the gear.
-    if let Some(cap) = melee_cap(world, attacker) {
-        damage = damage.min(cap);
+/// The three ceilings and floors that sit on top of the dice, **in this order**
+/// — each one is written the way it is because of the one before it:
+///
+/// 1. A glancing blow can leave a foe on 1 HP but never take the last point.
+///    Chip damage exists so a turned-aside swing isn't *nothing*, not so it
+///    finishes people.
+/// 2. A [`MeleeCap`](crate::effects::MeleeCap) clamps whatever is left. It is
+///    applied after the floor so a cap of 0 really is 0 — a bow swung is worth
+///    nothing, which is the price of the hand it occupies.
+/// 3. An excellent hit is never reported as having done nothing, whatever the
+///    armour roll or the cap left it at.
+fn clamp_swing(world: &World, target: Entity, matchup: &Matchup, mut swing: Swing) -> Swing {
+    if let Some(f) = world.get::<Fighter>(target).filter(|_| swing.glancing) {
+        swing.damage = swing.damage.min((f.hp - 1).max(0));
     }
-
-    // An excellent hit is never reported as having done nothing — whatever the
-    // armour roll or a launcher's melee cap left it at, it lands for at least
-    // [`CHIP_DAMAGE`].
-    if excellent {
-        damage = damage.max(CHIP_DAMAGE);
+    if let Some(cap) = matchup.melee_cap {
+        swing.damage = swing.damage.min(cap);
     }
+    if swing.excellent {
+        swing.damage = swing.damage.max(CHIP_DAMAGE);
+    }
+    swing
+}
 
-    // --- Apply & report --------------------------------------------------
-    // Captured before the target (on a lethal hit) or the attacker (should
-    // this ever run after the attacker itself died) leaves the world.
-    let attacker_pos = world.get::<Position>(attacker).copied();
-    let attacker_name = entity_name(world, attacker);
-    let target_name = entity_name(world, target);
-    let target_is_player = world.get::<Player>(target).is_some();
-    // An attacker the player can't see — an invisible phantom, or a mob still off
-    // in the dark — is reported only as "Something".
-    let attacker_unseen = target_is_player && world.get::<Hidden>(attacker).is_some();
-
+/// Takes the HP off, and everything that happens *because* a blow connected:
+/// the vorpal shear, the attacker's own on-hit magic, the blood, the broken
+/// promise and the low-HP warning.
+///
+/// Melee is the one damage path that applies its own HP change, so it has to
+/// ask [`crate::helpers::took_damage`] for the rest by hand; every other path
+/// gets it from `helpers::apply_damage`.
+fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing) -> Outcome {
     // A vorpalized weapon that draws blood slays its bane outright — and any
-    // creature carrying `VorpalTarget` (the Jabberwock), whatever
-    // the bane. A glancing scrape never triggers it.
-    let vorpal = !glancing
-        && damage > 0
+    // creature carrying `VorpalTarget` (the Jabberwock), whatever the bane. A
+    // glancing scrape never triggers it.
+    let vorpal = !swing.glancing
+        && swing.damage > 0
         && wielded_vorpal_bane(world, attacker).is_some_and(|bane| {
             world.get::<VorpalTarget>(target).is_some()
                 || world.get::<Name>(target).is_some_and(|n| n.what == bane)
         });
 
-    let mut lethal = false;
     let hp_before = world.get::<Fighter>(target).map(|f| f.hp);
+    let mut lethal = false;
     if let Some(mut fighter) = world.get_mut::<Fighter>(target) {
-        fighter.hp -= damage;
+        fighter.hp -= swing.damage;
         if vorpal {
             fighter.hp = 0;
         }
         lethal = fighter.hp <= 0;
     }
-    // Whatever the attacker's own magic does to something it just hit — a
-    // charmed pair of hands passing its confusion on, an aquator's touch eating
-    // the armour. One table (`crate::abilities::ON_HIT_ABILITIES`), and combat
-    // never learns what is in it: it only says what kind of blow this was.
-    if damage > 0 {
-        let blow = crate::abilities::Blow { glancing, lethal };
-        crate::abilities::fire_on_hit(world, attacker, target, blow);
-    }
-    if damage > 0 {
-        crate::helpers::spill_blood(world, target, damage, glancing);
-        // A blow landed in melee costs its victim exactly what a dart or a bolt
-        // would — a broken promise, the low-HP warning. This is the only damage
-        // path that doesn't run through `helpers::apply_damage`, so it has to
-        // ask for that by hand.
-        crate::helpers::took_damage(world, target, hp_before);
+
+    if swing.damage > 0 {
+        // Whatever the attacker's own magic does to something it just hit — a
+        // charmed pair of hands passing its confusion on, an aquator's touch
+        // eating the armour. One table (`abilities::ON_HIT_ABILITIES`), and
+        // combat never learns what is in it: it only says what kind of blow
+        // this was.
+        let blow = Blow {
+            glancing: swing.glancing,
+            lethal,
+        };
+        fire_on_hit(world, attacker, target, blow);
+        spill_blood(world, target, swing.damage, swing.glancing);
+        took_damage(world, target, hp_before);
     }
 
-    // Instant hit feedback: a spark where the blow landed, a cold clink for a
-    // swing the armour turned aside, or a faint tick for one that did nothing
-    // at all. Purely cosmetic; `target` still has its Position here even on a
-    // lethal hit (the despawn happens further down).
-    if let Some(tpos) = world.get::<Position>(target).copied() {
-        // The effect layer is optional (tests run without it).
-        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            match (damage, glancing) {
-                (0, _) => fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey),
-                // A glancing blow scrapes off its chip of HP without ever
-                // getting through the armour, and the spark says so: it is
-                // the one hit that draws blood and still gets no shake.
-                (_, true) => fx.clink_spark(tpos.x, tpos.y),
-                _ => fx.hit_spark(tpos.x, tpos.y),
-            }
+    Outcome { lethal, vorpal }
+}
+
+/// The spark a blow leaves on the tile it landed on. Every blow leaves exactly
+/// one, which is why this is an enum rather than three flags.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Spark {
+    /// Nothing got through the armour: a grey dot, and no blood.
+    Nothing,
+    /// A glancing blow scrapes off its chip of HP without ever getting through
+    /// the armour, and the spark says so: it is the one hit that draws blood
+    /// and still earns no kick.
+    Glance,
+    /// A blow that got through.
+    Hit,
+}
+
+/// What a blow earns the screen, decided from the numbers and nothing else.
+///
+/// This is what lets [`punctuate`] apply a plan rather than pile up adjacent
+/// conditionals. The *what* is a pure function of the dice and the *when* is
+/// all that is left downstream.
+///
+/// Deliberately not unit-tested, even though being pure makes it easy to test.
+/// Everything it decides is a spark glyph and a screen shake, and roog does not
+/// hold its cosmetics to automated tests — they are checked by playing, which
+/// is the only thing that can tell whether a kick reads as a kick. Note the one
+/// rule that is not obvious from any single line: `strike` and `kill_kick` are
+/// independent, so an excellent killing blow fires **both**.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Flourish {
+    /// Where the blow landed.
+    spark: Spark,
+    /// The kick the *strike* is worth. `None` for a glancing scrape, for every
+    /// monster's swing, and for a killing blow — which takes `kill_kick`
+    /// instead.
+    strike: Option<ShakeKind>,
+    /// A kill's own, shorter kick. Deliberately *not* exclusive with `strike`:
+    /// an excellent killing blow fires the heavy thump for the strike and this
+    /// one for the death, and two kicks is the intended answer.
+    kill_kick: bool,
+    /// The Mortal-Kombat-style death flourish — flung corpse, bone shrapnel, a
+    /// wall splatter if it earns one. Unlike `kill_kick`, this fires for the
+    /// player's own death too.
+    burst: bool,
+}
+
+impl Flourish {
+    /// The whole decision, from the dice.
+    fn of(blow: &Landed) -> Self {
+        Self {
+            spark: match (blow.swing.damage, blow.swing.glancing) {
+                (0, _) => Spark::Nothing,
+                (_, true) => Spark::Glance,
+                _ => Spark::Hit,
+            },
+            strike: Self::strike_kick(blow),
+            // A monster that kills the player takes the `Death` lurch in
+            // `settle_the_dead`, which is a bigger one than this.
+            kill_kick: blow.outcome.lethal && !blow.target_is_player,
+            burst: blow.outcome.lethal,
         }
     }
 
-    // ...and a thump through the whole map for the one swing in seven that
-    // lands clean. The spark says *where* the blow landed; the shake says how
-    // hard. Only the player's own hits shake the screen — a monster's blow
-    // reaches the map through the low-HP crossing, or not at all.
-    if excellent {
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+    /// The kick for the swing itself, as opposed to the one for the death.
+    fn strike_kick(blow: &Landed) -> Option<ShakeKind> {
+        // A thump through the whole map for the one swing in seven that lands
+        // clean...
+        if blow.swing.excellent {
+            return Some(ShakeKind::Heavy);
+        }
+        // ...and the lightest kick in the set for every other swing of the
+        // player's that got through armour. Three exclusions, and each is
+        // somebody else's kick or nobody's: a crit took the heavy one above, a
+        // kill takes its own, and a glancing scrape is the game saying the
+        // armour ate the blow.
+        let ordinary = blow.attacker_is_player
+            && !blow.swing.glancing
+            && !blow.outcome.lethal
+            && blow.swing.damage > 0;
+        ordinary.then_some(ShakeKind::Hit)
     }
+}
 
-    // Every other swing of theirs that got through armour gets the lightest
-    // kick in the set. Three exclusions, and each is somebody else's shake or
-    // nobody's: a crit already took the heavy one above, a kill takes its own
-    // below, and a glancing scrape is the game saying the armour ate the blow
-    // — chip damage exists so the swing isn't *nothing*, not so it thumps.
-    if attacker_is_player && !excellent && !glancing && !lethal && damage > 0 {
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Hit);
-    }
+/// Everything that punctuates the blow: a spark saying *where* it landed, a
+/// kick saying how hard, and the death flourish if it killed.
+///
+/// All of it needs `target` to still have a tile, so this runs before anything
+/// despawns it. Only the player's own hits kick the screen; a monster's blow
+/// reaches the map through the low-HP crossing, or not at all.
+///
+/// The effects stay in one function because they share one window: every one
+/// of them has to happen *after* the HP is off — a kill kick has to know it
+/// was a kill — and *before* the despawn, because a burst needs the corpse's
+/// tile. That window is the two statements between `land_swing` and
+/// `settle_the_dead` in [`resolve_attack`]; four one-line functions sharing it
+/// would be four places to get the ordering wrong instead of one.
+fn punctuate(world: &mut World, blow: &Landed) {
+    let flourish = Flourish::of(blow);
+    let attacker_pos = world.get::<Position>(blow.attacker).copied();
 
-    // A kill is worth its own, shorter kick — and it has to be asked for here,
-    // while the corpse still has the Position the sight gate reads.
-    if lethal && !target_is_player {
-        kill_shake(world, target);
+    if let Some(tpos) = world.get::<Position>(blow.target).copied() {
+        // The effect layer is optional (tests run without it).
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            match flourish.spark {
+                Spark::Nothing => fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey),
+                Spark::Glance => fx.clink_spark(tpos.x, tpos.y),
+                Spark::Hit => fx.hit_spark(tpos.x, tpos.y),
+            }
+        }
     }
+    if let Some(kind) = flourish.strike {
+        kick_shake(world, kind);
+    }
+    // Asked for while the corpse still has the Position the sight gate reads.
+    if flourish.kill_kick {
+        kill_shake(world, blow.target);
+    }
+    if flourish.burst {
+        death_burst(world, blow.target, attacker_pos);
+    }
+}
 
-    // The Mortal-Kombat-style death flourish — flung corpse, bone shrapnel,
-    // a wall splatter if it earns one. Needs `target`'s Position/Renderable,
-    // so it must run before the despawn further down.
-    if lethal {
-        crate::helpers::death_burst(world, target, attacker_pos);
-    }
+/// The two or three lines the log gets, from whichever end of the blow the
+/// player was on.
+fn report_blow(world: &mut World, blow: &Landed) {
+    let attacker_name = entity_name(world, blow.attacker);
+    let target_name = entity_name(world, blow.target);
+    let target_is_player = blow.target_is_player;
+    // An attacker the player can't see — an invisible phantom, or a mob still
+    // off in the dark — is reported only as "Something".
+    let attacker_unseen = target_is_player && world.get::<Hidden>(blow.attacker).is_some();
 
     let mut log = world.resource_mut::<GameLog>();
-    if attacker_is_player {
-        report_player_hit(
+    if blow.attacker_is_player {
+        return report_player_hit(
             &mut log,
             &target_name,
-            damage,
-            excellent,
-            glancing,
-            lethal,
-            vorpal,
+            blow.swing.damage,
+            blow.swing.excellent,
+            blow.swing.glancing,
+            blow.outcome.lethal,
+            blow.outcome.vorpal,
         );
     }
-    if !attacker_is_player {
-        let target_label = if target_is_player {
-            "you".to_string()
-        } else {
-            format!("the {target_name}")
-        };
-        let atk = if attacker_unseen {
-            "Something".to_string()
-        } else {
-            format!("The {attacker_name}")
-        };
-        report_monster_hit(
-            &mut log,
-            &atk,
-            &target_label,
-            &target_name,
-            damage,
-            lethal,
-            target_is_player,
-        );
-    }
+    let target_label = if target_is_player {
+        "you".to_string()
+    } else {
+        format!("the {target_name}")
+    };
+    let atk = if attacker_unseen {
+        "Something".to_string()
+    } else {
+        format!("The {attacker_name}")
+    };
+    report_monster_hit(
+        &mut log,
+        &atk,
+        &target_label,
+        &target_name,
+        blow.swing.damage,
+        blow.outcome.lethal,
+        target_is_player,
+    );
+}
 
-    if lethal && target_is_player {
-        // The player does not leave the world; the main loop notices the
-        // Ending resource, tears down the save, and shows the death screen.
-        // Their `@` is blanked so the death burst's flung corpse reads as
-        // them exploding, not detaching from a body still standing there, and
-        // the map takes the biggest lurch it has in it on the way out.
-        blank_player_glyph(world, target);
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Death);
+/// What is left of a creature the blow killed. A monster pays its score, drops
+/// what survives it and leaves the world; the player does none of those things
+/// — they stay in it, because the death screen still needs them.
+fn settle_the_dead(world: &mut World, blow: &Landed) {
+    if !blow.outcome.lethal {
+        return;
+    }
+    if blow.target_is_player {
+        // The main loop notices the `Ending` resource, tears down the save and
+        // shows the death screen. Their `@` is blanked so the death burst's
+        // flung corpse reads as them exploding rather than detaching from a
+        // body still standing there, and the map takes the biggest lurch it
+        // has in it on the way out.
+        let attacker_name = entity_name(world, blow.attacker);
+        blank_player_glyph(world, blow.target);
+        kick_shake(world, ShakeKind::Death);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
         ending.cause = format!("Slain by the {attacker_name}");
+        return;
     }
-    if lethal && !target_is_player {
-        pay_for_the_corpse(world, target);
-        leave_gear_behind(world, target);
-        world.despawn(target);
-    }
+    pay_for_the_corpse(world, blow.target);
+    leave_gear_behind(world, blow.target);
+    world.despawn(blow.target);
 }
 
 /// Writes the player-attacked-something lines to the log: the hit line (an

@@ -11,6 +11,8 @@
 //! shared `GameRng` — the blow-by-blow of the run — because that would tie a
 //! floor to how a fight went rather than to a clean count.
 
+mod common;
+
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -170,8 +172,8 @@ fn a_floors_contents_ignore_the_shared_rng_stream() {
 /// A floor reached after a save and reload is the floor it would have been.
 #[test]
 fn reloading_mid_run_does_not_shift_the_next_floor() {
-    let path = std::env::temp_dir().join("roog_reload_shift.sav");
-    let path = path.to_str().unwrap();
+    let save = common::SaveFile::new("reload-shift");
+    let path = save.path();
 
     let mut straight = new_run(42);
     descend(&mut straight);
@@ -193,7 +195,6 @@ fn reloading_mid_run_does_not_shift_the_next_floor() {
         contents(&mut reloaded),
         "reload moved the contents"
     );
-    let _ = std::fs::remove_file(path);
 }
 
 #[test]
@@ -213,8 +214,8 @@ fn every_floor_of_a_run_is_a_different_place() {
 /// is not in the save file; it is rebuilt from `(seed, depth)`.
 #[test]
 fn a_reloaded_save_comes_back_to_the_floor_it_was_written_on() {
-    let path = std::env::temp_dir().join("roog_determinism_test.sav");
-    let path = path.to_str().unwrap();
+    let save = common::SaveFile::new("same-floor");
+    let path = save.path();
 
     let mut w = new_run(42);
     descend(&mut w);
@@ -229,7 +230,6 @@ fn a_reloaded_save_comes_back_to_the_floor_it_was_written_on() {
 
     assert_eq!(reloaded.resource::<Depth>().what, 3);
     assert_eq!(map_hash(&reloaded), live, "reload rebuilt the wrong floor");
-    let _ = std::fs::remove_file(path);
 }
 
 /// Climbing back up returns you to the floor you left, walls and all. This is

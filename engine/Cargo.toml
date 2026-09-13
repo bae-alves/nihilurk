@@ -7,8 +7,8 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-# Link to your local models crate
 models = { path = "../models" }
+view = { path = "../view" }
 crossterm = "0.29.0"
 bevy_ecs = "0.12"
 rand = "0.8"

@@ -18,9 +18,10 @@ use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
 use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_plus};
-use crate::identify::Identified;
+use crate::identify::{Identified, article_for, counted, display_name, phrase_for, with_article};
 use crate::map::{GameRng, Map};
 use crate::particles::Particles;
+use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
 
 use super::potions::apply_potion_effect;
@@ -56,11 +57,7 @@ pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String>
     if equipped.by != Some(user) || world.get::<Curse>(item).is_none() {
         return None;
     }
-    Some(
-        equipped
-            .slot
-            .stuck(&crate::identify::display_name(world, item)),
-    )
+    Some(equipped.slot.stuck(&display_name(world, item)))
 }
 
 /// Marks `item`'s true type as known, announcing it the same way using one
@@ -81,10 +78,9 @@ fn identify_from_afar(world: &mut World, item: Entity) {
         _ => false,
     };
     if newly {
-        world.resource_mut::<GameLog>().add(format!(
-            "That was {} {true_name}!",
-            crate::identify::article_for(&true_name)
-        ));
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("That was {} {true_name}!", article_for(&true_name)));
     }
 }
 
@@ -249,7 +245,7 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
         if backpack.items.len() >= PACK_CAPACITY {
             return None;
         }
-        let label = crate::identify::with_article(world, item);
+        let label = with_article(world, item);
         world.get_mut::<Backpack>(carrier)?.items.push(item);
         world.entity_mut(item).remove::<Position>();
         return Some(label);
@@ -302,16 +298,17 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
             world.entity_mut(item).remove::<Position>();
         }
     }
-    Some(crate::identify::counted(&name, taking))
+    Some(counted(&name, taking))
 }
 
 /// A thrown wand bursts where it lands, spending every charge it had left in one
 /// go.
 ///
-/// * An **attack** wand throws the wide, hot grenade — `d4` a charge at
-///   [`GRENADE_RADIUS`], armour-ignoring, elemental where the wand is.
-/// * The **wand of light** throws the same grenade (`d4` a charge, wide) but
-///   [`dazzle`]s every creature it catches instead of carrying an element.
+/// * An **attack** wand throws the wide, hot grenade —
+///   [`GRENADE_DIE_PER_CHARGE`] sides a charge at [`GRENADE_RADIUS`],
+///   armour-ignoring, elemental where the wand is.
+/// * The **wand of light** throws the same wide grenade but [`dazzle`]s every
+///   creature it catches instead of carrying an element.
 /// * A **utility** wand throws a smaller [`BLAST_RADIUS`] blast that deals *no*
 ///   damage — the payload is the effect, worked on every creature caught.
 /// * The **wand of nothing** just makes confetti.
@@ -388,10 +385,9 @@ fn resolve_wand_throw(
         if !is_creature {
             continue;
         }
-        if is_light {
-            dazzle(world, entity);
-        } else {
-            apply_thrown_wand_effect(world, entity, effect);
+        match is_light {
+            true => dazzle(world, entity),
+            false => apply_thrown_wand_effect(world, entity, effect),
         }
         // A cosmetic-only echo confirming the effect actually landed on this
         // creature — no gameplay rides on it, just the darker follow-up pop.
@@ -475,19 +471,19 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     force_unequip(world, item);
     sync_equipment_effects(world, thrower);
 
-    let seen_name = crate::identify::display_name(world, item);
+    let seen_name = display_name(world, item);
     // Loosed from the launcher it's matched to (a bow's arrow, a crossbow's
     // quarrel), this reads as firing it, not just chucking it by hand.
     let fired = world
         .get::<LaunchedBy>(item)
         .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, thrower));
     let announcement = match (world.get::<Player>(thrower).is_some(), fired) {
-        (true, true) => format!("You fire {}.", crate::identify::phrase_for(&seen_name)),
+        (true, true) => format!("You fire {}.", phrase_for(&seen_name)),
         (true, false) => format!("You throw the {seen_name}."),
         (false, true) => format!(
             "The {} fires {}.",
             item_label(world, thrower),
-            crate::identify::phrase_for(&seen_name)
+            phrase_for(&seen_name)
         ),
         (false, false) => format!("The {} throws the {seen_name}.", item_label(world, thrower)),
     };
@@ -694,7 +690,7 @@ fn strike_victim(
     // missile hit for `finish_indirect_kill` to finalise.
     let slain = world.get::<Fighter>(hit).is_some_and(|f| f.hp <= 0);
     if world.get::<Player>(thrower).is_some() && !slain {
-        crate::shake::kick_shake(world, crate::shake::ShakeKind::Hit);
+        kick_shake(world, ShakeKind::Hit);
     }
     format!("The {seen_name} hits the {hit_name} for {damage} damage.")
 }

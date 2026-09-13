@@ -1,0 +1,537 @@
+//! Moving between floors, and the two ways a run ends.
+//!
+//! One verb does the work — [`transition_level`] — and everything else here is
+//! a reason to call it: the player took a staircase, the Dungeon Lord ran out
+//! of patience, a trapdoor opened, a potion of raise level was drunk. The
+//! [`LevelChange`] telling them apart changes only the log line and whether
+//! the arrival heal applies.
+//!
+//! This is also where a run is set up ([`initialize_world`]) and where it is
+//! won ([`win_with_style`]).
+//!
+//! # This file will not come out tidy, and that is the honest answer
+//!
+//! It reaches into every one of its siblings and a dozen modules besides. The
+//! import block below is grouped by *what each group is reached for* rather
+//! than alphabetically, because those groups are the steps of a transition and
+//! that is the only order in which the list means anything.
+//!
+//! The block understates the coupling rather than overstating it: five more
+//! modules — `score`, `items`, `conditions`, `effects`, `magicmap` — are called
+//! fully qualified at their one call site each, which is the convention in this
+//! crate for a name used once. If you are counting seams, count those too.
+//!
+//! That is not a split waiting to happen. **Changing floors is the one moment
+//! in roog when everything is true at once**: the old floor has to stop
+//! existing, the new one has to be built from a seed and stocked from a
+//! different seed, the player has to be stood on a stair, healed, paid for a
+//! promise they kept and relieved of the conditions they were carrying, and
+//! the clock has to be reset — and the order of all of that matters, because
+//! the depth has to move before the floor is built and the floor has to exist
+//! before anybody stands on it. A module that reaches into a dozen others is
+//! what a moment like that looks like written down. Hiding it behind an event
+//! bus or a trait would move the coupling somewhere it could not be read.
+//!
+//! What *has* been done about it: [`transition_level`] is six named steps
+//! rather than 140 straight lines, so the ordering constraint is legible from
+//! the call site alone. If you are adding to it, add a step; do not add a
+//! paragraph to one.
+
+use bevy_ecs::prelude::*;
+use crossterm::style::Color;
+use fixedbitset::FixedBitSet;
+use std::collections::HashSet;
+
+use rand::SeedableRng;
+use rand_chacha::ChaCha12Rng;
+
+// Building the next floor: the tiles, the things that stand on them, and the
+// two seeds that decide each — `layout_rng` for the shape a depth always has,
+// `FxRng` for the stock it gets on this visit.
+use super::generate::{build_tiles, create_map, find_tile};
+use super::population::{difficulty_tier, populate_level};
+use super::streams::{FxRng, RngSeed, layout_rng};
+use super::{DUNGEON_LORD_PATIENCE, FINAL_DEPTH, MAP_TILE_COUNT, Map, TileType};
+
+// Unbuilding the last one. Blood, corpses and smoke are floor-local: none of
+// the three follows anybody down a staircase.
+use super::overlays::{BloodStains, Corpses, Smoke};
+
+// Setting a run up — what the hero starts with, worn without a log line about
+// it, and the appearance table that decides what they have yet to recognise.
+use crate::catalog::{spawn_ammo, spawn_armor, spawn_launcher, spawn_potion, spawn_weapon};
+use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
+use crate::equipment::equip_silently;
+use crate::identify::{Identified, ItemAppearances};
+
+// The arrival: how much of the descent is paid back as health.
+use crate::constants::progression::DESCENT_HEAL_DIVISOR;
+
+// The vocabulary the whole crate is written in, plus the room rectangle a new
+// floor is measured with.
+use crate::components::*;
+use crate::rect::Rect;
+use crate::state::*;
+
+/// Whether the player is currently carrying the Element of Yoord.
+pub fn holding_element_of_yoord(world: &mut World) -> bool {
+    let items: Vec<Entity> = match world
+        .query_filtered::<&Backpack, With<Player>>()
+        .iter(world)
+        .next()
+    {
+        Some(bp) => bp.items.clone(),
+        None => return false,
+    };
+    items.iter().any(|&e| world.get::<Amulet>(e).is_some())
+}
+
+/// Handles the player using a staircase.
+///
+/// Without the Element of Yoord the descent rules apply: `>` on a
+/// [`TileType::Downstairs`] works, `<` is blocked by the Dungeon Lord's power.
+/// Once the Element is in the pack the rules invert — `<` on a
+/// [`TileType::Upstairs`] carries the player back up and `>` is dead. On success
+/// a fresh floor is built, the player repositioned, [`Depth`] adjusted, 50% of
+/// max HP restored and `true` returned (a turn passes); otherwise a log line is
+/// added and `false` returned so no turn is consumed.
+pub fn change_level(world: &mut World, going_down: bool) -> bool {
+    let player_entity = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+        .unwrap();
+    let player_pos = *world.get::<Position>(player_entity).unwrap();
+    let tile = world.resource::<Map>().tile(player_pos.x, player_pos.y);
+    let has_element = holding_element_of_yoord(world);
+
+    if going_down {
+        if has_element {
+            world
+                .resource_mut::<GameLog>()
+                .add(if tile == TileType::Downstairs {
+                    "The Element of Yoord seeks the sun; it will not let you descend."
+                } else {
+                    "You cannot go down from here."
+                });
+            return false;
+        }
+        if tile != TileType::Downstairs {
+            world
+                .resource_mut::<GameLog>()
+                .add("You cannot go down from here.");
+            return false;
+        }
+        award_stair_score(world);
+        transition_level(world, true, LevelChange::Stairs);
+        return true;
+    }
+
+    // Going up.
+    if !has_element {
+        world
+            .resource_mut::<GameLog>()
+            .add(if tile == TileType::Upstairs {
+                "The Dungeon Lord's power prevents you from going upstairs."
+            } else {
+                "You cannot go up from here."
+            });
+        return false;
+    }
+    if tile != TileType::Upstairs {
+        world
+            .resource_mut::<GameLog>()
+            .add("You cannot go up from here.");
+        return false;
+    }
+    if world.resource::<Depth>().what <= 1 {
+        // The surface at last — and only ever by the player's own hand on the
+        // stair. The run is won.
+        award_stair_score(world);
+        world.resource_mut::<GameLog>().add(
+            "You climb the last stair into open sky, the Element of Yoord blazing in your hands.",
+        );
+        // Nobody walks out of that dungeon quietly: the last stair is always
+        // taken with style, fireworks and doubled score and all, and the engine
+        // plays it out before the starfield.
+        win_with_style(world);
+        return true;
+    }
+    award_stair_score(world);
+    transition_level(world, false, LevelChange::Stairs);
+    true
+}
+
+/// Pays for a flight of stairs: [`crate::constants::score::STAIR_PER_TIER`] per
+/// difficulty tier of the floor being left. Only a staircase pays — a trapdoor,
+/// a portal and a potion of raise level all move you between floors without
+/// anybody earning anything.
+fn award_stair_score(world: &mut World) {
+    let depth = world.resource::<Depth>().what;
+    crate::score::award_stairs(world, difficulty_tier(depth));
+}
+
+/// Ends the run in triumph. The flourish first (it has a score to double while
+/// there is still a run to score), then the flag the main loop is watching for.
+///
+/// Shared by the two ways out of the dungeon — the last stair and a potion of
+/// raise level drunk on Depth 1 — because they are the same achievement, and
+/// the game has no business rewarding one of them less.
+pub(crate) fn win_with_style(world: &mut World) {
+    crate::items::rings::do_it_with_style(world);
+    if let Some(mut ending) = world.get_resource_mut::<Ending>() {
+        ending.player_won = true;
+    }
+}
+
+/// Why the player is being moved between floors — only affects the log line and
+/// whether the arrival heal applies (a trapdoor plunge does not heal).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LevelChange {
+    Stairs,
+    Portal,
+    Trapdoor,
+    /// A potion of raise level, which only ever goes up. Unlike the portal it
+    /// does not care whether the Element of Yoord is in the pack (see
+    /// `crate::items`'s `potions` submodule).
+    Potion,
+}
+
+/// Moves the player one floor in the given direction: clears the current floor,
+/// builds the adjacent one, repositions the player (on the up-stair when
+/// descending, on the down-stair when ascending), re-populates, adjusts
+/// [`Depth`], heals 50% of max HP and resets the Dungeon Lord's patience.
+/// `cause` only changes the log line and — for [`LevelChange::Trapdoor`] —
+/// suppresses the arrival heal.
+pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: LevelChange) {
+    let player = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+        .unwrap();
+
+    tear_down_the_floor(world);
+    let depth = step_depth(world, going_down);
+    let rooms = build_the_floor(world, depth);
+    let start = put_the_player_down(world, player, going_down, &rooms);
+    populate_level(world, &rooms, start);
+    settle_arrival(world, player, cause);
+    world
+        .resource_mut::<GameLog>()
+        .add(arrival_line(cause, going_down, depth));
+}
+
+/// Everything on the old floor stops existing.
+///
+/// Gear a monster picked up is carried with no `Position` of its own, so it is
+/// laid out on the monster's tile first — otherwise the sweep below walks
+/// straight past it and it haunts the save forever. Backpack contents are the
+/// other `Position`-less things and are deliberately left alone: that is what
+/// makes them the pack.
+fn tear_down_the_floor(world: &mut World) {
+    let armed_mobs: Vec<(Entity, Position)> = world
+        .query_filtered::<(Entity, &Position), (With<Mob>, Without<Player>)>()
+        .iter(world)
+        .map(|(e, p)| (e, *p))
+        .collect();
+    for (mob, pos) in armed_mobs {
+        crate::equipment::drop_equipment(world, mob, pos);
+    }
+
+    let backpacked: HashSet<Entity> = world
+        .query::<&Backpack>()
+        .iter(world)
+        .flat_map(|bp| bp.items.iter().copied())
+        .collect();
+    let to_despawn: Vec<Entity> = world
+        .iter_entities()
+        .filter(|e| {
+            !e.contains::<Player>() && e.contains::<Position>() && !backpacked.contains(&e.id())
+        })
+        .map(|e| e.id())
+        .collect();
+    for e in to_despawn {
+        world.despawn(e);
+    }
+}
+
+/// Moves [`Depth`] one floor and bumps [`FloorChanges`], returning the depth
+/// arrived at.
+///
+/// Both have to happen before anything is built. The layout is a pure function
+/// of `(seed, depth)` ([`layout_rng`]) and the contents are a function of that
+/// plus the staircase count ([`content_rng`]), so building first would build
+/// the floor you just left.
+fn step_depth(world: &mut World, going_down: bool) -> u8 {
+    if let Some(mut fc) = world.get_resource_mut::<FloorChanges>() {
+        fc.count = fc.count.saturating_add(1);
+    }
+    let mut d = world.resource_mut::<Depth>();
+    d.what = match going_down {
+        true => d.what.saturating_add(1),
+        false => d.what.saturating_sub(1).max(1),
+    };
+    d.what
+}
+
+/// Carves the new floor into the [`Map`] resource and wipes the overlays the
+/// old one dirtied. Returns its rooms, which the caller needs twice over — to
+/// stand the player in one and to populate the rest.
+fn build_the_floor(world: &mut World, depth: u8) -> Vec<Rect> {
+    let seed = world.resource::<RngSeed>().0;
+    let (tiles, rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
+    world.insert_resource(Map { tiles, dark });
+    world.resource_mut::<BloodStains>().clear();
+    world.resource_mut::<Smoke>().clear();
+    world.resource_mut::<Corpses>().clear();
+    rooms
+}
+
+/// Stands the player on the stair they arrive at and blanks their memory of the
+/// floor. Descending drops them on the new floor's up-stair (its first room);
+/// ascending brings them out at the shallower floor's down-stair.
+fn put_the_player_down(
+    world: &mut World,
+    player: Entity,
+    going_down: bool,
+    rooms: &[Rect],
+) -> (u16, u16) {
+    let fallback = {
+        let c = rooms[0].center();
+        (c.0 as u16, c.1 as u16)
+    };
+    let start = match going_down {
+        true => fallback,
+        false => {
+            find_tile(&world.resource::<Map>().tiles, TileType::Downstairs).unwrap_or(fallback)
+        }
+    };
+    if let Some(mut pos) = world.get_mut::<Position>(player) {
+        pos.x = start.0;
+        pos.y = start.1;
+    }
+    // Fog of war is not carried between visits: walk back up through a floor
+    // you cleared and it is blank again, even though the walls are identical.
+    if let Some(mut viewshed) = world.get_mut::<Viewshed>(player) {
+        viewshed.visible_tiles.clear();
+        viewshed.revealed_tiles.clear();
+        viewshed.dirty = true;
+    }
+    start
+}
+
+/// What arriving does *to the player*, which is where the four causes stop
+/// being the same event: the rest, the promises, the conditions and the clock.
+fn settle_arrival(world: &mut World, player: Entity, cause: LevelChange) {
+    // A trapdoor plunge is a fall, not a rest: no arrival heal, no magic.
+    if cause != LevelChange::Trapdoor {
+        if let Some(mut fighter) = world.get_mut::<Fighter>(player) {
+            let heal = fighter.max_hp / DESCENT_HEAL_DIVISOR;
+            fighter.hp = (fighter.hp + heal).min(fighter.max_hp);
+        }
+        if let Some(mut magic) = world.get_mut::<Magic>(player) {
+            magic.points = magic.max_points;
+        }
+    }
+
+    // A staircase reached unhurt is what the platinum and forge coins asked
+    // for, and this is where they pay. Only a staircase: a trapdoor is not
+    // arriving somewhere, it is falling, and neither is the Dungeon Lord's
+    // portal or a potion drunk to skip a floor.
+    if cause == LevelChange::Stairs {
+        crate::items::settle_promises(world, player);
+    }
+
+    // Transient conditions (haste, slow, dazzle, blindness, paralysis, a
+    // potion's floor-long second sight) are treacherous but they do not survive
+    // a level change — this is one of only two things that clears them.
+    crate::conditions::clear_player_conditions(world, player);
+
+    if let Some(mut dl) = world.get_resource_mut::<DungeonLord>() {
+        dl.idle_turns = 0;
+    }
+}
+
+/// The one sentence the player reads about how they got here.
+fn arrival_line(cause: LevelChange, going_down: bool, depth: u8) -> String {
+    match cause {
+        // Descending, it is the Dungeon Lord who wrenches you down; once you
+        // carry the Element it is the Element that tears the way open upward.
+        LevelChange::Portal if going_down => format!(
+            "The Dungeon Lord opens a portal beneath your feet! You fall downward. (Depth {depth})"
+        ),
+        LevelChange::Portal => format!(
+            "The Element of Yoord flares and rips a portal above your head! You rise upward. (Depth {depth})"
+        ),
+        LevelChange::Trapdoor => {
+            format!("You crash down onto the floor below in a shower of dust. (Depth {depth})")
+        }
+        LevelChange::Potion => {
+            format!(
+                "The stone above you thins to nothing and you drift up through it. (Depth {depth})"
+            )
+        }
+        LevelChange::Stairs if going_down => format!("You descend the stairs. (Depth {depth})"),
+        LevelChange::Stairs => format!("You climb the stairs. (Depth {depth})"),
+    }
+}
+
+/// Exclusive system, run each turn just before visibility is recomputed. Ages
+/// the Dungeon Lord's patience; when it runs out, a portal shunts the player to
+/// the next level — deeper on the way in, back up once they carry the Element of
+/// Yoord. On the deepest floor (without the Element) or the shallowest floor
+/// (with it) the portal has nowhere to send them and only flickers.
+pub fn dungeon_lord_system(world: &mut World) {
+    if world
+        .get_resource::<Ending>()
+        .map(|e| e.player_dead)
+        .unwrap_or(false)
+    {
+        return;
+    }
+    match world.get_resource_mut::<DungeonLord>() {
+        Some(mut dl) => {
+            dl.idle_turns += 1;
+            if dl.idle_turns < DUNGEON_LORD_PATIENCE {
+                return;
+            }
+            dl.idle_turns = 0;
+        }
+        None => return,
+    }
+
+    let has_element = holding_element_of_yoord(world);
+    let depth = world.resource::<Depth>().what;
+
+    if has_element {
+        if depth <= 1 {
+            world
+                .resource_mut::<GameLog>()
+                .add("The Element of Yoord strains toward the sun — but the last stair you must climb yourself.");
+            return;
+        }
+        transition_level(world, false, LevelChange::Portal);
+        return;
+    }
+    if depth >= FINAL_DEPTH {
+        world
+            .resource_mut::<GameLog>()
+            .add("The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.");
+        return;
+    }
+    transition_level(world, true, LevelChange::Portal);
+}
+
+pub fn initialize_world(world: &mut World) {
+    world.insert_resource(GameState::new());
+    world.insert_resource(Depth { what: 1 });
+    world.insert_resource(FloorChanges::default());
+    world.insert_resource(BloodStains::new());
+    world.insert_resource(Smoke::new());
+    world.insert_resource(Corpses::new());
+    world.init_resource::<crate::magicmap::MagicMapReveal>();
+    world.init_resource::<crate::score::ScoreFlash>();
+    world.init_resource::<crate::score::Combo>();
+    world.insert_resource(Identified::default());
+    // This run's cosmetic appearance for every unidentified item type. Drawn
+    // from a separate RNG keyed off the same seed (so a given seed always
+    // shuffles the same way) rather than the shared `GameRng` stream, so
+    // adding new appearance pools here never perturbs dungeon/loot rolls.
+    let seed = world.resource::<RngSeed>().0;
+    let mut appearance_rng = ChaCha12Rng::seed_from_u64(seed ^ 0x1DEA_5117_FEED_u64);
+    world.insert_resource(ItemAppearances::generate(&mut appearance_rng));
+    world.insert_resource(FxRng::new(seed));
+
+    let ((player_x, player_y), rooms) = create_map(world);
+
+    // The starting gear. Every piece is spawned at the origin like a drop, then
+    // lifted straight into the pack (Position stripped, the way a picked-up item
+    // loses it) so it never shows up as floor loot. The armour, mace and bow are
+    // handed over enchanted to +1 rather than rolled, and the healing potion
+    // starts identified: a first run should not open with four mysteries and no
+    // way to survive guessing wrong about any of them.
+    let origin = Position { x: 0, y: 0 };
+    let pack_up = |world: &mut World, item: Entity| {
+        world.entity_mut(item).remove::<Position>();
+    };
+
+    let ring_mail = spawn_armor(world, "ring mail", origin);
+    world
+        .entity_mut(ring_mail)
+        .insert(crate::effects::ArmorBonus(1));
+    pack_up(world, ring_mail);
+
+    let mace = spawn_weapon(world, "mace", origin);
+    world.entity_mut(mace).insert(crate::effects::PowerBonus(1));
+    pack_up(world, mace);
+
+    let shortbow = spawn_launcher(world, "short bow", origin);
+    world
+        .entity_mut(shortbow)
+        .insert(crate::effects::ThrowBonus(1));
+    pack_up(world, shortbow);
+
+    let arrows = spawn_ammo(world, "arrow", origin);
+    if let Some(mut stack) = world.get_mut::<Stack>(arrows) {
+        stack.count = STACK_LIMIT;
+    }
+    pack_up(world, arrows);
+
+    let healing = spawn_potion(world, PotionEffect::Healing, origin);
+    pack_up(world, healing);
+    world
+        .resource_mut::<Identified>()
+        .potions
+        .insert(PotionEffect::Healing);
+
+    let player_name = world.resource::<PlayerName>().what.clone();
+
+    let player = world
+        .spawn((
+            Player,
+            Name { what: player_name },
+            Position {
+                x: player_x,
+                y: player_y,
+            },
+            Renderable {
+                glyph: '@',
+                color: Color::Yellow,
+            },
+            Viewshed {
+                visible_tiles: Vec::new(),
+                revealed_tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+                range: SIGHT_RANGE,
+                dirty: true,
+            },
+            Fighter {
+                hp: START_HP,
+                max_hp: START_HP,
+                armor: START_ARMOR,
+                power: START_POWER,
+                max_power: START_POWER,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
+            Magic {
+                points: START_MAGIC,
+                max_points: START_MAGIC,
+            },
+            Faction::Player,
+            Backpack {
+                items: vec![ring_mail, mace, shortbow, arrows, healing],
+            },
+            Score { value: 0 },
+            Blood,
+            Speed::new(SpeedKind::Normal),
+        ))
+        .id();
+
+    // Wear the armour and wield the mace. The bow and arrows wait in the pack:
+    // both weapons want the same hand, and which one the player reaches for
+    // first is the first decision the game asks them to make.
+    equip_silently(world, player, ring_mail);
+    equip_silently(world, player, mace);
+
+    populate_level(world, &rooms, (player_x, player_y));
+}
