@@ -393,6 +393,9 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     if world.resource::<PackIsOpen>().open {
         return handle_inventory_input(world, key);
     }
+    if world.resource::<MovesMenu>().open {
+        return handle_moves_input(world, key);
+    }
     handle_movement_input(world, key)
 }
 
@@ -406,11 +409,18 @@ fn close_all_modals(world: &mut World) -> bool {
         ts.active = false;
         ts.item = None;
         ts.throwing = false;
+        ts.move_effect = None;
+        ts.looking = false;
         closed = true;
     }
     let mut pack = world.resource_mut::<PackIsOpen>();
     if pack.open {
         pack.close();
+        closed = true;
+    }
+    let mut moves = world.resource_mut::<MovesMenu>();
+    if moves.open {
+        moves.open = false;
         closed = true;
     }
     let mut quit = world.resource_mut::<QuitPrompt>();
@@ -420,6 +430,9 @@ fn close_all_modals(world: &mut World) -> bool {
     }
     closed
 }
+
+/// The four `Alt`+letter shortcuts into the moves reticle, in slot order.
+const MOVE_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 
 /// A keypress while "Really quit?" is up: `y` ends the run, `n` or `Esc` goes
 /// back to the dungeon, and anything else is ignored rather than guessed at.
@@ -439,15 +452,18 @@ fn answer_quit_prompt(world: &mut World, key: KeyEvent) -> bool {
     false
 }
 
-/// A keypress while the aiming reticle is up: move it, fire it, or cancel.
+/// A keypress while the aiming reticle is up: move it, jump it to the next
+/// interesting thing in view, fire it, or cancel.
 fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     let mut cancel = false;
     let mut confirm = false;
+    let mut cycle = false;
     let mut dx = 0i16;
     let mut dy = 0i16;
     match key.code {
         KeyCode::Esc => cancel = true,
         KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
+        KeyCode::Tab => cycle = true,
         KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
         KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
         KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
@@ -464,7 +480,13 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
         ts.active = false;
         ts.item = None;
         ts.throwing = false;
+        ts.move_effect = None;
+        ts.looking = false;
         return Ok(false); // cancelled aiming, no turn consumed
+    }
+    if cycle {
+        cycle_target(world);
+        return Ok(false);
     }
     if dx != 0 || dy != 0 {
         move_target_cursor(world, dx, dy);
@@ -476,12 +498,80 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
     Ok(false) // any other key: ignored while aiming
 }
 
-/// A directional key while aiming: nudge the reticle one tile, but only onto a
-/// tile that is both in view and inside the item's reach.
-fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
-    let (item, cursor_x, cursor_y, throwing) = {
+/// `Tab`, while aiming: snap the reticle to the next monster or item in the
+/// player's viewshed and within the item's own reach — the same targets a
+/// manual nudge could reach, just without the walk there. Wraps around, and
+/// does nothing when nothing qualifies.
+fn cycle_target(world: &mut World) {
+    let (item, move_effect, looking, throwing, cursor_x, cursor_y) = {
         let ts = world.resource::<TargetingState>();
-        (ts.item, ts.cursor_x, ts.cursor_y, ts.throwing)
+        (
+            ts.item,
+            ts.move_effect,
+            ts.looking,
+            ts.throwing,
+            ts.cursor_x,
+            ts.cursor_y,
+        )
+    };
+    let player = player_entity(world);
+    let player_pos = *world.get::<Position>(player).unwrap();
+    let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
+    let max_range = aim_range(world, item, move_effect, looking, throwing);
+
+    let mut candidates: Vec<(u16, u16)> = {
+        let mut q =
+            world.query_filtered::<(&Position, Option<&Mob>, Option<&Item>), Without<Hidden>>();
+        q.iter(world)
+            .filter(|(pos, mob, item)| {
+                (mob.is_some() || item.is_some())
+                    && (pos.x, pos.y) != (player_pos.x, player_pos.y)
+                    && visible.contains(&(pos.x, pos.y))
+                    && chebyshev(player_pos, **pos) <= max_range
+            })
+            .map(|(pos, ..)| (pos.x, pos.y))
+            .collect()
+    };
+    if candidates.is_empty() {
+        return;
+    }
+    candidates.sort_unstable_by_key(|&(x, y)| (y, x));
+    candidates.dedup();
+
+    let current = (cursor_x as u16, cursor_y as u16);
+    let next = candidates
+        .iter()
+        .position(|&c| c == current)
+        .map_or(0, |i| (i + 1) % candidates.len());
+    let (nx, ny) = candidates[next];
+    {
+        let mut ts = world.resource_mut::<TargetingState>();
+        ts.cursor_x = nx as i16;
+        ts.cursor_y = ny as i16;
+    }
+    announce_look(world);
+}
+
+/// The Chebyshev (chessboard) distance between two tiles.
+fn chebyshev(a: Position, b: Position) -> i32 {
+    (a.x as i32 - b.x as i32)
+        .abs()
+        .max((a.y as i32 - b.y as i32).abs())
+}
+
+/// A directional key while aiming: nudge the reticle one tile, but only onto a
+/// tile that is both in view and inside the reticle's reach.
+fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
+    let (item, move_effect, looking, cursor_x, cursor_y, throwing) = {
+        let ts = world.resource::<TargetingState>();
+        (
+            ts.item,
+            ts.move_effect,
+            ts.looking,
+            ts.cursor_x,
+            ts.cursor_y,
+            ts.throwing,
+        )
     };
     let new_x = cursor_x.saturating_add(dx);
     let new_y = cursor_y.saturating_add(dy);
@@ -489,7 +579,7 @@ fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
     let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
-    let max_range = aim_range(world, item, throwing);
+    let max_range = aim_range(world, item, move_effect, looking, throwing);
 
     let distance = (new_x - player_pos.x as i16)
         .abs()
@@ -498,14 +588,54 @@ fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
     if distance > max_range as i16 || !in_view {
         return;
     }
-    let mut ts = world.resource_mut::<TargetingState>();
-    ts.cursor_x = new_x;
-    ts.cursor_y = new_y;
+    {
+        let mut ts = world.resource_mut::<TargetingState>();
+        ts.cursor_x = new_x;
+        ts.cursor_y = new_y;
+    }
+    announce_look(world);
 }
 
-/// How far the aimed item reaches: an arm's length for a throw, the item's own
-/// `Ranged` for a zap, a bare 8 for anything without one.
-fn aim_range(world: &World, item: Option<Entity>, throwing: bool) -> i32 {
+/// While looking, reads out whatever the reticle now sits on — called after
+/// every cursor move (arrow keys, `Tab`) as well as the moment `L` opens it,
+/// so `l` then `Tab Tab Tab` reads off everything in view with no `Enter`
+/// needed in between. A no-op for every other reticle purpose; those only
+/// ever announce on confirm ([`fire_at_target`]).
+fn announce_look(world: &mut World) {
+    let (looking, cx, cy) = {
+        let ts = world.resource::<TargetingState>();
+        (ts.looking, ts.cursor_x, ts.cursor_y)
+    };
+    if !looking {
+        return;
+    }
+    let target = Position {
+        x: cx as u16,
+        y: cy as u16,
+    };
+    for line in describe_target(world, target) {
+        world.resource_mut::<GameLog>().add(line);
+    }
+}
+
+/// How far the reticle reaches: a look can range over the whole viewshed (the
+/// `in_view` check does the real work of bounding it), an active move reaches
+/// as far as its own [`MoveDef::range`](models::MoveDef::range), a throw goes
+/// an arm's length, a zapped item as far as its own [`Ranged`], and anything
+/// with none of those, a bare 8.
+fn aim_range(
+    world: &World,
+    item: Option<Entity>,
+    move_effect: Option<MoveEffect>,
+    looking: bool,
+    throwing: bool,
+) -> i32 {
+    if looking {
+        return (MAP_WIDTH as i32).max(MAP_HEIGHT as i32);
+    }
+    if let Some(effect) = move_effect {
+        return models::MoveDef::of(effect).range;
+    }
     if throwing {
         return THROW_RANGE;
     }
@@ -513,14 +643,26 @@ fn aim_range(world: &World, item: Option<Entity>, throwing: bool) -> i32 {
         .map_or(8, |r| r.range)
 }
 
-/// Enter/Space while aiming: pull the item from the pack and hand it to the
-/// throw or use queue. A shot at the player's own tile is refused.
+/// Enter/Space while aiming: a look just reads the tile and closes (no turn,
+/// and it's the one reticle purpose allowed on the player's own tile); a move
+/// queues itself directly, nothing to pull from a pack; anything else pulls
+/// the item from the pack and hands it to the throw or use queue. A shot at
+/// the player's own tile is refused for every purpose but looking.
 fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
-    let (tx, ty, item_entity, throwing) = {
+    let (tx, ty, item_entity, move_effect, looking, throwing) = {
         let mut ts = world.resource_mut::<TargetingState>();
         ts.active = false;
-        let grabbed = (ts.cursor_x, ts.cursor_y, ts.item.unwrap(), ts.throwing);
+        let grabbed = (
+            ts.cursor_x,
+            ts.cursor_y,
+            ts.item,
+            ts.move_effect,
+            ts.looking,
+            ts.throwing,
+        );
         ts.item = None;
+        ts.move_effect = None;
+        ts.looking = false;
         ts.throwing = false;
         grabbed
     };
@@ -530,6 +672,13 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
         y: ty as u16,
     };
 
+    if looking {
+        // Every cursor move has already read this tile out loud
+        // (`announce_look`) — `Enter` here just closes the reticle rather than
+        // saying it again.
+        return Ok(false);
+    }
+
     let at_self = world
         .get::<Position>(player)
         .is_some_and(|p| p.x == target.x && p.y == target.y);
@@ -538,8 +687,17 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     }
 
+    if let Some(effect) = move_effect {
+        world.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+            user: player,
+            effect,
+            target,
+        });
+        return Ok(true);
+    }
+
     let Some((slot, item)) = world.get_mut::<Backpack>(player).and_then(|mut bp| {
-        let pos = bp.items.iter().position(|&e| e == item_entity)?;
+        let pos = bp.items.iter().position(|&e| e == item_entity.unwrap())?;
         Some((pos, bp.items.remove(pos)))
     }) else {
         return Ok(false);
@@ -567,6 +725,97 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
         slot_idx: Some(slot),
     });
     Ok(true)
+}
+
+/// `L`: open the aiming reticle in look mode — the one reticle purpose that
+/// queues nothing and spends no turn, confirmed by [`fire_at_target`].
+fn begin_look(world: &mut World) -> std::io::Result<bool> {
+    let player = player_entity(world);
+    open_reticle_for(world, player, None, None, true, false);
+    // Announces the player's own tile right away, so `l` alone already says
+    // something and `Tab` from there walks the rest of what's in view.
+    announce_look(world);
+    Ok(false)
+}
+
+/// The notable moves and on-hit tricks `Look` warns about when the reticle
+/// lands on a monster — named plainly rather than shown as whichever marker
+/// component actually arms them.
+type DangerCheck = fn(&World, Entity) -> bool;
+const MONSTER_DANGERS: &[(DangerCheck, &str)] = &[
+    (|w, e| w.get::<FireBreath>(e).is_some(), "fire breath"),
+    (|w, e| w.get::<Freezing>(e).is_some(), "paralysing touch"),
+    (|w, e| w.get::<Venomous>(e).is_some(), "venomous bite"),
+    (|w, e| w.get::<Vampiric>(e).is_some(), "draining touch"),
+    (|w, e| w.get::<Binds>(e).is_some(), "binding bite"),
+    (|w, e| w.get::<Batty>(e).is_some(), "erratic strikes"),
+    (|w, e| w.get::<Gorgon>(e).is_some(), "petrifying gaze"),
+    (
+        |w, e| w.get::<StealsAndFlees>(e).is_some(),
+        "thieving touch",
+    ),
+    (
+        |w, e| w.get::<StealsAndVanishes>(e).is_some(),
+        "thieving touch",
+    ),
+    (|w, e| w.get::<Splits>(e).is_some(), "splitting flesh"),
+    (|w, e| w.get::<RustsArmor>(e).is_some(), "corrosive touch"),
+    (
+        |w, e| w.get::<AggravatesMonsters>(e).is_some(),
+        "aggravating shriek",
+    ),
+    (
+        |w, e| w.get::<ConfusingTouch>(e).is_some(),
+        "confusing touch",
+    ),
+    (|w, e| w.get::<Regenerates>(e).is_some(), "regeneration"),
+    (
+        |w, e| models::wielded_launcher(w, e).is_some(),
+        "ranged shots",
+    ),
+];
+
+/// What `Look` reads off the aimed tile: whichever monster or item is
+/// standing there (a monster wins over something lying under it), or —
+/// failing that — an already-revealed trap, or nothing at all. A [`Hidden`]
+/// thing is passed over exactly as it is for every other purpose in the game:
+/// looking is not a way to cheat a search.
+///
+/// A monster gets a line of its own after the sighting: every notable move or
+/// on-hit trick it carries, one `"Beware ___ ___."` each — `"their"` for
+/// anything with the wits to use items, `"its"` for anything without.
+fn describe_target(world: &mut World, target: Position) -> Vec<String> {
+    let visible: Vec<Entity> = {
+        let mut q = world.query::<(Entity, &Position)>();
+        q.iter(world)
+            .filter(|(_, p)| **p == target)
+            .map(|(e, _)| e)
+            .filter(|&e| world.get::<Hidden>(e).is_none())
+            .collect()
+    };
+    let pick = visible
+        .iter()
+        .find(|&&e| world.get::<Mob>(e).is_some() || world.get::<Player>(e).is_some())
+        .or_else(|| visible.iter().find(|&&e| world.get::<Item>(e).is_some()))
+        .or_else(|| visible.iter().find(|&&e| world.get::<Trap>(e).is_some()))
+        .copied();
+    let Some(seen) = pick else {
+        return vec!["You see nothing there.".to_string()];
+    };
+
+    let mut lines = vec![format!("You see {}.", models::with_article(world, seen))];
+    if world.get::<Mob>(seen).is_some() {
+        let pronoun = match world.get::<ItemUser>(seen).is_some() {
+            true => "their",
+            false => "its",
+        };
+        for &(has, phrase) in MONSTER_DANGERS {
+            if has(world, seen) {
+                lines.push(format!("Beware {pronoun} {phrase}."));
+            }
+        }
+    }
+    lines
 }
 
 /// A keypress while the pack is open: routed to the action modal (Use / Throw /
@@ -717,10 +966,26 @@ fn return_to_pack(world: &mut World, player: Entity, item: Entity, idx: usize) {
 
 /// Arms the aiming reticle on `item`, centred on the player.
 fn open_reticle(world: &mut World, player: Entity, item: Entity, throwing: bool) {
+    open_reticle_for(world, player, Some(item), None, false, throwing);
+}
+
+/// Arms the aiming reticle on whichever one of an item, a move or a plain look
+/// the caller wants — exactly one of `item` / `move_effect` / `looking` is
+/// ever set, and [`fire_at_target`] is what reads the combination back apart.
+fn open_reticle_for(
+    world: &mut World,
+    player: Entity,
+    item: Option<Entity>,
+    move_effect: Option<MoveEffect>,
+    looking: bool,
+    throwing: bool,
+) {
     let pos = *world.get::<Position>(player).unwrap();
     let mut ts = world.resource_mut::<TargetingState>();
     ts.active = true;
-    ts.item = Some(item);
+    ts.item = item;
+    ts.move_effect = move_effect;
+    ts.looking = looking;
     ts.throwing = throwing;
     ts.cursor_x = pos.x as i16;
     ts.cursor_y = pos.y as i16;
@@ -829,6 +1094,25 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
             world.resource_mut::<QuitPrompt>().open = true;
             return Ok(false);
         }
+        // The four active moves: `Alt`+`Q`/`W`/`E`/`R` fires a slot directly,
+        // one keystroke, with no menu in the way. Checked before the plain
+        // letters below so the modifier actually distinguishes them; any
+        // other `Alt`-held key falls through to whatever it would do bare.
+        KeyCode::Char(c)
+            if key.modifiers.contains(KeyModifiers::ALT)
+                && MOVE_KEYS.contains(&c.to_ascii_lowercase()) =>
+        {
+            let slot = MOVE_KEYS
+                .iter()
+                .position(|&k| k == c.to_ascii_lowercase())
+                .unwrap();
+            return fire_move(world, slot);
+        }
+        // `Z`: the moves menu — the slower way into the same four reticles,
+        // for a player who hasn't memorised which is which yet.
+        KeyCode::Char('Z') => return begin_moves_menu(world),
+        // `L`: look — read what's on a tile without acting on it.
+        KeyCode::Char('L') => return begin_look(world),
         // The pack, one key per verb. `i` is the one that asks afterwards.
         KeyCode::Char('i') => return open_pack(world, PackMode::Browse),
         KeyCode::Char('a') => return open_pack(world, PackMode::Use),
@@ -919,6 +1203,96 @@ fn open_pack(world: &mut World, mode: PackMode) -> std::io::Result<bool> {
     };
     world.resource_mut::<PackIsOpen>().open_at(mode, first);
     Ok(false)
+}
+
+/// Fires (opens the aiming reticle for) move slot `slot` of the player's
+/// [`Moveset`] — `Alt`+`Q`/`W`/`E`/`R` on the map, or a row picked from the
+/// `Z` menu. Refuses, no turn spent, if the slot is empty or the pool can't
+/// cover it; the check here is a courtesy so the reticle never opens on a
+/// move that can only fizzle — [`models::move_system`] checks again before it
+/// actually spends the cost.
+fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
+    let player = player_entity(world);
+    let Some(effect) = world
+        .get::<Moveset>(player)
+        .and_then(|m| m.slots.get(slot).copied())
+    else {
+        world
+            .resource_mut::<GameLog>()
+            .add("You don't have a move there.");
+        return Ok(false);
+    };
+    let def = models::MoveDef::of(effect);
+    let affordable = world
+        .get::<Magic>(player)
+        .is_some_and(|m| m.points >= def.cost);
+    if !affordable {
+        world
+            .resource_mut::<GameLog>()
+            .add("You don't have the magic for that.");
+        return Ok(false);
+    }
+    open_reticle_for(world, player, None, Some(effect), false, false);
+    Ok(false)
+}
+
+/// `Z`: open the moves list, cursor on the first slot. Says so and stays on
+/// the map rather than opening an empty menu.
+fn begin_moves_menu(world: &mut World) -> std::io::Result<bool> {
+    let player = player_entity(world);
+    let has_any = world
+        .get::<Moveset>(player)
+        .is_some_and(|m| !m.slots.is_empty());
+    if !has_any {
+        world.resource_mut::<GameLog>().add("You have no moves.");
+        return Ok(false);
+    }
+    let mut menu = world.resource_mut::<MovesMenu>();
+    menu.open = true;
+    menu.selected = 0;
+    Ok(false)
+}
+
+/// A keypress while the `Z` moves menu is up: navigate, jump straight to a
+/// slot by number, confirm, or cancel. Never spends a turn itself — only the
+/// reticle [`fire_move`] opens can do that.
+fn handle_moves_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    let player = player_entity(world);
+    let slot_count = world
+        .get::<Moveset>(player)
+        .map_or(0, |m| m.slots.len())
+        .max(1);
+    let selected = world.resource::<MovesMenu>().selected;
+
+    let mut close = false;
+    let mut fire = None;
+    match key.code {
+        KeyCode::Esc => close = true,
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('8') => {
+            world.resource_mut::<MovesMenu>().selected = (selected + slot_count - 1) % slot_count;
+        }
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('2') => {
+            world.resource_mut::<MovesMenu>().selected = (selected + 1) % slot_count;
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => fire = Some(selected),
+        KeyCode::Char(c @ '1'..='4') => {
+            let idx = c as usize - '1' as usize;
+            if idx < slot_count {
+                fire = Some(idx);
+            }
+        }
+        _ => {}
+    }
+
+    if close {
+        world.resource_mut::<MovesMenu>().open = false;
+        return Ok(false);
+    }
+    let Some(idx) = fire else {
+        return Ok(false);
+    };
+    world.resource_mut::<MovesMenu>().open = false;
+    fire_move(world, idx)
 }
 
 /// `A`: flip whether auto-explore detours to pick things up, and say which way
@@ -1371,10 +1745,14 @@ mod tests {
         w.init_resource::<UseQueue>();
         w.init_resource::<ThrowQueue>();
         w.init_resource::<AttackQueue>();
+        w.init_resource::<MoveQueue>();
+        w.init_resource::<MovesMenu>();
         w.insert_resource(TargetingState {
             active: false,
             item: None,
             throwing: false,
+            move_effect: None,
+            looking: false,
             cursor_x: 0,
             cursor_y: 0,
         });

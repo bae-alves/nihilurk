@@ -398,6 +398,13 @@ pub(super) fn apply_wand_effect(
         None => return, // Safety catch: every other wand requires a target.
     };
 
+    // Aiming any wand's reticle at a medusa is a gaze like any other — see
+    // `crate::abilities::medusa_gaze`. Checked once here rather than in every
+    // arm below: it's the tile the player chose to zap, whatever the wand.
+    if let Some(seen) = monster_at(world, target_pos) {
+        crate::abilities::medusa_gaze(world, user, seen);
+    }
+
     // Exhaustive over `WandEffect`, deliberately with no catch-all: a wand
     // effect added to the enum and not given an arm here fails the build
     // instead of discharging with a generic "nothing happens" — the same
@@ -475,6 +482,45 @@ pub(super) fn apply_wand_effect(
         // match to stay exhaustive over the whole enum.
         WandEffect::Light => {}
     }
+}
+
+/// A dragon's fireball: identical to a zapped wand of fire — the same
+/// [`BLAST_RADIUS`] disc, the same armour-ignoring elemental damage — except
+/// the damage is whatever the dragon's own claws would have dealt this swing,
+/// not the wand's own dice. It replaces the swing outright rather than
+/// following one: [`crate::ai`] rolls [`crate::constants::monsters::DRAGON_FIREBALL_CHANCE`]
+/// on a turn it would otherwise queue a melee attack, and calls this instead.
+pub(crate) fn dragon_breath(world: &mut World, attacker: Entity, target: Entity) {
+    let Some(center) = world.get::<Position>(target).copied() else {
+        return;
+    };
+    let (power, power_bonus) = {
+        let fighter = world.get::<Fighter>(attacker);
+        let loadout = loadout(world, attacker);
+        (
+            fighter.map_or(0, |f| f.power) + loadout.power_die,
+            fighter.map_or(0, |f| f.power_bonus) + loadout.power_bonus,
+        )
+    };
+    let damage = (world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_range(1..=power.max(1))
+        + power_bonus)
+        .max(0);
+    let name = item_label(world, attacker);
+    world.resource_mut::<GameLog>().add(format!(
+        "The {name} rears back and breathes a gout of flame!"
+    ));
+    elemental_blast(
+        world,
+        Some(attacker),
+        center,
+        BLAST_RADIUS,
+        damage,
+        Some(Element::Fire),
+        blast_palette(WandEffect::Fire),
+    );
 }
 
 /// Wand of light: reveal — instantly — the whole room the zapper stands in (a

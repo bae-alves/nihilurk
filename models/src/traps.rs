@@ -317,6 +317,11 @@ pub fn trap_system(world: &mut World) {
         .collect();
 
     for mover in movers {
+        // Airborne: a dragon, a griffin, a jabberwock, a kestral simply passes
+        // over whatever is on the tile underfoot.
+        if world.get::<crate::effects::Flies>(mover).is_some() {
+            continue;
+        }
         let Some(pos) = world.get::<Position>(mover).copied() else {
             continue;
         };

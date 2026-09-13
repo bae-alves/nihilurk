@@ -138,6 +138,75 @@ pub struct FireArrow;
 #[derive(Component, Default, Clone, Copy)]
 pub struct FireQuarrel;
 
+/// Airborne: this creature never sets off a floor trap it steps on (a dragon,
+/// a griffin, a jabberwock, a kestral). See [`crate::traps::trap_system`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Flies;
+
+/// This creature can breathe fire in place of a melee blow — a chance, on any
+/// turn it would otherwise land one, of unleashing a wand-of-fire blast
+/// instead (the dragon). See [`crate::items::dragon_breath`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct FireBreath;
+
+/// "Batty": every blow this creature lands, it tries to hop to a random
+/// adjacent tile right afterward — landing only if that tile is open and
+/// unoccupied (the bat, the phantom). See [`crate::abilities`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Batty;
+
+/// Every hit from this creature clamps its victim in a bear trap's jaws (the
+/// venus flytrap; a xeroc that has dropped its disguise). See
+/// [`crate::abilities`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Binds;
+
+/// Petrifies anything that attacks it, fires at it or zaps it — a gaze that
+/// lands the instant the player targets this creature, not on the blow that
+/// follows (the medusa). See [`crate::abilities::medusa_gaze`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Gorgon;
+
+/// Every hit from this creature drinks a point of its victim's *maximum* HP
+/// (the vampire). See [`crate::abilities`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Vampiric;
+
+/// This creature's bite saps its victim's base power outright — like the dart
+/// trap, but with no floor of 1: it can drive a victim's power negative (the
+/// rattlesnake). See [`crate::abilities`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Venomous;
+
+/// This creature covets coins: hurt and with a red coin somewhere on the
+/// floor, it abandons the chase for it, and it scoops up any coin it steps on
+/// that would actually help it (an orc). See [`crate::ai`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct CoinGreedy;
+
+/// This creature freezes what it touches: a chance on every hit of
+/// paralysing the victim outright (the ice monster). See [`crate::abilities`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Freezing;
+
+/// Every hit from this creature lifts something loose from its victim's pack,
+/// uses it on the spot, and vanishes — the leprechaun's whole (dangerous)
+/// routine. See [`crate::abilities::leprechaun_theft`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct StealsAndFlees;
+
+/// Every hit from this creature strips one thing its victim has *equipped*
+/// and disappears the instant it does — the nymph. See
+/// [`crate::abilities::nymph_theft`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct StealsAndVanishes;
+
+/// Not merely killable: cut down short of the last point of damage, this
+/// creature buds a fresh copy of itself at its current HP, if there is
+/// somewhere for it to stand (a slime). See [`crate::monsters::maybe_split`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Splits;
+
 // ---------------------------------------------------------------------------
 // Numeric modifiers
 // ---------------------------------------------------------------------------
@@ -359,6 +428,18 @@ pub const EFFECTS: &[Grant] = &[
     Grant::of::<Stealthy>(),
     Grant::of::<Regenerates>(),
     Grant::of::<Teleportitis>(),
+    Grant::of::<Flies>(),
+    Grant::of::<Batty>(),
+    Grant::of::<Binds>(),
+    Grant::of::<Gorgon>(),
+    Grant::of::<Vampiric>(),
+    Grant::of::<Venomous>(),
+    Grant::of::<CoinGreedy>(),
+    Grant::of::<Splits>(),
+    Grant::of::<Freezing>(),
+    Grant::of::<StealsAndFlees>(),
+    Grant::of::<StealsAndVanishes>(),
+    Grant::of::<FireBreath>(),
 ];
 
 /// The effects an entity hands out: innate magic on a monster, the effects a

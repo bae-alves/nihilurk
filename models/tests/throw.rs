@@ -99,14 +99,17 @@ fn a_thrown_weapon_is_caught_and_wielded_by_a_creature_with_hands() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let orc = monster(&mut w, "orc", spot);
+    // A troll rather than an orc or a hobgoblin on purpose: neither of those
+    // two ever rolls a piece of gear at spawn, so its hands are never already
+    // full when the mace arrives.
+    let troll = monster(&mut w, "troll", spot);
     // Enough HP that the mace can't kill it before it can catch it.
-    w.get_mut::<Fighter>(orc).unwrap().hp = 20;
+    w.get_mut::<Fighter>(troll).unwrap().hp = 20;
     let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
 
     throw(&mut w, p, mace, spot);
 
-    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
+    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(troll));
     // Caught, not dropped: it is nobody's floor item now.
     assert!(w.get::<Position>(mace).is_none());
     assert!(logged(&w, "wields it"));
@@ -607,7 +610,6 @@ fn the_item_users_are_the_humanoids_with_wits() {
     assert_eq!(
         users,
         vec![
-            "goblin",
             "centaur",
             "hobgoblin",
             "leprechaun",
@@ -679,21 +681,21 @@ fn throwing_equipped_gear_takes_it_off_first() {
     );
 }
 
-/// Arm a goblin with a thrown mace, kill it, and report whether the mace
+/// Arm a troll with a thrown mace, kill it, and report whether the mace
 /// survived the death roll.
-fn kill_an_armed_goblin(seed: u64) -> bool {
+fn kill_an_armed_troll(seed: u64) -> bool {
     let mut w = test_world(seed);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let goblin = monster(&mut w, "goblin", spot);
-    w.get_mut::<Fighter>(goblin).unwrap().hp = 20;
+    let troll = monster(&mut w, "troll", spot);
+    w.get_mut::<Fighter>(troll).unwrap().hp = 20;
     let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
     throw(&mut w, p, mace, spot);
-    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(goblin));
+    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(troll));
 
-    w.get_mut::<Fighter>(goblin).unwrap().hp = 0;
+    w.get_mut::<Fighter>(troll).unwrap().hp = 0;
     reaper_system(&mut w);
-    assert!(w.get_entity(goblin).is_none());
+    assert!(w.get_entity(troll).is_none());
 
     match w.get_entity(mace) {
         // Survived: on the floor where it fell, owned by nobody, announced.
@@ -713,7 +715,7 @@ fn kill_an_armed_goblin(seed: u64) -> bool {
 
 #[test]
 fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
-    let survivals = (0..40).filter(|&seed| kill_an_armed_goblin(seed)).count();
+    let survivals = (0..40).filter(|&seed| kill_an_armed_troll(seed)).count();
     // A coin flip per item: over forty deaths, both outcomes have to show up.
     assert!(survivals > 0, "no gear ever survived a death");
     assert!(survivals < 40, "gear always survived a death");

@@ -299,27 +299,23 @@ fn a_promise_you_already_hold_leaves_the_coin_on_the_floor() {
 
 /// Drops the named coin a few tiles east of the player and sets it off as
 /// though they had shot it. Returns what went off.
-fn shoot(w: &mut World, coin: &str) -> Option<TrickShot> {
+fn shoot(w: &mut World, coin: &str) -> (Option<TrickShot>, Entity) {
     let p = player(w);
     let at = *w.get::<Position>(p).unwrap();
     let target = Position {
         x: at.x + 4,
         y: at.y,
     };
-    spawn_named(w, coin, target).expect("a coin by that name");
-    detonate_at(w, target, Some(p))
+    let entity = spawn_named(w, coin, target).expect("a coin by that name");
+    (detonate_at(w, target, Some(p)), entity)
 }
 
 #[test]
 fn a_shot_coin_goes_off_and_is_gone() {
     let mut w = test_world(1);
-    assert_eq!(shoot(&mut w, "gold coin"), Some(TrickShot::Pickup));
-    let coins = w
-        .query_filtered::<Entity, With<Pickup>>()
-        .iter(&w)
-        .filter(|&e| w.get::<Position>(e).is_some())
-        .count();
-    assert_eq!(coins, 0, "the shot spent it");
+    let (shot, coin) = shoot(&mut w, "gold coin");
+    assert_eq!(shot, Some(TrickShot::Pickup));
+    assert!(w.get_entity(coin).is_none(), "the shot spent it");
 }
 
 #[test]
@@ -357,7 +353,7 @@ fn a_shot_coin_does_not_ask_whether_you_needed_it() {
     let mut w = test_world(1);
     let p = player(&mut w);
     let full = w.get::<Fighter>(p).unwrap().hp;
-    assert_eq!(shoot(&mut w, "red coin"), Some(TrickShot::Pickup));
+    assert_eq!(shoot(&mut w, "red coin").0, Some(TrickShot::Pickup));
     assert!(w.get::<Fighter>(p).unwrap().hp <= full);
 }
 

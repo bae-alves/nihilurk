@@ -18,9 +18,22 @@
 use bevy_ecs::prelude::*;
 use rand::Rng;
 
-use crate::components::{ConfusingTouch, GameLog, Mob, Player};
-use crate::effects::{AggravatesMonsters, Grant, Regenerates, RustsArmor, Teleportitis};
+use crate::components::{
+    Backpack, ConfusingTouch, Curse, EntityMoved, Fighter, GameLog, Mob, Player, Position,
+    SnareKind, TrapEffect,
+};
+use crate::effects::{
+    AggravatesMonsters, Batty, Binds, Freezing, Gorgon, Grant, Regenerates, RustsArmor,
+    StealsAndFlees, StealsAndVanishes, SustainsStrength, Teleportitis, Vampiric, Venomous,
+};
+use crate::helpers::item_label;
 use crate::map::GameRng;
+
+// --- Tuning constants ------------------------------------------------------
+// Defined and documented in `constants.rs`.
+use crate::constants::monsters::{
+    ICE_MONSTER_PARALYZE_CHANCE, RATTLESNAKE_POWER_DRAIN, VAMPIRE_MAX_HP_DRAIN,
+};
 
 /// One self-acting passive: the effect that arms it, the odds it fires on any
 /// given turn, the mechanic it runs, and the line logged when it goes off.
@@ -100,6 +113,48 @@ pub const ON_HIT_ABILITIES: &[OnHitAbility] = &[
         on_lethal: true,
         action: corrode,
     },
+    OnHitAbility {
+        effect: Grant::of::<Batty>(),
+        on_glancing: true,
+        on_lethal: false,
+        action: batty_hop,
+    },
+    OnHitAbility {
+        effect: Grant::of::<Freezing>(),
+        on_glancing: false,
+        on_lethal: false,
+        action: freezing_touch,
+    },
+    OnHitAbility {
+        effect: Grant::of::<Venomous>(),
+        on_glancing: false,
+        on_lethal: false,
+        action: venomous_bite,
+    },
+    OnHitAbility {
+        effect: Grant::of::<Vampiric>(),
+        on_glancing: false,
+        on_lethal: false,
+        action: vampiric_drain,
+    },
+    OnHitAbility {
+        effect: Grant::of::<Binds>(),
+        on_glancing: true,
+        on_lethal: false,
+        action: bind_victim,
+    },
+    OnHitAbility {
+        effect: Grant::of::<StealsAndFlees>(),
+        on_glancing: false,
+        on_lethal: false,
+        action: crate::items::leprechaun_theft,
+    },
+    OnHitAbility {
+        effect: Grant::of::<StealsAndVanishes>(),
+        on_glancing: false,
+        on_lethal: false,
+        action: crate::items::nymph_theft,
+    },
 ];
 
 /// [`crate::equipment::corrode_armor`] with the table's shape: an on-hit
@@ -107,6 +162,179 @@ pub const ON_HIT_ABILITIES: &[OnHitAbility] = &[
 /// end that was wearing something.
 fn corrode(world: &mut World, _attacker: Entity, target: Entity) {
     crate::equipment::corrode_armor(world, target);
+}
+
+/// "Batty": every blow it lands, the attacker itself tries to hop to a random
+/// adjacent tile right afterward — the bat's (and the phantom's) erratic
+/// flitting. A no-op when nothing open is free to land on, and tags the
+/// landing tile [`EntityMoved`] so a bat that hops onto a trap still springs
+/// it.
+fn batty_hop(world: &mut World, attacker: Entity, _target: Entity) {
+    let Some(pos) = world.get::<Position>(attacker).copied() else {
+        return;
+    };
+    let Some((x, y)) = crate::helpers::free_adjacent_tile(world, pos) else {
+        return;
+    };
+    if let Some(mut p) = world.get_mut::<Position>(attacker) {
+        p.x = x;
+        p.y = y;
+    }
+    world.entity_mut(attacker).insert(EntityMoved);
+}
+
+/// The ice monster's freeze: [`ICE_MONSTER_PARALYZE_CHANCE`] on every clean
+/// hit of locking the victim's limbs up outright — the same paralysis a
+/// potion does.
+fn freezing_touch(world: &mut World, _attacker: Entity, target: Entity) {
+    if !world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_bool(ICE_MONSTER_PARALYZE_CHANCE)
+    {
+        return;
+    }
+    crate::conditions::paralyse(world, target);
+}
+
+/// The rattlesnake's bite: [`RATTLESNAKE_POWER_DRAIN`] points of base power,
+/// permanently — like the dart trap's poison, but with no floor of 1, so a
+/// long enough fight can drive a victim's power negative. A ring of strength
+/// ([`SustainsStrength`]) shrugs it off exactly as it does the trap.
+fn venomous_bite(world: &mut World, _attacker: Entity, target: Entity) {
+    if world.get::<SustainsStrength>(target).is_some() {
+        if world.get::<Player>(target).is_some() {
+            world
+                .resource_mut::<GameLog>()
+                .add("The venom burns, but your strength holds firm.".to_string());
+        }
+        return;
+    }
+    if let Some(mut fighter) = world.get_mut::<Fighter>(target) {
+        fighter.power -= RATTLESNAKE_POWER_DRAIN;
+    }
+    if world.get::<Player>(target).is_some() {
+        world
+            .resource_mut::<GameLog>()
+            .add("Venom courses through you — your strength ebbs away.".to_string());
+    }
+}
+
+/// The vampire's touch: [`VAMPIRE_MAX_HP_DRAIN`] points off the victim's
+/// *maximum* HP, permanently, clamping current HP down with it if it now
+/// exceeds the new ceiling.
+fn vampiric_drain(world: &mut World, _attacker: Entity, target: Entity) {
+    let Some(mut fighter) = world.get_mut::<Fighter>(target) else {
+        return;
+    };
+    fighter.max_hp = (fighter.max_hp - VAMPIRE_MAX_HP_DRAIN).max(1);
+    if fighter.hp > fighter.max_hp {
+        fighter.hp = fighter.max_hp;
+    }
+    if world.get::<Player>(target).is_some() {
+        world
+            .resource_mut::<GameLog>()
+            .add("A deathly chill spreads through you — your vitality is drained!".to_string());
+    }
+}
+
+/// The venus flytrap's (and a revealed xeroc's) bite: clamps the victim in a
+/// bear trap's jaws — the same [`SnareKind::Bear`] snare, for the same number
+/// of turns a bear trap holds for.
+fn bind_victim(world: &mut World, attacker: Entity, target: Entity) {
+    let turns = crate::traps::TrapDef::of(TrapEffect::Bear).snare_turns;
+    if !crate::conditions::snare(world, target, SnareKind::Bear, turns) {
+        return;
+    }
+    let name = item_label(world, attacker);
+    let line = match world.get::<Player>(target).is_some() {
+        true => format!(
+            "The {name} clamps its jaws around your leg — you can't take a step, but your arms are free!"
+        ),
+        false => format!(
+            "The {name} clamps its jaws around the {}!",
+            item_label(world, target)
+        ),
+    };
+    world.resource_mut::<GameLog>().add(line);
+}
+
+// ---------------------------------------------------------------------------
+// The medusa's gaze
+// ---------------------------------------------------------------------------
+
+/// The medusa's gaze: petrify the player outright the instant they attack,
+/// fire at, or zap the creature — mechanically identical to
+/// [`SnareKind::Sleep`] (the same snare, the same [`SLEEP_TURNS`]), only the
+/// flavour is stone rather than slumber. Certain, not a roll — looking upon a
+/// medusa is the whole danger — and it lands whether or not the blow itself
+/// does; the gaze doesn't wait to see if you missed.
+///
+/// A no-op for anything that isn't the player looking upon a [`Gorgon`]: a
+/// medusa's own kind is unmoved by each other, and nothing but a person's eyes
+/// can be turned to stone by this.
+pub(crate) fn medusa_gaze(world: &mut World, looker: Entity, seen: Entity) {
+    if world.get::<Player>(looker).is_none() || world.get::<Gorgon>(seen).is_none() {
+        return;
+    }
+    let turns = crate::constants::scrolls::SLEEP_TURNS;
+    if !crate::conditions::snare(world, looker, SnareKind::Sleep, turns) {
+        return;
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add("Your eyes meet the medusa's — and your flesh turns to cold stone!".to_string());
+}
+
+// ---------------------------------------------------------------------------
+// Theft: the leprechaun and the nymph
+// ---------------------------------------------------------------------------
+
+/// A uniformly random item in `victim`'s pack that isn't currently equipped —
+/// the Element of Yoord excepted, since nothing in the dungeon can lift that
+/// off you. `None` for an empty pack, or one holding nothing but the relic.
+pub(crate) fn steal_unequipped_item(world: &mut World, victim: Entity) -> Option<Entity> {
+    let items = world.get::<Backpack>(victim)?.items.clone();
+    let stealable: Vec<Entity> = items
+        .into_iter()
+        .filter(|&e| world.get::<crate::components::Amulet>(e).is_none())
+        .collect();
+    if stealable.is_empty() {
+        return None;
+    }
+    let idx = world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_range(0..stealable.len());
+    let item = stealable[idx];
+    if let Some(mut bp) = world.get_mut::<Backpack>(victim) {
+        bp.items.retain(|&e| e != item);
+    }
+    Some(item)
+}
+
+/// A uniformly random piece of gear `victim` currently has equipped that
+/// isn't cursed onto them — a curse holds even against a nymph's fingers.
+/// `None` if there is nothing to take.
+pub(crate) fn steal_equipped_item(world: &mut World, victim: Entity) -> Option<Entity> {
+    let stealable: Vec<Entity> = crate::equipment::equipped_items(world, victim)
+        .into_iter()
+        .filter(|&e| world.get::<Curse>(e).is_none())
+        .collect();
+    if stealable.is_empty() {
+        return None;
+    }
+    let idx = world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_range(0..stealable.len());
+    let item = stealable[idx];
+    crate::equipment::force_unequip(world, item);
+    crate::equipment::sync_equipment_effects(world, victim);
+    if let Some(mut bp) = world.get_mut::<Backpack>(victim) {
+        bp.items.retain(|&e| e != item);
+    }
+    Some(item)
 }
 
 /// Fires every on-hit ability `attacker` has armed against `target`. Called by

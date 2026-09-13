@@ -562,6 +562,9 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     };
 
     for &hit in &victims {
+        // Aiming a shot at a medusa is a gaze like any other — see
+        // `crate::abilities::medusa_gaze`.
+        crate::abilities::medusa_gaze(world, thrower, hit);
         let msg = strike_victim(world, thrower, item, hit, landing, &seen_name);
         world.resource_mut::<GameLog>().add(msg);
     }
@@ -623,6 +626,70 @@ fn confetti_burst(fx: &mut Particles, center: Position) {
         };
         fx.blip(x, y, '*', color);
     }
+}
+
+/// A launcher-wielding monster's shot: `shooter` looses at `target` exactly as
+/// a fired missile always resolves — the ammunition's die doubled by the
+/// drawn launcher, the roll ignoring armour outright, plus whatever
+/// [`ThrowBonus`] the launcher's own enchantment lends. A monster keeps no
+/// quiver to draw from, so unlike the player's own shot this one never runs
+/// dry: [`crate::ai`] calls it in place of a melee attack for as long as a
+/// launcher stays in its hand.
+///
+/// A no-op if `shooter` isn't actually wielding one — the caller has already
+/// checked, but this is the one place that knows how to loose a shot, so it
+/// checks again rather than trust it.
+pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: Entity) {
+    if crate::equipment::wielded_launcher(world, shooter).is_none() {
+        return;
+    }
+    let fires_quarrel = world.get::<FireQuarrel>(shooter).is_some();
+    let (base_die, noun) = if fires_quarrel {
+        (6, "quarrel")
+    } else {
+        (4, "arrow")
+    };
+    let die = base_die * LAUNCHER_DIE_MULTIPLIER;
+    let bonus = equipped_total::<ThrowBonus>(world, shooter);
+    let roll = world.resource_mut::<GameRng>().0.gen_range(1..=die) + bonus;
+    let damage = roll.max(0);
+
+    let shooter_name = item_label(world, shooter);
+    let target_is_player = world.get::<Player>(target).is_some();
+    let target_label = match target_is_player {
+        true => "you".to_string(),
+        false => format!("the {}", item_label(world, target)),
+    };
+    let from = world.get::<Position>(shooter).copied();
+    let at = world.get::<Position>(target).copied();
+    if let (Some(from), Some(at)) = (from, at) {
+        let cells: Vec<(u16, u16)> = get_line(from, at)
+            .into_iter()
+            .filter(|&p| p != from)
+            .map(|p| (p.x, p.y))
+            .collect();
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.hurl(&cells, if fires_quarrel { '/' } else { '↑' }, Color::Grey);
+        }
+    }
+
+    if damage <= 0 {
+        world.resource_mut::<GameLog>().add(format!(
+            "The {shooter_name} looses a wild {noun} — it goes nowhere near {target_label}."
+        ));
+        return;
+    }
+
+    apply_damage(world, target, damage);
+    if let Some(at) = at {
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.hit_spark(at.x, at.y);
+        }
+    }
+    world.resource_mut::<GameLog>().add(format!(
+        "The {shooter_name} looses {} {noun} at {target_label} for {damage} damage!",
+        article_for(noun)
+    ));
 }
 
 /// A thrown potion is glass: it breaks on the first thing it reaches and doses

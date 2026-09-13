@@ -627,6 +627,11 @@ pub fn render<W: Write>(
         draw_inventory(world, screen);
     }
 
+    // ---- Moves overlay ----
+    if world.resource::<MovesMenu>().open {
+        draw_moves(world, screen);
+    }
+
     // ---- "Really quit?" ----
     // Last of all, so it sits over whatever else is on screen.
     if world.resource::<QuitPrompt>().open {
@@ -1119,4 +1124,71 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
         }
         screen.puts(mx, my + 1 + actions.len() as u16, "└────────┘", grey);
     }
+}
+
+/// The `Z` moves box: up to four rows, numbered `1`-`4`, each the move's name
+/// and its [`Magic`] cost. Drawn the same way the inventory box is, just with
+/// no sub-menu — picking a row goes straight to the aiming reticle.
+fn draw_moves(world: &mut World, screen: &mut Screen) {
+    let selected = world.resource::<MovesMenu>().selected;
+    let slots = {
+        let mut q = world.query_filtered::<&Moveset, With<Player>>();
+        q.iter(world)
+            .next()
+            .map(|m| m.slots.clone())
+            .unwrap_or_default()
+    };
+
+    let rows: Vec<String> = slots
+        .iter()
+        .enumerate()
+        .map(|(i, &effect)| {
+            let def = MoveDef::of(effect);
+            format!(" {}) {} ({} Ma) ", i + 1, def.name, def.cost)
+        })
+        .collect();
+
+    let start_x: u16 = 5;
+    let start_y: u16 = 3;
+    let grey = Color::DarkGrey;
+    let title = " MOVES ";
+    let box_width = rows
+        .iter()
+        .map(|r| r.chars().count() as u16)
+        .chain([title.len() as u16])
+        .max()
+        .unwrap_or(0)
+        .max(20);
+
+    screen.put(start_x, start_y, '┌', grey);
+    screen.hline(start_x + 1, start_y, '─', box_width, grey);
+    screen.put(start_x + 1 + box_width, start_y, '┐', grey);
+    screen.puts(
+        start_x + box_width / 2 - title.len() as u16 / 2,
+        start_y,
+        title,
+        Color::Yellow,
+    );
+
+    for (row, text) in rows.iter().enumerate() {
+        let y = start_y + 1 + row as u16;
+        let color = if row == selected {
+            Color::Yellow
+        } else {
+            Color::White
+        };
+        screen.put(start_x, y, '│', grey);
+        screen.puts(
+            start_x + 1,
+            y,
+            &format!("{:<w$}", text, w = box_width as usize),
+            color,
+        );
+        screen.put(start_x + 1 + box_width, y, '│', grey);
+    }
+
+    let bottom_y = start_y + 1 + rows.len() as u16;
+    screen.put(start_x, bottom_y, '└', grey);
+    screen.hline(start_x + 1, bottom_y, '─', box_width, grey);
+    screen.put(start_x + 1 + box_width, bottom_y, '┘', grey);
 }

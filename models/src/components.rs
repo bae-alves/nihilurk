@@ -109,9 +109,12 @@ pub struct Mob {
     pub movement_type: MovementType,
 }
 
-/// A monster's movement tactic. `Static` holds still, `Chase` walks toward the
-/// player when it can see them, `Flee` walks away, `Confused` staggers at
-/// random.
+/// A monster's movement tactic. `Static` holds still and never acts at all —
+/// the inert placeholder tests reach for. `Chase` walks toward the player when
+/// it can see them, `Flee` walks away, `Confused` staggers at random, `Ambush`
+/// lies in wait and never approaches but lunges to strike the instant the
+/// player is adjacent (the venus flytrap, the ice monster, a xeroc that has
+/// dropped its disguise).
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub enum MovementType {
     Static,
@@ -126,6 +129,7 @@ pub enum MovementType {
         tx: u16,
         ty: u16,
     },
+    Ambush,
 }
 
 /// Everything needed to resolve a fight. Combat is a pair of opposed rolls with
@@ -277,6 +281,16 @@ pub struct Hidden;
 /// per-turn "can't be seen right now" the renderer reads.
 #[derive(Component)]
 pub struct Invisible;
+
+/// A xeroc still wearing its disguise: its [`Name`] and [`Renderable`] read as
+/// an ordinary item, and it is excluded from every "a monster is nearby"
+/// check ([`crate::autoexplore::monster_in_sight`],
+/// [`crate::autofight::visible_enemies`]) so auto-explore and auto-fight are
+/// fooled right along with the player. [`crate::monsters::reveal_mimics`]
+/// strips this — and the disguise with it — the instant the player is
+/// standing next to it. See [`crate::monsters::MonsterDef::mimics`].
+#[derive(Component)]
+pub struct Mimic;
 
 /// Present while an entity is currently inside the player's viewshed. Added the
 /// turn it first enters view (logging "you spotted ..."), removed the turn it
@@ -496,6 +510,30 @@ impl WandEffect {
     pub fn needs_target(self) -> bool {
         !matches!(self, WandEffect::Light)
     }
+}
+
+/// Which active move this is — a move's identity, the same way [`WandEffect`]
+/// is a wand's. See [`crate::catalog::MoveDef`].
+///
+/// Serialised by variant position — append, never reorder.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MoveEffect {
+    DragonBreath,
+}
+
+/// The player's active-ability bar: up to four moves, each triggered directly
+/// by its slot number (`Alt`+`Q`/`W`/`E`/`R`, or picked from the `Z` menu).
+///
+/// A move is coded the way a potion, scroll or wand is — one identity enum,
+/// one catalog row ([`crate::catalog::MoveDef`]), one mechanic keyed off it
+/// ([`crate::items::moves`]) — because it is exactly as *active* as any of
+/// those. It differs from every item in the game in what it is not: it
+/// carries no [`Item`] marker, is never spawned with a [`Position`], holds no
+/// pack slot, and cannot be dropped or thrown. It lives here, permanently, and
+/// costs [`Magic`] per use instead of a battery running dry.
+#[derive(Component, Default, Clone, Serialize, Deserialize)]
+pub struct Moveset {
+    pub slots: Vec<MoveEffect>,
 }
 
 /// Type-key for a ring, the twin of [`Potion`] / [`Scroll`] / [`Wand`]. What the
@@ -884,6 +922,23 @@ pub struct ThrowQueue {
     pub throws: Vec<WantsToThrow>,
 }
 
+/// Intent: `user` triggers active move `effect` at `target` — a move's twin of
+/// [`WantsToUse`], minus everything about an item because a move isn't one.
+/// Drained by [`move_system`](crate::items::move_system).
+#[derive(Event, Clone, Copy)]
+pub struct WantsToMove {
+    pub user: Entity,
+    pub effect: MoveEffect,
+    pub target: Position,
+}
+
+/// The turn's pending moves. Drained by
+/// [`move_system`](crate::items::move_system).
+#[derive(Resource, Default)]
+pub struct MoveQueue {
+    pub moves: Vec<WantsToMove>,
+}
+
 // ===========================================================================
 // UI and input state (resources)
 // ===========================================================================
@@ -903,6 +958,16 @@ pub struct RenderConfig {
 // The pack screen's own state — `ItemAction`, `PackMode` and `PackIsOpen` —
 // lives in [`crate::pack`], next to the row filtering that decides what each of
 // its ten modes shows.
+
+/// Whether the `Z` moves menu is open, and which slot (0-3) the cursor sits
+/// on. Picking a row opens the aiming reticle on that move exactly the way
+/// the pack's `Use` row does on an item. `Alt`+`Q`/`W`/`E`/`R` reach the same
+/// reticle directly, one keystroke, without opening this menu at all.
+#[derive(Resource, Default)]
+pub struct MovesMenu {
+    pub open: bool,
+    pub selected: usize,
+}
 
 /// Whether the "Really quit?" prompt is up.
 ///
@@ -927,6 +992,15 @@ pub struct TargetingState {
     /// [`crate::items::THROW_RANGE`] instead of the item's own, and confirming
     /// hurls the item instead of using it.
     pub throwing: bool,
+    /// The reticle is triggering an active move rather than an item —
+    /// `item` is `None` whenever this is `Some`. Confirming queues a
+    /// [`WantsToMove`] instead of a [`WantsToUse`].
+    pub move_effect: Option<MoveEffect>,
+    /// The reticle is a plain look: nothing is queued and no turn is spent —
+    /// confirming only logs what's on the aimed tile. `item` and `move_effect`
+    /// are both `None` whenever this is set, and unlike every other reticle
+    /// purpose it may be confirmed on the player's own tile.
+    pub looking: bool,
     pub cursor_x: i16,
     pub cursor_y: i16,
 }

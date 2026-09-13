@@ -115,7 +115,7 @@ The bestiary uses 1, 5 and 10 -- fodder from the start, the mid tier from floor 
 
 The dungeon is 13 floors deep (`FINAL_DEPTH`), so a `min_depth` above 13 means "never" -- on the way in. The climb out is the exception: once the Element of Yoord is in the pack, floor population switches from `pick` to `MonsterDef::pick_any`, which drops the gate entirely, so a `min_depth` of 10 (or 99) is no protection on the ascent.
 
-> **Every floor still draws from everything it has unlocked.** A goblin
+> **Every floor still draws from everything it has unlocked.** A bat
 > does not stop appearing on floor 9; it competes with the dragon. That
 > is what keeps deep floors feeling like a dungeon rather than a boss
 > rush. If you want something to *stop* appearing, `min_depth` is the

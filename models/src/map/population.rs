@@ -37,7 +37,7 @@ use crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 /// hundred draws to find that out costs the same seeded RNG stream everything
 /// else on the floor draws from, for a slot the dungeon is happy to skip.
 const PLACEMENT_TRIES: usize = 10;
-use crate::monsters::{MonsterDef, spawn_monster};
+use crate::monsters::{MonsterDef, spawn_monster_with_rng};
 use crate::rect::Rect;
 use crate::spawn::{roll_item, spawn_requested};
 
@@ -170,7 +170,7 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
             continue;
         };
         let def = pick_species(&mut rng);
-        spawn_monster(world, def, Position { x, y });
+        spawn_monster_with_rng(world, def, Position { x, y }, &mut rng);
     }
 
     // From depth 7 on, every corridor also has a small (5%) chance of hiding a
@@ -183,7 +183,7 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
             }
             if occupied.insert((cx, cy)) {
                 let def = pick_species(&mut rng);
-                spawn_monster(world, def, Position { x: cx, y: cy });
+                spawn_monster_with_rng(world, def, Position { x: cx, y: cy }, &mut rng);
             }
         }
     }

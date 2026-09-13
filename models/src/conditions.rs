@@ -31,8 +31,8 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    Blind, Confused, Fighter, GameLog, Mob, MovementType, Paralyzed, Player, Snare, SnareKind,
-    Speed, SpeedKind, Viewshed,
+    Blind, Confused, Fighter, GameLog, Mob, MovementType, Paralyzed, Player, Position, Snare,
+    SnareKind, Speed, SpeedKind, Viewshed,
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{SeesInvisible, Sluggish, clear_floor_grants};
@@ -217,23 +217,33 @@ pub fn cure_one_condition(world: &mut World, entity: Entity) -> bool {
     if world.get::<Blind>(entity).is_some() {
         world.entity_mut(entity).remove::<Blind>();
         touch_viewshed(world, entity);
-        return report_cure(world, entity, "The darkness lifts from your eyes.");
+        return report_cure(
+            world,
+            entity,
+            "The darkness lifts from your eyes.",
+            "blindness",
+        );
     }
     if world.get::<Paralyzed>(entity).is_some() {
         world.entity_mut(entity).remove::<Paralyzed>();
         restore_tempo(world, entity);
-        return report_cure(world, entity, "Your limbs are your own again.");
+        return report_cure(world, entity, "Your limbs are your own again.", "paralysis");
     }
     if world.get::<Confused>(entity).is_some() {
         world.entity_mut(entity).remove::<Confused>();
-        return report_cure(world, entity, "Your head clears.");
+        return report_cure(world, entity, "Your head clears.", "confusion");
     }
     if world
         .get::<Speed>(entity)
         .is_some_and(|s| s.kind == SpeedKind::Slow)
     {
         restore_tempo(world, entity);
-        return report_cure(world, entity, "The lead goes out of your legs.");
+        return report_cure(
+            world,
+            entity,
+            "The lead goes out of your legs.",
+            "sluggishness",
+        );
     }
     false
 }
@@ -250,7 +260,12 @@ pub fn restore_one_power(world: &mut World, entity: Entity) -> bool {
         return false;
     }
     fighter.power += 1;
-    report_cure(world, entity, "Strength trickles back into your arm.")
+    report_cure(
+        world,
+        entity,
+        "Strength trickles back into your arm.",
+        "weakness",
+    )
 }
 
 /// Puts `entity` back to [`SpeedKind::Normal`] without the ceremony
@@ -262,11 +277,23 @@ fn restore_tempo(world: &mut World, entity: Entity) {
     }
 }
 
-/// Logs `player_line` if the mended creature is the player, and reports `true`
-/// either way — something was mended whether or not anybody was told about it.
-fn report_cure(world: &mut World, entity: Entity, player_line: &str) -> bool {
+/// Logs `player_line` if the mended creature is the player; for a monster the
+/// player can actually see, logs `"The {name} snaps out of {mob_noun}."`
+/// instead — a griffin, a troll or a vampire mending itself off its own
+/// [`Regenerates`](crate::effects::Regenerates) is the only way this branch is
+/// reached today. Reports `true` either way: something was mended whether or
+/// not anybody was told about it.
+fn report_cure(world: &mut World, entity: Entity, player_line: &str, mob_noun: &str) -> bool {
     if world.get::<Player>(entity).is_some() {
         world.resource_mut::<GameLog>().add(player_line.to_string());
+        return true;
+    }
+    let pos = world.get::<Position>(entity).copied();
+    if pos.is_some_and(|p| crate::helpers::player_sees(world, p.x, p.y)) {
+        let name = item_label(world, entity);
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("The {name} snaps out of {mob_noun}."));
     }
     true
 }

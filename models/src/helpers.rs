@@ -272,6 +272,7 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
 pub(crate) fn took_damage(world: &mut World, entity: Entity, hp_before: Option<i32>) {
     crate::items::break_promises(world, entity);
     warn_if_newly_low(world, entity, hp_before);
+    crate::monsters::maybe_split(world, entity);
 }
 
 /// Logs a one-time "badly wounded" warning as the player's HP crosses down
