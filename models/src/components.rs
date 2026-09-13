@@ -672,13 +672,22 @@ pub struct Projectile;
 #[derive(Component, Clone, Copy)]
 pub struct Piercing;
 
-/// The effect that turns a lobbed missile into a loosed one, doubling its die.
-/// An arrow answers to [`crate::effects::FireArrow`], a quarrel to
+/// The effect that turns a lobbed missile into a loosed one. An arrow answers
+/// to [`crate::effects::FireArrow`], a quarrel to
 /// [`crate::effects::FireQuarrel`]; the bow and crossbow are simply things that
 /// grant those. Neither missile knows a launcher exists, and no launcher knows
 /// what ammunition is — they meet at the effect, like everything else here.
+/// What the missile rolls once loosed is [`LaunchedDamage`], not this.
 #[derive(Component, Clone, Copy)]
 pub struct LaunchedBy(pub crate::effects::Grant);
+
+/// What this item rolls once [`LaunchedBy`] says it has been loosed rather
+/// than lobbed, in place of doubling [`ThrownDamage`]. A quarrel still gets
+/// the full double (a crossbow's whole point); an arrow gets less than that —
+/// a deliberate nerf on the bow, the most efficient weapon in the game by a
+/// wide margin — so the two dials live apart instead of one shared multiplier.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LaunchedDamage(pub i32);
 
 /// A bow or a crossbow: gear that is worth nothing swung and everything drawn.
 /// It contributes no attack die, so its enchantment has no melee roll to land

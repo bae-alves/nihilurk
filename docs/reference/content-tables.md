@@ -182,12 +182,13 @@ Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDa
 
 | Field         | Type           | Notes                                   |
 |---------------|----------------|-----------------------------------------|
-| `name`        | `&'static str` |                                         |
-| `color`       | `Color`        |                                         |
-| `die`         | `i32`          | Rolled when hurled by hand.             |
-| `launched_by` | `Grant`        | The effect that doubles the die.        |
+| `name`         | `&'static str` |                                         |
+| `color`        | `Color`        |                                         |
+| `die`          | `i32`          | Rolled when hurled by hand.             |
+| `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`. A quarrel's is the plain double; an arrow's is short of that, a deliberate nerf on the bow. |
+| `launched_by`  | `Grant`        | The effect that switches to `launched_die`. |
 
-Draws `)`. Attaches `Item`, `ThrownDamage`, `Projectile`, `LaunchedBy`, `Stack { count: 1 }`. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
+Draws `)`. Attaches `Item`, `ThrownDamage`, `LaunchedDamage`, `Projectile`, `LaunchedBy`, `Stack { count: 1 }`. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
 
 Stacks to `STACK_LIMIT` per pack slot. A floor drop arrives as a bundle of `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX` (`constants::loot`) — never a lone arrow, because finding one arrow is not finding ammunition.
 
@@ -379,7 +380,7 @@ Order is the save format: an effect's index is its bit in an `EffectSet`. **Appe
 | 5 | `SustainsStrength`  | Immune to dart-trap strength drain.            |
 | 6 | `AggravatesMonsters`| Periodically wakes the floor. Passive.         |
 | 7 | `ItemUser`          | Catches and wears thrown gear; reads scrolls.  |
-| 8 | `FireArrow`         | Looses arrows properly (doubles their die).    |
+| 8 | `FireArrow`         | Looses arrows properly (ups their die, short of doubling it). |
 | 9 | `FireQuarrel`       | The crossbow's half of the same bargain.       |
 |10 | `SustainsArmor`     | Worn armour cannot be corroded.                |
 |11 | `RustsArmor`        | Every blow it lands eats a point of the victim's armour plus (the aquator). |

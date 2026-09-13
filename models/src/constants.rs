@@ -461,12 +461,6 @@ pub mod loot {
     pub const AMMO_BUNDLE_MIN: i32 = 4;
     /// See [`AMMO_BUNDLE_MIN`].
     pub const AMMO_BUNDLE_MAX: i32 = 8;
-
-    /// A launcher (bow, crossbow) multiplies the die of the ammunition it looses.
-    /// This is the whole point of the bow — see the "price of a hand" section of
-    /// `combat-and-balance.md`. At 1 a bow does nothing; above 2 it eclipses
-    /// every melee weapon.
-    pub const LAUNCHER_DIE_MULTIPLIER: i32 = 2;
 }
 
 // ===========================================================================

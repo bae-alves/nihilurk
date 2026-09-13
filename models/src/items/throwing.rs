@@ -33,7 +33,6 @@ use super::wands::{
 use crate::conditions::shift_entity_speed;
 
 use crate::constants::items::{PACK_CAPACITY, THROW_RANGE};
-use crate::constants::loot::LAUNCHER_DIE_MULTIPLIER;
 use crate::constants::wands::{
     BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
 };
@@ -131,11 +130,12 @@ fn flight_path(
 /// [`ThrowBonus`] the *thrower* is wearing — a ring of dexterity, the plus on the
 /// bow in their hand. Three things bend it:
 ///
-/// * **A launcher doubles the die.** A missile carrying [`LaunchedBy`] asks
-///   whether its thrower has the effect it answers to; an arrow lobbed by hand
-///   rolls `1d4`, the same arrow loosed from a bow rolls `1d8`. The bow is not
-///   consulted — only the effect is, so a monster that picked one up shoots just
-///   as well as you do.
+/// * **A launcher switches the die.** A missile carrying [`LaunchedBy`] asks
+///   whether its thrower has the effect it answers to; if so it rolls its
+///   [`LaunchedDamage`] instead of [`ThrownDamage`] — an arrow lobbed by hand
+///   rolls `1d4`, the same arrow loosed from a bow rolls `1d6`, a quarrel rolls
+///   its plain double. The bow is not consulted — only the effect is, so a
+///   monster that picked one up shoots just as well as you do.
 /// * **A [`Projectile`] ignores armour.** A point already in the air does not
 ///   care what you are wearing.
 /// * **Anything else is still blunted by it** — by the armour *plus* only, never
@@ -149,7 +149,7 @@ fn roll_throw_damage(
     let mut die = world.get::<ThrownDamage>(item)?.0;
     if let Some(&LaunchedBy(launcher)) = world.get::<LaunchedBy>(item) {
         if launcher.probe(world, thrower) {
-            die *= LAUNCHER_DIE_MULTIPLIER;
+            die = world.get::<LaunchedDamage>(item).map_or(die, |d| d.0);
         }
     }
     if die < 1 {
@@ -629,12 +629,12 @@ fn confetti_burst(fx: &mut Particles, center: Position) {
 }
 
 /// A launcher-wielding monster's shot: `shooter` looses at `target` exactly as
-/// a fired missile always resolves — the ammunition's die doubled by the
-/// drawn launcher, the roll ignoring armour outright, plus whatever
-/// [`ThrowBonus`] the launcher's own enchantment lends. A monster keeps no
-/// quiver to draw from, so unlike the player's own shot this one never runs
-/// dry: [`crate::ai`] calls it in place of a melee attack for as long as a
-/// launcher stays in its hand.
+/// a fired missile always resolves — the ammunition's [`LaunchedDamage`] die,
+/// the roll ignoring armour outright, plus whatever [`ThrowBonus`] the
+/// launcher's own enchantment lends. A monster keeps no quiver to draw from,
+/// so unlike the player's own shot this one never runs dry: [`crate::ai`]
+/// calls it in place of a melee attack for as long as a launcher stays in its
+/// hand.
 ///
 /// A no-op if `shooter` isn't actually wielding one — the caller has already
 /// checked, but this is the one place that knows how to loose a shot, so it
@@ -644,12 +644,7 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
         return;
     }
     let fires_quarrel = world.get::<FireQuarrel>(shooter).is_some();
-    let (base_die, noun) = if fires_quarrel {
-        (6, "quarrel")
-    } else {
-        (4, "arrow")
-    };
-    let die = base_die * LAUNCHER_DIE_MULTIPLIER;
+    let (die, noun) = crate::catalog::ammo_launched_die(fires_quarrel);
     let bonus = equipped_total::<ThrowBonus>(world, shooter);
     let roll = world.resource_mut::<GameRng>().0.gen_range(1..=die) + bonus;
     let damage = roll.max(0);
