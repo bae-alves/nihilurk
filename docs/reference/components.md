@@ -173,9 +173,10 @@ A missile and a launcher never name each other; they meet at an effect (`FireArr
 | Component      | Data                     | Meaning                          | Saved? |
 |----------------|--------------------------|----------------------------------|--------|
 | `ThrownDamage` | `i32`                    | die rolled on impact; no component ⇒ bounces off harmlessly | catalog |
+| `LaunchedDamage` | `i32`                  | die rolled instead, once `LaunchedBy` fires | catalog |
 | `Projectile`   | marker                   | ignores armour die, spent on what it hits, never caught | catalog |
 | `Piercing`     | marker                   | runs the whole aimed line, hitting everyone in it | catalog |
-| `LaunchedBy`   | `Grant`                  | the effect a launcher must grant to double this missile's die | catalog |
+| `LaunchedBy`   | `Grant`                  | the effect a launcher must grant to switch this missile to its `LaunchedDamage` die | catalog |
 | `Launcher`     | marker                   | a bow / crossbow — no attack die, enchant lands on `ThrowBonus` | catalog |
 
 "catalog" = re-attached by item name on load (`restore_from_catalog`), never written to the save.

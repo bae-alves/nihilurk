@@ -386,12 +386,17 @@ pub const WEAPONS: &[WeaponDef] = &[
 /// Two things set it apart from every other item. It **stacks**: one pack slot
 /// holds up to [`STACK_LIMIT`] of them, and throwing spends one off the top. And
 /// it **answers to a launcher**: whoever throws it with `launched_by` already on
-/// them looses it properly, for double the die.
+/// them looses it properly, on `launched_die` instead of `die`.
 pub struct AmmoDef {
     pub name: &'static str,
     pub color: Color,
-    /// The die one of these rolls, lobbed by hand. A launcher doubles it.
+    /// The die one of these rolls, lobbed by hand.
     pub die: i32,
+    /// The die one of these rolls loosed from its launcher instead. A quarrel's
+    /// is the plain double a crossbow earns; an arrow's is short of that — the
+    /// bow is the best thing in the dungeon drawn, and this keeps it from also
+    /// being the hardest-hitting.
+    pub launched_die: i32,
     /// The effect that turns a lob into a shot (see [`LaunchedBy`]).
     pub launched_by: Grant,
 }
@@ -422,6 +427,7 @@ impl ItemDef for AmmoDef {
                 pos,
                 Item,
                 ThrownDamage(self.die),
+                LaunchedDamage(self.launched_die),
                 Projectile,
                 LaunchedBy(self.launched_by),
                 Stack { count: 1 },
@@ -441,9 +447,22 @@ impl ItemDef for AmmoDef {
 
 #[rustfmt::skip]
 pub const AMMO: &[AmmoDef] = &[
-    AmmoDef { name: "arrow",   color: Color::DarkYellow, die: 4, launched_by: Grant::of::<FireArrow>()   },
-    AmmoDef { name: "quarrel", color: Color::Grey,       die: 6, launched_by: Grant::of::<FireQuarrel>() },
+    AmmoDef { name: "arrow",   color: Color::DarkYellow, die: 4, launched_die: 6,  launched_by: Grant::of::<FireArrow>()   },
+    AmmoDef { name: "quarrel", color: Color::Grey,       die: 6, launched_die: 12, launched_by: Grant::of::<FireQuarrel>() },
 ];
+
+/// The die and name a monster's shot rolls once loosed — `AMMO`'s own
+/// `launched_die`, so a monster's shot and the player's agree on the same
+/// dial. Monsters keep no quiver to check `LaunchedBy` against, so
+/// [`crate::items::monster_ranged_attack`] picks the row by name instead.
+pub fn ammo_launched_die(fires_quarrel: bool) -> (i32, &'static str) {
+    let name = if fires_quarrel { "quarrel" } else { "arrow" };
+    let def = AMMO
+        .iter()
+        .find(|def| def.name == name)
+        .expect("arrow and quarrel are both rows in AMMO");
+    (def.launched_die, def.name)
+}
 
 /// A bow or a crossbow. Like a ring, and unlike every other thing you hold, it
 /// is a pure grant: no attack die, no armour die, nothing to roll. What it does
@@ -951,6 +970,7 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
     if let Some(def) = AMMO.iter().find(|d| d.name == name) {
         entity.insert((
             ThrownDamage(def.die),
+            LaunchedDamage(def.launched_die),
             Projectile,
             LaunchedBy(def.launched_by),
         ));

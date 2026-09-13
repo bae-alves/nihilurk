@@ -54,7 +54,7 @@ The price of a hand
 
 One slot holds one thing, and roog has no wait action -- you cannot spend a turn swapping and then act. So the hand you commit is committed until you spend a real turn getting out of it, with whatever is next to you getting a free swing.
 
-That is the whole design of the bow. Drawn, it is the best thing in the dungeon: it doubles an arrow's die, its enchantment rides along on every shot, and a corridor is a killing lane. Swung, it carries `MeleeCap(1)` and is worth a bruise -- less than your bare fists, which is the point. Three hundred swings with a +5 bow deal 300 damage; three hundred with a long sword deal about 2,400; bare-handed, about 1,000.
+That is the whole design of the bow. Drawn, it is the best thing in the dungeon: it ups an arrow's die (short of doubling it -- a deliberate nerf so the bow does not also eclipse a crossbow), its enchantment rides along on every shot, and a corridor is a killing lane. Swung, it carries `MeleeCap(1)` and is worth a bruise -- less than your bare fists, which is the point. Three hundred swings with a +5 bow deal 300 damage; three hundred with a long sword deal about 2,400; bare-handed, about 1,000.
 
 So an archer is not a melee character with a ranged option. An archer is someone who has decided that nothing will reach them, and has to be right. Letting the bow also be a decent club would collapse that decision into a free upgrade, and the cheapest way to keep a decision honest is to price the thing you did not choose.
 

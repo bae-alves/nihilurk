@@ -4,8 +4,10 @@
 //! carry `Projectile` — they go around armour, they are spent on what they hit,
 //! and nothing ever catches one out of the air. What separates them is two more
 //! components: a dagger and a spear are `Piercing` and run the whole line, while
-//! an arrow and a quarrel carry `LaunchedBy` and roll twice the die for anyone
-//! holding the bow or crossbow that answers to it.
+//! an arrow and a quarrel carry `LaunchedBy` and roll `LaunchedDamage` instead
+//! of their hand-thrown die for anyone holding the bow or crossbow that answers
+//! to it — a quarrel's is the plain double, an arrow's a deliberate nerf short
+//! of that.
 //!
 //! Ammunition is also the only thing in the game that stacks, so half of this
 //! file is about one pack slot holding thirteen arrows and giving them up one at a
@@ -164,7 +166,7 @@ fn mean(v: &[i32]) -> f64 {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_bow_doubles_the_die_of_an_arrow_and_nothing_else() {
+fn a_bow_ups_the_die_of_an_arrow_short_of_doubling_it() {
     let by_hand = damage_samples(1, "arrow", 400, |_, _| {});
     let from_a_bow = damage_samples(1, "arrow", 400, |w, p| {
         let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
@@ -175,18 +177,19 @@ fn a_bow_doubles_the_die_of_an_arrow_and_nothing_else() {
         );
     });
 
-    // 1d4 lobbed, 1d8 loosed: the honest range of each, and twice the average.
+    // 1d4 lobbed, 1d6 loosed: a nerf on the bow, deliberately short of the
+    // plain double a crossbow gets.
     assert!(by_hand.iter().all(|&d| (1..=4).contains(&d)), "{by_hand:?}");
     assert!(
-        from_a_bow.iter().all(|&d| (1..=8).contains(&d)),
+        from_a_bow.iter().all(|&d| (1..=6).contains(&d)),
         "{from_a_bow:?}"
     );
     assert_eq!(*by_hand.iter().max().unwrap(), 4);
-    assert_eq!(*from_a_bow.iter().max().unwrap(), 8);
+    assert_eq!(*from_a_bow.iter().max().unwrap(), 6);
     let (lobbed, loosed) = (mean(&by_hand), mean(&from_a_bow));
     assert!(
-        loosed > lobbed * 1.6 && loosed < lobbed * 2.4,
-        "a bow should about double an arrow (by hand {lobbed:.2}, from a bow {loosed:.2})"
+        loosed > lobbed * 1.2 && loosed < lobbed * 1.8,
+        "a bow should raise an arrow by about half, not double it (by hand {lobbed:.2}, from a bow {loosed:.2})"
     );
 }
 
@@ -396,8 +399,8 @@ fn a_bows_plus_rides_along_on_what_it_looses() {
         toggle_equipped(w, p, bow);
     });
     assert!(
-        sharp.iter().all(|&d| (4..=11).contains(&d)),
-        "1d8+3: {sharp:?}"
+        sharp.iter().all(|&d| (4..=9).contains(&d)),
+        "1d6+3: {sharp:?}"
     );
 }
 
@@ -755,6 +758,10 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     let arrows = find(&mut loaded, "arrow");
     assert_eq!(loaded.get::<Stack>(arrows).unwrap().count, 13);
     assert_eq!(loaded.get::<ThrownDamage>(arrows), Some(&ThrownDamage(4)));
+    assert_eq!(
+        loaded.get::<LaunchedDamage>(arrows),
+        Some(&LaunchedDamage(6))
+    );
     assert!(loaded.get::<Projectile>(arrows).is_some());
     assert!(loaded.get::<LaunchedBy>(arrows).is_some());
 
@@ -831,7 +838,7 @@ fn swinging_a_bow_is_worth_a_bruise_and_no_more() {
 }
 
 /// The cap is on the swing, not on the shot. The same bow that is a stick in a
-/// corridor still doubles an arrow's die when it is drawn.
+/// corridor still ups an arrow's die when it is drawn.
 #[test]
 fn the_melee_cap_does_not_follow_the_arrow() {
     let mut w = test_world(11);
