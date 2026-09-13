@@ -106,10 +106,12 @@ fn auto_explore_reveals_every_reachable_tile_then_stops() {
             resolve_visibility(&mut w);
 
             steps += 1;
-            assert!(
-                steps < AUTO_EXPLORE_STEP_CAP,
-                "seed {seed}: auto-explore never terminated"
-            );
+            // A bound of the test's own, not the game's. `travel::AUTO_EXPLORE_
+            // STEP_CAP` is a safety valve somebody tunes; what is being asserted
+            // here is that the walk *terminates*, and any number far above the
+            // tiles on a floor proves that.
+            const NEVER: u32 = 20_000;
+            assert!(steps < NEVER, "seed {seed}: auto-explore never terminated");
         }
 
         // Nothing reachable is left unmapped.

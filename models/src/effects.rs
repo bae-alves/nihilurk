@@ -60,6 +60,53 @@ pub struct SeesInvisible;
 #[derive(Component, Default, Clone, Copy)]
 pub struct SustainsStrength;
 
+/// What this creature is *wearing* can't be eaten away (a ring of maintain
+/// armor). [`SustainsStrength`]'s twin, one step further out: that one protects
+/// the arm, this one protects the plate on it — an aquator's touch runs off it
+/// leaving the armour's plus exactly where it was. See
+/// [`crate::equipment::corrode_armor`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct SustainsArmor;
+
+/// This creature's touch eats armour: every blow it lands takes a point off the
+/// plus of whatever its victim is wearing (the aquator). See
+/// [`crate::equipment::corrode_armor`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct RustsArmor;
+
+/// Whatever carries this moves one notch below its own tempo — a ring of slow
+/// digestion slows *everything* down, digestion included. Not a [`Speed`] of its
+/// own: the notch is folded in when the tempo is read
+/// ([`crate::conditions::tempo`]), so taking the ring off gives the notch back
+/// and a potion of haste still reads on top of it.
+///
+/// [`Speed`]: crate::components::Speed
+#[derive(Component, Default, Clone, Copy)]
+pub struct Sluggish;
+
+/// Nothing notices this creature until it is close enough to touch — two tiles
+/// (a ring of stealth). Monsters that already know where it is because somebody
+/// shrieked ([`crate::components::MovementType::Aggravated`]) come anyway: the
+/// ring hides you, it does not unsay what the floor already heard. See
+/// [`crate::ai`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Stealthy;
+
+/// This creature knits itself back together as it goes: a roll each turn either
+/// lifts one affliction or gives back a point of drained strength (a ring of
+/// regeneration). A [`crate::abilities::PassiveAbility`], so the odds and the
+/// mechanic live in that table rather than here.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Regenerates;
+
+/// Space will not hold still around this creature: every so often it is
+/// somewhere else (a ring of teleportation). Rolled by
+/// [`crate::abilities::passive_ability_system`], which runs at the tail of the
+/// turn schedule — so the jump lands at the *start* of the bearer's next turn
+/// and it acts from the new tile before anything else moves.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Teleportitis;
+
 /// This creature knows what items are *for*. It catches gear thrown at it and
 /// puts it on — a hobgoblin that fields your dagger will be wielding it next
 /// turn — and it can read a scroll that lands on it, out loud, with whatever
@@ -144,6 +191,23 @@ modifier! {
     /// which piece of gear supplied it.
     ThrowBonus
 }
+
+// ---------------------------------------------------------------------------
+// One-shots
+// ---------------------------------------------------------------------------
+
+/// Something that happens once, the moment this item goes on — the ring of
+/// adornment's flourish. Called with `(wearer, item)` by
+/// [`crate::equipment::toggle_equipped`] after the item is on and identified,
+/// and it owns everything that follows: the log lines, the animation, and
+/// tagging the item with [`Consume`](crate::components::Consume) if putting it
+/// on is what spends it.
+///
+/// A [`Grant`] cannot express this — a grant is a property held for as long as
+/// the gear is worn, and this is an event — so it rides as its own component,
+/// attached by the catalog row the same way grants are.
+#[derive(Component, Clone, Copy)]
+pub struct OnWear(pub fn(&mut World, Entity, Entity));
 
 // ---------------------------------------------------------------------------
 // Caps
@@ -246,6 +310,12 @@ pub const EFFECTS: &[Grant] = &[
     Grant::of::<ItemUser>(),
     Grant::of::<FireArrow>(),
     Grant::of::<FireQuarrel>(),
+    Grant::of::<SustainsArmor>(),
+    Grant::of::<RustsArmor>(),
+    Grant::of::<Sluggish>(),
+    Grant::of::<Stealthy>(),
+    Grant::of::<Regenerates>(),
+    Grant::of::<Teleportitis>(),
 ];
 
 /// The effects an entity hands out: innate magic on a monster, the effects a
@@ -274,6 +344,58 @@ pub fn effect_set(grants: &[Grant]) -> EffectSet {
 #[derive(Component, Clone, Copy, Default)]
 pub struct GrantedByGear(pub EffectSet);
 
+/// The effects an entity has been lent **for the current floor** — a potion of
+/// see invisible, as opposed to a ring of perception. Two things follow from
+/// keeping them in their own set:
+///
+/// * [`crate::equipment::sync_equipment_effects`] counts them as innate, so
+///   taking off a ring that happened to grant the same effect can never strip
+///   the potion's copy of it.
+/// * A staircase gives them all back at once
+///   ([`crate::conditions::clear_player_conditions`]), which is what "lasts the
+///   level" means.
+#[derive(Component, Clone, Copy, Default)]
+pub struct GrantedForFloor(pub EffectSet);
+
+/// Lends `entity` one effect until it leaves the floor. Attaching twice is
+/// harmless — the second dose of the same potion simply re-attaches it.
+pub fn grant_for_floor(world: &mut World, entity: Entity, grant: Grant) {
+    let had = world
+        .get::<GrantedForFloor>(entity)
+        .map(|g| g.0)
+        .unwrap_or(0);
+    let mut e = world.entity_mut(entity);
+    grant.attach(&mut e);
+    e.insert(GrantedForFloor(had | effect_set(&[grant])));
+}
+
+/// Takes back every effect `entity` holds only for this floor. An effect it also
+/// owns innately, or has on loan from gear it is still wearing, stays put — the
+/// potion's copy is the only thing given up.
+pub fn clear_floor_grants(world: &mut World, entity: Entity) {
+    let set = world
+        .get::<GrantedForFloor>(entity)
+        .map(|g| g.0)
+        .unwrap_or(0);
+    if set == 0 {
+        return;
+    }
+    let innate = world
+        .get::<Grants>(entity)
+        .map(|g| effect_set(g.0))
+        .unwrap_or(0);
+    let gear = world.get::<GrantedByGear>(entity).map(|g| g.0).unwrap_or(0);
+    let mut e = world.entity_mut(entity);
+    for (i, grant) in EFFECTS.iter().enumerate() {
+        let bit = 1 << i;
+        let only_for_the_floor = set & bit != 0 && innate & bit == 0 && gear & bit == 0;
+        if only_for_the_floor {
+            grant.detach(&mut e);
+        }
+    }
+    e.remove::<GrantedForFloor>();
+}
+
 /// Attaches every effect in `grants` to `entity` — how a monster is born with
 /// its innate magic.
 pub fn grant_all(world: &mut World, entity: Entity, grants: &'static [Grant]) {
@@ -293,6 +415,7 @@ pub fn revoke_all(world: &mut World, entity: Entity) {
     }
     e.remove::<Grants>();
     e.remove::<GrantedByGear>();
+    e.remove::<GrantedForFloor>();
 }
 
 /// Reads an entity's marker effects back out as a bitmask, for saving.

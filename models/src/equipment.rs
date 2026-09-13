@@ -19,8 +19,11 @@
 use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{Backpack, Curse, GameLog, KnownQuality, Launcher, Position};
-use crate::effects::{EFFECTS, EffectSet, GrantedByGear, Grants, effect_set};
+use crate::components::{Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position};
+use crate::effects::{
+    ArmorBonus, EFFECTS, EffectSet, GrantedByGear, GrantedForFloor, Grants, OnWear, SustainsArmor,
+    effect_set,
+};
 
 /// Where a piece of gear goes. One item per slot at a time, except
 /// [`Slot::Finger`] — a hand has room for two rings.
@@ -207,6 +210,14 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
             .resource_mut::<GameLog>()
             .add(slot.cursed_reveal(&true_name));
     }
+
+    // Last of all, anything that happens *because* it went on, rather than
+    // while it is on: a ring of adornment spends itself here. It runs after the
+    // item is fully worn, named and known, because it is allowed to be the last
+    // thing that ever happens to the item.
+    if let Some(OnWear(fire)) = world.get::<OnWear>(item).copied() {
+        fire(world, user, item);
+    }
     true
 }
 
@@ -244,6 +255,46 @@ pub fn drop_equipment(world: &mut World, wearer: Entity, at: Position) {
     sync_equipment_effects(world, wearer);
 }
 
+// ---------------------------------------------------------------------------
+// Damage to worn gear
+// ---------------------------------------------------------------------------
+
+/// Eats a point off the plus of whatever `victim` is wearing — an aquator's
+/// touch ([`crate::effects::RustsArmor`]), which is the only thing in the
+/// dungeon that damages gear rather than its owner.
+///
+/// It bites into the armour's [`ArmorBonus`] and never its [`ArmorDie`]: plate
+/// mail corroded to nothing is still plate mail, just ruined plate mail, and a
+/// suit can be driven well below zero. A scroll of enchant armour is the cure.
+///
+/// Three things stop it, and each says so in its own way: nothing worn to eat,
+/// a wearer whose gear the magic runs off ([`SustainsArmor`] — a ring of
+/// maintain armor), and a victim that isn't the player, whose gear the player
+/// never sees a number for anyway. Returns whether anything was actually eaten.
+pub fn corrode_armor(world: &mut World, victim: Entity) -> bool {
+    let Some(armor) = equipped_in(world, victim, Slot::Body) else {
+        return false;
+    };
+    let is_player = world.get::<Player>(victim).is_some();
+    if world.get::<SustainsArmor>(victim).is_some() {
+        if is_player {
+            world
+                .resource_mut::<GameLog>()
+                .add("Your armour drinks the corrosion and shrugs it off.".to_string());
+        }
+        return false;
+    }
+    let was = world.get::<ArmorBonus>(armor).map_or(0, |b| b.0);
+    world.entity_mut(armor).insert(ArmorBonus(was - 1));
+    if is_player {
+        let name = crate::identify::display_name(world, armor);
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("Your {name} corrodes! It is weaker."));
+    }
+    true
+}
+
 /// Reconciles the effects `bearer` has on loan from its gear with the effects
 /// its gear actually grants right now: attaches what was just put on, strips
 /// what was just taken off, and never touches what the creature was born with.
@@ -259,11 +310,16 @@ pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
     }
 
     // Effects the creature has innately are never on loan, so a removed ring can
-    // never strip a monster's own magic.
+    // never strip a monster's own magic — nor a potion's gift for the floor,
+    // which is innate as far as gear is concerned.
     let innate: EffectSet = world
         .get::<Grants>(bearer)
         .map(|g| effect_set(g.0))
-        .unwrap_or(0);
+        .unwrap_or(0)
+        | world
+            .get::<GrantedForFloor>(bearer)
+            .map(|g| g.0)
+            .unwrap_or(0);
 
     let mut e = world.entity_mut(bearer);
     for (i, grant) in EFFECTS.iter().enumerate() {

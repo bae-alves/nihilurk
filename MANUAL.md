@@ -42,16 +42,20 @@ Row 0 is the status line:
 `Pow.` and `Arm.` are your *current* attack and defence dice, already
 folding in every weapon, armour and ring you have on — what you see there
 is exactly what combat rolls against. `Thr.` appears next to them once
-something is boosting your throws. The last field is normally your score
-(coins carried), but if something noteworthy is going on it's replaced by a
-badge instead:
+something is boosting your throws. The last field is normally your score,
+but if something noteworthy is going on it's replaced by a badge instead
+— and whenever you earn anything it flashes what you just earned, in a
+colour picked at random, before going back to being a number:
 
 | Badge                 | Means |
 |-----------------------|-------|
 | `FAST` / `SLOW`       | Hasted or slowed (a potion, a wand, a trap) |
 | `CONF`                | Confused — steps go random half the time |
+| `BLND`                | Blind — you can only feel the squares you could touch |
+| `PARL`                | Paralysed — slowed, and losing half the turns that leaves you |
+| `GLOW`                | Your hands are charged — the next blow you land confuses what it hits |
 | `HELD`                | Caught in a bear trap |
-| `ASLEEP`              | Down in sleeping gas |
+| `ASLEEP`              | Down in sleeping gas (yours, or a trap's) |
 | `EXPLORING` / `TRAVELING` | Auto-explore or `O`-travel is walking for you |
 | `ASCENDING`           | You're carrying the Element of Yoord |
 | `TRAVEL?`             | The `O` travel cursor is up |
@@ -83,13 +87,14 @@ A tile you've seen but can't currently see is drawn dim grey — remembered,
 not live. Blood stains the floor wherever fighting happened and stays for
 the rest of the run (`-nb` turns this off if you'd rather not see it).
 
-The map itself lurches when something lands hard: a short kick every time
-something dies where you can see it, a heavier one for your own excellent
-hits and for a blast going off in sight, a long one the moment a wound
-drops you into "You are badly wounded!" territory, and the biggest of the
-lot when you die. Only the map moves — the status line and the message log stay
-put, so the line telling you what just happened is readable while it is
-happening. It never costs you a keystroke either: press anything and the
+The map itself lurches when something lands hard: a tick every time one of
+your own blows, shots or bolts gets through a monster's armour, a slightly
+longer kick every time something dies where you can see it, a heavier one
+for your excellent hits and for a blast going off in sight, a long one the
+moment a wound drops you into "You are badly wounded!" territory, and the
+longest of the lot when you die. Nothing you can't see ever shakes the
+map. Only the map moves — the status line and the message log stay put, so
+the line telling you what just happened is readable while it is happening. It never costs you a keystroke either: press anything and the
 map settles at once and your key is taken as normal. `-nshake` turns it
 off entirely.
 
@@ -176,13 +181,19 @@ want to look at what you're carrying first.
   flight and pierces everything on its line; a mace is an improvised lump
   that a monster with hands can catch and use back on you; arrows and
   quarrels come out of the stack one at a time and hit twice as hard if
-  you're holding the matching bow/crossbow.
+  you're holding the matching bow/crossbow. A shot that draws blood kicks
+  the map exactly as much as your sword landing does; one the armour turns
+  aside clinks and moves nothing — and out here there's no chip-damage
+  floor to catch it, so it really does nothing at all. Anything balanced
+  for flight (dagger, spear, arrow, quarrel) goes around armour entirely
+  and can't be turned aside that way.
 - **Drop** puts it back on the floor. Refused for anything cursed and worn
   — it won't come off (see Curses, below) — and refused for the Element of
   Yoord, which doesn't leave your hands until the game is over.
 
-Ammunition and coins stack (up to 13 per slot); everything else takes its
-own slot. You have 9 slots, capped there on purpose so every slot's letter
+Ammunition stacks (up to 13 per slot); everything else takes its own slot.
+Coins never enter the pack at all — they are spent where they lie (see
+Coins). You have 9 slots, capped there on purpose so every slot's letter
 stays out of the way of the ones the game reserves for scrolling the list.
 
 
@@ -208,6 +219,9 @@ Two rules exist only for you, never for monsters:
 - **Chip damage** — even your worst possible swing still takes 1 HP off if
   it would otherwise have done nothing, but a hit that only exists because
   of this floor can never be the killing blow; it leaves a foe on 1 HP.
+  It's called a glancing blow in the log, and it looks like one: a cold
+  white clink where your steel skidded off, and no lurch of the map — the
+  two things that tell a swing that got through from one that didn't.
   Monsters get no such floor — if a monster's roll can't beat your armour,
   it does nothing at all, which is the entire reason armour is worth
   wearing.
@@ -229,17 +243,36 @@ Status effects
 - **Fast / Slow** — you (or a monster) act twice as often, or half as
   often. Wands of haste/slow monster shift a creature one notch on this
   scale permanently; a hasted or slowed *player* loses it on the next
-  staircase.
+  staircase. Gear counts too: a ring of slow digestion reads `SLOW` for as
+  long as it is on your finger, and taking it off gives the notch straight
+  back — including back to a haste it was masking.
+- **Stealthy** (`STLH`, a ring) — nothing on the floor notices you until
+  it is two tiles away. It does not un-ring a bell: anything already
+  hunting you because something shrieked keeps coming.
+- **`PLAT` / `FORG`** (the platinum and forge coins) — the only two badges
+  that are good news. Reach the next staircase without being hurt again
+  and they pay; take a single point of damage and they don't. See "Coins".
 - **Held** (bear trap) — pins your feet, not your fists: you can still
   swing at whatever's adjacent, but trying to step anywhere just thrashes
   against the trap, wasting the turn and tearing a point of HP.
 - **Asleep** (sleeping gas) — the turn is forfeited outright, no key read,
   until it wears off.
+- **Blind** (a potion) — the worst of them. You see the eight squares
+  around you and nothing else, with no colour in any of them, and no
+  monster at all — not even the one standing next to you. Auto-explore
+  and auto-fight won't run, because as far as they're concerned there is
+  nothing to see. The monsters can still see *you* perfectly well.
+- **Paralysed** (a potion) — your tempo drops to `SLOW`, and on top of
+  that about half the turns you have left are simply taken from you: no
+  key is read, the monsters move, and the turn is gone.
 
-Everything else in the original list of Rogue punishments — blindness,
-paralysis, poison, being turned to stone — comes from potions that exist
-and are drinkable but, in this build, don't yet do anything beyond telling
-you what they are. See "What doesn't do anything yet" below.
+None of these wear off with time. A staircase clears them, and so does
+being caught in a wand of cancellation — that is the whole list.
+
+A monster carrying one of these shows it as a coloured background behind
+its glyph: dark blue for asleep or paralysed, dark green for held in a
+bear trap, dark cyan for held by a scroll, dark magenta for confused.
+Worth reading before you decide which one to fight.
 
 
 Exploring the dungeon
@@ -282,6 +315,31 @@ yourself in your own trick shot and the log stops saying `BAM!` and starts
 asking `WHY!`. A burst is loud but not clairvoyant — one you can't see
 neither prints nor shakes.
 
+**Traps aren't the only thing worth shooting.** Put a shot on a **coin**
+and it goes off too, in a burst twice as wide as a trap's — *and you get
+the coin.* Its effect reaches you across the room: shoot a red coin and it
+heals you, a gold one pays you, a platinum one makes you its promise. So a
+coin in the middle of a crowd is worth shooting even when you could have
+walked to it, and a coin you'd never reach in time is still worth
+something.
+
+The effect lands before the burst does, so your own blast can't take the
+healing back off you. And unlike stepping on one, shooting is a decision:
+nobody checks whether you needed it first. Shoot a red coin at full health
+and you have wasted a red coin.
+
+A wand's blast does it too — anything it covers goes off with it, traps and
+coins alike, and the coins pay whoever zapped.
+
+Anything you throw can set either off, not just ammunition. Do it with a
+dagger, a potion, a spare ring — anything that isn't an arrow or a quarrel
+— and the dungeon says "Very clever."
+
+And if you ever fire something at the **Element of Yoord** itself: it does
+not break, does not move, and is not spent. It answers. One wide burst
+where it lies, then another centred on everything that caught, then one
+more on one of them. The log will tell you what that is called.
+
 **The Dungeon Lord's patience.** You get 260 turns on any one floor. Run
 past that and a portal opens under you and drops you a level deeper whether
 you were ready or not (or, once you're carrying the Element, a level
@@ -304,8 +362,8 @@ Magic
 
 A second resource pool, `Ma X/Y` on the status line, 4 points at the start
 of a run. It does not regenerate on its own — only a staircase refills it.
-(At the moment nothing in the game actually spends it yet; treat the number
-as a preview of a mechanic still being wired in.)
+Almost nothing spends it yet; treat the number as mostly a preview of
+mechanics still being wired in.
 
 
 Items
@@ -321,9 +379,12 @@ identify.
 
 **Curses.** 65% of the gear the dungeon drops is cursed — it can still roll
 a good number, the gamble isn't the stat, it's that the moment you equip it
-it welds on and nothing but a scroll of remove curse gets it back off
-(which destroys the item rather than freeing it clean). 25% of drops are
-plain, 10% are exceptional (+1 to +3, and safe to take off any time).
+it welds on. Two scrolls get it back off: remove curse, which destroys
+the item rather than freeing it clean, and the matching enchantment
+scroll, which burns the curse away and mends the item's minus to +0 in
+the same breath — much the better outcome, and much the rarer luck. 25%
+of drops are plain, 10% are exceptional (+1 to +3, and safe to take off
+any time).
 
 You start a run already equipped: +1 ring mail worn, +1 mace wielded, a +1
 short bow and 13 arrows in the pack, and one potion of healing you already
@@ -385,45 +446,112 @@ and hotter than a zap does.
 
 ### Rings
 
-Worn on a finger — you have two slots. Five of the twelve do something
-right now: straightforward, permanent effects like extra armour, extra
-power, and seeing what's normally invisible, plus one whose curse is a
-genuine trap rather than a stat penalty — a flat chance per action of
-aggravating the entire floor. The other seven are real, correctly
-identified, and findable, but currently inert (see "What doesn't do
-anything yet" below).
+Worn on a finger — you have two slots, and all twelve rings do something.
+
+| Ring | What it does |
+|---|---|
+| protection | +2 on your armour roll |
+| strength | +2 on your damage roll, and a dart trap can never drain your Power |
+| increase damage | +2 on your damage roll |
+| dexterity | +2 on anything you throw or loose |
+| perception | you see everything invisible: hidden traps, phantoms, stashed items |
+| maintain armor | nothing can corrode the armour you're wearing |
+| regeneration | each turn, a coin flip to lift one status effect — or, with nothing to lift, to give back a point of Power a dart drank |
+| stealth | nothing notices you until you're two tiles away. `STLH` on the status line |
+| slow digestion | your digestion slows along with everything else about you: you are `SLOW` for as long as you wear it |
+| teleportation | you have teleportitis. Roughly one turn in eighty-five, you are suddenly somewhere else on the floor — you land at the top of your own turn, so you always get to act before anything reaches you |
+| aggravate monster | a flat 10% chance per action that the whole floor learns where you are |
+| adornment | see below |
+
+The **ring of adornment** is the strangest thing in the dungeon and the
+most valuable. Put it on and it doubles your score, tells you that you did
+it with style, throws eight fireworks, and disintegrates. It is worth one
+action and nothing else. Save it for the end.
+
+Two of these are worth more the worse your run is going. Regeneration is
+the only cure for blindness or paralysis short of a staircase, and the
+only thing besides a potion that mends drained Power. Maintain armor
+matters the moment you meet an aquator (see the bestiary).
 
 ### Potions
 
-| Potion | Effect |
-|--------|--------|
-| Healing | Heals you to full |
-| Thirst quenching | Nothing — the "you found plain water" potion |
+All fifteen do something. Five of them change you permanently, which is
+worth knowing before you drink an unidentified one to find out what it is.
 
-Confusion, extra healing, gain strength, haste self, monster detection,
-magic detection, raise level, restore strength, see invisible, blindness,
-paralysis, and poison all exist, are findable and drinkable, and currently
-do nothing beyond telling you what they are the first time you try one.
+The three conditions potions may inflict — blindness, paralysis, confusion —
+never wear off on their own. A staircase is the cure.
 
 ### Scrolls
 
-Nine scroll types do something on purpose (a tenth, blank paper, does
-nothing — also on purpose). Remove curse frees every cursed item you're
-wearing, but destroys it rather than handing it back clean; vorpalize
-weapon brands your wielded weapon as the bane of one random species, and
-reading it a second time destroys the weapon instead of stacking; and
-magic mapping reveals the floor as an animated wipe instead of snapping
-the whole layout into view at once. Identify, teleportation, aggravate
-monsters, create monster, and scare monster round out the rest of the
-working list.
+All fifteen do something now — except blank paper, which does nothing on
+purpose.
 
-Monster confusion, hold monster, sleep, enchant armor, enchant weapon, and
-food detection exist and are readable, and currently do nothing beyond
-telling you what they are.
+Four of them are worth knowing about before you read one to find out what
+it is:
 
-### Coins
+  * **Enchant weapon / enchant armor** give what you're wielding or
+    wearing a permanent +1, in a shower of orange sparks. If it was a
+    minus it comes back to +0 in one go, curse and all — this is the only
+    thing in the dungeon that saves a cursed item instead of destroying
+    it. Read over an empty hand or a bare back, the sparks die.
+  * **Sleep** rolls a wave of drowsiness over everything you can see and
+    drops it for a few turns — helpless, not merely stuck. About one time
+    in four it turns in your mouth instead and puts *you* down, which is
+    a very bad few turns to spend next to something with teeth.
+  * **Hold monster** roots everything in sight where it stands, for
+    longer than sleep lasts. Held is not helpless: walk into its reach and
+    it still bites. What you're buying is the room to leave, or the range
+    to shoot from.
+  * **Monster confusion** doesn't go off when you read it. It charges your
+    hands (`GLOW` on the HUD) and waits: the next blow you actually land
+    passes the confusion on and is spent doing it. A scrape off armour
+    doesn't count.
 
-Gold (1000) and silver (100). They buy nothing — they *are* the score.
+The rest: remove curse frees every cursed item you're wearing, but
+destroys it rather than handing it back clean; vorpalize weapon brands
+your wielded weapon as the bane of one random species, and reading it a
+second time destroys the weapon instead of stacking; magic mapping
+reveals the floor as an animated wipe; and food detection is the plain
+counterpart to a potion of magic detection — it shows you every ordinary
+thing lying on the floor, exactly what the potion turns its nose up at.
+The Element of Yoord answers to both.
+
+### Coins — the pickups
+
+Every coin is a **pickup**: it is never carried, it works the instant you
+step on it, and then it's gone. A full pack is no obstacle, because there
+is nothing to put anywhere.
+
+| Coin | What stepping on it does |
+|---|---|
+| gold | 5000 points |
+| silver | 1000 points |
+| red | restores 4 HP |
+| blue | restores 4 `Ma` |
+| rosé | clears up to 4 status effects, worst first |
+| green | gives back up to 4 points of drained Power |
+| platinum | the `PLAT` promise — see below |
+| forge | the `FORG` promise — see below |
+
+**A coin you can't use is a coin you don't take.** Walk over a red coin at
+full health and it stays where it is, silently, waiting for the fight that
+goes badly. Same for a blue one with a full pool, a rosé one with nothing
+wrong with you, a green one with an undrained arm. Auto-explore knows it
+too and won't detour for one it can't use yet — so a coin left behind is
+not a coin forgotten, and `o` will come back for it the moment it matters.
+
+**The two promises.** The platinum and forge coins don't pay when you take
+them; they pay at the **next staircase**, and only if you get there
+**without taking another point of damage**:
+
+  * `PLAT` — a permanent point of attack or defence *die*. Nothing else in
+    the game grows those two numbers.
+  * `FORG` — a point of *plus* on the weapon in your hand or the armour on
+    your back, exactly as a scroll of enchantment would, curse and all.
+
+One hit and it's off, with a line telling you so. Two floors' worth of
+careful play is what they cost, and they are the only permanent growth in
+a game that otherwise has none.
 
 
 The bestiary
@@ -441,6 +569,12 @@ will pick up whatever you throw at them and use it right back at you, a
 few are undead, a couple are outright immune to a specific element, one is
 permanently invisible, and exactly one is a legal target for any vorpal
 weapon. The rest is for you to find out on the way down.
+
+One of them doesn't go for you at all. The **aquator** goes for your
+armour: every blow it lands takes a point off your suit's plus, for good.
+Nothing gives it back but a scroll of enchant armour — and a ring of
+maintain armor makes the whole creature harmless. Kill it early or take
+the suit off.
 
 Claiming the Element of Yoord tears every one of those depth gates off its
 hinges: for the whole climb back up, every floor draws from the entire
@@ -460,12 +594,36 @@ thing that wins the game for you.
 Walking out of depth 1 carrying the Element is the win condition.
 Everything else is a loss, and most runs are a loss.
 
+Nobody leaves that dungeon quietly. However you get out — the last stair,
+or a potion of raise level drunk on depth 1 with the Element in your pack
+— you do it with style: eight fireworks, and your score doubled on the way
+out.
 
 Dying (and everything else)
 ------------------------------
 
 Death is permanent, there is no retry. A "You die..." panel, a
 `--MORE--`, then a tombstone, what killed you, and your score.
+
+Score, in full: **100 points per hit point of every creature that dies**
+(a goblin is a rounding error, a griffin is a thousand), **500 points per
+difficulty tier every time you take a staircase** — 500 a flight down to
+depth 3, 1000 through depth 6, and so on, paid on the way down and again
+on the way back up — and **treasure, the moment you pick it up**: 5000 for
+a gold coin, 1000 for a silver one, 25000 for the Element of Yoord itself.
+Then there are the two things that double the lot: a ring of adornment,
+and getting out alive.
+
+**Kill more than one thing in a turn and the whole turn's killing is worth
+more**: +50% for each corpse past the first, applied to all of them
+together. Two at once is worth 1.5x, three is worth double, and a thrown
+wand that clears a room is worth far more than the same room cleared one
+swing at a time. The score line shouts `COMBO!` when it happens, and the
+log says "With style."
+
+The score line shouts about everything, in fact: every payment flashes
+over it for a beat — `+700`, `COMBO! +2400`, `DOUBLE` — and then goes back
+to being a number.
 
 Most runs end from attrition, not a single big monster: a string of fights
 with no healing potion left, and something ordinary finishes what a
@@ -483,15 +641,12 @@ completely safe to pick up — it simply has no mechanical effect yet when
 you use it. Nothing here is a bug you need to work around; it's just not
 wired in yet.
 
-  * All potions except **healing**.
-  * Six scrolls: **monster confusion, hold monster, sleep, enchant armor,
-    enchant weapon, food detection**.
-  * Seven rings: **adornment, increase damage, regeneration, slow
-    digestion, teleportation, stealth, maintain armor**.
-  * The magic points pool itself — nothing currently spends `Ma`.
+  * The magic points pool is barely used — `Ma` is mostly waiting on
+    mechanics still being wired in. The blue coin refills it; almost
+    nothing spends it.
 
-Everything else described in this manual — every wand, every working ring,
-the scrolls not listed above, and healing — is live.
+Everything else described in this manual — every potion, every scroll,
+every wand, every ring and every coin — is live.
 
 
 Useful command-line flags

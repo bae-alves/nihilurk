@@ -7,22 +7,25 @@ use crossterm::style::Color;
 // `constants.rs`; re-exported so `hud::LOG_LINES` etc. keep resolving.
 pub use crate::constants::hud::{LOG_LINES, LOG_MORE_WIDTH, LOG_WIDTH};
 
-/// Sparingly colours a packed log line — with one exception (a trick shot,
-/// magenta) only when it reads as happening *to the player* (contains "you"),
-/// and only for a handful of categories worth
+/// Sparingly colours one log *message* — with two exceptions (a trick shot and
+/// a combo, both magenta) only when it reads as happening *to the player*
+/// (contains "you"), and only for a handful of categories worth
 /// calling out: a curse taking hold (dark red), a dazzle (magenta), the
 /// low-HP warning (red), the player's own speed shifting (cyan hasted, dark
 /// cyan slowed), or the player throwing/firing something (yellow, to make it
 /// read as juicier than an ordinary log line). Everything else stays the
-/// plain log colour. A packed line can join several original messages (see
-/// [`pack_messages`]); if any of them matches, the whole line takes that
-/// colour.
+/// plain log colour.
+///
+/// This is asked per message, never per painted line. Several messages share a
+/// line ([`pack_line_segments`]) and each keeps its own colour — one shouting
+/// message must not repaint the sentences that happen to sit beside it.
 pub fn log_line_color(line: &str) -> Color {
     let lower = line.to_ascii_lowercase();
-    // The one line that shouts before the "you" gate below: a trap going off
+    // The two lines that shout before the "you" gate below. A trap going off
     // because something *shot* it is the player's doing whether or not the
-    // sentence says so, and it is worth seeing from across the room.
-    if lower.contains("trick shot") {
+    // sentence says so; and a combo's "With style." is the game applauding the
+    // player in three words, none of which is "you".
+    if lower.contains("trick shot") || lower.contains("with style") {
         return Color::Magenta;
     }
     if !lower.contains("you") {
@@ -54,24 +57,77 @@ pub fn log_line_color(line: &str) -> Color {
     Color::White
 }
 
+/// How one log message is painted.
+///
+/// Nearly everything is one colour for the whole message. `Striped` is the
+/// exception the log has exactly one of: a line that is worth a rainbow gets a
+/// colour per character, cycled — red through purple and straight back to red,
+/// so no two neighbouring letters ever share a stripe.
+pub enum LogPaint {
+    Solid(Color),
+    Striped(&'static [Color]),
+}
+
+impl LogPaint {
+    /// The colour for character `i` of the message.
+    pub fn color_at(&self, i: usize) -> Color {
+        match self {
+            LogPaint::Solid(c) => *c,
+            LogPaint::Striped(stripes) => stripes[i % stripes.len()],
+        }
+    }
+}
+
+/// The one log line in the game that comes out in colours rather than a colour.
+/// See [`crate::score`], which writes it on the tenth combo or so.
+pub const PRIDE_LINE: &str = "With pride.";
+
+/// How to paint one log message: [`log_line_color`] for all but the one that
+/// earns the flag, which is striped with `stripes` — whatever flag the run is
+/// flying (see [`crate::pride::stripes`]).
+pub fn log_paint(message: &str, stripes: &'static [Color]) -> LogPaint {
+    if message.contains(PRIDE_LINE) {
+        return LogPaint::Striped(stripes);
+    }
+    LogPaint::Solid(log_line_color(message))
+}
+
 /// Greedily packs `messages` into at most `max_lines` lines no wider than
 /// `width`, joining consecutive messages with a single space. A message is never
 /// split: if it doesn't fit on the current line it starts the next one (and a
 /// message longer than `width` simply occupies its own overflowing line).
 ///
 /// Returns the packed lines and how many messages they cover.
+///
+/// A convenience over [`pack_line_segments`] for callers that only want the
+/// text: it joins each line's messages back together with the space they are
+/// displayed with. The renderer wants the segments instead, because each
+/// message keeps its own colour.
 pub fn pack_messages(messages: &[String], width: usize, max_lines: usize) -> (Vec<String>, usize) {
-    let mut lines: Vec<String> = Vec::new();
-    let mut cur = String::new();
+    let (lines, consumed) = pack_line_segments(messages, width, max_lines);
+    (lines.iter().map(|line| line.join(" ")).collect(), consumed)
+}
+
+/// The same packing, with each line left as the list of messages on it, in
+/// order. Displayed they are joined with a single space — so a segment's column
+/// is the widths of the segments before it, plus one space each.
+///
+/// Returns the packed lines and how many messages they cover.
+pub fn pack_line_segments(
+    messages: &[String],
+    width: usize,
+    max_lines: usize,
+) -> (Vec<Vec<String>>, usize) {
+    let mut lines: Vec<Vec<String>> = Vec::new();
+    let mut cur: Vec<String> = Vec::new();
     let mut cur_len = 0usize;
     let mut consumed = 0usize;
 
     for msg in messages {
         let msg_len = msg.chars().count();
-        let would_be = if cur.is_empty() {
-            msg_len
-        } else {
-            cur_len + 1 + msg_len
+        let would_be = match cur.is_empty() {
+            true => msg_len,
+            false => cur_len + 1 + msg_len,
         };
 
         if !cur.is_empty() && would_be > width {
@@ -83,10 +139,9 @@ pub fn pack_messages(messages: &[String], width: usize, max_lines: usize) -> (Ve
         }
 
         if !cur.is_empty() {
-            cur.push(' ');
             cur_len += 1;
         }
-        cur.push_str(msg);
+        cur.push(msg.clone());
         cur_len += msg_len;
         consumed += 1;
     }
@@ -173,6 +228,39 @@ mod tests {
     }
 
     #[test]
+    fn a_shouting_message_never_repaints_the_ones_beside_it() {
+        // The bug this guards: a line is several messages, and colouring used
+        // to be decided for the whole painted row. One combo would turn every
+        // sentence sharing its row magenta.
+        let (lines, _) =
+            pack_line_segments(&v(&["You hit the orc for 3 damage.", "With style."]), 80, 3);
+        assert_eq!(lines.len(), 1, "they share a row");
+        let colors: Vec<Color> = lines[0].iter().map(|m| log_line_color(m)).collect();
+        assert_eq!(colors, vec![Color::White, Color::Magenta]);
+    }
+
+    #[test]
+    fn the_proud_line_comes_out_in_stripes_that_never_repeat_side_by_side() {
+        let flag = crate::pride::PrideFlag::default_flag().stripes;
+        let paint = log_paint(PRIDE_LINE, flag);
+        let painted: Vec<Color> = (0..PRIDE_LINE.len()).map(|i| paint.color_at(i)).collect();
+        assert_eq!(painted[0], flag[0], "opens on red");
+        assert_eq!(
+            painted[6], flag[0],
+            "and wraps from purple straight back to it"
+        );
+        assert!(
+            painted.windows(2).all(|w| w[0] != w[1]),
+            "no two neighbouring letters share a stripe"
+        );
+    }
+
+    #[test]
+    fn a_combo_shouts_in_magenta_with_no_you_in_it() {
+        assert_eq!(log_line_color("With style."), Color::Magenta);
+    }
+
+    #[test]
     fn a_trick_shot_shouts_in_magenta_with_no_you_in_it() {
         // The one line coloured without the player being named in it: it is
         // their shot either way.
@@ -211,14 +299,15 @@ mod tests {
     }
 }
 
-/// What the message log should display: the packed lines, how many unread
-/// messages they cover, and whether a `--MORE--` prompt is required because more
-/// messages are queued than fit.
-pub fn log_view(unread: &[String]) -> (Vec<String>, usize, bool) {
-    let (lines, consumed) = pack_messages(unread, LOG_WIDTH, LOG_LINES);
+/// What the message log should display: the packed lines — each still split
+/// into the messages on it, so each can be painted in its own colour — how many
+/// unread messages they cover, and whether a `--MORE--` prompt is required
+/// because more messages are queued than fit.
+pub fn log_view(unread: &[String]) -> (Vec<Vec<String>>, usize, bool) {
+    let (lines, consumed) = pack_line_segments(unread, LOG_WIDTH, LOG_LINES);
     if consumed >= unread.len() {
         return (lines, consumed, false);
     }
-    let (lines, consumed) = pack_messages(unread, LOG_MORE_WIDTH, LOG_LINES);
+    let (lines, consumed) = pack_line_segments(unread, LOG_MORE_WIDTH, LOG_LINES);
     (lines, consumed, true)
 }

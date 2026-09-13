@@ -1,7 +1,14 @@
 use crate::components::*;
+use crate::effects::Stealthy;
 use crate::map::{Map, TileType};
 use bevy_ecs::prelude::*;
 use std::collections::{HashMap, HashSet};
+
+// --- Tuning constants ------------------------------------------------------
+// Defined and documented in `constants.rs`.
+//
+//   STEALTH_RANGE  how close a stealthy player must be to be noticed
+use crate::constants::rings::STEALTH_RANGE;
 
 /// Monster turn. Exclusive so it can move each mob more than once: the player is
 /// the clock, and every creature banks [`Speed`] energy each of the player's
@@ -16,16 +23,25 @@ use std::collections::{HashMap, HashSet};
 /// still ticks exactly once per player turn.
 pub fn ai(world: &mut World) {
     // 1. Player snapshot: entity, position, the tiles it can see, its faction.
-    let Some((player_entity, player_pos, visible_tiles, player_faction, player_speed)) = ({
+    #[allow(clippy::type_complexity)] // one query for the whole player snapshot
+    let Some((player_entity, player_pos, visible_tiles, player_blind, player_faction)) = ({
         let mut q = world
-            .query_filtered::<(Entity, &Position, &Viewshed, &Faction, Option<&Speed>), With<Player>>();
-        q.iter(world).next().map(|(e, p, v, f, s)| {
+            .query_filtered::<(Entity, &Position, &Viewshed, Option<&Blind>, &Faction), With<Player>>(
+            );
+        q.iter(world).next().map(|(e, p, v, b, f)| {
             let seen: HashSet<(u16, u16)> = v.visible_tiles.iter().copied().collect();
-            (e, *p, seen, *f, s.map_or(SpeedKind::Normal, |s| s.kind))
+            (e, *p, seen, b.is_some(), *f)
         })
     }) else {
         return;
     };
+    // The tempo the player is *acting* at, gear and all — a ring of slow
+    // digestion is a slowing like any other, and buys the floor the same extra
+    // round a potion of paralysis would.
+    let player_speed = crate::conditions::tempo(world, player_entity);
+    // A stealthy player is not there as far as the floor is concerned until
+    // they are within arm's reach (see [`notices`]).
+    let player_stealthy = world.get::<Stealthy>(player_entity).is_some();
 
     // 2. How many monster rounds this one player turn is worth.
     let rounds = match player_speed {
@@ -47,6 +63,16 @@ pub fn ai(world: &mut World) {
 
     let map = world.resource::<Map>().clone();
 
+    // Blindness is the player's problem, not the dungeon's. A blinded hero's
+    // viewshed is cut to the 3x3 they can feel around them, but the monsters in
+    // the lit room they are standing in can all still see them perfectly well —
+    // so the AI works off the view the player *would* have with their eyes open.
+    // Without this, drinking a potion of blindness would be a way to hide.
+    let visible_tiles = match player_blind {
+        true => crate::visibility::visible_from(&map, &player_pos, false),
+        false => visible_tiles,
+    };
+
     for _round in 0..rounds {
         monster_round(
             world,
@@ -54,9 +80,28 @@ pub fn ai(world: &mut World) {
             player_pos,
             &visible_tiles,
             player_faction,
+            player_stealthy,
             &map,
         );
     }
+}
+
+/// Whether a mob standing on `mob_pos` knows where the player is this turn.
+///
+/// Ordinarily that is simply "is its tile in the player's view" — sight is
+/// symmetrical in roog. A ring of stealth breaks the symmetry: the player can
+/// see the length of a lit room and nothing in it can see them back until they
+/// are [`STEALTH_RANGE`] tiles away, at which point being quiet stops helping.
+fn notices(seen: bool, stealthy: bool, player_pos: Position, mob_pos: Position) -> bool {
+    if !seen {
+        return false;
+    }
+    if !stealthy {
+        return true;
+    }
+    let dx = (player_pos.x as i32 - mob_pos.x as i32).abs();
+    let dy = (player_pos.y as i32 - mob_pos.y as i32).abs();
+    dx.max(dy) <= STEALTH_RANGE
 }
 
 /// One full round of monster movement: bank energy, then up to two passes so a
@@ -67,16 +112,23 @@ fn monster_round(
     player_pos: Position,
     visible_tiles: &HashSet<(u16, u16)>,
     player_faction: Faction,
+    player_stealthy: bool,
     map: &Map,
 ) {
-    // Bank this round's energy for every actor with a tempo. The pool is capped
-    // so a monster left alone off-screen can't hoard a dozen free moves for when
-    // it finally reaches you.
+    // Bank this round's energy for every actor with a tempo, at the tempo it is
+    // actually acting at — gear that weighs a creature down banks it less. The
+    // pool is capped so a monster left alone off-screen can't hoard a dozen free
+    // moves for when it finally reaches you.
     {
-        let mut q = world.query::<&mut Speed>();
-        for mut speed in q.iter_mut(world) {
-            let rate = speed.kind.rate();
-            speed.energy = (speed.energy + rate).min(2 * Speed::COST);
+        let actors: Vec<Entity> = world
+            .query_filtered::<Entity, With<Speed>>()
+            .iter(world)
+            .collect();
+        for actor in actors {
+            let rate = crate::conditions::tempo(world, actor).rate();
+            if let Some(mut speed) = world.get_mut::<Speed>(actor) {
+                speed.energy = (speed.energy + rate).min(2 * Speed::COST);
+            }
         }
     }
 
@@ -98,6 +150,7 @@ fn monster_round(
                 pass,
                 player_pos,
                 visible_tiles,
+                player_stealthy,
                 map,
                 &mut spatial,
             );
@@ -133,20 +186,23 @@ fn actor_positions(
 /// bear-trapped mob may still strike but not step), work out where it wants to
 /// go, then either queue an attack or take the step. Returns whether it did
 /// anything — a whole idle pass ends the round.
+#[allow(clippy::too_many_arguments)] // one mob's whole turn, and the turn's facts
 fn step_one_mob(
     world: &mut World,
     mob: Entity,
     pass: usize,
     player_pos: Position,
     visible_tiles: &HashSet<(u16, u16)>,
+    player_stealthy: bool,
     map: &Map,
     spatial: &mut HashMap<(u16, u16), (Entity, Faction)>,
 ) -> bool {
-    // Asleep in gas: forfeit the turn outright. Held in a bear trap: the mob
-    // can't take a step, but a foe within reach still gets bitten.
-    let held_by_bear = match world.get::<Snare>(mob).map(|s| s.kind) {
+    // Asleep in gas: forfeit the turn outright. Caught in a bear trap or bound
+    // by a scroll of hold monster: the mob can't take a step, but a foe within
+    // reach still gets bitten.
+    let pinned = match world.get::<Snare>(mob).map(|s| s.kind) {
         Some(SnareKind::Sleep) => return false,
-        Some(SnareKind::Bear) => true,
+        Some(SnareKind::Bear | SnareKind::Hold) => true,
         None => false,
     };
     if !can_afford_step(world, mob, pass) {
@@ -157,7 +213,8 @@ fn step_one_mob(
     let movement_type = world.get::<Mob>(mob).unwrap().movement_type;
     let mob_faction = *world.get::<Faction>(mob).unwrap();
 
-    let seen = visible_tiles.contains(&(mob_pos.x, mob_pos.y));
+    let in_view = visible_tiles.contains(&(mob_pos.x, mob_pos.y));
+    let seen = notices(in_view, player_stealthy, player_pos, mob_pos);
     let Some((step_x, step_y)) = desired_step(movement_type, player_pos, mob_pos, seen) else {
         return false;
     };
@@ -183,9 +240,8 @@ fn step_one_mob(
         return true;
     }
 
-    // A bear trap pins the mob where it stands: it may lash out (above) but not
-    // step.
-    if held_by_bear {
+    // Pinned where it stands: it may lash out (above) but not step.
+    if pinned {
         return false;
     }
 

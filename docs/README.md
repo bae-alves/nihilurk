@@ -20,6 +20,7 @@ Start here
 | Add a property like "fire immune"   | `how-to/add-an-effect.md`               |
 | Make something rarer, or deeper     | `how-to/tune-rarity-and-depth.md`       |
 | Add a whole new *kind* of item      | `how-to/add-an-item-category.md`        |
+| Put a specific thing on a specific tile | `how-to/spawn-a-thing.md`           |
 | Look up a field, a type, a default  | `reference/content-tables.md`           |
 | Look up a component, resource, event| `reference/components.md`               |
 | Change a balance number             | `reference/constants.md`                |

@@ -141,10 +141,25 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     world
         .resource_mut::<GameLog>()
         .add(format!("The {name} dies."));
+    pay_for_the_corpse(world, entity);
     kill_shake(world, entity);
     crate::helpers::death_burst(world, entity, source);
     leave_gear_behind(world, entity);
     world.despawn(entity);
+}
+
+/// What a corpse is worth, paid into the player's score the moment a creature
+/// stops being one ([`crate::score::award_kill`]).
+///
+/// It never asks whose blade it was. Half the ways a monster dies in roog have
+/// no swinger to ask about — a bolt, a blast a room away, a trapdoor it walked
+/// into — and a scoreboard that paid for some of those and not others would
+/// only be teaching the player to kill things in the approved fashion.
+fn pay_for_the_corpse(world: &mut World, victim: Entity) {
+    let Some(max_hp) = world.get::<Fighter>(victim).map(|f| f.max_hp) else {
+        return;
+    };
+    crate::score::award_kill(world, max_hp);
 }
 
 /// Settles what a dying creature was wearing, item by item. Each piece gets its
@@ -299,23 +314,36 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         }
         lethal = fighter.hp <= 0;
     }
+    // Whatever the attacker's own magic does to something it just hit — a
+    // charmed pair of hands passing its confusion on, an aquator's touch eating
+    // the armour. One table (`crate::abilities::ON_HIT_ABILITIES`), and combat
+    // never learns what is in it: it only says what kind of blow this was.
+    if damage > 0 {
+        let blow = crate::abilities::Blow { glancing, lethal };
+        crate::abilities::fire_on_hit(world, attacker, target, blow);
+    }
     if damage > 0 {
         crate::helpers::spill_blood(world, target, damage, glancing);
-        // A blow landed in melee crosses the low-HP threshold exactly the way a
-        // dart or a bolt does, and reports it the same way. This is the only
-        // damage path that doesn't run through `helpers::apply_damage`, so the
-        // warning has to be asked for by hand here.
-        crate::helpers::warn_if_newly_low(world, target, hp_before);
+        // A blow landed in melee costs its victim exactly what a dart or a bolt
+        // would — a broken promise, the low-HP warning. This is the only damage
+        // path that doesn't run through `helpers::apply_damage`, so it has to
+        // ask for that by hand.
+        crate::helpers::took_damage(world, target, hp_before);
     }
 
-    // Instant hit feedback: a spark where the blow landed, or a faint tick for a
-    // blow that did nothing. Purely cosmetic; `target` still has its Position
-    // here even on a lethal hit (the despawn happens further down).
+    // Instant hit feedback: a spark where the blow landed, a cold clink for a
+    // swing the armour turned aside, or a faint tick for one that did nothing
+    // at all. Purely cosmetic; `target` still has its Position here even on a
+    // lethal hit (the despawn happens further down).
     if let Some(tpos) = world.get::<Position>(target).copied() {
         // The effect layer is optional (tests run without it).
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            match damage {
-                0 => fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey),
+            match (damage, glancing) {
+                (0, _) => fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey),
+                // A glancing blow scrapes off its chip of HP without ever
+                // getting through the armour, and the spark says so: it is
+                // the one hit that draws blood and still gets no shake.
+                (_, true) => fx.clink_spark(tpos.x, tpos.y),
                 _ => fx.hit_spark(tpos.x, tpos.y),
             }
         }
@@ -323,10 +351,19 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
 
     // ...and a thump through the whole map for the one swing in seven that
     // lands clean. The spark says *where* the blow landed; the shake says how
-    // hard. Only the player's own crits shake the screen — `excellent` is
-    // never set for a monster's attack.
+    // hard. Only the player's own hits shake the screen — a monster's blow
+    // reaches the map through the low-HP crossing, or not at all.
     if excellent {
         crate::shake::kick_shake(world, crate::shake::ShakeKind::Heavy);
+    }
+
+    // Every other swing of theirs that got through armour gets the lightest
+    // kick in the set. Three exclusions, and each is somebody else's shake or
+    // nobody's: a crit already took the heavy one above, a kill takes its own
+    // below, and a glancing scrape is the game saying the armour ate the blow
+    // — chip damage exists so the swing isn't *nothing*, not so it thumps.
+    if attacker_is_player && !excellent && !glancing && !lethal && damage > 0 {
+        crate::shake::kick_shake(world, crate::shake::ShakeKind::Hit);
     }
 
     // A kill is worth its own, shorter kick — and it has to be asked for here,
@@ -389,6 +426,7 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         ending.cause = format!("Slain by the {attacker_name}");
     }
     if lethal && !target_is_player {
+        pay_for_the_corpse(world, target);
         leave_gear_behind(world, target);
         world.despawn(target);
     }

@@ -63,9 +63,14 @@ Draws as `]`, worn on the body. The existing eight run 2 (leather) to 9
 
 ### Coin
 
-    CoinDef { name: "electrum coin", color: Color::DarkYellow, value: 500 },
+    CoinDef { name: "electrum coin", color: Color::DarkYellow,
+              effect: PickupEffect::Coin, amount: 2500 },
 
-Coins are the score and buy nothing. Draws as `$`.
+Coins are the pickup category: never carried, spent where they lie. A row
+is `name`, `color`, a `PickupEffect`, and one `amount` the effect reads
+(points, hit points, afflictions lifted). Adding a *kind* of coin means a
+`PickupEffect` variant and an arm in `items/pickups.rs`; adding another
+coin of an existing kind is one row. Draws as `$`.
 
 ### Ammunition
 
@@ -100,9 +105,9 @@ and one row in `AMMO`.
 Rings
 -----
 
-A ring is a modifier item, exactly like a sword. It has no behaviour code
-anywhere -- it stacks numbers through the same components combat already
-folds, and lends marker effects through `Grants`.
+A ring is a modifier item, exactly like a sword. Eleven of the twelve have
+no behaviour code anywhere -- they stack numbers through the same
+components combat already folds, and lend marker effects through `Grants`.
 
 1. Append a variant to `RingEffect` in `models/src/components.rs`:
 
@@ -123,9 +128,23 @@ Available chains:
     .armor_bonus(n)     flat modifier on the wearer's armour roll
     .throw_bonus(n)     flat modifier on everything they throw
     .grants(&[...])     marker effects lent while worn
+    .on_wear(...)       a one-shot fired the instant it goes on
 
 A bonus of zero attaches nothing, so an inert ring costs nothing at run
 time. Giving a ring a body is adding a chain to its existing row.
+
+Reach for `.grants(...)` before anything else: if the property already
+exists as a marker some system asks about, you are done. If it does not,
+add the marker (`../how-to/add-an-effect.md`) and the one system that
+reads it -- that is how stealth, regeneration, teleportitis and maintain
+armor were wired, and none of them put a line in `catalog.rs` beyond the
+row.
+
+`.on_wear(...)` is the last resort, for a ring whose effect is an *event*
+rather than a property: it takes an `OnWear(fn(&mut World, wearer, item))`
+and fires once, after the ring is worn and identified. The ring of
+adornment is the only one, and its function lives with the other two ring
+verbs in `models/src/items/rings.rs`.
 
 
 Potions, scrolls and wands
@@ -151,7 +170,7 @@ The pattern is identical for all three; only the names change.
 
    Potions draw as `!`, scrolls as `?` (always white), wands as `/`.
    A wand's `range` feeds the aiming reticle; a wand also spawns with a
-   `3d4` battery, rolled when it enters the dungeon.
+   `2d6 + 1` battery, rolled when it enters the dungeon.
 
 3. **Write the mechanic** as one arm of the matching function:
 
@@ -169,9 +188,10 @@ The pattern is identical for all three; only the names change.
 > error names the function and the missing variant, so there is no
 > guessing which of the three you forgot.
 >
-> An explicit arm is still allowed to do nothing on purpose -- several
-> existing potions and scrolls sit in a shared do-nothing arm today,
-> each variant named rather than caught by a wildcard (see
+> An explicit arm is still allowed to do nothing on purpose -- the scroll
+> of blank paper, and the two potions that are only a taste, sit in
+> do-nothing arms today, each variant named rather than caught by a
+> wildcard (see
 > `../explanation/data-driven-content.md`, "Where it does not reach").
 > The guarantee is only that you *chose* nothing, not that you *forgot*
 > to write something.
@@ -189,7 +209,7 @@ on the zapper or the room, like the wand of light -- add it to
 > **Identification has twenty slots per category.** Potions, scrolls,
 > wands and rings hide behind a shuffled cosmetic appearance, drawn from a
 > 20-entry pool per category in `models/src/identify.rs`. Current use:
-> potions 14, scrolls 15, wands 14, rings 12. If you exceed a pool, the
+> potions 15, scrolls 15, wands 14, rings 12. If you exceed a pool, the
 > extra types get *no* appearance and read as generic forever. The test
 > `every_identifiable_type_gets_an_appearance` fails when that happens;
 > the fix is to add more names to that pool.

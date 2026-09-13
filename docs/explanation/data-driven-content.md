@@ -227,11 +227,16 @@ not its components; `restore_from_catalog` rebuilds the rest from the
 row. A save that stored a bow's grant list would only be storing the
 table twice, and would go stale the moment the table changed.
 
-**The gaps become visible.** Seven of the twelve rings have a name and an
-appearance and no content. In the old shape that would be seven missing
-match arms scattered about, indistinguishable from bugs. Here it is seven
-rows with no chains -- unfinished in a way you can see at a glance, and
-finish by adding a chain.
+**The gaps become visible, and closing one is a chain.** Seven of the
+twelve rings used to have a name and an appearance and no content. In the
+old shape that would have been seven missing match arms scattered about,
+indistinguishable from bugs; here it was seven rows with no chains --
+unfinished in a way you could see at a glance. Six of the seven were
+finished by adding exactly that: `.power_bonus(2)` for increase damage,
+`.grants(&[Grant::of::<Stealthy>()])` for stealth, and so on for
+regeneration, slow digestion, teleportation and maintain armor. Two of
+those needed a new marker in `EFFECTS` and a system that reads it; none of
+them needed `catalog.rs` to learn what a ring of stealth is.
 
 
 Where it does not reach
@@ -249,16 +254,36 @@ compiling and shipping as a silent dud.
 
 That buys the missing-arm case, not the missing-*behaviour* case --
 exhaustiveness only proves every variant was mentioned, not that what
-it does is finished. Fourteen of `PotionEffect`'s fifteen variants
-(everything but `Healing`) and six of `ScrollEffect`'s fifteen
+it does is finished. `PotionEffect` is fully wired now (its two
+do-nothing arms, `FruitJuice` and `Water`, are deliberate: they are a
+taste and a log line, and the fact that they report *no* visible effect
+is what keeps a thrown one from naming itself). `ScrollEffect` is fully
+wired too, as of the six that used to share an explicit do-nothing arm
 (`MonsterConfusion`, `HoldMonster`, `Sleep`, `EnchantArmor`,
-`FoodDetection`, `EnchantWeapon`) sit in an explicit do-nothing arm
-today, each one named rather than swallowed by a wildcard. That is the
-same trade as the ring gap just above: the missing mechanic is still
-missing, but it is visible in the match instead of indistinguishable
-from a bug. What changed is that nobody can add a *sixteenth* such gap
-by accident -- a new variant has to be named in the match, whether the
-arm you give it is real behaviour or an honest placeholder.
+`FoodDetection`, `EnchantWeapon`); `BlankPaper` is the one arm left that
+does nothing, and it is the joke, not a gap. What exhaustiveness buys is
+that nobody can add a *new* such gap by accident -- a new variant has to
+be named in the match, whether the arm you give it is real behaviour or
+an honest placeholder.
+
+**And one ring did need a verb.** Eleven of the twelve are a number or a
+marker; the ring of adornment is an *event* -- it fires once, when it goes
+on, and spends itself doing it. A `Grant` cannot say that, so it rides as
+an `OnWear` component the row attaches, and `models/src/items/rings.rs`
+holds the three ring verbs that exist (the adornment flourish, the
+regeneration tick, the teleportitis jump). That file is the honest cost of
+the design: it is where a ring's behaviour goes when the row cannot hold
+it. It still contains no `match` on `RingEffect`, and nothing outside it
+knows which ring is which.
+
+Wiring the potions is also where the third home for a mechanic showed
+up. A condition (confusion, blindness, paralysis, a shifted tempo) is
+not a potion's property any more than it is a wand's: both put the same
+affliction on the same creature, and both have to know that the player
+takes it as a marker component the input loop reads while a monster
+takes it as a `MovementType` or a slower tempo. So the verbs live in
+`models/src/conditions.rs`, one per affliction, and the potion arm and
+the wand arm are each one line into them.
 
 **Numeric modifiers need a place to be added.** A new `SightBonus`
 component is easy to declare, but somebody has to fold it into the

@@ -143,6 +143,7 @@ pub const POTIONS: &[PotionDef] = &[
     PotionDef { effect: PotionEffect::Haste,           name: "potion of haste self",       color: Color::DarkYellow },
     PotionDef { effect: PotionEffect::RestoreStrength, name: "potion of restore strength", color: Color::Red },
     PotionDef { effect: PotionEffect::Blindness,       name: "potion of blindness",        color: Color::DarkGrey },
+    PotionDef { effect: PotionEffect::FruitJuice,      name: "potion of fruit juice",      color: Color::DarkYellow },
     PotionDef { effect: PotionEffect::Water,           name: "potion of thirst quenching", color: Color::Blue },
 ];
 
@@ -587,6 +588,10 @@ pub struct RingDef {
     /// The marker effects this ring lends its wearer. Read back on load, so a
     /// saved ring never has to store what its row already says.
     pub grants: &'static [Grant],
+    /// What happens the *moment* it goes on, for the one ring whose effect is
+    /// an event rather than a property. Restored from the row on load, exactly
+    /// like [`RingDef::grants`].
+    pub on_wear: Option<OnWear>,
 }
 
 impl RingDef {
@@ -600,6 +605,7 @@ impl RingDef {
             armor_bonus: 0,
             throw_bonus: 0,
             grants: &[],
+            on_wear: None,
         }
     }
 
@@ -624,6 +630,12 @@ impl RingDef {
     /// Marker effects the wearer gains while it's on.
     const fn grants(mut self, grants: &'static [Grant]) -> Self {
         self.grants = grants;
+        self
+    }
+
+    /// A one-shot fired the instant it goes on (see [`OnWear`]).
+    const fn on_wear(mut self, on_wear: OnWear) -> Self {
+        self.on_wear = Some(on_wear);
         self
     }
 
@@ -666,6 +678,9 @@ impl ItemDef for RingDef {
         if !self.grants.is_empty() {
             e.insert(Grants(self.grants));
         }
+        if let Some(on_wear) = self.on_wear {
+            e.insert(on_wear);
+        }
         e.id()
     }
 
@@ -676,10 +691,10 @@ impl ItemDef for RingDef {
     }
 }
 
-/// The rings. Seven of the twelve are still inert — they have a name and an
-/// appearance but no row content yet, which is exactly what "unwired" now looks
-/// like: give one a `.power_bonus(2)` or a `.grants(...)` and it works, with no
-/// other file touched.
+/// The rings, all twelve live. Eleven of them are pure table: a number that
+/// combat already folds, or a marker some system already asks about. Only
+/// adornment needed a verb written for it, and it is named here the same way
+/// everything else is — see [`crate::items::rings`].
 #[rustfmt::skip]
 pub const RINGS: &[RingDef] = &[
     RingDef::new(RingEffect::Protection, "ring of protection")
@@ -696,24 +711,46 @@ pub const RINGS: &[RingDef] = &[
     // A steady hand: worth as much on a hurled dagger as on a loosed arrow.
     RingDef::new(RingEffect::Dexterity, "ring of dexterity")
         .throw_bonus(2),
-    RingDef::new(RingEffect::Adornment,      "ring of adornment"),
-    RingDef::new(RingEffect::IncreaseDamage, "ring of increase damage"),
-    RingDef::new(RingEffect::Regeneration,   "ring of regeneration"),
-    RingDef::new(RingEffect::SlowDigestion,  "ring of slow digestion"),
-    RingDef::new(RingEffect::Teleportation,  "ring of teleportation"),
-    RingDef::new(RingEffect::Stealth,        "ring of stealth"),
-    RingDef::new(RingEffect::MaintainArmor,  "ring of maintain armor"),
+    // Rogue's useless ring, made the most valuable thing in the dungeon: worn
+    // once, for one action, it doubles the run's score and is gone.
+    RingDef::new(RingEffect::Adornment, "ring of adornment")
+        .on_wear(crate::items::rings::ADORNMENT),
+    // The ring of strength's plain twin: the same two points on the damage
+    // roll, without the arm behind it that a dart can't drain.
+    RingDef::new(RingEffect::IncreaseDamage, "ring of increase damage")
+        .power_bonus(2),
+    RingDef::new(RingEffect::Regeneration, "ring of regeneration")
+        .grants(&[Grant::of::<Regenerates>()]),
+    // The joke it has always been, taken literally: it slows your digestion by
+    // slowing *you*.
+    RingDef::new(RingEffect::SlowDigestion, "ring of slow digestion")
+        .grants(&[Grant::of::<Sluggish>()]),
+    RingDef::new(RingEffect::Teleportation, "ring of teleportation")
+        .grants(&[Grant::of::<Teleportitis>()]),
+    RingDef::new(RingEffect::Stealth, "ring of stealth")
+        .grants(&[Grant::of::<Stealthy>()]),
+    // The ring of strength's other twin: that one keeps the poison out of your
+    // arm, this one keeps the corrosion off your plate.
+    RingDef::new(RingEffect::MaintainArmor, "ring of maintain armor")
+        .grants(&[Grant::of::<SustainsArmor>()]),
 ];
 
 // ---------------------------------------------------------------------------
 // Coins and the relic
 // ---------------------------------------------------------------------------
 
-/// Loose treasure. Rogue's food slot; here it's what you cash in at the end.
+/// A coin: Rogue's food slot, grown into the whole pickup category. Every one
+/// of them works the instant you step on it and is never carried — the two
+/// treasure coins go straight into the score, the rest into you.
+///
+/// `amount` is the row's one dial and what it means is `effect`'s business:
+/// points for a treasure coin, hit points for the red one, afflictions lifted
+/// for the rosé. A row that needs no number leaves it at zero.
 pub struct CoinDef {
     pub name: &'static str,
     pub color: Color,
-    pub value: i32,
+    pub effect: PickupEffect,
+    pub amount: i32,
 }
 
 impl ItemDef for CoinDef {
@@ -722,27 +759,46 @@ impl ItemDef for CoinDef {
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
-        world
-            .spawn((
-                Name {
-                    what: self.name.to_string(),
-                },
-                Renderable {
-                    glyph: '$',
-                    color: self.color,
-                },
-                pos,
-                Value { amount: self.value },
-                Item,
-            ))
-            .id()
+        let mut e = world.spawn((
+            Name {
+                what: self.name.to_string(),
+            },
+            Renderable {
+                glyph: '$',
+                color: self.color,
+            },
+            pos,
+            Item,
+            Pickup {
+                effect: self.effect,
+                amount: self.amount,
+            },
+        ));
+        // A treasure coin also carries the one component the score reads, the
+        // same one the relic carries. Everything else on this table is worth
+        // what it does to you, which the scoreboard never hears about.
+        if self.effect == PickupEffect::Coin {
+            e.insert(Value {
+                amount: self.amount,
+            });
+        }
+        e.id()
     }
 }
 
+/// The coins. Two are treasure and six are a small mercy, and the dungeon
+/// scatters them alike — which is why a `$` on the floor is worth walking to
+/// even when your pack is full.
 #[rustfmt::skip]
 pub const COINS: &[CoinDef] = &[
-    CoinDef { name: "gold coin",   color: Color::Yellow, value: 1000 },
-    CoinDef { name: "silver coin", color: Color::Grey,   value:  100 },
+    CoinDef { name: "gold coin",     color: Color::Yellow,      effect: PickupEffect::Coin,     amount: 5000 },
+    CoinDef { name: "silver coin",   color: Color::Grey,        effect: PickupEffect::Coin,     amount: 1000 },
+    CoinDef { name: "red coin",      color: Color::Red,         effect: PickupEffect::Health,   amount:    4 },
+    CoinDef { name: "blue coin",     color: Color::Blue,        effect: PickupEffect::Power,    amount:    4 },
+    CoinDef { name: "rosé coin",     color: Color::Magenta,     effect: PickupEffect::Cleanse,  amount:    4 },
+    CoinDef { name: "green coin",    color: Color::Green,       effect: PickupEffect::Strength, amount:    4 },
+    CoinDef { name: "platinum coin", color: Color::White,      effect: PickupEffect::Platinum, amount:    0 },
+    CoinDef { name: "forge coin",    color: Color::DarkYellow,  effect: PickupEffect::Forge,    amount:    0 },
 ];
 
 /// The Element of Yoord: the relic each run retrieves from the deepest floor,

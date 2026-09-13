@@ -102,7 +102,8 @@ punishing until you look at the bonus range: a cursed item rolls between
 -5 and +5, so it is often *better* than the 25% that roll plain. What
 you are gambling is not the number, it is the commitment -- a cursed item
 cannot be taken off again without a scroll of remove curse, which will
-destroy it.
+destroy it, or the matching scroll of enchantment, which lifts the curse
+and mends the minus but has to be found and has to match the slot.
 
 So the drop table is not "most of your loot is bad". It is "most of your
 loot is a decision". Picking up an unidentified sword and putting it on

@@ -53,6 +53,11 @@ pub enum BlastPalette {
     Warp,
     /// Wand of cancellation — a dead grey wave.
     Void,
+    /// The ULTIMATE TRICK SHOT — the Element of Yoord answering a missile.
+    /// White through magenta to dark magenta, the only blast in the game that
+    /// nothing in the wand table can produce, and the only one that leaves
+    /// smoke behind without being on fire.
+    Ultimate,
 }
 
 impl BlastPalette {
@@ -122,9 +127,34 @@ impl BlastPalette {
                 (':', DarkGrey),
                 ('·', DarkGrey),
             ],
+            BlastPalette::Ultimate => [
+                ('#', White),
+                ('@', Magenta),
+                ('*', DarkMagenta),
+                ('+', Magenta),
+                ('·', DarkMagenta),
+            ],
         }
     }
 }
+
+/// The seven colours a ring of adornment's fireworks come in: every bright
+/// terminal colour there is, white excluded. White is what the rest of the
+/// effect layer opens *every* burst on, so a white firework would read as one
+/// more hit spark instead of the one moment in the run that is pure show. Bright
+/// black is in — a firework the colour of the night it goes off against is
+/// exactly the sort of joke a ring of adornment would make.
+///
+/// See [`Particles::firework`].
+pub const GLORY_COLORS: [Color; 7] = [
+    Color::Red,
+    Color::Green,
+    Color::Yellow,
+    Color::Blue,
+    Color::Magenta,
+    Color::Cyan,
+    Color::DarkGrey,
+];
 
 /// One transient mote, living in map-tile coordinates.
 pub struct Particle {
@@ -242,6 +272,28 @@ impl Particles {
         });
     }
 
+    /// The glancing blow's answer to [`Particles::hit_spark`]: steel skidding
+    /// off armour instead of biting into what is under it. Deliberately the
+    /// same shape as a landed hit's spark and none of its colour — it opens on
+    /// a hard white tick and goes cold immediately, where a real hit burns
+    /// down through yellow to a red ember. Shorter, too, and it arms no screen
+    /// shake: a glancing blow is the game telling the player the armour ate
+    /// the swing, and it should read as less than the blow beside it.
+    pub fn clink_spark(&mut self, x: u16, y: u16) {
+        self.push(Particle {
+            x,
+            y,
+            delay_ms: 0.0,
+            lifetime_ms: 120.0,
+            age_ms: 0.0,
+            frames: vec![
+                ('+', Color::White),
+                ('×', Color::Grey),
+                ('·', Color::DarkGrey),
+            ],
+        });
+    }
+
     /// The instant a spray of blood physically lands — the wound tile itself,
     /// or wherever a droplet's streak comes to rest, floor or wall alike. A
     /// short, sharp red flash; `delay_ms` lets it land right as its
@@ -350,6 +402,121 @@ impl Particles {
                 frames: vec![('*', Color::White), ('+', color), ('.', color)],
             });
         }
+    }
+
+    /// The flare of a charm taking hold on the tile its reader stands on: a
+    /// bright core with a ring of sparks thrown off it, each one a beat behind
+    /// the last so the burst reads as flying outward rather than appearing all
+    /// at once. `color` says what kind of magic caught — orange for an
+    /// enchantment biting into gear, magenta for a charm laid on a pair of
+    /// hands.
+    ///
+    /// Unlike [`Particles::impact_sparks`] there is nothing arriving here: the
+    /// ring opens on the colour rather than on a white impact tick, because
+    /// nothing hit anything.
+    pub fn spark_burst(&mut self, x: u16, y: u16, color: Color) {
+        const RING: [(i32, i32); 8] = [
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (-1, 0),
+            (1, 0),
+            (-1, 1),
+            (0, 1),
+            (1, 1),
+        ];
+        self.push(Particle {
+            x,
+            y,
+            delay_ms: 0.0,
+            lifetime_ms: 240.0,
+            age_ms: 0.0,
+            frames: vec![
+                ('*', color),
+                ('‼', Color::White),
+                ('+', color),
+                ('·', color),
+            ],
+        });
+        for (i, &(dx, dy)) in RING.iter().enumerate() {
+            let Some((sx, sy)) = on_map(x as i32 + dx, y as i32 + dy) else {
+                continue;
+            };
+            self.push(Particle {
+                x: sx,
+                y: sy,
+                delay_ms: 40.0 + i as f32 * 18.0,
+                lifetime_ms: 160.0,
+                age_ms: 0.0,
+                frames: vec![('+', color), ('*', Color::White), ('·', color)],
+            });
+        }
+    }
+
+    /// One firework of a ring of adornment's flourish: a whole small blast of
+    /// its own, in one bright colour, on `(x, y)` and the ring of tiles around
+    /// it. Eight of these go off around whoever put the ring on, `delay_ms`
+    /// apart, so the set reads as a chain of detonations running round the
+    /// wearer rather than one flat flash.
+    ///
+    /// The only effect in the game that opens on its colour and *stays* there:
+    /// every other burst punctuates itself with a white tick, and white is the
+    /// one colour a firework may not be — see [`GLORY_COLORS`].
+    pub fn firework(&mut self, x: u16, y: u16, color: Color, delay_ms: f32) {
+        const PETALS: [(i32, i32); 8] = [
+            (0, -1),
+            (1, -1),
+            (1, 0),
+            (1, 1),
+            (0, 1),
+            (-1, 1),
+            (-1, 0),
+            (-1, -1),
+        ];
+        self.push(Particle {
+            x,
+            y,
+            delay_ms,
+            lifetime_ms: 420.0,
+            age_ms: 0.0,
+            frames: vec![
+                ('#', color),
+                ('@', color),
+                ('*', color),
+                ('+', color),
+                ('·', color),
+            ],
+        });
+        for (i, &(dx, dy)) in PETALS.iter().enumerate() {
+            let Some((px, py)) = on_map(x as i32 + dx, y as i32 + dy) else {
+                continue;
+            };
+            self.push(Particle {
+                x: px,
+                y: py,
+                delay_ms: delay_ms + 50.0 + i as f32 * 14.0,
+                lifetime_ms: 240.0,
+                age_ms: 0.0,
+                frames: vec![('*', color), ('+', color), ('·', color)],
+            });
+        }
+    }
+
+    /// The mote that marks one creature an effect just landed on: the
+    /// condition's own glyph (`z` asleep, `#` held, `?` confused) flashing over
+    /// its tile and fading. Deliberately tiny — the lasting news is the tint the
+    /// renderer paints under the creature for as long as the condition holds,
+    /// and this only says *when* it took. `delay_ms` staggers a roomful so a
+    /// scroll that catches six monsters reads as a wave crossing the room.
+    pub fn condition_mark(&mut self, x: u16, y: u16, glyph: char, color: Color, delay_ms: f32) {
+        self.push(Particle {
+            x,
+            y,
+            delay_ms,
+            lifetime_ms: 260.0,
+            age_ms: 0.0,
+            frames: vec![(glyph, Color::White), (glyph, color), (glyph, color)],
+        });
     }
 
     /// A thrown object in flight: the item's own glyph hopping cell by cell from

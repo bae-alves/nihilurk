@@ -282,6 +282,16 @@ pub struct Invisible;
 #[derive(Component)]
 pub struct Spotted;
 
+/// Turned up by a potion of detection: this thing draws on the map even where
+/// the player cannot see it, dimly, for as long as they stay on this floor.
+/// Nothing clears it — leaving the floor despawns everything that carries it.
+///
+/// It says only *where*: a detected monster's glyph does not animate, take
+/// damage or get announced, because the player is sensing it rather than
+/// watching it. See `crate::items::potions`.
+#[derive(Component)]
+pub struct Detected;
+
 // ===========================================================================
 // Items: on the floor and in the pack
 // ===========================================================================
@@ -291,11 +301,58 @@ pub struct Spotted;
 #[derive(Component)]
 pub struct Item;
 
-/// What an item cashes in for at the end of a run. Coins and the relic carry it;
-/// nothing spends it during play.
+/// What an item is worth in score, paid the moment it is picked up. Coins and
+/// the relic carry it; see [`crate::score::award`] and
+/// [`crate::items::pickups::pick_up`].
 #[derive(Component)]
 pub struct Value {
     pub amount: i32,
+}
+
+/// An item that is never carried: it works the instant you step on it and is
+/// gone. Every coin is one.
+///
+/// Three rules follow from "never carried", and together they are what makes a
+/// pickup a different kind of thing from an item you stow:
+///
+/// * **A full pack is no obstacle.** There is nothing to find room for.
+/// * **It is left alone when it would do nothing.** Walk over a red coin at
+///   full health and it stays on the floor waiting for the day you need it
+///   ([`crate::items::pickups::would_help`]), and auto-explore does not detour
+///   for one it cannot use either.
+/// * **It can be shot.** A missile that comes down on one sets it off like a
+///   trap, in a burst twice the usual width — see
+///   [`crate::traps::detonate_pickup`].
+#[derive(Component)]
+pub struct Pickup {
+    pub effect: PickupEffect,
+    /// The number the effect works with — points, hit points, afflictions
+    /// lifted — straight off the [`crate::catalog::CoinDef`] row.
+    pub amount: i32,
+}
+
+/// What stepping on a pickup does. The mechanic is an exhaustive match in
+/// [`crate::items::pickups`]; the amount it works with is the `amount` on the
+/// [`crate::catalog::CoinDef`] row, so "how much" is data and "what kind" is
+/// this.
+///
+/// Serialised by variant position — append, never reorder.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PickupEffect {
+    /// Straight into the score.
+    Coin,
+    /// Hit points, up to the ceiling.
+    Health,
+    /// Magic points, up to the ceiling.
+    Power,
+    /// Lifts up to `amount` afflictions.
+    Cleanse,
+    /// Gives back up to `amount` points of drained melee strength.
+    Strength,
+    /// The [`Plated`] promise.
+    Platinum,
+    /// The [`Forged`] promise.
+    Forge,
 }
 
 /// An actor's carried items, in inventory-letter order. An item in here has had
@@ -599,9 +656,77 @@ pub struct Launcher;
 /// movement, auto-explore and auto-fight all refuse to run. It is treacherous:
 /// it does not wear off with time — only using a staircase or being caught by a
 /// wand of cancellation clears it (both through
-/// `crate::helpers::clear_player_conditions`). Shown in the HUD as `CONF`.
+/// `crate::conditions::clear_player_conditions`). Shown in the HUD as `CONF`.
 #[derive(Component)]
 pub struct Confused;
+
+/// The **player** can't see (a potion of blindness). Four things follow, and
+/// together they are the nastiest condition in the game:
+///
+/// * Their viewshed is cut to the 3x3 they could reach out and touch — no room
+///   floods in however well lit ([`crate::visibility`]).
+/// * Nothing in it has colour: every glyph they can make out is painted white.
+/// * No creature is perceptible at all, adjacent or not — every mob is [`Hidden`]
+///   while it lasts, so auto-explore and auto-fight have nothing to work with
+///   either.
+/// * The monsters are not blinded in return: [`crate::ai`] keeps using the view
+///   the player *would* have, so this is never a way to hide.
+///
+/// Everything already explored stays on screen as fog-grey memory. Lifted the
+/// same two ways [`Confused`] is. Shown in the HUD as `BLND`.
+///
+/// A blinded *monster* carries [`MovementType::Confused`] instead — it has no
+/// viewshed to put out, so all blindness can do to it is make it grope.
+#[derive(Component)]
+pub struct Blind;
+
+/// Limbs locked up (a potion of paralysis). Whoever carries it has had their
+/// [`Speed`] dropped to [`SpeedKind::Slow`]; on the **player** it costs a share
+/// of the turns that still leaves them
+/// ([`crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE`]) outright — no key
+/// read, the monsters move anyway. Lifted the same two ways [`Confused`] is, and
+/// shown in the HUD as `PARL` alongside the `SLOW` the slowing earns.
+///
+/// A paralysed *monster* keeps only the slowing — nothing rolls dice on its
+/// behalf — and wears this so the renderer can tint it. See
+/// [`crate::conditions::paralyse`].
+#[derive(Component)]
+pub struct Paralyzed;
+
+/// Hands charged with a charm (a scroll of monster confusion): the next blow
+/// the bearer *lands* confuses what it hits, and the charge is spent doing it.
+/// It is not a condition on the bearer — nothing about them is impaired — but it
+/// lives here because it rides along exactly like one: it does not wear off with
+/// time, and it survives a staircase (see [`crate::combat::resolve_attack`],
+/// which discharges it). Shown in the HUD as `GLOW`.
+///
+/// Whoever read the scroll carries it, monster or player alike, and the
+/// confusion it delivers goes through [`crate::conditions::confuse`] — so a
+/// hobgoblin that reads one you threw can charm *you* with its next punch.
+#[derive(Component, Default)]
+pub struct ConfusingTouch;
+
+/// A promise the dungeon made you, and the terms are the same for both of the
+/// coins that make one: **reach the next staircase without being hurt again**
+/// and it pays out. Take a single point of damage and it is gone, with a line
+/// saying so.
+///
+/// [`Plated`] pays a permanent point of attack or defence die — the coin flip
+/// is the dungeon's, not yours. [`Forged`] pays a point of plus on the weapon
+/// in your hand or the armour on your back, exactly as the matching scroll
+/// would, curse and all.
+///
+/// They are conditions and not items because that is how they behave: carried
+/// on the player, shown on the HUD (`PLAT`, `FORG`), and lost to something that
+/// happens *to* you. Unlike every other condition they are not lifted by the
+/// staircase — the staircase is what cashes them
+/// ([`crate::items::pickups::settle_promises`]).
+#[derive(Component)]
+pub struct Plated;
+
+/// The forge's half of the same bargain. See [`Plated`].
+#[derive(Component)]
+pub struct Forged;
 
 // ===========================================================================
 // Traps and snares
@@ -672,13 +797,18 @@ pub enum SnareKind {
     Bear,
     /// Sleeping gas: out cold. No action of any kind until it wears off.
     Sleep,
+    /// A scroll of hold monster: rooted to the spot by somebody else's words.
+    /// Mechanically a bear trap without the teeth — it cannot take a step, but
+    /// it can still strike whatever comes within reach — so walking away is what
+    /// the scroll buys you, not free kills.
+    Hold,
 }
 
 /// An actor that cannot act freely for `turns` more turns. Aged by
 /// `crate::traps::snare_system`; removed (with a wake-up log line for the
 /// player) when it hits zero. A [`SnareKind::Sleep`] snare forfeits the turn
-/// outright; a [`SnareKind::Bear`] snare only blocks movement. `crate::ai`
-/// applies the same rule to snared monsters.
+/// outright; a [`SnareKind::Bear`] or [`SnareKind::Hold`] snare only blocks
+/// movement. `crate::ai` applies the same rule to snared monsters.
 #[derive(Component)]
 pub struct Snare {
     pub turns: u32,

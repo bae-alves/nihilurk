@@ -50,7 +50,10 @@ fn walk_a_few_floors_and_use_the_loot() {
             w.get_mut::<Backpack>(player).unwrap().items.push(e);
         }
 
-        // Read / drink anything consumable.
+        // Read / drink anything consumable — except a potion of raise level,
+        // which is a staircase in a bottle. This walk counts its own floors, and
+        // an item that moves the player between them is the one thing it can't
+        // swallow blind; the potion has its own coverage in `tests/potions.rs`.
         let consumables: Vec<Entity> = w
             .get::<Backpack>(player)
             .unwrap()
@@ -58,6 +61,7 @@ fn walk_a_few_floors_and_use_the_loot() {
             .iter()
             .copied()
             .filter(|e| w.get::<Consume>(*e).is_some())
+            .filter(|e| w.get::<Potion>(*e).map(|p| p.effect) != Some(PotionEffect::RaiseLevel))
             .collect();
         for item in consumables {
             w.get_mut::<Backpack>(player)

@@ -989,6 +989,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
                 .add("You cannot go down from here.");
             return false;
         }
+        award_stair_score(world);
         transition_level(world, true, LevelChange::Stairs);
         return true;
     }
@@ -1013,16 +1014,41 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
     if world.resource::<Depth>().what <= 1 {
         // The surface at last — and only ever by the player's own hand on the
         // stair. The run is won.
-        if let Some(mut ending) = world.get_resource_mut::<Ending>() {
-            ending.player_won = true;
-        }
+        award_stair_score(world);
         world.resource_mut::<GameLog>().add(
             "You climb the last stair into open sky, the Element of Yoord blazing in your hands.",
         );
+        // Nobody walks out of that dungeon quietly: the last stair is always
+        // taken with style, fireworks and doubled score and all, and the engine
+        // plays it out before the starfield.
+        win_with_style(world);
         return true;
     }
+    award_stair_score(world);
     transition_level(world, false, LevelChange::Stairs);
     true
+}
+
+/// Pays for a flight of stairs: [`crate::constants::score::STAIR_PER_TIER`] per
+/// difficulty tier of the floor being left. Only a staircase pays — a trapdoor,
+/// a portal and a potion of raise level all move you between floors without
+/// anybody earning anything.
+fn award_stair_score(world: &mut World) {
+    let depth = world.resource::<Depth>().what;
+    crate::score::award_stairs(world, difficulty_tier(depth));
+}
+
+/// Ends the run in triumph. The flourish first (it has a score to double while
+/// there is still a run to score), then the flag the main loop is watching for.
+///
+/// Shared by the two ways out of the dungeon — the last stair and a potion of
+/// raise level drunk on Depth 1 — because they are the same achievement, and
+/// the game has no business rewarding one of them less.
+pub(crate) fn win_with_style(world: &mut World) {
+    crate::items::rings::do_it_with_style(world);
+    if let Some(mut ending) = world.get_resource_mut::<Ending>() {
+        ending.player_won = true;
+    }
 }
 
 /// Why the player is being moved between floors — only affects the log line and
@@ -1032,6 +1058,10 @@ pub(crate) enum LevelChange {
     Stairs,
     Portal,
     Trapdoor,
+    /// A potion of raise level, which only ever goes up. Unlike the portal it
+    /// does not care whether the Element of Yoord is in the pack (see
+    /// `crate::items`'s `potions` submodule).
+    Potion,
 }
 
 /// Moves the player one floor in the given direction: clears the current floor,
@@ -1144,9 +1174,18 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         dl.idle_turns = 0;
     }
 
-    // Transient conditions (haste, slow, dazzle) are treacherous but they do not
-    // survive a staircase — using one is one of only two things that clears them.
-    crate::helpers::clear_player_conditions(world, player_entity);
+    // A staircase reached unhurt is what the platinum and forge coins asked
+    // for, and this is where they pay. Only a staircase: a trapdoor is not
+    // arriving somewhere, it is falling, and neither is the Dungeon Lord's
+    // portal or a potion drunk to skip a floor.
+    if cause == LevelChange::Stairs {
+        crate::items::settle_promises(world, player_entity);
+    }
+
+    // Transient conditions (haste, slow, dazzle, blindness, paralysis, a
+    // potion's floor-long second sight) are treacherous but they do not survive
+    // a staircase — using one is one of only two things that clears them.
+    crate::conditions::clear_player_conditions(world, player_entity);
 
     let msg = match cause {
         // Descending, it is the Dungeon Lord who wrenches you down; once you
@@ -1163,6 +1202,11 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         }
         LevelChange::Trapdoor => {
             format!("You crash down onto the floor below in a shower of dust. (Depth {depth})")
+        }
+        LevelChange::Potion => {
+            format!(
+                "The stone above you thins to nothing and you drift up through it. (Depth {depth})"
+            )
         }
         LevelChange::Stairs if going_down => format!("You descend the stairs. (Depth {depth})"),
         LevelChange::Stairs => format!("You climb the stairs. (Depth {depth})"),
@@ -1224,6 +1268,8 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(Smoke::new());
     world.insert_resource(Corpses::new());
     world.init_resource::<crate::magicmap::MagicMapReveal>();
+    world.init_resource::<crate::score::ScoreFlash>();
+    world.init_resource::<crate::score::Combo>();
     world.insert_resource(Identified::default());
     // This run's cosmetic appearance for every unidentified item type. Drawn
     // from a separate RNG keyed off the same seed (so a given seed always

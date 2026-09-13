@@ -267,6 +267,42 @@ already tend to be small (`Position` is two fields, most grants are
 zero), so there is nothing to clean up. Treat it as advice, not a pass.
 
 
+One rule of roog's own: a test never asserts a constant
+------------------------------------------------------
+
+Not a calisthenics rule, but it belongs next to them, because it is the
+same kind of discipline and it has already cost us a morning.
+
+**Never write a test whose assertion is a copy of a tuning number.** A
+test that says a wand rolls `3..=9`, that a floor hides a stash one time
+in five, or that a kill is worth 700 points is not testing the game; it
+is testing `constants.rs`, which needs no help. The moment somebody
+rebalances -- and the working tree is *usually* mid-rebalance -- that
+test goes red while the code is perfectly correct, and it teaches the
+next person to distrust the suite.
+
+Three ways out, in order of preference:
+
+1. **Assert the relation.** "A thrown wand hits harder than the zap it
+   gave up." "Two corpses in one turn beat two corpses in two turns." "A
+   coin's burst reaches a tile a trap's does not." These stay true across
+   every rebalance because they are what the feature *is*.
+2. **Read the constant.** `CHARGE_DICE * CHARGE_SIDES + CHARGE_BONUS`
+   instead of `13`; `share_of("coin")` off `DROPS` instead of `17.0`.
+   Now the test proves the roller honours the table rather than
+   proving the table says what it says.
+3. **Purge it.** If a test's only claim was the number, delete it and
+   put something real in its place. The stash test became "a stashed
+   item carries `Invisible` *and* `Hidden`", which is an invariant a
+   rebalance cannot touch and a bug could.
+
+A test's own loop bound is not a tuning number and should not borrow
+one. `models/tests/autoexplore.rs` asserts termination against a local
+`NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` --
+the cap is a safety valve somebody tunes, and borrowing it made a
+tightened valve look like an infinite loop.
+
+
 See also
 --------
 
