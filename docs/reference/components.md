@@ -285,7 +285,7 @@ Resources
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
 | `QuitPrompt`    | `open: bool`                                              | the "Really quit?" modal, raised by `Q` / `X` **with nothing else open** and answered `y` / `n`. Ctrl+C bypasses it; `Esc` never raises it. |
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
-| `PackMode`      | enum: `Browse` `Use` `Drop` `Equip` `Quaff` `Read` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
+| `PackMode`      | enum: `Browse` `Use` `Drop` `Equip` `Quaff` `Read` `Zap` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
 | `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |
 | `TargetingState`| `active`, `item: Option<Entity>`, `throwing: bool`, `cursor_x`, `cursor_y: i16` | aiming reticle; `throwing` swaps the range to `THROW_RANGE` and confirm to a hurl. |
 | `PlayerTempo`   | `fast_parity: bool`                                       | the player half of the speed system: a `Fast` turn flips it, monsters move only when it flips back. |
@@ -306,6 +306,7 @@ line, verb, row filter — with one row per key that opens the pack:
 | `Equip`  | `e` | anything with `Equipped`  | `ItemAction::Use` |
 | `Quaff`  | `q` | anything with `Potion`    | `ItemAction::Use` |
 | `Read`   | `r` | anything with `Scroll`    | `ItemAction::Use` |
+| `Zap`    | `z` | anything with `Wand`      | `ItemAction::Use` |
 | `Wield`  | `w` | `Equipped { slot: Hand }` | `ItemAction::Use` |
 | `Wear`   | `W` | `Equipped { slot: Body }` | `ItemAction::Use` |
 | `PutOn`  | `P` | `Equipped { slot: Finger }` | `ItemAction::Use` |
