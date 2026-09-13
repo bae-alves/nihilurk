@@ -803,6 +803,7 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         KeyCode::Char('e') => return open_pack(world, PackMode::Equip),
         KeyCode::Char('q') => return open_pack(world, PackMode::Quaff),
         KeyCode::Char('r') => return open_pack(world, PackMode::Read),
+        KeyCode::Char('z') => return open_pack(world, PackMode::Zap),
         KeyCode::Char('w') => return open_pack(world, PackMode::Wield),
         KeyCode::Char('W') => return open_pack(world, PackMode::Wear),
         KeyCode::Char('P') => return open_pack(world, PackMode::PutOn),
@@ -867,10 +868,10 @@ fn start_run(world: &mut World, rdx: i16, rdy: i16) {
     }
 }
 
-/// `i` / `a` / `d` / `e` / `q` / `r` / `w` / `W` / `P`: open the pack in `mode`
-/// with the cursor on its first row, or — when that mode has no rows to show —
-/// say so and stay on the map. Never spends a turn; the row that gets picked
-/// might.
+/// Any of the eleven pack keys — `i` `a` `t` `d` `e` `q` `r` `z` `w` `W` `P`:
+/// open the pack in `mode` with the cursor on its first row, or — when that
+/// mode has no rows to show — say so and stay on the map. Never spends a turn;
+/// the row that gets picked might.
 fn open_pack(world: &mut World, mode: PackMode) -> std::io::Result<bool> {
     let rows = pack_rows(world, mode);
     let Some(&first) = rows.first() else {

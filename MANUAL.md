@@ -131,7 +131,7 @@ a reticle or the prompt itself up it just closes that, same as `x`. And
 `Esc` does **not** quit at all — it backs out of menus, and that's all.
 Quitting saves your run (there's exactly one save; see above).
 
-And ten keys that open the pack, each showing only what it can act on:
+And eleven keys that open the pack, each showing only what it can act on:
 
 | Key | Menu | Shows |
 |-----|------|-------|
@@ -142,6 +142,7 @@ And ten keys that open the pack, each showing only what it can act on:
 | `e` | **equip** what? | anything wearable or wieldable |
 | `q` | **quaff** what? | potions |
 | `r` | **read** what? | scrolls |
+| `z` | **zap** what? | wands (the aiming reticle opens next, unless it's the wand of light) |
 | `w` | **wield** what? | weapons, bows and crossbows |
 | `W` | **wear** what? | armour |
 | `P` | **put on** what? | rings |
@@ -368,16 +369,16 @@ distance by hand.
 
 ### Wands
 
-`3d3` damage on the attack wands, `2d6+1` charges rolled when a wand
-enters the dungeon, range 6 or 8 depending on the wand. All fourteen do
-something when zapped — nothing here is a dud. A few worth knowing about
-in advance: light needs no target at all, floods the room or passage
-you're standing in, and reveals any hidden trap in it; polymorph and the
-haste/slow-monster wands change a creature rather than just hurting it;
-and cancellation is the one to dread catching yourself in — it strips
-every magic effect off whatever it hits, and on you that's a catastrophe:
-every enchantment on your gear zeroes out, every unread scroll goes blank,
-every potion turns to water.
+`z` zaps one. `3d3` damage on the attack wands, `2d6+1` charges rolled
+when a wand enters the dungeon, range 6 or 8 depending on the wand. All
+fourteen do something when zapped — nothing here is a dud. A few worth
+knowing about in advance: light needs no target at all, floods the room
+or passage you're standing in, and reveals any hidden trap in it;
+polymorph and the haste/slow-monster wands change a creature rather than
+just hurting it; and cancellation is the one to dread catching yourself
+in — it strips every magic effect off whatever it hits, and on you that's
+a catastrophe: every enchantment on your gear zeroes out, every unread
+scroll goes blank, every potion turns to water.
 
 A thrown wand dumps its whole remaining charge at once and bursts wider
 and hotter than a zap does.
@@ -522,7 +523,7 @@ Quick reference
     Stairs      > down, < up (or . and ,)
     Pack        i        Use / Throw / Drop
     Use/throw/drop  a / t / d
-    Quaff/read  q / r
+    Quaff/read/zap  q / r / z
     Equip       e        w wield, W wear, P put on
     Cancel      x or X   (never spends a turn)
     Quit        Q or X   with nothing open; asks first · Ctrl+C doesn't

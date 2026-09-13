@@ -51,6 +51,7 @@ fn each_menu_shows_exactly_what_its_verb_can_act_on() {
     assert_eq!(pack_rows(&mut w, PackMode::Drop), all);
     assert_eq!(pack_rows(&mut w, PackMode::Quaff), vec![0]);
     assert_eq!(pack_rows(&mut w, PackMode::Read), vec![1]);
+    assert_eq!(pack_rows(&mut w, PackMode::Zap), vec![2]);
     assert_eq!(pack_rows(&mut w, PackMode::Equip), vec![3, 4, 5]);
     assert_eq!(pack_rows(&mut w, PackMode::Wield), vec![3]);
     assert_eq!(pack_rows(&mut w, PackMode::Wear), vec![4]);
@@ -79,6 +80,7 @@ fn a_menu_with_nothing_in_it_comes_back_empty_rather_than_showing_the_wrong_thin
     assert_eq!(pack_rows(&mut w, PackMode::Quaff), vec![0]);
     for empty in [
         PackMode::Read,
+        PackMode::Zap,
         PackMode::Equip,
         PackMode::Wield,
         PackMode::Wear,

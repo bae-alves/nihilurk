@@ -1,13 +1,13 @@
 //! The pack screen: which rows it shows, and what picking one does.
 //!
-//! There is one list widget and ten ways into it. `i` opens the whole pack and
-//! asks for a verb afterwards, from the Use / Throw / Drop modal. The other
-//! nine keys *are* the verb — `a` use, `t` throw, `d` drop, `e` equip, `q`
-//! quaff, `r` read, `w` wield, `W` wear, `P` put on — and each narrows the list
-//! to the rows that verb can act on, then acts the moment a row is picked. Both
-//! halves of that, the narrowing and the verb, hang off [`PackMode`], so the
-//! input handler and the renderer ask the same table the same question and can
-//! never disagree about what is on screen.
+//! There is one list widget and eleven ways into it. `i` opens the whole pack
+//! and asks for a verb afterwards, from the Use / Throw / Drop modal. The other
+//! ten keys *are* the verb — `a` use, `t` throw, `d` drop, `e` equip, `q`
+//! quaff, `r` read, `z` zap, `w` wield, `W` wear, `P` put on — and each narrows
+//! the list to the rows that verb can act on, then acts the moment a row is
+//! picked. Both halves of that, the narrowing and the verb, hang off
+//! [`PackMode`], so the input handler and the renderer ask the same table the
+//! same question and can never disagree about what is on screen.
 //!
 //! **A row keeps its pack letter in every mode.** The potion that is `c` in the
 //! pack is `c` in the quaff menu, even when it is the only row there. A letter
@@ -19,7 +19,7 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::components::{Backpack, Player, Potion, Scroll};
+use crate::components::{Backpack, Player, Potion, Scroll, Wand};
 use crate::equipment::{Equipped, Slot};
 
 /// What the pack screen can do with the item under the cursor. Nothing else in
@@ -80,6 +80,8 @@ pub enum PackMode {
     Quaff,
     /// `r` — only scrolls.
     Read,
+    /// `z` — only wands.
+    Zap,
     /// `w` — only what goes in a hand.
     Wield,
     /// `W` — only what goes on the body.
@@ -99,6 +101,7 @@ impl PackMode {
             PackMode::Equip => " EQUIP WHAT? ",
             PackMode::Quaff => " QUAFF WHAT? ",
             PackMode::Read => " READ WHAT? ",
+            PackMode::Zap => " ZAP WHAT? ",
             PackMode::Wield => " WIELD WHAT? ",
             PackMode::Wear => " WEAR WHAT? ",
             PackMode::PutOn => " PUT ON WHAT? ",
@@ -117,6 +120,7 @@ impl PackMode {
             PackMode::Equip => "You have nothing to equip.",
             PackMode::Quaff => "You have nothing to quaff.",
             PackMode::Read => "You have nothing to read.",
+            PackMode::Zap => "You have nothing to zap.",
             PackMode::Wield => "You have nothing to wield.",
             PackMode::Wear => "You have nothing to wear.",
             PackMode::PutOn => "You have nothing to put on.",
@@ -138,6 +142,7 @@ impl PackMode {
             | PackMode::Equip
             | PackMode::Quaff
             | PackMode::Read
+            | PackMode::Zap
             | PackMode::Wield
             | PackMode::Wear
             | PackMode::PutOn => Some(ItemAction::Use),
@@ -158,6 +163,7 @@ impl PackMode {
             PackMode::Equip => world.get::<Equipped>(item).is_some(),
             PackMode::Quaff => world.get::<Potion>(item).is_some(),
             PackMode::Read => world.get::<Scroll>(item).is_some(),
+            PackMode::Zap => world.get::<Wand>(item).is_some(),
             PackMode::Wield => goes_in(world, item, Slot::Hand),
             PackMode::Wear => goes_in(world, item, Slot::Body),
             PackMode::PutOn => goes_in(world, item, Slot::Finger),
@@ -229,7 +235,7 @@ mod tests {
     use super::*;
 
     /// Every mode, so a mode added without a row here fails to compile.
-    const ALL: [PackMode; 10] = [
+    const ALL: [PackMode; 11] = [
         PackMode::Browse,
         PackMode::Use,
         PackMode::Throw,
@@ -237,6 +243,7 @@ mod tests {
         PackMode::Equip,
         PackMode::Quaff,
         PackMode::Read,
+        PackMode::Zap,
         PackMode::Wield,
         PackMode::Wear,
         PackMode::PutOn,
@@ -282,7 +289,7 @@ mod tests {
     #[test]
     fn an_item_with_none_of_the_marks_is_admitted_only_by_the_unfiltered_modes() {
         // A bare entity stands in for "something the pack holds that is neither
-        // potion, scroll nor gear" — a wand, a lump of coins.
+        // potion, scroll, wand nor gear" — a lump of coins, a ration.
         let world = World::new();
         let nothing_in_particular = Entity::from_raw(0);
         let unfiltered = [
