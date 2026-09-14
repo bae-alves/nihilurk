@@ -32,7 +32,7 @@ mod theft;
 mod throwing;
 mod wands;
 
-pub use moves::move_system;
+pub use moves::{move_cost, move_system};
 
 /// The leprechaun's and the nymph's on-hit tricks, named by
 /// [`crate::abilities::ON_HIT_ABILITIES`] without that table knowing anything
@@ -113,6 +113,9 @@ use self::wands::apply_wand_effect;
 pub fn item_system(world: &mut World) {
     let uses = std::mem::take(&mut world.resource_mut::<UseQueue>().uses);
     for item_use in uses {
+        // A used item is one of the things that lets go of a rapier's
+        // built-up momentum — see `crate::equipment::reset_momentum`.
+        crate::equipment::reset_momentum(world, item_use.user);
         resolve_use(world, item_use);
     }
 }

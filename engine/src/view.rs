@@ -475,26 +475,35 @@ pub fn render<W: Write>(
     // room, so its cell takes a background: dark blue for one that has lost its
     // turns outright (asleep in gas, or paralysed), dark green for one held in
     // a bear trap, dark cyan for one bound by a scroll of hold monster, dark
-    // magenta for one staggering about confused. Painted after
-    // the actors so it lands under a glyph that is actually drawn, and only in
-    // that order of precedence — a monster that is both asleep and confused is
-    // first of all asleep.
+    // magenta for one staggering about confused, grey for one merely slowed.
+    // Painted after the actors so it lands under a glyph that is actually
+    // drawn, and only in that order of precedence — a monster that is both
+    // asleep and confused is first of all asleep.
+    //
+    // This is also the garrote's whole "tell" — every one of these is exactly
+    // the set of conditions `crate::combat::garrote_vorpal` calls helpless, so
+    // a tinted monster is always one it can end in a single stroke.
     {
-        let mut query = world.query_filtered::<
-            (&Position, &Mob, Option<&Snare>, Option<&Paralyzed>),
-            Without<Hidden>,
-        >();
-        for (pos, mob, snare, paralyzed) in query.iter(world) {
+        let mut query = world.query_filtered::<(
+            &Position,
+            &Mob,
+            Option<&Snare>,
+            Option<&Paralyzed>,
+            Option<&Speed>,
+        ), Without<Hidden>>();
+        for (pos, mob, snare, paralyzed, speed) in query.iter(world) {
             if !visible.contains(&(pos.x, pos.y)) {
                 continue;
             }
             let snared = snare.map(|s| s.kind);
             let confused = matches!(mob.movement_type, MovementType::Confused);
-            let tint = match (snared, paralyzed.is_some(), confused) {
-                (Some(SnareKind::Sleep), _, _) | (_, true, _) => Some(Color::DarkBlue),
-                (Some(SnareKind::Bear), _, _) => Some(Color::DarkGreen),
-                (Some(SnareKind::Hold), _, _) => Some(Color::DarkCyan),
-                (_, _, true) => Some(Color::DarkMagenta),
+            let slowed = speed.is_some_and(|s| s.kind == SpeedKind::Slow);
+            let tint = match (snared, paralyzed.is_some(), confused, slowed) {
+                (Some(SnareKind::Sleep), _, _, _) | (_, true, _, _) => Some(Color::DarkBlue),
+                (Some(SnareKind::Bear), _, _, _) => Some(Color::DarkGreen),
+                (Some(SnareKind::Hold), _, _, _) => Some(Color::DarkCyan),
+                (_, _, true, _) => Some(Color::DarkMagenta),
+                (_, _, _, true) => Some(Color::Grey),
                 _ => None,
             };
             if let Some(tint) = tint {
@@ -1131,12 +1140,12 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
 /// no sub-menu — picking a row goes straight to the aiming reticle.
 fn draw_moves(world: &mut World, screen: &mut Screen) {
     let selected = world.resource::<MovesMenu>().selected;
-    let slots = {
-        let mut q = world.query_filtered::<&Moveset, With<Player>>();
+    let (player, slots) = {
+        let mut q = world.query_filtered::<(Entity, &Moveset), With<Player>>();
         q.iter(world)
             .next()
-            .map(|m| m.slots.clone())
-            .unwrap_or_default()
+            .map(|(e, m)| (e, m.slots.clone()))
+            .unwrap_or((Entity::PLACEHOLDER, Vec::new()))
     };
 
     let rows: Vec<String> = slots
@@ -1144,7 +1153,8 @@ fn draw_moves(world: &mut World, screen: &mut Screen) {
         .enumerate()
         .map(|(i, &effect)| {
             let def = MoveDef::of(effect);
-            format!(" {}) {} ({} Ma) ", i + 1, def.name, def.cost)
+            let cost = models::move_cost(world, player, effect);
+            format!(" {}) {} ({} Ma) ", i + 1, def.name, cost)
         })
         .collect();
 

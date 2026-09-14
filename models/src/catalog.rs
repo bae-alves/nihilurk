@@ -306,6 +306,20 @@ pub struct WeaponDef {
     /// Whether the throw carries on through everything on its line (see
     /// [`Piercing`]).
     piercing: bool,
+    /// How far this weapon strikes in melee: 0 for a plain weapon (a walk into
+    /// the target's tile is the whole of it), 2 or more for a reach weapon
+    /// aimed with its own reticle (see [`Reach`]).
+    reach: i32,
+    /// A reach weapon's strike runs the whole line rather than stopping at the
+    /// first body (see [`ReachPiercing`]).
+    reach_piercing: bool,
+    /// The tricks this weapon lends its wielder while equipped — a battle
+    /// axe's cleave, an estoc's double time — exactly the way a ring lends its
+    /// wearer an effect. See [`crate::effects::Grants`].
+    grants: &'static [Grant],
+    /// A one-shot fired the instant it's wielded — the staff's "You're a
+    /// wizard!". See [`OnWear`].
+    on_wear: Option<OnWear>,
 }
 
 impl WeaponDef {
@@ -317,6 +331,10 @@ impl WeaponDef {
             thrown_die: power_die,
             projectile: false,
             piercing: false,
+            reach: 0,
+            reach_piercing: false,
+            grants: &[],
+            on_wear: None,
         }
     }
 
@@ -331,6 +349,32 @@ impl WeaponDef {
     /// The throw does not stop at the first creature: it runs the whole line.
     const fn piercing(mut self) -> Self {
         self.piercing = true;
+        self
+    }
+
+    /// A reach weapon, aimed rather than walked into: a bardiche (2), a whip
+    /// (5).
+    const fn reach(mut self, tiles: i32) -> Self {
+        self.reach = tiles;
+        self
+    }
+
+    /// The reach strike runs the whole line instead of stopping at the first
+    /// body — a bardiche's polearm sweep, not a whip's single crack.
+    const fn reach_piercing(mut self) -> Self {
+        self.reach_piercing = true;
+        self
+    }
+
+    /// Marker effects the wielder gains while it's in hand.
+    const fn grants(mut self, grants: &'static [Grant]) -> Self {
+        self.grants = grants;
+        self
+    }
+
+    /// A one-shot fired the instant it goes on (see [`OnWear`]).
+    const fn on_wear(mut self, on_wear: OnWear) -> Self {
+        self.on_wear = Some(on_wear);
         self
     }
 }
@@ -356,6 +400,18 @@ impl ItemDef for WeaponDef {
             ThrownDamage(self.thrown_die),
         ));
         attach_flight(&mut e, self.projectile, self.piercing);
+        if self.reach > 0 {
+            e.insert(Reach(self.reach));
+        }
+        if self.reach_piercing {
+            e.insert(ReachPiercing);
+        }
+        if !self.grants.is_empty() {
+            e.insert(Grants(self.grants));
+        }
+        if let Some(on_wear) = self.on_wear {
+            e.insert(on_wear);
+        }
         e.id()
     }
 
@@ -366,13 +422,63 @@ impl ItemDef for WeaponDef {
     }
 }
 
+/// The staff's flourish: logged the moment it's wielded, exactly the ceremony
+/// a ring's [`OnWear`] gets, minus the ring — nothing about the wearer
+/// changes, it's just the one line.
+fn announce_wizard(world: &mut World, wearer: Entity, _item: Entity) {
+    if world.get::<Player>(wearer).is_none() {
+        return;
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add("You're a wizard!".to_string());
+}
+
 #[rustfmt::skip]
 pub const WEAPONS: &[WeaponDef] = &[
-    WeaponDef::new("dagger",           Color::Grey,     4).missile(4).piercing(),
-    WeaponDef::new("spear",            Color::DarkGrey, 6).missile(8).piercing(),
-    WeaponDef::new("mace",             Color::DarkGrey, 6),
-    WeaponDef::new("long sword",       Color::White,    8),
-    WeaponDef::new("two-handed sword", Color::Cyan,    10),
+    WeaponDef::new("dagger",           Color::Grey,       4).missile(4).piercing(),
+    WeaponDef::new("spear",            Color::DarkGrey,   6).missile(8).piercing(),
+    WeaponDef::new("mace",             Color::DarkGrey,   6),
+    WeaponDef::new("long sword",       Color::White,      8),
+    WeaponDef::new("two-handed sword", Color::Cyan,       10),
+    // The arc of a battle axe's swing catches everything standing next to you.
+    WeaponDef::new("battle axe",       Color::DarkYellow, 7)
+        .grants(&[Grant::of::<Cleaves>()]),
+    // Colossal and slow: a hit staggers its victim outright, and the effort
+    // costs the wielder a beat of their own.
+    WeaponDef::new("greatclub",        Color::DarkRed,    12)
+        .grants(&[Grant::of::<HeavySwing>()]),
+    // A polearm: strikes two tiles out, and runs clean through anything in the
+    // way.
+    WeaponDef::new("bardiche",         Color::Grey,       7)
+        .reach(2).reach_piercing(),
+    // The longest reach in the dungeon, and the least behind it.
+    WeaponDef::new("whip",             Color::DarkMagenta, 3)
+        .reach(5),
+    // Thin, fast steel: every attack goes out twice as quick, and closing the
+    // last stride of a run lands a lunge.
+    WeaponDef::new("estoc",            Color::White,      5)
+        .grants(&[Grant::of::<Fencer>()]),
+    // Whirled at the end of its chain in step with your feet: moving between
+    // two tiles both next to the same enemy lands a free cut on it.
+    WeaponDef::new("chain-sickle",     Color::DarkGreen,  5)
+        .grants(&[Grant::of::<WhirlOnMove>()]),
+    // No edge to speak of — it doesn't need one against something that can't
+    // fight back.
+    WeaponDef::new("garrote",          Color::DarkGrey,   0)
+        .grants(&[Grant::of::<VorpalOnCondition>()]),
+    // Doubles the toll and the fury of every spell cast through it.
+    WeaponDef::new("staff",            Color::Yellow,     5)
+        .grants(&[Grant::of::<TurboMagic>()])
+        .on_wear(OnWear(announce_wizard)),
+    // A blade with an edge in the world it half-belongs to: every hit that
+    // lands there also lands a little on you.
+    WeaponDef::new("chaos blade",      Color::Magenta,    12)
+        .grants(&[Grant::of::<SelfDamageOnHit>()]),
+    // Momentum, not mass: every hit that lands makes the next one hit harder,
+    // for as long as you keep swinging it.
+    WeaponDef::new("rapier",           Color::Red,        3)
+        .grants(&[Grant::of::<BuildsMomentum>()]),
 ];
 
 // ---------------------------------------------------------------------------
@@ -771,6 +877,10 @@ pub struct MoveDef {
     pub cost: u8,
     /// How far the aiming reticle reaches.
     pub range: i32,
+    /// Attack or skill — the dial a staff's [`TurboMagic`] checks before
+    /// doubling both the cost and the fury of the cast. See
+    /// [`crate::items::move_system`].
+    pub kind: MoveKind,
 }
 
 impl MoveDef {
@@ -791,7 +901,7 @@ impl MoveDef {
 /// the price of the player borrowing it, not a property of the trick itself.
 #[rustfmt::skip]
 pub const MOVES: &[MoveDef] = &[
-    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8 },
+    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: MoveKind::Attack },
 ];
 
 // ---------------------------------------------------------------------------
@@ -966,6 +1076,18 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
     if let Some(def) = WEAPONS.iter().find(|d| d.name == name) {
         entity.insert(ThrownDamage(def.thrown_die));
         attach_flight(entity, def.projectile, def.piercing);
+        if def.reach > 0 {
+            entity.insert(Reach(def.reach));
+        }
+        if def.reach_piercing {
+            entity.insert(ReachPiercing);
+        }
+        if !def.grants.is_empty() {
+            entity.insert(Grants(def.grants));
+        }
+        if let Some(on_wear) = def.on_wear {
+            entity.insert(on_wear);
+        }
     }
     if let Some(def) = AMMO.iter().find(|d| d.name == name) {
         entity.insert((

@@ -368,7 +368,7 @@ EFFECTS — the marker registry
 
     models/src/effects.rs
 
-Order is the save format: an effect's index is its bit in an `EffectSet`. **Append only.** `EffectSet` is a `u32`, so the ceiling is 32 effects.
+Order is the save format: an effect's index is its bit in an `EffectSet`. **Append only.** `EffectSet` is a `u64`, so the ceiling is 64 effects.
 
 | # | Effect              | Meaning                                        |
 |---|---------------------|------------------------------------------------|

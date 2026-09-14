@@ -415,6 +415,9 @@ fn apply_thrown_wand_effect(world: &mut World, entity: Entity, effect: WandEffec
 pub fn throw_system(world: &mut World) {
     let throws = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
     for throw in throws {
+        // A thrown item is one of the things that lets go of a rapier's
+        // built-up momentum — see `crate::equipment::reset_momentum`.
+        crate::equipment::reset_momentum(world, throw.thrower);
         resolve_throw(world, throw);
     }
 }
@@ -491,9 +494,23 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
 
     let (cells, landing, victims) = flight_path(world, thrower, item, origin, target);
     let victim = victims.first().copied();
-    if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color)) {
-        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            fx.hurl(&cells, glyph, color);
+    // A thrown wand flies as a tumbling mystic grenade, tinted with the
+    // element it's about to burst in — not its own catalog glyph, which is
+    // what every other thrown item still flies as.
+    match world.get::<Wand>(item).map(|w| w.effect) {
+        Some(effect) => {
+            let color = blast_palette(effect).accent_color();
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                fx.lob(&cells, color);
+            }
+        }
+        None => {
+            if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color))
+            {
+                if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                    fx.hurl(&cells, glyph, color);
+                }
+            }
         }
     }
 

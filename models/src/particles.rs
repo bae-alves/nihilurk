@@ -61,6 +61,15 @@ pub enum BlastPalette {
 }
 
 impl BlastPalette {
+    /// The one colour that best stands in for this palette outside a blast's
+    /// own five-frame cycle — the second frame, past the white flash every
+    /// cycle opens on, so it actually reads as the element. Used to tint a
+    /// thrown wand's mystic-grenade glyph while it's still in the air, before
+    /// [`Particles::explosion`] takes over on impact.
+    pub fn accent_color(self) -> Color {
+        self.frames()[1].1
+    }
+
     fn frames(self) -> [(char, Color); 5] {
         use Color::*;
         match self {
@@ -535,6 +544,29 @@ impl Particles {
                 lifetime_ms: TRAVEL_MS_PER_CELL * 1.4,
                 age_ms: 0.0,
                 frames: vec![(glyph, color)],
+            });
+        }
+    }
+
+    /// A thrown wand in flight: a tumbling mystic grenade rather than the
+    /// wand's own catalog glyph, tinted with the [`BlastPalette`] its charges
+    /// will burst in ([`BlastPalette::accent_color`]). Noticeably slower than
+    /// [`Particles::hurl`] — this is a lob, not a snap throw, and the whole
+    /// point is watching it arc in before it goes off — while
+    /// [`Particles::explosion`], the burst that follows on impact, stays as
+    /// fast as any other blast. `pts` is the traced line, thrower's own tile
+    /// excluded.
+    pub fn lob(&mut self, pts: &[(u16, u16)], color: Color) {
+        const TRAVEL_MS_PER_CELL: f32 = 130.0;
+        const TUMBLE: [char; 4] = ['o', 'O', '0', 'O'];
+        for (i, &(x, y)) in pts.iter().enumerate() {
+            self.push(Particle {
+                x,
+                y,
+                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
+                lifetime_ms: TRAVEL_MS_PER_CELL * 1.4,
+                age_ms: 0.0,
+                frames: TUMBLE.iter().map(|&g| (g, color)).collect(),
             });
         }
     }

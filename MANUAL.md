@@ -91,6 +91,7 @@ Walking into a monster attacks it instead — there's no separate attack key. Wa
 | `O` | Drop a **travel cursor** — steer it with the direction keys, Enter to walk there |
 | `Tab` | **Auto-fight** whatever's closest (refuses below 25% HP or while confused); with a bow/crossbow drawn, fires at it instead of closing in |
 | `f` | **Fire** the wielded launcher's first matching arrow/quarrel — opens the aiming reticle, same as Throw |
+| `v` | **Reach attack** — a bardiche or a whip strikes out along its own reticle instead of a walk into the target's tile |
 | `>` or `.` | Go down / walk to the down stairs |
 | `<` or `,` | Go up / walk to the up stairs |
 | `x` or `X` | Close whatever's open — the universal escape hatch, never spends a turn |
@@ -226,6 +227,16 @@ You start a run already equipped: +1 ring mail worn, +1 mace wielded, a +1 short
 | Mace | d6 | |
 | Long sword | d8 | |
 | Two-handed sword | d10 | |
+| Battle axe | d7 | Every swing also lands on every other enemy next to you |
+| Greatclub | d12 | A hit staggers its victim outright for a turn, and costs you a beat of your own — the floor gets one extra round of action |
+| Bardiche | d7 | Reach 2 (`v`), and the strike runs clean through everything on the line |
+| Whip | d3 | Reach 5 (`v`) |
+| Estoc | d5 | Every attack lands twice as fast; closing the last stride of a run (one empty tile, stepped straight at an enemy past it) lands a guaranteed lunge for triple damage instead |
+| Chain-sickle | d5 | Stepping between two tiles both next to the same enemy lands a free cut on it |
+| Garrote | d0 | Any hit against something already helpless — asleep, held, paralysed, confused or slowed — kills it outright |
+| Staff | d5 | Doubles the Magic cost and the damage of a damaging move cast while it's in hand |
+| Chaos blade | d12 | Every hit that lands also costs you a point of your own HP |
+| Rapier | d3 | Every landed hit adds +2 to your next roll with it, building for as long as you keep swinging it |
 
 ### Armour
 

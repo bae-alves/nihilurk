@@ -111,6 +111,27 @@ pub fn monster_at(world: &mut World, pos: Position) -> Option<Entity> {
         .map(|(e, _, _)| e)
 }
 
+/// The [`Mob`] standing on `pos`, if any — unlike [`monster_at`], not
+/// filtered to [`Faction::Monster`]. The plain tile lookup for anything that
+/// only cares whether *something* with a `Mob` is there: [`try_lunge`](crate::combat::try_lunge)'s
+/// geometry, [`try_whirl_attack`](crate::combat::try_whirl_attack)'s target, a plain step's attack check.
+pub fn mob_at(world: &mut World, pos: Position) -> Option<Entity> {
+    world
+        .query_filtered::<(Entity, &Position), With<Mob>>()
+        .iter(world)
+        .find(|&(_, &p)| p == pos)
+        .map(|(e, _)| e)
+}
+
+/// The Chebyshev (chessboard) distance between two tiles — "closest diagonal
+/// counts as one step" — the adjacency measure used everywhere in combat and
+/// AI: a lunge's or whirl's geometry, a chase's next step.
+pub fn chebyshev(a: Position, b: Position) -> i32 {
+    (a.x as i32 - b.x as i32)
+        .abs()
+        .max((a.y as i32 - b.y as i32).abs())
+}
+
 /// The creature standing on `pos` — anything that acts, friend or foe — never
 /// counting `except` (the thrower whose own tile an item is leaving, say).
 pub fn actor_at(world: &mut World, pos: Position, except: Entity) -> Option<Entity> {
@@ -119,6 +140,21 @@ pub fn actor_at(world: &mut World, pos: Position, except: Entity) -> Option<Enti
         .iter(world)
         .find(|(e, p)| *e != except && **p == pos)
         .map(|(e, _)| e)
+}
+
+/// Every [`Mob`] on one of the eight tiles around `center`, `exclude` aside —
+/// the battle axe's cleave, swung the moment its wielder's own attack lands.
+pub fn adjacent_mobs(world: &mut World, center: Position, exclude: Entity) -> Vec<Entity> {
+    let mut q = world.query_filtered::<(Entity, &Position), With<Mob>>();
+    q.iter(world)
+        .filter(|(e, p)| {
+            *e != exclude
+                && (p.x, p.y) != (center.x, center.y)
+                && (p.x as i32 - center.x as i32).abs() <= 1
+                && (p.y as i32 - center.y as i32).abs() <= 1
+        })
+        .map(|(e, _)| e)
+        .collect()
 }
 
 /// Where `entity` is standing, as a plain tile pair — what the animation layer

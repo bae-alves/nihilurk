@@ -1,6 +1,6 @@
 use crate::components::*;
 use crate::effects::{CoinGreedy, FireBreath, Stealthy};
-use crate::helpers::get_line;
+use crate::helpers::{chebyshev, get_line};
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
 use rand::Rng;
@@ -51,7 +51,7 @@ pub fn ai(world: &mut World) {
     let player_stealthy = world.get::<Stealthy>(player_entity).is_some();
 
     // How many monster rounds this one player turn is worth.
-    let rounds = match player_speed {
+    let mut rounds = match player_speed {
         SpeedKind::Normal => 1,
         SpeedKind::Slow => 2,
         SpeedKind::Fast => {
@@ -67,6 +67,16 @@ pub fn ai(world: &mut World) {
             if act { 1 } else { 0 }
         }
     };
+    // A greatclub's heavy swing (`crate::effects::HeavySwing`) costs its
+    // wielder a beat of their own the instant it lands — one more monster
+    // round, on top of whatever the player's own tempo already bought, spent
+    // the moment it's asked for.
+    if world
+        .get_resource_mut::<ExtraMonsterRound>()
+        .is_some_and(|mut r| std::mem::take(&mut r.0))
+    {
+        rounds += 1;
+    }
 
     let map = world.resource::<Map>().clone();
 
@@ -294,14 +304,6 @@ fn step_one_mob(
     world.entity_mut(mob).insert(EntityMoved);
     spend_energy(world, mob);
     true
-}
-
-/// The Chebyshev (chessboard) distance between two tiles — the same "closest
-/// diagonal counts as one step" measure the rest of the AI uses for adjacency.
-fn chebyshev(a: Position, b: Position) -> i32 {
-    (a.x as i32 - b.x as i32)
-        .abs()
-        .max((a.y as i32 - b.y as i32).abs())
 }
 
 /// The one-tile step from `from` toward `to`.

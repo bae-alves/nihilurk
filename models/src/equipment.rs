@@ -20,10 +20,12 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::world::EntityRef;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position};
+use crate::components::{
+    Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position, Reach,
+};
 use crate::effects::{
-    ArmorBonus, EFFECTS, EffectSet, GrantedByGear, GrantedForFloor, Grants, OnWear, SustainsArmor,
-    effect_set,
+    ArmorBonus, EFFECTS, EffectSet, GrantedByGear, GrantedForFloor, Grants, Momentum, OnWear,
+    SustainsArmor, effect_set,
 };
 use crate::helpers::item_label;
 use crate::identify::{display_name, learn_by_wearing};
@@ -160,11 +162,37 @@ pub fn wielded_launcher(world: &World, entity: Entity) -> Option<Entity> {
     equipped_in(world, entity, Slot::Hand).filter(|&w| world.get::<Launcher>(w).is_some())
 }
 
+/// The reach weapon (a bardiche, a whip) `entity` currently has in
+/// `Slot::Hand`, if any. `v` (reach attack) gates on this before opening its
+/// reticle.
+pub fn wielded_reach_weapon(world: &World, entity: Entity) -> Option<Entity> {
+    equipped_in(world, entity, Slot::Hand).filter(|&w| world.get::<Reach>(w).is_some())
+}
+
+/// Zeroes whatever [`Momentum`] `wearer`'s wielded weapon has built up — the
+/// rapier's technique, lost the moment its wielder does anything but keep
+/// swinging it (a plain step, a used item). A no-op for anything not
+/// currently building any.
+pub fn reset_momentum(world: &mut World, wearer: Entity) {
+    let Some(weapon) = equipped_in(world, wearer, Slot::Hand) else {
+        return;
+    };
+    if world.get::<Momentum>(weapon).is_some() {
+        world.entity_mut(weapon).insert(Momentum(0));
+    }
+}
+
 /// Takes `item` off `user`, no questions asked (no curse check, no logging).
-/// Used by the curse-lifting scroll, which destroys the gear outright.
+/// Used by the curse-lifting scroll, which destroys the gear outright, and by
+/// every other way a piece of gear leaves a hand — which is also where a
+/// rapier's built-up [`Momentum`] resets: put down (or thrown, or knocked
+/// away), it has nothing left to swing.
 pub fn force_unequip(world: &mut World, item: Entity) {
     if let Some(mut e) = world.get_mut::<Equipped>(item) {
         e.by = None;
+    }
+    if world.get::<Momentum>(item).is_some() {
+        world.entity_mut(item).insert(Momentum(0));
     }
 }
 
@@ -239,7 +267,8 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
 /// Puts `item` on `wearer` with none of the player-facing ceremony: no curse
 /// check, no log line, and it refuses rather than swapping if the slot is
 /// already taken. This is how a creature that is not the player comes by gear —
-/// an orc catching a thrown dagger ([`crate::items::throw_system`]). Returns
+/// an orc catching a thrown dagger ([`crate::items::throw_system`]), a monster
+/// spawning already equipped, a thief making off with something. Returns
 /// whether it went on.
 pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
     let Some(slot) = world.get::<Equipped>(item).map(|e| e.slot) else {
@@ -252,10 +281,15 @@ pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
         e.by = Some(wearer);
     }
     sync_equipment_effects(world, wearer);
-    // Wearing it — even without the ceremony — still reveals its plus and
-    // curse status. This is also how the player's own starting gear (handed
-    // over already worn) ends up known from turn one.
-    world.entity_mut(item).insert(KnownQuality);
+    // Wearing it reveals its plus and curse status only when the *player* is
+    // the one wearing it — this is how the player's own starting gear (handed
+    // over already worn) ends up known from turn one. A monster spawning
+    // equipped, catching a thrown weapon or making off with a stolen one
+    // learns nothing the player didn't already know: identification is what
+    // the player has learned, not what the item has been through.
+    if world.get::<Player>(wearer).is_some() {
+        world.entity_mut(item).insert(KnownQuality);
+    }
     true
 }
 

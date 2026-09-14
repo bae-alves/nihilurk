@@ -315,6 +315,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         throwing: false,
         move_effect: None,
         looking: false,
+        reach_attack: false,
         cursor_x: 0,
         cursor_y: 0,
     });
@@ -341,6 +342,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<ThrowQueue>();
     world.init_resource::<MoveQueue>();
     world.init_resource::<PlayerTempo>();
+    world.init_resource::<ExtraMonsterRound>();
     world.init_resource::<GameLog>();
     world.insert_resource(models::Particles::new());
     world.insert_resource(models::Shake::new());

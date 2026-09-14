@@ -18,15 +18,19 @@
 use bevy_ecs::prelude::*;
 use rand::Rng;
 
+use crate::combat::resolve_attack;
 use crate::components::{
-    Backpack, ConfusingTouch, Curse, EntityMoved, Fighter, GameLog, Mob, Player, Position,
-    SnareKind, TrapEffect,
+    Backpack, ConfusingTouch, Curse, EntityMoved, ExtraMonsterRound, Fighter, GameLog, Mob, Player,
+    Position, SnareKind, TrapEffect,
 };
+use crate::conditions::snare;
 use crate::effects::{
-    AggravatesMonsters, Batty, Binds, Freezing, Gorgon, Grant, Regenerates, RustsArmor,
-    StealsAndFlees, StealsAndVanishes, SustainsStrength, Teleportitis, Vampiric, Venomous,
+    AggravatesMonsters, Batty, Binds, BuildsMomentum, Cleaves, Freezing, Gorgon, Grant, HeavySwing,
+    Momentum, Regenerates, RustsArmor, SelfDamageOnHit, StealsAndFlees, StealsAndVanishes,
+    SustainsStrength, Teleportitis, Vampiric, Venomous,
 };
-use crate::helpers::item_label;
+use crate::equipment::{Slot, equipped_in};
+use crate::helpers::{adjacent_mobs, apply_damage, item_label};
 use crate::map::GameRng;
 
 // --- Tuning constants ------------------------------------------------------
@@ -155,7 +159,107 @@ pub const ON_HIT_ABILITIES: &[OnHitAbility] = &[
         on_lethal: false,
         action: crate::items::nymph_theft,
     },
+    OnHitAbility {
+        effect: Grant::of::<HeavySwing>(),
+        on_glancing: false,
+        on_lethal: false,
+        action: heavy_stagger,
+    },
+    OnHitAbility {
+        effect: Grant::of::<SelfDamageOnHit>(),
+        on_glancing: true,
+        on_lethal: true,
+        action: chaos_recoil,
+    },
+    OnHitAbility {
+        effect: Grant::of::<BuildsMomentum>(),
+        on_glancing: false,
+        on_lethal: true,
+        action: build_momentum,
+    },
 ];
+
+/// The battle axe's cleave: everything else standing next to the wielder when
+/// their swing lands takes the same swing, right along with the target
+/// already struck. A no-op for anything not wielding one — the engine calls
+/// this after every player attack rather than checking first.
+pub fn cleave_attack(world: &mut World, attacker: Entity, already_hit: Entity) {
+    if !is_player(world, attacker) || world.get::<Cleaves>(attacker).is_none() {
+        return;
+    }
+    let Some(pos) = world.get::<Position>(attacker).copied() else {
+        return;
+    };
+    for target in adjacent_mobs(world, pos, attacker) {
+        if target == already_hit || world.get::<Fighter>(target).is_none() {
+            continue;
+        }
+        resolve_attack(world, attacker, target);
+    }
+}
+
+/// Every weapon trick in this file is the *player's* alone: a monster that
+/// steals, catches or spawns wielding one of these still fights the plain way
+/// — a normal swing, or a shot if what's in its hand is a launcher instead.
+/// Each action below checks this first and does nothing at all for anything
+/// else, the same one-line gate every time.
+fn is_player(world: &World, entity: Entity) -> bool {
+    world.get::<Player>(entity).is_some()
+}
+
+/// The greatclub's weight: a hit that lands staggers its victim outright —
+/// one turn with no action at all, the same [`SnareKind::Sleep`] a sleep trap
+/// uses — and the swing costs its wielder a beat of their own, spent as one
+/// extra monster round the instant the turn schedule asks for it (see
+/// `crate::ai::ai`). The player's trick alone — see [`is_player`].
+fn heavy_stagger(world: &mut World, attacker: Entity, target: Entity) {
+    if !is_player(world, attacker) {
+        return;
+    }
+    let staggered = snare(world, target, SnareKind::Sleep, 1);
+    if staggered {
+        let line = match world.get::<Player>(target).is_some() {
+            true => "The blow staggers you — you can't gather yourself to answer it!".to_string(),
+            false => format!(
+                "The {} reels from the blow, staggered!",
+                item_label(world, target)
+            ),
+        };
+        world.resource_mut::<GameLog>().add(line);
+    }
+    world.resource_mut::<ExtraMonsterRound>().0 = true;
+}
+
+/// The chaos blade's price: every hit that connects bites its wielder for a
+/// point of their own HP — "the edge of chaos bites you." The player's trick
+/// alone — see [`is_player`].
+fn chaos_recoil(world: &mut World, attacker: Entity, _target: Entity) {
+    if !is_player(world, attacker) {
+        return;
+    }
+    apply_damage(world, attacker, 1);
+    world
+        .resource_mut::<GameLog>()
+        .add("The edge of chaos bites you!".to_string());
+}
+
+/// The rapier's technique: every hit that lands adds two points to the
+/// weapon's own [`Momentum`] — on top of, never overwriting, whatever
+/// enchantment plus it already carries. Lifted the moment the weapon leaves
+/// the wielder's hand (see [`crate::equipment::force_unequip`]) or the
+/// wielder does anything but keep swinging it (see
+/// [`crate::equipment::reset_momentum`]). The player's trick alone — see
+/// [`is_player`].
+fn build_momentum(world: &mut World, attacker: Entity, _target: Entity) {
+    if !is_player(world, attacker) {
+        return;
+    }
+    let Some(weapon) = equipped_in(world, attacker, Slot::Hand) else {
+        return;
+    };
+    let built = world.get::<Momentum>(weapon).map_or(0, |m| m.0);
+    world.entity_mut(weapon).insert(Momentum(built + 2));
+}
 
 /// [`crate::equipment::corrode_armor`] with the table's shape: an on-hit
 /// ability is handed both ends of the blow, and this one only cares about the
@@ -243,7 +347,7 @@ fn vampiric_drain(world: &mut World, _attacker: Entity, target: Entity) {
 /// of turns a bear trap holds for.
 fn bind_victim(world: &mut World, attacker: Entity, target: Entity) {
     let turns = crate::traps::TrapDef::of(TrapEffect::Bear).snare_turns;
-    if !crate::conditions::snare(world, target, SnareKind::Bear, turns) {
+    if !snare(world, target, SnareKind::Bear, turns) {
         return;
     }
     let name = item_label(world, attacker);
@@ -278,7 +382,7 @@ pub(crate) fn medusa_gaze(world: &mut World, looker: Entity, seen: Entity) {
         return;
     }
     let turns = crate::constants::scrolls::SLEEP_TURNS;
-    if !crate::conditions::snare(world, looker, SnareKind::Sleep, turns) {
+    if !snare(world, looker, SnareKind::Sleep, turns) {
         return;
     }
     world
