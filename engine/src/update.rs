@@ -1262,6 +1262,21 @@ fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .add("You don't have the magic for that.");
         return Ok(false);
     }
+    // A move that works on the caster alone or on everything in view has
+    // nothing to aim at — it fires the instant its slot is pressed, the same
+    // courtesy the wand of light gets over every other wand.
+    if !effect.needs_target() {
+        let target = world
+            .get::<Position>(player)
+            .copied()
+            .unwrap_or(Position { x: 0, y: 0 });
+        world.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+            user: player,
+            effect,
+            target,
+        });
+        return Ok(true);
+    }
     open_reticle_for(world, player, None, Some(effect), false, false);
     Ok(false)
 }

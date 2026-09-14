@@ -197,6 +197,39 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         ScrollEffect::HoldMonster => hold_in_view(world, user),
         ScrollEffect::Sleep => read_sleep(world, user),
         ScrollEffect::FoodDetection => detect_mundane_items(world, user),
+        ScrollEffect::Amnesia => read_amnesia(world, user),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Amnesia
+// ---------------------------------------------------------------------------
+
+/// Scroll of amnesia: 1... 2... Poof! One random move vanishes off the
+/// reader's [`Moveset`] — chosen fresh each time, exactly as unpredictable as
+/// heroic mana was in teaching it — and every tile they have ever seen on
+/// this floor is wiped from memory, [`crate::magicmap::MagicMapReveal`]'s own
+/// wipe in reverse.
+fn read_amnesia(world: &mut World, user: Entity) {
+    let slot_count = world.get::<Moveset>(user).map_or(0, |m| m.slots.len());
+    let mut lines = vec!["1... 2... Poof!".to_string()];
+    if slot_count == 0 {
+        lines.push("There was nothing there to forget.".to_string());
+    } else {
+        let idx = world.resource_mut::<GameRng>().0.gen_range(0..slot_count);
+        let mut moveset = world.get_mut::<Moveset>(user).expect("checked above");
+        let effect = moveset.slots.remove(idx);
+        let name = crate::catalog::MoveDef::of(effect).name;
+        lines.push(format!("You've forgotten how to {name}!"));
+    }
+    if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
+        vs.revealed_tiles.clear();
+        vs.dirty = true;
+    }
+    lines.push("The dungeon around you slips away like a half-remembered dream.".to_string());
+    let mut log = world.resource_mut::<GameLog>();
+    for line in lines {
+        log.add(line);
     }
 }
 

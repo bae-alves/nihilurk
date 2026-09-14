@@ -171,9 +171,14 @@ pub fn wielded_reach_weapon(world: &World, entity: Entity) -> Option<Entity> {
 
 /// Zeroes whatever [`Momentum`] `wearer`'s wielded weapon has built up — the
 /// rapier's technique, lost the moment its wielder does anything but keep
-/// swinging it (a plain step, a used item). A no-op for anything not
-/// currently building any.
+/// swinging it (a plain step, a used item) — and, on the same logic, spends
+/// the move Bide the same way: coiled for one blow, lost the moment its
+/// caster does anything else with the turn instead of landing it. Both are
+/// no-ops when there is nothing to lose.
 pub fn reset_momentum(world: &mut World, wearer: Entity) {
+    world
+        .entity_mut(wearer)
+        .remove::<crate::components::Bided>();
     let Some(weapon) = equipped_in(world, wearer, Slot::Hand) else {
         return;
     };

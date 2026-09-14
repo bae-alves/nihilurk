@@ -344,9 +344,14 @@ pub fn counted(name: &str, count: u8) -> String {
 
 /// `name` as it reads in a sentence, prefixed with an article unless it
 /// already carries its own count or built-in definite article — `"a dagger"`,
-/// but `"7 arrows"` and `"The Element of Yoord"` stand as they are.
+/// but `"7 arrows"` and `"The Element of Yoord"` stand as they are. Heroic
+/// mana is the one mass noun in the dungeon: "You see heroic mana", never "a
+/// heroic mana".
 pub fn phrase_for(name: &str) -> String {
-    if name.starts_with(|c: char| c.is_ascii_digit()) || name.starts_with("The ") {
+    if name.starts_with(|c: char| c.is_ascii_digit())
+        || name.starts_with("The ")
+        || name == "heroic mana"
+    {
         return name.to_string();
     }
     format!("{} {name}", article_for(name))

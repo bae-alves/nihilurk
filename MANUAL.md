@@ -37,6 +37,8 @@ Row 0 is the status line:
 | `BLND`                | Blind — you can only feel the squares you could touch |
 | `PARL`                | Paralysed — slowed, and losing half the turns that leaves you |
 | `GLOW`                | Your hands are charged — the next blow you land confuses what it hits |
+| `WARD`                | Magic Ward is up — nothing but your own magic can touch you this floor |
+| `BIDE`                | Coiled from Bide — your next attack roll gets +4, lost unfired if you do anything else first |
 | `HELD`                | Caught in a bear trap |
 | `ASLEEP`              | Down in sleeping gas (yours, or a trap's) |
 | `EXPLORING` / `TRAVELING` | Auto-explore or `O`-travel is walking for you |
@@ -92,6 +94,8 @@ Walking into a monster attacks it instead — there's no separate attack key. Wa
 | `Tab` | **Auto-fight** whatever's closest (refuses below 25% HP or while confused); with a bow/crossbow drawn, fires at it instead of closing in |
 | `f` | **Fire** the wielded launcher's first matching arrow/quarrel — opens the aiming reticle, same as Throw |
 | `v` | **Reach attack** — a bardiche or a whip strikes out along its own reticle instead of a walk into the target's tile |
+| `Z` | Open the **moves** menu — pick a row to aim (or fire) it |
+| `Alt`+`Q`/`W`/`E`/`R` | Fire move slot 1/2/3/4 directly, skipping the menu |
 | `>` or `.` | Go down / walk to the down stairs |
 | `<` or `,` | Go up / walk to the up stairs |
 | `x` or `X` | Close whatever's open — the universal escape hatch, never spends a turn |
@@ -206,7 +210,36 @@ Seeds fix the *maps*, never the contents. The same seed always carves the same f
 Magic
 -----
 
-A second resource pool, `Ma X/Y` on the status line, 4 points at the start of a run. It does not regenerate on its own — only a staircase refills it. Almost nothing spends it yet; treat the number as mostly a preview of mechanics still being wired in.
+A second resource pool, `Ma X/Y` on the status line, 4 points at the start of a run. It does not regenerate on its own — only a staircase refills it.
+
+
+Moves
+-----
+
+You start a run knowing none. **Heroic mana** — an uncommon pickup, never disguised as anything else, and never worth anything to a monster that stumbles onto it — teaches you one random move the instant you step on it, straight into an empty slot. You can only ever know **four** at once; once your moveset is full, mana you step on has nothing left to teach and says so.
+
+`Z` opens the moves menu; `Alt`+`Q`/`W`/`E`/`R` fires a slot directly. A move that needs a target opens the aiming reticle exactly like a wand; one that doesn't (it works on you, or on everything you can see) fires the instant you press it. Wielding a **staff** doubles both the Magic cost and the fury of every damaging move.
+
+| Cost | Move | What it does |
+|---|---|---|
+| 1 | Sting | The dart trap's own venomed bite, lanced at range — the same depth-scaled poison drain |
+| 1 | Thunderbolt | 2d3 damage to one target, 30% chance to paralyse it |
+| 1 | Cure | Lifts your single worst affliction |
+| 1 | Bide | Spends the turn coiling — your very next attack roll gets +4, but anything else you do first (a step, an item, another move) loses it unfired |
+| 2 | Fireball | A blast of flame at range, sized by your own melee power rather than a wand's dice |
+| 2 | Force Lance | 2d3 damage in a line, exactly like a wand of striking's bolt |
+| 2 | Identify | As the scroll |
+| 2 | Setup | Plants a revealed arrow trap on each of your four diagonals — one under a creature already trips |
+| 3 | Lux | A wand of light, hurled rather than zapped: the same wide blast, with damage on top of the dazzle |
+| 3 | Circle of Death | 3d3 drain to everything in view, handed back to you as HP |
+| 3 | Magic Ward | Nothing but your own magic can touch you for the rest of the floor — no wand, no breath, no monster's bite-borne trick |
+| 3 | Heal | Refills your HP to your current ceiling (no ceiling raise, unlike the potion) |
+| 4 | Meteor Strike | A wand of fire hurled at the sky; after each impact there's a 50% chance it comes down again nearby |
+| 4 | Frost Nova | 4d3 cold damage to everything in view, paralysing what survives |
+| 4 | Magic Mapping | As the scroll |
+| 4 | Haste Self | You are not quick, not swift — you are THE FAST |
+
+A **scroll of amnesia** is the one thing that takes a move back: 1... 2... Poof! — one random move gone, and every tile you've ever seen on the current floor forgotten with it.
 
 
 Items
@@ -294,7 +327,7 @@ The three conditions potions may inflict — blindness, paralysis, confusion —
 
 ### Scrolls
 
-All fifteen do something now — except blank paper, which does nothing on purpose.
+All sixteen do something now — except blank paper, which does nothing on purpose.
 
 Four of them are worth knowing about before you read one to find out what it is:
 
@@ -303,7 +336,7 @@ Four of them are worth knowing about before you read one to find out what it is:
   * **Hold monster** roots everything in sight where it stands, for longer than sleep lasts. Held is not helpless: walk into its reach and it still bites. What you're buying is the room to leave, or the range to shoot from.
   * **Monster confusion** doesn't go off when you read it. It charges your hands (`GLOW` on the HUD) and waits: the next blow you actually land passes the confusion on and is spent doing it. A scrape off armour doesn't count.
 
-The rest: remove curse frees every cursed item you're wearing, but destroys it rather than handing it back clean; vorpalize weapon brands your wielded weapon as the bane of one random species, and reading it a second time destroys the weapon instead of stacking; magic mapping reveals the floor as an animated wipe; and food detection is the plain counterpart to a potion of magic detection — it shows you every ordinary thing lying on the floor, exactly what the potion turns its nose up at. The Element of Yoord answers to both.
+The rest: remove curse frees every cursed item you're wearing, but destroys it rather than handing it back clean; vorpalize weapon brands your wielded weapon as the bane of one random species, and reading it a second time destroys the weapon instead of stacking; magic mapping reveals the floor as an animated wipe; food detection is the plain counterpart to a potion of magic detection — it shows you every ordinary thing lying on the floor, exactly what the potion turns its nose up at (the Element of Yoord answers to both); and amnesia takes a random move back off you and every tile you've seen on the floor with it — see "Moves".
 
 ### Coins — the pickups
 
@@ -319,6 +352,9 @@ Every coin is a **pickup**: it is never carried, it works the instant you step o
 | green | gives back up to 4 points of drained Power |
 | platinum | the `PLAT` promise — see below |
 | forge | the `FORG` promise — see below |
+| heroic mana | teaches you a random move — see "Moves" |
+
+Heroic mana is uncommon, and unlike every other pickup it never wears a disguise: you always see it coming for exactly what it is. It's no use to a monster that stumbles onto one, and like every coin it never enters your pack, so it can't be thrown either.
 
 **A coin you can't use is a coin you don't take.** Walk over a red coin at full health and it stays where it is, silently, waiting for the fight that goes badly. Same for a blue one with a full pool, a rosé one with nothing wrong with you, a green one with an undrained arm. Auto-explore knows it too and won't detour for one it can't use yet — so a coin left behind is not a coin forgotten, and `o` will come back for it the moment it matters.
 

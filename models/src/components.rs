@@ -377,6 +377,11 @@ pub enum PickupEffect {
     Platinum,
     /// The [`Forged`] promise.
     Forge,
+    /// Teaches the taker one random move, straight into their [`Moveset`] —
+    /// heroic mana, uncommon, and unlike every other item in the game never
+    /// disguised: it is always just "heroic mana", the one thing in the
+    /// dungeon with nothing to identify.
+    Mana,
 }
 
 /// An actor's carried items, in inventory-letter order. An item in here has had
@@ -482,6 +487,9 @@ pub enum ScrollEffect {
     AggravateMonsters,
     BlankPaper,
     VorpalizeWeapon,
+    /// 1... 2... Poof! Forgets one random move off the reader's [`Moveset`]
+    /// and every tile they have ever seen on this floor.
+    Amnesia,
 }
 
 /// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`
@@ -527,6 +535,44 @@ impl WandEffect {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveEffect {
     DragonBreath,
+    Sting,
+    Thunderbolt,
+    Cure,
+    Bide,
+    ForceLance,
+    Identify,
+    Setup,
+    Lux,
+    CircleOfDeath,
+    MagicWard,
+    Heal,
+    MeteorStrike,
+    FrostNova,
+    MagicMapping,
+    HasteSelf,
+}
+
+impl MoveEffect {
+    /// Whether triggering this move opens the aiming reticle at all. Most
+    /// attacks do; every skill that works on the caster alone or on
+    /// everything in view has nothing to aim at, and fires the instant its
+    /// slot is pressed — the same courtesy [`WandEffect::needs_target`] gives
+    /// the wand of light.
+    pub fn needs_target(self) -> bool {
+        !matches!(
+            self,
+            MoveEffect::Cure
+                | MoveEffect::Bide
+                | MoveEffect::Identify
+                | MoveEffect::Setup
+                | MoveEffect::CircleOfDeath
+                | MoveEffect::MagicWard
+                | MoveEffect::Heal
+                | MoveEffect::FrostNova
+                | MoveEffect::MagicMapping
+                | MoveEffect::HasteSelf
+        )
+    }
 }
 
 /// The two shapes an active move comes in — an attack wand's own split
@@ -791,6 +837,25 @@ pub struct Paralyzed;
 /// hobgoblin that reads one you threw can charm *you* with its next punch.
 #[derive(Component, Default)]
 pub struct ConfusingTouch;
+
+/// The move Magic Ward: immunity to elemental/magic damage for the rest of
+/// the floor. Set the moment the move is cast, lifted like any other
+/// floor-scoped condition at the next staircase
+/// ([`crate::conditions::clear_player_conditions`]).
+#[derive(Component, Default)]
+pub struct MagicWard;
+
+/// The move Bide: coiled for one blow. Adds
+/// [`crate::constants::combat::BIDE_ATTACK_BONUS`] to the very next attack
+/// [`crate::combat::fold_matchup`] folds for its bearer, then is spent —
+/// whether that swing hits, glances or misses. A double-striking estoc or a
+/// cleave only ever sees it on the first swing of the turn. Do anything else
+/// with the turn instead — walk without attacking, use or throw something,
+/// cast another move — and it is lost the same way, unspent: see
+/// [`crate::equipment::reset_momentum`], which clears it on exactly the same
+/// occasions it zeroes a rapier's [`crate::effects::Momentum`].
+#[derive(Component, Default)]
+pub struct Bided;
 
 /// A promise the dungeon made you, and the terms are the same for both of the
 /// coins that make one: **reach the next staircase without being hurt again**
