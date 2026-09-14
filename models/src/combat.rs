@@ -25,7 +25,7 @@ use crate::state::Ending;
 //   CHIP_DAMAGE                                the player's guaranteed-1 floor
 //   GEAR_SURVIVES_DEATH                        per-item odds a corpse keeps its gear
 use crate::constants::combat::{
-    CHIP_DAMAGE, EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE, GEAR_SURVIVES_DEATH,
+    BIDE_ATTACK_BONUS, CHIP_DAMAGE, EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE, GEAR_SURVIVES_DEATH,
 };
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
@@ -231,6 +231,9 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     medusa_gaze(world, attacker, target);
 
     let matchup = fold_matchup(world, attacker, target);
+    // Spent the instant it's folded in — hit, glance or miss — so a
+    // double-striking estoc or a cleave only ever sees it on the first swing.
+    world.entity_mut(attacker).remove::<Bided>();
     let swing = roll_swing(world, &matchup);
     let swing = clamp_swing(world, target, &matchup, swing);
     let outcome = land_swing(world, attacker, target, &swing);
@@ -361,8 +364,16 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
     Matchup {
         power: power + attackers.power_die,
         // A rapier's built-up momentum rides in on top of its own enchantment
-        // plus — see `crate::effects::Momentum`.
-        power_bonus: power_bonus + attackers.power_bonus + attackers.momentum,
+        // plus — see `crate::effects::Momentum`. A coiled Bide rides in with
+        // it, one blow's worth — see `crate::components::Bided`.
+        power_bonus: power_bonus
+            + attackers.power_bonus
+            + attackers.momentum
+            + if world.get::<Bided>(attacker).is_some() {
+                BIDE_ATTACK_BONUS
+            } else {
+                0
+            },
         armor: armor + targets.armor_die,
         armor_bonus: armor_bonus + targets.armor_bonus,
         melee_cap: attackers.melee_cap,

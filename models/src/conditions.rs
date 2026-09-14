@@ -31,8 +31,8 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    Blind, Confused, Fighter, GameLog, Mob, MovementType, Paralyzed, Player, Position, Snare,
-    SnareKind, Speed, SpeedKind, Viewshed,
+    Blind, Confused, Fighter, GameLog, MagicWard, Mob, MovementType, Paralyzed, Player, Position,
+    Snare, SnareKind, Speed, SpeedKind, Viewshed,
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{SeesInvisible, Sluggish, clear_floor_grants};
@@ -415,6 +415,10 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
     if world.get::<Paralyzed>(player).is_some() {
         world.entity_mut(player).remove::<Paralyzed>();
         lifted.push("paralysed");
+    }
+    if world.get::<MagicWard>(player).is_some() {
+        world.entity_mut(player).remove::<MagicWard>();
+        lifted.push("warded");
     }
 
     // A potion of see invisible only lasts the floor. Asked before and after so

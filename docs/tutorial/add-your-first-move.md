@@ -34,11 +34,11 @@ flowchart LR
 What you are about to learn
 ----------------------------
 
-Roog has exactly one active move today: Fireball, the dragon's own breath weapon on loan to the player so the system had something to prove itself on. A move is coded the way a potion or a wand is -- one identity enum, one catalog row, one mechanic keyed off it -- because it is exactly as *active* as either of those.
+Roog has sixteen active moves today, taught to the player at random by heroic mana (an uncommon coin-table pickup) rather than started with any. A move is coded the way a potion or a wand is -- one identity enum, one catalog row, one mechanic keyed off it -- because it is exactly as *active* as either of those. This tutorial adds a seventeenth, by hand, the way every one of the sixteen was first tried.
 
 It is also, on purpose, not an item. It has no `Position`, no `Item` marker, no pack slot. It cannot be dropped, thrown, or found on a floor. It lives permanently in whoever's `Moveset` it's in, and it spends Magic instead of a battery.
 
-By the end you will have added Frost Nova, and you will know exactly which parts of "add an item" still apply and which ones stopped applying the moment you left `Position` off the struct.
+By the end you will have added Ice Bolt, and you will know exactly which parts of "add an item" still apply and which ones stopped applying the moment you left `Position` off the struct.
 
 
 Step 1: find the enum and the table
@@ -52,37 +52,44 @@ Search for it:
 
     pub enum MoveEffect {
         DragonBreath,
+        Sting,
+        Thunderbolt,
+        // ... thirteen more ...
     }
 
-One variant. Next to it, in `models/src/catalog.rs`, is the table that gives that variant a name, a cost and a reach:
+Sixteen variants today. Next to it, in `models/src/catalog.rs`, is the table that gives each variant a name, a cost, a reach and a kind:
 
     pub const MOVES: &[MoveDef] = &[
-        MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8 },
+        MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: MoveKind::Attack },
+        // ... fifteen more ...
     ];
 
-Read the row:
+Read Fireball's row:
 
-    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8 }
-                              |                          |          |       |
-                        the identity                its label   Magic    reticle
-                                                                  spent   reach
+    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: MoveKind::Attack }
+                              |                          |          |       |                |
+                        the identity                its label   Magic    reticle      Attack or Skill --
+                                                                  spent    reach       doubled by a staff
+                                                                                        when it's Attack
 
-`cost` is Magic points, spent by `move_system` the instant the move actually fires. `range` feeds the aiming reticle exactly the way a wand's `Ranged.range` does -- you will aim Frost Nova the same way you'd zap a wand of cold.
+`cost` is Magic points, spent by `move_system` the instant the move actually fires (doubled by a wielded staff's `TurboMagic`, but only for an `Attack`). `range` feeds the aiming reticle exactly the way a wand's `Ranged.range` does -- you will aim Ice Bolt the same way you'd zap a wand of cold. `kind` is read once, by `move_cost` and by whatever mechanic you write in step 3.
 
 
 Step 2: add a row
 -------------------
 
-Frost Nova is Fireball's cold twin. Append a variant:
+Ice Bolt is Fireball's cold twin. Append a variant at the very end of the enum -- never in the middle, since a save encodes a `MoveEffect` as its position:
 
     pub enum MoveEffect {
         DragonBreath,
-        FrostNova,
+        // ... the other fourteen ...
+        HasteSelf,
+        IceBolt,
     }
 
-And a row after Fireball's:
+And a row anywhere in `MOVES` (the table's order doesn't matter, only the enum's does):
 
-    MoveDef { effect: MoveEffect::FrostNova, name: "Frost Nova", cost: 2, range: 6 },
+    MoveDef { effect: MoveEffect::IceBolt, name: "Ice Bolt", cost: 2, range: 6, kind: MoveKind::Attack },
 
 Build:
 
@@ -96,20 +103,27 @@ Step 3: write the mechanic
 
 The error names a missing match arm in `models/src/items/moves.rs`:
 
-    fn apply_move_effect(world: &mut World, user: Entity, target: Position, effect: MoveEffect) {
+    fn apply_move_effect(
+        world: &mut World,
+        user: Entity,
+        target: Position,
+        effect: MoveEffect,
+        power_mult: i32,
+    ) {
         match effect {
-            MoveEffect::DragonBreath => breathe_fire(world, user, target),
+            MoveEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
+            // ... fourteen more arms ...
         }
     }
 
-The match has no catch-all, on purpose -- the same discipline `apply_wand_effect` holds over `WandEffect`. A variant that compiled without an arm would be a move that silently did nothing, and roog does not ship those.
+The match has no catch-all, on purpose -- the same discipline `apply_wand_effect` holds over `WandEffect`. A variant that compiled without an arm would be a move that silently did nothing, and roog does not ship those. `power_mult` is `2` when a staff doubled an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does.
 
 Add the arm, and the function it calls:
 
-    MoveEffect::DragonBreath => breathe_fire(world, user, target),
-    MoveEffect::FrostNova => frost_nova(world, user, target),
+    MoveEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
+    MoveEffect::IceBolt => ice_bolt(world, user, target, power_mult),
 
-    fn frost_nova(world: &mut World, user: Entity, target: Position) {
+    fn ice_bolt(world: &mut World, user: Entity, target: Position, power_mult: i32) {
         let (power, power_bonus) = {
             let fighter = world.get::<Fighter>(user);
             let loadout = loadout(world, user);
@@ -118,8 +132,9 @@ Add the arm, and the function it calls:
                 fighter.map_or(0, |f| f.power_bonus) + loadout.power_bonus,
             )
         };
-        let damage =
-            (world.resource_mut::<GameRng>().0.gen_range(1..=power.max(1)) + power_bonus).max(0);
+        let damage = ((world.resource_mut::<GameRng>().0.gen_range(1..=power.max(1)) + power_bonus)
+            .max(0))
+            * power_mult;
         world
             .resource_mut::<GameLog>()
             .add("A wave of killing frost radiates outward!".to_string());
@@ -134,7 +149,7 @@ Add the arm, and the function it calls:
         );
     }
 
-Look closely and you'll notice you wrote almost nothing. `elemental_blast` is the same function a zapped wand of cold calls -- the disc, the line-of-sight check, the animation, the chain reaction into any trap or coin caught in it, all of it borrowed. The only thing `frost_nova` supplies is *how much damage*, computed from the caster's own claws rather than a wand's dice. That computation is copied verbatim from `breathe_fire` right above it; a move that inflicts a status instead of damage would instead borrow from `crate::conditions`, the way a wand's utility effects do.
+Look closely and you'll notice you wrote almost nothing. `elemental_blast` is the same function a zapped wand of cold calls -- the disc, the line-of-sight check, the animation, the chain reaction into any trap or coin caught in it, all of it borrowed. The only thing `ice_bolt` supplies is *how much damage*, computed from the caster's own claws rather than a wand's dice. That computation is copied verbatim from `breathe_fire` right above it; a move that inflicts a status instead of damage would instead borrow from `crate::conditions`, the way a wand's utility effects do.
 
 Build again:
 
@@ -146,10 +161,10 @@ It compiles.
 Step 4: give it to yourself
 ------------------------------
 
-There is no `ROOG_SPAWN` for a move -- there is no entity to spawn. The only way to hold one is to already have it, so put it in the player's starting `Moveset`, in `initialize_world` (`models/src/map/levels.rs`):
+There is no `ROOG_SPAWN` for a move -- there is no entity to spawn. In play, the only way to learn one is heroic mana (an uncommon coin-table pickup that teaches a random not-yet-known move); to try Ice Bolt without hunting for mana, put it straight into the player's starting `Moveset`, in `initialize_world` (`models/src/map/levels.rs`):
 
     Moveset {
-        slots: vec![MoveEffect::DragonBreath, MoveEffect::FrostNova],
+        slots: vec![MoveEffect::IceBolt],
     },
 
 Build and run:
@@ -161,7 +176,7 @@ Build and run:
 Step 5: cast it
 ------------------
 
-Press `Z`. You should see a small box listing both moves, each with its Magic cost. Press `2` (or navigate down and confirm) to pick Frost Nova, and the aiming reticle opens exactly as it would for a wand.
+Press `Z`. You should see a small box listing both moves, each with its Magic cost. Press `2` (or navigate down and confirm) to pick Ice Bolt, and the aiming reticle opens exactly as it would for a wand.
 
 Faster, once you know the slot: `Alt`+`W` opens the same reticle directly, no menu in between. `Alt`+`Q`/`W`/`E`/`R` reach slots one through four in that order. While the reticle is up, `Tab` snaps it to the next monster or item in view instead of nudging it one tile at a time.
 
@@ -173,10 +188,10 @@ Step 6: where it stops being an item
 
 Try the things that work on a potion, a wand, a dagger:
 
-  * **Open the pack (`i`) and look for Frost Nova.** It isn't there. A move never enters a `Backpack`; the player's copy of it lives only in `Moveset`.
+  * **Open the pack (`i`) and look for Ice Bolt.** It isn't there. A move never enters a `Backpack`; the player's copy of it lives only in `Moveset`.
   * **Try to throw it (`t`).** There is nothing to select -- the throw menu only ever lists `Backpack` contents, and a move was never in one.
-  * **Save and reload.** Your Magic total survives. Your `Moveset` does not -- `models/src/saveload.rs` has no entry for it yet, so a reload hands you back whatever `initialize_world` (or a loaded save's own player data) puts there. That's a real gap, not a lesson; if you're keeping Frost Nova, fill it in before you trust a save.
-  * **Give a monster the same trick.** You can't, not generically. `MoveEffect` is a shared *mechanic* -- `frost_nova` doesn't care who `user` is -- but nothing routes a bestiary row into anybody's `Moveset`, and no Magic pool exists to spend for a monster anyway. The dragon's own fireball proves the trick can be reused (it calls the very same `elemental_blast` your move does, in `crate::items::dragon_breath`), but it is wired straight into `crate::ai` by hand, outside the whole move system, for free. Making that automatic is future work, not something this tutorial's row buys you.
+  * **Save and reload.** Your Magic total survives, and so does your `Moveset` -- `models/src/saveload.rs` round-trips it like every other piece of the player. If Ice Bolt ever left a marker of its own lying around on you (the way the move Magic Ward or Bide does), that would need its own line in `EntitySave` too -- see `../how-to/add-a-move.md` for the two that already have one.
+  * **Give a monster the same trick.** You can't, not generically. `MoveEffect` is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- but nothing routes a bestiary row into anybody's `Moveset`, and no Magic pool exists to spend for a monster anyway. The dragon's own fireball proves the trick can be reused (it calls the very same `elemental_blast` your move does, in `crate::items::dragon_breath`), but it is wired straight into `crate::ai` by hand, outside the whole move system, for free. Making that automatic is future work, not something this tutorial's row buys you.
 
 None of that is a bug in what you built. It's the shape of the thing: a move is a mechanic on loan to whoever's `Moveset` names it, not a possession with a life of its own on the floor.
 
@@ -184,7 +199,7 @@ None of that is a bug in what you built. It's the shape of the thing: a move is 
 Step 7: keep it or drop it
 ------------------------------
 
-If you like Frost Nova, leave it. If this was a dry run:
+If you like Ice Bolt, leave it. If this was a dry run:
 
     git checkout models/src/components.rs models/src/catalog.rs \
                  models/src/items/moves.rs models/src/map/levels.rs
@@ -199,7 +214,7 @@ What you actually learned
 
   * A move is *not* an item, deliberately: no `Position`, no `Item`, no pack slot, no `ROOG_SPAWN`, nothing to throw or drop. It lives in a `Moveset`, and it costs Magic instead of running out of charges.
 
-  * A `MoveEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does — but *triggering* it is not generic yet. Wiring a species to use one, and giving `Moveset` a life past a save, are both still open ground.
+  * A `MoveEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does — but *triggering* it is not generic yet. Wiring a species to use one under its own AI, at no Magic cost, is still bespoke work in `crate::ai`.
 
 
 Where to go next

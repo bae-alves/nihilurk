@@ -171,7 +171,7 @@ impl TrapReveal {
 /// floors, rising at each boundary in [`TRAP_DAMAGE_TIER_LAST_DEPTH`]. Coarser
 /// than `map::difficulty_tier` on purpose — a trap steps up three times over a
 /// run, not four.
-fn trap_damage_tier(depth: u8) -> i32 {
+pub(crate) fn trap_damage_tier(depth: u8) -> i32 {
     TRAP_DAMAGE_TIER_LAST_DEPTH
         .iter()
         .position(|&last| depth <= last)
@@ -361,7 +361,7 @@ pub fn trap_at(world: &mut World, pos: Position) -> Option<Entity> {
 
 /// Fires `trap`'s effect on `victim`, reveals the trap for good, and — for
 /// single-shot traps — despawns it.
-fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
+pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
     let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else {
         return;
     };
@@ -784,6 +784,36 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
     }
 }
 
+/// The one embellishment an arrow trap's classic thwack was missing: the
+/// bolt visibly arriving from off in the dark rather than simply appearing at
+/// the impact tile. Picks one of the four cardinal directions and traces a
+/// short flight in toward the trap's own tile — purely cosmetic, the damage
+/// above is already decided by the time this plays, so a headless world (no
+/// [`Particles`] resource) just skips it.
+fn arrow_flourish(world: &mut World, trap_pos: Option<Position>) {
+    let Some(p) = trap_pos else {
+        return;
+    };
+    const REACH: i32 = 6;
+    const DIRS: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+    let (dx, dy) = {
+        let mut rng = world.resource_mut::<GameRng>();
+        DIRS[rng.0.gen_range(0..DIRS.len())]
+    };
+    let mut cells = Vec::new();
+    for step in (1..=REACH).rev() {
+        if let Some(cell) = crate::particles::on_map(p.x as i32 - dx * step, p.y as i32 - dy * step)
+        {
+            cells.push(cell);
+        }
+    }
+    cells.push((p.x, p.y));
+    let Some(mut fx) = world.get_resource_mut::<Particles>() else {
+        return;
+    };
+    fx.hurl(&cells, '↑', Color::DarkCyan);
+}
+
 fn arrow_effect(
     world: &mut World,
     victim: Entity,
@@ -799,6 +829,10 @@ fn arrow_effect(
         + tier * ARROW_DAMAGE_PER_TIER;
     let damage = (roll - armor_plus).max(0);
     let who = actor_label(world, victim);
+
+    if is_player || seen {
+        arrow_flourish(world, trap_pos);
+    }
 
     if damage <= 0 {
         if is_player || seen {

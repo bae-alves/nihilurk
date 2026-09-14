@@ -201,6 +201,7 @@ pub const SCROLLS: &[ScrollDef] = &[
     ScrollDef { effect: ScrollEffect::AggravateMonsters, name: "scroll of aggravate monsters" },
     ScrollDef { effect: ScrollEffect::BlankPaper,        name: "scroll of blank paper" },
     ScrollDef { effect: ScrollEffect::VorpalizeWeapon,   name: "scroll of vorpalize weapon" },
+    ScrollDef { effect: ScrollEffect::Amnesia,           name: "scroll of amnesia" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -894,14 +895,37 @@ impl MoveDef {
     }
 }
 
-/// Every active move in the game. One row today — the dragon's own trick, on
-/// loan to the player for testing under its own name. Unlike a player's,
-/// a *monster's* use of the same trick ([`crate::items::dragon_breath`], the
-/// dragon's own innate attack) spends no [`Magic`] at all — the cost here is
-/// the price of the player borrowing it, not a property of the trick itself.
+/// Every active move in the game: four tiers of four, priced by [`Magic`]
+/// cost — 1 through 4 — the same way a floor's danger is priced by depth. A
+/// monster's own copy of a shared trick ([`crate::items::dragon_breath`], the
+/// dragon's innate attack) spends no [`Magic`] at all; the cost here is the
+/// price of the player borrowing it, not a property of the trick itself.
+///
+/// `range` is meaningless for a move whose [`MoveEffect::needs_target`] is
+/// `false` — it fires on its slot press with no reticle at all — and is left
+/// at `0` for those rows.
 #[rustfmt::skip]
 pub const MOVES: &[MoveDef] = &[
-    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: MoveKind::Attack },
+    // --- 1 Ma ---------------------------------------------------------
+    MoveDef { effect: MoveEffect::Sting,       name: "Sting",       cost: 1, range: 8, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::Thunderbolt, name: "Thunderbolt", cost: 1, range: 8, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::Cure,        name: "Cure",        cost: 1, range: 0, kind: MoveKind::Skill },
+    MoveDef { effect: MoveEffect::Bide,        name: "Bide",        cost: 1, range: 0, kind: MoveKind::Skill },
+    // --- 2 Ma ---------------------------------------------------------
+    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball",   cost: 2, range: 8, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::ForceLance,  name: "Force Lance", cost: 2, range: 8, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::Identify,    name: "Identify",    cost: 2, range: 0, kind: MoveKind::Skill },
+    MoveDef { effect: MoveEffect::Setup,       name: "Setup",       cost: 2, range: 0, kind: MoveKind::Skill },
+    // --- 3 Ma ---------------------------------------------------------
+    MoveDef { effect: MoveEffect::Lux,          name: "Lux",           cost: 3, range: 8, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::CircleOfDeath, name: "Circle of Death", cost: 3, range: 0, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::MagicWard,    name: "Magic Ward",    cost: 3, range: 0, kind: MoveKind::Skill },
+    MoveDef { effect: MoveEffect::Heal,         name: "Heal",          cost: 3, range: 0, kind: MoveKind::Skill },
+    // --- 4 Ma ---------------------------------------------------------
+    MoveDef { effect: MoveEffect::MeteorStrike, name: "Meteor Strike", cost: 4, range: 8, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::FrostNova,    name: "Frost Nova",    cost: 4, range: 0, kind: MoveKind::Attack },
+    MoveDef { effect: MoveEffect::MagicMapping, name: "Magic Mapping", cost: 4, range: 0, kind: MoveKind::Skill },
+    MoveDef { effect: MoveEffect::HasteSelf,    name: "Haste Self",    cost: 4, range: 0, kind: MoveKind::Skill },
 ];
 
 // ---------------------------------------------------------------------------
@@ -920,11 +944,19 @@ pub struct CoinDef {
     pub color: Color,
     pub effect: PickupEffect,
     pub amount: i32,
+    /// This row's share of the coin table against its table-mates. Ten is the
+    /// baseline; heroic mana sits well under it — an uncommon find, not a
+    /// coin.
+    pub weight: u32,
 }
 
 impl ItemDef for CoinDef {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn weight(&self) -> u32 {
+        self.weight
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
@@ -960,14 +992,17 @@ impl ItemDef for CoinDef {
 /// even when your pack is full.
 #[rustfmt::skip]
 pub const COINS: &[CoinDef] = &[
-    CoinDef { name: "gold coin",     color: Color::Yellow,      effect: PickupEffect::Coin,     amount: 5000 },
-    CoinDef { name: "silver coin",   color: Color::Grey,        effect: PickupEffect::Coin,     amount: 1000 },
-    CoinDef { name: "red coin",      color: Color::Red,         effect: PickupEffect::Health,   amount:    4 },
-    CoinDef { name: "blue coin",     color: Color::Blue,        effect: PickupEffect::Power,    amount:    4 },
-    CoinDef { name: "rosé coin",     color: Color::Magenta,     effect: PickupEffect::Cleanse,  amount:    4 },
-    CoinDef { name: "green coin",    color: Color::Green,       effect: PickupEffect::Strength, amount:    4 },
-    CoinDef { name: "platinum coin", color: Color::White,      effect: PickupEffect::Platinum, amount:    0 },
-    CoinDef { name: "forge coin",    color: Color::DarkYellow,  effect: PickupEffect::Forge,    amount:    0 },
+    CoinDef { name: "gold coin",     color: Color::Yellow,      effect: PickupEffect::Coin,     amount: 5000, weight: 10 },
+    CoinDef { name: "silver coin",   color: Color::Grey,        effect: PickupEffect::Coin,     amount: 1000, weight: 10 },
+    CoinDef { name: "red coin",      color: Color::Red,         effect: PickupEffect::Health,   amount:    4, weight: 10 },
+    CoinDef { name: "blue coin",     color: Color::Blue,        effect: PickupEffect::Power,    amount:    4, weight: 10 },
+    CoinDef { name: "rosé coin",     color: Color::Magenta,     effect: PickupEffect::Cleanse,  amount:    4, weight: 10 },
+    CoinDef { name: "green coin",    color: Color::Green,       effect: PickupEffect::Strength, amount:    4, weight: 10 },
+    CoinDef { name: "platinum coin", color: Color::White,      effect: PickupEffect::Platinum, amount:    0, weight: 10 },
+    CoinDef { name: "forge coin",    color: Color::DarkYellow,  effect: PickupEffect::Forge,    amount:    0, weight: 10 },
+    // Uncommon, and never disguised: no colour name, no adjective — it is
+    // always just "heroic mana".
+    CoinDef { name: "heroic mana",   color: Color::Magenta,     effect: PickupEffect::Mana,     amount:    0, weight:  3 },
 ];
 
 /// The Element of Yoord: the relic each run retrieves from the deepest floor,

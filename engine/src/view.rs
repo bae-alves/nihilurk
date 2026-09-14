@@ -186,9 +186,13 @@ pub fn render<W: Write>(
             Option<&ConfusingTouch>,
             Option<&Plated>,
             Option<&Forged>,
+            Option<&MagicWard>,
+            Option<&Bided>,
         ), With<Player>>();
         let mut v = Vec::new();
-        if let Some((confused, blind, paralyzed, charmed, plated, forged)) = q.iter(world).next() {
+        if let Some((confused, blind, paralyzed, charmed, plated, forged, warded, bided)) =
+            q.iter(world).next()
+        {
             match tempo {
                 Some(SpeedKind::Fast) => v.push(("FAST", Color::Cyan)),
                 Some(SpeedKind::Slow) => v.push(("SLOW", Color::Green)),
@@ -217,6 +221,14 @@ pub fn render<W: Write>(
             }
             if forged.is_some() {
                 v.push(("FORG", Color::DarkYellow));
+            }
+            // The two moves that leave something on you: a shield up for the
+            // rest of the floor, and a blow coiled and waiting to land.
+            if warded.is_some() {
+                v.push(("WARD", Color::Cyan));
+            }
+            if bided.is_some() {
+                v.push(("BIDE", Color::DarkYellow));
             }
         }
         v

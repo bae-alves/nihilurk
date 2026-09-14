@@ -60,6 +60,10 @@ pub mod combat {
     /// Lower this and thrown-weapon retrieval gets stingier; raise it toward 1
     /// and every orc becomes a vending machine for its own sword.
     pub const GEAR_SURVIVES_DEATH: f64 = 0.5;
+
+    /// The flat bonus the move Bide adds to the attack roll of the very next
+    /// blow its caster lands — see [`crate::components::Bided`].
+    pub const BIDE_ATTACK_BONUS: i32 = 4;
 }
 
 // ===========================================================================
@@ -588,6 +592,59 @@ pub mod monsters {
     /// How far a launcher-wielding monster (a centaur, a medusa) can loose a
     /// shot. Shares the player's own throw reach.
     pub use crate::constants::items::THROW_RANGE as MONSTER_SHOT_RANGE;
+}
+
+// ===========================================================================
+// Active moves
+// ===========================================================================
+
+/// The dice and odds behind the moves whose damage isn't simply "as the
+/// wand/trap it borrows from" (Fireball, Sting) — see `crate::items::moves`.
+/// Each move's cost, range and kind are on its own catalog row
+/// ([`crate::catalog::MoveDef`]); these are the numbers a rebalance actually
+/// reaches for.
+pub mod moves {
+    /// The most moves a [`crate::components::Moveset`] may ever hold —
+    /// `Alt`+`Q`/`W`/`E`/`R`, and no fifth slot to reach for. Heroic mana
+    /// stops teaching once this is full.
+    pub const MOVESET_CAP: usize = 4;
+
+    /// Thunderbolt: `DICE d SIDES` armour-ignoring damage, and `PARALYZE_CHANCE`
+    /// to lock the target up on top of it.
+    pub const THUNDERBOLT_DAMAGE_DICE: i32 = 2;
+    /// See [`THUNDERBOLT_DAMAGE_DICE`].
+    pub const THUNDERBOLT_DAMAGE_SIDES: i32 = 3;
+    /// See [`THUNDERBOLT_DAMAGE_DICE`].
+    pub const THUNDERBOLT_PARALYZE_CHANCE: f64 = 0.30;
+
+    /// Force Lance: a line of `DICE d SIDES` armour-ignoring damage, exactly
+    /// like a wand of striking's own bolt.
+    pub const FORCE_LANCE_DAMAGE_DICE: i32 = 2;
+    /// See [`FORCE_LANCE_DAMAGE_DICE`].
+    pub const FORCE_LANCE_DAMAGE_SIDES: i32 = 3;
+
+    /// Circle of Death: `DICE d SIDES` armour-ignoring drain, rolled once per
+    /// creature in view and given back to the caster as HP.
+    pub const CIRCLE_OF_DEATH_DAMAGE_DICE: i32 = 3;
+    /// See [`CIRCLE_OF_DEATH_DAMAGE_DICE`].
+    pub const CIRCLE_OF_DEATH_DAMAGE_SIDES: i32 = 3;
+
+    /// Frost Nova: `DICE d SIDES` armour-ignoring cold damage to everything in
+    /// view, each on top paralysed if it survives.
+    pub const FROST_NOVA_DAMAGE_DICE: i32 = 4;
+    /// See [`FROST_NOVA_DAMAGE_DICE`].
+    pub const FROST_NOVA_DAMAGE_SIDES: i32 = 3;
+
+    /// How many "charges" Lux throws itself as — a wand of light has no
+    /// battery of its own to spend here, so this stands in for one.
+    pub const LUX_CHARGES: i32 = 3;
+    /// See [`LUX_CHARGES`], Meteor Strike's own stand-in battery.
+    pub const METEOR_STRIKE_CHARGES: i32 = 3;
+    /// Meteor Strike's odds, after every impact, of tearing the sky open for
+    /// another one.
+    pub const METEOR_STRIKE_CHAIN_CHANCE: f64 = 0.50;
+    /// How far, in tiles, a chained meteor may land from the one before it.
+    pub const METEOR_STRIKE_CHAIN_SPREAD: i32 = 3;
 }
 
 // ===========================================================================

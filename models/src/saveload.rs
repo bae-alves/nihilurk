@@ -220,6 +220,15 @@ struct EntitySave<'a> {
     /// The player's active-move bar. Nothing else in the game carries one yet.
     #[serde(default)]
     moveset: Option<Vec<MoveEffect>>,
+    /// The move Magic Ward: immunity to magic for the rest of the floor. Same
+    /// lifetime as [`EntitySave::confused`].
+    #[serde(default)]
+    magic_ward: bool,
+    /// The move Bide: coiled for one blow. Survives a save the way
+    /// [`EntitySave::confusing_touch`] does — it is spent by the reader's next
+    /// landed attack, not by time or a staircase.
+    #[serde(default)]
+    bided: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -373,6 +382,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             plated: er.contains::<Plated>(),
             forged: er.contains::<Forged>(),
             moveset: er.get::<Moveset>().map(|m| m.slots.clone()),
+            magic_ward: er.contains::<MagicWard>(),
+            bided: er.contains::<Bided>(),
         });
     }
 
@@ -629,6 +640,12 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if es.confusing_touch {
             em.insert(ConfusingTouch);
+        }
+        if es.magic_ward {
+            em.insert(MagicWard);
+        }
+        if es.bided {
+            em.insert(Bided);
         }
         if let Some((effect, amount)) = es.pickup {
             em.insert(Pickup { effect, amount });

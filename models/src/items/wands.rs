@@ -55,6 +55,18 @@ fn damage_with_element(
     damage: i32,
     element: Option<Element>,
 ) -> i32 {
+    // The move Magic Ward: a shield up for the rest of the floor against
+    // every wand-shaped source of harm — zapped, thrown, breathed or cast —
+    // whatever its element. See `crate::components::MagicWard`.
+    if world.get::<MagicWard>(entity).is_some() {
+        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("The {name}'s ward turns the magic aside."));
+        }
+        ward_ricochet(world, entity);
+        return 0;
+    }
     if let Some(el) = element.filter(|&el| is_immune(world, entity, el)) {
         if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
             world
@@ -68,6 +80,55 @@ fn damage_with_element(
     };
     apply_damage(world, entity, damage);
     damage.min(hp_before.max(0))
+}
+
+/// The move Magic Ward turning away a hit: a flash off the chest and
+/// whatever was coming for it — a bolt, a breath, a fistful of fire —
+/// ricochets off at a random angle in a random bright colour and is gone.
+/// Purely cosmetic; the damage above is already zeroed by the time this
+/// plays, so a headless world (no [`Particles`] resource) just skips it.
+pub(super) fn ward_ricochet(world: &mut World, victim: Entity) {
+    let Some(pos) = world.get::<Position>(victim).copied() else {
+        return;
+    };
+    const DIRS: [(i32, i32); 8] = [
+        (1, 0),
+        (-1, 0),
+        (0, 1),
+        (0, -1),
+        (1, 1),
+        (1, -1),
+        (-1, 1),
+        (-1, -1),
+    ];
+    const COLORS: [Color; 6] = [
+        Color::Yellow,
+        Color::Cyan,
+        Color::Magenta,
+        Color::White,
+        Color::Green,
+        Color::Red,
+    ];
+    let (dx, dy, color) = {
+        let mut rng = world.resource_mut::<GameRng>();
+        let (dx, dy) = DIRS[rng.0.gen_range(0..DIRS.len())];
+        let color = COLORS[rng.0.gen_range(0..COLORS.len())];
+        (dx, dy, color)
+    };
+    let mut cells = Vec::new();
+    for step in 1..=3 {
+        let Some(cell) =
+            crate::particles::on_map(pos.x as i32 + dx * step, pos.y as i32 + dy * step)
+        else {
+            break;
+        };
+        cells.push(cell);
+    }
+    let Some(mut fx) = world.get_resource_mut::<Particles>() else {
+        return;
+    };
+    fx.hit_spark(pos.x, pos.y);
+    fx.hurl(&cells, '*', color);
 }
 
 /// Fires one of the straight-line "bolt" wands: a beam from the zapper to the
@@ -336,8 +397,8 @@ pub(super) fn blast_palette(effect: WandEffect) -> BlastPalette {
         WandEffect::Lightning => BlastPalette::Spark,
         WandEffect::MagicMissile => BlastPalette::Arcane,
         WandEffect::Striking => BlastPalette::Force,
-        WandEffect::DrainLife => BlastPalette::Drain,
-        WandEffect::Light => BlastPalette::Dazzle,
+        WandEffect::DrainLife => BlastPalette::Death,
+        WandEffect::Light => BlastPalette::Glam,
         WandEffect::Cancellation => BlastPalette::Void,
         WandEffect::Polymorph
         | WandEffect::HasteMonster

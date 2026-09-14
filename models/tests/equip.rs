@@ -599,8 +599,10 @@ fn the_player_worn_via_equip_silently_still_identifies_immediately() {
     );
 }
 
-/// A staff doubles both the Magic cost and the damage of a damaging move
-/// (Fireball, the one move in the game). Two identically seeded worlds, one
+/// A staff doubles both the Magic cost and the damage of a damaging move —
+/// Fireball here, chosen because its damage scales off the caster's own
+/// melee power rather than fixed dice, which is exactly what makes this test
+/// possible. Two identically seeded worlds, one
 /// wielding a staff and one wielding an estoc — the only other weapon that
 /// happens to share the staff's 5 power die, so both worlds hand
 /// `breathe_fire` the exact same roll range and, from the same seed, draw the
