@@ -252,6 +252,14 @@ pub struct PlayerTempo {
     pub fast_parity: bool,
 }
 
+/// Set by a greatclub's heavy swing ([`crate::effects::HeavySwing`]): the
+/// weight of a landed blow costs the wielder a beat of their own, played out
+/// as one extra monster round immediately after this player action. The
+/// engine's turn loop checks this after every player action and clears it once
+/// spent — transient, never serialised.
+#[derive(Resource, Default)]
+pub struct ExtraMonsterRound(pub bool);
+
 // ===========================================================================
 // Perception and memory
 // ===========================================================================
@@ -521,6 +529,20 @@ pub enum MoveEffect {
     DragonBreath,
 }
 
+/// The two shapes an active move comes in — an attack wand's own split
+/// ([`crate::items::wands::is_attack_wand`]), drawn again here because a move
+/// answers to it too: a staff's [`crate::effects::TurboMagic`] doubles the
+/// cost and the fury of an [`Attack`](MoveKind::Attack), and leaves a
+/// [`Skill`](MoveKind::Skill) — the utility half, potions and scrolls play the
+/// same way — alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MoveKind {
+    /// Deals damage — [`crate::effects::TurboMagic`]'s business.
+    Attack,
+    /// Everything else a move can do.
+    Skill,
+}
+
 /// The player's active-ability bar: up to four moves, each triggered directly
 /// by its slot number (`Alt`+`Q`/`W`/`E`/`R`, or picked from the `Z` menu).
 ///
@@ -695,6 +717,20 @@ pub struct LaunchedDamage(pub i32);
 /// every arrow it looses. See [`crate::catalog::enchant_equipment`].
 #[derive(Component, Clone, Copy)]
 pub struct Launcher;
+
+/// A melee weapon that reaches past adjacency: a bardiche strikes two tiles
+/// out, a whip five. Aimed with its own reticle (`v`) rather than a walk into
+/// the target's tile — see `crate::combat::resolve_reach_attack` and
+/// `engine`'s `begin_reach_attack`.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reach(pub i32);
+
+/// A reach weapon's strike does not stop at the first body in its line — a
+/// bardiche runs clean through, the way a piercing thrown spear does (see
+/// [`Piercing`]). A whip, with no polearm's length behind it, lacks this and
+/// stops at the first thing it finds.
+#[derive(Component, Clone, Copy)]
+pub struct ReachPiercing;
 
 // ===========================================================================
 // Player conditions
@@ -1010,6 +1046,11 @@ pub struct TargetingState {
     /// are both `None` whenever this is set, and unlike every other reticle
     /// purpose it may be confirmed on the player's own tile.
     pub looking: bool,
+    /// The reticle is a reach weapon's strike (a bardiche, a whip) rather than
+    /// a thrown or zapped item: its range is the wielded weapon's own
+    /// [`Reach`], and confirming resolves the strike in place — no item ever
+    /// leaves the wielder's hand. See `crate::combat::resolve_reach_attack`.
+    pub reach_attack: bool,
     pub cursor_x: i16,
     pub cursor_y: i16,
 }

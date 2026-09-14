@@ -81,10 +81,11 @@ Adding a marker effect
 That is the whole of it. Equipping and unequipping, saving and loading, and the wand of cancellation all work immediately, because all three walk `EFFECTS` rather than a list of special cases.
 
 
-> **`EFFECTS` is append-only, and it holds 32.** An effect's index in that
+> **`EFFECTS` is append-only, and it holds 64.** An effect's index in that
 > array is the bit it occupies in the save file. Reordering it rewrites
-> the meaning of every existing save. And an `EffectSet` is a `u32`, so
-> the 33rd marker effect will need a wider type -- there are 16 today.
+> the meaning of every existing save. And an `EffectSet` is now a `u64`,
+> widened the day the list grew a 33rd row -- the 65th marker effect will
+> need a wider type still.
 
 > **An effect missing from `EFFECTS` half-works.** It will attach, and it
 > will do its job for the rest of the session. It will not be saved, will

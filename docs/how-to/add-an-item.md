@@ -43,6 +43,15 @@ Chain `.missile(die)` if it is built to be thrown -- it then rolls that die on i
 
 Any weapon can be thrown. `.missile()` is the difference between a purpose-built missile and a hurled lump of metal.
 
+Chain `.reach(n)` for a weapon aimed with its own reticle (`v`) instead of a walk into the target's tile — a bardiche's 2, a whip's 5. Add `.reach_piercing()` if the strike should run the whole line rather than stopping at the first body, the melee twin of `.piercing()`.
+
+Chain `.grants(&[Grant::of::<SomeMarker>()])` for a trick the weapon lends its wielder while it's in hand — exactly a ring's own `.grants()`, and read by the same places a ring's effects are: `crate::abilities::ON_HIT_ABILITIES` for something that fires when a blow lands, or a direct `world.get::<SomeMarker>(attacker)` probe for something checked elsewhere (the battle axe's `Cleaves`, checked once from `models::melee_attack`). This is also how a weapon-only marker stays invisible to `combat.rs` and `engine/` alike — see `crate::effects`'s module doc.
+
+Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded — the staff's "You're a wizard!" — the same mechanism a ring of adornment's flourish uses.
+
+    WeaponDef::new("bardiche", Color::Grey, 7).reach(2).reach_piercing(),
+    WeaponDef::new("garrote", Color::DarkGrey, 0).grants(&[Grant::of::<VorpalOnCondition>()]),
+
 ### Armour
 
     ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6 },

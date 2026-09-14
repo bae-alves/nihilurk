@@ -26,6 +26,7 @@ pub mod visibility;
 pub use monsters::*;
 mod combat;
 mod helpers;
+pub use helpers::{chebyshev, mob_at};
 mod identify;
 mod items;
 mod saveload;

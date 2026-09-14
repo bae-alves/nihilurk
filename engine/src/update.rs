@@ -101,6 +101,40 @@ fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
     (sx, sy, true)
 }
 
+/// Picks up whatever [`Item`] sits at `(x, y)` for `player_entity`, the way
+/// arriving on a tile always does — walking onto it or, just the same,
+/// lunging onto it with an estoc. There is no `,` key: roog has nine pack
+/// slots and a floor full of coins that are spent where they lie, so landing
+/// on a thing is decision enough.
+fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
+    let mut item_entity_to_pickup = None;
+    {
+        let mut query = world.query_filtered::<(Entity, &Position), With<Item>>();
+        for (entity, pos) in query.iter(world) {
+            if pos.x == x && pos.y == y {
+                item_entity_to_pickup = Some(entity);
+                break;
+            }
+        }
+    }
+    let Some(item_entity) = item_entity_to_pickup else {
+        return;
+    };
+    // `models::pick_up` owns everything from here: the stash reveal, a
+    // coin spent where it lies, the score a treasure is worth, and the pack.
+    // `None` back means the item is still on the floor — either the pack is
+    // full, or it is a pickup that would have done nothing yet.
+    let stowable = world.get::<Pickup>(item_entity).is_none();
+    match models::pick_up(world, player_entity, item_entity) {
+        Some(msg) => world.resource_mut::<GameLog>().add(msg),
+        // Anything that needs a pack slot and did not get one says so; a
+        // coin left where it lies says nothing, because a coin you cannot
+        // use yet being still there is not news.
+        None if stowable => world.resource_mut::<GameLog>().add("Your pack is full."),
+        None => {}
+    }
+}
+
 /// The one path every step and every melee attack goes through — the arrow
 /// keys, auto-explore, fast-move and auto-fight all end up here.
 ///
@@ -128,6 +162,17 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return false;
     };
 
+    // An estoc's lunge — self-checked and fully resolved by `models::try_lunge`,
+    // which reports back only whether it fired. It carries the player onto
+    // the tile just past the one it struck through, so that tile's item (if
+    // any) is picked up the same as any other arrival.
+    if try_lunge(world, player_entity, dx, dy) {
+        if let Some(pos) = world.get::<Position>(player_entity).copied() {
+            pick_up_here(world, player_entity, pos.x, pos.y);
+        }
+        return true;
+    }
+
     if world.resource::<Map>().blocks(new_x, new_y) {
         // A deliberate wall-bump is free; a confused lurch into it is not.
         return stumbled;
@@ -142,22 +187,18 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return stumbled; // Can't cut this corner
     }
 
-    // Walking into a creature is how you hit it; there is no attack key.
-    let mut target_mob_entity = None;
-    {
-        let mut query = world.query_filtered::<(Entity, &Position), With<Mob>>();
-        for (entity, pos) in query.iter(world) {
-            if pos.x == new_x && pos.y == new_y {
-                target_mob_entity = Some(entity);
-                break;
-            }
-        }
-    }
-
-    if let Some(target_entity) = target_mob_entity {
-        player_attack(world, player_entity, target_entity);
+    // Walking into a creature is how you hit it; there is no attack key. The
+    // plain opposed-roll swing, plus every trick a wielded weapon lends on
+    // top of it, self-checked by `models::melee_attack` the way a ring's own
+    // effect is invisible to this file.
+    if let Some(target_entity) = models::mob_at(world, Position { x: new_x, y: new_y }) {
+        melee_attack(world, player_entity, target_entity);
         return true; // Attacking consumes a turn
     }
+
+    // Not an attack — a rapier's built-up momentum is done the moment its
+    // wielder does anything else with it.
+    reset_momentum(world, player_entity);
 
     // Something has your leg. A swing at an adjacent foe (above) still
     // lands either way, but the step you were about to take does not: against a
@@ -190,42 +231,17 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // Tag the move so `trap_system` checks the new tile for a trap.
     world.entity_mut(player_entity).insert(EntityMoved);
 
-    // Arriving on an item picks it up. There is no `,` key: roog has nine pack
-    // slots and a floor full of coins that are spent where they lie, so walking
-    // over a thing is decision enough.
-    let mut item_entity_to_pickup = None;
-    {
-        let mut query = world.query_filtered::<(Entity, &Position), With<Item>>();
-        for (entity, pos) in query.iter(world) {
-            if pos.x == new_x && pos.y == new_y {
-                item_entity_to_pickup = Some(entity);
-                break;
-            }
-        }
-    }
-    if let Some(item_entity) = item_entity_to_pickup {
-        // `models::pick_up` owns everything from here: the stash reveal, a
-        // coin spent where it lies, the score a treasure is worth, and the pack.
-        // `None` back means the item is still on the floor — either the pack is
-        // full, or it is a pickup that would have done nothing yet.
-        let stowable = world.get::<Pickup>(item_entity).is_none();
-        match models::pick_up(world, player_entity, item_entity) {
-            Some(msg) => world.resource_mut::<GameLog>().add(msg),
-            // Anything that needs a pack slot and did not get one says so; a
-            // coin left where it lies says nothing, because a coin you cannot
-            // use yet being still there is not news.
-            None if stowable => world.resource_mut::<GameLog>().add("Your pack is full."),
-            None => {}
-        }
-    }
+    // The chain-sickle's whirl — self-checked by `models::try_whirl_attack`.
+    try_whirl_attack(
+        world,
+        player_entity,
+        Position { x: old_x, y: old_y },
+        Position { x: new_x, y: new_y },
+    );
+
+    pick_up_here(world, player_entity, new_x, new_y);
 
     true // Successfully moved, consuming a turn
-}
-
-fn player_attack(world: &mut World, attacker_entity: Entity, target_entity: Entity) {
-    // Same opposed-roll resolution the monsters use, including the player's
-    // chip-damage floor and excellent-hit chance.
-    resolve_attack(world, attacker_entity, target_entity);
 }
 
 /// One Tab press: close on — or strike — the weakest foe in sight. Each of the
@@ -411,6 +427,7 @@ fn close_all_modals(world: &mut World) -> bool {
         ts.throwing = false;
         ts.move_effect = None;
         ts.looking = false;
+        ts.reach_attack = false;
         closed = true;
     }
     let mut pack = world.resource_mut::<PackIsOpen>();
@@ -482,6 +499,7 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
         ts.throwing = false;
         ts.move_effect = None;
         ts.looking = false;
+        ts.reach_attack = false;
         return Ok(false); // cancelled aiming, no turn consumed
     }
     if cycle {
@@ -503,13 +521,14 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
 /// manual nudge could reach, just without the walk there. Wraps around, and
 /// does nothing when nothing qualifies.
 fn cycle_target(world: &mut World) {
-    let (item, move_effect, looking, throwing, cursor_x, cursor_y) = {
+    let (item, move_effect, looking, throwing, reach_attack, cursor_x, cursor_y) = {
         let ts = world.resource::<TargetingState>();
         (
             ts.item,
             ts.move_effect,
             ts.looking,
             ts.throwing,
+            ts.reach_attack,
             ts.cursor_x,
             ts.cursor_y,
         )
@@ -517,7 +536,7 @@ fn cycle_target(world: &mut World) {
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
     let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
-    let max_range = aim_range(world, item, move_effect, looking, throwing);
+    let max_range = aim_range(world, item, move_effect, looking, throwing, reach_attack);
 
     let mut candidates: Vec<(u16, u16)> = {
         let mut q =
@@ -552,17 +571,10 @@ fn cycle_target(world: &mut World) {
     announce_look(world);
 }
 
-/// The Chebyshev (chessboard) distance between two tiles.
-fn chebyshev(a: Position, b: Position) -> i32 {
-    (a.x as i32 - b.x as i32)
-        .abs()
-        .max((a.y as i32 - b.y as i32).abs())
-}
-
 /// A directional key while aiming: nudge the reticle one tile, but only onto a
 /// tile that is both in view and inside the reticle's reach.
 fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
-    let (item, move_effect, looking, cursor_x, cursor_y, throwing) = {
+    let (item, move_effect, looking, cursor_x, cursor_y, throwing, reach_attack) = {
         let ts = world.resource::<TargetingState>();
         (
             ts.item,
@@ -571,6 +583,7 @@ fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
             ts.cursor_x,
             ts.cursor_y,
             ts.throwing,
+            ts.reach_attack,
         )
     };
     let new_x = cursor_x.saturating_add(dx);
@@ -579,7 +592,7 @@ fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
     let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
-    let max_range = aim_range(world, item, move_effect, looking, throwing);
+    let max_range = aim_range(world, item, move_effect, looking, throwing, reach_attack);
 
     let distance = (new_x - player_pos.x as i16)
         .abs()
@@ -629,6 +642,7 @@ fn aim_range(
     move_effect: Option<MoveEffect>,
     looking: bool,
     throwing: bool,
+    reach_attack: bool,
 ) -> i32 {
     if looking {
         return (MAP_WIDTH as i32).max(MAP_HEIGHT as i32);
@@ -638,6 +652,9 @@ fn aim_range(
     }
     if throwing {
         return THROW_RANGE;
+    }
+    if reach_attack {
+        return item.and_then(|i| world.get::<Reach>(i)).map_or(1, |r| r.0);
     }
     item.and_then(|i| world.get::<Ranged>(i))
         .map_or(8, |r| r.range)
@@ -649,7 +666,7 @@ fn aim_range(
 /// the item from the pack and hands it to the throw or use queue. A shot at
 /// the player's own tile is refused for every purpose but looking.
 fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
-    let (tx, ty, item_entity, move_effect, looking, throwing) = {
+    let (tx, ty, item_entity, move_effect, looking, throwing, reach_attack) = {
         let mut ts = world.resource_mut::<TargetingState>();
         ts.active = false;
         let grabbed = (
@@ -659,11 +676,13 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
             ts.move_effect,
             ts.looking,
             ts.throwing,
+            ts.reach_attack,
         );
         ts.item = None;
         ts.move_effect = None;
         ts.looking = false;
         ts.throwing = false;
+        ts.reach_attack = false;
         grabbed
     };
     let player = player_entity(world);
@@ -685,6 +704,16 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
     if at_self {
         world.resource_mut::<GameLog>().add("Great idea! But no.");
         return Ok(false);
+    }
+
+    if reach_attack {
+        // The weapon never left the wielder's hand — nothing to pull from the
+        // pack, unlike a throw or a use.
+        let Some(weapon) = item_entity else {
+            return Ok(false);
+        };
+        models::resolve_reach_attack(world, player, weapon, target);
+        return Ok(true);
     }
 
     if let Some(effect) = move_effect {
@@ -1131,6 +1160,9 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
             return Ok(false);
         }
         KeyCode::Char('f') => return begin_fire(world),
+        // `v`: a reach weapon's own strike — a bardiche, a whip — aimed with
+        // its own reticle rather than a walk into the target's tile.
+        KeyCode::Char('v') => return begin_reach_attack(world),
         // The one undocumented key in the game: with a ring of teleportation on
         // and magic to spend, it jumps you. Without either it does nothing and
         // says nothing — see `models::willed_teleport`.
@@ -1222,10 +1254,8 @@ fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .add("You don't have a move there.");
         return Ok(false);
     };
-    let def = models::MoveDef::of(effect);
-    let affordable = world
-        .get::<Magic>(player)
-        .is_some_and(|m| m.points >= def.cost);
+    let cost = models::move_cost(world, player, effect);
+    let affordable = world.get::<Magic>(player).is_some_and(|m| m.points >= cost);
     if !affordable {
         world
             .resource_mut::<GameLog>()
@@ -1334,6 +1364,23 @@ fn begin_fire(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     }
     open_reticle(world, player, item, true);
+    Ok(false)
+}
+
+/// `v`: a reach weapon's own strike — a bardiche, a whip. Opens the aiming
+/// reticle out to the wielded weapon's own [`Reach`], pre-loaded with the
+/// weapon itself so [`fire_at_target`] knows to resolve a strike in place
+/// rather than a throw or a use.
+fn begin_reach_attack(world: &mut World) -> std::io::Result<bool> {
+    let player = player_entity(world);
+    let Some(weapon) = wielded_reach_weapon(world, player) else {
+        world
+            .resource_mut::<GameLog>()
+            .add("You aren't wielding a reach weapon.");
+        return Ok(false);
+    };
+    open_reticle_for(world, player, Some(weapon), None, false, false);
+    world.resource_mut::<TargetingState>().reach_attack = true;
     Ok(false)
 }
 
@@ -1753,6 +1800,7 @@ mod tests {
             throwing: false,
             move_effect: None,
             looking: false,
+            reach_attack: false,
             cursor_x: 0,
             cursor_y: 0,
         });

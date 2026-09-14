@@ -3,13 +3,16 @@ use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::abilities::{Blow, fire_on_hit};
+use crate::abilities::{Blow, cleave_attack, fire_on_hit, medusa_gaze};
 use crate::components::*;
-use crate::effects::{VorpalTarget, loadout};
+use crate::conditions::afflicted;
+use crate::effects::{Fencer, VorpalOnCondition, VorpalTarget, WhirlOnMove, loadout};
 use crate::equipment::{equipped_items, force_unequip};
-use crate::helpers::{death_burst, player_sees, spill_blood, took_damage};
+use crate::helpers::{
+    chebyshev, death_burst, get_line, mob_at, player_sees, spill_blood, took_damage,
+};
 use crate::identify::display_name;
-use crate::map::GameRng;
+use crate::map::{GameRng, Map};
 use crate::particles::Particles;
 use crate::score::award_kill;
 use crate::shake::{ShakeKind, kick_shake};
@@ -225,7 +228,7 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
 
     // Looking upon a medusa costs you before your blade ever lands — see
     // `crate::abilities::medusa_gaze`.
-    crate::abilities::medusa_gaze(world, attacker, target);
+    medusa_gaze(world, attacker, target);
 
     let matchup = fold_matchup(world, attacker, target);
     let swing = roll_swing(world, &matchup);
@@ -248,6 +251,26 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     punctuate(world, &blow);
     report_blow(world, &blow);
     settle_the_dead(world, &blow);
+}
+
+/// One player melee attack, tricks and all: the plain opposed-roll swing,
+/// plus whatever a wielded weapon lends on top of it — an estoc's second
+/// strike ([`Fencer`]), a battle axe's cleave ([`crate::effects::Cleaves`]).
+/// Both self-check the marker they answer to, so every caller — a walk into a
+/// monster's tile, the chain-sickle's free swing — reaches for this and
+/// nothing else, exactly the way nothing outside `crate::equipment` has to
+/// know a ring exists.
+pub fn melee_attack(world: &mut World, attacker: Entity, target: Entity) {
+    resolve_attack(world, attacker, target);
+    // The player's tricks alone — a monster that steals or catches one of
+    // these weapons still just fights the plain way.
+    let is_player = world.get::<Player>(attacker).is_some();
+    if is_player && world.get::<Fencer>(attacker).is_some() {
+        resolve_attack(world, attacker, target);
+    }
+    if is_player {
+        cleave_attack(world, attacker, target);
+    }
 }
 
 /// Everything a blow is resolved from, folded out of both sides' gear in one
@@ -310,8 +333,12 @@ struct Swing {
 /// What the blow did to the creature on the end of it.
 struct Outcome {
     lethal: bool,
-    /// A vorpalized weapon found its bane. Skips the HP arithmetic entirely.
+    /// A vorpalized weapon found its bane, or a garrote found a helpless
+    /// throat ([`garrote`]). Either way, skips the HP arithmetic entirely.
     vorpal: bool,
+    /// The vorpal kill above was specifically the garrote's trick — the log
+    /// line and the death flourish read differently from a blade's.
+    garrote: bool,
 }
 
 /// Reads both sides' [`Fighter`] once and folds their gear in.
@@ -333,7 +360,9 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
     let targets = loadout(world, target);
     Matchup {
         power: power + attackers.power_die,
-        power_bonus: power_bonus + attackers.power_bonus,
+        // A rapier's built-up momentum rides in on top of its own enchantment
+        // plus — see `crate::effects::Momentum`.
+        power_bonus: power_bonus + attackers.power_bonus + attackers.momentum,
         armor: armor + targets.armor_die,
         armor_bonus: armor_bonus + targets.armor_bonus,
         melee_cap: attackers.melee_cap,
@@ -408,12 +437,17 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
     // A vorpalized weapon that draws blood slays its bane outright — and any
     // creature carrying `VorpalTarget` (the Jabberwock), whatever the bane. A
     // glancing scrape never triggers it.
-    let vorpal = !swing.glancing
-        && swing.damage > 0
-        && wielded_vorpal_bane(world, attacker).is_some_and(|bane| {
-            world.get::<VorpalTarget>(target).is_some()
-                || world.get::<Name>(target).is_some_and(|n| n.what == bane)
-        });
+    let blade_vorpal = wielded_vorpal_bane(world, attacker).is_some_and(|bane| {
+        world.get::<VorpalTarget>(target).is_some()
+            || world.get::<Name>(target).is_some_and(|n| n.what == bane)
+    });
+    // The garrote's own trick: a target already helpless with a negative
+    // condition dies to any hit at all, whatever its weapon class — even a
+    // glancing one. A vorpalized blade still needs a real, non-glancing hit
+    // to draw the blood its bane dies to.
+    let garrote = garrote_vorpal(world, attacker, target);
+    let vorpal = swing.damage > 0 && (garrote || (!swing.glancing && blade_vorpal));
+    let garrote = garrote && vorpal;
 
     let hp_before = world.get::<Fighter>(target).map(|f| f.hp);
     let mut lethal = false;
@@ -440,7 +474,199 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
         took_damage(world, target, hp_before);
     }
 
-    Outcome { lethal, vorpal }
+    Outcome {
+        lethal,
+        vorpal,
+        garrote,
+    }
+}
+
+/// Whether `attacker`'s garrote finds a helpless throat: it's wielding one
+/// ([`VorpalOnCondition`], lent to the wielder while it's in hand — see
+/// [`crate::catalog::WeaponDef::grants`]) and `target` is carrying a negative
+/// condition — the same afflictions [`crate::conditions::afflicted`] answers
+/// for, plus a snare: pinned, held or asleep is exactly as helpless. A
+/// monster's own confusion never gets the [`Confused`] component `afflicted`
+/// checks — [`crate::conditions::stagger`] tags it on [`Mob::movement_type`]
+/// instead — so that's checked here directly.
+/// The player's trick alone — a monster that steals or catches a garrote
+/// still just fights the plain way.
+fn garrote_vorpal(world: &World, attacker: Entity, target: Entity) -> bool {
+    let mob_confused = world
+        .get::<Mob>(target)
+        .is_some_and(|m| matches!(m.movement_type, MovementType::Confused));
+    world.get::<Player>(attacker).is_some()
+        && world.get::<VorpalOnCondition>(attacker).is_some()
+        && (afflicted(world, target) || mob_confused || world.get::<Snare>(target).is_some())
+}
+
+/// The estoc's lunge, end to end: self-checks [`Fencer`] and the geometry —
+/// one empty tile dead ahead, an enemy past it — and, if both hold, resolves
+/// the guaranteed strike and carries `attacker` forward into the tile it just
+/// closed. Returns whether it fired, so the engine's own step (a plain walk)
+/// knows to stand down.
+///
+/// The one thing this can't check for itself is which way `attacker` is
+/// moving — `(dx, dy)` is the step already decided upstream, one tile in any
+/// of the eight directions.
+pub fn try_lunge(world: &mut World, attacker: Entity, dx: i16, dy: i16) -> bool {
+    if world.get::<Player>(attacker).is_none() || world.get::<Fencer>(attacker).is_none() {
+        return false;
+    }
+    let Some(origin) = world.get::<Position>(attacker).copied() else {
+        return false;
+    };
+    let near = Position {
+        x: origin.x.saturating_add_signed(dx),
+        y: origin.y.saturating_add_signed(dy),
+    };
+    let far = Position {
+        x: near.x.saturating_add_signed(dx),
+        y: near.y.saturating_add_signed(dy),
+    };
+    let near_clear = {
+        let map = world.resource::<Map>();
+        !map.blocks(near.x, near.y) && map.diagonal_step_ok(origin.x, origin.y, near.x, near.y)
+    } && mob_at(world, near).is_none();
+    let Some(target) = near_clear.then(|| mob_at(world, far)).flatten() else {
+        return false;
+    };
+
+    resolve_lunge(world, attacker, target);
+    if let Some(mut pos) = world.get_mut::<Position>(attacker) {
+        *pos = near;
+    }
+    if let Some(mut viewshed) = world.get_mut::<Viewshed>(attacker) {
+        viewshed.dirty = true;
+    }
+    world.entity_mut(attacker).insert(EntityMoved);
+    true
+}
+
+/// The chain-sickle's whirl: self-checks [`WhirlOnMove`] and finds a [`Mob`]
+/// adjacent to both `old` and `new` — a step taken alongside an enemy rather
+/// than toward or away from it — and lands a free [`melee_attack`] on it if
+/// one qualifies. A no-op for anyone not wielding one.
+pub fn try_whirl_attack(world: &mut World, attacker: Entity, old: Position, new: Position) {
+    if world.get::<Player>(attacker).is_none() || world.get::<WhirlOnMove>(attacker).is_none() {
+        return;
+    }
+    let target = {
+        let mut query = world.query_filtered::<(Entity, &Position), With<Mob>>();
+        query
+            .iter(world)
+            .find(|&(_, &p)| chebyshev(p, old) <= 1 && chebyshev(p, new) <= 1)
+            .map(|(e, _)| e)
+    };
+    if let Some(target) = target {
+        melee_attack(world, attacker, target);
+    }
+}
+
+/// Resolves the estoc's lunge: closing the last stride of a run lands a
+/// guaranteed strike at triple the normal weapon roll, armour ignored
+/// outright — the promise a thin blade makes that a plate-armoured swing
+/// can't. Called by [`try_lunge`] once it has confirmed the geometry, in
+/// place of the ordinary walk.
+fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
+    if world.get_entity(attacker).is_none() || world.get_entity(target).is_none() {
+        return;
+    }
+    medusa_gaze(world, attacker, target);
+
+    let matchup = fold_matchup(world, attacker, target);
+    let damage = {
+        let mut rng = world.resource_mut::<GameRng>();
+        (0..3)
+            .map(|_| roll_die(&mut rng.0, matchup.power))
+            .sum::<i32>()
+            + matchup.power_bonus * 3
+    }
+    .max(1);
+    let swing = Swing {
+        damage,
+        excellent: false,
+        glancing: false,
+    };
+    let outcome = land_swing(world, attacker, target, &swing);
+    let blow = Landed {
+        attacker,
+        target,
+        attacker_is_player: matchup.attacker_is_player,
+        target_is_player: world.get::<Player>(target).is_some(),
+        swing,
+        outcome,
+    };
+    punctuate(world, &blow);
+
+    let target_name = entity_name(world, target);
+    world.resource_mut::<GameLog>().add(format!(
+        "You lunge, blade flashing past every guard, and skewer the {target_name} for {damage} damage!"
+    ));
+    if blow.outcome.lethal {
+        world
+            .resource_mut::<GameLog>()
+            .add(format!("You have slain the {target_name}!"));
+    }
+    settle_the_dead(world, &blow);
+}
+
+/// A reach weapon's strike (a bardiche, a whip): traces the line from
+/// `attacker` out to `at`, capped at `weapon`'s own [`Reach`], and resolves an
+/// ordinary [`resolve_attack`] against the first creature it finds — or, for a
+/// [`ReachPiercing`] weapon, every creature standing in it. A wall stops the
+/// line short the way it stops a thrown missile.
+pub fn resolve_reach_attack(world: &mut World, attacker: Entity, weapon: Entity, at: Position) {
+    // The player's own reticle alone — a monster in melee range of a wielded
+    // bardiche or whip just swings it the plain way.
+    if world.get::<Player>(attacker).is_none() {
+        return;
+    }
+    let Some(&Reach(reach)) = world.get::<Reach>(weapon) else {
+        return;
+    };
+    let Some(origin) = world.get::<Position>(attacker).copied() else {
+        return;
+    };
+    let piercing = world.get::<ReachPiercing>(weapon).is_some();
+    let map = world.resource::<Map>().clone();
+
+    let mut cells = Vec::new();
+    let mut victims = Vec::new();
+    for (steps, pos) in get_line(origin, at).into_iter().enumerate() {
+        if pos == origin {
+            continue;
+        }
+        if steps as i32 > reach || map.blocks(pos.x, pos.y) {
+            break;
+        }
+        cells.push((pos.x, pos.y));
+        let hit = world
+            .query_filtered::<(Entity, &Position), Or<(With<Mob>, With<Player>)>>()
+            .iter(world)
+            .find(|(e, p)| *e != attacker && **p == pos)
+            .map(|(e, _)| e);
+        if let Some(victim) = hit {
+            victims.push(victim);
+            if !piercing {
+                break;
+            }
+        }
+    }
+
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.hurl(&cells, '-', Color::Cyan);
+    }
+
+    if victims.is_empty() {
+        world
+            .resource_mut::<GameLog>()
+            .add("You strike at nothing but air.".to_string());
+        return;
+    }
+    for victim in victims {
+        resolve_attack(world, attacker, victim);
+    }
 }
 
 /// The spark a blow leaves on the tile it landed on. Every blow leaves exactly
@@ -561,6 +787,16 @@ fn punctuate(world: &mut World, blow: &Landed) {
     if flourish.burst {
         death_burst(world, blow.target, attacker_pos);
     }
+    // The garrote's own flourish: a helpless victim doesn't fall so much as
+    // pop — a wide, wet burst on top of the ordinary death fling.
+    if blow.outcome.garrote {
+        if let Some(tpos) = world.get::<Position>(blow.target).copied() {
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                fx.spark_burst(tpos.x, tpos.y, Color::Red);
+            }
+            kick_shake(world, ShakeKind::Heavy);
+        }
+    }
 }
 
 /// The two or three lines the log gets, from whichever end of the blow the
@@ -575,15 +811,7 @@ fn report_blow(world: &mut World, blow: &Landed) {
 
     let mut log = world.resource_mut::<GameLog>();
     if blow.attacker_is_player {
-        return report_player_hit(
-            &mut log,
-            &target_name,
-            blow.swing.damage,
-            blow.swing.excellent,
-            blow.swing.glancing,
-            blow.outcome.lethal,
-            blow.outcome.vorpal,
-        );
+        return report_player_hit(&mut log, &target_name, &blow.swing, &blow.outcome);
     }
     let target_label = if target_is_player {
         "you".to_string()
@@ -635,28 +863,28 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
 /// Writes the player-attacked-something lines to the log: the hit line (an
 /// excellent hit, a glancing scrape, or a plain blow) and, on a kill, the
 /// vorpal flourish and the slain line.
-fn report_player_hit(
-    log: &mut GameLog,
-    target_name: &str,
-    damage: i32,
-    excellent: bool,
-    glancing: bool,
-    lethal: bool,
-    vorpal: bool,
-) {
-    match (excellent, glancing) {
+fn report_player_hit(log: &mut GameLog, target_name: &str, swing: &Swing, outcome: &Outcome) {
+    match (swing.excellent, swing.glancing) {
         (true, _) => log.add(format!(
-            "You score an excellent hit on the {target_name} for {damage} damage!"
+            "You score an excellent hit on the {target_name} for {} damage!",
+            swing.damage
         )),
         (_, true) => log.add(format!("You deal a glancing blow to the {target_name}.")),
-        _ => log.add(format!("You hit the {target_name} for {damage} damage.")),
+        _ => log.add(format!(
+            "You hit the {target_name} for {} damage.",
+            swing.damage
+        )),
     }
-    if lethal && vorpal {
+    if outcome.lethal && outcome.garrote {
+        log.add(format!(
+            "You choke the life out of the helpless {target_name}! Atrocious!"
+        ));
+    } else if outcome.lethal && outcome.vorpal {
         log.add(format!(
             "Snicker-snack! The blade shears clean through the {target_name}!"
         ));
     }
-    if lethal {
+    if outcome.lethal {
         log.add(format!("You have slain the {target_name}!"));
     }
 }

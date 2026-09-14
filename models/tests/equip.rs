@@ -564,3 +564,105 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
         "both fingers cursed shut should refuse a fourth ring"
     );
 }
+
+#[test]
+fn a_monster_equipped_silently_does_not_identify_its_own_gear() {
+    let mut w = test_world(5);
+    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), Position { x: 40, y: 11 });
+    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
+    w.entity_mut(sword).insert(PowerBonus(2));
+
+    assert!(equip_silently(&mut w, orc, sword));
+
+    assert!(
+        w.get::<KnownQuality>(sword).is_none(),
+        "a monster spawning with, or picking up, gear must not identify it for the player"
+    );
+}
+
+#[test]
+fn the_player_worn_via_equip_silently_still_identifies_immediately() {
+    let mut w = test_world(6);
+    let p = player(&mut w);
+    for item in equipped_items(&w, p) {
+        force_unequip(&mut w, item);
+    }
+    let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
+    w.entity_mut(sword).insert(PowerBonus(2));
+    w.entity_mut(sword).remove::<Position>();
+
+    assert!(equip_silently(&mut w, p, sword));
+
+    assert!(
+        w.get::<KnownQuality>(sword).is_some(),
+        "the player's own gear, even handed over already worn, is known from turn one"
+    );
+}
+
+/// A staff doubles both the Magic cost and the damage of a damaging move
+/// (Fireball, the one move in the game). Two identically seeded worlds, one
+/// wielding a staff and one wielding an estoc — the only other weapon that
+/// happens to share the staff's 5 power die, so both worlds hand
+/// `breathe_fire` the exact same roll range and, from the same seed, draw the
+/// exact same underlying die. Whatever `TurboMagic` does to the outcome is
+/// then the *only* thing that can make the two numbers differ.
+#[test]
+fn a_staff_doubles_the_cost_and_the_damage_of_a_damaging_move() {
+    fn cast_fireball(seed: u64, weapon_name: &str) -> (u8, i32) {
+        let mut w = test_world(seed);
+        w.init_resource::<MoveQueue>();
+        let p = player(&mut w);
+        for item in equipped_items(&w, p) {
+            force_unequip(&mut w, item);
+        }
+        let weapon = spawn_weapon(&mut w, weapon_name, Position { x: 0, y: 0 });
+        w.entity_mut(weapon).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(weapon);
+        use_item(&mut w, p, weapon);
+        assert!(is_equipped(&w, weapon));
+
+        let target = *w.get::<Position>(p).unwrap();
+        let dummy = w
+            .spawn((
+                Name {
+                    what: "dummy".into(),
+                },
+                Fighter {
+                    hp: 1_000,
+                    max_hp: 1_000,
+                    armor: 0,
+                    power: 0,
+                    max_power: 0,
+                    armor_bonus: 0,
+                    power_bonus: 0,
+                },
+                Faction::Monster,
+                target,
+            ))
+            .id();
+
+        let magic_before = w.get::<Magic>(p).unwrap().points;
+        w.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+            user: p,
+            effect: MoveEffect::DragonBreath,
+            target,
+        });
+        move_system(&mut w);
+
+        let spent = magic_before - w.get::<Magic>(p).unwrap().points;
+        let damage = 1_000 - w.get::<Fighter>(dummy).unwrap().hp;
+        (spent, damage)
+    }
+
+    let (plain_cost, plain_damage) = cast_fireball(23, "estoc");
+    let (turbo_cost, turbo_damage) = cast_fireball(23, "staff");
+
+    assert_eq!(plain_cost, 2, "Fireball's own row cost");
+    assert_eq!(turbo_cost, 4, "a staff doubles the Magic cost");
+    assert!(plain_damage > 0, "the estoc cast should have dealt damage");
+    assert_eq!(
+        turbo_damage,
+        plain_damage * 2,
+        "a staff doubles the damage of the same roll"
+    );
+}

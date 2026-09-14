@@ -208,6 +208,61 @@ pub struct StealsAndVanishes;
 pub struct Splits;
 
 // ---------------------------------------------------------------------------
+// Weapon tricks — lent to the wielder exactly like a monster's innate magic
+// (see `crate::catalog::WeaponDef::grants`), so `crate::abilities` and
+// `crate::combat` probe the *wielder*, never the item.
+// ---------------------------------------------------------------------------
+
+/// The battle axe's whole trick: a swing that connects also lands on every
+/// other enemy adjacent to the wielder (the target already struck excepted).
+/// See `crate::abilities::cleave_attack`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Cleaves;
+
+/// The greatclub's weight: a hit that lands staggers its victim — one turn
+/// with no action at all, the same [`crate::components::SnareKind::Sleep`] a
+/// sleep trap uses — and the effort of the swing costs the wielder a beat of
+/// their own, played out as one extra monster round immediately after. See
+/// `crate::abilities::heavy_stagger` and [`crate::components::ExtraMonsterRound`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct HeavySwing;
+
+/// The estoc's technique: every attack is thrown twice in the time a plainer
+/// blade manages once (`crate::combat::resolve_attack` fired back to back),
+/// and closing the last stride of a run lands a lunge instead of a step — see
+/// `crate::combat::resolve_lunge`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Fencer;
+
+/// The chain-sickle's whirl: stepping between two tiles both adjacent to the
+/// same enemy lands a free attack on it, no swing spent. See
+/// `crate::abilities::whirl_attack`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct WhirlOnMove;
+
+/// The garrote's mercy: any hit against a target already carrying a negative
+/// condition slays it outright, the same way a vorpalized blade finding its
+/// bane does. See `crate::combat::garrote_vorpal`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct VorpalOnCondition;
+
+/// The staff's bargain: every damaging move the wielder casts costs double the
+/// [`crate::components::Magic`] and deals double the damage. See
+/// `crate::items::move_system`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct TurboMagic;
+
+/// The chaos blade's price: every hit that connects bites its wielder for a
+/// point of their own HP. See `crate::abilities::chaos_recoil`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct SelfDamageOnHit;
+
+/// The rapier's technique: every hit that lands builds [`Momentum`] on the
+/// weapon itself. See `crate::abilities::build_momentum`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct BuildsMomentum;
+
+// ---------------------------------------------------------------------------
 // Numeric modifiers
 // ---------------------------------------------------------------------------
 
@@ -316,6 +371,12 @@ modifiers! {
     /// equipped source the same way the melee bonus is, so it never matters
     /// which piece of gear supplied it.
     ThrowBonus => throw_bonus,
+    /// A rapier's built-up momentum: +2 for every consecutive hit it lands,
+    /// reset the moment its wielder stops swinging it (see
+    /// [`crate::equipment::force_unequip`] and `crate::abilities::build_momentum`).
+    /// Kept apart from [`PowerBonus`] so an enchanted rapier's plus and its
+    /// momentum never overwrite each other.
+    Momentum => momentum,
 }
 
 // ---------------------------------------------------------------------------
@@ -402,7 +463,7 @@ impl Grant {
     }
 
     /// This effect's slot in [`EFFECTS`] — its stable bit in an [`EffectSet`].
-    fn bit(&self) -> Option<u32> {
+    fn bit(&self) -> Option<EffectSet> {
         EFFECTS.iter().position(|g| g.id == self.id).map(|i| 1 << i)
     }
 }
@@ -440,6 +501,14 @@ pub const EFFECTS: &[Grant] = &[
     Grant::of::<StealsAndFlees>(),
     Grant::of::<StealsAndVanishes>(),
     Grant::of::<FireBreath>(),
+    Grant::of::<Cleaves>(),
+    Grant::of::<HeavySwing>(),
+    Grant::of::<Fencer>(),
+    Grant::of::<WhirlOnMove>(),
+    Grant::of::<VorpalOnCondition>(),
+    Grant::of::<TurboMagic>(),
+    Grant::of::<SelfDamageOnHit>(),
+    Grant::of::<BuildsMomentum>(),
 ];
 
 /// The effects an entity hands out: innate magic on a monster, the effects a
@@ -451,8 +520,9 @@ pub struct Grants(pub &'static [Grant]);
 
 /// A set of marker effects packed into one word, addressed by position in
 /// [`EFFECTS`]. Used for bookkeeping that has to survive a save/load round trip
-/// (see [`GrantedByGear`]).
-pub type EffectSet = u32;
+/// (see [`GrantedByGear`]). Widened past 32 bits the day [`EFFECTS`] grew a
+/// 33rd row — a `u64` is good for 64 of them before this has to happen again.
+pub type EffectSet = u64;
 
 /// Which effects `grants` covers, as a bitmask.
 pub fn effect_set(grants: &[Grant]) -> EffectSet {
