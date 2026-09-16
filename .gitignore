@@ -7,3 +7,7 @@
 
 # roog saves as <player name>.sav next to wherever it was started.
 *.sav
+
+# Working notes on the architecture (SCS): drafts, not documentation. `docs/`
+# is what ships.
+/scs-architecture/

@@ -46,7 +46,7 @@ Every item in the game lives in one file:
 
     models/src/catalog.rs
 
-Open it and search for `WEAPONS`. You are looking at this:
+Open it and search for `WEAPONS`. You are looking at something like this:
 
     #[rustfmt::skip]
     pub const WEAPONS: &[WeaponDef] = &[
