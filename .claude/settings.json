@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "claude-skillz": {
+      "source": {
+        "source": "github",
+        "repo": "NTCoding/claude-skillz"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "track-and-improve@claude-skillz": true
+  }
+}

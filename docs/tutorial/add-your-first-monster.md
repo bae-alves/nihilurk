@@ -184,7 +184,7 @@ What you actually learned
 
   * The tables are data, so the tools work on them for free: the `-content` listing, `ROOG_SPAWN`, the table tests and the save file all read the same row you edited.
 
-The one thing a row *cannot* express is a behaviour that does not exist yet. If your creature needs to do something no effect covers -- breathe a cone of frost, steal an item and bolt -- that is a new effect plus the mechanic behind it, and then a row that names it. Which is the next page.
+The one thing a row *cannot* express is a behaviour that does not exist yet. If your creature needs to do something no effect covers -- breathe a cone of frost, get in a mech -- that is a new effect plus the mechanic behind it, and then a row that names it. Which is the next page.
 
 
 Where to go next

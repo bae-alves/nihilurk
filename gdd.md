@@ -102,12 +102,11 @@ English, Portuguese and Spanish. A classic roguelike in non-English is important
 
 ### Other ideas/Expansion backlog
 - More player character options
-- Leaderboards
-- Tournament play
-- Steam (?) + Achievements
-- Nethack bones but instead of a ghost, it's the actual past failed character coming for you. A user can just rm the bones and that is okay but would be missing out on past run loot (all wearables cursed). Failed characters will be really angry about you failing them and will spout markov-chain angry nonsense. If they share names with the current character the failed character will also be treated as 'you'. This whole shebang won't happen all the time.
-- Rarely, log lines are in Spanish even if you choose something else as language
-- Forgotten beasts like in Dwarf Fortress. Sometimes they die in one hit, sometimes they are literally invincible. The description pop-up will tell which one is which
+- An internal leaderboards
+- Steam
+- Nethack bones but instead of a ghost, it's the actual past failed character coming for you. A user can just rm the bones and that is okay but would be missing out on past run loot (all wearables cursed). Failed characters will be really angry about you failing them and will spout angry nonsense. If they share names with the current character the failed character will also be treated as 'you' but on a different log font. This whole shebang won't happen all the time (i.e. when making to a character's death depth on ascension only). The ghost's glyph is ' ' like in nethack.
+- Rarely, log lines are in Spanish.
+- Forgotten beasts like in Dwarf Fortress on ascension. Sometimes they die in one hit, sometimes they are literally invincible. The description pop-up will tell which one is which
 - The Nemelex decks from DCSS but the cards will always log Yu-gi-oh references and generally be sillier
 - Trauma bonding with The Dungeon Lord because the entire game is actually a metaphor for abusive relationships. You can't seem to stop getting your head bashed in (seamlessly baked into the combat math already)
 - Game log has *the hots* for Fidel Castro. It will be hard getting into a situation where this is relevant. But it will be there somewhere.
