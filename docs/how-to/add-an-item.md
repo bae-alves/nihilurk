@@ -4,8 +4,10 @@ How to add an item
     Audience       Content author.
     Prerequisites  You know where `models/src/catalog.rs` is. If not,
                    do `../tutorial/add-your-first-item.md` first.
-    Result         A new item that drops on floors, can be identified
-                   if its kind is identifiable, and survives a save.
+    Result         A new item that drops on floors and survives a save.
+                   Equipment (weapons, armour, launchers) hides its
+                   enchantment plus and curse until worn or identified;
+                   every other kind is always shown by its true name.
 
 Nine categories. Five of them are a single row. Four also need a name to be identified by, and three of those also need somebody to say what the thing *does*. Find your category below and follow that recipe only.
 
@@ -138,8 +140,8 @@ These three are consumables with a mechanic, so they take three edits. The patte
                  color: Color::DarkYellow, range: 8 },
 
    Potions draw as `!`, scrolls as `?` (always white), wands as `/`.
-   A wand's `range` feeds the aiming reticle; a wand also spawns with a
-   battery rolled off `constants::wands` when it enters the dungeon.
+   A wand's `range` feeds the aiming reticle; a wand always spawns with
+   `constants::wands::WAND_CHARGES`, full.
 
 3. **Write the mechanic** as one arm of the matching function:
 
@@ -147,8 +149,7 @@ These three are consumables with a mechanic, so they take three edits. The patte
        apply_scroll_effect(world, user, effect)            models/src/items/scrolls.rs
        apply_wand_effect(world, user, target, effect)      models/src/items/wands.rs
 
-   A potion's mechanic returns whether it visibly did anything, which is
-   what lets a potion thrown at a monster identify itself.
+   A potion's mechanic returns whether it visibly did anything.
 
 > **Step 3 is the one the compiler now makes you do.** All three of
 > those functions are exhaustive matches over their effect enum, the
@@ -173,13 +174,12 @@ Wands only: if your wand should *not* open the aiming reticle -- it acts on the 
 > safe for existing saves. Putting one in the middle silently turns every
 > saved potion of healing into something else.
 
-> **Identification has twenty slots per category.** Potions, scrolls,
-> wands and rings hide behind a shuffled cosmetic appearance, drawn from a
-> 20-entry pool per category in `models/src/identify.rs`. Current use:
-> potions 15, scrolls 15, wands 14, rings 12. If you exceed a pool, the
-> extra types get *no* appearance and read as generic forever. The test
-> `every_identifiable_type_gets_an_appearance` fails when that happens;
-> the fix is to add more names to that pool.
+> **Potions, scrolls, wands and rings are always shown by their true
+> name.** There is no cosmetic appearance and no per-effect identification
+> to keep in step with the catalog -- add a row and it just works. Only
+> equipment (weapons, armour, launchers) hides anything: its enchantment
+> plus and cursed status, until `KnownQuality` says otherwise (see
+> `../reference/components.md`).
 
 
 Verify, whichever you added
@@ -190,7 +190,7 @@ Verify, whichever you added
     NIHILURK_SPAWN="<your name>" cargo run -p engine
     cargo test --test content
 
-The tests check that names are unique, that every row can be built by name, that what spawns keeps its name, that every drop category can still produce something, and -- for identifiable kinds -- that every type got an appearance.
+The tests check that names are unique, that every row can be built by name, that what spawns keeps its name, and that every drop category can still produce something.
 
 
 You do not have to register the item, update the loot table, teach the save file about it, or teach combat about it. Why none of that is needed is `../explanation/data-driven-content.md`.

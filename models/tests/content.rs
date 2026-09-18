@@ -342,31 +342,21 @@ fn a_spawn_list_drops_each_name_on_its_own_free_tile() {
 // Identification
 // ---------------------------------------------------------------------------
 
-/// Appearances are zipped against the catalog, and a zip stops at the shorter
-/// side: a 21st potion would silently spawn with no appearance and read as a
-/// generic "potion" forever. Adding a row to POTIONS, SCROLLS, WANDS or RINGS
-/// means checking the matching pool in `identify.rs` is still long enough.
+/// Dud effects only ever happen as the result of a wand of cancellation
+/// striking an item (see `items::wands::cancel_entity`) — the dungeon itself
+/// must never roll one as normal loot.
 #[test]
-fn every_identifiable_type_gets_an_appearance() {
-    let appearances = ItemAppearances::generate(&mut rng(31));
-    assert_eq!(
-        appearances.potions.len(),
-        POTIONS.len(),
-        "the potion appearance pool is short"
+fn the_dungeon_never_generates_a_dud_as_normal_loot() {
+    assert!(
+        !POTIONS.iter().any(|d| d.effect == PotionEffect::Water),
+        "potion of thirst quenching must not be a spawnable row"
     );
-    assert_eq!(
-        appearances.scrolls.len(),
-        SCROLLS.len(),
-        "the scroll appearance pool is short"
+    assert!(
+        !SCROLLS.iter().any(|d| d.effect == ScrollEffect::BlankPaper),
+        "scroll of blank paper must not be a spawnable row"
     );
-    assert_eq!(
-        appearances.wands.len(),
-        WANDS.len(),
-        "the wand appearance pool is short"
-    );
-    assert_eq!(
-        appearances.rings.len(),
-        RINGS.len(),
-        "the ring appearance pool is short"
+    assert!(
+        !WANDS.iter().any(|d| d.effect == WandEffect::Nothing),
+        "wand of nothing must not be a spawnable row"
     );
 }

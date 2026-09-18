@@ -1,6 +1,6 @@
 use crate::components::*;
 use crate::effects::SeesInvisible;
-use crate::identify::{Identified, ItemAppearances, named_display, phrase_for};
+use crate::identify::{named_display, phrase_for};
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 use bevy_ecs::prelude::*;
 use std::collections::{HashSet, VecDeque};
@@ -42,10 +42,6 @@ pub fn visibility_system(
             Option<&Invisible>,
             Option<&Name>,
             Option<&Stack>,
-            Option<&Potion>,
-            Option<&Scroll>,
-            Option<&Wand>,
-            Option<&Ring>,
             Option<&Spotted>,
         ),
         Or<(With<Mob>, With<Item>)>,
@@ -57,8 +53,6 @@ pub fn visibility_system(
     mut log: ResMut<GameLog>,
 
     map: Res<Map>,
-    identified: Res<Identified>,
-    appearances: Res<ItemAppearances>,
 ) {
     let any_dirty = viewshed_query.iter().any(|(_, v, _, _, _)| v.dirty);
     if !any_dirty {
@@ -80,8 +74,6 @@ pub fn visibility_system(
             &visible,
             perception,
             blind,
-            &identified,
-            &appearances,
         );
         reveal_traps(
             &mut commands,
@@ -208,10 +200,6 @@ fn hide_and_announce(
             Option<&Invisible>,
             Option<&Name>,
             Option<&Stack>,
-            Option<&Potion>,
-            Option<&Scroll>,
-            Option<&Wand>,
-            Option<&Ring>,
             Option<&Spotted>,
         ),
         Or<(With<Mob>, With<Item>)>,
@@ -219,12 +207,8 @@ fn hide_and_announce(
     visible: &HashSet<(u16, u16)>,
     perception: bool,
     blind: bool,
-    identified: &Identified,
-    appearances: &ItemAppearances,
 ) {
-    for (entity, pos, mob, invisible, name, stack, potion, scroll, wand, ring, spotted) in
-        spot_query.iter()
-    {
+    for (entity, pos, mob, invisible, name, stack, spotted) in spot_query.iter() {
         let in_view = !blind && visible.contains(&(pos.x, pos.y));
         let perceptible = in_view && (invisible.is_none() || perception);
 
@@ -246,16 +230,7 @@ fn hide_and_announce(
         // item that hasn't been turned up yet (still `Invisible`).
         let announce = perceptible && !(mob.is_none() && invisible.is_some());
         if announce && spotted.is_none() {
-            let seen_name = named_display(
-                potion,
-                scroll,
-                wand,
-                ring,
-                name,
-                stack,
-                identified,
-                appearances,
-            );
+            let seen_name = named_display(name, stack);
             log.add(spotted_line(&seen_name));
             commands.entity(entity).insert(Spotted);
         }

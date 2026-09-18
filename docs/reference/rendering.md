@@ -40,7 +40,7 @@ type Cell = (char, Color, Color); // glyph, foreground, background
 
 `centering_offset` reads `RenderConfig.centered` (`-c`) and the real terminal size to compute the top-left offset that keeps the fixed 80x25 frame centred; `(0, 0)` when not centred.
 
-**`Screen` is not in this file.** It is the `view` crate — `view/src/lib.rs` — which holds the grid, the double buffer, the cell diff and the map/screen coordinate split, and knows nothing about the game. `engine` paints into it and `perf/` measures it, so the rig's redraw numbers are about the renderer nihilurk actually has rather than a copy of it. It used to be a copy, and `../explanation/performance-testing.md` keeps the history because the reasoning is worth having. What *this* file owns is everything that goes *in* the grid: the layers below, the HUD, the overlays and the playback loops.
+**`Screen` is not in this file.** It is the `view` crate — `view/src/lib.rs` — which holds the grid, the double buffer, the cell diff and the map/screen coordinate split, and knows nothing about the game. `engine` paints into it; what *this* file owns is everything that goes *in* the grid: the layers below, the HUD, the overlays and the playback loops.
 
 
 `render`: the layers, in order
@@ -221,5 +221,4 @@ See also
   ../explanation/the-feel-layer.md   why each effect looks the way it does
   ../reference/components.md    the resources named throughout this page
   ../reference/cli-and-env.md   `-c`, `-anim-rate`, `-nb`, `-nshake`
-  ../explanation/performance-testing.md   how this file is benchmarked
   ../explanation/the-feel-layer.md        why each effect looks the way it does

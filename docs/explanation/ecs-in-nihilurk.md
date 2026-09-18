@@ -91,7 +91,7 @@ There is no honest tuple of component accesses for that. It touches the archetyp
 So nihilurk takes `&mut World` where mechanics are, keeps `Query` where a system genuinely only reads and tags, and pays two prices for it:
 
   * **The borrow checker is stricter, not looser.** Holding the world means every `world.get::<C>(e)` conflicts with every `world.resource_mut()`. Five patterns get past that and they are written down in `../how-to/work-with-the-ecs.md`; they are worth learning once, because they are the whole idiom.
-  * **No parallelism.** Nothing here needs it. A turn is a sequence by nature — the player moves, then every monster, then the consequences — and there is nothing in it to run at the same time as anything else. What the pipelines measure is the *animation frame*, not the turn: `compat/` grades a machine on whether it holds the frame rate while the effect layer plays, which is the part that has a deadline. See `performance-testing.md`.
+  * **No parallelism.** Nothing here needs it. A turn is a sequence by nature — the player moves, then every monster, then the consequences — and there is nothing in it to run at the same time as anything else.
 
 What nihilurk gets back is that a mechanic reads as a procedure. `resolve_use` works out what the item is, decides where it physically ends up, logs the beat and applies the effect, top to bottom, in one function you can read in one sitting.
 
@@ -104,7 +104,7 @@ Narrow what you fetch
 Exclusive systems make it easy to reach for the whole world, so the discipline has to be deliberate. Three rules:
 
   * **Ask for actors when you mean actors.** `passive_ability_system` used to probe every entity in the world for `Regenerates`. It walks `Or<(With<Player>, With<Mob>)>` now, because an effect never lands on an item — a ring carries `Grants`, and it is the *wearer* who ends up with the marker.
-  * **Fetch nothing the body does not read.** A tuple that grows past what a system uses is the first sign it is doing two jobs. `visibility_system`'s eleven-wide `spot_query` looks extravagant and is not: every one of them feeds `identify::named_display`, so the sighting line can say "a bubbly potion" rather than the truth.
+  * **Fetch nothing the body does not read.** A tuple that grows past what a system uses is the first sign it is doing two jobs. `visibility_system`'s `spot_query` used to carry `Option<&Potion>`/`Scroll`/`Wand`/`Ring` fields purely to feed `identify::named_display`'s old cosmetic-appearance branches; once those were gone, so were the fields nobody else read.
   * **Collect ids, not references.** The point of collecting before a mutating loop is to stop borrowing; a `Vec<&Position>` has not stopped.
 
 One place still scans the whole world on purpose, and it is worth knowing why. `equipment::equipped` answers "what is this creature wearing?" by walking every entity and asking whose `Equipped.by` points at them. Gear points at its wearer rather than the other way round — which is right, because the item system lifts an item out of the pack while it resolves a use, and a ring must not stop working for those few lines, and a monster that caught a thrown dagger has no pack to look in at all. The narrow query that would answer it, `Query<&Equipped>`, needs `&mut World`, and every caller holds `&World` partway through reading something else. The scan is cheap on a floor of tens of entities and allocation-free; if a floor ever held thousands, the fix is an index resource, not a smaller loop.

@@ -3,9 +3,12 @@
 //! This is the file you edit to add content. A row says what a thing is called,
 //! how it draws, and which components it carries into the world — and that is
 //! the whole of it. Nothing else in the codebase enumerates items: the loot
-//! table rolls a category and picks a row ([`crate::map`]), the identification
-//! system shuffles appearances over the rows ([`crate::identify`]), and combat
-//! reads the components the rows attached ([`crate::effects`]).
+//! table rolls a category and picks a row ([`crate::map`]), and combat reads
+//! the components the rows attached ([`crate::effects`]). Potions, scrolls,
+//! wands and rings are always shown by their true name — there is no cosmetic
+//! appearance or per-effect identification to keep in step with this table.
+//! Only equipment ([`crate::identify::KnownQuality`]) hides anything: whether
+//! its enchantment bonus and curse are known yet.
 //!
 //! Bows are the newest case of it. A bow is not a weapon with a special "fires
 //! arrows" mode; it is an item that [`Grants`] [`FireArrow`], and an arrow is an
@@ -17,8 +20,8 @@
 //! carrying [`ArmorBonus`]`(2)`, which combat already folds in for plate mail.
 //! A ring of perception is an item that [`Grants`] [`SeesInvisible`] to whoever
 //! wears it, which the visibility system already asks about. Adding "ring of
-//! fire resistance" is a row here plus a [`RingEffect`] variant to be identified
-//! by — and no behaviour code at all, anywhere.
+//! fire resistance" is a row here plus a [`RingEffect`] variant to key it by —
+//! and no behaviour code at all, anywhere.
 //!
 //! The full recipes, per category, are in `docs/how-to/add-an-item.md`.
 
@@ -39,7 +42,7 @@ use crate::constants::loot::{
     AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN, CURSED_BONUS_MAX, CURSED_BONUS_MIN, EXCEPTIONAL_BONUS_MAX,
     EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, NORMAL_QUALITY_PCT,
 };
-use crate::constants::wands::{CHARGE_BONUS, CHARGE_DICE, CHARGE_SIDES};
+use crate::constants::wands::WAND_CHARGES;
 
 // ---------------------------------------------------------------------------
 // The shape every catalog row shares
@@ -144,7 +147,6 @@ pub const POTIONS: &[PotionDef] = &[
     PotionDef { effect: PotionEffect::RestoreStrength, name: "potion of restore strength", color: Color::Red },
     PotionDef { effect: PotionEffect::Blindness,       name: "potion of blindness",        color: Color::DarkGrey },
     PotionDef { effect: PotionEffect::FruitJuice,      name: "potion of fruit juice",      color: Color::DarkYellow },
-    PotionDef { effect: PotionEffect::Water,           name: "potion of thirst quenching", color: Color::Blue },
 ];
 
 // ---------------------------------------------------------------------------
@@ -199,7 +201,6 @@ pub const SCROLLS: &[ScrollDef] = &[
     ScrollDef { effect: ScrollEffect::CreateMonster,     name: "scroll of create monster" },
     ScrollDef { effect: ScrollEffect::RemoveCurse,       name: "scroll of remove curse" },
     ScrollDef { effect: ScrollEffect::AggravateMonsters, name: "scroll of aggravate monsters" },
-    ScrollDef { effect: ScrollEffect::BlankPaper,        name: "scroll of blank paper" },
     ScrollDef { effect: ScrollEffect::VorpalizeWeapon,   name: "scroll of vorpalize weapon" },
     ScrollDef { effect: ScrollEffect::Amnesia,           name: "scroll of amnesia" },
 ];
@@ -214,16 +215,6 @@ pub struct WandDef {
     pub name: &'static str,
     pub color: Color,
     pub range: i32,
-}
-
-/// A wand's battery, rolled when it enters the dungeon:
-/// `CHARGE_DICE d CHARGE_SIDES + CHARGE_BONUS`, all three from
-/// [`crate::constants::wands`].
-pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8 {
-    (0..CHARGE_DICE)
-        .map(|_| rng.gen_range(1..=CHARGE_SIDES) as i8)
-        .sum::<i8>()
-        + CHARGE_BONUS
 }
 
 impl ItemDef for WandDef {
@@ -247,18 +238,11 @@ impl ItemDef for WandDef {
                     effect: self.effect,
                 },
                 Ranged { range: self.range },
-                Battery { charges: 0 },
+                Battery {
+                    charges: WAND_CHARGES,
+                },
             ))
             .id()
-    }
-
-    fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
-        let wand = self.spawn(world, pos);
-        let charges = roll_wand_charges(rng);
-        if let Some(mut battery) = world.get_mut::<Battery>(wand) {
-            battery.charges = charges;
-        }
-        wand
     }
 }
 
@@ -274,7 +258,6 @@ pub const WANDS: &[WandDef] = &[
     WandDef { effect: WandEffect::HasteMonster, name: "wand of haste monster", color: Color::DarkYellow,  range: 6 },
     WandDef { effect: WandEffect::SlowMonster,  name: "wand of slow monster",  color: Color::DarkCyan,    range: 6 },
     WandDef { effect: WandEffect::DrainLife,    name: "wand of drain life",    color: Color::DarkRed,     range: 6 },
-    WandDef { effect: WandEffect::Nothing,      name: "wand of nothing",       color: Color::DarkGrey,    range: 6 },
     WandDef { effect: WandEffect::TeleportAway, name: "wand of teleport away", color: Color::Green,       range: 8 },
     WandDef { effect: WandEffect::TeleportTo,   name: "wand of teleport to",   color: Color::Green,       range: 8 },
     WandDef { effect: WandEffect::Cancellation, name: "wand of cancellation",  color: Color::DarkMagenta, range: 6 },

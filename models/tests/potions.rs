@@ -443,7 +443,26 @@ fn fruit_juice_and_water_are_flavour_and_nothing_else() {
     };
 
     quaff(&mut w, p, PotionEffect::FruitJuice);
-    quaff(&mut w, p, PotionEffect::Water);
+
+    // Water is no longer a spawnable catalog row — the only way an item ever
+    // becomes one is a wand of cancellation mutating it in place (see
+    // `items::wands::cancel_entity`) — so it's built directly here instead of
+    // through `spawn_potion`, which only knows real catalog rows.
+    let water = w
+        .spawn((
+            Name {
+                what: "potion of thirst quenching".into(),
+            },
+            Potion {
+                effect: PotionEffect::Water,
+            },
+            Consume,
+            Position { x: 0, y: 0 },
+        ))
+        .id();
+    w.entity_mut(water).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(water);
+    use_item(&mut w, p, water);
 
     let after = w.get::<Fighter>(p).unwrap();
     assert_eq!((after.hp, after.max_hp, after.power), before);

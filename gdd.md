@@ -41,9 +41,9 @@ Monsters are ECS entities assembled from the same components the player is, off 
 Also, **you cannot pass your turn**.
 
 ### Items and power-ups
-Nothing you find arrives identified. At world creation the seed shuffles a set of cosmetic appearances across the real potion, scroll, wand and ring types, and knowledge is stored against the effect rather than the entity, so identifying one bubbly potion identifies every bubbly potion anywhere, forever. Learning what a thing does usually costs HP.
+Potions, scrolls, wands and rings tell you exactly what they are on sight — no cosmetic disguise, nothing to learn by drinking one and hoping. The one thing that stays hidden is a weapon, suit of armour or launcher's own quality: its enchantment plus and whether it's cursed, settled by wearing it or by a scroll of identify.
 
-You start the run already equipped: +1 ring mail worn, +1 mace in hand, and in the pack a +1 bow with 26 arrows, a wand of magic missile, and a single potion of healing you already know the shape of.
+You start the run already equipped: +1 ring mail worn, +1 mace in hand, and in the pack a +1 bow with 26 arrows, a wand of magic missile, and a single potion of healing.
 
 Drops follow Rogue's own category odds, with coins standing in for food:
 
@@ -52,7 +52,7 @@ Drops follow Rogue's own category odds, with coins standing in for food:
 - Coins, 17%. They buy nothing and they are never carried: a coin is a pickup, spent the instant you step on it. Two of the eight are treasure and go straight into the score; the rest are a small mercy — four HP, four magic, four status effects cleared, four points of drained strength — and two are promises the next staircase keeps if you reach it unhurt, paying the only permanent growth in the game. A coin that would do nothing for you is not picked up at all; it keeps until it would. And a coin can be shot instead of stepped on — twice a trap's burst, and the coin's effect reaches whoever set it off from wherever they are standing, which turns every `$` on the floor into a grenade with a benefit attached.
 - Armor, 8%. Leather through plate mail, an armor die of 2 up to 9.
 - Weapons, 8%. Within that, 45% a melee weapon (dagger d4, spear d6, mace d6, long sword d8, two-handed sword d10), 35% a bundle of 3 to 12 arrows or quarrels, 20% a bow or crossbow. Launchers are deliberately the rarest, one bow is a build and two are clutter. A bow or crossbow is worth at most 1 damage swung, however good it is, because it takes the hand a sword would have had and you can never pass a turn to swap back.
-- Wands, 5%. Light, striking, lightning, fire, cold, magic missile, polymorph, haste monster, slow monster, drain life, teleport away, teleport to, cancellation, nothing. 2d3 damage on the offensive ones, 2d4+1 charges, and the range is per wand, 6 or 8.
+- Wands, 5%. Light, striking, lightning, fire, cold, magic missile, polymorph, haste monster, slow monster, drain life, teleport away, teleport to, cancellation. 2d3 damage on the offensive ones, 6 charges, and the range is per wand, 6 or 8. ("Nothing" exists as an effect, but only cancellation ever produces one — it is never a wand you find.)
 - Rings, 5%. Worn, always on. Protection is +2 armor, strength is +2 power plus immunity to strength drain, perception reveals invisible things, dexterity is +2 on throws, aggravate monster is a 10% chance per action of waking the floor up.
 
 The item system is one table per kind and a row per item, and a row is nothing but a name, a glyph and the components the thing carries into the world. A ring of protection is not a special case anywhere, it is an item holding ArmorBonus(2), which combat already folds in for plate mail. A bow does not know arrows exist, it grants FireArrow, and an arrow is a thing that answers to FireArrow. Adding an item is one row and no other edit. This is the part I am smug about.

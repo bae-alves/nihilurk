@@ -7,8 +7,6 @@
 #
 #     . "$(dirname "$0")/lib.sh"
 #
-# The stage/ok/warn/bad/note vocabulary is deliberately identical to
-# perf_test.sh's. Two pipelines that print differently read as two projects.
 
 # ---------------------------------------------------------------------------
 # Presentation
@@ -55,10 +53,8 @@ MATRIX="$COMPAT_DIR/matrix.tsv"
 OUT="$ROOT/target/compat"
 export CROSS_CONFIG="$COMPAT_DIR/Cross.toml"
 
-# What the containers run. `nihilurk-perf --load game` is the gate -- a real floor
-# animated by the batches the game actually queues -- and `engine` is the game
-# itself, built to have its size measured and to prove the target links.
-RIG=nihilurk-perf
+# What the containers run: `engine`, the game itself, built to have its size
+# measured, to prove the target links, and to prove it starts.
 GAME=engine
 
 # ---------------------------------------------------------------------------
@@ -67,9 +63,8 @@ GAME=engine
 
 # Cargo-installed binaries live in ~/.cargo/bin, which cargo itself searches and
 # which is frequently not on PATH in a non-login shell -- so `command -v cross`
-# reports "missing" for a tool that is sitting right there. perf_test.sh hits
-# the same thing with cargo-bloat and solves it by asking cargo; `cross` is a
-# plain binary, so look for it instead.
+# reports "missing" for a tool that is sitting right there. `cross` is a plain
+# binary, so look for it directly instead.
 cross_bin() {
   if have cross; then echo cross; return 0; fi
   for candidate in "${CARGO_HOME:-$HOME/.cargo}/bin/cross" "$HOME/.cargo/bin/cross"; do
@@ -162,8 +157,8 @@ cross_target_dir() {
 }
 
 # Where a built binary for a target lands. `cross` and `cargo` agree on this
-# layout, which is what lets the stress matrix find binaries without caring
-# which of the two built them. The triple appears twice because cargo puts
+# layout, which is what lets `run_check.sh` find binaries without caring which
+# of the two built them. The triple appears twice because cargo puts
 # cross-compiled output in `$CARGO_TARGET_DIR/<triple>/`, and the outer one is
 # ours.
 target_bin() {
@@ -172,8 +167,8 @@ target_bin() {
 
 # A row's claim to have a shell, checked rather than assumed. Used two ways:
 # nostd_check.sh's bare rows use it to say whether `--shell <id>` will work;
-# stress_test_matrix.sh's linux rows use it as a hard gate, because a shell is
-# not a nicety there -- nihilurk needs a real terminal under it, an image with no
+# run_check.sh's linux rows use it as a hard gate, because a shell is not a
+# nicety there -- nihilurk needs a real terminal under it, an image with no
 # shell can't give it one, and a row that can't run the game has no business
 # being in "does nihilurk run on these machines".
 check_has_shell() {

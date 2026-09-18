@@ -4,18 +4,16 @@
 # on, then say how big it came out and who is to blame for that.
 #
 # One container per target, driven by cross-rs, reading the matrix in
-# matrix.tsv. Two binaries per row:
+# matrix.tsv. One binary per row:
 #
 #   engine      the game. Built `--release`, which is the profile that ships:
 #               fat LTO, one codegen unit, panic=abort, symbols stripped. This
-#               is the artifact whose size is reported.
-#   nihilurk-perf   the stress rig, for `stress_test_matrix.sh` to run inside the
-#               emulated container in phase 2.
+#               is the artifact whose size is reported, and the one
+#               `run_check.sh` runs inside the emulated container in phase 2.
 #
-# and, unless `--no-blame`, a third build of `engine` on the `profiling`
+# and, unless `--no-blame`, a second build of `engine` on the `profiling`
 # profile -- byte-for-byte the same machine code with the symbols left in, which
-# is the only way to ask a stripped binary what is inside it. Same trick
-# perf_test.sh uses in its footprint stage, for the same reason.
+# is the only way to ask a stripped binary what is inside it.
 #
 # Usage:
 #   ./compat/cross_build.sh                    every Linux row of the matrix
@@ -71,40 +69,30 @@ BUILT=""
 FOOTPRINT="$OUT/footprint.txt"
 : > "$FOOTPRINT"
 
-while IFS=$'\t' read -r id target class platform image exec cpus memory note_text; do
+while IFS=$'\t' read -r id target class platform image exec note_text; do
   stage "$id  ($target)"
   note "$note_text"
 
   log="$OUT/build-$id.log"
-  failed=0
   # Per-triple, and never the workspace's own target/ -- see cross_target_dir
   # in lib.sh for the glibc collision this avoids. Relative on purpose: cargo
   # resolves it against the working directory, which inside the container is
   # the mounted workspace, so the path means the same thing on both sides.
   export CARGO_TARGET_DIR
   CARGO_TARGET_DIR=$(cross_target_dir "$target")
-  for pkg in "$GAME" "$RIG"; do
-    printf '%s      building %-10s %s' "$DIM" "$pkg" "$R"
-    if "$CROSS" build --release --target "$target" -p "$pkg" >>"$log" 2>&1; then
-      printf '%sok%s\n' "$GREEN" "$R"
-      continue
-    fi
+  printf '%s      building %-10s %s' "$DIM" "$GAME" "$R"
+  if ! "$CROSS" build --release --target "$target" -p "$GAME" >>"$log" 2>&1; then
     printf '%sfailed%s\n' "$RED" "$R"
-    failed=1
-  done
-
-  if [ "$failed" -eq 1 ]; then
     bad "$id did not build; see $log"
     tail -12 "$log" | sed 's/^/      /'
     FAILED="${FAILED}$id "
     continue
   fi
+  printf '%sok%s\n' "$GREEN" "$R"
 
   bin=$(target_bin "$target" "$GAME" release)
-  rig=$(target_bin "$target" "$RIG" release)
   size=$(stat -c %s "$bin" 2>/dev/null || echo 0)
-  rig_size=$(stat -c %s "$rig" 2>/dev/null || echo 0)
-  ok "$(human_bytes "$size") $GAME, $(human_bytes "$rig_size") $RIG"
+  ok "$(human_bytes "$size") $GAME"
 
   # A static binary is the whole point of the musl rows: one file, no
   # `INTERP` segment, no runtime dependency on a libc the target may not have.
@@ -121,7 +109,7 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
     *) note "${kind:-unrecognised ELF}" ;;
   esac
 
-  printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$target" "$size" "$rig_size" "$note_text" >> "$FOOTPRINT"
+  printf '%s\t%s\t%s\t%s\n' "$id" "$target" "$size" "$note_text" >> "$FOOTPRINT"
   BUILT="$BUILT$id "
 done < <(matrix_rows_or_die linux)
 
@@ -138,10 +126,10 @@ fi
 # compared -- across targets and against the last run -- and rounding to one
 # decimal place hides the comparison. The 32-bit rows come out about 4% smaller
 # than the 64-bit ones, which is 84 KiB and reads as "1.8 MiB" either way.
-printf '      %-10s %-32s %10s %10s %10s\n' "target" "triple" "game" "bytes" "rig"
-while IFS=$'\t' read -r id target size rig_size _; do
-  printf '      %-10s %-32s %10s %10d %10s\n' \
-    "$id" "$target" "$(human_bytes "$size")" "$size" "$(human_bytes "$rig_size")"
+printf '      %-10s %-32s %10s %10s\n' "target" "triple" "game" "bytes"
+while IFS=$'\t' read -r id target size _; do
+  printf '      %-10s %-32s %10s %10d\n' \
+    "$id" "$target" "$(human_bytes "$size")" "$size"
 done < "$FOOTPRINT"
 note "game = engine, --release: fat LTO, one codegen unit, symbols stripped"
 note "the arm/i686 rows are smaller because a 32-bit pointer is smaller"
@@ -201,4 +189,4 @@ if [ -n "$FAILED" ]; then
   printf '\n%s  FAILED:%s %s\n\n' "$RED$B" "$R" "$FAILED"
   exit 1
 fi
-driven || printf '\n%s  next:%s ./compat/stress_test_matrix.sh\n\n' "$GREEN$B" "$R"
+driven || printf '\n%s  next:%s ./compat/run_check.sh\n\n' "$GREEN$B" "$R"

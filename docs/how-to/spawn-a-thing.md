@@ -135,7 +135,7 @@ The scroll of create monster (`models/src/items/scrolls.rs`, `create_monster`) i
    `ChaCha12Rng` of its own -- floor generation hands it a `content_rng`.
    From a live system, name the trap you mean.
 
-4. **Say so in the log.** Use `item_label(world, entity)` (`helpers`, models-internal again) for the name the player is allowed to know -- an unidentified wand is "a copper wand", not "a wand of fire" -- and `article_for(&name)` for the "a"/"an" in front of it.
+4. **Say so in the log.** Use `item_label(world, entity)` (`helpers`, models-internal again) for the name the player is allowed to know -- an unidentified suit of armour is "leather armor", not "+2 leather armor" -- and `article_for(&name)` for the "a"/"an" in front of it.
 
 
 Recipe 4: loot the way the dungeon rolls it

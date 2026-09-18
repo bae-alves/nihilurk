@@ -379,15 +379,10 @@ pub mod scrolls {
 /// Charges, damage dice, and the two blast radii. The wand *table* (which wand
 /// is which colour, which range, which effect) is data in `catalog.rs`.
 pub mod wands {
-    /// A fresh wand's battery is `CHARGE_DICE d CHARGE_SIDES + CHARGE_BONUS`
-    /// charges, rolled when it enters the dungeon. The floor of that range is
-    /// what matters: a wand nobody can afford to zap twice is a wand nobody
-    /// experiments with.
-    pub const CHARGE_DICE: i32 = 2;
-    /// See [`CHARGE_DICE`].
-    pub const CHARGE_SIDES: i32 = 4;
-    /// See [`CHARGE_DICE`].
-    pub const CHARGE_BONUS: i8 = 1;
+    /// Every wand enters the dungeon fully charged. Charges are never shown
+    /// to the player, so the number is pure gameplay balance, not a hidden
+    /// roll to identify.
+    pub const WAND_CHARGES: i8 = 6;
 
     /// A *zapped* attack wand deals `DAMAGE_DICE d DAMAGE_SIDES`,
     /// armour-ignoring, rolled once and applied whole to everyone it touches.

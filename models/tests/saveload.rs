@@ -22,9 +22,6 @@ fn round_trip() {
     // tile comparison at the end of the test is meaningless.
     w.resource_mut::<Depth>().what = 4;
     regenerate_map(&mut w, 1, 4);
-    w.resource_mut::<Identified>()
-        .potions
-        .insert(PotionEffect::Healing);
     let n0 = w.iter_entities().count();
     let save = common::SaveFile::new("roundtrip");
     let p = save.path();
@@ -45,16 +42,6 @@ fn round_trip() {
     assert_eq!(a, b);
     assert_eq!(w2.resource::<PlayerName>().what, "TESTER");
     assert_eq!(w2.resource::<Depth>().what, 4);
-    // Identification knowledge and this run's item appearances survive too.
-    assert!(
-        w2.resource::<Identified>()
-            .potions
-            .contains(&PotionEffect::Healing)
-    );
-    assert_eq!(
-        w.resource::<ItemAppearances>().potions,
-        w2.resource::<ItemAppearances>().potions,
-    );
     // The starting kit — ring mail, mace, bow, arrows, healing potion — round-trips.
     let packed: Vec<Entity> = {
         let mut q = w2.query_filtered::<&Backpack, With<Player>>();
@@ -253,7 +240,10 @@ fn equipped_gear_stays_on_across_a_save() {
     assert!(equipped_in(&w2, hero2, Slot::Hand).is_some());
     assert!(equipped_in(&w2, hero2, Slot::Body).is_some());
     let worn = equipped_in(&w2, hero2, Slot::Finger).expect("the ring stayed on");
-    assert_eq!(w2.get::<Ring>(worn).map(|r| r.effect), Some(RingEffect::Perception));
+    assert_eq!(
+        w2.get::<Ring>(worn).map(|r| r.effect),
+        Some(RingEffect::Perception)
+    );
     // What the ring lent is re-lent: the wearer sees invisible again without
     // touching the slot.
     assert!(

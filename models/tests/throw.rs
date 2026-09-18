@@ -161,8 +161,6 @@ fn a_thrown_wand_of_fire_goes_off_like_a_grenade() {
         "the wand went up with the flame"
     );
     assert!(w.get::<Fighter>(orc).unwrap().hp < 40);
-    // Unmistakable: you know exactly what that was.
-    assert!(w.resource::<Identified>().wands.contains(&WandEffect::Fire));
     assert!(logged(&w, "gets out at once"));
 }
 
@@ -275,10 +273,6 @@ fn a_wand_lobbed_into_open_floor_lands_a_dud() {
 
     assert_eq!(pos_of(&w, wand), (spot.x, spot.y), "it just lands");
     assert_eq!(w.get::<Battery>(wand).unwrap().charges, 7, "charges intact");
-    assert!(
-        !w.resource::<Identified>().wands.contains(&WandEffect::Fire),
-        "secret intact"
-    );
     assert!(logged(&w, "still bottled up"));
 }
 
@@ -519,15 +513,10 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
     );
     assert_eq!(w.get::<Fighter>(orc).unwrap().max_hp, 11);
     assert!(w.get_entity(potion).is_none(), "the bottle broke");
-    assert!(
-        w.resource::<Identified>()
-            .potions
-            .contains(&PotionEffect::Healing)
-    );
 }
 
 #[test]
-fn a_potion_that_does_nothing_visible_keeps_its_secret() {
+fn a_potion_that_does_nothing_visible_still_lands_on_its_target() {
     let mut w = test_world(5);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
@@ -541,11 +530,7 @@ fn a_potion_that_does_nothing_visible_keeps_its_secret() {
 
     throw(&mut w, p, potion, spot);
 
-    assert!(
-        !w.resource::<Identified>()
-            .potions
-            .contains(&PotionEffect::RestoreStrength)
-    );
+    assert!(w.get_entity(potion).is_none(), "the bottle broke anyway");
 }
 
 #[test]
@@ -558,21 +543,16 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
     let bat = monster(&mut w, "bat", spot);
     w.get_mut::<Fighter>(bat).unwrap().hp = 20;
     let scroll = stash(&mut w, p, |w| {
-        spawn_scroll(w, ScrollEffect::BlankPaper, NOWHERE)
+        spawn_scroll(w, ScrollEffect::FoodDetection, NOWHERE)
     });
 
     throw(&mut w, p, scroll, spot);
 
-    // Bounced off and landed, still a mystery.
+    // Bounced off and landed, unread.
     assert_eq!(pos_of(&w, scroll), (spot.x, spot.y));
-    assert!(
-        !w.resource::<Identified>()
-            .scrolls
-            .contains(&ScrollEffect::BlankPaper)
-    );
 
     let scroll = stash(&mut w, p, |w| {
-        spawn_scroll(w, ScrollEffect::BlankPaper, NOWHERE)
+        spawn_scroll(w, ScrollEffect::FoodDetection, NOWHERE)
     });
     w.despawn(bat);
     let orc = monster(&mut w, "orc", spot);
@@ -585,11 +565,6 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
         "the scroll crumbled as it was read"
     );
     assert!(logged(&w, "reads it aloud"));
-    assert!(
-        w.resource::<Identified>()
-            .scrolls
-            .contains(&ScrollEffect::BlankPaper)
-    );
 }
 
 #[test]
@@ -760,8 +735,8 @@ fn a_monster_keeps_what_it_is_holding_across_a_save() {
     let mut loaded = test_world(12);
     load_game(&mut loaded, save.path()).unwrap();
     let orc2 = mob_at(&mut loaded, spot).expect("the orc is where it was");
-    let held = equipped_in(&loaded, orc2, Slot::Hand)
-        .expect("the mace came back in the orc's hand");
+    let held =
+        equipped_in(&loaded, orc2, Slot::Hand).expect("the mace came back in the orc's hand");
     assert_eq!(
         loaded.get::<Name>(held).map(|n| n.what.as_str()),
         Some("mace")

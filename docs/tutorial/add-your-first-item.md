@@ -165,7 +165,7 @@ What you actually learned
 
   * The tables are data, so the tools work on them for free: the `-content` listing, `NIHILURK_SPAWN`, and the table tests all read the same rows you edited.
 
-Weapons are the easy case. Some categories need one more edit -- a potion needs somebody to say what drinking it does, a ring needs an identity to be identified by. The next section is one worked row for each of the nine, so you can see exactly where the line falls.
+Weapons are the easy case. Some categories need one more edit -- a potion needs somebody to say what drinking it does. The next section is one worked row for each of the nine, so you can see exactly where the line falls.
 
 
 One row for every kind
@@ -195,7 +195,7 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
     RingDef::new(RingEffect::FireResistance, "ring of fire resistance")
         .grants(&[Grant::of::<FireImmune>()]),
 
-`FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. You will need a `RingEffect::FireResistance` variant for it to be identified by -- an identity, not behaviour.
+`FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. `RingEffect::FireResistance` is just the key the row is spawned by -- an identity, not behaviour.
 
 **Ammunition and a launcher** are one job in two rows, and neither names the other. They meet at an effect:
 
@@ -222,7 +222,7 @@ Each of these is keyed by an enum, and the mechanic that reads it is an **exhaus
     PotionDef { effect: PotionEffect::Levitation,
                 name: "potion of levitation", color: Color::Cyan },
 
-The arm returns `bool` -- whether the dose visibly took hold -- because a potion thrown at a monster only gives away what it was when something plainly happened.
+The arm returns `bool` -- whether the dose visibly took hold.
 
 **A scroll.** Row in `SCROLLS`, variant on `ScrollEffect`, arm in `apply_scroll_effect` (`items/scrolls.rs`). A scroll has no colour: it is always white, and what varies is its unreadable title.
 
@@ -240,11 +240,9 @@ Most of a wand's arm is borrowed. Sleep is `conditions::snare(world, victim, Sna
 
 ### The one thing to check afterwards
 
-Each of the four identifiable categories shuffles its types against a pool of twenty cosmetic appearances. Add a twenty-first potion and the extra type would have no appearance at all and read as "potion" forever. You do not have to remember that:
+Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test content` fails if a catalog row ever spawns `PotionEffect::Water`, `ScrollEffect::BlankPaper` or `WandEffect::Nothing`, which exist only as what a wand of cancellation turns a carried item into.
 
     cargo test --test content
-
-`every_identifiable_type_gets_an_appearance` fails the moment a pool runs short, and tells you which one.
 
 
 Where to go next
