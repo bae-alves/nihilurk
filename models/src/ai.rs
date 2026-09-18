@@ -106,7 +106,7 @@ pub fn ai(world: &mut World) {
 /// Whether a mob standing on `mob_pos` knows where the player is this turn.
 ///
 /// Ordinarily that is simply "is its tile in the player's view" — sight is
-/// symmetrical in roog. A ring of stealth breaks the symmetry: the player can
+/// symmetrical in nihilurk. A ring of stealth breaks the symmetry: the player can
 /// see the length of a lit room and nothing in it can see them back until they
 /// are [`STEALTH_RANGE`] tiles away, at which point being quiet stops helping.
 fn notices(seen: bool, stealthy: bool, player_pos: Position, mob_pos: Position) -> bool {

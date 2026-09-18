@@ -19,12 +19,12 @@ It searches every table by name and returns `Option<Entity>`. Four recipes follo
 Recipe 1: look at it right now
 ------------------------------
 
-No code. `ROOG_SPAWN` drops names on free tiles around the player on every floor it builds:
+No code. `NIHILURK_SPAWN` drops names on free tiles around the player on every floor it builds:
 
     cargo run -p engine -- -content              # 1. what are the names?
     cargo run -p engine -- -content | grep -i wand
-    ROOG_SPAWN="dragon" cargo run -p engine      # 2. put one in front of me
-    ROOG_SPAWN="bow,arrow,arrow,dart trap" cargo run -p engine
+    NIHILURK_SPAWN="dragon" cargo run -p engine      # 2. put one in front of me
+    NIHILURK_SPAWN="bow,arrow,arrow,dart trap" cargo run -p engine
 
 Names are comma-separated and trimmed; a name the tables do not know is skipped **silently**, so check it against `-content` rather than trusting an empty floor. Full rules: `../reference/cli-and-env.md`.
 
@@ -206,7 +206,7 @@ See also
 --------
 
   ../reference/spawn-api.md       every signature on this page
-  ../reference/cli-and-env.md     ROOG_SPAWN and -content in full
+  ../reference/cli-and-env.md     NIHILURK_SPAWN and -content in full
   ../reference/content-tables.md  the tables these functions read
   add-a-monster.md                adding the row you want to spawn
   add-an-item.md                  the same, for items

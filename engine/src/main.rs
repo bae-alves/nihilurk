@@ -131,8 +131,8 @@ fn run_victory_screens<W: std::io::Write>(
 /// tables themselves, so a row added today shows up here today.
 fn print_content() {
     let names = models::content_names();
-    println!("roog content — {} entries", names.len());
-    println!("Spawn any of them with: ROOG_SPAWN=\"<name>,<name>\" roog");
+    println!("nihilurk content — {} entries", names.len());
+    println!("Spawn any of them with: NIHILURK_SPAWN=\"<name>,<name>\" nihilurk");
 
     let mut group = "";
     for (category, name) in &names {
@@ -146,14 +146,14 @@ fn print_content() {
 }
 
 /// Prints the short command-line guide without entering the alternate screen.
-/// The full reference lives in the installed `roog(6)` manual.
+/// The full reference lives in the installed `nihilurk(6)` manual.
 fn print_help() {
     println!(
         "\
-roog - terminal roguelike
+nihilurk - terminal roguelike
 
 USAGE
-    roog [OPTIONS] [NAME|SAVE]
+    nihilurk [OPTIONS] [NAME|SAVE]
 
 OPTIONS
     -s SEED          use a reproducible u64 seed
@@ -162,7 +162,7 @@ OPTIONS
     -nb              disable blood and corpse animation
     -nshake          disable screen shake
     -anim-rate N     set animation pacing multiplier (0.1..=5.0)
-    -content         list names accepted by ROOG_SPAWN
+    -content         list names accepted by NIHILURK_SPAWN
     -h, -help, --help show this help and exit
 
 POSITIONAL ARGUMENT
@@ -170,17 +170,17 @@ POSITIONAL ARGUMENT
     SAVE             load an existing save, with or without .sav
 
 ENVIRONMENT
-    ROOG_SPAWN       comma-separated names to place near the player on every
+    NIHILURK_SPAWN       comma-separated names to place near the player on every
                      generated floor; use -content to list valid names
 
 EXAMPLES
-    roog
-    roog bae
-    roog -s 1234 -ns
-    ROOG_SPAWN=\"dragon,ring of protection\" roog
+    nihilurk
+    nihilurk bae
+    nihilurk -s 1234 -ns
+    NIHILURK_SPAWN=\"dragon,ring of protection\" nihilurk
 
 SEE ALSO
-    man roog          full command, environment, and spawn API reference
+    man nihilurk          full command, environment, and spawn API reference
     docs/reference/cli-and-env.md
     docs/reference/spawn-api.md
 "
@@ -223,7 +223,7 @@ fn main() -> std::io::Result<()> {
     // unrecognised name says so and flies the rainbow anyway.
     let mut pride = models::pride::PrideFlag::default_flag();
     let mut unknown_flag: Option<String> = None;
-    let mut player_name = "Roog".to_string();
+    let mut player_name = "nihilurk".to_string();
     let mut positional: Option<String> = None;
     // Multiplier on every animation frame's on-screen hold time (particles,
     // magic mapping's reveal wipe): the escape hatch for a terminal whose
@@ -266,7 +266,7 @@ fn main() -> std::io::Result<()> {
     }
 
     // `-content` is the content author's index: every name the tables know, which
-    // is exactly the set `ROOG_SPAWN` and `models::spawn_named` answer to. Prints
+    // is exactly the set `NIHILURK_SPAWN` and `models::spawn_named` answer to. Prints
     // and exits without ever touching the terminal's alternate screen, so it
     // pipes into `grep` and `less` like any other listing.
     if list_content {
@@ -292,7 +292,7 @@ fn main() -> std::io::Result<()> {
     // fly the rainbow rather than refusing to start over a cosmetic.
     if let Some(name) = unknown_flag {
         eprintln!(
-            "roog: no flag called '{name}'. Try one of: {}.",
+            "nihilurk: no flag called '{name}'. Try one of: {}.",
             models::pride::flag_names().join(", ")
         );
     }
@@ -405,7 +405,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
             // swap its welcome line for the loaded-game version.
             world.insert_resource(GameLog {
                 history: Vec::new(),
-                unread: vec!["Welcome back to roog! Good luck and have fun!".to_string()],
+                unread: vec!["Welcome back to nihilurk! Good luck and have fun!".to_string()],
             });
         }
         None => models::initialize_world(&mut world),
@@ -573,7 +573,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     let save_result = models::save_game(&mut world, &save_name);
     drop(guard);
     match save_result {
-        Ok(()) => println!("Game saved to '{save_name}'. Resume with: roog {save_name}"),
+        Ok(()) => println!("Game saved to '{save_name}'. Resume with: nihilurk {save_name}"),
         Err(e) => eprintln!("Failed to save game: {e}"),
     }
 

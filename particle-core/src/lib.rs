@@ -1,4 +1,4 @@
-//! The arithmetic half of roog's particle layer: when a mote is visible, which
+//! The arithmetic half of nihilurk's particle layer: when a mote is visible, which
 //! of its keyframes is showing, which glyph a beam segment draws, and where a
 //! ripple's delay comes from.
 //!
@@ -28,9 +28,9 @@
 //! No `f32` method from `std` is reached for unconditionally either. `sqrt`,
 //! `ceil`, `floor` and friends live in `std` rather than `core` because they
 //! lower to libm calls a bare-metal target has no reason to link. [`ceil`] is
-//! the one roog needs, and it is the crate's single `#[cfg(feature = "std")]`:
+//! the one nihilurk needs, and it is the crate's single `#[cfg(feature = "std")]`:
 //! hosted builds take the intrinsic, bare-metal builds take a hand-rolled
-//! branch, and `tests/parity.rs` proves the two agree over the domain roog
+//! branch, and `tests/parity.rs` proves the two agree over the domain nihilurk
 //! uses. See [`ceil`].
 
 #![no_std]
@@ -119,7 +119,7 @@ pub fn beam_glyph(pts: &[(u16, u16)], i: usize) -> char {
 /// Keep an animation tile on the map before it is queued.
 ///
 /// The dimensions are parameters rather than the `MAP_WIDTH`/`MAP_HEIGHT`
-/// constants because this crate knows nothing about roog's map; `models`
+/// constants because this crate knows nothing about nihilurk's map; `models`
 /// supplies them at the one call site.
 #[inline]
 pub fn on_map(x: i32, y: i32, width: u16, height: u16) -> Option<(u16, u16)> {
@@ -161,7 +161,7 @@ pub fn follow_delay(radius: f32, follow_ms: f32) -> f32 {
 /// starts *skipping* steps instead of repeating them, and a skipped step lands
 /// twice in a row on the same side of the axis — the alternation
 /// [`SHAKE_PATTERN`] exists for, quietly lost. At 32 ms against a 33 ms frame
-/// the two stay in lockstep for 32 frames, which is longer than any shake roog
+/// the two stay in lockstep for 32 frames, which is longer than any shake nihilurk
 /// has.
 ///
 /// It stays a duration rather than "one step per frame" so `-anim-rate` retunes
@@ -211,7 +211,7 @@ pub fn shake_offset(age_ms: f32, duration_ms: f32, amplitude: i8) -> (i8, i8) {
 /// and a bare-metal target has no libm to lower to. So a hosted build takes the
 /// intrinsic and a `no_std` build takes the hand-rolled branch below.
 ///
-/// The hand-rolled version is exact over the domain roog uses it on -- finite
+/// The hand-rolled version is exact over the domain nihilurk uses it on -- finite
 /// values within `i32`'s range, in practice a blast radius of 0..=20 -- and
 /// that is all it claims. Rust's float-to-int casts saturate rather than wrap,
 /// so a NaN comes back as 0.0 instead of misbehaving, but no caller should be

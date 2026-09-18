@@ -23,7 +23,7 @@ This is a lesson, not a recipe. It takes the longest road on purpose. When you w
 flowchart LR
   S1["1 · find the<br/>bestiary"]:::cold --> S2["2 · add<br/>a row"]:::hero
   S2 --> S3["3 · -content<br/><i>and five other<br/>systems, free</i>"]:::cold
-  S3 --> S4["4 · ROOG_SPAWN<br/><i>meet it</i>"]:::peril
+  S3 --> S4["4 · NIHILURK_SPAWN<br/><i>meet it</i>"]:::peril
   S4 --> S5["5 · content +<br/>determinism"]:::cold
   S5 --> S6["6 · .grants()<br/>.invisible()<br/>.weight()"]:::magic
   S6 --> S7["7 · keep it,<br/>or git checkout"]
@@ -37,7 +37,7 @@ flowchart LR
 What you are about to learn
 ---------------------------
 
-There is no bat class in roog. There is no `Monster` trait, no `impl Dragon`, and no file called `monsters/` full of behaviour. There is one table, and a bat is a line in it.
+There is no bat class in nihilurk. There is no `Monster` trait, no `impl Dragon`, and no file called `monsters/` full of behaviour. There is one table, and a bat is a line in it.
 
 By the end you will have added a basilisk that is immune to fire, invisible, rare, and waiting on the deep floors -- and you will not have written a single line of behaviour to get any of that.
 
@@ -115,13 +115,13 @@ Step 4: meet it
 
 Playing down to floor 5 to look at your own work is a miserable way to spend an evening. So:
 
-    ROOG_SPAWN="basilisk" cargo run -p engine
+    NIHILURK_SPAWN="basilisk" cargo run -p engine
 
-The floor is built as normal, and then the things you named are dropped on free tiles near you. `ROOG_SPAWN` ignores the depth gate, so you can look at a floor-10 creature on floor 1.
+The floor is built as normal, and then the things you named are dropped on free tiles near you. `NIHILURK_SPAWN` ignores the depth gate, so you can look at a floor-10 creature on floor 1.
 
 Fight it. Then try it with company:
 
-    ROOG_SPAWN="basilisk,basilisk,potion of healing" cargo run -p engine
+    NIHILURK_SPAWN="basilisk,basilisk,potion of healing" cargo run -p engine
 
 
 Step 5: prove it, so it stays proved
@@ -160,9 +160,9 @@ Three things happened, and none of them is code you have to write.
 
 Rebuild and meet it now:
 
-    ROOG_SPAWN="basilisk" cargo run -p engine
+    NIHILURK_SPAWN="basilisk" cargo run -p engine
 
-It is somewhere next to you and you cannot see it. Try burning it with `ROOG_SPAWN="basilisk,wand of fire"` -- it will shrug, and the log will say so in as many words.
+It is somewhere next to you and you cannot see it. Try burning it with `NIHILURK_SPAWN="basilisk,wand of fire"` -- it will shrug, and the log will say so in as many words.
 
 
 Step 7: keep it or drop it
@@ -182,7 +182,7 @@ What you actually learned
 
   * Rarity and depth are two numbers on the row, relative to the rest of the table, and changing one changes nothing else.
 
-  * The tables are data, so the tools work on them for free: the `-content` listing, `ROOG_SPAWN`, the table tests and the save file all read the same row you edited.
+  * The tables are data, so the tools work on them for free: the `-content` listing, `NIHILURK_SPAWN`, the table tests and the save file all read the same row you edited.
 
 The one thing a row *cannot* express is a behaviour that does not exist yet. If your creature needs to do something no effect covers -- breathe a cone of frost, get in a mech -- that is a new effect plus the mechanic behind it, and then a row that names it. Which is the next page.
 

@@ -1,6 +1,6 @@
 //! Every tuning knob in the model, in one place.
 //!
-//! roog's balance lives in a few dozen numbers scattered across a dozen
+//! nihilurk's balance lives in a few dozen numbers scattered across a dozen
 //! modules. This file gathers the ones worth turning — the ones a person
 //! rebalancing the game reaches for — so that job is "read one file, edit one
 //! file" instead of a treasure hunt.

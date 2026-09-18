@@ -1,4 +1,4 @@
-# cross-rs configuration for roog's compatibility matrix.
+# cross-rs configuration for nihilurk's compatibility matrix.
 #
 # This file is not at the workspace root on purpose. `cross` looks for
 # `Cross.toml` next to `Cargo.toml`, and also honours `CROSS_CONFIG`; every
@@ -14,10 +14,10 @@
 # Every Linux row of the matrix is a `-musl` triple, and none is `-gnu`. A glibc
 # binary is bound to the glibc it was linked against: build on a current Arch
 # and the binary refuses to start on a Debian oldstable or a Pi OS image with an
-# older libc, with a `GLIBC_2.38 not found` that has nothing to do with roog.
+# older libc, with a `GLIBC_2.38 not found` that has nothing to do with nihilurk.
 # A musl target links the whole libc in, so what comes out is one file with no
 # `INTERP` segment and no runtime dependency of any kind. That is the only build
-# that honours the claim in gdd.md: roog runs on anything with a terminal.
+# that honours the claim in gdd.md: nihilurk runs on anything with a terminal.
 #
 # It costs a little size (a static musl binary carries its own libc) and that
 # cost is on the report, per target, in `cross_build.sh`'s footprint table.
@@ -38,10 +38,10 @@
 passthrough = [
     "RUSTFLAGS",
     "CARGO_INCREMENTAL",
-    # roog's own dev overrides, so a container can be told what to spawn when a
+    # nihilurk's own dev overrides, so a container can be told what to spawn when a
     # build is being chased rather than measured.
-    "ROOG_SPAWN",
-    "ROOG_MAGICMAP",
+    "NIHILURK_SPAWN",
+    "NIHILURK_MAGICMAP",
 ]
 
 # ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ passthrough = [
 image = "ghcr.io/cross-rs/x86_64-unknown-linux-musl:0.2.5"
 
 # AWS Graviton, an Ampere box, a Raspberry Pi 4/5 running a 64-bit OS, or the
-# Linux VM on an Apple Silicon Mac. The most likely non-x86 machine roog will
+# Linux VM on an Apple Silicon Mac. The most likely non-x86 machine nihilurk will
 # actually be played on.
 [target.aarch64-unknown-linux-musl]
 image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5"
@@ -94,6 +94,6 @@ image = "ghcr.io/cross-rs/armv7-unknown-linux-musleabihf:0.2.5"
 # under a second. `nostd_check.sh` does that, and reaches for a container only
 # for the Xtensa target, whose compiler is a fork rustup does not carry.
 #
-# What is *not* being claimed there: that roog runs on a microcontroller. It
+# What is *not* being claimed there: that nihilurk runs on a microcontroller. It
 # does not, it is not meant to, and a bare-metal row failing to produce a game
 # is not a bug. See docs/explanation/cross-platform-testing.md.

@@ -62,7 +62,7 @@ Step 2: implement `ItemDef`
         }
     }
 
-`spawn` builds the item *exactly as the row describes it*, with no random rolls. That is what tests, `spawn_named` and `ROOG_SPAWN` all want.
+`spawn` builds the item *exactly as the row describes it*, with no random rolls. That is what tests, `spawn_named` and `NIHILURK_SPAWN` all want.
 
 If a floor drop should differ from the plain row -- an enchantment, a battery charge, a bundle size -- override `spawn_as_loot` as well:
 
@@ -143,7 +143,7 @@ Verify
 
     cargo build
     cargo run -p engine -- -content | grep -A3 '^food'
-    ROOG_SPAWN="ration" cargo run -p engine
+    NIHILURK_SPAWN="ration" cargo run -p engine
     cargo test
 
 The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `the_loot_table_covers_every_category_over_a_long_run` will fail if twenty thousand drops never produce one.

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# compat_test.sh -- roog's cross-platform compatibility pipeline.
+# compat_test.sh -- nihilurk's cross-platform compatibility pipeline.
 #
-# Build roog for every machine it claims to run on, check the particle core
+# Build nihilurk for every machine it claims to run on, check the particle core
 # still compiles with no OS under it, then actually run the game on each of
 # those machines under emulation with their real CPU and memory limits, and
 # report whether it is playable there.
 #
-# The question this pipeline answers is "does roog run on that hardware, and
+# The question this pipeline answers is "does nihilurk run on that hardware, and
 # how well". It is not a benchmark of the stress test. The Bad Apple reel is
 # the *load* used to push the machine past what the game asks of it, and it is
 # never what anything is graded on -- a machine that cannot keep up with 800
-# motes a frame may still play roog perfectly well. See
+# motes a frame may still play nihilurk perfectly well. See
 # docs/explanation/cross-platform-testing.md.
 #
 # Three scripts, in order, each of which is worth running on its own:
@@ -25,7 +25,7 @@
 #                                  with that machine's limits applied, and
 #                                  records CPU and memory the whole time
 #
-# and then `roog-compat`, which is the dashboard over what they recorded.
+# and then `nihilurk-compat`, which is the dashboard over what they recorded.
 #
 # Like perf_test.sh, a stage whose tooling is missing is skipped with a note
 # saying how to get it, not fataled -- except cross and docker, without which
@@ -83,8 +83,8 @@ TARGET_ARGS=()
 # leave off their own "run this next" sign-offs.
 export COMPAT_DRIVEN=1
 
-printf '\n%s  roog compatibility pipeline%s\n' "$B$BLUE" "$R"
-note "does roog run on the machines it claims to, and how well"
+printf '\n%s  nihilurk compatibility pipeline%s\n' "$B$BLUE" "$R"
+note "does nihilurk run on the machines it claims to, and how well"
 
 # ---------------------------------------------------------------------------
 # 1. Build
@@ -105,7 +105,7 @@ fi
 
 if [ "$DO_BARE" -eq 1 ]; then
   # Not fatal to the pipeline: the microcontroller rows are a separate claim
-  # from "roog runs on this hardware", and a missing Xtensa toolchain should
+  # from "nihilurk runs on this hardware", and a missing Xtensa toolchain should
   # not stop the matrix from being measured.
   ./compat/nostd_check.sh || SKIPPED="${SKIPPED}bare "
 else
@@ -129,11 +129,11 @@ STRESS_STATUS=$?
 # ---------------------------------------------------------------------------
 
 heading "Verdict"
-BIN="$ROOT/target/release/roog-compat"
+BIN="$ROOT/target/release/nihilurk-compat"
 # Not gated on `-x BIN`: see the matching comment in stress_test_matrix.sh's
 # own Report stage. Cheap here too -- stress_test_matrix.sh just built it
 # moments ago, so this is normally a no-op cargo already knows is a no-op.
-cargo build --release -p roog-compat >/dev/null 2>&1
+cargo build --release -p nihilurk-compat >/dev/null 2>&1
 
 GATE=0
 if [ -x "$BIN" ]; then
@@ -150,7 +150,7 @@ if [ "$RUN_GUI" -eq 1 ] && [ -t 1 ] && [ -x "$BIN" ]; then
 fi
 
 if [ "$GATE" -ne 0 ] || [ "$STRESS_STATUS" -ne 0 ]; then
-  printf '\n%s  a machine stopped running roog.%s see the report above\n\n' "$RED$B" "$R"
+  printf '\n%s  a machine stopped running nihilurk.%s see the report above\n\n' "$RED$B" "$R"
   exit 1
 fi
-printf '\n%s  done.%s  Watch it: target/release/roog-compat\n\n' "$GREEN$B" "$R"
+printf '\n%s  done.%s  Watch it: target/release/nihilurk-compat\n\n' "$GREEN$B" "$R"

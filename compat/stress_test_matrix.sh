@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Phase 2 of the compat pipeline: run roog on every machine it claims to run
+# Phase 2 of the compat pipeline: run nihilurk on every machine it claims to run
 # on, with that machine's limits actually applied, and record what it cost.
 #
 # One container per row of matrix.tsv. The row's `--cpus` and `--memory` are
@@ -10,7 +10,7 @@
 #
 # A `qemu` row is not actually executed by default. qemu-user-static
 # translates syscalls, not ioctls with architecture-specific encodings, and
-# roog draws through crossterm, whose terminal-size and raw-mode ioctls are
+# nihilurk draws through crossterm, whose terminal-size and raw-mode ioctls are
 # exactly the ones it gets wrong -- reliably enough that a "does this row run"
 # question asked of an emulated crossterm program is really "does qemu's
 # ioctl translation work today", which is not what this pipeline is for. See
@@ -21,25 +21,25 @@
 #
 # WHAT IS BEING MEASURED
 #
-# Whether roog runs on the machine, and how well. A row that is actually
+# Whether nihilurk runs on the machine, and how well. A row that is actually
 # executed (a native row always; a `qemu` row only with `--exec-emulated` --
 # see below) is run three times:
 #
 #   --load game   a real dungeon floor, animated by the batches the game
-#                 actually queues. This is roog running, and it is the only
+#                 actually queues. This is nihilurk running, and it is the only
 #                 run anything is graded on.
 #   --load reel   Bad Apple: ~800 motes a frame, two to three orders of
 #                 magnitude past anything the game produces. This is the
 #                 ceiling -- how much harder you could push the machine
 #                 before the particle layer gives out. Nothing is gated on
 #                 it, and on the slowest rows it is expected to lose.
-#   the screen    roog-perf's redraw viewer, not headless, with a pseudo-TTY
+#   the screen    nihilurk-perf's redraw viewer, not headless, with a pseudo-TTY
 #                 sized from inside the container so crossterm believes it
 #                 has a real terminal to draw on. Bounded by frames rather
 #                 than a keypress -- see "The screen" below. Not timed, but
 #                 it must come up clean.
 #
-# A machine that cannot keep up with Bad Apple may still play roog perfectly
+# A machine that cannot keep up with Bad Apple may still play nihilurk perfectly
 # well. Grading on the reel would fail the rows that matter and would answer
 # a question nobody asked.
 #
@@ -50,7 +50,7 @@
 # is what makes the frame-time numbers reproducible rather than a measurement
 # of that day's pty. But defaulting an entire compat pipeline to headless,
 # for a game, would mean never actually proving the thing draws -- so an
-# executed row also gets one pty-attached, non-headless run of roog-perf's
+# executed row also gets one pty-attached, non-headless run of nihilurk-perf's
 # redraw viewer (`docker run -t`, no `--headless`), bounded by `--frames`
 # like the gate is. It is not graded on speed and is not the reel's ceiling;
 # it only has to come up and run to the frame bound without crossterm or the
@@ -61,18 +61,18 @@
 # WHY EMULATED ROWS ARE BUILD-ONLY
 #
 # `cross_build.sh` already proves more than the game asks of the machine it
-# names: it cross-compiles roog with a full Rust toolchain, which is heavier,
-# by every measure that matters here, than roog's own frame loop ever is. A
+# names: it cross-compiles nihilurk with a full Rust toolchain, which is heavier,
+# by every measure that matters here, than nihilurk's own frame loop ever is. A
 # static, correctly-linked ARM binary coming out of that (checked by
 # cross_build.sh's own `file` inspection) is a real claim about the hardware
-# roog will run on, and it is a claim this pipeline can actually stand behind
+# nihilurk will run on, and it is a claim this pipeline can actually stand behind
 # without also standing behind qemu-user's ioctl translation. A `does not run`
-# because the emulator mishandled `TIOCGWINSZ`, not because roog broke, is a
+# because the emulator mishandled `TIOCGWINSZ`, not because nihilurk broke, is a
 # false alarm dressed as a compat failure -- worse than no answer, because it
 # reads exactly like the real thing until someone spends an afternoon on the
 # log.
 #
-# So an emulated row's contribution to "does roog run on these machines" is
+# So an emulated row's contribution to "does nihilurk run on these machines" is
 # the build, same as a `bare` row's is compiling `particle-core` -- neither is
 # executed by default, and both say plainly, on that row, why not.
 # `--exec-emulated` is there for whoever eventually points this at real
@@ -100,7 +100,7 @@ set -uo pipefail
 # ---------------------------------------------------------------------------
 
 # The gate run. 450 frames is 15 seconds of animation at 30 fps, and it is the
-# same default `roog-perf` and `perf_test.sh` use -- so a row's numbers here are
+# same default `nihilurk-perf` and `perf_test.sh` use -- so a row's numbers here are
 # directly comparable to the host numbers in `target/perf/`.
 FRAMES=450
 
@@ -109,7 +109,7 @@ FRAMES=450
 # hundred frames. A short ceiling run measures the titles, not the video --
 # 60 frames reports 0.096 ms mean against a p95 of 0.314, which is the ramp
 # caught mid-climb and reads as a machine with far more headroom than it has.
-# 450 frames is where `roog-perf`'s own numbers stop moving.
+# 450 frames is where `nihilurk-perf`'s own numbers stop moving.
 #
 # --reel-frames is still there for when you are waiting on an emulated row and
 # only need the shape of the answer, and REEL_FRAMES_HONEST is the line below
@@ -159,7 +159,7 @@ cd "$ROOT" || exit 1
 RESULTS="$OUT/results.tsv"
 REEL="$ROOT/perf/bad-apple"
 
-printf '%s\n' "$B  roog compat matrix -- does roog run on these machines?$R"
+printf '%s\n' "$B  nihilurk compat matrix -- does nihilurk run on these machines?$R"
 note "gate: --load game, $FRAMES frames at $FPS fps. Graded."
 case "$WITH_REEL" in
   1) note "ceiling: --load reel, $REEL_FRAMES frames of Bad Apple. Not graded."
@@ -208,7 +208,7 @@ fi
 # the *host's* architecture: no `--platform`, no binfmt_misc, no
 # `--privileged`, nothing written outside this pipeline's own output
 # directory. `docker run --platform linux/arm64 alpine ...` is what needs the
-# kernel's help; `docker run alpine /qemu-aarch64 /roog-perf ...` does
+# kernel's help; `docker run alpine /qemu-aarch64 /nihilurk-perf ...` does
 # not, because nothing is asking the kernel to exec a foreign ELF -- only the
 # native `qemu-aarch64` binary is, and it does that in user space.
 QEMU_IMAGE=tonistiigi/binfmt
@@ -258,7 +258,7 @@ have_qemu_for() {
 # Metrics
 # ---------------------------------------------------------------------------
 #
-# What Docker sees from outside the container, which is not what `roog-perf`
+# What Docker sees from outside the container, which is not what `nihilurk-perf`
 # sees from inside it. The in-process figures cover the game; these cover the
 # whole cgroup, qemu included. Both are reported, and the gap between them is
 # the emulation tax.
@@ -313,9 +313,9 @@ sample_container() {
 # Reading the report back
 # ---------------------------------------------------------------------------
 #
-# `roog-perf --headless` prints a plain-text report and this pulls the six
+# `nihilurk-perf --headless` prints a plain-text report and this pulls the six
 # numbers the dashboard grades on out of it. Parsing our own tool's output is
-# not ideal, and the alternative -- a --json flag on roog-perf -- would put a
+# not ideal, and the alternative -- a --json flag on nihilurk-perf -- would put a
 # serialiser in the crate whose whole point is that it has no dependencies.
 # The report format is covered by perf's own tests, so it does not drift
 # silently.
@@ -355,7 +355,7 @@ parse_report() {
 
 run_row() {
   local id=$1 target=$2 platform=$3 image=$4 exec_kind=$5 cpus=$6 memory=$7 load=$8 frames=$9
-  local name="roog-compat-$id-$load"
+  local name="nihilurk-compat-$id-$load"
   local log="$OUT/run-$id-$load.log"
   local stats="$OUT/stats-$id-$load.tsv"
   local bin
@@ -378,10 +378,10 @@ run_row() {
   # The reel is mounted read-only and only where it is used. The game load
   # needs no file at all -- the floor comes from a seed -- which is what lets
   # the gate run on a row too small to hold 10 MiB of Bad Apple.
-  local mounts=(-v "$bin:/roog-perf:ro")
+  local mounts=(-v "$bin:/nihilurk-perf:ro")
   #
   # `--workload both` and not the default: the question is whether the machine
-  # can draw a frame of roog, and a frame of roog is the floor repainted, the
+  # can draw a frame of nihilurk, and a frame of nihilurk is the floor repainted, the
   # live motes composited over it, and one diff-and-flush over the result --
   # exactly what engine/src/view.rs does. Measuring the particle layer alone
   # would leave out the redraw, which on a slow machine is most of the cost.
@@ -392,7 +392,7 @@ run_row() {
     mounts+=(-v "$REEL:/bad-apple:ro")
     args+=(--reel /bad-apple)
   fi
-  local cmd=(/roog-perf "${args[@]}")
+  local cmd=(/nihilurk-perf "${args[@]}")
 
   # A qemu row runs as a plain host-architecture container -- no `--platform`
   # -- with a native qemu-user-static interpreter mounted in and put in front
@@ -486,7 +486,7 @@ run_row() {
 # `docker run -t` does not clear on its own: nothing is attached to the pty's
 # other end to send it a window-change ioctl, so it reads back as 0x0. The
 # `stty rows 26 cols 80` below sets that size on the pty from inside the
-# container before roog-perf starts, which is the concrete reason a shell is
+# container before nihilurk-perf starts, which is the concrete reason a shell is
 # not optional here (see check_has_shell above) -- this is what it is for.
 #
 # `--frames` bounds the loop the same way it bounds the headless gate (see the
@@ -495,14 +495,14 @@ run_row() {
 # sitting there until someone presses `q`.
 #
 # There is nothing to parse out of this run -- the viewer has no textual
-# report -- so it feeds nothing into results.tsv/roog-compat. All that matters
+# report -- so it feeds nothing into results.tsv/nihilurk-compat. All that matters
 # is the exit code: 0 means the row drew its own screen without crossterm or
 # the viewer falling over, which a headless-only pipeline would never prove.
 # By default this only ever runs for a native row -- see "why emulated rows
 # are build-only" at the top of this file.
 run_screen_check() {
   local id=$1 target=$2 platform=$3 image=$4 exec_kind=$5 cpus=$6 memory=$7
-  local name="roog-compat-$id-screen"
+  local name="nihilurk-compat-$id-screen"
   local log="$OUT/run-$id-screen.log"
   local bin
   bin=$(target_bin "$target" "$RIG" release)
@@ -514,8 +514,8 @@ run_screen_check() {
 
   docker rm -f "$name" >/dev/null 2>&1
 
-  local mounts=(-v "$bin:/roog-perf:ro")
-  local cmd=(/roog-perf --workload both --load game --frames "$SCREEN_FRAMES" --fps "$FPS")
+  local mounts=(-v "$bin:/nihilurk-perf:ro")
+  local cmd=(/nihilurk-perf --workload both --load game --frames "$SCREEN_FRAMES" --fps "$FPS")
 
   local docker_platform=(--platform "$platform")
   if [ "$exec_kind" = "qemu" ]; then
@@ -574,7 +574,7 @@ run_screen_check() {
   ok "screen: rendered $SCREEN_FRAMES frames under a real, sized pty"
 }
 
-# One line per finished run. The columns are read by `roog-compat`; see
+# One line per finished run. The columns are read by `nihilurk-compat`; see
 # compat/src/results.rs, which is the other half of this contract.
 record() {
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t-\n' "$@" >> "$RESULTS"
@@ -590,7 +590,7 @@ record() {
 # with nothing on the page to say which row came from which -- and the row that
 # went stale is exactly the row someone is about to quote.
 {
-  printf '# roog compat results -- written by stress_test_matrix.sh, read by roog-compat\n'
+  printf '# nihilurk compat results -- written by stress_test_matrix.sh, read by nihilurk-compat\n'
   printf '#id\ttarget\tload\tstatus\tframes\tmean_ms\tp99_ms\tdropped\tfps\tpeak_rss\tcpu_pct\twall_s\tbudget_ms\tnote\n'
 } > "$RESULTS"
 
@@ -607,7 +607,7 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
   note "$note_text"
 
   # A shell is not optional here (see matrix.tsv's house rule): a `linux` row
-  # is a claim that roog runs there, and it cannot even start without a real
+  # is a claim that nihilurk runs there, and it cannot even start without a real
   # terminal under it. Checked per run rather than trusted from the `class`
   # column, because "alpine has a shell" is true until someone points a row
   # at a distroless or scratch image and finds out the hard way mid-run. This
@@ -615,7 +615,7 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
   # about to skip -- an unexecuted row is still a claim, and this is the part
   # of that claim that costs nothing to check.
   if ! check_has_shell "$image"; then
-    bad "$id: $image has no usable shell -- roog cannot run without one"
+    bad "$id: $image has no usable shell -- nihilurk cannot run without one"
     record "$id" "$target" game skipped 0 0 0 0 0 0 0 0 0
     SKIPPED="$SKIPPED$id "
     continue
@@ -623,7 +623,7 @@ while IFS=$'\t' read -r id target class platform image exec cpus memory note_tex
 
   if [ "$exec" = "qemu" ] && [ "$EXEC_EMULATED" -eq 0 ]; then
     ok "builds: cross-compiled and statically linked; not run here by default"
-    note "  roog's own frame loop asks far less of the machine than rustc just did"
+    note "  nihilurk's own frame loop asks far less of the machine than rustc just did"
     note "  --exec-emulated runs it for real, if you have hardware or a qemu build to trust"
     record "$id" "$target" game build-only 0 0 0 0 0 0 0 0 0
     BUILD_ONLY="$BUILD_ONLY$id "
@@ -649,27 +649,27 @@ done < <(matrix_rows_or_die linux)
 # Report
 # ---------------------------------------------------------------------------
 #
-# The grading lives in `roog-compat`, not here. One implementation of "is this
+# The grading lives in `nihilurk-compat`, not here. One implementation of "is this
 # machine fast enough", in a language with tests, reached by the script, the
 # dashboard and CI alike -- rather than a band in awk that drifts away from the
 # band in Rust.
 
 stage "Report"
-REPORT_BIN="$ROOT/target/release/roog-compat"
+REPORT_BIN="$ROOT/target/release/nihilurk-compat"
 # Always asked to build, never gated on whether a binary is already sitting
-# there: `-x` only proves *a* roog-compat exists, not that it was built after
+# there: `-x` only proves *a* nihilurk-compat exists, not that it was built after
 # the last change to matrix.tsv or the verdict/results/report source. A stale
 # reporter reading a fresh results.tsv is worse than a slow one -- it silently
 # mis-grades rows the current code would have graded right, and every symptom
 # points at the row rather than at the binary. `cargo build` is the one thing
 # that actually knows whether a rebuild is needed, so let it decide; it is
 # fast and does nothing when nothing changed.
-note "building roog-compat..."
-cargo build --release -p roog-compat >/dev/null 2>&1
+note "building nihilurk-compat..."
+cargo build --release -p nihilurk-compat >/dev/null 2>&1
 if [ -x "$REPORT_BIN" ]; then
   "$REPORT_BIN" report --dir "$OUT"
 else
-  warn "could not build roog-compat; the raw numbers are in $RESULTS"
+  warn "could not build nihilurk-compat; the raw numbers are in $RESULTS"
 fi
 
 printf '      artifacts in %s/\n' "$OUT"
@@ -686,4 +686,4 @@ if [ -n "$FAILED" ]; then
   printf '\n%s  FAILED:%s %s\n\n' "$RED$B" "$R" "$FAILED"
   exit 1
 fi
-driven || printf '\n%s  done.%s  Watch it: %s\n\n' "$GREEN$B" "$R" "target/release/roog-compat"
+driven || printf '\n%s  done.%s  Watch it: %s\n\n' "$GREEN$B" "$R" "target/release/nihilurk-compat"

@@ -1,4 +1,4 @@
-roog
+nihilurk
 ====
 
 A classic roguelike about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets.
@@ -12,9 +12,9 @@ Where things are
 ----------------
 
     MANUAL.md      how to play: controls, combat math, items, monsters.
-    doc/roog.6     the installed `man roog` command reference.
+    doc/nihilurk.6     the installed `man nihilurk` command reference.
     docs/          how to add content to the game. Start at docs/README.md.
-    gdd.md         what roog is trying to be. Design, not code.
+    gdd.md         what nihilurk is trying to be. Design, not code.
     models/        the game: rules, content tables, ECS systems.
     view/          the terminal grid: the double buffer and its diff.
     engine/        the terminal front end: input, rendering, the loop.
@@ -25,14 +25,14 @@ Where things are
 The last three are test rigs, kept out of the workspace's default members, so a bare `cargo build` or `cargo test` never compiles them:
 
     ./perf_test.sh                       # the particle layer, measured
-    ./compat_test.sh                     # roog, built and run on six machines
+    ./compat_test.sh                     # nihilurk, built and run on six machines
     ./docs_style.sh                      # docs/, held to the house style
 
 
 Adding content
 --------------
 
-There is no pink dragon in roog. This is the whole of putting one in.
+There is no pink dragon in nihilurk. This is the whole of putting one in.
 
 Open `models/src/monsters.rs`, find `BESTIARY`, add a line:
 
@@ -55,7 +55,7 @@ A row is a name, an appearance, and the components the thing carries into the wo
 
 To see what you made without playing down to floor 7:
 
-    ROOG_SPAWN="pink dragon" cargo run -p engine
+    NIHILURK_SPAWN="pink dragon" cargo run -p engine
     cargo run -p engine -- -content       # every name the game knows
 
 
@@ -76,7 +76,7 @@ Documentation
 
 Changing the *engine* rather than the content is a different door:
 
-    cat docs/explanation/ecs-in-roog.md         # how bevy_ecs is used here
+    cat docs/explanation/ecs-in-nihilurk.md         # how bevy_ecs is used here
     cat docs/how-to/work-with-the-ecs.md        # and how to get past the borrow checker
 
-`gdd.md` is a fifth thing: what roog is trying to *be*. Design, not code.
+`gdd.md` is a fifth thing: what nihilurk is trying to *be*. Design, not code.

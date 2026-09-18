@@ -52,7 +52,7 @@ Then:
 
     cargo build
     cargo test --test content
-    ROOG_SPAWN="pit trap" cargo run -p engine
+    NIHILURK_SPAWN="pit trap" cargo run -p engine
 
 
 Writing the mechanic
@@ -112,7 +112,7 @@ Every trap rolls one of three discovery styles at spawn, with equal odds, and yo
     Adjacent    stays hidden until the player is standing next to it
     Triggered   invisible until it goes off
 
-roog has no "search" action, so these three are the only ways a trap ever comes to light before it bites. If you want a trap that is always visible or never visible, that is a change to `TrapBundle::random`, not to a row.
+nihilurk has no "search" action, so these three are the only ways a trap ever comes to light before it bites. If you want a trap that is always visible or never visible, that is a change to `TrapBundle::random`, not to a row.
 
 
 > **Append `TrapEffect` variants; never insert or reorder.** A saved trap

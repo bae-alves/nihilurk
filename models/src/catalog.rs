@@ -57,7 +57,7 @@ pub trait ItemDef {
     /// baseline, so a row at 5 is half as common and one at 20 twice.
     ///
     /// Every row in the game currently sits at the default — within a category
-    /// roog picks evenly, on purpose. Overriding it is how a category earns
+    /// nihilurk picks evenly, on purpose. Overriding it is how a category earns
     /// per-row rarity: give the struct a `weight: u32` field and return it here.
     fn weight(&self) -> u32 {
         10

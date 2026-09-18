@@ -1,4 +1,4 @@
-How roog's documentation is written
+How nihilurk's documentation is written
 ===================================
 
     Audience       Anyone adding or editing a page under `docs/`, or
@@ -71,7 +71,7 @@ What *is* still line-sensitive, and is therefore left exactly alone: fenced bloc
 
 A page that describes a **flow** — an order things happen in, a stack of contexts, a chain of steps — opens with a Mermaid diagram before the prose that explains it. Horizontal (`flowchart LR`), so it reads the way the text under it does, and themed so every diagram in the tree looks like the same game.
 
-Copy the theme block verbatim from any existing diagram; it is the terminal's own palette, which is the only palette roog has:
+Copy the theme block verbatim from any existing diagram; it is the terminal's own palette, which is the only palette nihilurk has:
 
     ```mermaid
     %%{init: {'theme':'base','themeVariables':{
@@ -114,7 +114,7 @@ Last section on every page — except a tutorial, which points *forward* rather 
     --------
 
       content-tables.md             the tables these functions read
-      cli-and-env.md                ROOG_SPAWN and the -content flag
+      cli-and-env.md                NIHILURK_SPAWN and the -content flag
       ../how-to/spawn-a-thing.md    recipes for the functions above
 
 Paths are relative to the page. Never a bare filename with no gloss: the gloss is the whole point, because it is what tells a reader whether to follow the link.
@@ -143,7 +143,7 @@ The exception is `reference/`, which describes the program rather than addressin
 
 ### Prefer the concrete noun to the abstract one
 
-roog's docs say "a dragon", "a red coin at full health", "a corridor full of kobolds" where a lesser page would say "an entity", "an unusable pickup", "multiple targets". The specific case is what makes a rule memorable, and the rule is usually general anyway.
+nihilurk's docs say "a dragon", "a red coin at full health", "a corridor full of kobolds" where a lesser page would say "an entity", "an unusable pickup", "multiple targets". The specific case is what makes a rule memorable, and the rule is usually general anyway.
 
 ### Name the thing that would go wrong
 
@@ -172,7 +172,7 @@ Both `--` and `—` are in use, and both are fine. Do not mix them *within a pag
 What a page must not do
 -----------------------
 
-  * **Restate a tuning number.** Name the constant — `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`, not "3 to 12". A number copied into prose is a number that goes stale the first time somebody rebalances, and roog has had every one of them go wrong at least once. The same rule holds for doc comments in the source, and for tests (`code-calisthenics.md`, "a test never asserts a constant").
+  * **Restate a tuning number.** Name the constant — `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`, not "3 to 12". A number copied into prose is a number that goes stale the first time somebody rebalances, and nihilurk has had every one of them go wrong at least once. The same rule holds for doc comments in the source, and for tests (`code-calisthenics.md`, "a test never asserts a constant").
   * **Paste a list the program can print.** `cargo run -p engine -- -content` reads the tables, so it can never be wrong. Point at it.
   * **Be two kinds of document at once.** A how-to that starts explaining itself is a how-to and an explanation; split it and link. That rule is in `../README.md` and this page is the result of following it — the ECS pages are a how-to and an explanation, not one page.
   * **Document a deliberate secret.** The `T` key and the `-pride` flags stay out of `MANUAL.md` and out of `../reference/cli-and-env.md` on purpose. Where a page has to mention one — because an engine developer will meet it in the source — it says *keep it out of the manual* in as many words.

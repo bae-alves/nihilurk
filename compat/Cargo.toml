@@ -1,19 +1,19 @@
 [package]
-name = "roog-compat"
+name = "nihilurk-compat"
 version = "0.1.0"
 edition = "2024"
 publish = false
-description = "Cross-compilation matrix and emulated hardware stress test for roog."
+description = "Cross-compilation matrix and emulated hardware stress test for nihilurk."
 
 [lints]
 workspace = true
 
 [[bin]]
-name = "roog-compat"
+name = "nihilurk-compat"
 path = "src/main.rs"
 
 [dependencies]
-# The only dependency, and the same version `roog-perf` pins. The two
+# The only dependency, and the same version `nihilurk-perf` pins. The two
 # dashboards are meant to look like two views of one project, and a second
 # ratatui in the graph would be a second set of widgets with the same names.
 #

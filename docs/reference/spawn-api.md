@@ -216,7 +216,7 @@ The dev shortcut
         occupied: &mut HashSet<(u16, u16)>,
     )
 
-Reads `ROOG_SPAWN` and drops each named thing on a free tile around `near`. Called at the end of floor generation.
+Reads `NIHILURK_SPAWN` and drops each named thing on a free tile around `near`. Called at the end of floor generation.
 
     pub fn spawn_list(
         world: &mut World,
@@ -264,7 +264,7 @@ See also
 --------
 
   content-tables.md             the tables these functions read
-  cli-and-env.md                ROOG_SPAWN and the -content flag
+  cli-and-env.md                NIHILURK_SPAWN and the -content flag
   ../how-to/spawn-a-thing.md    recipes for the functions above
   ../how-to/work-with-the-ecs.md      spawning, despawning, and the borrows
   ../how-to/add-an-item-category.md   implementing ItemDef yourself

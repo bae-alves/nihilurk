@@ -1,7 +1,7 @@
 //! The dashboard: one row per machine, the verdict beside it, and what Docker
 //! saw the selected container doing while it ran.
 //!
-//! Pure, like `roog-perf`'s. Everything drawn here comes out of an [`App`]
+//! Pure, like `nihilurk-perf`'s. Everything drawn here comes out of an [`App`]
 //! that was filled in before `draw` was called -- no widget reads a file or
 //! shells out to Docker. That matters more here than it does in the perf rig:
 //! the numbers on this screen were measured inside a container with a tenth of
@@ -117,7 +117,7 @@ fn draw_too_small(f: &mut Frame, area: Rect) {
             area.width, area.height
         )),
         Line::from(""),
-        Line::from("resize, or run: roog-compat report"),
+        Line::from("resize, or run: nihilurk-compat report"),
     ];
     f.render_widget(
         Paragraph::new(text)
@@ -125,7 +125,7 @@ fn draw_too_small(f: &mut Frame, area: Rect) {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(" roog-compat "),
+                    .title(" nihilurk-compat "),
             ),
         area,
     );
@@ -138,10 +138,10 @@ fn draw_too_small(f: &mut Frame, area: Rect) {
 /// One line per machine: how big the binary is, how it ran, and the verdict.
 ///
 /// The verdict column is always the game load, whatever the graphs below are
-/// showing. Grading on the reel would fail rows that play roog perfectly well;
+/// showing. Grading on the reel would fail rows that play nihilurk perfectly well;
 /// see [`crate::verdict`].
 fn draw_table(f: &mut Frame, area: Rect, app: &App) {
-    let inner = titled(f, area, " does roog run here? ", Color::Cyan);
+    let inner = titled(f, area, " does nihilurk run here? ", Color::Cyan);
     let mut lines = vec![
         header_line(),
         Line::from(Span::styled(
@@ -281,7 +281,7 @@ fn band_color(band: Band) -> Color {
 
 /// CPU and memory for the selected container, as Docker saw them from outside.
 ///
-/// Outside is the important word. `roog-perf` reports RSS and CPU as the
+/// Outside is the important word. `nihilurk-perf` reports RSS and CPU as the
 /// *process* sees itself; these are the cgroup's numbers, which include the
 /// emulator on a qemu row. Where the two disagree, the gap is the tax.
 fn draw_graphs(f: &mut Frame, area: Rect, app: &App) {
@@ -375,7 +375,7 @@ fn draw_memory(f: &mut Frame, area: Rect, app: &App, row: &matrix::Row, series: 
         text,
     );
     // Against the cap rather than against the peak: the question is how much
-    // of this machine's RAM roog needs, and a gauge normalised to its own peak
+    // of this machine's RAM nihilurk needs, and a gauge normalised to its own peak
     // would read 100% on every row.
     let ratio = match limit {
         0 => 0.0,
@@ -450,7 +450,7 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     );
 }
 
-/// The selected row's container, spelled out: what roog was built for, what
+/// The selected row's container, spelled out: what nihilurk was built for, what
 /// Docker was told to pretend to be, and the image it ran in. A row that is
 /// mysteriously fast or mysteriously dead is usually explained by one of these
 /// three, and nothing else on the screen says them.

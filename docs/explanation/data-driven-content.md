@@ -1,14 +1,14 @@
-Why content in roog is a table
+Why content in nihilurk is a table
 ==============================
 
-    Audience       Anyone deciding how to extend roog, or wondering why
+    Audience       Anyone deciding how to extend nihilurk, or wondering why
                    adding a monster is a one-line change.
     Prerequisites  You have added something, or read
                    `../how-to/add-a-monster.md`.
     This is        Understanding, not instructions. Nothing here tells
                    you what to type.
 
-The short version: **roog is an engine that displays and resolves content, and the content is a set of tables.** The engine has no opinion about what a dragon is. It knows how to draw a glyph, roll two dice against each other, and ask an entity whether it carries a component. The dragon is a row.
+The short version: **nihilurk is an engine that displays and resolves content, and the content is a set of tables.** The engine has no opinion about what a dragon is. It knows how to draw a glyph, roll two dice against each other, and ask an entity whether it carries a component. The dragon is a row.
 
 
 The problem this solves
@@ -123,7 +123,7 @@ What follows from it
 **Tools come free.** Because content is data, anything that walks the tables works on all of it at once, forever:
 
     cargo run -p engine -- -content      lists every name, live
-    ROOG_SPAWN="dragon,bow"              spawns any of them
+    NIHILURK_SPAWN="dragon,bow"              spawns any of them
     spawn_named(world, name, pos)        one door for tests and scripts
     models/tests/content.rs              tests the data as data
 
@@ -173,6 +173,6 @@ See also
 --------
 
   adr-0001-tables-not-raws.md      why not JSON files
-  ecs-in-roog.md                   the ECS half of the same argument
+  ecs-in-nihilurk.md                   the ECS half of the same argument
   ../reference/content-tables.md   the tables themselves
   ../how-to/add-an-effect.md       adding a new question the engine asks

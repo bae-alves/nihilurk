@@ -335,7 +335,7 @@ Unlike every other animation in the game the shake **never blocks input** — se
 
 | Resource      | Fields                              | Saved? |
 |---------------|-------------------------------------|--------|
-| `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<String>` (waiting for `--MORE--`) | **transient** — not saved; a reload starts with a fresh log ("Welcome back to roog!") |
+| `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<String>` (waiting for `--MORE--`) | **transient** — not saved; a reload starts with a fresh log ("Welcome back to nihilurk!") |
 | `Depth`        | `what: u8` — current floor, 1-based | yes    |
 | `FloorChanges` | `count: u32` — staircase/portal/trapdoor traversals this run; salts `content_rng` so a repeat visit re-stocks the same layout | yes |
 | `PlayerName`   | `what: String`                      | yes    |
@@ -362,7 +362,7 @@ See also
   content-tables.md            the tables that attach these components
   spawn-api.md                 the functions that build entities
   ../how-to/work-with-the-ecs.md  reading and changing these
-  ../explanation/ecs-in-roog.md   what each of the three nouns may be
+  ../explanation/ecs-in-nihilurk.md   what each of the three nouns may be
   input-and-turn-loop.md       what reads and writes the UI resources above
   ../how-to/add-an-effect.md   adding a new marker / modifier component
   ../explanation/data-driven-content.md  why behaviour is not in the row

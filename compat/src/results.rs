@@ -12,7 +12,7 @@
 //!
 //! # The three files
 //!
-//! `results.tsv`     one line per finished run: the numbers `roog-perf`
+//! `results.tsv`     one line per finished run: the numbers `nihilurk-perf`
 //!                   printed, scraped out of its report.
 //! `stats-<id>-<load>.tsv`
 //!                   one line per second while that container was alive:
@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 /// Which load a run was driven by.
 ///
 /// The distinction is the whole argument of the compat rig, so it is a type
-/// rather than a string. [`Load::Game`] is the gate -- it answers "does roog
+/// rather than a string. [`Load::Game`] is the gate -- it answers "does nihilurk
 /// run here" -- and [`Load::Reel`] is the ceiling, which answers "how much
 /// harder could you push this machine before the particle layer gives out".
 /// A row is judged on the first and informed by the second; see
@@ -37,7 +37,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Load {
     /// A real dungeon floor, animated by the batches the game actually queues.
-    /// This is roog running.
+    /// This is nihilurk running.
     Game,
     /// Bad Apple: ~800 motes a frame, two to three orders of magnitude past
     /// anything the game asks for. Nothing is gated on it.
@@ -63,7 +63,7 @@ impl Load {
     /// What the row is actually claiming, spelled out for a report header.
     pub fn what(self) -> &'static str {
         match self {
-            Load::Game => "roog, played",
+            Load::Game => "nihilurk, played",
             Load::Reel => "Bad Apple, the ceiling",
         }
     }
@@ -76,7 +76,7 @@ pub enum Status {
     Ok,
     /// The container exited non-zero, or printed nothing parseable. On a
     /// memory-capped row this is usually the OOM killer, which is a result:
-    /// the machine this row stands for cannot hold roog.
+    /// the machine this row stands for cannot hold nihilurk.
     Failed,
     /// Killed by the runner's own clock. Not a crash -- the machine is simply
     /// too slow to finish the run in the time allowed.
@@ -116,7 +116,7 @@ impl Status {
 
 /// One finished run of one binary on one row of the matrix.
 ///
-/// Every field but `id`, `load` and `status` is what `roog-perf` measured
+/// Every field but `id`, `load` and `status` is what `nihilurk-perf` measured
 /// *inside* the container, scraped from its report. Nothing is recomputed
 /// here -- if a number looks wrong, it is wrong in the report too, which is
 /// the only place it can be chased.
@@ -222,7 +222,7 @@ impl Series {
 pub struct Footprint {
     /// `engine`, `--release`: the thing that ships.
     pub game: u64,
-    /// `roog-perf`: the rig, which is not shipped and is here only because
+    /// `nihilurk-perf`: the rig, which is not shipped and is here only because
     /// it is what the container runs.
     pub rig: u64,
 }

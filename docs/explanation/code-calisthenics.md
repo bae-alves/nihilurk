@@ -1,4 +1,4 @@
-Code calisthenics in roog
+Code calisthenics in nihilurk
 =========================
 
     Audience       Anyone changing engine or model code and wondering
@@ -11,7 +11,7 @@ Code calisthenics in roog
 
 Code calisthenics is a set of deliberately strict constraints you apply while editing, to push code toward a shape it does not fall into on its own. The constraints are not laws of good code -- some of them are arguable -- but holding to one across a whole crate makes that crate uniform, and uniform code is code you can skim.
 
-roog adopts them one at a time, crate by crate, each pass touching nothing but the shape. A pass never changes behaviour: the test suite is the proof, and it stays green from the first edit to the last.
+nihilurk adopts them one at a time, crate by crate, each pass touching nothing but the shape. A pass never changes behaviour: the test suite is the proof, and it stays green from the first edit to the last.
 
 
 Phase 1: no `else`
@@ -152,7 +152,7 @@ Phase 2: shallow nesting
 
 ### The limit is ~3, not 1, on purpose
 
-The strict calisthenics rule is *one* level of indentation per method. That is the right pressure but the wrong stopping point for roog. Pushed all the way it turns one readable 40-line function into eight three-line ones, each named, each taking six `world`-threading parameters, and you now read a call graph instead of a procedure. The bloat costs more than the nesting did.
+The strict calisthenics rule is *one* level of indentation per method. That is the right pressure but the wrong stopping point for nihilurk. Pushed all the way it turns one readable 40-line function into eight three-line ones, each named, each taking six `world`-threading parameters, and you now read a call graph instead of a procedure. The bloat costs more than the nesting did.
 
 So the rule here is a **ceiling, not a target**: get out of the deep nests, stop when the function reads top to bottom without scrolling your eye rightward. In practice that lands around three levels.
 
@@ -179,21 +179,21 @@ Iterator chains are *not* subject to a "one method call per line" rule. Chaining
 A handful of 4-5 level spots remain by choice -- the renderer's cell-diff double loop, a couple of `for` / `match` / `if` combinations where the extraction would be pure ceremony. The test suite is again the proof the pass changed only shape.
 
 
-Rules roog deliberately does *not* adopt
+Rules nihilurk deliberately does *not* adopt
 ----------------------------------------
 
 The rest of the classic Object Calisthenics list, and why each is a poor fit here rather than an oversight:
 
-**Wrap every primitive in a type.** roog passes `(u16, u16)` tile coordinates and `(i16, i16)` steps around by the hundred. A `Point` newtype would carry the arithmetic, but Rust tuples already destructure, `Copy`, and pattern-match cleanly, and the operations are mostly one-liners (`.signum()`, `saturating_add_signed`) that read fine inline. The wrapper would be ceremony without a payoff. If a coordinate type ever grows real behaviour -- distance metrics, neighbour iteration used everywhere -- revisit it then.
+**Wrap every primitive in a type.** nihilurk passes `(u16, u16)` tile coordinates and `(i16, i16)` steps around by the hundred. A `Point` newtype would carry the arithmetic, but Rust tuples already destructure, `Copy`, and pattern-match cleanly, and the operations are mostly one-liners (`.signum()`, `saturating_add_signed`) that read fine inline. The wrapper would be ceremony without a payoff. If a coordinate type ever grows real behaviour -- distance metrics, neighbour iteration used everywhere -- revisit it then.
 
-**First-class collections** (wrap every `Vec`/`HashMap` in a domain type). This one would actively hurt. The collections in roog are short-lived locals -- a `HashSet` of visible tiles, a `Vec` of mob entities for this pass, a spatial `HashMap` rebuilt every tick. Wrapping each in a named type with its own methods would couple call sites to an interface that exists for one function's benefit, and make the loose, rearrange-it-in-five-minutes character of this code stiff. The ECS already supplies the real domain structure; the collections are just scratch space, and scratch space benefits from staying informal.
+**First-class collections** (wrap every `Vec`/`HashMap` in a domain type). This one would actively hurt. The collections in nihilurk are short-lived locals -- a `HashSet` of visible tiles, a `Vec` of mob entities for this pass, a spatial `HashMap` rebuilt every tick. Wrapping each in a named type with its own methods would couple call sites to an interface that exists for one function's benefit, and make the loose, rearrange-it-in-five-minutes character of this code stiff. The ECS already supplies the real domain structure; the collections are just scratch space, and scratch space benefits from staying informal.
 
-**One dot per line.** Covered above: chaining is load-bearing in Rust and roog uses it deliberately. Not adopted.
+**One dot per line.** Covered above: chaining is load-bearing in Rust and nihilurk uses it deliberately. Not adopted.
 
-**Keep entities (structs) small.** This one is *sound* -- a component with eight fields is usually two components -- and worth keeping in mind when you add one. It is not enforced here only because roog's components already tend to be small (`Position` is two fields, most grants are zero), so there is nothing to clean up. Treat it as advice, not a pass.
+**Keep entities (structs) small.** This one is *sound* -- a component with eight fields is usually two components -- and worth keeping in mind when you add one. It is not enforced here only because nihilurk's components already tend to be small (`Position` is two fields, most grants are zero), so there is nothing to clean up. Treat it as advice, not a pass.
 
 
-One rule of roog's own: a test never asserts a constant
+One rule of nihilurk's own: a test never asserts a constant
 ------------------------------------------------------
 
 Not a calisthenics rule, but it belongs next to them, because it is the same kind of discipline and it has already cost us a morning.
@@ -212,7 +212,7 @@ A test's own loop bound is not a tuning number and should not borrow one. `model
 See also
 --------
 
-  data-driven-content.md      the other thing that keeps roog small
-  ecs-in-roog.md              what the shape is holding up
+  data-driven-content.md      the other thing that keeps nihilurk small
+  ecs-in-nihilurk.md              what the shape is holding up
   ../how-to/work-with-the-ecs.md   the borrow patterns this shape assumes
   ../README.md                "documentation ships with the change"

@@ -69,7 +69,7 @@ const POTION_APPEARANCES: [&str; 20] = [
     "viscous",
 ];
 
-/// Nonsense scroll titles, invented for roog rather than borrowed from
+/// Nonsense scroll titles, invented for nihilurk rather than borrowed from
 /// NetHack's own in-joke set.
 const SCROLL_APPEARANCES: [&str; 20] = [
     "XLUM QUAZAR",
@@ -368,7 +368,7 @@ pub fn with_article(world: &World, item: Entity) -> String {
 /// vowel sound, `"a"` otherwise. The one place this rule lives — [`Name::article`]
 /// and [`crate::TrapEffect::label_article`] both defer here, and it works on any
 /// display string, not just a [`Name`] (an appearance is not a [`Name`]).
-/// Good enough for roog's vocabulary — no "an hour" / "a unicorn" edge cases.
+/// Good enough for nihilurk's vocabulary — no "an hour" / "a unicorn" edge cases.
 pub fn article_for(s: &str) -> &'static str {
     match s.chars().next() {
         Some(c) if matches!(c.to_ascii_lowercase(), 'a' | 'e' | 'i' | 'o' | 'u') => "an",

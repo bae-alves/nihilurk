@@ -1,4 +1,4 @@
-//! Does roog run on this machine, and how well.
+//! Does nihilurk run on this machine, and how well.
 //!
 //! This is the only module in the pipeline that turns measurements into a
 //! judgement, and it exists so that there is exactly one place where the
@@ -10,9 +10,9 @@
 //! # What is being judged
 //!
 //! The game, under the game's own load -- a real floor, animated by the
-//! batches roog actually queues, one per turn. Not Bad Apple. The reel is two
+//! batches nihilurk actually queues, one per turn. Not Bad Apple. The reel is two
 //! to three orders of magnitude past anything the game produces, and a machine
-//! that cannot keep up with it may still play roog perfectly well; grading on
+//! that cannot keep up with it may still play nihilurk perfectly well; grading on
 //! the reel would fail every row that matters and tell you nothing. The reel
 //! run is the ceiling, reported beside the verdict and never gated on. See
 //! `docs/explanation/cross-platform-testing.md`.
@@ -44,7 +44,7 @@ pub enum Band {
     Unknown,
     /// Not run, on purpose, because the build already said enough: an
     /// emulated row, cross-compiled and statically linked but not executed by
-    /// default (see `--exec-emulated`). This is a claim -- "roog runs here"
+    /// default (see `--exec-emulated`). This is a claim -- "nihilurk runs here"
     /// -- not an absence of one, and it must read as one: `Builds` is a
     /// distinct, positive band, not a shade of `Unknown`. It still ranks
     /// below every band an actual run can produce, because a real
@@ -52,7 +52,7 @@ pub enum Band {
     /// a real problem elsewhere must never be hidden behind it.
     Builds,
     /// Room to spare: the frame is done in under half the budget and nothing
-    /// was dropped. roog will feel the same here as on a workstation.
+    /// was dropped. nihilurk will feel the same here as on a workstation.
     Plays,
     /// Keeps up. Inside the budget, with the occasional dropped frame -- which
     /// on an emulated row is as likely to be the emulator as the machine.
@@ -86,11 +86,11 @@ impl Band {
     pub fn gloss(self) -> &'static str {
         match self {
             Band::Builds => {
-                "cross-compiled and statically linked; not run here, but roog asks less \
+                "cross-compiled and statically linked; not run here, but nihilurk asks less \
                  of a machine than the compiler that just targeted it"
             }
             Band::Plays => "comfortable; the frame is done with the budget to spare",
-            Band::Playable => "keeps up; roog is playable on this hardware",
+            Band::Playable => "keeps up; nihilurk is playable on this hardware",
             Band::Janky => "over budget or dropping frames -- it runs, but it shows",
             Band::Unplayable => "cannot hold the frame rate; the animation crawls",
             Band::DoesNotRun => "the binary did not complete a run on this machine",
@@ -100,7 +100,7 @@ impl Band {
 
     /// Whether a row in this band should fail a pipeline run.
     ///
-    /// `Janky` deliberately does not. Half the matrix is hardware roog is
+    /// `Janky` deliberately does not. Half the matrix is hardware nihilurk is
     /// *expected* to be slow on -- a Pi Zero emulated at 0.4 of a core is not
     /// a machine anyone promised a smooth 30 fps -- and a gate that went red
     /// on it would be turned off within a week. What must never happen is a
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn the_reel_is_never_graded_because_nothing_is_gated_on_it() {
         // Bad Apple at 800 motes a frame will lose on a Pi, and that is not a
-        // statement about whether roog runs there.
+        // statement about whether nihilurk runs there.
         assert_eq!(
             grade(&run(Load::Reel, Status::Ok, 400.0, 400)),
             Band::Unknown

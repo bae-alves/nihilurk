@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Phase 1 of the compat pipeline: build roog for every machine it claims to run
+# Phase 1 of the compat pipeline: build nihilurk for every machine it claims to run
 # on, then say how big it came out and who is to blame for that.
 #
 # One container per target, driven by cross-rs, reading the matrix in
@@ -9,7 +9,7 @@
 #   engine      the game. Built `--release`, which is the profile that ships:
 #               fat LTO, one codegen unit, panic=abort, symbols stripped. This
 #               is the artifact whose size is reported.
-#   roog-perf   the stress rig, for `stress_test_matrix.sh` to run inside the
+#   nihilurk-perf   the stress rig, for `stress_test_matrix.sh` to run inside the
 #               emulated container in phase 2.
 #
 # and, unless `--no-blame`, a third build of `engine` on the `profiling`
@@ -45,7 +45,7 @@ done
 mkdir -p "$OUT"
 cd "$ROOT" || exit 1
 
-printf '%s\n' "$B  roog cross-compilation matrix$R"
+printf '%s\n' "$B  nihilurk cross-compilation matrix$R"
 note "$(rustc -V 2>/dev/null || echo 'rustc: not found')"
 
 CROSS=$(cross_bin) || CROSS=""

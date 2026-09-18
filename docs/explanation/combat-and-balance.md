@@ -14,7 +14,7 @@ A bat has one hit point. That is not a placeholder.
 One exchange, two dice
 ----------------------
 
-roog resolves a fight as two independent rolls, subtracted:
+nihilurk resolves a fight as two independent rolls, subtracted:
 
     damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)
 
@@ -26,7 +26,7 @@ Everything a creature wears or holds folds into those four numbers before they a
 Micro-HP: the pool is not the defence
 -------------------------------------
 
-The instinct when making something dangerous is to give it more hit points. In roog that makes it *slower*, not scarier, and the difference matters.
+The instinct when making something dangerous is to give it more hit points. In nihilurk that makes it *slower*, not scarier, and the difference matters.
 
 A creature's survival comes from winning the armour roll, not from absorbing many losses. A troll with `armor: 6, armor_bonus: 1` shrugs off most of what a dagger can produce; it does not need thirty hit points to feel dangerous, and if it had them the fight would just take longer while being no more frightening. The whole bestiary lives between 1 and 12 hit points on purpose.
 
@@ -52,7 +52,7 @@ Monsters get neither. A monster that cannot hurt you simply cannot hurt you, and
 The price of a hand
 -------------------
 
-One slot holds one thing, and roog has no wait action -- you cannot spend a turn swapping and then act. So the hand you commit is committed until you spend a real turn getting out of it, with whatever is next to you getting a free swing.
+One slot holds one thing, and nihilurk has no wait action -- you cannot spend a turn swapping and then act. So the hand you commit is committed until you spend a real turn getting out of it, with whatever is next to you getting a free swing.
 
 That is the whole design of the bow. Drawn, it is the best thing in the dungeon: it ups an arrow's die (short of doubling it -- a deliberate nerf so the bow does not also eclipse a crossbow), its enchantment rides along on every shot, and a corridor is a killing lane. Swung, it carries `MeleeCap(1)` and is worth a bruise -- less than your bare fists, which is the point. Three hundred swings with a +5 bow deal 300 damage; three hundred with a long sword deal about 2,400; bare-handed, about 1,000.
 
@@ -87,7 +87,7 @@ Rough shape of the bestiary, if you want a new creature to sit in it without sta
     mid         hp 3-6    power 6-10    armor 6-10      depth 5
     deep        hp 8-12   power 8-12    armor 6-10      depth 10, with bonuses
 
-Each row also keeps its original Rogue level and armour class in a comment table at the top of `models/src/monsters.rs`, as a design anchor. roog does not model either, but they say what the creature was *for*.
+Each row also keeps its original Rogue level and armour class in a comment table at the top of `models/src/monsters.rs`, as a design anchor. nihilurk does not model either, but they say what the creature was *for*.
 
 
 See also

@@ -1,17 +1,17 @@
-The ECS in roog
+The ECS in nihilurk
 ===============
 
     Audience       Anyone who has opened `models/src/` expecting bevy
                    and found something that looks like it half-uses it.
     Prerequisites  You know what bevy_ecs is for. You do not need to
                    have used it.
-    This is        Understanding: what roog asks of components,
+    This is        Understanding: what nihilurk asks of components,
                    resources and systems, and why twelve of its
                    thirteen schedule steps take `&mut World` instead of
                    a `Query`. The recipes are
                    `../how-to/work-with-the-ecs.md`.
 
-roog uses `bevy_ecs` as a **world**, not as a framework. There is no `App`, no plugin, no `SystemSet`, no change detection, no events in the bevy sense. There is one `World`, one `Schedule` of thirteen steps run once per player turn, and a main loop that owns the terminal.
+nihilurk uses `bevy_ecs` as a **world**, not as a framework. There is no `App`, no plugin, no `SystemSet`, no change detection, no events in the bevy sense. There is one `World`, one `Schedule` of thirteen steps run once per player turn, and a main loop that owns the terminal.
 
 That is a smaller slice of bevy than most projects take, and the parts left on the shelf were left there on purpose.
 
@@ -78,7 +78,7 @@ That split is not laziness, and it is not a migration half-finished. It falls ou
 
 **A `Query` describes a fixed set of component accesses up front.** That is what makes it safe to parallelise and what makes the filters self-documenting. It also means the system has declared, before it runs, every component it will touch.
 
-roog's mechanics cannot make that declaration. Resolving one thrown wand of polymorph:
+nihilurk's mechanics cannot make that declaration. Resolving one thrown wand of polymorph:
 
   * blows a disc open and damages everything standing in it,
   * **despawns** each creature it killed,
@@ -88,12 +88,12 @@ roog's mechanics cannot make that declaration. Resolving one thrown wand of poly
 
 There is no honest tuple of component accesses for that. It touches the archetype graph structurally, mid-resolution, in a way that depends on what the previous step found. Written as a `Query` system it would be a `Query` plus `Commands` plus six `ResMut`s plus a deferred-command dance to see your own writes — which is `&mut World` with extra steps and a worse error message.
 
-So roog takes `&mut World` where mechanics are, keeps `Query` where a system genuinely only reads and tags, and pays two prices for it:
+So nihilurk takes `&mut World` where mechanics are, keeps `Query` where a system genuinely only reads and tags, and pays two prices for it:
 
   * **The borrow checker is stricter, not looser.** Holding the world means every `world.get::<C>(e)` conflicts with every `world.resource_mut()`. Five patterns get past that and they are written down in `../how-to/work-with-the-ecs.md`; they are worth learning once, because they are the whole idiom.
   * **No parallelism.** Nothing here needs it. A turn is a sequence by nature — the player moves, then every monster, then the consequences — and there is nothing in it to run at the same time as anything else. What the pipelines measure is the *animation frame*, not the turn: `compat/` grades a machine on whether it holds the frame rate while the effect layer plays, which is the part that has a deadline. See `performance-testing.md`.
 
-What roog gets back is that a mechanic reads as a procedure. `resolve_use` works out what the item is, decides where it physically ends up, logs the beat and applies the effect, top to bottom, in one function you can read in one sitting.
+What nihilurk gets back is that a mechanic reads as a procedure. `resolve_use` works out what the item is, decides where it physically ends up, logs the beat and applies the effect, top to bottom, in one function you can read in one sitting.
 
 **If your new system only reads and tags, write it as a `Query`.** The narrow filter is genuinely better documentation than a comment, and `visibility_system` is the worked example.
 
@@ -115,7 +115,7 @@ What the world is *not* asked to remember
 
 Two whole categories of state are kept out of the ECS, and both for the same reason: they are cheaper to derive than to store.
 
-**Terrain is a resource, not entities.** `Map` is one `Vec<TileType>` plus a bitset of which tiles are unlit. roog never had one entity per tile, and a 1,760-entity floor with a `Renderable` each would cost more to iterate every frame than the whole rest of the world put together.
+**Terrain is a resource, not entities.** `Map` is one `Vec<TileType>` plus a bitset of which tiles are unlit. nihilurk never had one entity per tile, and a 1,760-entity floor with a `Renderable` each would cost more to iterate every frame than the whole rest of the world put together.
 
 **Nothing cosmetic is saved.** Bloodstains, corpse marks, smoke, live particles, the shake, the scorekeeper's flash and `FxRng` are all rebuilt empty on load. The three map-sized overlays alone would come to 2.2 KB — more than the entire save file they would be joining — and none of it is gameplay. A reloaded floor is the floor you left, scrubbed of the mess you made on it. The map and the message log are out for the same reason; `saveload.rs` lists all four exclusions at the top.
 

@@ -154,7 +154,7 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
             world.resource_mut::<GameLog>().add(msg.to_string());
         }
         ScrollEffect::MagicMapping => {
-            // Roll the wipe's shape (or take the `ROOG_MAGICMAP` dev override),
+            // Roll the wipe's shape (or take the `NIHILURK_MAGICMAP` dev override),
             // then arm it centred on the reader. The engine plays it out frame
             // by frame after the turn (see [`crate::magicmap`]); headless
             // callers with no reveal resource just skip the animation.
@@ -162,7 +162,7 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
                 .get::<Position>(user)
                 .map(|p| (p.x, p.y))
                 .unwrap_or((MAP_WIDTH / 2, MAP_HEIGHT / 2));
-            let style = std::env::var("ROOG_MAGICMAP")
+            let style = std::env::var("NIHILURK_MAGICMAP")
                 .ok()
                 .and_then(|v| MagicMapStyle::from_name(&v))
                 .unwrap_or_else(|| MagicMapStyle::roll(&mut world.resource_mut::<GameRng>().0));

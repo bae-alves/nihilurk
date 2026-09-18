@@ -1,18 +1,18 @@
-.TH ROOG 6 "September 2026" "roog 0.1.0" "Games"
+.TH NIHILURK 6 "September 2026" "nihilurk 0.1.0" "Games"
 .SH NAME
-roog \- terminal roguelike
+nihilurk \- terminal roguelike
 .SH SYNOPSIS
-.B roog
+.B nihilurk
 [\fB\-s\fR \fIseed\fR] [\fB\-c\fR] [\fB\-ns\fR] [\fB\-nb\fR]
 [\fB\-nshake\fR] [\fB\-anim\-rate\fR \fImultiplier\fR] [\fIname\fR | \fIsave\fR]
 .PP
-.B roog
+.B nihilurk
 \fB\-content\fR
 .PP
-.B roog
+.B nihilurk
 \fB\-h\fR | \fB\-help\fR | \fB\-\-help\fR
 .SH DESCRIPTION
-.B roog
+.B nihilurk
 is a turn-based terminal roguelike: exploration, combat, and survival in a
 thirteen-floor dungeon, drawn on a grid of character cells and answered one
 keystroke at a time.
@@ -39,7 +39,7 @@ and a portal carries you to another depth whether you are ready or not.
 .PP
 The game uses one save file,
 .IR name .sav ,
-in the directory roog was started from. Quitting saves the current run unless
+in the directory nihilurk was started from. Quitting saves the current run unless
 .B \-ns
 is used, and starting the game again with the same name continues it. A run
 that ends in death is deleted. A completed run is retained as clear data:
@@ -84,7 +84,7 @@ an invalid or missing value uses the default.
 .TP
 .B \-content
 Print every content name accepted by
-.BR ROOG_SPAWN ,
+.BR NIHILURK_SPAWN ,
 grouped by category, and exit without entering the alternate screen, so the
 output pipes into
 .BR grep (1)
@@ -104,11 +104,11 @@ names one. Matching is case-insensitive. If the save is clear data, a won
 run, the game asks before spending it.
 .PP
 An unrecognised argument is treated as the player name, so a typo becomes a
-roog rather than an error. Options may appear in any order; a later positional
+nihilurk rather than an error. Options may appear in any order; a later positional
 argument replaces an earlier one.
 .SH ENVIRONMENT
 .TP
-.B ROOG_SPAWN
+.B NIHILURK_SPAWN
 A comma-separated list of exact content names. Each recognised name is
 spawned on the nearest free walkable tile around the player whenever a floor
 is built. Empty entries and unknown names are ignored. The setting applies to
@@ -117,11 +117,11 @@ every floor, including floors revisited on the way back up. Use
 to discover names:
 .sp
 .EX
-roog -content | grep -i dragon
-ROOG_SPAWN="dragon,bow,arrow" roog
+nihilurk -content | grep -i dragon
+NIHILURK_SPAWN="dragon,bow,arrow" nihilurk
 .EE
 .TP
-.B ROOG_MAGICMAP
+.B NIHILURK_MAGICMAP
 Select the style of the magic-mapping reveal animation instead of rolling one.
 Row by row:
 .BR row ,
@@ -143,11 +143,11 @@ and
 An unrecognised value selects a style at random.
 .SH EXAMPLES
 .EX
-roog
-roog bae
-roog -s 1234 -ns
-roog -content | grep -i dragon
-ROOG_SPAWN="basilisk" roog
+nihilurk
+nihilurk bae
+nihilurk -s 1234 -ns
+nihilurk -content | grep -i dragon
+NIHILURK_SPAWN="basilisk" nihilurk
 .EE
 .SH SPAWN API
 The game exposes its content lookup and spawn helpers from the
@@ -171,7 +171,7 @@ listing.
 .TP
 .BI "spawn_requested(world, near, occupied)"
 Reads
-.B ROOG_SPAWN
+.B NIHILURK_SPAWN
 and places recognised names around
 .IR near .
 It is the convenience wrapper used during floor generation.
@@ -273,7 +273,7 @@ Quit immediately.
 .IR name .sav
 The single save file for a run named
 .IR name ,
-in the directory roog was started from. A won run keeps the same file as
+in the directory nihilurk was started from. A won run keeps the same file as
 clear data.
 .SH SEE ALSO
 .BR grep (1),

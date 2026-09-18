@@ -1,14 +1,14 @@
 How to run the compatibility pipeline
 =====================================
 
-    Audience       Anyone who wants to know whether roog still runs on
+    Audience       Anyone who wants to know whether nihilurk still runs on
                    a Pi, a 32-bit netbook, or a Graviton instance --
                    and anyone who just made the binary bigger.
     Prerequisites  Docker, and `cargo install cross`. QEMU hooks for
                    the ARM rows; the script installs them for you.
                    Everything else is optional and is skipped with a
                    note where it is missing.
-    Result         One line per machine saying whether roog is playable
+    Result         One line per machine saying whether nihilurk is playable
                    there, the size of the binary for each, which crate
                    is responsible for those bytes, and a dashboard of
                    what each container's CPU and memory did.
@@ -41,10 +41,10 @@ The three phases on their own:
 
 The dashboard and the report:
 
-    target/release/roog-compat            the dashboard
-    target/release/roog-compat --watch    ...while the matrix runs
-    target/release/roog-compat report     plain text, for CI and pipes
-    target/release/roog-compat gate       one line, and an exit code
+    target/release/nihilurk-compat            the dashboard
+    target/release/nihilurk-compat --watch    ...while the matrix runs
+    target/release/nihilurk-compat report     plain text, for CI and pipes
+    target/release/nihilurk-compat gate       one line, and an exit code
 
 Reports, logs and metrics land in `target/compat/`. The binaries themselves land in `target/cross/<triple>/<triple>/release/`.
 
@@ -69,14 +69,14 @@ The machines
 
 The limits are handed straight to Docker, and swap is disabled, so the memory cap is a real ceiling. `cloud` and `potato` run on the host CPU. Every other `linux` row is a `qemu` row: cross-compiled and static-link-checked always, but only actually run under a qemu-user-static interpreter -- fetched by the pipeline on its own, no `binfmt_misc`, no `--privileged` -- when `--exec-emulated` asks for it.
 
-Every `linux` row's image is checked for a shell before it is run -- that is not optional, roog cannot start without a real terminal under it -- and a row that fails the check is skipped rather than run. See "why every `linux` row must have a shell" in `../explanation/cross-platform-testing.md`.
+Every `linux` row's image is checked for a shell before it is run -- that is not optional, nihilurk cannot start without a real terminal under it -- and a row that fails the check is skipped rather than run. See "why every `linux` row must have a shell" in `../explanation/cross-platform-testing.md`.
 
-An emulated (`qemu`) row is not run by default: it is still cross-compiled and static-link-checked by `cross_build.sh`, and that is treated as sufficient, because roog's own frame loop asks far less of a machine than the Rust toolchain that just cross-compiled it does. qemu-user-static's syscall translation also does not reliably extend to the architecture-specific ioctls crossterm needs (terminal size, raw mode), so there is a real reason not to lean on it here beyond the build. A build failure still fails the pipeline -- that part is unchanged and non-negotiable. `--exec-emulated` opts back into real execution for anyone with actual hardware, or a qemu build, to check it against. See "why emulated rows are build-only" in `../explanation/cross-platform-testing.md`.
+An emulated (`qemu`) row is not run by default: it is still cross-compiled and static-link-checked by `cross_build.sh`, and that is treated as sufficient, because nihilurk's own frame loop asks far less of a machine than the Rust toolchain that just cross-compiled it does. qemu-user-static's syscall translation also does not reliably extend to the architecture-specific ioctls crossterm needs (terminal size, raw mode), so there is a real reason not to lean on it here beyond the build. A build failure still fails the pipeline -- that part is unchanged and non-negotiable. `--exec-emulated` opts back into real execution for anyone with actual hardware, or a qemu build, to check it against. See "why emulated rows are build-only" in `../explanation/cross-platform-testing.md`.
 
 The two `esp32*` rows are never executed, under any flag: they are `no_std`, and there is no "run it for real" for a target with no OS to run it under. See "The microcontroller rows" below.
 
 
-1. Does roog still run everywhere?
+1. Does nihilurk still run everywhere?
 ----------------------------------
 
 1. Run the pipeline:
@@ -104,12 +104,12 @@ The two `esp32*` rows are never executed, under any flag: they are `no_std`, and
 
        builds        cross-compiled and statically linked; not run here
        plays         the frame is done in under half the budget
-       playable      keeps up; roog is playable on this hardware
+       playable      keeps up; nihilurk is playable on this hardware
        janky         over budget, or dropping frames you can see
        unplayable    cannot hold the frame rate at all
        does not run  the container failed, was killed, or OOMed
 
-3. `builds`, `plays`, `playable` and `janky` all exit 0. `unplayable` and `does not run` fail the pipeline, because they mean a machine that used to run roog no longer does.
+3. `builds`, `plays`, `playable` and `janky` all exit 0. `unplayable` and `does not run` fail the pipeline, because they mean a machine that used to run nihilurk no longer does.
 
 A `!` beside a verdict means the run finished but came within 10% of that machine's memory cap. Not a failure -- it passed -- but it is one dungeon level away from not passing.
 
@@ -117,7 +117,7 @@ A `!` beside a verdict means the run finished but came within 10% of that machin
 2. What is being measured
 -------------------------
 
-roog. A real dungeon floor from a fixed seed, animated by the batches the game actually queues, one per turn, with the whole frame drawn: floor repainted, motes composited over it, one diff and one flush.
+nihilurk. A real dungeon floor from a fixed seed, animated by the batches the game actually queues, one per turn, with the whole frame drawn: floor repainted, motes composited over it, one diff and one flush.
 
 Every row is also run against the Bad Apple reel, at ~800 motes a frame. That is the *ceiling*, printed under "THE CEILING", and nothing is graded on it:
 
@@ -125,11 +125,11 @@ Every row is also run against the Bad Apple reel, at ~800 motes a frame. That is
        cloud        0.28ms    0.79ms      0  7x the work
        potato       0.38ms    0.69ms      0  8x the work
 
-A machine that cannot keep up with Bad Apple may still play roog perfectly well, because roog does not animate music videos. If a ceiling row says `timeout -- too slow for the reel, which is allowed`, that is not a failure.
+A machine that cannot keep up with Bad Apple may still play nihilurk perfectly well, because nihilurk does not animate music videos. If a ceiling row says `timeout -- too slow for the reel, which is allowed`, that is not a failure.
 
 `--quick` skips the ceiling and roughly halves the runtime.
 
-An executed row also gets one more pass: the same game load, run through roog-perf's redraw viewer instead of the numeric report, with a pseudo-terminal attached and sized from inside the container (`docker run -t`, then `stty`) so crossterm has an actual terminal to draw into instead of the counting sink the two runs above use. It is not timed and prints no numbers -- it only has to come up and keep drawing for its frame count without falling over. A `bad` line under a row's name naming `screen` is that check failing; `--no-screen` skips it, same as `--no-reel` skips the ceiling. See "why every row also gets a real screen" in `../explanation/cross-platform-testing.md`.
+An executed row also gets one more pass: the same game load, run through nihilurk-perf's redraw viewer instead of the numeric report, with a pseudo-terminal attached and sized from inside the container (`docker run -t`, then `stty`) so crossterm has an actual terminal to draw into instead of the counting sink the two runs above use. It is not timed and prints no numbers -- it only has to come up and keep drawing for its frame count without falling over. A `bad` line under a row's name naming `screen` is that check failing; `--no-screen` skips it, same as `--no-reel` skips the ceiling. See "why every row also gets a real screen" in `../explanation/cross-platform-testing.md`.
 
 If you shorten the ceiling run with `--reel-frames`, keep it above 300. Bad Apple opens on a nearly black screen, so a 60-frame run measures the titles and reports a machine with far more headroom than it has. The script warns you.
 
@@ -170,7 +170,7 @@ For the host binary specifically, `cargo bloat` via `./perf_test.sh` is the bett
 
 The dashboard, in another terminal, while the matrix is going:
 
-    target/release/roog-compat --watch
+    target/release/nihilurk-compat --watch
 
 One row per machine with the verdict, and below it what Docker saw the selected container doing -- CPU against the row's core budget, memory against the row's cap, both as time series.
 
@@ -179,9 +179,9 @@ One row per machine with the verdict, and below it what Docker saw the selected 
     r           reload now
     q           quit
 
-Or `./compat_test.sh --gui` to land in it when the run finishes. It needs a 92x24 terminal; `roog-compat report` is the same information as text and needs nothing.
+Or `./compat_test.sh --gui` to land in it when the run finishes. It needs a 92x24 terminal; `nihilurk-compat report` is the same information as text and needs nothing.
 
-Note which numbers are which. The table's `peak rss` is what roog saw of itself, inside the container. The graphs are the cgroup's, from outside, and on a `qemu` row they include the emulator. The gap between them is the emulation tax.
+Note which numbers are which. The table's `peak rss` is what nihilurk saw of itself, inside the container. The graphs are the cgroup's, from outside, and on a `qemu` row they include the emulator. The gap between them is the emulation tax.
 
 
 5. The microcontroller rows
@@ -189,7 +189,7 @@ Note which numbers are which. The table's `peak rss` is what roog saw of itself,
 
     ./compat/nostd_check.sh
 
-This does not build roog for an ESP32. roog draws with crossterm, crossterm needs a terminal, and a microcontroller has neither a terminal nor an OS to provide one.
+This does not build nihilurk for an ESP32. nihilurk draws with crossterm, crossterm needs a terminal, and a microcontroller has neither a terminal nor an OS to provide one.
 
 What it checks is that `particle-core` -- the arithmetic of the particle layer, which the game itself calls -- still compiles with no operating system under it, for `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf`. It is a standing structural check: the moment that arithmetic is given a `Vec`, a `String`, or a libm call, this goes red.
 
@@ -209,7 +209,7 @@ Add a line to `compat/matrix.tsv`. Nine tab-separated fields:
 
     id        pi5
     target    aarch64-unknown-linux-musl
-    class     linux            has an OS and a shell; roog runs here
+    class     linux            has an OS and a shell; nihilurk runs here
     platform  linux/arm64      docker --platform for a native row; for a
                                qemu row, only picks the interpreter --
                                see stress_test_matrix.sh
@@ -233,7 +233,7 @@ Two rules the tests enforce, so you will hear about it:
   - Every `linux` row must be a `-musl` triple. A `-gnu` binary is bound to the glibc it was linked against, which is the one thing the matrix exists to rule out.
   - Every `bare` row must have `exec` of `none`. Those rows are compiled, never run.
 
-    cargo test -p roog-compat
+    cargo test -p nihilurk-compat
 
 
 Troubleshooting
@@ -266,7 +266,7 @@ A qemu row skipped saying it could not fetch its interpreter
 
         cargo build --release --target x86_64-unknown-linux-musl -p engine
 
-`no binary at target/cross/<triple>/<triple>/release/roog-perf`
+`no binary at target/cross/<triple>/<triple>/release/nihilurk-perf`
 
     Phase 2 was run before phase 1, or for a row phase 1 skipped:
 
@@ -294,26 +294,26 @@ A build dies on `weak version GLIBC_2.xx not found`
 A row says `does not run` and the log ends abruptly
 
     On a memory-capped row that is usually the OOM killer, and it is a
-    result rather than a bug: roog does not fit in that much RAM. The
+    result rather than a bug: nihilurk does not fit in that much RAM. The
     report points at `target/compat/run-<machine>-game.log`.
 
 The report contradicts what the pipeline just printed live
 
-    The matrix loop and `roog-compat report` disagree -- a row the loop
+    The matrix loop and `nihilurk-compat report` disagree -- a row the loop
     just logged `ok  builds: ...` for shows up as `does not run`, or is
     missing from the table entirely. `matrix.tsv` is compiled into
-    `roog-compat` with `include_str!`, so a `target/release/roog-compat`
+    `nihilurk-compat` with `include_str!`, so a `target/release/nihilurk-compat`
     built before the last change to it, or to `compat/src/*.rs`, is
     reading fresh results with stale code -- an unrecognised status
     string falls back to `Failed`, and a row added to the table since
     the binary was built never appears at all. Both scripts now build
-    `roog-compat` unconditionally rather than only when the binary is
+    `nihilurk-compat` unconditionally rather than only when the binary is
     missing, specifically because "it already exists" and "it matches
     the current source" are different questions and only `cargo build`
     can answer the second one. If you still see this on an older
     checkout:
 
-        cargo build --release -p roog-compat
+        cargo build --release -p nihilurk-compat
 
 `llvm-nm cannot read a <triple> binary`
 
@@ -340,4 +340,4 @@ Every script takes `--help`, and each one's help is the authority on its own fla
     ./compat/cross_build.sh --help
     ./compat/stress_test_matrix.sh --help
     ./compat/nostd_check.sh --help
-    target/release/roog-compat --help
+    target/release/nihilurk-compat --help

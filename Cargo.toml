@@ -13,8 +13,8 @@ members = [
 # sysinfo and criterion, none of which the shipped binary is allowed to depend
 # on (see the portability note in `gdd.md`). Keeping them out of
 # `default-members` means a bare `cargo build` / `cargo test` at the workspace
-# root never compiles them; reaching one is always explicit, via `-p roog-perf`
-# / `-p roog-compat`, or via `perf_test.sh` / `compat_test.sh`.
+# root never compiles them; reaching one is always explicit, via `-p nihilurk-perf`
+# / `-p nihilurk-compat`, or via `perf_test.sh` / `compat_test.sh`.
 #
 # `compat` is the odder of the two: it is a rig that builds and runs the game
 # for *other machines*, so it is the one crate here that is never itself part of
@@ -69,7 +69,7 @@ unused_dependencies = "allow"
 #                        across the models/engine crate boundary.
 #   codegen-units = 1    no parallel-codegen inlining barriers. Worth it here
 #                        because the hot loop is small and inlining-sensitive.
-#   panic = "abort"      drops the unwind tables. Safe for roog: there is not a
+#   panic = "abort"      drops the unwind tables. Safe for nihilurk: there is not a
 #                        single `#[should_panic]` in the suite, and a panic
 #                        mid-turn is unrecoverable anyway. Cargo ignores this
 #                        key for the `test`/`bench` profiles, so benches and

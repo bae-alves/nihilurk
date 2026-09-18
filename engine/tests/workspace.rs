@@ -21,7 +21,7 @@
 use std::path::{Path, PathBuf};
 
 /// The two crates that are deliberately outside a bare `cargo test`. Reaching
-/// one is always explicit: `-p roog-perf`, `-p roog-compat`, `perf_test.sh` or
+/// one is always explicit: `-p nihilurk-perf`, `-p nihilurk-compat`, `perf_test.sh` or
 /// `compat_test.sh`.
 const RIGS: [&str; 2] = ["compat", "perf"];
 
@@ -34,7 +34,7 @@ fn workspace_root() -> PathBuf {
 
 /// The string entries of the first `key = [...]` array in the `[workspace]`
 /// table. A hand-rolled read rather than a toml crate: this runs in the game's
-/// own crate, and roog does not take a dependency to read six lines of its own
+/// own crate, and nihilurk does not take a dependency to read six lines of its own
 /// manifest.
 fn array(manifest: &str, key: &str) -> Vec<String> {
     let after = manifest

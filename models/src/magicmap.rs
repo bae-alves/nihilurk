@@ -2,7 +2,7 @@
 //! memory at once.
 //!
 //! Rather than snap the map on in a single frame, the reveal plays out as an
-//! animated wipe — roog's take on the row-by-row `MagicMapReveal` run-state from
+//! animated wipe — nihilurk's take on the row-by-row `MagicMapReveal` run-state from
 //! the "Rust Roguelike" tutorial (chapter 20). There is no run-state machine
 //! here, so the wipe is driven the same way the particle layer is:
 //! the scroll-of-magic-mapping mechanic (in `crate::items`) arms [`MagicMapReveal`] while resolving
@@ -29,7 +29,7 @@ use crate::components::{Player, Viewshed};
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, tile_index};
 
 /// Which shape the reveal takes as it floods the map into memory. Rolled at
-/// random each time a scroll of magic mapping is read (unless the `ROOG_MAGICMAP`
+/// random each time a scroll of magic mapping is read (unless the `NIHILURK_MAGICMAP`
 /// dev override is set), so no two reads look quite the same.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum MagicMapStyle {
@@ -51,7 +51,7 @@ impl MagicMapStyle {
         Self::ALL[rng.gen_range(0..Self::ALL.len())]
     }
 
-    /// Parses the `ROOG_MAGICMAP` dev-override value (`rows` / `spiral` /
+    /// Parses the `NIHILURK_MAGICMAP` dev-override value (`rows` / `spiral` /
     /// `explode`, plus a few aliases). `None` for anything unrecognised.
     pub fn from_name(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {

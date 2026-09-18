@@ -1,5 +1,5 @@
-# Roog
-Roog is a classic roguelike about descending a dungeon, acquiring an item, and ascending it back again. Life is unfair and death is permanent. The game's humor is pessimistic, nihilistic and absurdist without being edgy, the game gets weirder the more you play, but the game has most everything the original Rogue had. Except a storyline. Rogue kind of had coherent a lore/plot blurb. This game is about thrill of the arcade!
+# nihilurk
+nihilurk is a classic roguelike about descending a dungeon, acquiring an item, and ascending it back again. Life is unfair and death is permanent. The game's humor is pessimistic, nihilistic and absurdist without being edgy, the game gets weirder the more you play, but the game has most everything the original Rogue had. Except a storyline. Rogue kind of had coherent a lore/plot blurb. This game is about thrill of the arcade!
 
 Game plays like any classic roguelike, but has simplified controls and movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
 
@@ -11,7 +11,7 @@ The game is a dungeon crawl with 13 levels, the last one has the Element of Yoor
 
 ## Gameplay
 `o o o TAB TAB TAB TAB o o...`
-In this game, the player controls a roog, that can move on a grid; fight monsters by trying to move into their space; auto-explore; auto-fight and use many items (wearables, consumables, etc.) in pursuit of the Element of Yoord.
+In this game, the player controls a nihilurk, that can move on a grid; fight monsters by trying to move into their space; auto-explore; auto-fight and use many items (wearables, consumables, etc.) in pursuit of the Element of Yoord.
 
 ### User Skills
 - Strategizing
