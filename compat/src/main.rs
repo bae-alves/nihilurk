@@ -147,7 +147,11 @@ fn report(results: &Results) -> ExitCode {
         return ExitCode::SUCCESS;
     }
 
-    let _ = writeln!(w, "  {:<9} {:<7} {:>10}  {}", "machine", "exec", "binary", "verdict");
+    let _ = writeln!(
+        w,
+        "  {:<9} {:<7} {:>10}  {}",
+        "machine", "exec", "binary", "verdict"
+    );
     for row in &linux {
         let check = results.check(&row.id);
         let status = check.map(|c| c.status).unwrap_or(Status::Skipped);
@@ -180,7 +184,11 @@ fn report(results: &Results) -> ExitCode {
     if broken.is_empty() {
         let _ = writeln!(w, "  VERDICT  nihilurk runs on every machine checked");
     } else {
-        let _ = writeln!(w, "  VERDICT  nihilurk does not run on: {}", broken.join(", "));
+        let _ = writeln!(
+            w,
+            "  VERDICT  nihilurk does not run on: {}",
+            broken.join(", ")
+        );
     }
     let _ = writeln!(w);
     print!("{out}");
@@ -213,7 +221,11 @@ fn report_bare(w: &mut String, bare: &[Row]) {
 fn report_failures(w: &mut String, results: &Results, linux: &[Row]) {
     let broken: Vec<&Row> = linux
         .iter()
-        .filter(|row| results.check(&row.id).is_some_and(|c| c.status.is_failure()))
+        .filter(|row| {
+            results
+                .check(&row.id)
+                .is_some_and(|c| c.status.is_failure())
+        })
         .collect();
     if broken.is_empty() {
         return;
@@ -230,7 +242,11 @@ fn report_failures(w: &mut String, results: &Results, linux: &[Row]) {
             results.dir.display(),
             row.id,
         );
-        let _ = writeln!(w, "  {:<9} {:<9}  ran in {} on {}", "", "", row.image, row.platform);
+        let _ = writeln!(
+            w,
+            "  {:<9} {:<9}  ran in {} on {}",
+            "", "", row.image, row.platform
+        );
     }
 }
 
@@ -284,7 +300,10 @@ fn gate(results: &Results) -> ExitCode {
         println!("nihilurk-compat: nihilurk runs on every machine in the matrix");
         return ExitCode::SUCCESS;
     }
-    println!("nihilurk-compat: nihilurk does not run on: {}", broken.join(", "));
+    println!(
+        "nihilurk-compat: nihilurk does not run on: {}",
+        broken.join(", ")
+    );
     ExitCode::FAILURE
 }
 

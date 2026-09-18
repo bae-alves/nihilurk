@@ -258,8 +258,9 @@ An input handler or the AI pushes an intent onto a queue resource; the matching 
 | `WantsToAttack` → `AttackQueue`     | `attacker`, `target`                     | `combat_system`       |
 | `WantsToUse` → `UseQueue`           | `user`, `item`, `target: Option<Position>`, `slot_idx: Option<usize>` | `item_system` |
 | `WantsToThrow` → `ThrowQueue`       | `thrower`, `item`, `target: Position`    | `throw_system`        |
+| `WantsToMove` → `MoveQueue`         | `user`, `effect: MoveEffect`, `target: Position` | `move_system`   |
 
-All three queues are transient (empty at save time).
+All four queues are transient (empty at save time).
 
 
 Resources
@@ -276,7 +277,7 @@ Resources
 | `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |
 | `TargetingState`| `active`, `item: Option<Entity>`, `throwing: bool`, `cursor_x`, `cursor_y: i16` | aiming reticle; `throwing` swaps the range to `THROW_RANGE` and confirm to a hurl. |
 | `PlayerTempo`   | `fast_parity: bool`                                       | the player half of the speed system: a `Fast` turn flips it, monsters move only when it flips back. |
-| `AttackQueue` / `UseQueue` / `ThrowQueue` | `Vec<…>`                        | see Events above. |
+| `AttackQueue` / `UseQueue` / `ThrowQueue` / `MoveQueue` | `Vec<…>`            | see Events above. |
 | `Shake`         | `enabled: bool` (`-nshake`), plus a private kind + age    | screen shake. Gameplay arms one with `shake::kick_shake(world, ShakeKind::…)` and forgets; the engine ages it, reads `offset()` and `settle()`s it. See below. |
 
 ### The pack screen

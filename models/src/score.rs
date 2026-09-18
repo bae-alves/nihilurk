@@ -208,9 +208,11 @@ fn announce_combo(world: &mut World) {
         true => crate::hud::PRIDE_LINE,
         false => "With style.",
     };
-    if let Some(mut log) = world.get_resource_mut::<GameLog>() {
-        log.add(line.to_string());
-    }
+    // `GameLog` is required here, not optional: it is initialised before any
+    // schedule step runs (`engine/src/main.rs`), and every other logging call
+    // in the tree already assumes it. The `get_resource_mut` this replaced
+    // protected nothing reachable and hid that assumption instead of stating it.
+    world.resource_mut::<GameLog>().add(line.to_string());
 }
 
 /// What a staircase is worth on a floor of difficulty `tier` (0-based, as

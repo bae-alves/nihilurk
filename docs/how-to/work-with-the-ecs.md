@@ -10,7 +10,7 @@ Working with the ECS
 
 Recipes: copy the shape, change the nouns. *Why* the code is arranged this way is `../explanation/ecs-in-nihilurk.md`.
 
-Twelve of nihilurk's thirteen schedule steps take `&mut World` and nothing else. That one fact decides everything below: you are not writing `Query<&mut Fighter>` and letting bevy sort out the aliasing, you are holding the whole world and borrowing bits of it by hand. The borrow checker is stricter here than it is in a `Query`-based codebase, and the five patterns in the first section are how every mechanic in the tree gets past it.
+Fifteen of nihilurk's sixteen schedule steps take `&mut World` and nothing else. That one fact decides everything below: you are not writing `Query<&mut Fighter>` and letting bevy sort out the aliasing, you are holding the whole world and borrowing bits of it by hand. The borrow checker is stricter here than it is in a `Query`-based codebase, and the five patterns in the first section are how every mechanic in the tree gets past it.
 
     Contents
 
@@ -87,7 +87,7 @@ A system that drains a queue resource cannot hold that resource while it resolve
         }
     }
 
-All three queues (`AttackQueue`, `UseQueue`, `ThrowQueue`) are drained exactly like this. It also gives you the right semantics for free: an attack queued *while* the queue is draining lands next turn, not in the middle of this one.
+All four queues (`AttackQueue`, `UseQueue`, `ThrowQueue`, `MoveQueue`) are drained exactly like this. It also gives you the right semantics for free: an attack queued *while* the queue is draining lands next turn, not in the middle of this one.
 
 ### 4. `entity_mut` for a burst of writes
 
@@ -362,14 +362,15 @@ Input handlers do not resolve anything. They push an intent and return whether a
 | `WantsToAttack`  | `AttackQueue` | `combat_system`|
 | `WantsToUse`     | `UseQueue`    | `item_system`  |
 | `WantsToThrow`   | `ThrowQueue`  | `throw_system` |
+| `WantsToMove`    | `MoveQueue`   | `move_system`  |
 
-`WantsToUse` carries `slot_idx` so a surviving item goes back to the exact pack row it came from, and `target` for anything aimed. A throw of a stacked item goes through `models::draw_one` first, which splits one arrow off and leaves the quiver where it was.
+`WantsToUse` carries `slot_idx` so a surviving item goes back to the exact pack row it came from, and `target` for anything aimed. A throw of a stacked item goes through `models::draw_one` first, which splits one arrow off and leaves the quiver where it was. `WantsToMove` is an active move's own intent — a wand's twin, minus everything about an item because a move isn't one.
 
 
 Recipe: add a system to the turn
 --------------------------------
 
-Register it in `engine/src/main.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in nihilurk — the schedule is one flat list of thirteen steps, and every edge is deliberate:
+Register it in `engine/src/main.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in nihilurk — the schedule is one flat list of sixteen steps, and every edge is deliberate:
 
     schedule.add_systems((
         // …
