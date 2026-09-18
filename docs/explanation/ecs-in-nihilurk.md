@@ -6,12 +6,12 @@ The ECS in nihilurk
     Prerequisites  You know what bevy_ecs is for. You do not need to
                    have used it.
     This is        Understanding: what nihilurk asks of components,
-                   resources and systems, and why twelve of its
-                   thirteen schedule steps take `&mut World` instead of
+                   resources and systems, and why fifteen of its
+                   sixteen schedule steps take `&mut World` instead of
                    a `Query`. The recipes are
                    `../how-to/work-with-the-ecs.md`.
 
-nihilurk uses `bevy_ecs` as a **world**, not as a framework. There is no `App`, no plugin, no `SystemSet`, no change detection, no events in the bevy sense. There is one `World`, one `Schedule` of thirteen steps run once per player turn, and a main loop that owns the terminal.
+nihilurk uses `bevy_ecs` as a **world**, not as a framework. There is no `App`, no plugin, no `SystemSet`, no change detection, no events in the bevy sense. There is one `World`, one `Schedule` of sixteen steps run once per player turn, and a main loop that owns the terminal.
 
 That is a smaller slice of bevy than most projects take, and the parts left on the shelf were left there on purpose.
 
@@ -32,7 +32,7 @@ The counterpart is that behaviour lives in tables of *data about behaviour* rath
 
 ### Resources are the run's global objects
 
-Everything singular about a run: the `Map`, the `GameRng`, the `Depth`, the `GameLog`, the three intent queues, the UI's modal flags. If there is exactly one of a thing and it is not attached to an entity, it is a resource.
+Everything singular about a run: the `Map`, the `GameRng`, the `Depth`, the `GameLog`, the four intent queues, the UI's modal flags. If there is exactly one of a thing and it is not attached to an entity, it is a resource.
 
 Two habits keep them from becoming a junk drawer:
 
@@ -41,7 +41,7 @@ Two habits keep them from becoming a junk drawer:
 
 ### Systems own behaviour in one domain
 
-The schedule is thirteen steps, and each has one job:
+The schedule is sixteen steps, and each has one job. This diagram is a summary, not the list — three steps (`reveal_mimics`, `monster_pickup_system`, `move_system`) are left out because they add nothing to the point this diagram is making about tail position; the full sixteen, in order, are `../reference/input-and-turn-loop.md`:
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{
@@ -72,7 +72,7 @@ Behaviour that does *not* belong to a schedule step belongs to a module verb cal
 Why almost everything is an exclusive system
 --------------------------------------------
 
-Twelve of the thirteen take `&mut World`. Exactly one — `visibility_system` — is written the bevy way, with `Query`, `Res` and `Commands`.
+Fifteen of the sixteen take `&mut World`. Exactly one — `visibility_system` — is written the bevy way, with `Query`, `Res` and `Commands`.
 
 That split is not laziness, and it is not a migration half-finished. It falls out of what roguelike mechanics actually do.
 

@@ -161,6 +161,7 @@ Useful commands
 |-----|--------|
 | `>` or `.` | Go down or walk to the down stairs |
 | `<` or `,` | Go up or walk to the up stairs |
+| `L` | Look around: move the cursor over any tile in view to have it described, including what a monster is dangerous for |
 | `Z` | Open the moves menu |
 | `x` | Close the current menu or cursor |
 | `X` | Close the current menu; with nothing open, quit |
@@ -182,6 +183,7 @@ Quick reference
     Travel        O, steer, Enter
     Auto-fight    Tab
     Fire          f        with a bow or crossbow drawn
+    Look          L        steer the cursor, no turn spent
     Stairs        > down, < up (or . and ,)
     Pack          i
     Use           a        throw t        drop d

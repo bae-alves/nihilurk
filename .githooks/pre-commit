@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#
+# Two checks, both about the same failure: a doc that quietly stops being
+# true. See docs/explanation/documentation-style.md and
+# scs-improvement-plan.md, "Where it stands" -- this hook exists because that
+# section found the schedule step count and the intent queue count stale in
+# three files at once, with nothing that would have caught it.
+#
+# Not run automatically -- git does not trust a repo-tracked hooks directory
+# by default. Enable it once per clone:
+#
+#   git config core.hooksPath .githooks
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+staged() { git diff --cached --name-only --diff-filter=ACM; }
+
+# 1. The house documentation lint, whenever a page under docs/ is staged.
+if staged | grep -q '^docs/'; then
+    ./docs_style.sh || {
+        echo "pre-commit: docs_style.sh failed -- see above." >&2
+        exit 1
+    }
+fi
+
+# 2. The schedule (engine/src/main.rs) and the intent queues
+# (models/src/components.rs) are exactly the two seams that drifted -- three
+# files stale on the step count, one wrong on the queue count. Matching on
+# the whole file would fire on every unrelated edit to either one (main.rs is
+# 400+ lines, components.rs over 1000), so this greps the staged *diff* for
+# the actual markers: a step gaining, losing or reordering an `.after()` edge,
+# or a queue struct being added or removed.
+schedule_diff() { git diff --cached -U0 -- engine/src/main.rs; }
+queue_diff()    { git diff --cached -U0 -- models/src/components.rs; }
+
+touched_schedule=false
+schedule_diff | grep -qE '^[+-].*\.after\(' && touched_schedule=true
+
+touched_queues=false
+queue_diff | grep -qE '^[+-]pub struct (AttackQueue|UseQueue|ThrowQueue|MoveQueue)\b' && touched_queues=true
+
+if ( $touched_schedule || $touched_queues ) && ! staged | grep -q '^docs/'; then
+    echo "pre-commit: this commit changes the turn schedule or an intent queue," >&2
+    echo "  but no page under docs/. If the docs already say this (a comment-only" >&2
+    echo "  or ordering-preserving change), commit with --no-verify. Otherwise:" >&2
+    echo "  docs/explanation/ecs-in-nihilurk.md, docs/how-to/work-with-the-ecs.md," >&2
+    echo "  docs/reference/input-and-turn-loop.md and docs/reference/components.md" >&2
+    echo "  are the pages that name the step count and the queue count." >&2
+    exit 1
+fi
+
+exit 0

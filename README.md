@@ -26,6 +26,8 @@ Where things are
     ./compat_test.sh                     # nihilurk, built and checked on six machines
     ./docs_style.sh                      # docs/, held to the house style
 
+Once per clone, `git config core.hooksPath .githooks` turns on a pre-commit check that runs `docs_style.sh` and refuses a commit that changes the turn schedule or an intent queue without touching a page under `docs/` -- see `.githooks/pre-commit`.
+
 
 Adding content
 --------------
