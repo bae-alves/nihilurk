@@ -124,7 +124,7 @@ fn draw_too_small(f: &mut Frame, area: Rect) {
     f.render_widget(
         Paragraph::new(text)
             .style(Style::default().fg(Color::Yellow))
-            .block(Block::default().borders(Borders::ALL).title(" roog-perf ")),
+            .block(Block::default().borders(Borders::ALL).title(" nihilurk-perf ")),
         area,
     );
 }
@@ -412,7 +412,7 @@ fn kv<'a>(key: &'a str, value: &str, color: Color) -> Line<'a> {
     ])
 }
 
-/// roog draws in the sixteen ANSI colours; ratatui names them differently.
+/// nihilurk draws in the sixteen ANSI colours; ratatui names them differently.
 fn to_ratatui(c: CtColor) -> Color {
     match c {
         CtColor::Black => Color::Black,

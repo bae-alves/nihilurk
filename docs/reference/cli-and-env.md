@@ -25,9 +25,9 @@ Single dash, in any order. Unrecognised arguments are treated as the positional 
 | `-content`   | Print every name the content tables know, then exit.      |
 | `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
 
-`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is installed as `roog(6)`:
+`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is installed as `nihilurk(6)`:
 
-    man roog
+    man nihilurk
 
 `-content` never touches the alternate screen, so it pipes:
 
@@ -45,7 +45,7 @@ One bare argument, meaning one of two things:
   * **A save file**, if it names a file that exists -- verbatim or with `.sav` appended, matched case-insensitively. The run is loaded.
   * **A player name**, otherwise. A fresh run starts under that name.
 
-        cargo run -p engine -- roog          # loads roog.sav if it exists
+        cargo run -p engine -- nihilurk          # loads nihilurk.sav if it exists
         cargo run -p engine -- Bae           # otherwise: a new run as Bae
 
 If the save is *clear data* -- a won run, which is kept rather than deleted -- the game asks before spending it.
@@ -54,13 +54,13 @@ If the save is *clear data* -- a won run, which is kept rather than deleted -- t
 Environment variables
 ---------------------
 
-### ROOG_SPAWN
+### NIHILURK_SPAWN
 
 Comma-separated content names, dropped on free tiles around the player the moment a floor is built. The content author's shortcut: it means you never have to play down to floor 9 to look at a floor-9 monster.
 
-    ROOG_SPAWN="dragon" cargo run -p engine
-    ROOG_SPAWN="bow,arrow,ring of protection" cargo run -p engine
-    ROOG_SPAWN="dart trap, long sword" cargo run -p engine
+    NIHILURK_SPAWN="dragon" cargo run -p engine
+    NIHILURK_SPAWN="bow,arrow,ring of protection" cargo run -p engine
+    NIHILURK_SPAWN="dart trap, long sword" cargo run -p engine
 
 Details:
 
@@ -71,7 +71,7 @@ Details:
   * It applies to **every floor**, not just the first. Descend and your dragon is waiting again.
   * Items arrive exactly as their row describes them -- unenchanted, uncharged, a single arrow rather than a bundle. For the randomised version, find one on the floor.
 
-### ROOG_MAGICMAP
+### NIHILURK_MAGICMAP
 
 Forces the animation a scroll of magic mapping plays, instead of rolling one. Useful when you are working on the animation itself.
 
@@ -89,7 +89,7 @@ Recipes
 
 Look at a new monster immediately:
 
-    ROOG_SPAWN="basilisk" cargo run -p engine
+    NIHILURK_SPAWN="basilisk" cargo run -p engine
 
 Reproduce a run someone reported:
 
@@ -101,7 +101,7 @@ Check a name before you use it:
 
 Test a throw build from turn one:
 
-    ROOG_SPAWN="bow,arrow,arrow,ring of dexterity" cargo run -p engine
+    NIHILURK_SPAWN="bow,arrow,arrow,ring of dexterity" cargo run -p engine
 
 
 See also

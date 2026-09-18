@@ -22,7 +22,7 @@
 //! crate for a name used once. If you are counting seams, count those too.
 //!
 //! That is not a split waiting to happen. **Changing floors is the one moment
-//! in roog when everything is true at once**: the old floor has to stop
+//! in nihilurk when everything is true at once**: the old floor has to stop
 //! existing, the new one has to be built from a seed and stocked from a
 //! different seed, the player has to be stood on a stair, healed, paid for a
 //! promise they kept and relieved of the conditions they were carrying, and

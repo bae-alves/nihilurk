@@ -29,7 +29,7 @@ Quick commands
     ./perf_test.sh --baseline main  pin a criterion baseline by that name
     ./perf_test.sh --help
 
-The rig on its own -- `P="cargo run -p roog-perf --profile profiling --"`:
+The rig on its own -- `P="cargo run -p nihilurk-perf --profile profiling --"`:
 
     $P --headless --workload all      all three, measured and compared
     $P --headless --workload screen   the redraw alone
@@ -37,8 +37,8 @@ The rig on its own -- `P="cargo run -p roog-perf --profile profiling --"`:
     $P --workload both                watch: the reel repainted for real
     $P --headless --workload both --full        the whole video, measured
 
-    cargo bench -p roog-perf                    every benchmark
-    cargo bench -p roog-perf --bench redraw     just the redraw ones
+    cargo bench -p nihilurk-perf                    every benchmark
+    cargo bench -p nihilurk-perf --bench redraw     just the redraw ones
 
 Artifacts always land in `target/perf/`.
 
@@ -85,7 +85,7 @@ The script exits non-zero if formatting, clippy, the test suite or the stress ru
 
 1. Start the dashboard:
 
-       cargo run -p roog-perf --profile profiling
+       cargo run -p nihilurk-perf --profile profiling
 
    It wants a terminal at least 116x35. Smaller and it says so.
 
@@ -104,7 +104,7 @@ The script exits non-zero if formatting, clippy, the test suite or the stress ru
 3. Get the same numbers without the UI
 --------------------------------------
 
-    cargo run -p roog-perf --profile profiling -- --headless --workload all
+    cargo run -p nihilurk-perf --profile profiling -- --headless --workload all
 
 450 frames of reel per workload -- fifteen seconds each at 30 fps, and enough: past that the phase shares and the per-frame costs stop moving, and a full pass reports the same numbers in 3m39s instead. This is exactly what stage 8 runs, and what CI should diff run to run.
 
@@ -118,8 +118,8 @@ Bounding by frames rather than by seconds is deliberate. The same 450 frames ren
 3b. Watch the redraw itself
 ---------------------------
 
-    cargo run -p roog-perf --profile profiling -- --workload screen
-    cargo run -p roog-perf --profile profiling -- --workload both
+    cargo run -p nihilurk-perf --profile profiling -- --workload screen
+    cargo run -p nihilurk-perf --profile profiling -- --workload both
 
 These do not open the dashboard. They take the terminal and repaint it for real, through the same grid the headless run counts bytes of -- so what you are watching is the workload, not a picture of it. The reel loops; `q`, `Esc` or `Ctrl-C` stops it. Needs an 80x25 terminal.
 
@@ -131,13 +131,13 @@ A status line under the frame carries the live figures: work per frame against t
 
 1. On the unchanged tree, pin a baseline:
 
-       cargo bench -p roog-perf -- --save-baseline before
+       cargo bench -p nihilurk-perf -- --save-baseline before
 
 2. Make the change.
 
 3. Measure against it:
 
-       cargo bench -p roog-perf -- --baseline before
+       cargo bench -p nihilurk-perf -- --baseline before
 
 Criterion prints the delta per benchmark and says whether it considers the difference significant. Five groups -- `spawn`, `advance`, `cull`, `current`, `constructors` -- each at four population sizes, so the curve across them also says whether the layer is still linear in mote count.
 
@@ -152,12 +152,12 @@ Stage 9 of the pipeline does this for you and prints the flamegraph as text. To 
 1. Record. `--flat-out` is what makes this worth doing -- see the note under *Why unpaced* below:
 
        perf record -F 999 -g --call-graph fp -o target/perf/perf.data -- \
-           target/profiling/roog-perf --headless --flat-out --duration 15
+           target/profiling/nihilurk-perf --headless --flat-out --duration 15
 
 2. Draw it:
 
        perf script -i target/perf/perf.data | \
-           target/profiling/roog-perf flame -
+           target/profiling/nihilurk-perf flame -
 
 The graph is an icicle -- root at the top, children below, width proportional to samples -- followed by a self-time table, which is usually the part you want.
 
@@ -188,7 +188,7 @@ The stages
 
 Stages 1-4 and 6-8 and 10 need only cargo. That is deliberate: see `../explanation/performance-testing.md`.
 
-**Stages 7 and 8 are two different questions.** Stage 7 runs `--load game`: a real floor from `models::initialize_world`, animated by the batches the real `models::Particles` constructors queue -- one per turn, played out the way `view.rs::play_particles` plays them. It answers "is roog fast enough", and it is what `compat/` gates its whole matrix on. Stage 8 runs the reel, which drives the same layer two to three orders of magnitude past anything roog produces, and answers "where is the cliff". The summary prints both tables, apart, because the rows within one are comparable and the two tables are not.
+**Stages 7 and 8 are two different questions.** Stage 7 runs `--load game`: a real floor from `models::initialize_world`, animated by the batches the real `models::Particles` constructors queue -- one per turn, played out the way `view.rs::play_particles` plays them. It answers "is nihilurk fast enough", and it is what `compat/` gates its whole matrix on. Stage 8 runs the reel, which drives the same layer two to three orders of magnitude past anything nihilurk produces, and answers "where is the cliff". The summary prints both tables, apart, because the rows within one are comparable and the two tables are not.
 
 Everything each stage writes:
 
@@ -292,9 +292,9 @@ So read it in this order:
 2. **How much.** Under 5% on a desktop is inside the noise floor unless it reproduces. Treat 10%+ as worth a second run.
 3. **Does it reproduce.** Run it again on an idle machine before you believe it. To make the comparison fair, pin a baseline rather than drifting against whatever ran last:
 
-       cargo bench -p roog-perf -- --save-baseline before
+       cargo bench -p nihilurk-perf -- --save-baseline before
        ...make the change...
-       cargo bench -p roog-perf -- --baseline before
+       cargo bench -p nihilurk-perf -- --baseline before
 
 The curve *across* the four population sizes is the other thing to read, and it is noise-proof in a way the deltas are not. `thrpt` is per-element throughput, so a layer that is linear in mote count holds it roughly flat as the population grows:
 
@@ -381,7 +381,7 @@ If you would rather have the SVG
 --------------------------------
 
     cargo install flamegraph
-    cargo flamegraph --profile profiling -p roog-perf -- --headless --flat-out
+    cargo flamegraph --profile profiling -p nihilurk-perf -- --headless --flat-out
 
 Note `--profile profiling`, not `--release`: the release profile strips its symbols, and a flamegraph of a stripped binary is a wall of addresses. Both profiles are defined in the workspace `Cargo.toml`, and `profiling` inherits from `release` so the two cannot drift apart.
 

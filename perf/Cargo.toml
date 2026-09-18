@@ -1,15 +1,15 @@
 [package]
-name = "roog-perf"
+name = "nihilurk-perf"
 version = "0.1.0"
 edition = "2024"
 publish = false
-description = "Visual stress test and micro-benchmark rig for roog's particle layer."
+description = "Visual stress test and micro-benchmark rig for nihilurk's particle layer."
 
 [lints]
 workspace = true
 
 [[bin]]
-name = "roog-perf"
+name = "nihilurk-perf"
 path = "src/main.rs"
 # Without this, `cargo bench` also runs the binary's own libtest harness, which
 # is handed criterion's arguments and dies on the first one it does not know
@@ -30,7 +30,7 @@ harness = false
 
 [dependencies]
 # The system under test. Nothing in this crate is allowed to flow back the
-# other way: `models` must never depend on `roog-perf`.
+# other way: `models` must never depend on `nihilurk-perf`.
 models = { path = "../models" }
 # The real `Screen`, so the rig measures the renderer the game has rather than
 # a copy of it. See `perf/src/screen.rs`.

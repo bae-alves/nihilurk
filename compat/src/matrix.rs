@@ -1,4 +1,4 @@
-//! The compatibility matrix: one row per machine roog claims to run on.
+//! The compatibility matrix: one row per machine nihilurk claims to run on.
 //!
 //! The table is `matrix.tsv`, and it is compiled in with `include_str!` rather
 //! than read at runtime. That is the same decision as the content tables and
@@ -17,7 +17,7 @@ const MATRIX: &str = include_str!("../matrix.tsv");
 /// What kind of machine a row describes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Class {
-    /// Has an operating system, a terminal and a shell. roog runs here, and
+    /// Has an operating system, a terminal and a shell. nihilurk runs here, and
     /// this is the only kind of row the stress matrix executes.
     Linux,
     /// No operating system. Only `particle-core` is built for it, and it is
@@ -65,7 +65,7 @@ impl Row {
     /// The container name a run of this row gets. Fixed rather than random so a
     /// run that was killed halfway can be found and removed by hand.
     pub fn container(&self) -> String {
-        format!("roog-compat-{}", self.id)
+        format!("nihilurk-compat-{}", self.id)
     }
 }
 

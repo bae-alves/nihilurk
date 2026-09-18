@@ -12,7 +12,7 @@
 //!   to it.
 //! * [`TrapReveal::Triggered`] — invisible until something sets it off.
 //!
-//! roog has no "wait a turn and search" action, so those three modes are the
+//! nihilurk has no "wait a turn and search" action, so those three modes are the
 //! only ways a trap ever comes to light before it bites.
 //!
 //! The trap components themselves ([`Trap`], [`Snare`], [`SnareKind`],

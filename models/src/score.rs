@@ -187,7 +187,7 @@ fn pay(world: &mut World, points: i32, kills: u32) {
     announce_combo(world);
 }
 
-/// The word. Six letters, which is one per stripe of the flag roog flies by
+/// The word. Six letters, which is one per stripe of the flag nihilurk flies by
 /// default and a clean cycle of any other — see [`crate::pride`].
 const COMBO: &str = "COMBO!";
 

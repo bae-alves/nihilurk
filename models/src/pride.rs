@@ -1,6 +1,6 @@
 //! The flags, one row each.
 //!
-//! roog paints two things in stripes — the word the scorekeeper shouts when a
+//! nihilurk paints two things in stripes — the word the scorekeeper shouts when a
 //! run doubles or a turn combos, and the log line that comes with it — and which
 //! stripes those are is a table, not a constant. `-pride trans` swaps the flag
 //! for the whole run and nothing else in the game notices: everything that
@@ -13,7 +13,7 @@
 //! ## About the colours
 //!
 //! A terminal has sixteen colours and a flag does not care. Each row below is
-//! the closest honest reading of its flag in the palette roog actually has,
+//! the closest honest reading of its flag in the palette nihilurk actually has,
 //! which means two compromises worth knowing about:
 //!
 //! * **Black stripes are [`Color::DarkGrey`]**, the terminal's "bright black".
@@ -36,7 +36,7 @@ pub struct PrideFlag {
     pub stripes: &'static [Color],
 }
 
-/// Every flag roog can fly. The first row is the default.
+/// Every flag nihilurk can fly. The first row is the default.
 #[rustfmt::skip]
 pub const FLAGS: &[PrideFlag] = &[
     // The six-stripe rainbow. Six letters in DOUBLE, six letters in COMBO!,
@@ -108,6 +108,6 @@ pub fn flag_names() -> Vec<&'static str> {
 ///
 /// The flag is documented as turning the stripes off in favour of plain red.
 /// It is not implemented, it will not be implemented, and the sentence below is
-/// the entire feature. It is the one place in roog where the documentation and
+/// the entire feature. It is the one place in nihilurk where the documentation and
 /// the program disagree on purpose.
 pub const PRIDE_OFF_REFUSAL: &str = "ERROR: You cannot ever take our pride.";

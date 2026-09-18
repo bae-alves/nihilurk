@@ -90,7 +90,7 @@ Dial 3: which row within a category
 
     TrapDef { effect: ..., weight: 3, min_depth: 9, ... },
 
-**Items** do not have per-row rarity today, on purpose: within a category roog picks evenly, and the design likes it that way. The hook exists if you want it -- `ItemDef::weight()` and `ItemDef::min_depth()` are trait methods with defaults of `10` and `1`, and the picker already honours them. To give one category per-row rarity, add a `weight: u32` field to its `Def` struct and return it:
+**Items** do not have per-row rarity today, on purpose: within a category nihilurk picks evenly, and the design likes it that way. The hook exists if you want it -- `ItemDef::weight()` and `ItemDef::min_depth()` are trait methods with defaults of `10` and `1`, and the picker already honours them. To give one category per-row rarity, add a `weight: u32` field to its `Def` struct and return it:
 
     impl ItemDef for ArmorDef {
         fn name(&self) -> &'static str { self.name }

@@ -4,7 +4,7 @@
 //! the wrong question for this rig and answers it late: the allocator caches
 //! freed blocks, so a workload that churns hard and frees everything shows a
 //! flat RSS line while doing millions of allocations a second. That is exactly
-//! the shape of roog's particle layer, where every mote heap-allocates a
+//! the shape of nihilurk's particle layer, where every mote heap-allocates a
 //! `Vec<(char, Color)>` for its keyframes and drops it a few frames later.
 //!
 //! So the rig counts the calls itself. Three relaxed atomics updated on the

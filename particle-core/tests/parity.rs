@@ -7,7 +7,7 @@
 //! animate differently, and the bare-metal check in `compat/` would be proving
 //! something about code the game does not run.
 //!
-//! So this walks the whole domain roog actually uses -- a blast radius, in
+//! So this walks the whole domain nihilurk actually uses -- a blast radius, in
 //! quarter-tile steps, out past any map -- and requires bit-for-bit equality.
 
 #[test]

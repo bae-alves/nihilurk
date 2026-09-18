@@ -106,7 +106,7 @@ Every row implements `ItemDef`, which supplies:
     fn min_depth(&self) -> u8                  default 1
     fn spawn_as_loot(&self, world, rng, pos)   default: calls spawn
 
-No item row overrides `weight` or `min_depth` today — within a category roog picks evenly on purpose.
+No item row overrides `weight` or `min_depth` today — within a category nihilurk picks evenly on purpose.
 
 ### POTIONS — PotionDef
 

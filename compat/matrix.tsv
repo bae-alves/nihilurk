@@ -1,4 +1,4 @@
-# roog's compatibility matrix: one row per machine roog claims to run on.
+# nihilurk's compatibility matrix: one row per machine nihilurk claims to run on.
 #
 # This file is the pipeline. `cross_build.sh` builds a row, `stress_test_matrix.sh`
 # runs a row under emulation with the row's limits applied, and the report prints
@@ -9,7 +9,7 @@
 #
 #   id        short name, used for file names and report rows
 #   target    rust target triple
-#   class     linux  -- has an OS, a terminal and a shell; roog runs here
+#   class     linux  -- has an OS, a terminal and a shell; nihilurk runs here
 #             bare   -- no OS; only `particle-core` is built, and only checked
 #   platform  docker --platform value for a `native` row, or "-" for bare
 #             metal. A `qemu` row's container runs as the host's own
@@ -29,15 +29,15 @@
 # it names, not to pass.
 #
 # House rule: every `linux` row's image must have a shell in it (alpine's
-# /bin/sh, in every row here). That is not decoration -- roog needs a real
+# /bin/sh, in every row here). That is not decoration -- nihilurk needs a real
 # terminal to draw into, and a distroless or scratch image can't give it one,
 # so a row without a shell couldn't run the game if it wanted to. `linux`
 # rows other than the two natives (`cloud`, `potato`) are all ARM boards
 # people actually run a full Linux + shell on -- Pi 2 through 4 and the
 # Compute Module -- rather than instances that only exist as cloud abstractions,
-# because the point of this matrix is "does roog run on that hardware", and a
+# because the point of this matrix is "does nihilurk run on that hardware", and a
 # board is hardware in a way a VM SKU is not. `graviton` is kept anyway: an
-# M-series Mac's Linux VM is a real, common way roog gets built and played.
+# M-series Mac's Linux VM is a real, common way nihilurk gets built and played.
 # stress_test_matrix.sh checks the shell claim before it trusts it -- see
 # `check_has_shell` there.
 

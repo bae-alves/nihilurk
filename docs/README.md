@@ -1,4 +1,4 @@
-roog documentation
+nihilurk documentation
 ==================
 
 This is the documentation for people who want to *put things in the dungeon*: monsters, items, traps, magic. It lives in the repository, in plain text, wide enough to `cat` and short enough to `head`.
@@ -31,7 +31,7 @@ Start here
 | Look up how a frame gets to the screen | `reference/rendering.md`             |
 | Reach an entity and change it       | `how-to/work-with-the-ecs.md`           |
 | Understand why it is built this way | `explanation/data-driven-content.md`    |
-| Understand how bevy_ecs is used here| `explanation/ecs-in-roog.md`            |
+| Understand how bevy_ecs is used here| `explanation/ecs-in-nihilurk.md`            |
 | Know what an effect should look like | `explanation/the-feel-layer.md`        |
 | Write or edit a page in here        | `explanation/documentation-style.md`    |
 | Know what good numbers look like    | `explanation/combat-and-balance.md`     |
@@ -79,7 +79,7 @@ Every page names its own audience and prerequisites in a header. Broadly:
                     numbers. Lives in `tutorial/` and `how-to/`.
 
   Engine developer  Adds systems, changes how content is spawned or
-                    resolved. Starts at `explanation/ecs-in-roog.md` and
+                    resolved. Starts at `explanation/ecs-in-nihilurk.md` and
                     `how-to/work-with-the-ecs.md`, then lives in
                     `reference/` and `explanation/`.
                     `engine/` itself (input handling, rendering) is
@@ -90,7 +90,7 @@ Every page names its own audience and prerequisites in a header. Broadly:
                     `cargo test`. See `reference/input-and-turn-loop.md`
                     and `reference/rendering.md`.
 
-The game design document (`../gdd.md`) is a third thing again: what roog is trying to *be*. It is not a spec of the code.
+The game design document (`../gdd.md`) is a third thing again: what nihilurk is trying to *be*. It is not a spec of the code.
 
 
 The rule that keeps this true
@@ -116,7 +116,7 @@ Quick sanity check
     cargo test --test determinism             # seeds still mean what they meant
     cargo test -p engine --test workspace     # the root test run still covers everything
     cargo run -p engine -- -content           # what the game knows
-    ROOG_SPAWN="dragon" cargo run -p engine   # put one in front of me
+    NIHILURK_SPAWN="dragon" cargo run -p engine   # put one in front of me
 
 And the two pipelines, which are slower and answer different questions:
 

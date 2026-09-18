@@ -1,7 +1,7 @@
 //! A flamegraph you can read over SSH.
 //!
 //! The usual `cargo flamegraph` output is an SVG, which assumes a machine with
-//! a browser on it. roog's whole premise is that it runs on anything with a
+//! a browser on it. nihilurk's whole premise is that it runs on anything with a
 //! terminal (see the portability note in `gdd.md`), and a profiling rig that
 //! quietly required X11 to read its own results would not hold to that. So this
 //! module renders the graph as text.

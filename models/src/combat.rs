@@ -157,7 +157,7 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
 /// What a corpse is worth, paid into the player's score the moment a creature
 /// stops being one ([`crate::score::award_kill`]).
 ///
-/// It never asks whose blade it was. Half the ways a monster dies in roog have
+/// It never asks whose blade it was. Half the ways a monster dies in nihilurk have
 /// no swinger to ask about — a bolt, a blast a room away, a trapdoor it walked
 /// into — and a scoreboard that paid for some of those and not others would
 /// only be teaching the player to kill things in the approved fashion.
@@ -701,7 +701,7 @@ enum Spark {
 /// all that is left downstream.
 ///
 /// Deliberately not unit-tested, even though being pure makes it easy to test.
-/// Everything it decides is a spark glyph and a screen shake, and roog does not
+/// Everything it decides is a spark glyph and a screen shake, and nihilurk does not
 /// hold its cosmetics to automated tests — they are checked by playing, which
 /// is the only thing that can tell whether a kick reads as a kick. Note the one
 /// rule that is not obvious from any single line: `strike` and `kill_kick` are

@@ -1,7 +1,7 @@
 Tutorial: add your first item
 =============================
 
-    Audience       Anyone who wants to add content to roog. You have
+    Audience       Anyone who wants to add content to nihilurk. You have
                    written a little Rust, or a little of something like
                    it. You have never touched this codebase.
     Prerequisites  A checkout, and a working `cargo`. That is all.
@@ -20,7 +20,7 @@ This is a lesson, not a recipe. It takes the longest road on purpose. When you w
 flowchart LR
   S1["1 · find<br/>the table"]:::cold --> S2["2 · add<br/>a row"]:::hero
   S2 --> S3["3 · -content<br/><i>the game knows it</i>"]:::cold
-  S3 --> S4["4 · ROOG_SPAWN<br/><i>hold it</i>"]:::hero
+  S3 --> S4["4 · NIHILURK_SPAWN<br/><i>hold it</i>"]:::hero
   S4 --> S5["5 · cargo test<br/><i>it stays proved</i>"]:::cold
   S5 --> S6["6 · .missile(6)<br/><i>change what it does</i>"]:::magic
   S6 --> S7["7 · keep it,<br/>or git checkout"]
@@ -34,7 +34,7 @@ flowchart LR
 What you are about to learn
 ---------------------------
 
-In roog, a piece of content is **a row in a table**. Not a class, not a file, not a subclass of `Weapon` -- a line. The line says what a thing is called, how it draws, and what it carries into the world. Nothing else in the game enumerates weapons, so nothing else needs to hear about yours.
+In nihilurk, a piece of content is **a row in a table**. Not a class, not a file, not a subclass of `Weapon` -- a line. The line says what a thing is called, how it draws, and what it carries into the world. Nothing else in the game enumerates weapons, so nothing else needs to hear about yours.
 
 By the end you will have added a quarterstaff, and you will believe that sentence.
 
@@ -101,13 +101,13 @@ Step 4: hold it in your hands
 
 Waiting for a 3.6%-chance drop to prove your work is a miserable way to spend an evening. So there is a shortcut:
 
-    ROOG_SPAWN="quarterstaff" cargo run -p engine
+    NIHILURK_SPAWN="quarterstaff" cargo run -p engine
 
 The floor is built as normal, and then the things you named are dropped on free tiles next to you. Walk one step, pick it up, wield it.
 
 You can ask for several at once, and mix kinds freely:
 
-    ROOG_SPAWN="quarterstaff,dragon,ring of protection" cargo run -p engine
+    NIHILURK_SPAWN="quarterstaff,dragon,ring of protection" cargo run -p engine
 
 Anything the tables do not recognise is skipped in silence. See `../reference/cli-and-env.md`.
 
@@ -139,7 +139,7 @@ Suppose your quarterstaff is really a javelin. Change your row to:
 
 Rebuild, and throw it at something:
 
-    ROOG_SPAWN="quarterstaff,bat" cargo run -p engine
+    NIHILURK_SPAWN="quarterstaff,bat" cargo run -p engine
 
 It now flies properly: it goes around the target's armour die instead of being blunted by it, it is spent on what it hits, and nothing can pluck it out of the air. You did not implement any of that. Those three behaviours belong to `.missile(...)`, and every row that asks for them gets all three.
 
@@ -163,7 +163,7 @@ What you actually learned
 
   * Nothing else has to be told. No registry, no factory, no `match`.
 
-  * The tables are data, so the tools work on them for free: the `-content` listing, `ROOG_SPAWN`, and the table tests all read the same rows you edited.
+  * The tables are data, so the tools work on them for free: the `-content` listing, `NIHILURK_SPAWN`, and the table tests all read the same rows you edited.
 
 Weapons are the easy case. Some categories need one more edit -- a potion needs somebody to say what drinking it does, a ring needs an identity to be identified by. The next section is one worked row for each of the nine, so you can see exactly where the line falls.
 
@@ -171,11 +171,11 @@ Weapons are the easy case. Some categories need one more edit -- a potion needs 
 One row for every kind
 ----------------------
 
-Nine categories drop in roog, and they divide cleanly into two halves: the ones that are a row and nothing else, and the ones that also need somebody to say what the new thing *does*.
+Nine categories drop in nihilurk, and they divide cleanly into two halves: the ones that are a row and nothing else, and the ones that also need somebody to say what the new thing *does*.
 
 The second half is not a chore the design failed to remove. A potion is a promise that drinking it will do something, and no table can invent what. What the design does remove is everything else: you never register a type, never touch the loot roller, never add a name to a list.
 
-Try any of these the way you tried the quarterstaff -- add the row, `cargo build`, then `ROOG_SPAWN="<name>" cargo run -p engine`.
+Try any of these the way you tried the quarterstaff -- add the row, `cargo build`, then `NIHILURK_SPAWN="<name>" cargo run -p engine`.
 
 ### A row and nothing else
 

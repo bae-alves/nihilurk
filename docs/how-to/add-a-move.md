@@ -15,7 +15,7 @@ One enum variant, one catalog row, one arm of an exhaustive match. The same shap
 A move is not an item
 ----------------------
 
-Every other thing you can pick up in roog is an entity: it has a `Position` on the floor, an `Item` marker, a pack slot, and a fate when you drop or throw it. A move has none of that. It is never spawned, never lies on a floor, and cannot be dropped or thrown -- there is nothing to drop.
+Every other thing you can pick up in nihilurk is an entity: it has a `Position` on the floor, an `Item` marker, a pack slot, and a fate when you drop or throw it. A move has none of that. It is never spawned, never lies on a floor, and cannot be dropped or thrown -- there is nothing to drop.
 
 A move lives as a bare [`MoveEffect`](../../models/src/components.rs) value inside a creature's `Moveset` component:
 
@@ -23,7 +23,7 @@ A move lives as a bare [`MoveEffect`](../../models/src/components.rs) value insi
         pub slots: Vec<MoveEffect>,
     }
 
-Today only the player has one, taught in play by heroic mana (an uncommon coin-table row that puts a random, not-yet-known move straight into the taker's `Moveset`, up to `constants::moves::MOVESET_CAP` -- four) rather than started with any. Giving a move to the player for testing without going through the drop table means putting it in that `Vec` by hand -- there is no `ROOG_SPAWN` for this, because there is no entity to spawn. See "Hold it in your hands" below.
+Today only the player has one, taught in play by heroic mana (an uncommon coin-table row that puts a random, not-yet-known move straight into the taker's `Moveset`, up to `constants::moves::MOVESET_CAP` -- four) rather than started with any. Giving a move to the player for testing without going through the drop table means putting it in that `Vec` by hand -- there is no `NIHILURK_SPAWN` for this, because there is no entity to spawn. See "Hold it in your hands" below.
 
 The other consequence of not being an item: a move costs [`Magic`](../../models/src/components.rs), not a battery. `MoveDef::cost` is spent by [`move_system`](../../models/src/items/moves.rs) every time the *player* triggers it. A monster that happens to do the same trick under its own steam -- the dragon's fireball is the one example today -- does not go anywhere near `Moveset`, `MoveQueue` or a Magic cost; it is wired straight into `crate::ai` and `crate::items::dragon_breath`, and pays nothing. A `MoveEffect` variant is a shared *mechanic*, not a shared *economy*.
 
@@ -112,7 +112,7 @@ Routing through `elemental_blast` gets this for free (it's checked once, central
 Hold it in your hands
 ----------------------
 
-There is no `ROOG_SPAWN` for a move. In play the only way to learn one is heroic mana (see "A move is not an item" above); to try Ice Bolt without hunting for mana, replace the player's starting `Moveset::default()`, in `initialize_world` (`models/src/map/levels.rs`), with:
+There is no `NIHILURK_SPAWN` for a move. In play the only way to learn one is heroic mana (see "A move is not an item" above); to try Ice Bolt without hunting for mana, replace the player's starting `Moveset::default()`, in `initialize_world` (`models/src/map/levels.rs`), with:
 
     Moveset {
         slots: vec![MoveEffect::IceBolt],

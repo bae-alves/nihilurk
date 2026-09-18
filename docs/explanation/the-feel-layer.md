@@ -7,11 +7,11 @@ The feel layer
                    one.
     Prerequisites  None. `../reference/content-tables.md` if you want to
                    know which row produced the thing being described.
-    This is        Understanding: what roog spends its cosmetics on, and
+    This is        Understanding: what nihilurk spends its cosmetics on, and
                    what each one is trying to tell the player. The dry
                    facts — which row, which field — are the reference.
 
-roog is a terminal game with sixteen colours and one glyph per tile. Almost everything it can say to the player, it says in a line of text. The feel layer is the part that does not: a spark where a blow landed, a beam racing down a corridor, a map that lurches when something hits hard enough to deserve it.
+nihilurk is a terminal game with sixteen colours and one glyph per tile. Almost everything it can say to the player, it says in a line of text. The feel layer is the part that does not: a spark where a blow landed, a beam racing down a corridor, a map that lurches when something hits hard enough to deserve it.
 
 None of it is gameplay. None of it is saved. Every bit of it can be switched off (`-nb`, `-nshake`) and the game underneath is identical. It exists because a roguelike turn is a wall of text, and a wall of text does not tell you *which of the eleven things that just happened was the one that nearly killed you*.
 

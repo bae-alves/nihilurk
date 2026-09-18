@@ -1,9 +1,9 @@
-//! roog-compat -- the reporting half of the compatibility pipeline.
+//! nihilurk-compat -- the reporting half of the compatibility pipeline.
 //!
-//!     roog-compat                 the dashboard
-//!     roog-compat --watch         the dashboard, re-reading as the matrix runs
-//!     roog-compat report          plain text; no UI, for CI and for piping
-//!     roog-compat gate            exit non-zero if a machine stopped running roog
+//!     nihilurk-compat                 the dashboard
+//!     nihilurk-compat --watch         the dashboard, re-reading as the matrix runs
+//!     nihilurk-compat report          plain text; no UI, for CI and for piping
+//!     nihilurk-compat gate            exit non-zero if a machine stopped running nihilurk
 //!
 //! It measures nothing itself. `compat/cross_build.sh` builds the game for
 //! every machine in the matrix and `compat/stress_test_matrix.sh` runs it under
@@ -14,7 +14,7 @@
 //!
 //! # What the numbers are about
 //!
-//! Whether **roog** runs on the machine, and how well. Not whether the stress
+//! Whether **nihilurk** runs on the machine, and how well. Not whether the stress
 //! test does. The reel -- Bad Apple, ~800 motes a frame -- is the ceiling, run
 //! for the headroom figure and never gated on; the verdict column is always
 //! the game's own load on a real dungeon floor. See `verdict.rs` and
@@ -56,7 +56,7 @@ fn main() -> ExitCode {
     let opts = match Options::parse(&args) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("roog-compat: {e}");
+            eprintln!("nihilurk-compat: {e}");
             return ExitCode::FAILURE;
         }
     };
@@ -117,15 +117,15 @@ impl Options {
 fn print_help() {
     println!(
         "\
-roog-compat -- does roog run on the machines it claims to?
+nihilurk-compat -- does nihilurk run on the machines it claims to?
 
 USAGE
-    roog-compat [--dir DIR]          the dashboard (needs a terminal)
-    roog-compat --watch              the dashboard, re-reading while the
+    nihilurk-compat [--dir DIR]          the dashboard (needs a terminal)
+    nihilurk-compat --watch              the dashboard, re-reading while the
                                      matrix runs in another terminal
-    roog-compat report [--dir DIR]   plain text; no UI, for CI and pipes
-    roog-compat gate                 one line and an exit code: 1 if any
-                                     machine stopped running roog
+    nihilurk-compat report [--dir DIR]   plain text; no UI, for CI and pipes
+    nihilurk-compat gate                 one line and an exit code: 1 if any
+                                     machine stopped running nihilurk
 
 OPTIONS
     --dir <DIR>   where the result files are   [default: target/compat]
@@ -143,7 +143,7 @@ WHERE THE NUMBERS COME FROM
     or ./compat_test.sh to do all three and open this.
 
 WHAT IS BEING JUDGED
-    roog, under the game's own load: a real dungeon floor animated by the
+    nihilurk, under the game's own load: a real dungeon floor animated by the
     batches the game actually queues. The Bad Apple reel is the ceiling --
     two to three orders of magnitude past anything the game produces. It
     is reported for headroom and nothing is ever gated on it.
@@ -167,7 +167,7 @@ fn report(results: &Results) -> ExitCode {
     let linux = matrix::selected(&[], Some(Class::Linux));
     let bare = matrix::selected(&[], Some(Class::Bare));
 
-    let _ = writeln!(w, "\n=== does roog run here? ===\n");
+    let _ = writeln!(w, "\n=== does nihilurk run here? ===\n");
     if !ui::has_anything(results) {
         let _ = writeln!(
             w,
@@ -346,7 +346,7 @@ fn report_bare(w: &mut String, bare: &[matrix::Row]) {
     let _ = writeln!(
         w,
         "\n  These rows prove the particle arithmetic compiles with no operating\n  \
-         system under it. They do not run roog: crossterm needs a terminal, and\n  \
+         system under it. They do not run nihilurk: crossterm needs a terminal, and\n  \
          a microcontroller has none. ./compat/nostd_check.sh is what checks them."
     );
 }
@@ -433,9 +433,9 @@ fn report_footprint(w: &mut String, results: &Results, linux: &[matrix::Row]) {
     }
     let _ = writeln!(
         w,
-        "\n  `game` is the whole of roog as one static musl binary -- no libc to\n  \
+        "\n  `game` is the whole of nihilurk as one static musl binary -- no libc to\n  \
          install, no INTERP segment, nothing to go wrong on a machine with a\n  \
-         different distribution on it. `rig` is roog-perf, which is what the\n  \
+         different distribution on it. `rig` is nihilurk-perf, which is what the\n  \
          container actually executes and is not shipped to anyone.\n  \
          Who is to blame for those bytes: {}/blame-<machine>.txt",
         results.dir.display()
@@ -521,7 +521,7 @@ fn dash() -> String {
 /// One line and an exit code, for CI and for `compat_test.sh`'s last stage.
 ///
 /// A machine that got slower does not fail. A machine that stopped running
-/// roog does. See [`Band::is_failure`] for why the line is drawn there.
+/// nihilurk does. See [`Band::is_failure`] for why the line is drawn there.
 fn gate(results: &Results) -> ExitCode {
     let band = verdict::overall(&results.runs);
     let broken: Vec<&str> = results
@@ -532,18 +532,18 @@ fn gate(results: &Results) -> ExitCode {
         .collect();
 
     if results.runs.is_empty() {
-        println!("roog-compat: nothing measured -- run ./compat_test.sh");
+        println!("nihilurk-compat: nothing measured -- run ./compat_test.sh");
         return ExitCode::FAILURE;
     }
     if broken.is_empty() {
         println!(
-            "roog-compat: {} -- roog runs on every machine in the matrix",
+            "nihilurk-compat: {} -- nihilurk runs on every machine in the matrix",
             band.label()
         );
         return ExitCode::SUCCESS;
     }
     println!(
-        "roog-compat: {} -- roog no longer runs on: {}",
+        "nihilurk-compat: {} -- nihilurk no longer runs on: {}",
         band.label(),
         broken.join(", ")
     );
@@ -556,7 +556,7 @@ fn gate(results: &Results) -> ExitCode {
 
 fn dashboard(results: Results, opts: &Options) -> ExitCode {
     if !std::io::stdout().is_terminal() {
-        eprintln!("roog-compat: stdout is not a terminal; use `roog-compat report`");
+        eprintln!("nihilurk-compat: stdout is not a terminal; use `nihilurk-compat report`");
         return ExitCode::FAILURE;
     }
     let app = App::new(ui::linux_rows(), results, opts.dir.clone(), opts.watch);
@@ -566,7 +566,7 @@ fn dashboard(results: Results, opts: &Options) -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("roog-compat: {e}");
+            eprintln!("nihilurk-compat: {e}");
             ExitCode::FAILURE
         }
     }

@@ -1,4 +1,4 @@
-//! The terminal grid roog paints onto, and the diff that gets it there.
+//! The terminal grid nihilurk paints onto, and the diff that gets it there.
 //!
 //! One crate, so there is **one** `Screen` in the workspace. `engine` paints
 //! the game into it; `perf` measures what a frame of that costs. Both are

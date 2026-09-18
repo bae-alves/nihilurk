@@ -88,7 +88,7 @@ impl std::error::Error for ReelError {}
 
 impl Reel {
     /// Read and parse a reel. `y_offset` is added to every cell's row, which is
-    /// how a 20-row reel gets centred in roog's 22-row map without the frame
+    /// how a 20-row reel gets centred in nihilurk's 22-row map without the frame
     /// loop having to think about it.
     pub fn load(path: &Path, y_offset: u16) -> Result<Self, ReelError> {
         let raw = fs::read_to_string(path).map_err(ReelError::Io)?;
@@ -173,7 +173,7 @@ impl Frame {
 
 /// The colour a ramp glyph burns in, or `None` for a cell dark enough to leave
 /// unlit. Four greys is all a black-and-white reel can use, and matching the
-/// palette roog itself draws in keeps the canvas honest -- this is the same
+/// palette nihilurk itself draws in keeps the canvas honest -- this is the same
 /// `crossterm::style::Color` the game hands its own particles.
 fn shade(glyph: char) -> Option<Color> {
     let brightness = RAMP.iter().position(|&c| c == glyph)?;

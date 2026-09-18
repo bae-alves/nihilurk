@@ -81,7 +81,7 @@ If your ammunition answers to a launcher that does not exist yet, you need a new
 
 A launcher has no attack die and no armour die. All it does is put an effect on whoever holds it; ammunition that names the same effect is loosed rather than lobbed. Draws as `}`.
 
-`melee_cap` is the most it is worth swung at something, whatever the dice or the enchantment say -- 1 for both existing launchers. It is the price of the hand: a launcher fills the slot a sword would have, and roog has no wait action to swap back with.
+`melee_cap` is the most it is worth swung at something, whatever the dice or the enchantment say -- 1 for both existing launchers. It is the price of the hand: a launcher fills the slot a sword would have, and nihilurk has no wait action to swap back with.
 
 Neither half knows the other exists. That is why a sling is one row here and one row in `AMMO`.
 
@@ -187,7 +187,7 @@ Verify, whichever you added
 
     cargo build
     cargo run -p engine -- -content | grep '<your name>'
-    ROOG_SPAWN="<your name>" cargo run -p engine
+    NIHILURK_SPAWN="<your name>" cargo run -p engine
     cargo test --test content
 
 The tests check that names are unique, that every row can be built by name, that what spawns keeps its name, that every drop category can still produce something, and -- for identifiable kinds -- that every type got an appearance.

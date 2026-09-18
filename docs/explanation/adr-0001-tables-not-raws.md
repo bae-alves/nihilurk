@@ -13,7 +13,7 @@ ADR 0001: content lives in Rust tables, not in raw data files
 Context
 -------
 
-roog's content had grown into a shape that was already half data: one `const` table per item kind, a bestiary table, a row per thing. Three things were still hand-written code, and each was a place where adding content meant editing something unrelated to the content:
+nihilurk's content had grown into a shape that was already half data: one `const` table per item kind, a bestiary table, a row per thing. Three things were still hand-written code, and each was a place where adding content meant editing something unrelated to the content:
 
   * The loot table was a `match` over hand-computed percentage ranges in `map.rs` (now `map/population.rs`). Adding a category meant recomputing every boundary.
   * Monster depth gating was a `tier` field decoded by a formula (`(depth - 1) / 2`, capped at 3) that lived in the spawner, not on the row.
@@ -47,7 +47,7 @@ Rejected:
 Rationale for rejecting external raws
 -------------------------------------
 
-**Portability.** roog is meant to run on anything with a terminal, and ships as one static binary with nothing beside it. Raw files introduce a data-directory lookup -- relative to the binary? the working directory? an install prefix? -- and a class of failure ("could not find `raws/spawns.json`") that a single binary simply does not have. Embedding the files with `include_str!` avoids that but throws away the runtime editability that was the whole point.
+**Portability.** nihilurk is meant to run on anything with a terminal, and ships as one static binary with nothing beside it. Raw files introduce a data-directory lookup -- relative to the binary? the working directory? an install prefix? -- and a class of failure ("could not find `raws/spawns.json`") that a single binary simply does not have. Embedding the files with `include_str!` avoids that but throws away the runtime editability that was the whole point.
 
 **Compile-time checking is worth more here than late binding.** A typo in a `Color`, a missing field, a `Grant` naming a component that does not exist -- all of these are compile errors today. In JSON they become startup panics at best and silent defaults at worst. The tables are edited by the same people who edit the engine; giving up the type system to serve a designer who does not exist yet is a bad trade.
 
@@ -55,7 +55,7 @@ Rationale for rejecting external raws
 
 **The save format is coupled to the tables by name.** Items are saved as a name and rebuilt via `restore_from_catalog`; monsters recover their innate grants by bestiary lookup. That coupling is good -- it keeps saves small -- but it means a raw file and a save file can disagree. Compiled tables cannot drift from the binary that reads them.
 
-**The iteration win is smaller than it looks.** The argument for raws is "edit and rerun without a rebuild". A content-only rebuild here is about **1.2 seconds**. Against that, `ROOG_SPAWN` removes the far larger cost, which was never compilation -- it was playing down to floor 9 to see a floor-9 monster.
+**The iteration win is smaller than it looks.** The argument for raws is "edit and rerun without a rebuild". A content-only rebuild here is about **1.2 seconds**. Against that, `NIHILURK_SPAWN` removes the far larger cost, which was never compilation -- it was playing down to floor 9 to see a floor-9 monster.
 
 **Three dependencies and a parse step, for nothing measurable.** A raw port would add a format crate, a loader, an error path, and a startup cost, to serve a workflow already served.
 
@@ -77,7 +77,7 @@ Benefits realised:
 
   * The loot table has no arithmetic in it. Category weights are relative, so a new category cannot invalidate an existing one.
 
-  * `content_names()` and `spawn_named` gave `-content`, `ROOG_SPAWN` and a table-driven test suite for one function each.
+  * `content_names()` and `spawn_named` gave `-content`, `NIHILURK_SPAWN` and a table-driven test suite for one function each.
 
   * Zero new dependencies. The binary is still self-contained.
 

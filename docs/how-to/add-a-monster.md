@@ -44,7 +44,7 @@ The recipe
 3. Build and look at it:
 
        cargo build
-       ROOG_SPAWN="basilisk" cargo run -p engine
+       NIHILURK_SPAWN="basilisk" cargo run -p engine
 
 4. Run the table tests, which will now include your row:
 

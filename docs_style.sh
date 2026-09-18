@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# docs_style.sh -- roog's documentation linter.
+# docs_style.sh -- nihilurk's documentation linter.
 #
 # Checks every page under docs/ against the house style, which is written down
 # in docs/explanation/documentation-style.md. Each check below is one section
@@ -27,7 +27,7 @@
 #
 # Why not prettier, or any other markdown formatter
 # -------------------------------------------------
-# Because it would fight the style rather than enforce it. roog's pages are
+# Because it would fight the style rather than enforce it. nihilurk's pages are
 # hand-wrapped plain text with setext headings, four-space code blocks and a
 # column-aligned See-also block, all of which exist so that `cat docs/…` reads
 # correctly in a terminal. Every markdown formatter worth the name reflows

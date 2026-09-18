@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# perf_test.sh -- roog's performance pipeline.
+# perf_test.sh -- nihilurk's performance pipeline.
 #
 # Static analysis, then micro-benchmarks, then **the game measured under its own
 # load**, then the same layer driven past the cliff, then a profile.
@@ -8,13 +8,13 @@
 # Two workloads, two questions, and the pipeline wants both. `--load game`
 # builds a real floor and animates it with the batches the real constructors
 # queue -- one per turn, the way `view.rs::play_particles` plays them -- and
-# answers "is roog fast enough". The reel drives the particle layer two to
-# three orders of magnitude past anything roog produces and answers "where is
+# answers "is nihilurk fast enough". The reel drives the particle layer two to
+# three orders of magnitude past anything nihilurk produces and answers "where is
 # the cliff". On a desktop the second is the interesting one; on a Pi Zero it
 # is the first, which is why `compat/` gates its matrix on the game load and
 # keeps the reel as the ceiling. Every stage prints what it found and moves on; a stage whose tool is
 # not installed is skipped with a note saying how to get it, never fataled.
-# That is deliberate. roog is meant to build and run on anything with a
+# That is deliberate. nihilurk is meant to build and run on anything with a
 # terminal, and a pipeline that only works on a workstation with `perf`,
 # cargo-bloat and a browser installed would be a pipeline nobody runs.
 #
@@ -53,7 +53,7 @@ FPS=30
 RUN_BENCH=1
 RUN_GUI=0
 BASELINE=""
-PKG=roog-perf
+PKG=nihilurk-perf
 OUT=target/perf
 
 while [ $# -gt 0 ]; do
@@ -103,7 +103,7 @@ have_cargo() { cargo "$1" --version >/dev/null 2>&1; }
 
 mkdir -p "$OUT"
 
-printf '%s\n' "$B  roog particle-layer performance pipeline$R"
+printf '%s\n' "$B  nihilurk particle-layer performance pipeline$R"
 note "$(rustc -V 2>/dev/null || echo 'rustc: not found')"
 note "target ${FPS}fps, density x${DENSITY}, ${FRAMES}-frame stress run"
 
@@ -180,7 +180,7 @@ stage "Build"
 SHIP_RUSTFLAGS="${RUSTFLAGS:-}"
 export RUSTFLAGS="${RUSTFLAGS:-} -C force-frame-pointers=yes"
 if cargo build --profile profiling -p "$PKG" -p engine >"$OUT/build.txt" 2>&1; then
-  BIN="target/profiling/roog-perf"
+  BIN="target/profiling/nihilurk-perf"
   GAME="target/profiling/engine"
   ok "built $BIN"
   [ -f "$GAME" ] && note "game binary: $(du -h "$GAME" | cut -f1) (with symbols)"
@@ -248,7 +248,7 @@ fi
 # ---------------------------------------------------------------------------
 # 7. The game, measured
 # ---------------------------------------------------------------------------
-# The load roog actually produces: a real floor from `models::initialize_world`,
+# The load nihilurk actually produces: a real floor from `models::initialize_world`,
 # drawn the way `view.rs` draws it, animated by the batches the real
 # `models::Particles` constructors queue when something is hit, zapped or
 # killed. One batch per turn, played out frame by frame -- exactly the loop
@@ -256,7 +256,7 @@ fi
 #
 # This is the stage that answers "is the game fast enough", and it is the one
 # `compat/` gates its whole matrix on. The reel below is the *ceiling*: it
-# drives the particle layer two to three orders of magnitude past anything roog
+# drives the particle layer two to three orders of magnitude past anything nihilurk
 # asks for, which is how you find the cliff, and which is a different question.
 # Running only the reel measures a load the game never produces.
 #
@@ -326,7 +326,7 @@ else
        "$BIN" --headless --flat-out --workload both --duration "$DURATION" \
        --density "$DENSITY" --fps "$FPS" \
        >"$OUT/perf-record.txt" 2>&1; then
-    # Raw `perf script`, not folded stacks: `roog-perf flame` sniffs either, and
+    # Raw `perf script`, not folded stacks: `nihilurk-perf flame` sniffs either, and
     # the raw form keeps the per-sample detail, so the recording can be re-read
     # later or fed to inferno/stackcollapse without re-running anything.
     perf script -i "$OUT/perf.data" > "$OUT/perf.script" 2>/dev/null
@@ -361,7 +361,7 @@ stage "Summary"
 printf '\n  %sThe game, under its own load%s\n' "$B" "$R"
 sed -n '/^=== comparison/,$p' "$OUT/game.txt" 2>/dev/null | sed 's/^/  /'
 
-printf '\n  %sThe ceiling: the reel, well past what roog asks for%s\n' "$B" "$R"
+printf '\n  %sThe ceiling: the reel, well past what nihilurk asks for%s\n' "$B" "$R"
 sed -n '/^=== comparison/,$p' "$OUT/stress.txt" 2>/dev/null | sed 's/^/  /'
 
 if [ -n "$SKIPPED" ]; then

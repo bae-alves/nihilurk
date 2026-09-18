@@ -186,7 +186,7 @@ Verify
 
     cargo build
     cargo test                   # save round-trips: tests/saveload.rs
-    ROOG_SPAWN="<a thing that grants it>" cargo run -p engine
+    NIHILURK_SPAWN="<a thing that grants it>" cargo run -p engine
 
 If your effect should survive a reload, the test worth copying is in `models/tests/wands.rs`: the one named `cancellation_strips_the_magic_but_leaves_the_creature` exercises the grant / probe / revoke path end to end.
 
@@ -200,4 +200,4 @@ See also
   ../explanation/the-feel-layer.md  giving it a look, and the rules for one
   work-with-the-ecs.md             reaching the entity you want to change
   ../explanation/data-driven-content.md   why effects are components
-  ../explanation/ecs-in-roog.md    what a component is allowed to be
+  ../explanation/ecs-in-nihilurk.md    what a component is allowed to be

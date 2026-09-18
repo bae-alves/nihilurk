@@ -8,11 +8,11 @@
 //! nanosecond count means very little across machines, but "advance got 30%
 //! slower since you touched it" means a great deal.
 //!
-//!     cargo bench -p roog-perf                 measure, compare to baseline
-//!     cargo bench -p roog-perf -- --save-baseline main
-//!     cargo bench -p roog-perf -- --baseline main
+//!     cargo bench -p nihilurk-perf                 measure, compare to baseline
+//!     cargo bench -p nihilurk-perf -- --save-baseline main
+//!     cargo bench -p nihilurk-perf -- --baseline main
 //!
-//! The five cases map onto the phases `roog-perf --headless` reports, so a
+//! The five cases map onto the phases `nihilurk-perf --headless` reports, so a
 //! regression seen in the dashboard can be chased straight down to the
 //! operation responsible.
 

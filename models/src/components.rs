@@ -1136,7 +1136,7 @@ impl Default for GameLog {
     fn default() -> Self {
         Self {
             history: Vec::new(),
-            unread: vec!["Welcome to roog! Good luck and have fun!".to_string()],
+            unread: vec!["Welcome to nihilurk! Good luck and have fun!".to_string()],
         }
     }
 }

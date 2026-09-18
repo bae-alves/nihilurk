@@ -8,9 +8,9 @@ Working with the ECS
                    system are. You have read
                    `../reference/components.md` at least once.
 
-Recipes: copy the shape, change the nouns. *Why* the code is arranged this way is `../explanation/ecs-in-roog.md`.
+Recipes: copy the shape, change the nouns. *Why* the code is arranged this way is `../explanation/ecs-in-nihilurk.md`.
 
-Twelve of roog's thirteen schedule steps take `&mut World` and nothing else. That one fact decides everything below: you are not writing `Query<&mut Fighter>` and letting bevy sort out the aliasing, you are holding the whole world and borrowing bits of it by hand. The borrow checker is stricter here than it is in a `Query`-based codebase, and the five patterns in the first section are how every mechanic in the tree gets past it.
+Twelve of nihilurk's thirteen schedule steps take `&mut World` and nothing else. That one fact decides everything below: you are not writing `Query<&mut Fighter>` and letting bevy sort out the aliasing, you are holding the whole world and borrowing bits of it by hand. The borrow checker is stricter here than it is in a `Query`-based codebase, and the five patterns in the first section are how every mechanic in the tree gets past it.
 
     Contents
 
@@ -199,7 +199,7 @@ Components that only *some* of the kind carry stay off the bundle and go on afte
         world.entity_mut(e).insert(Invisible);
     }
 
-**3. A way to reach it by name.** Add the table to `spawn::spawn_named` and to `spawn::content_names`, and the new kind immediately answers to `ROOG_SPAWN`, to `-content`, to every test, and to `models/tests/content.rs`'s "every name spawns and keeps its name" check. If it is *loot* rather than furniture, implement `ItemDef` and give it a `DROPS` row instead — `add-an-item-category.md` is the full recipe.
+**3. A way to reach it by name.** Add the table to `spawn::spawn_named` and to `spawn::content_names`, and the new kind immediately answers to `NIHILURK_SPAWN`, to `-content`, to every test, and to `models/tests/content.rs`'s "every name spawns and keeps its name" check. If it is *loot* rather than furniture, implement `ItemDef` and give it a `DROPS` row instead — `add-an-item-category.md` is the full recipe.
 
 Then the bookkeeping, in order:
 
@@ -208,7 +208,7 @@ Then the bookkeeping, in order:
   * **Drawing.** A `Renderable` gets it on screen, but *when* it draws is a layer in `engine/src/view.rs`'s `render`, and the order matters — a later layer covers an earlier one. See `../reference/rendering.md`.
   * **Documenting.** A row in `../reference/content-tables.md` for the table and one in `../reference/components.md` for anything new it carries.
 
-The test that tells you it landed: `cargo run -p engine -- -content` lists it, and `ROOG_SPAWN="<name>"` puts one in front of you.
+The test that tells you it landed: `cargo run -p engine -- -content` lists it, and `NIHILURK_SPAWN="<name>"` puts one in front of you.
 
 
 Recipe: deal damage
@@ -330,7 +330,7 @@ Anything the content tables know, by name:
 
     let dragon = crate::spawn_named(world, "dragon", pos);      // Option<Entity>
 
-That is the door a test, a debug command and `ROOG_SPAWN` all use. It builds the thing **exactly as its row describes it** — no enchantment roll, no battery charge, no ammunition bundle. For the dungeon's own randomised version, `spawn::roll_item(world, rng, depth, pos)`.
+That is the door a test, a debug command and `NIHILURK_SPAWN` all use. It builds the thing **exactly as its row describes it** — no enchantment roll, no battery charge, no ammunition bundle. For the dungeon's own randomised version, `spawn::roll_item(world, rng, depth, pos)`.
 
 Assembling an entity by hand is for one case only: you are adding a new *kind* of thing. Then it is a `Bundle` next to its table, never a pile of `insert` calls at a call site:
 
@@ -369,7 +369,7 @@ Input handlers do not resolve anything. They push an intent and return whether a
 Recipe: add a system to the turn
 --------------------------------
 
-Register it in `engine/src/main.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in roog — the schedule is one flat list of thirteen steps, and every edge is deliberate:
+Register it in `engine/src/main.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in nihilurk — the schedule is one flat list of thirteen steps, and every edge is deliberate:
 
     schedule.add_systems((
         // …
@@ -403,7 +403,7 @@ Two more rules:
 Recipe: write a system that really is a Query
 ---------------------------------------------
 
-One system in roog is `Query`-based (`visibility_system`), because it only reads and tags and never despawns. If yours is the same shape, write it that way — narrow filters are self-documenting and bevy checks the aliasing for you:
+One system in nihilurk is `Query`-based (`visibility_system`), because it only reads and tags and never despawns. If yours is the same shape, write it that way — narrow filters are self-documenting and bevy checks the aliasing for you:
 
     pub fn visibility_system(
         mut commands: Commands,
@@ -445,7 +445,7 @@ It pins that a seed produces the same walls and the same floor contents it alway
 See also
 --------
 
-  ../explanation/ecs-in-roog.md   why the world is driven this way
+  ../explanation/ecs-in-nihilurk.md   why the world is driven this way
   ../reference/components.md      every component, resource and event
   ../reference/spawn-api.md       the functions that build entities
   ../reference/input-and-turn-loop.md   the schedule, in order

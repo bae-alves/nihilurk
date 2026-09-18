@@ -27,7 +27,7 @@ use crate::map::{MAP_HEIGHT, MAP_WIDTH};
 /// The split is what makes `compat/`'s bare-metal check worth running. It
 /// compiles `particle-core` for an ESP32 and a RISC-V board, and because the
 /// game calls the same functions rather than a copy of them, a green check
-/// there is a statement about roog. See
+/// there is a statement about nihilurk. See
 /// `docs/explanation/cross-platform-testing.md`.
 use particle_core as core_math;
 

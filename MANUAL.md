@@ -1,4 +1,4 @@
-Roog: instruction manual
+nihilurk: instruction manual
 ========================
 
 Descend thirteen floors, take the Element of Yoord, and carry it back to the surface. Monsters, traps, unidentified items, and permanent death stand between you and the exit.
@@ -10,7 +10,7 @@ Starting the game
 Start a new expedition with:
 
     cargo run -p engine                  # start a game
-    cargo run -p engine -- YourName       # name your roog
+    cargo run -p engine -- YourName       # name your nihilurk
     cargo run -p engine -- -s 1234        # play a particular seed
 
 You may quit and return to one expedition later. There is one save file. It is for stopping, not for undoing a death: when an expedition ends, the save is gone. A completed expedition is kept as clear data, so beginning another game after a victory is a choice to enter the dungeon again.
@@ -21,7 +21,7 @@ The dungeon screen
 
 The status line gives you the information you need at a glance:
 
-    Roog | HP 9/12 | Ma 4/4 | Pow. 1d4+1 | Arm. 1d3+1 | DEPTH 3 | SCORE 140
+    nihilurk | HP 9/12 | Ma 4/4 | Pow. 1d4+1 | Arm. 1d3+1 | DEPTH 3 | SCORE 140
 
 `HP` is your health. `Ma` is your magic. `Pow.` and `Arm.` show your current attack and defence. `DEPTH` tells you where you are. The last field is your score, except when the dungeon flashes a recent reward or warning in its place.
 
@@ -52,7 +52,7 @@ Grey tiles are places you have seen but cannot currently see. The dungeon rememb
 Moving and fighting
 -------------------
 
-Roog is turn-based. Your action gives the dungeon its turn. You cannot pass a turn, so choose an action whenever you press a key.
+nihilurk is turn-based. Your action gives the dungeon its turn. You cannot pass a turn, so choose an action whenever you press a key.
 
 Move one square at a time with the arrows, vi keys, or number pad:
 

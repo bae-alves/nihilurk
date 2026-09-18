@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# The bare-metal half of phase 1: prove that roog's particle arithmetic
+# The bare-metal half of phase 1: prove that nihilurk's particle arithmetic
 # compiles for a microcontroller.
 #
 # WHAT THIS DOES AND DOES NOT CLAIM
 #
-# It does not claim roog runs on an ESP32. It does not. roog draws with
+# It does not claim nihilurk runs on an ESP32. It does not. nihilurk draws with
 # crossterm, crossterm drives a terminal, and a microcontroller has no terminal
 # and no operating system to provide one. A bare-metal row that fails to
 # produce a game is not a bug, because no game was ever being built.
@@ -103,7 +103,7 @@ fi
 # Preflight
 # ---------------------------------------------------------------------------
 
-printf '%s\n' "$B  roog bare-metal check -- does the particle core compile with no OS?$R"
+printf '%s\n' "$B  nihilurk bare-metal check -- does the particle core compile with no OS?$R"
 note "$(rustc -V 2>/dev/null || echo 'rustc: not found')"
 
 # ---------------------------------------------------------------------------
@@ -119,7 +119,7 @@ note "$(rustc -V 2>/dev/null || echo 'rustc: not found')"
 
 stage "Parity between the hosted and bare-metal branches"
 if cargo test -p "$CORE" --all-features >"$OUT/nostd-parity.log" 2>&1; then
-  ok "the std and no_std branches agree over the domain roog uses"
+  ok "the std and no_std branches agree over the domain nihilurk uses"
 else
   bad "parity test failed -- the bare-metal build is not the game's arithmetic"
   tail -12 "$OUT/nostd-parity.log" | sed 's/^/      /'
@@ -225,7 +225,7 @@ done < <(matrix_rows_or_die bare)
 stage "Summary"
 printf '      checked: %s\n' "${CHECKED:-nothing}"
 note "what this proves: the particle arithmetic needs no OS."
-note "what it does not: roog itself does. crossterm wants a terminal, and"
+note "what it does not: nihilurk itself does. crossterm wants a terminal, and"
 note "a microcontroller has none. See docs/explanation/cross-platform-testing.md."
 [ -n "$SKIPPED" ] && note "skipped: $SKIPPED"
 

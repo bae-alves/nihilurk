@@ -1,9 +1,9 @@
-//! roog-perf -- a visual stress test for roog's particle layer, and the tools
+//! nihilurk-perf -- a visual stress test for nihilurk's particle layer, and the tools
 //! to read the results without leaving the terminal.
 //!
-//!     roog-perf                     the dashboard
-//!     roog-perf --headless          no UI; numbers on stdout, for CI and perf
-//!     roog-perf flame profile.txt   a flamegraph, drawn in the terminal
+//!     nihilurk-perf                     the dashboard
+//!     nihilurk-perf --headless          no UI; numbers on stdout, for CI and perf
+//!     nihilurk-perf flame profile.txt   a flamegraph, drawn in the terminal
 //!
 //! The same binary serves all three so that the thing being profiled and the
 //! thing being watched are provably the same code. `perf_test.sh` records the
@@ -43,7 +43,7 @@ static ALLOC: alloc::Tracking<std::alloc::System> = alloc::Tracking::new(std::al
 
 /// Where to look for a reel when `--reel` is not given, in order. The reel
 /// lives at `perf/bad-apple`, so the rig works both from the workspace root
-/// (`cargo run -p roog-perf`) and from inside `perf/`. The underscored
+/// (`cargo run -p nihilurk-perf`) and from inside `perf/`. The underscored
 /// spellings are accepted too, since that is how the file is sometimes named
 /// upstream.
 const DEFAULT_REELS: [&str; 4] = ["perf/bad-apple", "bad-apple", "perf/bad_apple", "bad_apple"];
@@ -67,14 +67,14 @@ fn main() -> ExitCode {
     let opts = match Options::parse(&args) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("roog-perf: {e}");
+            eprintln!("nihilurk-perf: {e}");
             return ExitCode::FAILURE;
         }
     };
     match run_stress(opts) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("roog-perf: {e}");
+            eprintln!("nihilurk-perf: {e}");
             ExitCode::FAILURE
         }
     }
@@ -87,8 +87,8 @@ fn main() -> ExitCode {
 /// Where a run's load comes from.
 ///
 /// Two different questions, and a pipeline wants both. The reel drives the
-/// particle layer two to three orders of magnitude past anything roog produces,
-/// which is how you find the cliff. The game drives it with exactly what roog
+/// particle layer two to three orders of magnitude past anything nihilurk produces,
+/// which is how you find the cliff. The game drives it with exactly what nihilurk
 /// produces -- one batch of real constructors per turn over a real floor --
 /// which is how you find out whether a machine can play it.
 ///
@@ -247,22 +247,22 @@ fn next<'a>(it: &mut impl Iterator<Item = &'a String>, flag: &str) -> Result<&'a
 fn print_help() {
     println!(
         "\
-roog-perf -- particle-layer stress test and profile viewer
+nihilurk-perf -- particle-layer stress test and profile viewer
 
 USAGE
-    roog-perf [OPTIONS]              live dashboard (needs a terminal)
-    roog-perf --headless [OPTIONS]   measure and print; no UI
-    roog-perf flame [FILE]           draw a flamegraph in the terminal
+    nihilurk-perf [OPTIONS]              live dashboard (needs a terminal)
+    nihilurk-perf --headless [OPTIONS]   measure and print; no UI
+    nihilurk-perf flame [FILE]           draw a flamegraph in the terminal
 
 OPTIONS
     --load <WHAT>      reel | game                 [default: reel]
                        `reel` replays Bad Apple: ~800 motes a frame, two to
-                       three orders past anything roog produces, which is how
+                       three orders past anything nihilurk produces, which is how
                        you find where the layer stops keeping up.
                        `game` animates a real floor with the batches the game
                        actually queues -- one per turn, played out frame by
                        frame -- which is how you find out whether a machine
-                       can play roog. Needs no reel file. See compat/.
+                       can play nihilurk. Needs no reel file. See compat/.
     --seed <N>         floor to generate           [--load game only]
     --reel <PATH>      frame reel to replay        [default: perf/bad-apple]
     --fps <N>          target frame rate           [default: 30]
@@ -286,7 +286,7 @@ FLAME
     Reads folded stacks (`a;b;c 123`) or raw `perf script` output, sniffing
     which. `-` or no argument reads stdin:
 
-        perf script -i perf.data | roog-perf flame -
+        perf script -i perf.data | nihilurk-perf flame -
 
     --width <N>   columns to draw in   [default: terminal width]
     --depth <N>   deepest stack row    [default: 24]
@@ -305,7 +305,7 @@ WORKLOADS
     Watching `screen` or `both` drives a real terminal instead of the
     dashboard, because a redraw is the thing being shown:
 
-        roog-perf --workload screen        the reel, repainted for real
+        nihilurk-perf --workload screen        the reel, repainted for real
 
 KEYS (dashboard)
     q / Esc  quit      space  pause      + / -  density      b  blast
@@ -355,12 +355,12 @@ fn run_stress(opts: Options) -> Result<(), String> {
 /// the compat matrix leans on. The floor is generated from a seed, so the
 /// game-load run ships as one static binary with nothing mounted beside it,
 /// and a container that cannot fit 11 MiB of Bad Apple can still answer the
-/// question that matters -- does roog keep up here.
+/// question that matters -- does nihilurk keep up here.
 fn build_load(opts: &Options) -> Result<Load, String> {
     if opts.load == LoadKind::Game {
         let turns = Turns::new(opts.seed);
         eprintln!(
-            "roog-perf: floor from seed {}, {} cells painted per frame, {} beats per cycle",
+            "nihilurk-perf: floor from seed {}, {} cells painted per frame, {} beats per cycle",
             opts.seed,
             turns.floor_cells(),
             game::Beat::CYCLE.len()
@@ -370,7 +370,7 @@ fn build_load(opts: &Options) -> Result<Load, String> {
     let path = resolve_reel(opts.reel.as_deref())?;
     let reel = Reel::load(&path, Y_OFFSET).map_err(|e| e.to_string())?;
     eprintln!(
-        "roog-perf: {} frames from {}, {:.0} lit cells/frame mean, {} peak",
+        "nihilurk-perf: {} frames from {}, {:.0} lit cells/frame mean, {} peak",
         reel.len(),
         path.display(),
         reel.mean_ink(),
@@ -798,7 +798,7 @@ fn report(r: Report<'_>) -> Summary {
     let w = &mut out;
     let _ = writeln!(
         w,
-        "\n=== roog-perf: {} under {} ===\n",
+        "\n=== nihilurk-perf: {} under {} ===\n",
         scene.workload.name(),
         match opts.load {
             LoadKind::Reel => "Bad Apple",
@@ -1029,7 +1029,7 @@ fn run_flame(args: &[String]) -> ExitCode {
     let input = match read_input(path.as_deref()) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("roog-perf flame: {e}");
+            eprintln!("nihilurk-perf flame: {e}");
             return ExitCode::FAILURE;
         }
     };
@@ -1037,7 +1037,7 @@ fn run_flame(args: &[String]) -> ExitCode {
     let profile = flame::Profile::parse(&input);
     if profile.is_empty() {
         eprintln!(
-            "roog-perf flame: no samples found.\n\
+            "nihilurk-perf flame: no samples found.\n\
              Expected folded stacks (`a;b;c 123`) or `perf script` output."
         );
         return ExitCode::FAILURE;

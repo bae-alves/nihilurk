@@ -7,7 +7,7 @@
 //! and hold everything else still, so a change to `Screen::flush` shows up as a
 //! number rather than a shrug.
 //!
-//!     cargo bench -p roog-perf --bench redraw
+//!     cargo bench -p nihilurk-perf --bench redraw
 //!
 //! `screen.rs` is a module of the binary, not a library, so it is pulled in by
 //! path. That is the same copy the rig measures, compiled into this target --

@@ -1,7 +1,7 @@
 //! Small, item-and-system-agnostic utilities that several modules reach for.
 //!
 //! Nothing here owns any game rule — these are the plumbing the rules are built
-//! from. If a function encodes a decision about how *roog* plays (what a wand
+//! from. If a function encodes a decision about how *nihilurk* plays (what a wand
 //! does, how loot is rolled), it belongs in the module that owns that decision,
 //! not here. What lives here instead:
 //!

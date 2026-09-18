@@ -140,7 +140,7 @@ impl MonsterDef {
 
     /// Make a species rarer or commoner than its floor-mates.
     ///
-    /// No row asks for it at present — within a tier roog draws evenly on
+    /// No row asks for it at present — within a tier nihilurk draws evenly on
     /// purpose — so it is kept as the extension point the docs teach
     /// (`docs/tutorial/add-your-first-monster.md`) rather than deleted as
     /// unused. The same is true of `ItemDef::weight` next door.

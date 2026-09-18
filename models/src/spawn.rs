@@ -288,19 +288,19 @@ pub fn content_names() -> Vec<(&'static str, &'static str)> {
 // The content author's shortcut
 // ---------------------------------------------------------------------------
 
-/// The `ROOG_SPAWN` dev override: a comma-separated list of names dropped
+/// The `NIHILURK_SPAWN` dev override: a comma-separated list of names dropped
 /// around the player the moment a floor is built, so a new row can be looked at
 /// without playing down to the depth that would produce it.
 ///
 /// ```text
-/// ROOG_SPAWN="dragon,bow,arrow,ring of protection" cargo run -p engine
+/// NIHILURK_SPAWN="dragon,bow,arrow,ring of protection" cargo run -p engine
 /// ```
 ///
 /// A name the tables do not know is skipped in silence — this is a debug knob,
 /// not a parser. Placement walks outward from `near` and takes the first free
 /// walkable tile, so nothing lands in a wall or on top of anything else.
 pub fn spawn_requested(world: &mut World, near: Position, occupied: &mut HashSet<(u16, u16)>) {
-    let Ok(list) = std::env::var("ROOG_SPAWN") else {
+    let Ok(list) = std::env::var("NIHILURK_SPAWN") else {
         return;
     };
     spawn_list(world, &list, near, occupied);

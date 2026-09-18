@@ -310,7 +310,7 @@ See also
 
   rendering.md                  the other half of the frame: `view.rs`
   ../how-to/work-with-the-ecs.md   adding a system, and the borrow patterns
-  ../explanation/ecs-in-roog.md    why the schedule is shaped this way
+  ../explanation/ecs-in-nihilurk.md    why the schedule is shaped this way
   ../reference/components.md    the resources named throughout this page
   ../reference/cli-and-env.md   the flags this code reads (`-anim-rate`, `-nshake`)
   ../explanation/code-calisthenics.md   the shape this code (and all engine code) is held to

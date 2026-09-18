@@ -1,7 +1,7 @@
 Tutorial: add your first move
 ==============================
 
-    Audience       Anyone who wants to add content to roog. You have
+    Audience       Anyone who wants to add content to nihilurk. You have
                    done `add-your-first-item.md`, or you are
                    comfortable enough to skip it.
     Prerequisites  A checkout, and a working `cargo`. That is all.
@@ -34,7 +34,7 @@ flowchart LR
 What you are about to learn
 ----------------------------
 
-Roog has sixteen active moves today, taught to the player at random by heroic mana (an uncommon coin-table pickup) rather than started with any. A move is coded the way a potion or a wand is -- one identity enum, one catalog row, one mechanic keyed off it -- because it is exactly as *active* as either of those. This tutorial adds a seventeenth, by hand, the way every one of the sixteen was first tried.
+nihilurk has sixteen active moves today, taught to the player at random by heroic mana (an uncommon coin-table pickup) rather than started with any. A move is coded the way a potion or a wand is -- one identity enum, one catalog row, one mechanic keyed off it -- because it is exactly as *active* as either of those. This tutorial adds a seventeenth, by hand, the way every one of the sixteen was first tried.
 
 It is also, on purpose, not an item. It has no `Position`, no `Item` marker, no pack slot. It cannot be dropped, thrown, or found on a floor. It lives permanently in whoever's `Moveset` it's in, and it spends Magic instead of a battery.
 
@@ -116,7 +116,7 @@ The error names a missing match arm in `models/src/items/moves.rs`:
         }
     }
 
-The match has no catch-all, on purpose -- the same discipline `apply_wand_effect` holds over `WandEffect`. A variant that compiled without an arm would be a move that silently did nothing, and roog does not ship those. `power_mult` is `2` when a staff doubled an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does.
+The match has no catch-all, on purpose -- the same discipline `apply_wand_effect` holds over `WandEffect`. A variant that compiled without an arm would be a move that silently did nothing, and nihilurk does not ship those. `power_mult` is `2` when a staff doubled an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does.
 
 Add the arm, and the function it calls:
 
@@ -161,7 +161,7 @@ It compiles.
 Step 4: give it to yourself
 ------------------------------
 
-There is no `ROOG_SPAWN` for a move -- there is no entity to spawn. In play, the only way to learn one is heroic mana (an uncommon coin-table pickup that teaches a random not-yet-known move); to try Ice Bolt without hunting for mana, put it straight into the player's starting `Moveset`, in `initialize_world` (`models/src/map/levels.rs`):
+There is no `NIHILURK_SPAWN` for a move -- there is no entity to spawn. In play, the only way to learn one is heroic mana (an uncommon coin-table pickup that teaches a random not-yet-known move); to try Ice Bolt without hunting for mana, put it straight into the player's starting `Moveset`, in `initialize_world` (`models/src/map/levels.rs`):
 
     Moveset {
         slots: vec![MoveEffect::IceBolt],
@@ -212,7 +212,7 @@ What you actually learned
 
   * Almost all of a move's behaviour is borrowed from whatever already does the thing -- `elemental_blast` for a blast, `crate::conditions` for a status -- the same reuse a wand's own mechanic leans on.
 
-  * A move is *not* an item, deliberately: no `Position`, no `Item`, no pack slot, no `ROOG_SPAWN`, nothing to throw or drop. It lives in a `Moveset`, and it costs Magic instead of running out of charges.
+  * A move is *not* an item, deliberately: no `Position`, no `Item`, no pack slot, no `NIHILURK_SPAWN`, nothing to throw or drop. It lives in a `Moveset`, and it costs Magic instead of running out of charges.
 
   * A `MoveEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does — but *triggering* it is not generic yet. Wiring a species to use one under its own AI, at no Magic cost, is still bespoke work in `crate::ai`.
 

@@ -55,10 +55,10 @@ MATRIX="$COMPAT_DIR/matrix.tsv"
 OUT="$ROOT/target/compat"
 export CROSS_CONFIG="$COMPAT_DIR/Cross.toml"
 
-# What the containers run. `roog-perf --load game` is the gate -- a real floor
+# What the containers run. `nihilurk-perf --load game` is the gate -- a real floor
 # animated by the batches the game actually queues -- and `engine` is the game
 # itself, built to have its size measured and to prove the target links.
-RIG=roog-perf
+RIG=nihilurk-perf
 GAME=engine
 
 # ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ matrix_rows_or_die() {
 # The second run finds the first run's build-script binaries already built,
 # runs them inside the old container, and they die on
 # `weak version GLIBC_2.29 not found` -- an error about a dependency's build
-# script that says nothing about roog and takes a while to trace. Two cross
+# script that says nothing about nihilurk and takes a while to trace. Two cross
 # images of different vintages collide the same way.
 #
 # One directory per triple means no two toolchains ever share a host artifact.
@@ -173,9 +173,9 @@ target_bin() {
 # A row's claim to have a shell, checked rather than assumed. Used two ways:
 # nostd_check.sh's bare rows use it to say whether `--shell <id>` will work;
 # stress_test_matrix.sh's linux rows use it as a hard gate, because a shell is
-# not a nicety there -- roog needs a real terminal under it, an image with no
+# not a nicety there -- nihilurk needs a real terminal under it, an image with no
 # shell can't give it one, and a row that can't run the game has no business
-# being in "does roog run on these machines".
+# being in "does nihilurk run on these machines".
 check_has_shell() {
   local image=$1
   docker run --rm "$image" /bin/sh -c 'echo shell-ok' 2>/dev/null | grep -q shell-ok

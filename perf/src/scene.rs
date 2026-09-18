@@ -1,4 +1,4 @@
-//! The system under test: roog's real [`models::Particles`], driven at video
+//! The system under test: nihilurk's real [`models::Particles`], driven at video
 //! rate off the reel.
 //!
 //! Nothing is reimplemented here. `Scene::step` calls the same
@@ -73,7 +73,7 @@ impl Workload {
     }
 }
 
-/// Where the 20-row reel sits inside roog's 22-row map.
+/// Where the 20-row reel sits inside nihilurk's 22-row map.
 pub const Y_OFFSET: u16 = 1;
 
 /// Rows above the map on the game's 80x25 grid. `engine/src/view.rs` keeps the
@@ -188,7 +188,7 @@ pub struct Scene {
     /// per lit cell instead.
     ///
     /// The two are different questions. The reel asks where the layer stops
-    /// keeping up; this asks whether the machine can play roog. On a desktop
+    /// keeping up; this asks whether the machine can play nihilurk. On a desktop
     /// only the first is interesting. On a Pi Zero only the second is.
     turns: Option<Turns>,
     /// The terminal grid, for the two workloads that redraw.

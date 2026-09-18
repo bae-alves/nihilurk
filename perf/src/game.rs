@@ -1,10 +1,10 @@
-//! The load roog actually produces, as opposed to the load the reel produces.
+//! The load nihilurk actually produces, as opposed to the load the reel produces.
 //!
 //! The reel exists to find the cliff: 800 motes a frame, thirty times a second,
 //! two to three orders of magnitude past anything the game asks for. That is
 //! the right question on a desktop, where the answer is "nowhere near it", and
 //! the wrong one on a Raspberry Pi Zero, where the answer is "immediately" and
-//! tells you nothing about whether roog is playable there.
+//! tells you nothing about whether nihilurk is playable there.
 //!
 //! So this module builds the other workload: a real floor, drawn the way
 //! `engine/src/view.rs` draws it, animated by the batches the real

@@ -103,7 +103,7 @@ fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
 
 /// Picks up whatever [`Item`] sits at `(x, y)` for `player_entity`, the way
 /// arriving on a tile always does — walking onto it or, just the same,
-/// lunging onto it with an estoc. There is no `,` key: roog has nine pack
+/// lunging onto it with an estoc. There is no `,` key: nihilurk has nine pack
 /// slots and a floor full of coins that are spent where they lie, so landing
 /// on a thing is decision enough.
 fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {

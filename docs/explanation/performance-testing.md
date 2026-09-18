@@ -8,17 +8,17 @@ Why the performance rig is built this way
     This is        Understanding. The recipe is
                    `../how-to/run-the-perf-pipeline.md`.
 
-roog's particle layer is decoration: sparks, bolts, blast rings. It never touches the turn schedule and is never saved. It is also the only part of the game that runs at video rate, which makes it the only part where a frame budget exists to be blown.
+nihilurk's particle layer is decoration: sparks, bolts, blast rings. It never touches the turn schedule and is never saved. It is also the only part of the game that runs at video rate, which makes it the only part where a frame budget exists to be blown.
 
-The rig measures it twice: once under the load roog actually produces, and once under a load roog will never produce. There are a handful of decisions behind that which are worth writing down.
+The rig measures it twice: once under the load nihilurk actually produces, and once under a load nihilurk will never produce. There are a handful of decisions behind that which are worth writing down.
 
 
 Two loads, and why both
 -----------------------
 
-`--load game` builds a real floor (`models::initialize_world`, so the same generator, the same rooms, the same monsters and loot a seed produces) and animates it with the batches the real `models::Particles` constructors queue when something is hit, zapped or killed: one per turn, played out frame by frame until the last mote dies, which is exactly the loop `view.rs::play_particles` runs. That is the question "can this machine play roog", and it is the one `compat/` grades its whole matrix on.
+`--load game` builds a real floor (`models::initialize_world`, so the same generator, the same rooms, the same monsters and loot a seed produces) and animates it with the batches the real `models::Particles` constructors queue when something is hit, zapped or killed: one per turn, played out frame by frame until the last mote dies, which is exactly the loop `view.rs::play_particles` runs. That is the question "can this machine play nihilurk", and it is the one `compat/` grades its whole matrix on.
 
-`--load reel` replays a video as particles, two to three orders of magnitude past anything the game asks for. That is the question "where does this layer break", which a desktop answers with "nowhere near here" and a Pi Zero answers with "immediately" -- and neither answer says anything about whether roog is playable.
+`--load reel` replays a video as particles, two to three orders of magnitude past anything the game asks for. That is the question "where does this layer break", which a desktop answers with "nowhere near here" and a Pi Zero answers with "immediately" -- and neither answer says anything about whether nihilurk is playable.
 
 Both stages print the same comparison table, and `perf_test.sh` keeps them apart in the summary for a reason: the rows *within* a table are directly comparable (same frames, same machine, same parse), and the two tables are not. The game's numbers are a fraction of a percent of the frame budget. The reel's are the interesting ones only once you have confirmed the first.
 
@@ -46,17 +46,17 @@ A separate crate, outside the default members
 
     default-members = ["engine", "models", "particle-core", "view"]
 
-So `cargo build` and `cargo test` at the root do not touch it. Reaching it is always explicit -- `-p roog-perf`, or the script.
+So `cargo build` and `cargo test` at the root do not touch it. Reaching it is always explicit -- `-p nihilurk-perf`, or the script.
 
 Cargo has no `default-exclude`, so that list names the four crates it wants in order to leave out the two it does not, and the two lists have to be kept in step by hand. `engine/tests/workspace.rs` is what checks that they are: it asserts that the difference between `members` and `default-members` is exactly `perf` and `compat`, and that no crate in the tree is missing from `members`. Add a crate and forget one list and a bare `cargo test` says so -- which matters because the failure is otherwise silent, a new crate simply dropping out of the root test run.
 
-This is the portability rule doing its work. roog is meant to build and run on anything with a terminal, and the game crates depend on almost nothing. The rig depends on ratatui, sysinfo and criterion, and none of those belong anywhere near the shipped binary. Keeping it a separate crate means the dependency can only ever point one way: `roog-perf` depends on `models`, never the reverse.
+This is the portability rule doing its work. nihilurk is meant to build and run on anything with a terminal, and the game crates depend on almost nothing. The rig depends on ratatui, sysinfo and criterion, and none of those belong anywhere near the shipped binary. Keeping it a separate crate means the dependency can only ever point one way: `nihilurk-perf` depends on `models`, never the reverse.
 
 
 Bad Apple, and why a video
 --------------------------
 
-The reel is the whole video -- 6572 frames of 80x20 ASCII, three minutes and thirty-nine seconds at 30 fps -- which is exactly roog's map width and fits inside its 22-row map. Each lit cell becomes one call to the real `Particles::blip`, so a frame queues up to 1600 motes, thirty times a second, and averages a little under 800. It loops when it reaches the end, so the dashboard runs until you stop it.
+The reel is the whole video -- 6572 frames of 80x20 ASCII, three minutes and thirty-nine seconds at 30 fps -- which is exactly nihilurk's map width and fits inside its 22-row map. Each lit cell becomes one call to the real `Particles::blip`, so a frame queues up to 1600 motes, thirty times a second, and averages a little under 800. It loops when it reaches the end, so the dashboard runs until you stop it.
 
 A wand bolt queues a few dozen. So the reel is two to three orders of magnitude past the working range, which is the point: the interesting question is not whether the layer survives a fireball, but where it stops keeping up. You cannot find a cliff without driving off it.
 
@@ -129,7 +129,7 @@ Bytes, not syscalls
 
 The redraw workloads flush into a `Vec<u8>` whose capacity is reused between frames, and report how many bytes that was. The game flushes into a `BufWriter<Stdout>`: the same formatting into the same kind of buffer, followed by one write syscall handing it to the terminal.
 
-The syscall is left out on purpose. What it costs is the terminal emulator's business, it varies by an order of magnitude between them, and including it would quietly turn a measurement of roog into a benchmark of whatever happened to be attached to stdout. What is measured is everything roog controls: the diff, the escape-sequence generation, and the byte count handed over at the end of it.
+The syscall is left out on purpose. What it costs is the terminal emulator's business, it varies by an order of magnitude between them, and including it would quietly turn a measurement of nihilurk into a benchmark of whatever happened to be attached to stdout. What is measured is everything nihilurk controls: the diff, the escape-sequence generation, and the byte count handed over at the end of it.
 
 That byte count turns out to be the most transferable number the rig produces. Milliseconds are the machine's; bytes per frame are the program's, and they are the same on every machine that runs it.
 
@@ -137,7 +137,7 @@ That byte count turns out to be the most transferable number the rig produces. M
 A flamegraph you can read over SSH
 ----------------------------------
 
-`cargo flamegraph` writes an SVG, which assumes a machine with a browser on it. That contradicts the same portability rule as everything else here, so `roog-perf flame` renders the graph as text instead.
+`cargo flamegraph` writes an SVG, which assumes a machine with a browser on it. That contradicts the same portability rule as everything else here, so `nihilurk-perf flame` renders the graph as text instead.
 
 It reads folded stacks or raw `perf script` output, doing the collapsing itself so the pipeline needs `perf` and not also inferno or a Perl script. The layout is an icicle -- root at the top -- because a terminal scrolls downward and a graph you have to scroll backwards to find the root of is a graph nobody reads.
 

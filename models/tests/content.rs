@@ -289,7 +289,7 @@ fn the_trap_a_floor_lays_comes_from_the_table() {
 }
 
 // ---------------------------------------------------------------------------
-// The ROOG_SPAWN shortcut
+// The NIHILURK_SPAWN shortcut
 // ---------------------------------------------------------------------------
 
 #[test]
