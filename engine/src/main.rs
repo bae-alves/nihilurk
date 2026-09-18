@@ -223,7 +223,7 @@ fn main() -> std::io::Result<()> {
     // unrecognised name says so and flies the rainbow anyway.
     let mut pride = models::pride::PrideFlag::default_flag();
     let mut unknown_flag: Option<String> = None;
-    let mut player_name = "nihilurk".to_string();
+    let mut player_name = "nihil".to_string();
     let mut positional: Option<String> = None;
     // Multiplier on every animation frame's on-screen hold time (particles,
     // magic mapping's reveal wipe): the escape hatch for a terminal whose
