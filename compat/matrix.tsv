@@ -1,9 +1,10 @@
 # nihilurk's compatibility matrix: one row per machine nihilurk claims to run on.
 #
-# This file is the pipeline. `cross_build.sh` builds a row, `stress_test_matrix.sh`
-# runs a row under emulation with the row's limits applied, and the report prints
-# a row per row. Adding a machine is adding a line here; nothing else knows the
-# list. (Same rule as the content tables -- see docs/explanation/adr-0001-tables-not-raws.md.)
+# This file is the pipeline. `cross_build.sh` builds a row and `run_check.sh`
+# checks that the row's image has a shell and that the binary actually starts
+# there; the report prints a row per row. Adding a machine is adding a line
+# here; nothing else knows the list. (Same rule as the content tables -- see
+# docs/explanation/adr-0001-tables-not-raws.md.)
 #
 # Columns, tab-separated:
 #
@@ -13,20 +14,14 @@
 #             bare   -- no OS; only `particle-core` is built, and only checked
 #   platform  docker --platform value for a `native` row, or "-" for bare
 #             metal. A `qemu` row's container runs as the host's own
-#             architecture instead (see stress_test_matrix.sh), so this
-#             column only tells it which static interpreter to fetch.
+#             architecture instead (see run_check.sh), so this column only
+#             tells it which static interpreter to fetch.
 #   image     runtime image the binary is executed in, or the SDK image for bare
 #   exec      native -- the host CPU runs it directly
 #             qemu   -- run under a directly-invoked qemu-user-static
 #                        interpreter; needs no binfmt_misc and no --privileged
 #             none   -- not executed at all (bare metal)
-#   cpus      docker --cpus, the CPU budget that stands in for the hardware
-#   memory    docker --memory, the RAM the machine actually has
 #   note      what real machine this row is standing in for
-#
-# The limits are deliberately mean. A container that can use four modern cores
-# tells you nothing about a Pi; the point of a row is to be as slow as the thing
-# it names, not to pass.
 #
 # House rule: every `linux` row's image must have a shell in it (alpine's
 # /bin/sh, in every row here). That is not decoration -- nihilurk needs a real
@@ -38,17 +33,24 @@
 # because the point of this matrix is "does nihilurk run on that hardware", and a
 # board is hardware in a way a VM SKU is not. `graviton` is kept anyway: an
 # M-series Mac's Linux VM is a real, common way nihilurk gets built and played.
-# stress_test_matrix.sh checks the shell claim before it trusts it -- see
-# `check_has_shell` there.
+# `run_check.sh` checks the shell claim before it trusts it -- see
+# `check_has_shell` in lib.sh.
+#
+# There is no CPU or memory cap here, and there used to be one. nihilurk has no
+# workload that asks a machine to be fast: every feel-layer effect is bounded,
+# so the actual claim this matrix makes is narrower and cheaper to check --
+# if it builds, the image has a shell, and the target is std (every `linux`
+# row here is), nihilurk can run there. See
+# docs/explanation/cross-platform-testing.md.
 
-#id	target	class	platform	image	exec	cpus	memory	note
-cloud	x86_64-unknown-linux-musl	linux	linux/amd64	alpine:3.22	native	1	512m	t3.micro / any x86_64 box, and the control: no emulation
-graviton	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	2	1g	AWS Graviton (t4g.nano), an M-series Mac's Linux VM
-pi-zero	armv7-unknown-linux-musleabihf	linux	linux/arm/v7	alpine:3.22	qemu	0.4	512m	Raspberry Pi Zero 2 W, Pi 1/2 class hardware
-pi2	armv7-unknown-linux-musleabihf	linux	linux/arm/v7	alpine:3.22	qemu	1	1g	Raspberry Pi 2 B (quad Cortex-A7 @900MHz), 32-bit armhf
-pi3	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	1.2	1g	Raspberry Pi 3 B (quad Cortex-A53 @1.2GHz)
-pi4	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	1.5	2g	Raspberry Pi 4 B (quad Cortex-A72 @1.5GHz), 2GB variant
-cm	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	1.5	1g	Compute Module 4, same SoC as pi4, the 1GB Lite variant embedded designs ship
-potato	i686-unknown-linux-musl	linux	linux/386	i386/alpine:3.22	native	1	512m	32-bit Atom or Pentium M netbook, ca. 2008
-esp32c3	riscv32imc-unknown-none-elf	bare	-	espressif/idf-rust:all_latest	none	-	-	ESP32-C3 / any RISC-V microcontroller
-esp32	xtensa-esp32-none-elf	bare	-	espressif/idf-rust:all_latest	none	-	-	ESP32 (Xtensa LX6), the original Arduino-adjacent one
+#id	target	class	platform	image	exec	note
+cloud	x86_64-unknown-linux-musl	linux	linux/amd64	alpine:3.22	native	t3.micro / any x86_64 box, and the control: no emulation
+graviton	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	AWS Graviton (t4g.nano), an M-series Mac's Linux VM
+pi-zero	armv7-unknown-linux-musleabihf	linux	linux/arm/v7	alpine:3.22	qemu	Raspberry Pi Zero 2 W, Pi 1/2 class hardware
+pi2	armv7-unknown-linux-musleabihf	linux	linux/arm/v7	alpine:3.22	qemu	Raspberry Pi 2 B (quad Cortex-A7 @900MHz), 32-bit armhf
+pi3	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	Raspberry Pi 3 B (quad Cortex-A53 @1.2GHz)
+pi4	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	Raspberry Pi 4 B (quad Cortex-A72 @1.5GHz), 2GB variant
+cm	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	Compute Module 4, same SoC as pi4, the 1GB Lite variant embedded designs ship
+potato	i686-unknown-linux-musl	linux	linux/386	i386/alpine:3.22	native	32-bit Atom or Pentium M netbook, ca. 2008
+esp32c3	riscv32imc-unknown-none-elf	bare	-	espressif/idf-rust:all_latest	none	ESP32-C3 / any RISC-V microcontroller
+esp32	xtensa-esp32-none-elf	bare	-	espressif/idf-rust:all_latest	none	ESP32 (Xtensa LX6), the original Arduino-adjacent one

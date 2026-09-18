@@ -2,28 +2,25 @@
 //! covers everything that ships.
 //!
 //! `default-members` is a list of what to *include*, and what it is really for
-//! here is excluding two crates: `perf` and `compat` are test rigs that pull in
-//! ratatui, sysinfo and criterion, none of which the shipped binary is allowed
-//! to depend on. Written as an include-list, it says four names to mean "not
-//! those two", and it only stays correct if whoever adds the fifth game crate
+//! here is excluding one crate: `compat` is a test rig that pulls in ratatui,
+//! which the shipped binary is not allowed to depend on. Written as an
+//! include-list, it only stays correct if whoever adds the next game crate
 //! remembers to add it in two places.
 //!
 //! Nothing would have complained if they didn't. A new crate missing from
 //! `default-members` is not an error — it builds fine, it tests fine when you
 //! name it, and it silently stops being part of `cargo test` at the workspace
-//! root. That is the same shape of bug as the renderer the perf rig used to
-//! keep its own copy of: two lists that have to agree, and no third thing
-//! checking that they do. This is the third thing.
+//! root. Two lists that have to agree, and no third thing checking that they
+//! do. This is the third thing.
 //!
 //! Cargo has no `default-exclude`, so the list stays as it is and the intent
 //! is asserted here instead.
 
 use std::path::{Path, PathBuf};
 
-/// The two crates that are deliberately outside a bare `cargo test`. Reaching
-/// one is always explicit: `-p nihilurk-perf`, `-p nihilurk-compat`, `perf_test.sh` or
-/// `compat_test.sh`.
-const RIGS: [&str; 2] = ["compat", "perf"];
+/// The one crate that is deliberately outside a bare `cargo test`. Reaching
+/// it is always explicit: `-p nihilurk-compat` or `compat_test.sh`.
+const RIGS: [&str; 1] = ["compat"];
 
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -49,7 +46,7 @@ fn array(manifest: &str, key: &str) -> Vec<String> {
 }
 
 #[test]
-fn a_bare_cargo_test_covers_every_crate_but_the_two_rigs() {
+fn a_bare_cargo_test_covers_every_crate_but_the_rig() {
     let manifest = std::fs::read_to_string(workspace_root().join("Cargo.toml"))
         .expect("the workspace manifest is readable");
     let members = array(&manifest, "members");
@@ -62,7 +59,7 @@ fn a_bare_cargo_test_covers_every_crate_but_the_two_rigs() {
 
     assert_eq!(
         excluded, expected,
-        "`default-members` should exclude exactly the two test rigs.\n\
+        "`default-members` should exclude exactly the test rig.\n\
          members:         {members:?}\n\
          default-members: {default:?}\n\
          If you added a crate, add it to `default-members` too, or a bare \

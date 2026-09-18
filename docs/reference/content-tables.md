@@ -488,18 +488,11 @@ Identification
 
     models/src/identify.rs
 
-Four categories arrive unidentified: potions, scrolls, wands, rings. Each has a pool of 20 cosmetic appearances, shuffled against the catalog once per run from the seeded RNG and then stored in the save.
+Potions, scrolls, wands and rings are always shown by their true name -- no cosmetic appearance, no per-effect knowledge to track, nothing to keep in step with the catalog when a row is added.
 
-| Category | Types | Pool | Headroom |
-|----------|-------|------|----------|
-| Potions  | 15    | 20   | 5        |
-| Scrolls  | 15    | 20   | 5        |
-| Wands    | 14    | 20   | 6        |
-| Rings    | 12    | 20   | 8        |
+Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) -- and a ring, which `enchant_equipment` can also curse (never a plus, since it rolls no die), hides that curse the same way. `KnownQuality` is per-*instance* -- two rings of protection each rolled their own curse, so each needs its own.
 
-Exceeding a pool leaves the extra types with no appearance, permanently generic. Guarded by `every_identifiable_type_gets_an_appearance` in `models/tests/content.rs`.
-
-Knowledge is stored against the effect, not the entity: identifying one bubbly potion identifies every bubbly potion, forever.
+A dud effect (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `WandEffect::Nothing`) is never a spawnable row; it only ever happens as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`). Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/content.rs`.
 
 
 The colour palette

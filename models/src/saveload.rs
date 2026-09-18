@@ -59,7 +59,6 @@ use crate::effects::{
     ThrowBonus, attach_effects, effects_of,
 };
 use crate::equipment::{Equipped, Slot};
-use crate::identify::{Identified, ItemAppearances};
 use crate::map::{
     BloodStains, Corpses, FINAL_DEPTH, FxRng, GameRng, Map, RngSeed, Smoke, TileType,
     regenerate_map,
@@ -258,13 +257,6 @@ struct SaveGame<'a> {
     rng_seed: u64,
     /// The live RNG state, so the stream continues exactly where it left off.
     rng_state: ChaCha12Rng,
-    /// This run's cosmetic appearance for every unidentified item type. Saved
-    /// verbatim rather than re-derived from the seed, so identification state
-    /// stays consistent even if a future build changes how appearances are
-    /// assigned.
-    item_appearances: ItemAppearances,
-    /// Which true item types the player has identified so far.
-    identified: Identified,
     /// The current floor's dark-room mask (see [`Map::dark`]). Rebuilt from the
     /// seed on load, then overwritten with this so any room a wand of light lit
     /// stays lit.
@@ -400,8 +392,6 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         floor_changes: world.get_resource::<FloorChanges>().map_or(0, |c| c.count),
         rng_seed: world.resource::<RngSeed>().0,
         rng_state: world.resource::<GameRng>().0.clone(),
-        item_appearances: world.resource::<ItemAppearances>().clone(),
-        identified: world.resource::<Identified>().clone(),
         dark_tiles: world.resource::<Map>().dark.clone(),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
     };
@@ -440,8 +430,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(GameRng(save.rng_state));
     world.insert_resource(FxRng::new(save.rng_seed));
     world.insert_resource(DungeonLord::default());
-    world.insert_resource(save.item_appearances);
-    world.insert_resource(save.identified);
 
     // Rebuild the map from the seed rather than the save file, then restore the
     // dark-room mask so wand-of-light progress survives the reload.

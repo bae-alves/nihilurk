@@ -9,9 +9,7 @@
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
-use models::constants::wands::{
-    CHARGE_BONUS, CHARGE_DICE, CHARGE_SIDES, DAMAGE_DICE, DAMAGE_SIDES,
-};
+use models::constants::wands::{DAMAGE_DICE, DAMAGE_SIDES, WAND_CHARGES};
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -138,26 +136,13 @@ fn beside_player(w: &mut World) -> (Position, Position) {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_fresh_wand_rolls_its_charges_from_the_table() {
-    let floor = CHARGE_DICE as i8 + CHARGE_BONUS;
-    let ceiling = (CHARGE_DICE * CHARGE_SIDES) as i8 + CHARGE_BONUS;
-    let mut rng = ChaCha12Rng::seed_from_u64(42);
-    for _ in 0..200 {
-        let c = roll_wand_charges(&mut rng);
-        assert!(
-            (floor..=ceiling).contains(&c),
-            "charges {c} outside {floor}..={ceiling}"
-        );
-    }
-    // A wand entering the dungeon as loot is charged from that same roll.
+fn a_fresh_wand_always_spawns_fully_charged() {
     let mut w = test_world(1);
     let wand = spawn_wand(&mut w, WandEffect::MagicMissile, Position { x: 0, y: 0 });
-    let mut loot_rng = ChaCha12Rng::seed_from_u64(7);
-    w.get_mut::<Battery>(wand).unwrap().charges = roll_wand_charges(&mut loot_rng);
     let charges = w.get::<Battery>(wand).unwrap().charges;
-    assert!(
-        (floor..=ceiling).contains(&charges),
-        "wand charges {charges}"
+    assert_eq!(
+        charges, WAND_CHARGES,
+        "a fresh wand should always spawn with exactly WAND_CHARGES"
     );
 }
 
@@ -202,11 +187,6 @@ fn a_wand_bolt_ignores_armour_entirely() {
     assert!(
         (floor..=ceiling).contains(&lost),
         "a bolt through armour 99+99 lost {lost}, outside {floor}..={ceiling}"
-    );
-    assert!(
-        w.resource::<Identified>()
-            .wands
-            .contains(&WandEffect::MagicMissile)
     );
 }
 
@@ -607,11 +587,6 @@ fn light_clears_a_dark_room_and_reveals_its_traps() {
     assert!(
         w.get::<Viewshed>(p).unwrap().dirty,
         "viewshed queued for a recompute"
-    );
-    assert!(
-        w.resource::<Identified>()
-            .wands
-            .contains(&WandEffect::Light)
     );
 }
 

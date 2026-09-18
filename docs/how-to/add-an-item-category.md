@@ -130,12 +130,19 @@ Two ways out, cheapest first:
 > fields positionally. Append; do not insert or reorder.
 
 
-Step 7: identification, if it is a mystery item
------------------------------------------------
+Step 7: identification, if it is equipment
+-------------------------------------------
 
-Only if your category should arrive unidentified. That is a larger job than the rest of this page put together: a new effect enum, an appearance pool in `models/src/identify.rs`, entries in `ItemAppearances` and `Identified`, and an arm in `display_name`. Four categories do this (potions, scrolls, wands, rings); copy whichever is closest.
+Only if your category is worn gear whose own quality should be a secret at
+first -- a weapon, suit of armour or launcher with an enchantment plus and a
+curse it can roll. That means running it through
+`crate::catalog::enchant_equipment` at spawn time and letting `KnownQuality`
+gate the reveal, same as the three existing equipment categories; copy
+whichever is closest.
 
-Most categories should not. A ration is a ration.
+Every other category -- including potions, scrolls, wands and rings -- is
+always shown by its true name. There is no appearance system left to hook
+into; a ration is a ration, and so is a potion.
 
 
 Verify

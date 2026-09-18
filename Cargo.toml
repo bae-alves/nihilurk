@@ -5,27 +5,22 @@ members = [
     "engine",
     "models",
     "particle-core",
-    "perf",
     "view"
 ]
 
-# `perf` and `compat` are test rigs, not part of the game: they pull in ratatui,
-# sysinfo and criterion, none of which the shipped binary is allowed to depend
-# on (see the portability note in `gdd.md`). Keeping them out of
-# `default-members` means a bare `cargo build` / `cargo test` at the workspace
-# root never compiles them; reaching one is always explicit, via `-p nihilurk-perf`
-# / `-p nihilurk-compat`, or via `perf_test.sh` / `compat_test.sh`.
-#
-# `compat` is the odder of the two: it is a rig that builds and runs the game
-# for *other machines*, so it is the one crate here that is never itself part of
-# what is being measured.
+# `compat` is a test rig, not part of the game: it pulls in ratatui, which the
+# shipped binary is not allowed to depend on (see the portability note in
+# `gdd.md`). It is also a rig that builds and runs the game for *other
+# machines*, so it is never itself part of what is being measured. Keeping it
+# out of `default-members` means a bare `cargo build` / `cargo test` at the
+# workspace root never compiles it; reaching it is always explicit, via
+# `-p nihilurk-compat` or `compat_test.sh`.
 #
 # Cargo has no `default-exclude`, so this has to be written as an include-list:
-# four names to mean "not those two", kept in step by hand. Two lists that have
-# to agree and nothing checking that they do is how the perf rig ended up with
-# its own private copy of the renderer, so there is a third thing here --
+# one name meaning "not that one", kept in step by hand. Two lists that have to
+# agree and nothing checking that they do is why there is a third thing here --
 # `engine/tests/workspace.rs` asserts that the difference between `members` and
-# `default-members` is exactly the two rigs, and that no crate in the tree is
+# `default-members` is exactly the rig, and that no crate in the tree is
 # missing from `members` altogether. Add a crate to one list and forget the
 # other and a bare `cargo test` says so.
 default-members = [
@@ -45,17 +40,6 @@ correctness = { level = "deny", priority = -1 }
 suspicious = { level = "warn", priority = -1 }
 complexity = { level = "warn", priority = -1 }
 perf = { level = "warn", priority = -1 }
-
-# Cargo's own unused-dependency lint is target-scoped: a plain `cargo test`
-# builds only the lib, bins and integration tests, never `benches/`, so a
-# dev-dependency used solely by a `harness = false` bench target (`perf`'s
-# `criterion`) reads as unused even though `cargo bench` / `--all-targets`
-# needs it. That is a false positive baked into how the lint works, not a
-# stale dependency, so it is allowed workspace-wide rather than chased crate
-# by crate. A genuinely unused dependency is still caught by
-# `cargo clippy --all-targets`, which every touched crate is built with.
-[workspace.lints.cargo]
-unused_dependencies = "allow"
 
 # ---------------------------------------------------------------------------
 # Profiles
@@ -83,25 +67,16 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
-# The profile every tool in `perf_test.sh` builds with.
+# The profile `compat/cross_build.sh`'s "blame" stage builds with, to attribute
+# a foreign-target binary's size back to the crates that produced it.
 #
 # It is byte-for-byte the same machine code as `release` -- same opt-level,
 # same LTO, same codegen-units -- with the symbols put back. That matters: a
-# flamegraph of a *differently optimised* binary is a flamegraph of a program
-# you do not ship, and `cargo bloat` on a stripped binary has nothing to read.
-# Inheriting rather than redeclaring is what keeps the two from drifting.
-#
-# Frame pointers are not a profile key; `perf_test.sh` passes
-# `-C force-frame-pointers=yes` in RUSTFLAGS, without which `perf record -g`
-# cannot walk the stack out of an LTO'd, codegen-units=1 build.
+# stripped binary has nothing for `llvm-nm` to read, and a per-crate size
+# breakdown of a *differently optimised* binary would be a breakdown of a
+# program nobody ships. Inheriting rather than redeclaring is what keeps the
+# two from drifting.
 [profile.profiling]
-inherits = "release"
-debug = true
-strip = "none"
-
-# Criterion measures the code as shipped, plus symbols so a bench can be fed
-# straight to `perf`/flamegraph when a regression needs chasing.
-[profile.bench]
 inherits = "release"
 debug = true
 strip = "none"

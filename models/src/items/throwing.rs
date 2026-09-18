@@ -18,7 +18,7 @@ use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
 use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_plus};
-use crate::identify::{Identified, article_for, counted, display_name, phrase_for, with_article};
+use crate::identify::{article_for, counted, display_name, phrase_for, with_article};
 use crate::map::{GameRng, Map};
 use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
@@ -57,30 +57,6 @@ pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String>
         return None;
     }
     Some(equipped.slot.stuck(&display_name(world, item)))
-}
-
-/// Marks `item`'s true type as known, announcing it the same way using one
-/// yourself does. Watching a monster drink, read or put on what you threw at it
-/// teaches you exactly as much as doing it would have.
-fn identify_from_afar(world: &mut World, item: Entity) {
-    let true_name = item_label(world, item);
-    let potion = world.get::<Potion>(item).map(|p| p.effect);
-    let scroll = world.get::<Scroll>(item).map(|s| s.effect);
-    let wand = world.get::<Wand>(item).map(|w| w.effect);
-    let ring = world.get::<Ring>(item).map(|r| r.effect);
-    let mut known = world.resource_mut::<Identified>();
-    let newly = match (potion, scroll, wand, ring) {
-        (Some(e), _, _, _) => known.potions.insert(e),
-        (_, Some(e), _, _) => known.scrolls.insert(e),
-        (_, _, Some(e), _) => known.wands.insert(e),
-        (_, _, _, Some(e)) => known.rings.insert(e),
-        _ => false,
-    };
-    if newly {
-        world
-            .resource_mut::<GameLog>()
-            .add(format!("That was {} {true_name}!", article_for(&true_name)));
-    }
 }
 
 /// Traces a throw: the tiles the item crosses (the thrower's own excluded), the
@@ -531,9 +507,6 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
                     "The {who} unrolls the {seen_name} and reads it aloud!"
                 ));
                 apply_scroll_effect(world, reader, effect);
-                // The words were spoken out loud, in front of you: whatever the
-                // scroll was, it is no longer a mystery.
-                identify_from_afar(world, item);
                 world.entity_mut(item).despawn();
             }
             None => land_item(world, item, landing),
@@ -548,7 +521,7 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     //
     // But the glass only breaks on *impact*: the wand has to hit a creature or a
     // wall, or fly its full leash, before it goes off. Lobbed gently into open
-    // floor, it just clatters down with its charges — and its secret — intact.
+    // floor, it just clatters down with its charges intact.
     if let Some(effect) = world.get::<Wand>(item).map(|w| w.effect) {
         let hit_creature = victim.is_some();
         let hit_wall = landing != target;
@@ -559,7 +532,6 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
 
         if hit_creature || hit_wall || spent_its_leash {
             resolve_wand_throw(world, thrower, item, landing, effect, &seen_name);
-            identify_from_afar(world, item);
             world.entity_mut(item).despawn();
             return Some(landing);
         }
@@ -610,7 +582,6 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
         world
             .resource_mut::<GameLog>()
             .add(format!("The {victim_name} {verb}!"));
-        identify_from_afar(world, item);
         return Some(landing);
     }
     land_item(world, item, landing);
@@ -725,10 +696,7 @@ fn shatter_potion(
     world.resource_mut::<GameLog>().add(format!(
         "The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!"
     ));
-    // A dose that plainly did something names the potion; a fizzle keeps its secret.
-    if apply_potion_effect(world, v, effect) {
-        identify_from_afar(world, item);
-    }
+    apply_potion_effect(world, v, effect);
     world.entity_mut(item).despawn();
 }
 

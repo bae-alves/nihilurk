@@ -59,19 +59,14 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    // The scroll is consumed and identified, and the wipe is armed but hasn't
-    // committed anything yet — that is the engine's job, frame by frame.
+    // The scroll is consumed, and the wipe is armed but hasn't committed
+    // anything yet — that is the engine's job, frame by frame.
     assert!(
         w.get::<Backpack>(p)
             .unwrap()
             .items
             .iter()
             .all(|&e| e != scroll)
-    );
-    assert!(
-        w.resource::<Identified>()
-            .scrolls
-            .contains(&ScrollEffect::MagicMapping)
     );
     assert!(
         w.resource::<MagicMapReveal>().active,

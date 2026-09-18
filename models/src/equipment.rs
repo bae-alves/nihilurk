@@ -28,7 +28,7 @@ use crate::effects::{
     SustainsArmor, effect_set,
 };
 use crate::helpers::item_label;
-use crate::identify::{display_name, learn_by_wearing};
+use crate::identify::display_name;
 
 /// Where a piece of gear goes. One item per slot at a time, except
 /// [`Slot::Finger`] — a hand has room for two rings.
@@ -245,7 +245,6 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     }
     world.resource_mut::<GameLog>().add(slot.donned(&name));
     sync_equipment_effects(world, user);
-    learn_by_wearing(world, item);
 
     // Wearing something is how its plus and curse status come to light — the
     // same moment a ring's effect does. Announce the curse only the first

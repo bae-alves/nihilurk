@@ -179,7 +179,7 @@ check_in_container() {
 }
 
 CHECKED=""
-while IFS=$'\t' read -r id target class platform image exec cpus memory note_text; do
+while IFS=$'\t' read -r id target class platform image exec note_text; do
   stage "$id  ($target)"
   note "$note_text"
   : > "$OUT/nostd-$id.log"

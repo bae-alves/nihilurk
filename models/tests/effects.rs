@@ -174,38 +174,12 @@ fn cancellation_strips_every_effect_in_the_registry() {
 }
 
 #[test]
-fn every_ring_in_the_catalog_has_an_appearance_and_a_row() {
-    // The identification system derives its list from the catalog, so the two
-    // can't drift apart. Same for the other three categories.
-    let w = test_world(6);
-    let appearances = w.resource::<ItemAppearances>();
+fn every_ring_in_the_catalog_has_a_row() {
+    // Potions, scrolls, wands and rings are always shown by their true name —
+    // there's no second appearance list to drift out of step with the catalog
+    // any more, so all that's left to check is the catalog itself.
+    let _w = test_world(6);
     for def in RINGS {
-        assert!(
-            appearances.rings.contains_key(&def.effect),
-            "{} has no appearance",
-            def.name
-        );
         assert_eq!(RingDef::of(def.effect).name, def.name);
-    }
-    for def in POTIONS {
-        assert!(
-            appearances.potions.contains_key(&def.effect),
-            "{} has no appearance",
-            def.name
-        );
-    }
-    for def in SCROLLS {
-        assert!(
-            appearances.scrolls.contains_key(&def.effect),
-            "{} has no appearance",
-            def.name
-        );
-    }
-    for def in WANDS {
-        assert!(
-            appearances.wands.contains_key(&def.effect),
-            "{} has no appearance",
-            def.name
-        );
     }
 }

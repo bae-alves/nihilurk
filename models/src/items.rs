@@ -94,7 +94,7 @@ use bevy_ecs::world::World;
 use crate::components::*;
 use crate::equipment::toggle_equipped;
 use crate::helpers::item_label;
-use crate::identify::{Identified, article_for, display_name, with_the};
+use crate::identify::{display_name, with_the};
 
 use self::potions::apply_potion_effect;
 use self::scrolls::apply_scroll_effect;
@@ -107,9 +107,7 @@ use self::wands::apply_wand_effect;
 /// works out what kind of thing it is, settles where the item physically ends
 /// up (back in its exact pack slot, or crumbled to dust once a wand's battery
 /// runs dry), logs the "you drink / read / zap it" beat, and only then applies
-/// the effect. Using a potion, scroll or wand always identifies its true type —
-/// the classic use-to-identify convention; rings identify on wear instead,
-/// inside [`crate::equipment`].
+/// the effect.
 pub fn item_system(world: &mut World) {
     let uses = std::mem::take(&mut world.resource_mut::<UseQueue>().uses);
     for item_use in uses {
@@ -153,12 +151,11 @@ fn plan_use(world: &mut World, item: Entity) -> UsePlan {
 
 /// Resolves one queued use start to finish: work out what the item is, settle
 /// where it physically ends up, log the "you drink / read / zap it" beat, then
-/// apply the effect (which also identifies the type on first use).
+/// apply the effect.
 fn resolve_use(world: &mut World, item_use: WantsToUse) {
-    // What the player sees it called now, and its true name — captured before a
-    // despawn below could make the entity unqueryable.
+    // What the player sees it called now — captured before a despawn below
+    // could make the entity unqueryable.
     let seen_name = display_name(world, item_use.item);
-    let true_name = item_label(world, item_use.item);
 
     let mut plan = plan_use(world, item_use.item);
 
@@ -204,22 +201,15 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
             .add(format!("You zap the {seen_name}."));
     }
 
-    // Dispatch to the right submodule; each apply identifies the type on the
-    // first use (rings identify on wear instead, inside `crate::equipment`).
+    // Dispatch to the right submodule.
     if let Some(eff) = plan.potion {
         apply_potion_effect(world, item_use.user, eff);
-        let newly = world.resource_mut::<Identified>().potions.insert(eff);
-        announce_first_id(world, newly, &true_name);
     }
     if let Some(eff) = plan.wand {
         apply_wand_effect(world, item_use.user, item_use.target, eff);
-        let newly = world.resource_mut::<Identified>().wands.insert(eff);
-        announce_first_id(world, newly, &true_name);
     }
     if let Some(eff) = plan.scroll {
         apply_scroll_effect(world, item_use.user, eff);
-        let newly = world.resource_mut::<Identified>().scrolls.insert(eff);
-        announce_first_id(world, newly, &true_name);
     }
 }
 
@@ -259,14 +249,4 @@ fn log_destruction(world: &mut World, item: Entity, seen_name: &str) {
         )),
         _ => log.add("The item turns to dust!".to_string()),
     }
-}
-
-/// Logs the reveal line the first time an item type is identified by use.
-fn announce_first_id(world: &mut World, newly_identified: bool, true_name: &str) {
-    if !newly_identified {
-        return;
-    }
-    world
-        .resource_mut::<GameLog>()
-        .add(format!("That was {} {true_name}!", article_for(true_name)));
 }

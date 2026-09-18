@@ -1,3 +1,8 @@
+//! Identification, narrowed to equipment: a weapon, suit of armour or
+//! launcher hides its enchantment plus and cursed status until
+//! [`KnownQuality`] says otherwise. Potions, scrolls, wands and rings carry no
+//! hidden type at all — they are always shown by their true name.
+
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -21,7 +26,7 @@ fn player(w: &mut World) -> Entity {
 /// Empties the player's starting kit and despawns it — the starting short bow
 /// carries its own hidden +1 (never worn, so never identified), which would
 /// otherwise compete with whatever a test stashes as a candidate for a scroll
-/// of identify's random pick.
+/// of identify's reveal.
 fn empty_pack(w: &mut World, p: Entity) {
     let items = std::mem::take(&mut w.get_mut::<Backpack>(p).unwrap().items);
     for item in items {
@@ -56,7 +61,7 @@ fn stash(w: &mut World, user: Entity, item: Entity) {
 }
 
 #[test]
-fn unidentified_potion_shows_its_appearance_not_its_true_name() {
+fn a_potion_shows_its_true_name_before_it_is_ever_used() {
     let mut w = test_world(1);
     let p = player(&mut w);
     let potion = spawn_potion(
@@ -66,88 +71,31 @@ fn unidentified_potion_shows_its_appearance_not_its_true_name() {
     );
     stash(&mut w, p, potion);
 
-    let seen = display_name(&w, potion);
-    assert_ne!(seen, "potion of monster detection");
-    assert!(
-        seen.ends_with(" potion"),
-        "expected an appearance-based label, got {seen:?}"
-    );
-
-    let appearance =
-        w.resource::<ItemAppearances>().potions[&PotionEffect::MonsterDetection].clone();
-    assert_eq!(seen, format!("{appearance} potion"));
+    assert_eq!(display_name(&w, potion), "potion of monster detection");
 }
 
 #[test]
-fn quaffing_a_potion_identifies_every_potion_of_that_type() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let drunk = spawn_potion(
-        &mut w,
-        PotionEffect::MonsterDetection,
-        Position { x: 0, y: 0 },
-    );
-    let other = spawn_potion(
-        &mut w,
-        PotionEffect::MonsterDetection,
-        Position { x: 0, y: 0 },
-    );
-    stash(&mut w, p, drunk);
-    stash(&mut w, p, other);
-
-    assert!(
-        !w.resource::<Identified>()
-            .potions
-            .contains(&PotionEffect::MonsterDetection)
-    );
-
-    use_item(&mut w, p, drunk);
-
-    // Knowledge is global: the untouched sister potion is revealed too.
-    assert!(
-        w.resource::<Identified>()
-            .potions
-            .contains(&PotionEffect::MonsterDetection)
-    );
-    assert_eq!(display_name(&w, other), "potion of monster detection");
-
-    let log = w.resource::<GameLog>();
-    assert!(
-        log.history
-            .iter()
-            .any(|m| m.contains("That was a potion of monster detection!"))
-    );
-}
-
-#[test]
-fn zapping_a_wand_identifies_it() {
+fn a_wand_shows_its_true_name_before_and_after_a_zap() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let wand = spawn_wand(&mut w, WandEffect::Fire, Position { x: 0, y: 0 });
     stash(&mut w, p, wand);
 
-    assert_ne!(display_name(&w, wand), "wand of fire");
+    assert_eq!(display_name(&w, wand), "wand of fire");
     use_item(&mut w, p, wand);
-    assert!(w.resource::<Identified>().wands.contains(&WandEffect::Fire));
+    assert_eq!(display_name(&w, wand), "wand of fire");
 }
 
 #[test]
-fn wearing_a_ring_identifies_it_and_toggles_like_gear() {
+fn wearing_a_ring_toggles_it_like_any_other_gear() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let ring = spawn_ring(&mut w, RingEffect::Regeneration, Position { x: 0, y: 0 });
     stash(&mut w, p, ring);
 
-    let unseen = display_name(&w, ring);
-    assert_ne!(unseen, "ring of regeneration");
-    assert!(unseen.ends_with(" ring"));
+    assert_eq!(display_name(&w, ring), "ring of regeneration");
 
     use_item(&mut w, p, ring);
-    assert!(
-        w.resource::<Identified>()
-            .rings
-            .contains(&RingEffect::Regeneration)
-    );
     assert_eq!(display_name(&w, ring), "ring of regeneration");
     assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
     // Still in the pack, just worn.
@@ -159,33 +107,73 @@ fn wearing_a_ring_identifies_it_and_toggles_like_gear() {
 }
 
 #[test]
-fn scroll_of_identify_reveals_an_unknown_item_without_using_it() {
+fn a_cursed_weapon_hides_its_curse_until_worn_or_identified() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let dagger = spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
+    w.entity_mut(dagger).insert((PowerBonus(-2), Curse));
+    stash(&mut w, p, dagger);
+
+    assert_eq!(
+        display_name(&w, dagger),
+        "dagger",
+        "the plus and curse must not leak before quality is known"
+    );
+
+    use_item(&mut w, p, dagger); // wielding it
+    assert_eq!(display_name(&w, dagger), "-2 dagger (cursed)");
+}
+
+#[test]
+fn scroll_of_identify_reveals_every_hidden_piece_of_gear_in_one_read() {
     let mut w = test_world(5);
     let p = player(&mut w);
     empty_pack(&mut w, p);
-    let potion = spawn_potion(&mut w, PotionEffect::Poison, Position { x: 0, y: 0 });
+
+    let dagger = spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
+    w.entity_mut(dagger).insert(Curse);
+    let armor = spawn_armor(&mut w, "leather armor", Position { x: 0, y: 0 });
+    w.entity_mut(armor).insert(ArmorBonus(2));
     let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
-    stash(&mut w, p, potion);
+    stash(&mut w, p, dagger);
+    stash(&mut w, p, armor);
+    stash(&mut w, p, scroll);
+
+    assert_eq!(display_name(&w, dagger), "dagger");
+    assert_eq!(display_name(&w, armor), "leather armor");
+
+    use_item(&mut w, p, scroll);
+
+    // Both pieces of gear were revealed by the one read — not just one of them.
+    assert_eq!(display_name(&w, dagger), "dagger (cursed)");
+    assert_eq!(display_name(&w, armor), "+2 leather armor");
+    assert!(
+        w.get::<Name>(dagger).is_some(),
+        "identify must not consume the target item"
+    );
+
+    let log = w.resource::<GameLog>();
+    assert!(
+        log.history
+            .iter()
+            .any(|m| m.contains("identifies everything in your pack"))
+    );
+}
+
+#[test]
+fn scroll_of_identify_says_so_when_the_pack_holds_nothing_hidden() {
+    let mut w = test_world(6);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+    let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
     stash(&mut w, p, scroll);
 
     use_item(&mut w, p, scroll);
 
-    // The potion was never drunk, but its true type is now known.
+    let log = w.resource::<GameLog>();
     assert!(
-        w.resource::<Identified>()
-            .potions
-            .contains(&PotionEffect::Poison)
-    );
-    assert_eq!(display_name(&w, potion), "potion of poison");
-    assert!(
-        w.get::<Potion>(potion).is_some(),
-        "identify must not consume the target item"
-    );
-
-    // Scroll of Identify identifies itself too, on the same read.
-    assert!(
-        w.resource::<Identified>()
-            .scrolls
-            .contains(&ScrollEffect::Identify)
+        log.history
+            .iter()
+            .any(|m| m.contains("already recognise everything"))
     );
 }

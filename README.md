@@ -19,13 +19,11 @@ Where things are
     view/          the terminal grid: the double buffer and its diff.
     engine/        the terminal front end: input, rendering, the loop.
     particle-core/ the particle arithmetic, `no_std` and dependency-free.
-    perf/          the stress rig. Did I make it slower?
     compat/        the machine matrix. Does it still run on a Pi?
 
-The last three are test rigs, kept out of the workspace's default members, so a bare `cargo build` or `cargo test` never compiles them:
+`compat/` is a test rig, kept out of the workspace's default members, so a bare `cargo build` or `cargo test` never compiles it:
 
-    ./perf_test.sh                       # the particle layer, measured
-    ./compat_test.sh                     # nihilurk, built and run on six machines
+    ./compat_test.sh                     # nihilurk, built and checked on six machines
     ./docs_style.sh                      # docs/, held to the house style
 
 

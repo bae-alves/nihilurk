@@ -3,45 +3,40 @@
 # compat_test.sh -- nihilurk's cross-platform compatibility pipeline.
 #
 # Build nihilurk for every machine it claims to run on, check the particle core
-# still compiles with no OS under it, then actually run the game on each of
-# those machines under emulation with their real CPU and memory limits, and
-# report whether it is playable there.
+# still compiles with no OS under it, and check that the built binary actually
+# starts on each of those machines.
 #
-# The question this pipeline answers is "does nihilurk run on that hardware, and
-# how well". It is not a benchmark of the stress test. The Bad Apple reel is
-# the *load* used to push the machine past what the game asks of it, and it is
-# never what anything is graded on -- a machine that cannot keep up with 800
-# motes a frame may still play nihilurk perfectly well. See
+# The question this pipeline answers is "does nihilurk run on that hardware".
+# That is a narrower claim than it used to be, and on purpose: nihilurk has no
+# workload heavy enough to need a stress test, so this does not drive the game
+# under load or cap a container's CPU or memory to emulate slow hardware. The
+# actual strategy is: if it builds, the image has a shell, and the target is
+# std (every `linux` row is), nihilurk can run there. See
 # docs/explanation/cross-platform-testing.md.
 #
 # Three scripts, in order, each of which is worth running on its own:
 #
-#   compat/cross_build.sh          phase 1: one container per architecture,
-#                                  builds the game, prints its size and who
-#                                  is to blame for it
-#   compat/nostd_check.sh          the bare-metal rows: particle-core for
-#                                  ESP32 and RISC-V microcontrollers
-#   compat/stress_test_matrix.sh   phase 2: runs the game on each machine
-#                                  with that machine's limits applied, and
-#                                  records CPU and memory the whole time
+#   compat/cross_build.sh   phase 1: one container per architecture, builds
+#                           the game, prints its size and who is to blame
+#                           for it
+#   compat/nostd_check.sh   the bare-metal rows: particle-core for ESP32
+#                           and RISC-V microcontrollers
+#   compat/run_check.sh     phase 2: checks each machine's image has a
+#                           shell and that the binary it built actually
+#                           starts and runs there
 #
-# and then `nihilurk-compat`, which is the dashboard over what they recorded.
+# and then `nihilurk-compat`, which reports what they found.
 #
-# Like perf_test.sh, a stage whose tooling is missing is skipped with a note
-# saying how to get it, not fataled -- except cross and docker, without which
-# there is no pipeline at all.
+# A stage whose tooling is missing is skipped with a note saying how to get
+# it, not fataled -- except cross and docker, without which there is no
+# pipeline at all.
 #
 # Usage:
-#   ./compat_test.sh                  everything (~20 min cold, mostly pulls)
+#   ./compat_test.sh                  everything
 #   ./compat_test.sh --targets cloud  one machine (comma-separated)
-#   ./compat_test.sh --quick          the gate only; skip the ceiling and screen check
 #   ./compat_test.sh --no-build       reuse the binaries already built
 #   ./compat_test.sh --no-bare        skip the microcontroller check
-#   ./compat_test.sh --no-screen      skip the pty/screen check on its own
-#   ./compat_test.sh --exec-emulated  actually run the qemu rows too
-#   ./compat_test.sh --frames 900     longer gate run       [default 450]
-#   ./compat_test.sh --timeout 900    per-run seconds       [default 600]
-#   ./compat_test.sh --gui            finish in the dashboard
+#   ./compat_test.sh --timeout 60     per-row seconds for the run check
 #   ./compat_test.sh --help
 
 set -uo pipefail
@@ -52,25 +47,15 @@ cd "$(dirname "$0")" || exit 1
 ONLY=""
 DO_BUILD=1
 DO_BARE=1
-DO_SCREEN=1
-EXEC_EMULATED=0
-QUICK=0
-RUN_GUI=0
-FRAMES=450
-TIMEOUT=600
+TIMEOUT=60
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --targets)       ONLY="${2:?--targets needs a list}"; shift ;;
-    --frames)        FRAMES="${2:?--frames needs a number}"; shift ;;
-    --timeout)       TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
-    --no-build)      DO_BUILD=0 ;;
-    --no-bare)       DO_BARE=0 ;;
-    --no-screen)     DO_SCREEN=0 ;;
-    --exec-emulated) EXEC_EMULATED=1 ;;
-    --quick)         QUICK=1 ;;
-    --gui)           RUN_GUI=1 ;;
-    --help|-h)       sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+    --targets)  ONLY="${2:?--targets needs a list}"; shift ;;
+    --timeout)  TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
+    --no-build) DO_BUILD=0 ;;
+    --no-bare)  DO_BARE=0 ;;
+    --help|-h)  sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) echo "compat_test.sh: unknown option $1 (try --help)" >&2; exit 1 ;;
   esac
   shift
@@ -79,12 +64,12 @@ done
 TARGET_ARGS=()
 [ -n "$ONLY" ] && TARGET_ARGS=(--targets "$ONLY")
 
-# Tells the three phase scripts that something else is driving them, so they
-# leave off their own "run this next" sign-offs.
+# Tells the phase scripts that something else is driving them, so they leave
+# off their own "run this next" sign-offs.
 export COMPAT_DRIVEN=1
 
 printf '\n%s  nihilurk compatibility pipeline%s\n' "$B$BLUE" "$R"
-note "does nihilurk run on the machines it claims to, and how well"
+note "does nihilurk run on the machines it claims to"
 
 # ---------------------------------------------------------------------------
 # 1. Build
@@ -92,7 +77,7 @@ note "does nihilurk run on the machines it claims to, and how well"
 
 if [ "$DO_BUILD" -eq 1 ]; then
   if ! ./compat/cross_build.sh "${TARGET_ARGS[@]}"; then
-    bad "phase 1 failed; nothing to run"
+    bad "phase 1 failed; nothing to check"
     exit 1
   fi
 else
@@ -106,23 +91,18 @@ fi
 if [ "$DO_BARE" -eq 1 ]; then
   # Not fatal to the pipeline: the microcontroller rows are a separate claim
   # from "nihilurk runs on this hardware", and a missing Xtensa toolchain should
-  # not stop the matrix from being measured.
+  # not stop the matrix from being checked.
   ./compat/nostd_check.sh || SKIPPED="${SKIPPED}bare "
 else
   warn "skipping the bare-metal check (--no-bare)"
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Run it
+# 3. Check it
 # ---------------------------------------------------------------------------
 
-STRESS_ARGS=("${TARGET_ARGS[@]}" --frames "$FRAMES" --timeout "$TIMEOUT")
-[ "$QUICK" -eq 1 ] && STRESS_ARGS+=(--no-reel --no-screen)
-[ "$DO_SCREEN" -eq 0 ] && STRESS_ARGS+=(--no-screen)
-[ "$EXEC_EMULATED" -eq 1 ] && STRESS_ARGS+=(--exec-emulated)
-
-./compat/stress_test_matrix.sh "${STRESS_ARGS[@]}"
-STRESS_STATUS=$?
+./compat/run_check.sh "${TARGET_ARGS[@]}" --timeout "$TIMEOUT"
+CHECK_STATUS=$?
 
 # ---------------------------------------------------------------------------
 # 4. Verdict
@@ -130,9 +110,8 @@ STRESS_STATUS=$?
 
 heading "Verdict"
 BIN="$ROOT/target/release/nihilurk-compat"
-# Not gated on `-x BIN`: see the matching comment in stress_test_matrix.sh's
-# own Report stage. Cheap here too -- stress_test_matrix.sh just built it
-# moments ago, so this is normally a no-op cargo already knows is a no-op.
+# Cheap here: run_check.sh just built it moments ago, so this is normally a
+# no-op cargo already knows is a no-op.
 cargo build --release -p nihilurk-compat >/dev/null 2>&1
 
 GATE=0
@@ -143,14 +122,8 @@ fi
 [ -n "$SKIPPED" ] && note "skipped: $SKIPPED"
 printf '      artifacts in %s/\n' "$OUT"
 
-if [ "$RUN_GUI" -eq 1 ] && [ -t 1 ] && [ -x "$BIN" ]; then
-  printf '\n  starting the dashboard (q to quit)...\n'
-  sleep 1
-  exec "$BIN" --dir "$OUT"
-fi
-
-if [ "$GATE" -ne 0 ] || [ "$STRESS_STATUS" -ne 0 ]; then
-  printf '\n%s  a machine stopped running nihilurk.%s see the report above\n\n' "$RED$B" "$R"
+if [ "$GATE" -ne 0 ] || [ "$CHECK_STATUS" -ne 0 ]; then
+  printf '\n%s  a machine cannot run nihilurk.%s see the report above\n\n' "$RED$B" "$R"
   exit 1
 fi
-printf '\n%s  done.%s  Watch it: target/release/nihilurk-compat\n\n' "$GREEN$B" "$R"
+printf '\n%s  done.%s  Read it: target/release/nihilurk-compat\n\n' "$GREEN$B" "$R"

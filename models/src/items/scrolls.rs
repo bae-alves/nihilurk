@@ -18,7 +18,7 @@ use crate::helpers::{
     actor_line, free_adjacent_tile, hostiles_in_view, item_label, mark_conditions, spark_burst_at,
     tile_of,
 };
-use crate::identify::{Identified, article_for};
+use crate::identify::article_for;
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH};
 use crate::monsters::{BESTIARY, spawn_monster};
@@ -51,9 +51,8 @@ pub(super) fn lift_curses(world: &mut World, user: Entity) -> usize {
 
 /// Whether `e` is a weapon, suit of armour or launcher with an enchantment
 /// plus or a curse still hidden — the one thing a scroll of identify can teach
-/// about it that isn't already covered by [`Identified`]. Skips gear with
-/// nothing to reveal (a plain +0, uncursed item) so the scroll never burns
-/// itself on a target that would look no different afterward.
+/// about it. Skips gear with nothing to reveal (a plain +0, uncursed item) so
+/// the scroll never claims to have taught something it didn't.
 fn has_hidden_quality(world: &World, e: Entity) -> bool {
     if world.get::<KnownQuality>(e).is_some() {
         return false;
@@ -64,73 +63,35 @@ fn has_hidden_quality(world: &World, e: Entity) -> bool {
         || world.get::<ThrowBonus>(e).is_some_and(|b| b.0 != 0)
 }
 
-/// Picks a uniformly random item in `user`'s backpack that still has something
-/// to learn — a potion, scroll, wand or ring whose true type isn't identified,
-/// or a piece of gear whose plus/curse isn't ([`has_hidden_quality`]) — and
-/// identifies it directly. Used by [`ScrollEffect::Identify`], which has no
-/// interactive item picker (yet).
-fn identify_random_unknown_item(world: &mut World, user: Entity) {
+/// Reveals every piece of gear in `user`'s backpack with a hidden enchantment
+/// plus or curse ([`has_hidden_quality`]) in one read — a potion, scroll, wand
+/// or ring has nothing left to teach, since its true type is always shown.
+/// Used by [`ScrollEffect::Identify`].
+fn identify_everything_hidden(world: &mut World, user: Entity) {
     let candidates: Vec<Entity> = world
         .get::<Backpack>(user)
         .map(|bp| bp.items.clone())
         .unwrap_or_default();
 
-    let is_unidentified = |world: &World, e: Entity| -> bool {
-        let identified = world.resource::<Identified>();
-        world
-            .get::<Potion>(e)
-            .is_some_and(|p| !identified.potions.contains(&p.effect))
-            || world
-                .get::<Scroll>(e)
-                .is_some_and(|s| !identified.scrolls.contains(&s.effect))
-            || world
-                .get::<Wand>(e)
-                .is_some_and(|w| !identified.wands.contains(&w.effect))
-            || world
-                .get::<Ring>(e)
-                .is_some_and(|r| !identified.rings.contains(&r.effect))
-            || has_hidden_quality(world, e)
-    };
-
-    let unknown: Vec<Entity> = candidates
+    let revealed: Vec<Entity> = candidates
         .into_iter()
-        .filter(|&e| is_unidentified(world, e))
+        .filter(|&e| has_hidden_quality(world, e))
         .collect();
-    if unknown.is_empty() {
+
+    if revealed.is_empty() {
         world
             .resource_mut::<GameLog>()
             .add("You already recognise everything in your pack.".to_string());
         return;
     }
-    let target = {
-        let mut rng = world.resource_mut::<GameRng>();
-        unknown[rng.0.gen_range(0..unknown.len())]
-    };
 
-    let name = item_label(world, target);
-    let potion_effect = world.get::<Potion>(target).map(|p| p.effect);
-    let scroll_effect = world.get::<Scroll>(target).map(|s| s.effect);
-    let wand_effect = world.get::<Wand>(target).map(|w| w.effect);
-    let ring_effect = world.get::<Ring>(target).map(|r| r.effect);
-
-    let mut identified = world.resource_mut::<Identified>();
-    if let Some(effect) = potion_effect {
-        identified.potions.insert(effect);
+    for &item in &revealed {
+        world.entity_mut(item).insert(KnownQuality);
     }
-    if let Some(effect) = scroll_effect {
-        identified.scrolls.insert(effect);
-    }
-    if let Some(effect) = wand_effect {
-        identified.wands.insert(effect);
-    }
-    if let Some(effect) = ring_effect {
-        identified.rings.insert(effect);
-    }
-    world.entity_mut(target).insert(KnownQuality);
 
     world
         .resource_mut::<GameLog>()
-        .add(format!("The scroll identifies your {name}!"));
+        .add("The scroll identifies everything in your pack!".to_string());
 }
 
 /// Exhaustive over `ScrollEffect`, deliberately with no catch-all: a scroll
@@ -143,7 +104,7 @@ fn identify_random_unknown_item(world: &mut World, user: Entity) {
 /// that reads as nothing happening, and it means it.
 pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: ScrollEffect) {
     match effect {
-        ScrollEffect::Identify => identify_random_unknown_item(world, user),
+        ScrollEffect::Identify => identify_everything_hidden(world, user),
         ScrollEffect::RemoveCurse => {
             let freed = lift_curses(world, user);
             let msg = if freed > 0 {

@@ -138,9 +138,9 @@ Components — item type keys
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
 | `KnownQuality` | marker   | this instance's enchantment plus/curse/vorpal bane are known — set by wearing it (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singling it out | yes |
 
-All four key enums are **saved by variant order** — append, never reorder. The catalog tables (`crate::catalog`) and the appearance pools (`crate::identify`) are the other things keyed off these enums.
+All four key enums are **saved by variant order** — append, never reorder. The catalog tables (`crate::catalog`) are the other thing keyed off these enums.
 
-`KnownQuality` is per-*instance*, unlike `Identified` (`crate::identify`), which is per-*effect*: two rings of protection share one `Identified` entry the moment either is worn, but each rolled its own curse, so each needs its own `KnownQuality`. `identify::display_name` reads it to decide whether to print a weapon/armour/launcher's `+N` prefix, a `(cursed)` suffix, or a `(vorpal vs. X)` suffix — hidden for anything not yet known.
+`KnownQuality` is per-*instance*: two rings of protection are two separate rolls of the curse dice, so each needs its own `KnownQuality`, set the moment it's worn (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singles it out. `identify::display_name` reads it to decide whether to print a weapon/armour/launcher's `+N` prefix, a `(cursed)` suffix, or a `(vorpal vs. X)` suffix — hidden for anything not yet known. Potions, scrolls, wands and rings carry no such hidden state of their own; they always show their true name.
 
 `WandEffect::needs_target()` is `false` only for the wand of light (it floods the room, no reticle).
 
@@ -349,11 +349,11 @@ The log panel is plain white except for a sparing set of colours (`hud::log_line
 
 `hud::log_paint(message, stripes)` is the painter's entry point and returns a `LogPaint`: `Solid(Color)` for everything, except `Striped` for the one line that comes out in colours rather than a colour — `hud::PRIDE_LINE` ("With pride.", the rare alternative to "With style." on a combo), painted a character at a time, cycling the stripes so red follows purple and no two neighbouring letters match. The stripes come from `pride::stripes(world)`; see `models/src/pride.rs`.
 
-Other run-state resources live outside this file: `Map` (`map.rs`), `GameRng` / `RngSeed` / `FxRng` (`map/streams.rs`), `Identified` / `ItemAppearances` (`identify.rs`), `BloodStains`, `Smoke` and `Corpses` (`map/overlays.rs`), `GameState` (`state.rs`). The save file persists the RNG state, the identification tables and the dark-tile set — see `models/src/saveload.rs`.
+Other run-state resources live outside this file: `Map` (`map.rs`), `GameRng` / `RngSeed` / `FxRng` (`map/streams.rs`), `BloodStains`, `Smoke` and `Corpses` (`map/overlays.rs`), `GameState` (`state.rs`). The save file persists the RNG state and the dark-tile set — see `models/src/saveload.rs`.
 
 **No cosmetic state is saved, on purpose.** `BloodStains`, `Corpses`, `Smoke`, `Particles`, `Shake`, `ScoreFlash` and `FxRng` are all rebuilt empty by `load_game`. A fire blast's lingering puffs (`SMOKE_LINGER_TURNS`, ticked by `smoke_system`), a death's corpse marks (`helpers::death_burst`) and the blood under a fight say nothing the game needs back — and the three map-sized overlays alone would come to 2.2 KB, more than the whole save file they would be joining. A reloaded floor is the floor you left, scrubbed of the mess you made on it. The same reasoning keeps the map itself and the message log out; the four exclusions are listed at the top of `saveload.rs`.
 
-`FxRng` (`map/streams.rs`) is a second RNG stream, seeded from the run seed but salted apart from `GameRng` the same way `ItemAppearances` gets its own — for animation/particle randomness only (a death burst's fling direction and reach, a blood splatter's spray). Nothing that reads it feeds back into gameplay, so a purely cosmetic feature (`-nb` skipping the roll entirely, say) can never perturb the shared `GameRng` stream everything else depends on for determinism. Not saved — a reload just reseeds it fresh.
+`FxRng` (`map/streams.rs`) is a second RNG stream, seeded from the run seed but salted apart from `GameRng` — for animation/particle randomness only (a death burst's fling direction and reach, a blood splatter's spray). Nothing that reads it feeds back into gameplay, so a purely cosmetic feature (`-nb` skipping the roll entirely, say) can never perturb the shared `GameRng` stream everything else depends on for determinism. Not saved — a reload just reseeds it fresh.
 
 
 See also

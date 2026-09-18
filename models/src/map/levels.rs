@@ -42,9 +42,6 @@ use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use std::collections::HashSet;
 
-use rand::SeedableRng;
-use rand_chacha::ChaCha12Rng;
-
 // Building the next floor: the tiles, the things that stand on them, and the
 // two seeds that decide each — `layout_rng` for the shape a depth always has,
 // `FxRng` for the stock it gets on this visit.
@@ -57,12 +54,10 @@ use super::{DUNGEON_LORD_PATIENCE, FINAL_DEPTH, MAP_TILE_COUNT, Map, TileType};
 // the three follows anybody down a staircase.
 use super::overlays::{BloodStains, Corpses, Smoke};
 
-// Setting a run up — what the hero starts with, worn without a log line about
-// it, and the appearance table that decides what they have yet to recognise.
+// Setting a run up — what the hero starts with, worn without a log line about it.
 use crate::catalog::{spawn_ammo, spawn_armor, spawn_launcher, spawn_potion, spawn_weapon};
 use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
 use crate::equipment::equip_silently;
-use crate::identify::{Identified, ItemAppearances};
 
 // The arrival: how much of the descent is paid back as health.
 use crate::constants::progression::DESCENT_HEAL_DIVISOR;
@@ -432,14 +427,7 @@ pub fn initialize_world(world: &mut World) {
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.init_resource::<crate::score::ScoreFlash>();
     world.init_resource::<crate::score::Combo>();
-    world.insert_resource(Identified::default());
-    // This run's cosmetic appearance for every unidentified item type. Drawn
-    // from a separate RNG keyed off the same seed (so a given seed always
-    // shuffles the same way) rather than the shared `GameRng` stream, so
-    // adding new appearance pools here never perturbs dungeon/loot rolls.
     let seed = world.resource::<RngSeed>().0;
-    let mut appearance_rng = ChaCha12Rng::seed_from_u64(seed ^ 0x1DEA_5117_FEED_u64);
-    world.insert_resource(ItemAppearances::generate(&mut appearance_rng));
     world.insert_resource(FxRng::new(seed));
 
     let ((player_x, player_y), rooms) = create_map(world);
@@ -447,9 +435,7 @@ pub fn initialize_world(world: &mut World) {
     // The starting gear. Every piece is spawned at the origin like a drop, then
     // lifted straight into the pack (Position stripped, the way a picked-up item
     // loses it) so it never shows up as floor loot. The armour, mace and bow are
-    // handed over enchanted to +1 rather than rolled, and the healing potion
-    // starts identified: a first run should not open with four mysteries and no
-    // way to survive guessing wrong about any of them.
+    // handed over enchanted to +1 rather than rolled.
     let origin = Position { x: 0, y: 0 };
     let pack_up = |world: &mut World, item: Entity| {
         world.entity_mut(item).remove::<Position>();
@@ -479,10 +465,6 @@ pub fn initialize_world(world: &mut World) {
 
     let healing = spawn_potion(world, PotionEffect::Healing, origin);
     pack_up(world, healing);
-    world
-        .resource_mut::<Identified>()
-        .potions
-        .insert(PotionEffect::Healing);
 
     let player_name = world.resource::<PlayerName>().what.clone();
 

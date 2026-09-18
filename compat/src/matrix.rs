@@ -4,9 +4,8 @@
 //! than read at runtime. That is the same decision as the content tables and
 //! for the same reasons (see `docs/explanation/adr-0001-tables-not-raws.md`):
 //! the binary is self-contained, a malformed row is found when the pipeline is
-//! built rather than in the middle of a twenty-minute matrix run, and there is
-//! no "where is the data file" question to answer on a machine that has only
-//! the binary.
+//! built rather than in the middle of a matrix run, and there is no "where is
+//! the data file" question to answer on a machine that has only the binary.
 //!
 //! The shell half of the pipeline reads the same file with `awk`. One table,
 //! two readers, no second list to keep in step.
@@ -18,7 +17,7 @@ const MATRIX: &str = include_str!("../matrix.tsv");
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Class {
     /// Has an operating system, a terminal and a shell. nihilurk runs here, and
-    /// this is the only kind of row the stress matrix executes.
+    /// this is the only kind of row `run_check.sh` executes.
     Linux,
     /// No operating system. Only `particle-core` is built for it, and it is
     /// only ever checked, never run. See `nostd_check.sh`.
@@ -29,13 +28,10 @@ pub enum Class {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Exec {
     /// The host CPU runs it directly. x86_64 on x86_64, and i686 on x86_64 --
-    /// a 64-bit kernel runs 32-bit user space natively, so the "potato" row is
-    /// not emulated either, only starved.
+    /// a 64-bit kernel runs 32-bit user space natively.
     Native,
     /// A directly-invoked qemu-user-static interpreter runs it -- no
-    /// binfmt_misc, no `--privileged` (see `stress_test_matrix.sh`).
-    /// Everything measured on such a row carries the emulator's tax; see
-    /// `docs/explanation/cross-platform-testing.md`.
+    /// binfmt_misc, no `--privileged` (see `run_check.sh`).
     Qemu,
     /// Never executed.
     None,
@@ -49,24 +45,11 @@ pub struct Row {
     pub class: Class,
     /// `docker --platform` value for a `Native` row. A `Qemu` row's
     /// container instead runs as the host's own architecture, so this only
-    /// tells `stress_test_matrix.sh` which qemu-user-static interpreter to
-    /// fetch.
+    /// tells `run_check.sh` which qemu-user-static interpreter to fetch.
     pub platform: String,
     pub image: String,
     pub exec: Exec,
-    /// `docker --cpus`, as written in the table.
-    pub cpus: String,
-    /// `docker --memory`, as written in the table.
-    pub memory: String,
     pub note: String,
-}
-
-impl Row {
-    /// The container name a run of this row gets. Fixed rather than random so a
-    /// run that was killed halfway can be found and removed by hand.
-    pub fn container(&self) -> String {
-        format!("nihilurk-compat-{}", self.id)
-    }
 }
 
 /// Every row of the matrix, in file order.
@@ -86,7 +69,7 @@ pub fn rows() -> Vec<Row> {
 
 fn parse_row(line: &str) -> Option<Row> {
     let f: Vec<&str> = line.split('\t').collect();
-    if f.len() < 9 {
+    if f.len() < 7 {
         return None;
     }
     Some(Row {
@@ -103,9 +86,7 @@ fn parse_row(line: &str) -> Option<Row> {
             "none" => Exec::None,
             _ => Exec::Native,
         },
-        cpus: f[6].to_string(),
-        memory: f[7].to_string(),
-        note: f[8].to_string(),
+        note: f[6].to_string(),
     })
 }
 

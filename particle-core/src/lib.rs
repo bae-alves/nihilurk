@@ -13,9 +13,7 @@
 //! copy of it. [`models::particles`] owns the `Vec` of keyframes, the colour
 //! type and the ECS resource; every decision it makes about *time* is one of
 //! the functions below. If this crate is wrong, the game is wrong, and
-//! `models/tests/particles.rs` fails -- which is the property `perf/src/screen.rs`
-//! deliberately gave up and has regretted in writing ever since (see
-//! `docs/explanation/performance-testing.md`, "The grid is a copy").
+//! `models/tests/particles.rs` fails.
 //!
 //! # What is deliberately absent
 //!

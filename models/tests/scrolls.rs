@@ -117,11 +117,6 @@ fn teleportation_drops_the_reader_somewhere_else_on_the_floor() {
         w.get::<Viewshed>(p).unwrap().dirty,
         "the viewshed must be recomputed after a blink"
     );
-    assert!(
-        w.resource::<Identified>()
-            .scrolls
-            .contains(&ScrollEffect::Teleportation)
-    );
     // Landed on a real walkable tile, not inside a wall.
     assert!(!w.resource::<Map>().blocks(after.x, after.y));
 }

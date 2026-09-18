@@ -397,8 +397,7 @@ pub struct Backpack {
 pub struct Consume;
 
 /// A wand's remaining charges. Each zap spends one; at zero the wand crumbles.
-/// A floor drop rolls them off [`crate::constants::wands`] — see
-/// [`crate::catalog::roll_wand_charges`].
+/// Every wand spawns with [`crate::constants::wands::WAND_CHARGES`], full.
 #[derive(Component)]
 pub struct Battery {
     pub charges: i8,

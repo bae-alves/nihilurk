@@ -36,8 +36,6 @@ Start here
 | Write or edit a page in here        | `explanation/documentation-style.md`    |
 | Know what good numbers look like    | `explanation/combat-and-balance.md`     |
 | Know what shape to leave the code in| `explanation/code-calisthenics.md`      |
-| Check I did not make it slower      | `how-to/run-the-perf-pipeline.md`       |
-| Know how performance is measured    | `explanation/performance-testing.md`    |
 | Check it still runs on a Pi         | `how-to/run-the-compat-pipeline.md`     |
 | Know how portability is tested      | `explanation/cross-platform-testing.md` |
 
@@ -102,7 +100,7 @@ Three things make that cheap here:
 
   1. The docs describe *tables*, and the tables are short. There is rarely more than one page to touch.
 
-  2. `models/tests/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, appearance pools -- and `models/tests/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
+  2. `models/tests/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
 
   3. `cargo run -p engine -- -content` prints the live content list. It reads the tables, so it can never go stale. Prefer pointing a reader at it over pasting a list into a page.
 
@@ -118,7 +116,6 @@ Quick sanity check
     cargo run -p engine -- -content           # what the game knows
     NIHILURK_SPAWN="dragon" cargo run -p engine   # put one in front of me
 
-And the two pipelines, which are slower and answer different questions:
+And the compatibility pipeline, which is slower and answers a different question:
 
-    ./perf_test.sh                            # did I make it slower?
     ./compat_test.sh                          # does it still run on a Pi?

@@ -114,9 +114,9 @@ Your pack has limited space. Ammunition shares a slot with matching ammunition, 
 Unknown things
 --------------
 
-Potions, scrolls, wands, and rings are disguised when you find them. Their appearance is different from expedition to expedition. When you identify one by using it or by magic, you recognise that kind of object for the rest of the expedition.
+Potions, scrolls, and wands tell you exactly what they are the moment you find them.
 
-Weapons and armour reveal their quality more cautiously. An item may be plain, unusually good, or cursed. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose.
+Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose.
 
 Magic and moves
 ---------------
