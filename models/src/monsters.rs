@@ -133,6 +133,14 @@ impl MonsterDef {
     }
 
     /// Mark a bestiary row as a mimic, born disguised as an item (the xeroc).
+    ///
+    /// Never pair this with [`MonsterDef::invisible`]. A mimic hides by
+    /// disguise; [`crate::monsters::reveal_mimics`] strips that the instant
+    /// the player is adjacent. An invisible row hides by not being drawn at
+    /// all. Combine them and the result is a creature that, having just been
+    /// noticed, still cannot be seen -- a state neither mechanic resolves.
+    /// `models/tests/content.rs`'s `a_mimic_is_never_also_invisible` holds
+    /// this to the fire.
     const fn mimics(mut self) -> Self {
         self.mimics = true;
         self
