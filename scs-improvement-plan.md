@@ -1,14 +1,30 @@
 # Retiring the weak and the ugly
 
-A correction before anything else: `scs.md` and the `scs-architecture/` set were written against a
-project called roog. The rename landed at `8efa8ec`, and it reached everywhere — there is not one
-occurrence of "roog" left in tracked source or docs (`git grep -il roog` outside those two documents
-returns nothing). This plan uses the current name throughout and treats the essays' "roog" as
-"nihilurk" without further comment.
+A correction before anything else: `scs.md` and the `scs-architecture/` set were originally written
+against a project called roog. The rename landed at `8efa8ec`, and it reached everywhere — there is
+not one occurrence of "roog" left in tracked source or docs. `scs.md` has since been corrected in
+place as part of this plan's second revision, alongside this file; `scs-architecture/` has not, and
+still says roog throughout.
+
+A second correction, on this plan itself: "The model" originally called item 2 closed by Phase 1's
+`score.rs` fix. That overclaimed. Phase 1 closed one instance of item 2 — the one place the
+inconsistency had actually caused a visible asymmetry — and left the pattern item 2 is actually about
+untouched: `rg -oi 'assumes|invariant|must run after' engine/src models/src` returned zero hits before
+Phase 1 and returns exactly one after it, the comment this plan itself added. Fifteen schedule systems
+still state nothing at their own definition about what they assume true of the world when they start.
+Phase 3 below is the rest of item 2, added on rereading this document rather than on anything in the
+codebase having changed.
+
+A third note, not a correction: `scs-architecture/`'s five files have since been merged into `scs.md`
+and trimmed rather than appended — the generic self-review in `02-strong-weak-ugly.md` was superseded
+by `scs.md`'s own grounded "The three" well before the merge, so it was cut rather than kept twice. The
+folder itself is pending deletion once its owner has read it; when that happens, any reference here or
+in `scs-improvement-prompt.md` to a `scs-architecture/*.md` path is stale and should point at `scs.md`
+instead, the way "Where it stands" below already does.
 
 ## Where it stands
 
-The strong case in `scs-architecture/02-strong-weak-ugly.md` holds up against the actual tree. Every
+The strong case in `scs.md`'s "The three" holds up against the actual tree. Every
 monster is a row in `BESTIARY` (`models/src/monsters.rs:247`), every item a row in one of nine
 tables in `models/src/catalog.rs`, every trap a row in `TRAPS` (`models/src/traps.rs:152`), and
 nothing else in the codebase enumerates a species by name — `models/tests/content.rs` proves it by
@@ -159,7 +175,8 @@ messages behind named "arms" would either produce 232 near-identical one-line wr
 not a seam closed) or collapse to a single generic `log::add(world, msg)` that renames `.add` and
 changes nothing — the "bus by another name" this plan's own calibration rules out. The one real
 defect item 1 left behind was the `score.rs` inconsistency above, and that is a stated-invariant
-problem (item 2), not a missing-queue problem. Closing it there is what Phase 1 does.
+problem (item 2), not a missing-queue problem — Phase 1 closed that one instance, not item 2 itself;
+see Phase 3.
 
 **Item 6 is closed for the same reason item 1 is.** "Visible effect resolution" already describes
 `GameLog`: a rule that decides something worth saying happened writes it down, in the rule, in the
@@ -185,11 +202,12 @@ printed once per floor, cheap enough to leave permanently on a debug build and u
 day a floor's population design changes by an order of magnitude. Building the index resource now
 would be a cache with nothing yet to invalidate it correctly against.
 
-That leaves two items with real, un-closed work: **2+7, collapsed, as "seams named and guarded"**,
-and **3, standing alone, as "row legality"**. No eighth item clears the bar set for one — the two
-candidates this research turned up, the `L`-in-`MANUAL.md` gap and the `score.rs` inconsistency, are
-both folded into Phase 1 below as evidence and fixes, not proposals, because both are instances of
-item 7 and item 2 respectively rather than a distinct architectural altitude.
+That leaves three items with real, un-closed work: **7, as "seams named and guarded"** — landed in
+Phase 1 — **3, as "row legality"** — landed in Phase 2 — and **the rest of 2, as "state what a system
+assumes"** — Phase 3, not yet landed. No eighth item clears the bar set for one — the two candidates
+this research turned up, the `L`-in-`MANUAL.md` gap and the `score.rs` inconsistency, are both folded
+into Phase 1 as evidence and fixes, not proposals, because both are instances of item 7 and item 2
+respectively rather than a distinct architectural altitude.
 
 ## Roadmap
 
@@ -295,6 +313,61 @@ whoever adds the next bestiary or trap row and mistypes a weight or a depth — 
 surfaces as a species nobody ever sees, three sessions into a playtest; after this phase, `cargo test`
 says so on the spot.
 
+### Phase 3 — State what a system assumes
+
+**The change.** Add a short doc comment to each of the fifteen `&mut World` schedule systems, stating
+what it assumes is already true of the world when it starts — the precondition half of the `.after()`
+edge that already exists for every one of them. Not a contract-checking framework: a sentence or two,
+in the place a reader already looks (the function's own definition), doing in prose what a `Query`'s
+type signature does for free. `visibility_system` needs none — `With<Player>`, `Option<&SeesInvisible>`
+and the rest of its query already state its assumptions in a form the compiler checks.
+
+| System | File | What it would state |
+|---|---|---|
+| `smoke_system` | `models/src/map/overlays.rs:143` | reads/ages `Smoke`; nothing upstream needs to have run |
+| `snare_system` | `models/src/traps.rs:273` | reads `Snare`; nothing upstream needs to have run |
+| `reveal_mimics` | `models/src/monsters.rs:570` | assumes player `Position` is current for this turn |
+| `ai` | `models/src/ai.rs:29` | assumes mimics already revealed, so `Ambush` mobs are visible as themselves |
+| `monster_pickup_system` | `models/src/ai.rs:351` | assumes `EntityMoved` still marks whoever `ai` just moved |
+| `trap_system` | `models/src/traps.rs:313` | assumes `monster_pickup_system` has claimed any coin already, so it clears `EntityMoved` next |
+| `throw_system` | `models/src/items/throwing.rs:391` | assumes `EntityMoved` has been cleared; drains `ThrowQueue` |
+| `item_system` | `models/src/items.rs:111` | drains `UseQueue`; no upstream state read |
+| `move_system` | `models/src/items/moves.rs:79` | drains `MoveQueue`; no upstream state read |
+| `equipment_effects_system` | `models/src/equipment.rs:394` | assumes gear changed since last run (a load, a curse lifted) needs reconciling before combat reads it |
+| `combat_system` | `models/src/combat.rs:61` | assumes `equipment_effects_system` has folded lent effects into `Loadout`-relevant components; drains `AttackQueue` |
+| `reaper_system` | `models/src/combat.rs:76` | assumes `combat_system` has run, so any `Fighter.hp <= 0` is this turn's business to finish |
+| `dungeon_lord_system` | `models/src/map/levels.rs:379` | assumes the dead are already gone, so it is not portaling a corpse |
+| `passive_ability_system` | `models/src/abilities.rs:492` | assumes `ai` has already moved every monster this turn, so a jump lands at the top of the *next* one |
+| `score_turn_system` | `models/src/score.rs:125` | assumes everything that can kill this turn already has; totals `Combo` once, last |
+
+**Files.** The fifteen files in the table above — each system's own home module, not a new file.
+
+**Verification.** `cargo build --workspace` (doc comments only; nothing compiles differently),
+`cargo test --workspace`, `./docs_style.sh` (this table's claims about file and line are exactly what
+`docs/reference/input-and-turn-loop.md` already states in prose for the ordering half; this phase adds
+the precondition half at the system's own definition, it does not duplicate the schedule reference).
+
+**Cost.** Fifteen more sentences of prose next to fifteen functions, each one a claim about the world
+that nothing compiles or tests against — the same shape of claim that already went stale three times
+over in one area (the queue count, across three files) before this plan's first pass caught it. Stating
+an invariant is not the same as guarding one; unlike Phase 1's doc fixes, there is no pre-commit hook
+proposed for these fifteen sentences, because there is no small, reliable diff-marker for "did this
+comment's claim stop being true" the way there was for a queue struct's declaration. The honest
+successor to this phase, if any of the fifteen ever drifts, is turning that one sentence into a
+`debug_assert!` at the top of the system rather than adding another hook.
+
+**Success metric.** All fifteen `&mut World` systems carry a one-to-two-sentence doc comment starting
+with what they assume; `rg -oi 'assumes|invariant' models/src engine/src | wc -l` reads fifteen
+(sixteen with the `score.rs` comment Phase 1 already added), up from one.
+
+**Ratio.** Do it now, but last of the three — it is real, unfinished work from item 2, and it is the
+one phase in this plan whose value is entirely to a reader, not to the compiler or a test: whoever next
+adds a seventeenth system and has to decide where in the order it belongs, or reads `combat_system` in
+isolation while chasing a bug and currently has to walk `main.rs`'s `.after()` chain by hand to learn
+it depends on `equipment_effects_system`. Lower ratio than Phase 1 or 2 only because nothing enforces
+it once written — it is a real seam named, not a seam guarded, and this plan should not pretend
+otherwise a second time.
+
 ### Already closed: items 1, 4, and 6
 
 No phase is proposed for these, and that is the finding, not an omission. Item 1's inbound and
@@ -332,6 +405,15 @@ not proposed here because the drift it would prevent has happened exactly once i
 history and cost one afternoon of a session like this one to find and fix. That is the trade being
 made, not a problem solved: cheaper now, and the next person to hit it will have less warning than a
 full parser would have given them.
+
+The guard's scope is also narrower than the problem it answers to. `docs_style.sh`, and the hook that
+runs it, both stop at `docs/`; `MANUAL.md` and `README.md` are prose about the code with nothing
+checking either against it, which is exactly how the `L` gap survived until this plan went looking by
+hand. Nothing here proposes widening the hook to cover them — a player-facing manual has no reliable
+diff-marker the way a queue's declaration does, and a hook that fires on every `engine/src/update.rs`
+change in case a key binding moved would be wrong far more often than it would be right. The honest
+statement is that this plan closed the one instance it found by reading the file, not the class of
+mistake, and the next one will be found the same way, by someone reading it, not by tooling.
 
 ## Thesis
 
