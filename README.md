@@ -12,6 +12,7 @@ Where things are
 ----------------
 
     MANUAL.md      how to play: controls, combat math, items, monsters.
+    doc/roog.6     the installed `man roog` command reference.
     docs/          how to add content to the game. Start at docs/README.md.
     gdd.md         what roog is trying to be. Design, not code.
     models/        the game: rules, content tables, ECS systems.

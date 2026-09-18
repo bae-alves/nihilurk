@@ -193,6 +193,83 @@ fn a_won_run_saves_as_clear_data() {
     assert_eq!(clear.player_name, "VICTOR");
 }
 
+/// Gear stays on across a save. What is wielded and worn when the file is
+/// written is wielded and worn when it is read back, by the same hands — and
+/// what the gear lends its wearer (a ring's granted effect, an armour's die)
+/// comes back with it, because the save leaves loaned effects out of every
+/// entity's set and load re-lends them.
+#[test]
+fn equipped_gear_stays_on_across_a_save() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(11)));
+    w.insert_resource(RngSeed(11));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName {
+        what: "WEARER".into(),
+    });
+    initialize_world(&mut w);
+    // Strip the floor's spawned loot and monsters so this round trip sees only
+    // the gear the test itself places. The player's starting kit stays; it is
+    // equipped (ring mail, mace) and part of the claim under test.
+    let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
+    let strays: Vec<Entity> = w
+        .iter_entities()
+        .filter(|e| !e.contains::<Player>() && e.contains::<Position>())
+        .map(|e| e.id())
+        .collect();
+    for e in strays {
+        w.despawn(e);
+    }
+    let here = *w.get::<Position>(hero).unwrap();
+    // A ring of perception, put on the proper way: its SeesInvisible is on
+    // loan from gear, which is exactly the effect a reload must re-lend.
+    let ring = spawn_ring(&mut w, RingEffect::Perception, here);
+    assert!(toggle_equipped(&mut w, hero, ring));
+    assert!(w.get::<SeesInvisible>(hero).is_some());
+    // A monster holds gear of its own — the save must not strip it from the
+    // orc's hand any more than from the player's.
+    let dagger = spawn_weapon(&mut w, "dagger", here);
+    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), here);
+    assert!(equip_silently(&mut w, orc, dagger));
+
+    let before = loadout(&w, hero);
+    let save = common::SaveFile::new("worn");
+    let p = save.path();
+    save_game(&mut w, p).unwrap();
+    // Saving is read-only: it did not undress anyone to write the file.
+    assert_eq!(w.get::<Equipped>(ring).map(|e| e.by), Some(Some(hero)));
+    assert_eq!(w.get::<Equipped>(dagger).map(|e| e.by), Some(Some(orc)));
+
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(12)));
+    w2.insert_resource(RngSeed(12));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, p).unwrap();
+
+    let hero2 = w2.query_filtered::<Entity, With<Player>>().single(&w2);
+    let orc2 = w2.query_filtered::<Entity, With<Mob>>().single(&w2);
+    // The player's hand, body and finger all come back occupied.
+    assert!(equipped_in(&w2, hero2, Slot::Hand).is_some());
+    assert!(equipped_in(&w2, hero2, Slot::Body).is_some());
+    let worn = equipped_in(&w2, hero2, Slot::Finger).expect("the ring stayed on");
+    assert_eq!(w2.get::<Ring>(worn).map(|r| r.effect), Some(RingEffect::Perception));
+    // What the ring lent is re-lent: the wearer sees invisible again without
+    // touching the slot.
+    assert!(
+        w2.get::<SeesInvisible>(hero2).is_some(),
+        "the ring's loaned effect did not come back with the ring"
+    );
+    // The numbers the HUD reads are the numbers they were.
+    assert_eq!(loadout(&w2, hero2), before);
+    // And the orc still holds what it caught.
+    let held = equipped_in(&w2, orc2, Slot::Hand).expect("the orc kept its dagger");
+    assert_eq!(
+        w2.get::<Name>(held).map(|n| n.what.as_str()),
+        Some("dagger")
+    );
+}
+
 /// The save carries no cosmetic state at all, and that is a decision rather
 /// than an oversight: none of it is gameplay, none of it is replayed, and the
 /// three map-sized overlays alone would outweigh the rest of the file.
