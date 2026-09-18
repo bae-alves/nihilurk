@@ -263,6 +263,47 @@ fn every_loot_category_can_be_drawn_and_has_rows_to_give() {
     }
 }
 
+/// Every bestiary row can actually turn up, and does not outlive the dungeon.
+///
+/// `pick`/`pick_any` weight-draw the same way `DROPS` does, and a row can go
+/// silently unreachable the same way a loot category can: a `.weight(0)`
+/// nobody meant, or a `min_depth` typo'd past `FINAL_DEPTH` so the species
+/// waits for a floor the run never has. Neither is a bug a player reports --
+/// it just reads as a species nobody happens to have met.
+#[test]
+fn every_bestiary_row_can_actually_be_drawn() {
+    for def in BESTIARY {
+        assert!(
+            def.weight > 0,
+            "{} has no weight, so it can never be drawn",
+            def.name
+        );
+        assert!(
+            def.min_depth <= FINAL_DEPTH,
+            "{} debuts on floor {} -- past the last floor, {FINAL_DEPTH}",
+            def.name,
+            def.min_depth
+        );
+    }
+}
+
+/// A mimic hides by disguise ([`MonsterDef::mimics`]); an invisible creature
+/// hides by not being drawn at all. Nothing about combining them is
+/// mechanically wrong today -- [`crate::monsters::reveal_mimics`] would strip
+/// the disguise correctly -- but the result is a creature that, having been
+/// noticed, still cannot be seen: a state neither mechanic was written to
+/// produce together. See the doc comment on `MonsterDef::mimics`.
+#[test]
+fn a_mimic_is_never_also_invisible() {
+    for def in BESTIARY {
+        assert!(
+            !(def.mimics && def.invisible),
+            "{} is both a mimic and invisible -- pick one kind of hiding",
+            def.name
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Traps
 // ---------------------------------------------------------------------------
@@ -286,6 +327,26 @@ fn the_trap_a_floor_lays_comes_from_the_table() {
         TRAPS.len(),
         "every trap in the table is available on floor 1"
     );
+}
+
+/// [`every_bestiary_row_can_actually_be_drawn`]'s twin for `TRAPS`: a zero
+/// weight or a `min_depth` past `FINAL_DEPTH` leaves a trap nobody ever
+/// springs.
+#[test]
+fn every_trap_row_can_actually_be_drawn() {
+    for def in TRAPS {
+        assert!(
+            def.weight > 0,
+            "{} has no weight, so it can never be laid",
+            def.name
+        );
+        assert!(
+            def.min_depth <= FINAL_DEPTH,
+            "{} debuts on floor {} -- past the last floor, {FINAL_DEPTH}",
+            def.name,
+            def.min_depth
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
