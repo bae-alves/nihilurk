@@ -387,9 +387,11 @@ pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
     e.insert(GrantedByGear(wanted));
 }
 
-/// Reconciles every gear-bearing creature. [`toggle_equipped`] already keeps the
-/// player in step; this catches the paths that change gear behind its back — a
-/// loaded save, a curse-lifting scroll, a stolen item.
+/// Reconciles every pack-carrying creature. [`toggle_equipped`] already keeps
+/// the player in step; this catches the paths that change gear behind its
+/// back — a curse-lifting scroll, a stolen item. A loaded save lends gear
+/// effects itself (see [`crate::saveload::load_game`]), for wearers with no
+/// pack as well, which this query does not reach.
 pub fn equipment_effects_system(world: &mut World) {
     let bearers: Vec<Entity> = world
         .query_filtered::<Entity, With<Backpack>>()

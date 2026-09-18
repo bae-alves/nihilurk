@@ -1,0 +1,291 @@
+.TH ROOG 6 "September 2026" "roog 0.1.0" "Games"
+.SH NAME
+roog \- terminal roguelike
+.SH SYNOPSIS
+.B roog
+[\fB\-s\fR \fIseed\fR] [\fB\-c\fR] [\fB\-ns\fR] [\fB\-nb\fR]
+[\fB\-nshake\fR] [\fB\-anim\-rate\fR \fImultiplier\fR] [\fIname\fR | \fIsave\fR]
+.PP
+.B roog
+\fB\-content\fR
+.PP
+.B roog
+\fB\-h\fR | \fB\-help\fR | \fB\-\-help\fR
+.SH DESCRIPTION
+.B roog
+is a turn-based terminal roguelike: exploration, combat, and survival in a
+thirteen-floor dungeon, drawn on a grid of character cells and answered one
+keystroke at a time.
+.PP
+To win, descend to the thirteenth floor, take the
+.I "Element of Yoord"
+that waits there, and carry it up and out of the dungeon. Once you carry it,
+the only way out is up, and the creatures you meet may be drawn from anywhere
+in the dungeon. Few runs come back up. Death is permanent; there is no retry
+and no resurrection.
+.PP
+To get started you only need to know two things: the direction keys move you,
+and walking into a monster attacks it. The rest of the commands are listed
+below.
+.PP
+The status line keeps the numbers you need at a glance: health, magic, attack,
+defence, depth, and score. The message log beneath the map describes what has
+just happened; when
+.B \-\-MORE\-\-
+appears, press Space or Enter to continue reading.
+.PP
+The Dungeon Lord allows only so much hesitation on each floor. Stay too long
+and a portal carries you to another depth whether you are ready or not.
+.PP
+The game uses one save file,
+.IR name .sav ,
+in the directory roog was started from. Quitting saves the current run unless
+.B \-ns
+is used, and starting the game again with the same name continues it. A run
+that ends in death is deleted. A completed run is retained as clear data:
+beginning another journey on it asks first, because the Element returns to
+the Dungeon Lord, and declining leaves the world its light.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-help ", " \-\-help
+Print a short command-line guide and exit without entering the alternate
+screen. This page is the full reference.
+.TP
+.BI \-s " seed"
+Use
+.I seed
+as the run's unsigned 64-bit seed. The seed fixes the dungeon's maps: the
+walls of a floor are the same every time that floor of that seed is entered,
+today, tomorrow, and after a reload. Monsters, items, and traps are rolled
+afresh on each entry, so a familiar corridor may hold unfamiliar company, and
+two runs on one seed that take the same staircases see the same everything.
+An unparseable or missing value is ignored and the seed is drawn at random.
+.TP
+.B \-c
+Centre the map on the player instead of using the fixed viewport.
+.TP
+.B \-ns
+Do not write a save file. The run leaves nothing behind, on quit or on
+victory.
+.TP
+.B \-nb
+Disable bloodstains and the corpse-and-bones death animation.
+.TP
+.B \-nshake
+Disable screen shake. The map never leaves its moorings;
+.B \-anim\-rate
+can only slow a shake, not still one.
+.TP
+.BI \-anim\-rate " multiplier"
+Set the on-screen hold time for particle, mapping, and shake animation
+frames. The default is 1.0; raise it for a terminal whose redraw cannot keep
+up, lower it for snappier animations. The value is clamped to 0.1 through 5.0;
+an invalid or missing value uses the default.
+.TP
+.B \-content
+Print every content name accepted by
+.BR ROOG_SPAWN ,
+grouped by category, and exit without entering the alternate screen, so the
+output pipes into
+.BR grep (1)
+and
+.BR less (1)
+like any other listing.
+.SH POSITIONAL ARGUMENT
+.TP
+.I name
+Start a new run under this player name. The name is uppercased in the game,
+and the save file is lowercased from it.
+.TP
+.I save
+Load a save file if the argument names an existing file, or if appending
+.B .sav
+names one. Matching is case-insensitive. If the save is clear data, a won
+run, the game asks before spending it.
+.PP
+An unrecognised argument is treated as the player name, so a typo becomes a
+roog rather than an error. Options may appear in any order; a later positional
+argument replaces an earlier one.
+.SH ENVIRONMENT
+.TP
+.B ROOG_SPAWN
+A comma-separated list of exact content names. Each recognised name is
+spawned on the nearest free walkable tile around the player whenever a floor
+is built. Empty entries and unknown names are ignored. The setting applies to
+every floor, including floors revisited on the way back up. Use
+.B \-content
+to discover names:
+.sp
+.EX
+roog -content | grep -i dragon
+ROOG_SPAWN="dragon,bow,arrow" roog
+.EE
+.TP
+.B ROOG_MAGICMAP
+Select the style of the magic-mapping reveal animation instead of rolling one.
+Row by row:
+.BR row ,
+.BR rows ,
+.BR rowbyrow ,
+.BR row-by-row ,
+and
+.BR curtain ;
+spiral:
+.BR spiral
+and
+.BR swirl ;
+explode:
+.BR explode ,
+.BR explosion ,
+.BR blast ,
+and
+.BR burst .
+An unrecognised value selects a style at random.
+.SH EXAMPLES
+.EX
+roog
+roog bae
+roog -s 1234 -ns
+roog -content | grep -i dragon
+ROOG_SPAWN="basilisk" roog
+.EE
+.SH SPAWN API
+The game exposes its content lookup and spawn helpers from the
+.B models
+crate. They are intended for tests, tools, and engine code rather than normal
+play.
+.TP
+.BI "spawn_named(world, name, pos)"
+Returns an entity for the exact, case-sensitive content name, or
+.BR None .
+It can spawn monsters, items, traps, and the Element of Yoord. A named spawn
+uses the catalog row as written: it does not roll loot enchantments, wand
+charges, or ammunition bundles.
+.TP
+.B content_names()
+Returns every name accepted by
+.BR spawn_named ();
+the result is grouped by category and is the source of the
+.B \-content
+listing.
+.TP
+.BI "spawn_requested(world, near, occupied)"
+Reads
+.B ROOG_SPAWN
+and places recognised names around
+.IR near .
+It is the convenience wrapper used during floor generation.
+.TP
+.BI "spawn_list(world, list, near, occupied)"
+The testable form of
+.BR spawn_requested .
+It reads a comma-separated string directly and returns the number of names
+recognised.
+.PP
+For random floor loot, use
+.BR roll_item ();
+it selects a category and row using the floor's depth and random source, then
+applies that row's normal loot generation.
+.PP
+The Rust API is documented in
+.IR docs/reference/spawn-api.md .
+.SH GAME CONTROLS
+.SS MOVEMENT
+Move with the arrow keys, the vi keys, or the number pad. The vi and
+number-pad directions are:
+.PP
+.EX
+        y/7    k/8    u/9
+        h/4           l/6
+        b/1    j/2    n/3
+.EE
+.PP
+Walk into a monster to attack it. Other useful movement commands are:
+.TP
+.B Shift + direction
+Run in that direction until something requires attention.
+.TP
+.B o
+Auto-explore the current floor.
+.TP
+.B A
+Toggle picking up useful items during auto-explore.
+.TP
+.B O
+Choose a destination and travel to it.
+.TP
+.B L
+Look at a tile: read what is there without acting on it.
+.TP
+.B Tab
+Auto-fight the nearest visible threat.
+.TP
+.B f
+Fire a matching arrow or quarrel with the launcher in hand.
+.TP
+.B v
+Make a reach attack with a suitable weapon.
+.SS ITEMS AND MENUS
+.TP
+.B i
+Open the pack.
+.TP
+.BR a ", " t ", " d
+Use, throw, or drop an item.
+.TP
+.B e
+Equip wearable or wieldable equipment.
+.TP
+.BR q ", " r ", " z
+Quaff a potion, read a scroll, or zap a wand.
+.TP
+.BR w ", " W ", " P
+Wield a weapon, wear armour, or put on a ring.
+.TP
+.B Z
+Open the moves menu. The
+.B "Alt-Q, Alt-W, Alt-E, and Alt-R"
+keys fire the four move slots directly.
+.SS STAIRS AND EXIT
+.TP
+.BR "> , ."
+Go down, or walk to the down stairs.
+.TP
+.BR "< , ,"
+Go up, or walk to the up stairs.
+.TP
+.B x
+Close the current menu or targeting cursor without spending a turn.
+.TP
+.B Esc
+Back out of a menu. It does not quit.
+.TP
+.B Q
+Quit after confirmation.
+.TP
+.B X
+Close the current interface; with nothing open, quit after confirmation.
+.TP
+.B Ctrl-C
+Quit immediately.
+.SH FILES
+.TP
+.IR name .sav
+The single save file for a run named
+.IR name ,
+in the directory roog was started from. A won run keeps the same file as
+clear data.
+.SH SEE ALSO
+.BR grep (1),
+.BR less (1)
+.PP
+.IR MANUAL.md " \- how to play: the dungeon, combat, and items in full"
+.br
+.IR docs/reference/cli-and-env.md " \- every flag and variable, with recipes"
+.br
+.IR docs/reference/spawn-api.md " \- the spawn API at full length"
+.SH AUTHORS
+.PP
+bae.
+.SH BUGS
+Life is unfair and death is permanent; bugs account for the remainder.

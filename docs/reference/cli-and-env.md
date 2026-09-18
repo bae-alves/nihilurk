@@ -25,6 +25,10 @@ Single dash, in any order. Unrecognised arguments are treated as the positional 
 | `-content`   | Print every name the content tables know, then exit.      |
 | `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
 
+`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is installed as `roog(6)`:
+
+    man roog
+
 `-content` never touches the alternate screen, so it pipes:
 
     cargo run -p engine -- -content | grep ring

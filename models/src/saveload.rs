@@ -33,9 +33,15 @@
 //!
 //! * **Every serialised enum is written by variant position** and every
 //!   struct by field order. Append variants and fields; never reorder one, or
-//!   a saved trapdoor comes back as something else.
-//! * **A new field gets `#[serde(default)]`** so a file written by an older
-//!   build still loads.
+//!   a saved trapdoor comes back as something else. (Appended *variants* keep
+//!   their elders readable; appended *fields* do not — postcard is not
+//!   self-describing and does not fill in absent fields.)
+//! * **The format is not versioned.** `#[serde(default)]` marks the fields
+//!   that joined late, but it rescues nothing: postcard is not
+//!   self-describing, and a save written by an older build fails to parse.
+//!   Every field this file has ever gained has cost exactly that — believe
+//!   the attribute instead, and the next one ships as a change that quietly
+//!   kills every run already in progress.
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
@@ -145,8 +151,8 @@ struct EntitySave<'a> {
     ranged: Option<i32>,
     scroll: Option<ScrollEffect>,
     ring: Option<RingEffect>,
-    /// Which slot this piece of gear occupies. Who had it equipped is not saved
-    /// — gear comes off across a save, as it always has.
+    /// Which slot this piece of gear occupies, and (see
+    /// [`EntitySave::equipped_by`]) who is wearing it.
     equipped: Option<Slot>,
     /// The combat modifiers this entity contributes: weapon class, armour class,
     /// and the flat bonuses an enchantment rolled onto them.
@@ -169,8 +175,8 @@ struct EntitySave<'a> {
     vorpal: Option<Cow<'a, str>>,
     /// The marker effects this entity owns in its own right — what it was born
     /// with, plus or minus whatever a wand of cancellation or a polymorph has
-    /// done since. Effects merely on loan from equipped gear are excluded, since
-    /// the gear comes off on load and is re-lent when it goes back on.
+    /// done since. Effects merely on loan from equipped gear are excluded:
+    /// load re-lends them to the wearer along with the gear itself.
     effects: EffectSet,
     /// A creature's movement tempo. The energy pool is transient and resets to 0.
     speed: Option<SpeedKind>,
@@ -229,6 +235,12 @@ struct EntitySave<'a> {
     /// landed attack, not by time or a staircase.
     #[serde(default)]
     bided: bool,
+    /// Who is wearing this piece of gear, as an index into the saved entity
+    /// list — `None` when it is loose in a pack or on the floor. An index
+    /// rather than an id because ids are ephemeral; it is remapped on load the
+    /// same way [`EntitySave::backpack`] is.
+    #[serde(default)]
+    equipped_by: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -286,24 +298,14 @@ pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
 /// message log — a reload starts with a blank one rather than paying for its
 /// history in every save file.
 ///
+/// The world is only read. Saving changes nothing about the run it describes —
+/// not a monster's held weapon, not the player's worn armour — so a save
+/// written mid-fight describes the fight still in progress.
+///
 /// The save struct borrows everything it can (names, item labels) straight out
 /// of the ECS, so no second copy of the world is built in RAM, and the bytes
 /// are streamed to disk through a `BufWriter` rather than buffered.
 pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
-    // Gear comes off across a save — the file records the slot, never the
-    // wearer. For the player that just means re-equipping; for a monster
-    // holding something it caught (see [`crate::items::throw_system`]) it would
-    // mean an item with no owner *and* no tile, adrift forever. So a monster
-    // lays down what it is holding first, on its own square.
-    let armed_mobs: Vec<(Entity, Position)> = world
-        .query_filtered::<(Entity, &Position), (With<Mob>, Without<Player>)>()
-        .iter(world)
-        .map(|(e, p)| (e, *p))
-        .collect();
-    for (mob, pos) in armed_mobs {
-        crate::equipment::drop_equipment(world, mob, pos);
-    }
-
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
     let index_map: HashMap<Entity, u32> = ents
@@ -384,6 +386,10 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             moveset: er.get::<Moveset>().map(|m| m.slots.clone()),
             magic_ward: er.contains::<MagicWard>(),
             bided: er.contains::<Bided>(),
+            equipped_by: er
+                .get::<Equipped>()
+                .and_then(|e| e.by)
+                .and_then(|w| index_map.get(&w).copied()),
         });
     }
 
@@ -457,6 +463,10 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     for _ in 0..count {
         new_ents.push(world.spawn_empty().id());
     }
+
+    // Who ends up wearing something, so their gear's loaned effects can be
+    // re-lent once every entity exists.
+    let mut bearers: Vec<Entity> = Vec::new();
 
     for (i, es) in save.entities.into_iter().enumerate() {
         let mut em = world.entity_mut(new_ents[i]);
@@ -569,7 +579,16 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             }
         }
         if let Some(slot) = es.equipped {
-            em.insert(Equipped::loose(slot));
+            // The wearer comes back as an index into the saved entity list and
+            // is remapped here, the same way pack contents are: gear stays on
+            // across a save, in the same hand and on the same body.
+            let by = es.equipped_by.map(|i| new_ents[i as usize]);
+            if let Some(wearer) = by {
+                if !bearers.contains(&wearer) {
+                    bearers.push(wearer);
+                }
+            }
+            em.insert(Equipped { by, slot });
         }
         if let Some(n) = es.power_die {
             em.insert(PowerDie(n));
@@ -665,6 +684,14 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some((turns, kind)) = es.snare {
             em.insert(Snare { turns, kind });
         }
+    }
+
+    // What gear lends its bearer comes back with the gear: the saved effect
+    // sets leave loaned effects out, so they are re-attached here rather than
+    // waiting for the first turn. The wearer list, not a pack query, drives
+    // this — a monster that caught a thrown ring has no pack to be found by.
+    for bearer in bearers {
+        crate::equipment::sync_equipment_effects(world, bearer);
     }
 
     Ok(())

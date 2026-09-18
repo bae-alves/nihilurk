@@ -145,6 +145,48 @@ fn print_content() {
     }
 }
 
+/// Prints the short command-line guide without entering the alternate screen.
+/// The full reference lives in the installed `roog(6)` manual.
+fn print_help() {
+    println!(
+        "\
+roog - terminal roguelike
+
+USAGE
+    roog [OPTIONS] [NAME|SAVE]
+
+OPTIONS
+    -s SEED          use a reproducible u64 seed
+    -c               centre the map on the player
+    -ns              do not write a save file
+    -nb              disable blood and corpse animation
+    -nshake          disable screen shake
+    -anim-rate N     set animation pacing multiplier (0.1..=5.0)
+    -content         list names accepted by ROOG_SPAWN
+    -h, -help, --help show this help and exit
+
+POSITIONAL ARGUMENT
+    NAME             start a new run with this player name
+    SAVE             load an existing save, with or without .sav
+
+ENVIRONMENT
+    ROOG_SPAWN       comma-separated names to place near the player on every
+                     generated floor; use -content to list valid names
+
+EXAMPLES
+    roog
+    roog bae
+    roog -s 1234 -ns
+    ROOG_SPAWN=\"dragon,ring of protection\" roog
+
+SEE ALSO
+    man roog          full command, environment, and spawn API reference
+    docs/reference/cli-and-env.md
+    docs/reference/spawn-api.md
+"
+    );
+}
+
 /// One player-side step of the main loop: an auto-explore tick, a travel-cursor
 /// tick, or a blocking read of the player's own move. Returns whether a turn was
 /// spent (and monsters should therefore act).
@@ -161,6 +203,14 @@ fn player_step(world: &mut World) -> std::io::Result<bool> {
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    if args
+        .iter()
+        .skip(1)
+        .any(|arg| matches!(arg.as_str(), "-h" | "-help" | "--help"))
+    {
+        print_help();
+        return Ok(());
+    }
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
     let mut no_save = false;

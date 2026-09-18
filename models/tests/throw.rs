@@ -734,8 +734,14 @@ fn throw_is_the_middle_row_of_the_browse_modal_and_has_a_key_of_its_own() {
     assert_eq!(PackMode::Throw.action(), Some(ItemAction::Throw));
 }
 
+/// A monster holds what it caught across a save. The file used to record a
+/// slot, never a wearer, so a monster had to put its gear down before the save
+/// — an item in flight's last position with no tile of its own would otherwise
+/// come back adrift. Now the wearer is in the file as an index remapped on
+/// load, the save never touches the live world to write itself, and the mace
+/// comes back in the same hand.
 #[test]
-fn a_monster_lays_down_what_it_is_holding_before_a_save() {
+fn a_monster_keeps_what_it_is_holding_across_a_save() {
     let mut w = test_world(12);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
@@ -745,14 +751,21 @@ fn a_monster_lays_down_what_it_is_holding_before_a_save() {
     throw(&mut w, p, mace, spot);
     assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
 
-    // A save records a slot, never a wearer — so the orc puts the mace down on
-    // its own tile first, rather than leaving it adrift with no owner and no
-    // square to be found on.
     let save = common::SaveFile::new("throw-save");
     save_game(&mut w, save.path()).unwrap();
 
-    assert!(w.get::<Equipped>(mace).unwrap().by.is_none());
-    assert_eq!(pos_of(&w, mace), (spot.x, spot.y));
+    // Saving is read-only: the mace never left the orc's hand to be written.
+    assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
+
+    let mut loaded = test_world(12);
+    load_game(&mut loaded, save.path()).unwrap();
+    let orc2 = mob_at(&mut loaded, spot).expect("the orc is where it was");
+    let held = equipped_in(&loaded, orc2, Slot::Hand)
+        .expect("the mace came back in the orc's hand");
+    assert_eq!(
+        loaded.get::<Name>(held).map(|n| n.what.as_str()),
+        Some("mace")
+    );
 }
 
 #[test]

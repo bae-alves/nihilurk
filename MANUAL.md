@@ -15,8 +15,6 @@ Start a new expedition with:
 
 You may quit and return to one expedition later. There is one save file. It is for stopping, not for undoing a death: when an expedition ends, the save is gone. A completed expedition is kept as clear data, so beginning another game after a victory is a choice to enter the dungeon again.
 
-When you return to a saved game, your equipment is in your pack, but you are not holding or wearing it. Check your equipment before taking your first step.
-
 
 The dungeon screen
 ------------------
