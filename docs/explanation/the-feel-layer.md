@@ -109,6 +109,8 @@ There used to be a lot of coverage here: which shake a blow earned, how a shake 
 
 The rule that came out of it: **assert game rules, not their presentation.** A test earns its place here if it pins something a player could be cheated by — damage arithmetic, what a seed generates, what survives a save, what a menu offers. If the worst case of it being wrong is "that looked a bit off", it belongs in a playtest.
 
+One rule on this side of the line does clear that bar, and it is the exception worth knowing: `log_panel` holds the log's `--MORE--` prompt back until the effect layer is empty, because `play_particles` reads any keypress as "skip" and a prompt asking for Space mid-animation asks for exactly that key. A trick shot's blast is queued behind the missile's flight, so the key ate the explosion and left the flight looking fine — the player is cheated of the thing they lined the shot up for, and the frame it happens in looks perfectly correct, which is the one case playing the game does not catch. Two tests in `view.rs` pin it, on a fixture of two resources.
+
 Two things in the effect layer keep their tests, and the exceptions are worth knowing because they are not about feel:
 
   * `particle-core`'s own tests, including `tests/parity.rs`. That crate is `no_std` and compiles for a microcontroller, and `f32::ceil` has two implementations — the hosted intrinsic and a hand-rolled branch. If those disagree, the bare-metal build is compiling arithmetic the game does not run and the whole portability proof is worthless. `nostd_check.sh` runs the parity test *first*, before it compiles anything. See `cross-platform-testing.md`.
