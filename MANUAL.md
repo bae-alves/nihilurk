@@ -121,11 +121,11 @@ Weapons, armour, and rings hold back one thing: their own quality. An item may b
 Magic and moves
 ---------------
 
-The `Ma` pool powers your special moves. Stairs refill it; it does not return merely because you wait. Press `Z` to open the moves menu. Once you know a move, `Alt`+`Q`, `Alt`+`W`, `Alt`+`E`, and `Alt`+`R` fire the four move slots directly.
+The `Ma` pool powers your special moves. Stairs refill it; it does not return merely because you wait. Press `Z` to open the moves menu and pick a move by its row letter.
 
 Heroic mana teaches a new move when you step on it. You can know only a few moves at once. A move that needs a target uses the same aiming cursor as a wand.
 
-Some effects change how you act. Confusion makes movement unreliable. Blindness limits what you can see. Paralysis and sleep steal time. Haste makes you quicker; slow makes you slower. A staircase clears these effects.
+Some effects change how you act. Confusion makes movement unreliable. Blindness limits what you can see. Paralysis and sleep steal time. A medusa's gaze steals them too, by turning you to stone -- but stone is hard: while it lasts nothing gets more than a chip through you and nothing can take your last point of health, unless what is standing over you is swinging a war hammer. Haste makes you quicker; slow makes you slower. A staircase clears these effects.
 
 
 Exploring the floors
@@ -161,7 +161,7 @@ Useful commands
 |-----|--------|
 | `>` or `.` | Go down or walk to the down stairs |
 | `<` or `,` | Go up or walk to the up stairs |
-| `L` | Look around: move the cursor over any tile in view to have it described, including what a monster is dangerous for |
+| `;` | Look around: move the cursor over any tile in view to have it described, including what a monster is dangerous for |
 | `Z` | Open the moves menu |
 | `x` | Close the current menu or cursor |
 | `X` | Close the current menu; with nothing open, quit |
@@ -183,12 +183,12 @@ Quick reference
     Travel        O, steer, Enter
     Auto-fight    Tab
     Fire          f        with a bow or crossbow drawn
-    Look          L        steer the cursor, no turn spent
+    Look          ;        steer the cursor, no turn spent
     Stairs        > down, < up (or . and ,)
     Pack          i
     Use           a        throw t        drop d
     Quaff         q        read r          zap z
     Equip         e        wield w         wear W        ring P
-    Moves         Z        Alt + Q/W/E/R for slots
+    Moves         Z        pick a slot by its row letter
     Cancel        x or X   never spends a turn
     Quit          Q or X   with nothing open; Ctrl+C skips confirmation

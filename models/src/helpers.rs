@@ -378,17 +378,29 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
     let Some(hp_before) = world.get::<Fighter>(entity).map(|f| f.hp) else {
         return 0;
     };
-    if let Some(line) = announce {
-        world.resource_mut::<GameLog>().add(line.to_string());
+    // Stone, before the HP comes off: a chip at most, never the last point,
+    // and the chip is what the blow is reported as — so the caller's own
+    // sentence, which is about a hit that never happened, is not said at all.
+    // See `crate::effects::stone_chip`; `crate::combat` obeys the same rule on
+    // its own damage.
+    let chip = crate::effects::stone_chip(world, entity, hit.amount);
+    let amount = chip.as_ref().map_or(hit.amount, |c| c.through);
+    match (&chip, announce) {
+        (Some(chip), _) if hit.amount > 0 => {
+            let line = chip.line.clone();
+            world.resource_mut::<GameLog>().add(line);
+        }
+        (None, Some(line)) => world.resource_mut::<GameLog>().add(line.to_string()),
+        _ => {}
     }
     if let Some(mut fighter) = world.get_mut::<Fighter>(entity) {
-        fighter.hp -= hit.amount;
+        fighter.hp -= amount;
     }
-    if hit.amount > 0 {
-        spill_blood(world, entity, hit.amount, false);
+    if amount > 0 {
+        spill_blood(world, entity, amount, false);
         took_damage(world, entity, Some(hp_before));
     }
-    hit.amount.min(hp_before.max(0))
+    amount.min(hp_before.max(0))
 }
 
 /// Everything that happens to a creature *because it was hurt*, whatever hurt

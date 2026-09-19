@@ -59,7 +59,7 @@ The item system is one table per kind and a row per item, and a row is nothing b
 
 Gear rolls a quality when it spawns: 25% plain, 10% exceptional at +1 to +3, 65% cursed at anywhere from -5 to +5. A cursed item can roll better than a clean one, it simply won't come off once it's equipped, and it takes a scroll of remove curse (which destroys it) or the matching scroll of enchantment (which lifts the curse and mends the minus) to get out of it. The bonus lands on whichever roll the item feeds, never on the die itself, so a +3 dagger is still a dagger.
 
-Everything in the pack offers use, throw and drop. Throws are aimed. A dagger or a spear is balanced for flight and pierces the whole line instead of stopping at the first body, a thrown mace is an improvised lump that gets blunted by armor and can be caught out of the air and used back. Ammunition stacks up to 26 per slot and doubles its die when thrown by someone holding the matching launcher, d4 to d8 for an arrow out of a bow.
+Everything in the pack offers use, throw and drop. Throws are aimed. A dagger or a spear is balanced for flight and pierces the whole line instead of stopping at the first body, a thrown mace is an improvised lump that gets blunted by armor and can be caught out of the air and used back. Ammunition stacks up to 13 per slot and doubles its die when thrown by someone holding the matching launcher, d4 to d8 for an arrow out of a bow.
 
 Magic is the second pool in the status line, 4 points at the start of a run. It does not regenerate. Stairs refill it.
 

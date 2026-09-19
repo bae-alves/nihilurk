@@ -170,3 +170,174 @@ fn armour_that_outrolls_a_monsters_blow_lets_nothing_through() {
         "a monster gets no chip through armour"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Stone
+// ---------------------------------------------------------------------------
+//
+// A petrified creature is not a helpless one: nothing gets more than a chip
+// through stone, and nothing takes its last point. The rule has to hold on
+// both damage paths — `resolve_attack`, which applies its own HP, and
+// `helpers::apply_hit`, which every other source of harm goes through — so it
+// is tested on both.
+
+/// The same arithmetic as `a_blow_is_exactly_the_attack_total_minus_the_armour_total`,
+/// with the target turned to stone: the five that got through becomes a chip.
+#[test]
+fn a_blow_that_would_wound_a_petrified_creature_only_chips_it() {
+    let mut w = combat_world(1);
+    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
+    let target = spawn_armored_target(&mut w, 40, 1, 9); // 10, so five gets through
+    hold(&mut w, target, Grant::of::<Petrified>(), 5);
+
+    resolve_attack(&mut w, foe, target);
+
+    let hp = w.get::<Fighter>(target).unwrap().hp;
+    assert!(hp > 35, "the blow went through stone whole: {hp}");
+    assert!(hp < 40, "stone turned the blow aside entirely: {hp}");
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("is chipped for")),
+        "the chip was never reported: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+/// The second half of the rule, and the reason the medusa is a hard stop
+/// rather than a death: a creature on its last point stays on it.
+#[test]
+fn nothing_takes_a_petrified_creatures_last_point() {
+    let mut w = combat_world(1);
+    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
+    let target = spawn_armored_target(&mut w, 1, 1, 9); // 10, five would be lethal
+    hold(&mut w, target, Grant::of::<Petrified>(), 5);
+
+    resolve_attack(&mut w, foe, target);
+
+    assert_eq!(
+        w.get::<Fighter>(target).unwrap().hp,
+        1,
+        "a blow finished off something made of stone"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("chipped for no damage")),
+        "a blow stone stopped dead was reported as doing something: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+/// Stone is not armour against steel alone. Every other source of harm — a
+/// dragon's breath, a wand's ray, a dart — goes through `apply_hit`, and the
+/// cap lives there too.
+#[test]
+fn stone_caps_every_other_source_of_harm_as_well() {
+    let mut w = combat_world(1);
+    let target = spawn_armored_target(&mut w, 40, 1, 0);
+    hold(&mut w, target, Grant::of::<Petrified>(), 5);
+
+    let flesh = spawn_armored_target(&mut w, 40, 1, 0);
+
+    let dealt = apply_hit(&mut w, target, Hit::magic(30), None);
+    let whole = apply_hit(&mut w, flesh, Hit::magic(30), None);
+
+    assert!(
+        dealt < whole,
+        "a ray burned through stone exactly as it burned through flesh: {dealt} of {whole}"
+    );
+    assert!(
+        w.get::<Fighter>(target).unwrap().hp > w.get::<Fighter>(flesh).unwrap().hp,
+        "stone was no better than flesh to stand in a blast in"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("is chipped for")),
+        "the chip was never reported: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+/// A miss is still a miss. Stone reports a chip only when something actually
+/// struck it — otherwise every swing that never connected would read as one.
+#[test]
+fn a_blow_that_misses_a_petrified_creature_is_still_a_miss() {
+    let mut w = combat_world(1);
+    let foe = spawn_monster_attacker(&mut w, 1, 0); // 1
+    let target = spawn_armored_target(&mut w, 40, 1, 20); // 21
+    hold(&mut w, target, Grant::of::<Petrified>(), 5);
+
+    resolve_attack(&mut w, foe, target);
+
+    let said = w.resource::<GameLog>().history.clone();
+    assert_eq!(w.get::<Fighter>(target).unwrap().hp, 40);
+    assert!(
+        said.iter().any(|l| l.contains("misses")),
+        "a swing that never landed was not reported as a miss: {said:?}"
+    );
+    assert!(
+        !said.iter().any(|l| l.contains("chipped")),
+        "a swing that never landed was reported as a chip: {said:?}"
+    );
+}
+
+/// The one thing stone does not stop. A war hammer is mass rather than edge:
+/// its blow lands whole on a petrified creature, last point included, and is
+/// reported as the hit it was rather than as a chip.
+#[test]
+fn a_war_hammer_goes_through_stone_whole() {
+    let mut w = combat_world(1);
+    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
+    let target = spawn_armored_target(&mut w, 40, 1, 9); // 10, so five gets through
+    hold(&mut w, target, Grant::of::<Petrified>(), 5);
+    lend(
+        &mut w,
+        foe,
+        Grant::of::<ShattersStone>(),
+        Lifetime::Permanent,
+    );
+
+    resolve_attack(&mut w, foe, target);
+
+    assert_eq!(
+        w.get::<Fighter>(target).unwrap().hp,
+        35,
+        "stone turned aside a war hammer"
+    );
+    assert!(
+        !w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("chipped")),
+        "a hammer blow that landed whole was reported as a chip: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+/// And it can finish one, which is the whole point of carrying it: stone is a
+/// hard stop for everything else in the dungeon.
+#[test]
+fn a_war_hammer_can_take_a_petrified_creatures_last_point() {
+    let mut w = combat_world(1);
+    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
+    let target = spawn_armored_target(&mut w, 1, 1, 9); // 10, five is lethal
+    hold(&mut w, target, Grant::of::<Petrified>(), 5);
+    lend(
+        &mut w,
+        foe,
+        Grant::of::<ShattersStone>(),
+        Lifetime::Permanent,
+    );
+
+    resolve_attack(&mut w, foe, target);
+
+    assert!(
+        w.get::<Fighter>(target).is_none_or(|f| f.hp <= 0),
+        "a war hammer left a statue standing"
+    );
+}

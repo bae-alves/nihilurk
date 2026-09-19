@@ -482,9 +482,10 @@ pub mod items {
     /// a pass.
     pub const STACK_LIMIT: u8 = 13;
 
-    /// The most inventory slots a pack will hold at once. Kept below 26 so
-    /// every slot's letter stays inside `w`/`s`, which the pack menu already
-    /// reserves for up/down navigation and so can never reach a letter row.
+    /// The most inventory slots a pack will hold at once. Nine stops the row
+    /// letters at `i`, one short of the `j` and `k` the pack menu reserves for
+    /// down and up — raise it past 9 and those two rows become unreachable by
+    /// letter, since `navigate_pack` reads the direction first.
     pub const PACK_CAPACITY: usize = 9;
 }
 
@@ -559,6 +560,13 @@ pub mod monsters {
     /// breathing fire instead. See [`crate::items::dragon_breath`].
     pub const DRAGON_FIREBALL_CHANCE: f64 = 1.0 / 6.0;
 
+    /// How many turns a medusa's gaze leaves the player standing as stone.
+    /// Long enough to be the fight's whole shape and short enough to live
+    /// through — nothing can kill a petrified player but a war hammer, so this
+    /// is a toll in turns rather than in HP. See
+    /// [`crate::abilities::medusa_gaze`].
+    pub const PETRIFY_TURNS: u32 = 5;
+
     /// The ice monster's odds, on a blow that lands, of paralysing what it hit.
     pub const ICE_MONSTER_PARALYZE_CHANCE: f64 = 1.0 / 6.0;
 
@@ -599,9 +607,9 @@ pub mod monsters {
 /// ([`crate::catalog::MoveDef`]); these are the numbers a rebalance actually
 /// reaches for.
 pub mod moves {
-    /// The most moves a [`crate::components::Moveset`] may ever hold —
-    /// `Alt`+`Q`/`W`/`E`/`R`, and no fifth slot to reach for. Heroic mana
-    /// stops teaching once this is full.
+    /// The most moves a [`crate::components::Moveset`] may ever hold — the
+    /// four rows `a`-`d` of the `Z` menu, and no fifth to reach for. Heroic
+    /// mana stops teaching once this is full.
     pub const MOVESET_CAP: usize = 4;
 
     /// Thunderbolt: `DICE d SIDES` armour-ignoring damage, and `PARALYZE_CHANCE`

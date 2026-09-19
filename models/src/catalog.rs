@@ -463,6 +463,11 @@ pub const WEAPONS: &[WeaponDef] = &[
     // for as long as you keep swinging it.
     WeaponDef::new("rapier",           Color::Red,        3)
         .grants(&[Grant::of::<BuildsMomentum>()]),
+    // Mass, not momentum. The one weapon a petrified creature is no safer
+    // from than any other: stone turns steel aside and a hammer goes through
+    // it whole.
+    WeaponDef::new("war hammer",       Color::DarkGrey,   9)
+        .grants(&[Grant::of::<ShattersStone>()]),
 ];
 
 // ---------------------------------------------------------------------------

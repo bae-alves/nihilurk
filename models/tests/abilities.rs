@@ -721,8 +721,12 @@ fn looking_upon_a_gorgon_turns_the_player_to_stone() {
     resolve_attack(&mut w, looker, seen);
 
     assert!(
-        w.get::<Asleep>(looker).is_some(),
-        "meeting a gorgon's eyes should petrify — stone is the same hold as sleep"
+        w.get::<Petrified>(looker).is_some(),
+        "meeting a gorgon's eyes should turn the looker to stone"
+    );
+    assert!(
+        w.get::<Asleep>(looker).is_none(),
+        "the gaze put the looker to sleep — stone is its own hold"
     );
 }
 
@@ -737,12 +741,67 @@ fn a_gorgons_own_kind_is_unmoved_by_the_gaze() {
     resolve_attack(&mut w, other, seen);
 
     assert!(
-        w.get::<Asleep>(other).is_none(),
+        w.get::<Petrified>(other).is_none(),
         "a monster was petrified by a gaze only a person's eyes can meet"
     );
     assert!(
-        w.get::<Asleep>(bystander).is_none(),
+        w.get::<Petrified>(bystander).is_none(),
         "the player was petrified by a gaze they never met"
+    );
+}
+
+/// The bug this hold was split out of `Asleep` for: stone let go with the
+/// sleeper's line, and the player who had just been turned to stone was told
+/// they had shaken off their drowsiness. The lines are read off the rows
+/// rather than written out here — what this holds still is *which row speaks*.
+#[test]
+fn stone_lets_go_speaking_of_stone_and_never_of_sleep() {
+    let stone = Effect::by_id("petrified")
+        .and_then(|e| e.ends)
+        .expect("petrification says something when it lets go");
+    let slumber = Effect::by_id("asleep")
+        .and_then(|e| e.ends)
+        .expect("sleep says something when it lets go");
+
+    let mut w = arena(37);
+    let looker = hero(&mut w, at(10, 10), 20, 8);
+    let seen = creature(&mut w, at(11, 10), 10, 4);
+    w.entity_mut(seen).insert(Gorgon);
+    fire_on_targeted(&mut w, looker, seen);
+
+    // Long enough that any hold this could have applied has run out.
+    for _ in 0..64 {
+        tick_effects(&mut w);
+    }
+
+    let said: Vec<String> = w.resource::<GameLog>().history.clone();
+    assert!(
+        said.iter().any(|l| l == stone),
+        "coming out of stone never said so: {said:?}"
+    );
+    assert!(
+        !said.iter().any(|l| l == slumber),
+        "coming out of stone was reported as waking up: {said:?}"
+    );
+}
+
+/// Stone costs you your turns, exactly as sleeping gas does — that half of the
+/// gaze is unchanged, and it is the half the player feels first.
+#[test]
+fn a_petrified_player_can_do_nothing_at_all() {
+    let mut w = arena(37);
+    let looker = hero(&mut w, at(10, 10), 20, 8);
+    let seen = creature(&mut w, at(11, 10), 10, 4);
+    w.entity_mut(seen).insert(Gorgon);
+
+    assert!(
+        !models::traps::player_incapacitated(&mut w),
+        "the player had lost their turn before they ever looked"
+    );
+    fire_on_targeted(&mut w, looker, seen);
+    assert!(
+        models::traps::player_incapacitated(&mut w),
+        "a player turned to stone was still allowed to act"
     );
 }
 
@@ -1633,7 +1692,7 @@ fn turning_your_attention_on_a_gorgon_petrifies_you() {
         "the gaze reported that nothing happened"
     );
     assert!(
-        w.get::<Asleep>(looker).is_some(),
+        w.get::<Petrified>(looker).is_some(),
         "meeting a gorgon's eyes left the looker standing"
     );
 }
@@ -1663,7 +1722,7 @@ fn only_a_persons_eyes_meet_a_gorgons() {
     lend(&mut w, seen, Grant::of::<Gorgon>(), Lifetime::Permanent);
 
     assert!(!fire_on_targeted(&mut w, other, seen));
-    assert!(w.get::<Asleep>(other).is_none());
+    assert!(w.get::<Petrified>(other).is_none());
 }
 
 /// `Moment::OnDamaged`. The slime's split used to be a hardcoded line in

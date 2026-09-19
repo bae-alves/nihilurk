@@ -359,14 +359,25 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     dispatch_key(world, key)
 }
 
-/// Everything [`process_input_and_update`] does once it is holding a key: the
-/// `--MORE--` gate, the universal escape hatch, and the four input contexts.
+/// Everything [`process_input_and_update`] does once it is holding a key:
+/// Ctrl+C, the `--MORE--` gate, the universal escape hatch, and the four input
+/// contexts.
 ///
 /// Split out from the read so the whole modal stack can be exercised without a
 /// terminal — `read()` blocks, and a state machine that can only be tested by
 /// a person pressing keys is a state machine nobody tests. Everything above
 /// this line needs a real keyboard; nothing below it does.
 pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    // Ctrl+C is the terminal's own kill and outranks everything, including the
+    // --MORE-- gate below. It is checked here rather than down in
+    // `handle_movement_input` because every menu that selects a row by letter
+    // would otherwise claim it: `c` is a real row in both the pack and the
+    // moves list, and quitting would read as picking the third item.
+    if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        world.resource_mut::<GameState>().is_running = false;
+        return Ok(false);
+    }
+
     // While a --MORE-- prompt is up, the only input accepted is the
     // acknowledgement: it drops the messages already shown and lets the rest
     // flow up on the next frame.
@@ -444,9 +455,6 @@ fn close_all_modals(world: &mut World) -> bool {
     }
     closed
 }
-
-/// The four `Alt`+letter shortcuts into the moves reticle, in slot order.
-const MOVE_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 
 /// A keypress while "Really quit?" is up: `y` ends the run, `n` or `Esc` goes
 /// back to the dungeon, and anything else is ignored rather than guessed at.
@@ -1101,36 +1109,25 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
     }
 
     let step = match key.code {
-        // Ctrl+C is the shell's own kill and takes no answer. `Q` and `X` ask.
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            world.resource_mut::<GameState>().is_running = false;
-            None
-        }
+        // Ctrl+C never reaches here — `dispatch_key` takes it first, from every
+        // context. `Q` and `X` are the ones that ask.
+        //
         // `X` only reaches this far with nothing open — see the escape hatch in
         // `process_input_and_update`.
         KeyCode::Char('Q') | KeyCode::Char('X') => {
             world.resource_mut::<QuitPrompt>().open = true;
             return Ok(false);
         }
-        // The four active moves: `Alt`+`Q`/`W`/`E`/`R` fires a slot directly,
-        // one keystroke, with no menu in the way. Checked before the plain
-        // letters below so the modifier actually distinguishes them; any
-        // other `Alt`-held key falls through to whatever it would do bare.
-        KeyCode::Char(c)
-            if key.modifiers.contains(KeyModifiers::ALT)
-                && MOVE_KEYS.contains(&c.to_ascii_lowercase()) =>
-        {
-            let slot = MOVE_KEYS
-                .iter()
-                .position(|&k| k == c.to_ascii_lowercase())
-                .unwrap();
-            return fire_move(world, slot);
-        }
-        // `Z`: the moves menu — the slower way into the same four reticles,
-        // for a player who hasn't memorised which is which yet.
+        // `Z`: the moves menu, and the only way to an active move. There is
+        // no direct-fire key for a slot: every candidate either collided with
+        // something (`Alt`+a letter shadowed the bare letter) or depended on
+        // the keyboard layout (`!` `@` `#` `$` are Shift + the digits only on
+        // a US one).
         KeyCode::Char('Z') => return begin_moves_menu(world),
-        // `L`: look — read what's on a tile without acting on it.
-        KeyCode::Char('L') => return begin_look(world),
+        // `;`: look — read what's on a tile without acting on it. Not `L`:
+        // that is the shifted vi key for east, which `run_direction` above
+        // claims before this table is ever reached.
+        KeyCode::Char(';') => return begin_look(world),
         // The pack, one key per verb. `i` is the one that asks afterwards.
         KeyCode::Char('i') => return open_pack(world, PackMode::Browse),
         KeyCode::Char('a') => return open_pack(world, PackMode::Use),
@@ -1227,8 +1224,8 @@ fn open_pack(world: &mut World, mode: PackMode) -> std::io::Result<bool> {
 }
 
 /// Fires (opens the aiming reticle for) move slot `slot` of the player's
-/// [`Moveset`] — `Alt`+`Q`/`W`/`E`/`R` on the map, or a row picked from the
-/// `Z` menu. Refuses, no turn spent, if the slot is empty or the pool can't
+/// [`Moveset`] — always a row picked from the `Z` menu, which is the only way
+/// in. Refuses, no turn spent, if the slot is empty or the pool can't
 /// cover it; the check here is a courtesy so the reticle never opens on a
 /// move that can only fizzle — [`models::move_system`] checks again before it
 /// actually spends the cost.
@@ -1288,14 +1285,19 @@ fn begin_moves_menu(world: &mut World) -> std::io::Result<bool> {
 }
 
 /// A keypress while the `Z` moves menu is up: navigate, jump straight to a
-/// slot by number, confirm, or cancel. Never spends a turn itself — only the
-/// reticle [`fire_move`] opens can do that.
+/// slot by its row letter, confirm, or cancel. Never spends a turn itself —
+/// only the reticle [`fire_move`] opens can do that.
+///
+/// Rows are lettered `a`-`d`, like the pack's, and for the same reason: the
+/// digits are already the numpad's directions here, and a key that navigates
+/// and selects at once is a key that does the wrong one of the two.
 fn handle_moves_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     let player = player_entity(world);
-    let slot_count = world
-        .get::<Moveset>(player)
-        .map_or(0, |m| m.slots.len())
-        .max(1);
+    let row_count = world.get::<Moveset>(player).map_or(0, |m| m.slots.len());
+    // Floored at 1 so the wrap-around arithmetic below has something to divide
+    // by; `row_count` is the honest one, and the only one a letter is checked
+    // against.
+    let slot_count = row_count.max(1);
     let selected = world.resource::<MovesMenu>().selected;
 
     let mut close = false;
@@ -1309,9 +1311,9 @@ fn handle_moves_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool>
             world.resource_mut::<MovesMenu>().selected = (selected + 1) % slot_count;
         }
         KeyCode::Enter | KeyCode::Char(' ') => fire = Some(selected),
-        KeyCode::Char(c @ '1'..='4') => {
-            let idx = c as usize - '1' as usize;
-            if idx < slot_count {
+        KeyCode::Char(c) if c.is_ascii_lowercase() => {
+            let idx = c as usize - 'a' as usize;
+            if idx < row_count {
                 fire = Some(idx);
             }
         }
@@ -2108,5 +2110,154 @@ mod tests {
             "Esc raised the quit prompt"
         );
         assert!(w.resource::<GameState>().is_running);
+    }
+
+    // -----------------------------------------------------------------------
+    // Keys that used to shadow each other
+    // -----------------------------------------------------------------------
+
+    /// A player with `slots` moves and the magic to pay for all of them.
+    fn moves_world(seed: u64, slots: &[MoveEffect]) -> World {
+        let mut w = modal_world(seed);
+        let player = player_entity(&mut w);
+        w.entity_mut(player).insert(Moveset {
+            slots: slots.to_vec(),
+        });
+        w.entity_mut(player).insert(Magic {
+            points: 250,
+            max_points: 250,
+        });
+        w
+    }
+
+    /// The four moves the shortcut tests fire, all of them aimed ones, so
+    /// firing a slot is visible as the reticle it opens.
+    const FOUR_MOVES: [MoveEffect; 4] = [
+        MoveEffect::DragonBreath,
+        MoveEffect::Sting,
+        MoveEffect::Thunderbolt,
+        MoveEffect::ForceLance,
+    ];
+
+    #[test]
+    fn semicolon_looks_and_shift_l_still_runs() {
+        // `L` is the shifted vi key for east and is read as a run before the
+        // command table is consulted at all, so look lives on `;`.
+        let mut w = modal_world(21);
+        dispatch_key(&mut w, press(';')).unwrap();
+        let ts = w.resource::<TargetingState>();
+        assert!(ts.active && ts.looking, "`;` did not open look mode");
+
+        let mut w = modal_world(21);
+        dispatch_key(&mut w, press('L')).unwrap();
+        assert!(
+            !w.resource::<TargetingState>().looking,
+            "`L` opened look mode instead of running east"
+        );
+    }
+
+    #[test]
+    fn the_moves_menu_picks_a_slot_by_letter() {
+        // Rows are lettered like the pack's, so the third row is `c`.
+        let mut w = moves_world(22, &FOUR_MOVES);
+        dispatch_key(&mut w, press('Z')).unwrap();
+        assert!(w.resource::<MovesMenu>().open);
+
+        dispatch_key(&mut w, press('c')).unwrap();
+        assert!(!w.resource::<MovesMenu>().open, "the menu stayed open");
+        assert_eq!(
+            w.resource::<TargetingState>().move_effect,
+            Some(FOUR_MOVES[2]),
+            "`c` did not fire the third slot"
+        );
+    }
+
+    #[test]
+    fn a_letter_past_the_last_slot_does_nothing_in_the_moves_menu() {
+        let mut w = moves_world(23, &FOUR_MOVES[..2]);
+        dispatch_key(&mut w, press('Z')).unwrap();
+        dispatch_key(&mut w, press('d')).unwrap();
+        assert!(
+            w.resource::<MovesMenu>().open,
+            "`d` closed a menu that has no fourth row"
+        );
+        assert!(w.resource::<TargetingState>().move_effect.is_none());
+    }
+
+    #[test]
+    fn digits_navigate_the_moves_menu_and_never_fire_a_slot() {
+        // `2` used to be two things at once — numpad-down and "slot 2" — and
+        // down won. Slots are letters now, so the digit is only ever a step.
+        let mut w = moves_world(24, &FOUR_MOVES);
+        dispatch_key(&mut w, press('Z')).unwrap();
+        dispatch_key(&mut w, press('2')).unwrap();
+        assert!(w.resource::<MovesMenu>().open, "`2` closed the menu");
+        assert!(
+            w.resource::<TargetingState>().move_effect.is_none(),
+            "`2` fired a move"
+        );
+        assert_eq!(
+            w.resource::<MovesMenu>().selected,
+            1,
+            "`2` did not step the highlight down"
+        );
+    }
+
+    #[test]
+    fn alt_held_letters_do_what_the_bare_letter_does() {
+        // Alt+Q/W/E/R used to fire the move slots. Nothing does now — `Z` is
+        // the only way in — and Alt is no longer special: Alt+`q` is `q`, the
+        // quaff pack.
+        let mut w = moves_world(27, &FOUR_MOVES);
+        dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT)).unwrap();
+        assert!(
+            w.resource::<TargetingState>().move_effect.is_none(),
+            "Alt+q still fires a move"
+        );
+        assert!(
+            w.resource::<PackIsOpen>().open,
+            "Alt+q did not fall through to the quaff pack"
+        );
+    }
+
+    #[test]
+    fn ctrl_c_quits_from_every_context_including_a_pending_more() {
+        // The terminal's own kill key. Nothing may intercept it — not a menu's
+        // letter row (`c` is a real row in both the pack and the moves list),
+        // not the --MORE-- gate, not the quit prompt it makes redundant.
+        let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+
+        let mut w = moves_world(28, &FOUR_MOVES);
+        dispatch_key(&mut w, press('Z')).unwrap();
+        dispatch_key(&mut w, ctrl_c).unwrap();
+        assert!(
+            !w.resource::<GameState>().is_running,
+            "the moves menu swallowed Ctrl+C"
+        );
+        assert!(
+            w.resource::<TargetingState>().move_effect.is_none(),
+            "Ctrl+C fired the move in row `c`"
+        );
+
+        let mut w = modal_world(28);
+        dispatch_key(&mut w, press('i')).unwrap();
+        dispatch_key(&mut w, ctrl_c).unwrap();
+        assert!(
+            !w.resource::<GameState>().is_running,
+            "the pack swallowed Ctrl+C"
+        );
+
+        let mut w = modal_world(28);
+        flood_the_log(&mut w);
+        dispatch_key(&mut w, ctrl_c).unwrap();
+        assert!(
+            !w.resource::<GameState>().is_running,
+            "the --MORE-- gate swallowed Ctrl+C"
+        );
+
+        // And still from the bare map, where it always worked.
+        let mut w = modal_world(28);
+        dispatch_key(&mut w, ctrl_c).unwrap();
+        assert!(!w.resource::<GameState>().is_running);
     }
 }

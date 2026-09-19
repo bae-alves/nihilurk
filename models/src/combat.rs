@@ -7,8 +7,8 @@ use crate::abilities::{Blow, cleave_attack, fire_on_hit, fire_on_targeted};
 use crate::components::*;
 use crate::conditions::afflicted;
 use crate::effects::{
-    Asleep, Bided, Fencer, Grant, Pinned, Rooted, VorpalOnCondition, VorpalTarget, WhirlOnMove,
-    loadout,
+    Asleep, Bided, Fencer, Grant, Pinned, Rooted, ShattersStone, VorpalOnCondition, VorpalTarget,
+    WhirlOnMove, loadout,
 };
 use crate::equipment::{equipped_items, force_unequip};
 use crate::helpers::{
@@ -246,7 +246,7 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     // double-striking estoc or a cleave only ever sees it on the first swing.
     crate::effects::revoke(world, attacker, Grant::of::<Bided>());
     let swing = roll_swing(world, &matchup);
-    let swing = clamp_swing(world, target, &matchup, swing);
+    let swing = clamp_swing(world, attacker, target, &matchup, swing);
     let outcome = land_swing(world, attacker, target, &swing);
     let blow = Landed {
         attacker,
@@ -342,6 +342,10 @@ struct Swing {
     /// The armour ate the whole roll and the chip floor is all that got
     /// through. Draws blood, cannot be the killing blow, arms no shake.
     glancing: bool,
+    /// Set when the target was stone and the blow landed on it: the one line
+    /// this blow is reported with, in place of the hit line
+    /// ([`crate::effects::stone_chip`]).
+    chipped: Option<String>,
 }
 
 /// What the blow did to the creature on the end of it.
@@ -421,6 +425,7 @@ fn roll_swing(world: &mut World, matchup: &Matchup) -> Swing {
         damage,
         excellent,
         glancing,
+        chipped: None,
     }
 }
 
@@ -435,7 +440,20 @@ fn roll_swing(world: &mut World, matchup: &Matchup) -> Swing {
 ///    nothing, which is the price of the hand it occupies.
 /// 3. An excellent hit is never reported as having done nothing, whatever the
 ///    armour roll or the cap left it at.
-fn clamp_swing(world: &World, target: Entity, matchup: &Matchup, mut swing: Swing) -> Swing {
+///
+/// Stone comes before all three: a [`crate::effects::Petrified`] target takes
+/// a chip at most and never its last point, whatever the dice said, and the
+/// blow is reported as the chip it was.
+fn clamp_swing(
+    world: &World,
+    attacker: Entity,
+    target: Entity,
+    matchup: &Matchup,
+    mut swing: Swing,
+) -> Swing {
+    if chip_on_stone(world, attacker, target, &mut swing) {
+        return swing;
+    }
     if let Some(f) = world.get::<Fighter>(target).filter(|_| swing.glancing) {
         swing.damage = swing.damage.min((f.hp - 1).max(0));
     }
@@ -446,6 +464,36 @@ fn clamp_swing(world: &World, target: Entity, matchup: &Matchup, mut swing: Swin
         swing.damage = swing.damage.max(CHIP_DAMAGE);
     }
     swing
+}
+
+/// Puts [`crate::effects::stone_chip`] on a swing: what a petrified target
+/// actually takes, and the line it is reported with. Returns whether the
+/// target was stone, which is also the answer to "is this swing settled" —
+/// nothing further may raise it.
+///
+/// Both the ordinary swing and the estoc's lunge come through here, because
+/// the lunge builds its own [`Swing`] and would otherwise be the one blow in
+/// the game that went through a statue without asking.
+///
+/// A war hammer ([`ShattersStone`]) is the one thing stone does not stop: its
+/// wielder's blow lands whole, and this reports no chip because there was
+/// none.
+fn chip_on_stone(world: &World, attacker: Entity, target: Entity, swing: &mut Swing) -> bool {
+    if world.get::<ShattersStone>(attacker).is_some() {
+        return false;
+    }
+    let Some(chip) = crate::effects::stone_chip(world, target, swing.damage) else {
+        return false;
+    };
+    // Only a blow that actually landed is a chip. One the armour turned aside
+    // is still a miss, and stone should not report it as a touch.
+    let landed = swing.damage > 0;
+    swing.damage = chip.through;
+    if landed {
+        swing.glancing = true;
+        swing.chipped = Some(chip.line);
+    }
+    true
 }
 
 /// Takes the HP off, and everything that happens *because* a blow connected:
@@ -468,7 +516,11 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
     // glancing one. A vorpalized blade still needs a real, non-glancing hit
     // to draw the blood its bane dies to.
     let garrote = garrote_vorpal(world, attacker, target);
-    let vorpal = swing.damage > 0 && (garrote || (!swing.glancing && blade_vorpal));
+    // Nothing takes a petrified creature's last point, and a vorpal shear is
+    // the one path that would otherwise go around the HP arithmetic entirely.
+    let vorpal = swing.damage > 0
+        && swing.chipped.is_none()
+        && (garrote || (!swing.glancing && blade_vorpal));
     let garrote = garrote && vorpal;
 
     let hp_before = world.get::<Fighter>(target).map(|f| f.hp);
@@ -609,11 +661,13 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
             + matchup.power_bonus * 3
     }
     .max(1);
-    let swing = Swing {
+    let mut swing = Swing {
         damage,
         excellent: false,
         glancing: false,
+        chipped: None,
     };
+    chip_on_stone(world, attacker, target, &mut swing);
     let outcome = land_swing(world, attacker, target, &swing);
     let blow = Landed {
         attacker,
@@ -625,6 +679,13 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
     };
     punctuate(world, &blow);
 
+    // Stone says one thing and nothing else, here as everywhere — the lunge
+    // rings off a statue rather than skewering it.
+    if let Some(line) = blow.swing.chipped.clone() {
+        world.resource_mut::<GameLog>().add(line);
+        settle_the_dead(world, &blow);
+        return;
+    }
     let target_name = entity_name(world, target);
     world.resource_mut::<GameLog>().add(format!(
         "You lunge, blade flashing past every guard, and skewer the {target_name} for {damage} damage!"
@@ -828,6 +889,12 @@ fn punctuate(world: &mut World, blow: &Landed) {
 /// The two or three lines the log gets, from whichever end of the blow the
 /// player was on.
 fn report_blow(world: &mut World, blow: &Landed) {
+    // A blow that landed on stone says one thing and nothing else: no damage
+    // number of its own, and no kill line, because stone cannot be killed.
+    if let Some(line) = blow.swing.chipped.clone() {
+        world.resource_mut::<GameLog>().add(line);
+        return;
+    }
     let attacker_name = entity_name(world, blow.attacker);
     let target_name = entity_name(world, blow.target);
     let target_is_player = blow.target_is_player;

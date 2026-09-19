@@ -578,8 +578,8 @@ pub enum MoveKind {
     Skill,
 }
 
-/// The player's active-ability bar: up to four moves, each triggered directly
-/// by its slot number (`Alt`+`Q`/`W`/`E`/`R`, or picked from the `Z` menu).
+/// The player's active-ability bar: up to four moves, each picked by its row
+/// letter from the `Z` menu.
 ///
 /// A move is coded the way a potion, scroll or wand is — one identity enum,
 /// one catalog row ([`crate::catalog::MoveDef`]), one mechanic keyed off it
@@ -971,9 +971,10 @@ pub struct RenderConfig {
 // its ten modes shows.
 
 /// Whether the `Z` moves menu is open, and which slot (0-3) the cursor sits
-/// on. Picking a row opens the aiming reticle on that move exactly the way
-/// the pack's `Use` row does on an item. `Alt`+`Q`/`W`/`E`/`R` reach the same
-/// reticle directly, one keystroke, without opening this menu at all.
+/// on. Picking a row — by its letter `a`-`d`, or by navigating and confirming
+/// — opens the aiming reticle on that move exactly the way the pack's `Use`
+/// row does on an item. This menu is the only way to an active move; no key
+/// fires a slot directly.
 #[derive(Resource, Default)]
 pub struct MovesMenu {
     pub open: bool,

@@ -4,8 +4,8 @@ How to add a move
     Audience       Content author.
     Prerequisites  You know where `models/src/catalog.rs` is. If not,
                    do `../tutorial/add-your-first-move.md` first.
-    Result         A new active ability the player can trigger with
-                   `Z` or `Alt`+a letter, that costs Magic -- an
+    Result         A new active ability the player can trigger from
+                   the `Z` menu, that costs Magic -- an
                    aimed **attack** like a wand, or a self/room-wide
                    **skill** like a potion or a scroll.
 
@@ -118,7 +118,7 @@ There is no `NIHILURK_SPAWN` for a move. In play the only way to learn one is he
         slots: vec![MoveEffect::IceBolt],
     },
 
-Build, run, and press `Z` to see it listed, or `Alt`+`W` to aim it directly -- `Alt`+`Q`/`W`/`E`/`R` fire slots 1-4 in order. `Tab` while aiming snaps the reticle to the next thing in view.
+Build, run, and press `Z` to see it listed, then its row letter to aim it. `Tab` while aiming snaps the reticle to the next thing in view.
 
 If this was a dry run, `git checkout models/src/map/levels.rs` along with `catalog.rs`, `components.rs` and `items/moves.rs`.
 

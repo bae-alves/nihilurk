@@ -72,7 +72,7 @@ Coins are the pickup category: never carried, spent where they lie. A row is `na
     AmmoDef { name: "bolt", color: Color::Grey, die: 5,
               launched_by: Grant::of::<FireQuarrel>() },
 
-`die` is what one rolls hurled by hand; a wielder carrying the `launched_by` effect doubles it. Stacks up to 26 per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
+`die` is what one rolls hurled by hand; a wielder carrying the `launched_by` effect doubles it. Stacks up to 13 per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
 
 If your ammunition answers to a launcher that does not exist yet, you need a new effect for the pair to meet at -- see `add-an-effect.md`.
 

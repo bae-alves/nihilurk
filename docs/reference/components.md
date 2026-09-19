@@ -223,6 +223,8 @@ Defined in `components.rs` (nouns); the mechanics are `traps.rs`.
 
 The three holds — `Asleep`, `Pinned`, `Rooted` — are effects rather than components of their own, held for `Lifetime::Turns` and aged by `effects::tick_effects`. `Asleep` forfeits the turn outright (`player_incapacitated`); `Pinned` blocks movement only — a swing still lands, a step is a bloody thrash (`bear_trap_thrash`). `Rooted` is `Pinned` without the teeth: still biting, no thrash damage — a scroll of hold monster's doing, and the one no trap lays. `ai.rs` applies the same rules to held monsters. Each runs on its own clock, so a creature can carry more than one.
 
+`Petrified` is a fourth hold and the odd one out. A medusa's gaze puts it on, it forfeits the victim's turn exactly as `Asleep` does, and it *protects*: `effects::stone_chip` caps every hit at `constants::combat::CHIP_DAMAGE` and never lets one take the victim's last point, on both damage paths (`combat::resolve_attack` and `helpers::apply_hit`), so the blow is reported as a chip rather than as a wound. Its one exception is a war hammer, which lends its wielder `ShattersStone` and goes through whole. It is deliberately not one of the `HOLDS` the two teleports let go of: those are things holding a creature in a place, and stone travels with the victim.
+
 
 Components — score
 ------------------
