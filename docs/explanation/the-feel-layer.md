@@ -44,6 +44,8 @@ The rules
 
 **Anything that could leak information is gated on sight.** A shake for a blast in a room the player has never entered tells them there is a room there. `helpers::player_sees` is the shared check.
 
+**A missile in flight holds the screen until it lands.** An arrow, a dagger, a thrown wand — a flight is the one animation in the game that is *cause* rather than aftermath, and an impact spark going off while the arrow is still two tiles out reads as two unrelated things instead of one. So `Particles::hurl` and `Particles::lob` advance the batch's hold by their own span, and every mote queued behind them — the spark, the blast, the corpse fling, the second arrow — opens once the missile has finished drawing. It is the effect layer's own bookkeeping, so the rule above still stands: gameplay arms its flourish and forgets it, and no caller passes a delay.
+
 **The one thing that must never cost a keystroke is the shake.** Particles and the magic-map wipe block input, the way NetHack freezes for a bolt — they animate an aftermath the player asked for by swinging. A shake is armed *by the dungeon*, at exactly the moments a player is typing ahead. See `../reference/rendering.md`, "The screen shake".
 
 

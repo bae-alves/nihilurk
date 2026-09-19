@@ -611,7 +611,7 @@ pub enum RingEffect {
     Perception,
     Adornment,
     AggravateMonster,
-    Dexterity,
+    Sharpshooting,
     IncreaseDamage,
     Regeneration,
     SlowDigestion,

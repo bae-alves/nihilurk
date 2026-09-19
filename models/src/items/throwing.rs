@@ -103,8 +103,8 @@ fn flight_path(
 /// wand or a suit of armour just bounces off and falls.
 ///
 /// The roll is `1d[thrown damage]`, plus the item's own enchantment, plus every
-/// [`ThrowBonus`] the *thrower* is wearing — a ring of dexterity, the plus on the
-/// bow in their hand. Three things bend it:
+/// [`ThrowBonus`] the *thrower* is wearing — a ring of sharpshooting, the plus on
+/// the bow in their hand. Three things bend it:
 ///
 /// * **A launcher switches the die.** A missile carrying [`LaunchedBy`] asks
 ///   whether its thrower has the effect it answers to; if so it rolls its
