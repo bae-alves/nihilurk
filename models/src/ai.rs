@@ -1,5 +1,5 @@
 use crate::components::*;
-use crate::effects::{Asleep, Blind, CoinGreedy, Pinned, Rooted, Stealthy};
+use crate::effects::{Asleep, Blind, CoinGreedy, Petrified, Pinned, Rooted, Stealthy};
 use crate::helpers::{chebyshev, get_line};
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
@@ -230,9 +230,9 @@ fn step_one_mob(
     ctx: &AiCtx,
     spatial: &mut HashMap<(u16, u16), (Entity, Faction)>,
 ) -> bool {
-    // Asleep forfeits the turn outright. Pinned or rooted means it cannot
-    // take a step, but a foe within reach still gets bitten.
-    if world.get::<Asleep>(mob).is_some() {
+    // Asleep — or stone — forfeits the turn outright. Pinned or rooted means
+    // it cannot take a step, but a foe within reach still gets bitten.
+    if world.get::<Asleep>(mob).is_some() || world.get::<Petrified>(mob).is_some() {
         return false;
     }
     let pinned = world.get::<Pinned>(mob).is_some() || world.get::<Rooted>(mob).is_some();

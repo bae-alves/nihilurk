@@ -34,8 +34,9 @@ use crate::components::{
 use crate::conditions::snare;
 use crate::effects::{
     AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Cleaves, ConfusingTouch, FireBreath,
-    Freezing, Gorgon, Grant, HeavySwing, MagicWard, Momentum, Pinned, Regenerates, RustsArmor,
-    SelfDamageOnHit, Splits, StealsAndFlees, StealsAndVanishes, Teleportitis, Vampiric, Venomous,
+    Freezing, Gorgon, Grant, HeavySwing, MagicWard, Momentum, Petrified, Pinned, Regenerates,
+    RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees, StealsAndVanishes, Teleportitis, Vampiric,
+    Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
 use crate::helpers::{adjacent_mobs, apply_damage, item_label};
@@ -477,11 +478,15 @@ fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> b
 // ---------------------------------------------------------------------------
 
 /// The medusa's gaze: petrify the player outright the instant they attack,
-/// fire at, or zap the creature — mechanically identical to
-/// [`crate::effects::Asleep`] (the same snare, the same [`SLEEP_TURNS`]), only the
-/// flavour is stone rather than slumber. Certain, not a roll — looking upon a
-/// medusa is the whole danger — and it lands whether or not the blow itself
-/// does; the gaze doesn't wait to see if you missed.
+/// fire at, or zap the creature. Certain, not a roll — looking upon a medusa
+/// is the whole danger — and it lands whether or not the blow itself does; the
+/// gaze doesn't wait to see if you missed.
+///
+/// [`crate::effects::Petrified`] costs the player their turns exactly as sleep
+/// does, and protects them while it lasts: nothing in the dungeon gets more
+/// than a chip through stone, and nothing but a war hammer takes their last
+/// point. It used to *be* sleep, which is why a player turned to stone was
+/// told they had shaken off their drowsiness when it let go.
 ///
 /// A no-op for anything that isn't the player looking upon a [`Gorgon`]: a
 /// medusa's own kind is unmoved by each other, and nothing but a person's eyes
@@ -492,8 +497,8 @@ fn medusa_gaze(world: &mut World, looker: Entity, _seen: Entity) -> bool {
     if world.get::<Player>(looker).is_none() {
         return false;
     }
-    let turns = crate::constants::scrolls::SLEEP_TURNS;
-    if !snare(world, looker, Grant::of::<Asleep>(), turns) {
+    let turns = crate::constants::monsters::PETRIFY_TURNS;
+    if !snare(world, looker, Grant::of::<Petrified>(), turns) {
         return false;
     }
     world

@@ -27,7 +27,8 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::world::{EntityRef, EntityWorldMut};
 use std::any::TypeId;
 
-use crate::components::{GameLog, Player};
+use crate::components::{Fighter, GameLog, Name, Player};
+use crate::constants::combat::CHIP_DAMAGE;
 
 // ---------------------------------------------------------------------------
 // Marker effects
@@ -573,6 +574,27 @@ pub struct Pinned;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Rooted;
 
+/// Lent by a war hammer while it is wielded: mass, and nothing else, gets
+/// through stone. A blow from one is not capped by [`Petrified`] — it lands
+/// whole, last point of HP included. See [`stone_chip`], whose one exception
+/// this is.
+#[derive(Component, Default, Clone, Copy)]
+pub struct ShattersStone;
+
+/// Turned to stone by a medusa's gaze. Like [`Asleep`] it costs the victim
+/// every turn it lasts, and unlike it, it protects: nothing gets more than
+/// [`crate::constants::combat::CHIP_DAMAGE`] through a petrified hide and
+/// nothing takes its last point of HP ([`stone_chip`], which both damage
+/// paths ask). Stone is therefore a hard stop rather than a death — the
+/// player comes out of it wherever they went into it, unless what is standing
+/// over them is swinging a war hammer ([`ShattersStone`]).
+///
+/// Deliberately **not** one of the [`HOLDS`]: those are things holding a
+/// creature in a place, and a teleport is out of all three. Stone is the
+/// victim's own body and travels with them.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Petrified;
+
 /// One row of [`EFFECTS`]: the id a save file stores, and the handle that
 /// attaches, detaches and probes the component it stands for.
 ///
@@ -688,13 +710,16 @@ effects! {
     "turbo_magic" => TurboMagic;
     "self_damage_on_hit" => SelfDamageOnHit;
     "builds_momentum" => BuildsMomentum;
+    "shatters_stone" => ShattersStone;
     "confusing_touch" => ConfusingTouch, beware "confusing touch";
     "bided" => Bided;
-    // The three holds. Each ends on its own clock, so a creature can be both
-    // asleep and pinned and come out of each when its own turns run out —
-    // where the one `Snare` component these replaced could only ever record
-    // the most recent of them.
+    // The holds. Each ends on its own clock, so a creature can be both asleep
+    // and pinned and come out of each when its own turns run out — where the
+    // one `Snare` component these replaced could only ever record the most
+    // recent of them.
     "asleep" => Asleep, ends "You shake off the drowsiness and come to.";
+    // The fourth hold, and the one that is not a `HOLDS` row — see `Petrified`.
+    "petrified" => Petrified, ends "The stone sloughs off you and your flesh is your own again.";
     "pinned" => Pinned, ends "You wrench your leg free of the bear trap.";
     "rooted" => Rooted, ends "Whatever was holding you lets go.";
     // The afflictions. Held for `Lifetime::Floor`, so a staircase lifts them
@@ -1011,11 +1036,66 @@ pub fn tick_effects(world: &mut World) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Stone
+// ---------------------------------------------------------------------------
+
+/// What a hit for `amount` actually does to a petrified creature, and the one
+/// sentence it is reported with.
+pub struct Chip {
+    /// The HP that gets through the stone: a chip at most, and nothing at all
+    /// against a creature already on its last point.
+    pub through: i32,
+    /// "You are chipped for 1 damage." — the line the blow is reported with,
+    /// in place of whatever the source would otherwise have said.
+    pub line: String,
+}
+
+/// The whole of what being [`Petrified`] does to a hit: at most
+/// [`CHIP_DAMAGE`] gets through, and never the creature's last point of HP.
+/// `None` when the target is not stone, which is the caller's signal to
+/// resolve and report the hit its own way.
+///
+/// The one thing stone does not stop is a war hammer — see
+/// [`crate::combat`], which asks whether the attacker carries
+/// [`ShattersStone`] before it asks this at all. A hit with no attacker behind
+/// it (a ray, a flame, a falling dart) has nothing to ask.
+///
+/// It lives here, with the effect, because both damage paths have to obey it
+/// and say it identically — [`crate::combat::resolve_attack`], which applies
+/// its own HP, and [`crate::helpers::apply_hit`], which every other source of
+/// harm in the game goes through. Two copies of this rule would be two
+/// answers to "can a petrified player die".
+pub fn stone_chip(world: &World, target: Entity, amount: i32) -> Option<Chip> {
+    world.get::<Petrified>(target)?;
+    let hp = world.get::<Fighter>(target).map_or(0, |f| f.hp);
+    let through = amount.clamp(0, CHIP_DAMAGE).min((hp - 1).max(0));
+    let (who, verb) = match world.get::<Player>(target).is_some() {
+        true => ("You".to_string(), "are"),
+        false => (
+            format!(
+                "The {}",
+                world.get::<Name>(target).map_or("creature", |n| &n.what)
+            ),
+            "is",
+        ),
+    };
+    let line = match through {
+        0 => format!("{who} {verb} chipped for no damage."),
+        n => format!("{who} {verb} chipped for {n} damage."),
+    };
+    Some(Chip { through, line })
+}
+
 /// The three holds: what keeps a creature where it stands, each on its own
 /// clock. They are listed once, here, because the two ways out of one — the
 /// scroll of teleportation and the wand of teleport away — have to let go of
 /// all three, and a fourth hold added to the registry and forgotten at one of
 /// those two sites would strand a creature nowhere near what was holding it.
+///
+/// [`Petrified`] is a hold and is deliberately not here: it is not something
+/// holding the victim in a place, it is the victim's own body, and a teleport
+/// takes the statue with it.
 pub const HOLDS: [Grant; 3] = [
     Grant::of::<Asleep>(),
     Grant::of::<Pinned>(),

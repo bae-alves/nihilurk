@@ -67,7 +67,7 @@ use crate::constants::traps::{
     TRAP_DAMAGE_TIER_LAST_DEPTH, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES,
     TRICK_SHOT_RADIUS,
 };
-use crate::effects::{Asleep, Grant, Pinned};
+use crate::effects::{Asleep, Grant, Petrified, Pinned};
 use crate::helpers::{
     apply_damage, leave_smoke, leave_tinted_smoke, player_sees, roll_dice, spill_blood,
     total_armor_plus,
@@ -196,11 +196,12 @@ pub fn bear_trap_thrash(world: &mut World, victim: Entity) {
     trap_spark(world, spot);
 }
 
-/// Whether the player is unable to take *any* action this turn — asleep in gas.
-/// A bear trap does **not** count: it blocks movement only (the engine still
-/// reads a key, so the player can strike or thrash).
+/// Whether the player is unable to take *any* action this turn — asleep in
+/// gas, or standing as stone under a medusa's gaze. A bear trap does **not**
+/// count: it blocks movement only (the engine still reads a key, so the player
+/// can strike or thrash).
 pub fn player_incapacitated(world: &mut World) -> bool {
-    player_held_by(world, Grant::of::<Asleep>())
+    player_held_by(world, Grant::of::<Asleep>()) || player_held_by(world, Grant::of::<Petrified>())
 }
 
 /// Everything a floor trap needs. Deliberately has no [`Item`] — traps are not

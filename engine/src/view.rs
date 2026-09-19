@@ -343,15 +343,22 @@ pub fn render<W: Write>(
             hx += 3 + label.len() as u16;
         }
         let held = world
-            .query_filtered::<(Option<&Asleep>, Option<&Pinned>, Option<&Rooted>), With<Player>>()
+            .query_filtered::<(
+                Option<&Petrified>,
+                Option<&Asleep>,
+                Option<&Pinned>,
+                Option<&Rooted>,
+            ), With<Player>>()
             .iter(world)
             .next()
-            .map(|(a, p, r)| (a.is_some(), p.is_some() || r.is_some()));
-        // Asleep reads over the other two: a sleeper who is also pinned is
-        // told the worse of the two facts.
+            .map(|(s, a, p, r)| (s.is_some(), a.is_some(), p.is_some() || r.is_some()));
+        // Worst first: stone costs the turn and everything else besides, sleep
+        // costs the turn, a bear trap costs the step. A player who is two of
+        // them is told the worst one.
         if let Some(label) = match held {
-            Some((true, _)) => Some("ASLEEP"),
-            Some((_, true)) => Some("HELD"),
+            Some((true, _, _)) => Some("STONE"),
+            Some((_, true, _)) => Some("ASLEEP"),
+            Some((_, _, true)) => Some("HELD"),
             _ => None,
         } {
             screen.puts(hx, 0, " · ", Color::DarkGrey);
@@ -1157,9 +1164,10 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
     }
 }
 
-/// The `Z` moves box: up to four rows, numbered `1`-`4`, each the move's name
-/// and its [`Magic`] cost. Drawn the same way the inventory box is, just with
-/// no sub-menu — picking a row goes straight to the aiming reticle.
+/// The `Z` moves box: up to four rows, lettered `a`-`d` like the pack's, each
+/// the move's name and its [`Magic`] cost. Drawn the same way the inventory
+/// box is, just with no sub-menu — picking a row goes straight to the aiming
+/// reticle.
 fn draw_moves(world: &mut World, screen: &mut Screen) {
     let selected = world.resource::<MovesMenu>().selected;
     let (player, slots) = {
@@ -1176,7 +1184,8 @@ fn draw_moves(world: &mut World, screen: &mut Screen) {
         .map(|(i, &effect)| {
             let def = MoveDef::of(effect);
             let cost = models::move_cost(world, player, effect);
-            format!(" {}) {} ({} Ma) ", i + 1, def.name, cost)
+            let letter = (b'a' + i as u8) as char;
+            format!(" {letter}) {} ({} Ma) ", def.name, cost)
         })
         .collect();
 

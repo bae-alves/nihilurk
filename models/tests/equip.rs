@@ -668,3 +668,26 @@ fn a_staff_doubles_the_cost_and_the_damage_of_a_damaging_move() {
         "a staff doubles the damage of the same roll"
     );
 }
+
+/// The war hammer's whole point is a mechanic in `combat` (`ShattersStone`,
+/// which takes a blow through a petrified hide whole) reached only through the
+/// catalog row that lends it. The mechanic has its own tests; this is the wire
+/// between them — wield the hammer, and the wielder carries the effect.
+#[test]
+fn wielding_the_war_hammer_lends_what_goes_through_stone() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let hammer = spawn_weapon(&mut w, "war hammer", Position { x: 0, y: 0 });
+    w.entity_mut(hammer).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(hammer);
+
+    assert!(
+        w.get::<ShattersStone>(p).is_none(),
+        "the hammer worked from inside the pack"
+    );
+    use_item(&mut w, p, hammer);
+    assert!(
+        w.get::<ShattersStone>(p).is_some(),
+        "a wielded war hammer lent its wielder nothing"
+    );
+}

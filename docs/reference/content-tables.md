@@ -161,7 +161,7 @@ Dials: `constants::wands`. Resolution: `resolve_wand_throw` and `apply_thrown_wa
 
 ### MOVES — MoveDef
 
-The one catalog row that never spawns anything: a move carries no `Item`, no `Position`, no pack slot. It lives permanently in whoever's `Moveset` it's in (the player's, taught by heroic mana — see "COINS" above) and is triggered from there (`Z`, or `Alt`+`Q`/`W`/`E`/`R`).
+The one catalog row that never spawns anything: a move carries no `Item`, no `Position`, no pack slot. It lives permanently in whoever's `Moveset` it's in (the player's, taught by heroic mana — see "COINS" above) and is triggered from there (the `Z` menu, by row letter).
 
 | Field    | Type           | Notes                                                          |
 |----------|----------------|-----------------------------------------------------------------|

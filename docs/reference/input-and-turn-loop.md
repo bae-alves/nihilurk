@@ -65,7 +65,7 @@ One `Schedule`, run once per turn, in this fixed order:
       -> dungeon_lord_system -> passive_ability_system
       -> visibility_system -> score_turn_system
 
-`reveal_mimics` runs right before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `monster_pickup_system` runs right after `ai`, while `EntityMoved` still marks whoever just stepped: a coin-greedy monster (an orc) that walked onto a coin it can use claims it there, before `trap_system` clears the tag. `move_system` sits beside `item_system` for the same reason a wand's zap does — an active move (`Z`, or `Alt`+`Q`/`W`/`E`/`R`) spends its `Magic` cost and resolves there.
+`reveal_mimics` runs right before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `monster_pickup_system` runs right after `ai`, while `EntityMoved` still marks whoever just stepped: a coin-greedy monster (an orc) that walked onto a coin it can use claims it there, before `trap_system` clears the tag. `move_system` sits beside `item_system` for the same reason a wand's zap does — an active move (`Z`, the only way to one) spends its `Magic` cost and resolves there.
 
 `passive_ability_system` sits second-to-last on purpose. A passive that merely happens to you can roll anywhere; one that *moves* you cannot. Rolled after `ai`, a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again — and there is still a visibility pass and a render left in the turn to show it to them.
 
@@ -236,11 +236,19 @@ Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to 
 | `f` / `Tab` | fire the wielded launcher / auto-fight |
 | `v` | `begin_reach_attack` — gated on `models::wielded_reach_weapon`, opens the aiming reticle out to the weapon's own `Reach` (`TargetingState.reach_attack`) |
 | `T` | **undocumented on purpose.** `models::willed_teleport`: with `Teleportitis` on the player (a worn ring of teleportation) and at least `rings::TELEPORT_MAGIC_COST` magic points, it spends them and jumps. Every other path returns `false` and **logs nothing at all** — no refusal, no hint the key exists. Keep it out of `MANUAL.md`. |
+| `;` | `begin_look` — opens the reticle in look mode (see below). Not `L`: that is the shifted vi key for east and `run_direction` claims it first |
+| `Z` | `begin_moves_menu` — the moves list, rows lettered `a`-`d`. The only way to an active move: there is **no** direct-fire key for a slot, and adding one means finding a key that neither `run_direction` nor a menu's letter arm already claims and that is not layout-dependent |
 | `>` `.` / `<` `,` | stairs, or travel to them |
 | `Q` / `X` | raise `QuitPrompt` — the "Really quit?" modal. `X` only reaches here with nothing open; otherwise it is the escape hatch above |
-| Ctrl+C | clear `GameState::is_running` on the spot, no prompt |
+| Ctrl+C | **never reaches this table.** `dispatch_key` claims it first, above the `--MORE--` gate, so it quits from every context — a menu that selects rows by letter would otherwise read it as picking row `c` |
 
-Adding a command key is a row in that `match` and (if it opens the pack) a row in `PackMode`. Check it against the pack's own letters first: the item rows are `a`..`i` (`PACK_CAPACITY` is 9), and `navigate_pack`'s letter arm claims every lowercase key that isn't already navigation.
+Adding a command key is a row in that `match` and (if it opens the pack) a row in `PackMode`. Two things claim keys before that `match` ever runs, and both have silently eaten a command before:
+
+  * **`run_direction`**, called at the top of `handle_movement_input`, owns `H J K L Y U B N` outright. A command on any of those eight is dead code — this is what happened to `L` for look.
+  * **the `x`/`X` escape hatch** in `dispatch_key`, which fires from every context including the map.
+  * **Ctrl+C**, taken at the very top of `dispatch_key`, above everything.
+
+Check a new key against the menus' own letters too: pack rows are `a`..`i` (`PACK_CAPACITY` is 9) and moves rows are `a`..`d`, and both menus' letter arms claim every lowercase key that isn't already navigation. In a menu, navigation is read before the letter, so `j` and `k` can never select a row.
 
 
 The pack and the action modal
@@ -266,7 +274,7 @@ The aiming reticle
 
 `TargetingState` holds which of an item, an active move, a plain look, or a reach weapon's own strike the reticle is for (exactly one of `item` / `move_effect` / `looking` / `reach_attack` is meaningfully set — `reach_attack` is the one exception that still carries `item`, since the weapon never leaves the wielder's hand), plus whether it's a throw, and the cursor. `move_target_cursor` only allows the cursor onto a tile that is both currently visible and within `aim_range` — `THROW_RANGE` for a throw, the move's own `MoveDef.range`, the wielded weapon's own `Reach` for a reach attack, the item's own `Ranged.range` for a zap, a look's own reach the width of the map (the `in_view` check does the real bounding), `8` as a fallback. `Tab` (`cycle_target`) snaps the cursor to the next monster or item in view instead of nudging it one tile. Confirming (`fire_at_target`) refuses a shot at the player's own tile ("Great idea! But no.") for every purpose except looking — that one is allowed on your own tile, and spends no turn at all. A reach attack resolves in place (`models::resolve_reach_attack`) and never touches the pack; otherwise it removes the item from the pack and pushes a `WantsToThrow` or `WantsToUse` onto the matching queue, or a `WantsToMove` onto `MoveQueue`, for `throw_system` / `item_system` / `move_system` to resolve next schedule run. A throw of a stacked item (arrows) goes through `models::draw_one` first, which splits one unit off and leaves the rest in the pack slot.
 
-`L` opens the reticle in look mode; every cursor move (arrows or `Tab`) reads the tile out loud through `announce_look` rather than waiting for `Enter` — `l` then `Tab Tab Tab` walks everything in view. On a monster, it also lists `"Beware their ___."` for each notable move or on-hit trick it carries. The phrases come from `models::dangers_of`, which reads the `beware` field off each `EFFECTS` row — the engine crate names no markers of its own. Every creature is a *they*, whatever it is.
+`;` opens the reticle in look mode; every cursor move (arrows or `Tab`) reads the tile out loud through `announce_look` rather than waiting for `Enter` — `;` then `Tab Tab Tab` walks everything in view. On a monster, it also lists `"Beware their ___."` for each notable move or on-hit trick it carries. The phrases come from `models::dangers_of`, which reads the `beware` field off each `EFFECTS` row — the engine crate names no markers of its own. Every creature is a *they*, whatever it is.
 
 
 Running, auto-explore, and travel

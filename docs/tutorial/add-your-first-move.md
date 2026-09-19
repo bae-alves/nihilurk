@@ -176,9 +176,9 @@ Build and run:
 Step 5: cast it
 ------------------
 
-Press `Z`. You should see a small box listing both moves, each with its Magic cost. Press `2` (or navigate down and confirm) to pick Ice Bolt, and the aiming reticle opens exactly as it would for a wand.
+Press `Z`. You should see a small box listing both moves, each with its Magic cost. Press `b` (or navigate down and confirm) to pick Ice Bolt, and the aiming reticle opens exactly as it would for a wand.
 
-Faster, once you know the slot: `Alt`+`W` opens the same reticle directly, no menu in between. `Alt`+`Q`/`W`/`E`/`R` reach slots one through four in that order. While the reticle is up, `Tab` snaps it to the next monster or item in view instead of nudging it one tile at a time.
+Rows are lettered `a` to `d`, the way the pack's are, and the menu is the only way to a move -- no key fires a slot directly. While the reticle is up, `Tab` snaps it to the next monster or item in view instead of nudging it one tile at a time.
 
 Confirm the shot at something, and watch your Magic drop by two. Try it again with an empty pool: the reticle never even opens, and the log says why.
 
