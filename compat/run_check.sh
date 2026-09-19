@@ -159,7 +159,13 @@ while IFS=$'\t' read -r id target class platform image exec note_text; do
     }
     docker_platform=()
     mounts+=(-v "$qemu_bin:/qemu-static:ro")
-    cmd=(/qemu-static "${cmd[@]}")
+    # qemu-user's argv handling: the token right after the ELF path becomes
+    # the emulated process's argv[0], it is not forwarded as argv[1]. Passing
+    # the binary path a second time is not redundant -- omit it and the
+    # target's real first argument (here, `-content`) is silently swallowed
+    # into the argv[0] slot instead of reaching the program, which then falls
+    # through into full terminal setup and dies with ENXIO (no tty here).
+    cmd=(/qemu-static /nihilurk "${cmd[@]}")
   fi
 
   log="$OUT/run-$id.log"
