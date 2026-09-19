@@ -567,6 +567,11 @@ fn disguise_as_item(world: &mut World, mob: Entity, rng: &mut ChaCha12Rng) {
 /// restores its true name and glyph and removes [`Mimic`]. Scheduled just
 /// before [`crate::ai`], so the very turn the player draws alongside one it
 /// also gets to lash out — see [`MovementType::Ambush`].
+///
+/// Assumes the player's [`Position`] already reflects this turn's move — true
+/// because `schedule.run` only fires once `player_step` has already resolved
+/// it (`engine/src/main.rs`), and before `ai` reads the same position to
+/// decide what a monster can see.
 pub fn reveal_mimics(world: &mut World) {
     let Some(player_pos) = world
         .query_filtered::<&Position, With<Player>>()

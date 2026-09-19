@@ -26,6 +26,11 @@ use crate::constants::rings::STEALTH_RANGE;
 /// [`PlayerTempo::fast_parity`]), and a `Slow` player's one turn buys two rounds.
 /// Every other schedule step (traps, visibility, the Dungeon Lord's patience)
 /// still ticks exactly once per player turn.
+///
+/// Assumes [`crate::monsters::reveal_mimics`] has already run this turn, so
+/// any [`Mimic`] still on a mob is a xeroc genuinely still disguised, not one
+/// merely unprocessed yet — the disguise gate this loop reads for
+/// `MovementType::Ambush` depends on that being settled first.
 pub fn ai(world: &mut World) {
     // The whole turn is decided against one snapshot of the player, taken
     // before any monster moves — so a mob that steps aside in pass 0 cannot
@@ -348,6 +353,10 @@ fn orc_coin_goal(world: &mut World, mob: Entity, mob_pos: Position) -> Option<Po
 /// Scheduled right after [`ai`] itself, while [`EntityMoved`] still marks
 /// whoever moved this turn — the same tag [`crate::traps::trap_system`] reads
 /// straight after this.
+///
+/// Assumes [`EntityMoved`] still marks exactly this turn's movers, untouched
+/// since `ai` tagged them — true because nothing between the two schedule
+/// steps reads or clears it.
 pub fn monster_pickup_system(world: &mut World) {
     let movers: Vec<Entity> = world
         .query_filtered::<Entity, (With<EntityMoved>, With<CoinGreedy>)>()

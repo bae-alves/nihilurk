@@ -140,6 +140,9 @@ impl Default for Smoke {
 }
 
 /// Schedule step: ages every lingering smoke puff down by one turn.
+///
+/// Assumes nothing: it is first in the schedule, and a puff's own age is the
+/// only state it touches.
 pub fn smoke_system(world: &mut World) {
     world.resource_mut::<Smoke>().tick();
 }

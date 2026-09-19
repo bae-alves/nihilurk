@@ -489,6 +489,10 @@ pub struct Blow {
 ///
 /// The system asks only "who carries this effect" — it never asks where the
 /// effect came from, which is the whole point.
+///
+/// Assumes `ai`, well upstream, has already moved every monster this turn —
+/// the reason a bearer's own jump lands clear at the top of the *next* turn
+/// rather than into a monster still mid-move on this one.
 pub fn passive_ability_system(world: &mut World) {
     // Only creatures. An effect never lands on an item: a ring carries
     // `Grants`, and it is the *wearer* who ends up with `Regenerates` on them

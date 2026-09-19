@@ -98,12 +98,15 @@ than the code. The intent queue count was wrong in three separate files at once.
 any tool in the tree, because no tool was checking a number in one file against a count in another —
 only a person rereading everything found it.
 
-What remains open, narrowly and by name: **a schedule step still does not state what it assumes.**
-The `.after()` edges are real, commented, and load-bearing — the ordering half of the contract is
-explicit. The other half, what a system assumes is already true of the world when it starts, still
-lives nowhere but the author's memory and the fifty-line walk through `main.rs` needed to reconstruct
-it. Fifteen systems carry this gap; one has been closed as a worked example. That is the whole of what
-is still weak here — not a general fog over "boundary clarity", a specific, countable, named thing.
+What used to remain open, narrowly and by name: **a schedule step did not state what it assumed.**
+The `.after()` edges were real, commented, and load-bearing — the ordering half of the contract was
+explicit. The other half, what a system assumes is already true of the world when it starts, now
+carries a doc comment at the system's own definition, for all fifteen `&mut World` schedule steps;
+`visibility_system` needs none, since its `Query` signature already states its assumptions in a form
+the compiler checks. Closing this found one genuinely dead guard clause along the way — `snare_system`
+checks `Ending::player_dead` at a point in the schedule where nothing can yet have set it true — left
+in place and explained rather than removed, since the item was to state what a system assumes, not to
+prune defensive code that costs nothing to keep.
 
 ### The Ugly
 
@@ -133,14 +136,14 @@ The thing worth fixing was never the direct mutation model; it was the hidden ma
 - data rows that encode behavior implicitly — still true, and correctly so: `Grant` naming a component from a `const` table is the whole trick that makes a ring of fire resistance free once a dragon is fire-immune. What changed is that `BESTIARY` and `TRAPS` rows are now checked for legality before they reach a system, the same way `DROPS` already was.
 - effects whose meaning is spread across tables and systems — still the intended shape, not a defect: one vocabulary in `models/src/effects.rs`, read by many systems that never learn where an effect came from.
 - content definitions that rely on successful assumptions — narrowed to what a test can actually check: a row's weight, its depth, and one now-forbidden combination (a mimic that is also invisible) are enforced; what a mechanic *does* with a legal row is still, correctly, code rather than data.
-- turn-order invariants that are known but not always stated plainly — still true for fifteen of sixteen schedule systems. The `.after()` edges are stated; the preconditions they exist to satisfy are not, except for one, closed as a worked example rather than a pattern.
+- turn-order invariants that are known but not always stated plainly — closed. The `.after()` edges were already stated; the preconditions they exist to satisfy now are too, at each of the fifteen `&mut World` systems' own definitions.
 - world mutation that is efficient but not well-separated at the boundary — checked, and turned out not to be true. Every despawn and every spawn in the tree already sits at the rule that decided it.
 
-That was never a reason to throw the design out. It was a reason to formalize the contracts — and, once formalized, to find out which of them were already true. Status against the original seven-item improvement path, as of `scs-improvement-plan.md`'s second phase:
+That was never a reason to throw the design out. It was a reason to formalize the contracts — and, once formalized, to find out which of them were already true. Status against the original seven-item improvement path, as of `scs-improvement-plan.md`'s third phase:
 
 1. **Command and effect queues — closed.** Inbound intent already ran through four named queues; the cosmetic half already decided, armed, and forgot. The narrative half (the message log) looked like the same gap wearing a bigger number and was not: it is read back by the game loop in the same turn it is written, which makes it a synchronous signal, not a deferrable one. Queueing it would have broken the thing it was meant to fix.
 
-2. **System invariants — open, and the one item still owed.** Every system should state what it assumes about the world before it runs; one does, as a worked example, and fifteen do not.
+2. **System invariants — closed.** Every `&mut World` schedule system states what it assumes about the world before it runs, at its own definition, not reconstructed from `main.rs`'s `.after()` chain. The statement is prose, not a `debug_assert!` — deliberately, since what each one actually assumes is the world's position in a schedule the compiler and the `Schedule` builder already fix, not a runtime fact a guard could check without inventing new bookkeeping the anti-goals would call a bus by another name. Written down is not enforced: this is a seam named, not a seam guarded, the way item 7's doc pages now are.
 
 3. **Content validation — closed.** A weight that would leave a row undrawable, a depth past the last floor, and one impossible combination of properties are all checked before a row reaches a system, the same way the loot table already was.
 
