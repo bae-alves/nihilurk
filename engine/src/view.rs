@@ -295,10 +295,10 @@ pub fn render<W: Write>(
             format!("Arm. {}", stat(arm_die, arm_flat)),
         ];
         // What a throw is worth is only worth a HUD field once something is
-        // making it worth something — a bow, a ring of dexterity. A player who
+        // making it worth something — a bow, a ring of sharpshooting. A player who
         // never throws never sees it.
         if throw_flat != 0 {
-            fields.push(format!("Thr. {throw_flat:+}"));
+            fields.push(format!("Skl. {throw_flat:+}"));
         }
         fields.push(format!("DEPTH {}", depth));
         // The score line yields its space to condition badges when any are lit

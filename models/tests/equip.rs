@@ -526,7 +526,7 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
 
     let first = spawn_ring(&mut w, RingEffect::Protection, Position { x: 0, y: 0 });
     let second = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
-    let third = spawn_ring(&mut w, RingEffect::Dexterity, Position { x: 0, y: 0 });
+    let third = spawn_ring(&mut w, RingEffect::Sharpshooting, Position { x: 0, y: 0 });
     for e in [first, second, third] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);

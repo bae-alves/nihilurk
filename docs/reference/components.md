@@ -150,7 +150,7 @@ All four key enums are **saved by variant order** — append, never reorder. The
 
 `WandEffect`: Light, Striking, Lightning, Fire, Cold, Polymorph, MagicMissile, HasteMonster, SlowMonster, DrainLife, Nothing, TeleportAway, TeleportTo, Cancellation.
 
-`RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Dexterity, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor.
+`RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor.
 
 
 `Element` — not a component

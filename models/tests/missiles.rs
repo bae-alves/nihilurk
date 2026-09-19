@@ -375,10 +375,10 @@ fn firing_a_quarrel_from_a_crossbow_says_fire_not_throw() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_ring_of_dexterity_adds_two_to_everything_you_throw() {
+fn a_ring_of_sharpshooting_adds_two_to_everything_you_throw() {
     let plain = damage_samples(5, "arrow", 300, |_, _| {});
     let deft = damage_samples(5, "arrow", 300, |w, p| {
-        let ring = stash(w, p, |w| spawn_ring(w, RingEffect::Dexterity, NOWHERE));
+        let ring = stash(w, p, |w| spawn_ring(w, RingEffect::Sharpshooting, NOWHERE));
         toggle_equipped(w, p, ring);
         assert_eq!(equipped_total::<ThrowBonus>(w, p), 2);
     });

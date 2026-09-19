@@ -265,6 +265,13 @@ pub struct Particles {
     /// Raised whenever a batch is queued, so the engine knows a turn produced an
     /// animation worth playing out.
     pub pending: bool,
+    /// How far into the batch the next mote queued is pushed back. A flight
+    /// ([`Particles::hurl`], [`Particles::lob`]) advances it by its own span,
+    /// so everything the flight goes on to cause — the impact spark, the
+    /// blast, the corpse fling, the next flight — opens after the missile has
+    /// landed rather than on top of it. Nothing else touches it, and
+    /// [`Particles::clear`] drops it with the batch that earned it.
+    hold_ms: f32,
 }
 
 impl Particles {
@@ -272,7 +279,8 @@ impl Particles {
         Self::default()
     }
 
-    fn push(&mut self, p: Particle) {
+    fn push(&mut self, mut p: Particle) {
+        p.delay_ms += self.hold_ms;
         self.live.push(p);
         self.pending = true;
     }
@@ -562,16 +570,18 @@ impl Particles {
         // Well above the ~33ms frame period, so every cell gets its own visible
         // frame (or two) instead of the flight blurring past between samples.
         const TRAVEL_MS_PER_CELL: f32 = 70.0;
+        const LIFETIME_MS: f32 = TRAVEL_MS_PER_CELL * 1.4;
         for (i, &(x, y)) in pts.iter().enumerate() {
             self.push(Particle {
                 x,
                 y,
                 delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
-                lifetime_ms: TRAVEL_MS_PER_CELL * 1.4,
+                lifetime_ms: LIFETIME_MS,
                 age_ms: 0.0,
                 frames: vec![(glyph, color)],
             });
         }
+        self.hold_ms += flight_span(pts.len(), TRAVEL_MS_PER_CELL, LIFETIME_MS);
     }
 
     /// A thrown wand in flight: a tumbling mystic grenade rather than the
@@ -584,17 +594,19 @@ impl Particles {
     /// excluded.
     pub fn lob(&mut self, pts: &[(u16, u16)], color: Color) {
         const TRAVEL_MS_PER_CELL: f32 = 130.0;
+        const LIFETIME_MS: f32 = TRAVEL_MS_PER_CELL * 1.4;
         const TUMBLE: [char; 4] = ['o', 'O', '0', 'O'];
         for (i, &(x, y)) in pts.iter().enumerate() {
             self.push(Particle {
                 x,
                 y,
                 delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
-                lifetime_ms: TRAVEL_MS_PER_CELL * 1.4,
+                lifetime_ms: LIFETIME_MS,
                 age_ms: 0.0,
                 frames: TUMBLE.iter().map(|&g| (g, color)).collect(),
             });
         }
+        self.hold_ms += flight_span(pts.len(), TRAVEL_MS_PER_CELL, LIFETIME_MS);
     }
 
     /// A dying creature's corpse (`%`), flung away from the blow that killed
@@ -751,6 +763,19 @@ impl Particles {
     pub fn clear(&mut self) {
         self.live.clear();
         self.pending = false;
+        self.hold_ms = 0.0;
+    }
+}
+
+/// How long a flight of `cells` cells, one leaving every `per_cell` ms and each
+/// holding for `lifetime`, stays on screen: the last cell's own delay plus its
+/// hold. This is what a flight adds to [`Particles::hold_ms`], so the hold
+/// covers the flight down to its final flicker rather than to the moment the
+/// last cell lights up. A flight of nothing takes no time and holds nothing.
+fn flight_span(cells: usize, per_cell: f32, lifetime: f32) -> f32 {
+    match cells {
+        0 => 0.0,
+        n => (n - 1) as f32 * per_cell + lifetime,
     }
 }
 
@@ -764,4 +789,102 @@ fn beam_glyph(pts: &[(u16, u16)], i: usize) -> char {
 /// Clamp helper: keep an animation tile on the map before it is queued.
 pub fn on_map(x: i32, y: i32) -> Option<(u16, u16)> {
     core_math::on_map(x, y, MAP_WIDTH, MAP_HEIGHT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A five-cell traced line, thrower's own tile already excluded.
+    fn path(len: u16) -> Vec<(u16, u16)> {
+        (1..=len).map(|i| (i, 1)).collect()
+    }
+
+    /// When the last mote of the current batch goes dark.
+    fn batch_end(fx: &Particles) -> f32 {
+        fx.live
+            .iter()
+            .map(|p| p.delay_ms + p.lifetime_ms)
+            .fold(0.0, f32::max)
+    }
+
+    /// When the mote queued last starts drawing.
+    fn last_start(fx: &Particles) -> f32 {
+        fx.live.last().expect("a mote was just queued").delay_ms
+    }
+
+    #[test]
+    fn a_flight_lands_before_anything_it_caused_starts() {
+        for (name, mut fx) in [
+            ("hurl", {
+                let mut fx = Particles::new();
+                fx.hurl(&path(5), '↑', Color::Grey);
+                fx
+            }),
+            ("lob", {
+                let mut fx = Particles::new();
+                fx.lob(&path(5), Color::Green);
+                fx
+            }),
+        ] {
+            let landed = batch_end(&fx);
+            fx.hit_spark(5, 1);
+            assert!(
+                last_start(&fx) >= landed,
+                "{name}: the impact opens at {}ms, {landed}ms before the flight is over",
+                last_start(&fx)
+            );
+        }
+    }
+
+    #[test]
+    fn a_lob_holds_the_screen_longer_than_a_hurl_does() {
+        let mut hurled = Particles::new();
+        hurled.hurl(&path(5), '↑', Color::Grey);
+        hurled.hit_spark(5, 1);
+
+        let mut lobbed = Particles::new();
+        lobbed.lob(&path(5), Color::Green);
+        lobbed.hit_spark(5, 1);
+
+        assert!(
+            last_start(&lobbed) > last_start(&hurled),
+            "a lob is the slow half of the beat: {}ms vs a hurl's {}ms",
+            last_start(&lobbed),
+            last_start(&hurled)
+        );
+    }
+
+    #[test]
+    fn two_flights_in_one_turn_go_one_after_the_other() {
+        let mut fx = Particles::new();
+        fx.hurl(&path(4), '↑', Color::Grey);
+        let first_landed = batch_end(&fx);
+        let queued = fx.live.len();
+
+        fx.hurl(&path(4), '↑', Color::Grey);
+        let second_opens = fx.live[queued].delay_ms;
+
+        assert!(
+            second_opens >= first_landed,
+            "the second arrow leaves at {second_opens}ms, while the first is still in the air until {first_landed}ms"
+        );
+    }
+
+    #[test]
+    fn a_flight_that_never_happened_holds_nothing_back() {
+        let mut fx = Particles::new();
+        fx.hurl(&[], '↑', Color::Grey);
+        fx.hit_spark(1, 1);
+        assert_eq!(last_start(&fx), 0.0);
+    }
+
+    #[test]
+    fn the_hold_dies_with_the_batch_that_earned_it() {
+        let mut fx = Particles::new();
+        fx.hurl(&path(5), '↑', Color::Grey);
+        fx.clear();
+        fx.hit_spark(1, 1);
+        assert_eq!(last_start(&fx), 0.0);
+    }
 }

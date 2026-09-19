@@ -824,7 +824,7 @@ pub const RINGS: &[RingDef] = &[
     RingDef::new(RingEffect::AggravateMonster, "ring of aggravate monster")
         .grants(&[Grant::of::<AggravatesMonsters>()]),
     // A steady hand: worth as much on a hurled dagger as on a loosed arrow.
-    RingDef::new(RingEffect::Dexterity, "ring of dexterity")
+    RingDef::new(RingEffect::Sharpshooting, "ring of sharpshooting")
         .throw_bonus(2),
     // Rogue's useless ring, made the most valuable thing in the dungeon: worn
     // once, for one action, it doubles the run's score and is gone.

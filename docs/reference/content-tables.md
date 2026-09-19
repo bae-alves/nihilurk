@@ -263,7 +263,7 @@ All twelve rings are live, and eleven of them are pure table — a modifier comb
 | strength | `.power_bonus(2)`, grants `SustainsStrength` |
 | perception | grants `SeesInvisible` |
 | aggravate monster | grants `AggravatesMonsters` |
-| dexterity | `.throw_bonus(2)` |
+| sharpshooting | `.throw_bonus(2)` |
 | increase damage | `.power_bonus(2)` |
 | regeneration | grants `Regenerates` |
 | slow digestion | grants `Sluggish` |

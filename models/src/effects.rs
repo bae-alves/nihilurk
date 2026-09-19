@@ -396,7 +396,7 @@ modifiers! {
     /// a ring of protection.
     ArmorBonus => armor_bonus,
     /// Flat modifier added once to whatever the bearer *throws* — a ring of
-    /// dexterity, or the plus on the bow steadying their aim. Folded from every
+    /// sharpshooting, or the plus on the bow steadying their aim. Folded from every
     /// equipped source the same way the melee bonus is, so it never matters
     /// which piece of gear supplied it.
     ThrowBonus => throw_bonus,

@@ -101,7 +101,7 @@ Check a name before you use it:
 
 Test a throw build from turn one:
 
-    NIHILURK_SPAWN="bow,arrow,arrow,ring of dexterity" cargo run -p engine
+    NIHILURK_SPAWN="bow,arrow,arrow,ring of sharpshooting" cargo run -p engine
 
 
 See also
