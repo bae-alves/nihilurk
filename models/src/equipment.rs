@@ -391,6 +391,11 @@ pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
 /// back — a curse-lifting scroll, a stolen item. A loaded save lends gear
 /// effects itself (see [`crate::saveload::load_game`]), for wearers with no
 /// pack as well, which this query does not reach.
+///
+/// Assumes nothing upstream: it reconciles unconditionally every turn.
+/// `combat_system` and `visibility_system`, downstream, are the ones with the
+/// assumption — that this has already folded lent effects into
+/// `Loadout`-relevant components before either reads them.
 pub fn equipment_effects_system(world: &mut World) {
     let bearers: Vec<Entity> = world
         .query_filtered::<Entity, With<Backpack>>()

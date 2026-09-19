@@ -270,6 +270,14 @@ impl TrapBundle {
 
 /// Ages every [`Snare`] down by one and lifts the ones that reach zero. Runs at
 /// the top of the turn so the turn a snare is applied is not also counted.
+///
+/// Assumes nothing upstream — it is second in the schedule, behind only
+/// [`crate::map::smoke_system`]. Its own `player_dead` guard below is
+/// therefore defensive rather than load-bearing: nothing between the main
+/// loop's death check and this step can set `Ending::player_dead`, since
+/// [`crate::helpers::apply_damage`] never kills outright and every path that
+/// does (`combat::settle_the_dead`, `combat::finish_indirect_kill`) runs
+/// later in this same schedule, not before it.
 pub fn snare_system(world: &mut World) {
     if world
         .get_resource::<crate::state::Ending>()
@@ -310,6 +318,10 @@ pub fn snare_system(world: &mut World) {
 /// Springs any trap whose tile an actor entered this turn, then clears the
 /// [`EntityMoved`] markers. Placed just after [`crate::ai`] in the schedule so
 /// it sees both the player's move and the monsters'.
+///
+/// Assumes [`crate::ai::monster_pickup_system`] has already run and claimed
+/// any coin a greedy mob wanted off these tiles — this is the last reader of
+/// [`EntityMoved`] before it clears the tag.
 pub fn trap_system(world: &mut World) {
     let movers: Vec<Entity> = world
         .query_filtered::<Entity, (With<EntityMoved>, With<Position>)>()

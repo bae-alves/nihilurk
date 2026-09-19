@@ -76,6 +76,11 @@ pub fn move_cost(world: &World, user: Entity, effect: MoveEffect) -> u8 {
 /// [`Magic`] cost first — a stray drain between opening the reticle and
 /// confirming it (a wand of cancellation, say) is the one way this can still
 /// refuse — then hands off to [`apply_move_effect`].
+///
+/// Assumes nothing upstream but a filled [`MoveQueue`]: affordability was
+/// already checked once at the reticle, which is why this re-checks it
+/// rather than trusting it — the one queue whose entry can go stale between
+/// being queued and being drained.
 pub fn move_system(world: &mut World) {
     let moves = std::mem::take(&mut world.resource_mut::<MoveQueue>().moves);
     for wants in moves {

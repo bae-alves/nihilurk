@@ -108,6 +108,10 @@ use self::wands::apply_wand_effect;
 /// up (back in its exact pack slot, or crumbled to dust once a wand's battery
 /// runs dry), logs the "you drink / read / zap it" beat, and only then applies
 /// the effect.
+///
+/// Assumes nothing upstream but a filled [`UseQueue`]: a targeted use was
+/// already aimed at the reticle before it was queued, so this only has to
+/// resolve what arrives.
 pub fn item_system(world: &mut World) {
     let uses = std::mem::take(&mut world.resource_mut::<UseQueue>().uses);
     for item_use in uses {

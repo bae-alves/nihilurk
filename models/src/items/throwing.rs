@@ -388,6 +388,10 @@ fn apply_thrown_wand_effect(world: &mut World, entity: Entity, effect: WandEffec
 }
 
 /// The schedule step that resolves everything hurled this turn.
+///
+/// Assumes nothing upstream but a filled [`ThrowQueue`]: every throw was
+/// already validated (range, a legal target) at the reticle before it was
+/// queued, so this only has to resolve what arrives.
 pub fn throw_system(world: &mut World) {
     let throws = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
     for throw in throws {

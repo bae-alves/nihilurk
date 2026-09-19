@@ -122,6 +122,10 @@ impl Combo {
 /// exactly the ones that fell between two of these, the multiplier is only
 /// applied once the dying is over, and the flash it arms is still lit for this
 /// turn's render (the ageing above happens first) and dark by the next.
+/// Assumes everything capable of killing this turn — `combat_system`,
+/// `reaper_system`, any trap or blast resolved upstream of them — has already
+/// run, so the combo totalled here is complete and final, never applied to a
+/// pile still growing.
 pub fn score_turn_system(world: &mut World) {
     if let Some(mut flash) = world.get_resource_mut::<ScoreFlash>() {
         flash.turns = flash.turns.saturating_sub(1);

@@ -18,9 +18,13 @@ codebase having changed.
 A third note, not a correction: `scs-architecture/`'s five files have since been merged into `scs.md`
 and trimmed rather than appended — the generic self-review in `02-strong-weak-ugly.md` was superseded
 by `scs.md`'s own grounded "The three" well before the merge, so it was cut rather than kept twice. The
-folder itself is pending deletion once its owner has read it; when that happens, any reference here or
-in `scs-improvement-prompt.md` to a `scs-architecture/*.md` path is stale and should point at `scs.md`
-instead, the way "Where it stands" below already does.
+folder is gone as of `2dc13d8`; it no longer needs pointing away from.
+
+A fourth note, round 2's own: every ground-truth number in `scs-improvement-prompt.md` was re-run
+against `3f84c9b` and matched exactly — the 352/47/232/44/7/19/24/7/3 figures, the two file lengths,
+and the one pre-Phase-3 "assumes" hit in `score.rs`. Nothing in this codebase drifted between rounds.
+Phase 3 below, proposed but not landed as of round 1, is landed as of round 2 — it is the whole of what
+this round did, per `scs-improvement-prompt.md`'s own scoping to "item 2's remainder."
 
 ## Where it stands
 
@@ -113,16 +117,22 @@ correctly and the creature would still be invisible underneath — a mimic that,
 cannot be seen, which is not a state either mechanic was written to produce. No row does this today;
 the point is that the type system has no opinion, and the only thing that would notice is a player.
 
-**A schedule step's assumptions live in a comment, when they live anywhere.** `rg -oi
-'assumes|invariant|must run after' engine/src models/src` returns zero hits. The `.after()` edges
-are real and are commented at the call site (`engine/src/main.rs:436-467` — the
-reveal-mimics-before-ai reasoning, the monster-pickup-after-ai reasoning, and so on), which is the
-ordering half of the contract. What is missing is the other half: what a system assumes is *already
-true* of the world state when it starts, stated where a reader would look for it rather than
-reconstructed by reading every system that could run before it. `combat_system` assumes
-`equipment_effects_system` has already folded lent effects into `Loadout`-relevant components;
-nothing at `combat_system`'s own definition says so, only the `.after()` edge fifty lines away in
-`main.rs`.
+**A schedule step's assumptions lived in a comment only when the comment happened to say why it was
+scheduled where it was — never in the vocabulary of a precondition.** `rg -oi
+'assumes|invariant|must run after' engine/src models/src` returned exactly one hit before Phase 3
+(`score.rs`'s `announce_combo`). That was not for lack of documentation: `monster_pickup_system`,
+`reveal_mimics` and `trap_system` all already carried doc comments explaining *why* they sit where
+they do in the schedule (`models/src/ai.rs:346-350`, `models/src/monsters.rs:566-569`,
+`models/src/traps.rs:310-312`). What none of the fifteen stated, in those words or any other, was the
+other half of the same fact: what the system assumes is *already true* of the world when it starts,
+read at the system's own definition rather than reconstructed by walking `main.rs`'s `.after()` chain
+fifty lines away. `combat_system` assumed `equipment_effects_system` had already folded lent effects
+into `Loadout`-relevant components; nothing at `combat_system`'s own definition said so. Phase 3 closes
+this — see the Roadmap — and, in doing the reading it took to write each precondition honestly, found
+one it could not honestly write: `snare_system`'s `Ending::player_dead` guard checks a flag that
+nothing upstream of it, in this schedule or in `player_step` before it, can yet have set. It is not a
+bug — a defensive guard costs nothing to leave in — but it is not load-bearing either, and Phase 3's
+comment on it says so rather than inventing a scenario where it fires.
 
 **Three files said "three queues" and one said "thirteen steps"; both were provably wrong by the
 time this plan opened `git log`.** That is not one stale sentence, it is the shape of the actual
@@ -202,12 +212,15 @@ printed once per floor, cheap enough to leave permanently on a debug build and u
 day a floor's population design changes by an order of magnitude. Building the index resource now
 would be a cache with nothing yet to invalidate it correctly against.
 
-That leaves three items with real, un-closed work: **7, as "seams named and guarded"** — landed in
+That left three items with real, un-closed work: **7, as "seams named and guarded"** — landed in
 Phase 1 — **3, as "row legality"** — landed in Phase 2 — and **the rest of 2, as "state what a system
-assumes"** — Phase 3, not yet landed. No eighth item clears the bar set for one — the two candidates
-this research turned up, the `L`-in-`MANUAL.md` gap and the `score.rs` inconsistency, are both folded
-into Phase 1 as evidence and fixes, not proposals, because both are instances of item 7 and item 2
-respectively rather than a distinct architectural altitude.
+assumes"** — landed in Phase 3, round 2. No eighth item cleared the bar set for one, in either round.
+Round 1's two candidates, the `L`-in-`MANUAL.md` gap and the `score.rs` inconsistency, are folded into
+Phase 1 as evidence and fixes, not proposals, because both are instances of item 7 and item 2
+respectively rather than a distinct architectural altitude. Round 2's one candidate, `snare_system`'s
+dead `player_dead` guard, fails the same test for the same reason: it is an instance of item 2 —
+exactly the gap Phase 3 exists to close — not a fourth altitude next to it, and it is closed by Phase 3
+itself rather than proposed as a ninth thing to do.
 
 ## Roadmap
 
@@ -313,60 +326,80 @@ whoever adds the next bestiary or trap row and mistypes a weight or a depth — 
 surfaces as a species nobody ever sees, three sessions into a playtest; after this phase, `cargo test`
 says so on the spot.
 
-### Phase 3 — State what a system assumes
+### Phase 3 — State what a system assumes (landed, round 2)
 
-**The change.** Add a short doc comment to each of the fifteen `&mut World` schedule systems, stating
-what it assumes is already true of the world when it starts — the precondition half of the `.after()`
-edge that already exists for every one of them. Not a contract-checking framework: a sentence or two,
+**The change.** A doc comment on each of the fifteen `&mut World` schedule systems, stating what it
+assumes is already true of the world when it starts — the precondition half of the `.after()` edge
+that already exists for every one of them. Not a contract-checking framework: one to three sentences,
 in the place a reader already looks (the function's own definition), doing in prose what a `Query`'s
 type signature does for free. `visibility_system` needs none — `With<Player>`, `Option<&SeesInvisible>`
-and the rest of its query already state its assumptions in a form the compiler checks.
+and the rest of its query already state its assumptions in a form the compiler checks. Round 1 scoped
+this phase by grep; round 2 opened all fifteen functions to write it, which changed two things round 1
+could not have known from the outside: `equipment_effects_system` has no upstream assumption of its
+own (it reconciles unconditionally) — the real dependency runs the other way, with `combat_system` and
+`visibility_system` downstream assuming *it* has already run — and `snare_system`'s existing
+`Ending::player_dead` guard, read against the schedule it actually sits in, checks a condition nothing
+before it can yet have set: `helpers::apply_damage` never kills outright, and every path that does
+(`combat::settle_the_dead`, `combat::finish_indirect_kill`) runs later in the same `schedule.run`, not
+before it, so a bear trap's own thrash — the one source of damage `player_step` can resolve before
+`schedule.run` starts — cannot be what the guard is defending against either. The comment says this
+plainly rather than writing a precondition that was not true.
 
-| System | File | What it would state |
+| System | File:line | What it now states |
 |---|---|---|
-| `smoke_system` | `models/src/map/overlays.rs:143` | reads/ages `Smoke`; nothing upstream needs to have run |
-| `snare_system` | `models/src/traps.rs:273` | reads `Snare`; nothing upstream needs to have run |
-| `reveal_mimics` | `models/src/monsters.rs:570` | assumes player `Position` is current for this turn |
-| `ai` | `models/src/ai.rs:29` | assumes mimics already revealed, so `Ambush` mobs are visible as themselves |
-| `monster_pickup_system` | `models/src/ai.rs:351` | assumes `EntityMoved` still marks whoever `ai` just moved |
-| `trap_system` | `models/src/traps.rs:313` | assumes `monster_pickup_system` has claimed any coin already, so it clears `EntityMoved` next |
-| `throw_system` | `models/src/items/throwing.rs:391` | assumes `EntityMoved` has been cleared; drains `ThrowQueue` |
-| `item_system` | `models/src/items.rs:111` | drains `UseQueue`; no upstream state read |
-| `move_system` | `models/src/items/moves.rs:79` | drains `MoveQueue`; no upstream state read |
-| `equipment_effects_system` | `models/src/equipment.rs:394` | assumes gear changed since last run (a load, a curse lifted) needs reconciling before combat reads it |
-| `combat_system` | `models/src/combat.rs:61` | assumes `equipment_effects_system` has folded lent effects into `Loadout`-relevant components; drains `AttackQueue` |
-| `reaper_system` | `models/src/combat.rs:76` | assumes `combat_system` has run, so any `Fighter.hp <= 0` is this turn's business to finish |
-| `dungeon_lord_system` | `models/src/map/levels.rs:379` | assumes the dead are already gone, so it is not portaling a corpse |
-| `passive_ability_system` | `models/src/abilities.rs:492` | assumes `ai` has already moved every monster this turn, so a jump lands at the top of the *next* one |
-| `score_turn_system` | `models/src/score.rs:125` | assumes everything that can kill this turn already has; totals `Combo` once, last |
+| `smoke_system` | `models/src/map/overlays.rs:143` | nothing — first in the schedule, touches only `Smoke`'s own age |
+| `snare_system` | `models/src/traps.rs:273` | nothing this turn; its `player_dead` guard is defensive, not reachable given the current schedule order |
+| `reveal_mimics` | `models/src/monsters.rs:570` | the player's `Position` already reflects this turn's move, settled in `player_step` before `schedule.run` starts |
+| `ai` | `models/src/ai.rs:29` | `reveal_mimics` has already run, so a `Mimic` still present is a genuine disguise, not an unprocessed one |
+| `monster_pickup_system` | `models/src/ai.rs:351` | `EntityMoved` still marks exactly this turn's movers, untouched since `ai` tagged them |
+| `trap_system` | `models/src/traps.rs:313` | `monster_pickup_system` has already claimed any coin off these tiles — the last reader of `EntityMoved` before clearing it |
+| `throw_system` | `models/src/items/throwing.rs:391` | nothing but a filled `ThrowQueue`; range and target were validated at the reticle before queueing |
+| `item_system` | `models/src/items.rs:111` | nothing but a filled `UseQueue`; a targeted use was already aimed before queueing |
+| `move_system` | `models/src/items/moves.rs:79` | nothing but a filled `MoveQueue`; affordability is re-checked here since a queued move's cost can go stale before it drains |
+| `equipment_effects_system` | `models/src/equipment.rs:394` | nothing upstream — `combat_system` and `visibility_system` downstream are the ones assuming this has run |
+| `combat_system` | `models/src/combat.rs:61` | `equipment_effects_system` has already folded lent effects into `Loadout`-relevant components |
+| `reaper_system` | `models/src/combat.rs:76` | `combat_system` has already run, so any `Fighter.hp <= 0` here is this turn's, not a stale casualty |
+| `dungeon_lord_system` | `models/src/map/levels.rs:379` | `reaper_system`, immediately ahead of it, has already settled this turn's fatalities, so `Ending::player_dead` is set if this turn killed the player |
+| `passive_ability_system` | `models/src/abilities.rs:492` | `ai` has already moved every monster this turn, so a bearer's own jump lands clear |
+| `score_turn_system` | `models/src/score.rs:125` | everything capable of killing this turn has already run, so the combo totalled here is final |
 
 **Files.** The fifteen files in the table above — each system's own home module, not a new file.
 
-**Verification.** `cargo build --workspace` (doc comments only; nothing compiles differently),
-`cargo test --workspace`, `./docs_style.sh` (this table's claims about file and line are exactly what
-`docs/reference/input-and-turn-loop.md` already states in prose for the ordering half; this phase adds
-the precondition half at the system's own definition, it does not duplicate the schedule reference).
+**Verification.** `cargo fmt --all -- --check` (clean), `cargo build --workspace` (clean — doc comments
+only, nothing compiles differently), `cargo test --workspace` (every suite green, `models/tests/
+determinism.rs`'s nine tests included), `cargo clippy --all-targets` (clean, zero warnings).
+`compat_test.sh` run before and after this phase's edits: identical `no matrix rows matched` / `target
+was empty` failure both times — the same pre-existing `cross`/matrix-configuration issue round 1
+documented, reconfirmed independent of this diff.
 
-**Cost.** Fifteen more sentences of prose next to fifteen functions, each one a claim about the world
-that nothing compiles or tests against — the same shape of claim that already went stale three times
-over in one area (the queue count, across three files) before this plan's first pass caught it. Stating
-an invariant is not the same as guarding one; unlike Phase 1's doc fixes, there is no pre-commit hook
-proposed for these fifteen sentences, because there is no small, reliable diff-marker for "did this
-comment's claim stop being true" the way there was for a queue struct's declaration. The honest
-successor to this phase, if any of the fifteen ever drifts, is turning that one sentence into a
-`debug_assert!` at the top of the system rather than adding another hook.
+**Cost.** Fifteen more sentences of prose next to fifteen functions, each a claim about the world that
+nothing compiles or tests against — the same shape of claim that already went stale three times over in
+one area (the queue count, across three files) before round 1's first pass caught it. Stating an
+invariant is not the same as guarding one; there is no pre-commit hook for these fifteen sentences,
+because there is no small, reliable diff-marker for "did this comment's claim stop being true" the way
+there was for a queue struct's declaration. Round 2 considered the honest successor round 1 named —
+turning a sentence into a `debug_assert!` — for each of the fifteen, and declined all fifteen: what
+each system actually assumes is its own *position in the schedule*, a fact the `Schedule` builder and
+`.after()` already fix at startup, not a runtime fact that varies call to call. A `debug_assert!` for
+"did `equipment_effects_system` run before me this turn" would need a new turn-scoped bookkeeping
+resource tracking which systems have fired — machinery invented to check something the schedule's own
+construction already guarantees, which is the anti-goals' "bus by another name" under a different name.
+The two cases that looked checkable on inspection — `ai` asserting no disguised `Mimic` sits adjacent to
+the player, `dungeon_lord_system` asserting no corpse is mid-portal — would each duplicate the logic of
+the system they are supposedly guarding rather than adding independent confirmation, which is
+ceremony, not a seam closed.
 
-**Success metric.** All fifteen `&mut World` systems carry a one-to-two-sentence doc comment starting
-with what they assume; `rg -oi 'assumes|invariant' models/src engine/src | wc -l` reads fifteen
-(sixteen with the `score.rs` comment Phase 1 already added), up from one.
+**Success metric.** All fifteen `&mut World` systems carry a doc comment stating what they assume;
+`rg -oi 'assumes|invariant' models/src engine/src | wc -l` reads sixteen (fifteen new, plus the
+`score.rs` comment round 1 added), up from one.
 
-**Ratio.** Do it now, but last of the three — it is real, unfinished work from item 2, and it is the
-one phase in this plan whose value is entirely to a reader, not to the compiler or a test: whoever next
-adds a seventeenth system and has to decide where in the order it belongs, or reads `combat_system` in
-isolation while chasing a bug and currently has to walk `main.rs`'s `.after()` chain by hand to learn
-it depends on `equipment_effects_system`. Lower ratio than Phase 1 or 2 only because nothing enforces
-it once written — it is a real seam named, not a seam guarded, and this plan should not pretend
-otherwise a second time.
+**Ratio.** Done. Real, previously unfinished work from item 2, and the one phase in this plan whose
+value is entirely to a reader, not to the compiler or a test: whoever next adds a seventeenth system and
+has to decide where in the order it belongs, or reads `combat_system` in isolation while chasing a bug
+and would otherwise have to walk `main.rs`'s `.after()` chain by hand to learn it depends on
+`equipment_effects_system`. Lower ratio than Phase 1 or 2 only because nothing enforces it once
+written — it is a seam named, not a seam guarded, and this plan does not pretend otherwise a second
+time.
 
 ### Already closed: items 1, 4, and 6
 
@@ -414,6 +447,20 @@ diff-marker the way a queue's declaration does, and a hook that fires on every `
 change in case a key binding moved would be wrong far more often than it would be right. The honest
 statement is that this plan closed the one instance it found by reading the file, not the class of
 mistake, and the next one will be found the same way, by someone reading it, not by tooling.
+
+Phase 3 adds fifteen more sentences of exactly that unguarded kind, and it should not be read as having
+solved the problem it names. A maintainer who reorders two schedule systems that have no direct
+ordering dependency on each other — only on their shared neighbours, so neither system's own
+`.after()` line has to move — can silently invalidate one of these fifteen comments without touching a
+line either comment sits next to. `docs_style.sh` does not read `models/src`; the pre-commit hook does
+not either. The person who resents this first is whoever trusts `combat_system`'s comment at face value
+two years from now, after a reorder nobody flagged, and loses an afternoon to a bug the comment
+described but no longer matched. That risk was accepted deliberately, priced in Phase 3's own cost
+field, and not solved — a maintainer reading this plan should not come away thinking fifteen sentences
+of prose closed the gap the first two phases closed with a test and a hook. They named it. Guarding it
+would cost a schedule-position-tracking resource this codebase does not otherwise need, for fifteen
+facts that only ever go stale on the same rare event (a schedule reorder) Phase 1's hook already makes
+harder to do by accident.
 
 ## Thesis
 

@@ -376,6 +376,15 @@ fn arrival_line(cause: LevelChange, going_down: bool, depth: u8) -> String {
 /// the next level — deeper on the way in, back up once they carry the Element of
 /// Yoord. On the deepest floor (without the Element) or the shallowest floor
 /// (with it) the portal has nowhere to send them and only flickers.
+///
+/// Assumes `reaper_system`, immediately ahead of it in the schedule, has
+/// already settled this turn's fatalities — a melee kill through
+/// `combat_system`'s own `settle_the_dead`, or an indirect one (a wand bolt,
+/// a blast) `reaper_system` finishes itself — so `Ending::player_dead` is
+/// already set if this turn killed the player, and a portal here never opens
+/// under someone already gone. Checked directly, not merely scheduled: the
+/// `player_dead` guard below is that assumption enforced, not incidental
+/// bookkeeping.
 pub fn dungeon_lord_system(world: &mut World) {
     if world
         .get_resource::<Ending>()

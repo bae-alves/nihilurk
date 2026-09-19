@@ -58,6 +58,10 @@ fn entity_name(world: &World, entity: Entity) -> String {
 /// The combat schedule step: drains the [`AttackQueue`] and resolves every
 /// pending attack (currently these are all monster-initiated; the player's
 /// melee is resolved inline by the input handler).
+///
+/// Assumes `equipment_effects_system` has already folded every lent effect
+/// into `Loadout`-relevant components this turn, so the opposed roll below
+/// reads a wearer's current gear and never a stale one.
 pub fn combat_system(world: &mut World) {
     let attacks = std::mem::take(&mut world.resource_mut::<AttackQueue>().attacks);
 
@@ -73,6 +77,10 @@ pub fn combat_system(world: &mut World) {
 /// the catch-all for the rest). Melee kills are still finalised inline by
 /// [`resolve_attack`], so by the time this runs the only casualties left are
 /// indirect ones with no known source to fling a corpse away from.
+///
+/// Assumes `combat_system` has already run this turn, so any `Fighter.hp <=
+/// 0` found here is this turn's business to finish, never a casualty left
+/// over from one that already swept.
 pub fn reaper_system(world: &mut World) {
     let doomed: Vec<Entity> = {
         let mut q = world.query::<(Entity, &Fighter)>();
