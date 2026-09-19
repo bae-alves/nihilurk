@@ -46,13 +46,23 @@ Adding a marker effect
    `Default` is not optional -- it is how a `Grant` attaches the thing
    without knowing its type.
 
-2. **Append it to `EFFECTS`**, at the end:
+2. **Add a row to `EFFECTS`**, pairing a stable id with the component:
 
-       pub const EFFECTS: &[Grant] = &[
+       effects! {
            ...
-           Grant::of::<FireQuarrel>(),
-           Grant::of::<PoisonImmune>(),      // <- appended
-       ];
+           "fire_quarrel"   => FireQuarrel,
+           "poison_immune"  => PoisonImmune,      // <- your row
+       }
+
+   The id is what a save file stores. Write it out; never derive it from
+   the type name, and never rename it once saves exist -- the same rule a
+   bestiary row lives by. Rows may be reordered and retired freely,
+   because nothing about a row's *position* means anything.
+
+   An effect that ends on its own gets the line the player reads when it
+   does, in brackets after the type:
+
+       "asleep" => Asleep ["You shake off the drowsiness and come to."],
 
 3. **Hand it out** from a row. Any of these, or all of them:
 
@@ -81,16 +91,24 @@ Adding a marker effect
 That is the whole of it. Equipping and unequipping, saving and loading, and the wand of cancellation all work immediately, because all three walk `EFFECTS` rather than a list of special cases.
 
 
-> **`EFFECTS` is append-only, and it holds 64.** An effect's index in that
-> array is the bit it occupies in the save file. Reordering it rewrites
-> the meaning of every existing save. And an `EffectSet` is now a `u64`,
-> widened the day the list grew a 33rd row -- the 65th marker effect will
-> need a wider type still.
+> **Never rename an id.** The id, not the row's position, is what a save
+> file stores, so renaming one is renaming the thing on disk: every
+> existing save comes back without that effect. Reordering rows and
+> retiring them are both safe, and there is no ceiling on how many there
+> can be -- the `u64` bitset that capped the list at 64 is gone.
+
+> **An id a save names and the build has no row for is dropped**, counted,
+> and reported to the player in one line at the end of the load. Losing one
+> property beats losing the run. This is what saving by name buys: with
+> positions, a retired row shifted every later effect in every save and
+> nothing could have told, because every index was still a valid index.
 
 > **An effect missing from `EFFECTS` half-works.** It will attach, and it
 > will do its job for the rest of the session. It will not be saved, will
 > not come back on load, and cannot be cancelled. This is the quiet
 > failure to look for when an effect works until you reload.
+> `models/tests/abilities.rs` catches it for anything armed by an ability
+> row; nothing catches it for an effect only a mechanic reads.
 
 
 Making an effect act on its own
@@ -178,7 +196,7 @@ Rarer, and a bigger change, because a number has to be added *somewhere* specifi
    by whoever owns the number it modifies. A generated field nobody reads
    is inert, which is a visible nothing rather than a wrong number.
 
-Modifiers are not in `EFFECTS` and are not bits in a save; they are saved as the values they are.
+Modifiers are not in `EFFECTS`; they are saved as the values they are.
 
 
 Verify

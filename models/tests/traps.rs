@@ -156,21 +156,33 @@ fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
     trap_system(&mut w);
 
     // Held, and the trap has snapped for good.
-    let snare = w.get::<Snare>(p).expect("snared");
-    assert_eq!(snare.turns, 3);
-    assert_eq!(snare.kind, SnareKind::Bear);
+    assert!(w.get::<Pinned>(p).is_some(), "snared");
+    let held_for = turns_left(&w, p, Grant::of::<Pinned>()).expect("held on a clock");
+    assert_eq!(
+        held_for,
+        TrapDef::of(TrapEffect::Bear).snare_turns,
+        "held for something other than the row's own duration"
+    );
     assert_eq!(
         w.query_filtered::<(), With<Trap>>().iter(&w).count(),
         0,
         "single activation"
     );
 
-    snare_system(&mut w);
-    assert_eq!(w.get::<Snare>(p).unwrap().turns, 2);
-    snare_system(&mut w);
-    assert_eq!(w.get::<Snare>(p).unwrap().turns, 1);
-    snare_system(&mut w);
-    assert!(w.get::<Snare>(p).is_none(), "free after the third turn");
+    // The clock runs down one per turn, and the last turn is still spent held.
+    for spent in 1..held_for {
+        tick_effects(&mut w);
+        assert_eq!(
+            turns_left(&w, p, Grant::of::<Pinned>()),
+            Some(held_for - spent),
+            "the clock did not lose exactly one turn"
+        );
+    }
+    tick_effects(&mut w);
+    assert!(
+        w.get::<Pinned>(p).is_none(),
+        "still held after the clock ran out"
+    );
     assert!(log_contains(&w, "free of the bear trap"));
 }
 
@@ -185,20 +197,24 @@ fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
 
     trap_system(&mut w);
 
-    let snare = w.get::<Snare>(p).expect("asleep");
-    assert_eq!(snare.turns, 5);
-    assert_eq!(snare.kind, SnareKind::Sleep);
+    assert!(w.get::<Asleep>(p).is_some(), "asleep");
+    let held_for = turns_left(&w, p, Grant::of::<Asleep>()).expect("out on a clock");
+    assert_eq!(
+        held_for,
+        TrapDef::of(TrapEffect::Sleep).snare_turns,
+        "out for something other than the row's own duration"
+    );
     assert_eq!(
         w.query_filtered::<(), With<Trap>>().iter(&w).count(),
         1,
         "gas trap is reusable"
     );
 
-    for _ in 0..5 {
-        snare_system(&mut w);
+    for _ in 0..held_for {
+        tick_effects(&mut w);
     }
-    assert!(w.get::<Snare>(p).is_none());
-    assert!(models::player_snare(&mut w).is_none());
+    assert!(w.get::<Asleep>(p).is_none());
+    assert!(!models::player_incapacitated(&mut w));
 }
 
 #[test]
@@ -275,10 +291,7 @@ fn a_bear_trapped_monster_still_bites_an_adjacent_foe() {
         ))
         .id();
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(spot.x, spot.y), (here.x, here.y)];
-    w.entity_mut(mob).insert(Snare {
-        turns: 2,
-        kind: SnareKind::Bear,
-    });
+    hold(&mut w, mob, Grant::of::<Pinned>(), 2);
 
     let mut s = Schedule::default();
     s.add_systems(ai);
@@ -330,10 +343,7 @@ fn ai_skips_a_snared_monster() {
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
         vec![(spot.x, spot.y), (spot.x - 1, spot.y), (here.x, here.y)];
 
-    w.entity_mut(mob).insert(Snare {
-        turns: 2,
-        kind: SnareKind::Bear,
-    });
+    hold(&mut w, mob, Grant::of::<Pinned>(), 2);
 
     let mut s = Schedule::default();
     s.add_systems(ai);
@@ -758,10 +768,8 @@ fn traps_and_snares_survive_a_save_and_reload() {
     let known = w.spawn(TrapBundle::arrow(Position { x: 12, y: 5 })).id();
     w.entity_mut(known).remove::<Hidden>();
     w.get_mut::<Trap>(known).unwrap().revealed = true;
-    w.entity_mut(p).insert(Snare {
-        turns: 4,
-        kind: SnareKind::Sleep,
-    });
+    const OUT_FOR: u32 = 4;
+    hold(&mut w, p, Grant::of::<Asleep>(), OUT_FOR);
 
     let save = common::SaveFile::new("trap-roundtrip");
     let sp = save.path();
@@ -786,8 +794,15 @@ fn traps_and_snares_survive_a_save_and_reload() {
         .unwrap();
     assert_eq!(revealed, (true, false), "the known arrow trap stays known");
 
-    let snare = w2.query_filtered::<&Snare, With<Player>>().single(&w2);
-    assert_eq!((snare.turns, snare.kind), (4, SnareKind::Sleep));
+    // The hold and, crucially, what is left on its clock: a `Lifetime::Turns`
+    // has to survive the trip or a reload would quietly set the sleeper free.
+    let reloaded = w2.query_filtered::<Entity, With<Player>>().single(&w2);
+    assert!(w2.get::<Asleep>(reloaded).is_some(), "woke up on load");
+    assert_eq!(
+        turns_left(&w2, reloaded, Grant::of::<Asleep>()),
+        Some(OUT_FOR),
+        "the clock did not survive the save"
+    );
 }
 
 /// A trap sprung by a monster is revealed just as if the player had found it —
@@ -985,8 +1000,8 @@ fn a_trick_shot_in_sight_shouts_bam() {
         "caught in the burst"
     );
     assert_eq!(
-        w.get::<Snare>(orc).map(|s| s.kind),
-        Some(SnareKind::Bear),
+        w.get::<Pinned>(orc).is_some(),
+        true,
         "and the trap's own jaws close on it"
     );
 }
@@ -1005,7 +1020,7 @@ fn a_trap_that_is_merely_stepped_on_does_not_burst() {
 
     trap_system(&mut w);
 
-    assert!(w.get::<Snare>(victim).is_some(), "the jaws close on it");
+    assert!(w.get::<Pinned>(victim).is_some(), "the jaws close on it");
     assert_eq!(
         w.get::<Fighter>(bystander).unwrap().hp,
         30,
@@ -1036,8 +1051,8 @@ fn a_trick_shot_that_catches_you_asks_why() {
         "your own burst does not spare you"
     );
     assert_eq!(
-        w.get::<Snare>(p).map(|s| s.kind),
-        Some(SnareKind::Bear),
+        w.get::<Pinned>(p).is_some(),
+        true,
         "and the trap's own effect lands on you too"
     );
 }
@@ -1055,8 +1070,7 @@ fn a_detonated_trap_works_its_effect_on_everyone_it_catches() {
     detonate_trap(&mut w, trap);
 
     for orc in caught {
-        let snare = w.get::<Snare>(orc).expect("a lungful of gas each");
-        assert_eq!(snare.kind, SnareKind::Sleep);
+        assert!(w.get::<Asleep>(orc).is_some(), "a lungful of gas each");
     }
 }
 

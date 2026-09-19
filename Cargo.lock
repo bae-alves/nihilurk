@@ -623,9 +623,11 @@ dependencies = [
  "getrandom 0.4.3",
  "particle-core",
  "postcard",
+ "proc-macro2",
  "rand",
  "rand_chacha",
  "serde",
+ "syn 2.0.119",
 ]
 
 [[package]]

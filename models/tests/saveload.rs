@@ -316,3 +316,70 @@ fn the_mess_a_fight_leaves_behind_is_not_in_the_save() {
         "smoke was carried across a reload"
     );
 }
+
+/// Two buffs nothing lends: the violet charge a scroll of monster confusion
+/// leaves on the reader's hands, and Bide's coiled blow. Neither comes off a
+/// ring or a floor, so neither has an owner to re-lend it on load — the ledger
+/// is the only thing that remembers them, and the save writes the ledger.
+/// Attach either with a bare `insert` and it goes dark the next time the run
+/// is opened.
+#[test]
+fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
+    w.insert_resource(RngSeed(7));
+    w.init_resource::<GameLog>();
+    w.init_resource::<UseQueue>();
+    w.init_resource::<AttackQueue>();
+    w.init_resource::<MoveQueue>();
+    w.init_resource::<Ending>();
+    w.insert_resource(PlayerName {
+        what: "CHARGED".into(),
+    });
+    initialize_world(&mut w);
+    let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
+    let here = *w.get::<Position>(hero).unwrap();
+
+    // Read the scroll the way the pack screen reads one.
+    let scroll = spawn_scroll(&mut w, ScrollEffect::MonsterConfusion, here);
+    w.entity_mut(scroll).remove::<Position>();
+    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
+        user: hero,
+        item: scroll,
+        target: None,
+        slot_idx: None,
+    });
+    item_system(&mut w);
+    // And cast Bide the way the move menu casts one.
+    w.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+        user: hero,
+        effect: MoveEffect::Bide,
+        target: here,
+    });
+    move_system(&mut w);
+    assert!(
+        w.get::<ConfusingTouch>(hero).is_some() && w.get::<Bided>(hero).is_some(),
+        "the fixture did not actually charge the player, so this test proves nothing"
+    );
+
+    let save = common::SaveFile::new("buffs");
+    let p = save.path();
+    save_game(&mut w, p).unwrap();
+
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(8)));
+    w2.insert_resource(RngSeed(8));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, p).unwrap();
+
+    let hero2 = w2.query_filtered::<Entity, With<Player>>().single(&w2);
+    assert!(
+        w2.get::<ConfusingTouch>(hero2).is_some(),
+        "the charge on the reader's hands did not survive the save"
+    );
+    assert!(
+        w2.get::<Bided>(hero2).is_some(),
+        "Bide's coiled blow did not survive the save"
+    );
+}

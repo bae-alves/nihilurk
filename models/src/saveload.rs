@@ -55,8 +55,8 @@ use crate::catalog::{RingDef, restore_from_catalog};
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
 use crate::effects::{
-    ArmorBonus, ArmorDie, EffectSet, GrantedByGear, GrantedForFloor, Grants, PowerBonus, PowerDie,
-    ThrowBonus, attach_effects, effects_of,
+    ArmorBonus, ArmorDie, Grants, Held, Lifetime, PowerBonus, PowerDie, ThrowBonus, attach_effects,
+    effects_of,
 };
 use crate::equipment::{Equipped, Slot};
 use crate::map::{
@@ -115,6 +115,64 @@ fn u8_to_color(n: u8) -> Color {
 /// as a single discriminant byte when empty — so absent components cost 1 byte
 /// each with no field-name overhead. String fields borrow straight from the ECS
 /// on save and from the file buffer on load.
+/// How long a saved effect was being held for.
+///
+/// Deliberately **not** [`Lifetime`]: there is no `WhileEquipped` variant,
+/// because a gear-lent effect is never written to a save — the gear is saved,
+/// and lending it again on load is how it comes back. Leaving the variant out
+/// means that rule is enforced by the type rather than remembered by a mask.
+#[derive(Serialize, Deserialize, Clone, Copy)]
+enum SavedLifetime {
+    Permanent,
+    Floor,
+    Turns(u32),
+    NextAction,
+}
+
+/// One held effect, as it goes to disk: the stable id off its [`EFFECTS`] row
+/// and how long it had left.
+#[derive(Serialize, Deserialize)]
+struct SavedEffect {
+    id: String,
+    lifetime: SavedLifetime,
+}
+
+impl SavedEffect {
+    /// `None` for a gear-lent effect, which is not saved.
+    fn of(held: &Held) -> Self {
+        let lifetime = match held.lifetime {
+            Lifetime::Permanent => SavedLifetime::Permanent,
+            Lifetime::Floor => SavedLifetime::Floor,
+            Lifetime::Turns(n) => SavedLifetime::Turns(n),
+            Lifetime::NextAction => SavedLifetime::NextAction,
+            // `effects_of` filters these out before this is reached; mapping
+            // it to `Permanent` would quietly make a borrowed ring permanent.
+            Lifetime::WhileEquipped(_) => SavedLifetime::Floor,
+        };
+        Self {
+            id: held.id.to_string(),
+            lifetime,
+        }
+    }
+
+    /// Back to a runtime entry, resolving the id against this build's
+    /// [`EFFECTS`]. `None` when the id is not one this build knows — a retired
+    /// row, or a save from a newer build.
+    fn held(&self) -> Option<Held> {
+        let effect = crate::effects::Effect::by_id(&self.id)?;
+        let lifetime = match self.lifetime {
+            SavedLifetime::Permanent => Lifetime::Permanent,
+            SavedLifetime::Floor => Lifetime::Floor,
+            SavedLifetime::Turns(n) => Lifetime::Turns(n),
+            SavedLifetime::NextAction => Lifetime::NextAction,
+        };
+        Some(Held {
+            id: effect.id,
+            lifetime,
+        })
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct EntitySave<'a> {
     position: Option<(u16, u16)>,
@@ -174,42 +232,16 @@ struct EntitySave<'a> {
     vorpal: Option<Cow<'a, str>>,
     /// The marker effects this entity owns in its own right — what it was born
     /// with, plus or minus whatever a wand of cancellation or a polymorph has
-    /// done since. Effects merely on loan from equipped gear are excluded:
-    /// load re-lends them to the wearer along with the gear itself.
-    effects: EffectSet,
+    /// done since, each with the lifetime it is being held for.
+    ///
+    /// Effects merely on loan from equipped gear are excluded, and
+    /// [`SavedLifetime`] has no variant that could express one: load re-lends
+    /// them to the wearer along with the gear itself.
+    effects: Vec<SavedEffect>,
     /// A creature's movement tempo. The energy pool is transient and resets to 0.
     speed: Option<SpeedKind>,
     /// (effect, reveal style, already discovered) for a floor trap.
     trap: Option<(TrapEffect, TrapReveal, bool)>,
-    /// (turns remaining, kind) for an actor pinned by a bear trap, held by a
-    /// scroll, or asleep in gas.
-    snare: Option<(u32, SnareKind)>,
-    /// The player's `Confused` condition (a wand of light to the face). Rides
-    /// along until a staircase or a cancellation; never set on a monster (they
-    /// use `MovementType::Confused`).
-    #[serde(default)]
-    confused: bool,
-    /// The player's `Blind` condition (a potion of blindness). Same lifetime as
-    /// [`EntitySave::confused`], and never set on a monster either.
-    #[serde(default)]
-    blind: bool,
-    /// The player's `Paralyzed` condition (a potion of paralysis). The slowing
-    /// half of it rides along in [`EntitySave::speed`].
-    #[serde(default)]
-    paralyzed: bool,
-    /// Marker: turned up by a potion of detection or a scroll of food
-    /// detection, so a reload on the same floor still shows what it showed.
-    #[serde(default)]
-    detected: bool,
-    /// `ConfusingTouch`: hands charged by a scroll of monster confusion and not
-    /// yet spent. Unlike the conditions above it survives a staircase, so a save
-    /// that forgot it would quietly eat a scroll.
-    #[serde(default)]
-    confusing_touch: bool,
-    /// Which of [`EntitySave::effects`] were lent for this floor only (a potion
-    /// of see invisible) rather than owned outright.
-    #[serde(default)]
-    floor_grants: EffectSet,
     /// A coin's effect and the dial it works with — see `Pickup`. Both are on
     /// the catalog row, but a coin is spent by the entity rather than looked up
     /// by name, so the entity carries them.
@@ -225,15 +257,6 @@ struct EntitySave<'a> {
     /// The player's active-move bar. Nothing else in the game carries one yet.
     #[serde(default)]
     moveset: Option<Vec<MoveEffect>>,
-    /// The move Magic Ward: immunity to magic for the rest of the floor. Same
-    /// lifetime as [`EntitySave::confused`].
-    #[serde(default)]
-    magic_ward: bool,
-    /// The move Bide: coiled for one blow. Survives a save the way
-    /// [`EntitySave::confusing_touch`] does — it is spent by the reader's next
-    /// landed attack, not by time or a staircase.
-    #[serde(default)]
-    bided: bool,
     /// Who is wearing this piece of gear, as an index into the saved entity
     /// list — `None` when it is loose in a pack or on the floor. An index
     /// rather than an id because ids are ephemeral; it is remapped on load the
@@ -362,22 +385,13 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             curse: er.contains::<Curse>(),
             known_quality: er.contains::<KnownQuality>(),
             vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
-            effects: effects_of(world, e) & !er.get::<GrantedByGear>().map(|g| g.0).unwrap_or(0),
+            effects: effects_of(world, e).iter().map(SavedEffect::of).collect(),
             speed: er.get::<Speed>().map(|s| s.kind),
             trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
-            snare: er.get::<Snare>().map(|s| (s.turns, s.kind)),
-            confused: er.contains::<Confused>(),
-            blind: er.contains::<Blind>(),
-            paralyzed: er.contains::<Paralyzed>(),
-            detected: er.contains::<Detected>(),
-            confusing_touch: er.contains::<ConfusingTouch>(),
-            floor_grants: er.get::<GrantedForFloor>().map(|g| g.0).unwrap_or(0),
             pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
             plated: er.contains::<Plated>(),
             forged: er.contains::<Forged>(),
             moveset: er.get::<Moveset>().map(|m| m.slots.clone()),
-            magic_ward: er.contains::<MagicWard>(),
-            bided: er.contains::<Bided>(),
             equipped_by: er
                 .get::<Equipped>()
                 .and_then(|e| e.by)
@@ -454,6 +468,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
 
     // Who ends up wearing something, so their gear's loaned effects can be
     // re-lent once every entity exists.
+    // Effects the save named that this build has no row for; reported once at
+    // the end rather than per entity.
+    let mut retired = 0usize;
     let mut bearers: Vec<Entity> = Vec::new();
 
     for (i, es) in save.entities.into_iter().enumerate() {
@@ -621,7 +638,11 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 em.insert(Grants(def.grants));
             }
         }
-        attach_effects(&mut em, es.effects);
+        let held: Vec<Held> = es.effects.iter().filter_map(SavedEffect::held).collect();
+        // Ids this build has no row for. `held` has already dropped them, so
+        // this is the count of what the save knew and we do not.
+        retired += es.effects.len() - held.len();
+        attach_effects(&mut em, &held);
         // Every actor moves at some tempo; the energy pool starts fresh.
         if es.player || es.mob.is_some() {
             em.insert(Speed::new(es.speed.unwrap_or_default()));
@@ -632,27 +653,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 reveal,
                 revealed,
             });
-        }
-        if es.confused {
-            em.insert(Confused);
-        }
-        if es.blind {
-            em.insert(Blind);
-        }
-        if es.paralyzed {
-            em.insert(Paralyzed);
-        }
-        if es.detected {
-            em.insert(Detected);
-        }
-        if es.confusing_touch {
-            em.insert(ConfusingTouch);
-        }
-        if es.magic_ward {
-            em.insert(MagicWard);
-        }
-        if es.bided {
-            em.insert(Bided);
         }
         if let Some((effect, amount)) = es.pickup {
             em.insert(Pickup { effect, amount });
@@ -666,12 +666,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(slots) = es.moveset {
             em.insert(Moveset { slots });
         }
-        if es.floor_grants != 0 {
-            em.insert(GrantedForFloor(es.floor_grants));
-        }
-        if let Some((turns, kind)) = es.snare {
-            em.insert(Snare { turns, kind });
-        }
     }
 
     // What gear lends its bearer comes back with the gear: the saved effect
@@ -680,6 +674,20 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     // this — a monster that caught a thrown ring has no pack to be found by.
     for bearer in bearers {
         crate::equipment::sync_equipment_effects(world, bearer);
+    }
+
+    // An id the save carried and this build has no row for: a retired effect,
+    // or one from a newer build. Dropping it loses one property rather than
+    // the run, which is the whole reason effects are saved by name — a
+    // positional format could not have told the difference, because every
+    // index would still have been a valid index. Say so rather than letting
+    // the player wonder why their ring went quiet.
+    if retired > 0 {
+        let line = match retired {
+            1 => "One enchantment in this save is unknown to this build, and is gone.".to_string(),
+            n => format!("{n} enchantments in this save are unknown to this build, and are gone."),
+        };
+        world.resource_mut::<GameLog>().add(line);
     }
 
     Ok(())

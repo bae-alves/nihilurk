@@ -206,18 +206,15 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // scratch of damage, a lot of blood — and against a scroll's hold it is
     // simply a turn spent straining at nothing. Nothing a monster can read
     // holds the player today; this is here so it stays true if one ever does.
-    match player_snare(world) {
-        Some(SnareKind::Bear) => {
-            bear_trap_thrash(world, player_entity);
-            return true;
-        }
-        Some(SnareKind::Hold) => {
-            world
-                .resource_mut::<GameLog>()
-                .add("You strain against whatever is holding you, and go nowhere.");
-            return true;
-        }
-        _ => {}
+    if player_held_by(world, Grant::of::<Pinned>()) {
+        bear_trap_thrash(world, player_entity);
+        return true;
+    }
+    if player_held_by(world, Grant::of::<Rooted>()) {
+        world
+            .resource_mut::<GameLog>()
+            .add("You strain against whatever is holding you, and go nowhere.");
+        return true;
     }
 
     // The path is clear: take the step.
@@ -333,7 +330,7 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     // A player asleep in sleeping gas forfeits the turn outright — no key is
     // read — as long as there's no pending --MORE-- prompt to clear first.
-    // `snare_system` ages the snare down as the turn resolves. A bear trap does
+    // `tick_effects` ages the hold down as the turn resolves. A bear trap does
     // *not* forfeit the turn: it only blocks movement (see `move_player`), so
     // input is still read and the player can swing or thrash.
     let more_pending = {
@@ -502,13 +499,12 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
         ts.reach_attack = false;
         return Ok(false); // cancelled aiming, no turn consumed
     }
+    // A cursor move can cost the turn: see `meet_its_eyes`.
     if cycle {
-        cycle_target(world);
-        return Ok(false);
+        return Ok(cycle_target(world));
     }
     if dx != 0 || dy != 0 {
-        move_target_cursor(world, dx, dy);
-        return Ok(false);
+        return Ok(move_target_cursor(world, dx, dy));
     }
     if confirm {
         return fire_at_target(world);
@@ -520,7 +516,7 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
 /// player's viewshed and within the item's own reach — the same targets a
 /// manual nudge could reach, just without the walk there. Wraps around, and
 /// does nothing when nothing qualifies.
-fn cycle_target(world: &mut World) {
+fn cycle_target(world: &mut World) -> bool {
     let (item, move_effect, looking, throwing, reach_attack, cursor_x, cursor_y) = {
         let ts = world.resource::<TargetingState>();
         (
@@ -552,7 +548,7 @@ fn cycle_target(world: &mut World) {
             .collect()
     };
     if candidates.is_empty() {
-        return;
+        return false;
     }
     candidates.sort_unstable_by_key(|&(x, y)| (y, x));
     candidates.dedup();
@@ -568,12 +564,12 @@ fn cycle_target(world: &mut World) {
         ts.cursor_x = nx as i16;
         ts.cursor_y = ny as i16;
     }
-    announce_look(world);
+    announce_look(world)
 }
 
 /// A directional key while aiming: nudge the reticle one tile, but only onto a
 /// tile that is both in view and inside the reticle's reach.
-fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
+fn move_target_cursor(world: &mut World, dx: i16, dy: i16) -> bool {
     let (item, move_effect, looking, cursor_x, cursor_y, throwing, reach_attack) = {
         let ts = world.resource::<TargetingState>();
         (
@@ -599,14 +595,14 @@ fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
         .max((new_y - player_pos.y as i16).abs());
     let in_view = visible.contains(&(new_x as u16, new_y as u16));
     if distance > max_range as i16 || !in_view {
-        return;
+        return false;
     }
     {
         let mut ts = world.resource_mut::<TargetingState>();
         ts.cursor_x = new_x;
         ts.cursor_y = new_y;
     }
-    announce_look(world);
+    announce_look(world)
 }
 
 /// While looking, reads out whatever the reticle now sits on — called after
@@ -614,13 +610,13 @@ fn move_target_cursor(world: &mut World, dx: i16, dy: i16) {
 /// so `l` then `Tab Tab Tab` reads off everything in view with no `Enter`
 /// needed in between. A no-op for every other reticle purpose; those only
 /// ever announce on confirm ([`fire_at_target`]).
-fn announce_look(world: &mut World) {
+fn announce_look(world: &mut World) -> bool {
     let (looking, cx, cy) = {
         let ts = world.resource::<TargetingState>();
         (ts.looking, ts.cursor_x, ts.cursor_y)
     };
     if !looking {
-        return;
+        return false;
     }
     let target = Position {
         x: cx as u16,
@@ -629,6 +625,38 @@ fn announce_look(world: &mut World) {
     for line in describe_target(world, target) {
         world.resource_mut::<GameLog>().add(line);
     }
+    meet_its_eyes(world, target)
+}
+
+/// Looking is not free when the thing you are looking at looks back.
+///
+/// A medusa petrifies whoever turns their attention on it, and `L` is turning
+/// your attention on it — the reticle is the player's eyes, and a reticle that
+/// could rest on a gorgon in perfect safety would be a way to scout the floor
+/// that nothing else in the game offers. So look mode fires
+/// [`models::Moment::OnTargeted`] exactly as a swing or a zap does; it is the
+/// fifth path through that moment and it costs one line here.
+///
+/// Reports whether the turn went with it. When it did, the reticle closes:
+/// you are not still browsing the room.
+fn meet_its_eyes(world: &mut World, target: Position) -> bool {
+    let Some(seen) = models::mob_at(world, target) else {
+        return false;
+    };
+    if !models::answers_being_looked_at(world, seen) {
+        return false;
+    }
+    let player = player_entity(world);
+    if !models::fire_on_targeted(world, player, seen) {
+        return false;
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add("Well played.".to_string());
+    let mut ts = world.resource_mut::<TargetingState>();
+    ts.active = false;
+    ts.looking = false;
+    true
 }
 
 /// How far the reticle reaches: a look can range over the whole viewshed (the
@@ -763,46 +791,8 @@ fn begin_look(world: &mut World) -> std::io::Result<bool> {
     open_reticle_for(world, player, None, None, true, false);
     // Announces the player's own tile right away, so `l` alone already says
     // something and `Tab` from there walks the rest of what's in view.
-    announce_look(world);
-    Ok(false)
+    Ok(announce_look(world))
 }
-
-/// The notable moves and on-hit tricks `Look` warns about when the reticle
-/// lands on a monster — named plainly rather than shown as whichever marker
-/// component actually arms them.
-type DangerCheck = fn(&World, Entity) -> bool;
-const MONSTER_DANGERS: &[(DangerCheck, &str)] = &[
-    (|w, e| w.get::<FireBreath>(e).is_some(), "fire breath"),
-    (|w, e| w.get::<Freezing>(e).is_some(), "paralysing touch"),
-    (|w, e| w.get::<Venomous>(e).is_some(), "venomous bite"),
-    (|w, e| w.get::<Vampiric>(e).is_some(), "draining touch"),
-    (|w, e| w.get::<Binds>(e).is_some(), "binding bite"),
-    (|w, e| w.get::<Batty>(e).is_some(), "erratic strikes"),
-    (|w, e| w.get::<Gorgon>(e).is_some(), "petrifying gaze"),
-    (
-        |w, e| w.get::<StealsAndFlees>(e).is_some(),
-        "thieving touch",
-    ),
-    (
-        |w, e| w.get::<StealsAndVanishes>(e).is_some(),
-        "thieving touch",
-    ),
-    (|w, e| w.get::<Splits>(e).is_some(), "splitting flesh"),
-    (|w, e| w.get::<RustsArmor>(e).is_some(), "corrosive touch"),
-    (
-        |w, e| w.get::<AggravatesMonsters>(e).is_some(),
-        "aggravating shriek",
-    ),
-    (
-        |w, e| w.get::<ConfusingTouch>(e).is_some(),
-        "confusing touch",
-    ),
-    (|w, e| w.get::<Regenerates>(e).is_some(), "regeneration"),
-    (
-        |w, e| models::wielded_launcher(w, e).is_some(),
-        "ranged shots",
-    ),
-];
 
 /// What `Look` reads off the aimed tile: whichever monster or item is
 /// standing there (a monster wins over something lying under it), or —
@@ -811,8 +801,10 @@ const MONSTER_DANGERS: &[(DangerCheck, &str)] = &[
 /// looking is not a way to cheat a search.
 ///
 /// A monster gets a line of its own after the sighting: every notable move or
-/// on-hit trick it carries, one `"Beware ___ ___."` each — `"their"` for
-/// anything with the wits to use items, `"its"` for anything without.
+/// on-hit trick it carries, one `"Beware their ___."` each. Every creature in
+/// the dungeon is a they, whatever it is — a dungeon has no business guessing
+/// at what lives in it, and "its" for the ones without the wits to use items
+/// was a distinction the player never asked for.
 fn describe_target(world: &mut World, target: Position) -> Vec<String> {
     let visible: Vec<Entity> = {
         let mut q = world.query::<(Entity, &Position)>();
@@ -834,14 +826,11 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
 
     let mut lines = vec![format!("You see {}.", models::with_article(world, seen))];
     if world.get::<Mob>(seen).is_some() {
-        let pronoun = match world.get::<ItemUser>(seen).is_some() {
-            true => "their",
-            false => "its",
-        };
-        for &(has, phrase) in MONSTER_DANGERS {
-            if has(world, seen) {
-                lines.push(format!("Beware {pronoun} {phrase}."));
-            }
+        // What a creature is dangerous for is `models`' business: the phrases
+        // live on the effect rows themselves, so this crate never learns which
+        // markers exist.
+        for phrase in models::dangers_of(world, seen) {
+            lines.push(format!("Beware their {phrase}."));
         }
     }
     lines

@@ -24,7 +24,9 @@ use bevy_ecs::{entity::Entity, prelude::With, world::World};
 use crate::components::*;
 use crate::conditions::{blind, confuse, hasten, paralyse};
 use crate::constants::potions::*;
-use crate::effects::{ArmorBonus, Grant, PowerBonus, SeesInvisible, ThrowBonus, grant_for_floor};
+use crate::effects::{
+    ArmorBonus, Detected, Grant, Lifetime, PowerBonus, SeesInvisible, ThrowBonus, grant_for_floor,
+};
 use crate::helpers::actor_line;
 use crate::map::{LevelChange, holding_element_of_yoord, transition_level};
 
@@ -126,7 +128,7 @@ fn poison(world: &mut World, user: Entity) -> bool {
         world,
         user,
         "You feel very sick now — the strength drains out of you.",
-        "retches, its limbs going slack",
+        "retches, their limbs going slack",
     );
     world.resource_mut::<GameLog>().add(msg);
     sickened
@@ -150,7 +152,7 @@ fn restore_strength(world: &mut World, user: Entity) -> bool {
         world,
         user,
         "Your old strength comes surging back into your arm.",
-        "straightens, its strength returning",
+        "straightens, their strength returning",
     );
     world.resource_mut::<GameLog>().add(msg);
     true
@@ -161,7 +163,7 @@ fn restore_strength(world: &mut World, user: Entity) -> bool {
 // ---------------------------------------------------------------------------
 
 /// Potion of see invisible: the ring of perception's sight, lent for the floor
-/// only ([`crate::effects::GrantedForFloor`]). Like the ring it is retroactive —
+/// only ([`crate::effects::Lifetime::Floor`]). Like the ring it is retroactive —
 /// the phantom stalking you and the invisible stash two rooms over both turn up
 /// the moment the visibility system next runs.
 fn see_invisible(world: &mut World, user: Entity) -> bool {
@@ -193,7 +195,7 @@ fn detect_monsters(world: &mut World, user: Entity) -> bool {
         .iter(world)
         .collect();
     for mob in &mobs {
-        world.entity_mut(*mob).insert(Detected);
+        crate::effects::lend(world, *mob, Grant::of::<Detected>(), Lifetime::Floor);
     }
     let msg = match mobs.is_empty() {
         true => "You listen hard, and hear nothing at all moving on this floor.",
@@ -221,7 +223,7 @@ fn detect_magic(world: &mut World, user: Entity) -> bool {
         .filter(|&e| worth_detecting(world, e))
         .collect();
     for item in &found {
-        world.entity_mut(*item).insert(Detected);
+        crate::effects::lend(world, *item, Grant::of::<Detected>(), Lifetime::Floor);
     }
     let msg = match found.is_empty() {
         true => "You reach for the hum of magic, and this floor holds none.",
@@ -302,7 +304,7 @@ fn raise_level(world: &mut World, user: Entity) -> bool {
 /// on purpose, so a monster you lob one at never tells you which of the two it
 /// was — and neither does a floor-full of unidentified vials.
 fn flavour(world: &mut World, user: Entity, player_line: &str) -> bool {
-    let msg = actor_line(world, user, player_line, "smacks its lips");
+    let msg = actor_line(world, user, player_line, "smacks their lips");
     world.resource_mut::<GameLog>().add(msg);
     false
 }

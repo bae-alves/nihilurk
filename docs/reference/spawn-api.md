@@ -192,11 +192,16 @@ Effects
 
 A const handle to one marker effect. Lets a `const` table name a component it cannot store.
 
+`lend` and `revoke_matching` are the two ends of the ledger (`Effects`, a `Vec<Held>` on the entity): what is attached, from where, and for how long. One id may appear more than once — a creature born fire-immune *and* wearing a ring of fire resistance holds two entries — so `revoke_matching` is the single place that asks "is anything else still lending this?" before detaching. `attach_effects` returns the ids a save named that this build has no row for.
+
     pub fn grant_all(world, entity: Entity, grants: &'static [Grant])
     pub fn revoke_all(world, entity: Entity)
-    pub fn effects_of(world: &World, entity: Entity) -> EffectSet
-    pub fn attach_effects(entity: &mut EntityWorldMut, set: EffectSet)
-    pub fn effect_set(grants: &[Grant]) -> EffectSet
+    pub fn lend(world, entity: Entity, grant: Grant, lifetime: Lifetime)
+    pub fn revoke_matching(world, entity: Entity, doomed: impl Fn(&Held) -> bool)
+    pub fn hold(world, victim: Entity, grant: Grant, turns: u32) -> bool
+    pub fn turns_left(world: &World, entity: Entity, grant: Grant) -> Option<u32>
+    pub fn effects_of(world: &World, entity: Entity) -> Vec<Held>
+    pub fn attach_effects(entity: &mut EntityWorldMut, held: &[Held]) -> Vec<&'static str>
     pub fn equipped_total<C: Modifier>(world: &World, entity: Entity) -> i32
     pub fn loadout(world: &World, entity: Entity) -> Loadout
 

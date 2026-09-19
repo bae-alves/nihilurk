@@ -23,9 +23,9 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::conditions::{cure_one_condition, hasten, paralyse};
-use crate::effects::{SustainsStrength, TurboMagic, loadout};
+use crate::effects::{Bided, Grant, Lifetime, MagicWard, TurboMagic, loadout};
 use crate::helpers::{
-    apply_damage, get_entities_at_position, get_line, hostiles_in_view, item_label, monster_at,
+    Hit, apply_hit, get_entities_at_position, get_line, hostiles_in_view, item_label, monster_at,
     roll_dice, spark_burst_at, tile_of, total_armor_plus,
 };
 use crate::map::{GameRng, Map};
@@ -33,7 +33,7 @@ use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::{TrapBundle, spring_trap, trap_at, trap_damage_tier};
 
-use super::wands::{dazzle, elemental_blast, ward_ricochet};
+use super::wands::{dazzle, elemental_blast};
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `crate::constants::wands` / `crate::constants::traps`
@@ -165,19 +165,6 @@ fn fly_arrow(world: &mut World, from: Position, to: Position, glyph: char, color
     }
 }
 
-/// The move Magic Ward turning aside a direct hit one of these functions
-/// rolls itself, kept in step with the line
-/// [`crate::items::wands::damage_with_element`] prints for a wand's own
-/// blast — and the same off-the-chest ricochet, so a warded creature reads
-/// the same way whatever tried to burn it.
-fn ward_block(world: &mut World, victim: Entity) {
-    let name = item_label(world, victim);
-    world
-        .resource_mut::<GameLog>()
-        .add(format!("The {name}'s ward turns the magic aside."));
-    ward_ricochet(world, victim);
-}
-
 // ---------------------------------------------------------------------------
 // 1 Ma
 // ---------------------------------------------------------------------------
@@ -199,11 +186,6 @@ fn sting(world: &mut World, user: Entity, target: Position, power_mult: i32) {
             .add("The dart of venom finds nothing to bite.".to_string());
         return;
     };
-    if world.get::<MagicWard>(victim).is_some() {
-        ward_block(world, victim);
-        return;
-    }
-
     let tier = trap_damage_tier(world.resource::<Depth>().what);
     let armor_plus = total_armor_plus(world, victim);
     let roll = roll_dice(world, DART_DAMAGE_DICE, DART_DAMAGE_SIDES);
@@ -216,22 +198,17 @@ fn sting(world: &mut World, user: Entity, target: Position, power_mult: i32) {
             .add(format!("The dart glances off the {name}."));
         return;
     }
-    world.resource_mut::<GameLog>().add(format!(
-        "A green dart of venom pricks the {name} for {damage} damage!"
-    ));
+    let line = format!("A green dart of venom pricks the {name} for {damage} damage!");
+    if apply_hit(world, victim, Hit::magic(damage), Some(&line)) == 0 {
+        return;
+    }
     if let Some((x, y)) = tile_of(world, victim) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.hit_spark(x, y);
         }
     }
-    apply_damage(world, victim, damage);
-    if world.get::<SustainsStrength>(victim).is_some() {
-        return;
-    }
     let drain = DART_POWER_DRAIN_BASE + tier * DART_POWER_DRAIN_PER_TIER;
-    if let Some(mut fighter) = world.get_mut::<Fighter>(victim) {
-        fighter.power = (fighter.power - drain).max(1);
-    }
+    crate::conditions::drain_power(world, victim, drain, Some(1));
 }
 
 /// Thunderbolt: `THUNDERBOLT_DAMAGE_DICE`d`THUNDERBOLT_DAMAGE_SIDES`
@@ -250,22 +227,17 @@ fn thunderbolt(world: &mut World, user: Entity, target: Position, power_mult: i3
             .add("Thunder cracks over empty stone.".to_string());
         return;
     };
-    if world.get::<MagicWard>(victim).is_some() {
-        ward_block(world, victim);
-        return;
-    }
-
     let damage = roll_dice(world, THUNDERBOLT_DAMAGE_DICE, THUNDERBOLT_DAMAGE_SIDES) * power_mult;
     let name = item_label(world, victim);
-    world.resource_mut::<GameLog>().add(format!(
-        "A bolt of thunder slams into the {name} for {damage} damage!"
-    ));
+    let line = format!("A bolt of thunder slams into the {name} for {damage} damage!");
+    if apply_hit(world, victim, Hit::magic(damage), Some(&line)) == 0 {
+        return;
+    }
     if let Some((x, y)) = tile_of(world, victim) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.impact_sparks(x, y, Color::Yellow, 0.0);
         }
     }
-    apply_damage(world, victim, damage);
     let survived = world.get::<Fighter>(victim).is_some_and(|f| f.hp > 0);
     let paralyzes = world
         .resource_mut::<GameRng>()
@@ -291,7 +263,10 @@ fn cure_self(world: &mut World, user: Entity) {
 /// [`Bided`], folded into the very next attack roll
 /// [`crate::combat::resolve_attack`] makes for its bearer.
 fn bide(world: &mut World, user: Entity) {
-    world.entity_mut(user).insert(Bided);
+    // Through the ledger, with the lifetime that says what ends it: nothing
+    // lends this one, so the ledger is the only record, and a run saved mid-coil
+    // is reopened still coiled.
+    crate::effects::lend(world, user, Grant::of::<Bided>(), Lifetime::NextAction);
     if let Some((x, y)) = tile_of(world, user) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.condition_mark(x, y, '≡', Color::DarkYellow, 0.0);
@@ -383,17 +358,13 @@ fn force_lance(world: &mut World, user: Entity, target: Position, power_mult: i3
     }
 
     for victim in victims {
-        if world.get::<MagicWard>(victim).is_some() {
-            ward_block(world, victim);
-            continue;
-        }
         let damage =
             roll_dice(world, FORCE_LANCE_DAMAGE_DICE, FORCE_LANCE_DAMAGE_SIDES) * power_mult;
         let name = item_label(world, victim);
-        world.resource_mut::<GameLog>().add(format!(
-            "The force lance slams the {name} for {damage} damage!"
-        ));
-        apply_damage(world, victim, damage);
+        let line = format!("The force lance slams the {name} for {damage} damage!");
+        if apply_hit(world, victim, Hit::magic(damage), Some(&line)) == 0 {
+            continue;
+        }
         if let Some((x, y)) = tile_of(world, victim) {
             if let Some(mut fx) = world.get_resource_mut::<Particles>() {
                 fx.impact_sparks(x, y, Color::White, flight_ms);
@@ -509,19 +480,12 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
 
     let mut drained = 0;
     for victim in targets {
-        if world.get::<MagicWard>(victim).is_some() {
-            ward_block(world, victim);
-            continue;
-        }
         let dmg = roll_dice(
             world,
             CIRCLE_OF_DEATH_DAMAGE_DICE,
             CIRCLE_OF_DEATH_DAMAGE_SIDES,
         ) * power_mult;
-        let before = world.get::<Fighter>(victim).map_or(0, |f| f.hp);
-        apply_damage(world, victim, dmg);
-        let after = world.get::<Fighter>(victim).map_or(0, |f| f.hp);
-        drained += (before - after).max(0);
+        drained += apply_hit(world, victim, Hit::magic(dmg), None);
     }
     if drained <= 0 {
         return;
@@ -541,7 +505,7 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
 /// ([`crate::abilities::fire_on_hit`]). Lifted at the next staircase like any
 /// other floor-scoped condition.
 fn magic_ward(world: &mut World, user: Entity) {
-    world.entity_mut(user).insert(MagicWard);
+    crate::effects::lend(world, user, Grant::of::<MagicWard>(), Lifetime::Floor);
     if let Some((x, y)) = tile_of(world, user) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.spark_burst(x, y, Color::Cyan);
@@ -664,19 +628,12 @@ fn frost_nova(world: &mut World, user: Entity, power_mult: i32) {
     kick_shake(world, ShakeKind::Heavy);
 
     for victim in targets {
-        if world.get::<MagicWard>(victim).is_some() {
-            ward_block(world, victim);
-            continue;
-        }
-        if Element::Cold.immunity().probe(world, victim) {
-            let name = item_label(world, victim);
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("The {name} is unharmed by the cold."));
-            continue;
-        }
+        // The ward and the cold-immunity were written out here by hand, the
+        // second a copy of `damage_with_element`'s. `apply_hit` owns both.
         let dmg = roll_dice(world, FROST_NOVA_DAMAGE_DICE, FROST_NOVA_DAMAGE_SIDES) * power_mult;
-        apply_damage(world, victim, dmg);
+        if apply_hit(world, victim, Hit::elemental(dmg, Element::Cold), None) == 0 {
+            continue;
+        }
         if world.get::<Fighter>(victim).is_some_and(|f| f.hp > 0) {
             paralyse(world, victim);
         }

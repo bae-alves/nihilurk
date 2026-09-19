@@ -1,18 +1,16 @@
 use crate::components::*;
-use crate::effects::{CoinGreedy, FireBreath, Stealthy};
+use crate::effects::{Asleep, Blind, CoinGreedy, Pinned, Rooted, Stealthy};
 use crate::helpers::{chebyshev, get_line};
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
-use rand::Rng;
 use std::collections::{HashMap, HashSet};
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `constants.rs`.
 //
 //   STEALTH_RANGE         how close a stealthy player must be to be noticed
-//   DRAGON_FIREBALL_CHANCE  odds a dragon breathes fire instead of clawing
 //   MONSTER_SHOT_RANGE      how far a launcher-wielding monster can loose a shot
-use crate::constants::monsters::{DRAGON_FIREBALL_CHANCE, MONSTER_SHOT_RANGE};
+use crate::constants::monsters::MONSTER_SHOT_RANGE;
 use crate::constants::rings::STEALTH_RANGE;
 
 /// Monster turn. Exclusive so it can move each mob more than once: the player is
@@ -95,16 +93,17 @@ pub fn ai(world: &mut World) {
         false => visible_tiles,
     };
 
+    let mut ctx = AiCtx {
+        pass: 0,
+        player: player_entity,
+        player_pos,
+        player_faction,
+        visible: &visible_tiles,
+        stealthy: player_stealthy,
+        map: &map,
+    };
     for _round in 0..rounds {
-        monster_round(
-            world,
-            player_entity,
-            player_pos,
-            &visible_tiles,
-            player_faction,
-            player_stealthy,
-            &map,
-        );
+        monster_round(world, &mut ctx);
     }
 }
 
@@ -128,15 +127,38 @@ fn notices(seen: bool, stealthy: bool, player_pos: Position, mob_pos: Position) 
 
 /// One full round of monster movement: bank energy, then up to two passes so a
 /// `Fast` monster can act twice. A pass that moves nobody ends the round.
-fn monster_round(
-    world: &mut World,
-    player_entity: Entity,
+/// Everything a mob's turn is decided against that is the same for every mob
+/// on the floor: where the player is, what they can see, and what the ground
+/// looks like.
+///
+/// Gathered once per round rather than passed as eight arguments. The
+/// argument list is what this replaces — it had grown a `player_stealthy`
+/// bool threaded through three functions so that `notices` could ask one
+/// question, and the next thing a mob wants to know about the player would
+/// have been a ninth.
+struct AiCtx<'a> {
+    /// Which pass of the round this is. A `Fast` mob acts on both.
+    pass: usize,
+    player: Entity,
     player_pos: Position,
-    visible_tiles: &HashSet<(u16, u16)>,
     player_faction: Faction,
-    player_stealthy: bool,
-    map: &Map,
-) {
+    /// The player's viewshed. A mob acts on what the *player* can see, which
+    /// is what keeps the floor quiet out of sight.
+    visible: &'a HashSet<(u16, u16)>,
+    /// Whether the player is currently hard to notice — a ring of stealth.
+    stealthy: bool,
+    map: &'a Map,
+}
+
+impl AiCtx<'_> {
+    /// Whether `mob`, standing at `mob_pos`, has noticed the player.
+    fn noticed_by(&self, mob_pos: Position) -> bool {
+        let in_view = self.visible.contains(&(mob_pos.x, mob_pos.y));
+        notices(in_view, self.stealthy, self.player_pos, mob_pos)
+    }
+}
+
+fn monster_round(world: &mut World, ctx: &mut AiCtx) {
     // Bank this round's energy for every actor with a tempo, at the tempo it is
     // actually acting at — gear that weighs a creature down banks it less. The
     // pool is capped so a monster left alone off-screen can't hoard a dozen free
@@ -155,6 +177,7 @@ fn monster_round(
     }
 
     for pass in 0..2 {
+        ctx.pass = pass;
         let mob_list: Vec<Entity> = world
             .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
             .iter(world)
@@ -162,21 +185,11 @@ fn monster_round(
 
         // Rebuilt each pass so a mob that moved in pass 0 is seen in its new
         // tile in pass 1.
-        let mut spatial = actor_positions(world, player_entity, player_pos, player_faction);
+        let mut spatial = actor_positions(world, ctx.player, ctx.player_pos, ctx.player_faction);
 
         let mut any_acted = false;
         for mob in mob_list {
-            any_acted |= step_one_mob(
-                world,
-                mob,
-                pass,
-                player_entity,
-                player_pos,
-                visible_tiles,
-                player_stealthy,
-                map,
-                &mut spatial,
-            );
+            any_acted |= step_one_mob(world, mob, ctx, &mut spatial);
         }
         if !any_acted {
             break;
@@ -214,32 +227,23 @@ fn actor_positions(
 fn step_one_mob(
     world: &mut World,
     mob: Entity,
-    pass: usize,
-    player_entity: Entity,
-    player_pos: Position,
-    visible_tiles: &HashSet<(u16, u16)>,
-    player_stealthy: bool,
-    map: &Map,
+    ctx: &AiCtx,
     spatial: &mut HashMap<(u16, u16), (Entity, Faction)>,
 ) -> bool {
-    // Asleep in gas: forfeit the turn outright. Caught in a bear trap or bound
-    // by a scroll of hold monster: the mob can't take a step, but a foe within
-    // reach still gets bitten.
-    let pinned = match world.get::<Snare>(mob).map(|s| s.kind) {
-        Some(SnareKind::Sleep) => return false,
-        Some(SnareKind::Bear | SnareKind::Hold) => true,
-        None => false,
-    };
-    if !can_afford_step(world, mob, pass) {
+    // Asleep forfeits the turn outright. Pinned or rooted means it cannot
+    // take a step, but a foe within reach still gets bitten.
+    if world.get::<Asleep>(mob).is_some() {
+        return false;
+    }
+    let pinned = world.get::<Pinned>(mob).is_some() || world.get::<Rooted>(mob).is_some();
+    if !can_afford_step(world, mob, ctx.pass) {
         return false;
     }
 
     let mob_pos = *world.get::<Position>(mob).unwrap();
     let movement_type = world.get::<Mob>(mob).unwrap().movement_type;
     let mob_faction = *world.get::<Faction>(mob).unwrap();
-
-    let in_view = visible_tiles.contains(&(mob_pos.x, mob_pos.y));
-    let seen = notices(in_view, player_stealthy, player_pos, mob_pos);
+    let seen = ctx.noticed_by(mob_pos);
 
     // A launcher drawn is worth nothing swung, so anything wielding one uses
     // it exactly the way it was found: a centaur or a medusa that can see the
@@ -249,24 +253,24 @@ fn step_one_mob(
     if !pinned
         && mob_faction == Faction::Monster
         && seen
-        && chebyshev(mob_pos, player_pos) <= MONSTER_SHOT_RANGE
+        && chebyshev(mob_pos, ctx.player_pos) <= MONSTER_SHOT_RANGE
         && crate::equipment::wielded_launcher(world, mob).is_some()
-        && has_line_of_sight(map, mob_pos, player_pos)
+        && has_line_of_sight(ctx.map, mob_pos, ctx.player_pos)
     {
-        crate::items::monster_ranged_attack(world, mob, player_entity);
+        crate::items::monster_ranged_attack(world, mob, ctx.player);
         spend_energy(world, mob);
         return true;
     }
 
-    let goal = orc_coin_goal(world, mob, mob_pos)
+    let goal = coin_goal(world, mob, mob_pos)
         .map(|target| step_toward(mob_pos, target))
-        .or_else(|| desired_step(movement_type, player_pos, mob_pos, seen));
+        .or_else(|| desired_step(movement_type, ctx.player_pos, mob_pos, seen));
     let Some((step_x, step_y)) = goal else {
         return false;
     };
     let new_x = (mob_pos.x as i16 + step_x) as u16;
     let new_y = (mob_pos.y as i16 + step_y) as u16;
-    if !mob_can_enter(map, movement_type, mob_pos, new_x, new_y) {
+    if !mob_can_enter(ctx.map, movement_type, mob_pos, new_x, new_y) {
         return false;
     }
 
@@ -275,20 +279,16 @@ fn step_one_mob(
         if !hostile(mob_faction, target_faction) {
             return false;
         }
-        let breathes_fire = world.get::<FireBreath>(mob).is_some()
-            && world
-                .resource_mut::<crate::map::GameRng>()
-                .0
-                .gen_bool(DRAGON_FIREBALL_CHANCE);
-        match breathes_fire {
-            true => crate::items::dragon_breath(world, mob, target_entity),
-            false => world
+        // Anything the attacker would rather do than swing gets first refusal
+        // — a dragon's fireball. `ai` does not learn what those are.
+        if !crate::abilities::fire_instead_of_attacking(world, mob, target_entity) {
+            world
                 .resource_mut::<AttackQueue>()
                 .attacks
                 .push(WantsToAttack {
                     attacker: mob,
                     target: target_entity,
-                }),
+                });
         }
         spend_energy(world, mob);
         return true;
@@ -329,12 +329,16 @@ fn has_line_of_sight(map: &Map, from: Position, to: Position) -> bool {
         .all(|p| !map.blocks(p.x, p.y))
 }
 
-/// Where a coin-greedy, damaged orc should head instead of the player: the
-/// nearest red (healing) coin still lying on the floor. Ignores every other
-/// coin on purpose — a distracted orc wants to patch itself up, not cash in a
-/// promise or pad the score. `None` for anything else, a coin-greedy orc at
-/// full health included.
-fn orc_coin_goal(world: &mut World, mob: Entity, mob_pos: Position) -> Option<Position> {
+/// Where a wounded, coin-greedy creature should head instead of the player:
+/// the nearest red (healing) coin still lying on the floor. Ignores every
+/// other coin on purpose — something hurt wants to patch itself up, not cash
+/// in a promise or pad the score. `None` for anything else, and for a
+/// coin-greedy creature at full health.
+///
+/// This is the one ability still written into the pathing code. It overrides
+/// a *goal* rather than taking the turn, which is a different shape from the
+/// ability table's moments; see `.claude/refactor-abilities-plan.md` §6.9.
+fn coin_goal(world: &mut World, mob: Entity, mob_pos: Position) -> Option<Position> {
     if world.get::<CoinGreedy>(mob).is_none() {
         return None;
     }
@@ -348,7 +352,7 @@ fn orc_coin_goal(world: &mut World, mob: Entity, mob_pos: Position) -> Option<Po
         .min_by_key(|&pos| chebyshev(mob_pos, pos))
 }
 
-/// The other half of an orc's greed: any [`CoinGreedy`] mob that just stepped
+/// The other half of that greed: any [`CoinGreedy`] mob that just stepped
 /// onto a coin it can use ([`crate::items::monster_claim`]) scoops it up.
 /// Scheduled right after [`ai`] itself, while [`EntityMoved`] still marks
 /// whoever moved this turn — the same tag [`crate::traps::trap_system`] reads

@@ -234,7 +234,7 @@ The arm returns `bool` -- whether the dose visibly took hold.
     WandDef { effect: WandEffect::Sleep, name: "wand of sleep",
               color: Color::Blue, range: 6 },
 
-Most of a wand's arm is borrowed. Sleep is `conditions::snare(world, victim, SnareKind::Sleep, turns)` and nothing else; the trap and the scroll that also put things to sleep call the same verb.
+Most of a wand's arm is borrowed. Sleep is `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)` and nothing else; the trap and the scroll that also put things to sleep call the same verb.
 
 **A genuinely new kind of coin** -- one that does something no coin does yet -- needs a `PickupEffect` variant and arms in both `apply` and `would_help` (`items/pickups.rs`). `would_help` is the interesting one: it is what leaves a coin on the floor when taking it would do nothing, so a red coin waits at full health for the fight that goes badly.
 

@@ -379,7 +379,7 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
 
     // Not worn yet: rolling the per-turn system does nothing.
     for _ in 0..200 {
-        passive_ability_system(&mut w);
+        ability_system(&mut w);
     }
     assert!(matches!(
         w.get::<Mob>(orc).unwrap().movement_type,
@@ -391,7 +391,7 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     use_item(&mut w, p, ring);
     let mut fired_on = None;
     for turn in 0..300 {
-        passive_ability_system(&mut w);
+        ability_system(&mut w);
         if matches!(
             w.get::<Mob>(orc).unwrap().movement_type,
             MovementType::Aggravated { .. }

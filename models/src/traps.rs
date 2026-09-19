@@ -15,7 +15,7 @@
 //! nihilurk has no "wait a turn and search" action, so those three modes are the
 //! only ways a trap ever comes to light before it bites.
 //!
-//! The trap components themselves ([`Trap`], [`Snare`], [`SnareKind`],
+//! The trap components themselves ([`Trap`], the three holds,
 //! [`TrapEffect`], [`TrapReveal`], [`EntityMoved`]) are nouns and live in
 //! [`crate::components`]; this module is the verbs — the catalog row
 //! ([`TrapDef`]), the spring, and the per-effect mechanics.
@@ -24,7 +24,7 @@
 //!
 //! Movement code (the player in `move_player`, monsters in [`crate::ai`]) tags
 //! the mover with [`EntityMoved`]. [`trap_system`] runs just after the AI, walks
-//! that list, and springs any trap sharing a tile with a mover. [`snare_system`]
+//! that list, and springs any trap sharing a tile with a mover. [`crate::effects::tick_effects`]
 //! runs at the very top of the turn and ages [`Snare`] (bear trap / sleep gas)
 //! down, so the turn a snare is applied is never the turn it is decremented.
 //!
@@ -39,9 +39,9 @@
 //!
 //! ## Bear trap
 //!
-//! A [`SnareKind::Bear`] snare impedes *movement only*. The victim can still
+//! A [`crate::effects::Pinned`] snare impedes *movement only*. The victim can still
 //! strike an adjacent foe; a step, though, becomes a bloody lurch against the
-//! jaws — one wasted turn and [`bear_trap_thrash`]. [`SnareKind::Sleep`] is the
+//! jaws — one wasted turn and [`bear_trap_thrash`]. [`crate::effects::Asleep`] is the
 //! total one: no action of any kind.
 //!
 //! ## Armour rule
@@ -67,7 +67,7 @@ use crate::constants::traps::{
     TRAP_DAMAGE_TIER_LAST_DEPTH, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES,
     TRICK_SHOT_RADIUS,
 };
-use crate::effects::SustainsStrength;
+use crate::effects::{Asleep, Grant, Pinned};
 use crate::helpers::{
     apply_damage, leave_smoke, leave_tinted_smoke, player_sees, roll_dice, spill_blood,
     total_armor_plus,
@@ -200,7 +200,7 @@ pub fn bear_trap_thrash(world: &mut World, victim: Entity) {
 /// A bear trap does **not** count: it blocks movement only (the engine still
 /// reads a key, so the player can strike or thrash).
 pub fn player_incapacitated(world: &mut World) -> bool {
-    matches!(player_snare(world), Some(SnareKind::Sleep))
+    player_held_by(world, Grant::of::<Asleep>())
 }
 
 /// Everything a floor trap needs. Deliberately has no [`Item`] — traps are not
@@ -265,53 +265,6 @@ impl TrapBundle {
         let def = TrapDef::pick(depth, rng);
         let reveal = TrapReveal::ALL[rng.gen_range(0..TrapReveal::ALL.len())];
         Self::from_def(def, reveal, position)
-    }
-}
-
-/// Ages every [`Snare`] down by one and lifts the ones that reach zero. Runs at
-/// the top of the turn so the turn a snare is applied is not also counted.
-///
-/// Assumes nothing upstream — it is second in the schedule, behind only
-/// [`crate::map::smoke_system`]. Its own `player_dead` guard below is
-/// therefore defensive rather than load-bearing: nothing between the main
-/// loop's death check and this step can set `Ending::player_dead`, since
-/// [`crate::helpers::apply_damage`] never kills outright and every path that
-/// does (`combat::settle_the_dead`, `combat::finish_indirect_kill`) runs
-/// later in this same schedule, not before it.
-pub fn snare_system(world: &mut World) {
-    if world
-        .get_resource::<crate::state::Ending>()
-        .is_some_and(|e| e.player_dead)
-    {
-        return;
-    }
-
-    let mut expired: Vec<Entity> = Vec::new();
-    let mut ticking: Vec<Entity> = world
-        .query_filtered::<Entity, With<Snare>>()
-        .iter(world)
-        .collect();
-    for entity in ticking.drain(..) {
-        let Some(mut snare) = world.get_mut::<Snare>(entity) else {
-            continue;
-        };
-        snare.turns = snare.turns.saturating_sub(1);
-        if snare.turns == 0 {
-            expired.push(entity);
-        }
-    }
-
-    for entity in expired {
-        let kind = world.get::<Snare>(entity).map(|s| s.kind);
-        world.entity_mut(entity).remove::<Snare>();
-        if world.get::<Player>(entity).is_some() {
-            let msg = match kind {
-                Some(SnareKind::Bear) => "You wrench your leg free of the bear trap.",
-                Some(SnareKind::Hold) => "Whatever was holding you lets go.",
-                _ => "You shake off the drowsiness and come to.",
-            };
-            world.resource_mut::<GameLog>().add(msg);
-        }
     }
 }
 
@@ -426,8 +379,22 @@ fn apply_trap_effect(
 
     match effect {
         TrapEffect::Trapdoor => trapdoor_effect(world, victim, is_player, seen),
-        TrapEffect::Bear => snare_victim(world, victim, SnareKind::Bear, snare_turns, is_player),
-        TrapEffect::Sleep => snare_victim(world, victim, SnareKind::Sleep, snare_turns, is_player),
+        TrapEffect::Bear => snare_victim(
+            world,
+            victim,
+            Grant::of::<Pinned>(),
+            snare_turns,
+            is_player,
+            "Steel jaws snap shut on your leg — you can't take a step, but your arms are free!",
+        ),
+        TrapEffect::Sleep => snare_victim(
+            world,
+            victim,
+            Grant::of::<Asleep>(),
+            snare_turns,
+            is_player,
+            "Gas billows up around you. Your eyelids turn to lead...",
+        ),
         TrapEffect::Teleport => teleport_effect(world, victim, is_player),
         TrapEffect::Arrow => arrow_effect(world, victim, is_player, seen, trap_pos),
         TrapEffect::Dart => dart_effect(world, victim, is_player, seen, trap_pos),
@@ -757,19 +724,20 @@ fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: boo
     transition_level(world, true, LevelChange::Trapdoor);
 }
 
-fn snare_victim(world: &mut World, victim: Entity, kind: SnareKind, turns: u32, is_player: bool) {
-    crate::conditions::snare(world, victim, kind, turns);
+/// Holds `victim` and, when it is the player, says how it felt. The sentence
+/// belongs to the trap that sprang rather than to the hold itself — the same
+/// jaws read differently from a scroll's words — so it is passed in.
+fn snare_victim(
+    world: &mut World,
+    victim: Entity,
+    grant: Grant,
+    turns: u32,
+    is_player: bool,
+    line: &str,
+) {
+    crate::conditions::snare(world, victim, grant, turns);
     if is_player {
-        let msg = match kind {
-            SnareKind::Bear => {
-                "Steel jaws snap shut on your leg — you can't take a step, but your arms are free!"
-            }
-            SnareKind::Sleep => "Gas billows up around you. Your eyelids turn to lead...",
-            // No trap holds anything: that is a scroll of hold monster's doing,
-            // and it prints its own line (`crate::items`'s `scrolls`).
-            SnareKind::Hold => "Something roots you to the spot.",
-        };
-        world.resource_mut::<GameLog>().add(msg);
+        world.resource_mut::<GameLog>().add(line.to_string());
     }
 }
 
@@ -913,27 +881,16 @@ fn dart_effect(
     // not a modifier — unless something sustains the victim's strength. A potion
     // of restore strength puts `power` back up to `max_power`. The deeper the
     // dart, the harder the bite: one point per depth tier.
-    if world.get::<SustainsStrength>(victim).is_some() {
-        if is_player {
-            world
-                .resource_mut::<GameLog>()
-                .add("The poison burns, but your strength holds firm.");
-        }
-        return;
-    }
     let drain = DART_POWER_DRAIN_BASE + tier * DART_POWER_DRAIN_PER_TIER;
-    let drained = world
-        .get_mut::<Fighter>(victim)
-        .map(|mut f| {
-            let before = f.power;
-            f.power = (f.power - drain).max(1);
-            f.power != before
-        })
-        .unwrap_or(false);
-    if is_player && drained {
-        world
-            .resource_mut::<GameLog>()
-            .add("The poison courses through you — you feel your strength ebb away.");
+    let line = match crate::conditions::drain_power(world, victim, drain, Some(1)) {
+        crate::conditions::Drain::Resisted => "The poison burns, but your strength holds firm.",
+        crate::conditions::Drain::Took => {
+            "The poison courses through you — you feel your strength ebb away."
+        }
+        crate::conditions::Drain::Nothing => return,
+    };
+    if is_player {
+        world.resource_mut::<GameLog>().add(line);
     }
 }
 
@@ -974,12 +931,16 @@ pub(crate) fn random_open_tile(world: &mut World) -> Option<(u16, u16)> {
     Some(candidates[idx])
 }
 
-/// Convenience for the engine loop: the kind of snare pinning the player, if
-/// any.
-pub fn player_snare(world: &mut World) -> Option<SnareKind> {
-    world
-        .query_filtered::<&Snare, With<Player>>()
+/// Whether the player is currently held by `grant` — asleep, pinned or
+/// rooted. The engine loop asks all three to decide what a movement key can
+/// still do.
+pub fn player_held_by(world: &mut World, grant: Grant) -> bool {
+    let Some(player) = world
+        .query_filtered::<Entity, With<Player>>()
         .iter(world)
         .next()
-        .map(|s| s.kind)
+    else {
+        return false;
+    };
+    grant.probe(world, player)
 }

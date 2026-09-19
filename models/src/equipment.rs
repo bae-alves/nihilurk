@@ -24,8 +24,8 @@ use crate::components::{
     Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position, Reach,
 };
 use crate::effects::{
-    ArmorBonus, EFFECTS, EffectSet, GrantedByGear, GrantedForFloor, Grants, Momentum, OnWear,
-    SustainsArmor, effect_set,
+    ArmorBonus, Bided, Effects, Grant, Grants, Held, Lifetime, Momentum, OnWear, SustainsArmor,
+    lend, revoke, revoke_matching,
 };
 use crate::helpers::item_label;
 use crate::identify::display_name;
@@ -176,9 +176,7 @@ pub fn wielded_reach_weapon(world: &World, entity: Entity) -> Option<Entity> {
 /// caster does anything else with the turn instead of landing it. Both are
 /// no-ops when there is nothing to lose.
 pub fn reset_momentum(world: &mut World, wearer: Entity) {
-    world
-        .entity_mut(wearer)
-        .remove::<crate::components::Bided>();
+    revoke(world, wearer, Grant::of::<Bided>());
     let Some(weapon) = equipped_in(world, wearer, Slot::Hand) else {
         return;
     };
@@ -352,38 +350,40 @@ pub fn corrode_armor(world: &mut World, victim: Entity) -> bool {
 /// its gear actually grants right now: attaches what was just put on, strips
 /// what was just taken off, and never touches what the creature was born with.
 pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
-    let wanted: EffectSet = equipped(world, bearer)
-        .filter_map(|i| i.get::<Grants>().map(|g| effect_set(g.0)))
-        .fold(0, |acc, set| acc | set);
+    // What the gear lends right now, as (item, grant) pairs. The item is part
+    // of the claim: two rings lending the same effect are two entries, and
+    // taking one off must not strip what the other still lends.
+    let wanted: Vec<(Entity, Grant)> = equipped(world, bearer)
+        .filter_map(|i| i.get::<Grants>().map(|g| (i.id(), g.0)))
+        .flat_map(|(item, grants)| grants.iter().map(move |&g| (item, g)))
+        .collect();
 
-    let had: EffectSet = world.get::<GrantedByGear>(bearer).map(|g| g.0).unwrap_or(0);
-    if had == wanted {
-        return;
-    }
+    let worn: Vec<Entity> = wanted.iter().map(|(item, _)| *item).collect();
+    let held: Vec<Held> = world
+        .get::<Effects>(bearer)
+        .map(|l| l.0.clone())
+        .unwrap_or_default();
 
-    // Effects the creature has innately are never on loan, so a removed ring can
-    // never strip a monster's own magic — nor a potion's gift for the floor,
-    // which is innate as far as gear is concerned.
-    let innate: EffectSet = world
-        .get::<Grants>(bearer)
-        .map(|g| effect_set(g.0))
-        .unwrap_or(0)
-        | world
-            .get::<GrantedForFloor>(bearer)
-            .map(|g| g.0)
-            .unwrap_or(0);
+    // Anything lent by an item that is no longer on goes back. Every other
+    // lifetime is somebody else's business — innate magic and a potion's gift
+    // for the floor are not the gear's to take.
+    revoke_matching(world, bearer, |h| match h.lifetime {
+        Lifetime::WhileEquipped(item) => !worn.contains(&item),
+        _ => false,
+    });
 
-    let mut e = world.entity_mut(bearer);
-    for (i, grant) in EFFECTS.iter().enumerate() {
-        let bit = 1 << i;
-        if wanted & bit != 0 && had & bit == 0 {
-            grant.attach(&mut e);
+    // And anything newly worn is lent. `held` is the ledger as it was before
+    // the sweep, which is what makes this idempotent: an item already lending
+    // an effect is not asked to lend it twice every turn.
+    for (item, grant) in wanted {
+        let already = held.iter().any(|h| {
+            h.lifetime == Lifetime::WhileEquipped(item) && Some(h.id) == grant.effect_id()
+        });
+        if already {
+            continue;
         }
-        if had & bit != 0 && wanted & bit == 0 && innate & bit == 0 {
-            grant.detach(&mut e);
-        }
+        lend(world, bearer, grant, Lifetime::WhileEquipped(item));
     }
-    e.insert(GrantedByGear(wanted));
 }
 
 /// Reconciles every pack-carrying creature. [`toggle_equipped`] already keeps

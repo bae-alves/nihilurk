@@ -80,7 +80,7 @@ Where the pieces live
 
 Every kind of game object -- monster, item, trap -- is built the same three-part way, and each part has one home:
 
-  * **The components** (`Trap`, `Fighter`, `Snare`, `FireArrow`, ...) go in `models/src/components.rs`. That file is nouns: every `Component`, `Resource` and `Event` the game is made of, and nothing about what happens as a result. A system reads them; the save file round-trips them.
+  * **The components** (`Trap`, `Fighter`, `Renderable`, ...) go in `models/src/components.rs`. Anything that is an *effect* — a property a creature holds, from `FireArrow` to `Blind` — goes in `models/src/effects.rs` instead, where it gets a registry row, an id in the save file and a lifetime. That file is nouns: every `Component`, `Resource` and `Event` the game is made of, and nothing about what happens as a result. A system reads them; the save file round-trips them.
 
   * **The table and its `Def` row** (`BESTIARY` / `MonsterDef`, the nine item tables, `TRAPS` / `TrapDef`) go in that object type's own module -- `monsters.rs`, `catalog.rs`, `traps.rs`. A row is plain data: a name, a glyph, and the numbers its components need. Row-level dials (`weight`, `min_depth`, a trap's `snare_turns`) live here too, so adding a row that wants its own value is still a one-file change -- not a trip to `constants.rs`.
 

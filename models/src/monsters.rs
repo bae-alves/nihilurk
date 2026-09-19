@@ -282,7 +282,12 @@ pub const BESTIARY: &[MonsterDef] = &[
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<Gorgon>()])
         .equip(&[EquipRoll { chance: MEDUSA_BOW_CHANCE, kind: EquipKind::Bow }]),
     MonsterDef::row("nymph",         'N',   Color::Magenta,     Chase,      2,   4,  -1,   4, -1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndVanishes>()]),
-    MonsterDef::row("orc",           'O',   Color::Red,         Chase,      1,   8,   0,   6,  0,   1)
+    // Three hit points, not one, because the orc is the only creature granted
+    // `CoinGreedy` and `ai::orc_coin_goal` asks for `hp < max_hp`: at 1 HP an
+    // orc is only ever at full health or dead, so its coin-greed could never
+    // fire. Three gives it room to be wounded and go looking for a red coin,
+    // which is the behaviour the grant is there for.
+    MonsterDef::row("orc",           'O',   Color::Red,         Chase,      3,   8,   0,   6,  0,   1)
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<CoinGreedy>()])
         .equip(&[
             EquipRoll { chance: ORC_GEAR_CHANCE, kind: EquipKind::Weapon },
@@ -494,8 +499,11 @@ fn equip_launcher(
 }
 
 /// Puts `item` on `mob` and, if it actually went on and the player can see the
-/// tile, announces it: `"It is wielding a long sword."` / `"It is wearing a
-/// suit of banded mail."`
+/// tile, announces it: `"They are wielding a long sword."` / `"They are
+/// wearing a suit of banded mail."`
+///
+/// Every creature in the dungeon is a they. The game does not know what lives
+/// down there and has no business guessing.
 fn equip_and_announce(world: &mut World, mob: Entity, item: Entity) {
     if !equip_silently(world, mob, item) {
         return;
@@ -516,7 +524,7 @@ fn equip_and_announce(world: &mut World, mob: Entity, item: Entity) {
     let name = crate::identify::with_article(world, item);
     world
         .resource_mut::<GameLog>()
-        .add(format!("It is {verb} {name}."));
+        .add(format!("They are {verb} {name}."));
 }
 
 // ---------------------------------------------------------------------------
@@ -604,7 +612,7 @@ pub fn reveal_mimics(world: &mut World) {
         world.entity_mut(xeroc).remove::<Spotted>();
         world
             .resource_mut::<GameLog>()
-            .add("The disguise falls away — it was a xeroc all along!".to_string());
+            .add("The disguise falls away — they were a xeroc all along!".to_string());
     }
 }
 

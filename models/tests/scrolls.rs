@@ -677,11 +677,16 @@ fn hold_monster_roots_what_you_can_see_and_leaves_the_rest_alone() {
 
     read(&mut w, p, ScrollEffect::HoldMonster);
 
-    let held = w.get::<Snare>(seen).expect("a monster in sight is bound");
-    assert_eq!(held.kind, SnareKind::Hold);
-    assert!(held.turns > 0);
     assert!(
-        w.get::<Snare>(unseen).is_none(),
+        w.get::<Rooted>(seen).is_some(),
+        "a monster in sight is bound"
+    );
+    assert!(
+        turns_left(&w, seen, Grant::of::<Rooted>()).is_some_and(|n| n > 0),
+        "bound for no turns at all"
+    );
+    assert!(
+        w.get::<Rooted>(unseen).is_none(),
         "a monster out of view is untouched"
     );
 }
@@ -731,8 +736,8 @@ fn read_sleep_once(seed: u64) -> bool {
 
     read(&mut w, p, ScrollEffect::Sleep);
 
-    let reader_out = w.get::<Snare>(p).map(|s| s.kind) == Some(SnareKind::Sleep);
-    let room_out = w.get::<Snare>(mob).map(|s| s.kind) == Some(SnareKind::Sleep);
+    let reader_out = w.get::<Asleep>(p).is_some();
+    let room_out = w.get::<Asleep>(mob).is_some();
     assert!(
         reader_out != room_out,
         "seed {seed}: the scroll takes the room or the reader, never both and never neither"
@@ -759,10 +764,7 @@ fn a_sleeping_monster_forfeits_its_turn_outright() {
     let p = player(&mut w);
     let hero = *w.get::<Position>(p).unwrap();
     let mob = spawn_dummy(&mut w, "rat", hero.x, hero.y + 1, 4, MovementType::Chase);
-    w.entity_mut(mob).insert(Snare {
-        turns: 3,
-        kind: SnareKind::Sleep,
-    });
+    hold(&mut w, mob, Grant::of::<Asleep>(), 3);
 
     run_ai(&mut w);
 

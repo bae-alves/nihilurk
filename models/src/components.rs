@@ -28,7 +28,7 @@
 //! through `crate::saveload`.
 //!
 //! **Ordering matters for saved types.** Every enum that derives `Serialize`
-//! ([`MovementType`], [`Faction`], [`SpeedKind`], [`SnareKind`], [`TrapReveal`],
+//! ([`MovementType`], [`Faction`], [`SpeedKind`], [`TrapReveal`],
 //! the `*Effect` enums) is written to the save by variant position, and every
 //! serialised struct by field order. Append new variants and fields; do not
 //! reorder existing ones, or old saves change meaning.
@@ -305,16 +305,6 @@ pub struct Mimic;
 /// leaves, so re-entering view spots it again. Transient, never serialised.
 #[derive(Component)]
 pub struct Spotted;
-
-/// Turned up by a potion of detection: this thing draws on the map even where
-/// the player cannot see it, dimly, for as long as they stay on this floor.
-/// Nothing clears it — leaving the floor despawns everything that carries it.
-///
-/// It says only *where*: a detected monster's glyph does not animate, take
-/// damage or get announced, because the player is sensing it rather than
-/// watching it. See `crate::items::potions`.
-#[derive(Component)]
-pub struct Detected;
 
 // ===========================================================================
 // Items: on the floor and in the pack
@@ -781,80 +771,10 @@ pub struct ReachPiercing;
 // Player conditions
 // ===========================================================================
 
-/// A transient affliction on the **player** (a monster is confused through
-/// [`MovementType::Confused`] instead). Half of every walk or swing while it
-/// lasts goes off in a random direction ("You stumble foolishly"), and fast
-/// movement, auto-explore and auto-fight all refuse to run. It is treacherous:
-/// it does not wear off with time — only using a staircase or being caught by a
-/// wand of cancellation clears it (both through
-/// `crate::conditions::clear_player_conditions`). Shown in the HUD as `CONF`.
-#[derive(Component)]
-pub struct Confused;
-
-/// The **player** can't see (a potion of blindness). Four things follow, and
-/// together they are the nastiest condition in the game:
-///
-/// * Their viewshed is cut to the 3x3 they could reach out and touch — no room
-///   floods in however well lit ([`crate::visibility`]).
-/// * Nothing in it has colour: every glyph they can make out is painted white.
-/// * No creature is perceptible at all, adjacent or not — every mob is [`Hidden`]
-///   while it lasts, so auto-explore and auto-fight have nothing to work with
-///   either.
-/// * The monsters are not blinded in return: [`crate::ai`] keeps using the view
-///   the player *would* have, so this is never a way to hide.
-///
-/// Everything already explored stays on screen as fog-grey memory. Lifted the
-/// same two ways [`Confused`] is. Shown in the HUD as `BLND`.
-///
-/// A blinded *monster* carries [`MovementType::Confused`] instead — it has no
-/// viewshed to put out, so all blindness can do to it is make it grope.
-#[derive(Component)]
-pub struct Blind;
-
-/// Limbs locked up (a potion of paralysis). Whoever carries it has had their
-/// [`Speed`] dropped to [`SpeedKind::Slow`]; on the **player** it costs a share
-/// of the turns that still leaves them
-/// ([`crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE`]) outright — no key
-/// read, the monsters move anyway. Lifted the same two ways [`Confused`] is, and
-/// shown in the HUD as `PARL` alongside the `SLOW` the slowing earns.
-///
-/// A paralysed *monster* keeps only the slowing — nothing rolls dice on its
-/// behalf — and wears this so the renderer can tint it. See
-/// [`crate::conditions::paralyse`].
-#[derive(Component)]
-pub struct Paralyzed;
-
-/// Hands charged with a charm (a scroll of monster confusion): the next blow
-/// the bearer *lands* confuses what it hits, and the charge is spent doing it.
-/// It is not a condition on the bearer — nothing about them is impaired — but it
-/// lives here because it rides along exactly like one: it does not wear off with
-/// time, and it survives a staircase (see [`crate::combat::resolve_attack`],
-/// which discharges it). Shown in the HUD as `GLOW`.
-///
-/// Whoever read the scroll carries it, monster or player alike, and the
-/// confusion it delivers goes through [`crate::conditions::confuse`] — so a
-/// hobgoblin that reads one you threw can charm *you* with its next punch.
-#[derive(Component, Default)]
-pub struct ConfusingTouch;
-
-/// The move Magic Ward: immunity to elemental/magic damage for the rest of
-/// the floor. Set the moment the move is cast, lifted like any other
-/// floor-scoped condition at the next staircase
-/// ([`crate::conditions::clear_player_conditions`]).
-#[derive(Component, Default)]
-pub struct MagicWard;
-
-/// The move Bide: coiled for one blow. Adds
-/// [`crate::constants::combat::BIDE_ATTACK_BONUS`] to the very next attack
-/// [`crate::combat::fold_matchup`] folds for its bearer, then is spent —
-/// whether that swing hits, glances or misses. A double-striking estoc or a
-/// cleave only ever sees it on the first swing of the turn. Do anything else
-/// with the turn instead — walk without attacking, use or throw something,
-/// cast another move — and it is lost the same way, unspent: see
-/// [`crate::equipment::reset_momentum`], which clears it on exactly the same
-/// occasions it zeroes a rapier's [`crate::effects::Momentum`].
-#[derive(Component, Default)]
-pub struct Bided;
+// `ConfusingTouch` and `Bided` used to be declared here. They are buffs the
+// bearer holds rather than conditions that impair them, so they are effects
+// now and live with the rest in `crate::effects` — which is also what puts
+// them in the save file and within reach of a wand of cancellation.
 
 /// A promise the dungeon made you, and the terms are the same for both of the
 /// coins that make one: **reach the next staircase without being hurt again**
@@ -937,33 +857,15 @@ pub struct Trap {
 #[derive(Component)]
 pub struct EntityMoved;
 
-/// Why an actor is losing turns to a [`Snare`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SnareKind {
-    /// Bear trap: physically pinned. Movement is impossible — a thrash against
-    /// the jaws wastes the turn and draws blood
-    /// ([`crate::constants::traps::BEAR_TRAP_THRASH_DAMAGE`]) — but the victim
-    /// can still attack an adjacent foe.
-    Bear,
-    /// Sleeping gas: out cold. No action of any kind until it wears off.
-    Sleep,
-    /// A scroll of hold monster: rooted to the spot by somebody else's words.
-    /// Mechanically a bear trap without the teeth — it cannot take a step, but
-    /// it can still strike whatever comes within reach — so walking away is what
-    /// the scroll buys you, not free kills.
-    Hold,
-}
-
-/// An actor that cannot act freely for `turns` more turns. Aged by
-/// `crate::traps::snare_system`; removed (with a wake-up log line for the
-/// player) when it hits zero. A [`SnareKind::Sleep`] snare forfeits the turn
-/// outright; a [`SnareKind::Bear`] or [`SnareKind::Hold`] snare only blocks
-/// movement. `crate::ai` applies the same rule to snared monsters.
-#[derive(Component)]
-pub struct Snare {
-    pub turns: u32,
-    pub kind: SnareKind,
-}
+// `Confused`, `Blind`, `Paralyzed`, `MagicWard` and `Detected` used to live
+// here too. They are effects now — things a creature *has*, that something
+// else asks about — so they live in `crate::effects` with the rest, which is
+// also what gives them a lifetime and puts them in the save file by name.
+//
+// `Snare` and `SnareKind` used to live here. The three holds they described
+// are ordinary effects now — `Asleep`, `Pinned` and `Rooted` in
+// `crate::effects` — each with its own clock, so a creature can be asleep and
+// pinned at once and come out of each when its own turns run out.
 
 // ===========================================================================
 // Score

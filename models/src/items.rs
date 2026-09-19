@@ -35,7 +35,7 @@ mod wands;
 pub use moves::{move_cost, move_system};
 
 /// The leprechaun's and the nymph's on-hit tricks, named by
-/// [`crate::abilities::ON_HIT_ABILITIES`] without that table knowing anything
+/// [`crate::abilities::ABILITIES`] without that table knowing anything
 /// about potions, scrolls or teleportation.
 pub(crate) use theft::{leprechaun_theft, nymph_theft};
 
@@ -47,8 +47,9 @@ pub use throwing::{
 /// melee attack for as long as it has one drawn.
 pub(crate) use throwing::monster_ranged_attack;
 
-/// A dragon's fireball, called by [`crate::ai`] in place of a melee attack.
 pub(crate) use wands::dragon_breath;
+/// A dragon's fireball, called by [`crate::ai`] in place of a melee attack.
+pub(crate) use wands::ward_ricochet;
 
 /// The `T` key's whole implementation — the deliberate teleport a ring of
 /// teleportation makes possible. Public because the input loop calls it; silent
