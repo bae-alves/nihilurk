@@ -99,7 +99,7 @@ The two `esp32*` rows are never executed, under any flag: they are `no_std`, and
 2. What is being checked
 -------------------------
 
-`engine -content`: it prints the game's content index and exits, without ever touching the terminal's alternate screen. That is the whole check -- if it prints something and exits 0, the row can run nihilurk. There is nothing to grade beyond that: nihilurk asks nothing of a machine that cross-compiling a full Rust toolchain (which `cross_build.sh` already proved this target can do) does not ask for first.
+`nihilurk -content`: it prints the game's content index and exits, without ever touching the terminal's alternate screen. That is the whole check -- if it prints something and exits 0, the row can run nihilurk. There is nothing to grade beyond that: nihilurk asks nothing of a machine that cross-compiling a full Rust toolchain (which `cross_build.sh` already proved this target can do) does not ask for first.
 
 
 3. How big is it, and whose fault is that?
@@ -210,7 +210,7 @@ A qemu row skipped saying it could not fetch its interpreter
 
         cargo build --release --target x86_64-unknown-linux-musl -p engine
 
-`no binary at target/cross/<triple>/<triple>/release/engine`
+`no binary at target/cross/<triple>/<triple>/release/nihilurk`
 
     Phase 2 was run before phase 1, or for a row phase 1 skipped:
 

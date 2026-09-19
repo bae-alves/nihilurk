@@ -1,0 +1,34 @@
+# Maintainer: bae <bervillarinho@gmail.com>
+pkgname=nihilurk
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Terminal roguelike about descending thirteen floors to reclaim the Element of Yoord"
+arch=('x86_64')
+url="https://github.com/bae-alves/nihilurk"
+license=('GPL3')
+makedepends=('rust')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/bae-alves/nihilurk/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('01c54fedea2609e26a9778020f8ae9287106f61c2916486d347be63a132dc964')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    cargo build --frozen --release --workspace --exclude nihilurk-compat
+}
+
+check() {
+    cd "$pkgname-$pkgver"
+    cargo test --frozen --release --workspace --exclude nihilurk-compat
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 target/release/nihilurk "$pkgdir/usr/bin/nihilurk"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 doc/nihilurk.6 "$pkgdir/usr/share/man/man6/nihilurk.6"
+    install -Dm644 MANUAL.md "$pkgdir/usr/share/doc/$pkgname/MANUAL.md"
+}

@@ -6,12 +6,13 @@
 # One container per target, driven by cross-rs, reading the matrix in
 # matrix.tsv. One binary per row:
 #
-#   engine      the game. Built `--release`, which is the profile that ships:
-#               fat LTO, one codegen unit, panic=abort, symbols stripped. This
-#               is the artifact whose size is reported, and the one
-#               `run_check.sh` runs inside the emulated container in phase 2.
+#   nihilurk    the game (built from the `engine` package). Built `--release`,
+#               which is the profile that ships: fat LTO, one codegen unit,
+#               panic=abort, symbols stripped. This is the artifact whose
+#               size is reported, and the one `run_check.sh` runs inside the
+#               emulated container in phase 2.
 #
-# and, unless `--no-blame`, a second build of `engine` on the `profiling`
+# and, unless `--no-blame`, a second build of `nihilurk` on the `profiling`
 # profile -- byte-for-byte the same machine code with the symbols left in, which
 # is the only way to ask a stripped binary what is inside it.
 #
@@ -81,7 +82,7 @@ while IFS=$'\t' read -r id target class platform image exec note_text; do
   export CARGO_TARGET_DIR
   CARGO_TARGET_DIR=$(cross_target_dir "$target")
   printf '%s      building %-10s %s' "$DIM" "$GAME" "$R"
-  if ! "$CROSS" build --release --target "$target" -p "$GAME" >>"$log" 2>&1; then
+  if ! "$CROSS" build --release --target "$target" -p "$GAME_PKG" >>"$log" 2>&1; then
     printf '%sfailed%s\n' "$RED" "$R"
     bad "$id did not build; see $log"
     tail -12 "$log" | sed 's/^/      /'
@@ -131,7 +132,7 @@ while IFS=$'\t' read -r id target size _; do
   printf '      %-10s %-32s %10s %10d\n' \
     "$id" "$target" "$(human_bytes "$size")" "$size"
 done < "$FOOTPRINT"
-note "game = engine, --release: fat LTO, one codegen unit, symbols stripped"
+note "game = nihilurk, --release: fat LTO, one codegen unit, symbols stripped"
 note "the arm/i686 rows are smaller because a 32-bit pointer is smaller"
 
 # ---------------------------------------------------------------------------
@@ -158,7 +159,7 @@ else
       log="$OUT/build-$id.log"
       CARGO_TARGET_DIR=$(cross_target_dir "$target")
       printf '%s      %-10s symbols... %s' "$DIM" "$id" "$R"
-      if ! "$CROSS" build --profile profiling --target "$target" -p "$GAME" >>"$log" 2>&1; then
+      if ! "$CROSS" build --profile profiling --target "$target" -p "$GAME_PKG" >>"$log" 2>&1; then
         printf '%sfailed%s\n' "$RED" "$R"
         warn "$id: profiling build failed; see $log"
         continue

@@ -53,9 +53,12 @@ MATRIX="$COMPAT_DIR/matrix.tsv"
 OUT="$ROOT/target/compat"
 export CROSS_CONFIG="$COMPAT_DIR/Cross.toml"
 
-# What the containers run: `engine`, the game itself, built to have its size
-# measured, to prove the target links, and to prove it starts.
-GAME=engine
+# What the containers run: the game itself, built to have its size measured,
+# to prove the target links, and to prove it starts. `GAME_PKG` is the cargo
+# package to build (`-p`); `GAME` is the binary that package produces, which
+# is not the same name since `engine`'s `[[bin]]` renamed its output.
+GAME_PKG=engine
+GAME=nihilurk
 
 # ---------------------------------------------------------------------------
 # Tools that hide
@@ -101,7 +104,7 @@ nm_bin() {
 matrix_rows() {
   local want_class="${1:-}"
   awk -F'\t' -v want="$want_class" -v only="${ONLY:-}" '
-    /^[[:space:]]*#/ || NF < 9 { next }
+    /^[[:space:]]*#/ || NF < 7 { next }
     want != "" && $3 != want   { next }
     only != "" {
       found = 0
@@ -119,8 +122,11 @@ matrix_rows_or_die() {
   local rows
   rows=$(matrix_rows "$@")
   if [ -z "$rows" ]; then
-    bad "no matrix rows matched${ONLY:+ --targets $ONLY}"
-    note "rows available: $(matrix_rows | cut -f1 | tr '\n' ' ')"
+    # Every caller feeds this straight into `while read` via process
+    # substitution, so anything printed to stdout here becomes a fake row
+    # instead of a diagnostic. Both lines go to stderr for that reason.
+    bad "no matrix rows matched${ONLY:+ --targets $ONLY}" >&2
+    note "rows available: $(matrix_rows | cut -f1 | tr '\n' ' ')" >&2
     exit 1
   fi
   printf '%s\n' "$rows"
