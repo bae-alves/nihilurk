@@ -16,6 +16,8 @@ Reference: rendering
 
 So the thing easiest to get subtly wrong here — the draw order in `render`, where a later layer silently covers an earlier one — is caught by you, not by CI. Change it, then run the game and look, in more than one terminal if you can.
 
+The one thing here that *is* asserted is not presentation: `log_panel` — the rule that holds the `--MORE--` prompt back while particles are playing, below — is pinned by two tests in `view.rs`, on a fixture of two resources. What it protects is a keypress the player loses an animation to, not which cell a glyph landed in, and it cannot be checked by looking: the frame it is wrong in looks exactly right.
+
 
 The frame buffer
 -----------------
@@ -99,7 +101,7 @@ Painted in this order — everything after "Terrain" draws over whatever came be
   11. **Particles** — drawn over actors deliberately, so a hit motes over the thing it hit rather than under it.
   12. **Targeting beam** — a Bresenham line from the player to the reticle, drawn as `*` in yellow, except where it crosses an actor: the actor's own glyph is kept but recoloured yellow (or black, if the actor was already yellow-ish, so it doesn't vanish into the beam). The reticle's own tip additionally gets a `DarkBlue` background.
   13. **Travel cursor** — a background-only highlight (`set_bg`), so the glyph and colour of whatever's on that tile stay readable.
-  14. **Message log** (rows 22–24).
+  14. **Message log** (rows 22–24). Its `--MORE--` prompt waits for the effect layer — see `log_panel`, under "The two blocking loops" below.
   15. **Inventory overlay** — drawn last, on top of everything.
 
 `occupied_by_actor`, computed once up front, is the set every "don't draw under a mob" rule in steps 3–8 checks against.
@@ -164,6 +166,8 @@ pub fn play_magic_map<W: Write>(world, stdout, screen) -> std::io::Result<()>
 Both share the same shape: while the effect (`Particles`/ `MagicMapReveal`) still has something to show, advance it one frame, call `render` to paint the result, then `poll` for the frame's duration — a keypress during that poll is swallowed and skips straight to the finished state (magic mapping additionally `finish_magic_map_reveal`s the map instantly rather than leaving it part-revealed). Frame duration is `AnimRate`-scaled (`-anim-rate`, clamped `0.1..=5.0`) off a `33ms` base for particles and `MagicMapReveal::frame_ms()` for the map wipe, so a slow terminal or a player who wants snappier turns can retune both without either one's code changing.
 
 The turn itself is already fully resolved by the time either of these runs — they only animate what already happened, which is what makes it safe to block input here the way NetHack and DCSS do for a bolt.
+
+**The `--MORE--` prompt waits for the effect layer** (`log_panel`, which packs layer 14's lines and answers for the prompt in the same breath). Because that poll takes *any* key as "skip", a prompt asking for Space while motes are still on screen asks for the one key that throws the rest of the batch away — and a batch is ordered. A trick shot's blast is queued *behind* the missile's flight (`Particles::hold_ms`), so the key lands during the wind-up, eats the explosion, and leaves the flight looking fine: the shot animates perfectly right up to the part worth watching. A trick shot raises the prompt every time — it shouts, kills, drops the dead one's gear and then says "Very clever.", eleven messages for three lines of log — which is why that was the blast nobody could get to play. Only the prompt waits: the three lines that fit are painted throughout, and the backlog is out of reach for no longer than the animation the player is already watching.
 
 Both also call `age_shake` once per frame and `settle_shake` on the skip-keypress, so a shake armed by the same turn keeps decaying over whichever animation happens to be on screen — which is the common case, not an edge one: a blast arms the shake and queues its particles in the same breath, and the two are meant to be seen together. Skipping the sparks skips the shake with them; they are one effect.
 

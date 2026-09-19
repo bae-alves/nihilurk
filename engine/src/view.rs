@@ -66,6 +66,30 @@ pub fn centering_offset(world: &World) -> (u16, u16) {
     )
 }
 
+/// What the message log shows this frame: the unread messages packed onto its
+/// three lines, and whether the `--MORE--` prompt goes up under them. One
+/// `log_view` for the pair, since the prompt is a fact about the same packing
+/// that produced the lines.
+///
+/// The prompt needs more than a backlog — it also waits for the effect layer.
+/// [`play_particles`] reads *any* keypress as "skip the animation", so a
+/// prompt up while motes are still on screen asks for the one key that throws
+/// the rest of the batch away — and a batch is ordered: a trick shot's blast
+/// is queued *behind* the missile's flight (`Particles::hold_ms`), so that
+/// keypress eats the explosion and leaves the flight looking fine. A trick
+/// shot raises the prompt every time — it shouts, kills, drops the dead one's
+/// gear and then says "Very clever." — which is why it was the shot nobody
+/// could get to explode.
+///
+/// Only the prompt waits. The lines that fit are painted throughout, and the
+/// backlog is out of reach for no longer than the animation the player is
+/// already watching.
+fn log_panel(world: &World) -> (Vec<Vec<String>>, bool) {
+    let animating = world.resource::<Particles>().any_alive();
+    let (lines, _consumed, more) = log_view(&world.resource::<GameLog>().unread);
+    (lines, more && !animating)
+}
+
 pub fn render<W: Write>(
     world: &mut World,
     stdout: &mut W,
@@ -628,8 +652,7 @@ pub fn render<W: Write>(
     // the sentences beside it — and one of them is painted a letter at a time.
     {
         let stripes = models::pride::stripes(world);
-        let log = world.resource::<GameLog>();
-        let (lines, _consumed, more) = log_view(&log.unread);
+        let (lines, more) = log_panel(world);
         for (i, segments) in lines.iter().enumerate() {
             let y = 22 + i as u16;
             let last = i + 1 == lines.len();
@@ -1232,4 +1255,69 @@ fn draw_moves(world: &mut World, screen: &mut Screen) {
     screen.put(start_x, bottom_y, '└', grey);
     screen.hline(start_x + 1, bottom_y, '─', box_width, grey);
     screen.put(start_x + 1 + box_width, bottom_y, '┘', grey);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A world holding only what the log panel reads. Deliberately not a
+    /// mirror of `main`'s startup: this asserts a rule, not a frame, and the
+    /// last end-to-end render test here died of hand-copying twenty-two
+    /// resources — see `docs/explanation/the-feel-layer.md`.
+    fn gate_world() -> World {
+        let mut w = World::new();
+        w.init_resource::<GameLog>();
+        w.init_resource::<Particles>();
+        w
+    }
+
+    /// More unread messages than the log's three lines can hold — what a trick
+    /// shot leaves behind once it has shouted, killed and dropped their gear.
+    fn flood_the_log(w: &mut World) {
+        let mut log = w.resource_mut::<GameLog>();
+        log.unread.clear();
+        for i in 0..12 {
+            log.unread
+                .push(format!("Message number {i} is a fairly long one."));
+        }
+        assert!(
+            log_view(&w.resource::<GameLog>().unread).2,
+            "the fixture did not actually give the log a backlog to prompt about"
+        );
+    }
+
+    #[test]
+    fn a_backlog_holds_its_prompt_until_the_animation_is_over() {
+        let mut w = gate_world();
+        flood_the_log(&mut w);
+        // A blast still ripening behind a missile in flight: the batch a trick
+        // shot queues, and the moment the prompt used to ask for the keypress
+        // that would throw the blast away.
+        {
+            let mut fx = w.resource_mut::<Particles>();
+            fx.hurl(&[(1, 1), (2, 1)], '\u{2191}', Color::Grey);
+            fx.explosion(&[(2, 1, 0.0)], BlastPalette::Force);
+        }
+        assert!(
+            !log_panel(&w).1,
+            "the prompt asked for a key while a key would have skipped the blast"
+        );
+
+        w.resource_mut::<Particles>().clear();
+        assert!(
+            log_panel(&w).1,
+            "the animation is over — the prompt has to come up now, or the backlog is unreachable"
+        );
+    }
+
+    #[test]
+    fn an_animation_alone_raises_no_prompt() {
+        let mut w = gate_world();
+        w.resource_mut::<Particles>().hit_spark(1, 1);
+        assert!(
+            !log_panel(&w).1,
+            "nothing is waiting to be read: the gate has nothing to hold back"
+        );
+    }
 }
