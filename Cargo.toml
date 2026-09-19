@@ -30,6 +30,9 @@ default-members = [
     "view"
 ]
 
+[workspace.package]
+license = "GPL-3.0-or-later"
+
 # Clippy: only the `correctness`, `suspicious`, `complexity` and `perf` lint
 # groups are used. Everything else (notably `style`, plus `pedantic`/`nursery`)
 # is silenced. `all` is allowed first at a lower priority so the four groups
