@@ -429,12 +429,12 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // documented in `docs/reference/input-and-turn-loop.md`.
     let mut schedule = Schedule::default();
     schedule.add_systems((
-        smoke_system.before(snare_system),
-        snare_system,
+        smoke_system.before(tick_effects),
+        tick_effects,
         // A xeroc's disguise falls away the instant the player is adjacent to
         // it — before `ai` runs, so the very turn that happens it also gets
         // to lash out as the `Ambush` mob it always was.
-        reveal_mimics.after(snare_system),
+        reveal_mimics.after(tick_effects),
         ai.after(reveal_mimics),
         // A coin-greedy orc that just stepped onto a coin it can use claims it
         // here, while `EntityMoved` still marks it — the same tag the trap
@@ -459,8 +459,8 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         // late enough that a jump lands at the top of the player's next turn —
         // they see where they are and act before anything else moves — and
         // early enough that visibility still gets a pass over the new tile.
-        passive_ability_system.after(dungeon_lord_system),
-        visibility_system.after(passive_ability_system),
+        ability_system.after(dungeon_lord_system),
+        visibility_system.after(ability_system),
         // Dead last: everything that can pay the player has paid by now, so a
         // flash armed anywhere in this turn is still lit for this turn's render
         // and dark by the next one.

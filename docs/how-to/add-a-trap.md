@@ -15,7 +15,7 @@ The mechanics are one file:
 
     models/src/traps.rs
 
-The components a trap is built from -- `Trap`, `TrapEffect`, `TrapReveal`, `Snare`, `SnareKind`, `EntityMoved` -- are nouns and live in `models/src/components.rs` with everything else the ECS is made of. You add a `TrapEffect` *variant* there; the row and the mechanic stay here.
+The components a trap is built from -- `Trap`, `TrapEffect`, `TrapReveal`, `EntityMoved` -- are nouns and live in `models/src/components.rs` with everything else the ECS is made of. The three holds a trap can put on a victim (`Asleep`, `Pinned`, `Rooted`) are ordinary effects and live in `models/src/effects.rs`. You add a `TrapEffect` *variant* there; the row and the mechanic stay here.
 
 
 The recipe
@@ -61,7 +61,7 @@ Writing the mechanic
 Look at what the existing six do, and reuse the pieces:
 
     trapdoor_effect       moves the victim to the next floor down
-    snare_victim(...)     Snares the victim for `TrapDef.snare_turns` turns
+    snare_victim(...)     Holds the victim for `TrapDef.snare_turns` turns
                           (bear trap pins the feet, gas takes the turn)
     teleport_effect       relocates the victim on this floor
     arrow_effect          damage, and drops a real arrow on a miss
@@ -100,7 +100,9 @@ Your arm receives:
 > nothing else -- see `arrow_effect`. Rolling a full opposed defence would
 > make armour far better against traps than the design intends.
 
-If your trap costs the victim turns, use `Snare`. It is aged down once per turn by `snare_system`. A `SnareKind::Sleep` snare forfeits the victim's turn outright (`player_incapacitated`, and the AI skips the monster); a `SnareKind::Bear` snare only blocks movement -- a swing still lands, a step is a `bear_trap_thrash`. You do not have to implement any of that; you attach the component and pick the kind.
+If your trap costs the victim turns, hold them: `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)`, or `Pinned`, or `Rooted`. Each is an ordinary effect held for `Lifetime::Turns`, aged down once per turn by `effects::tick_effects` and lifted when its clock runs out. `Asleep` forfeits the victim's turn outright (`player_incapacitated`, and the AI skips the monster); `Pinned` only blocks movement -- a swing still lands, a step is a `bear_trap_thrash`; `Rooted` is `Pinned` without the teeth. You do not have to implement any of that; you pick which hold and for how long.
+
+The three run on their own clocks, so a victim can be asleep *and* pinned, and comes out of each when its own turns are up.
 
 
 Reveal styles

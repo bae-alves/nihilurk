@@ -26,7 +26,11 @@ pub mod visibility;
 pub use monsters::*;
 mod combat;
 mod helpers;
-pub use helpers::{chebyshev, mob_at};
+// `helpers` is plumbing and stays private, with three exceptions. `apply_hit`
+// and `Hit` are the one place mitigation is decided — every source of harm in
+// the game goes through them — so they are part of the crate's surface rather
+// than an internal detail.
+pub use helpers::{Hit, apply_hit, chebyshev, mob_at};
 mod identify;
 mod items;
 mod saveload;

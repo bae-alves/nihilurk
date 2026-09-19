@@ -20,7 +20,7 @@ use crate::conditions::{clear_player_conditions, confuse, shift_entity_speed};
 use crate::effects::*;
 use crate::equipment::{equipped_items, sync_equipment_effects};
 use crate::helpers::{
-    apply_damage, get_entities_at_position, get_line, item_label, leave_smoke, monster_at,
+    Hit, apply_hit, get_entities_at_position, get_line, item_label, leave_smoke, monster_at,
     player_sees, roll_dice,
 };
 use crate::identify::article_for;
@@ -33,53 +33,30 @@ use crate::traps::random_open_tile;
 use super::scrolls::teleport_reader;
 use crate::constants::wands::{BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES, SMOKE_LINGER_TURNS};
 
-/// Whether `entity` shrugs off `element`, from any source.
-fn is_immune(world: &World, entity: Entity, element: Element) -> bool {
-    element.immunity().probe(world, entity)
-}
-
 /// A wand's damage: `[DAMAGE_DICE]d[DAMAGE_SIDES]`, rolled once per zap and
-/// applied whole to every creature it touches (armour is never subtracted — see
-/// [`apply_damage`]).
+/// applied whole to every creature it touches (armour is never subtracted).
 fn roll_wand_damage(world: &mut World) -> i32 {
     roll_dice(world, DAMAGE_DICE, DAMAGE_SIDES)
 }
 
-/// Applies `damage` of `element` (or non-elemental if `None`) to `entity`,
-/// respecting immunity. Returns how much HP was actually taken off — 0 if the
-/// creature resisted or had no [`Fighter`]. Immunity is logged for named
-/// creatures.
+/// Applies `damage` of `element` (or non-elemental if `None`) to `entity`.
+/// Returns how much HP was actually taken off.
+///
+/// This used to be where the ward and the immunity were decided, and it was
+/// the only damage path in the game that decided both. It is a one-line
+/// wrapper over [`apply_hit`] now, which is where every path decides them.
 fn damage_with_element(
     world: &mut World,
     entity: Entity,
     damage: i32,
     element: Option<Element>,
 ) -> i32 {
-    // The move Magic Ward: a shield up for the rest of the floor against
-    // every wand-shaped source of harm — zapped, thrown, breathed or cast —
-    // whatever its element. See `crate::components::MagicWard`.
-    if world.get::<MagicWard>(entity).is_some() {
-        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("The {name}'s ward turns the magic aside."));
-        }
-        ward_ricochet(world, entity);
-        return 0;
-    }
-    if let Some(el) = element.filter(|&el| is_immune(world, entity, el)) {
-        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
-            world
-                .resource_mut::<GameLog>()
-                .add(format!("The {name} is unharmed by the {}.", el.noun()));
-        }
-        return 0;
-    }
-    let Some(hp_before) = world.get::<Fighter>(entity).map(|f| f.hp) else {
-        return 0;
+    let hit = Hit {
+        amount: damage,
+        element,
+        magical: true,
     };
-    apply_damage(world, entity, damage);
-    damage.min(hp_before.max(0))
+    apply_hit(world, entity, hit, None)
 }
 
 /// The move Magic Ward turning away a hit: a flash off the chest and
@@ -87,7 +64,7 @@ fn damage_with_element(
 /// ricochets off at a random angle in a random bright colour and is gone.
 /// Purely cosmetic; the damage above is already zeroed by the time this
 /// plays, so a headless world (no [`Particles`] resource) just skips it.
-pub(super) fn ward_ricochet(world: &mut World, victim: Entity) {
+pub(crate) fn ward_ricochet(world: &mut World, victim: Entity) {
     let Some(pos) = world.get::<Position>(victim).copied() else {
         return;
     };
@@ -463,7 +440,7 @@ pub(super) fn apply_wand_effect(
     // `crate::abilities::medusa_gaze`. Checked once here rather than in every
     // arm below: it's the tile the player chose to zap, whatever the wand.
     if let Some(seen) = monster_at(world, target_pos) {
-        crate::abilities::medusa_gaze(world, user, seen);
+        crate::abilities::fire_on_targeted(world, user, seen);
     }
 
     // Exhaustive over `WandEffect`, deliberately with no catch-all: a wand
@@ -783,9 +760,12 @@ pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
             p.y = y;
         }
     }
-    world
-        .entity_mut(victim)
-        .remove::<crate::components::Snare>();
+    // Through the ledger, not around it: removing the component alone leaves
+    // the hold's row still counting down, and `effects::hold` reads those rows
+    // to decide whether a fresh hold is worth applying — so the next trap to
+    // close on this creature would do nothing. Same jump, same rule, as the
+    // scroll of teleportation.
+    crate::effects::revoke_any(world, victim, &crate::effects::HOLDS);
     if let Some(old_pos) = old_pos {
         leave_smoke(world, old_pos);
     }
@@ -871,8 +851,13 @@ pub(super) fn cancel_entity(world: &mut World, victim: Entity) {
 /// mercy is that a curse counts as magic too, so it lifts without taking the
 /// item with it.
 fn cancel_player(world: &mut World, player: Entity) {
-    revoke_all(world, player);
+    // Conditions first, and the order matters. The afflictions are effects
+    // now, so `revoke_all` would strip them along with everything else —
+    // correctly, but in silence, and the player would never be told the
+    // confusion had lifted. Lifting them here means each still announces
+    // itself before the blast takes the rest.
     clear_player_conditions(world, player);
+    revoke_all(world, player);
 
     let mut carried: Vec<Entity> = world
         .get::<Backpack>(player)

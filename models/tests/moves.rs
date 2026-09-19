@@ -92,7 +92,7 @@ fn bide_adds_its_flat_bonus_to_the_very_next_attack_then_is_spent() {
         let (_here, spot) = beside_player(&mut w);
         let target = dummy(&mut w, spot, 1_000);
         if bided {
-            w.entity_mut(p).insert(Bided);
+            lend(&mut w, p, Grant::of::<Bided>(), Lifetime::NextAction);
         }
         melee_attack(&mut w, p, target);
         1_000 - w.get::<Fighter>(target).unwrap().hp
@@ -112,7 +112,7 @@ fn bide_adds_its_flat_bonus_to_the_very_next_attack_then_is_spent() {
 fn bide_is_lost_unfired_by_anything_that_is_not_an_attack() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    w.entity_mut(p).insert(Bided);
+    lend(&mut w, p, Grant::of::<Bided>(), Lifetime::NextAction);
     assert!(w.get::<Bided>(p).is_some());
 
     // The same reset a rapier's built-up momentum gets the moment its
@@ -130,7 +130,7 @@ fn bide_survives_up_to_the_attack_that_spends_it() {
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
     let target = dummy(&mut w, spot, 1_000);
-    w.entity_mut(p).insert(Bided);
+    lend(&mut w, p, Grant::of::<Bided>(), Lifetime::NextAction);
 
     melee_attack(&mut w, p, target);
 

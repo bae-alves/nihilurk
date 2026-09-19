@@ -27,6 +27,8 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::world::{EntityRef, EntityWorldMut};
 use std::any::TypeId;
 
+use crate::components::{GameLog, Player};
+
 // ---------------------------------------------------------------------------
 // Marker effects
 // ---------------------------------------------------------------------------
@@ -84,6 +86,32 @@ pub struct RustsArmor;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Sluggish;
 
+/// Hands charged with a charm (a scroll of monster confusion): the next blow
+/// the bearer *lands* confuses what it hits, and the charge is spent doing it.
+/// Nothing about the bearer is impaired, which is why it is an effect and not
+/// a condition — it is a buff they are holding, the same way [`Sluggish`] is
+/// one they are suffering. It does not wear off with time and it survives a
+/// staircase; [`crate::combat::resolve_attack`] discharges it. Shown in the
+/// HUD as `GLOW`.
+///
+/// Whoever read the scroll carries it, monster or player alike, and the
+/// confusion it delivers goes through [`crate::conditions::confuse`] — so a
+/// hobgoblin that reads one you threw can charm *you* with its next punch.
+#[derive(Component, Default, Clone, Copy)]
+pub struct ConfusingTouch;
+
+/// The move Bide: coiled for one blow. Adds
+/// [`crate::constants::combat::BIDE_ATTACK_BONUS`] to the very next attack
+/// [`crate::combat::fold_matchup`] folds for its bearer, then is spent —
+/// whether that swing hits, glances or misses. A double-striking estoc or a
+/// cleave only ever sees it on the first swing of the turn. Do anything else
+/// with the turn instead — walk without attacking, use or throw something,
+/// cast another move — and it is lost the same way, unspent: see
+/// [`crate::equipment::reset_momentum`], which clears it on exactly the same
+/// occasions it zeroes a rapier's [`Momentum`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Bided;
+
 /// Nothing notices this creature until it is close enough to touch — two tiles
 /// (a ring of stealth). Monsters that already know where it is because somebody
 /// shrieked ([`crate::components::MovementType::Aggravated`]) come anyway: the
@@ -94,7 +122,7 @@ pub struct Stealthy;
 
 /// This creature knits itself back together as it goes: a roll each turn either
 /// lifts one affliction or gives back a point of drained strength (a ring of
-/// regeneration). A [`crate::abilities::PassiveAbility`], so the odds and the
+/// regeneration). An [`crate::abilities::Ability`] at [`crate::abilities::Moment::EachTurn`], so the odds and the
 /// mechanic live in that table rather than here.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Regenerates;
@@ -163,7 +191,7 @@ pub struct Binds;
 
 /// Petrifies anything that attacks it, fires at it or zaps it — a gaze that
 /// lands the instant the player targets this creature, not on the blow that
-/// follows (the medusa). See [`crate::abilities::medusa_gaze`].
+/// follows (the medusa). Fired at [`crate::abilities::Moment::OnTargeted`].
 #[derive(Component, Default, Clone, Copy)]
 pub struct Gorgon;
 
@@ -220,7 +248,7 @@ pub struct Splits;
 pub struct Cleaves;
 
 /// The greatclub's weight: a hit that lands staggers its victim — one turn
-/// with no action at all, the same [`crate::components::SnareKind::Sleep`] a
+/// with no action at all, the same [`Asleep`] a
 /// sleep trap uses — and the effort of the swing costs the wielder a beat of
 /// their own, played out as one extra monster round immediately after. See
 /// `crate::abilities::heavy_stagger` and [`crate::components::ExtraMonsterRound`].
@@ -462,54 +490,221 @@ impl Grant {
         (self.probe)(world, entity)
     }
 
-    /// This effect's slot in [`EFFECTS`] — its stable bit in an [`EffectSet`].
-    fn bit(&self) -> Option<EffectSet> {
-        EFFECTS.iter().position(|g| g.id == self.id).map(|i| 1 << i)
+    /// The stable save-file id for this effect, or `None` when the handle
+    /// names a component that is not a registered effect.
+    pub fn effect_id(&self) -> Option<&'static str> {
+        EFFECTS.iter().find(|e| e.grant.id == self.id).map(|e| e.id)
     }
 }
 
-/// Every marker effect in the game, in a fixed order: an effect's index here is
-/// the bit it occupies in an [`EffectSet`], which is what a save file stores.
-/// **Append new effects at the end; never reorder** — that would rewrite the
-/// meaning of existing saves.
-pub const EFFECTS: &[Grant] = &[
-    Grant::of::<FireImmune>(),
-    Grant::of::<ColdImmune>(),
-    Grant::of::<Undead>(),
-    Grant::of::<VorpalTarget>(),
-    Grant::of::<SeesInvisible>(),
-    Grant::of::<SustainsStrength>(),
-    Grant::of::<AggravatesMonsters>(),
-    Grant::of::<ItemUser>(),
-    Grant::of::<FireArrow>(),
-    Grant::of::<FireQuarrel>(),
-    Grant::of::<SustainsArmor>(),
-    Grant::of::<RustsArmor>(),
-    Grant::of::<Sluggish>(),
-    Grant::of::<Stealthy>(),
-    Grant::of::<Regenerates>(),
-    Grant::of::<Teleportitis>(),
-    Grant::of::<Flies>(),
-    Grant::of::<Batty>(),
-    Grant::of::<Binds>(),
-    Grant::of::<Gorgon>(),
-    Grant::of::<Vampiric>(),
-    Grant::of::<Venomous>(),
-    Grant::of::<CoinGreedy>(),
-    Grant::of::<Splits>(),
-    Grant::of::<Freezing>(),
-    Grant::of::<StealsAndFlees>(),
-    Grant::of::<StealsAndVanishes>(),
-    Grant::of::<FireBreath>(),
-    Grant::of::<Cleaves>(),
-    Grant::of::<HeavySwing>(),
-    Grant::of::<Fencer>(),
-    Grant::of::<WhirlOnMove>(),
-    Grant::of::<VorpalOnCondition>(),
-    Grant::of::<TurboMagic>(),
-    Grant::of::<SelfDamageOnHit>(),
-    Grant::of::<BuildsMomentum>(),
-];
+/// A transient affliction on the **player** (a monster is confused through
+/// [`MovementType::Confused`] instead). Half of every walk or swing while it
+/// lasts goes off in a random direction ("You stumble foolishly"), and fast
+/// movement, auto-explore and auto-fight all refuse to run. It is treacherous:
+/// it does not wear off with time — only using a staircase or being caught by a
+/// wand of cancellation clears it (both through
+/// `crate::conditions::clear_player_conditions`). Shown in the HUD as `CONF`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Confused;
+/// The **player** can't see (a potion of blindness). Four things follow, and
+/// together they are the nastiest condition in the game:
+///
+/// * Their viewshed is cut to the 3x3 they could reach out and touch — no room
+///   floods in however well lit ([`crate::visibility`]).
+/// * Nothing in it has colour: every glyph they can make out is painted white.
+/// * No creature is perceptible at all, adjacent or not — every mob is [`Hidden`]
+///   while it lasts, so auto-explore and auto-fight have nothing to work with
+///   either.
+/// * The monsters are not blinded in return: [`crate::ai`] keeps using the view
+///   the player *would* have, so this is never a way to hide.
+///
+/// Everything already explored stays on screen as fog-grey memory. Lifted the
+/// same two ways [`Confused`] is. Shown in the HUD as `BLND`.
+///
+/// A blinded *monster* carries [`MovementType::Confused`] instead — it has no
+/// viewshed to put out, so all blindness can do to it is make it grope.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Blind;
+/// Limbs locked up (a potion of paralysis). Whoever carries it has had their
+/// [`Speed`] dropped to [`SpeedKind::Slow`]; on the **player** it costs a share
+/// of the turns that still leaves them
+/// ([`crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE`]) outright — no key
+/// read, the monsters move anyway. Lifted the same two ways [`Confused`] is, and
+/// shown in the HUD as `PARL` alongside the `SLOW` the slowing earns.
+///
+/// A paralysed *monster* keeps only the slowing — nothing rolls dice on its
+/// behalf — and wears this so the renderer can tint it. See
+/// [`crate::conditions::paralyse`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Paralyzed;
+/// The move Magic Ward: immunity to elemental/magic damage for the rest of
+/// the floor. Set the moment the move is cast, lifted like any other
+/// floor-scoped condition at the next staircase
+/// ([`crate::conditions::clear_player_conditions`]).
+#[derive(Component, Default, Clone, Copy)]
+pub struct MagicWard;
+/// Turned up by a potion of detection: this thing draws on the map even where
+/// the player cannot see it, dimly, for as long as they stay on this floor.
+/// Nothing clears it — leaving the floor despawns everything that carries it.
+///
+/// It says only *where*: a detected monster's glyph does not animate, take
+/// damage or get announced, because the player is sensing it rather than
+/// watching it. See `crate::items::potions`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Detected;
+
+/// Out cold: no action of any kind until it wears off. Sleeping gas, a
+/// greatclub's stagger, a medusa's gaze. The strictest of the three holds —
+/// a creature that is `Asleep` does nothing at all, whatever else is on it.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Asleep;
+
+/// Physically pinned by steel: a bear trap. Movement is impossible and
+/// straining at the jaws costs a turn and draws blood
+/// ([`crate::traps::bear_trap_thrash`]), but the victim can still strike
+/// whatever comes within reach.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Pinned;
+
+/// Rooted to the spot by somebody else's words — a scroll of hold monster.
+/// Mechanically a bear trap without the teeth: it cannot take a step, but it
+/// can still strike, and straining at it costs nothing but the turn. Walking
+/// away is what the scroll buys you, not free kills.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Rooted;
+
+/// One row of [`EFFECTS`]: the id a save file stores, and the handle that
+/// attaches, detaches and probes the component it stands for.
+///
+/// The component itself is unchanged by any of this. `FireImmune` is still an
+/// ordinary component the fire code asks about directly, and `SeesInvisible`
+/// is still a query filter — this row is the *registry entry* for it, not a
+/// replacement for it.
+#[derive(Clone, Copy)]
+pub struct Effect {
+    /// Stable, never renamed. See [`EFFECTS`].
+    pub id: &'static str,
+    pub grant: Grant,
+    /// What the player reads when this runs out of turns, for the effects
+    /// that end on their own. `None` for everything that does not — an
+    /// immunity has no moment of wearing off to narrate.
+    ///
+    /// Written in the second person: only the player is told, because only
+    /// the player is reading.
+    pub ends: Option<&'static str>,
+    /// What `Look` warns about when the reticle lands on a creature carrying
+    /// this — named plainly ("venomous bite") rather than as whichever marker
+    /// arms it. `None` for anything the player has no business being warned
+    /// about: an immunity, and every trick that is theirs alone.
+    ///
+    /// This lives on the row because it is what the *marker* means to somebody
+    /// looking at it, which is true whether or not the marker has an ability
+    /// row anywhere. The engine used to keep its own 15-row copy of this list,
+    /// in another crate, with nothing holding the two in agreement.
+    pub beware: Option<&'static str>,
+}
+
+impl Effect {
+    /// The row with this id, or `None` when a save names an effect this build
+    /// does not have — a retired row, or one from a newer build.
+    pub fn by_id(id: &str) -> Option<&'static Effect> {
+        EFFECTS.iter().find(|e| e.id == id)
+    }
+}
+
+/// Declares [`EFFECTS`]: one row per marker effect, `"id" => Type`.
+///
+/// The id and the type sit on the same line so the two cannot drift apart,
+/// the same reason `modifiers!` generates its struct and its fold together.
+macro_rules! effects {
+    ($($id:literal => $ty:ty $(, ends $ends:literal)? $(, beware $beware:literal)? ;)*) => {
+        /// Every marker effect in the game.
+        ///
+        /// Each row pairs a **stable string id** with the component it attaches. The
+        /// id is what a save file stores, which is the whole reason it exists: an
+        /// index would mean the order here could never change, and deleting a row
+        /// would silently shift every later effect in every existing save — a saved
+        /// `Stealthy` coming back as `Regenerates`, with every index still a valid
+        /// index and nothing able to tell. A name that is not in this table is
+        /// detectable, and it is one effect rather than all of them.
+        ///
+        /// So rows may be reordered and retired freely. The one rule is **never
+        /// rename an id**, the same rule a bestiary row already lives by
+        /// (`docs/how-to/add-a-monster.md`): the name is the identity, on disk and
+        /// nowhere else.
+        ///
+        /// Ids are written out rather than derived from the type name on purpose. A
+        /// derived id would rename itself the moment somebody renamed the struct,
+        /// which is exactly the silent save break this is here to prevent.
+        pub const EFFECTS: &[Effect] = &[
+            $(Effect {
+                id: $id,
+                grant: Grant::of::<$ty>(),
+                #[allow(unused_mut, unused_assignments)]
+                ends: { let mut e = None; $(e = Some($ends);)? e },
+                #[allow(unused_mut, unused_assignments)]
+                beware: { let mut b = None; $(b = Some($beware);)? b },
+            },)*
+        ];
+    };
+}
+
+// The table itself. Its rules are documented on `EFFECTS` below, which is
+// what a reader reaches for.
+effects! {
+    "fire_immune" => FireImmune;
+    "cold_immune" => ColdImmune;
+    "undead" => Undead;
+    "vorpal_target" => VorpalTarget;
+    "sees_invisible" => SeesInvisible;
+    "sustains_strength" => SustainsStrength;
+    "aggravates_monsters" => AggravatesMonsters, beware "aggravating shriek";
+    "item_user" => ItemUser;
+    "fire_arrow" => FireArrow;
+    "fire_quarrel" => FireQuarrel;
+    "sustains_armor" => SustainsArmor;
+    "rusts_armor" => RustsArmor, beware "corrosive touch";
+    "sluggish" => Sluggish;
+    "stealthy" => Stealthy;
+    "regenerates" => Regenerates, beware "regeneration";
+    "teleportitis" => Teleportitis;
+    "flies" => Flies;
+    "batty" => Batty, beware "erratic strikes";
+    "binds" => Binds, beware "binding bite";
+    "gorgon" => Gorgon, beware "petrifying gaze";
+    "vampiric" => Vampiric, beware "draining touch";
+    "venomous" => Venomous, beware "venomous bite";
+    "coin_greedy" => CoinGreedy;
+    "splits" => Splits, beware "splitting flesh";
+    "freezing" => Freezing, beware "paralysing touch";
+    "steals_and_flees" => StealsAndFlees, beware "thieving touch";
+    "steals_and_vanishes" => StealsAndVanishes, beware "thieving touch";
+    "fire_breath" => FireBreath, beware "fire breath";
+    "cleaves" => Cleaves;
+    "heavy_swing" => HeavySwing;
+    "fencer" => Fencer;
+    "whirl_on_move" => WhirlOnMove;
+    "vorpal_on_condition" => VorpalOnCondition;
+    "turbo_magic" => TurboMagic;
+    "self_damage_on_hit" => SelfDamageOnHit;
+    "builds_momentum" => BuildsMomentum;
+    "confusing_touch" => ConfusingTouch, beware "confusing touch";
+    "bided" => Bided;
+    // The three holds. Each ends on its own clock, so a creature can be both
+    // asleep and pinned and come out of each when its own turns run out —
+    // where the one `Snare` component these replaced could only ever record
+    // the most recent of them.
+    "asleep" => Asleep, ends "You shake off the drowsiness and come to.";
+    "pinned" => Pinned, ends "You wrench your leg free of the bear trap.";
+    "rooted" => Rooted, ends "Whatever was holding you lets go.";
+    // The afflictions. Held for `Lifetime::Floor`, so a staircase lifts them
+    // through the same machinery a potion of see invisible already used.
+    "confused" => Confused;
+    "blind" => Blind;
+    "paralyzed" => Paralyzed;
+    "magic_ward" => MagicWard;
+    "detected" => Detected;
+}
 
 /// The effects an entity hands out: innate magic on a monster, the effects a
 /// piece of gear lends its bearer while equipped. Read by
@@ -518,116 +713,214 @@ pub const EFFECTS: &[Grant] = &[
 #[derive(Component, Clone, Copy)]
 pub struct Grants(pub &'static [Grant]);
 
-/// A set of marker effects packed into one word, addressed by position in
-/// [`EFFECTS`]. Used for bookkeeping that has to survive a save/load round trip
-/// (see [`GrantedByGear`]). Widened past 32 bits the day [`EFFECTS`] grew a
-/// 33rd row — a `u64` is good for 64 of them before this has to happen again.
-pub type EffectSet = u64;
-
-/// Which effects `grants` covers, as a bitmask.
-pub fn effect_set(grants: &[Grant]) -> EffectSet {
-    grants
-        .iter()
-        .filter_map(Grant::bit)
-        .fold(0, |acc, bit| acc | bit)
+/// How long one held effect lasts, and what ends it.
+///
+/// Every effect an entity holds carries one of these, so "how long" is asked
+/// once, on the row, rather than being implied by which of several parallel
+/// structures happened to be storing it. The five cases are the five ways an
+/// effect has ever ended in this game; a sixth would be a new variant here and
+/// one arm wherever it is ended.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Lifetime {
+    /// Never ends on its own. A monster's innate magic, and what the wand of
+    /// cancellation is for.
+    Permanent,
+    /// Lent by a worn item, and lifted when that item comes off. Never
+    /// serialised: a loaded save re-lends from the gear itself, so the
+    /// [`Entity`] here is only ever meaningful within one session.
+    WhileEquipped(Entity),
+    /// Until the bearer leaves the floor — a potion of see invisible.
+    Floor,
+    /// Counts down one per turn and ends at zero. A snare, and every debuff
+    /// with a duration after it.
+    Turns(u32),
+    /// Until the bearer does anything at all — Bide, coiled for one blow.
+    NextAction,
 }
 
-/// The effects an entity currently has *on loan from its gear*, as opposed to
-/// the ones it was born with. Kept so unequipping strips exactly what equipping
-/// added and never touches a creature's innate magic.
-#[derive(Component, Clone, Copy, Default)]
-pub struct GrantedByGear(pub EffectSet);
+impl Lifetime {
+    /// Whether this lifetime survives being written to a save file. A
+    /// gear-lent effect does not: the gear is saved, and lending it again is
+    /// how it comes back.
+    pub fn is_saved(self) -> bool {
+        !matches!(self, Lifetime::WhileEquipped(_))
+    }
+}
 
-/// The effects an entity has been lent **for the current floor** — a potion of
-/// see invisible, as opposed to a ring of perception. Two things follow from
-/// keeping them in their own set:
+/// One effect an entity is holding, and for how long.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Held {
+    /// The [`Effect::id`] — a stable string, which is what reaches the disk.
+    pub id: &'static str,
+    pub lifetime: Lifetime,
+}
+
+/// Everything an entity is holding: the ledger.
 ///
-/// * [`crate::equipment::sync_equipment_effects`] counts them as innate, so
-///   taking off a ring that happened to grant the same effect can never strip
-///   the potion's copy of it.
-/// * A staircase gives them all back at once
-///   ([`crate::conditions::clear_player_conditions`]), which is what "lasts the
-///   level" means.
-#[derive(Component, Clone, Copy, Default)]
-pub struct GrantedForFloor(pub EffectSet);
+/// This records what is attached, from where, and for how long. It does **not**
+/// record whether the entity has the property — the marker component does
+/// that, the way it always has, and `world.get::<FireImmune>(e)` is still the
+/// question the fire code asks.
+///
+/// One id may appear more than once, and that is the point. A creature born
+/// fire-immune and also wearing a ring of fire resistance holds two entries;
+/// taking the ring off removes one and the component stays, because the other
+/// entry is still there. The three overlapping bitsets this replaced had to
+/// intersect each other to work that out at every removal site.
+#[derive(Component, Clone, Default, Debug)]
+pub struct Effects(pub Vec<Held>);
 
-/// Lends `entity` one effect until it leaves the floor. Attaching twice is
-/// harmless — the second dose of the same potion simply re-attaches it.
-pub fn grant_for_floor(world: &mut World, entity: Entity, grant: Grant) {
-    let had = world
-        .get::<GrantedForFloor>(entity)
-        .map(|g| g.0)
-        .unwrap_or(0);
+impl Effects {
+    /// Whether any entry still holds `id`.
+    pub fn holds(&self, id: &str) -> bool {
+        self.0.iter().any(|h| h.id == id)
+    }
+
+    /// The entries worth writing to a save file.
+    pub fn saved(&self) -> Vec<Held> {
+        self.0
+            .iter()
+            .copied()
+            .filter(|h| h.lifetime.is_saved())
+            .collect()
+    }
+}
+
+/// Gives `entity` one effect for as long as `lifetime` says, attaching the
+/// component if it is not already there.
+///
+/// Lending the same effect twice leaves two entries on purpose: two sources,
+/// two claims, and losing one must not strip what the other still lends.
+pub fn lend(world: &mut World, entity: Entity, grant: Grant, lifetime: Lifetime) {
+    let Some(id) = grant.effect_id() else {
+        return;
+    };
     let mut e = world.entity_mut(entity);
     grant.attach(&mut e);
-    e.insert(GrantedForFloor(had | effect_set(&[grant])));
+    let mut ledger = e.take::<Effects>().unwrap_or_default();
+    ledger.0.push(Held { id, lifetime });
+    e.insert(ledger);
 }
 
-/// Takes back every effect `entity` holds only for this floor. An effect it also
-/// owns innately, or has on loan from gear it is still wearing, stays put — the
-/// potion's copy is the only thing given up.
-pub fn clear_floor_grants(world: &mut World, entity: Entity) {
-    let set = world
-        .get::<GrantedForFloor>(entity)
-        .map(|g| g.0)
-        .unwrap_or(0);
-    if set == 0 {
+/// Drops every entry `doomed` accepts, and detaches the component behind any
+/// id that no entry holds any more.
+///
+/// This is the one place an effect is taken away, so the "is anything else
+/// still lending it?" question is asked once, here, instead of at each caller.
+pub fn revoke_matching(world: &mut World, entity: Entity, doomed: impl Fn(&Held) -> bool) {
+    let Some(mut ledger) = world.get_mut::<Effects>(entity).map(|l| l.clone()) else {
+        return;
+    };
+    let lost: Vec<&'static str> = ledger
+        .0
+        .iter()
+        .filter(|h| doomed(h))
+        .map(|h| h.id)
+        .collect();
+    if lost.is_empty() {
         return;
     }
-    let innate = world
-        .get::<Grants>(entity)
-        .map(|g| effect_set(g.0))
-        .unwrap_or(0);
-    let gear = world.get::<GrantedByGear>(entity).map(|g| g.0).unwrap_or(0);
+    ledger.0.retain(|h| !doomed(h));
+
     let mut e = world.entity_mut(entity);
-    for (i, grant) in EFFECTS.iter().enumerate() {
-        let bit = 1 << i;
-        let only_for_the_floor = set & bit != 0 && innate & bit == 0 && gear & bit == 0;
-        if only_for_the_floor {
-            grant.detach(&mut e);
+    for id in lost {
+        if ledger.holds(id) {
+            continue;
+        }
+        if let Some(effect) = Effect::by_id(id) {
+            effect.grant.detach(&mut e);
         }
     }
-    e.remove::<GrantedForFloor>();
+    e.insert(ledger);
+}
+
+/// Takes back every entry lending `grant`, whoever lent it: a charge spent, a
+/// hold broken out of. The counterpart to [`lend`], and the reason no caller
+/// has to spell an effect's id as a string — a misspelled literal compiles,
+/// matches nothing, and revokes nothing, which is the same silence the bare
+/// `remove` it replaced used to give.
+pub fn revoke(world: &mut World, entity: Entity, grant: Grant) {
+    let Some(id) = grant.effect_id() else {
+        return;
+    };
+    revoke_matching(world, entity, |h| h.id == id);
+}
+
+/// [`revoke`] over several effects at once, in one pass of the ledger.
+pub fn revoke_any(world: &mut World, entity: Entity, grants: &[Grant]) {
+    let ids: Vec<&'static str> = grants.iter().filter_map(Grant::effect_id).collect();
+    revoke_matching(world, entity, |h| ids.contains(&h.id));
+}
+
+/// Lends `entity` one effect until it leaves the floor. Lending twice is
+/// harmless — the second dose of the same potion is a second entry, and the
+/// staircase takes both.
+pub fn grant_for_floor(world: &mut World, entity: Entity, grant: Grant) {
+    lend(world, entity, grant, Lifetime::Floor);
+}
+
+/// Gives back everything `entity` was lent for this floor — what a staircase
+/// does. Anything the creature was born with, or is wearing, is untouched,
+/// because those are their own entries.
+pub fn clear_floor_grants(world: &mut World, entity: Entity) {
+    revoke_matching(world, entity, |h| h.lifetime == Lifetime::Floor);
 }
 
 /// Attaches every effect in `grants` to `entity` — how a monster is born with
 /// its innate magic.
 pub fn grant_all(world: &mut World, entity: Entity, grants: &'static [Grant]) {
-    let mut e = world.entity_mut(entity);
     for g in grants {
-        g.attach(&mut e);
+        lend(world, entity, *g, Lifetime::Permanent);
     }
 }
 
-/// Strips every marker effect `entity` has, from any source, and forgets what it
-/// was born with — the wand of cancellation. Walking [`EFFECTS`] means a new
+/// Strips every marker effect `entity` has, from any source, and forgets what
+/// it was born with — the wand of cancellation. Walking the ledger means a new
 /// effect is cancellable the moment it joins the registry.
 pub fn revoke_all(world: &mut World, entity: Entity) {
+    revoke_matching(world, entity, |_| true);
     let mut e = world.entity_mut(entity);
-    for g in EFFECTS {
-        g.detach(&mut e);
+    // Belt and braces: an effect attached without going through `lend` has no
+    // ledger entry, so the sweep above would miss it. Cancellation is the one
+    // place that must leave nothing behind.
+    for effect in EFFECTS {
+        effect.grant.detach(&mut e);
     }
     e.remove::<Grants>();
-    e.remove::<GrantedByGear>();
-    e.remove::<GrantedForFloor>();
+    e.remove::<Effects>();
 }
 
-/// Reads an entity's marker effects back out as a bitmask, for saving.
-pub fn effects_of(world: &World, entity: Entity) -> EffectSet {
-    EFFECTS
-        .iter()
-        .enumerate()
-        .filter(|(_, g)| g.probe(world, entity))
-        .fold(0, |acc, (i, _)| acc | (1 << i))
+/// What `entity` holds, for saving. Gear-lent entries are left out; a loaded
+/// save lends them again off the gear itself.
+pub fn effects_of(world: &World, entity: Entity) -> Vec<Held> {
+    world
+        .get::<Effects>(entity)
+        .map(Effects::saved)
+        .unwrap_or_default()
 }
 
-/// Attaches every effect in a saved bitmask.
-pub fn attach_effects(entity: &mut EntityWorldMut, set: EffectSet) {
-    for (i, g) in EFFECTS.iter().enumerate() {
-        if set & (1 << i) != 0 {
-            g.attach(entity);
-        }
+/// Puts back what a save recorded.
+///
+/// An id this build does not have is dropped with a note rather than refused:
+/// it means a retired row, or a save from a newer build, and losing one effect
+/// beats losing the run. An index-based format could not tell the difference —
+/// every index would still have been a valid index.
+pub fn attach_effects(entity: &mut EntityWorldMut, held: &[Held]) -> Vec<&'static str> {
+    let mut ledger = entity.take::<Effects>().unwrap_or_default();
+    let mut unknown = Vec::new();
+    for h in held {
+        let Some(effect) = Effect::by_id(h.id) else {
+            unknown.push(h.id);
+            continue;
+        };
+        effect.grant.attach(entity);
+        ledger.0.push(Held {
+            id: effect.id,
+            lifetime: h.lifetime,
+        });
     }
+    entity.insert(ledger);
+    unknown
 }
 
 // ---------------------------------------------------------------------------
@@ -655,4 +948,154 @@ pub fn equipped_total<C: Modifier>(world: &World, entity: Entity) -> i32 {
         .filter_map(|item| item.get::<C>().map(|c| c.amount()))
         .sum();
     own + worn
+}
+
+// ---------------------------------------------------------------------------
+// The clock
+// ---------------------------------------------------------------------------
+
+/// Ages every effect held for a number of turns, and ends the ones that run
+/// out.
+///
+/// One system for every timed effect there will ever be. It replaced
+/// `snare_system`, which did this for exactly one component and could not have
+/// done it for a second without being copied.
+///
+/// Runs at the very top of the turn, in the slot `snare_system` held, so a
+/// creature's last turn of being held is spent held.
+pub fn tick_effects(world: &mut World) {
+    if world
+        .get_resource::<crate::state::Ending>()
+        .is_some_and(|e| e.player_dead)
+    {
+        return;
+    }
+
+    let ticking: Vec<Entity> = world
+        .query_filtered::<Entity, With<Effects>>()
+        .iter(world)
+        .collect();
+
+    for entity in ticking {
+        let Some(mut ledger) = world.get_mut::<Effects>(entity) else {
+            continue;
+        };
+        let mut ended: Vec<&'static str> = Vec::new();
+        for held in ledger.0.iter_mut() {
+            let Lifetime::Turns(left) = held.lifetime else {
+                continue;
+            };
+            let left = left.saturating_sub(1);
+            held.lifetime = Lifetime::Turns(left);
+            if left == 0 {
+                ended.push(held.id);
+            }
+        }
+        if ended.is_empty() {
+            continue;
+        }
+
+        revoke_matching(world, entity, |h| h.lifetime == Lifetime::Turns(0));
+
+        // Only the player is told, because the lines are written to them. A
+        // row with nothing to say simply ends in silence.
+        if world.get::<Player>(entity).is_none() {
+            continue;
+        }
+        for id in ended {
+            let Some(line) = Effect::by_id(id).and_then(|e| e.ends) else {
+                continue;
+            };
+            world.resource_mut::<GameLog>().add(line.to_string());
+        }
+    }
+}
+
+/// The three holds: what keeps a creature where it stands, each on its own
+/// clock. They are listed once, here, because the two ways out of one — the
+/// scroll of teleportation and the wand of teleport away — have to let go of
+/// all three, and a fourth hold added to the registry and forgotten at one of
+/// those two sites would strand a creature nowhere near what was holding it.
+pub const HOLDS: [Grant; 3] = [
+    Grant::of::<Asleep>(),
+    Grant::of::<Pinned>(),
+    Grant::of::<Rooted>(),
+];
+
+/// Holds `victim` for `turns` more turns — the steel jaws of a bear trap, a
+/// lungful of sleeping gas, the words of a scroll of hold monster.
+///
+/// Deliberately silent: a hold arrives from a trap, a scroll or a cloud of
+/// gas, and the sentence the player reads belongs to whichever it was.
+/// Returns whether it changed anything — a creature already held this long by
+/// the same thing is left alone rather than having its sentence shortened.
+pub fn hold(world: &mut World, victim: Entity, grant: Grant, turns: u32) -> bool {
+    if turns == 0 {
+        return false;
+    }
+    let Some(id) = grant.effect_id() else {
+        return false;
+    };
+    let standing = world
+        .get::<Effects>(victim)
+        .map(|l| {
+            l.0.iter()
+                .filter(|h| h.id == id)
+                .filter_map(|h| match h.lifetime {
+                    Lifetime::Turns(n) => Some(n),
+                    _ => None,
+                })
+                .max()
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
+    if standing >= turns {
+        return false;
+    }
+    // Replace rather than stack: a second dose of the same gas is a longer
+    // sleep, not two sleeps running down side by side.
+    revoke_matching(world, victim, |h| h.id == id);
+    lend(world, victim, grant, Lifetime::Turns(turns));
+    true
+}
+
+/// How many turns `entity` has left of `grant`, or `None` if it is not held by
+/// it at all.
+pub fn turns_left(world: &World, entity: Entity, grant: Grant) -> Option<u32> {
+    let id = grant.effect_id()?;
+    world
+        .get::<Effects>(entity)?
+        .0
+        .iter()
+        .find_map(|h| match (h.id == id, h.lifetime) {
+            (true, Lifetime::Turns(n)) => Some(n),
+            _ => None,
+        })
+}
+
+/// Every notable thing a creature carries, named plainly — what `Look` warns
+/// about when the reticle lands on it.
+///
+/// Derived from [`EFFECTS`] rather than listed separately. The engine used to
+/// keep its own 15-row copy of this, in another crate, with one closure per
+/// marker and nothing holding the two lists in agreement: adding a thirteenth
+/// on-hit ability and forgetting that list meant `Look` quietly stopped
+/// warning about it, and no test could have said so.
+///
+/// A wielded launcher is the one entry that is not a marker — it is a question
+/// about gear, not a property of the creature — so it is asked separately and
+/// last.
+pub fn dangers_of(world: &World, entity: Entity) -> Vec<&'static str> {
+    let mut seen: Vec<&'static str> = EFFECTS
+        .iter()
+        .filter(|e| e.grant.probe(world, entity))
+        .filter_map(|e| e.beware)
+        .collect();
+    // Two thieves share one phrase on purpose; the player is being told what
+    // will happen to them, not which creature is doing it.
+    seen.dedup();
+    if crate::equipment::wielded_launcher(world, entity).is_some() {
+        seen.push("ranged shots");
+    }
+    seen
 }

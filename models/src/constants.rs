@@ -62,7 +62,7 @@ pub mod combat {
     pub const GEAR_SURVIVES_DEATH: f64 = 0.5;
 
     /// The flat bonus the move Bide adds to the attack roll of the very next
-    /// blow its caster lands — see [`crate::components::Bided`].
+    /// blow its caster lands — see [`crate::effects::Bided`].
     pub const BIDE_ATTACK_BONUS: i32 = 4;
 }
 

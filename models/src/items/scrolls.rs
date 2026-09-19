@@ -12,7 +12,10 @@ use rand::Rng;
 use crate::components::*;
 use crate::conditions::{confuse, snare};
 use crate::constants::scrolls::*;
-use crate::effects::{ArmorBonus, ArmorDie, PowerBonus, PowerDie, ThrowBonus};
+use crate::effects::{
+    ArmorBonus, ArmorDie, Asleep, ConfusingTouch, Detected, Grant, Lifetime, PowerBonus, PowerDie,
+    Rooted, ThrowBonus,
+};
 use crate::equipment::{Slot, equipped_in, equipped_items, force_unequip, sync_equipment_effects};
 use crate::helpers::{
     actor_line, free_adjacent_tile, hostiles_in_view, item_label, mark_conditions, spark_burst_at,
@@ -215,7 +218,7 @@ pub(super) fn teleport_reader(world: &mut World, user: Entity) {
     // A teleport carries you clean out of whatever was holding you in place —
     // otherwise a bear trap's Snare survives the jump and keeps thrashing a
     // leg on a tile nowhere near the actual trap.
-    world.entity_mut(user).remove::<crate::components::Snare>();
+    crate::effects::revoke_any(world, user, &crate::effects::HOLDS);
     world
         .resource_mut::<GameLog>()
         .add("BLONK! You are whisked away!".to_string());
@@ -459,19 +462,30 @@ fn missing_gear_line(slot: Slot) -> &'static str {
 /// redundant: the hands can only be charged, not more charged.
 fn charm_hands(world: &mut World, user: Entity) {
     let already = world.get::<ConfusingTouch>(user).is_some();
-    world.entity_mut(user).insert(ConfusingTouch);
+    if !already {
+        // Through the ledger: nothing lends this one, so the ledger is the only
+        // record of it, and the save file is written from the ledger. A second
+        // scroll adds no second row for the same reason it adds no second
+        // charge.
+        crate::effects::lend(
+            world,
+            user,
+            Grant::of::<ConfusingTouch>(),
+            Lifetime::Permanent,
+        );
+    }
     spark_burst_at(world, user, Color::Magenta);
     let fresh = actor_line(
         world,
         user,
         "Your hands begin to glow with a violet light. The next thing you touch will regret it.",
-        "flexes its claws, and a violet light crawls over them",
+        "flexes their claws, and a violet light crawls over them",
     );
     let deeper = actor_line(
         world,
         user,
         "The violet light on your hands deepens. It is still one touch.",
-        "shakes out its glowing claws",
+        "shakes out their glowing claws",
     );
     let msg = match already {
         true => deeper,
@@ -491,7 +505,7 @@ pub(crate) fn discharge_confusing_touch(world: &mut World, attacker: Entity, vic
     if world.get::<ConfusingTouch>(attacker).is_none() {
         return;
     }
-    world.entity_mut(attacker).remove::<ConfusingTouch>();
+    crate::effects::revoke(world, attacker, Grant::of::<ConfusingTouch>());
     spark_burst_at(world, victim, Color::Magenta);
     confuse(
         world,
@@ -506,13 +520,13 @@ pub(crate) fn discharge_confusing_touch(world: &mut World, attacker: Entity, vic
 // ---------------------------------------------------------------------------
 
 /// Scroll of hold monster: everything in sight is rooted where it stands for
-/// [`HOLD_TURNS`] turns ([`SnareKind::Hold`]). A held monster is pinned, not
+/// [`HOLD_TURNS`] turns ([`crate::effects::Rooted`]). A held monster is pinned, not
 /// helpless — walk into its reach and it still bites — so what the scroll buys
 /// is the room to leave, or the range to shoot from.
 fn hold_in_view(world: &mut World, user: Entity) {
     let caught = hostiles_in_view(world, user);
     for &t in &caught {
-        snare(world, t, SnareKind::Hold, HOLD_TURNS);
+        snare(world, t, Grant::of::<Rooted>(), HOLD_TURNS);
     }
     mark_conditions(world, &caught, '#', Color::Cyan);
     let msg = match caught.is_empty() {
@@ -546,7 +560,7 @@ fn read_sleep(world: &mut World, user: Entity) {
     }
     let caught = hostiles_in_view(world, user);
     for &t in &caught {
-        snare(world, t, SnareKind::Sleep, SLEEP_TURNS);
+        snare(world, t, Grant::of::<Asleep>(), SLEEP_TURNS);
     }
     mark_conditions(world, &caught, 'z', Color::Blue);
     let msg = match caught.is_empty() {
@@ -558,7 +572,7 @@ fn read_sleep(world: &mut World, user: Entity) {
 
 /// The backfire: the reader reads themselves to sleep.
 fn sleep_the_reader(world: &mut World, user: Entity) {
-    snare(world, user, SnareKind::Sleep, SLEEP_TURNS);
+    snare(world, user, Grant::of::<Asleep>(), SLEEP_TURNS);
     if let Some((x, y)) = tile_of(world, user) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.condition_mark(x, y, 'z', Color::Blue, 0.0);
@@ -605,7 +619,7 @@ fn detect_mundane_items(world: &mut World, user: Entity) {
         .filter(|&e| is_the_relic(world, e) || !worth_detecting(world, e))
         .collect();
     for item in &found {
-        world.entity_mut(*item).insert(Detected);
+        crate::effects::lend(world, *item, Grant::of::<Detected>(), Lifetime::Floor);
     }
     spark_burst_at(world, user, Color::Green);
     let msg = match found.is_empty() {

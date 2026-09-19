@@ -342,16 +342,18 @@ pub fn render<W: Write>(
             screen.puts(hx + 3, 0, label, *color);
             hx += 3 + label.len() as u16;
         }
-        if let Some(kind) = world
-            .query_filtered::<&Snare, With<Player>>()
+        let held = world
+            .query_filtered::<(Option<&Asleep>, Option<&Pinned>, Option<&Rooted>), With<Player>>()
             .iter(world)
             .next()
-            .map(|s| s.kind)
-        {
-            let label = match kind {
-                SnareKind::Bear | SnareKind::Hold => "HELD",
-                SnareKind::Sleep => "ASLEEP",
-            };
+            .map(|(a, p, r)| (a.is_some(), p.is_some() || r.is_some()));
+        // Asleep reads over the other two: a sleeper who is also pinned is
+        // told the worse of the two facts.
+        if let Some(label) = match held {
+            Some((true, _)) => Some("ASLEEP"),
+            Some((_, true)) => Some("HELD"),
+            _ => None,
+        } {
             screen.puts(hx, 0, " · ", Color::DarkGrey);
             screen.puts(hx + 3, 0, label, Color::Red);
             hx += 3 + label.len() as u16;
@@ -499,23 +501,31 @@ pub fn render<W: Write>(
         let mut query = world.query_filtered::<(
             &Position,
             &Mob,
-            Option<&Snare>,
+            Option<&Asleep>,
+            Option<&Pinned>,
+            Option<&Rooted>,
             Option<&Paralyzed>,
             Option<&Speed>,
         ), Without<Hidden>>();
-        for (pos, mob, snare, paralyzed, speed) in query.iter(world) {
+        for (pos, mob, asleep, pinned, rooted, paralyzed, speed) in query.iter(world) {
             if !visible.contains(&(pos.x, pos.y)) {
                 continue;
             }
-            let snared = snare.map(|s| s.kind);
             let confused = matches!(mob.movement_type, MovementType::Confused);
             let slowed = speed.is_some_and(|s| s.kind == SpeedKind::Slow);
-            let tint = match (snared, paralyzed.is_some(), confused, slowed) {
-                (Some(SnareKind::Sleep), _, _, _) | (_, true, _, _) => Some(Color::DarkBlue),
-                (Some(SnareKind::Bear), _, _, _) => Some(Color::DarkGreen),
-                (Some(SnareKind::Hold), _, _, _) => Some(Color::DarkCyan),
-                (_, _, true, _) => Some(Color::DarkMagenta),
-                (_, _, _, true) => Some(Color::Grey),
+            let tint = match (
+                asleep.is_some(),
+                pinned.is_some(),
+                rooted.is_some(),
+                paralyzed.is_some(),
+                confused,
+                slowed,
+            ) {
+                (true, _, _, _, _, _) | (_, _, _, true, _, _) => Some(Color::DarkBlue),
+                (_, true, _, _, _, _) => Some(Color::DarkGreen),
+                (_, _, true, _, _, _) => Some(Color::DarkCyan),
+                (_, _, _, _, true, _) => Some(Color::DarkMagenta),
+                (_, _, _, _, _, true) => Some(Color::Grey),
                 _ => None,
             };
             if let Some(tint) = tint {

@@ -4,14 +4,14 @@ nihilurk is a classic roguelike about descending a dungeon, acquiring an item, a
 Game plays like any classic roguelike, but has simplified controls and movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
 
 ## Vibe
-Absurdist wonderland gorefest! The dungeon is only normal on the surface, getting madder and madder the more the player descends. The game is not really about anything. It's just fun and scoring and strategizing, doing hallucinating combos!
+Absurdist gorefest! The dungeon is only normal on the surface, getting madder and madder the more the player descends. The game is not really about anything. It's just fun and scoring, strategizing, and doing hallucinating combos!
 
 ## Progression
 The game is a dungeon crawl with 13 levels, the last one has the Element of Yoord. Once the player character claims it, they must climb back out of the dungeon!
 
 ## Gameplay
 `o o o TAB TAB TAB TAB o o...`
-In this game, the player controls a nihilurk, that can move on a grid; fight monsters by trying to move into their space; auto-explore; auto-fight and use many items (wearables, consumables, etc.) in pursuit of the Element of Yoord.
+In this game, the player controls a nihilurk that can move on a grid; fight monsters by trying to move into their space; auto-explore; auto-fight and use many items (wearables, consumables, etc.) in pursuit of the Element of Yoord.
 
 ### User Skills
 - Strategizing
@@ -22,28 +22,28 @@ In this game, the player controls a nihilurk, that can move on a grid; fight mon
 ### Mechanics
 Turn based on an 80x22 grid. The player is the clock, nothing else in the game acts until the player spends a turn. Every player turn each monster banks energy at its own rate, 1 if it's slow, 2 if it's normal, 4 if it's fast, and an action costs 2, so fast things act twice for every step the player takes and slow things act every other step. Wands of haste monster and slow monster shift a creature one notch along that scale and it stays shifted.
 
-Attacking is walking into something. There is no to-hit roll and nothing ever misses. Damage is (1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus), the two sides rolled independently and subtracted. Every piece of equipment folds into those four numbers and the combat code never learns what kind of item any of them came from, a long sword, a suit of plate mail and a ring of protection all arrive as the same sort of modifier. HP totals are Rogue's micro-HP, small enough that a goblin with a good roll ends a run that had a plan.
+Attacking is walking into something. Damage is (1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus), the two sides rolled independently and subtracted. Every piece of equipment folds into those four numbers and the combat code never learns what kind of item any of them came from, a long sword, a suit of plate mail and a ring of protection all arrive as the same sort of modifier.
 
 Two rules apply to the player and nothing else:
 - Excellent hit. 15% of swings roll 3d[Power] instead of 1d[Power], before armor is subtracted.
-- Chip damage. The worst possible swing still takes a point off, but a swing that weak is capped so it can never take the last one. It leaves things alive on 1 HP.
+- Chip damage. The worst possible swing still takes a point off, but a swing that weak can never be the last one: it leaves things alive on 1 HP.
 
 Anything that dies wearing gear rolls a separate coin flip per piece, heads it clatters onto the corpse's tile and gets announced so the player knows to come back for it, tails it's destroyed along with its owner.
 
-Automation covers everything that isn't a decision. o auto-explores the floor, O travels to a chosen tile, > and < walk to the stairs, tab auto-fights whatever is adjacent, shift and a direction runs. All of it halts the instant something enters the viewshed. The intended rhythm is a lot of o and tab and then a long pause where the player actually thinks.
+Automation covers everything that isn't a decision. o auto-explores the floor, O travels to a chosen tile, > and < walk to the stairs, tab chases auto-fights whatever is adjacent, shift and a direction runs. All of it halts the instant something is seen. The intended rhythm is a lot of o and tab and then a long pause where the player actually thinks.
 
-Sight works the way Rogue's did. The player always sees the 3x3 around them, and standing anywhere in a lit room floods the whole room into view, its enclosing walls and the mouths of its corridors included. Everywhere else is corridor sight. The rest of the floor is remembered dim once it has been seen, and monsters drop off the map when they leave the viewshed. A tenth of the rooms past the starting one spawn unlit and behave like corridors until a wand of light goes off in them. Invisible things are only visible with see-invisible up, otherwise they announce themselves by hitting you. Blood stains the floor under the fighting and stays there for the rest of the run.
+Sight works the way Rogue's did. The player always sees the 3x3 around them, and standing anywhere in a lit room floods the whole room into view, its enclosing walls and the mouths of its corridors included. Everywhere else is corridor sight. The rest of the floor is remembered dim once it has been seen, and monsters drop off the map when they leave the viewshed. A tenth of the rooms past the starting one spawn unlit and behave like corridors until a wand of light goes off in them. Invisible things are only visible with see-invisible up, otherwise they announce themselves by hitting you.
 
-Six traps: trapdoor, bear trap, sleeping gas, teleport, arrow, dart. They reveal in three different ways at equal odds so searching a corridor is never a solved procedure. Trap damage ignores the armor die but not the armor bonus, and the arrow and dart get nastier in three depth bands. A bear trap pins your feet, not your fists: you can still swing at whatever is next to you, but every step you try to take tears the leg for a point and wastes the turn.
+Traps reveal in three different ways at equal odds so searching a corridor is never a solved procedure. Trap damage ignores the armor die but not the armor bonus, and the arrow and dart get nastier in three depth bands. A bear trap pins your feet, not your fists: you can still swing at whatever is next to you, but every step you try to take tears the leg for a point and wastes the turn. Traps explode when shot at, applying their effect and damage in a radius.
 
-Monsters are ECS entities assembled from the same components the player is, off a bestiary table of 27 rows. They wield, wear, drink and read, which mostly means they use whatever gets thrown at them.
+Monsters are entities assembled from the same components the player is. They wield, wear, drink and read, which mostly means they use whatever gets thrown at them.
 
 Also, **you cannot pass your turn**.
 
 ### Items and power-ups
 Potions, scrolls, wands and rings tell you exactly what they are on sight — no cosmetic disguise, nothing to learn by drinking one and hoping. The one thing that stays hidden is a weapon, suit of armour or launcher's own quality: its enchantment plus and whether it's cursed, settled by wearing it or by a scroll of identify.
 
-You start the run already equipped: +1 ring mail worn, +1 mace in hand, and in the pack a +1 bow with 26 arrows, a wand of magic missile, and a single potion of healing.
+You start the run already equipped: +1 ring mail worn, +1 mace in hand, and in the pack a +1 bow with arrows, and a single potion of healing.
 
 Drops follow Rogue's own category odds, with coins standing in for food:
 
@@ -59,14 +59,14 @@ The item system is one table per kind and a row per item, and a row is nothing b
 
 Gear rolls a quality when it spawns: 25% plain, 10% exceptional at +1 to +3, 65% cursed at anywhere from -5 to +5. A cursed item can roll better than a clean one, it simply won't come off once it's equipped, and it takes a scroll of remove curse (which destroys it) or the matching scroll of enchantment (which lifts the curse and mends the minus) to get out of it. The bonus lands on whichever roll the item feeds, never on the die itself, so a +3 dagger is still a dagger.
 
-Everything in the pack offers use, throw and drop. Throws are aimed. A dagger or a spear is balanced for flight and pierces the whole line instead of stopping at the first body, a mace is an improvised lump that gets blunted by armor and can be caught out of the air and used back. Ammunition stacks up to 26 per slot and doubles its die when thrown by someone holding the matching launcher, d4 to d8 for an arrow out of a bow.
+Everything in the pack offers use, throw and drop. Throws are aimed. A dagger or a spear is balanced for flight and pierces the whole line instead of stopping at the first body, a thrown mace is an improvised lump that gets blunted by armor and can be caught out of the air and used back. Ammunition stacks up to 26 per slot and doubles its die when thrown by someone holding the matching launcher, d4 to d8 for an arrow out of a bow.
 
 Magic is the second pool in the status line, 4 points at the start of a run. It does not regenerate. Stairs refill it.
 
 ### Progression and challenge
 Thirteen floors down, then thirteen back up. Depth 13 has no down staircase, the Element of Yoord is sitting where it would be, and picking it up inverts the staircases for the rest of the run: down goes dead, up is the only direction.
 
-There are no experience levels and no skill tree. The player does not get stronger, the kit gets stronger and the player gets better at reading the floor, which is a different thing.
+There are no experience levels and no skill tree. The nihilurk does not get stronger, the kit gets stronger and, which is a different thing.
 
 The dungeon does the scaling. Monsters are sorted into three danger tiers and a floor rolls from every tier it has unlocked: fodder from depth 1, the mid tier from depth 5, the deepest letters from depth 10, so early fodder never stops appearing, it just starts arriving in worse company. Claiming the Element of Yoord tears that gate off its hinges: for the whole climb out every floor draws from the entire bestiary, so a dragon on floor 1 is not just possible, it is the dungeon's parting gift. The crowding budgets step in five depth bands ending at floors 3, 6, 9, 12 and 13 — the deepest floor its own worst band: 3 monster slots plus one per band, filled at 60% rising 12 points a band to a cap of 95%, and 4 trap slots plus one per band, filled at 12% rising 13 points a band to a cap of 75%. The two damage traps climb their own coarser three bands, ending at 4, 8 and 13, a point of arrow damage and a point of dart strength-drain each.
 
@@ -95,19 +95,18 @@ Content is data. Every monster, item and trap is a row in a table, and the dunge
 The developer. Seriously. I made this game because I want to play it.
 
 ### Platforms and Monetization
-I'll put it ou AUR with a Patreon Link
+I'll put it ou AUR with a Ko-Fi link.
 
 ### Localization
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
 - More player character options
-- An internal leaderboards
+- An internal leaderboard and an arg to show it without playing the game.
 - Steam
-- Nethack bones but instead of a ghost, it's the actual past failed character coming for you. A user can just rm the bones and that is okay but would be missing out on past run loot (all wearables cursed). Failed characters will be really angry about you failing them and will spout angry nonsense. If they share names with the current character the failed character will also be treated as 'you' but on a different log font. This whole shebang won't happen all the time (i.e. when making to a character's death depth on ascension only). The ghost's glyph is ' ' like in nethack.
-- Rarely, log lines are in Spanish.
+- Nethack bones file to make failed characters come for you. A user can just rm the bones and that is okay but would be missing out on past run loot (all wearables cursed). Failed characters will be really angry about you failing them and will spout angry nonsense. If they share names with the current character the failed character will also be treated as 'you' but on a different log font. This whole shebang won't happen all the time (i.e. when making to a character's death depth on ascension only). The ghost's glyph is ' ' like in nethack.
 - Forgotten beasts like in Dwarf Fortress on ascension. Sometimes they die in one hit, sometimes they are literally invincible. The description pop-up will tell which one is which
-- The Nemelex decks from DCSS but the cards will always log Yu-gi-oh references and generally be sillier
-- Trauma bonding with The Dungeon Lord because the entire game is actually a metaphor for abusive relationships. You can't seem to stop getting your head bashed in (seamlessly baked into the combat math already)
-- Game log has *the hots* for Fidel Castro. It will be hard getting into a situation where this is relevant. But it will be there somewhere.
-- There will be also a markov chain with Voltaire (philosopher) and Voltaire (musician) quotes. They will also be part of the mad logging.
+- Special Levels!
+- The Nemelex decks from DCSS
+- Charms link in Wildfrost
+- Charms like in Brogue

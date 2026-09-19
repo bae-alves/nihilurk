@@ -94,7 +94,7 @@ Components — perception and memory
 
 `revealed_tiles` is indexed by `crate::map::tile_index`.
 
-`Detected` is floor-scoped without anything clearing it: leaving the floor despawns every entity that carries one. It says *where*, not what is happening there — a detected monster is never announced and never animates.
+`Detected` is an effect held for `Lifetime::Floor`, and leaving the floor despawns every entity that carries one anyway. It says *where*, not what is happening there — a detected monster is never announced and never animates.
 
 
 Components — items on the floor and in the pack
@@ -198,7 +198,9 @@ Components — player conditions
 
 `Plated` and `Forged` are the only conditions a staircase does not lift — the staircase is what *settles* them (`items::settle_promises`, and only for `LevelChange::Stairs`: a trapdoor is falling, not arriving). Any damage at all takes them back, through `helpers::took_damage`, which is also where the low-HP warning lives: the two things that happen to a creature *because it was hurt*, in one place, called from both damage paths.
 
-`Confused`, `Blind`, `Paralyzed` and `Speed` haste/slow are treacherous — they never wear off with time. Only a staircase or a wand of cancellation clears them, all through `crate::conditions::clear_player_conditions`, which also hands back anything `GrantedForFloor`.
+`Confused`, `Blind`, `Paralyzed` and `Speed` haste/slow are treacherous — they never wear off with time. Only a staircase or a wand of cancellation clears them, all through `crate::conditions::clear_player_conditions`.
+
+The first three are **effects**, not components of their own: rows in `crate::effects`'s `EFFECTS`, held for `Lifetime::Floor`, and listed once in `conditions::AFFLICTIONS` with the words for lifting each. That one table is what `afflicted`, `cure_one_condition` and `clear_player_conditions` all read — they used to be three hand-written lists in three different orders. The table's order is worst-first, because a cure takes the first row it finds. `Speed` haste/slow is not a row and cannot be: a tempo is a value, not a marker something either has or has not.
 
 The verbs that put them on — `confuse`, `blind`, `paralyse`, `hasten`, `shift_entity_speed`, `snare` — live in `crate::conditions`, one per affliction, and each one already knows the difference between the player and a monster. `snare` is the exception to the "never wears off" rule above: it is counted in turns from the moment it lands, and it logs nothing, because the sentence belongs to whatever pinned you. A blinded monster has no viewshed to put out, so it gets `MovementType::Confused`; a paralysed one gets the slowing and no coin flip.
 
@@ -214,13 +216,12 @@ Defined in `components.rs` (nouns); the mechanics are `traps.rs`.
 |---------------|---------------------------------------------|---------|--------|
 | `Trap`        | `effect: TrapEffect`, `reveal: TrapReveal`, `revealed: bool` | a `^` entity; `revealed` latches once known | yes |
 | `EntityMoved` | marker                                       | changed `Position` this turn — `trap_system` checks its tile | **transient** (cleared each `trap_system` run) |
-| `Snare`       | `turns: u32`, `kind: SnareKind`              | losing turns to a trap, or to a scroll | yes |
 
 `TrapEffect` — enum, **saved by variant order** (`Trapdoor`, `Bear`, `Sleep`, `Teleport`, `Arrow`, `Dart`). Keys the mechanic in `apply_trap_effect`; the catalog row (`TrapDef`) is name / glyph / rarity / `snare_turns`. Arrow and dart damage scale with depth — `constants::traps`.
 
 `TrapReveal` — enum, saved by variant order (`Sight`, `Adjacent`, `Triggered`). Rolled equal-odds at spawn; read by `visibility.rs`.
 
-`SnareKind` — enum, saved by variant order (`Bear`, `Sleep`, `Hold`). `Sleep` forfeits the turn outright (`player_incapacitated`); `Bear` blocks movement only — a swing still lands, a step is a bloody thrash (`bear_trap_thrash`). `Hold` is `Bear` without the teeth: rooted, still biting, no thrash damage — a scroll of hold monster's doing, and the one kind no trap lays. `ai.rs` applies the same rules to snared monsters.
+The three holds — `Asleep`, `Pinned`, `Rooted` — are effects rather than components of their own, held for `Lifetime::Turns` and aged by `effects::tick_effects`. `Asleep` forfeits the turn outright (`player_incapacitated`); `Pinned` blocks movement only — a swing still lands, a step is a bloody thrash (`bear_trap_thrash`). `Rooted` is `Pinned` without the teeth: still biting, no thrash damage — a scroll of hold monster's doing, and the one no trap lays. `ai.rs` applies the same rules to held monsters. Each runs on its own clock, so a creature can carry more than one.
 
 
 Components — score

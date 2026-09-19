@@ -611,8 +611,39 @@ fn a_blast_sets_off_a_trap_it_washes_over() {
         "and said so"
     );
     assert_eq!(
-        w.get::<Snare>(p).map(|s| s.kind),
-        Some(SnareKind::Sleep),
+        w.get::<Asleep>(p).is_some(),
+        true,
         "the gas rolls over the zapper standing right beside it"
+    );
+}
+
+/// Teleporting a held creature lets it go — and the ledger has to hear about
+/// it too. A `Turns` row left behind with no component under it still counts
+/// down, and `effects::hold` reads those rows to decide whether a fresh hold
+/// is worth applying: while the orphan lasts, the next bear trap the orc walks
+/// into closes on nothing.
+#[test]
+fn teleporting_a_pinned_monster_clears_the_ledger_not_just_the_component() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let mob = dummy(&mut w, "orc", spot, 5);
+
+    // Pinned the way a bear trap pins: through the ledger, for six turns.
+    assert!(models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 6));
+
+    let wand = give_wand(&mut w, p, WandEffect::TeleportAway);
+    zap(&mut w, p, wand, spot);
+
+    assert!(w.get::<Pinned>(mob).is_none(), "the jaws let go");
+    assert_eq!(
+        models::effects::turns_left(&w, mob, Grant::of::<Pinned>()),
+        None,
+        "and the ledger no longer thinks they are holding it"
+    );
+    // The symptom the stale row causes: a shorter, fresh hold is refused.
+    assert!(
+        models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 3),
+        "a bear trap on the far side of the floor can still pin it"
     );
 }

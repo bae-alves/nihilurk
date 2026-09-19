@@ -21,7 +21,7 @@
 //!   staircase or a wand of cancellation clears it
 //!   ([`clear_player_conditions`]) — that is the bargain that makes drinking an
 //!   unidentified potion frightening. The one exception is a [`Snare`], which is
-//!   counted in turns from the moment it lands (`crate::traps::snare_system`
+//!   counted in turns from the moment it lands (`crate::effects::tick_effects`
 //!   ages it): being pinned is a stretch of time, not a state of the body.
 //! * **Every verb reports whether it took hold.** A potion thrown at a monster
 //!   only gives away what it was when something plainly happened (see
@@ -31,11 +31,13 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    Blind, Confused, Fighter, GameLog, MagicWard, Mob, MovementType, Paralyzed, Player, Position,
-    Snare, SnareKind, Speed, SpeedKind, Viewshed,
+    Fighter, GameLog, Mob, MovementType, Player, Position, Speed, SpeedKind, Viewshed,
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
-use crate::effects::{SeesInvisible, Sluggish, clear_floor_grants};
+use crate::effects::{
+    Blind, Confused, Effects, Grant, Lifetime, MagicWard, Paralyzed, SeesInvisible, Sluggish,
+    SustainsStrength, clear_floor_grants,
+};
 use crate::helpers::item_label;
 use crate::map::GameRng;
 
@@ -63,7 +65,7 @@ fn confuse_player(world: &mut World, player: Entity, line: &str) -> bool {
     if world.get::<Confused>(player).is_some() {
         return false;
     }
-    world.entity_mut(player).insert(Confused);
+    crate::effects::lend(world, player, Grant::of::<Confused>(), Lifetime::Floor);
     world.resource_mut::<GameLog>().add(line.to_string());
     true
 }
@@ -102,7 +104,7 @@ pub fn blind(world: &mut World, entity: Entity) -> bool {
     if world.get::<Blind>(entity).is_some() {
         return false;
     }
-    world.entity_mut(entity).insert(Blind);
+    crate::effects::lend(world, entity, Grant::of::<Blind>(), Lifetime::Floor);
     touch_viewshed(world, entity);
     world
         .resource_mut::<GameLog>()
@@ -123,7 +125,7 @@ pub fn paralyse(world: &mut World, entity: Entity) -> bool {
     if world.get::<Paralyzed>(entity).is_some() {
         return false;
     }
-    world.entity_mut(entity).insert(Paralyzed);
+    crate::effects::lend(world, entity, Grant::of::<Paralyzed>(), Lifetime::Floor);
     let slowed = set_speed(world, entity, SpeedKind::Slow, false);
     if world.get::<Player>(entity).is_none() {
         return slowed;
@@ -164,30 +166,74 @@ pub fn paralysis_forfeits_turn(world: &mut World) -> bool {
 // Snares: pinned, held, out cold
 // ---------------------------------------------------------------------------
 
-/// Pins a creature for `turns` more turns — the steel jaws of a bear trap, a
-/// lungful of sleeping gas, the words of a scroll of hold monster. What each
-/// kind costs its victim is [`SnareKind`]'s business and `crate::ai`'s; all this
-/// does is put the tag on.
-///
-/// Deliberately silent: a snare arrives from a trap, a scroll or a cloud of gas,
-/// and the sentence the player reads belongs to whichever it was. Returns
-/// whether it changed anything — a creature already pinned for at least this
-/// long by the same thing is left alone rather than having its sentence
-/// shortened.
-pub fn snare(world: &mut World, victim: Entity, kind: SnareKind, turns: u32) -> bool {
-    if turns == 0 {
-        return false;
-    }
-    let standing = world
-        .get::<Snare>(victim)
-        .filter(|s| s.kind == kind)
-        .map_or(0, |s| s.turns);
-    if standing >= turns {
-        return false;
-    }
-    world.entity_mut(victim).insert(Snare { turns, kind });
-    true
+/// Holds a creature for `turns` more turns. Thin wrapper over
+/// [`crate::effects::hold`], kept because "snare" is the word the traps, the
+/// scrolls and the abilities all use for it.
+pub fn snare(world: &mut World, victim: Entity, grant: Grant, turns: u32) -> bool {
+    crate::effects::hold(world, victim, grant, turns)
 }
+
+// ---------------------------------------------------------------------------
+// The afflictions, as one table
+// ---------------------------------------------------------------------------
+
+/// One affliction: the effect that *is* it, and the words for lifting it.
+///
+/// This exists because the same four conditions were written out three times
+/// — once in [`afflicted`], once in [`cure_one_condition`] and once in
+/// [`clear_player_conditions`] — in three different orders, with nothing
+/// holding the three lists in agreement. A fifth condition needed three edits
+/// and silently half-worked if it got two.
+pub struct Affliction {
+    /// The effect this condition is. Nothing here is a special component any
+    /// more; it is an ordinary [`Grant`] out of `EFFECTS`.
+    pub effect: Grant,
+    /// The whole sentence the player reads when it is mended.
+    pub cured_line: &'static str,
+    /// Completes "The rat snaps out of ___." for anything that is not the
+    /// player.
+    pub cured_noun: &'static str,
+    /// Completes "You are no longer ___." when a staircase takes it.
+    pub lifted_adjective: &'static str,
+    /// What else has to happen when it goes — a viewshed to recompute, a
+    /// tempo to put back. Most conditions need nothing.
+    pub after: Option<fn(&mut World, Entity)>,
+}
+
+/// Every affliction a cure can lift, **worst first**: blindness costs you the
+/// floor, paralysis costs you turns, confusion costs you half your steps.
+/// [`cure_one_condition`] takes the first one it finds, so the order here is
+/// the order they hurt in.
+///
+/// Slowness is not a row and cannot be: a tempo is a value on [`Speed`], not a
+/// marker something either has or has not, so it is handled on its own below.
+pub const AFFLICTIONS: &[Affliction] = &[
+    Affliction {
+        effect: Grant::of::<Blind>(),
+        cured_line: "The darkness lifts from your eyes.",
+        cured_noun: "blindness",
+        lifted_adjective: "blind",
+        after: Some(touch_viewshed),
+    },
+    Affliction {
+        effect: Grant::of::<Paralyzed>(),
+        cured_line: "Your limbs are your own again.",
+        cured_noun: "paralysis",
+        lifted_adjective: "paralysed",
+        after: Some(restore_tempo),
+    },
+    Affliction {
+        effect: Grant::of::<Confused>(),
+        cured_line: "Your head clears.",
+        cured_noun: "confusion",
+        lifted_adjective: "confused",
+        after: None,
+    },
+];
+
+/// Held until a staircase, but nothing a cure can lift — a ward is a boon, not
+/// an affliction, and a rosé coin should not offer to take it off you.
+const FLOOR_BOONS: &[(Grant, &str)] = &[(Grant::of::<MagicWard>(), "warded")];
 
 // ---------------------------------------------------------------------------
 // Lifting one of them, and mending what they left
@@ -196,47 +242,38 @@ pub fn snare(world: &mut World, victim: Entity, kind: SnareKind, turns: u32) -> 
 /// Whether `entity` is carrying anything [`cure_one_condition`] could lift. The
 /// question a rosé coin asks before it lets itself be picked up.
 pub fn afflicted(world: &World, entity: Entity) -> bool {
-    world.get::<Blind>(entity).is_some()
-        || world.get::<Paralyzed>(entity).is_some()
-        || world.get::<Confused>(entity).is_some()
-        || world
-            .get::<Speed>(entity)
-            .is_some_and(|s| s.kind == SpeedKind::Slow)
+    AFFLICTIONS.iter().any(|a| a.effect.probe(world, entity)) || slowed(world, entity)
+}
+
+/// Whether `entity` is dragging its feet. Not an [`AFFLICTIONS`] row because a
+/// tempo is a value rather than a marker — see the note on the table.
+fn slowed(world: &World, entity: Entity) -> bool {
+    world
+        .get::<Speed>(entity)
+        .is_some_and(|s| s.kind == SpeedKind::Slow)
 }
 
 /// Lifts the single worst affliction `entity` is carrying and says so, or
 /// returns `false` if there was nothing to lift. A ring of regeneration's first
 /// call on every roll it wins.
 ///
-/// The order is the order they hurt in: blindness costs you the floor,
-/// paralysis costs you turns, confusion costs you half your steps, being slowed
-/// costs you the difference. Snares are left alone deliberately — a bear trap is
-/// steel around your ankle, not something wrong with you, and it is already
-/// counting itself down.
+/// The order is [`AFFLICTIONS`]' own — the order they hurt in. Holds are left
+/// alone deliberately: a bear trap is steel around your ankle, not something
+/// wrong with you, and it is already counting itself down.
 pub fn cure_one_condition(world: &mut World, entity: Entity) -> bool {
-    if world.get::<Blind>(entity).is_some() {
-        world.entity_mut(entity).remove::<Blind>();
-        touch_viewshed(world, entity);
-        return report_cure(
-            world,
-            entity,
-            "The darkness lifts from your eyes.",
-            "blindness",
-        );
+    for affliction in AFFLICTIONS {
+        if !affliction.effect.probe(world, entity) {
+            continue;
+        }
+        crate::effects::revoke_matching(world, entity, |h| {
+            Some(h.id) == affliction.effect.effect_id()
+        });
+        if let Some(after) = affliction.after {
+            after(world, entity);
+        }
+        return report_cure(world, entity, affliction.cured_line, affliction.cured_noun);
     }
-    if world.get::<Paralyzed>(entity).is_some() {
-        world.entity_mut(entity).remove::<Paralyzed>();
-        restore_tempo(world, entity);
-        return report_cure(world, entity, "Your limbs are your own again.", "paralysis");
-    }
-    if world.get::<Confused>(entity).is_some() {
-        world.entity_mut(entity).remove::<Confused>();
-        return report_cure(world, entity, "Your head clears.", "confusion");
-    }
-    if world
-        .get::<Speed>(entity)
-        .is_some_and(|s| s.kind == SpeedKind::Slow)
-    {
+    if slowed(world, entity) {
         restore_tempo(world, entity);
         return report_cure(
             world,
@@ -246,6 +283,48 @@ pub fn cure_one_condition(world: &mut World, entity: Entity) -> bool {
         );
     }
     false
+}
+
+/// What became of an attempt to drain a creature's melee strength.
+pub enum Drain {
+    /// Something sustained it — a ring of strength. The caller says so in its
+    /// own words; the rule is the same wherever it is asked.
+    Resisted,
+    /// It took.
+    Took,
+    /// There was nothing to take: no `Fighter`, or already at the floor.
+    Nothing,
+}
+
+/// Drains `amount` of melee strength — a permanent hit to the attack die
+/// itself, not a modifier — unless [`SustainsStrength`] turns it aside.
+///
+/// `floor` is the lowest the power can be driven to; `None` means no floor at
+/// all, which is the rattlesnake's bite: a long enough fight drives a victim
+/// negative.
+///
+/// The guard used to be written out three times — in the dart trap, in the
+/// move that lances the same dart at range, and in the snake's bite — each
+/// with its own copy of "is this sustained, and is the player being told".
+/// The rule is here; the prose stays with whoever is inflicting it, because a
+/// trap and a snake do not sound alike.
+pub fn drain_power(world: &mut World, victim: Entity, amount: i32, floor: Option<i32>) -> Drain {
+    if world.get::<SustainsStrength>(victim).is_some() {
+        return Drain::Resisted;
+    }
+    let Some(mut fighter) = world.get_mut::<Fighter>(victim) else {
+        return Drain::Nothing;
+    };
+    let before = fighter.power;
+    let after = fighter.power - amount;
+    fighter.power = match floor {
+        Some(low) => after.max(low),
+        None => after,
+    };
+    match fighter.power == before {
+        true => Drain::Nothing,
+        false => Drain::Took,
+    }
 }
 
 /// Gives `entity` back one point of the melee strength a poisoned dart drank,
@@ -369,7 +448,7 @@ fn speed_shift_message(name: &str, faster: bool, is_player: bool, changed: bool)
         return format!("You are already as {extreme} as you can be.");
     }
     if !changed {
-        return format!("The {name} is already as {extreme} as it can be.");
+        return format!("The {name} is already as {extreme} as they can be.");
     }
     match (is_player, faster) {
         (true, true) => "The world lurches into slow motion around you.".to_string(),
@@ -382,51 +461,84 @@ fn speed_shift_message(name: &str, faster: bool, is_player: bool, changed: bool)
 // ---------------------------------------------------------------------------
 // Lifting them again
 // ---------------------------------------------------------------------------
-
-/// Clears every transient condition the player is carrying — [`Speed`]
-/// haste/slow, [`Confused`], [`Blind`], [`Paralyzed`], and whatever a potion
-/// lent them for the floor ([`crate::effects::GrantedForFloor`]) — and logs each
-/// one it lifts. Only two things trigger it: taking a staircase
-/// ([`crate::map::transition_level`]) and being caught by a wand of
-/// cancellation.
+/// Everything a staircase takes off the player, and one line for each.
+///
+/// The conditions are held for [`Lifetime::Floor`], so lifting them is
+/// [`clear_floor_grants`] and nothing else — the same machinery a potion of
+/// see invisible has always used. All this adds is the sentence, worked out by
+/// asking what the player held before and what they hold after.
 pub fn clear_player_conditions(world: &mut World, player: Entity) {
     let mut lifted: Vec<&str> = Vec::new();
+
+    // Tempo first, and by hand: it is a value on `Speed` rather than an effect
+    // something either has or has not.
     if let Some(mut speed) = world.get_mut::<Speed>(player) {
-        match speed.kind {
-            SpeedKind::Fast => {
-                speed.kind = SpeedKind::Normal;
-                lifted.push("hasted");
-            }
-            SpeedKind::Slow => {
-                speed.kind = SpeedKind::Normal;
-                lifted.push("slowed");
-            }
+        let was = speed.kind;
+        speed.kind = SpeedKind::Normal;
+        match was {
+            SpeedKind::Fast => lifted.push("hasted"),
+            SpeedKind::Slow => lifted.push("slowed"),
             SpeedKind::Normal => {}
         }
     }
-    if world.get::<Confused>(player).is_some() {
-        world.entity_mut(player).remove::<Confused>();
-        lifted.push("confused");
-    }
-    if world.get::<Blind>(player).is_some() {
-        world.entity_mut(player).remove::<Blind>();
-        lifted.push("blind");
-    }
-    if world.get::<Paralyzed>(player).is_some() {
-        world.entity_mut(player).remove::<Paralyzed>();
-        lifted.push("paralysed");
-    }
-    if world.get::<MagicWard>(player).is_some() {
-        world.entity_mut(player).remove::<MagicWard>();
-        lifted.push("warded");
+
+    // What the floor lent, named before it goes so the difference can be read
+    // afterwards. Asked either side rather than simply listed, so a *ring* of
+    // perception still worn keeps the sight and prints nothing.
+    let named: Vec<(Grant, &'static str)> = AFFLICTIONS
+        .iter()
+        .map(|a| (a.effect, a.lifted_adjective))
+        .chain(FLOOR_BOONS.iter().copied())
+        .chain(std::iter::once((
+            Grant::of::<SeesInvisible>(),
+            "able to see the unseen",
+        )))
+        .collect();
+    let before: Vec<bool> = named.iter().map(|(g, _)| g.probe(world, player)).collect();
+
+    // The afflictions and the ward are floor-scoped *by definition*, so lift
+    // them whether or not a `Lifetime::Floor` entry stands behind each one. A
+    // condition attached with a bare `insert` — by a mechanic that forgot
+    // `lend`, or by a test — has no ledger entry and therefore no lifetime,
+    // and would otherwise quietly become permanent.
+    //
+    // Never take one some *other* source is still lending, though: that is the
+    // whole reason the ledger records who lent what.
+    {
+        let lent_beyond_the_floor: Vec<&'static str> = world
+            .get::<Effects>(player)
+            .map(|l| {
+                l.0.iter()
+                    .filter(|h| h.lifetime != Lifetime::Floor)
+                    .map(|h| h.id)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut e = world.entity_mut(player);
+        for grant in AFFLICTIONS
+            .iter()
+            .map(|a| a.effect)
+            .chain(FLOOR_BOONS.iter().map(|(g, _)| *g))
+        {
+            let borrowed = grant
+                .effect_id()
+                .is_some_and(|id| lent_beyond_the_floor.contains(&id));
+            if borrowed {
+                continue;
+            }
+            grant.detach(&mut e);
+        }
     }
 
-    // A potion of see invisible only lasts the floor. Asked before and after so
-    // a *ring* of perception still worn keeps the sight and prints nothing.
-    let saw_invisible = world.get::<SeesInvisible>(player).is_some();
+    // Everything else the floor lent — a potion of see invisible — goes
+    // through the ledger, which is the only record of what was on loan. A ring
+    // of perception still worn is a `WhileEquipped` entry, so the sight stays.
     clear_floor_grants(world, player);
-    if saw_invisible && world.get::<SeesInvisible>(player).is_none() {
-        lifted.push("able to see the unseen");
+
+    for ((grant, adjective), had) in named.iter().zip(before) {
+        if had && !grant.probe(world, player) {
+            lifted.push(adjective);
+        }
     }
 
     if !lifted.is_empty() {

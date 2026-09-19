@@ -557,7 +557,7 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     for &hit in &victims {
         // Aiming a shot at a medusa is a gaze like any other — see
         // `crate::abilities::medusa_gaze`.
-        crate::abilities::medusa_gaze(world, thrower, hit);
+        crate::abilities::fire_on_targeted(world, thrower, hit);
         let msg = strike_victim(world, thrower, item, hit, landing, &seen_name);
         world.resource_mut::<GameLog>().add(msg);
     }

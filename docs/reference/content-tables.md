@@ -118,7 +118,7 @@ No item row overrides `weight` or `min_depth` today — within a category nihilu
 
 Draws `!`. Attaches `Item`, `Potion`, `Consume`. Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`. That match has no catch-all, so a new `PotionEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above. An arm is allowed to do nothing on purpose, though only two do today (`FruitJuice` and `Water`, which are a log line and a taste); the other thirteen all bite.
 
-The dials the arms read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Four arms reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one grants `SeesInvisible` `GrantedForFloor`, and `RaiseLevel` calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
+The dials the arms read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Four arms reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one lends `SeesInvisible` for the floor, and `RaiseLevel` calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
 
 ### SCROLLS — ScrollDef
 
@@ -354,7 +354,7 @@ A coin set off with no author at all — caught in somebody else's chain reactio
 
 Damage traps ignore the defender's armour *die* but still subtract the armour *plus* (`total_armor_plus`). Their bite also scales with depth in three bands (floors 1-4, 5-8, 9-13): each band adds a point to the arrow trap's roll and a point to the dart trap's permanent power drain. Dial: `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier steps).
 
-The `Trap`, `TrapEffect`, `TrapReveal`, `Snare` and `SnareKind` types are defined in `components.rs`, not `traps.rs` — see `components.md`.
+The `Trap`, `TrapEffect` and `TrapReveal` types are defined in `components.rs`, not `traps.rs` — see `components.md`. The holds a trap applies (`Asleep`, `Pinned`, `Rooted`) are effects, in `effects.rs`.
 
 
 DROPS — DropCategory
@@ -392,7 +392,11 @@ EFFECTS — the marker registry
 
     models/src/effects.rs
 
-Order is the save format: an effect's index is its bit in an `EffectSet`. **Append only.** `EffectSet` is a `u64`, so the ceiling is 64 effects.
+Each row pairs a **stable string id** with the component it attaches, and that id is what the save file stores. Rows may be reordered and retired freely; the one rule is **never rename an id**, the same rule a bestiary row lives by. There is no ceiling on how many effects there can be — the `u64` bitset that capped the list at 64 is gone.
+
+A row may also carry the line the player reads when it runs out of turns, in brackets after the type:
+
+    "asleep" => Asleep ["You shake off the drowsiness and come to."],
 
 | # | Effect              | Meaning                                        |
 |---|---------------------|------------------------------------------------|

@@ -31,6 +31,7 @@ use std::collections::HashSet;
 
 use crossterm::style::Color;
 
+use crate::components::Element;
 use crate::effects::{ArmorBonus, equipped_total};
 use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map, Smoke};
 use crate::particles::Particles;
@@ -287,14 +288,107 @@ pub(crate) fn actor_line(
 /// stains the floor if it bleeds. Death is not handled here — a later system
 /// reaps anything that dropped to zero HP.
 pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
-    let hp_before = world.get::<Fighter>(entity).map(|f| f.hp);
+    apply_hit(world, entity, Hit::physical(amount), None);
+}
+
+/// What is being done to a creature, as against how much of it.
+///
+/// The two questions every source of harm has to answer before the HP comes
+/// off — *does a ward turn this aside* and *is this creature immune to it* —
+/// and which used to be answered at the call sites, by whichever ones
+/// remembered. Of thirteen, two checked the element and six checked the ward.
+#[derive(Clone, Copy)]
+pub struct Hit {
+    pub amount: i32,
+    /// The element, if any. `None` is a physical blow — a dart, an arrow, a
+    /// thrown dagger — which no immunity covers.
+    pub element: Option<Element>,
+    /// Whether the move Magic Ward turns this aside. Magic does; steel does
+    /// not, which is why the ward is not simply "everything".
+    pub magical: bool,
+}
+
+impl Hit {
+    /// Steel, wood and gravity. No element, and a ward is no help.
+    pub fn physical(amount: i32) -> Self {
+        Self {
+            amount,
+            element: None,
+            magical: false,
+        }
+    }
+
+    /// Magic with no element behind it — a bolt, a lance, a word.
+    pub fn magic(amount: i32) -> Self {
+        Self {
+            amount,
+            element: None,
+            magical: true,
+        }
+    }
+
+    /// Magic that burns, freezes or drains, which the matching immunity
+    /// shrugs off entirely.
+    pub fn elemental(amount: i32, element: Element) -> Self {
+        Self {
+            amount,
+            element: Some(element),
+            magical: true,
+        }
+    }
+}
+
+/// Puts `hit` on `entity`: turns it aside if a ward is up, drops it if the
+/// creature is immune, and otherwise takes the HP off and runs everything
+/// that follows from being hurt.
+///
+/// `announce` is the line the source of the harm wants to print — "the dart
+/// pricks the orc for 4 damage". It is logged **after** mitigation and
+/// **before** the HP comes off, which is the only ordering that reads
+/// correctly: a warded hit must not announce damage it never did, and a
+/// landed one must say so before "You are badly wounded!" answers it.
+///
+/// Returns how much HP actually came off — 0 for a ward, an immunity, or
+/// anything with no [`Fighter`] to hurt.
+///
+/// **This is the only place mitigation is decided.** A new immunity is a
+/// branch here and nowhere else; before, it would have been thirteen separate
+/// edits, and the ones that were forgotten would have been silent — nothing
+/// in the game is elemental *and* outside this funnel today, so the first
+/// elemental trap would simply have burned a dragon.
+pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&str>) -> i32 {
+    if hit.magical && world.get::<crate::effects::MagicWard>(entity).is_some() {
+        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("The {name}'s ward turns the magic aside."));
+        }
+        crate::items::ward_ricochet(world, entity);
+        return 0;
+    }
+    if let Some(el) = hit.element.filter(|el| el.immunity().probe(world, entity)) {
+        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("The {name} is unharmed by the {}.", el.noun()));
+        }
+        return 0;
+    }
+
+    let Some(hp_before) = world.get::<Fighter>(entity).map(|f| f.hp) else {
+        return 0;
+    };
+    if let Some(line) = announce {
+        world.resource_mut::<GameLog>().add(line.to_string());
+    }
     if let Some(mut fighter) = world.get_mut::<Fighter>(entity) {
-        fighter.hp -= amount;
+        fighter.hp -= hit.amount;
     }
-    if amount > 0 {
-        spill_blood(world, entity, amount, false);
-        took_damage(world, entity, hp_before);
+    if hit.amount > 0 {
+        spill_blood(world, entity, hit.amount, false);
+        took_damage(world, entity, Some(hp_before));
     }
+    hit.amount.min(hp_before.max(0))
 }
 
 /// Everything that happens to a creature *because it was hurt*, whatever hurt
@@ -308,7 +402,10 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
 pub(crate) fn took_damage(world: &mut World, entity: Entity, hp_before: Option<i32>) {
     crate::items::break_promises(world, entity);
     warn_if_newly_low(world, entity, hp_before);
-    crate::monsters::maybe_split(world, entity);
+    // Everything a creature does *because* it was hurt. The slime's split used
+    // to be a third hardcoded line here, beside two things that are not
+    // abilities at all.
+    crate::abilities::fire_on_damaged(world, entity);
 }
 
 /// Logs a one-time "badly wounded" warning as the player's HP crosses down
@@ -405,15 +502,19 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         )
     };
 
-    let splats: Vec<(i32, i32)> = {
-        let mut rng = world.resource_mut::<FxRng>();
-        (0..droplets)
+    // Where the droplets fly is animation, and animation rolls off `FxRng` —
+    // the cosmetic stream a bare world need not carry. No stream, no
+    // droplets; the tile underfoot is still stained below, because that part
+    // was never a roll.
+    let splats: Vec<(i32, i32)> = match world.get_resource_mut::<FxRng>() {
+        None => Vec::new(),
+        Some(mut rng) => (0..droplets)
             .map(|_| {
                 let (dx, dy) = DIRS[rng.0.gen_range(0..DIRS.len())];
                 let reach = rng.0.gen_range(1..=max_reach);
                 (dx * reach, dy * reach)
             })
-            .collect()
+            .collect(),
     };
 
     world.resource_mut::<BloodStains>().stain(pos.x, pos.y);
@@ -523,6 +624,16 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
     // — the creature still leaves a corpse, just with no animation to get
     // there.
     if !world.resource::<BloodStains>().enabled {
+        world.resource_mut::<Corpses>().mark(pos.x, pos.y);
+        return;
+    }
+
+    // Every roll below comes off `FxRng`, the cosmetic stream, which a bare
+    // world is entitled not to carry — gameplay arms a flourish and forgets,
+    // it never requires one (`docs/explanation/ecs-in-nihilurk.md`). With no
+    // stream there is no animation to roll, and the creature becomes a corpse
+    // where it stood, exactly as it does with blood switched off.
+    if world.get_resource::<FxRng>().is_none() {
         world.resource_mut::<Corpses>().mark(pos.x, pos.y);
         return;
     }

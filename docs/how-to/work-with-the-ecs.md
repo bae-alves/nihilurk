@@ -280,7 +280,7 @@ Never insert a condition component directly. Call the verb in `crate::conditions
 
     // Pinned for a count of turns. Deliberately silent — the sentence
     // belongs to whatever pinned them.
-    snare(world, victim, SnareKind::Sleep, SLEEP_TURNS);
+    snare(world, victim, Grant::of::<Asleep>(), SLEEP_TURNS);
 
 Every verb returns `bool`: whether it actually took hold. That answer is load-bearing — a potion thrown at a monster only identifies itself when something plainly happened (`items::throwing::shatter_potion`), so pass it up rather than discarding it.
 

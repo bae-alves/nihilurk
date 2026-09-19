@@ -59,7 +59,7 @@ flowchart LR
 
 One `Schedule`, run once per turn, in this fixed order:
 
-    smoke_system -> snare_system -> reveal_mimics -> ai -> monster_pickup_system
+    smoke_system -> tick_effects -> reveal_mimics -> ai -> monster_pickup_system
       -> trap_system -> throw_system -> item_system -> move_system
       -> equipment_effects_system -> combat_system -> reaper_system
       -> dungeon_lord_system -> passive_ability_system
@@ -209,14 +209,14 @@ The single path every step and every melee attack goes through (auto-explore, fa
   3. **Diagonal cut.** `Map::diagonal_step_ok` — a diagonal step must connect two tiles of the same kind, so you can't cut a doorway corner or squeeze from a corridor into a room diagonally.
   4. **A `Mob` on the target tile** — attacks instead of moving (`models::melee_attack`, which resolves the plain opposed-roll swing via `resolve_attack` plus whatever a wielded weapon lends on top of it — an estoc's second strike, a battle axe's cleave onto every other adjacent `Mob` — each self-checked against the weapon's own marker, so this call site never has to know either trick exists).
   4.5. **Momentum resets** (`models::reset_momentum`) — reached only when step 4 did *not* fire: a rapier's built-up `Momentum` is done the moment its wielder does anything but keep swinging it.
-  5. **Something holding the player** (`SnareKind::Bear`, `Hold`) — an adjacent swing above still lands as an attack (step 4), but a plain step does not. A bear trap makes it `bear_trap_thrash`: a wasted turn, a scratch of damage, blood. A scroll's hold costs the turn and nothing else. See `docs/*traps*` for the trap itself. (Nothing in the dungeon holds the *player* today — no monster has a viewshed to read a scroll of hold monster by — the branch is there so that stays true if one ever does.)
+  5. **Something holding the player** (`Pinned`, `Rooted`) — an adjacent swing above still lands as an attack (step 4), but a plain step does not. A bear trap makes it `bear_trap_thrash`: a wasted turn, a scratch of damage, blood. A scroll's hold costs the turn and nothing else. See `docs/*traps*` for the trap itself. (Nothing in the dungeon holds the *player* today — no monster has a viewshed to read a scroll of hold monster by — the branch is there so that stays true if one ever does.)
   6. **The move.** Position updates, the player's `Viewshed` is marked dirty, and `EntityMoved` is tagged on the player so `trap_system` checks the new tile.
   6.5. **A chain-sickle's whirl** (`models::try_whirl_attack`) — self-checks `WhirlOnMove` and looks for a `Mob` adjacent to *both* the tile just left and the tile just reached (a step taken alongside an enemy), landing a free `melee_attack` on it if one qualifies.
   7. **Pickup.** An `Item` on the landed tile is stowed (`models::stow`) — which can merge into an existing quiver stack, leave part of a pile behind if the pack is full, or refuse outright ("Your pack is full."). A `Hidden` (invisibly stashed) item announces itself the instant it's stepped on.
 
 Every one of steps 1.5–5 can return early; only reaching the move at step 6 (or a hijacked stumble into a wall) consumes a turn. Every weapon trick above lives in `models::combat`/`models::abilities`, self-checking the marker it answers to — `move_player` never mentions `Fencer`, `Cleaves` or `WhirlOnMove` by name, the same way it never mentions a ring.
 
-A greatclub's own trick (`HeavySwing`) doesn't live here at all: it fires as an on-hit ability inside `resolve_attack` itself (staggering the victim one turn, `SnareKind::Sleep`), and sets `ExtraMonsterRound`, a resource `models::ai::ai` checks on its next run to hand the floor one extra monster round on top of whatever the player's own tempo already bought.
+A greatclub's own trick (`HeavySwing`) doesn't live here at all: it fires as an on-hit ability inside `resolve_attack` itself (staggering the victim one turn, `Asleep`), and sets `ExtraMonsterRound`, a resource `models::ai::ai` checks on its next run to hand the floor one extra monster round on top of whatever the player's own tempo already bought.
 
 A reach weapon's own strike (a bardiche, a whip) does not go through `move_player` at all — `v` opens the aiming reticle instead (see "The aiming reticle" below) and resolves through `models::resolve_reach_attack`.
 
@@ -266,7 +266,7 @@ The aiming reticle
 
 `TargetingState` holds which of an item, an active move, a plain look, or a reach weapon's own strike the reticle is for (exactly one of `item` / `move_effect` / `looking` / `reach_attack` is meaningfully set — `reach_attack` is the one exception that still carries `item`, since the weapon never leaves the wielder's hand), plus whether it's a throw, and the cursor. `move_target_cursor` only allows the cursor onto a tile that is both currently visible and within `aim_range` — `THROW_RANGE` for a throw, the move's own `MoveDef.range`, the wielded weapon's own `Reach` for a reach attack, the item's own `Ranged.range` for a zap, a look's own reach the width of the map (the `in_view` check does the real bounding), `8` as a fallback. `Tab` (`cycle_target`) snaps the cursor to the next monster or item in view instead of nudging it one tile. Confirming (`fire_at_target`) refuses a shot at the player's own tile ("Great idea! But no.") for every purpose except looking — that one is allowed on your own tile, and spends no turn at all. A reach attack resolves in place (`models::resolve_reach_attack`) and never touches the pack; otherwise it removes the item from the pack and pushes a `WantsToThrow` or `WantsToUse` onto the matching queue, or a `WantsToMove` onto `MoveQueue`, for `throw_system` / `item_system` / `move_system` to resolve next schedule run. A throw of a stacked item (arrows) goes through `models::draw_one` first, which splits one unit off and leaves the rest in the pack slot.
 
-`L` opens the reticle in look mode; every cursor move (arrows or `Tab`) reads the tile out loud through `announce_look` rather than waiting for `Enter` — `l` then `Tab Tab Tab` walks everything in view. On a monster, it also lists `"Beware {its/their} ___."` for each notable move or on-hit trick it carries (`MONSTER_DANGERS` in `engine/src/update.rs`), `"their"` for anything with `ItemUser`, `"its"` otherwise.
+`L` opens the reticle in look mode; every cursor move (arrows or `Tab`) reads the tile out loud through `announce_look` rather than waiting for `Enter` — `l` then `Tab Tab Tab` walks everything in view. On a monster, it also lists `"Beware their ___."` for each notable move or on-hit trick it carries. The phrases come from `models::dangers_of`, which reads the `beware` field off each `EFFECTS` row — the engine crate names no markers of its own. Every creature is a *they*, whatever it is.
 
 
 Running, auto-explore, and travel

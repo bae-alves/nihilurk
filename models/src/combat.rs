@@ -3,10 +3,13 @@ use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::abilities::{Blow, cleave_attack, fire_on_hit, medusa_gaze};
+use crate::abilities::{Blow, cleave_attack, fire_on_hit, fire_on_targeted};
 use crate::components::*;
 use crate::conditions::afflicted;
-use crate::effects::{Fencer, VorpalOnCondition, VorpalTarget, WhirlOnMove, loadout};
+use crate::effects::{
+    Asleep, Bided, Fencer, Grant, Pinned, Rooted, VorpalOnCondition, VorpalTarget, WhirlOnMove,
+    loadout,
+};
 use crate::equipment::{equipped_items, force_unequip};
 use crate::helpers::{
     chebyshev, death_burst, get_line, mob_at, player_sees, spill_blood, took_damage,
@@ -236,12 +239,12 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
 
     // Looking upon a medusa costs you before your blade ever lands — see
     // `crate::abilities::medusa_gaze`.
-    medusa_gaze(world, attacker, target);
+    fire_on_targeted(world, attacker, target);
 
     let matchup = fold_matchup(world, attacker, target);
     // Spent the instant it's folded in — hit, glance or miss — so a
     // double-striking estoc or a cleave only ever sees it on the first swing.
-    world.entity_mut(attacker).remove::<Bided>();
+    crate::effects::revoke(world, attacker, Grant::of::<Bided>());
     let swing = roll_swing(world, &matchup);
     let swing = clamp_swing(world, target, &matchup, swing);
     let outcome = land_swing(world, attacker, target, &swing);
@@ -481,7 +484,7 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
     if swing.damage > 0 {
         // Whatever the attacker's own magic does to something it just hit — a
         // charmed pair of hands passing its confusion on, an aquator's touch
-        // eating the armour. One table (`abilities::ON_HIT_ABILITIES`), and
+        // eating the armour. One table (`abilities::ABILITIES`), and
         // combat never learns what is in it: it only says what kind of blow
         // this was.
         let blow = Blow {
@@ -516,7 +519,11 @@ fn garrote_vorpal(world: &World, attacker: Entity, target: Entity) -> bool {
         .is_some_and(|m| matches!(m.movement_type, MovementType::Confused));
     world.get::<Player>(attacker).is_some()
         && world.get::<VorpalOnCondition>(attacker).is_some()
-        && (afflicted(world, target) || mob_confused || world.get::<Snare>(target).is_some())
+        && (afflicted(world, target)
+            || mob_confused
+            || world.get::<Asleep>(target).is_some()
+            || world.get::<Pinned>(target).is_some()
+            || world.get::<Rooted>(target).is_some())
 }
 
 /// The estoc's lunge, end to end: self-checks [`Fencer`] and the geometry —
@@ -591,7 +598,7 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
     if world.get_entity(attacker).is_none() || world.get_entity(target).is_none() {
         return;
     }
-    medusa_gaze(world, attacker, target);
+    fire_on_targeted(world, attacker, target);
 
     let matchup = fold_matchup(world, attacker, target);
     let damage = {

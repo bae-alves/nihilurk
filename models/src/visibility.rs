@@ -1,5 +1,5 @@
 use crate::components::*;
-use crate::effects::SeesInvisible;
+use crate::effects::{Blind, SeesInvisible};
 use crate::identify::{named_display, phrase_for};
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 use bevy_ecs::prelude::*;

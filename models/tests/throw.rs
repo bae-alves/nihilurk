@@ -793,8 +793,8 @@ fn a_shot_that_lands_on_a_trap_sets_it_off() {
         "the burst caught the orc standing next to the trap"
     );
     assert_eq!(
-        w.get::<Snare>(bystander).map(|s| s.kind),
-        Some(SnareKind::Sleep),
+        w.get::<Asleep>(bystander).is_some(),
+        true,
         "and so did the gas the trap was holding"
     );
 }
