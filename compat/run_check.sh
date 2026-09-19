@@ -12,7 +12,7 @@
 # of a machine than nihilurk's own frame loop ever will. See
 # docs/explanation/cross-platform-testing.md.
 #
-# The check itself is `engine -content`: it prints the content index and
+# The check itself is `nihilurk -content`: it prints the content index and
 # exits, without ever touching the terminal's alternate screen (see the
 # comment above `list_content` in engine/src/main.rs). That is what lets a
 # `qemu` row run for real, unlike a full game session -- there is no pty to
@@ -146,8 +146,8 @@ while IFS=$'\t' read -r id target class platform image exec note_text; do
     continue
   fi
 
-  mounts=(-v "$bin:/engine:ro")
-  cmd=(/engine -content)
+  mounts=(-v "$bin:/nihilurk:ro")
+  cmd=(/nihilurk -content)
   docker_platform=(--platform "$platform")
   if [ "$exec" = "qemu" ]; then
     handler=$(qemu_handler_for "$platform")
@@ -166,7 +166,7 @@ while IFS=$'\t' read -r id target class platform image exec note_text; do
   if timeout "$TIMEOUT" docker run --rm "${docker_platform[@]}" "${mounts[@]}" "$image" "${cmd[@]}" \
         >"$log" 2>&1; then
     if [ -s "$log" ]; then
-      ok "runs: engine -content printed $(wc -l < "$log" | tr -d ' ') lines and exited 0"
+      ok "runs: nihilurk -content printed $(wc -l < "$log" | tr -d ' ') lines and exited 0"
       record "$id" "$target" ok
     else
       bad "$id: exited 0 but printed nothing -- see $log"

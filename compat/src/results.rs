@@ -93,7 +93,7 @@ pub struct Check {
 /// How big the binary came out for one target.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Footprint {
-    /// `engine`, `--release`: the thing that ships, and the only binary
+    /// `nihilurk`, `--release`: the thing that ships, and the only binary
     /// built now that there is no rig for it to carry alongside.
     pub game: u64,
 }

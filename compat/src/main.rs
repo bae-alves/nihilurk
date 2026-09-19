@@ -168,7 +168,7 @@ fn report(results: &Results) -> ExitCode {
 
     let _ = writeln!(
         w,
-        "\n  `binary` is engine, --release: one static musl file, no libc to install."
+        "\n  `binary` is nihilurk, --release: one static musl file, no libc to install."
     );
 
     report_bare(w, &bare);
