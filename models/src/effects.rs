@@ -101,13 +101,13 @@ pub struct Sluggish;
 #[derive(Component, Default, Clone, Copy)]
 pub struct ConfusingTouch;
 
-/// The move Bide: coiled for one blow. Adds
+/// The spell Bide: coiled for one blow. Adds
 /// [`crate::constants::combat::BIDE_ATTACK_BONUS`] to the very next attack
 /// [`crate::combat::fold_matchup`] folds for its bearer, then is spent —
 /// whether that swing hits, glances or misses. A double-striking estoc or a
 /// cleave only ever sees it on the first swing of the turn. Do anything else
 /// with the turn instead — walk without attacking, use or throw something,
-/// cast another move — and it is lost the same way, unspent: see
+/// cast another spell — and it is lost the same way, unspent: see
 /// [`crate::equipment::reset_momentum`], which clears it on exactly the same
 /// occasions it zeroes a rapier's [`Momentum`].
 #[derive(Component, Default, Clone, Copy)]
@@ -277,7 +277,7 @@ pub struct VorpalOnCondition;
 
 /// The staff's bargain: every damaging move the wielder casts costs double the
 /// [`crate::components::Magic`] and deals double the damage. See
-/// `crate::items::move_system`.
+/// [`crate::items::spell_system`].
 #[derive(Component, Default, Clone, Copy)]
 pub struct TurboMagic;
 
@@ -538,8 +538,8 @@ pub struct Blind;
 /// [`crate::conditions::paralyse`].
 #[derive(Component, Default, Clone, Copy)]
 pub struct Paralyzed;
-/// The move Magic Ward: immunity to elemental/magic damage for the rest of
-/// the floor. Set the moment the move is cast, lifted like any other
+/// The spell Magic Ward: immunity to elemental/magic damage for the rest of
+/// the floor. Set the moment the spell is cast, lifted like any other
 /// floor-scoped condition at the next staircase
 /// ([`crate::conditions::clear_player_conditions`]).
 #[derive(Component, Default, Clone, Copy)]

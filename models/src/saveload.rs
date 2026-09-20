@@ -254,9 +254,9 @@ struct EntitySave<'a> {
     plated: bool,
     #[serde(default)]
     forged: bool,
-    /// The player's active-move bar. Nothing else in the game carries one yet.
+    /// The player's active-spell bar. Nothing else in the game carries one yet.
     #[serde(default)]
-    moveset: Option<Vec<MoveEffect>>,
+    spellset: Option<Vec<SpellEffect>>,
     /// Who is wearing this piece of gear, as an index into the saved entity
     /// list — `None` when it is loose in a pack or on the floor. An index
     /// rather than an id because ids are ephemeral; it is remapped on load the
@@ -391,7 +391,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
             plated: er.contains::<Plated>(),
             forged: er.contains::<Forged>(),
-            moveset: er.get::<Moveset>().map(|m| m.slots.clone()),
+            spellset: er.get::<Spellset>().map(|m| m.slots.clone()),
             equipped_by: er
                 .get::<Equipped>()
                 .and_then(|e| e.by)
@@ -663,8 +663,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.forged {
             em.insert(Forged);
         }
-        if let Some(slots) = es.moveset {
-            em.insert(Moveset { slots });
+        if let Some(slots) = es.spellset {
+            em.insert(Spellset { slots });
         }
     }
 

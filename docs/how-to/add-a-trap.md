@@ -8,7 +8,7 @@ How to add a trap
                    itself in the usual three ways, and that survives a
                    save.
 
-Three edits, and the compiler enforces the third.
+Four edits, and the compiler enforces the last two.
 
 
 The mechanics are one file:
@@ -47,6 +47,21 @@ The recipe
    `apply_trap_effect`'s match has no catch-all, so the compiler will
    refuse to build until you write this arm. That is deliberate: a trap
    that does nothing is not a trap.
+
+4. **Say what it looks like** as an arm of `trap_flourish`:
+
+       TrapEffect::Pit => {
+           if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+               fx.poof(p.x, p.y, 0.0);
+           }
+       }
+
+   Same deal: no catch-all, so the compiler refuses to build until the
+   new trap answers "and what does it look like?". A trap that springs
+   with nothing on screen reads as a bug in the log. If the animation
+   only makes sense once the mechanic has run -- a teleport puffs on the
+   tile the victim *left* -- write an empty arm saying so and do it
+   there, the way `Teleport` and `Trapdoor` do.
 
 Then:
 

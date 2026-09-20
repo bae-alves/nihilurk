@@ -23,16 +23,16 @@
 //! [`crate::helpers::free_adjacent_tile`] — live in [`crate::helpers`]. The
 //! verbs that put an affliction on or take one off are [`crate::conditions`].
 
-mod moves;
 mod pickups;
 mod potions;
 pub(crate) mod rings;
 mod scrolls;
+mod spells;
 mod theft;
 mod throwing;
 mod wands;
 
-pub use moves::{move_cost, move_system};
+pub use spells::{spell_cost, spell_system};
 
 /// The leprechaun's and the nymph's on-hit tricks, named by
 /// [`crate::abilities::ABILITIES`] without that table knowing anything

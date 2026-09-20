@@ -303,7 +303,7 @@ pub struct Hit {
     /// The element, if any. `None` is a physical blow — a dart, an arrow, a
     /// thrown dagger — which no immunity covers.
     pub element: Option<Element>,
-    /// Whether the move Magic Ward turns this aside. Magic does; steel does
+    /// Whether the spell Magic Ward turns this aside. Magic does; steel does
     /// not, which is why the ward is not simply "everything".
     pub magical: bool,
 }

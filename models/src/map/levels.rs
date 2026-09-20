@@ -515,9 +515,9 @@ pub fn initialize_world(world: &mut World) {
             Score { value: 0 },
             Blood,
             Speed::new(SpeedKind::Normal),
-            // Empty at the start of a run: every move is learned from heroic
-            // mana (see `crate::items::pickups::learn_move`), up to four.
-            Moveset::default(),
+            // Empty at the start of a run: every spell is learned from a
+            // hero coin (see `crate::items::pickups::learn_spell`), up to four.
+            Spellset::default(),
         ))
         .id();
 

@@ -363,13 +363,13 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         active: false,
         item: None,
         throwing: false,
-        move_effect: None,
+        spell_effect: None,
         looking: false,
         reach_attack: false,
         cursor_x: 0,
         cursor_y: 0,
     });
-    world.init_resource::<MovesMenu>();
+    world.init_resource::<SpellsMenu>();
     world.init_resource::<QuitPrompt>();
     world.insert_resource(PlayerName {
         what: player_name.to_ascii_uppercase(),
@@ -390,7 +390,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.init_resource::<AttackQueue>();
     world.init_resource::<UseQueue>();
     world.init_resource::<ThrowQueue>();
-    world.init_resource::<MoveQueue>();
+    world.init_resource::<SpellQueue>();
     world.init_resource::<PlayerTempo>();
     world.init_resource::<ExtraMonsterRound>();
     world.init_resource::<GameLog>();
@@ -435,12 +435,12 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         // it — before `ai` runs, so the very turn that happens it also gets
         // to lash out as the `Ambush` mob it always was.
         reveal_mimics.after(tick_effects),
-        // An active move resolves before the monsters act, just like the
+        // An active spell resolves before the monsters act, just like the
         // player's ordinary movement already resolved while the key was
-        // handled. `ai` skips anything a move left at 0 HP; `reaper_system`
+        // handled. `ai` skips anything a spell left at 0 HP; `reaper_system`
         // still sweeps the bodies at the end of the turn.
-        move_system.after(reveal_mimics).before(ai),
-        ai.after(move_system),
+        spell_system.after(reveal_mimics).before(ai),
+        ai.after(spell_system),
         // A coin-greedy orc that just stepped onto a coin it can use claims it
         // here, while `EntityMoved` still marks it — the same tag the trap
         // system reads right after.

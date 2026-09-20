@@ -41,7 +41,7 @@ Two habits keep them from becoming a junk drawer:
 
 ### Systems own behaviour in one domain
 
-The schedule is sixteen steps, and each has one job. This diagram is a summary, not the list — three steps (`reveal_mimics`, `monster_pickup_system`, `move_system`) are left out because they add nothing to the point this diagram is making about tail position; the full sixteen, in order, are `../reference/input-and-turn-loop.md`:
+The schedule is sixteen steps, and each has one job. This diagram is a summary, not the list — three steps (`reveal_mimics`, `monster_pickup_system`, `spell_system`) are left out because they add nothing to the point this diagram is making about tail position; the full sixteen, in order, are `../reference/input-and-turn-loop.md`:
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{

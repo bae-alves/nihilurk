@@ -1,20 +1,20 @@
-//! Triggering an active move.
+//! Triggering an active spell.
 //!
-//! A move is coded the way a potion, scroll or wand is: one identity enum
-//! ([`MoveEffect`]), one catalog row ([`crate::catalog::MoveDef`]), one
-//! mechanic keyed off it — [`apply_move_effect`], the exhaustive match below.
+//! A spell is coded the way a potion, scroll or wand is: one identity enum
+//! ([`SpellEffect`]), one catalog row ([`crate::catalog::SpellDef`]), one
+//! mechanic keyed off it — [`apply_spell_effect`], the exhaustive match below.
 //! What sets it apart from every one of those is that it is never an entity:
 //! it has no [`Item`] marker, no [`Position`] on the floor, no pack slot, and
 //! it cannot be dropped or thrown. It lives permanently in the triggering
-//! creature's [`Moveset`] and costs [`Magic`] per use instead of a battery
-//! running dry — see [`move_system`], the schedule step that spends that cost
+//! creature's [`Spellset`] and costs [`Magic`] per use instead of a battery
+//! running dry — see [`spell_system`], the schedule step that spends that cost
 //! and calls this.
 //!
-//! Several moves borrow another category's own machinery outright rather
+//! Several spells borrow another category's own machinery outright rather
 //! than reinvent it: Identify and Magic Mapping are literally
 //! [`super::scrolls::apply_scroll_effect`] under a different name, and Lux
 //! and Meteor Strike are [`elemental_blast`] played with a stand-in battery.
-//! That is deliberate — a move is a *delivery method*, and the dungeon
+//! That is deliberate — a spell is a *delivery method*, and the dungeon
 //! already knows what a wand of light or a scroll of magic mapping does.
 
 use bevy_ecs::{entity::Entity, world::World};
@@ -37,8 +37,8 @@ use super::wands::{dazzle, elemental_blast};
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `crate::constants::wands` / `crate::constants::traps`
-// / `crate::constants::moves`.
-use crate::constants::moves::{
+// / `crate::constants::spells`.
+use crate::constants::spells::{
     CIRCLE_OF_DEATH_DAMAGE_DICE, CIRCLE_OF_DEATH_DAMAGE_SIDES, FORCE_LANCE_DAMAGE_DICE,
     FORCE_LANCE_DAMAGE_SIDES, FROST_NOVA_DAMAGE_DICE, FROST_NOVA_DAMAGE_SIDES, LUX_CHARGES,
     METEOR_STRIKE_CHAIN_CHANCE, METEOR_STRIKE_CHAIN_SPREAD, METEOR_STRIKE_CHARGES,
@@ -60,36 +60,36 @@ fn wields_turbo_magic(world: &World, user: Entity) -> bool {
 }
 
 /// The [`Magic`] cost `user` will actually be charged for casting `effect` —
-/// [`MoveDef::cost`](crate::catalog::MoveDef::cost) doubled when `user` wields
-/// a staff and the move is an [`Attack`](MoveKind::Attack). Shared by
-/// [`move_system`] and by callers that need to show or check that true cost
-/// before the move is queued (the reticle affordability check, the moves
+/// [`SpellDef::cost`](crate::catalog::SpellDef::cost) doubled when `user` wields
+/// a staff and the spell is an [`Attack`](SpellKind::Attack). Shared by
+/// [`spell_system`] and by callers that need to show or check that true cost
+/// before the spell is queued (the reticle affordability check, the spells
 /// menu's `Ma` label) so none of them can drift from what will actually be
 /// spent.
-pub fn move_cost(world: &World, user: Entity, effect: MoveEffect) -> u8 {
-    let def = crate::catalog::MoveDef::of(effect);
-    let turbo = def.kind == MoveKind::Attack && wields_turbo_magic(world, user);
+pub fn spell_cost(world: &World, user: Entity, effect: SpellEffect) -> u8 {
+    let def = crate::catalog::SpellDef::of(effect);
+    let turbo = def.kind == SpellKind::Attack && wields_turbo_magic(world, user);
     if turbo { def.cost * 2 } else { def.cost }
 }
 
-/// The schedule step that resolves every move triggered this turn. Spends the
+/// The schedule step that resolves every spell triggered this turn. Spends the
 /// [`Magic`] cost first — a stray drain between opening the reticle and
 /// confirming it (a wand of cancellation, say) is the one way this can still
-/// refuse — then hands off to [`apply_move_effect`].
+/// refuse — then hands off to [`apply_spell_effect`].
 ///
-/// Assumes nothing upstream but a filled [`MoveQueue`]: affordability was
+/// Assumes nothing upstream but a filled [`SpellQueue`]: affordability was
 /// already checked once at the reticle, which is why this re-checks it
 /// rather than trusting it — the one queue whose entry can go stale between
 /// being queued and being drained.
-pub fn move_system(world: &mut World) {
-    let moves = std::mem::take(&mut world.resource_mut::<MoveQueue>().moves);
-    for wants in moves {
-        // Casting a move is one of the things that lets go of a rapier's
+pub fn spell_system(world: &mut World) {
+    let queued = std::mem::take(&mut world.resource_mut::<SpellQueue>().spells);
+    for wants in queued {
+        // Casting a spell is one of the things that lets go of a rapier's
         // built-up momentum — see `crate::equipment::reset_momentum`.
         crate::equipment::reset_momentum(world, wants.user);
-        let def = crate::catalog::MoveDef::of(wants.effect);
-        let turbo = def.kind == MoveKind::Attack && wields_turbo_magic(world, wants.user);
-        let cost = move_cost(world, wants.user, wants.effect);
+        let def = crate::catalog::SpellDef::of(wants.effect);
+        let turbo = def.kind == SpellKind::Attack && wields_turbo_magic(world, wants.user);
+        let cost = spell_cost(world, wants.user, wants.effect);
         let affordable = world
             .get::<Magic>(wants.user)
             .is_some_and(|m| m.points >= cost);
@@ -106,44 +106,44 @@ pub fn move_system(world: &mut World) {
         }
         world
             .resource_mut::<GameLog>()
-            .add(format!("You focus, and unleash your {}!", def.name));
+            .add(format!("You cast {}!", def.name));
         let power_mult = if turbo { 2 } else { 1 };
-        apply_move_effect(world, wants.user, wants.target, wants.effect, power_mult);
+        apply_spell_effect(world, wants.user, wants.target, wants.effect, power_mult);
     }
 }
 
-/// Exhaustive over [`MoveEffect`], deliberately with no catch-all: a move
+/// Exhaustive over [`SpellEffect`], deliberately with no catch-all: a spell
 /// added to the enum and not given an arm here fails the build instead of
 /// spending its cost for nothing — the same guarantee every other effect
 /// table in the game gives.
-fn apply_move_effect(
+fn apply_spell_effect(
     world: &mut World,
     user: Entity,
     target: Position,
-    effect: MoveEffect,
+    effect: SpellEffect,
     power_mult: i32,
 ) {
     match effect {
-        MoveEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
-        MoveEffect::Sting => sting(world, user, target, power_mult),
-        MoveEffect::Thunderbolt => thunderbolt(world, user, target, power_mult),
-        MoveEffect::Cure => cure_self(world, user),
-        MoveEffect::Bide => bide(world, user),
-        MoveEffect::ForceLance => force_lance(world, user, target, power_mult),
-        MoveEffect::Identify => {
+        SpellEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
+        SpellEffect::Sting => sting(world, user, target, power_mult),
+        SpellEffect::Thunderbolt => thunderbolt(world, user, target, power_mult),
+        SpellEffect::Cure => cure_self(world, user),
+        SpellEffect::Bide => bide(world, user),
+        SpellEffect::ForceLance => force_lance(world, user, target, power_mult),
+        SpellEffect::Identify => {
             super::scrolls::apply_scroll_effect(world, user, ScrollEffect::Identify)
         }
-        MoveEffect::Setup => setup(world, user),
-        MoveEffect::Lux => lux(world, user, target, power_mult),
-        MoveEffect::CircleOfDeath => circle_of_death(world, user, power_mult),
-        MoveEffect::MagicWard => magic_ward(world, user),
-        MoveEffect::Heal => heal_self(world, user),
-        MoveEffect::MeteorStrike => meteor_strike(world, user, target, power_mult),
-        MoveEffect::FrostNova => frost_nova(world, user, power_mult),
-        MoveEffect::MagicMapping => {
+        SpellEffect::Setup => setup(world, user),
+        SpellEffect::Lux => lux(world, user, target, power_mult),
+        SpellEffect::CircleOfDeath => circle_of_death(world, user, power_mult),
+        SpellEffect::MagicWard => magic_ward(world, user),
+        SpellEffect::Heal => heal_self(world, user),
+        SpellEffect::MeteorStrike => meteor_strike(world, user, target, power_mult),
+        SpellEffect::FrostNova => frost_nova(world, user, power_mult),
+        SpellEffect::MagicMapping => {
             super::scrolls::apply_scroll_effect(world, user, ScrollEffect::MagicMapping)
         }
-        MoveEffect::HasteSelf => haste_self(world, user),
+        SpellEffect::HasteSelf => haste_self(world, user),
     }
 }
 
@@ -152,7 +152,7 @@ fn apply_move_effect(
 // ---------------------------------------------------------------------------
 
 /// A cosmetic arrow (or bolt) flight from `from` to `to`, `from`'s own tile
-/// excluded — shared by every move whose flavour is "something flies in on a
+/// excluded — shared by every spell whose flavour is "something flies in on a
 /// line": Sting's green dart, Thunderbolt's double bolt.
 fn fly_arrow(world: &mut World, from: Position, to: Position, glyph: char, color: Color) {
     let cells: Vec<(u16, u16)> = get_line(from, to)

@@ -304,7 +304,7 @@ pub enum Drain {
 /// negative.
 ///
 /// The guard used to be written out three times — in the dart trap, in the
-/// move that lances the same dart at range, and in the snake's bite — each
+/// spell that lances the same dart at range, and in the snake's bite — each
 /// with its own copy of "is this sustained, and is the player being told".
 /// The rule is here; the prose stays with whoever is inflicting it, because a
 /// trap and a snake do not sound alike.

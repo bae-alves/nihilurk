@@ -367,11 +367,11 @@ pub enum PickupEffect {
     Platinum,
     /// The [`Forged`] promise.
     Forge,
-    /// Teaches the taker one random move, straight into their [`Moveset`] —
-    /// heroic mana, uncommon, and unlike every other item in the game never
-    /// disguised: it is always just "heroic mana", the one thing in the
+    /// Teaches the taker one random spell, straight into their [`Spellset`] —
+    /// the hero coin, uncommon, and unlike every other item in the game never
+    /// disguised: it is always just "a hero coin", the one thing in the
     /// dungeon with nothing to identify.
-    Mana,
+    LearnRandomSpell,
 }
 
 /// An actor's carried items, in inventory-letter order. An item in here has had
@@ -476,7 +476,7 @@ pub enum ScrollEffect {
     AggravateMonsters,
     BlankPaper,
     VorpalizeWeapon,
-    /// 1... 2... Poof! Forgets one random move off the reader's [`Moveset`]
+    /// 1... 2... Poof! Forgets one random move off the reader's [`Spellset`]
     /// and every tile they have ever seen on this floor.
     Amnesia,
 }
@@ -517,12 +517,12 @@ impl WandEffect {
     }
 }
 
-/// Which active move this is — a move's identity, the same way [`WandEffect`]
-/// is a wand's. See [`crate::catalog::MoveDef`].
+/// Which active spell this is — a spell's identity, the same way [`WandEffect`]
+/// is a wand's. See [`crate::catalog::SpellDef`].
 ///
 /// Serialised by variant position — append, never reorder.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MoveEffect {
+pub enum SpellEffect {
     DragonBreath,
     Sting,
     Thunderbolt,
@@ -541,8 +541,8 @@ pub enum MoveEffect {
     HasteSelf,
 }
 
-impl MoveEffect {
-    /// Whether triggering this move opens the aiming reticle at all. Most
+impl SpellEffect {
+    /// Whether triggering this spell opens the aiming reticle at all. Most
     /// attacks do; every skill that works on the caster alone or on
     /// everything in view has nothing to aim at, and fires the instant its
     /// slot is pressed — the same courtesy [`WandEffect::needs_target`] gives
@@ -550,47 +550,47 @@ impl MoveEffect {
     pub fn needs_target(self) -> bool {
         !matches!(
             self,
-            MoveEffect::Cure
-                | MoveEffect::Bide
-                | MoveEffect::Identify
-                | MoveEffect::Setup
-                | MoveEffect::CircleOfDeath
-                | MoveEffect::MagicWard
-                | MoveEffect::Heal
-                | MoveEffect::FrostNova
-                | MoveEffect::MagicMapping
-                | MoveEffect::HasteSelf
+            SpellEffect::Cure
+                | SpellEffect::Bide
+                | SpellEffect::Identify
+                | SpellEffect::Setup
+                | SpellEffect::CircleOfDeath
+                | SpellEffect::MagicWard
+                | SpellEffect::Heal
+                | SpellEffect::FrostNova
+                | SpellEffect::MagicMapping
+                | SpellEffect::HasteSelf
         )
     }
 }
 
-/// The two shapes an active move comes in — an attack wand's own split
-/// ([`crate::items::wands::is_attack_wand`]), drawn again here because a move
+/// The two shapes an active spell comes in — an attack wand's own split
+/// ([`crate::items::wands::is_attack_wand`]), drawn again here because a spell
 /// answers to it too: a staff's [`crate::effects::TurboMagic`] doubles the
-/// cost and the fury of an [`Attack`](MoveKind::Attack), and leaves a
-/// [`Skill`](MoveKind::Skill) — the utility half, potions and scrolls play the
+/// cost and the fury of an [`Attack`](SpellKind::Attack), and leaves a
+/// [`Skill`](SpellKind::Skill) — the utility half, potions and scrolls play the
 /// same way — alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MoveKind {
+pub enum SpellKind {
     /// Deals damage — [`crate::effects::TurboMagic`]'s business.
     Attack,
-    /// Everything else a move can do.
+    /// Everything else a spell can do.
     Skill,
 }
 
-/// The player's active-ability bar: up to four moves, each picked by its row
+/// The player's active-ability bar: up to four spells, each picked by its row
 /// letter from the `Z` menu.
 ///
-/// A move is coded the way a potion, scroll or wand is — one identity enum,
-/// one catalog row ([`crate::catalog::MoveDef`]), one mechanic keyed off it
-/// ([`crate::items::moves`]) — because it is exactly as *active* as any of
+/// A spell is coded the way a potion, scroll or wand is — one identity enum,
+/// one catalog row ([`crate::catalog::SpellDef`]), one mechanic keyed off it
+/// ([`crate::items::spells`]) — because it is exactly as *active* as any of
 /// those. It differs from every item in the game in what it is not: it
 /// carries no [`Item`] marker, is never spawned with a [`Position`], holds no
 /// pack slot, and cannot be dropped or thrown. It lives here, permanently, and
 /// costs [`Magic`] per use instead of a battery running dry.
 #[derive(Component, Default, Clone, Serialize, Deserialize)]
-pub struct Moveset {
-    pub slots: Vec<MoveEffect>,
+pub struct Spellset {
+    pub slots: Vec<SpellEffect>,
 }
 
 /// Type-key for a ring, the twin of [`Potion`] / [`Scroll`] / [`Wand`]. What the
@@ -939,21 +939,21 @@ pub struct ThrowQueue {
     pub throws: Vec<WantsToThrow>,
 }
 
-/// Intent: `user` triggers active move `effect` at `target` — a move's twin of
-/// [`WantsToUse`], minus everything about an item because a move isn't one.
-/// Drained by [`move_system`](crate::items::move_system).
+/// Intent: `user` triggers active spell `effect` at `target` — a spell's twin of
+/// [`WantsToUse`], minus everything about an item because a spell isn't one.
+/// Drained by [`spell_system`](crate::items::spell_system).
 #[derive(Event, Clone, Copy)]
-pub struct WantsToMove {
+pub struct WantsToCast {
     pub user: Entity,
-    pub effect: MoveEffect,
+    pub effect: SpellEffect,
     pub target: Position,
 }
 
-/// The turn's pending moves. Drained by
-/// [`move_system`](crate::items::move_system).
+/// The turn's pending spells. Drained by
+/// [`spell_system`](crate::items::spell_system).
 #[derive(Resource, Default)]
-pub struct MoveQueue {
-    pub moves: Vec<WantsToMove>,
+pub struct SpellQueue {
+    pub spells: Vec<WantsToCast>,
 }
 
 // ===========================================================================
@@ -976,13 +976,13 @@ pub struct RenderConfig {
 // lives in [`crate::pack`], next to the row filtering that decides what each of
 // its ten modes shows.
 
-/// Whether the `Z` moves menu is open, and which slot (0-3) the cursor sits
+/// Whether the `Z` spells menu is open, and which slot (0-3) the cursor sits
 /// on. Picking a row — by its letter `a`-`d`, or by navigating and confirming
-/// — opens the aiming reticle on that move exactly the way the pack's `Use`
-/// row does on an item. This menu is the only way to an active move; no key
+/// — opens the aiming reticle on that spell exactly the way the pack's `Use`
+/// row does on an item. This menu is the only way to an active spell; no key
 /// fires a slot directly.
 #[derive(Resource, Default)]
-pub struct MovesMenu {
+pub struct SpellsMenu {
     pub open: bool,
     pub selected: usize,
 }
@@ -1010,12 +1010,12 @@ pub struct TargetingState {
     /// [`crate::items::THROW_RANGE`] instead of the item's own, and confirming
     /// hurls the item instead of using it.
     pub throwing: bool,
-    /// The reticle is triggering an active move rather than an item —
+    /// The reticle is triggering an active spell rather than an item —
     /// `item` is `None` whenever this is `Some`. Confirming queues a
-    /// [`WantsToMove`] instead of a [`WantsToUse`].
-    pub move_effect: Option<MoveEffect>,
+    /// [`WantsToCast`] instead of a [`WantsToUse`].
+    pub spell_effect: Option<SpellEffect>,
     /// The reticle is a plain look: nothing is queued and no turn is spent —
-    /// confirming only logs what's on the aimed tile. `item` and `move_effect`
+    /// confirming only logs what's on the aimed tile. `item` and `spell_effect`
     /// are both `None` whenever this is set, and unlike every other reticle
     /// purpose it may be confirmed on the player's own tile.
     pub looking: bool,

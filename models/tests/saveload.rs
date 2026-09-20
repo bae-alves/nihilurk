@@ -331,7 +331,7 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
     w.init_resource::<GameLog>();
     w.init_resource::<UseQueue>();
     w.init_resource::<AttackQueue>();
-    w.init_resource::<MoveQueue>();
+    w.init_resource::<SpellQueue>();
     w.init_resource::<Ending>();
     w.insert_resource(PlayerName {
         what: "CHARGED".into(),
@@ -350,13 +350,13 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
         slot_idx: None,
     });
     item_system(&mut w);
-    // And cast Bide the way the move menu casts one.
-    w.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+    // And cast Bide the way the spells menu casts one.
+    w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user: hero,
-        effect: MoveEffect::Bide,
+        effect: SpellEffect::Bide,
         target: here,
     });
-    move_system(&mut w);
+    spell_system(&mut w);
     assert!(
         w.get::<ConfusingTouch>(hero).is_some() && w.get::<Bided>(hero).is_some(),
         "the fixture did not actually charge the player, so this test proves nothing"

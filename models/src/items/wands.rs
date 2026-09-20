@@ -59,7 +59,7 @@ fn damage_with_element(
     apply_hit(world, entity, hit, None)
 }
 
-/// The move Magic Ward turning away a hit: a flash off the chest and
+/// The spell Magic Ward turning away a hit: a flash off the chest and
 /// whatever was coming for it — a bolt, a breath, a fistful of fire —
 /// ricochets off at a random angle in a random bright colour and is gone.
 /// Purely cosmetic; the damage above is already zeroed by the time this

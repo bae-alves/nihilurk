@@ -50,7 +50,7 @@ pub enum BlastPalette {
     /// but kept as its own palette rather than deleted.
     Drain,
     /// A blinding gold-white flash. Retired the same way `Drain` was — the
-    /// wand of light and the move Lux both burn
+    /// wand of light and the spell Lux both burn
     /// [`Glam`](BlastPalette::Glam) now.
     Dazzle,
     /// Polymorph / haste / slow / teleport — unstable green warp light.
@@ -62,12 +62,12 @@ pub enum BlastPalette {
     /// nothing in the wand table can produce, and the only one that leaves
     /// smoke behind without being on fire.
     Ultimate,
-    /// The wand of drain life, and the move Circle of Death — unnecessary
+    /// The wand of drain life, and the spell Circle of Death — unnecessary
     /// flames guttering straight to ash: a white flash, a beat of red-on-red
     /// fire, then everything the blast touched goes grey.
     Death,
-    /// The wand of light, thrown, and the move Lux — glam rock, cyan, and
-    /// entirely too much of it. Also the move Frost Nova's own star, layered
+    /// The wand of light, thrown, and the spell Lux — glam rock, cyan, and
+    /// entirely too much of it. Also the spell Frost Nova's own star, layered
     /// on top of an `explosion` of this palette rather than driving it alone.
     Glam,
 }

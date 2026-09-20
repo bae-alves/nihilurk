@@ -1,12 +1,12 @@
-//! The active-move system: Bide's flat attack bonus (granted once, spent by
+//! The active-spell system: Bide's flat attack bonus (granted once, spent by
 //! the next attack or lost the moment anything else happens instead), Magic
 //! Ward's blanket immunity to wand-shaped harm, Sting's dart-trap formula,
-//! Setup's self-triggering traps, heroic mana teaching a move up to the
+//! Setup's self-triggering traps, a hero coin teaching a move up to the
 //! four-slot cap, and a scroll of amnesia taking one back.
 
 use bevy_ecs::prelude::*;
 use models::constants::combat::BIDE_ATTACK_BONUS;
-use models::constants::moves::MOVESET_CAP;
+use models::constants::spells::SPELLSET_CAP;
 use models::constants::traps::DART_POWER_DRAIN_BASE;
 use models::*;
 
@@ -18,7 +18,7 @@ fn test_world(seed: u64) -> World {
     w.init_resource::<UseQueue>();
     w.init_resource::<AttackQueue>();
     w.init_resource::<Ending>();
-    w.init_resource::<MoveQueue>();
+    w.init_resource::<SpellQueue>();
     w.insert_resource(PlayerName {
         what: "TESTER".into(),
     });
@@ -75,13 +75,13 @@ fn dummy(w: &mut World, at: Position, hp: i32) -> Entity {
     .id()
 }
 
-fn cast(w: &mut World, user: Entity, effect: MoveEffect, target: Position) {
-    w.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+fn cast(w: &mut World, user: Entity, effect: SpellEffect, target: Position) {
+    w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user,
         effect,
         target,
     });
-    move_system(w);
+    spell_system(w);
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn sting_bites_like_the_dart_trap_it_borrows_from() {
     w.get_mut::<Magic>(p).unwrap().points = 10;
     w.get_mut::<Magic>(p).unwrap().max_points = 10;
 
-    cast(&mut w, p, MoveEffect::Sting, spot);
+    cast(&mut w, p, SpellEffect::Sting, spot);
 
     assert!(
         w.get::<Fighter>(target).unwrap().hp < 40,
@@ -222,7 +222,7 @@ fn setup_plants_four_revealed_traps_and_trips_one_under_a_bystander() {
     let before: std::collections::HashSet<Entity> =
         w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
 
-    cast(&mut w, p, MoveEffect::Setup, here);
+    cast(&mut w, p, SpellEffect::Setup, here);
 
     let traps: Vec<Entity> = w
         .query_filtered::<Entity, With<Trap>>()
@@ -247,37 +247,37 @@ fn setup_plants_four_revealed_traps_and_trips_one_under_a_bystander() {
 }
 
 #[test]
-fn heroic_mana_teaches_a_move_up_to_the_four_slot_cap() {
+fn hero_coin_teaches_a_move_up_to_the_four_slot_cap() {
     let mut w = test_world(8);
     let p = player(&mut w);
-    assert!(w.get::<Moveset>(p).unwrap().slots.is_empty());
+    assert!(w.get::<Spellset>(p).unwrap().slots.is_empty());
 
-    for _ in 0..MOVESET_CAP {
+    for _ in 0..SPELLSET_CAP {
         let (_here, spot) = beside_player(&mut w);
-        let mana = spawn_named(&mut w, "heroic mana", spot).unwrap();
-        pick_up(&mut w, p, mana);
+        let coin = spawn_named(&mut w, "hero coin", spot).unwrap();
+        pick_up(&mut w, p, coin);
     }
-    assert_eq!(w.get::<Moveset>(p).unwrap().slots.len(), MOVESET_CAP);
+    assert_eq!(w.get::<Spellset>(p).unwrap().slots.len(), SPELLSET_CAP);
 
-    // A fifth is left on the floor: `would_help` refuses a full moveset.
+    // A fifth is left on the floor: `would_help` refuses a full spellset.
     let (_here, spot) = beside_player(&mut w);
-    let mana = spawn_named(&mut w, "heroic mana", spot).unwrap();
-    assert!(!would_help(&w, p, PickupEffect::Mana));
-    assert!(pick_up(&mut w, p, mana).is_none());
+    let coin = spawn_named(&mut w, "hero coin", spot).unwrap();
+    assert!(!would_help(&w, p, PickupEffect::LearnRandomSpell));
+    assert!(pick_up(&mut w, p, coin).is_none());
 }
 
 #[test]
 fn amnesia_forgets_one_move_and_every_tile_seen_this_floor() {
     let mut w = test_world(9);
     let p = player(&mut w);
-    w.get_mut::<Moveset>(p)
+    w.get_mut::<Spellset>(p)
         .unwrap()
         .slots
-        .push(MoveEffect::Sting);
-    w.get_mut::<Moveset>(p)
+        .push(SpellEffect::Sting);
+    w.get_mut::<Spellset>(p)
         .unwrap()
         .slots
-        .push(MoveEffect::Cure);
+        .push(SpellEffect::Cure);
     // Seed a few "seen" tiles by hand — a fresh headless world never runs the
     // visibility system that would normally fill these in.
     w.get_mut::<Viewshed>(p).unwrap().revealed_tiles.insert(0);
@@ -297,9 +297,9 @@ fn amnesia_forgets_one_move_and_every_tile_seen_this_floor() {
     item_system(&mut w);
 
     assert_eq!(
-        w.get::<Moveset>(p).unwrap().slots.len(),
+        w.get::<Spellset>(p).unwrap().slots.len(),
         1,
-        "amnesia takes exactly one move back"
+        "amnesia takes exactly one spell back"
     );
     assert_eq!(
         w.get::<Viewshed>(p).unwrap().revealed_tiles.count_ones(..),
@@ -308,7 +308,7 @@ fn amnesia_forgets_one_move_and_every_tile_seen_this_floor() {
     );
 }
 
-/// `move_system` runs before `ai` in the turn schedule, and a damaging move
+/// `spell_system` runs before `ai` in the turn schedule, and a damaging spell
 /// leaves its casualty at 0 HP for `reaper_system` to sweep up much later in
 /// the same turn. Nothing in between may let a corpse take a turn: the mob
 /// Thunderbolt just killed must not still lunge at the player on its way out.
@@ -324,7 +324,7 @@ fn a_mob_a_move_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
         movement_type: MovementType::Ambush,
     });
 
-    cast(&mut w, p, MoveEffect::Thunderbolt, spot);
+    cast(&mut w, p, SpellEffect::Thunderbolt, spot);
     assert!(
         w.get::<Fighter>(victim).unwrap().hp <= 0,
         "the fixture did not actually kill the mob"

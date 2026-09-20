@@ -230,9 +230,9 @@ fn step_one_mob(
     ctx: &AiCtx,
     spatial: &mut HashMap<(u16, u16), (Entity, Faction)>,
 ) -> bool {
-    // Already dead forfeits everything. An indirect kill — a move, a wand bolt
+    // Already dead forfeits everything. An indirect kill — a spell, a wand bolt
     // — only zeroes the HP and leaves the body for `reaper_system` at the far
-    // end of the turn, and `move_system` resolves before this does, so a
+    // end of the turn, and `spell_system` resolves before this does, so a
     // corpse is reachable here. It does not get a parting shot.
     if world.get::<Fighter>(mob).is_some_and(|f| f.hp <= 0) {
         return false;
