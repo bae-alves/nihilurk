@@ -156,6 +156,42 @@ pub fn equipped_in(world: &World, entity: Entity, slot: Slot) -> Option<Entity> 
     equipped_in_slot(world, entity, slot).into_iter().next()
 }
 
+/// What `wearer` has on, as the parenthetical that rides along behind their
+/// name: `" (w. a short bow)"`, and an empty string for a creature carrying
+/// nothing. Every line that names a creature the player can see — the sighting,
+/// `look` — hangs this on the end, so "what is it holding" never needs a second
+/// look.
+pub fn worn_tag(world: &World, wearer: Entity) -> String {
+    worn_tag_from(equipped_items(world, wearer).into_iter().map(|i| {
+        let name = crate::identify::display_name(world, i);
+        let slot = world.get::<Equipped>(i).map(|e| e.slot);
+        worn_phrase(&name, slot)
+    }))
+}
+
+/// One worn item as it reads in the tag. Armour is a mass noun — "ring mail",
+/// not "a ring mail" — and a suit is the one thing a creature wears rather than
+/// carries, so [`Slot::Body`] is the whole rule.
+pub fn worn_phrase(name: &str, slot: Option<Slot>) -> String {
+    match slot {
+        Some(Slot::Body) => name.to_string(),
+        _ => crate::identify::phrase_for(name),
+    }
+}
+
+/// [`worn_tag`] from item phrases already rendered — for the `Query`-based
+/// spotting system, which never holds a whole-`World` reference.
+pub fn worn_tag_from(names: impl Iterator<Item = String>) -> String {
+    let names: Vec<String> = names.collect();
+    if names.is_empty() {
+        return String::new();
+    }
+    // ponytail: a plain comma list, no "and" before the last — four items is
+    // the ceiling (two hands' worth is one, armour, two rings) and the tag is
+    // a glance, not a sentence.
+    format!(" (w. {})", names.join(", "))
+}
+
 /// The bow or crossbow `entity` currently has in `Slot::Hand`, if any. `f`
 /// (fire) and ranged auto-fight both gate on this before reaching for ammo.
 pub fn wielded_launcher(world: &World, entity: Entity) -> Option<Entity> {
@@ -290,6 +326,11 @@ pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
     if let Some(mut e) = world.get_mut::<Equipped>(item) {
         e.by = Some(wearer);
     }
+    // Worn is carried: gear on a creature has no `Position` of its own, or it
+    // stays lying on the tile it was spawned on — drawn as loot, announced as a
+    // second sighting, and pickable off the floor while its owner still wears
+    // it. [`drop_equipment`] puts a `Position` back when it comes off.
+    world.entity_mut(item).remove::<Position>();
     sync_equipment_effects(world, wearer);
     // Wearing it reveals its plus and curse status only when the *player* is
     // the one wearing it — this is how the player's own starting gear (handed

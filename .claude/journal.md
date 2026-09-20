@@ -84,3 +84,28 @@ both.
 The test that caught it had to stop hardcoding a "far away" tile — `(2, 2)` was
 inside the starting room on that seed. It now asks the player's own
 `visible_tiles` for a tile genuinely out of view.
+
+
+## Worn gear was still lying on the floor (2026-09-20)
+
+Adding the `"(w. a short bow)"` tag to sighting and `look` lines turned up the
+reason a hobgoblin's armour was being announced twice: `equip_silently` never
+took the item's `Position` off. Monster gear is spawned *as loot on the tile*
+and then put on, so every worn piece stayed a floor item — drawn under its
+owner, spotted on its own line, and pickable off the ground while the monster
+still got its bonus from it.
+
+What it teaches:
+
+* `drop_equipment` inserting a `Position` when gear comes off is the tell: if
+  worn gear kept one, that insert would be redundant. The invariant ("worn is
+  carried, carried has no `Position`") was already written down in
+  `levels.rs::tear_down_the_floor` — just never enforced at the one door onto
+  it.
+* A test can be the thing that hides the bug. `saveload::round_trip` swept the
+  floor clean by despawning everything with a `Position`, which silently also
+  swept up worn gear; the moment worn gear lost its `Position`, the sweep
+  missed it and the save grew an extra suit of armour. A cleanup filter that
+  names a component is an assumption about that component.
+* Articles are per-slot, not per-item: "a short bow" but "ring mail". `Slot::Body`
+  is the whole rule, which is why `worn_phrase` takes a slot and not a name.

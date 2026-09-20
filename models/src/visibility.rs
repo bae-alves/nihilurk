@@ -1,5 +1,6 @@
 use crate::components::*;
 use crate::effects::{Blind, SeesInvisible};
+use crate::equipment::{Equipped, worn_phrase, worn_tag_from};
 use crate::identify::{named_display, phrase_for};
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 use bevy_ecs::prelude::*;
@@ -47,6 +48,9 @@ pub fn visibility_system(
         Or<(With<Mob>, With<Item>)>,
     >,
 
+    // Gear somebody is wearing, for the "(w. a bow)" on a sighting line.
+    worn_query: Query<(&Equipped, &Name, Option<&Stack>)>,
+
     // Hidden traps whose reveal style might trip this turn.
     mut trap_query: Query<(Entity, &Position, &mut Trap), With<Hidden>>,
 
@@ -71,6 +75,7 @@ pub fn visibility_system(
             &mut commands,
             &mut log,
             &spot_query,
+            &worn_query,
             &visible,
             perception,
             blind,
@@ -204,6 +209,7 @@ fn hide_and_announce(
         ),
         Or<(With<Mob>, With<Item>)>,
     >,
+    worn_query: &Query<(&Equipped, &Name, Option<&Stack>)>,
     visible: &HashSet<(u16, u16)>,
     perception: bool,
     blind: bool,
@@ -231,7 +237,7 @@ fn hide_and_announce(
         let announce = perceptible && !(mob.is_none() && invisible.is_some());
         if announce && spotted.is_none() {
             let seen_name = named_display(name, stack);
-            log.add(spotted_line(&seen_name));
+            log.add(spotted_line(&seen_name, &worn_by(worn_query, entity)));
             commands.entity(entity).insert(Spotted);
         }
         if !announce && spotted.is_some() {
@@ -241,9 +247,23 @@ fn hide_and_announce(
 }
 
 /// The sighting line for a freshly spotted thing, using its identification-aware
-/// display name rather than its (possibly still-secret) true [`Name`].
-fn spotted_line(seen_name: &str) -> String {
-    format!("You spotted {}.", phrase_for(seen_name))
+/// display name rather than its (possibly still-secret) true [`Name`], with
+/// whatever it is wearing in tow.
+fn spotted_line(seen_name: &str, worn: &str) -> String {
+    format!("You spotted {}{worn}.", phrase_for(seen_name))
+}
+
+/// The `" (w. a bow)"` tag for whatever `wearer` has equipped. Plain [`Name`]s,
+/// not [`crate::identify::display_name`]: a monster's gear is never identified
+/// (see [`crate::equipment::equip_silently`]), so there is nothing to annotate
+/// and no `&World` needed to say so.
+fn worn_by(worn_query: &Query<(&Equipped, &Name, Option<&Stack>)>, wearer: Entity) -> String {
+    worn_tag_from(
+        worn_query
+            .iter()
+            .filter(|(eq, _, _)| eq.by == Some(wearer))
+            .map(|(eq, name, stack)| worn_phrase(&named_display(Some(name), stack), Some(eq.slot))),
+    )
 }
 
 /// Brings hidden traps to light: a `Sight` trap the instant its tile is in

@@ -70,9 +70,13 @@ fn round_trip() {
             w3.despawn(item);
         }
     }
+    // Gear a monster spawned wearing has no `Position` of its own, so it needs
+    // naming here as well or it outlives the monster and lands in the save.
     let strays: Vec<Entity> = w3
         .iter_entities()
-        .filter(|e| !e.contains::<Player>() && e.contains::<Position>())
+        .filter(|e| {
+            !e.contains::<Player>() && (e.contains::<Position>() || e.contains::<Equipped>())
+        })
         .map(|e| e.id())
         .collect();
     for e in strays {
