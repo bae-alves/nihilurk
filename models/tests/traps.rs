@@ -426,6 +426,14 @@ fn teleport_trap_flings_the_player_elsewhere() {
 // Arrow — the miss drops loot
 // ---------------------------------------------------------------------------
 
+/// Arrows lying on one tile.
+fn arrows_on(w: &mut World, spot: Position) -> usize {
+    w.query_filtered::<(&Position, &Name), With<Item>>()
+        .iter(w)
+        .filter(|(pos, n)| n.what == "arrow" && (pos.x, pos.y) == (spot.x, spot.y))
+        .count()
+}
+
 #[test]
 fn arrow_trap_hits_an_unarmoured_target() {
     let mut w = test_world(2);
@@ -440,13 +448,16 @@ fn arrow_trap_hits_an_unarmoured_target() {
     trap_system(&mut w);
 
     assert!(w.get::<Fighter>(p).unwrap().hp < 12, "the arrow drew blood");
-    // A hit does not litter the floor with a spent arrow.
-    let arrows = w
-        .query_filtered::<&Name, With<Item>>()
-        .iter(&w)
-        .filter(|n| n.what == "arrow")
-        .count();
-    assert_eq!(arrows, 0, "a connecting arrow is not dropped as loot");
+    // A hit does not litter the trap's tile with a spent arrow. Counted on
+    // that tile alone, never floor-wide: the floor's own budget is free to
+    // drop a bundle of arrows in some room, and that is none of this test's
+    // business. (It can never drop one *here* — nothing is ever placed on the
+    // player's landing tile.)
+    assert_eq!(
+        arrows_on(&mut w, here),
+        0,
+        "a connecting arrow is not dropped as loot"
+    );
 }
 
 #[test]
@@ -464,13 +475,7 @@ fn a_missed_arrow_lands_on_the_floor_as_loot() {
     trap_system(&mut w);
 
     assert_eq!(w.get::<Fighter>(p).unwrap().hp, 12, "no damage on a miss");
-    let arrows: Vec<(u16, u16)> = w
-        .query_filtered::<(&Position, &Name), With<Item>>()
-        .iter(&w)
-        .filter(|(_, n)| n.what == "arrow")
-        .map(|(p, _)| (p.x, p.y))
-        .collect();
-    assert_eq!(arrows, vec![(here.x, here.y)], "a spent arrow to pick up");
+    assert_eq!(arrows_on(&mut w, here), 1, "a spent arrow to pick up");
 }
 
 // ---------------------------------------------------------------------------

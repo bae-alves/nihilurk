@@ -449,6 +449,8 @@ pub enum PotionEffect {
     RestoreStrength,
     SeeInvisible,
     Water,
+    // Appended, not filed under M: a save encodes a variant as its position.
+    Magic,
 }
 
 /// Type-key for a scroll. Mechanic: the `scrolls` submodule of `crate::items`.

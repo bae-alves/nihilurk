@@ -29,8 +29,14 @@ This is not content. It is floor generation, in `populate_level` in `models/src/
 
 Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at the depths in `constants::progression::DIFFICULTY_TIER_LAST_DEPTH` (`[3, 6, 9, 12]`): tier 0 on floors 1-3, tier 1 on 4-6, tier 2 on 7-9, tier 3 on 10-12, tier 4 on floor 13 alone. The damage traps scale too, but on their own coarser three bands (`constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`, `[4, 8]`).
 
+    guaranteed    placed before any budget is spent, and never out of
+                  one: a blue coin on the odd floors and a red one on
+                  the even. On the last floor of each tier -- the
+                  depths in DIFFICULTY_TIER_LAST_DEPTH -- one draw from
+                  `catalog::PROGRESSION_ITEMS` as well.
+
     monsters      3 + tier slots. The first always fills; each later one
-                  fills with probability min(0.60 + 0.12 * tier, 0.95).
+                  fills with probability min(0.75 + 0.10 * tier, 0.95).
 
     lurkers       from floor 7, each corridor centre has a 5% chance of
                   hiding one more.
@@ -43,7 +49,7 @@ Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at th
                   current 1.0, that is every floor.
 
     traps         4 + tier slots, each filling with probability
-                  min(0.12 + 0.13 * tier, 0.75).
+                  min(0.75 + 0.10 * tier, 0.95).
 
 Change these when the dungeon feels too empty or too crowded. Do not change them to make one creature rarer -- that is dial 3.
 

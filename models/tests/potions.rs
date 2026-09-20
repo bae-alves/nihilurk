@@ -480,3 +480,17 @@ fn fruit_juice_and_water_are_flavour_and_nothing_else() {
     assert!(logged(&w, "Yummy!"));
     assert!(logged(&w, "It is water."));
 }
+
+#[test]
+fn magic_refills_the_pool_and_raises_its_ceiling() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let max = w.get::<Magic>(p).unwrap().max_points;
+    w.get_mut::<Magic>(p).unwrap().points = 0;
+
+    quaff(&mut w, p, PotionEffect::Magic);
+
+    let m = *w.get::<Magic>(p).unwrap();
+    assert_eq!(m.max_points, max + 1, "a dose is worth a point of ceiling");
+    assert_eq!(m.points, m.max_points, "and fills you to it");
+}

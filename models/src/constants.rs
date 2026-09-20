@@ -335,6 +335,10 @@ pub mod potions {
     /// and ceiling both.
     pub const GAIN_STRENGTH_POWER: i32 = 1;
 
+    /// A potion of magic adds this to the drinker's magic pool, floor and
+    /// ceiling both — gain strength's twin, for the other bar on the HUD.
+    pub const GAIN_MAGIC_POINTS: u8 = 1;
+
     /// A potion of poison takes this much off the drinker's attack die, never
     /// below [`POISON_POWER_FLOOR`]. Restore strength puts it all back.
     pub const POISON_POWER_LOSS: i32 = 2;

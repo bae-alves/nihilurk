@@ -109,3 +109,34 @@ What it teaches:
   names a component is an assumption about that component.
 * Articles are per-slot, not per-item: "a short bow" but "ring mail". `Slot::Body`
   is the whole rule, which is why `worn_phrase` takes a slot and not a name.
+
+
+## The drop-table test was reading the floor, not the roller (2026-09-20)
+
+Every floor now gets a coin before its item budget is spent — blue on odd
+depths, red on even — and the last floor of each difficulty tier gets a draw
+from `catalog::PROGRESSION_ITEMS` too. The first thing that broke was
+`loot::floor_loot_follows_the_rogue_drop_table`, which walked four floors per
+seed and counted what was lying on them.
+
+What it taught:
+
+* **A test that samples the world instead of the function measures everything
+  the world does.** Its own comment said it proved "the roller honours the
+  weights it is given", but it read floors, so any placement that skipped
+  `roll_item` counted as a roll. It now calls `roll_item` 12000 times directly
+  and is five times faster besides — the floor walk was never the property.
+* **The second loot test was passing by a hair.** `the_item_budget_scales_with_depth`
+  compares shallow against deep; three items handed to every floor alike
+  diluted the ratio to 1.57 against a 1.5 threshold. It passed, which is the
+  worrying part. It now subtracts the guarantee from both ends, and the margin
+  is back where the author put it.
+* **Two arrow-trap tests counted arrows floor-wide.** They mean "the trap's
+  tile is clean / has one spent arrow", and they said "the floor has no arrows
+  on it" — so the moment the content stream shifted and seed 2 rolled a bundle
+  of arrows into some room, both failed. Now counted on the trap's tile, which
+  is also the player's landing tile and so is the one tile floor loot can never
+  reach.
+* **`PotionEffect` is alphabetical and the save file is positional.** The new
+  `Magic` row goes at the *end*, not under M, with a comment saying why — the
+  one convention in that enum that a reader would otherwise "tidy".

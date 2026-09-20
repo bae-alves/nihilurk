@@ -116,9 +116,9 @@ No item row overrides `weight` or `min_depth` today — within a category nihilu
 | `name`   | `&'static str` |                                          |
 | `color`  | `Color`        |                                          |
 
-Draws `!`. Attaches `Item`, `Potion`, `Consume`. Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`. That match has no catch-all, so a new `PotionEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above. An arm is allowed to do nothing on purpose, though only two do today (`FruitJuice` and `Water`, which are a log line and a taste); the other thirteen all bite.
+Draws `!`. Attaches `Item`, `Potion`, `Consume`. Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`. That match has no catch-all, so a new `PotionEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above. An arm is allowed to do nothing on purpose, though only two do today (`FruitJuice` and `Water`, which are a log line and a taste); the other fourteen all bite.
 
-The dials the arms read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Four arms reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one lends `SeesInvisible` for the floor, and `RaiseLevel` calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
+The dials the arms read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Five arms reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength) and one into `Magic` (the potion of magic, which fills the pool and lifts its ceiling the way gain strength lifts the arm's), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one lends `SeesInvisible` for the floor, and `RaiseLevel` calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
 
 ### SCROLLS — ScrollDef
 
@@ -310,6 +310,8 @@ Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Valu
 | hero coin | `LearnRandomSpell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Weight 3, well under the baseline — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
 
 Mechanic: `apply` in `models/src/items/pickups.rs`, an exhaustive match with no catch-all — a new `PickupEffect` does not build until it does something.
+
+**One of them is not left to chance.** Every floor is stocked with a coin for the body before its item budget is spent -- a blue one on the odd floors, a red one on the even. The last floor of each difficulty tier (3, 6, 9, 12) also gets one draw from `catalog::PROGRESSION_ITEMS`: the platinum, forge and hero coins, the three potions that raise a ceiling (healing, magic, gain strength), and the three scrolls that sharpen gear for good (the two enchantments and vorpalize weapon). Neither comes out of the budget. See `../how-to/tune-rarity-and-depth.md`, "Dial 1".
 
 **A coin that would do nothing is not taken.** `pickups::would_help` gates every one of them: a red coin at full health, a rosé coin with nothing wrong with you, a platinum coin when you already hold the promise. The coin stays on the floor, silently, and auto-explore skips it too (`autoexplore::known_item_tiles`) until the day it would help.
 

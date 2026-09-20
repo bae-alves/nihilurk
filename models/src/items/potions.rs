@@ -63,6 +63,7 @@ pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: Potio
         PotionEffect::Paralysis => paralyse(world, user),
         PotionEffect::Haste => hasten(world, user),
         PotionEffect::GainStrength => gain_strength(world, user),
+        PotionEffect::Magic => gain_magic(world, user),
         PotionEffect::Poison => poison(world, user),
         PotionEffect::RestoreStrength => restore_strength(world, user),
         PotionEffect::SeeInvisible => see_invisible(world, user),
@@ -109,6 +110,25 @@ fn gain_strength(world: &mut World, user: Entity) -> bool {
         user,
         "You feel stronger. What bulging muscles!",
         "swells with muscle",
+    );
+    world.resource_mut::<GameLog>().add(msg);
+    true
+}
+
+/// Potion of magic: the pool back to full and a point of ceiling with it, the
+/// same bargain gain strength offers the arm. Only the player carries
+/// [`Magic`], so a monster that swallows one has swallowed nothing.
+fn gain_magic(world: &mut World, user: Entity) -> bool {
+    let Some(mut magic) = world.get_mut::<Magic>(user) else {
+        return false;
+    };
+    magic.max_points += GAIN_MAGIC_POINTS;
+    magic.points = magic.max_points;
+    let msg = actor_line(
+        world,
+        user,
+        "Your head clears and then some — the power is all there.",
+        "hums with borrowed power",
     );
     world.resource_mut::<GameLog>().add(msg);
     true

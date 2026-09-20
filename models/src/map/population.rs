@@ -18,7 +18,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 use std::collections::HashSet;
 
-use crate::catalog::spawn_element_of_yoord;
+use crate::catalog::{PROGRESSION_ITEMS, spawn_element_of_yoord};
 use crate::components::*;
 use crate::constants::population::{
     CORRIDOR_LURKER_CHANCE, CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEM_SLOTS_BASE,
@@ -39,7 +39,7 @@ use crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 const PLACEMENT_TRIES: usize = 10;
 use crate::monsters::{MonsterDef, spawn_monster_with_rng};
 use crate::rect::Rect;
-use crate::spawn::{roll_item, spawn_requested};
+use crate::spawn::{roll_item, spawn_named, spawn_requested};
 
 use super::generate::{corridor_centers, find_tile};
 use super::levels::holding_element_of_yoord;
@@ -126,6 +126,41 @@ fn place_one_trap(
     }
 }
 
+/// What a floor is stocked with before any budget is spent: the depth's parity
+/// coin — blue on the odd floors, red on the even ones — and, on the last
+/// floor of each difficulty tier, one draw from [`PROGRESSION_ITEMS`].
+///
+/// Neither comes out of the item budget below. The budget is what a floor might
+/// be worth; this is what it is worth at worst, so a run is never starved of
+/// the magic it needs to cast with, nor of the permanent point of something
+/// that pays for the tier it just survived.
+///
+/// The progression floors are [`DIFFICULTY_TIER_LAST_DEPTH`] itself — 3, 6, 9
+/// and 12 — rather than a list of their own: one reward for finishing a band,
+/// read off the same array the band is defined by. (Depth 13 is its own tier
+/// and has no last floor before the Element of Yoord, so it gets none.)
+fn place_guaranteed(
+    world: &mut World,
+    rooms: &[Rect],
+    occupied: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+    depth: u8,
+) {
+    let parity = match depth % 2 {
+        1 => "blue coin",
+        _ => "red coin",
+    };
+    let progression = DIFFICULTY_TIER_LAST_DEPTH
+        .contains(&depth)
+        .then(|| PROGRESSION_ITEMS[rng.gen_range(0..PROGRESSION_ITEMS.len())]);
+    for name in [Some(parity), progression].into_iter().flatten() {
+        let Some((x, y)) = claim_random_spot(rooms, occupied, rng) else {
+            continue;
+        };
+        spawn_named(world, name, Position { x, y }).expect("a guaranteed find is a catalog row");
+    }
+}
+
 /// Which floor-crowding tier `depth` falls in — `0` on the shallowest floors,
 /// rising by one at each boundary in [`DIFFICULTY_TIER_LAST_DEPTH`]. The
 /// monster, trap and item budgets all read this. `[3, 6, 9, 12]` gives five tiers:
@@ -168,6 +203,9 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
     let seed = world.resource::<RngSeed>().0;
     let changes = world.get_resource::<FloorChanges>().map_or(0, |c| c.count);
     let mut rng = content_rng(seed, depth, changes);
+
+    // What the floor owes the player before it owes them anything else.
+    place_guaranteed(world, rooms, &mut occupied, &mut rng, depth);
 
     // Both the monster and trap budgets step up in five depth bands (1-3, 4-6,
     // 7-9, 10-12, and 13 alone — see `difficulty_tier`). Each tier grants one
