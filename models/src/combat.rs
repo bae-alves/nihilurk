@@ -18,7 +18,7 @@ use crate::identify::display_name;
 use crate::map::{GameRng, Map};
 use crate::particles::Particles;
 use crate::score::award_kill;
-use crate::shake::{ShakeKind, kick_shake};
+use crate::shake::{Shake, ShakeKind, kick_shake};
 use crate::state::Ending;
 
 // --- Tuning constants ------------------------------------------------------
@@ -117,6 +117,20 @@ fn kill_shake(world: &mut World, victim: Entity) {
     kick_shake(world, ShakeKind::Kill);
 }
 
+/// Stops the map dead for the rest of the run, called from both player-death
+/// paths. A player's death arms no shake of its own, but the blow that killed
+/// them may have armed one a frame earlier — a blast's `Heavy`, or the
+/// `Wounded` kick from the crossing on the way down — and that one would still
+/// be rocking over the slow death burst. Switching the layer off rather than
+/// only settling it also means a casualty later in the same blast can't arm a
+/// fresh one over a corpse.
+fn silence_shake(world: &mut World) {
+    if let Some(mut shake) = world.get_resource_mut::<Shake>() {
+        shake.enabled = false;
+        shake.settle();
+    }
+}
+
 /// Blanks an entity's on-screen glyph to a blank space — used only to hide
 /// the player's `@` the instant they die, so the death burst's flung corpse
 /// and bone shrapnel read as *them* exploding rather than a corpse detaching
@@ -145,9 +159,9 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         if world.resource::<Ending>().player_dead {
             return;
         }
+        silence_shake(world);
         death_burst(world, entity, source);
         blank_player_glyph(world, entity);
-        kick_shake(world, ShakeKind::Death);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
         ending.cause = "Killer unknown".to_string();
@@ -810,8 +824,8 @@ impl Flourish {
                 _ => Spark::Hit,
             },
             strike: Self::strike_kick(blow),
-            // A monster that kills the player takes the `Death` lurch in
-            // `settle_the_dead`, which is a bigger one than this.
+            // The player's own death arms no shake at all — see
+            // `settle_the_dead`.
             kill_kick: blow.outcome.lethal && !blow.target_is_player,
             burst: blow.outcome.lethal,
         }
@@ -938,11 +952,11 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         // The main loop notices the `Ending` resource, tears down the save and
         // shows the death screen. Their `@` is blanked so the death burst's
         // flung corpse reads as them exploding rather than detaching from a
-        // body still standing there, and the map takes the biggest lurch it
-        // has in it on the way out.
+        // body still standing there. No shake: the burst that is them coming
+        // apart plays slow, and it plays over a map that holds still.
         let attacker_name = entity_name(world, blow.attacker);
+        silence_shake(world);
         blank_player_glyph(world, blow.target);
-        kick_shake(world, ShakeKind::Death);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
         ending.cause = format!("Slain by the {attacker_name}");

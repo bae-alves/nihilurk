@@ -612,6 +612,13 @@ const BONE_GLYPHS: [char; 4] = ['/', '\\', '|', '¡'];
 /// How many bone shards a death burst throws.
 const BONE_SHARD_COUNT: usize = 4;
 
+/// How much longer the *player's* death burst takes than a monster's. Every
+/// other burst is an aftermath the player has to sit through before they can
+/// act again, so it is kept short; this one has nothing left to hold up — the
+/// run is over and the death screen is next — and it is the only death in the
+/// game that is about the thing dying rather than the blow that did it.
+const PLAYER_DEATH_STRETCH: f32 = 3.0;
+
 /// A dying creature's Mortal-Kombat-style flourish, played once right when a
 /// hit is determined lethal and *before* the entity is despawned (it still
 /// needs the corpse's [`Position`], [`Renderable`] and [`Blood`]): the corpse
@@ -623,6 +630,10 @@ const BONE_SHARD_COUNT: usize = 4;
 /// hit) — the corpse flies away from it, continuing the line the blow came
 /// in on. `None` (an indirect kill: a wand bolt, a fire blast) picks a random
 /// direction instead.
+///
+/// The player's own death runs the same burst at
+/// [`PLAYER_DEATH_STRETCH`] the length — nothing is waiting behind it, and the
+/// map stays still under it (a player death arms no screen shake).
 ///
 /// When [`BloodStains`] is disabled (`-nb`), the whole animation — and the RNG
 /// it would consume — is skipped, same as [`spill_blood`] going quiet under
@@ -651,6 +662,11 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
     }
 
     let has_blood = world.get::<Blood>(entity).is_some();
+    let stretch = if world.get::<Player>(entity).is_some() {
+        PLAYER_DEATH_STRETCH
+    } else {
+        1.0
+    };
     let color = world
         .get::<Renderable>(entity)
         .map(|r| r.color)
@@ -706,7 +722,7 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
     let pts: Vec<(u16, u16)> = path.iter().map(|p| (p.x, p.y)).collect();
     let flight_ms = world
         .get_resource_mut::<Particles>()
-        .map(|mut fx| fx.death_fling(&pts, color))
+        .map(|mut fx| fx.death_fling(&pts, color, stretch))
         .unwrap_or(0.0);
 
     if hit_wall && has_blood {
@@ -747,7 +763,7 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
         let glyph = BONE_GLYPHS[i % BONE_GLYPHS.len()];
         let spts: Vec<(u16, u16)> = spath.iter().map(|p| (p.x, p.y)).collect();
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            fx.bone_shard(&spts, glyph);
+            fx.bone_shard(&spts, glyph, stretch);
         }
     }
 }

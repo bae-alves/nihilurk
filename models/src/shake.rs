@@ -33,7 +33,7 @@ use particle_core as core_math;
 /// [`ShakeKind::shape`]: how long it rocks for, and how far it throws the map
 /// on the first frame.
 ///
-/// Five kinds is the whole set, and the spread between them is the point — a
+/// Four kinds is the whole set, and the spread between them is the point — a
 /// shake is punctuation, so the lightest one has to be light enough that the
 /// heavier ones still read as heavier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,21 +57,19 @@ pub enum ShakeKind {
     /// the only one that is *not* about the blow that caused it — it is the
     /// room reeling, under a log line the player needs to read, so it runs on
     /// well past the hit and fades out rather than stopping.
+    ///
+    /// The heaviest kind there is, and the last one a losing run ever plays:
+    /// the player's *own* death arms nothing. A death is watched, not felt
+    /// through the floor — the map holds still so the slow burst that is them
+    /// coming apart is the only thing moving on screen.
     Wounded,
-    /// The player died. The last thing the map ever does, and it outranks
-    /// everything — but only just longer than `Wounded` and no further-thrown,
-    /// because this is the one shake nobody is typing through. Every other
-    /// kind is cut short the instant the player acts; a dying player is
-    /// looking at the screen, so they sit through all of this one, and it has
-    /// to be over before the wait becomes the thing they remember.
-    Death,
 }
 
 impl ShakeKind {
     /// `(duration_ms, amplitude_in_cells)`. The per-kind dials, on the kind
-    /// itself rather than off in `constants.rs`: there are five of them, they
-    /// are only ever read here, and "tick / short / medium / long / final" is
-    /// only legible as a table if you can see all five pairs at once.
+    /// itself rather than off in `constants.rs`: there are four of them, they
+    /// are only ever read here, and "tick / short / medium / long" is only
+    /// legible as a table if you can see all four pairs at once.
     ///
     /// Amplitude 2 means the first frames throw the map two cells and the rest
     /// one — a shake that decays in *reach*, since a terminal has no half-cell
@@ -87,7 +85,6 @@ impl ShakeKind {
             ShakeKind::Kill => (120.0, 1),
             ShakeKind::Heavy => (260.0, 2),
             ShakeKind::Wounded => (460.0, 2),
-            ShakeKind::Death => (500.0, 2),
         }
     }
 
