@@ -638,7 +638,7 @@ pub fn render<W: Write>(
             ),
             (
                 "Ma".into(),
-                Color::Blue,
+                Color::DarkCyan,
                 format!("{}/{}", player_magic, player_max_magic),
             ),
             ("Pow.".into(), Color::Red, stat(pow_die, pow_flat)),

@@ -116,7 +116,7 @@ Two lines, on opposite sides of the map: the dungeon's half on row 0, the player
 
 **Row 0** carries condition badges from column 1, `DEPTH n` centred (the word in magenta, the number white) and the score pinned to the right edge in white. Nothing on it is laid out relative to anything else on it, so a player wearing six badges cannot push the depth or the score off the line, and the score no longer yields its place to a badge the way it did when all three shared one run of fields.
 
-**Row 22** is the player: name, `HP x/y`, `Ma x/y`, `Pow.`, `Arm.`, optionally `Skl.` — joined with `" · "` in `DarkGrey`. The label carries the colour and the figure beside it stays white — `Ma` blue, `Pow.` red, `Arm.` cyan, `Skl.` green, the name white — so the line reads as one row of numbers over a colour-coded key rather than six differently coloured numbers.
+**Row 22** is the player: name, `HP x/y`, `Ma x/y`, `Pow.`, `Arm.`, optionally `Skl.` — joined with `" · "` in `DarkGrey`. The label carries the colour and the figure beside it stays white — `Ma` dark cyan, `Pow.` red, `Arm.` cyan, `Skl.` green, the name white — so the line reads as one row of numbers over a colour-coded key rather than six differently coloured numbers.
 
 `HP` is the one field that colours its own number, because the number is the thing that changes meaning: yellow normally, `DarkRed` once `models::player_too_injured` is true. That is the same call auto-fight refuses under, not a second threshold copied into the HUD, so the field can never say "fine" about a bar `Tab` will not swing on.
 
