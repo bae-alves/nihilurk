@@ -50,7 +50,7 @@ fn step_on(w: &mut World, name: &str) -> bool {
     taken
 }
 
-fn score(w: &mut World) -> i32 {
+fn score(w: &mut World) -> i64 {
     let p = player(w);
     w.get::<Score>(p).unwrap().value
 }
@@ -64,7 +64,10 @@ fn treasure_pays_its_row_into_the_score() {
     let mut w = test_world(1);
     let before = score(&mut w);
     assert!(step_on(&mut w, "gold coin"));
-    assert_eq!(score(&mut w) - before, coin_row("gold coin").amount);
+    assert_eq!(
+        score(&mut w) - before,
+        i64::from(coin_row("gold coin").amount)
+    );
 }
 
 #[test]
@@ -85,7 +88,7 @@ fn the_relic_pays_its_value_the_moment_it_is_in_hand() {
 
     assert!(pick_up(&mut w, p, relic).is_some());
 
-    assert_eq!(score(&mut w) - before, worth);
+    assert_eq!(score(&mut w) - before, i64::from(worth));
     assert!(
         w.get::<Backpack>(p).unwrap().items.contains(&relic),
         "and it is carried, not spent — it is the run"
@@ -325,7 +328,7 @@ fn shooting_a_coin_pays_the_shooter() {
     shoot(&mut w, "gold coin");
     assert_eq!(
         score(&mut w) - before,
-        coin_row("gold coin").amount,
+        i64::from(coin_row("gold coin").amount),
         "the coin gives itself up to whoever set it off"
     );
 }
@@ -386,7 +389,7 @@ fn a_blast_sets_off_the_coins_it_covers_and_pays_the_zapper() {
 
     assert_eq!(
         score(&mut w) - before,
-        coin_row("gold coin").amount,
+        i64::from(coin_row("gold coin").amount),
         "a coin caught in your own blast is a coin you set off"
     );
 }

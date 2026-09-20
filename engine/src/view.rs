@@ -308,64 +308,17 @@ pub fn render<W: Write>(
     };
 
     let player_name = world.resource::<PlayerName>().what.clone();
+    // The same cutoff auto-fight refuses under, so the HP field can never
+    // disagree with whether `Tab` will actually swing.
+    let too_injured = player_too_injured(world);
 
-    // ---- Top HUD ----
+    // ---- Top HUD (row 0) ----
+    // The dungeon's half of the status: what is on the player, where they
+    // are, what it has been worth. Badges run out from the left, the depth
+    // sits in the middle and the scorekeeper is pinned to the right edge, so
+    // no two of them can ever run each other off the line.
     {
-        let mut fields = vec![
-            player_name.to_uppercase(),
-            format!("HP {}/{}", player_hp, player_max_hp),
-            format!("Ma {}/{}", player_magic, player_max_magic),
-            format!("Pow. {}", stat(pow_die, pow_flat)),
-            format!("Arm. {}", stat(arm_die, arm_flat)),
-        ];
-        // What a throw is worth is only worth a HUD field once something is
-        // making it worth something — a bow, a ring of sharpshooting. A player who
-        // never throws never sees it.
-        if throw_flat != 0 {
-            fields.push(format!("Skl. {throw_flat:+}"));
-        }
-        fields.push(format!("DEPTH {}", depth));
-        // The score line yields its space to condition badges when any are lit
-        // — but never to a flash, which takes the scorekeeper's own place. A
-        // payment is worth seeing whatever else is going on.
-        let flash = world
-            .get_resource::<ScoreFlash>()
-            .filter(|f| f.lit())
-            .map(|f| {
-                (
-                    f.text.clone(),
-                    (0..f.text.chars().count())
-                        .map(|i| f.color_at(i))
-                        .collect::<Vec<_>>(),
-                )
-            });
-        if conditions.is_empty() && flash.is_none() {
-            fields.push(format!("SCORE {:06}", player_score));
-        }
-        let mut hx: u16 = 1;
-        for (i, field) in fields.iter().enumerate() {
-            if i > 0 {
-                screen.puts(hx, 0, " · ", Color::DarkGrey);
-                hx += 3;
-            }
-            screen.puts(hx, 0, field, Color::Cyan);
-            hx += field.chars().count() as u16;
-        }
-        // The scorekeeper shouting: `+700` in one bright colour, or DOUBLE a
-        // letter at a time in the six of the flag.
-        if let Some((text, colors)) = flash {
-            screen.puts(hx, 0, " · ", Color::DarkGrey);
-            hx += 3;
-            for (ch, color) in text.chars().zip(colors) {
-                screen.puts(hx, 0, &ch.to_string(), color);
-                hx += 1;
-            }
-        }
-        for (label, color) in &conditions {
-            screen.puts(hx, 0, " · ", Color::DarkGrey);
-            screen.puts(hx + 3, 0, label, *color);
-            hx += 3 + label.len() as u16;
-        }
+        let mut badges = conditions.clone();
         let held = world
             .query_filtered::<(
                 Option<&Petrified>,
@@ -385,23 +338,41 @@ pub fn render<W: Write>(
             Some((_, _, true)) => Some("HELD"),
             _ => None,
         } {
-            screen.puts(hx, 0, " · ", Color::DarkGrey);
-            screen.puts(hx + 3, 0, label, Color::Red);
-            hx += 3 + label.len() as u16;
+            badges.push((label, Color::Red));
         }
         if let Some(label) = auto_label {
-            screen.puts(hx, 0, " · ", Color::DarkGrey);
-            let color = if holding_element {
-                Color::Magenta
-            } else {
-                Color::Green
-            };
-            screen.puts(hx + 3, 0, label, color);
+            badges.push((
+                label,
+                match holding_element {
+                    true => Color::Magenta,
+                    false => Color::Green,
+                },
+            ));
         }
         if world.resource::<TravelCursor>().active {
-            screen.puts(hx, 0, " · ", Color::DarkGrey);
-            screen.puts(hx + 3, 0, "TRAVEL?", Color::Yellow);
+            badges.push(("TRAVEL?", Color::Yellow));
         }
+        let mut hx: u16 = 1;
+        for (i, (label, color)) in badges.iter().enumerate() {
+            if i > 0 {
+                screen.puts(hx, 0, " · ", Color::DarkGrey);
+                hx += 3;
+            }
+            screen.puts(hx, 0, label, *color);
+            hx += label.chars().count() as u16;
+        }
+
+        let depth_text = format!("DEPTH {}", depth);
+        let dx = centered_x(&depth_text);
+        screen.puts(dx, 0, "DEPTH", Color::Magenta);
+        screen.puts(dx + 6, 0, &depth_text["DEPTH ".len()..], Color::White);
+
+        // The scorekeeper, right-aligned. A payment no longer takes its place:
+        // the flash shouts in the gutter under it (row 1, below), so the
+        // running total is readable through the frame that pays it.
+        let score_line = format!("SCORE {}", score_text(player_score));
+        let sx = SCREEN_W.saturating_sub(1 + score_line.chars().count() as u16);
+        screen.puts(sx, 0, &score_line, Color::White);
     }
 
     // ---- Terrain ----
@@ -645,7 +616,83 @@ pub fn render<W: Write>(
         }
     }
 
-    // ---- Message log (rows 22..=24) ----
+    // ---- Player line (row 22, directly under the viewport) ----
+    // Who the player is and what they are made of, on the row nearest the
+    // thing it describes. The map's own bottom row is what pays for it — the
+    // log's first line used to sit here and cost exactly the same one.
+    // Each field's label carries the colour; the figure beside it stays white,
+    // so the line reads as one row of numbers with a colour-coded key. HP is
+    // the exception — it colours its own number, and turns dark red at the
+    // cutoff where auto-fight starts refusing.
+    {
+        let hp_color = match too_injured {
+            true => Color::DarkRed,
+            false => Color::Yellow,
+        };
+        let mut fields = vec![
+            (player_name.to_uppercase(), Color::White, String::new()),
+            (
+                "HP".into(),
+                hp_color,
+                format!("{}/{}", player_hp, player_max_hp),
+            ),
+            (
+                "Ma".into(),
+                Color::Blue,
+                format!("{}/{}", player_magic, player_max_magic),
+            ),
+            ("Pow.".into(), Color::Red, stat(pow_die, pow_flat)),
+            ("Arm.".into(), Color::Cyan, stat(arm_die, arm_flat)),
+        ];
+        // What a throw is worth is only worth a field once something is making
+        // it worth something — a bow, a ring of sharpshooting. A player who
+        // never throws never sees it.
+        if throw_flat != 0 {
+            fields.push(("Skl.".into(), Color::Green, format!("{throw_flat:+}")));
+        }
+        let mut px: u16 = 1;
+        for (i, (label, color, value)) in fields.iter().enumerate() {
+            if i > 0 {
+                screen.puts(px, 22, " · ", Color::DarkGrey);
+                px += 3;
+            }
+            screen.puts(px, 22, label, *color);
+            px += label.chars().count() as u16;
+            if !value.is_empty() {
+                let number = match label.as_str() {
+                    "HP" => hp_color,
+                    _ => Color::White,
+                };
+                screen.puts(px + 1, 22, value, number);
+                px += 1 + value.chars().count() as u16;
+            }
+        }
+    }
+
+    // ---- The scorekeeper's flash (row 1, the gutter under the HUD) ----
+    // A payment shouts under the score rather than over it: `+700` in one
+    // bright colour, `COMBO! +2400` with the word in the flag's stripes, or
+    // DOUBLE. Painted here, after the map layers, because the row it lands on
+    // is the map's own top row — always wall, never anything to read.
+    if let Some((text, colors)) = world
+        .get_resource::<ScoreFlash>()
+        .filter(|f| f.lit())
+        .map(|f| {
+            (
+                f.text.clone(),
+                (0..f.text.chars().count())
+                    .map(|i| f.color_at(i))
+                    .collect::<Vec<_>>(),
+            )
+        })
+    {
+        let sx = SCREEN_W.saturating_sub(1 + text.chars().count() as u16);
+        for (i, (ch, color)) in text.chars().zip(colors).enumerate() {
+            screen.put(sx + i as u16, 1, ch, color);
+        }
+    }
+
+    // ---- Message log (rows 23..=24) ----
     // Messages are packed onto shared lines and only wrap when the next one
     // would overflow; a message is never split across the wrap. Each keeps its
     // own colour on the line it shares — a shouting message must never repaint
@@ -654,7 +701,7 @@ pub fn render<W: Write>(
         let stripes = models::pride::stripes(world);
         let (lines, more) = log_panel(world);
         for (i, segments) in lines.iter().enumerate() {
-            let y = 22 + i as u16;
+            let y = 23 + i as u16;
             let last = i + 1 == lines.len();
             let mut x: u16 = 0;
             for message in segments {
@@ -870,6 +917,36 @@ fn stat(die: i32, flat: i32) -> String {
     }
 }
 
+/// The scorekeeper's number, in the one width the HUD and both end panels have
+/// room for: six digits, zero-padded, arcade-style.
+///
+/// A score that outgrows six digits is no longer a number anybody reads digit
+/// by digit, so it gets an order of magnitude instead — `4.09M`, `1.31B`,
+/// `9.44T` — and past a thousand trillion, where the suffixes run out, the
+/// exponent itself. Truncated, never rounded: a score should never read higher
+/// than it is. A score that has saturated (`models::score` pins rather than
+/// wraps) is not a number at all any more, so it gets the word.
+fn score_text(score: i64) -> String {
+    const M: i64 = 1_000_000;
+    match score {
+        ..M => format!("{score:06}"),
+        ..1_000_000_000 => scaled(score, M, 'M'),
+        ..1_000_000_000_000 => scaled(score, 1_000 * M, 'B'),
+        ..1_000_000_000_000_000 => scaled(score, 1_000_000 * M, 'T'),
+        i64::MAX => "MAXIMUM".to_string(),
+        _ => format!("{score:.2e}"),
+    }
+}
+
+/// `score` in units of `unit`, two decimals, truncated.
+fn scaled(score: i64, unit: i64, suffix: char) -> String {
+    format!(
+        "{}.{:02}{suffix}",
+        score / unit,
+        score % unit / (unit / 100)
+    )
+}
+
 /// Rough vertical centring helper for the full-screen end panels.
 fn centered_x(text: &str) -> u16 {
     (SCREEN_W.saturating_sub(text.chars().count() as u16)) / 2
@@ -900,7 +977,7 @@ pub fn render_tombstone<W: Write>(
     offset: (u16, u16),
     player_name: &str,
     cause: &str,
-    score: i32,
+    score: i64,
 ) -> std::io::Result<()> {
     screen.clear();
 
@@ -931,7 +1008,7 @@ pub fn render_tombstone<W: Write>(
     screen.puts(centered_x(cause), y, cause, Color::Grey);
     y += 2;
 
-    let score_line = format!("SCORE {:06}", score);
+    let score_line = format!("SCORE {}", score_text(score));
     screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
     y += 3;
 
@@ -950,7 +1027,7 @@ pub fn render_victory<W: Write>(
     screen: &mut Screen,
     offset: (u16, u16),
     player_name: &str,
-    score: i32,
+    score: i64,
 ) -> std::io::Result<()> {
     screen.clear();
 
@@ -987,7 +1064,7 @@ pub fn render_victory<W: Write>(
     }
     y += 2;
 
-    let score_line = format!("SCORE {:06}", score);
+    let score_line = format!("SCORE {}", score_text(score));
     screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
     y += 3;
 
@@ -1285,6 +1362,20 @@ mod tests {
             log_view(&w.resource::<GameLog>().unread).2,
             "the fixture did not actually give the log a backlog to prompt about"
         );
+    }
+
+    #[test]
+    fn the_scorekeeper_shortens_a_score_it_cannot_print_in_six_digits() {
+        assert_eq!(score_text(140), "000140", "the arcade format, padded");
+        assert_eq!(score_text(999_999), "999999", "six digits is the limit");
+        assert_eq!(score_text(1_000_000), "1.00M");
+        assert_eq!(score_text(4_098_000), "4.09M", "truncated, never rounded");
+        assert_eq!(score_text(999_999_999), "999.99M", "and never rounded up");
+        assert_eq!(score_text(1_310_000_000), "1.31B");
+        assert_eq!(score_text(9_440_000_000_000), "9.44T");
+        assert_eq!(score_text(4_611_686_018_427_387_900), "4.61e18");
+        // A run that has pinned the ceiling has stopped counting; say so.
+        assert_eq!(score_text(i64::MAX), "MAXIMUM");
     }
 
     #[test]

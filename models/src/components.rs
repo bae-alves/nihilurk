@@ -872,9 +872,15 @@ pub struct EntityMoved;
 // ===========================================================================
 
 /// The running score shown on the HUD. Coins and the relic add to it on pickup.
+///
+/// `i64`, not `i32`: nothing caps how many rings of adornment a dungeon hands
+/// out and every one of them doubles this. Every write to it goes through
+/// [`crate::score`], which saturates rather than wraps — a score is always a
+/// multiple of a hundred, and a multiple of a hundred that wraps lands on
+/// exactly zero.
 #[derive(Component)]
 pub struct Score {
-    pub value: i32,
+    pub value: i64,
 }
 
 // ===========================================================================

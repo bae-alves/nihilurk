@@ -770,7 +770,26 @@ impl Lifetime {
     pub fn is_saved(self) -> bool {
         !matches!(self, Lifetime::WhileEquipped(_))
     }
+
+    /// Whether what is held this way will stop being held. The other two
+    /// lifetimes are what a creature *is*: born with it, or wearing it, and
+    /// neither is something that happened to it.
+    ///
+    /// Half of what [`Held::is_condition`] asks, and the half that has to be
+    /// asked of the lifetime rather than the effect: the same `Regenerates`
+    /// is a temporary boon out of a potion and a permanent one off a ring.
+    pub fn is_transient(self) -> bool {
+        matches!(
+            self,
+            Lifetime::Floor | Lifetime::Turns(_) | Lifetime::NextAction
+        )
+    }
 }
+
+/// How many conditions one creature carries at once. A fourth shoulders the
+/// oldest one off — the body has only so much room to be wrong in, and a
+/// player buried under six badges cannot read their own state anyway.
+pub const CONDITION_CAP: usize = 3;
 
 /// One effect an entity is holding, and for how long.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -778,6 +797,23 @@ pub struct Held {
     /// The [`Effect::id`] — a stable string, which is what reaches the disk.
     pub id: &'static str,
     pub lifetime: Lifetime,
+}
+
+impl Held {
+    /// Whether this entry is a *condition*: something the creature is under
+    /// right now, and one of the at most [`CONDITION_CAP`] it can be under.
+    ///
+    /// Both halves have to hold. A ring of regeneration lends a boon that is
+    /// not transient, and a potion of magic detection lends a transient mark
+    /// that is nothing the marked creature is feeling — neither is a
+    /// condition, and neither may shoulder a real one off. Which is why the
+    /// effect half is [`crate::conditions::is_condition`], read off the lists
+    /// that already declare the conditions, rather than a fresh list here:
+    /// anything not on one of those lists is exempt by default, which is the
+    /// safe direction for a rule that silently takes things away.
+    pub fn is_condition(&self) -> bool {
+        self.lifetime.is_transient() && crate::conditions::is_condition(self.id)
+    }
 }
 
 /// Everything an entity is holding: the ledger.
@@ -820,11 +856,66 @@ pub fn lend(world: &mut World, entity: Entity, grant: Grant, lifetime: Lifetime)
     let Some(id) = grant.effect_id() else {
         return;
     };
-    let mut e = world.entity_mut(entity);
-    grant.attach(&mut e);
-    let mut ledger = e.take::<Effects>().unwrap_or_default();
-    ledger.0.push(Held { id, lifetime });
-    e.insert(ledger);
+    let held = Held { id, lifetime };
+    {
+        let mut e = world.entity_mut(entity);
+        grant.attach(&mut e);
+        let mut ledger = e.take::<Effects>().unwrap_or_default();
+        ledger.0.push(held);
+        e.insert(ledger);
+    }
+    if held.is_condition() {
+        shed_oldest_condition(world, entity);
+    }
+}
+
+/// Enforces [`CONDITION_CAP`]: over the ceiling, the condition that has been
+/// there longest comes off.
+///
+/// Oldest first because the newest is the one that just happened, and a hit
+/// that lands should be felt. The ledger is already in arrival order, so
+/// "oldest" is the first entry and no timestamp has to be kept.
+///
+/// Entries are shed one at a time, on the way in, so the ledger is never more
+/// than one over — which is why this takes the first offender rather than
+/// looping.
+fn shed_oldest_condition(world: &mut World, entity: Entity) {
+    let Some(ledger) = world.get::<Effects>(entity) else {
+        return;
+    };
+    let mut conditions = ledger
+        .0
+        .iter()
+        .enumerate()
+        .filter(|(_, h)| h.is_condition());
+    let doomed = match conditions.clone().count() > CONDITION_CAP {
+        true => conditions.next().map(|(i, h)| (i, h.id)),
+        false => None,
+    };
+    let Some((index, id)) = doomed else {
+        return;
+    };
+
+    let mut ledger = world.get_mut::<Effects>(entity).expect("just read it");
+    ledger.0.remove(index);
+    let still_held = ledger.holds(id);
+    if !still_held && let Some(effect) = Effect::by_id(id) {
+        effect.grant.detach(&mut world.entity_mut(entity));
+    }
+    // A condition leaving by this route leaves the same mess behind as one
+    // lifted by a cure: a viewshed to recompute, a tempo to put back.
+    crate::conditions::after_lifted(world, entity, id);
+
+    // And it is never silent. A condition the player can no longer see the
+    // badge for has to have been read going, or the ceiling looks like a bug
+    // in the badge line. Only the player is told, the same rule `tick_effects`
+    // keeps: the sentences are written to them.
+    if world.get::<Player>(entity).is_none() {
+        return;
+    }
+    if let Some(line) = crate::conditions::shed_line(id) {
+        world.resource_mut::<GameLog>().add(line);
+    }
 }
 
 /// Drops every entry `doomed` accepts, and detaches the component behind any

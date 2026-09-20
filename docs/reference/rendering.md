@@ -61,8 +61,8 @@ pub fn render<W: Write>(world, stdout, screen) -> std::io::Result<()>
 flowchart LR
   subgraph screen["screen coordinates — the shake does not move these"]
     direction TB
-    H["1 · HUD"]:::cold
-    L["14 · message log"]:::cold
+    H["1 · top HUD"]:::cold
+    L["14 · player line<br/>+ score flash<br/>+ message log"]:::cold
     V["15 · pack overlay<br/>+ quit prompt"]:::cold
   end
   subgraph map["map coordinates — put_map, so the shake moves them"]
@@ -88,7 +88,7 @@ flowchart LR
 
 Painted in this order — everything after "Terrain" draws over whatever came before it on the same cell. Layers 2-13 paint in map coordinates (so the screen shake moves them); 1, 14 and 15 paint in screen coordinates (so it does not):
 
-  1. **Top HUD** (row 0) — see below.
+  1. **Top HUD** (row 0) — the dungeon's half of the status. See below.
   2. **Terrain** — every tile with `visible` or `revealed` set; `revealed`-but-not-`visible` tiles are painted `DarkGrey` (the "remembered, not seen" fog look). A corridor's walls are skipped entirely (`Map::is_room_wall`) so passages read as tunnels, not ditches framed on every side.
   3. **Blood overlay** — recolours a tile's existing glyph (`set_fg`, not `put`) `DarkRed`, only where currently `visible` and never where `occupied_by_actor` — the stain marks the floor, not whatever is standing on it. Skipped entirely while the player is `Blind`: blood is carried by colour alone, and they have none.
   4. **Corpses** — same visibility rule as blood, drawn as a `%`.
@@ -101,7 +101,7 @@ Painted in this order — everything after "Terrain" draws over whatever came be
   11. **Particles** — drawn over actors deliberately, so a hit motes over the thing it hit rather than under it.
   12. **Targeting beam** — a Bresenham line from the player to the reticle, drawn as `*` in yellow, except where it crosses an actor: the actor's own glyph is kept but recoloured yellow (or black, if the actor was already yellow-ish, so it doesn't vanish into the beam). The reticle's own tip additionally gets a `DarkBlue` background.
   13. **Travel cursor** — a background-only highlight (`set_bg`), so the glyph and colour of whatever's on that tile stay readable.
-  14. **Message log** (rows 22–24). Its `--MORE--` prompt waits for the effect layer — see `log_panel`, under "The two blocking loops" below.
+  14. **Player line** (row 22), the **scorekeeper's flash** (row 1, over the map's top row) and the **message log** (rows 23–24). The log's `--MORE--` prompt waits for the effect layer — see `log_panel`, under "The two blocking loops" below.
   15. **Inventory overlay** — drawn last, on top of everything.
 
 `occupied_by_actor`, computed once up front, is the set every "don't draw under a mob" rule in steps 3–8 checks against.
@@ -112,13 +112,23 @@ Painted in this order — everything after "Terrain" draws over whatever came be
 The HUD
 --------
 
-Built as an ordered list of fields — name, `HP x/y`, `Ma x/y`, `Pow.`, `Arm.`, optionally `Thr.`, `DEPTH n` — joined with `" · "` in `DarkGrey`, then either a `SCORE` field or, if any transient condition badge is lit, the badges in its place (there's only room for one).
+Two lines, on opposite sides of the map: the dungeon's half on row 0, the player's half on row 22, directly under the viewport. The second one costs the map's bottom row — the log's first line used to sit there and cost exactly the same one, which is why the log is two lines now instead of three.
 
-**The scorekeeper flashes.** While `models::ScoreFlash` is lit — one frame per payment; see `components.md`, "Components — score" — it takes the `SCORE` field's place whatever else is on the line, painted a character at a time from the flash's own colour list: `+700` in one random bright colour, `COMBO! +2400` with the word in the six flag stripes and the number in one colour, or `DOUBLE`.
+**Row 0** carries condition badges from column 1, `DEPTH n` centred (the word in magenta, the number white) and the score pinned to the right edge in white. Nothing on it is laid out relative to anything else on it, so a player wearing six badges cannot push the depth or the score off the line, and the score no longer yields its place to a badge the way it did when all three shared one run of fields.
 
-The displayed `Pow.`/`Arm.`/`Thr.` figures are **not** just `Fighter.power` etc. — they fold in every equipped modifier via one `models::loadout` call, the same fold `combat_system` runs, so the HUD can never drift from the number combat actually rolls against. One pass, not one per field: this runs on every frame of every animation. `Thr.` only appears once it's nonzero, since a player who never picked up something that boosts throws never needs to see a field that would always read `+0`. The bonus on `Pow.`/`Arm.` carries its own sign and is omitted entirely when it is zero, so a plain weapon reads `Pow. 10`, an enchanted one `Pow. 10+2` and a cursed one `Pow. 10-2` — the sign comes from the number, never from a `+` glued in front of it.
+**Row 22** is the player: name, `HP x/y`, `Ma x/y`, `Pow.`, `Arm.`, optionally `Skl.` — joined with `" · "` in `DarkGrey`. The label carries the colour and the figure beside it stays white — `Ma` blue, `Pow.` red, `Arm.` cyan, `Skl.` green, the name white — so the line reads as one row of numbers over a colour-coded key rather than six differently coloured numbers.
 
-Condition badges, in the order checked: `FAST`/`SLOW` (read through `conditions::tempo`, not off `Speed.kind` — so a ring of slow digestion reads `SLOW` exactly like a potion of paralysis does), `STLH` (`Stealthy`, a ring of stealth), `CONF` (`Confused`), `BLND` (`Blind`), `PARL` (`Paralyzed` — shown alongside the `SLOW` its slowing earns), `GLOW` (`ConfusingTouch`, a scroll of monster confusion still waiting on the next blow to land), `PLAT`/`FORG` (the two coin promises — the only badges that are good news; see `components.md`, "Components — player conditions"), then a snare label, worst first (`STONE` for a medusa's gaze, `ASLEEP` for sleeping gas, `HELD` for a bear trap or a scroll of hold monster), then an auto-walk badge (`EXPLORING`/`TRAVELING`, or `ASCENDING` — magenta — once the player carries the Element of Yoord), then `TRAVEL?` while the `O` cursor is open. Each is independent; several can show at once.
+`HP` is the one field that colours its own number, because the number is the thing that changes meaning: yellow normally, `DarkRed` once `models::player_too_injured` is true. That is the same call auto-fight refuses under, not a second threshold copied into the HUD, so the field can never say "fine" about a bar `Tab` will not swing on.
+
+The score itself is `view::score_text`, shared by the HUD and both end panels: six digits zero-padded (`SCORE 000140`), and past what six digits hold, an order of magnitude instead — `4.09M`, `1.31B`, `9.44T`, and `4.61e18` past a thousand trillion, where the suffixes run out. Truncated, never rounded: a score should never read higher than it is. A score that has saturated reads `MAXIMUM`: it is not a number any more, it is a ceiling.
+
+**The scorekeeper flashes, in the gutter under itself.** While `models::ScoreFlash` is lit — one frame per payment; see `components.md`, "Components — score" — the flash paints on **row 1**, right-aligned under the score, a character at a time from the flash's own colour list: `+700` in one random bright colour, `COMBO! +2400` with the word in the six flag stripes and the number in one colour, or `DOUBLE`. The running total keeps its place on row 0 throughout, so the frame that pays shows both what was paid and what it came to. Row 1 is the map's own top row, which is wall or nothing, and the flash is painted after the map layers (step 14, with the player line) so terrain cannot paint back over it.
+
+The displayed `Pow.`/`Arm.`/`Skl.` figures are **not** just `Fighter.power` etc. — they fold in every equipped modifier via one `models::loadout` call, the same fold `combat_system` runs, so the HUD can never drift from the number combat actually rolls against. One pass, not one per field: this runs on every frame of every animation. `Skl.` only appears once it's nonzero, since a player who never picked up something that boosts throws never needs to see a field that would always read `+0`. The bonus on `Pow.`/`Arm.` carries its own sign and is omitted entirely when it is zero, so a plain weapon reads `Pow. 10`, an enchanted one `Pow. 10+2` and a cursed one `Pow. 10-2` — the sign comes from the number, never from a `+` glued in front of it.
+
+Condition badges, in the order checked: `FAST`/`SLOW` (read through `conditions::tempo`, not off `Speed.kind` — so a ring of slow digestion reads `SLOW` exactly like a potion of paralysis does), `STLH` (`Stealthy`, a ring of stealth), `CONF` (`Confused`), `BLND` (`Blind`), `PARL` (`Paralyzed` — shown alongside the `SLOW` its slowing earns), `GLOW` (`ConfusingTouch`, a scroll of monster confusion still waiting on the next blow to land), `PLAT`/`FORG` (the two coin promises — the only badges that are good news; see `components.md`, "Components — player conditions"), `WARD`/`BIDE`, then a snare label, worst first (`STONE` for a medusa's gaze, `ASLEEP` for sleeping gas, `HELD` for a bear trap or a scroll of hold monster), then an auto-walk badge (`EXPLORING`/`TRAVELING`, or `ASCENDING` — magenta — once the player carries the Element of Yoord), then `TRAVEL?` while the `O` cursor is open. Each is independent; several can show at once — though never more than three *ledger* conditions, which is a rule about the creature rather than about the line: see `components.md`, "A creature carries at most three conditions". A worn ring's `STLH`, the tempo badges and the two coin promises are **priority badges**, outside that count and never shed, for the reasons on the same page.
+
+**A long enough badge run paints over the centred `DEPTH`, and that is accepted.** The three anchors on row 0 do not negotiate with each other — that is what splitting the HUD bought — so the only way the line could stay clean under three conditions, a tempo, `STLH`, both promises and an auto-walk badge would be to drop a badge the player needs. Nothing panics either way: `puts` no-ops past the frame edge. A player wearing that much at once did it to themselves.
 
 
 Animation playback

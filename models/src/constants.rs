@@ -677,7 +677,7 @@ pub mod travel {
 pub mod hud {
     /// Message-log lines shown at the bottom of the screen at once. More lines
     /// means less playfield unless the terminal is tall.
-    pub const LOG_LINES: usize = 3;
+    pub const LOG_LINES: usize = 2;
 
     /// Wrap width for a log line in the normal view. Kept equal to the map
     /// width so the log spans the playfield exactly.
