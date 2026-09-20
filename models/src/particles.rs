@@ -617,18 +617,24 @@ impl Particles {
     /// settling into a dim, dead rest frame. `pts` is the traced flight path,
     /// the death tile excluded. Returns the flight's total duration in ms, so
     /// a caller can time a wall splatter to land right as the corpse arrives.
-    pub fn death_fling(&mut self, pts: &[(u16, u16)], color: Color) -> f32 {
+    ///
+    /// `stretch` multiplies every duration in the flight: `1.0` for a monster,
+    /// and the player's own death drags it out (see
+    /// [`crate::helpers::death_burst`]) — the last thing a run does is worth
+    /// watching, and it is the one death nobody has to be kept waiting *from*.
+    pub fn death_fling(&mut self, pts: &[(u16, u16)], color: Color, stretch: f32) -> f32 {
         const TRAVEL_MS_PER_CELL: f32 = 65.0;
+        let per_cell = TRAVEL_MS_PER_CELL * stretch;
         for (i, &(x, y)) in pts.iter().enumerate() {
             let last = i + 1 == pts.len();
             self.push(Particle {
                 x,
                 y,
-                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
+                delay_ms: i as f32 * per_cell,
                 lifetime_ms: if last {
-                    380.0
+                    380.0 * stretch
                 } else {
-                    TRAVEL_MS_PER_CELL * 1.3
+                    per_cell * 1.3
                 },
                 age_ms: 0.0,
                 frames: if last {
@@ -638,7 +644,7 @@ impl Particles {
                 },
             });
         }
-        pts.len() as f32 * TRAVEL_MS_PER_CELL
+        pts.len() as f32 * per_cell
     }
 
     /// One shard of a death burst's bone shrapnel — a Mortal-Kombat-style
@@ -646,14 +652,18 @@ impl Particles {
     /// [`Particles::death_fling`]. Quicker and shorter-lived than the corpse
     /// itself, so the bones visibly outrace it before clattering out of
     /// sight. `pts` is the traced flight path, the death tile excluded.
-    pub fn bone_shard(&mut self, pts: &[(u16, u16)], glyph: char) {
+    /// `stretch` is [`Particles::death_fling`]'s, applied the same way, so the
+    /// shards of a slowed death stay ahead of its corpse rather than beating
+    /// it off screen by a second.
+    pub fn bone_shard(&mut self, pts: &[(u16, u16)], glyph: char, stretch: f32) {
         const TRAVEL_MS_PER_CELL: f32 = 45.0;
+        let per_cell = TRAVEL_MS_PER_CELL * stretch;
         for (i, &(x, y)) in pts.iter().enumerate() {
             self.push(Particle {
                 x,
                 y,
-                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
-                lifetime_ms: TRAVEL_MS_PER_CELL * 1.6,
+                delay_ms: i as f32 * per_cell,
+                lifetime_ms: per_cell * 1.6,
                 age_ms: 0.0,
                 frames: vec![(glyph, Color::White), (glyph, Color::Grey)],
             });

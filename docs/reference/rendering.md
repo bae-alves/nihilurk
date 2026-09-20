@@ -197,7 +197,7 @@ It runs as Step C1 of the main loop, straight after the frame that armed it and 
 
 What is armed, and by what, is the table in `components.md`, "The screen shake". `render` reads the current displacement into `Screen::map_shift` at the top of every frame, so nothing else in this file has to know the feature exists. `-nshake` turns it off at the source (`Shake::enabled`), so nothing is ever armed; `-anim-rate` scales its frames like every other animation's.
 
-The one shake with nothing left to protect is `ShakeKind::Death`, and it still goes through the same loop: the main loop reaches Step C1 before it checks `Ending`, so the map takes its last lurch and settles, and only then does `run_death_screens` paint over it.
+A player death is the one moment with nothing left to protect, and it arms no shake at all — the map holds still and `helpers::death_burst` plays out three times slower instead, in Step B2, before the main loop reaches its `Ending` check and `run_death_screens` paints over it.
 
 One thing to know if you are measuring: a shake frame changes most of the map's ~1700 cells, so it is the one situation where `flush`'s cell-diff has little left to skip. It lasts 2-15 frames.
 

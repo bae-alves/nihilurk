@@ -329,15 +329,16 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 
 ### The screen shake
 
-`Shake` (`shake.rs`) is the effect layer's second half, and the only cosmetic resource that is deliberately *not* played the way [`Particles`] is. Twelve call sites arm it, and nothing else may:
+`Shake` (`shake.rs`) is the effect layer's second half, and the only cosmetic resource that is deliberately *not* played the way [`Particles`] is. Thirteen call sites arm it, and nothing else may:
 
 | `ShakeKind` | Armed by | Shape |
 |-------------|----------|-------|
 | `Hit`       | the light stuff. Anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see; and `traps::trap_flourish` when a shooting trap (arrow or dart) goes off in sight, hit or miss — there the shake is the mechanism firing, not the damage | 80 ms, 1 cell — a tick |
 | `Kill`      | `combat::kill_shake`, from `resolve_attack` and `finish_indirect_kill`, when the player can see the victim's tile | 120 ms, 1 cell — short |
-| `Heavy`     | four things that all hit hard: `combat::resolve_attack` on the player's own excellent hit; `items::wands::elemental_blast` if the player can see the blast centre; `traps::burst` on the first burst of a trick shot the player can see; and `items::rings::do_it_with_style`, the adornment / victory flourish | 260 ms, 2 cells — medium |
-| `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | 460 ms, 2 cells — long |
-| `Death`     | both player-death paths in `combat.rs`, next to where `Ending::player_dead` is set | 500 ms, 2 cells — the last thing the map does |
+| `Heavy`     | everything that hits hard: `combat::resolve_attack` on the player's own excellent hit and on a garrote's pop; `items::wands::elemental_blast` if the player can see the blast centre; `traps::burst` on the first burst of a trick shot the player can see; `items::rings::do_it_with_style`, the adornment / victory flourish; and the three spells that go off with a bang — `circle_of_death`, `meteor_strike`, `frost_nova` | 260 ms, 2 cells — medium |
+| `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | 460 ms, 2 cells — long, and the heaviest there is |
+
+**The player's own death arms nothing.** Both player-death paths in `combat.rs` blank the `@` and set `Ending::player_dead` without kicking the map: a death is watched, not felt through the floor. What replaces the shake is time — `helpers::death_burst` runs the player's burst at `PLAYER_DEATH_STRETCH` (3x) the length of a monster's, which it can afford because nothing is waiting behind it: the run is over and the death screen is next.
 
 The durations are on `ShakeKind::shape()`, not in `constants.rs`. A kick only displaces an already-running shake if it is worth more than what is *left* of it, so a kill mid-blast cannot truncate the blast — and an ordinary hit landed during either cannot truncate anything. Amplitude 2 means the first half throws the map two cells and the rest one; a terminal has no half-cell to decay through.
 
@@ -347,7 +348,7 @@ A glancing blow is the one hit that draws blood and arms no shake. It gets `Part
 
 Melee excludes a lethal blow from the `Hit` kick by hand; the ranged path excludes it by asking whether the victim is at 0 HP, because `helpers::apply_damage` leaves a lethal shot for `reaper_system` to finalise. Either way the kill's own kick — the sight-gated one — is the only shake a killing hit arms.
 
-The sight gate on `elemental_blast`, `kill_shake` and `fire_bolt` is a real rule, not politeness: a shake for a blast — or a death — in an unexplored room would hand the player information the renderer goes out of its way not to draw. `helpers::player_sees` is the shared check, the same one the trap messages use. `Death` has no gate, for the obvious reason.
+The sight gate on `elemental_blast`, `kill_shake` and `fire_bolt` is a real rule, not politeness: a shake for a blast — or a death — in an unexplored room would hand the player information the renderer goes out of its way not to draw. `helpers::player_sees` is the shared check, the same one the trap messages use.
 
 Melee and the throw path need no such gate, because both *log* the damage they deal whether or not it was seen — the shake says nothing the message line hasn't. A bolt is the one damage source that logs nothing per victim, so `trace_bolt` reports whether any of the HP it took came off a creature on a visible tile (`Bolt::bit_something_seen`), which is why that answer is computed there rather than in `fire_bolt`: the walk is the only place that still knows which tile each victim stood on.
 
