@@ -59,7 +59,7 @@ fn put_on(w: &mut World, user: Entity, effect: RingEffect) -> Entity {
     ring
 }
 
-fn score(w: &mut World) -> i32 {
+fn score(w: &mut World) -> i64 {
     let p = player(w);
     w.get::<Score>(p).unwrap().value
 }
@@ -348,7 +348,7 @@ fn corpses(w: &mut World, n: usize, max_hp: i32) {
 }
 
 /// What one turn's killing paid, on a fresh world: `n` corpses of `max_hp` each.
-fn paid_for(n: usize, max_hp: i32) -> i32 {
+fn paid_for(n: usize, max_hp: i32) -> i64 {
     let mut w = test_world(1);
     let before = score(&mut w);
     corpses(&mut w, n, max_hp);
@@ -360,7 +360,7 @@ fn a_corpse_is_worth_its_hit_points() {
     // Per point of `max_hp`, which is `score::KILL_PER_MAX_HP` and not this
     // test's business. What is: a tougher creature is worth proportionally
     // more, and one corpse is worth its face value with no multiplier on it.
-    assert_eq!(paid_for(1, 7), 7 * KILL_PER_MAX_HP);
+    assert_eq!(paid_for(1, 7), i64::from(7 * KILL_PER_MAX_HP));
     assert_eq!(paid_for(1, 2) * 3, paid_for(1, 6), "worth is linear in HP");
 }
 
@@ -374,7 +374,7 @@ fn killing_two_in_one_turn_beats_killing_them_one_at_a_time() {
     );
     assert_eq!(
         pair,
-        (singly as f32 * (1.0 + COMBO_BONUS_PER_KILL)) as i32,
+        (singly as f32 * (1.0 + COMBO_BONUS_PER_KILL)) as i64,
         "and beat it by exactly one corpse's worth of bonus"
     );
 }
@@ -471,7 +471,20 @@ fn a_staircase_pays_by_difficulty_tier() {
 
     assert_eq!(
         score(&mut w) - before,
-        STAIR_PER_TIER,
+        i64::from(STAIR_PER_TIER),
         "depth 1 is the first tier, and the first tier still pays"
     );
+}
+
+#[test]
+fn a_run_cannot_be_doubled_into_nothing() {
+    let mut w = test_world(1);
+    award(&mut w, 100);
+    // One doubling per ring of adornment, and nothing caps how many a dungeon
+    // can hand out. Past 63 of them the score has to stop rather than wrap:
+    // wrapping lands a multiple of 100 on exactly zero.
+    for _ in 0..80 {
+        double(&mut w);
+    }
+    assert_eq!(score(&mut w), i64::MAX, "the score pins at the ceiling");
 }

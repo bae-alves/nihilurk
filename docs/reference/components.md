@@ -206,6 +206,20 @@ The first three are **effects**, not components of their own: rows in `crate::ef
 
 The verbs that put them on — `confuse`, `blind`, `paralyse`, `hasten`, `shift_entity_speed`, `snare` — live in `crate::conditions`, one per affliction, and each one already knows the difference between the player and a monster. `snare` is the exception to the "never wears off" rule above: it is counted in turns from the moment it lands, and it logs nothing, because the sentence belongs to whatever pinned you. A blinded monster has no viewshed to put out, so it gets `MovementType::Confused`; a paralysed one gets the slowing and no coin flip.
 
+**A creature carries at most three conditions.** A fourth sheds the oldest, in `effects::lend` — the one gate every transient effect already passes through, so a trap, a potion and a monster's touch are all capped by the same line and none of them needs to know the rule exists. Oldest first because the newest is the one that just happened, and a blow that lands should be felt. Shedding runs the same `AFFLICTIONS` `after` column a cure does (`conditions::after_lifted`), so a shed blindness recomputes the viewshed exactly as a cured one would.
+
+What counts is `Held::is_condition`: transient **and** named by `conditions::is_condition`, which reads the lists that already declare conditions — `AFFLICTIONS`, `FLOOR_BOONS`, `effects::HOLDS`, and `OTHER_CONDITIONS` for the four with no list of their own. Both halves have to hold, and the default is exemption. A ring of regeneration lends `Lifetime::WhileEquipped` and fails the first half; a potion of magic detection's `Detected` mark is transient but is nothing the marked creature feels, and fails the second. Neither may shoulder a real condition off.
+
+**Shedding is never silent.** `conditions::shed_line` gives the sentence: a hold says what it already says when its own clock runs out (`Effect::ends`), and everything else borrows the staircase's phrasing — "You are no longer blind." — because that is the sentence the player has already learned to read as "that one is over". Only the player is told, the same rule `tick_effects` keeps. A condition whose badge vanished with nothing said would read as a bug in the badge line rather than as a rule.
+
+### The priority badges
+
+`Speed` haste/slow, `Plated` and `Forged` are **priority badges**: they are outside the ledger, so they are neither counted against the ceiling nor ever shed for a fourth condition. That is deliberate, not an oversight of the cap.
+
+They earn it by being things the player cannot act correctly without. A tempo changes what every single step costs, and it is a value on `Speed` rather than a marker something either has or has not — there is nothing to shed. The two coin promises are standing bets that any damage at all cancels (`helpers::took_damage`) and a staircase settles (`items::settle_promises`); a promise silently displaced by a fourth condition would be a bet the player is still playing around and can no longer see. So they always show.
+
+The bill for that lands on the line's width. Three conditions, a tempo, a ring's `STLH`, both promises and an auto-walk badge is a badge run long enough to reach the centred `DEPTH` and paint over it. **That is accepted.** Nothing panics — `Screen::puts` no-ops past the frame edge — and a player wearing that much at once did it to themselves, one potion and one coin at a time. Correcting it would mean either dropping a badge the player needs or making the line's three anchors depend on each other again, and the whole point of splitting the HUD in two was that they do not.
+
 **Blindness does not blind the dungeon.** `crate::ai` recomputes the view the player *would* have (`visibility::visible_from(map, pos, false)`) when they are `Blind`, so the monsters in the room still know exactly where they are. Drinking one is never a way to hide.
 
 
@@ -233,7 +247,7 @@ Components — score
 
 | Component | Data         | On       | Saved? |
 |-----------|--------------|----------|--------|
-| `Score`   | `value: i32` | the hero | yes    |
+| `Score`   | `value: i64` | the hero | yes    |
 
 Every change to it goes through `models/src/score.rs`, which is the whole scoring table in one screen:
 
@@ -249,6 +263,8 @@ Every change to it goes through `models/src/score.rs`, which is the whole scorin
 Deaths are paid for without asking whose blade it was: half the ways a monster dies have no attacker entity to ask about. Only a *staircase* pays — a trapdoor, the Dungeon Lord's portal and a potion of raise level all move you between floors for free. Treasure pays as it is *taken*, not at the end of the run: a gold coin's `amount`, and the relic's 25000 the moment it is in hand — and the `Value` comes off with the payment, so the one item that can be paid for and then set down again is not a drop-and-take-again money press.
 
 Kills are **not** paid one at a time. `award_kill` only files the corpse under `Combo`, the turn's pile; `score_turn_system` — dead last in the schedule, after everything that can kill — totals it with the combo multiplier, pays it in one go, and empties the pile. A multiplier applied to a number that is still growing is not one anybody can read, and one turn's killing never combos into the next. `score::double` settles the pile first, so a run that ends on the same turn as a kill doubles a score that already counts it.
+
+`i64`, and every write to it saturates. Nothing caps how many rings of adornment a dungeon hands out and every one of them doubles the score, so the arithmetic has to have a ceiling it stops at rather than one it wraps past — a score is always a multiple of a hundred, and a multiple of a hundred that wraps an integer lands on exactly zero.
 
 Every payment lights the `ScoreFlash` resource, which the HUD shows in the scorekeeper's place for exactly one frame (armed during the turn, aged at the same tail, dark by the next): `+700` in a random bright colour, `COMBO! +2400` with the word in the stripes `pride::stripes(world)` returns, or `DOUBLE` in the same. A combo also writes one log line — "With style.", or `COMBO_PRIDE_CHANCE` of the time "With pride." All of its rolls are off `FxRng`, never `GameRng`: decoration does not get to move the gameplay dice.
 

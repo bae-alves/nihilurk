@@ -197,7 +197,7 @@ struct EntitySave<'a> {
     faction: Option<Faction>,
     /// Indices into the saved entity list.
     backpack: Option<Vec<u32>>,
-    score: Option<i32>,
+    score: Option<i64>,
     mob: Option<MovementType>,
     /// Marker only — the display name rides along in [`EntitySave::name`].
     item: bool,

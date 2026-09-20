@@ -525,3 +525,81 @@ fn no_effect_is_attached_or_detached_behind_the_ledgers_back() {
         offences.join("\n  ")
     );
 }
+
+// ---------------------------------------------------------------------------
+// The three-condition ceiling
+// ---------------------------------------------------------------------------
+
+/// How many transient conditions the ledger counts on one creature.
+fn conditions_held(w: &World, e: Entity) -> usize {
+    w.get::<Effects>(e)
+        .map(|l| l.0.iter().filter(|h| h.is_condition()).count())
+        .unwrap_or(0)
+}
+
+#[test]
+fn a_fourth_condition_sheds_the_oldest() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+
+    lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor);
+    lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
+    lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
+    assert_eq!(conditions_held(&w, p), 3);
+    assert!(w.get::<Blind>(p).is_some());
+
+    lend(&mut w, p, Grant::of::<Paralyzed>(), Lifetime::Floor);
+    assert_eq!(conditions_held(&w, p), 3, "the ceiling is three");
+    assert!(w.get::<Blind>(p).is_none(), "the oldest is the one that goes");
+    assert!(w.get::<Confused>(p).is_some());
+    assert!(w.get::<MagicWard>(p).is_some());
+    assert!(w.get::<Paralyzed>(p).is_some());
+    // Blindness leaving has to put the viewshed back, the same as a cure does.
+    assert!(w.get::<Viewshed>(p).is_some_and(|v| v.dirty));
+    // And the player has to be told, in the words a staircase uses.
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|e| e.contains("no longer blind")),
+        "a shed condition is never silent: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+#[test]
+fn worn_and_innate_magic_does_not_count_against_the_ceiling() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+
+    let ring = custom_ring(&mut w, "ring of test fire", FIRE_RESISTANCE, ());
+    wear(&mut w, p, ring);
+
+    lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor);
+    lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
+    lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
+
+    assert_eq!(conditions_held(&w, p), 3);
+    assert!(w.get::<Blind>(p).is_some(), "a ring is not a condition");
+    assert!(w.get::<FireImmune>(p).is_some());
+}
+
+#[test]
+fn a_temporary_boon_is_not_a_condition() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+
+    lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor);
+    lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
+    lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
+    // A potion of see invisible: lent for the floor like the three above, and
+    // nothing the player is afflicted or blessed with in the badge sense.
+    grant_for_floor(&mut w, p, Grant::of::<SeesInvisible>());
+    // The mark a potion of magic detection leaves, same lifetime again.
+    lend(&mut w, p, Grant::of::<Detected>(), Lifetime::Floor);
+
+    assert_eq!(conditions_held(&w, p), 3);
+    assert!(w.get::<Blind>(p).is_some(), "the oldest condition stands");
+    assert!(w.get::<SeesInvisible>(p).is_some());
+    assert!(w.get::<Detected>(p).is_some());
+}

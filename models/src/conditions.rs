@@ -35,8 +35,8 @@ use crate::components::{
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{
-    Blind, Confused, Effects, Grant, Lifetime, MagicWard, Paralyzed, SeesInvisible, Sluggish,
-    SustainsStrength, clear_floor_grants,
+    Asleep, Bided, Blind, Confused, Effects, Grant, Lifetime, MagicWard, Paralyzed, Petrified,
+    Pinned, Rooted, SeesInvisible, Sluggish, Stealthy, SustainsStrength, clear_floor_grants,
 };
 use crate::helpers::item_label;
 use crate::map::GameRng;
@@ -558,5 +558,87 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
 fn touch_viewshed(world: &mut World, entity: Entity) {
     if let Some(mut vs) = world.get_mut::<Viewshed>(entity) {
         vs.dirty = true;
+    }
+}
+
+/// Everything that is a condition without being an affliction, a hold or a
+/// floor boon: the rest of what the HUD badges, each with the adjective that
+/// completes "You are no longer ___." A ward is already a [`FLOOR_BOONS`] row;
+/// these four have no list of their own because nothing else ever had to ask
+/// about them together.
+const OTHER_CONDITIONS: &[(Grant, &str)] = &[
+    (Grant::of::<Bided>(), "coiled"),
+    (Grant::of::<Petrified>(), "stone"),
+    (Grant::of::<Stealthy>(), "stealthy"),
+    (Grant::of::<Sluggish>(), "sluggish"),
+];
+
+/// Every condition in the game, each with its "no longer ___" adjective: the
+/// set the HUD puts a badge on, and the set [`crate::effects::CONDITION_CAP`]
+/// counts.
+///
+/// Composed from the lists that already declare conditions rather than
+/// restated as a fourth one, so a new condition joins the ceiling by being
+/// added where it belongs.
+fn conditions() -> impl Iterator<Item = (Grant, &'static str)> {
+    AFFLICTIONS
+        .iter()
+        .map(|a| (a.effect, a.lifted_adjective))
+        .chain(FLOOR_BOONS.iter().copied())
+        .chain(HOLD_ADJECTIVES.iter().copied())
+        .chain(OTHER_CONDITIONS.iter().copied())
+}
+
+/// The three [`crate::effects::HOLDS`], with the adjective each would need if
+/// it ever had to be named in a sentence it has no line of its own for. It
+/// never has yet — every hold in [`crate::effects::EFFECTS`] carries an
+/// `ends` line, and [`shed_line`] prefers that — so this is the fallback that
+/// keeps a hold from being the one condition that could go in silence.
+const HOLD_ADJECTIVES: &[(Grant, &str)] = &[
+    (Grant::of::<Asleep>(), "asleep"),
+    (Grant::of::<Pinned>(), "pinned"),
+    (Grant::of::<Rooted>(), "held"),
+];
+
+/// Whether the effect `id` is something the creature is *under* — the set the
+/// HUD puts a badge on, and the set [`crate::effects::CONDITION_CAP`] counts.
+///
+/// The default is the safe way round: an effect [`conditions`] does not name
+/// is not a condition, so a ring's lent boon or the mark a potion of magic
+/// detection leaves on a monster can never shoulder a real condition off.
+pub fn is_condition(id: &str) -> bool {
+    conditions().any(|(g, _)| g.effect_id() == Some(id))
+}
+
+/// The sentence the player reads when the effect `id` is shed to make room for
+/// a fourth condition, or `None` for anything that is not a condition at all.
+///
+/// A hold says what it says when its own clock runs out — the words are
+/// already written and they fit either ending. Everything else borrows the
+/// staircase's phrasing, because "you are no longer blind" is the sentence the
+/// player has already learned to read as "that one is over".
+pub fn shed_line(id: &str) -> Option<String> {
+    let (_, adjective) = conditions().find(|(g, _)| g.effect_id() == Some(id))?;
+    let ends = crate::effects::Effect::by_id(id).and_then(|e| e.ends);
+    Some(match ends {
+        Some(line) => line.to_string(),
+        None => format!("You are no longer {adjective}."),
+    })
+}
+
+/// What still has to happen when the effect `id` comes off a creature by some
+/// route other than a cure — [`crate::effects::shed_oldest_condition`] making
+/// room for a fourth condition.
+///
+/// The same `after` column [`cure_one_condition`] runs, read off the same
+/// table, so a condition that needs a viewshed recomputed needs it whichever
+/// way it left.
+pub fn after_lifted(world: &mut World, entity: Entity, id: &str) {
+    let after = AFFLICTIONS
+        .iter()
+        .find(|a| a.effect.effect_id() == Some(id))
+        .and_then(|a| a.after);
+    if let Some(after) = after {
+        after(world, entity);
     }
 }
