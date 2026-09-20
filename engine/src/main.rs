@@ -153,7 +153,7 @@ fn print_help() {
 nihilurk - terminal roguelike
 
 USAGE
-    nihilurk [OPTIONS] [NAME|SAVE]
+    nihilurk [NAME|SAVE] [OPTIONS]
 
 OPTIONS
     -s SEED          use a reproducible u64 seed
@@ -162,10 +162,12 @@ OPTIONS
     -nb              disable blood and corpse animation
     -nshake          disable screen shake
     -anim-rate N     set animation pacing multiplier (0.1..=5.0)
+    -b BODY          play as nihil (default) or lurk
+    -am SPECIES      play as a monster: any bestiary name, e.g. -am dragon
     -content         list names accepted by NIHILURK_SPAWN
     -h, -help, --help show this help and exit
 
-POSITIONAL ARGUMENT
+POSITIONAL ARGUMENT (first argument only)
     NAME             start a new run with this player name
     SAVE             load an existing save, with or without .sav
 
@@ -177,6 +179,8 @@ EXAMPLES
     nihilurk
     nihilurk bae
     nihilurk -s 1234 -ns
+    nihilurk -b lurk
+    nihilurk bae -am dragon
     NIHILURK_SPAWN=\"dragon,ring of protection\" nihilurk
 
 SEE ALSO
@@ -278,6 +282,19 @@ fn main() -> std::io::Result<()> {
     // unrecognised name says so and flies the rainbow anyway.
     let mut pride = models::pride::PrideFlag::default_flag();
     let mut unknown_flag: Option<String> = None;
+    // What the player wakes up as. `-b <body>` picks one of the two written
+    // to be played, `-am <species>` wears a bestiary row instead, and the two
+    // are one value rather than two flags — which is what makes them
+    // mutually exclusive without a cross-check. An unrecognised name either
+    // side is a typo worth stopping for, unlike an unrecognised flag: it is
+    // the whole run, not a colour.
+    let mut body: Option<(models::Body, &str)> = None;
+    let mut unknown_body: Option<(String, &str)> = None;
+    // How the body was asked for, verbatim ("-b lurk"), and the second
+    // spelling if there was one. Named rather than resolved: one of them
+    // would have to win, and neither has a claim.
+    let mut body_arg: Option<String> = None;
+    let mut conflicting_bodies: Option<(String, String)> = None;
     let mut player_name = "nihil".to_string();
     let mut positional: Option<String> = None;
     // Multiplier on every animation frame's on-screen hold time (particles,
@@ -286,6 +303,12 @@ fn main() -> std::io::Result<()> {
     // slowly for a fast one. `1.0` is the default pacing; clamped so a typo'd
     // value can't freeze the loop or blur every animation into nothing.
     let mut anim_rate: f32 = 1.0;
+    // The name is the *first* argument or it is not a name. Anything
+    // unrecognised after that is a typo — `nihilurk -b lurk Bae` reads like
+    // it names the run and does not, and silently starting a run called
+    // "nihil" is the worst of the three things that could happen.
+    let mut first = true;
+    let mut stray_positional: Option<String> = None;
     let mut iter = args.iter();
     iter.next(); // skip the executable path
     while let Some(arg) = iter.next() {
@@ -309,6 +332,27 @@ fn main() -> std::io::Result<()> {
                 }
             }
             "-prideoff" => pride_off = true,
+            "-b" | "-am" => {
+                let flag = match arg.as_str() {
+                    "-b" => "-b",
+                    _ => "-am",
+                };
+                if let Some(name) = iter.next() {
+                    let spelling = format!("{flag} {name}");
+                    if let Some(first) = body_arg.replace(spelling.clone()) {
+                        conflicting_bodies = Some((first, spelling));
+                    }
+                    match (flag, name.as_str()) {
+                        ("-b", "nihil") => body = Some((models::Body::Nihil, "-b")),
+                        ("-b", "lurk") => body = Some((models::Body::Lurk, "-b")),
+                        ("-b", _) => unknown_body = Some((name.clone(), "-b")),
+                        (_, species) => match models::MonsterDef::lookup(species) {
+                            Some(def) => body = Some((models::Body::Monster(def), "-am")),
+                            None => unknown_body = Some((name.clone(), "-am")),
+                        },
+                    }
+                }
+            }
             "-anim-rate" => {
                 if let Some(rate_str) = iter.next() {
                     if let Ok(rate) = rate_str.parse::<f32>() {
@@ -316,8 +360,14 @@ fn main() -> std::io::Result<()> {
                     }
                 }
             }
-            _ => positional = Some(arg.clone()),
+            // A name or a save file, and only ever the first argument: see
+            // `too_late_for_a_name` below.
+            _ => match positional {
+                None if first => positional = Some(arg.clone()),
+                _ => stray_positional = Some(arg.clone()),
+            },
         }
+        first = false;
     }
 
     // `-content` is the content author's index: every name the tables know, which
@@ -350,6 +400,35 @@ fn main() -> std::io::Result<()> {
             "nihilurk: no flag called '{name}'. Try one of: {}.",
             models::pride::flag_names().join(", ")
         );
+    }
+
+    // Both flags at once. You are one creature; the command line has to name
+    // one, and picking the rightmost for the player would be guessing at the
+    // whole run.
+    if let Some((first_flag, second)) = conflicting_bodies {
+        eprintln!("nihilurk: {first_flag} and {second} are the same choice. Pick one.");
+        return Ok(());
+    }
+
+    // A `-b` or `-am` nobody has a row for. Unlike a flag name this is
+    // refused outright: the body is the entire run, and starting a run as
+    // nihil the player did not ask for is worse than not starting at all.
+    if let Some((name, flag)) = unknown_body {
+        match flag {
+            "-b" => {
+                eprintln!("nihilurk: no body called '{name}'. There is nihil, and there is lurk.")
+            }
+            _ => eprintln!("nihilurk: no monster called '{name}'. Try -content for the bestiary."),
+        }
+        return Ok(());
+    }
+
+    // A name that came too late to be one.
+    if let Some(stray) = stray_positional {
+        eprintln!(
+            "nihilurk: '{stray}' is not a flag, and a name has to come first: nihilurk {stray} ..."
+        );
+        return Ok(());
     }
 
     // A positional argument is a save file to load if it names an existing file
@@ -387,6 +466,25 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
             player_name = clear.player_name;
             load_path = None;
         }
+    }
+
+    // Two argument shapes that would otherwise resolve to something nobody
+    // asked for. Both are refused here, before the terminal is touched, and
+    // together they are what keeps "the player's name is a species" meaning
+    // "the player is wearing that species" — the equivalence
+    // `models::load_game` reads a saved body back out of.
+    if let Some((body, flag)) = body {
+        if load_path.is_some() {
+            eprintln!(
+                "nihilurk: a save already knows what body it is in; drop {flag} {} to load it.",
+                body.name()
+            );
+            return Ok(());
+        }
+    }
+    if models::MonsterDef::is_species_name(&player_name) {
+        eprintln!("Don't name yourself a monster. It's quite demeaning.");
+        return Ok(());
     }
 
     let original_hook = std::panic::take_hook();
@@ -452,6 +550,13 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     world.insert_resource(models::Particles::new());
     world.insert_resource(models::Shake::new());
     world.insert_resource(models::AnimRate(anim_rate));
+
+    // Which body a *new* player wakes up in. A loaded save brings its own —
+    // the body rides in the save file — so this only ever reaches
+    // `initialize_world`.
+    world.insert_resource(models::StartingBody(
+        body.map(|(b, _)| b).unwrap_or_default(),
+    ));
 
     match &load_path {
         Some(path) => {

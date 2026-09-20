@@ -3,8 +3,10 @@
 nihilurk \- terminal roguelike
 .SH SYNOPSIS
 .B nihilurk
+.RI [ name | save ]
 [\fB\-s\fR \fIseed\fR] [\fB\-c\fR] [\fB\-ns\fR] [\fB\-nb\fR]
-[\fB\-nshake\fR] [\fB\-anim\-rate\fR \fImultiplier\fR] [\fIname\fR | \fIsave\fR]
+[\fB\-nshake\fR] [\fB\-anim\-rate\fR \fImultiplier\fR]
+[\fB\-b\fR \fIbody\fR | \fB\-am\fR \fIspecies\fR]
 .PP
 .B nihilurk
 \fB\-content\fR
@@ -82,6 +84,51 @@ frames. The default is 1.0; raise it for a terminal whose redraw cannot keep
 up, lower it for snappier animations. The value is clamped to 0.1 through 5.0;
 an invalid or missing value uses the default.
 .TP
+.BI \-b " body"
+Which creature descends:
+.B nihil
+(the default) or
+.BR lurk .
+The lurk is quadruped, fanged, clawed and furred, and draws as a magenta
+.BR @ .
+It has eight hit points to nihil's twelve and two magic to nihil's four, it
+carries nothing, and the only thing it can ever put on is a ring \(em its
+claws are its weapon and its fur is its armour. In exchange it is
+.BR quick ,
+half again as fast as anything else in the dungeon; it moves unnoticed until
+it is within reach; it lunges when it closes the last stride of a charge and
+each landed blow winds up the next; it knows Bide and pays for it; and one
+creature in seven that dies on the floor makes it stronger in one of its four
+numbers, at random. A wand of cancellation takes what a lurk has and not what
+it is: the shape, the tempo and the rule about rings survive it.
+.IP
+.B \-b
+and
+.B \-am
+are the same choice asked two ways and may not be given together.
+.TP
+.BI \-am " species"
+Play as a monster. The run starts in that species' body: its glyph, hit
+points, attack and armour dice, tempo, and the magic it was born with, taken
+from the same bestiary row the dungeon builds its own monsters from. The name
+must be one
+.B \-content
+lists under monsters; anything else is refused before the game starts.
+.IP
+You keep your own side of the fight, your viewshed, your pack and your score,
+and you start with the pack empty \(em the usual kit is nihil's own. Only a
+species that uses items can equip any, and innate magic that is a spell (a
+dragon's fireball) sits in the spell bar and costs nothing to cast. The body
+is written to the save and restored on load \(em the player's name is the
+species, which is how the save knows. Two argument shapes are refused up front
+so that stays true: a
+.I name
+that is a species (use
+.B \-am
+instead), and
+.B \-am
+given together with a save to load, which already knows what body it is in.
+.TP
 .B \-content
 Print every content name accepted by
 .BR NIHILURK_SPAWN ,
@@ -92,6 +139,11 @@ and
 .BR less (1)
 like any other listing.
 .SH POSITIONAL ARGUMENT
+The name or save file is the
+.B first
+argument or it is not one at all: everything after it must be a flag. An
+unrecognised argument in any later position is refused rather than read as a
+name.
 .TP
 .I name
 Start a new run under this player name. The name is uppercased in the game,

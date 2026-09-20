@@ -476,7 +476,7 @@ pub const WEAPONS: &[WeaponDef] = &[
     // Thin, fast steel: every attack goes out twice as quick, and closing the
     // last stride of a run lands a lunge.
     WeaponDef::new("estoc",            Color::White,      5)
-        .grants(&[Grant::of::<Fencer>()]),
+        .grants(&[Grant::of::<Fencer>(), Grant::of::<Lunges>()]),
     // Whirled at the end of its chain in step with your feet: moving between
     // two tiles both next to the same enemy lands a free cut on it.
     WeaponDef::new("chain-sickle",     Color::DarkGreen,  5)

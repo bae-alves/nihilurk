@@ -179,18 +179,28 @@ pub struct Magic {
 // through `PlayerTempo`.
 // ===========================================================================
 
-/// The three tempos an actor can move at. `Fast` acts twice for every `Normal`
-/// action; `Slow` acts once for every two. The player is the clock: monsters
-/// bank [`Speed::energy`] each of the player's turns and spend it in
-/// [`crate::ai`], while the player's own tempo is handled by the engine loop
-/// (see [`PlayerTempo`]). Wands of haste/slow monster step a creature one notch
-/// along this scale, permanently.
+/// The tempos an actor can move at. `Fast` acts twice for every `Normal`
+/// action, `Quick` three times for every two, `Slow` once for every two. The
+/// player is the clock: monsters bank [`Speed::energy`] each of the player's
+/// turns and spend it in [`crate::ai`], while the player's own tempo is
+/// handled by the engine loop (see [`PlayerTempo`]). Wands of haste/slow
+/// monster step a creature one notch along this scale, permanently.
+///
+/// `Quick` is last in the list rather than between `Normal` and `Fast` where
+/// it belongs on the dial, and that is deliberate: a save writes an enum by
+/// variant position, so inserting one in the middle would bring every saved
+/// `Fast` creature back as something else (see `crate::saveload`). The dial's
+/// real order lives in [`faster`](SpeedKind::faster) and
+/// [`slower`](SpeedKind::slower).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum SpeedKind {
     Slow,
     #[default]
     Normal,
     Fast,
+    /// Half again as fast as `Normal`: the lurk's own tempo, and nothing
+    /// else's. A wand can still push a creature onto or off it.
+    Quick,
 }
 
 impl SpeedKind {
@@ -200,22 +210,29 @@ impl SpeedKind {
         match self {
             SpeedKind::Slow => 1,
             SpeedKind::Normal => 2,
+            SpeedKind::Quick => 3,
             SpeedKind::Fast => 4,
         }
     }
 
     /// One notch quicker (wand of haste monster). `Fast` is the ceiling.
+    ///
+    /// `Normal` steps straight to `Fast`, skipping `Quick`: a wand of haste
+    /// has always been worth a doubling, and quietly halving what it buys to
+    /// make room for a class's tempo would be a nerf to every haste in the
+    /// game. `Quick` is a place a creature is *born*, not a rung a wand
+    /// climbs through.
     pub fn faster(self) -> Self {
         match self {
             SpeedKind::Slow => SpeedKind::Normal,
-            SpeedKind::Normal | SpeedKind::Fast => SpeedKind::Fast,
+            SpeedKind::Normal | SpeedKind::Quick | SpeedKind::Fast => SpeedKind::Fast,
         }
     }
 
     /// One notch slower (wand of slow monster). `Slow` is the floor.
     pub fn slower(self) -> Self {
         match self {
-            SpeedKind::Fast => SpeedKind::Normal,
+            SpeedKind::Fast | SpeedKind::Quick => SpeedKind::Normal,
             SpeedKind::Normal | SpeedKind::Slow => SpeedKind::Slow,
         }
     }
@@ -242,14 +259,21 @@ impl Speed {
 
 /// Drives the player's half of the speed system (see [`Speed`]). The engine loop
 /// consults the player's [`SpeedKind`] after every turn: a `Fast` player takes
-/// two inputs before the monsters get a move (tracked by `fast_parity`), a
-/// `Slow` player's single move is followed by two monster rounds, and `Normal`
-/// is one-for-one. Transient, never serialised.
+/// two inputs before the monsters get a move, a `Quick` one takes three for
+/// every two, a `Slow` player's single move is followed by two monster rounds,
+/// and `Normal` is one-for-one. Transient, never serialised.
 #[derive(Resource, Default)]
 pub struct PlayerTempo {
     /// Flips on each `Fast`-tempo turn; monsters move only when it flips back to
     /// `false`, so the pattern reads skip / run / skip / run.
     pub fast_parity: bool,
+    /// How many turns the player has taken at a tempo that doesn't divide
+    /// evenly into monster rounds. `Quick` is the only one: two rounds bought
+    /// per three turns, so the third turn of every three is free. Counts on
+    /// its own rather than reusing `fast_parity` because the two patterns are
+    /// different lengths and a creature can be moved from one to the other
+    /// mid-floor by a wand.
+    pub quick_beat: u8,
 }
 
 /// Set by a greatclub's heavy swing ([`crate::effects::HeavySwing`]): the

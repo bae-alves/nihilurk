@@ -219,6 +219,10 @@ pub fn render<W: Write>(
         {
             match tempo {
                 Some(SpeedKind::Fast) => v.push(("FAST", Color::Cyan)),
+                // The lurk's own tempo, so it is on the HUD from turn one
+                // rather than only after a potion — a permanent tag, in the
+                // lurk's own magenta rather than haste's cyan.
+                Some(SpeedKind::Quick) => v.push(("QUIK", Color::Magenta)),
                 Some(SpeedKind::Slow) => v.push(("SLOW", Color::Green)),
                 _ => {}
             }

@@ -24,6 +24,102 @@ Single dash, in any order. Unrecognised arguments are treated as the positional 
 | `-nshake`    | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
 | `-content`   | Print every name the content tables know, then exit.      |
 | `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
+| `-b <body>` | Play as `nihil` (the default) or `lurk`. See below. |
+| `-am <species>` | Play *as* a monster: any bestiary name (`-am dragon`). See below. |
+
+### `-b <body>`
+
+Which of the two written-to-be-played creatures descends. `-b nihil` is the
+default and changes nothing.
+
+`-b lurk` is the other one: quadruped, fanged, clawed, furred, and a magenta
+`@`. Eight hit points and two magic against nihil's twelve and four; the same
+bare attack and defence dice nihil starts with, and no way to ever add to them
+with gear -- it carries nothing, and the only thing it can put on is a ring.
+
+What it has instead:
+
+  * `SpeedKind::Quick`, half again as fast as `Normal` and the only creature
+    in the game born at that tempo. Two monster rounds bought per three player
+    turns; shown as `QUIK` on the status line.
+  * The estoc's lunge (`Lunges`), without the estoc's double time.
+  * The rapier's momentum (`BuildsMomentum`), built on the creature rather
+    than on a blade it does not have.
+  * A ring of stealth's quiet (`Stealthy`).
+  * Bide in the spell bar, paid for at the usual cost -- it is learned, not
+    innate.
+  * **Growth.** Every creature that dies on the floor is rolled against
+    `lurk::GROWTH_CHANCE` (15%), and a hit puts one point on one of the four
+    numbers on the status line, drawn at random: `FEAR THE WOLF!` Rolled per
+    corpse rather than counted toward a tenth one, so there is no counter to
+    pace against and nothing for a save file to remember.
+
+Its tempo is deliberately lumpy: two monster rounds per three player turns
+means the free turn always lands third, and pacing yourself against that beat
+is how a lurk is played.
+
+A wand of cancellation strips everything on that list except what the lurk
+*is* -- see [Bodies and species](#bodies-and-species).
+
+### `-am <species>`
+
+The run starts in that species' body instead of nihil's or the lurk's. The
+name must be
+a bestiary row exactly as `-content` prints it; anything else stops the game
+before it starts rather than quietly starting you as nihil. `-b` and `-am`
+are the same choice asked two ways, so passing both is refused too.
+
+What the body changes is what the bestiary row says: the glyph and its colour,
+the hit points, the attack and armour dice and their bonuses, the tempo (`-am
+wraith` is permanently hasted), invisibility (`-am phantom`), and the innate
+magic -- a dragon is immune to fire and flies, a rattlesnake's bite is
+venomous, a slime splits when hurt -- into a *hostile* copy of you, carrying
+your hit points, which is working as intended. None of that is a special case
+for the player: the bestiary row is the same one a dragon on floor 10 is built
+from, and the on-hit abilities are the same table.
+
+What it does not change is who you are. You keep the `@`'s side of the fight,
+your viewshed, your pack, your score and your magic points; `ai` never gets
+hold of you.
+
+Three consequences worth knowing before you pick a rat:
+
+  * **You start with nothing.** The ring mail, mace, short bow, quiver and
+    potion are *nihil's* kit.
+  * **Only a species that uses items can wear them.** That is the bestiary's
+    own `ItemUser` mark -- the orc, hobgoblin, centaur, medusa, nymph,
+    leprechaun, troll, vampire and ur-vile have hands; a dragon has claws and
+    is told so when it tries.
+  * **Innate magic that is a spell lands in your spell bar, free.** A dragon
+    knows Fireball at zero magic cost, because a dragon has no magic points
+    and never did. It is the same spell a hero coin teaches, cast through the
+    same reticle, and the dragons on floor 10 breathe it too.
+
+### Bodies and species
+
+Cancellation draws a line between the two, on purpose.
+
+A **body** cannot be cancelled. It is the creature the run is about, and no
+wand in the dungeon is a wand of being something else: a lurk stays a lurk,
+keeps its shape, and keeps the rule about rings.
+
+A **species** can. A player wearing a bestiary row keeps the shape and the
+dice -- those are not effects at all -- but the magic is only on loan: a
+cancelled dragon-bodied player loses fire immunity exactly as a real dragon
+would, and a cancelled orc-bodied one loses `ItemUser`, which is to say the
+wits to work a buckle, and can no longer equip what it was wearing a moment
+ago. That is the bargain of wearing something else's magic.
+
+The body is saved with the run and comes back on load -- the player's *name*
+is the species, and that is how the save knows. Two argument shapes are
+refused up front to keep that true, both before the terminal is touched:
+
+    nihilurk Dragon             # "Don't name yourself a monster. It's quite demeaning."
+    nihilurk -am orc mysave     # the save already knows what body it is in
+    nihilurk -b lurk Bae        # a name is the first argument or it is not a name
+
+A monster's hit points are its own, so several rows are a two-hit death: that
+is the joke, and `-s` is how you retry it.
 
 `-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is installed as `nihilurk(6)`:
 

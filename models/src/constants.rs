@@ -105,6 +105,41 @@ pub mod player {
     pub const LOW_HP_WARNING_FRACTION: f32 = 0.3;
 }
 
+/// The lurk: the other playable species. Quadruped, fanged, clawed, furred,
+/// and carrying nothing it did not grow itself.
+///
+/// Its two dice start exactly where nihil's *bare* ones do
+/// ([`player::START_POWER`], [`player::START_ARMOR`]): the difference is that
+/// nihil walks out of the gate holding a mace and wearing ring mail and the
+/// lurk never will, so where nihil's numbers are bought, the lurk's are
+/// eaten. Less meat and less magic than nihil to pay for the technique it is
+/// born with (see `crate::body::wear_lurk`).
+pub mod lurk {
+    /// Starting (and maximum) hit points. Two-thirds of [`super::player::START_HP`].
+    pub const START_HP: i32 = 8;
+
+    /// Starting (and maximum) magic points. Enough for two Bides and nothing
+    /// else until it grows.
+    pub const START_MAGIC: u8 = 2;
+
+    /// Starting attack die (`1d[power]`) — its claws, and no weapon will ever
+    /// add to them.
+    pub const START_POWER: i32 = 2;
+
+    /// Starting defence die (`1d[armor]`) — its fur, and no armour will ever
+    /// add to it.
+    pub const START_ARMOR: i32 = 2;
+
+    /// Odds that one corpse feeds the lurk, rolled per death. Roughly one
+    /// kill in seven, which is about a floor's worth at the depths a lurk
+    /// survives — but rolled rather than counted, so a growth is something
+    /// that *happens* to a hunt and never something to count down to.
+    pub const GROWTH_CHANCE: f64 = 0.15;
+
+    /// What one growth is worth, on whichever of the four numbers it lands.
+    pub const GROWTH_STEP: i32 = 1;
+}
+
 // ===========================================================================
 // Progression / the descent
 // ===========================================================================
