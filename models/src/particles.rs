@@ -269,8 +269,10 @@ pub struct Particles {
     /// ([`Particles::hurl`], [`Particles::lob`]) advances it by its own span,
     /// so everything the flight goes on to cause — the impact spark, the
     /// blast, the corpse fling, the next flight — opens after the missile has
-    /// landed rather than on top of it. Nothing else touches it, and
-    /// [`Particles::clear`] drops it with the batch that earned it.
+    /// landed rather than on top of it. [`Particles::hold`] is the same knob
+    /// for anything that is not a flight (one link of a chained trick shot
+    /// waiting on the last), and [`Particles::clear`] drops it with the batch
+    /// that earned it.
     hold_ms: f32,
 }
 
@@ -678,18 +680,34 @@ impl Particles {
     /// expands outward from the core and every cell cycles through `palette`'s
     /// colours before fading. Always opens on the palette's bright first frame —
     /// a primary blast never reads as dark.
-    pub fn explosion(&mut self, cells: &[(u16, u16, f32)], palette: BlastPalette) {
+    ///
+    /// Returns how long the whole ring takes to sweep and fade, so a caller
+    /// with a *second* blast to queue can put it behind this one with
+    /// [`Particles::hold`] instead of on top of it — which is the whole of
+    /// what makes a chain of trick shots read as a chain.
+    pub fn explosion(&mut self, cells: &[(u16, u16, f32)], palette: BlastPalette) -> f32 {
+        const LIFETIME_MS: f32 = 280.0;
         let frames: [(char, Color); 5] = palette.frames();
         for &(x, y, dist) in cells {
             self.push(Particle {
                 x,
                 y,
                 delay_ms: core_math::ripple_delay(dist),
-                lifetime_ms: 280.0,
+                lifetime_ms: LIFETIME_MS,
                 age_ms: 0.0,
                 frames: frames.to_vec(),
             });
         }
+        let reach = cells.iter().map(|&(_, _, d)| d).fold(0.0, f32::max);
+        core_math::ripple_delay(reach) + LIFETIME_MS
+    }
+
+    /// Pushes everything queued after this point back by `ms`. The flights
+    /// ([`Particles::hurl`], [`Particles::lob`]) do it for themselves; this is
+    /// for a caller that knows one animation has to finish before the next one
+    /// opens and is not a flight.
+    pub fn hold(&mut self, ms: f32) {
+        self.hold_ms += ms;
     }
 
     /// A small, muted echo of an area blast — the cosmetic-only flash on one

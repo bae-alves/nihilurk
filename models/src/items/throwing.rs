@@ -32,7 +32,7 @@ use super::wands::{
 };
 use crate::conditions::shift_entity_speed;
 
-use crate::constants::items::{PACK_CAPACITY, THROW_RANGE};
+use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE, PACK_CAPACITY, THROW_RANGE};
 use crate::constants::wands::{
     BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
 };
@@ -98,6 +98,40 @@ fn flight_path(
     (cells, landing, victims)
 }
 
+/// Whether `item` is ammunition being *loosed* — it carries [`LaunchedBy`] and
+/// `thrower` has the launcher effect it answers to — rather than chucked by
+/// hand. The launcher entity is never consulted, only the effect, so a monster
+/// that picked one up shoots exactly as the player does.
+fn is_fired(world: &World, thrower: Entity, item: Entity) -> bool {
+    world
+        .get::<LaunchedBy>(item)
+        .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, thrower))
+}
+
+/// A potion, a scroll, a wand or a ring — the small stuff, which carries
+/// [`LIGHT_THROW_RANGE`] instead of the [`THROW_RANGE`] a spear gets.
+fn is_light(world: &World, item: Entity) -> bool {
+    world.get::<Potion>(item).is_some()
+        || world.get::<Scroll>(item).is_some()
+        || world.get::<Wand>(item).is_some()
+        || world.get::<Ring>(item).is_some()
+}
+
+/// How far `thrower` can put `item`: [`LAUNCHER_RANGE`] when a launcher is
+/// doing the work, [`LIGHT_THROW_RANGE`] for something small enough to flick,
+/// an arm's [`THROW_RANGE`] otherwise. This is the reticle's leash, and the
+/// only thing that bounds a shot — `flight_path` flies whatever line it is
+/// given.
+pub fn throw_reach(world: &World, thrower: Entity, item: Entity) -> i32 {
+    if is_fired(world, thrower, item) {
+        return LAUNCHER_RANGE;
+    }
+    match is_light(world, item) {
+        true => LIGHT_THROW_RANGE,
+        false => THROW_RANGE,
+    }
+}
+
 /// What a hurled object does on impact, or `None` if it is not the sort of thing
 /// that hurts anyone: only an item carrying [`ThrownDamage`] rolls at all, so a
 /// wand or a suit of armour just bounces off and falls.
@@ -123,10 +157,8 @@ fn roll_throw_damage(
     target: Entity,
 ) -> Option<i32> {
     let mut die = world.get::<ThrownDamage>(item)?.0;
-    if let Some(&LaunchedBy(launcher)) = world.get::<LaunchedBy>(item) {
-        if launcher.probe(world, thrower) {
-            die = world.get::<LaunchedDamage>(item).map_or(die, |d| d.0);
-        }
+    if is_fired(world, thrower, item) {
+        die = world.get::<LaunchedDamage>(item).map_or(die, |d| d.0);
     }
     if die < 1 {
         return Some(0);
@@ -188,11 +220,7 @@ pub fn first_matching_ammo(world: &World, holder: Entity) -> Option<Entity> {
         .items
         .iter()
         .copied()
-        .find(|&item| {
-            world
-                .get::<LaunchedBy>(item)
-                .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, holder))
-        })
+        .find(|&item| is_fired(world, holder, item))
 }
 
 /// "arrows" or "quarrels" — whichever a drawn launcher on `holder` calls for,
@@ -457,9 +485,7 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     let seen_name = display_name(world, item);
     // Loosed from the launcher it's matched to (a bow's arrow, a crossbow's
     // quarrel), this reads as firing it, not just chucking it by hand.
-    let fired = world
-        .get::<LaunchedBy>(item)
-        .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, thrower));
+    let fired = is_fired(world, thrower, item);
     let announcement = match (world.get::<Player>(thrower).is_some(), fired) {
         (true, true) => format!("You fire {}.", phrase_for(&seen_name)),
         (true, false) => format!("You throw the {seen_name}."),
@@ -532,7 +558,7 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
         let range_flown = (landing.x as i32 - origin.x as i32)
             .abs()
             .max((landing.y as i32 - origin.y as i32).abs());
-        let spent_its_leash = range_flown >= THROW_RANGE;
+        let spent_its_leash = range_flown >= throw_reach(world, thrower, item);
 
         if hit_creature || hit_wall || spent_its_leash {
             resolve_wand_throw(world, thrower, item, landing, effect, &seen_name);

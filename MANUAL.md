@@ -106,9 +106,11 @@ These commands go directly to the relevant kind of action:
 | `W` | Wear armour |
 | `P` | Put on a ring |
 
-Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows and quarrels are stronger with the matching bow or crossbow in your hand. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit.
+Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows and quarrels are stronger, and carry twice as far, with the matching bow or crossbow in your hand. Small things — potions, scrolls, wands, rings — fly further out of a bare hand than a spear or a sack of arrows does. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit.
 
 Your pack has limited space. Ammunition shares a slot with matching ammunition, but other items take their own place. Coins are not carried: stepping on one spends it immediately. If a coin cannot help you yet, the dungeon leaves it where it is.
+
+**Trick shots.** A trap has nobody to bite when nobody is standing on it, so a missile that lands on one sets the whole mechanism off at once, over every square around it. A coin shot the same way bursts wider still and gives its effect to you from across the room. You can only do this to a trap you have already found. A creature standing on a trap you know about, on a coin, or on the Element of Yoord is drawn on a magenta square: hit it and you set off what it is standing on. One burst sets off anything it covers, including traps nobody has found, so a good shot can run a long way. None of this is on your side. Stand too close to your own trick shot and it will catch you as readily as anything else.
 
 
 Unknown things

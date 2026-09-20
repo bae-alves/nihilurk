@@ -13,7 +13,7 @@ impl GameState {
 
 /// Set the instant the run ends, one way or the other. The main loop watches
 /// this: once the pending `--MORE--` messages are acknowledged it destroys the
-/// save file and shows the tombstone (death) or the starfield (victory) before
+/// save file and shows the LOSE (death) or WIN (victory) panel before
 /// the process exits.
 #[derive(Resource, Default)]
 pub struct Ending {

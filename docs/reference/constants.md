@@ -35,7 +35,7 @@ The modules
 | `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash, the trick-shot burst (`TRICK_SHOT_RADIUS`, `PICKUP_TRICK_SHOT_RADIUS` and the shared dice), `TRAP_BREAK_CHANCE` | how much a trap hurts and how fast it scales |
 | `wands`       | Charge dice, zap damage dice, both blast radii, per-charge dice a thrown wand spends | how good a wand is |
 | `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the launcher die multiplier | how the drop table feels |
-| `items`       | `THROW_RANGE`, `STACK_LIMIT`, `PACK_CAPACITY` | reach and pack density |
+| `items`       | `THROW_RANGE`, `LIGHT_THROW_RANGE`, `LAUNCHER_RANGE`, `STACK_LIMIT`, `PACK_CAPACITY` | reach and pack density |
 | `rings`       | `STEALTH_RANGE` (how close a stealthy player is noticed at), `TELEPORT_MAGIC_COST` | the two rings with a number that isn't on their row |
 | `score`       | `KILL_PER_MAX_HP`, `COMBO_BONUS_PER_KILL`, `COMBO_PRIDE_CHANCE`, `STAIR_PER_TIER`, `SCORE_FLASH_TURNS` | what the run is scored on, and how loudly |
 | `monsters`    | `DEFAULT_SPAWN_WEIGHT` | the baseline rarity a bestiary row gets |

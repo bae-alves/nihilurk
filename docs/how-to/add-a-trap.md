@@ -108,7 +108,10 @@ Your arm receives:
 > (`TRICK_SHOT_*` in `constants::traps`) is dealt before your arm runs,
 > and the trap entity is already despawned by then -- an arm must never
 > despawn it itself. `spring_trap` handles the stepped-on case; the bear
-> trap's "bites once" despawn lives there, not in the arm.
+> trap's "bites once" despawn lives there, not in the arm. Bursts also
+> chain, so your arm can run while another trap's burst is still
+> resolving: re-read anything off the world that a burst could have
+> changed, and never hold an `Entity` across a call that can explode.
 
 > **Damage traps ignore the armour die but not the armour bonus.** If your
 > trap deals damage, subtract `total_armor_plus(world, victim)` and

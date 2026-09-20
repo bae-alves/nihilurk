@@ -40,7 +40,8 @@ pub use spells::{spell_cost, spell_system};
 pub(crate) use theft::{leprechaun_theft, nymph_theft};
 
 pub use throwing::{
-    ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_refusal, throw_system,
+    ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_reach, throw_refusal,
+    throw_system,
 };
 
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
@@ -88,6 +89,12 @@ pub(crate) use scrolls::discharge_confusing_touch;
 /// `models::THROW_RANGE` / `crate::items::THROW_RANGE` keep resolving. Defined
 /// and documented in [`crate::constants::items`].
 pub use crate::constants::items::THROW_RANGE;
+
+/// The furthest a bow or crossbow will carry its own ammunition, and the
+/// furthest a potion, scroll, wand or ring flies out of a bare hand — both
+/// re-exported alongside [`THROW_RANGE`]. Defined in
+/// [`crate::constants::items`].
+pub use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE};
 
 use bevy_ecs::entity::Entity;
 use bevy_ecs::world::World;

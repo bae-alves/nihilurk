@@ -89,7 +89,7 @@ const FANFARE: [&str; 4] = [
 ///
 /// Everything here is played from the player's own tile, so it works equally
 /// well as the last thing a run does (the victory climb queues it, and the
-/// engine plays it out before the starfield) and as a thing that happens in the
+/// engine plays it out before the WIN panel) and as a thing that happens in the
 /// middle of a floor.
 pub(crate) fn do_it_with_style(world: &mut World) {
     let Some(at) = player_tile(world) else {

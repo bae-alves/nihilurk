@@ -97,6 +97,7 @@ Painted in this order — everything after "Terrain" draws over whatever came be
   7. **Smoke** — visible, not actor-occupied, `≈` in grey; fades on its own over a few turns (see `Smoke` in components.md).
   8. **Actors** — the player and every non-`Hidden` `Mob`, visible only. (While the player is `Blind` the visibility system has already tagged every mob `Hidden`, so nothing here has to know about blindness.)
   9. **Monster status tints** — a background (`set_bg`) on a visible, non-`Hidden` mob that cannot fight back properly, in this precedence: `DarkBlue` for one asleep in gas or `Paralyzed`, `DarkGreen` for one held in a bear trap, `DarkCyan` for one bound by a scroll of hold monster, `DarkMagenta` for one staggering under `MovementType::Confused`. Painted after the actors so it lands under a glyph that is actually drawn.
+  9a. **Trick-shot potential** — a bright `Magenta` background on any visible, non-`Hidden` mob standing on a coin (`Pickup`), on the Element of Yoord (`Amulet`), or on a trap the player has already found (`Trap`, `Without<Hidden>`). It is an offer: a missile that stops on that creature stops on the tile under it too, and sets the thing off (`traps::detonate_at` — see `content-tables.md`, "Trick shots"). A trap still `Hidden` is not in here, because an aimed shot passes straight over one. Painted *after* layer 9, so it outranks the status tints: a sleeping monster on a bear trap is worth reading as the shot rather than as the nap, and the two never disagree — a helpless monster on a live trap is both at once.
   10. **Detected things** — everything carrying `Detected` (a potion of magic or monster detection, or a scroll of food detection) that is *not* currently visible, painted in one flat `DarkMagenta`. Anything in view is already drawn above in its own colour; this layer is the sense, not the sight.
   11. **Particles** — drawn over actors deliberately, so a hit motes over the thing it hit rather than under it.
   12. **Targeting beam** — a Bresenham line from the player to the reticle, drawn as `*` in yellow, except where it crosses an actor: the actor's own glyph is kept but recoloured yellow (or black, if the actor was already yellow-ish, so it doesn't vanish into the beam). The reticle's own tip additionally gets a `DarkBlue` background.
@@ -209,11 +210,11 @@ End-of-run panels
 
 ```
 pub fn render_you_died<W>(stdout, screen, offset) -> std::io::Result<()>
-pub fn render_tombstone<W>(stdout, screen, offset, player_name, cause, score)
-pub fn render_victory<W>(stdout, screen, offset, player_name, score)
+pub fn render_lose<W>(stdout, screen, offset, player_name, cause, score)
+pub fn render_win<W>(stdout, screen, offset, player_name, score)
 ```
 
-Full-screen, drawn in place of `render` (not layered with it) via `screen.clear()` and `screen.dirty_all = true` — a full repaint, since nothing about the map frame should bleed through. `centered_x` centres a line of text; `wrap_words` (victory's blessing line only) greedily wraps on word boundaries, never splitting a word, so a long player name can't run the line off the panel. `main.rs`'s `run_death_screens`/`run_victory_screens` drive these: show the "You die..."/starfield panel, block for the acknowledging keypress (`wait_for_key`), then (death only) show the tombstone and block again.
+Full-screen, drawn in place of `render` (not layered with it) via `screen.clear()` and `screen.dirty_all = true` — a full repaint, since nothing about the map frame should bleed through. Both end panels are one word — `WIN` or `LOSE` — then the name, the cause (death only), the score and the prompt; `centered_x` centres every line. `main.rs`'s `run_death_screens`/`run_victory_screens` drive these: death shows the "You die..." panel, blocks for the acknowledging keypress (`wait_for_key`), then shows LOSE and blocks again; victory shows WIN and blocks once.
 
 
 The inventory overlay

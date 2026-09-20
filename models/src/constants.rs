@@ -481,10 +481,20 @@ pub mod loot {
 
 /// Throw range and stack size.
 pub mod items {
-    /// How far any item can be hurled, in tiles — the throw reticle's leash. A
-    /// wand overrides this with its own `range` when zapped, but a *thrown*
-    /// wand still obeys this leash.
-    pub const THROW_RANGE: i32 = 7;
+    /// How far a heavy thing can be hurled, in tiles — the throw reticle's
+    /// default leash. A wand overrides this with its own `range` when zapped,
+    /// but a *thrown* wand obeys a leash like anything else.
+    pub const THROW_RANGE: i32 = 4;
+
+    /// The same leash for the small stuff — a potion, a scroll, a wand, a ring.
+    /// Little enough to get a wrist behind, so it carries further than a spear
+    /// or a fistful of arrows.
+    pub const LIGHT_THROW_RANGE: i32 = 6;
+
+    /// How far ammunition carries when it is *loosed* rather than lobbed — an
+    /// arrow from a bow, a quarrel from a crossbow. Twice the arm behind it,
+    /// which is the whole reason to carry the stick.
+    pub const LAUNCHER_RANGE: i32 = 8;
 
     /// The most one pack slot will hold before the overflow spills into a
     /// second slot. A round, generous number — nothing in the engine forces a
@@ -606,8 +616,8 @@ pub mod monsters {
     pub const VAMPIRE_MAX_HP_DRAIN: i32 = 1;
 
     /// How far a launcher-wielding monster (a centaur, a medusa) can loose a
-    /// shot. Shares the player's own throw reach.
-    pub use crate::constants::items::THROW_RANGE as MONSTER_SHOT_RANGE;
+    /// shot. Shares the player's own launcher reach.
+    pub use crate::constants::items::LAUNCHER_RANGE as MONSTER_SHOT_RANGE;
 }
 
 // ===========================================================================

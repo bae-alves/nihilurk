@@ -6,11 +6,7 @@
 //! most of its machinery ([`elemental_blast`], [`blast_palette`], the
 //! per-creature effects) from here.
 
-use bevy_ecs::{
-    entity::Entity,
-    prelude::{Component, With},
-    world::World,
-};
+use bevy_ecs::{entity::Entity, prelude::With, world::World};
 use crossterm::style::Color;
 use rand::Rng;
 use std::collections::{HashSet, VecDeque};
@@ -28,7 +24,7 @@ use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_inde
 use crate::monsters::{BESTIARY, spawn_monster};
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
-use crate::traps::random_open_tile;
+use crate::traps::{random_open_tile, things_in};
 
 use super::scrolls::teleport_reader;
 use crate::constants::wands::{BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES, SMOKE_LINGER_TURNS};
@@ -304,27 +300,17 @@ pub(super) fn elemental_blast(
     // Anything in the blast that a shot could have set off goes off with it —
     // the trick shot, worked by a wand instead of a bowstring. Traps first,
     // then coins, and a coin hands its effect to whoever let the blast off.
-    // None of these bursts is itself a blast, so nothing comes back through
-    // here and a row of them cannot chain forever.
+    // Each of those bursts chains on its own (`traps::chain_react`) and none
+    // of them comes back through here, so a blast over a row of traps ends
+    // after it has spent every one of them.
     for trap in things_in::<Trap>(world, &cell_set) {
-        crate::traps::detonate_trap(world, trap);
+        crate::traps::detonate_trap(world, trap, shooter);
     }
     for coin in things_in::<Pickup>(world, &cell_set) {
         crate::traps::detonate_pickup(world, coin, shooter);
     }
 
     affected_entities
-}
-
-/// Everything carrying `C` standing on one of `cells`. Collected up front
-/// because setting one off mutates the world out from under the query.
-fn things_in<C: Component>(world: &mut World, cells: &HashSet<(u16, u16)>) -> Vec<Entity> {
-    world
-        .query_filtered::<(Entity, &Position), With<C>>()
-        .iter(world)
-        .filter(|(_, p)| cells.contains(&(p.x, p.y)))
-        .map(|(e, _)| e)
-        .collect()
 }
 
 /// Puffs a small ring of smoke around `center` — the polymorph flourish.

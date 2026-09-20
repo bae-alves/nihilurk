@@ -68,7 +68,7 @@ Every particle animation's frame pacing (a zap's beam, a blast's ripple, a telep
 
 ### Thrown
 
-**Thrown**, a wand only bursts on *impact* — hitting a creature or a wall, or flying its full `THROW_RANGE` leash. Lobbed into open floor short of that, it just lands with its charges and its secret intact.
+**Thrown**, a wand only bursts on *impact* — hitting a creature or a wall, or flying its full `throw_reach` leash. Lobbed into open floor short of that, it just lands with its charges and its secret intact.
 
 In flight it doesn't fly as its own catalog glyph the way every other thrown item does (`Particles::hurl`) — a wand tumbles as a mystic grenade instead (`Particles::lob`), a slower arc tinted with the `BlastPalette` its charges are about to burst in (`BlastPalette::accent_color`), so the colour of the coming blast is already legible while it's still in the air. The lob is deliberately the slow half of the beat; the burst it ends in is not.
 
@@ -93,7 +93,7 @@ The one moment in a run that exists purely to be looked at. A ring of adornment 
 
 `do_it_with_style` is sixteen `Particles::firework` blasts over a `BlastPalette::Glam` burst on the player's own tile — the eight tiles around them, then Frost Nova's star points a few tiles further out, `90ms` apart so the chain runs *round* them rather than flashing at once, each in a colour drawn at random from magenta, cyan and yellow (`rings::GLAM_COLORS`). Twice the fireworks and twice the glam of the old eight-blast version, and the one animation in the game allowed to take its time. Plus a `ShakeKind::Heavy` kick, four lines of fanfare, and `score::double`.
 
-It is queued like any other animation, so the engine plays it out before the victory starfield rather than instead of it.
+It is queued like any other animation, so the engine plays it out before the victory panel rather than instead of it.
 
 
 Why none of this is unit-tested
