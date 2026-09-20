@@ -8,7 +8,7 @@
     }
   },
   "enabledPlugins": {
-    "track-and-improve@claude-skillz": true
+    "track-and-improve@claude-skillz": false
   },
   "permissions": {
     "deny": [
