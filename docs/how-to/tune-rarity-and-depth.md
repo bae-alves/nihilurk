@@ -39,7 +39,8 @@ Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at th
                   tile drops an item (no fill roll).
 
     hidden item   HIDDEN_ITEM_CHANCE of floors hide one more in plain
-                  sight -- no glyph until you walk onto it.
+                  sight -- no glyph until you walk onto it. At the
+                  current 1.0, that is every floor.
 
     traps         4 + tier slots, each filling with probability
                   min(0.12 + 0.13 * tier, 0.75).

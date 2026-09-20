@@ -283,8 +283,8 @@ pub struct Viewshed {
 pub struct Hidden;
 
 /// Intrinsically unseeable without [`crate::effects::SeesInvisible`] — the
-/// phantom, and the invisibly-stashed floor item some floors hide
-/// ([`crate::constants::population::HIDDEN_ITEM_CHANCE`]). Pairs with
+/// phantom, and the invisibly-stashed floor item a floor hides at
+/// [`crate::constants::population::HIDDEN_ITEM_CHANCE`]. Pairs with
 /// [`Hidden`]: `Invisible` says *why* a thing can't be seen, `Hidden` is the
 /// per-turn "can't be seen right now" the renderer reads.
 #[derive(Component)]

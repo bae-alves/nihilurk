@@ -435,7 +435,12 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         // it — before `ai` runs, so the very turn that happens it also gets
         // to lash out as the `Ambush` mob it always was.
         reveal_mimics.after(tick_effects),
-        ai.after(reveal_mimics),
+        // An active move resolves before the monsters act, just like the
+        // player's ordinary movement already resolved while the key was
+        // handled. `ai` skips anything a move left at 0 HP; `reaper_system`
+        // still sweeps the bodies at the end of the turn.
+        move_system.after(reveal_mimics).before(ai),
+        ai.after(move_system),
         // A coin-greedy orc that just stepped onto a coin it can use claims it
         // here, while `EntityMoved` still marks it — the same tag the trap
         // system reads right after.
@@ -443,14 +448,10 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         trap_system.after(monster_pickup_system),
         throw_system.after(trap_system),
         item_system.after(throw_system),
-        // An active move resolves the same moment a zapped wand would; there's
-        // no ordering reason it has to follow items rather than sit beside
-        // them, only that it needs somewhere fixed to be.
-        move_system.after(item_system),
         // Gear changed by anything other than the pack screen — a loaded save, a
         // curse-lifting scroll — has its lent effects reconciled here, before
         // combat and visibility read them.
-        equipment_effects_system.after(move_system),
+        equipment_effects_system.after(item_system),
         combat_system.after(equipment_effects_system),
         reaper_system.after(combat_system),
         dungeon_lord_system.after(reaper_system),

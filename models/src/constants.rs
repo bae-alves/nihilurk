@@ -223,9 +223,12 @@ pub mod population {
     /// item (no fill roll — deeper floors are simply richer).
     pub const ITEM_SLOTS_BASE: usize = 3;
 
-    /// Chance a floor also hides one extra item — no glyph, no announcement —
-    /// until a ring of perception turns it up or the player walks onto it.
-    pub const HIDDEN_ITEM_CHANCE: f64 = 0.5;
+    /// How often a floor also hides one extra item — no glyph, no
+    /// announcement — until a ring of perception turns it up, a detection
+    /// finds it, or the player walks onto it. At `1.0` every floor does; lower
+    /// it to make a stash something worth hoping for rather than something to
+    /// sweep for.
+    pub const HIDDEN_ITEM_CHANCE: f64 = 1.0;
 }
 
 // ===========================================================================

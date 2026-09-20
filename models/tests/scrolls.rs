@@ -805,6 +805,57 @@ fn food_detection_turns_up_the_plain_things_and_leaves_the_magic_alone() {
     );
 }
 
+/// A detection turns an invisibly-stashed item up for good, exactly the way a
+/// ring of perception does. Half a reveal would be worse than none: the
+/// `Detected` render pass only paints tiles the player *cannot* see, so a stash
+/// left wearing `Hidden` would glow magenta from across the floor and then wink
+/// out the moment the player walked into the room.
+#[test]
+fn detection_turns_a_stashed_item_up_for_good() {
+    let spot = Position { x: 1, y: 1 };
+
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let plain = spawn_weapon(&mut w, "dagger", spot);
+    w.entity_mut(plain).insert((Hidden, Invisible));
+    read(&mut w, p, ScrollEffect::FoodDetection);
+    assert!(w.get::<Detected>(plain).is_some());
+    assert!(w.get::<Hidden>(plain).is_none());
+    assert!(w.get::<Invisible>(plain).is_none());
+
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let potion = spawn_potion(&mut w, PotionEffect::Healing, spot);
+    w.entity_mut(potion).insert((Hidden, Invisible));
+    let detection = spawn_potion(&mut w, PotionEffect::MagicDetection, spot);
+    stash(&mut w, p, detection);
+    use_item(&mut w, p, detection);
+    assert!(w.get::<Detected>(potion).is_some());
+    assert!(w.get::<Hidden>(potion).is_none());
+    assert!(w.get::<Invisible>(potion).is_none());
+}
+
+/// The other half of the same rule: a detection that passes an item over leaves
+/// its stash exactly as it found it. Only what a sense actually turns up is
+/// turned up.
+#[test]
+fn a_detection_that_skips_an_item_leaves_its_stash_alone() {
+    let spot = Position { x: 1, y: 1 };
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    // A plain dagger is beneath magic detection's notice.
+    let plain = spawn_weapon(&mut w, "dagger", spot);
+    w.entity_mut(plain).insert((Hidden, Invisible));
+
+    let detection = spawn_potion(&mut w, PotionEffect::MagicDetection, spot);
+    stash(&mut w, p, detection);
+    use_item(&mut w, p, detection);
+
+    assert!(w.get::<Detected>(plain).is_none());
+    assert!(w.get::<Hidden>(plain).is_some());
+    assert!(w.get::<Invisible>(plain).is_some());
+}
+
 #[test]
 fn both_detections_find_the_element_of_yoord() {
     let spot = Position { x: 1, y: 1 };

@@ -80,8 +80,16 @@ fn place_element_of_yoord(world: &mut World, occupied: &mut HashSet<(u16, u16)>,
 }
 
 /// One trap attempt: up to [`PLACEMENT_TRIES`] draws for a free room tile that
-/// isn't the player's landing spot, then a random trap on it. A budget spent
-/// without finding one is a trap the floor does without.
+/// isn't the player's landing spot and isn't orthogonally next to a door, then
+/// a random trap on it. A budget spent without finding one is a trap the floor
+/// does without.
+///
+/// The door rule keeps a doorway from being a coin flip: the tile just inside
+/// one is the tile every route into the room has to cross, so a trap there is
+/// unavoidable rather than merely unlucky. Orthogonal is the whole
+/// neighbourhood that matters — [`Map::diagonal_step_ok`] already forbids
+/// stepping diagonally off a door tile, so the first step out of any doorway
+/// is one of these four.
 fn place_one_trap(
     world: &mut World,
     rooms: &[Rect],
@@ -97,6 +105,18 @@ fn place_one_trap(
             continue;
         }
         if world.resource::<Map>().tiles[tile_index(x, y)] != TileType::Room {
+            continue;
+        }
+        let map = world.resource::<Map>();
+        if [
+            map.tile(x.saturating_sub(1), y),
+            map.tile(x.saturating_add(1), y),
+            map.tile(x, y.saturating_sub(1)),
+            map.tile(x, y.saturating_add(1)),
+        ]
+        .into_iter()
+        .any(|tile| tile == TileType::Door)
+        {
             continue;
         }
         if occupied.insert((x, y)) {
@@ -198,9 +218,11 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
         roll_item(world, &mut rng, depth, Position { x, y });
     }
 
-    // Some floors hide an extra item in plain sight (`HIDDEN_ITEM_CHANCE`): it
-    // draws nothing and is never announced until a ring of perception turns it
-    // up or the player walks straight onto it ("Hey! There's something here!").
+    // A floor hides an extra item in plain sight at `HIDDEN_ITEM_CHANCE` —
+    // every floor, at the rate it currently sits at. It draws nothing and is
+    // never announced until a ring of perception turns it up, a detection
+    // finds it (`items::potions::detect_item`), or the player walks straight
+    // onto it ("Hey! There's something here!").
     if rng.gen_bool(HIDDEN_ITEM_CHANCE) {
         if let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) {
             let item = roll_item(world, &mut rng, depth, Position { x, y });

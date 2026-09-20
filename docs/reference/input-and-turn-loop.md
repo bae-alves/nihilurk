@@ -59,13 +59,13 @@ flowchart LR
 
 One `Schedule`, run once per turn, in this fixed order:
 
-    smoke_system -> tick_effects -> reveal_mimics -> ai -> monster_pickup_system
-      -> trap_system -> throw_system -> item_system -> move_system
+    smoke_system -> tick_effects -> reveal_mimics -> move_system -> ai
+      -> monster_pickup_system -> trap_system -> throw_system -> item_system
       -> equipment_effects_system -> combat_system -> reaper_system
       -> dungeon_lord_system -> passive_ability_system
       -> visibility_system -> score_turn_system
 
-`reveal_mimics` runs right before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `monster_pickup_system` runs right after `ai`, while `EntityMoved` still marks whoever just stepped: a coin-greedy monster (an orc) that walked onto a coin it can use claims it there, before `trap_system` clears the tag. `move_system` sits beside `item_system` for the same reason a wand's zap does — an active move (`Z`, the only way to one) spends its `Magic` cost and resolves there.
+`reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `monster_pickup_system` runs before `trap_system`, while `EntityMoved` still marks whoever just stepped: a coin-greedy monster (an orc) that walked onto a coin it can use claims it there, before `trap_system` clears the tag. `move_system` runs before `ai`: an active move (`Z`, the only way to one) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which is applied while handling the key before the schedule runs. A damaging move only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
 
 `passive_ability_system` sits second-to-last on purpose. A passive that merely happens to you can roll anywhere; one that *moves* you cannot. Rolled after `ai`, a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again — and there is still a visibility pass and a render left in the turn to show it to them.
 
