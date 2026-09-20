@@ -12,18 +12,65 @@ Start a new expedition with:
     cargo run -p engine                  # start a game
     cargo run -p engine -- YourName       # name your nihilurk
     cargo run -p engine -- -s 1234        # play a particular seed
+    cargo run -p engine -- -b lurk        # descend as a lurk
+
+Your name, if you give one, comes first. Everything else comes after it.
 
 You may quit and return to one expedition later. There is one save file. It is for stopping, not for undoing a death: when an expedition ends, the save is gone. A completed expedition is kept as clear data, so beginning another game after a victory is a choice to enter the dungeon again.
 
 
+Who goes down
+-------------
+
+Two creatures were written to go down there, and `-b` picks between them.
+
+**Nihil** is the default, and the rest of this manual describes nihil's
+expedition: twelve hit points, four magic, and a mace, a bow and a suit of
+ring mail to start with. Everything nihil is worth in a fight is something
+nihil is carrying, which means everything can be improved, and everything can
+be lost.
+
+**The lurk** (`-b lurk`) is quadruped, fanged, clawed and furred, and shows on
+the map as a magenta `@`. It is the other way of playing:
+
+  * Eight hit points and two magic. It is thinner than nihil in every way that
+    can be measured at the start.
+  * It carries nothing and can put nothing on but rings. The claws are the
+    weapon and the fur is the armour, so no sword and no breastplate will ever
+    add to either.
+  * It is **quick** — half again as fast as anything else in the dungeon,
+    marked `QUIK` on the status line. Three moves for every two the floor
+    gets.
+  * It moves quietly, the way a ring of stealth does: nothing notices it until
+    it is within reach.
+  * It fights like a fencer without a blade. Closing the last stride of a
+    charge lands a lunge, and every blow that lands winds the next one up.
+  * It knows Bide, and pays magic for it like anybody else.
+  * **It eats and grows.** Any creature that dies on the floor may feed it:
+    roughly one in seven does, and the lurk gains a point of health, magic,
+    attack or defence, at random. `FEAR THE WOLF!` There is no counter to
+    watch and nothing to save up for -- it happens while you hunt or it does
+    not.
+
+Where nihil gets stronger by finding things, the lurk gets stronger by killing
+things. A lurk that avoids fights stays a lurk that can be killed by a bat.
+
 The dungeon screen
 ------------------
 
-The status line gives you the information you need at a glance:
+Two lines carry everything you need at a glance. Above the map:
 
-    nihilurk | HP 9/12 | Ma 4/4 | Pow. 1d4+1 | Arm. 1d3+1 | DEPTH 3 | SCORE 140
+    DEPTH 3                              SCORE 000140
 
-`HP` is your health. `Ma` is your magic. `Pow.` and `Arm.` show your current attack and defence. `DEPTH` tells you where you are. The last field is your score, except when the dungeon flashes a recent reward or warning in its place.
+and below it:
+
+    BAE · HP 9/12 · Ma 4/4 · Pow. 8+1 · Arm. 5+1
+
+`DEPTH` tells you where you are. `SCORE` is your score, except when the dungeon flashes a recent reward or warning in its place.
+
+`HP` is your health and `Ma` is your magic, each shown as what you have out of what you can hold. `Pow.` and `Arm.` are your attack and your defence: the first number is the die that gets rolled -- `8` means a roll of one to eight -- and anything after it is added to that roll every time, so `8+1` is two to nine. A cursed item shows as a minus. `Pow.` turns green when something has poisoned your strength below its usual ceiling.
+
+Short words may follow, one for each thing currently true of you -- `FAST`, `QUIK`, `SLOW`, `STLH` for moving unnoticed, and one apiece for confusion, blindness and the rest.
 
 The message log below the map describes what has just happened. When `--MORE--` appears, press Space or Enter to continue reading. Until you do, the rest of the dungeon is waiting for you.
 

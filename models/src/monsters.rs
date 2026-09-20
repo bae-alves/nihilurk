@@ -165,6 +165,18 @@ impl MonsterDef {
         Self::lookup(name).unwrap_or_else(|| panic!("no monster named {name:?}"))
     }
 
+    /// Whether `name` is a species, however it was typed.
+    ///
+    /// Deliberately looser than [`lookup`](MonsterDef::lookup), and for one
+    /// reason: a player wearing a body *is* named after it (see [`Body`]),
+    /// which is how [`crate::saveload`] knows to put the costume back on.
+    /// That only stays unambiguous while no ordinary player name can be a
+    /// bestiary row, so the arg parser refuses one — case and all, because
+    /// "Dragon" is the spelling someone would actually try.
+    pub fn is_species_name(name: &str) -> bool {
+        BESTIARY.iter().any(|m| m.name.eq_ignore_ascii_case(name))
+    }
+
     /// Look up a species by name, or `None` if the bestiary has no such row.
     pub fn lookup(name: &str) -> Option<&'static MonsterDef> {
         BESTIARY.iter().find(|m| m.name == name)
@@ -650,4 +662,67 @@ pub fn maybe_split(world: &mut World, victim: Entity) {
         f.hp = hp;
         f.max_hp = hp;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Playing as a monster
+// ---------------------------------------------------------------------------
+
+/// Puts `def`'s body on `player`: its stats, its glyph, its tempo, the magic
+/// it was born with, and whatever of that magic is a spell.
+///
+/// The player *entity* survives — [`Player`], [`Faction::Player`],
+/// [`Viewshed`], [`Backpack`], [`Score`], [`Magic`] and [`Spellset`] are what
+/// make them the one the game is about, and none of them are things a species
+/// has an opinion on. What changes is everything [`MonsterBundle::from_def`]
+/// would have set, minus the two fields that would hand the player to the
+/// enemy: [`Mob`] (which is what `ai` steers) and [`Faction::Monster`].
+///
+/// Not a re-spawn: a species is a *costume*, and swapping the entity out
+/// would drop the run — the score, the map already seen, the pack — on the
+/// floor with it.
+pub fn wear_monster(world: &mut World, player: Entity, def: &'static MonsterDef) {
+    let mut e = world.entity_mut(player);
+    e.insert((
+        crate::body::MonsterBody(def),
+        Name {
+            what: def.name.to_string(),
+        },
+        Renderable {
+            glyph: def.glyph,
+            color: def.color,
+        },
+        Fighter {
+            hp: def.hp,
+            max_hp: def.hp,
+            power: def.power,
+            max_power: def.power,
+            power_bonus: def.power_bonus,
+            armor: def.armor,
+            armor_bonus: def.armor_bonus,
+        },
+        Speed::new(def.speed),
+        Grants(def.grants),
+    ));
+    if def.invisible {
+        e.insert(Invisible);
+    }
+    grant_all(world, player, def.grants);
+
+    // Innate magic that happens to be a spell goes in the spell bar, where
+    // the player can actually reach it — the dragon's breath is the same
+    // `Fireball` a hero coin teaches, and free to whoever was born with it
+    // (see `crate::abilities::INNATE_SPELLS`).
+    let innate: Vec<SpellEffect> = crate::abilities::INNATE_SPELLS
+        .iter()
+        .filter(|(grant, _)| grant.probe(world, player))
+        .map(|(_, spell)| *spell)
+        .collect();
+    if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
+        spellset.slots.extend(innate);
+    }
+
+    // No gear roll and no mimic disguise: an `EquipRoll` is how a floor
+    // *stocks* a monster, and the player is not stocked. A body that can use
+    // gear can still pick some up — see `crate::equipment::toggle_equipped`.
 }

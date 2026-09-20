@@ -29,7 +29,7 @@ use rand::Rng;
 use crate::combat::resolve_attack;
 use crate::components::{
     Backpack, Curse, EntityMoved, ExtraMonsterRound, Fighter, GameLog, Mob, Player, Position,
-    TrapEffect,
+    SpellEffect, TrapEffect,
 };
 use crate::conditions::snare;
 use crate::effects::{
@@ -222,15 +222,20 @@ pub const ABILITIES: &[Ability] = &[
     // a probe, a dice roll and a two-armed `match` sitting in the pathing
     // code, which is how one ability came to span five files with nothing
     // naming it. This row names it.
+    //
+    // What it fires is the spell, not a private copy of one: see
+    // [`INNATE_SPELLS`].
     Ability {
         effect: Grant::of::<FireBreath>(),
         when: Moment::InsteadOfAttacking(DRAGON_FIREBALL_CHANCE),
         player_only: false,
         action: |w, mob, target| {
-            target.is_some_and(|t| {
-                crate::items::dragon_breath(w, mob, t);
-                true
-            })
+            target
+                .and_then(|t| w.get::<Position>(t).copied())
+                .is_some_and(|at| {
+                    crate::items::apply_spell_effect(w, mob, at, SpellEffect::DragonBreath, 1);
+                    true
+                })
         },
         flavour: None,
     },
@@ -243,6 +248,31 @@ pub const ABILITIES: &[Ability] = &[
         |w, seen, looker| looker.is_some_and(|looker| medusa_gaze(w, looker, seen)),
     ),
 ];
+
+/// The spell a born-with grant *is*.
+///
+/// A dragon's breath is the catalog's `Fireball` whether a dragon breathes it
+/// at the player or a dragon-bodied player casts it at a dragon — one
+/// mechanic, one row in [`crate::catalog::SPELLS`], two ways in. This table
+/// is the pairing, and it buys three things at once: the ability row above
+/// casts the spell rather than keeping a second copy of the blast,
+/// [`crate::monsters::wear_monster`] puts it in the spell bar of a player born
+/// with the grant, and [`crate::items::spell_cost`] charges nothing for it.
+///
+/// Zero, because the grant *is* the licence: a monster has no [`Magic`] to
+/// spend and never did, so innate magic that costs magic points would simply
+/// never fire.
+pub const INNATE_SPELLS: &[(Grant, SpellEffect)] =
+    &[(Grant::of::<FireBreath>(), SpellEffect::DragonBreath)];
+
+/// Whether `caster` carries the grant that makes `effect` innate to them —
+/// asked by [`crate::items::spell_cost`], which makes it free, and by
+/// [`crate::monsters::wear_monster`], which hands it over.
+pub fn casts_innately(world: &World, caster: Entity, effect: SpellEffect) -> bool {
+    INNATE_SPELLS
+        .iter()
+        .any(|(grant, spell)| *spell == effect && grant.probe(world, caster))
+}
 
 /// A row anything can carry.
 const fn row(
@@ -351,11 +381,14 @@ fn chaos_recoil(world: &mut World, attacker: Entity, _target: Option<Entity>) ->
 /// [`crate::equipment::reset_momentum`]). The player's trick alone — see
 /// [`is_player`].
 fn build_momentum(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bool {
-    let Some(weapon) = equipped_in(world, attacker, Slot::Hand) else {
-        return false;
-    };
-    let built = world.get::<Momentum>(weapon).map_or(0, |m| m.0);
-    world.entity_mut(weapon).insert(Momentum(built + 2));
+    // On the steel if there is steel, on the fencer otherwise. A rapier keeps
+    // its own build-up so that swapping blades mid-fight puts down what the
+    // first one had going; a lurk has nothing to put down, and
+    // [`crate::effects::loadout`] folds a modifier held by the creature
+    // itself the same way it folds one held by its gear.
+    let holder = equipped_in(world, attacker, Slot::Hand).unwrap_or(attacker);
+    let built = world.get::<Momentum>(holder).map_or(0, |m| m.0);
+    world.entity_mut(holder).insert(Momentum(built + 2));
     true
 }
 

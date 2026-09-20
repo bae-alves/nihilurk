@@ -441,39 +441,18 @@ pub fn initialize_world(world: &mut World) {
 
     let ((player_x, player_y), rooms) = create_map(world);
 
-    // The starting gear. Every piece is spawned at the origin like a drop, then
-    // lifted straight into the pack (Position stripped, the way a picked-up item
-    // loses it) so it never shows up as floor loot. The armour, mace and bow are
-    // handed over enchanted to +1 rather than rolled.
-    let origin = Position { x: 0, y: 0 };
-    let pack_up = |world: &mut World, item: Entity| {
-        world.entity_mut(item).remove::<Position>();
+    // What the player wakes up as: nihil, a lurk, or a bestiary row.
+    let body = world
+        .get_resource::<crate::body::StartingBody>()
+        .map_or(crate::body::Body::default(), |b| b.0);
+
+    // The starting gear — *nihil's* starting gear. Nothing else here has the
+    // hands for a mace, and a monster is not stocked the way a floor stocks
+    // one.
+    let kit = match body.brings_a_pack() {
+        true => starting_kit(world),
+        false => Vec::new(),
     };
-
-    let ring_mail = spawn_armor(world, "ring mail", origin);
-    world
-        .entity_mut(ring_mail)
-        .insert(crate::effects::ArmorBonus(1));
-    pack_up(world, ring_mail);
-
-    let mace = spawn_weapon(world, "mace", origin);
-    world.entity_mut(mace).insert(crate::effects::PowerBonus(1));
-    pack_up(world, mace);
-
-    let shortbow = spawn_launcher(world, "short bow", origin);
-    world
-        .entity_mut(shortbow)
-        .insert(crate::effects::ThrowBonus(1));
-    pack_up(world, shortbow);
-
-    let arrows = spawn_ammo(world, "arrow", origin);
-    if let Some(mut stack) = world.get_mut::<Stack>(arrows) {
-        stack.count = STACK_LIMIT;
-    }
-    pack_up(world, arrows);
-
-    let healing = spawn_potion(world, PotionEffect::Healing, origin);
-    pack_up(world, healing);
 
     let player_name = world.resource::<PlayerName>().what.clone();
 
@@ -509,9 +488,7 @@ pub fn initialize_world(world: &mut World) {
                 max_points: START_MAGIC,
             },
             Faction::Player,
-            Backpack {
-                items: vec![ring_mail, mace, shortbow, arrows, healing],
-            },
+            Backpack { items: kit.clone() },
             Score { value: 0 },
             Blood,
             Speed::new(SpeedKind::Normal),
@@ -521,11 +498,60 @@ pub fn initialize_world(world: &mut World) {
         ))
         .id();
 
-    // Wear the armour and wield the mace. The bow and arrows wait in the pack:
-    // both weapons want the same hand, and which one the player reaches for
-    // first is the first decision the game asks them to make.
-    equip_silently(world, player, ring_mail);
-    equip_silently(world, player, mace);
+    // The body goes on last: it overwrites the stats, glyph and tempo the
+    // spawn above just laid down with whatever this creature actually is.
+    crate::body::wear(world, player, body);
+    if body.brings_a_pack() {
+        // Wear the armour and wield the mace. The bow and arrows wait in the
+        // pack: both weapons want the same hand, and which one the player
+        // reaches for first is the first decision the game asks them to make.
+        equip_silently(world, player, kit[KIT_ARMOR]);
+        equip_silently(world, player, kit[KIT_WEAPON]);
+    }
 
     populate_level(world, &rooms, (player_x, player_y));
+}
+
+/// Where the two pieces the player starts out already wearing sit in
+/// [`starting_kit`]'s list.
+const KIT_ARMOR: usize = 0;
+const KIT_WEAPON: usize = 1;
+
+/// What nihil starts with: ring mail, a mace, a short bow with a full quiver and one
+/// potion of healing. Every piece is spawned at the origin like a drop, then
+/// lifted straight into the pack (Position stripped, the way a picked-up item
+/// loses it) so it never shows up as floor loot. The armour, mace and bow are
+/// handed over enchanted to +1 rather than rolled.
+fn starting_kit(world: &mut World) -> Vec<Entity> {
+    let origin = Position { x: 0, y: 0 };
+    let pack_up = |world: &mut World, item: Entity| {
+        world.entity_mut(item).remove::<Position>();
+    };
+
+    let ring_mail = spawn_armor(world, "ring mail", origin);
+    world
+        .entity_mut(ring_mail)
+        .insert(crate::effects::ArmorBonus(1));
+    pack_up(world, ring_mail);
+
+    let mace = spawn_weapon(world, "mace", origin);
+    world.entity_mut(mace).insert(crate::effects::PowerBonus(1));
+    pack_up(world, mace);
+
+    let shortbow = spawn_launcher(world, "short bow", origin);
+    world
+        .entity_mut(shortbow)
+        .insert(crate::effects::ThrowBonus(1));
+    pack_up(world, shortbow);
+
+    let arrows = spawn_ammo(world, "arrow", origin);
+    if let Some(mut stack) = world.get_mut::<Stack>(arrows) {
+        stack.count = STACK_LIMIT;
+    }
+    pack_up(world, arrows);
+
+    let healing = spawn_potion(world, PotionEffect::Healing, origin);
+    pack_up(world, healing);
+
+    vec![ring_mail, mace, shortbow, arrows, healing]
 }

@@ -68,6 +68,13 @@ fn wields_turbo_magic(world: &World, user: Entity) -> bool {
 /// menu's `Ma` label) so none of them can drift from what will actually be
 /// spent.
 pub fn spell_cost(world: &World, user: Entity, effect: SpellEffect) -> u8 {
+    // What a creature was born with is free to use: see
+    // [`crate::abilities::INNATE_SPELLS`]. A dragon has no [`Magic`] at all,
+    // so a dragon's breath that cost magic points would never fire; a
+    // dragon-bodied player breathes on the same terms.
+    if crate::abilities::casts_innately(world, user, effect) {
+        return 0;
+    }
     let def = crate::catalog::SpellDef::of(effect);
     let turbo = def.kind == SpellKind::Attack && wields_turbo_magic(world, user);
     if turbo {
@@ -121,7 +128,7 @@ pub fn spell_system(world: &mut World) {
 /// added to the enum and not given an arm here fails the build instead of
 /// spending its cost for nothing — the same guarantee every other effect
 /// table in the game gives.
-fn apply_spell_effect(
+pub(crate) fn apply_spell_effect(
     world: &mut World,
     user: Entity,
     target: Position,
@@ -287,11 +294,15 @@ fn bide(world: &mut World, user: Entity) {
 // 2 Ma
 // ---------------------------------------------------------------------------
 
-/// Dragon's breath, on loan to the player as Fireball: identical to a zapped
+/// Dragon's breath, known to the player as Fireball: identical to a zapped
 /// wand of fire — the same [`BLAST_RADIUS`] disc, the same armour-ignoring
 /// elemental damage — except the damage is whatever the user's own claws (or
-/// fists) would deal this swing, not the wand's own dice. See
-/// [`crate::items::dragon_breath`], the dragon's own copy of the same trick.
+/// fists) would deal this swing, not the wand's own dice.
+///
+/// The dragon's own breath is this, not a copy of it: its ability row casts
+/// the spell (see [`crate::abilities::INNATE_SPELLS`]), which is why the
+/// damage is read off the caster's [`Fighter`] rather than a dice row — the
+/// same sentence describes a dragon clawing and a player punching.
 /// `power_mult` is a staff's [`TurboMagic`] tripling the damage on top of
 /// doubling the cost — 1 for anyone casting bare-handed.
 fn breathe_fire(world: &mut World, user: Entity, target: Position, power_mult: i32) {

@@ -20,6 +20,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::world::EntityRef;
 use serde::{Deserialize, Serialize};
 
+use crate::body::equip_refusal;
 use crate::components::{
     Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position, Reach,
 };
@@ -213,11 +214,10 @@ pub fn wielded_reach_weapon(world: &World, entity: Entity) -> Option<Entity> {
 /// no-ops when there is nothing to lose.
 pub fn reset_momentum(world: &mut World, wearer: Entity) {
     revoke(world, wearer, Grant::of::<Bided>());
-    let Some(weapon) = equipped_in(world, wearer, Slot::Hand) else {
-        return;
-    };
-    if world.get::<Momentum>(weapon).is_some() {
-        world.entity_mut(weapon).insert(Momentum(0));
+    // Wherever it was built — the weapon's, or the bare-handed fencer's own.
+    let holder = equipped_in(world, wearer, Slot::Hand).unwrap_or(wearer);
+    if world.get::<Momentum>(holder).is_some() {
+        world.entity_mut(holder).insert(Momentum(0));
     }
 }
 
@@ -264,6 +264,17 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
             fire(world, user, item);
         }
         return true;
+    }
+
+    // Hands, claws or paws — whether this body can put anything on at all is
+    // [`crate::body::equip_refusal`]'s question, not this function's.
+    //
+    // Only asked on the way *on*. Taking something off is always allowed, or
+    // a wand of cancellation stripping what made a body able to wear gear
+    // would weld a hobgoblin's armour to them for good.
+    if let Some(refusal) = equip_refusal(world, user, slot, &name) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
     }
 
     // Full up: make room, evicting an uncursed occupant over a cursed one. A

@@ -7,8 +7,8 @@ use crate::abilities::{Blow, cleave_attack, fire_on_hit, fire_on_targeted};
 use crate::components::*;
 use crate::conditions::afflicted;
 use crate::effects::{
-    Asleep, Bided, Fencer, Grant, Pinned, Rooted, ShattersStone, VorpalOnCondition, VorpalTarget,
-    WhirlOnMove, loadout,
+    Asleep, Bided, Fencer, Grant, Lunges, Pinned, Rooted, ShattersStone, VorpalOnCondition,
+    VorpalTarget, WhirlOnMove, loadout,
 };
 use crate::equipment::{equipped_items, force_unequip};
 use crate::helpers::{
@@ -191,6 +191,9 @@ fn pay_for_the_corpse(world: &mut World, victim: Entity) {
         return;
     };
     award_kill(world, max_hp);
+    // And what a corpse is worth to a lurk, which is dinner. Same funnel, and
+    // deliberately the same indifference about whose kill it was.
+    crate::body::feed(world);
 }
 
 /// Settles what a dying creature was wearing, item by item. Each piece gets its
@@ -592,7 +595,7 @@ fn garrote_vorpal(world: &World, attacker: Entity, target: Entity) -> bool {
             || world.get::<Rooted>(target).is_some())
 }
 
-/// The estoc's lunge, end to end: self-checks [`Fencer`] and the geometry —
+/// The estoc's lunge, end to end: self-checks [`Lunges`] and the geometry —
 /// one empty tile dead ahead, an enemy past it — and, if both hold, resolves
 /// the guaranteed strike and carries `attacker` forward into the tile it just
 /// closed. Returns whether it fired, so the engine's own step (a plain walk)
@@ -602,7 +605,7 @@ fn garrote_vorpal(world: &World, attacker: Entity, target: Entity) -> bool {
 /// moving — `(dx, dy)` is the step already decided upstream, one tile in any
 /// of the eight directions.
 pub fn try_lunge(world: &mut World, attacker: Entity, dx: i16, dy: i16) -> bool {
-    if world.get::<Player>(attacker).is_none() || world.get::<Fencer>(attacker).is_none() {
+    if world.get::<Player>(attacker).is_none() || world.get::<Lunges>(attacker).is_none() {
         return false;
     }
     let Some(origin) = world.get::<Position>(attacker).copied() else {

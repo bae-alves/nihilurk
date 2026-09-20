@@ -21,7 +21,9 @@ use crate::constants::rings::STEALTH_RANGE;
 ///
 /// The player's own tempo scales how many monster *rounds* a single turn buys: a
 /// `Fast` player's turns alternate one-round / no-round (tracked by
-/// [`PlayerTempo::fast_parity`]), and a `Slow` player's one turn buys two rounds.
+/// [`PlayerTempo::fast_parity`]), a `Quick` player's third turn of every three
+/// buys none ([`PlayerTempo::quick_beat`]), and a `Slow` player's one turn
+/// buys two rounds.
 /// Every other schedule step (traps, visibility, the Dungeon Lord's patience)
 /// still ticks exactly once per player turn.
 ///
@@ -68,6 +70,18 @@ pub fn ai(world: &mut World) {
                 })
                 .unwrap_or(true);
             if act { 1 } else { 0 }
+        }
+        // Half again as fast: two monster rounds bought per three player
+        // turns, so every third turn is free. The lurk's tempo.
+        SpeedKind::Quick => {
+            let beat = world
+                .get_resource_mut::<PlayerTempo>()
+                .map(|mut t| {
+                    t.quick_beat = (t.quick_beat + 1) % 3;
+                    t.quick_beat
+                })
+                .unwrap_or(1);
+            if beat == 0 { 0 } else { 1 }
         }
     };
     // A greatclub's heavy swing (`crate::effects::HeavySwing`) costs its

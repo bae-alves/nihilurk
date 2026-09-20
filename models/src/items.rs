@@ -34,6 +34,12 @@ mod wands;
 
 pub use spells::{spell_cost, spell_system};
 
+/// One spell resolved on the spot, cost already settled (or never owed).
+/// [`spell_system`] is the way in for a spell the player triggered; this is
+/// the way in for one a creature simply *has* — see
+/// [`crate::abilities::INNATE_SPELLS`].
+pub(crate) use spells::apply_spell_effect;
+
 /// The leprechaun's and the nymph's on-hit tricks, named by
 /// [`crate::abilities::ABILITIES`] without that table knowing anything
 /// about potions, scrolls or teleportation.
@@ -48,8 +54,6 @@ pub use throwing::{
 /// melee attack for as long as it has one drawn.
 pub(crate) use throwing::monster_ranged_attack;
 
-pub(crate) use wands::dragon_breath;
-/// A dragon's fireball, called by [`crate::ai`] in place of a melee attack.
 pub(crate) use wands::ward_ricochet;
 
 /// The `T` key's whole implementation — the deliberate teleport a ring of

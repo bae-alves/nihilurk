@@ -256,12 +256,31 @@ pub struct Cleaves;
 #[derive(Component, Default, Clone, Copy)]
 pub struct HeavySwing;
 
-/// The estoc's technique: every attack is thrown twice in the time a plainer
-/// blade manages once (`crate::combat::resolve_attack` fired back to back),
-/// and closing the last stride of a run lands a lunge instead of a step — see
-/// `crate::combat::resolve_lunge`.
+/// The estoc's speed: every attack is thrown twice in the time a plainer
+/// blade manages once (`crate::combat::resolve_attack` fired back to back).
 #[derive(Component, Default, Clone, Copy)]
 pub struct Fencer;
+
+/// Marks the player as a lurk — see [`crate::body`], which is where what a
+/// lurk *is* gets written onto the entity.
+///
+/// A registered effect rather than a plain component for one reason: the
+/// ledger is what carries a marker through a save, and the save format is
+/// not versioned, so a new field there kills every run in progress. It is
+/// the one entry in [`EFFECTS`] that is not magic, and the one
+/// [`revoke_all`] refuses to take.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Lurk;
+
+/// The estoc's reach: closing the last stride of a run lands a lunge instead
+/// of a step — see `crate::combat::resolve_lunge`.
+///
+/// Its own marker rather than half of [`Fencer`] because the two are not one
+/// trick. The estoc grants both; the lurk is *born* with the lunge and never
+/// gets the double time, and a single marker would have made the lurk swing
+/// twice a turn with its bare hands.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Lunges;
 
 /// The chain-sickle's whirl: stepping between two tiles both adjacent to the
 /// same enemy lands a free attack on it, no swing spent. See
@@ -721,6 +740,8 @@ effects! {
     "cleaves" => Cleaves;
     "heavy_swing" => HeavySwing;
     "fencer" => Fencer;
+    "lunges" => Lunges;
+    "lurk" => Lurk;
     "whirl_on_move" => WhirlOnMove;
     "vorpal_on_condition" => VorpalOnCondition;
     "turbo_magic" => TurboMagic;
@@ -829,6 +850,12 @@ impl Held {
     /// safe direction for a rule that silently takes things away.
     pub fn is_condition(&self) -> bool {
         self.lifetime.is_transient() && crate::conditions::is_condition(self.id)
+    }
+
+    /// Whether this entry says what the creature *is* rather than what it can
+    /// do — see [`IDENTITY_EFFECTS`]. The one thing [`revoke_all`] leaves.
+    pub fn is_identity(&self) -> bool {
+        IDENTITY_EFFECTS.contains(&self.id)
     }
 }
 
@@ -1010,17 +1037,47 @@ pub fn grant_all(world: &mut World, entity: Entity, grants: &'static [Grant]) {
 /// it was born with — the wand of cancellation. Walking the ledger means a new
 /// effect is cancellable the moment it joins the registry.
 pub fn revoke_all(world: &mut World, entity: Entity) {
-    revoke_matching(world, entity, |_| true);
+    revoke_matching(world, entity, |h| !h.is_identity());
+    let kept: Vec<Held> = world
+        .get::<Effects>(entity)
+        .map(|l| l.0.iter().copied().filter(|h| h.is_identity()).collect())
+        .unwrap_or_default();
     let mut e = world.entity_mut(entity);
     // Belt and braces: an effect attached without going through `lend` has no
     // ledger entry, so the sweep above would miss it. Cancellation is the one
     // place that must leave nothing behind.
     for effect in EFFECTS {
+        if IDENTITY_EFFECTS.contains(&effect.id) {
+            continue;
+        }
         effect.grant.detach(&mut e);
     }
     e.remove::<Grants>();
     e.remove::<Effects>();
+    // What the creature *is* goes back on, with its ledger entry, so it is
+    // still there to be saved.
+    if !kept.is_empty() {
+        e.insert(Effects(kept));
+    }
 }
+
+/// The effects cancellation cannot take, because they are not magic: they
+/// say what the creature *is*. A wand that unmade the lurk would leave
+/// something wearing plate armour on four legs.
+///
+/// The line is drawn between a **body** and a **species**, and it is drawn
+/// deliberately:
+///
+/// * A body — nihil, the lurk — is not cancellable. It is the creature the
+///   run is about, and no wand in the dungeon is a wand of being something
+///   else.
+/// * A species is. A player wearing a dragon ([`crate::body::MonsterBody`])
+///   keeps the dragon's shape and its dice, because those are not effects at
+///   all, but loses its fire immunity to the same zap that would strip a real
+///   dragon's — and an orc-bodied player loses [`ItemUser`], which is to say
+///   the wits to work a buckle. That is the bargain of wearing something
+///   else's magic: it can be taken off you.
+const IDENTITY_EFFECTS: &[&str] = &["lurk"];
 
 /// What `entity` holds, for saving. Gear-lent entries are left out; a loaded
 /// save lends them again off the gear itself.

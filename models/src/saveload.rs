@@ -633,9 +633,20 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         // A monster's innate grant list comes back from the bestiary; the
         // effects it actually has right now come back from the save, so a
         // cancelled dragon stays cancelled.
+        //
+        // A *player* whose name is a bestiary row is one wearing that body
+        // (`-am dragon`), which is why the body needs no field of its own
+        // in the save: the name is the species, and every other thing the
+        // costume changed — glyph, stats, tempo, the effects themselves — is
+        // already saved per entity. A player who typed their own name cannot
+        // collide with a row here: `PlayerName` is upper-cased and the
+        // bestiary is not.
         if let Some(def) = entity_name.as_deref().and_then(MonsterDef::lookup) {
             if !def.grants.is_empty() {
                 em.insert(Grants(def.grants));
+            }
+            if es.player {
+                em.insert(crate::body::MonsterBody(def));
             }
         }
         let held: Vec<Held> = es.effects.iter().filter_map(SavedEffect::held).collect();

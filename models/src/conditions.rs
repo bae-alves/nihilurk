@@ -472,13 +472,22 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
 
     // Tempo first, and by hand: it is a value on `Speed` rather than an effect
     // something either has or has not.
+    //
+    // Back to the body's own tempo: `Normal` for nihil, `Quick` for a lurk,
+    // and whatever the bestiary row says for a player wearing a species
+    // (`-am wraith` is born fast). A staircase lifts what the *floor* lent;
+    // it has no business lifting what the player is made of.
+    let innate = crate::body::innate_tempo(world, player);
     if let Some(mut speed) = world.get_mut::<Speed>(player) {
         let was = speed.kind;
-        speed.kind = SpeedKind::Normal;
-        match was {
-            SpeedKind::Fast => lifted.push("hasted"),
-            SpeedKind::Slow => lifted.push("slowed"),
-            SpeedKind::Normal => {}
+        speed.kind = innate;
+        // Named against the body's own tempo rather than against `Normal`: a
+        // lurk walked up the stairs at `Normal` was *slowed*, even though a
+        // human at `Normal` is nothing of the kind.
+        match was.rate().cmp(&innate.rate()) {
+            std::cmp::Ordering::Greater => lifted.push("hasted"),
+            std::cmp::Ordering::Less => lifted.push("slowed"),
+            std::cmp::Ordering::Equal => {}
         }
     }
 
