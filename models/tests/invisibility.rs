@@ -1,6 +1,6 @@
 //! The phantom and the ring of perception: invisible monsters stay unseen (and
 //! attack as "Something") until a perception ring turns them up, which also
-//! reveals every trap on the floor and any invisibly-stashed item.
+//! reveals hidden traps in view and any invisibly-stashed item.
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
@@ -148,23 +148,42 @@ fn an_unseen_attacker_is_only_ever_something() {
 }
 
 #[test]
-fn perception_reveals_every_trap_on_the_floor() {
+fn perception_reveals_traps_in_view_only() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    // A triggered trap far away never reveals itself by sight alone.
-    let far = Position { x: 2, y: 2 };
-    let trap = w.spawn(TrapBundle::dart(far)).id();
-    w.get_mut::<Trap>(trap).unwrap().reveal = TrapReveal::Triggered;
+    // Two triggered traps: neither reveals itself by sight alone.
+    let far = out_of_view(&mut w);
+    let far_trap = w.spawn(TrapBundle::dart(far)).id();
+    w.get_mut::<Trap>(far_trap).unwrap().reveal = TrapReveal::Triggered;
+    let near = beside_player(&mut w);
+    let near_trap = w.spawn(TrapBundle::dart(near)).id();
+    w.get_mut::<Trap>(near_trap).unwrap().reveal = TrapReveal::Triggered;
 
     run_visibility(&mut w);
-    assert!(w.get::<Hidden>(trap).is_some(), "hidden without the ring");
+    assert!(
+        w.get::<Hidden>(far_trap).is_some(),
+        "hidden without the ring"
+    );
+    assert!(
+        w.get::<Hidden>(near_trap).is_some(),
+        "hidden without the ring"
+    );
 
     wear_ring(&mut w, p, RingEffect::Perception);
     run_visibility(&mut w);
-    assert!(w.get::<Hidden>(trap).is_none(), "the ring lays it bare");
-    assert!(w.get::<Trap>(trap).unwrap().revealed);
+    assert!(
+        w.get::<Hidden>(near_trap).is_none(),
+        "the ring lays it bare"
+    );
+    assert!(w.get::<Trap>(near_trap).unwrap().revealed);
     assert!(log_has(&w, "You spot"));
+
+    assert!(
+        w.get::<Hidden>(far_trap).is_some(),
+        "second sight still stops at the viewshed"
+    );
+    assert!(!w.get::<Trap>(far_trap).unwrap().revealed);
 }
 
 #[test]
@@ -185,6 +204,22 @@ fn an_invisible_item_hides_until_perception_or_a_misstep() {
     assert!(w.get::<Hidden>(item).is_none());
     assert!(w.get::<Invisible>(item).is_none());
     assert!(log_has(&w, "Hey! There's something here!"));
+}
+
+/// An open floor tile the player cannot currently see.
+fn out_of_view(w: &mut World) -> Position {
+    run_visibility(w);
+    let p = player(w);
+    let seen: Vec<(u16, u16)> = w.get::<Viewshed>(p).unwrap().visible_tiles.clone();
+    let map = w.resource::<Map>();
+    for y in 0..MAP_HEIGHT {
+        for x in 0..MAP_WIDTH {
+            if !map.blocks(x, y) && !seen.contains(&(x, y)) {
+                return Position { x, y };
+            }
+        }
+    }
+    panic!("the whole floor is in view");
 }
 
 /// A stand-in floor item: `spawn_random_item` is private, so just drop a scroll.

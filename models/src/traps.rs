@@ -63,7 +63,7 @@ use crate::components::*;
 use crate::constants::traps::{
     ARROW_DAMAGE_BONUS, ARROW_DAMAGE_DICE, ARROW_DAMAGE_PER_TIER, ARROW_DAMAGE_SIDES,
     BEAR_TRAP_THRASH_DAMAGE, BEAR_TRAP_THRASH_GORE, DART_DAMAGE_DICE, DART_DAMAGE_SIDES,
-    DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER, PICKUP_TRICK_SHOT_RADIUS,
+    DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER, PICKUP_TRICK_SHOT_RADIUS, TRAP_BREAK_CHANCE,
     TRAP_DAMAGE_TIER_LAST_DEPTH, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES,
     TRICK_SHOT_RADIUS,
 };
@@ -326,8 +326,9 @@ pub fn trap_at(world: &mut World, pos: Position) -> Option<Entity> {
         .map(|(e, _)| e)
 }
 
-/// Fires `trap`'s effect on `victim`, reveals the trap for good, and — for
-/// single-shot traps — despawns it.
+/// Fires `trap`'s effect on `victim`, reveals the trap for good, and despawns
+/// it if the mechanism is spent — always for the bear trap, otherwise
+/// [`TRAP_BREAK_CHANCE`] of the time.
 pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
     let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else {
         return;
@@ -353,8 +354,21 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
     }
 
     // A bear trap only bites once, and it bites the moment it is stepped on.
-    if effect == TrapEffect::Bear {
+    // Everything else springs again and again until the mechanism gives out,
+    // which it does [`TRAP_BREAK_CHANCE`] of the time. Rolled before the effect
+    // runs: a trapdoor takes the floor away with it.
+    let spent = effect == TrapEffect::Bear
+        || world
+            .resource_mut::<GameRng>()
+            .0
+            .gen_bool(TRAP_BREAK_CHANCE);
+    if spent {
         world.entity_mut(trap).despawn();
+        if seen && effect != TrapEffect::Bear {
+            world
+                .resource_mut::<GameLog>()
+                .add(format!("The {} breaks!", effect.label()));
+        }
     }
 
     apply_trap_effect(world, effect, victim, is_player, seen, trap_pos);
@@ -802,8 +816,12 @@ fn trap_flourish(world: &mut World, effect: TrapEffect, trap_pos: Option<Positio
         return;
     };
     match effect {
-        // The needle arrives from off in the dark, in the trap's own colour.
+        // The needle arrives from off in the dark, in the trap's own colour,
+        // and lands as a thwack whether or not it drew blood — the mechanism
+        // going off is the event, and a bolt that clatters off armour still
+        // came out of the wall.
         TrapEffect::Arrow | TrapEffect::Dart => {
+            kick_shake(world, ShakeKind::Hit);
             missile_flourish(world, p, TrapDef::of(effect).color)
         }
         // Steel jaws: a snap on the tile, then the held glyph over it.

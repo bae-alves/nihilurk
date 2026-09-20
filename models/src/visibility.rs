@@ -248,9 +248,9 @@ fn spotted_line(seen_name: &str) -> String {
 
 /// Brings hidden traps to light: a `Sight` trap the instant its tile is in
 /// view, an `Adjacent` trap once the player is next to it, a `Triggered` trap
-/// not until something sets it off — but a ring of perception reveals every
-/// trap on the floor at once, and blindness finds none of them (the perception
-/// short-circuit still holds: that is second sight, not eyesight).
+/// not until something sets it off — but a ring of perception reveals any trap
+/// on a tile the player can see, whatever its reveal style. Second sight is
+/// still sight: it stops at the viewshed, and blindness finds nothing.
 fn reveal_traps(
     commands: &mut Commands,
     log: &mut GameLog,
@@ -264,8 +264,10 @@ fn reveal_traps(
         if trap.revealed {
             continue;
         }
-        let spotted_it = !blind && trap_tripped(trap.reveal, tpos, player, visible);
-        if !perception && !spotted_it {
+        let in_view = visible.contains(&(tpos.x, tpos.y));
+        let spotted_it =
+            !blind && (trap_tripped(trap.reveal, tpos, player, visible) || (perception && in_view));
+        if !spotted_it {
             continue;
         }
         trap.revealed = true;
@@ -279,7 +281,7 @@ fn reveal_traps(
 }
 
 /// Whether a trap's own reveal style is satisfied this turn. The ring of
-/// perception is a separate short-circuit, checked by the caller.
+/// perception is a separate clause, checked by the caller.
 fn trap_tripped(
     reveal: TrapReveal,
     tpos: &Position,

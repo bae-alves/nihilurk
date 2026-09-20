@@ -2,6 +2,7 @@ mod common;
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
+use models::constants::traps::TRAP_BREAK_CHANCE;
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -186,6 +187,42 @@ fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
     assert!(log_contains(&w, "free of the bear trap"));
 }
 
+// ---------------------------------------------------------------------------
+// Wear and tear
+// ---------------------------------------------------------------------------
+
+/// A trap that is not single-shot still gives out about
+/// [`TRAP_BREAK_CHANCE`] of the times it springs, and says so when it does.
+#[test]
+fn a_sprung_trap_sometimes_breaks() {
+    const RUNS: u64 = 120;
+    let mut broke = 0u64;
+
+    for seed in 0..RUNS {
+        let mut w = test_world(seed);
+        clear_traps(&mut w);
+        let here = player_pos(&mut w);
+        w.spawn(TrapBundle::sleep(here));
+        step_player_onto(&mut w, here.x, here.y);
+
+        trap_system(&mut w);
+
+        let gone = w.query_filtered::<(), With<Trap>>().iter(&w).count() == 0;
+        assert_eq!(
+            gone,
+            log_contains(&w, "the sleeping gas trap breaks!"),
+            "a trap that broke should say so, and one that held should not"
+        );
+        broke += u64::from(gone);
+    }
+
+    let expected = TRAP_BREAK_CHANCE * RUNS as f64;
+    assert!(
+        (broke as f64 - expected).abs() < expected / 2.0,
+        "{broke} of {RUNS} broke, expected around {expected}"
+    );
+}
+
 #[test]
 fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
     let mut w = test_world(1);
@@ -207,7 +244,7 @@ fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
     assert_eq!(
         w.query_filtered::<(), With<Trap>>().iter(&w).count(),
         1,
-        "gas trap is reusable"
+        "gas trap is reusable (seed 1 does not roll the break)"
     );
 
     for _ in 0..held_for {
@@ -1181,6 +1218,35 @@ fn every_trap_animates_when_it_springs() {
             w.resource::<Particles>().any_alive(),
             "{} sprang and left the screen blank",
             def.name
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The shooting traps shake whether or not the bolt connects
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_shooting_trap_shakes_the_map_even_on_a_miss() {
+    for make in [
+        TrapBundle::arrow as fn(Position) -> TrapBundle,
+        TrapBundle::dart,
+    ] {
+        let mut w = test_world(2);
+        clear_traps(&mut w);
+        w.init_resource::<Shake>();
+        let p = player(&mut w);
+        // Armour plus of 20 guarantees nothing connects.
+        w.get_mut::<Fighter>(p).unwrap().armor_bonus = 20;
+
+        let here = player_pos(&mut w);
+        w.spawn(make(here));
+        step_player_onto(&mut w, here.x, here.y);
+        trap_system(&mut w);
+
+        assert!(
+            w.resource::<Shake>().active(),
+            "the trap firing is a shake of its own"
         );
     }
 }

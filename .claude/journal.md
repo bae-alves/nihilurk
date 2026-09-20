@@ -63,3 +63,24 @@ what `constants.rs` says it is for — "every tuning knob in the model, in one
 place". `docs/reference/constants.md` had no `spells` row at all, so the whole
 module (thirteen knobs, since before the rename) was invisible to anyone
 rebalancing from the docs.
+
+
+## Second sight stopped being omniscience (2026-09-20)
+
+`reveal_traps` treated `SeesInvisible` as a short-circuit *before* the viewshed
+check, so a ring of perception (or a potion of see invisible) revealed and
+logged every hidden trap on the floor, including ones in rooms the player had
+never entered. Every other perception path in `visibility.rs` was already
+gated: `hide_and_announce` computes `perceptible = in_view && (…)`. Traps were
+the one place the `&& in_view` was missing, and the doc comment had
+rationalised it ("reveals every trap on the floor at once") — which is how it
+survived a test that asserted the bug by name.
+
+The tell: a flag that widens *what* you perceive should never also widen
+*where*. `perception` answers "can I see through invisibility", not "how far
+can I see"; the moment it sits on the same line as `continue`, it is answering
+both.
+
+The test that caught it had to stop hardcoding a "far away" tile — `(2, 2)` was
+inside the starting room on that seed. It now asks the player's own
+`visible_tiles` for a tile genuinely out of view.
