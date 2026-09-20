@@ -754,11 +754,13 @@ pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
     }
     let name = item_label(world, victim);
     let old_pos = world.get::<Position>(victim).copied();
-    if let Some((x, y)) = random_open_tile(world) {
-        if let Some(mut p) = world.get_mut::<Position>(victim) {
-            p.x = x;
-            p.y = y;
-        }
+    let Some((x, y)) = random_open_tile(world) else {
+        burst_in_transit(world, victim, old_pos);
+        return;
+    };
+    if let Some(mut p) = world.get_mut::<Position>(victim) {
+        p.x = x;
+        p.y = y;
     }
     // Through the ledger, not around it: removing the component alone leaves
     // the hold's row still counting down, and `effects::hold` reads those rows
@@ -777,20 +779,25 @@ pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
 /// Wand of teleport to: drag the target monster to a tile next to the zapper.
 /// With nothing on the aimed tile the magic still has to land on *someone* — and
 /// the only body in range is the wielder's own.
+///
+/// Boxed in, the drag simply fails. It used to fall back to
+/// [`random_open_tile`] — which is a teleport *away* wearing teleport-to's
+/// "dragged to your side!" message, the one outcome this wand exists not to
+/// produce.
 fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos: Position) {
     let Some(victim) = monster_at(world, pos) else {
         teleport_entity_to_self(world, user);
         return;
     };
     let name = item_label(world, victim);
+    let Some((x, y)) = crate::helpers::free_adjacent_tile(world, user_pos) else {
+        burst_in_transit(world, victim, Some(user_pos));
+        return;
+    };
     let old_pos = world.get::<Position>(victim).copied();
-    let spot =
-        crate::helpers::free_adjacent_tile(world, user_pos).or_else(|| random_open_tile(world));
-    if let Some((x, y)) = spot {
-        if let Some(mut p) = world.get_mut::<Position>(victim) {
-            p.x = x;
-            p.y = y;
-        }
+    if let Some(mut p) = world.get_mut::<Position>(victim) {
+        p.x = x;
+        p.y = y;
     }
     if let Some(old_pos) = old_pos {
         leave_smoke(world, old_pos);
@@ -798,6 +805,24 @@ fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos
     world
         .resource_mut::<GameLog>()
         .add(format!("The {name} is dragged to your side!"));
+}
+
+/// A teleport with nowhere to put the passenger. The magic does not politely
+/// fizzle: it pulls anyway, and what comes out the far end is not in one piece.
+///
+/// Both wands end here — teleport away with the floor full, teleport to with
+/// no room at the zapper's side — because both are the same failure, and both
+/// used to resolve it by quietly doing nothing (or, worse, by flinging the
+/// target somewhere the message didn't claim). `source` is what the gore flies
+/// away from. The kill goes through [`crate::combat::finish_indirect_kill`]
+/// like every other death with no swinger behind it, so it pays score, drops
+/// gear and bursts exactly as a bolt's kill does.
+fn burst_in_transit(world: &mut World, victim: Entity, source: Option<Position>) {
+    let name = item_label(world, victim);
+    world.resource_mut::<GameLog>().add(format!(
+        "The {name} is dragged into the space between and comes apart — it bursts in a spray of gore!"
+    ));
+    crate::combat::finish_indirect_kill(world, victim, source);
 }
 
 /// Teleport-to with no other target: the creature arrives exactly where it

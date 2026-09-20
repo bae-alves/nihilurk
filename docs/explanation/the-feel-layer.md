@@ -58,7 +58,7 @@ Each one has a flourish of its own. The enchantments and monster confusion throw
 What a wand looks like
 ----------------------
 
-A zapped bolt (`fire_bolt` → `Particles::beam`) flickers white/its own colour twice per cell rather than fading once, and lands with `Particles::impact_sparks` — a brighter flash on the hit tile plus a small ring of offset sparks around it, timed off `beam`'s returned flight time so they pop right as the bolt arrives. Flashier and denser than the beam alone, on every bolt-type wand (fire, cold, lightning, magic missile, striking, drain life).
+A zapped bolt (`fire_bolt` → `Particles::beam`) is a line of suns (`☼`) — one glyph the whole way, not NetHack's directional `- | \ /`, which at one cell per tile read as scenery rather than as something travelling — crawling a cell every `90ms` so it is watchable at the default `AnimRate`. Each cell flickers white/its own colour twice rather than fading once, and lands with `Particles::impact_sparks` — a brighter flash on the hit tile plus a small ring of offset sparks around it, timed off `beam`'s returned flight time so they pop right as the bolt arrives. Flashier and denser than the beam alone, on every bolt-type wand (fire, cold, lightning, magic missile, striking, drain life).
 
 Teleport away/to (`teleport_entity_away`, `teleport_target_here`) leaves a `Particles::poof` and a short `map::Smoke` puff (`helpers::VANISHING_SMOKE_TURNS`) where the creature stood — the same magenta signature the teleport trap and the scroll of teleportation now leave. Polymorph (`polymorph_entity`) puffs the same smoke in a small ring around the transformed creature's tile (`leave_smoke_ring`), staggered so it reads as smoke rolling outward.
 
@@ -83,7 +83,7 @@ Anyone `elemental_blast` kills outright is finished off right there (`combat::fi
 - *Utility* wands (polymorph, haste, slow, teleport away/to, cancellation) throw a small `BLAST_RADIUS` blast that deals **no damage** — the effect is the whole payload, worked on every creature caught (`apply_thrown_wand_effect`), thrower included.
 - Wand of nothing: bursts in magenta/cyan confetti particles, no blast.
 
-Effects that can land on the **player** (via a thrown blast): polymorph logs "You feel like a new person"; haste/slow set the player's `Speed`; dazzle gives `Confused`; teleport away runs the scroll-of-teleportation relocation; teleport-to with no other target logs the "straight to yourself" joke; cancellation is `cancel_player` — zeroes every `PowerBonus`/`ArmorBonus` on weapons and armour, turns unread scrolls to `BlankPaper` and potions to `Water`, and lifts every `Curse` without destroying the item.
+Effects that can land on the **player** (via a thrown blast): polymorph logs "You feel like a new person"; haste/slow set the player's `Speed`; dazzle gives `Confused`; teleport away runs the scroll-of-teleportation relocation; teleport-to with no other target logs the "straight to yourself" joke; either teleport with nowhere to put a *monster* — no open tile left on the floor, or no room at the zapper's side — bursts it in a spray of gore instead of fizzling (`burst_in_transit`, which goes through `finish_indirect_kill` like any other death with nobody swinging); cancellation is `cancel_player` — zeroes every `PowerBonus`/`ArmorBonus` on weapons and armour, turns unread scrolls to `BlankPaper` and potions to `Water`, and lifts every `Curse` without destroying the item.
 
 
 Doing it with style
@@ -91,7 +91,7 @@ Doing it with style
 
 The one moment in a run that exists purely to be looked at. A ring of adornment is worth exactly one action — put it on and it doubles the run's score and disintegrates — and the climb out with the Element of Yoord calls the same code, because a run is not scored on what it killed, it is scored on how it left.
 
-`do_it_with_style` is eight `Particles::firework` blasts, one on each tile around the player, `90ms` apart so the chain runs *round* them rather than flashing at once, each in a colour drawn at random from `particles::GLORY_COLORS` — the seven bright terminal colours, white excluded, because white is what every other burst in the game opens on and a white firework would read as one more hit spark. Bright black is in: a firework the colour of the night it goes off against is exactly the joke a ring of adornment would make. Plus a `ShakeKind::Heavy` kick, four lines of fanfare, and `score::double`.
+`do_it_with_style` is sixteen `Particles::firework` blasts over a `BlastPalette::Glam` burst on the player's own tile — the eight tiles around them, then Frost Nova's star points a few tiles further out, `90ms` apart so the chain runs *round* them rather than flashing at once, each in a colour drawn at random from magenta, cyan and yellow (`rings::GLAM_COLORS`). Twice the fireworks and twice the glam of the old eight-blast version, and the one animation in the game allowed to take its time. Plus a `ShakeKind::Heavy` kick, four lines of fanfare, and `score::double`.
 
 It is queued like any other animation, so the engine plays it out before the victory starfield rather than instead of it.
 

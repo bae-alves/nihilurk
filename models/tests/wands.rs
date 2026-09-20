@@ -478,6 +478,135 @@ fn teleport_to_drags_the_target_next_to_the_zapper() {
     );
 }
 
+/// The drag lands the victim *next to the zapper*, and a dagger lying on the
+/// floor beside them is not a reason it can't. `free_adjacent_tile` used to
+/// count every entity with a `Position` as an occupant — floor loot included —
+/// so a single dropped item next to the player sent the whole spell down its
+/// "nowhere to put them" path and flung the target to a random tile instead,
+/// while the log still said it had been dragged to your side.
+#[test]
+fn teleport_to_is_not_blocked_by_loot_lying_on_the_floor() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+
+    // Cover every open tile around the player in dropped scrolls.
+    let ring: Vec<Position> = {
+        let map = w.resource::<Map>();
+        (-1i32..=1)
+            .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
+            .filter(|&(dx, dy)| (dx, dy) != (0, 0))
+            .map(|(dx, dy)| (here.x as i32 + dx, here.y as i32 + dy))
+            .filter(|&(x, y)| x >= 0 && y >= 0 && !map.blocks(x as u16, y as u16))
+            .map(|(x, y)| Position {
+                x: x as u16,
+                y: y as u16,
+            })
+            .collect()
+    };
+    assert!(!ring.is_empty(), "the player has somewhere to drag them to");
+    for spot in &ring {
+        spawn_scroll(&mut w, ScrollEffect::Identify, *spot);
+    }
+
+    let far = {
+        let map = w.resource::<Map>();
+        (0..MAP_HEIGHT)
+            .flat_map(|y| (0..MAP_WIDTH).map(move |x| (x, y)))
+            .find(|&(x, y)| !map.blocks(x, y) && x.abs_diff(here.x) + y.abs_diff(here.y) > 6)
+            .map(|(x, y)| Position { x, y })
+            .unwrap()
+    };
+    let mob = dummy(&mut w, "orc", far, 5);
+
+    let wand = give_wand(&mut w, p, WandEffect::TeleportTo);
+    zap(&mut w, p, wand, far);
+
+    let now = *w.get::<Position>(mob).unwrap();
+    assert!(
+        now.x.abs_diff(here.x) <= 1 && now.y.abs_diff(here.y) <= 1,
+        "dragged to the zapper's side, loot or no loot (landed at {now:?})"
+    );
+}
+
+/// With genuinely nowhere to put them, the pull happens anyway and the target
+/// does not survive it. It used to fall back to `random_open_tile` — a
+/// teleport *away* wearing teleport-to's "dragged to your side!" message,
+/// which is the one outcome this wand exists not to produce.
+#[test]
+fn teleport_to_with_no_room_bursts_the_target() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+
+    // Wall the player in with creatures: every open neighbour taken.
+    let ring: Vec<Position> = {
+        let map = w.resource::<Map>();
+        (-1i32..=1)
+            .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
+            .filter(|&(dx, dy)| (dx, dy) != (0, 0))
+            .map(|(dx, dy)| (here.x as i32 + dx, here.y as i32 + dy))
+            .filter(|&(x, y)| x >= 0 && y >= 0 && !map.blocks(x as u16, y as u16))
+            .map(|(x, y)| Position {
+                x: x as u16,
+                y: y as u16,
+            })
+            .collect()
+    };
+    for (i, spot) in ring.iter().enumerate() {
+        dummy(&mut w, &format!("rat{i}"), *spot, 3);
+    }
+
+    let far = {
+        let map = w.resource::<Map>();
+        (0..MAP_HEIGHT)
+            .flat_map(|y| (0..MAP_WIDTH).map(move |x| (x, y)))
+            .find(|&(x, y)| !map.blocks(x, y) && x.abs_diff(here.x) + y.abs_diff(here.y) > 6)
+            .map(|(x, y)| Position { x, y })
+            .unwrap()
+    };
+    let mob = dummy(&mut w, "orc", far, 5);
+
+    let wand = give_wand(&mut w, p, WandEffect::TeleportTo);
+    zap(&mut w, p, wand, far);
+
+    assert!(
+        w.get_entity(mob).is_none(),
+        "no room at your side means it comes apart, not a random relocation"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .unread
+            .iter()
+            .any(|l| l.contains("gore")),
+        "and the player is told what happened"
+    );
+}
+
+/// The same rule at the other end: a floor with nowhere left to put the target
+/// doesn't make the yank a no-op, it makes a mess. (A thrown wand's blast
+/// resolves through the same function, so it gibs the same way.)
+#[test]
+fn teleport_away_with_nowhere_to_land_bursts_the_target() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let mob = dummy(&mut w, "orc", spot, 5);
+
+    // Nowhere on the floor is open any more.
+    {
+        let mut map = w.resource_mut::<Map>();
+        for tile in map.tiles.iter_mut() {
+            *tile = TileType::Wall;
+        }
+    }
+
+    let wand = give_wand(&mut w, p, WandEffect::TeleportAway);
+    zap(&mut w, p, wand, spot);
+
+    assert!(w.get_entity(mob).is_none(), "it did not arrive anywhere");
+}
+
 // ---------------------------------------------------------------------------
 // Cancellation
 // ---------------------------------------------------------------------------

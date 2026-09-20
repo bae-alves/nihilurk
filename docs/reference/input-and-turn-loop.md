@@ -59,13 +59,20 @@ flowchart LR
 
 One `Schedule`, run once per turn, in this fixed order:
 
-    smoke_system -> tick_effects -> reveal_mimics -> spell_system -> ai
-      -> monster_pickup_system -> trap_system -> throw_system -> item_system
+    smoke_system -> tick_effects -> reveal_mimics -> spell_system
+      -> item_system -> throw_system -> ai -> monster_pickup_system
+      -> trap_system
       -> equipment_effects_system -> combat_system -> reaper_system
       -> dungeon_lord_system -> passive_ability_system
       -> visibility_system -> score_turn_system
 
 `reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `monster_pickup_system` runs before `trap_system`, while `EntityMoved` still marks whoever just stepped: a coin-greedy monster (an orc) that walked onto a coin it can use claims it there, before `trap_system` clears the tag. `spell_system` runs before `ai`: an active spell (`Z`, the only way to one) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which is applied while handling the key before the schedule runs. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
+
+**Everything the player does resolves before `ai` does.** Movement and melee never reach the schedule at all — both are applied while the key is handled (`handle_movement_input` → `models::melee_attack`). The three that do queue — a spell (`SpellQueue`), a used item (`UseQueue`), a throw (`ThrowQueue`) — are drained by `spell_system`, `item_system` and `throw_system`, all of them ahead of `ai`. None of those three queues is ever filled by anything but the player, so nothing of the dungeon's own is hurried along by the order. Monster attacks are the other side of it: `ai` fills `AttackQueue` and `combat_system` drains it *after*, which is why that one stays where it is.
+
+`item_system` runs before `ai` for the same reason, and for a while it did not — which is what made the aiming reticle look broken. A zapped wand is aimed at the dungeon as it stood when the key was pressed; resolved after `ai`, it read a tile the target had already walked off. The bolt wands hid it (a bolt sweeps a line, a blast a disc, so they still caught somebody), but every wand that reads one exact tile — teleport away, teleport to, polymorph, haste, slow, cancellation — reported finding nothing there while the reticle had been sitting on the monster the whole time. `throw_system` moved for the same reason and shows the same tell from the other side: aimed at the empty tile in front of an approaching orc, the dagger used to arrive after the orc had stepped onto it and hit one it was never thrown at. Pinned by `a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left` and `a_throw_lands_where_the_floor_was_when_the_player_let_go` in `update.rs` — which is also why the schedule is built by `turn_schedule()` rather than inline in `main`: a turn order with load-bearing edges needs something able to run it.
+
+One edge was dropped to do it: `throw_system` used to be ordered after `trap_system`. Nothing needed that. A shot that comes down on a trap sets the trap off through `detonate_at`, inside the throw's own resolution, not by waiting for the trap step.
 
 `passive_ability_system` sits second-to-last on purpose. A passive that merely happens to you can roll anywhere; one that *moves* you cannot. Rolled after `ai`, a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again — and there is still a visibility pass and a render left in the turn to show it to them.
 
@@ -271,6 +278,8 @@ The action modal (`run_action_modal`, `PackMode::Browse` only) is a fixed three-
 
 The aiming reticle
 --------------------
+
+The reticle opens on the closest visible monster within its own reach (`nearest_mob`, ties broken in reading order), so one monster and one wand is `z`, pick, `Enter` with no cursor keys in between; with nothing in view it opens on the player. Look mode is the exception and always opens on your own tile — its cursor *is* your attention (`meet_its_eyes` fires `OnTargeted` on every move), and snapping it onto a medusa would petrify you for pressing `L`.
 
 `TargetingState` holds which of an item, an active spell, a plain look, or a reach weapon's own strike the reticle is for (exactly one of `item` / `spell_effect` / `looking` / `reach_attack` is meaningfully set — `reach_attack` is the one exception that still carries `item`, since the weapon never leaves the wielder's hand), plus whether it's a throw, and the cursor. `spell_target_cursor` only allows the cursor onto a tile that is both currently visible and within `aim_range` — `THROW_RANGE` for a throw, the spell's own `SpellDef.range`, the wielded weapon's own `Reach` for a reach attack, the item's own `Ranged.range` for a zap, a look's own reach the width of the map (the `in_view` check does the real bounding), `8` as a fallback. `Tab` (`cycle_target`) snaps the cursor to the next monster or item in view instead of nudging it one tile. Confirming (`fire_at_target`) refuses a shot at the player's own tile ("Great idea! But no.") for every purpose except looking — that one is allowed on your own tile, and spends no turn at all. A reach attack resolves in place (`models::resolve_reach_attack`) and never touches the pack; otherwise it removes the item from the pack and pushes a `WantsToThrow` or `WantsToUse` onto the matching queue, or a `WantsToCast` onto `SpellQueue`, for `throw_system` / `item_system` / `spell_system` to resolve next schedule run. A throw of a stacked item (arrows) goes through `models::draw_one` first, which splits one unit off and leaves the rest in the pack slot.
 

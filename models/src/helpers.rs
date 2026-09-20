@@ -210,12 +210,18 @@ pub(crate) fn mark_conditions(world: &mut World, caught: &[Entity], glyph: char,
     }
 }
 
-/// A walkable tile next to `origin` that no entity is standing on, chosen at
+/// A walkable tile next to `origin` that no creature is standing on, chosen at
 /// random. `None` if `origin` is boxed in. Used to place a conjured monster, or
 /// to land a creature dragged to the zapper's side.
+///
+/// Only a [`Mob`] occupies a tile. This used to read every entity with a
+/// [`Position`], which counted a dropped dagger as a body in the way — so one
+/// piece of loot on the floor beside you was enough to tell a teleport-to
+/// there was nowhere to put its target, and a summoned monster that there was
+/// no room to arrive in.
 pub fn free_adjacent_tile(world: &mut World, origin: Position) -> Option<(u16, u16)> {
     let occupied: HashSet<(u16, u16)> = world
-        .query::<&Position>()
+        .query_filtered::<&Position, With<Mob>>()
         .iter(world)
         .map(|p| (p.x, p.y))
         .collect();

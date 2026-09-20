@@ -173,14 +173,14 @@ impl BlastPalette {
     }
 }
 
-/// The seven colours a ring of adornment's fireworks come in: every bright
-/// terminal colour there is, white excluded. White is what the rest of the
-/// effect layer opens *every* burst on, so a white firework would read as one
-/// more hit spark instead of the one moment in the run that is pure show. Bright
-/// black is in — a firework the colour of the night it goes off against is
-/// exactly the sort of joke a ring of adornment would make.
+/// The seven colours a floating score number comes in: every bright terminal
+/// colour there is, white excluded. White is what the rest of the effect layer
+/// opens *every* burst on, so a white number would read as one more hit spark
+/// instead of the score talking. Bright black is in — a number the colour of
+/// the night it goes off against is exactly the sort of joke this game makes.
 ///
-/// See [`Particles::firework`].
+/// A ring of adornment's fireworks used to draw from here too; they have their
+/// own three-colour palette now (`rings::GLAM_COLORS`).
 pub const GLORY_COLORS: [Color; 7] = [
     Color::Red,
     Color::Green,
@@ -375,33 +375,36 @@ impl Particles {
         pts.len() as f32 * TRAVEL_MS_PER_CELL
     }
 
-    /// A wand bolt: a directional streak (`- | \ /`) that races cell by cell
-    /// from the caster to the point of impact, each cell flaring white then
-    /// settling to `color` then guttering out. `pts` is the traversed line in
-    /// map coordinates, caster's own tile excluded. Returns the flight's total
+    /// A wand bolt: a line of suns (`☼`) that races cell by cell from the
+    /// caster to the point of impact, each cell flaring white then settling to
+    /// `color` then guttering out. `pts` is the traversed line in map
+    /// coordinates, caster's own tile excluded. Returns the flight's total
     /// duration in ms, so a caller can time a [`Particles::impact_sparks`] to
     /// land right as the beam arrives.
+    ///
+    /// One glyph the whole way, not NetHack's directional `- | \ /`: at this
+    /// size a bolt reads as a thing travelling, and the sun is legible in every
+    /// terminal font at a glance where a rotating dash was not.
     pub fn beam(&mut self, pts: &[(u16, u16)], color: Color) -> f32 {
-        // Above the ~33ms frame period, so the head visibly advances cell by
-        // cell instead of the whole line's long-lived cells all lighting up
-        // together on the first frame or two.
-        const TRAVEL_MS_PER_CELL: f32 = 40.0;
+        // Several frame periods (~33ms) per cell, so the head crawls visibly
+        // instead of the whole line lighting up inside a frame or two.
+        const TRAVEL_MS_PER_CELL: f32 = 90.0;
+        const GLYPH: char = '☼';
         for (i, &(x, y)) in pts.iter().enumerate() {
-            let glyph = beam_glyph(pts, i);
             self.push(Particle {
                 x,
                 y,
                 delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
                 // Cells nearer the caster linger a touch longer, leaving a tail.
-                lifetime_ms: 150.0 + (pts.len() - i) as f32 * 10.0,
+                lifetime_ms: 300.0 + (pts.len() - i) as f32 * 20.0,
                 age_ms: 0.0,
                 // Flickers white/colour twice before settling into a dim dot —
                 // flashier than a single white-to-colour fade.
                 frames: vec![
-                    (glyph, Color::White),
-                    (glyph, color),
-                    (glyph, Color::White),
-                    (glyph, color),
+                    (GLYPH, Color::White),
+                    (GLYPH, color),
+                    (GLYPH, Color::White),
+                    (GLYPH, color),
                     ('·', color),
                 ],
             });
@@ -504,7 +507,7 @@ impl Particles {
     ///
     /// The only effect in the game that opens on its colour and *stays* there:
     /// every other burst punctuates itself with a white tick, and white is the
-    /// one colour a firework may not be — see [`GLORY_COLORS`].
+    /// one colour a firework may not be.
     pub fn firework(&mut self, x: u16, y: u16, color: Color, delay_ms: f32) {
         const PETALS: [(i32, i32); 8] = [
             (0, -1),
@@ -787,13 +790,6 @@ fn flight_span(cells: usize, per_cell: f32, lifetime: f32) -> f32 {
         0 => 0.0,
         n => (n - 1) as f32 * per_cell + lifetime,
     }
-}
-
-/// The NetHack-style beam glyph for segment `i` of a traced line: `-`
-/// horizontal, `|` vertical, `\` and `/` for the two diagonals (screen space, so
-/// y grows downward). Direction is taken from the neighbouring points.
-fn beam_glyph(pts: &[(u16, u16)], i: usize) -> char {
-    core_math::beam_glyph(pts, i)
 }
 
 /// Clamp helper: keep an animation tile on the map before it is queued.

@@ -1,6 +1,5 @@
-//! The arithmetic half of nihilurk's particle layer: when a mote is visible, which
-//! of its keyframes is showing, which glyph a beam segment draws, and where a
-//! ripple's delay comes from.
+//! The arithmetic half of nihilurk's particle layer: when a mote is visible,
+//! which of its keyframes is showing, and where a ripple's delay comes from.
 //!
 //! It is `no_std`, allocates nothing, and depends on no crate at all -- not
 //! `crossterm`, not `bevy_ecs`, not `core::fmt`. That is the whole reason it is
@@ -89,29 +88,6 @@ pub fn keyframe(age_ms: f32, delay_ms: f32, lifetime_ms: f32, frames: usize) -> 
     let t = ((age_ms - delay_ms) / lifetime_ms).clamp(0.0, 0.999);
     let idx = (t * frames as f32) as usize;
     Some(idx.min(frames - 1))
-}
-
-/// The NetHack-style beam glyph for segment `i` of a traced line: `-`
-/// horizontal, `|` vertical, `\` and `/` for the two diagonals.
-///
-/// Screen space, so y grows downward and the diagonals read the way they look
-/// rather than the way a graph would draw them. Direction is taken from the
-/// neighbouring points, which is why a one-cell "line" has no direction to
-/// report and falls back to `*`.
-pub fn beam_glyph(pts: &[(u16, u16)], i: usize) -> char {
-    if pts.len() < 2 {
-        return '*';
-    }
-    let (ax, ay) = pts[i.saturating_sub(1).min(pts.len() - 2)];
-    let (bx, by) = pts[(i + 1).min(pts.len() - 1)];
-    let dx = bx as i32 - ax as i32;
-    let dy = by as i32 - ay as i32;
-    match (dx.signum(), dy.signum()) {
-        (_, 0) => '-',
-        (0, _) => '|',
-        (a, b) if a == b => '\\',
-        _ => '/',
-    }
 }
 
 /// Keep an animation tile on the map before it is queued.
@@ -279,19 +255,6 @@ mod tests {
     #[test]
     fn no_keyframes_draws_nothing() {
         assert_eq!(keyframe(0.0, 0.0, 100.0, 0), None);
-    }
-
-    #[test]
-    fn beam_segments_take_their_glyph_from_the_run_of_the_line() {
-        let horizontal: [(u16, u16); 3] = [(1, 5), (2, 5), (3, 5)];
-        assert_eq!(beam_glyph(&horizontal, 1), '-');
-        let vertical: [(u16, u16); 3] = [(5, 1), (5, 2), (5, 3)];
-        assert_eq!(beam_glyph(&vertical, 1), '|');
-        let down_right: [(u16, u16); 3] = [(1, 1), (2, 2), (3, 3)];
-        assert_eq!(beam_glyph(&down_right, 1), '\\');
-        let up_right: [(u16, u16); 3] = [(1, 3), (2, 2), (3, 1)];
-        assert_eq!(beam_glyph(&up_right, 1), '/');
-        assert_eq!(beam_glyph(&[(1, 1)], 0), '*', "a point has no direction");
     }
 
     #[test]

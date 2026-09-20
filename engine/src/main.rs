@@ -201,6 +201,61 @@ fn player_step(world: &mut World) -> std::io::Result<bool> {
     update::process_input_and_update(world)
 }
 
+/// The turn, in order. Every `.after()`/`.before()` here is load-bearing; the
+/// order is documented in `docs/reference/input-and-turn-loop.md`.
+fn turn_schedule() -> Schedule {
+    let mut schedule = Schedule::default();
+    schedule.add_systems((
+        smoke_system.before(tick_effects),
+        tick_effects,
+        // A xeroc's disguise falls away the instant the player is adjacent to
+        // it — before `ai` runs, so the very turn that happens it also gets
+        // to lash out as the `Ambush` mob it always was.
+        reveal_mimics.after(tick_effects),
+        // An active spell resolves before the monsters act, just like the
+        // player's ordinary movement already resolved while the key was
+        // handled. `ai` skips anything a spell left at 0 HP; `reaper_system`
+        // still sweeps the bodies at the end of the turn.
+        spell_system.after(reveal_mimics).before(ai),
+        // A used item resolves before the monsters act, for the same reason a
+        // spell does: the player aimed at the dungeon as it stood when they
+        // pressed the key. Zapping is the case that made this load-bearing —
+        // a wand that reads one exact tile (teleport, polymorph, haste, slow,
+        // cancellation) found the tile empty when `ai` had already walked the
+        // target off it, so a correctly aimed zap did nothing at all.
+        item_system.after(reveal_mimics).before(ai),
+        // And a throw with it: the player let go of it at the floor they were
+        // looking at. Only the player ever fills `ThrowQueue`, so nothing of
+        // the dungeon's own is being hurried along by this.
+        throw_system.after(item_system).before(ai),
+        ai.after(spell_system),
+        // A coin-greedy orc that just stepped onto a coin it can use claims it
+        // here, while `EntityMoved` still marks it — the same tag the trap
+        // system reads right after.
+        monster_pickup_system.after(ai),
+        trap_system.after(monster_pickup_system),
+        // Gear changed by anything other than the pack screen — a loaded save, a
+        // curse-lifting scroll — has its lent effects reconciled here, before
+        // combat and visibility read them.
+        equipment_effects_system.after(item_system),
+        combat_system.after(equipment_effects_system),
+        reaper_system.after(combat_system),
+        dungeon_lord_system.after(reaper_system),
+        // Passives that act on their own (a ring of regeneration mending you, a
+        // ring of teleportation moving you) roll at the *tail* of the turn:
+        // late enough that a jump lands at the top of the player's next turn —
+        // they see where they are and act before anything else moves — and
+        // early enough that visibility still gets a pass over the new tile.
+        ability_system.after(dungeon_lord_system),
+        visibility_system.after(ability_system),
+        // Dead last: everything that can pay the player has paid by now, so a
+        // flash armed anywhere in this turn is still lit for this turn's render
+        // and dark by the next one.
+        score_turn_system.after(visibility_system),
+    ));
+    schedule
+}
+
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args
@@ -425,48 +480,8 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // reloaded save flies whatever flag the command line asks for this time.
     world.insert_resource(models::pride::Pride(pride));
 
-    // The turn, in order. Every `.after()` here is load-bearing; the order is
-    // documented in `docs/reference/input-and-turn-loop.md`.
-    let mut schedule = Schedule::default();
-    schedule.add_systems((
-        smoke_system.before(tick_effects),
-        tick_effects,
-        // A xeroc's disguise falls away the instant the player is adjacent to
-        // it — before `ai` runs, so the very turn that happens it also gets
-        // to lash out as the `Ambush` mob it always was.
-        reveal_mimics.after(tick_effects),
-        // An active spell resolves before the monsters act, just like the
-        // player's ordinary movement already resolved while the key was
-        // handled. `ai` skips anything a spell left at 0 HP; `reaper_system`
-        // still sweeps the bodies at the end of the turn.
-        spell_system.after(reveal_mimics).before(ai),
-        ai.after(spell_system),
-        // A coin-greedy orc that just stepped onto a coin it can use claims it
-        // here, while `EntityMoved` still marks it — the same tag the trap
-        // system reads right after.
-        monster_pickup_system.after(ai),
-        trap_system.after(monster_pickup_system),
-        throw_system.after(trap_system),
-        item_system.after(throw_system),
-        // Gear changed by anything other than the pack screen — a loaded save, a
-        // curse-lifting scroll — has its lent effects reconciled here, before
-        // combat and visibility read them.
-        equipment_effects_system.after(item_system),
-        combat_system.after(equipment_effects_system),
-        reaper_system.after(combat_system),
-        dungeon_lord_system.after(reaper_system),
-        // Passives that act on their own (a ring of regeneration mending you, a
-        // ring of teleportation moving you) roll at the *tail* of the turn:
-        // late enough that a jump lands at the top of the player's next turn —
-        // they see where they are and act before anything else moves — and
-        // early enough that visibility still gets a pass over the new tile.
-        ability_system.after(dungeon_lord_system),
-        visibility_system.after(ability_system),
-        // Dead last: everything that can pay the player has paid by now, so a
-        // flash armed anywhere in this turn is still lit for this turn's render
-        // and dark by the next one.
-        score_turn_system.after(visibility_system),
-    ));
+    // The turn, in order.
+    let mut schedule = turn_schedule();
 
     // One turn and one frame before the loop, so the player is looking at a
     // dungeon rather than a black screen when the first `read()` blocks.
