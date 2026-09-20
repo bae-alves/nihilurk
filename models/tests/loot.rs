@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
 use models::constants::loot::{AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN};
+use models::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -47,75 +48,62 @@ struct Tally {
 }
 
 #[test]
-fn floor_loot_follows_the_rogue_drop_table() {
+fn rolled_loot_follows_the_rogue_drop_table() {
+    // Rolled straight off `roll_item` rather than read off built floors: a
+    // floor also carries finds the roller never saw — the guaranteed coins and
+    // the progression draw `map::population` places before the budget is spent
+    // — and counting those would be measuring the guarantee, not the table.
     let mut t = Tally::default();
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(1)));
+    w.insert_resource(RngSeed(1));
+    w.init_resource::<GameLog>();
+    let mut rng = ChaCha12Rng::seed_from_u64(1);
 
-    for seed in 0..600u64 {
-        let mut w = test_world(seed);
-        for _ in 0..4 {
-            // The player's starting wand keeps a stale Position while sitting in
-            // the backpack, so exclude backpack contents explicitly.
-            let carried: std::collections::HashSet<Entity> = w
-                .query_filtered::<&Backpack, With<Player>>()
-                .single(&w)
-                .items
-                .iter()
-                .copied()
-                .collect();
-            let mut q = w.query_filtered::<(
-                Entity,
-                Option<&Potion>,
-                Option<&Scroll>,
-                Option<&Wand>,
-                Option<&ArmorDie>,
-                Option<&PowerDie>,
-                Option<&Ring>,
-                Option<&Pickup>,
-                Option<&Stack>,
-                Option<&Launcher>,
-                Option<&Equipped>,
-            ), (With<Item>, With<Position>)>();
-            for (e, potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher, equipped) in
-                q.iter(&w)
-            {
-                if carried.contains(&e) {
-                    continue;
-                }
-                // A monster's starting gear (a centaur's bow, a hobgoblin's
-                // sword) is bestiary-driven, not a roll of `DROPS` — it would
-                // skew the very table this test is checking.
-                if equipped.is_some_and(|eq| eq.by.is_some()) {
-                    continue;
-                }
-                t.total += 1;
-                if scroll.is_some() {
-                    t.scrolls += 1;
-                } else if potion.is_some() {
-                    t.potions += 1;
-                } else if pickup.is_some() {
-                    t.coins += 1;
-                } else if armor.is_some() {
-                    t.armor += 1;
-                } else if weapon.is_some() {
-                    t.weapons += 1;
-                    t.melee += 1;
-                } else if let Some(stack) = stack {
-                    // Ammunition: one drop, several arrows.
-                    t.weapons += 1;
-                    t.ammo += 1;
-                    t.arrows += stack.count as u32;
-                } else if launcher.is_some() {
-                    t.weapons += 1;
-                    t.launchers += 1;
-                } else if wand.is_some() {
-                    t.wands += 1;
-                } else if ring.is_some() {
-                    t.rings += 1;
-                } else {
-                    panic!("floor item with no recognised category component");
-                }
-            }
-            descend(&mut w);
+    for depth in 1..=4u8 {
+        for _ in 0..3000 {
+            roll_item(&mut w, &mut rng, depth, Position { x: 0, y: 0 });
+        }
+    }
+
+    let mut q = w.query_filtered::<(
+        Option<&Potion>,
+        Option<&Scroll>,
+        Option<&Wand>,
+        Option<&ArmorDie>,
+        Option<&PowerDie>,
+        Option<&Ring>,
+        Option<&Pickup>,
+        Option<&Stack>,
+        Option<&Launcher>,
+    ), With<Item>>();
+    for (potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher) in q.iter(&w) {
+        t.total += 1;
+        if scroll.is_some() {
+            t.scrolls += 1;
+        } else if potion.is_some() {
+            t.potions += 1;
+        } else if pickup.is_some() {
+            t.coins += 1;
+        } else if armor.is_some() {
+            t.armor += 1;
+        } else if weapon.is_some() {
+            t.weapons += 1;
+            t.melee += 1;
+        } else if let Some(stack) = stack {
+            // Ammunition: one drop, several arrows.
+            t.weapons += 1;
+            t.ammo += 1;
+            t.arrows += stack.count as u32;
+        } else if launcher.is_some() {
+            t.weapons += 1;
+            t.launchers += 1;
+        } else if wand.is_some() {
+            t.wands += 1;
+        } else if ring.is_some() {
+            t.rings += 1;
+        } else {
+            panic!("floor item with no recognised category component");
         }
     }
 
@@ -198,16 +186,21 @@ fn the_item_budget_scales_with_depth() {
     // Items are `3 + tier` attempts, so depth-13 floors (tier 4) run seven
     // attempts to a surface floor's three. Sampled across seeds, the deep
     // floors should carry noticeably more loot.
+    //
+    // The parity coin comes off both counts first: every floor gets one
+    // whatever its tier, so leaving it in would dilute the very scaling this is
+    // measuring. (Neither floor sampled here is a progression floor.)
+    const GUARANTEED: usize = 1;
     let mut shallow = 0usize;
     let mut deep = 0usize;
 
     for seed in 0..40u64 {
         let mut w = test_world(seed);
-        shallow += floor_item_count(&mut w);
+        shallow += floor_item_count(&mut w) - GUARANTEED;
         while w.resource::<Depth>().what < 13 {
             descend(&mut w);
         }
-        deep += floor_item_count(&mut w);
+        deep += floor_item_count(&mut w) - GUARANTEED;
     }
 
     assert!(
@@ -235,6 +228,56 @@ fn a_stashed_item_is_invisible_and_hidden_together() {
                 assert!(
                     w.get::<Hidden>(item).is_some(),
                     "seed {seed}: an invisible item the renderer would still draw"
+                );
+            }
+            descend(&mut w);
+        }
+    }
+}
+
+/// Every loose item on the current floor by name, on the same terms as
+/// [`floor_item_count`].
+fn floor_item_names(w: &mut World) -> Vec<String> {
+    let carried: std::collections::HashSet<Entity> = w
+        .query_filtered::<&Backpack, With<Player>>()
+        .single(w)
+        .items
+        .iter()
+        .copied()
+        .collect();
+    w.query_filtered::<(Entity, &Name, Option<&Equipped>), (With<Item>, With<Position>)>()
+        .iter(w)
+        .filter(|(e, _, eq)| !carried.contains(e) && !eq.is_some_and(|eq| eq.by.is_some()))
+        .map(|(_, name, _)| name.what.clone())
+        .collect()
+}
+
+#[test]
+fn every_floor_is_stocked_with_its_guaranteed_finds() {
+    // The parity coin is every floor's; a progression item is the reward for
+    // finishing a difficulty tier, so only the last floor of each gets one.
+    // Only presence is asserted: a floor's own item budget may roll a red coin
+    // or a potion of healing of its own accord, so the absence of one proves
+    // nothing.
+    for seed in 0..20u64 {
+        let mut w = test_world(seed);
+        while w.resource::<Depth>().what <= *DIFFICULTY_TIER_LAST_DEPTH.last().unwrap() {
+            let depth = w.resource::<Depth>().what;
+            let names = floor_item_names(&mut w);
+            let parity = match depth % 2 {
+                1 => "blue coin",
+                _ => "red coin",
+            };
+            assert!(
+                names.iter().any(|n| n == parity),
+                "seed {seed}, depth {depth}: no {parity}"
+            );
+            if DIFFICULTY_TIER_LAST_DEPTH.contains(&depth) {
+                assert!(
+                    names
+                        .iter()
+                        .any(|n| PROGRESSION_ITEMS.contains(&n.as_str())),
+                    "seed {seed}, depth {depth}: nothing from the progression pool"
                 );
             }
             descend(&mut w);

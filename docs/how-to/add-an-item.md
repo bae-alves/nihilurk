@@ -63,7 +63,7 @@ Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded 
 ### Coin
 
     CoinDef { name: "electrum coin", color: Color::DarkYellow,
-              effect: PickupEffect::Coin, amount: 2500 },
+              effect: PickupEffect::Coin, amount: 2500, weight: 10 },
 
 Coins are the pickup category: never carried, spent where they lie. A row is `name`, `color`, a `PickupEffect`, and one `amount` the effect reads (points, hit points, afflictions lifted). Adding a *kind* of coin means a `PickupEffect` variant and an arm in `items/pickups.rs`; adding another coin of an existing kind is one row. Draws as `$`.
 

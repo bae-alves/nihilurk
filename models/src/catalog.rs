@@ -147,6 +147,7 @@ pub const POTIONS: &[PotionDef] = &[
     PotionDef { effect: PotionEffect::RestoreStrength, name: "potion of restore strength", color: Color::Red },
     PotionDef { effect: PotionEffect::Blindness,       name: "potion of blindness",        color: Color::DarkGrey },
     PotionDef { effect: PotionEffect::FruitJuice,      name: "potion of fruit juice",      color: Color::DarkYellow },
+    PotionDef { effect: PotionEffect::Magic,           name: "potion of magic",            color: Color::Blue },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1026,6 +1027,27 @@ pub const COINS: &[CoinDef] = &[
     // Uncommon, and never disguised: no colour name — it is always just
     // "a hero coin".
     CoinDef { name: "hero coin",     color: Color::Magenta,     effect: PickupEffect::LearnRandomSpell,     amount:    0, weight:  3 },
+];
+
+/// The pool a floor at the end of a difficulty tier draws one extra find from,
+/// over and above its budgeted loot: the nine things that leave the hero
+/// permanently stronger. Two coins whose reward is a promise, the coin that
+/// teaches a move, the three potions that raise a ceiling, and the three
+/// scrolls that permanently sharpen what the hero is already carrying.
+///
+/// Names rather than rows, because it reaches across three tables — the dungeon
+/// spawns them through [`crate::spawn::spawn_named`], for which a name is the
+/// key. Placed by `map::population`.
+pub const PROGRESSION_ITEMS: &[&str] = &[
+    "platinum coin",
+    "forge coin",
+    "hero coin",
+    "potion of healing",
+    "potion of magic",
+    "potion of gain strength",
+    "scroll of enchant weapon",
+    "scroll of enchant armor",
+    "scroll of vorpalize weapon",
 ];
 
 /// The Element of Yoord: the relic each run retrieves from the deepest floor,

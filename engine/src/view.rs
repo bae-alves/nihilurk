@@ -629,6 +629,19 @@ pub fn render<W: Write>(
             true => Color::DarkRed,
             false => Color::Yellow,
         };
+        // A poisoned dart and a potion of poison both take the attack die below
+        // its ceiling, and nothing else on this line would say so: a damaged
+        // Pow. reads light green until a potion of restore strength puts it
+        // back. Read off `Fighter` rather than the displayed figure, which has
+        // the gear folded in and so can sit above the baseline while the arm
+        // behind it is still poisoned.
+        let pow_color = match player_entity
+            .and_then(|pe| world.get::<Fighter>(pe))
+            .is_some_and(|f| f.power < f.max_power)
+        {
+            true => Color::Green,
+            false => Color::White,
+        };
         let mut fields = vec![
             (player_name.to_uppercase(), Color::White, String::new()),
             (
@@ -661,6 +674,7 @@ pub fn render<W: Write>(
             if !value.is_empty() {
                 let number = match label.as_str() {
                     "HP" => hp_color,
+                    "Pow." => pow_color,
                     _ => Color::White,
                 };
                 screen.puts(px + 1, 22, value, number);
