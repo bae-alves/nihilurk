@@ -307,3 +307,33 @@ fn amnesia_forgets_one_move_and_every_tile_seen_this_floor() {
         "every tile seen on this floor is forgotten with it"
     );
 }
+
+/// `move_system` runs before `ai` in the turn schedule, and a damaging move
+/// leaves its casualty at 0 HP for `reaper_system` to sweep up much later in
+/// the same turn. Nothing in between may let a corpse take a turn: the mob
+/// Thunderbolt just killed must not still lunge at the player on its way out.
+#[test]
+fn a_mob_a_move_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let victim = dummy(&mut w, spot, 1);
+    // Ambush lunges at anything that draws alongside it without needing to
+    // have noticed the player first, so this mob would certainly attack.
+    w.entity_mut(victim).insert(Mob {
+        movement_type: MovementType::Ambush,
+    });
+
+    cast(&mut w, p, MoveEffect::Thunderbolt, spot);
+    assert!(
+        w.get::<Fighter>(victim).unwrap().hp <= 0,
+        "the fixture did not actually kill the mob"
+    );
+
+    ai(&mut w);
+
+    assert!(
+        w.resource::<AttackQueue>().attacks.is_empty(),
+        "a mob already at 0 HP queued an attack during `ai`"
+    );
+}

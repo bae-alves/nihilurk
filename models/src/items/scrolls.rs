@@ -13,8 +13,8 @@ use crate::components::*;
 use crate::conditions::{confuse, snare};
 use crate::constants::scrolls::*;
 use crate::effects::{
-    ArmorBonus, ArmorDie, Asleep, ConfusingTouch, Detected, Grant, Lifetime, PowerBonus, PowerDie,
-    Rooted, ThrowBonus,
+    ArmorBonus, ArmorDie, Asleep, ConfusingTouch, Grant, Lifetime, PowerBonus, PowerDie, Rooted,
+    ThrowBonus,
 };
 use crate::equipment::{Slot, equipped_in, equipped_items, force_unequip, sync_equipment_effects};
 use crate::helpers::{
@@ -593,8 +593,9 @@ fn sleep_the_reader(world: &mut World, user: Entity) {
 
 /// Scroll of food detection: the mundane half of a floor's contents —
 /// everything a potion of magic detection would sniff past as beneath its notice
-/// — is [`Detected`] where it lies, drawn dimly until the reader leaves the
-/// floor.
+/// — is [`crate::Detected`] where it lies, drawn dimly until the reader leaves
+/// the floor, and turned up if it was stashed
+/// ([`super::potions::detect_item`]).
 ///
 /// The two detections divide the floor exactly between them
 /// ([`worth_detecting`] is the line), with one deliberate exception: the Element
@@ -619,7 +620,7 @@ fn detect_mundane_items(world: &mut World, user: Entity) {
         .filter(|&e| is_the_relic(world, e) || !worth_detecting(world, e))
         .collect();
     for item in &found {
-        crate::effects::lend(world, *item, Grant::of::<Detected>(), Lifetime::Floor);
+        super::potions::detect_item(world, *item);
     }
     spark_burst_at(world, user, Color::Green);
     let msg = match found.is_empty() {

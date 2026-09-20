@@ -1109,3 +1109,50 @@ fn a_monster_that_falls_through_a_trapdoor_leaves_smoke() {
         "dust where the floor used to be"
     );
 }
+
+/// A doorway is the tile every route into a room has to cross, so a trap just
+/// inside one is unavoidable rather than unlucky. `place_one_trap` refuses any
+/// room tile orthogonally next to a door — and must still fill the floor's trap
+/// budget while doing it, rather than quietly spending its draws on refusals.
+#[test]
+fn no_trap_is_planted_in_a_doorway_or_the_tile_just_inside_one() {
+    let mut floors_with_traps = 0;
+    for seed in 0..60u64 {
+        let mut w = test_world(seed);
+        let map = w.resource::<Map>().clone();
+        let traps: Vec<Position> = w
+            .query_filtered::<&Position, With<Trap>>()
+            .iter(&w)
+            .copied()
+            .collect();
+        floors_with_traps += usize::from(!traps.is_empty());
+
+        for at in traps {
+            for (nx, ny) in [
+                (at.x.wrapping_sub(1), at.y),
+                (at.x + 1, at.y),
+                (at.x, at.y.wrapping_sub(1)),
+                (at.x, at.y + 1),
+            ] {
+                assert_ne!(
+                    map.tile(nx, ny),
+                    TileType::Door,
+                    "seed {seed}: a trap at ({}, {}) sits against the door at ({nx}, {ny})",
+                    at.x,
+                    at.y
+                );
+            }
+            assert_ne!(
+                map.tile(at.x, at.y),
+                TileType::Door,
+                "seed {seed}: a trap is standing in the doorway at ({}, {})",
+                at.x,
+                at.y
+            );
+        }
+    }
+    assert!(
+        floors_with_traps > 50,
+        "only {floors_with_traps}/60 floors got any trap at all — the door rule is starving placement"
+    );
+}

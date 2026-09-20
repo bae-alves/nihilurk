@@ -302,6 +302,12 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
         world.resource_mut::<GameLog>().add("You're out of ammo.");
         return false;
     };
+    let target_pos = *world.get::<Position>(target).unwrap();
+    let player_pos = *world.get::<Position>(player).unwrap();
+    if chebyshev(player_pos, target_pos) > THROW_RANGE {
+        world.resource_mut::<GameLog>().add("Out of range.");
+        return false;
+    }
     if !has_clear_shot(world, target) {
         world.resource_mut::<GameLog>().add("No clear shot.");
         return false;
@@ -313,7 +319,6 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
     }) else {
         return false;
     };
-    let target_pos = *world.get::<Position>(target).unwrap();
     let missile = draw_one(world, player, item, Some(slot));
     world.resource_mut::<GameLog>().unread.clear();
     world
@@ -1836,6 +1841,75 @@ mod tests {
     fn player_pos(w: &mut World) -> Position {
         let mut q = w.query_filtered::<&Position, With<Player>>();
         *q.iter(w).next().unwrap()
+    }
+
+    /// Tab-fire was the one aiming path that never checked `THROW_RANGE`: the
+    /// cursor UI clamps every other one. The floor's own monsters are cleared
+    /// out first, because `auto_fight_target` picks the lowest-HP foe in sight
+    /// and any of them would outrank a planted dummy — leaving the dummy the
+    /// provable target rather than a seed's good luck.
+    #[test]
+    fn tab_with_a_launcher_refuses_targets_outside_throw_range() {
+        let mut w = test_world(2100);
+        let player = player_entity(&mut w);
+        let bow = spawn_launcher(&mut w, "short bow", Position { x: 0, y: 0 });
+        let arrow = spawn_ammo(&mut w, "arrow", Position { x: 0, y: 0 });
+        {
+            let mut backpack = w.get_mut::<Backpack>(player).unwrap();
+            backpack.items.push(arrow);
+        }
+        toggle_equipped(&mut w, player, bow);
+
+        let floor_mobs: Vec<Entity> = w
+            .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
+            .iter(&w)
+            .collect();
+        for mob in floor_mobs {
+            w.despawn(mob);
+        }
+
+        let start = player_pos(&mut w);
+        let dummy = w
+            .spawn((
+                Name {
+                    what: "dummy".into(),
+                },
+                Mob {
+                    movement_type: MovementType::Static,
+                },
+                Position {
+                    x: (start.x as i32 + THROW_RANGE + 1) as u16,
+                    y: start.y,
+                },
+                Fighter {
+                    hp: 5,
+                    max_hp: 5,
+                    armor: 0,
+                    power: 1,
+                    max_power: 1,
+                    armor_bonus: 0,
+                    power_bonus: 0,
+                },
+                Faction::Monster,
+                Blood,
+            ))
+            .id();
+        assert_eq!(
+            models::autofight::auto_fight_target(&mut w),
+            Some(dummy),
+            "the fixture is not aiming at the dummy it planted"
+        );
+
+        w.resource_mut::<GameLog>().unread.clear();
+        let turn = ranged_auto_fight(&mut w, player);
+        assert!(!turn, "out-of-range auto-fire still spent a turn");
+        assert!(
+            w.resource::<GameLog>()
+                .unread
+                .iter()
+                .any(|line| line == "Out of range."),
+            "auto-fire did not reject an out-of-range target"
+        );
     }
 
     #[test]

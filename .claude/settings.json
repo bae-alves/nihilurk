@@ -9,5 +9,12 @@
   },
   "enabledPlugins": {
     "track-and-improve@claude-skillz": true
+  },
+  "permissions": {
+    "deny": [
+      "Task",
+      "Task(Explore)",
+      "Agent"
+    ]
   }
 }

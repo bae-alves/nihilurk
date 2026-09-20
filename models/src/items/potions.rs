@@ -206,10 +206,10 @@ fn detect_monsters(world: &mut World, user: Entity) -> bool {
 }
 
 /// Potion of magic detection: every *magic* item lying on the floor is
-/// [`Detected`]. Anything with a type-key — potion, scroll, wand, ring —
-/// qualifies; a weapon or a suit of armour only registers once there is
-/// something magic about it, which is the thing worth knowing in advance
-/// ([`worth_detecting`]).
+/// [`Detected`] — and turned up if it was stashed ([`detect_item`]). Anything
+/// with a type-key — potion, scroll, wand, ring — qualifies; a weapon or a suit
+/// of armour only registers once there is something magic about it, which is
+/// the thing worth knowing in advance ([`worth_detecting`]).
 fn detect_magic(world: &mut World, user: Entity) -> bool {
     if world.get::<Player>(user).is_none() {
         return false;
@@ -223,7 +223,7 @@ fn detect_magic(world: &mut World, user: Entity) -> bool {
         .filter(|&e| worth_detecting(world, e))
         .collect();
     for item in &found {
-        crate::effects::lend(world, *item, Grant::of::<Detected>(), Lifetime::Floor);
+        detect_item(world, *item);
     }
     let msg = match found.is_empty() {
         true => "You reach for the hum of magic, and this floor holds none.",
@@ -252,6 +252,22 @@ pub(super) fn worth_detecting(world: &World, item: Entity) -> bool {
         || world.get::<ArmorBonus>(item).is_some_and(|b| b.0 != 0)
         || world.get::<ThrowBonus>(item).is_some_and(|b| b.0 != 0);
     keyed || enchanted || world.get::<Curse>(item).is_some() || is_the_relic(world, item)
+}
+
+/// Mark one floor item as [`Detected`] until the player leaves the floor, and
+/// turn it up if it was stashed. Both item detections — the potion's magic and
+/// the scroll's mundane — go through here.
+///
+/// The reveal is not a bonus, it is what makes the mark mean anything. The
+/// `Detected` render pass paints only tiles the player *cannot* see, so a stash
+/// left wearing [`Hidden`] would glow from across the floor and then wink out
+/// the moment the player walked into the room. A ring of perception already
+/// turns a stash up for good ([`crate::visibility`]); a sense that reached the
+/// whole floor doing less than that would be the strange one.
+pub(super) fn detect_item(world: &mut World, item: Entity) {
+    crate::effects::lend(world, item, Grant::of::<Detected>(), Lifetime::Floor);
+    world.entity_mut(item).remove::<Hidden>();
+    world.entity_mut(item).remove::<Invisible>();
 }
 
 /// Whether `item` is the Element of Yoord. The one thing in the dungeon that

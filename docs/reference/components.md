@@ -88,9 +88,11 @@ Components — perception and memory
 |------------|------|-----|--------|
 | `Viewshed` | `visible_tiles: Vec<(u16,u16)>`, `revealed_tiles: FixedBitSet`, `range: u16`, `dirty: bool` | the hero (and anything that needs sight) | `revealed_tiles` + `range` yes; `visible_tiles` + `dirty` **transient** |
 | `Hidden`   | marker — not drawn or announced right now | out-of-view monsters, undiscovered traps, unperceived invisibles | **transient** (visibility rebuilds it; traps clear it on reveal) |
-| `Invisible`| marker — intrinsically unseeable without `SeesInvisible` | the phantom, and the invisibly-stashed floor item some floors hide (`population::HIDDEN_ITEM_CHANCE`) | yes |
+| `Invisible`| marker — intrinsically unseeable without `SeesInvisible` | the phantom, and the invisibly-stashed floor item a floor hides at `population::HIDDEN_ITEM_CHANCE` | yes |
 | `Spotted`  | marker — inside the player's viewshed this turn | anything currently seen | **transient** |
 | `Detected` | marker — drawn on the map even out of view, in `DarkMagenta` | whatever a potion of magic / monster detection turned up | yes |
+
+A detection that finds a *stashed* item strips its `Hidden` and `Invisible` too, the way a ring of perception does — `Detected` only paints tiles the player cannot see, so a stash left hidden would glow from across the floor and vanish on arrival.
 
 `revealed_tiles` is indexed by `crate::map::tile_index`.
 

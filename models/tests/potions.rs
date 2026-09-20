@@ -345,10 +345,16 @@ fn monster_detection_turns_up_every_creature_on_the_floor() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let far = spawn_dummy(&mut w, "orc", 60, 18);
+    w.entity_mut(far).insert((Hidden, Invisible));
 
     quaff(&mut w, p, PotionEffect::MonsterDetection);
 
     assert!(w.get::<Detected>(far).is_some());
+    // A creature's tags are not a stash to be turned up: `visibility_system`
+    // recomputes `Hidden` on every mob every turn, and a phantom's `Invisible`
+    // is what it *is*. Detection senses where they are and changes neither.
+    assert!(w.get::<Hidden>(far).is_some());
+    assert!(w.get::<Invisible>(far).is_some());
     let undetected = w
         .query_filtered::<Entity, (With<Mob>, Without<Detected>)>()
         .iter(&w)
@@ -363,6 +369,7 @@ fn magic_detection_skips_ordinary_gear() {
     let here = Position { x: 40, y: 10 };
 
     let wand = spawn_wand(&mut w, WandEffect::Striking, here);
+    w.entity_mut(wand).insert((Hidden, Invisible));
     let plain = spawn_weapon(&mut w, "dagger", here);
     let cursed = spawn_weapon(&mut w, "mace", here);
     w.entity_mut(cursed).insert(Curse);
@@ -375,6 +382,10 @@ fn magic_detection_skips_ordinary_gear() {
         w.get::<Detected>(wand).is_some(),
         "a wand is magic outright"
     );
+    // Detecting a stashed item turns it up for good — see
+    // `scrolls.rs`'s `detection_turns_a_stashed_item_up_for_good`.
+    assert!(w.get::<Hidden>(wand).is_none());
+    assert!(w.get::<Invisible>(wand).is_none());
     assert!(w.get::<Detected>(cursed).is_some(), "so is a curse");
     assert!(w.get::<Detected>(enchanted).is_some(), "so is a plus");
     assert!(

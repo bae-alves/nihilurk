@@ -230,6 +230,13 @@ fn step_one_mob(
     ctx: &AiCtx,
     spatial: &mut HashMap<(u16, u16), (Entity, Faction)>,
 ) -> bool {
+    // Already dead forfeits everything. An indirect kill — a move, a wand bolt
+    // — only zeroes the HP and leaves the body for `reaper_system` at the far
+    // end of the turn, and `move_system` resolves before this does, so a
+    // corpse is reachable here. It does not get a parting shot.
+    if world.get::<Fighter>(mob).is_some_and(|f| f.hp <= 0) {
+        return false;
+    }
     // Asleep — or stone — forfeits the turn outright. Pinned or rooted means
     // it cannot take a step, but a foe within reach still gets bitten.
     if world.get::<Asleep>(mob).is_some() || world.get::<Petrified>(mob).is_some() {
@@ -475,11 +482,77 @@ fn mob_can_enter(
     if !map.diagonal_step_ok(mob_pos.x, mob_pos.y, new_x, new_y) {
         return false;
     }
-    // Room leash: a chaser won't step from a room into a corridor or doorway.
-    let leashed = matches!(movement_type, MovementType::Chase)
+    // The leash belongs to the tile a monster is standing on, not to the
+    // monster: from room floor a chaser won't step into a corridor or through
+    // a doorway, and from a corridor it is tethered to nothing and may cross a
+    // door freely. So a corridor monster that steps into a room is leashed
+    // from its very next step — which can be the second pass of the same
+    // player turn.
+    let room_leashed = matches!(movement_type, MovementType::Chase)
         && map.tile(mob_pos.x, mob_pos.y) == TileType::Room
         && matches!(map.tile(new_x, new_y), TileType::Passage | TileType::Door);
-    !leashed
+    !room_leashed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::map::{MAP_TILE_COUNT, tile_index};
+    use fixedbitset::FixedBitSet;
+
+    #[test]
+    fn room_monsters_are_room_leashed() {
+        let mut map = Map {
+            tiles: vec![TileType::Wall; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        };
+        map.tiles[tile_index(5, 5)] = TileType::Room;
+        map.tiles[tile_index(6, 5)] = TileType::Passage;
+
+        assert!(!mob_can_enter(
+            &map,
+            MovementType::Chase,
+            Position { x: 5, y: 5 },
+            6,
+            5,
+        ));
+    }
+
+    #[test]
+    fn the_leash_follows_the_tile_not_the_monster() {
+        let mut map = Map {
+            tiles: vec![TileType::Wall; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        };
+        map.tiles[tile_index(5, 5)] = TileType::Passage;
+        map.tiles[tile_index(6, 5)] = TileType::Room;
+
+        assert!(mob_can_enter(
+            &map,
+            MovementType::Chase,
+            Position { x: 5, y: 5 },
+            6,
+            5,
+        ));
+    }
+
+    #[test]
+    fn corridor_monsters_can_step_through_a_door() {
+        let mut map = Map {
+            tiles: vec![TileType::Wall; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        };
+        map.tiles[tile_index(5, 5)] = TileType::Passage;
+        map.tiles[tile_index(6, 5)] = TileType::Door;
+
+        assert!(mob_can_enter(
+            &map,
+            MovementType::Chase,
+            Position { x: 5, y: 5 },
+            6,
+            5,
+        ));
+    }
 }
 
 /// Deducts one action's worth of energy from `entity`, if it has a tempo.
