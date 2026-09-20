@@ -22,7 +22,7 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::*;
-use crate::constants::moves::MOVESET_CAP;
+use crate::constants::spells::SPELLSET_CAP;
 use crate::equipment::Slot;
 use crate::identify::display_name;
 use crate::map::GameRng;
@@ -160,7 +160,7 @@ fn apply(world: &mut World, taker: Entity, effect: PickupEffect, amount: i32) ->
         PickupEffect::Strength => restore_strength(world, taker, amount),
         PickupEffect::Platinum => promise(world, taker, Promise::Platinum),
         PickupEffect::Forge => promise(world, taker, Promise::Forge),
-        PickupEffect::Mana => learn_move(world, taker),
+        PickupEffect::LearnRandomSpell => learn_spell(world, taker),
     }
 }
 
@@ -184,9 +184,9 @@ pub fn would_help(world: &World, taker: Entity, effect: PickupEffect) -> bool {
             .is_some_and(|f| f.power < f.max_power),
         PickupEffect::Platinum => !Promise::Platinum.already_held(world, taker),
         PickupEffect::Forge => !Promise::Forge.already_held(world, taker),
-        PickupEffect::Mana => world
-            .get::<Moveset>(taker)
-            .is_some_and(|m| m.slots.len() < MOVESET_CAP),
+        PickupEffect::LearnRandomSpell => world
+            .get::<Spellset>(taker)
+            .is_some_and(|m| m.slots.len() < SPELLSET_CAP),
     }
 }
 
@@ -225,18 +225,18 @@ fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
     }
 }
 
-/// Heroic mana: teaches `taker` one random move they don't already know,
-/// straight into their [`Moveset`] — always unpredictable, the same way the
-/// mana itself is never disguised as anything else. [`would_help`] has
-/// already checked there's a free slot; if every move in the game happens to
-/// already be known (all sixteen), the mana has nothing left to give and says
+/// Hero coin: teaches `taker` one random move they don't already know,
+/// straight into their [`Spellset`] — always unpredictable, the same way the
+/// coin itself is never disguised as anything else. [`would_help`] has
+/// already checked there's a free slot; if every spell in the game happens to
+/// already be known (all sixteen), the coin has nothing left to give and says
 /// so instead of teaching a duplicate.
-fn learn_move(world: &mut World, taker: Entity) -> String {
-    let known: Vec<MoveEffect> = world
-        .get::<Moveset>(taker)
+fn learn_spell(world: &mut World, taker: Entity) -> String {
+    let known: Vec<SpellEffect> = world
+        .get::<Spellset>(taker)
         .map(|m| m.slots.clone())
         .unwrap_or_default();
-    let learnable: Vec<MoveEffect> = crate::catalog::MOVES
+    let learnable: Vec<SpellEffect> = crate::catalog::SPELLS
         .iter()
         .map(|m| m.effect)
         .filter(|e| !known.contains(e))
@@ -249,11 +249,11 @@ fn learn_move(world: &mut World, taker: Entity) -> String {
         .0
         .gen_range(0..learnable.len());
     let effect = learnable[idx];
-    let Some(mut moveset) = world.get_mut::<Moveset>(taker) else {
+    let Some(mut spellset) = world.get_mut::<Spellset>(taker) else {
         return String::new();
     };
-    moveset.slots.push(effect);
-    let name = crate::catalog::MoveDef::of(effect).name;
+    spellset.slots.push(effect);
+    let name = crate::catalog::SpellDef::of(effect).name;
     format!("Something ancient and violent settles into your mind. You have learned {name}!")
 }
 

@@ -118,12 +118,12 @@ Potions, scrolls, and wands tell you exactly what they are the moment you find t
 
 Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose.
 
-Magic and moves
----------------
+Magic and spells
+----------------
 
-The `Ma` pool powers your special moves. Stairs refill it; it does not return merely because you wait. Press `Z` to open the moves menu and pick a move by its row letter.
+The `Ma` pool powers your spells. Stairs refill it; it does not return merely because you wait. Press `Z` to open the spells menu and pick a spell by its row letter.
 
-Heroic mana teaches a new move when you step on it. You can know only a few moves at once. A move that needs a target uses the same aiming cursor as a wand.
+A hero coin teaches a new spell when you step on it. You can know only a few spells at once. A spell that needs a target uses the same aiming cursor as a wand.
 
 Some effects change how you act. Confusion makes movement unreliable. Blindness limits what you can see. Paralysis and sleep steal time. A medusa's gaze steals them too, by turning you to stone -- but stone is hard: while it lasts nothing gets more than a chip through you and nothing can take your last point of health, unless what is standing over you is swinging a war hammer. Haste makes you quicker; slow makes you slower. A staircase clears these effects.
 
@@ -162,7 +162,7 @@ Useful commands
 | `>` or `.` | Go down or walk to the down stairs |
 | `<` or `,` | Go up or walk to the up stairs |
 | `;` | Look around: move the cursor over any tile in view to have it described, including what a monster is dangerous for |
-| `Z` | Open the moves menu |
+| `Z` | Open the spells menu |
 | `x` | Close the current menu or cursor |
 | `X` | Close the current menu; with nothing open, quit |
 | `Q` | Quit after confirmation |
@@ -189,6 +189,6 @@ Quick reference
     Use           a        throw t        drop d
     Quaff         q        read r          zap z
     Equip         e        wield w         wear W        ring P
-    Moves         Z        pick a slot by its row letter
+    Spells        Z        pick a slot by its row letter
     Cancel        x or X   never spends a turn
     Quit          Q or X   with nothing open; Ctrl+C skips confirmation

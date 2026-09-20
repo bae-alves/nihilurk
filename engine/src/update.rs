@@ -377,7 +377,7 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     // --MORE-- gate below. It is checked here rather than down in
     // `handle_movement_input` because every menu that selects a row by letter
     // would otherwise claim it: `c` is a real row in both the pack and the
-    // moves list, and quitting would read as picking the third item.
+    // spells list, and quitting would read as picking the third item.
     if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
         world.resource_mut::<GameState>().is_running = false;
         return Ok(false);
@@ -422,8 +422,8 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     if world.resource::<PackIsOpen>().open {
         return handle_inventory_input(world, key);
     }
-    if world.resource::<MovesMenu>().open {
-        return handle_moves_input(world, key);
+    if world.resource::<SpellsMenu>().open {
+        return handle_spells_input(world, key);
     }
     handle_movement_input(world, key)
 }
@@ -438,7 +438,7 @@ fn close_all_modals(world: &mut World) -> bool {
         ts.active = false;
         ts.item = None;
         ts.throwing = false;
-        ts.move_effect = None;
+        ts.spell_effect = None;
         ts.looking = false;
         ts.reach_attack = false;
         closed = true;
@@ -448,9 +448,9 @@ fn close_all_modals(world: &mut World) -> bool {
         pack.close();
         closed = true;
     }
-    let mut moves = world.resource_mut::<MovesMenu>();
-    if moves.open {
-        moves.open = false;
+    let mut menu = world.resource_mut::<SpellsMenu>();
+    if menu.open {
+        menu.open = false;
         closed = true;
     }
     let mut quit = world.resource_mut::<QuitPrompt>();
@@ -507,7 +507,7 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
         ts.active = false;
         ts.item = None;
         ts.throwing = false;
-        ts.move_effect = None;
+        ts.spell_effect = None;
         ts.looking = false;
         ts.reach_attack = false;
         return Ok(false); // cancelled aiming, no turn consumed
@@ -517,7 +517,7 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
         return Ok(cycle_target(world));
     }
     if dx != 0 || dy != 0 {
-        return Ok(move_target_cursor(world, dx, dy));
+        return Ok(spell_target_cursor(world, dx, dy));
     }
     if confirm {
         return fire_at_target(world);
@@ -530,11 +530,11 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
 /// manual nudge could reach, just without the walk there. Wraps around, and
 /// does nothing when nothing qualifies.
 fn cycle_target(world: &mut World) -> bool {
-    let (item, move_effect, looking, throwing, reach_attack, cursor_x, cursor_y) = {
+    let (item, spell_effect, looking, throwing, reach_attack, cursor_x, cursor_y) = {
         let ts = world.resource::<TargetingState>();
         (
             ts.item,
-            ts.move_effect,
+            ts.spell_effect,
             ts.looking,
             ts.throwing,
             ts.reach_attack,
@@ -545,7 +545,7 @@ fn cycle_target(world: &mut World) -> bool {
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
     let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
-    let max_range = aim_range(world, item, move_effect, looking, throwing, reach_attack);
+    let max_range = aim_range(world, item, spell_effect, looking, throwing, reach_attack);
 
     let mut candidates: Vec<(u16, u16)> = {
         let mut q =
@@ -582,12 +582,12 @@ fn cycle_target(world: &mut World) -> bool {
 
 /// A directional key while aiming: nudge the reticle one tile, but only onto a
 /// tile that is both in view and inside the reticle's reach.
-fn move_target_cursor(world: &mut World, dx: i16, dy: i16) -> bool {
-    let (item, move_effect, looking, cursor_x, cursor_y, throwing, reach_attack) = {
+fn spell_target_cursor(world: &mut World, dx: i16, dy: i16) -> bool {
+    let (item, spell_effect, looking, cursor_x, cursor_y, throwing, reach_attack) = {
         let ts = world.resource::<TargetingState>();
         (
             ts.item,
-            ts.move_effect,
+            ts.spell_effect,
             ts.looking,
             ts.cursor_x,
             ts.cursor_y,
@@ -601,7 +601,7 @@ fn move_target_cursor(world: &mut World, dx: i16, dy: i16) -> bool {
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
     let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
-    let max_range = aim_range(world, item, move_effect, looking, throwing, reach_attack);
+    let max_range = aim_range(world, item, spell_effect, looking, throwing, reach_attack);
 
     let distance = (new_x - player_pos.x as i16)
         .abs()
@@ -673,14 +673,14 @@ fn meet_its_eyes(world: &mut World, target: Position) -> bool {
 }
 
 /// How far the reticle reaches: a look can range over the whole viewshed (the
-/// `in_view` check does the real work of bounding it), an active move reaches
-/// as far as its own [`MoveDef::range`](models::MoveDef::range), a throw goes
+/// `in_view` check does the real work of bounding it), an active spell reaches
+/// as far as its own [`SpellDef::range`](models::SpellDef::range), a throw goes
 /// an arm's length, a zapped item as far as its own [`Ranged`], and anything
 /// with none of those, a bare 8.
 fn aim_range(
     world: &World,
     item: Option<Entity>,
-    move_effect: Option<MoveEffect>,
+    spell_effect: Option<SpellEffect>,
     looking: bool,
     throwing: bool,
     reach_attack: bool,
@@ -688,8 +688,8 @@ fn aim_range(
     if looking {
         return (MAP_WIDTH as i32).max(MAP_HEIGHT as i32);
     }
-    if let Some(effect) = move_effect {
-        return models::MoveDef::of(effect).range;
+    if let Some(effect) = spell_effect {
+        return models::SpellDef::of(effect).range;
     }
     if throwing {
         return THROW_RANGE;
@@ -702,25 +702,25 @@ fn aim_range(
 }
 
 /// Enter/Space while aiming: a look just reads the tile and closes (no turn,
-/// and it's the one reticle purpose allowed on the player's own tile); a move
+/// and it's the one reticle purpose allowed on the player's own tile); a spell
 /// queues itself directly, nothing to pull from a pack; anything else pulls
 /// the item from the pack and hands it to the throw or use queue. A shot at
 /// the player's own tile is refused for every purpose but looking.
 fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
-    let (tx, ty, item_entity, move_effect, looking, throwing, reach_attack) = {
+    let (tx, ty, item_entity, spell_effect, looking, throwing, reach_attack) = {
         let mut ts = world.resource_mut::<TargetingState>();
         ts.active = false;
         let grabbed = (
             ts.cursor_x,
             ts.cursor_y,
             ts.item,
-            ts.move_effect,
+            ts.spell_effect,
             ts.looking,
             ts.throwing,
             ts.reach_attack,
         );
         ts.item = None;
-        ts.move_effect = None;
+        ts.spell_effect = None;
         ts.looking = false;
         ts.throwing = false;
         ts.reach_attack = false;
@@ -757,8 +757,8 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
         return Ok(true);
     }
 
-    if let Some(effect) = move_effect {
-        world.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+    if let Some(effect) = spell_effect {
+        world.resource_mut::<SpellQueue>().spells.push(WantsToCast {
             user: player,
             effect,
             target,
@@ -1000,14 +1000,14 @@ fn open_reticle(world: &mut World, player: Entity, item: Entity, throwing: bool)
     open_reticle_for(world, player, Some(item), None, false, throwing);
 }
 
-/// Arms the aiming reticle on whichever one of an item, a move or a plain look
-/// the caller wants — exactly one of `item` / `move_effect` / `looking` is
+/// Arms the aiming reticle on whichever one of an item, a spell or a plain look
+/// the caller wants — exactly one of `item` / `spell_effect` / `looking` is
 /// ever set, and [`fire_at_target`] is what reads the combination back apart.
 fn open_reticle_for(
     world: &mut World,
     player: Entity,
     item: Option<Entity>,
-    move_effect: Option<MoveEffect>,
+    spell_effect: Option<SpellEffect>,
     looking: bool,
     throwing: bool,
 ) {
@@ -1015,7 +1015,7 @@ fn open_reticle_for(
     let mut ts = world.resource_mut::<TargetingState>();
     ts.active = true;
     ts.item = item;
-    ts.move_effect = move_effect;
+    ts.spell_effect = spell_effect;
     ts.looking = looking;
     ts.throwing = throwing;
     ts.cursor_x = pos.x as i16;
@@ -1123,12 +1123,12 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
             world.resource_mut::<QuitPrompt>().open = true;
             return Ok(false);
         }
-        // `Z`: the moves menu, and the only way to an active move. There is
+        // `Z`: the spells menu, and the only way to an active spell. There is
         // no direct-fire key for a slot: every candidate either collided with
         // something (`Alt`+a letter shadowed the bare letter) or depended on
         // the keyboard layout (`!` `@` `#` `$` are Shift + the digits only on
         // a US one).
-        KeyCode::Char('Z') => return begin_moves_menu(world),
+        KeyCode::Char('Z') => return begin_spells_menu(world),
         // `;`: look — read what's on a tile without acting on it. Not `L`:
         // that is the shifted vi key for east, which `run_direction` above
         // claims before this table is ever reached.
@@ -1228,16 +1228,16 @@ fn open_pack(world: &mut World, mode: PackMode) -> std::io::Result<bool> {
     Ok(false)
 }
 
-/// Fires (opens the aiming reticle for) move slot `slot` of the player's
-/// [`Moveset`] — always a row picked from the `Z` menu, which is the only way
+/// Fires (opens the aiming reticle for) spell slot `slot` of the player's
+/// [`Spellset`] — always a row picked from the `Z` menu, which is the only way
 /// in. Refuses, no turn spent, if the slot is empty or the pool can't
 /// cover it; the check here is a courtesy so the reticle never opens on a
-/// move that can only fizzle — [`models::move_system`] checks again before it
+/// spell that can only fizzle — [`models::spell_system`] checks again before it
 /// actually spends the cost.
-fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
+fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
     let player = player_entity(world);
     let Some(effect) = world
-        .get::<Moveset>(player)
+        .get::<Spellset>(player)
         .and_then(|m| m.slots.get(slot).copied())
     else {
         world
@@ -1245,7 +1245,7 @@ fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .add("You don't have a move there.");
         return Ok(false);
     };
-    let cost = models::move_cost(world, player, effect);
+    let cost = models::spell_cost(world, player, effect);
     let affordable = world.get::<Magic>(player).is_some_and(|m| m.points >= cost);
     if !affordable {
         world
@@ -1253,7 +1253,7 @@ fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .add("You don't have the magic for that.");
         return Ok(false);
     }
-    // A move that works on the caster alone or on everything in view has
+    // A spell that works on the caster alone or on everything in view has
     // nothing to aim at — it fires the instant its slot is pressed, the same
     // courtesy the wand of light gets over every other wand.
     if !effect.needs_target() {
@@ -1261,7 +1261,7 @@ fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .get::<Position>(player)
             .copied()
             .unwrap_or(Position { x: 0, y: 0 });
-        world.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+        world.resource_mut::<SpellQueue>().spells.push(WantsToCast {
             user: player,
             effect,
             target,
@@ -1272,48 +1272,48 @@ fn fire_move(world: &mut World, slot: usize) -> std::io::Result<bool> {
     Ok(false)
 }
 
-/// `Z`: open the moves list, cursor on the first slot. Says so and stays on
+/// `Z`: open the spells list, cursor on the first slot. Says so and stays on
 /// the map rather than opening an empty menu.
-fn begin_moves_menu(world: &mut World) -> std::io::Result<bool> {
+fn begin_spells_menu(world: &mut World) -> std::io::Result<bool> {
     let player = player_entity(world);
     let has_any = world
-        .get::<Moveset>(player)
+        .get::<Spellset>(player)
         .is_some_and(|m| !m.slots.is_empty());
     if !has_any {
-        world.resource_mut::<GameLog>().add("You have no moves.");
+        world.resource_mut::<GameLog>().add("You have no spells.");
         return Ok(false);
     }
-    let mut menu = world.resource_mut::<MovesMenu>();
+    let mut menu = world.resource_mut::<SpellsMenu>();
     menu.open = true;
     menu.selected = 0;
     Ok(false)
 }
 
-/// A keypress while the `Z` moves menu is up: navigate, jump straight to a
+/// A keypress while the `Z` spells menu is up: navigate, jump straight to a
 /// slot by its row letter, confirm, or cancel. Never spends a turn itself —
-/// only the reticle [`fire_move`] opens can do that.
+/// only the reticle [`fire_spell`] opens can do that.
 ///
 /// Rows are lettered `a`-`d`, like the pack's, and for the same reason: the
 /// digits are already the numpad's directions here, and a key that navigates
 /// and selects at once is a key that does the wrong one of the two.
-fn handle_moves_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+fn handle_spells_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     let player = player_entity(world);
-    let row_count = world.get::<Moveset>(player).map_or(0, |m| m.slots.len());
+    let row_count = world.get::<Spellset>(player).map_or(0, |m| m.slots.len());
     // Floored at 1 so the wrap-around arithmetic below has something to divide
     // by; `row_count` is the honest one, and the only one a letter is checked
     // against.
     let slot_count = row_count.max(1);
-    let selected = world.resource::<MovesMenu>().selected;
+    let selected = world.resource::<SpellsMenu>().selected;
 
     let mut close = false;
     let mut fire = None;
     match key.code {
         KeyCode::Esc => close = true,
         KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('8') => {
-            world.resource_mut::<MovesMenu>().selected = (selected + slot_count - 1) % slot_count;
+            world.resource_mut::<SpellsMenu>().selected = (selected + slot_count - 1) % slot_count;
         }
         KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('2') => {
-            world.resource_mut::<MovesMenu>().selected = (selected + 1) % slot_count;
+            world.resource_mut::<SpellsMenu>().selected = (selected + 1) % slot_count;
         }
         KeyCode::Enter | KeyCode::Char(' ') => fire = Some(selected),
         KeyCode::Char(c) if c.is_ascii_lowercase() => {
@@ -1326,14 +1326,14 @@ fn handle_moves_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool>
     }
 
     if close {
-        world.resource_mut::<MovesMenu>().open = false;
+        world.resource_mut::<SpellsMenu>().open = false;
         return Ok(false);
     }
     let Some(idx) = fire else {
         return Ok(false);
     };
-    world.resource_mut::<MovesMenu>().open = false;
-    fire_move(world, idx)
+    world.resource_mut::<SpellsMenu>().open = false;
+    fire_spell(world, idx)
 }
 
 /// `A`: flip whether auto-explore detours to pick things up, and say which way
@@ -1803,13 +1803,13 @@ mod tests {
         w.init_resource::<UseQueue>();
         w.init_resource::<ThrowQueue>();
         w.init_resource::<AttackQueue>();
-        w.init_resource::<MoveQueue>();
-        w.init_resource::<MovesMenu>();
+        w.init_resource::<SpellQueue>();
+        w.init_resource::<SpellsMenu>();
         w.insert_resource(TargetingState {
             active: false,
             item: None,
             throwing: false,
-            move_effect: None,
+            spell_effect: None,
             looking: false,
             reach_attack: false,
             cursor_x: 0,
@@ -2190,11 +2190,11 @@ mod tests {
     // Keys that used to shadow each other
     // -----------------------------------------------------------------------
 
-    /// A player with `slots` moves and the magic to pay for all of them.
-    fn moves_world(seed: u64, slots: &[MoveEffect]) -> World {
+    /// A player with `slots` spells and the magic to pay for all of them.
+    fn spells_world(seed: u64, slots: &[SpellEffect]) -> World {
         let mut w = modal_world(seed);
         let player = player_entity(&mut w);
-        w.entity_mut(player).insert(Moveset {
+        w.entity_mut(player).insert(Spellset {
             slots: slots.to_vec(),
         });
         w.entity_mut(player).insert(Magic {
@@ -2206,11 +2206,11 @@ mod tests {
 
     /// The four moves the shortcut tests fire, all of them aimed ones, so
     /// firing a slot is visible as the reticle it opens.
-    const FOUR_MOVES: [MoveEffect; 4] = [
-        MoveEffect::DragonBreath,
-        MoveEffect::Sting,
-        MoveEffect::Thunderbolt,
-        MoveEffect::ForceLance,
+    const FOUR_SPELLS: [SpellEffect; 4] = [
+        SpellEffect::DragonBreath,
+        SpellEffect::Sting,
+        SpellEffect::Thunderbolt,
+        SpellEffect::ForceLance,
     ];
 
     #[test]
@@ -2233,45 +2233,45 @@ mod tests {
     #[test]
     fn the_moves_menu_picks_a_slot_by_letter() {
         // Rows are lettered like the pack's, so the third row is `c`.
-        let mut w = moves_world(22, &FOUR_MOVES);
+        let mut w = spells_world(22, &FOUR_SPELLS);
         dispatch_key(&mut w, press('Z')).unwrap();
-        assert!(w.resource::<MovesMenu>().open);
+        assert!(w.resource::<SpellsMenu>().open);
 
         dispatch_key(&mut w, press('c')).unwrap();
-        assert!(!w.resource::<MovesMenu>().open, "the menu stayed open");
+        assert!(!w.resource::<SpellsMenu>().open, "the menu stayed open");
         assert_eq!(
-            w.resource::<TargetingState>().move_effect,
-            Some(FOUR_MOVES[2]),
+            w.resource::<TargetingState>().spell_effect,
+            Some(FOUR_SPELLS[2]),
             "`c` did not fire the third slot"
         );
     }
 
     #[test]
     fn a_letter_past_the_last_slot_does_nothing_in_the_moves_menu() {
-        let mut w = moves_world(23, &FOUR_MOVES[..2]);
+        let mut w = spells_world(23, &FOUR_SPELLS[..2]);
         dispatch_key(&mut w, press('Z')).unwrap();
         dispatch_key(&mut w, press('d')).unwrap();
         assert!(
-            w.resource::<MovesMenu>().open,
+            w.resource::<SpellsMenu>().open,
             "`d` closed a menu that has no fourth row"
         );
-        assert!(w.resource::<TargetingState>().move_effect.is_none());
+        assert!(w.resource::<TargetingState>().spell_effect.is_none());
     }
 
     #[test]
     fn digits_navigate_the_moves_menu_and_never_fire_a_slot() {
         // `2` used to be two things at once — numpad-down and "slot 2" — and
         // down won. Slots are letters now, so the digit is only ever a step.
-        let mut w = moves_world(24, &FOUR_MOVES);
+        let mut w = spells_world(24, &FOUR_SPELLS);
         dispatch_key(&mut w, press('Z')).unwrap();
         dispatch_key(&mut w, press('2')).unwrap();
-        assert!(w.resource::<MovesMenu>().open, "`2` closed the menu");
+        assert!(w.resource::<SpellsMenu>().open, "`2` closed the menu");
         assert!(
-            w.resource::<TargetingState>().move_effect.is_none(),
-            "`2` fired a move"
+            w.resource::<TargetingState>().spell_effect.is_none(),
+            "`2` fired a spell"
         );
         assert_eq!(
-            w.resource::<MovesMenu>().selected,
+            w.resource::<SpellsMenu>().selected,
             1,
             "`2` did not step the highlight down"
         );
@@ -2279,14 +2279,14 @@ mod tests {
 
     #[test]
     fn alt_held_letters_do_what_the_bare_letter_does() {
-        // Alt+Q/W/E/R used to fire the move slots. Nothing does now — `Z` is
+        // Alt+Q/W/E/R used to fire the spell slots. Nothing does now — `Z` is
         // the only way in — and Alt is no longer special: Alt+`q` is `q`, the
         // quaff pack.
-        let mut w = moves_world(27, &FOUR_MOVES);
+        let mut w = spells_world(27, &FOUR_SPELLS);
         dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT)).unwrap();
         assert!(
-            w.resource::<TargetingState>().move_effect.is_none(),
-            "Alt+q still fires a move"
+            w.resource::<TargetingState>().spell_effect.is_none(),
+            "Alt+q still fires a spell"
         );
         assert!(
             w.resource::<PackIsOpen>().open,
@@ -2297,20 +2297,20 @@ mod tests {
     #[test]
     fn ctrl_c_quits_from_every_context_including_a_pending_more() {
         // The terminal's own kill key. Nothing may intercept it — not a menu's
-        // letter row (`c` is a real row in both the pack and the moves list),
+        // letter row (`c` is a real row in both the pack and the spells list),
         // not the --MORE-- gate, not the quit prompt it makes redundant.
         let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
-        let mut w = moves_world(28, &FOUR_MOVES);
+        let mut w = spells_world(28, &FOUR_SPELLS);
         dispatch_key(&mut w, press('Z')).unwrap();
         dispatch_key(&mut w, ctrl_c).unwrap();
         assert!(
             !w.resource::<GameState>().is_running,
-            "the moves menu swallowed Ctrl+C"
+            "the spells menu swallowed Ctrl+C"
         );
         assert!(
-            w.resource::<TargetingState>().move_effect.is_none(),
-            "Ctrl+C fired the move in row `c`"
+            w.resource::<TargetingState>().spell_effect.is_none(),
+            "Ctrl+C fired the spell in row `c`"
         );
 
         let mut w = modal_world(28);

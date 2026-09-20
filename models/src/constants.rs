@@ -61,7 +61,7 @@ pub mod combat {
     /// and every orc becomes a vending machine for its own sword.
     pub const GEAR_SURVIVES_DEATH: f64 = 0.5;
 
-    /// The flat bonus the move Bide adds to the attack roll of the very next
+    /// The flat bonus the spell Bide adds to the attack roll of the very next
     /// blow its caster lands — see [`crate::effects::Bided`].
     pub const BIDE_ATTACK_BONUS: i32 = 4;
 }
@@ -601,19 +601,19 @@ pub mod monsters {
 }
 
 // ===========================================================================
-// Active moves
+// Active spells
 // ===========================================================================
 
-/// The dice and odds behind the moves whose damage isn't simply "as the
-/// wand/trap it borrows from" (Fireball, Sting) — see `crate::items::moves`.
-/// Each move's cost, range and kind are on its own catalog row
-/// ([`crate::catalog::MoveDef`]); these are the numbers a rebalance actually
+/// The dice and odds behind the spells whose damage isn't simply "as the
+/// wand/trap it borrows from" (Fireball, Sting) — see `crate::items::spells`.
+/// Each spell's cost, range and kind are on its own catalog row
+/// ([`crate::catalog::SpellDef`]); these are the numbers a rebalance actually
 /// reaches for.
-pub mod moves {
-    /// The most moves a [`crate::components::Moveset`] may ever hold — the
-    /// four rows `a`-`d` of the `Z` menu, and no fifth to reach for. Heroic
-    /// mana stops teaching once this is full.
-    pub const MOVESET_CAP: usize = 4;
+pub mod spells {
+    /// The most moves a [`crate::components::Spellset`] may ever hold — the
+    /// four rows `a`-`d` of the `Z` menu, and no fifth to reach for. A hero
+    /// coin stops teaching once this is full.
+    pub const SPELLSET_CAP: usize = 4;
 
     /// Thunderbolt: `DICE d SIDES` armour-ignoring damage, and `PARALYZE_CHANCE`
     /// to lock the target up on top of it.

@@ -246,7 +246,7 @@ pub fn render<W: Write>(
             if forged.is_some() {
                 v.push(("FORG", Color::DarkYellow));
             }
-            // The two moves that leave something on you: a shield up for the
+            // The two spells that leave something on you: a shield up for the
             // rest of the floor, and a blow coiled and waiting to land.
             if warded.is_some() {
                 v.push(("WARD", Color::Cyan));
@@ -736,8 +736,8 @@ pub fn render<W: Write>(
     }
 
     // ---- Moves overlay ----
-    if world.resource::<MovesMenu>().open {
-        draw_moves(world, screen);
+    if world.resource::<SpellsMenu>().open {
+        draw_spells(world, screen);
     }
 
     // ---- "Really quit?" ----
@@ -1264,14 +1264,14 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
     }
 }
 
-/// The `Z` moves box: up to four rows, lettered `a`-`d` like the pack's, each
-/// the move's name and its [`Magic`] cost. Drawn the same way the inventory
+/// The `Z` spells box: up to four rows, lettered `a`-`d` like the pack's, each
+/// the spell's name and its [`Magic`] cost. Drawn the same way the inventory
 /// box is, just with no sub-menu — picking a row goes straight to the aiming
 /// reticle.
-fn draw_moves(world: &mut World, screen: &mut Screen) {
-    let selected = world.resource::<MovesMenu>().selected;
+fn draw_spells(world: &mut World, screen: &mut Screen) {
+    let selected = world.resource::<SpellsMenu>().selected;
     let (player, slots) = {
-        let mut q = world.query_filtered::<(Entity, &Moveset), With<Player>>();
+        let mut q = world.query_filtered::<(Entity, &Spellset), With<Player>>();
         q.iter(world)
             .next()
             .map(|(e, m)| (e, m.slots.clone()))
@@ -1282,8 +1282,8 @@ fn draw_moves(world: &mut World, screen: &mut Screen) {
         .iter()
         .enumerate()
         .map(|(i, &effect)| {
-            let def = MoveDef::of(effect);
-            let cost = models::move_cost(world, player, effect);
+            let def = SpellDef::of(effect);
+            let cost = models::spell_cost(world, player, effect);
             let letter = (b'a' + i as u8) as char;
             format!(" {letter}) {} ({} Ma) ", def.name, cost)
         })
@@ -1292,7 +1292,7 @@ fn draw_moves(world: &mut World, screen: &mut Screen) {
     let start_x: u16 = 5;
     let start_y: u16 = 3;
     let grey = Color::DarkGrey;
-    let title = " MOVES ";
+    let title = " SPELLS ";
     let box_width = rows
         .iter()
         .map(|r| r.chars().count() as u16)

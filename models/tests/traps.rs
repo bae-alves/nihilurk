@@ -1156,3 +1156,31 @@ fn no_trap_is_planted_in_a_doorway_or_the_tile_just_inside_one() {
         "only {floors_with_traps}/60 floors got any trap at all — the door rule is starving placement"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Animation
+// ---------------------------------------------------------------------------
+
+/// Every trap in the catalog puts something on the effect layer when it
+/// springs — a trap that goes off invisibly reads as a bug in the log. Walks
+/// the whole of `TRAPS`, so a new row with no flourish arm fails here.
+#[test]
+fn every_trap_animates_when_it_springs() {
+    for def in models::TRAPS {
+        let mut w = test_world(7);
+        clear_traps(&mut w);
+        w.insert_resource(Particles::new());
+
+        let here = player_pos(&mut w);
+        w.spawn(TrapBundle::from_def(def, TrapReveal::Sight, here));
+        step_player_onto(&mut w, here.x, here.y);
+
+        trap_system(&mut w);
+
+        assert!(
+            w.resource::<Particles>().any_alive(),
+            "{} sprang and left the screen blank",
+            def.name
+        );
+    }
+}

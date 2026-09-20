@@ -87,7 +87,7 @@ A system that drains a queue resource cannot hold that resource while it resolve
         }
     }
 
-All four queues (`AttackQueue`, `UseQueue`, `ThrowQueue`, `MoveQueue`) are drained exactly like this. It also gives you the right semantics for free: an attack queued *while* the queue is draining lands next turn, not in the middle of this one.
+All four queues (`AttackQueue`, `UseQueue`, `ThrowQueue`, `SpellQueue`) are drained exactly like this. It also gives you the right semantics for free: an attack queued *while* the queue is draining lands next turn, not in the middle of this one.
 
 ### 4. `entity_mut` for a burst of writes
 
@@ -362,9 +362,9 @@ Input handlers do not resolve anything. They push an intent and return whether a
 | `WantsToAttack`  | `AttackQueue` | `combat_system`|
 | `WantsToUse`     | `UseQueue`    | `item_system`  |
 | `WantsToThrow`   | `ThrowQueue`  | `throw_system` |
-| `WantsToMove`    | `MoveQueue`   | `move_system`  |
+| `WantsToCast`    | `SpellQueue`   | `spell_system`  |
 
-`WantsToUse` carries `slot_idx` so a surviving item goes back to the exact pack row it came from, and `target` for anything aimed. A throw of a stacked item goes through `models::draw_one` first, which splits one arrow off and leaves the quiver where it was. `WantsToMove` is an active move's own intent — a wand's twin, minus everything about an item because a move isn't one.
+`WantsToUse` carries `slot_idx` so a surviving item goes back to the exact pack row it came from, and `target` for anything aimed. A throw of a stacked item goes through `models::draw_one` first, which splits one arrow off and leaves the quiver where it was. `WantsToCast` is an active spell's own intent — a wand's twin, minus everything about an item because a move isn't one.
 
 
 Recipe: add a system to the turn

@@ -102,8 +102,9 @@ impl TrapEffect {
 /// lives in [`apply_trap_effect`], keyed by [`TrapDef::effect`] — a row is
 /// description and the numbers its mechanic needs, never behaviour.
 ///
-/// Adding a trap is a row here, a [`TrapEffect`] variant, and an arm in
-/// [`apply_trap_effect`]. See `docs/how-to/add-a-trap.md`.
+/// Adding a trap is a row here, a [`TrapEffect`] variant, and an arm in each
+/// of [`apply_trap_effect`] and [`trap_flourish`]. See
+/// `docs/how-to/add-a-trap.md`.
 pub struct TrapDef {
     pub effect: TrapEffect,
     pub name: &'static str,
@@ -377,6 +378,15 @@ fn apply_trap_effect(
 ) {
     // Snaring traps hold the victim for as many turns as their row says.
     let snare_turns = TrapDef::of(effect).snare_turns;
+
+    // A trap the player can see going off shows itself going off — but only
+    // under whoever is actually standing on the mechanism. A trick shot's
+    // other victims are a tile away and get the burst instead, so a blast that
+    // catches a crowd never plays the trap's own flourish once per creature.
+    let on_the_mechanism = trap_pos.is_some() && trap_pos == world.get::<Position>(victim).copied();
+    if (is_player || seen) && on_the_mechanism {
+        trap_flourish(world, effect, trap_pos);
+    }
 
     match effect {
         TrapEffect::Trapdoor => trapdoor_effect(world, victim, is_player, seen),
@@ -717,12 +727,27 @@ fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: boo
         world
             .resource_mut::<GameLog>()
             .add("A trapdoor gapes — but there is only solid rock below. It grinds shut.");
+        // Grit shaken loose from a floor that opened onto nothing.
+        let here = world.get::<Position>(victim).copied();
+        dust_puff(world, here);
         return;
     }
     world
         .resource_mut::<GameLog>()
         .add("A trapdoor yawns open beneath you!");
     transition_level(world, true, LevelChange::Trapdoor);
+    // The fall cannot be animated where it happened — that floor is gone by
+    // the time the effect layer plays — so the dust goes up where they land.
+    let landed = world.get::<Position>(victim).copied();
+    dust_puff(world, landed);
+}
+
+/// Dust on a tile, if there is an effect layer at all (headless tests run
+/// without one).
+fn dust_puff(world: &mut World, pos: Option<Position>) {
+    if let (Some(p), Some(mut fx)) = (pos, world.get_resource_mut::<Particles>()) {
+        fx.poof(p.x, p.y, 0.0);
+    }
 }
 
 /// Holds `victim` and, when it is the player, says how it felt. The sentence
@@ -765,16 +790,57 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
     }
 }
 
-/// The one embellishment an arrow trap's classic thwack was missing: the
-/// bolt visibly arriving from off in the dark rather than simply appearing at
-/// the impact tile. Picks one of the four cardinal directions and traces a
-/// short flight in toward the trap's own tile — purely cosmetic, the damage
-/// above is already decided by the time this plays, so a headless world (no
-/// [`Particles`] resource) just skips it.
-fn arrow_flourish(world: &mut World, trap_pos: Option<Position>) {
+/// What a trap looks like going off, before its mechanic works on anybody.
+///
+/// Exhaustive over [`TrapEffect`] with no catch-all, the same way
+/// [`apply_trap_effect`] is: a trap added to the enum has to answer "and what
+/// does it look like?" or fail the build. Two of the six answer it further
+/// down instead, where they know where the victim ended up, and say so here
+/// rather than going unlisted.
+fn trap_flourish(world: &mut World, effect: TrapEffect, trap_pos: Option<Position>) {
     let Some(p) = trap_pos else {
         return;
     };
+    match effect {
+        // The needle arrives from off in the dark, in the trap's own colour.
+        TrapEffect::Arrow | TrapEffect::Dart => {
+            missile_flourish(world, p, TrapDef::of(effect).color)
+        }
+        // Steel jaws: a snap on the tile, then the held glyph over it.
+        TrapEffect::Bear => {
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                fx.spark_burst(p.x, p.y, Color::DarkGreen);
+                fx.condition_mark(p.x, p.y, '#', Color::DarkGreen, BEAR_MARK_DELAY_MS);
+            }
+        }
+        // Gas billowing over the tile and the ring around it, then the same
+        // sleep mark a scroll of sleep leaves.
+        TrapEffect::Sleep => {
+            let cells = burst_cells(world, p, 1);
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                fx.smoke_burst(&cells);
+                fx.condition_mark(p.x, p.y, 'z', Color::Blue, SLEEP_MARK_DELAY_MS);
+            }
+        }
+        // The teleport's magenta puff goes on the tile the victim left, the
+        // trapdoor's dust where they land — both in their own mechanic below.
+        TrapEffect::Teleport | TrapEffect::Trapdoor => {}
+    }
+}
+
+/// How long after the jaws snap the held glyph shows, and how long after the
+/// gas billows the sleep mark does. Both read as a consequence of the beat
+/// before rather than part of it.
+const BEAR_MARK_DELAY_MS: f32 = 60.0;
+const SLEEP_MARK_DELAY_MS: f32 = 120.0;
+
+/// The one embellishment a shooting trap's classic thwack was missing: the
+/// bolt visibly arriving from off in the dark rather than simply appearing at
+/// the impact tile. Picks one of the four cardinal directions and traces a
+/// short flight in toward the trap's own tile — purely cosmetic, the damage is
+/// decided elsewhere, so a headless world (no [`Particles`] resource) just
+/// skips it.
+fn missile_flourish(world: &mut World, p: Position, color: Color) {
     const REACH: i32 = 6;
     const DIRS: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
     let (dx, dy) = {
@@ -792,7 +858,7 @@ fn arrow_flourish(world: &mut World, trap_pos: Option<Position>) {
     let Some(mut fx) = world.get_resource_mut::<Particles>() else {
         return;
     };
-    fx.hurl(&cells, '↑', Color::DarkCyan);
+    fx.hurl(&cells, '↑', color);
 }
 
 fn arrow_effect(
@@ -810,10 +876,6 @@ fn arrow_effect(
         + tier * ARROW_DAMAGE_PER_TIER;
     let damage = (roll - armor_plus).max(0);
     let who = actor_label(world, victim);
-
-    if is_player || seen {
-        arrow_flourish(world, trap_pos);
-    }
 
     if damage <= 0 {
         if is_player || seen {

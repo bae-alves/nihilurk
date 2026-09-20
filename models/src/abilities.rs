@@ -562,7 +562,7 @@ pub(crate) fn steal_equipped_item(world: &mut World, victim: Entity) -> Option<E
 /// [`crate::combat::resolve_attack`] for every blow that drew blood, with the
 /// shape of the blow so each row can bow out of the ones it does not want.
 pub fn fire_on_hit(world: &mut World, attacker: Entity, target: Entity, blow: Blow) {
-    // The move Magic Ward: nothing a blow carries with it — a rattlesnake's
+    // The spell Magic Ward: nothing a blow carries with it — a rattlesnake's
     // drain, a vampire's kiss, an aquator's rust — reaches whoever is
     // wearing one, for the rest of the floor. The damage itself already
     // landed; this is only the trick riding on top of it.

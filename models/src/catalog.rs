@@ -851,16 +851,16 @@ pub const RINGS: &[RingDef] = &[
 ];
 
 // ---------------------------------------------------------------------------
-// Active moves
+// Active spells
 // ---------------------------------------------------------------------------
 
-/// An active move: the identity and numbers behind a [`MoveEffect`], the way
+/// An active spell: the identity and numbers behind a [`SpellEffect`], the way
 /// [`WandDef`] is behind a [`WandEffect`]. Unlike every other row in this
-/// file, a move is never spawned — it is not an [`ItemDef`], has no
+/// file, a spell is never spawned — it is not an [`ItemDef`], has no
 /// [`Position`] on the floor and no pack slot. Its mechanic lives in
-/// `crate::items::moves`, keyed by [`MoveDef::effect`].
-pub struct MoveDef {
-    pub effect: MoveEffect,
+/// `crate::items::spells`, keyed by [`SpellDef::effect`].
+pub struct SpellDef {
+    pub effect: SpellEffect,
     pub name: &'static str,
     /// [`Magic`] points one use costs.
     pub cost: u8,
@@ -868,52 +868,52 @@ pub struct MoveDef {
     pub range: i32,
     /// Attack or skill — the dial a staff's [`TurboMagic`] checks before
     /// doubling both the cost and the fury of the cast. See
-    /// [`crate::items::move_system`].
-    pub kind: MoveKind,
+    /// [`crate::items::spell_system`].
+    pub kind: SpellKind,
 }
 
-impl MoveDef {
-    /// The catalog row for `effect`. Panics on a move that isn't in the table
-    /// — which would mean a [`MoveEffect`] variant nobody ever gave a row.
-    pub fn of(effect: MoveEffect) -> &'static MoveDef {
-        MOVES
+impl SpellDef {
+    /// The catalog row for `effect`. Panics on a spell that isn't in the table
+    /// — which would mean a [`SpellEffect`] variant nobody ever gave a row.
+    pub fn of(effect: SpellEffect) -> &'static SpellDef {
+        SPELLS
             .iter()
             .find(|m| m.effect == effect)
-            .unwrap_or_else(|| panic!("no move row for {effect:?}"))
+            .unwrap_or_else(|| panic!("no spell row for {effect:?}"))
     }
 }
 
-/// Every active move in the game: four tiers of four, priced by [`Magic`]
+/// Every active spell in the game: four tiers of four, priced by [`Magic`]
 /// cost — 1 through 4 — the same way a floor's danger is priced by depth. A
 /// monster's own copy of a shared trick ([`crate::items::dragon_breath`], the
 /// dragon's innate attack) spends no [`Magic`] at all; the cost here is the
 /// price of the player borrowing it, not a property of the trick itself.
 ///
-/// `range` is meaningless for a move whose [`MoveEffect::needs_target`] is
+/// `range` is meaningless for a spell whose [`SpellEffect::needs_target`] is
 /// `false` — it fires on its slot press with no reticle at all — and is left
 /// at `0` for those rows.
 #[rustfmt::skip]
-pub const MOVES: &[MoveDef] = &[
+pub const SPELLS: &[SpellDef] = &[
     // --- 1 Ma ---------------------------------------------------------
-    MoveDef { effect: MoveEffect::Sting,       name: "Sting",       cost: 1, range: 8, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::Thunderbolt, name: "Thunderbolt", cost: 1, range: 8, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::Cure,        name: "Cure",        cost: 1, range: 0, kind: MoveKind::Skill },
-    MoveDef { effect: MoveEffect::Bide,        name: "Bide",        cost: 1, range: 0, kind: MoveKind::Skill },
+    SpellDef { effect: SpellEffect::Sting,       name: "Sting",       cost: 1, range: 8, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::Thunderbolt, name: "Thunderbolt", cost: 1, range: 8, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::Cure,        name: "Cure",        cost: 1, range: 0, kind: SpellKind::Skill },
+    SpellDef { effect: SpellEffect::Bide,        name: "Bide",        cost: 1, range: 0, kind: SpellKind::Skill },
     // --- 2 Ma ---------------------------------------------------------
-    MoveDef { effect: MoveEffect::DragonBreath, name: "Fireball",   cost: 2, range: 8, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::ForceLance,  name: "Force Lance", cost: 2, range: 8, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::Identify,    name: "Identify",    cost: 2, range: 0, kind: MoveKind::Skill },
-    MoveDef { effect: MoveEffect::Setup,       name: "Setup",       cost: 2, range: 0, kind: MoveKind::Skill },
+    SpellDef { effect: SpellEffect::DragonBreath, name: "Fireball",   cost: 2, range: 8, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::ForceLance,  name: "Force Lance", cost: 2, range: 8, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::Identify,    name: "Identify",    cost: 2, range: 0, kind: SpellKind::Skill },
+    SpellDef { effect: SpellEffect::Setup,       name: "Setup",       cost: 2, range: 0, kind: SpellKind::Skill },
     // --- 3 Ma ---------------------------------------------------------
-    MoveDef { effect: MoveEffect::Lux,          name: "Lux",           cost: 3, range: 8, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::CircleOfDeath, name: "Circle of Death", cost: 3, range: 0, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::MagicWard,    name: "Magic Ward",    cost: 3, range: 0, kind: MoveKind::Skill },
-    MoveDef { effect: MoveEffect::Heal,         name: "Heal",          cost: 3, range: 0, kind: MoveKind::Skill },
+    SpellDef { effect: SpellEffect::Lux,          name: "Lux",           cost: 3, range: 8, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::CircleOfDeath, name: "Circle of Death", cost: 3, range: 0, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::MagicWard,    name: "Magic Ward",    cost: 3, range: 0, kind: SpellKind::Skill },
+    SpellDef { effect: SpellEffect::Heal,         name: "Heal",          cost: 3, range: 0, kind: SpellKind::Skill },
     // --- 4 Ma ---------------------------------------------------------
-    MoveDef { effect: MoveEffect::MeteorStrike, name: "Meteor Strike", cost: 4, range: 8, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::FrostNova,    name: "Frost Nova",    cost: 4, range: 0, kind: MoveKind::Attack },
-    MoveDef { effect: MoveEffect::MagicMapping, name: "Magic Mapping", cost: 4, range: 0, kind: MoveKind::Skill },
-    MoveDef { effect: MoveEffect::HasteSelf,    name: "Haste Self",    cost: 4, range: 0, kind: MoveKind::Skill },
+    SpellDef { effect: SpellEffect::MeteorStrike, name: "Meteor Strike", cost: 4, range: 8, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::FrostNova,    name: "Frost Nova",    cost: 4, range: 0, kind: SpellKind::Attack },
+    SpellDef { effect: SpellEffect::MagicMapping, name: "Magic Mapping", cost: 4, range: 0, kind: SpellKind::Skill },
+    SpellDef { effect: SpellEffect::HasteSelf,    name: "Haste Self",    cost: 4, range: 0, kind: SpellKind::Skill },
 ];
 
 // ---------------------------------------------------------------------------
@@ -933,8 +933,7 @@ pub struct CoinDef {
     pub effect: PickupEffect,
     pub amount: i32,
     /// This row's share of the coin table against its table-mates. Ten is the
-    /// baseline; heroic mana sits well under it — an uncommon find, not a
-    /// coin.
+    /// baseline; the hero coin sits well under it — an uncommon find.
     pub weight: u32,
 }
 
@@ -988,9 +987,9 @@ pub const COINS: &[CoinDef] = &[
     CoinDef { name: "green coin",    color: Color::Green,       effect: PickupEffect::Strength, amount:    4, weight: 10 },
     CoinDef { name: "platinum coin", color: Color::White,      effect: PickupEffect::Platinum, amount:    0, weight: 10 },
     CoinDef { name: "forge coin",    color: Color::DarkYellow,  effect: PickupEffect::Forge,    amount:    0, weight: 10 },
-    // Uncommon, and never disguised: no colour name, no adjective — it is
-    // always just "heroic mana".
-    CoinDef { name: "heroic mana",   color: Color::Magenta,     effect: PickupEffect::Mana,     amount:    0, weight:  3 },
+    // Uncommon, and never disguised: no colour name — it is always just
+    // "a hero coin".
+    CoinDef { name: "hero coin",     color: Color::Magenta,     effect: PickupEffect::LearnRandomSpell,     amount:    0, weight:  3 },
 ];
 
 /// The Element of Yoord: the relic each run retrieves from the deepest floor,

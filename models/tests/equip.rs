@@ -599,7 +599,7 @@ fn the_player_worn_via_equip_silently_still_identifies_immediately() {
     );
 }
 
-/// A staff doubles both the Magic cost and the damage of a damaging move —
+/// A staff doubles both the Magic cost and the damage of a damaging spell —
 /// Fireball here, chosen because its damage scales off the caster's own
 /// melee power rather than fixed dice, which is exactly what makes this test
 /// possible. Two identically seeded worlds, one
@@ -612,7 +612,7 @@ fn the_player_worn_via_equip_silently_still_identifies_immediately() {
 fn a_staff_doubles_the_cost_and_the_damage_of_a_damaging_move() {
     fn cast_fireball(seed: u64, weapon_name: &str) -> (u8, i32) {
         let mut w = test_world(seed);
-        w.init_resource::<MoveQueue>();
+        w.init_resource::<SpellQueue>();
         let p = player(&mut w);
         for item in equipped_items(&w, p) {
             force_unequip(&mut w, item);
@@ -644,12 +644,12 @@ fn a_staff_doubles_the_cost_and_the_damage_of_a_damaging_move() {
             .id();
 
         let magic_before = w.get::<Magic>(p).unwrap().points;
-        w.resource_mut::<MoveQueue>().moves.push(WantsToMove {
+        w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
             user: p,
-            effect: MoveEffect::DragonBreath,
+            effect: SpellEffect::DragonBreath,
             target,
         });
-        move_system(&mut w);
+        spell_system(&mut w);
 
         let spent = magic_before - w.get::<Magic>(p).unwrap().points;
         let damage = 1_000 - w.get::<Fighter>(dummy).unwrap().hp;

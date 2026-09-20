@@ -195,8 +195,8 @@ Components — player conditions
 | `ConfusingTouch` | marker | hands charged by a scroll of monster confusion: the next blow the bearer *lands* confuses what it hits and is spent doing it (an `ON_HIT_ABILITIES` row — see `content-tables.md`). Not an impairment, and it survives a staircase. HUD `GLOW` | yes |
 | `Plated` | marker | the platinum coin's promise: reach the next **staircase** unhurt and it pays a permanent point of attack or defence *die*, the dungeon's coin flip. HUD `PLAT` | yes |
 | `Forged` | marker | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon or worn armour, exactly as the matching scroll would. HUD `FORG` | yes |
-| `MagicWard` | marker | the move Magic Ward: for the rest of the floor, checked in `wands::damage_with_element` (every wand-shaped source of harm bounces off with a cosmetic ricochet) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted like `Confused`/`Blind`/`Paralyzed` above. HUD `WARD` | yes |
-| `Bided` | marker | the move Bide: `combat::fold_matchup` folds `constants::combat::BIDE_ATTACK_BONUS` into the bearer's very next attack roll, and `combat::resolve_attack` removes the marker the instant that roll is folded — hit, glancing or miss. Anything else done with a turn instead (a step, a used/thrown item, another move) spends it unfired, via `equipment::reset_momentum`. HUD `BIDE` | yes |
+| `MagicWard` | marker | the spell Magic Ward: for the rest of the floor, checked in `wands::damage_with_element` (every wand-shaped source of harm bounces off with a cosmetic ricochet) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted like `Confused`/`Blind`/`Paralyzed` above. HUD `WARD` | yes |
+| `Bided` | marker | the spell Bide: `combat::fold_matchup` folds `constants::combat::BIDE_ATTACK_BONUS` into the bearer's very next attack roll, and `combat::resolve_attack` removes the marker the instant that roll is folded — hit, glancing or miss. Anything else done with a turn instead (a step, a used/thrown item, another move) spends it unfired, via `equipment::reset_momentum`. HUD `BIDE` | yes |
 
 `Plated` and `Forged` are the only conditions a staircase does not lift — the staircase is what *settles* them (`items::settle_promises`, and only for `LevelChange::Stairs`: a trapdoor is falling, not arriving). Any damage at all takes them back, through `helpers::took_damage`, which is also where the low-HP warning lives: the two things that happen to a creature *because it was hurt*, in one place, called from both damage paths.
 
@@ -279,7 +279,7 @@ An input handler or the AI pushes an intent onto a queue resource; the matching 
 | `WantsToAttack` → `AttackQueue`     | `attacker`, `target`                     | `combat_system`       |
 | `WantsToUse` → `UseQueue`           | `user`, `item`, `target: Option<Position>`, `slot_idx: Option<usize>` | `item_system` |
 | `WantsToThrow` → `ThrowQueue`       | `thrower`, `item`, `target: Position`    | `throw_system`        |
-| `WantsToMove` → `MoveQueue`         | `user`, `effect: MoveEffect`, `target: Position` | `move_system`   |
+| `WantsToCast` → `SpellQueue`         | `user`, `effect: SpellEffect`, `target: Position` | `spell_system`   |
 
 All four queues are transient (empty at save time).
 
@@ -298,7 +298,7 @@ Resources
 | `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |
 | `TargetingState`| `active`, `item: Option<Entity>`, `throwing: bool`, `cursor_x`, `cursor_y: i16` | aiming reticle; `throwing` swaps the range to `THROW_RANGE` and confirm to a hurl. |
 | `PlayerTempo`   | `fast_parity: bool`                                       | the player half of the speed system: a `Fast` turn flips it, monsters move only when it flips back. |
-| `AttackQueue` / `UseQueue` / `ThrowQueue` / `MoveQueue` | `Vec<…>`            | see Events above. |
+| `AttackQueue` / `UseQueue` / `ThrowQueue` / `SpellQueue` | `Vec<…>`            | see Events above. |
 | `Shake`         | `enabled: bool` (`-nshake`), plus a private kind + age    | screen shake. Gameplay arms one with `shake::kick_shake(world, ShakeKind::…)` and forgets; the engine ages it, reads `offset()` and `settle()`s it. See below. |
 
 ### The pack screen

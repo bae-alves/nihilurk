@@ -159,27 +159,27 @@ Neither a zap nor a throw can be aimed at the player's own tile: the engine refu
 
 Dials: `constants::wands`. Resolution: `resolve_wand_throw` and `apply_thrown_wand_effect` in `models/src/items/throwing.rs`. What each of those looks like on screen is `../explanation/the-feel-layer.md`; what a condition does to the player it lands on is `components.md`.
 
-### MOVES — MoveDef
+### SPELLS — SpellDef
 
-The one catalog row that never spawns anything: a move carries no `Item`, no `Position`, no pack slot. It lives permanently in whoever's `Moveset` it's in (the player's, taught by heroic mana — see "COINS" above) and is triggered from there (the `Z` menu, by row letter).
+The one catalog row that never spawns anything: a spell carries no `Item`, no `Position`, no pack slot. It lives permanently in whoever's `Spellset` it's in (the player's, taught by a hero coin — see "COINS" above) and is triggered from there (the `Z` menu, by row letter).
 
 | Field    | Type           | Notes                                                          |
 |----------|----------------|-----------------------------------------------------------------|
-| `effect` | `MoveEffect`   | Keys the mechanic; identity in saves (a `Moveset` is `Vec<MoveEffect>`). |
+| `effect` | `SpellEffect`   | Keys the mechanic; identity in saves (a `Spellset` is `Vec<SpellEffect>`). |
 | `name`   | `&'static str` | Shown on the `Z` menu and in "You unleash your ___!"           |
 | `cost`   | `u8`           | `Magic` points one use spends. Doubled by `TurboMagic` (a staff) on an `Attack`. |
-| `range`  | `i32`          | Feeds the aiming reticle. Meaningless — left at `0` — for a move whose `MoveEffect::needs_target()` is `false`. |
-| `kind`   | `MoveKind`     | `Attack` or `Skill` — the same split `WandEffect`'s attack/utility divide makes, and the one `TurboMagic` checks. |
+| `range`  | `i32`          | Feeds the aiming reticle. Meaningless — left at `0` — for a spell whose `SpellEffect::needs_target()` is `false`. |
+| `kind`   | `SpellKind`     | `Attack` or `Skill` — the same split `WandEffect`'s attack/utility divide makes, and the one `TurboMagic` checks. |
 
-Sixteen rows, four `Magic`-cost tiers of four: see MANUAL.md, "Moves", for what each one does. `MoveEffect::needs_target` says whether a move opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy `WandEffect::needs_target` gives the wand of light.
+Sixteen rows, four `Magic`-cost tiers of four: see MANUAL.md, "Magic and spells", for what each one does. `SpellEffect::needs_target` says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy `WandEffect::needs_target` gives the wand of light.
 
-Mechanic: `apply_move_effect` in `models/src/items/moves.rs`, keyed by `MoveEffect`, exhaustive with no catch-all like every other effect table in the game. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into `scrolls::apply_scroll_effect`; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a move has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
+Mechanic: `apply_spell_effect` in `models/src/items/spells.rs`, keyed by `SpellEffect`, exhaustive with no catch-all like every other effect table in the game. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into `scrolls::apply_scroll_effect`; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a spell has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
 
-`MagicWard` (the move) is a plain marker component, not a `Grants`-registry effect: casting it inserts it directly, and it is checked in exactly two places — `wands::damage_with_element` (every wand-shaped source of harm, zapped, thrown, breathed or cast, bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted at the next staircase like any other floor-scoped condition (`conditions::clear_player_conditions`).
+`MagicWard` (the spell) is a plain marker component, not a `Grants`-registry effect: casting it inserts it directly, and it is checked in exactly two places — `wands::damage_with_element` (every wand-shaped source of harm, zapped, thrown, breathed or cast, bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted at the next staircase like any other floor-scoped condition (`conditions::clear_player_conditions`).
 
 `Bided` (Bide) is likewise a plain marker: `combat::fold_matchup` folds `constants::combat::BIDE_ATTACK_BONUS` into the bearer's next attack roll, and `combat::resolve_attack` removes the marker the instant that roll is folded — hit, glancing or miss, and before a double-striking estoc or a cleave can see it twice. Anything else the bearer does with a turn instead of landing an attack — a plain step, a used or thrown item, another move cast — spends it unfired: `equipment::reset_momentum` strips it on the same occasions it zeroes a rapier's `Momentum`.
 
-A scroll of amnesia (`ScrollEffect::Amnesia`) is the one thing that un-teaches a move: `scrolls::read_amnesia` drops one random entry from the reader's `Moveset` and clears their `Viewshed::revealed_tiles` for the current floor in the same breath.
+A scroll of amnesia (`ScrollEffect::Amnesia`) is the one thing that un-teaches a spell: `scrolls::read_amnesia` drops one random entry from the reader's `Spellset` and clears their `Viewshed::revealed_tiles` for the current floor in the same breath.
 
 ### WEAPONS — WeaponDef
 
@@ -300,7 +300,7 @@ Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Valu
 | green | `Strength` | gives back up to `amount` drained `power` |
 | platinum | `Platinum` | the `Plated` promise |
 | forge | `Forge` | the `Forged` promise |
-| heroic mana | `Mana` | teaches one random, unlearned move into the taker's `Moveset` (see "MOVES — MoveDef"). Weight 3, well under the baseline — an uncommon find, not a coin. Never disguised: it has no appearance and is never identified, because it is always just "heroic mana". |
+| hero coin | `LearnRandomSpell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Weight 3, well under the baseline — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
 
 Mechanic: `apply` in `models/src/items/pickups.rs`, an exhaustive match with no catch-all — a new `PickupEffect` does not build until it does something.
 

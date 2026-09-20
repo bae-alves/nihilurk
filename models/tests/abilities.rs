@@ -61,7 +61,7 @@ fn arena(seed: u64) -> World {
     w.init_resource::<AttackQueue>();
     w.init_resource::<UseQueue>();
     w.init_resource::<ThrowQueue>();
-    w.init_resource::<MoveQueue>();
+    w.init_resource::<SpellQueue>();
     w.insert_resource(Map {
         tiles: vec![TileType::Room; MAP_TILE_COUNT],
         dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
@@ -292,8 +292,8 @@ fn a_venomous_bite_drains_the_victims_power() {
 }
 
 /// The `SustainsStrength` guard, which is currently written out three times
-/// (`abilities.rs`, `traps.rs`, `moves.rs`). This covers the venom copy; the
-/// other two belong to the trap and move suites.
+/// (`abilities.rs`, `traps.rs`, `spells.rs`). This covers the venom copy; the
+/// other two belong to the trap and spell suites.
 #[test]
 fn sustained_strength_holds_against_venom() {
     let mut w = arena(1);
