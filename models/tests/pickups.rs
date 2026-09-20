@@ -420,7 +420,9 @@ fn a_shot_coin_reaches_further_than_a_shot_trap() {
         }
         let victim = spawn_monster(&mut w, MonsterDef::named("troll"), victim_at);
         w.get_mut::<Fighter>(victim).unwrap().hp = 500;
-        spawn_named(&mut w, what, center).expect(what);
+        let thing = spawn_named(&mut w, what, center).expect(what);
+        // A trap has to have been found before a shot can be aimed at it.
+        w.entity_mut(thing).remove::<Hidden>();
         detonate_at(&mut w, center, Some(p));
         w.get::<Fighter>(victim).is_some_and(|f| f.hp < 500)
     }
@@ -449,4 +451,81 @@ fn the_element_answers_a_shot_and_survives_it() {
         w.get::<Position>(relic).is_some(),
         "nothing the player does to the relic can cost them it"
     );
+}
+
+#[test]
+fn a_shot_hero_coin_gives_up_everything_it_knows() {
+    let mut w = test_world(1);
+    // Somebody for the second burst to echo off — the shout only goes up once
+    // the first burst has caught a body to centre the next one on.
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let beside = Position {
+        x: at.x + 5,
+        y: at.y,
+    };
+    let troll = spawn_monster(&mut w, MonsterDef::named("troll"), beside);
+    w.get_mut::<Fighter>(troll).unwrap().hp = 500;
+    let (shot, coin) = shoot(&mut w, "hero coin");
+
+    assert_eq!(shot, Some(TrickShot::Pickup));
+    assert!(
+        w.get_entity(coin).is_none(),
+        "unlike the relic, it is spent"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("ULTIMATE TRICK SHOT!")),
+        "it answers the way the Element of Yoord does"
+    );
+}
+
+#[test]
+fn a_chained_coin_still_pays_whoever_started_the_chain() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let first = Position {
+        x: at.x + 4,
+        y: at.y,
+    };
+    let second = Position {
+        x: at.x + 5,
+        y: at.y,
+    };
+    spawn_named(&mut w, "silver coin", first).expect("a coin");
+    let chained = spawn_named(&mut w, "gold coin", second).expect("a coin");
+    let before = score(&mut w);
+
+    detonate_at(&mut w, first, Some(p));
+
+    assert!(w.get_entity(chained).is_none(), "the chain spent it");
+    assert_eq!(
+        score(&mut w) - before,
+        i64::from(coin_row("silver coin").amount) + i64::from(coin_row("gold coin").amount),
+        "a chain reaction is still your shot, and it still pays you"
+    );
+}
+
+#[test]
+fn a_coin_whose_shooter_died_first_is_simply_spent() {
+    // A chain runs on past the blast that started it, and the author of a shot
+    // is as catchable as anyone else. A platinum coin reached by a chain whose
+    // shooter is already gone used to attach its promise to a despawned
+    // entity.
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let spot = Position {
+        x: at.x + 4,
+        y: at.y,
+    };
+    let ghost = spawn_monster(&mut w, MonsterDef::named("orc"), spot);
+    let coin = spawn_named(&mut w, "platinum coin", spot).expect("a coin");
+    w.despawn(ghost);
+
+    assert!(detonate_pickup(&mut w, coin, Some(ghost)));
+    assert!(w.get_entity(coin).is_none(), "spent, and paid to nobody");
 }

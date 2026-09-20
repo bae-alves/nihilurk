@@ -264,6 +264,16 @@ fn hero_coin_teaches_a_spell_up_to_the_four_slot_cap() {
     let coin = spawn_named(&mut w, "hero coin", spot).unwrap();
     assert!(!would_help(&w, p, PickupEffect::LearnRandomSpell));
     assert!(pick_up(&mut w, p, coin).is_none());
+
+    // And a fifth *shot* is refused too. `claim_from_afar` has no `would_help`
+    // gate — a coin you shoot is allowed to be a waste — so the cap has to
+    // hold in the one function that teaches, not in the gate above it.
+    detonate_at(&mut w, spot, Some(p));
+    assert_eq!(
+        w.get::<Spellset>(p).unwrap().slots.len(),
+        SPELLSET_CAP,
+        "a shot hero coin is not a fifth slot"
+    );
 }
 
 #[test]

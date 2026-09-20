@@ -148,7 +148,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         );
         // Nobody walks out of that dungeon quietly: the last stair is always
         // taken with style, fireworks and doubled score and all, and the engine
-        // plays it out before the starfield.
+        // plays it out before the WIN panel.
         win_with_style(world);
         return true;
     }

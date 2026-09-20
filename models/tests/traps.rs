@@ -999,7 +999,10 @@ fn a_detonated_trap_bursts_over_its_whole_three_by_three_and_no_further() {
     let near = [orc_at(&mut w, ring[0]), orc_at(&mut w, ring[1])];
     let clear = orc_at(&mut w, two_off);
 
-    assert!(detonate_trap(&mut w, trap), "there was a trap to set off");
+    assert!(
+        detonate_trap(&mut w, trap, None),
+        "there was a trap to set off"
+    );
 
     let hp = |w: &World, e: Entity| w.get::<Fighter>(e).unwrap().hp;
     assert_eq!(
@@ -1034,7 +1037,7 @@ fn a_trick_shot_in_sight_shouts_bam() {
     let trap = w.spawn(TrapBundle::bear(site)).id();
     let orc = orc_at(&mut w, Position { x: tx - 1, y: ty });
 
-    detonate_trap(&mut w, trap);
+    detonate_trap(&mut w, trap, None);
 
     assert!(log_contains(&w, "BAM! Trick shot!"));
     assert!(
@@ -1084,7 +1087,7 @@ fn a_trick_shot_that_catches_you_asks_why() {
     *w.get_mut::<Position>(p).unwrap() = ring[0];
 
     let trap = w.spawn(TrapBundle::bear(site)).id();
-    detonate_trap(&mut w, trap);
+    detonate_trap(&mut w, trap, None);
 
     assert!(log_contains(&w, "WHY! Trick shot!"));
     assert!(!log_contains(&w, "BAM!"));
@@ -1109,7 +1112,7 @@ fn a_detonated_trap_works_its_effect_on_everyone_it_catches() {
     let trap = w.spawn(TrapBundle::sleep(site)).id();
     let caught = [orc_at(&mut w, ring[0]), orc_at(&mut w, ring[1])];
 
-    detonate_trap(&mut w, trap);
+    detonate_trap(&mut w, trap, None);
 
     for orc in caught {
         assert!(w.get::<Asleep>(orc).is_some(), "a lungful of gas each");
@@ -1254,4 +1257,117 @@ fn a_shooting_trap_shakes_the_map_even_on_a_miss() {
             "the trap firing is a shake of its own"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// What a shot may and may not set off, and what one shot sets off next
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_aimed_shot_passes_over_a_trap_nobody_has_found() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (site, ring, _) = blast_site(&mut w);
+
+    let trap = w.spawn(TrapBundle::bear(site)).id();
+    assert!(w.get::<Hidden>(trap).is_some(), "a fresh trap is hidden");
+    let bystander = orc_at(&mut w, ring[0]);
+
+    assert_eq!(
+        detonate_at(&mut w, site, None),
+        None,
+        "there is nothing here the shooter could have been aiming at"
+    );
+    assert!(w.get_entity(trap).is_some(), "and the trap is still armed");
+    assert_eq!(w.get::<Fighter>(bystander).unwrap().hp, 30);
+}
+
+#[test]
+fn an_aimed_shot_sets_off_a_trap_that_has_been_found() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (site, ring, _) = blast_site(&mut w);
+
+    let trap = w.spawn(TrapBundle::bear(site)).id();
+    w.entity_mut(trap).remove::<Hidden>();
+    let bystander = orc_at(&mut w, ring[0]);
+
+    assert_eq!(detonate_at(&mut w, site, None), Some(TrickShot::Trap));
+    assert!(w.get_entity(trap).is_none(), "the shot spent it");
+    assert!(w.get::<Fighter>(bystander).unwrap().hp < 30);
+}
+
+#[test]
+fn a_burst_sets_off_the_next_trap_along_even_a_hidden_one() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    let (site, _, two_off) = blast_site(&mut w);
+    // Three in a row, a tile apart: the shot reaches the first, the first's
+    // burst reaches the second, the second's reaches the third. Only the one
+    // actually aimed at has been found.
+    let one_off = Position {
+        x: site.x + 1,
+        y: site.y,
+    };
+    let three_off = Position {
+        x: site.x + 3,
+        y: site.y,
+    };
+    if w.resource::<Map>().blocks(three_off.x, three_off.y) {
+        return; // this floor has no room for the row; the other seeds do
+    }
+    let first = w.spawn(TrapBundle::bear(site)).id();
+    w.entity_mut(first).remove::<Hidden>();
+    let second = w.spawn(TrapBundle::bear(one_off)).id();
+    let third = w.spawn(TrapBundle::bear(two_off)).id();
+    let far = orc_at(&mut w, three_off);
+
+    detonate_at(&mut w, site, None);
+
+    assert!(w.get_entity(first).is_none(), "the shot");
+    assert!(
+        w.get_entity(second).is_none(),
+        "the chain, through a trap nobody had found"
+    );
+    assert!(w.get_entity(third).is_none(), "and on to the next");
+    assert!(
+        w.get::<Fighter>(far).unwrap().hp < 30,
+        "which reaches a creature the first burst could not"
+    );
+}
+
+#[test]
+fn each_link_of_a_chain_explodes_after_the_last_one_has() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    w.init_resource::<Particles>();
+    let (site, _, _) = blast_site(&mut w);
+    let one_off = Position {
+        x: site.x + 1,
+        y: site.y,
+    };
+    let first = w.spawn(TrapBundle::bear(site)).id();
+    w.entity_mut(first).remove::<Hidden>();
+    w.spawn(TrapBundle::bear(one_off));
+
+    detonate_at(&mut w, site, None);
+
+    // `one_off` is lit twice: once by the first burst sweeping over it, once
+    // by its own. The second opening has to sit past the whole of the first
+    // blast's life, or the chain reads as one indistinguishable flash.
+    let latest = w
+        .resource::<Particles>()
+        .live
+        .iter()
+        .filter(|p| (p.x, p.y) == (one_off.x, one_off.y))
+        .map(|p| p.delay_ms)
+        .fold(0.0_f32, f32::max);
+    assert!(
+        latest >= 280.0,
+        "the second blast opens at {latest} ms, inside the first one"
+    );
 }

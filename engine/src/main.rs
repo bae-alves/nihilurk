@@ -79,7 +79,7 @@ fn wait_for_key(accept: impl Fn(KeyCode) -> bool) -> std::io::Result<()> {
 }
 
 /// The death sequence: destroy the save, show the "You die..." `--MORE--` panel,
-/// then the tombstone. Runs while the terminal guard is still active.
+/// then the LOSE panel. Runs while the terminal guard is still active.
 fn run_death_screens<W: std::io::Write>(
     world: &mut World,
     stdout: &mut W,
@@ -103,12 +103,12 @@ fn run_death_screens<W: std::io::Write>(
     view::render_you_died(stdout, screen, offset)?;
     wait_for_key(|c| matches!(c, KeyCode::Char(' ') | KeyCode::Enter))?;
 
-    view::render_tombstone(stdout, screen, offset, &name, &cause, score)?;
+    view::render_lose(stdout, screen, offset, &name, &cause, score)?;
     wait_for_key(|_| true)?;
     Ok(())
 }
 
-/// The victory sequence: show the starfield. Unlike death, the save is *not*
+/// The victory sequence: show the WIN panel. Unlike death, the save is *not*
 /// destroyed — the caller keeps it as "clear data" (see [`models::clear_data`]).
 fn run_victory_screens<W: std::io::Write>(
     world: &mut World,
@@ -122,7 +122,7 @@ fn run_victory_screens<W: std::io::Write>(
         (world.resource::<PlayerName>().what.clone(), score)
     };
 
-    view::render_victory(stdout, screen, offset, &name, score)?;
+    view::render_win(stdout, screen, offset, &name, score)?;
     wait_for_key(|_| true)?;
     Ok(())
 }
@@ -555,7 +555,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
 
     if world.resource::<Ending>().player_won {
         // A win is sticky — even a monster's parting blow the same turn can't rob
-        // a completed run. Show the starfield, then keep the save as clear data
+        // a completed run. Show the WIN panel, then keep the save as clear data
         // (it serialises with `cleared: true`) rather than deleting it.
         run_victory_screens(&mut world, &mut stdout, &mut screen)?;
         if no_save {

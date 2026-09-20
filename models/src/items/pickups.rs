@@ -134,7 +134,16 @@ pub(crate) fn monster_claim(world: &mut World, monster: Entity, item: Entity) ->
 ///
 /// The coin must still exist — this reads its row off the entity — and the
 /// caller destroys it afterwards.
+///
+/// So must the shooter. A chain reaction runs on past the blast that started
+/// it, and the author of a shot is as catchable as anyone else: a monster that
+/// zaps a wand into its own feet is gone by the time the third link reaches a
+/// platinum coin, and a promise attached to a despawned entity is a panic, not
+/// a promise.
 pub(crate) fn claim_from_afar(world: &mut World, shooter: Entity, coin: Entity) {
+    if world.get_entity(shooter).is_none() {
+        return;
+    }
     let Some((effect, amount)) = world.get::<Pickup>(coin).map(|p| (p.effect, p.amount)) else {
         return;
     };
@@ -227,11 +236,22 @@ fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
 
 /// Hero coin: teaches `taker` one random move they don't already know,
 /// straight into their [`Spellset`] — always unpredictable, the same way the
-/// coin itself is never disguised as anything else. [`would_help`] has
-/// already checked there's a free slot; if every spell in the game happens to
-/// already be known (all sixteen), the coin has nothing left to give and says
-/// so instead of teaching a duplicate.
+/// coin itself is never disguised as anything else. If every spell in the game
+/// happens to already be known (all sixteen), the coin has nothing left to
+/// give and says so instead of teaching a duplicate.
+///
+/// The [`SPELLSET_CAP`] is checked *here* rather than left to [`would_help`].
+/// Stepping on a coin is not the only way to reach this: a hero coin that is
+/// **shot** goes through [`claim_from_afar`], which has no `would_help` gate
+/// at all — and a coin that is allowed to be a waste is not allowed to be a
+/// fifth spell slot.
 fn learn_spell(world: &mut World, taker: Entity) -> String {
+    if world
+        .get::<Spellset>(taker)
+        .is_none_or(|m| m.slots.len() >= SPELLSET_CAP)
+    {
+        return "Something ancient stirs in your mind and finds nowhere to sit.".to_string();
+    }
     let known: Vec<SpellEffect> = world
         .get::<Spellset>(taker)
         .map(|m| m.slots.clone())

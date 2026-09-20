@@ -536,6 +536,38 @@ pub fn render<W: Write>(
         }
     }
 
+    // ---- Trick-shot potential ----
+    // A monster standing on something a shot would set off — a trap the player
+    // has found, a coin, or the Element of Yoord — is drawn on bright magenta.
+    // It is an offer: put a missile in that tile and the thing underneath goes
+    // off with it (see `models::traps::detonate_at`). A trap still hidden is
+    // not in here, because an aimed shot passes straight over one.
+    //
+    // Painted after the status tints, so it outranks them. A sleeping monster
+    // on a bear trap is worth reading as the shot, not as the nap — and the
+    // two tints never disagree about anything, since a helpless monster on a
+    // live trap is both at once.
+    {
+        let mut live: HashSet<(u16, u16)> = world
+            .query_filtered::<&Position, (With<Trap>, Without<Hidden>)>()
+            .iter(world)
+            .map(|p| (p.x, p.y))
+            .collect();
+        live.extend(
+            world
+                .query_filtered::<&Position, Or<(With<Pickup>, With<Amulet>)>>()
+                .iter(world)
+                .map(|p| (p.x, p.y)),
+        );
+        let mut query = world.query_filtered::<&Position, (With<Mob>, Without<Hidden>)>();
+        for pos in query.iter(world) {
+            let coord = (pos.x, pos.y);
+            if visible.contains(&coord) && live.contains(&coord) {
+                screen.bg_map(pos.x, pos.y, Color::Magenta);
+            }
+        }
+    }
+
     // ---- Detected things (a potion of magic / monster detection) ----
     // Only where the player *can't* see: anything in view is already drawn
     // above, in its own colour and with the fog rules that apply to it. A
@@ -1011,8 +1043,10 @@ pub fn render_you_died<W: Write>(
     Ok(())
 }
 
-/// The tombstone. Shown once the player has acknowledged the death prompt.
-pub fn render_tombstone<W: Write>(
+/// The defeat panel. Shown once the player has acknowledged the death prompt:
+/// the word, the name, what did it, the number. No stone and no epitaph — a
+/// run that ended is a fact, not a ceremony.
+pub fn render_lose<W: Write>(
     stdout: &mut W,
     screen: &mut Screen,
     offset: (u16, u16),
@@ -1022,25 +1056,8 @@ pub fn render_tombstone<W: Write>(
 ) -> std::io::Result<()> {
     screen.clear();
 
-    const GRAVESTONE: [&str; 8] = [
-        "       .-'\"\"\"\"\"'-.       ",
-        "     .'           '.     ",
-        "    /     R.I.P.    \\    ",
-        "   |  _            _  |   ",
-        "   | (_)          (_) |   ",
-        "   |    HERE LIES     |   ",
-        "   |       YOU        |   ",
-        "   |__________________|   ",
-    ];
-
-    let top = 3u16;
-    for (i, line) in GRAVESTONE.iter().enumerate() {
-        screen.puts(centered_x(line), top + i as u16, line, Color::White);
-    }
-
-    let mut y = top + GRAVESTONE.len() as u16 + 2;
-    let epitaph = "DEATH AND THE DUNGEON HAVE TAKEN THEE";
-    screen.puts(centered_x(epitaph), y, epitaph, Color::Red);
+    let mut y = SCREEN_H / 2 - 2;
+    screen.puts(centered_x("LOSE"), y, "LOSE", Color::Red);
     y += 2;
 
     let name_line = player_name.to_uppercase();
@@ -1051,7 +1068,7 @@ pub fn render_tombstone<W: Write>(
 
     let score_line = format!("SCORE {}", score_text(score));
     screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
-    y += 3;
+    y += 2;
 
     let prompt = "Press any key to depart.";
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
@@ -1061,9 +1078,10 @@ pub fn render_tombstone<W: Write>(
     Ok(())
 }
 
-/// The victory starfield. Shown when the player carries the Element of Yoord up
-/// the final stair. The counterpart to [`render_tombstone`].
-pub fn render_victory<W: Write>(
+/// The victory panel. Shown when the player carries the Element of Yoord up the
+/// final stair. The counterpart to [`render_lose`], and as plain: the dungeon
+/// does not congratulate anyone.
+pub fn render_win<W: Write>(
     stdout: &mut W,
     screen: &mut Screen,
     offset: (u16, u16),
@@ -1072,42 +1090,17 @@ pub fn render_victory<W: Write>(
 ) -> std::io::Result<()> {
     screen.clear();
 
-    const STAR: [&str; 9] = [
-        "           *           ",
-        "     .     |     .     ",
-        "      '.   |   .'      ",
-        "        '. | .'        ",
-        "*  --  --  *  --  --  *",
-        "        .' | '.        ",
-        "      .'   |   '.      ",
-        "     '     |     '     ",
-        "           *           ",
-    ];
-
-    let top = 2u16;
-    for (i, line) in STAR.iter().enumerate() {
-        screen.puts(centered_x(line), top + i as u16, line, Color::Yellow);
-    }
-
-    let mut y = top + STAR.len() as u16 + 2;
-    let banner = "YOU WIN";
-    screen.puts(centered_x(banner), y, banner, Color::Green);
+    let mut y = SCREEN_H / 2 - 2;
+    screen.puts(centered_x("WIN"), y, "WIN", Color::Green);
     y += 2;
 
-    // The blessing, wrapped so a long name can't run off the panel.
-    let name = player_name.to_uppercase();
-    let blessing = format!(
-        "WITH THE ELEMENT, {name} AND EVERYONE WHO BASKED IN ITS LIGHT LIVED HAPPILY EVER AFTER"
-    );
-    for line in wrap_words(&blessing, 68) {
-        screen.puts(centered_x(&line), y, &line, Color::Cyan);
-        y += 1;
-    }
+    let name_line = player_name.to_uppercase();
+    screen.puts(centered_x(&name_line), y, &name_line, Color::Cyan);
     y += 2;
 
     let score_line = format!("SCORE {}", score_text(score));
     screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
-    y += 3;
+    y += 2;
 
     let prompt = "Press any key to depart.";
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
@@ -1115,30 +1108,6 @@ pub fn render_victory<W: Write>(
     screen.dirty_all = true;
     screen.flush(stdout, offset)?;
     Ok(())
-}
-
-/// Greedily breaks `text` into lines no wider than `width` on word boundaries. A
-/// single word longer than `width` gets its own overflowing line.
-fn wrap_words(text: &str, width: usize) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    let mut cur = String::new();
-    for word in text.split_whitespace() {
-        if cur.is_empty() {
-            cur.push_str(word);
-            continue;
-        }
-        if cur.chars().count() + 1 + word.chars().count() <= width {
-            cur.push(' ');
-            cur.push_str(word);
-            continue;
-        }
-        lines.push(std::mem::take(&mut cur));
-        cur.push_str(word);
-    }
-    if !cur.is_empty() {
-        lines.push(cur);
-    }
-    lines
 }
 
 /// One inventory row's full text: `" a) +1 ring mail (E) "`. The one place

@@ -765,9 +765,9 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
     assert_eq!(dice, vec![8]);
 }
 
-/// A shot that comes down on a trap sets it off — and a trap nobody is
-/// standing on bursts instead of biting. The dagger never touched the orc
-/// beside the trap; the trap did.
+/// A shot that comes down on a trap the player has found sets it off — and a
+/// trap nobody is standing on bursts instead of biting. The dagger never
+/// touched the orc beside the trap; the trap did.
 #[test]
 fn a_shot_that_lands_on_a_trap_sets_it_off() {
     let mut w = test_world(7);
@@ -776,6 +776,7 @@ fn a_shot_that_lands_on_a_trap_sets_it_off() {
     assert!(!w.resource::<Map>().blocks(spot.x, spot.y), "open floor");
 
     let trap = w.spawn(TrapBundle::sleep(spot)).id();
+    w.entity_mut(trap).remove::<Hidden>();
     let beside_it = east_of_player(&mut w, 3);
     let bystander = monster(&mut w, "orc", beside_it);
     // Tough enough to survive the burst and be asked about it afterwards.
@@ -796,5 +797,49 @@ fn a_shot_that_lands_on_a_trap_sets_it_off() {
         w.get::<Asleep>(bystander).is_some(),
         true,
         "and so did the gas the trap was holding"
+    );
+}
+
+/// The same shot at a trap nobody has found: the dagger lands, and that is all
+/// it does. You cannot line one of these up on a mechanism you have not seen.
+#[test]
+fn a_shot_that_lands_on_a_hidden_trap_just_lands() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 2);
+    let trap = w.spawn(TrapBundle::sleep(spot)).id();
+    let beside_it = east_of_player(&mut w, 3);
+    let bystander = monster(&mut w, "orc", beside_it);
+    w.get_mut::<Fighter>(bystander).unwrap().hp = 30;
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+
+    throw(&mut w, p, dagger, spot);
+
+    assert!(w.get_entity(trap).is_some(), "still armed, still hidden");
+    assert!(w.get::<Hidden>(trap).is_some());
+    assert_eq!(w.get::<Fighter>(bystander).unwrap().hp, 30);
+}
+
+/// Shooting the monster *is* shooting the tile it is standing on. A missile
+/// that stops on a creature stops on whatever is under it, so a monster caught
+/// standing over a found trap takes the trick shot with the blow.
+#[test]
+fn hitting_a_monster_standing_on_a_trap_sets_the_trap_off() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let trap = w.spawn(TrapBundle::sleep(spot)).id();
+    w.entity_mut(trap).remove::<Hidden>();
+    let orc = monster(&mut w, "orc", spot);
+    w.get_mut::<Fighter>(orc).unwrap().hp = 30;
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+
+    throw(&mut w, p, dagger, spot);
+
+    assert!(w.get_entity(trap).is_none(), "the blow set it off");
+    assert_eq!(
+        w.get::<Asleep>(orc).is_some(),
+        true,
+        "and the gas it was holding went into the one standing on it"
     );
 }

@@ -343,25 +343,34 @@ Reveal style is rolled per trap at spawn, equal odds, not per row: `Sight` / `Ad
 
 A sprung trap gives out `TRAP_BREAK_CHANCE` of the time — the entity despawns and the log says `"The dart trap breaks!"` when the player can see it. The bear trap is exempt: it always bites once and is gone, quietly.
 
-A trap set off *from a distance* — a missile that lands on it, a wand's blast that covers it — has nobody standing on it to bite, so it bursts instead: `detonate_trap` deals `TRICK_SHOT_DAMAGE_DICE d TRICK_SHOT_DAMAGE_SIDES` (armour-ignoring) over the `TRICK_SHOT_RADIUS` around its tile and then runs the mechanic once per creature caught. Dials: `constants::traps`.
+A trap set off *from a distance* — a missile that lands on it, a wand's blast that covers it, another burst chaining into it — has nobody standing on it to bite, so it bursts instead: `detonate_trap` deals `TRICK_SHOT_DAMAGE_DICE d TRICK_SHOT_DAMAGE_SIDES` (armour-ignoring) over the `TRICK_SHOT_RADIUS` around its tile and then runs the mechanic once per creature caught. Dials: `constants::traps`.
 
 ### Trick shots — what a landing missile can set off
 
-`traps::detonate_at(world, pos, shooter)` is the whole of it, called by `items::throwing::resolve_throw` for every throw, whatever was thrown. It returns a `TrickShot` saying what went off, or `None`. `shooter` is `Option<Entity>` because a coin caught in somebody else's chain reaction has no author to pay.
+`traps::detonate_at(world, pos, shooter)` is the whole of it, called by `items::throwing::resolve_throw` for every throw, whatever was thrown. It returns a `TrickShot` saying what went off, or `None`. `shooter` is `Option<Entity>` because a chain reaction can run past the last thing its author was around for.
+
+A missile stops on the first creature in its way, so the tile handed to `detonate_at` is *that creature's* tile: hitting a monster standing on a trap, a coin or the relic sets the thing underneath off with the blow. That is what the renderer's magenta cell is advertising (see `rendering.md`, layer 9a).
+
+**Only a trap the player has found can be aimed at.** `detonate_at` skips one still carrying `Hidden` and returns `None` — the shot lands and nothing happens. Lining a shot up on a mechanism nobody has discovered would be the dungeon setting off its own trap on the player's behalf. Blasts and chain reactions are under no such rule.
 
 | On the tile | Reach | Damage | Follow-up |
 |---|---|---|---|
 | a `Trap` | `TRICK_SHOT_RADIUS` | the trick-shot dice | the trap's own effect, per survivor |
 | a `Pickup` (a coin) | `PICKUP_TRICK_SHOT_RADIUS` (double) | the same dice | **the coin's effect, paid to the shooter** (`pickups::claim_from_afar`) — a red coin heals them, a gold one pays them, a platinum one makes them its promise. Worked *before* the burst, so the shooter's own blast cannot take the healing back off them. No `would_help` gate: stepping over a coin is leaving it for later, shooting one is a decision, and a decision is allowed to be a waste |
+| a hero coin (`PickupEffect::LearnRandomSpell`) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | the spell, taught to the shooter, and then the ULTIMATE TRICK SHOT below. Spent like any other coin |
 | the `Amulet` (the Element of Yoord) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | see below. The relic is never destroyed, moved or spent |
 
 A shot that sets *anything* off with something other than ammunition — a dagger, a potion, somebody's spare ring — logs "Very clever." Firing an arrow into a trap is what arrows are for; doing it with the rest of your kit is a choice.
 
-**The ULTIMATE TRICK SHOT** (`traps::ultimate_trick_shot`) is what the relic does when a missile comes down on it: one wide burst where it lies, then a second burst centred on *every* creature that one caught, then a third on one of them (the first in reading order). Each can catch somebody the last one missed. All three burn in `BlastPalette::Ultimate` — white through magenta to dark magenta, the only blast no wand can produce — and the primary leaves a `Smoke` puff over every tile it covered. Only the first burst shouts — `BAM!`, or `WHY!` when the player is standing in their own blast; one shot is one trick shot however many times it goes off.
+**The ULTIMATE TRICK SHOT** (`traps::ultimate_burst`) is what the relic does when a missile comes down on it (`traps::ultimate_trick_shot`), and what a **hero coin** does when one comes down on *it* — the one pickup worth shooting for the shot rather than the payout. The coin, unlike the relic, does not survive saying it: it teaches the shooter its spell, logs "The hero coin gives up everything it knows at once.", and is gone. The shape is one wide burst where it lies, then a second burst centred on *every* creature that one caught, then a third on one of them (the first in reading order). Each can catch somebody the last one missed. All three burn in `BlastPalette::Ultimate` — white through magenta to dark magenta, the only blast no wand can produce — and the primary leaves a `Smoke` puff over every tile it covered. Only the first burst shouts — `BAM!`, or `WHY!` when the player is standing in their own blast; one shot is one trick shot however many times it goes off.
 
-A wand's blast sets off everything it covers, traps first and then coins (`wands::elemental_blast`, via `things_in::<Trap>` / `things_in::<Pickup>`), and the coins pay *the zapper* — the blast's author is the shooter. None of those bursts is itself a blast, so nothing re-enters `elemental_blast` and a row of them cannot chain forever.
+**Chain reactions.** Every burst ends by setting off everything in its own footprint that a shot could have set off (`traps::chain_react`, called from `traps::burst` — the one place every trick-shot burst is queued). Traps first, then coins, and the author is carried through: a coin your chain reaches still pays you. A trap nobody has found *is* a valid link — the `Hidden` rule is about aiming, and a blast rolling over a tile does not have to know what is buried in it. The chain always ends, because every link is despawned before its own burst opens, so nothing is ever a link twice. The Element of Yoord is deliberately not a link: it is never spent, and a burst that reached it would answer itself forever.
 
-A coin set off with no author at all — caught in somebody else's chain reaction — is simply spent: `detonate_pickup` takes an `Option<Entity>` and pays nobody when there is nobody to pay.
+Each link's explosion is queued *behind* the last one (`Particles::explosion` returns its span, `Particles::hold` pushes the rest of the batch back by it), so a chain reads as a run of explosions rather than one indistinguishable flash.
+
+A wand's blast sets off everything it covers, traps first and then coins (`wands::elemental_blast`, via `traps::things_in`), and the coins pay *the zapper* — the blast's author is the shooter. Those bursts chain on their own; none of them re-enters `elemental_blast`.
+
+A coin set off with no author at all is simply spent: `detonate_pickup` takes an `Option<Entity>` and pays nobody when there is nobody to pay.
 
 Damage traps ignore the defender's armour *die* but still subtract the armour *plus* (`total_armor_plus`). Their bite also scales with depth in three bands (floors 1-4, 5-8, 9-13): each band adds a point to the arrow trap's roll and a point to the dart trap's permanent power drain. Dial: `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier steps).
 
@@ -533,7 +542,9 @@ The numbers a content author meets most often, and where each one is defined. Th
 | `DUNGEON_LORD_PATIENCE` — turns on one floor before eviction | `constants::progression` |
 | `STACK_LIMIT` — most of one item per pack slot | `constants::items` |
 | `PACK_CAPACITY` — most slots a pack holds at once | `constants::items` |
-| `THROW_RANGE` — how far you can hurl a thing | `constants::items` |
+| `THROW_RANGE` — how far you can hurl a heavy thing | `constants::items` |
+| `LIGHT_THROW_RANGE` — the same, for a potion, scroll, wand or ring | `constants::items` |
+| `LAUNCHER_RANGE` — how far a bow or crossbow carries its own ammo | `constants::items` |
 | `Speed::COST` — energy one action costs | `components.rs`, on `Speed` itself |
 
 Every one of them carries a doc comment saying what changing it costs you. See `constants.md` for the tour.

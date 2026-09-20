@@ -304,7 +304,7 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
     };
     let target_pos = *world.get::<Position>(target).unwrap();
     let player_pos = *world.get::<Position>(player).unwrap();
-    if chebyshev(player_pos, target_pos) > THROW_RANGE {
+    if chebyshev(player_pos, target_pos) > throw_reach(world, player, item) {
         world.resource_mut::<GameLog>().add("Out of range.");
         return false;
     }
@@ -545,7 +545,15 @@ fn cycle_target(world: &mut World) -> bool {
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
     let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
-    let max_range = aim_range(world, item, spell_effect, looking, throwing, reach_attack);
+    let max_range = aim_range(
+        world,
+        player,
+        item,
+        spell_effect,
+        looking,
+        throwing,
+        reach_attack,
+    );
 
     let mut candidates: Vec<(u16, u16)> = {
         let mut q =
@@ -601,7 +609,15 @@ fn spell_target_cursor(world: &mut World, dx: i16, dy: i16) -> bool {
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
     let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
-    let max_range = aim_range(world, item, spell_effect, looking, throwing, reach_attack);
+    let max_range = aim_range(
+        world,
+        player,
+        item,
+        spell_effect,
+        looking,
+        throwing,
+        reach_attack,
+    );
 
     let distance = (new_x - player_pos.x as i16)
         .abs()
@@ -675,10 +691,12 @@ fn meet_its_eyes(world: &mut World, target: Position) -> bool {
 /// How far the reticle reaches: a look can range over the whole viewshed (the
 /// `in_view` check does the real work of bounding it), an active spell reaches
 /// as far as its own [`SpellDef::range`](models::SpellDef::range), a throw goes
-/// an arm's length, a zapped item as far as its own [`Ranged`], and anything
-/// with none of those, a bare 8.
+/// an arm's length — or a launcher's, when what's aimed is ammunition for the
+/// bow in hand — a zapped item as far as its own [`Ranged`], and anything with
+/// none of those, a bare 8.
 fn aim_range(
     world: &World,
+    thrower: Entity,
     item: Option<Entity>,
     spell_effect: Option<SpellEffect>,
     looking: bool,
@@ -692,7 +710,7 @@ fn aim_range(
         return models::SpellDef::of(effect).range;
     }
     if throwing {
-        return THROW_RANGE;
+        return item.map_or(THROW_RANGE, |i| throw_reach(world, thrower, i));
     }
     if reach_attack {
         return item.and_then(|i| world.get::<Reach>(i)).map_or(1, |r| r.0);
@@ -1028,7 +1046,15 @@ fn open_reticle_for(
     // moment `L` is pressed would petrify people for pressing a key.
     let snap = (!looking)
         .then(|| {
-            let range = aim_range(world, item, spell_effect, looking, throwing, reach_attack);
+            let range = aim_range(
+                world,
+                player,
+                item,
+                spell_effect,
+                looking,
+                throwing,
+                reach_attack,
+            );
             nearest_mob(world, player, range)
         })
         .flatten();
@@ -1884,7 +1910,7 @@ mod tests {
         *q.iter(w).next().unwrap()
     }
 
-    /// Tab-fire was the one aiming path that never checked `THROW_RANGE`: the
+    /// Tab-fire was the one aiming path that never checked its reach: the
     /// cursor UI clamps every other one. The floor's own monsters are cleared
     /// out first, because `auto_fight_target` picks the lowest-HP foe in sight
     /// and any of them would outrank a planted dummy — leaving the dummy the
@@ -1919,7 +1945,7 @@ mod tests {
                     movement_type: MovementType::Static,
                 },
                 Position {
-                    x: (start.x as i32 + THROW_RANGE + 1) as u16,
+                    x: (start.x as i32 + LAUNCHER_RANGE + 1) as u16,
                     y: start.y,
                 },
                 Fighter {

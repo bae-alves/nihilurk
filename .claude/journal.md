@@ -140,3 +140,48 @@ What it taught:
 * **`PotionEffect` is alphabetical and the save file is positional.** The new
   `Magic` row goes at the *end*, not under M, with a comment saying why — the
   one convention in that enum that a reader would otherwise "tidy".
+
+
+## Trick shots became a chain (2026-09-20)
+
+Five changes that turned out to be one: a trick shot is now a *reaction*, not
+an event. `traps::burst` — the single place every trick-shot burst is queued —
+ends by setting off everything under its own footprint (`chain_react`), so the
+chain came for free everywhere bursts already were: a shot trap, a shot coin,
+the relic's triple answer, a wand's blast.
+
+What it taught:
+
+* **The termination argument belongs next to the recursion.** Every link is
+  despawned *before* its own burst opens, so nothing is ever a link twice and a
+  floor holds finitely many. The one thing that is never spent — the Element of
+  Yoord — is therefore the one thing deliberately left out of the chain, or a
+  burst that reached it would answer itself forever. That exclusion is not an
+  oversight to be "fixed" later; it is the base case.
+* **An author has to be threaded or the mechanic inverts.** Chaining into coins
+  destroys them. Without carrying `shooter` through `detonate_trap` → `burst` →
+  `chain_react`, a good shot would nuke your own coin pile for nothing. The
+  param is noise on four signatures and the whole point of the feature.
+* **A chain runs on past the blast that started it.** `claim_from_afar` took an
+  `Entity` and assumed it still existed; `Promise::attach` uses `entity_mut`,
+  which panics. A monster that zaps a wand into its own feet was already enough
+  to reach that before any of this — the chain only made it likely.
+* **`would_help` is a gate on *stepping*, not on the effect.** `learn_spell`
+  trusted it for the `SPELLSET_CAP`, and `claim_from_afar` deliberately has no
+  such gate ("a coin you shoot is allowed to be a waste"). So a *shot* hero coin
+  taught a fifth spell past the cap. A cap enforced by a caller is not enforced.
+* **Aiming and covering are different verbs.** `detonate_at` (the aimed shot)
+  skips a `Hidden` trap — you cannot line a shot up on a mechanism nobody has
+  found. A blast rolling over the same tile has no such rule. Putting the check
+  in `trap_at` would have been one line and wrong: `spells.rs` asks it "is this
+  tile free to plant on", where hidden traps very much count.
+* **A tell that can be acted on outranks a tell that cannot.** The magenta cell
+  under a monster standing on a coin or a found trap is painted *after* the
+  status tints, so it wins over "asleep". The two never actually disagree — a
+  helpless monster on a live trap is both at once — but the one that offers you
+  a move is the one worth reading first.
+* **A chain of heavy thumps is a map that never stops moving.** The burst's
+  shake dropped from `Heavy` to `Hit` for the same reason its explosions now
+  queue one behind the other (`Particles::hold`): the feel layer's dials are
+  sized for *one* of a thing, and a feature that makes a thing happen five times
+  has to re-ask all of them.

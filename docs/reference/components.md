@@ -122,7 +122,7 @@ A `Pickup` is a different kind of thing from an item you stow, in three ways tha
 
 * **A full pack is no obstacle.** There is nothing to find room for.
 * **It is left alone when it would do nothing.** `items::would_help` gates it — a red coin at full health stays on the floor, and `autoexplore::known_item_tiles` skips it so a walk never beelines for something it will refuse. It keeps until the day it helps.
-* **It can be shot** — and the shooter gets the effect across the room, plus a burst twice a trap's width. See `content-tables.md`, "Trick shots".
+* **It can be shot** — and the shooter gets the effect across the room, plus a burst twice a trap's width. A shot that stops on a *creature* standing on one counts, and the renderer advertises that with a magenta cell. See `content-tables.md`, "Trick shots".
 
 `PickupEffect`: Coin, Health, Power, Cleanse, Strength, Platinum, Forge — saved by variant order, mechanic in `models/src/items/pickups.rs`.
 
@@ -296,7 +296,7 @@ Resources
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
 | `PackMode`      | enum: `Browse` `Use` `Throw` `Drop` `Equip` `Quaff` `Read` `Zap` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
 | `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |
-| `TargetingState`| `active`, `item: Option<Entity>`, `throwing: bool`, `cursor_x`, `cursor_y: i16` | aiming reticle; `throwing` swaps the range to `THROW_RANGE` and confirm to a hurl. |
+| `TargetingState`| `active`, `item: Option<Entity>`, `throwing: bool`, `cursor_x`, `cursor_y: i16` | aiming reticle; `throwing` swaps the range to whatever `throw_reach` gives the item and confirm to a hurl. |
 | `PlayerTempo`   | `fast_parity: bool`                                       | the player half of the speed system: a `Fast` turn flips it, monsters move only when it flips back. |
 | `AttackQueue` / `UseQueue` / `ThrowQueue` / `SpellQueue` | `Vec<…>`            | see Events above. |
 | `Shake`         | `enabled: bool` (`-nshake`), plus a private kind + age    | screen shake. Gameplay arms one with `shake::kick_shake(world, ShakeKind::…)` and forgets; the engine ages it, reads `offset()` and `settle()`s it. See below. |
@@ -333,9 +333,9 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 
 | `ShakeKind` | Armed by | Shape |
 |-------------|----------|-------|
-| `Hit`       | the light stuff. Anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see; and `traps::trap_flourish` when a shooting trap (arrow or dart) goes off in sight, hit or miss — there the shake is the mechanism firing, not the damage | 80 ms, 1 cell — a tick |
+| `Hit`       | the light stuff. Anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see; `traps::trap_flourish` when a shooting trap (arrow or dart) goes off in sight, hit or miss — there the shake is the mechanism firing, not the damage; and `traps::burst` on the first burst of a trick shot the player can see — deliberately the lightest kick there is, because a trick shot is a *chain* and a chain of heavy thumps is a map that never stops moving | 80 ms, 1 cell — a tick |
 | `Kill`      | `combat::kill_shake`, from `resolve_attack` and `finish_indirect_kill`, when the player can see the victim's tile | 120 ms, 1 cell — short |
-| `Heavy`     | everything that hits hard: `combat::resolve_attack` on the player's own excellent hit and on a garrote's pop; `items::wands::elemental_blast` if the player can see the blast centre; `traps::burst` on the first burst of a trick shot the player can see; `items::rings::do_it_with_style`, the adornment / victory flourish; and the three spells that go off with a bang — `circle_of_death`, `meteor_strike`, `frost_nova` | 260 ms, 2 cells — medium |
+| `Heavy`     | everything that hits hard: `combat::resolve_attack` on the player's own excellent hit and on a garrote's pop; `items::wands::elemental_blast` if the player can see the blast centre; `items::rings::do_it_with_style`, the adornment / victory flourish; and the three spells that go off with a bang — `circle_of_death`, `meteor_strike`, `frost_nova` | 260 ms, 2 cells — medium |
 | `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | 460 ms, 2 cells — long, and the heaviest there is |
 
 **The player's own death arms nothing.** Both player-death paths in `combat.rs` blank the `@` and set `Ending::player_dead` without kicking the map: a death is watched, not felt through the floor. What replaces the shake is time — `helpers::death_burst` runs the player's burst at `PLAYER_DEATH_STRETCH` (3x) the length of a monster's, which it can afford because nothing is waiting behind it: the run is over and the death screen is next.

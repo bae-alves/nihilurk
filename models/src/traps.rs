@@ -37,6 +37,22 @@
 //! and works the trap's own effect on everyone caught. It is nobody's friend;
 //! stand a tile away from your own shot and it catches you too.
 //!
+//! Three rules hold the shot together:
+//!
+//! * **You can only shoot what you can see.** [`detonate_at`] — the aimed
+//!   shot — passes over a trap still [`Hidden`], because lining up a shot on a
+//!   mechanism nobody has found is not a trick, it is the dungeon playing
+//!   itself. The tell is the other way round: a creature standing on something
+//!   a shot could set off is drawn with a magenta cell, so the shot is offered
+//!   before it is taken.
+//! * **The shot spends what it goes off on.** Trap and coin alike are gone the
+//!   instant they let go. The Element of Yoord is the one exception, and it is
+//!   the exception to everything.
+//! * **Bursts chain.** Anything in a burst that a shot could have set off goes
+//!   off with it ([`chain_react`]) — *including* a trap nobody had found, since
+//!   the blast does not have to know a mechanism is there to roll over it. Each
+//!   link is spent before its own burst opens, so a chain always ends.
+//!
 //! ## Bear trap
 //!
 //! A [`crate::effects::Pinned`] snare impedes *movement only*. The victim can still
@@ -442,9 +458,12 @@ fn apply_trap_effect(
 /// The trap is spent either way, and the shot is nobody's friend: stand within
 /// a tile of your own trick shot and it catches you too.
 ///
+/// `shooter` is whoever authored the shot, carried through only so the coins
+/// this burst chains into know whose it was.
+///
 /// Returns whether there was a trap here to set off at all, so a caller can
 /// hand the same tile to it without checking first.
-pub fn detonate_trap(world: &mut World, trap: Entity) -> bool {
+pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -> bool {
     let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else {
         return false;
     };
@@ -455,7 +474,14 @@ pub fn detonate_trap(world: &mut World, trap: Entity) -> bool {
     // The trap is gone the instant it lets go, before anything below can put a
     // second victim on its tile — nothing sets off the same trap twice.
     world.entity_mut(trap).despawn();
-    let victims = burst(world, center, TRICK_SHOT_RADIUS, BlastPalette::Force, true);
+    let victims = burst(
+        world,
+        center,
+        TRICK_SHOT_RADIUS,
+        BlastPalette::Force,
+        true,
+        shooter,
+    );
 
     for victim in victims {
         if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
@@ -485,27 +511,41 @@ pub fn detonate_trap(world: &mut World, trap: Entity) -> bool {
 /// cannot reach in time is a coin you can still use, and a coin in the middle
 /// of a crowd is worth using that way even when you could have walked to it.
 ///
-/// The effect goes nowhere at all when nothing shot it (a coin caught in
-/// somebody else's chain reaction with no author): it is spent, and that is it.
+/// The effect goes nowhere at all when nothing shot it (a coin caught in a
+/// chain reaction with no author at the end of it): it is spent, and that is
+/// it.
+///
+/// **The hero coin is the loud one.** Everything it knows comes out at once —
+/// the same triple burst the Element of Yoord answers a missile with (see
+/// [`ultimate_burst`]), except the coin does not survive saying it. It is the
+/// one pickup in the game worth shooting for the shot rather than the payout.
 ///
 /// Returns whether there was a pickup here to set off.
 pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity>) -> bool {
     let Some(center) = world.get::<Position>(pickup).copied() else {
         return false;
     };
-    if world.get::<Pickup>(pickup).is_none() {
+    let Some(effect) = world.get::<Pickup>(pickup).map(|p| p.effect) else {
         return false;
-    }
+    };
     if let Some(shooter) = shooter {
         crate::items::claim_from_afar(world, shooter, pickup);
     }
     world.entity_mut(pickup).despawn();
+    if effect == PickupEffect::LearnRandomSpell {
+        world
+            .resource_mut::<GameLog>()
+            .add("The hero coin gives up everything it knows at once.".to_string());
+        ultimate_burst(world, center, shooter);
+        return true;
+    }
     burst(
         world,
         center,
         PICKUP_TRICK_SHOT_RADIUS,
         BlastPalette::Force,
         true,
+        shooter,
     );
     true
 }
@@ -520,20 +560,32 @@ pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity
 /// is the whole point of firing an arrow at the artifact you came for.
 ///
 /// Returns whether the relic was here to hit.
-pub fn ultimate_trick_shot(world: &mut World, relic: Entity) -> bool {
+pub fn ultimate_trick_shot(world: &mut World, relic: Entity, shooter: Option<Entity>) -> bool {
     let Some(center) = world.get::<Position>(relic).copied() else {
         return false;
     };
     world
         .resource_mut::<GameLog>()
         .add("The Element of Yoord takes the hit — and answers.".to_string());
+    ultimate_burst(world, center, shooter);
+    true
+}
 
+/// The three bursts an ULTIMATE TRICK SHOT is made of, with no opinion about
+/// what set them off: one wide burst on `center`, a second on every creature
+/// that one caught, and a third on whoever the reading order reached first.
+///
+/// Shared by the two things that can produce one — the relic answering a
+/// missile, and a hero coin going out the way it does — because the *shape*
+/// of the answer is the same and only the thing that gave it differs.
+fn ultimate_burst(world: &mut World, center: Position, shooter: Option<Entity>) {
     let caught = burst(
         world,
         center,
         PICKUP_TRICK_SHOT_RADIUS,
         BlastPalette::Ultimate,
         true,
+        shooter,
     );
     let mut echoes = Vec::new();
     for victim in caught {
@@ -541,7 +593,14 @@ pub fn ultimate_trick_shot(world: &mut World, relic: Entity) -> bool {
             continue;
         };
         echoes.push(at);
-        burst(world, at, TRICK_SHOT_RADIUS, BlastPalette::Ultimate, false);
+        burst(
+            world,
+            at,
+            TRICK_SHOT_RADIUS,
+            BlastPalette::Ultimate,
+            false,
+            shooter,
+        );
     }
     // And one more, on whoever the reading order reached first. Not the worst
     // hurt, not the nearest — just one of them, because "any one hit" is what
@@ -556,9 +615,9 @@ pub fn ultimate_trick_shot(world: &mut World, relic: Entity) -> bool {
             TRICK_SHOT_RADIUS,
             BlastPalette::Ultimate,
             false,
+            shooter,
         );
     }
-    true
 }
 
 /// One burst of a trick shot: the tiles it covers, the shout, the shake, the
@@ -567,12 +626,18 @@ pub fn ultimate_trick_shot(world: &mut World, relic: Entity) -> bool {
 ///
 /// `announce` is for the first burst of a shot only — a shot that goes off
 /// three times is still one trick shot and shouts once.
+///
+/// Ends by setting off everything in its own footprint that a shot could have
+/// set off ([`chain_react`]), which is where a chain reaction comes from:
+/// every burst in the game is queued here, so there is exactly one place that
+/// has to know a blast can find a second mechanism.
 fn burst(
     world: &mut World,
     center: Position,
     radius: i32,
     palette: BlastPalette,
     announce: bool,
+    shooter: Option<Entity>,
 ) -> Vec<Entity> {
     let cells = burst_cells(world, center, radius);
     let victims = creatures_in(world, &cells);
@@ -585,15 +650,21 @@ fn burst(
         world
             .resource_mut::<GameLog>()
             .add(format!("{shout} Trick shot!"));
-        kick_shake(world, ShakeKind::Heavy);
+        // The lightest kick there is. A trick shot is a *chain* now, and a
+        // chain of heavy thumps is a map that never stops moving.
+        kick_shake(world, ShakeKind::Hit);
     }
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        fx.explosion(&cells, palette);
+        let span = fx.explosion(&cells, palette);
         // The one palette that smoulders afterwards. A trap's burst is over
         // when it is over; the relic's leaves the room full of it.
         if palette == BlastPalette::Ultimate {
             fx.smoke_burst(&cells);
         }
+        // Everything queued after this — the next link of the chain, above
+        // all — opens once this ring has finished sweeping. A chain is a
+        // sequence of explosions or it is one indistinguishable flash.
+        fx.hold(span);
     }
     if palette == BlastPalette::Ultimate {
         let mut smoke = world.resource_mut::<Smoke>();
@@ -608,7 +679,44 @@ fn burst(
     for &victim in &victims {
         apply_damage(world, victim, damage);
     }
+    chain_react(world, &cells, shooter);
     victims
+}
+
+/// Everything under a burst that a shot could have set off, set off: the chain
+/// reaction.
+///
+/// A trap nobody has found is as good a link as one they have. The rule about
+/// [`Hidden`] traps is about *aiming* at one ([`detonate_at`]) — a blast
+/// rolling over a tile does not have to know what is buried in it.
+///
+/// This terminates because every link is spent — despawned — before its own
+/// burst goes off, so nothing is ever a link twice and a floor holds finitely
+/// many of them. The Element of Yoord is deliberately not in the chain: it is
+/// never spent, and a burst that reached it would answer itself forever.
+fn chain_react(world: &mut World, cells: &[(u16, u16, f32)], shooter: Option<Entity>) {
+    let area: std::collections::HashSet<(u16, u16)> =
+        cells.iter().map(|&(x, y, _)| (x, y)).collect();
+    for trap in things_in::<Trap>(world, &area) {
+        detonate_trap(world, trap, shooter);
+    }
+    for coin in things_in::<Pickup>(world, &area) {
+        detonate_pickup(world, coin, shooter);
+    }
+}
+
+/// Everything carrying `C` standing on one of `cells`. Collected up front
+/// because setting one off mutates the world out from under the query.
+pub(crate) fn things_in<C: Component>(
+    world: &mut World,
+    cells: &std::collections::HashSet<(u16, u16)>,
+) -> Vec<Entity> {
+    world
+        .query_filtered::<(Entity, &Position), With<C>>()
+        .iter(world)
+        .filter(|(_, p)| cells.contains(&(p.x, p.y)))
+        .map(|(e, _)| e)
+        .collect()
 }
 
 /// Whatever is lying on `pos` that a shot can set off, set off. This is the
@@ -618,11 +726,16 @@ fn burst(
 /// `shooter` is whoever loosed it, and matters for exactly one of the three
 /// answers: a coin pays its effect to them.
 ///
+/// A trap still [`Hidden`] is passed straight over. This is the *aimed* shot,
+/// and you cannot aim at a mechanism nobody has found — the shot would be the
+/// dungeon setting off its own trap on the player's behalf. Blasts and chain
+/// reactions are under no such rule ([`chain_react`]).
+///
 /// Returns what went off, or `None` for a tile with nothing on it worth
 /// hitting.
 pub fn detonate_at(world: &mut World, pos: Position, shooter: Option<Entity>) -> Option<TrickShot> {
-    if let Some(trap) = trap_at(world, pos) {
-        detonate_trap(world, trap);
+    if let Some(trap) = trap_at(world, pos).filter(|&t| world.get::<Hidden>(t).is_none()) {
+        detonate_trap(world, trap, shooter);
         return Some(TrickShot::Trap);
     }
     if let Some(pickup) = thing_at::<Pickup>(world, pos) {
@@ -630,7 +743,7 @@ pub fn detonate_at(world: &mut World, pos: Position, shooter: Option<Entity>) ->
         return Some(TrickShot::Pickup);
     }
     if let Some(relic) = thing_at::<Amulet>(world, pos) {
-        ultimate_trick_shot(world, relic);
+        ultimate_trick_shot(world, relic, shooter);
         return Some(TrickShot::Ultimate);
     }
     None

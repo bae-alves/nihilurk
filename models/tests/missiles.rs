@@ -917,3 +917,72 @@ fn the_melee_cap_survives_a_save() {
         "the bow came back without its ceiling"
     );
 }
+
+/// The stick buys a tile of reach on top of the arm behind it, and only for
+/// the ammunition it answers to: the same arrow chucked bare-handed, or loosed
+/// at a crossbow's quarrel, gets the plain throw leash.
+#[test]
+fn a_drawn_launcher_reaches_a_tile_further_than_a_bare_hand() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+
+    let arrows = quiver(&mut w, p, "arrow", 5);
+    let quarrels = quiver(&mut w, p, "quarrel", 5);
+    assert_eq!(
+        throw_reach(&w, p, arrows),
+        THROW_RANGE,
+        "no launcher drawn: an arrow is just a thing to chuck"
+    );
+
+    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
+    toggle_equipped(&mut w, p, bow);
+    assert_eq!(throw_reach(&w, p, arrows), LAUNCHER_RANGE);
+    assert_eq!(LAUNCHER_RANGE, 8, "a bow reaches eight tiles");
+    assert!(LAUNCHER_RANGE > THROW_RANGE);
+    assert_eq!(
+        throw_reach(&w, p, quarrels),
+        THROW_RANGE,
+        "a bow does nothing for a quarrel"
+    );
+
+    toggle_equipped(&mut w, p, bow);
+    let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
+    toggle_equipped(&mut w, p, crossbow);
+    assert_eq!(throw_reach(&w, p, quarrels), LAUNCHER_RANGE);
+    assert_eq!(throw_reach(&w, p, arrows), THROW_RANGE);
+}
+
+/// Weight decides the leash for anything not on a bowstring: a potion, scroll,
+/// wand or ring is flicked, a dagger is heaved.
+#[test]
+fn the_small_stuff_carries_further_out_of_a_bare_hand() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    assert_eq!(throw_reach(&w, p, dagger), THROW_RANGE);
+
+    let light = [
+        stash(&mut w, p, |w| {
+            spawn_potion(w, PotionEffect::Healing, NOWHERE)
+        }),
+        stash(&mut w, p, |w| {
+            spawn_scroll(w, ScrollEffect::Identify, NOWHERE)
+        }),
+        stash(&mut w, p, |w| spawn_wand(w, WandEffect::Lightning, NOWHERE)),
+        stash(&mut w, p, |w| {
+            spawn_ring(w, RingEffect::Protection, NOWHERE)
+        }),
+    ];
+    for item in light {
+        assert_eq!(
+            throw_reach(&w, p, item),
+            LIGHT_THROW_RANGE,
+            "{} is light enough to flick",
+            display_name(&w, item)
+        );
+    }
+    assert!(LIGHT_THROW_RANGE > THROW_RANGE);
+}
