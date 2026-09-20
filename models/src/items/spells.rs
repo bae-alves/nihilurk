@@ -43,14 +43,15 @@ use crate::constants::spells::{
     FORCE_LANCE_DAMAGE_SIDES, FROST_NOVA_DAMAGE_DICE, FROST_NOVA_DAMAGE_SIDES, LUX_CHARGES,
     METEOR_STRIKE_CHAIN_CHANCE, METEOR_STRIKE_CHAIN_SPREAD, METEOR_STRIKE_CHARGES,
     THUNDERBOLT_DAMAGE_DICE, THUNDERBOLT_DAMAGE_SIDES, THUNDERBOLT_PARALYZE_CHANCE,
+    TURBO_MAGIC_COST_MULT, TURBO_MAGIC_POWER_MULT,
 };
 use crate::constants::traps::{
     DART_DAMAGE_DICE, DART_DAMAGE_SIDES, DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER,
 };
 use crate::constants::wands::{BLAST_RADIUS, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS};
 
-/// Whether `user` is wielding a staff — every damaging move they cast costs
-/// double [`Magic`] and deals double damage, in exchange for the fury behind
+/// Whether `user` is wielding a staff — every damaging spell they cast costs
+/// double [`Magic`] and deals triple damage, in exchange for the fury behind
 /// it. [`TurboMagic`] is lent to the wielder the moment the staff goes on
 /// (see [`crate::catalog::WeaponDef::grants`]), so this asks `user` directly,
 /// exactly the way any other weapon trick is probed on its wielder rather
@@ -69,7 +70,11 @@ fn wields_turbo_magic(world: &World, user: Entity) -> bool {
 pub fn spell_cost(world: &World, user: Entity, effect: SpellEffect) -> u8 {
     let def = crate::catalog::SpellDef::of(effect);
     let turbo = def.kind == SpellKind::Attack && wields_turbo_magic(world, user);
-    if turbo { def.cost * 2 } else { def.cost }
+    if turbo {
+        def.cost * TURBO_MAGIC_COST_MULT
+    } else {
+        def.cost
+    }
 }
 
 /// The schedule step that resolves every spell triggered this turn. Spends the
@@ -107,7 +112,7 @@ pub fn spell_system(world: &mut World) {
         world
             .resource_mut::<GameLog>()
             .add(format!("You cast {}!", def.name));
-        let power_mult = if turbo { 2 } else { 1 };
+        let power_mult = if turbo { TURBO_MAGIC_POWER_MULT } else { 1 };
         apply_spell_effect(world, wants.user, wants.target, wants.effect, power_mult);
     }
 }
@@ -287,8 +292,8 @@ fn bide(world: &mut World, user: Entity) {
 /// elemental damage — except the damage is whatever the user's own claws (or
 /// fists) would deal this swing, not the wand's own dice. See
 /// [`crate::items::dragon_breath`], the dragon's own copy of the same trick.
-/// `power_mult` is a staff's [`TurboMagic`] doubling the fury on top of the
-/// cost — 1 for anyone casting bare-handed.
+/// `power_mult` is a staff's [`TurboMagic`] tripling the damage on top of
+/// doubling the cost — 1 for anyone casting bare-handed.
 fn breathe_fire(world: &mut World, user: Entity, target: Position, power_mult: i32) {
     let (power, power_bonus) = {
         let fighter = world.get::<Fighter>(user);

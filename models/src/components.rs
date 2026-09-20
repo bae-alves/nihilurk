@@ -476,7 +476,7 @@ pub enum ScrollEffect {
     AggravateMonsters,
     BlankPaper,
     VorpalizeWeapon,
-    /// 1... 2... Poof! Forgets one random move off the reader's [`Spellset`]
+    /// 1... 2... Poof! Forgets one random spell off the reader's [`Spellset`]
     /// and every tile they have ever seen on this floor.
     Amnesia,
 }
@@ -567,7 +567,7 @@ impl SpellEffect {
 /// The two shapes an active spell comes in — an attack wand's own split
 /// ([`crate::items::wands::is_attack_wand`]), drawn again here because a spell
 /// answers to it too: a staff's [`crate::effects::TurboMagic`] doubles the
-/// cost and the fury of an [`Attack`](SpellKind::Attack), and leaves a
+/// cost and triples the damage of an [`Attack`](SpellKind::Attack), and leaves a
 /// [`Skill`](SpellKind::Skill) — the utility half, potions and scrolls play the
 /// same way — alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

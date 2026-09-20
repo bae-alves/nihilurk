@@ -425,6 +425,22 @@ modifiers! {
 #[derive(Component, Clone, Copy)]
 pub struct OnWear(pub fn(&mut World, Entity, Entity));
 
+/// [`OnWear`]'s twin: something that happens once, the moment this item comes
+/// *off* on purpose. Called with `(wearer, item)` by
+/// [`crate::equipment::toggle_equipped`] after the item is off and its lent
+/// effects are gone.
+///
+/// Deliberately fired only on the deliberate path, never from
+/// [`crate::equipment::force_unequip`] — the same asymmetry [`OnWear`] already
+/// has against [`crate::equipment::equip_silently`]. Dying, dropping and being
+/// disarmed are not ceremonies, and a line about how you feel is out of place
+/// in all three.
+///
+/// One row uses it: the staff, whose whole effect on a run is invisible on the
+/// HUD, so the going and the coming back both have to be said out loud.
+#[derive(Component, Clone, Copy)]
+pub struct OnDoff(pub fn(&mut World, Entity, Entity));
+
 // ---------------------------------------------------------------------------
 // Caps
 // ---------------------------------------------------------------------------

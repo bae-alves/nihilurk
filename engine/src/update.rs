@@ -1242,7 +1242,7 @@ fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
     else {
         world
             .resource_mut::<GameLog>()
-            .add("You don't have a move there.");
+            .add("You don't have a spell there.");
         return Ok(false);
     };
     let cost = models::spell_cost(world, player, effect);

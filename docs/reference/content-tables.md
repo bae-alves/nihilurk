@@ -167,7 +167,7 @@ The one catalog row that never spawns anything: a spell carries no `Item`, no `P
 |----------|----------------|-----------------------------------------------------------------|
 | `effect` | `SpellEffect`   | Keys the mechanic; identity in saves (a `Spellset` is `Vec<SpellEffect>`). |
 | `name`   | `&'static str` | Shown on the `Z` menu and in "You unleash your ___!"           |
-| `cost`   | `u8`           | `Magic` points one use spends. Doubled by `TurboMagic` (a staff) on an `Attack`. |
+| `cost`   | `u8`           | `Magic` points one use spends, times `constants::spells::TURBO_MAGIC_COST_MULT` when `TurboMagic` (a staff) meets an `Attack` — which multiplies that spell's damage by the larger `TURBO_MAGIC_POWER_MULT` in the same breath. |
 | `range`  | `i32`          | Feeds the aiming reticle. Meaningless — left at `0` — for a spell whose `SpellEffect::needs_target()` is `false`. |
 | `kind`   | `SpellKind`     | `Attack` or `Skill` — the same split `WandEffect`'s attack/utility divide makes, and the one `TurboMagic` checks. |
 
@@ -175,7 +175,7 @@ Sixteen rows, four `Magic`-cost tiers of four: see MANUAL.md, "Magic and spells"
 
 Mechanic: `apply_spell_effect` in `models/src/items/spells.rs`, keyed by `SpellEffect`, exhaustive with no catch-all like every other effect table in the game. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into `scrolls::apply_scroll_effect`; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a spell has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
 
-`MagicWard` (the spell) is a plain marker component, not a `Grants`-registry effect: casting it inserts it directly, and it is checked in exactly two places — `wands::damage_with_element` (every wand-shaped source of harm, zapped, thrown, breathed or cast, bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted at the next staircase like any other floor-scoped condition (`conditions::clear_player_conditions`).
+`MagicWard` (the spell) is an `EFFECTS` row like any other marker, lent for `Lifetime::Floor` by `effects::lend`, and it is checked in exactly two places — `helpers::apply_hit` (every `Hit` whose `magical` flag is set, zapped, thrown, breathed or cast, bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted at the next staircase like any other floor-scoped effect, and named on the way out as a boon rather than an affliction (`conditions::FLOOR_BOONS`, `conditions::clear_player_conditions`).
 
 `Bided` (Bide) is likewise a plain marker: `combat::fold_matchup` folds `constants::combat::BIDE_ATTACK_BONUS` into the bearer's next attack roll, and `combat::resolve_attack` removes the marker the instant that roll is folded — hit, glancing or miss, and before a double-striking estoc or a cleave can see it twice. Anything else the bearer does with a turn instead of landing an attack — a plain step, a used or thrown item, another move cast — spends it unfired: `equipment::reset_momentum` strips it on the same occasions it zeroes a rapier's `Momentum`.
 
@@ -193,10 +193,17 @@ Constructor: `WeaponDef::new(name, color, power_die)`, then chains.
 | `thrown_die` | `i32`          | `power_die`  | Die rolled on impact.     |
 | `projectile` | `bool`         | `false`      | Built to be thrown.       |
 | `piercing`   | `bool`         | `false`      | Throw runs the whole line.|
+| `reach`      | `i32`          | `0`          | Aimed rather than walked into: a bardiche (2), a whip (5). |
+| `reach_piercing` | `bool`     | `false`      | The reach strike runs the whole line. |
+| `grants`     | `&[Grant]`     | `&[]`        | Marker effects the wielder holds while it is in hand. |
+| `on_wear`    | `Option<OnWear>` | `None`     | A one-shot fired the instant it is wielded. |
+| `on_doff`    | `Option<OnDoff>` | `None`     | A one-shot fired the instant it is deliberately put away again. |
 
-Chains: `.missile(die)` sets `thrown_die` and `projectile`; `.piercing()` sets `piercing`.
+Chains: `.missile(die)` sets `thrown_die` and `projectile`; `.piercing()`, `.reach(tiles)`, `.reach_piercing()`, `.grants(&[...])`, `.on_wear(...)`, `.on_doff(...)` each set the field they name.
 
-Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDamage`, and `Projectile` / `Piercing` when asked. A floor drop is enchanted (see below).
+Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDamage`, and `Projectile` / `Piercing` / `Reach` / `ReachPiercing` / `Grants` / `OnWear` / `OnDoff` when asked. A floor drop is enchanted (see below). `grants`, `on_wear` and `on_doff` are all re-read from the row on load (`catalog::restore_from_catalog`), never stored in the save.
+
+The staff is the only row with an `on_doff`, and the reason is worth repeating: it multiplies what every attacking spell costs and what it does (`constants::spells::TURBO_MAGIC_COST_MULT` and `TURBO_MAGIC_POWER_MULT`), and neither multiplier shows anywhere on the HUD. The two log lines are the whole of the player's notice, which is why the taking-off needs one as much as the putting-on. `OnDoff` fires only on the deliberate path (`equipment::toggle_equipped`), never from `force_unequip` — dropping, being disarmed and dying are not ceremonies, the same asymmetry `OnWear` already has against `equip_silently`.
 
 `Projectile` means three things at once: the throw ignores the target's armour die, the missile is spent on what it hits, and nothing can catch it. A non-projectile throw is blunted by armour and can be caught and used against you.
 

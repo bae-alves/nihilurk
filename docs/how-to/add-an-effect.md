@@ -154,6 +154,7 @@ A `Grant` is a property held while the gear is worn. An *event* at the moment of
 
     #[derive(Component, Clone, Copy)]
     pub struct OnWear(pub fn(&mut World, Entity, Entity));
+    pub struct OnDoff(pub fn(&mut World, Entity, Entity));
 
 `equipment::toggle_equipped` fires it with `(wearer, item)` after the item is worn, named and known, and the function owns everything that follows -- including tagging the item `Consume` if wearing it is what spends it (`item_system` re-checks for that tag after the toggle and destroys the item instead of stowing it). The ring of adornment is the only thing in the game that uses it. A row attaches it the way it attaches grants, and `saveload` reads it back off the row.
 

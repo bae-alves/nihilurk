@@ -302,8 +302,11 @@ pub struct WeaponDef {
     /// wearer an effect. See [`crate::effects::Grants`].
     grants: &'static [Grant],
     /// A one-shot fired the instant it's wielded — the staff's "You're a
-    /// wizard!". See [`OnWear`].
+    /// wizard now!". See [`OnWear`].
     on_wear: Option<OnWear>,
+    /// A one-shot fired the instant it is deliberately put away again — the
+    /// other half of the staff's announcement. See [`OnDoff`].
+    on_doff: Option<OnDoff>,
 }
 
 impl WeaponDef {
@@ -319,6 +322,7 @@ impl WeaponDef {
             reach_piercing: false,
             grants: &[],
             on_wear: None,
+            on_doff: None,
         }
     }
 
@@ -361,6 +365,13 @@ impl WeaponDef {
         self.on_wear = Some(on_wear);
         self
     }
+
+    /// A one-shot fired the instant it is deliberately taken off again (see
+    /// [`OnDoff`]).
+    const fn on_doff(mut self, on_doff: OnDoff) -> Self {
+        self.on_doff = Some(on_doff);
+        self
+    }
 }
 
 impl ItemDef for WeaponDef {
@@ -396,6 +407,9 @@ impl ItemDef for WeaponDef {
         if let Some(on_wear) = self.on_wear {
             e.insert(on_wear);
         }
+        if let Some(on_doff) = self.on_doff {
+            e.insert(on_doff);
+        }
         e.id()
     }
 
@@ -409,13 +423,32 @@ impl ItemDef for WeaponDef {
 /// The staff's flourish: logged the moment it's wielded, exactly the ceremony
 /// a ring's [`OnWear`] gets, minus the ring — nothing about the wearer
 /// changes, it's just the one line.
+///
+/// The line carries real information, which is why it is worth one at all: the
+/// staff multiplies what every attacking spell costs *and* what it does
+/// ([`crate::constants::spells::TURBO_MAGIC_COST_MULT`] and
+/// `TURBO_MAGIC_POWER_MULT`), and neither multiplier appears anywhere on the
+/// HUD. See [`announce_not_wizard`] for the other end of it.
 fn announce_wizard(world: &mut World, wearer: Entity, _item: Entity) {
     if world.get::<Player>(wearer).is_none() {
         return;
     }
     world
         .resource_mut::<GameLog>()
-        .add("You're a wizard!".to_string());
+        .add("You're a wizard now!".to_string());
+}
+
+/// [`announce_wizard`] in reverse, the moment the staff is deliberately put
+/// away ([`OnDoff`]). The multipliers leave with it, nothing on screen would
+/// otherwise say so, and a player about to cast at the price they got used to
+/// is owed the warning.
+fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
+    if world.get::<Player>(wearer).is_none() {
+        return;
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add("You're no longer that magical.".to_string());
 }
 
 #[rustfmt::skip]
@@ -451,10 +484,13 @@ pub const WEAPONS: &[WeaponDef] = &[
     // fight back.
     WeaponDef::new("garrote",          Color::DarkGrey,   0)
         .grants(&[Grant::of::<VorpalOnCondition>()]),
-    // Doubles the toll and the fury of every spell cast through it.
+    // Doubles the toll of every spell cast through it, and triples the fury.
+    // The only weapon that says so at both ends: neither multiplier shows on
+    // the HUD, so the two log lines are the whole of the player's notice.
     WeaponDef::new("staff",            Color::Yellow,     5)
         .grants(&[Grant::of::<TurboMagic>()])
-        .on_wear(OnWear(announce_wizard)),
+        .on_wear(OnWear(announce_wizard))
+        .on_doff(OnDoff(announce_not_wizard)),
     // A blade with an edge in the world it half-belongs to: every hit that
     // lands there also lands a little on you.
     WeaponDef::new("chaos blade",      Color::Magenta,    12)
@@ -867,7 +903,7 @@ pub struct SpellDef {
     /// How far the aiming reticle reaches.
     pub range: i32,
     /// Attack or skill — the dial a staff's [`TurboMagic`] checks before
-    /// doubling both the cost and the fury of the cast. See
+    /// doubling the cost and tripling the damage of the cast. See
     /// [`crate::items::spell_system`].
     pub kind: SpellKind,
 }
@@ -1109,6 +1145,9 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
         }
         if let Some(on_wear) = def.on_wear {
             entity.insert(on_wear);
+        }
+        if let Some(on_doff) = def.on_doff {
+            entity.insert(on_doff);
         }
     }
     if let Some(def) = AMMO.iter().find(|d| d.name == name) {

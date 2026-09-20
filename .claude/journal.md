@@ -26,3 +26,40 @@ What it taught:
   damage number *before* calling (the arrow and dart traps) would still
   overstate — unreachable today, since a petrified player cannot step on a
   trap, but it is the shape of a future bug.
+
+
+## The spell docs after the move→spell rename (2026-09-20)
+
+The rename was a clean sed, which is exactly why the spell pages went stale
+without breaking anything: every word was right and several facts were not.
+
+What the audit turned up, and what it teaches:
+
+* **A centralisation the docs never followed.** `MagicWard` is now checked once,
+  in `helpers::apply_hit` (on `Hit::magical`), plus `abilities::fire_on_hit` for
+  the rider on a blow. The how-to still told authors to check it per-victim and
+  call `ward_block` — a function that does not exist. When a check moves into a
+  shared function, the page that told people to write it by hand is the one
+  thing that will keep them writing it by hand.
+* **Markers moved into the `EFFECTS` ledger; the save advice didn't.** The docs
+  said `MagicWard`/`Bided` are `bool` fields in `EntitySave`. They are rows in
+  the registry, lent with a `Lifetime`, saved by id. Advice about persistence
+  ages fastest, because it is the part nobody re-reads until a reload loses
+  something.
+* **A sed carried a balance change with it.** `power_mult` went 2→3 in the same
+  uncommitted batch, silently making a staff triple damage while every comment,
+  page and the `equip` test still said "doubles". A rename diff is where a
+  number change hides best — read it for the lines that are *not* the rename.
+* **`crate::ai` vs `crate::abilities`.** The dragon's fireball moved into an
+  `ABILITIES` row at `Moment::InsteadOfAttacking` (its own commit said so); four
+  doc sites still pointed at `ai`. `docs_style.sh` checks that source *paths*
+  exist — it cannot check that a named *module* is still the right one.
+
+Fixed at the root afterwards: the staff's two multipliers were bare literals in
+two functions (`spell_cost`, `spell_system`) with their *meaning* written out in
+six prose sites and a third literal asserted in `equip.rs`. They are now
+`constants::spells::TURBO_MAGIC_COST_MULT` / `TURBO_MAGIC_POWER_MULT`, which is
+what `constants.rs` says it is for — "every tuning knob in the model, in one
+place". `docs/reference/constants.md` had no `spells` row at all, so the whole
+module (thirteen knobs, since before the rename) was invisible to anyone
+rebalancing from the docs.

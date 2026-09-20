@@ -610,10 +610,25 @@ pub mod monsters {
 /// ([`crate::catalog::SpellDef`]); these are the numbers a rebalance actually
 /// reaches for.
 pub mod spells {
-    /// The most moves a [`crate::components::Spellset`] may ever hold — the
+    /// The most spells a [`crate::components::Spellset`] may ever hold — the
     /// four rows `a`-`d` of the `Z` menu, and no fifth to reach for. A hero
     /// coin stops teaching once this is full.
     pub const SPELLSET_CAP: usize = 4;
+
+    /// A staff's [`crate::effects::TurboMagic`]: what an
+    /// [`Attack`](crate::components::SpellKind::Attack)'s
+    /// [`SpellDef::cost`](crate::catalog::SpellDef::cost) is multiplied by
+    /// before it is charged. A [`Skill`](crate::components::SpellKind::Skill)
+    /// is never touched — the staff buys fury, and a Skill has none to buy.
+    pub const TURBO_MAGIC_COST_MULT: u8 = 2;
+
+    /// What that same staff multiplies the Attack's *damage* by, reaching
+    /// every mechanic as `power_mult`. Deliberately above
+    /// [`TURBO_MAGIC_COST_MULT`]: a staff eats two-thirds of a starting
+    /// [`crate::constants::player::START_MAGIC`] pool per cast, so it has to
+    /// give back more than it takes or nobody would wield one. Bring the two
+    /// level and the staff becomes a strictly worse wand.
+    pub const TURBO_MAGIC_POWER_MULT: i32 = 3;
 
     /// Thunderbolt: `DICE d SIDES` armour-ignoring damage, and `PARALYZE_CHANCE`
     /// to lock the target up on top of it.
