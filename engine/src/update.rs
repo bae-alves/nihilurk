@@ -813,6 +813,10 @@ fn begin_look(world: &mut World) -> std::io::Result<bool> {
 /// thing is passed over exactly as it is for every other purpose in the game:
 /// looking is not a way to cheat a search.
 ///
+/// Whatever it is wearing rides along in the same line — `"You see a centaur
+/// (w. a short bow)."` — exactly as it does when the thing is first spotted
+/// ([`models::worn_tag`]).
+///
 /// A monster gets a line of its own after the sighting: every notable move or
 /// on-hit trick it carries, one `"Beware their ___."` each. Every creature in
 /// the dungeon is a they, whatever it is — a dungeon has no business guessing
@@ -837,7 +841,11 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
         return vec!["You see nothing there.".to_string()];
     };
 
-    let mut lines = vec![format!("You see {}.", models::with_article(world, seen))];
+    let mut lines = vec![format!(
+        "You see {}{}.",
+        models::with_article(world, seen),
+        models::worn_tag(world, seen)
+    )];
     if world.get::<Mob>(seen).is_some() {
         // What a creature is dangerous for is `models`' business: the phrases
         // live on the effect rows themselves, so this crate never learns which
