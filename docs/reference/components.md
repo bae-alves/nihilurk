@@ -329,11 +329,11 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 
 ### The screen shake
 
-`Shake` (`shake.rs`) is the effect layer's second half, and the only cosmetic resource that is deliberately *not* played the way [`Particles`] is. Eleven call sites arm it, and nothing else may:
+`Shake` (`shake.rs`) is the effect layer's second half, and the only cosmetic resource that is deliberately *not* played the way [`Particles`] is. Twelve call sites arm it, and nothing else may:
 
 | `ShakeKind` | Armed by | Shape |
 |-------------|----------|-------|
-| `Hit`       | anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see | 80 ms, 1 cell — a tick |
+| `Hit`       | the light stuff. Anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see; and `traps::trap_flourish` when a shooting trap (arrow or dart) goes off in sight, hit or miss — there the shake is the mechanism firing, not the damage | 80 ms, 1 cell — a tick |
 | `Kill`      | `combat::kill_shake`, from `resolve_attack` and `finish_indirect_kill`, when the player can see the victim's tile | 120 ms, 1 cell — short |
 | `Heavy`     | four things that all hit hard: `combat::resolve_attack` on the player's own excellent hit; `items::wands::elemental_blast` if the player can see the blast centre; `traps::burst` on the first burst of a trick shot the player can see; and `items::rings::do_it_with_style`, the adornment / victory flourish | 260 ms, 2 cells — medium |
 | `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | 460 ms, 2 cells — long |

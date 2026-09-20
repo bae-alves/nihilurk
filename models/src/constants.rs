@@ -286,6 +286,12 @@ pub mod traps {
     /// and the tile should show it — but it costs no extra HP.
     pub const BEAR_TRAP_THRASH_GORE: i32 = 32;
 
+    /// How often a trap that has just sprung gives out — the mechanism is spent
+    /// and the tile is clear again ("The dart trap breaks!"). The bear trap is
+    /// exempt: it always bites once and is done. Raise it to make a floor's
+    /// traps a one-time toll, lower it to make the same tile a lasting hazard.
+    pub const TRAP_BREAK_CHANCE: f64 = 0.25;
+
     /// Radius, in tiles, of the burst a trap makes when something sets it off
     /// from a distance — `1` is the 3×3 around it. See `traps::detonate_trap`.
     pub const TRICK_SHOT_RADIUS: i32 = 1;

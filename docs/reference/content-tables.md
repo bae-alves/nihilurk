@@ -339,6 +339,8 @@ Mechanic: `apply_trap_effect` in `models/src/traps.rs`. That match has no catch-
 
 Reveal style is rolled per trap at spawn, equal odds, not per row: `Sight` / `Adjacent` / `Triggered`.
 
+A sprung trap gives out `TRAP_BREAK_CHANCE` of the time — the entity despawns and the log says `"The dart trap breaks!"` when the player can see it. The bear trap is exempt: it always bites once and is gone, quietly.
+
 A trap set off *from a distance* — a missile that lands on it, a wand's blast that covers it — has nobody standing on it to bite, so it bursts instead: `detonate_trap` deals `TRICK_SHOT_DAMAGE_DICE d TRICK_SHOT_DAMAGE_SIDES` (armour-ignoring) over the `TRICK_SHOT_RADIUS` around its tile and then runs the mechanic once per creature caught. Dials: `constants::traps`.
 
 ### Trick shots — what a landing missile can set off
@@ -411,7 +413,7 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 | 1 | `ColdImmune`        | Cold does nothing.                             |
 | 2 | `Undead`            | Draining passes through, healing nothing.      |
 | 3 | `VorpalTarget`      | Any vorpal weapon slays it outright.           |
-| 4 | `SeesInvisible`     | Sees hidden traps, monsters, stashed items.    |
+| 4 | `SeesInvisible`     | Sees hidden traps in view, invisible monsters, stashed items. |
 | 5 | `SustainsStrength`  | Immune to dart-trap strength drain.            |
 | 6 | `AggravatesMonsters`| Periodically wakes the floor. Passive.         |
 | 7 | `ItemUser`          | Catches and wears thrown gear; reads scrolls.  |
