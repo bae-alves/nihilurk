@@ -39,6 +39,7 @@ The modules
 | `rings`       | `STEALTH_RANGE` (how close a stealthy player is noticed at), `TELEPORT_MAGIC_COST` | the two rings with a number that isn't on their row |
 | `score`       | `KILL_PER_MAX_HP`, `COMBO_BONUS_PER_KILL`, `COMBO_PRIDE_CHANCE`, `STAIR_PER_TIER`, `SCORE_FLASH_TURNS` | what the run is scored on, and how loudly |
 | `monsters`    | `DEFAULT_SPAWN_WEIGHT` | the baseline rarity a bestiary row gets |
+| `spells`      | `SPELLSET_CAP`, the dice behind the spells that roll their own (Thunderbolt, Force Lance, Circle of Death, Frost Nova), the stand-in batteries (`LUX_CHARGES`, `METEOR_STRIKE_CHARGES`), and a staff's `TURBO_MAGIC_COST_MULT` / `TURBO_MAGIC_POWER_MULT` | how much a spell costs and how hard it lands |
 | `travel`      | Step caps on autoexplore / fast-move | only if a walk loops |
 | `hud`         | Message-log rows shown at once, and the two wrap widths (normal and `--MORE--`) | the log's footprint on screen |
 

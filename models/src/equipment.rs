@@ -24,8 +24,8 @@ use crate::components::{
     Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position, Reach,
 };
 use crate::effects::{
-    ArmorBonus, Bided, Effects, Grant, Grants, Held, Lifetime, Momentum, OnWear, SustainsArmor,
-    lend, revoke, revoke_matching,
+    ArmorBonus, Bided, Effects, Grant, Grants, Held, Lifetime, Momentum, OnDoff, OnWear,
+    SustainsArmor, lend, revoke, revoke_matching,
 };
 use crate::helpers::item_label;
 use crate::identify::display_name;
@@ -219,6 +219,14 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         force_unequip(world, item);
         world.resource_mut::<GameLog>().add(slot.doffed(&name));
         sync_equipment_effects(world, user);
+        // Anything that happens *because* it came off, once what it lent is
+        // already gone — the mirror of the `OnWear` call at the end of the
+        // wearing path below. Only this deliberate path fires it: being
+        // disarmed, dropping it and dying all go through `force_unequip`,
+        // and none of the three is a ceremony.
+        if let Some(OnDoff(fire)) = world.get::<OnDoff>(item).copied() {
+            fire(world, user, item);
+        }
         return true;
     }
 

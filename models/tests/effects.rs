@@ -550,7 +550,10 @@ fn a_fourth_condition_sheds_the_oldest() {
 
     lend(&mut w, p, Grant::of::<Paralyzed>(), Lifetime::Floor);
     assert_eq!(conditions_held(&w, p), 3, "the ceiling is three");
-    assert!(w.get::<Blind>(p).is_none(), "the oldest is the one that goes");
+    assert!(
+        w.get::<Blind>(p).is_none(),
+        "the oldest is the one that goes"
+    );
     assert!(w.get::<Confused>(p).is_some());
     assert!(w.get::<MagicWard>(p).is_some());
     assert!(w.get::<Paralyzed>(p).is_some());

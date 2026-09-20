@@ -49,7 +49,7 @@ Chain `.reach(n)` for a weapon aimed with its own reticle (`v`) instead of a wal
 
 Chain `.grants(&[Grant::of::<SomeMarker>()])` for a trick the weapon lends its wielder while it's in hand — exactly a ring's own `.grants()`, and read by the same places a ring's effects are: `crate::abilities::ON_HIT_ABILITIES` for something that fires when a blow lands, or a direct `world.get::<SomeMarker>(attacker)` probe for something checked elsewhere (the battle axe's `Cleaves`, checked once from `models::melee_attack`). This is also how a weapon-only marker stays invisible to `combat.rs` and `engine/` alike — see `crate::effects`'s module doc.
 
-Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded — the staff's "You're a wizard!" — the same mechanism a ring of adornment's flourish uses.
+Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded — the staff's "You're a wizard now!" — the same mechanism a ring of adornment's flourish uses. `.on_doff(OnDoff(some_fn))` is its mirror, fired when the weapon is deliberately put away again ("You're no longer that magical."), and it is worth adding only when what the weapon lends is invisible on the HUD: the player has no other way to notice it leaving. It fires from `equipment::toggle_equipped` alone, never from `force_unequip`, so dropping it, being disarmed of it and dying with it say nothing.
 
     WeaponDef::new("bardiche", Color::Grey, 7).reach(2).reach_piercing(),
     WeaponDef::new("garrote", Color::DarkGrey, 0).grants(&[Grant::of::<VorpalOnCondition>()]),

@@ -125,6 +125,8 @@ The `Ma` pool powers your spells. Stairs refill it; it does not return merely be
 
 A hero coin teaches a new spell when you step on it. You can know only a few spells at once. A spell that needs a target uses the same aiming cursor as a wand.
 
+A staff in your hand changes what your attacking spells are worth: each one costs more magic than usual and hits harder than usual, and it hits harder than it costs. The spells that heal, ward, reveal or steady you are untouched. Nothing on the screen shows this, so the staff says so itself -- when you take it up, and again when you put it away.
+
 Some effects change how you act. Confusion makes movement unreliable. Blindness limits what you can see. Paralysis and sleep steal time. A medusa's gaze steals them too, by turning you to stone -- but stone is hard: while it lasts nothing gets more than a chip through you and nothing can take your last point of health, unless what is standing over you is swinging a war hammer. Haste makes you quicker; slow makes you slower. A staircase clears these effects.
 
 

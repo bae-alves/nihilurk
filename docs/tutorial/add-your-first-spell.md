@@ -69,10 +69,10 @@ Read Fireball's row:
     SpellDef { effect: SpellEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: SpellKind::Attack }
                               |                          |          |       |                |
                         the identity                its label   Magic    reticle      Attack or Skill --
-                                                                  spent    reach       doubled by a staff
+                                                                  spent    reach       a staff's business
                                                                                         when it's Attack
 
-`cost` is Magic points, spent by `spell_system` the instant the spell actually fires (doubled by a wielded staff's `TurboMagic`, but only for an `Attack`). `range` feeds the aiming reticle exactly the way a wand's `Ranged.range` does -- you will aim Ice Bolt the same way you'd zap a wand of cold. `kind` is read once, by `spell_cost` and by whatever mechanic you write in step 3.
+`cost` is Magic points, spent by `spell_system` the instant the spell actually fires (multiplied by a wielded staff's `TurboMagic`, but only for an `Attack`). `range` feeds the aiming reticle exactly the way a wand's `Ranged.range` does -- you will aim Ice Bolt the same way you'd zap a wand of cold. `kind` is read once, by `spell_cost` and by whatever mechanic you write in step 3.
 
 
 Step 2: add a row
@@ -116,7 +116,7 @@ The error names a missing match arm in `models/src/items/spells.rs`:
         }
     }
 
-The match has no catch-all, on purpose -- the same discipline `apply_wand_effect` holds over `WandEffect`. A variant that compiled without an arm would be a spell that silently did nothing, and nihilurk does not ship those. `power_mult` is `2` when a staff doubled an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does.
+The match has no catch-all, on purpose -- the same discipline `apply_wand_effect` holds over `WandEffect`. A variant that compiled without an arm would be a spell that silently did nothing, and nihilurk does not ship those. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does. The staff gives back more damage than it takes in Magic; both multipliers live in `constants::spells`, one beside the other, so the trade stays readable.
 
 Add the arm, and the function it calls:
 
@@ -190,8 +190,8 @@ Try the things that work on a potion, a wand, a dagger:
 
   * **Open the pack (`i`) and look for Ice Bolt.** It isn't there. A spell never enters a `Backpack`; the player's copy of it lives only in `Spellset`.
   * **Try to throw it (`t`).** There is nothing to select -- the throw menu only ever lists `Backpack` contents, and a spell was never in one.
-  * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/saveload.rs` round-trips it like every other piece of the player. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that would need its own line in `EntitySave` too -- see `../how-to/add-a-spell.md` for the two that already have one.
-  * **Give a monster the same trick.** You can't, not generically. `SpellEffect` is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- but nothing routes a bestiary row into anybody's `Spellset`, and no Magic pool exists to spend for a monster anyway. The dragon's own fireball proves the trick can be reused (it calls the very same `elemental_blast` your spell does, in `crate::items::dragon_breath`), but it is wired straight into `crate::ai` by hand, outside the whole spell system, for free. Making that automatic is future work, not something this tutorial's row buys you.
+  * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/saveload.rs` round-trips it like every other piece of the player. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that marker would need a row in the `EFFECTS` registry and an `effects::lend` to put it there -- see `../how-to/add-a-spell.md` for the two that already do.
+  * **Give a monster the same trick.** You can't, not generically. `SpellEffect` is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- but nothing routes a bestiary row into anybody's `Spellset`, and no Magic pool exists to spend for a monster anyway. The dragon's own fireball proves the trick can be reused (it calls the very same `elemental_blast` your spell does, in `crate::items::dragon_breath`), but it is wired straight into `crate::abilities` by hand -- one `ABILITIES` row at `Moment::InsteadOfAttacking` -- outside the whole spell system, for free. Making that automatic is future work, not something this tutorial's row buys you.
 
 None of that is a bug in what you built. It's the shape of the thing: a spell is a mechanic on loan to whoever's `Spellset` names it, not a possession with a life of its own on the floor.
 
@@ -214,7 +214,7 @@ What you actually learned
 
   * A spell is *not* an item, deliberately: no `Position`, no `Item`, no pack slot, no `NIHILURK_SPAWN`, nothing to throw or drop. It lives in a `Spellset`, and it costs Magic instead of running out of charges.
 
-  * A `SpellEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does — but *triggering* it is not generic yet. Wiring a species to use one under its own AI, at no Magic cost, is still bespoke work in `crate::ai`.
+  * A `SpellEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does — but *triggering* it is not generic yet. Wiring a species to use one under its own AI, at no Magic cost, is still bespoke work in `crate::abilities`.
 
 
 Where to go next

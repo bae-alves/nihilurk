@@ -1,4 +1,5 @@
 use bevy_ecs::prelude::*;
+use models::constants::spells::{TURBO_MAGIC_COST_MULT, TURBO_MAGIC_POWER_MULT};
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -599,7 +600,7 @@ fn the_player_worn_via_equip_silently_still_identifies_immediately() {
     );
 }
 
-/// A staff doubles both the Magic cost and the damage of a damaging spell —
+/// A staff doubles the Magic cost and triples the damage of a damaging spell —
 /// Fireball here, chosen because its damage scales off the caster's own
 /// melee power rather than fixed dice, which is exactly what makes this test
 /// possible. Two identically seeded worlds, one
@@ -609,7 +610,7 @@ fn the_player_worn_via_equip_silently_still_identifies_immediately() {
 /// exact same underlying die. Whatever `TurboMagic` does to the outcome is
 /// then the *only* thing that can make the two numbers differ.
 #[test]
-fn a_staff_doubles_the_cost_and_the_damage_of_a_damaging_move() {
+fn a_staff_doubles_the_cost_and_triples_the_damage_of_a_damaging_spell() {
     fn cast_fireball(seed: u64, weapon_name: &str) -> (u8, i32) {
         let mut w = test_world(seed);
         w.init_resource::<SpellQueue>();
@@ -660,12 +661,16 @@ fn a_staff_doubles_the_cost_and_the_damage_of_a_damaging_move() {
     let (turbo_cost, turbo_damage) = cast_fireball(23, "staff");
 
     assert_eq!(plain_cost, 2, "Fireball's own row cost");
-    assert_eq!(turbo_cost, 4, "a staff doubles the Magic cost");
+    assert_eq!(
+        turbo_cost,
+        plain_cost * TURBO_MAGIC_COST_MULT,
+        "a staff multiplies the Magic cost"
+    );
     assert!(plain_damage > 0, "the estoc cast should have dealt damage");
     assert_eq!(
         turbo_damage,
-        plain_damage * 2,
-        "a staff doubles the damage of the same roll"
+        plain_damage * TURBO_MAGIC_POWER_MULT,
+        "a staff multiplies the damage of the same roll"
     );
 }
 
@@ -689,5 +694,41 @@ fn wielding_the_war_hammer_lends_what_goes_through_stone() {
     assert!(
         w.get::<ShattersStone>(p).is_some(),
         "a wielded war hammer lent its wielder nothing"
+    );
+}
+
+/// The staff is the one weapon whose flourish fires at both ends. Wielding it
+/// multiplies what every attacking spell costs and what it does, and putting it
+/// away takes both back — and neither change shows anywhere on the HUD, so the
+/// two log lines are the only notice the player gets. `OnWear` says the first;
+/// `OnDoff`, the staff's own reason for existing, says the second.
+#[test]
+fn the_staff_says_so_going_on_and_coming_off() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    let staff = spawn_weapon(&mut w, "staff", Position { x: 0, y: 0 });
+    w.entity_mut(staff).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(staff);
+
+    use_item(&mut w, p, staff);
+    assert!(is_equipped(&w, staff));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("You're a wizard now!")),
+        "wielding the staff said nothing: {:?}",
+        w.resource::<GameLog>().history
+    );
+
+    use_item(&mut w, p, staff);
+    assert!(!is_equipped(&w, staff));
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("You're no longer that magical.")),
+        "putting the staff away said nothing: {:?}",
+        w.resource::<GameLog>().history
     );
 }

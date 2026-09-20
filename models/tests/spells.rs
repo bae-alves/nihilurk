@@ -1,7 +1,7 @@
 //! The active-spell system: Bide's flat attack bonus (granted once, spent by
 //! the next attack or lost the moment anything else happens instead), Magic
 //! Ward's blanket immunity to wand-shaped harm, Sting's dart-trap formula,
-//! Setup's self-triggering traps, a hero coin teaching a move up to the
+//! Setup's self-triggering traps, a hero coin teaching a spell up to the
 //! four-slot cap, and a scroll of amnesia taking one back.
 
 use bevy_ecs::prelude::*;
@@ -247,7 +247,7 @@ fn setup_plants_four_revealed_traps_and_trips_one_under_a_bystander() {
 }
 
 #[test]
-fn hero_coin_teaches_a_move_up_to_the_four_slot_cap() {
+fn hero_coin_teaches_a_spell_up_to_the_four_slot_cap() {
     let mut w = test_world(8);
     let p = player(&mut w);
     assert!(w.get::<Spellset>(p).unwrap().slots.is_empty());
@@ -267,7 +267,7 @@ fn hero_coin_teaches_a_move_up_to_the_four_slot_cap() {
 }
 
 #[test]
-fn amnesia_forgets_one_move_and_every_tile_seen_this_floor() {
+fn amnesia_forgets_one_spell_and_every_tile_seen_this_floor() {
     let mut w = test_world(9);
     let p = player(&mut w);
     w.get_mut::<Spellset>(p)
@@ -313,7 +313,7 @@ fn amnesia_forgets_one_move_and_every_tile_seen_this_floor() {
 /// the same turn. Nothing in between may let a corpse take a turn: the mob
 /// Thunderbolt just killed must not still lunge at the player on its way out.
 #[test]
-fn a_mob_a_move_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
+fn a_mob_a_spell_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
