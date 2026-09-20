@@ -7,6 +7,7 @@
 //! mechanic exercised.
 
 use bevy_ecs::prelude::*;
+use crossterm::style::Color;
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -302,17 +303,30 @@ fn adornment_doubles_the_score_and_burns_itself_out() {
 }
 
 #[test]
-fn adornment_throws_eight_fireworks() {
+fn adornment_throws_sixteen_fireworks_in_three_colours() {
     let mut w = test_world(1);
     w.init_resource::<Particles>();
     let p = player(&mut w);
 
     put_on(&mut w, p, RingEffect::Adornment);
 
-    assert!(
-        w.resource::<Particles>().pending,
-        "the flourish is the whole point of the ring"
-    );
+    let fx = w.resource::<Particles>();
+    assert!(fx.pending, "the flourish is the whole point of the ring");
+    // A firework is the one burst that stays one colour for all its keyframes;
+    // everything else in the batch (the Glam explosion under it) cycles.
+    let fireworks: Vec<Color> = fx
+        .live
+        .iter()
+        .filter(|m| m.frames.len() == 5 && m.frames.iter().all(|f| f.1 == m.frames[0].1))
+        .map(|m| m.frames[0].1)
+        .collect();
+    assert_eq!(fireworks.len(), 16, "two rings of them, not one");
+    for c in fireworks {
+        assert!(
+            matches!(c, Color::Magenta | Color::Cyan | Color::Yellow),
+            "a flourish is magenta, cyan and yellow, never {c:?}"
+        );
+    }
 }
 
 /// One whole turn of killing: lays `n` already-dead bodies on the floor, each

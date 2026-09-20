@@ -801,7 +801,7 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
 /// queues nothing and spends no turn, confirmed by [`fire_at_target`].
 fn begin_look(world: &mut World) -> std::io::Result<bool> {
     let player = player_entity(world);
-    open_reticle_for(world, player, None, None, true, false);
+    open_reticle_for(world, player, None, None, true, false, false);
     // Announces the player's own tile right away, so `l` alone already says
     // something and `Tab` from there walks the rest of what's in view.
     Ok(announce_look(world))
@@ -997,7 +997,7 @@ fn return_to_pack(world: &mut World, player: Entity, item: Entity, idx: usize) {
 
 /// Arms the aiming reticle on `item`, centred on the player.
 fn open_reticle(world: &mut World, player: Entity, item: Entity, throwing: bool) {
-    open_reticle_for(world, player, Some(item), None, false, throwing);
+    open_reticle_for(world, player, Some(item), None, false, throwing, false);
 }
 
 /// Arms the aiming reticle on whichever one of an item, a spell or a plain look
@@ -1010,16 +1010,50 @@ fn open_reticle_for(
     spell_effect: Option<SpellEffect>,
     looking: bool,
     throwing: bool,
+    reach_attack: bool,
 ) {
     let pos = *world.get::<Position>(player).unwrap();
+    // Open on the nearest thing worth shooting at, so the common case — one
+    // monster in view — needs no cursor keys at all. Look mode is the
+    // exception and opens on the player's own tile: its cursor *is* the
+    // player's attention (`meet_its_eyes`), and snapping it onto a medusa the
+    // moment `L` is pressed would petrify people for pressing a key.
+    let snap = (!looking)
+        .then(|| {
+            let range = aim_range(world, item, spell_effect, looking, throwing, reach_attack);
+            nearest_mob(world, player, range)
+        })
+        .flatten();
+    let (cx, cy) = snap.unwrap_or((pos.x, pos.y));
     let mut ts = world.resource_mut::<TargetingState>();
     ts.active = true;
     ts.item = item;
     ts.spell_effect = spell_effect;
     ts.looking = looking;
     ts.throwing = throwing;
-    ts.cursor_x = pos.x as i16;
-    ts.cursor_y = pos.y as i16;
+    ts.reach_attack = reach_attack;
+    ts.cursor_x = cx as i16;
+    ts.cursor_y = cy as i16;
+}
+
+/// The closest visible monster inside `max_range`, ties broken by reading
+/// order so the same floor always opens the reticle on the same tile. What
+/// [`open_reticle_for`] starts on; `Tab` ([`cycle_target`]) walks the rest.
+/// A [`Hidden`] thing is passed over, exactly as it is everywhere else — a
+/// reticle that snapped to a disguised mimic would be a way to spot one for
+/// free.
+fn nearest_mob(world: &mut World, player: Entity, max_range: i32) -> Option<(u16, u16)> {
+    let player_pos = *world.get::<Position>(player)?;
+    let visible = world.get::<Viewshed>(player)?.visible_tiles.clone();
+    let mut q = world.query_filtered::<&Position, (With<Mob>, Without<Hidden>)>();
+    q.iter(world)
+        .filter(|p| {
+            (p.x, p.y) != (player_pos.x, player_pos.y)
+                && visible.contains(&(p.x, p.y))
+                && chebyshev(player_pos, **p) <= max_range
+        })
+        .min_by_key(|p| (chebyshev(player_pos, **p), p.y, p.x))
+        .map(|p| (p.x, p.y))
 }
 
 /// The row `dir` steps around the ring from `from`. `rows` are backpack
@@ -1268,7 +1302,7 @@ fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
         });
         return Ok(true);
     }
-    open_reticle_for(world, player, None, Some(effect), false, false);
+    open_reticle_for(world, player, None, Some(effect), false, false, false);
     Ok(false)
 }
 
@@ -1390,8 +1424,7 @@ fn begin_reach_attack(world: &mut World) -> std::io::Result<bool> {
             .add("You aren't wielding a reach weapon.");
         return Ok(false);
     };
-    open_reticle_for(world, player, Some(weapon), None, false, false);
-    world.resource_mut::<TargetingState>().reach_attack = true;
+    open_reticle_for(world, player, Some(weapon), None, false, false, true);
     Ok(false)
 }
 
@@ -2333,5 +2366,240 @@ mod tests {
         let mut w = modal_world(28);
         dispatch_key(&mut w, ctrl_c).unwrap();
         assert!(!w.resource::<GameState>().is_running);
+    }
+
+    // -----------------------------------------------------------------------
+    // The turn order
+    // -----------------------------------------------------------------------
+
+    /// A zap resolves against the dungeon the player aimed at, not the one the
+    /// monsters have already walked through.
+    ///
+    /// `item_system` used to run *after* `ai`, so a wand that reads one exact
+    /// tile — teleport, polymorph, haste, slow, cancellation — found that tile
+    /// empty whenever the target took a step first, and reported that there
+    /// was nothing there. The reticle had been on the monster the whole time.
+    #[test]
+    fn a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left() {
+        let mut w = modal_world(3);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+
+        // A clear run of floor beside the player, and a chaser along it that
+        // `ai` will definitely walk one step closer.
+        let row: Vec<u16> = {
+            let map = w.resource::<Map>();
+            (1..=4)
+                .map(|d| here.x + d)
+                .take_while(|&x| !map.blocks(x, here.y))
+                .collect()
+        };
+        assert!(row.len() >= 3, "need open floor for the walk");
+        let mob = w
+            .spawn((
+                Name { what: "orc".into() },
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                Position {
+                    x: row[2],
+                    y: here.y,
+                },
+                Fighter {
+                    hp: 5,
+                    max_hp: 5,
+                    armor: 0,
+                    power: 1,
+                    max_power: 1,
+                    armor_bonus: 0,
+                    power_bonus: 0,
+                },
+                Faction::Monster,
+                Blood,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = row
+            .iter()
+            .map(|&x| (x, here.y))
+            .chain([(here.x, here.y)])
+            .collect();
+
+        let aimed_at = *w.get::<Position>(mob).unwrap();
+        let wand = models::spawn_wand(&mut w, WandEffect::SlowMonster, Position { x: 0, y: 0 });
+        w.entity_mut(wand).remove::<Position>();
+        w.resource_mut::<UseQueue>().uses.push(WantsToUse {
+            user: player,
+            item: wand,
+            target: Some(aimed_at),
+            slot_idx: None,
+        });
+
+        crate::turn_schedule().run(&mut w);
+
+        // With `ai` first, the orc walks off `aimed_at` before the wand is
+        // resolved and the zap reports finding nothing there.
+        assert_eq!(
+            w.get::<Speed>(mob).unwrap().kind,
+            SpeedKind::Slow,
+            "the zap found the target on the tile it was aimed at"
+        );
+    }
+
+    /// The reticle opens on the nearest thing in view, so the common case —
+    /// one monster and one wand — is `z`, pick, `Enter`.
+    #[test]
+    fn the_reticle_opens_on_the_closest_visible_monster() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let row: Vec<u16> = {
+            let map = w.resource::<Map>();
+            (1..=4)
+                .map(|d| here.x + d)
+                .take_while(|&x| !map.blocks(x, here.y))
+                .collect()
+        };
+        assert!(row.len() >= 3, "need open floor beside the player");
+
+        let near = Position {
+            x: row[1],
+            y: here.y,
+        };
+        let far = Position {
+            x: row[2],
+            y: here.y,
+        };
+        for at in [far, near] {
+            w.spawn((
+                Name { what: "orc".into() },
+                Mob {
+                    movement_type: MovementType::Static,
+                },
+                at,
+                Faction::Monster,
+            ));
+        }
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
+            row.iter().map(|&x| (x, here.y)).collect();
+
+        let wand = models::spawn_wand(&mut w, WandEffect::SlowMonster, Position { x: 0, y: 0 });
+        w.entity_mut(wand).remove::<Position>();
+        open_reticle(&mut w, player, wand, false);
+
+        let ts = w.resource::<TargetingState>();
+        assert_eq!(
+            (ts.cursor_x, ts.cursor_y),
+            (near.x as i16, near.y as i16),
+            "the closer of the two, not the player's own tile"
+        );
+    }
+
+    /// Look mode is the one reticle that still opens on you: its cursor is
+    /// your attention, and snapping it onto a medusa would petrify you for
+    /// pressing `L`.
+    #[test]
+    fn look_mode_still_opens_on_your_own_tile() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let beside = Position {
+            x: here.x + 1,
+            y: here.y,
+        };
+        w.spawn((
+            Name {
+                what: "medusa".into(),
+            },
+            Mob {
+                movement_type: MovementType::Static,
+            },
+            beside,
+            Faction::Monster,
+        ));
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = vec![(beside.x, beside.y)];
+
+        open_reticle_for(&mut w, player, None, None, true, false, false);
+
+        let ts = w.resource::<TargetingState>();
+        assert_eq!((ts.cursor_x, ts.cursor_y), (here.x as i16, here.y as i16));
+    }
+
+    /// A throw comes down on the floor as it was when the player let go, not
+    /// as the monsters have since rearranged it.
+    ///
+    /// Aimed at the empty tile *in front of* an approaching orc: with
+    /// `throw_system` after `ai`, the orc had already stepped onto that tile
+    /// by the time the dagger arrived and caught one it was never thrown at.
+    #[test]
+    fn a_throw_lands_where_the_floor_was_when_the_player_let_go() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let row: Vec<u16> = {
+            let map = w.resource::<Map>();
+            (1..=4)
+                .map(|d| here.x + d)
+                .take_while(|&x| !map.blocks(x, here.y))
+                .collect()
+        };
+        assert!(row.len() >= 3, "need open floor beside the player");
+
+        // The orc walks one tile a turn, so `row[1]` is where it is *about*
+        // to be — and where the dagger is aimed.
+        let mob = w
+            .spawn((
+                Name { what: "orc".into() },
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                Position {
+                    x: row[2],
+                    y: here.y,
+                },
+                Fighter {
+                    hp: 20,
+                    max_hp: 20,
+                    armor: 0,
+                    power: 1,
+                    max_power: 1,
+                    armor_bonus: 0,
+                    power_bonus: 0,
+                },
+                Faction::Monster,
+                Blood,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = row
+            .iter()
+            .map(|&x| (x, here.y))
+            .chain([(here.x, here.y)])
+            .collect();
+
+        let empty_tile = Position {
+            x: row[1],
+            y: here.y,
+        };
+        let dagger = models::spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
+        w.entity_mut(dagger).remove::<Position>();
+        w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
+            thrower: player,
+            item: dagger,
+            target: empty_tile,
+        });
+
+        crate::turn_schedule().run(&mut w);
+
+        assert_eq!(
+            w.get::<Position>(mob).unwrap().x,
+            empty_tile.x,
+            "the orc did walk onto the aimed tile this turn"
+        );
+        assert_eq!(
+            w.get::<Fighter>(mob).unwrap().hp,
+            20,
+            "but the dagger was already on the floor by then"
+        );
     }
 }

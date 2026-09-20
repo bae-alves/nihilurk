@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use bevy_ecs::prelude::*;
 use crossterm::{
-    event::{poll, read},
+    event::{Event, KeyEventKind, poll, read},
     style::Color,
     terminal::size,
 };
@@ -770,6 +770,33 @@ fn settle_shake(world: &mut World) {
     world.resource_mut::<Shake>().settle();
 }
 
+/// Throw away every event already sitting in the queue.
+///
+/// Called once before an animation starts playing, because the loops below
+/// treat *any* pending event as "the player wants this skipped" — and the key
+/// that triggered the animation can still be echoing. A terminal that reports
+/// key releases (and some do) hands us the release of the very keypress that
+/// zapped the wand, which used to kill the bolt on its first frame, so a zap
+/// looked like it drew nothing at all. Keys typed ahead are swallowed here
+/// instead of one frame later, which is where they were going anyway.
+fn drain_input() -> std::io::Result<()> {
+    while poll(Duration::from_millis(0))? {
+        let _ = read()?;
+    }
+    Ok(())
+}
+
+/// Wait up to `frame` for the player to cut an animation short, swallowing the
+/// key that does it. Only an actual key *press* counts: a release, a resize or
+/// a mouse report is not someone asking to skip anything, and counting one as
+/// a skip is the bug [`drain_input`] describes, arriving a frame later.
+fn interrupted(frame: Duration) -> std::io::Result<bool> {
+    if !poll(frame)? {
+        return Ok(false);
+    }
+    Ok(matches!(read()?, Event::Key(k) if k.kind == KeyEventKind::Press))
+}
+
 /// Play out whatever hit / beam / blast particles the turn just queued.
 ///
 /// The turn is already fully resolved — this only animates the aftermath — so it
@@ -787,6 +814,7 @@ pub fn play_particles<W: Write>(
         return Ok(());
     }
     world.resource_mut::<Particles>().pending = false;
+    drain_input()?;
 
     const BASE_FRAME_MS: u64 = 33;
     let frame_ms = world.resource::<AnimRate>().scale(BASE_FRAME_MS);
@@ -801,8 +829,7 @@ pub fn play_particles<W: Write>(
         }
         render(world, stdout, screen)?;
         // The frame delay doubles as an "abort on keypress" poll.
-        if poll(Duration::from_millis(frame_ms))? {
-            let _ = read()?;
+        if interrupted(Duration::from_millis(frame_ms))? {
             // Skipping the sparks skips the shake with them: they are one
             // effect, and half of it left rocking after the other half was
             // dismissed reads as a bug.
@@ -832,6 +859,7 @@ pub fn play_magic_map<W: Write>(
         return Ok(());
     }
 
+    drain_input()?;
     let base_frame_ms = world.resource::<MagicMapReveal>().frame_ms();
     let frame = Duration::from_millis(world.resource::<AnimRate>().scale(base_frame_ms));
     loop {
@@ -840,8 +868,7 @@ pub fn play_magic_map<W: Write>(
             break;
         }
         render(world, stdout, screen)?;
-        if poll(frame)? {
-            let _ = read()?;
+        if interrupted(frame)? {
             finish_magic_map_reveal(world);
             settle_shake(world);
             break;
@@ -1164,7 +1191,12 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
             .into_iter()
             .filter_map(|i| entities.get(i).map(|&e| (i, e)))
             .map(|(i, e)| {
-                let name = models::display_name(world, e);
+                // A wand says how many zaps are left; nothing else carries a
+                // Battery, and the count is pack-only so messages stay clean.
+                let name = match world.get::<Battery>(e) {
+                    Some(b) => format!("{} ({})", models::display_name(world, e), b.charges),
+                    None => models::display_name(world, e),
+                };
                 let equipped = world.get::<Equipped>(e).is_some_and(|eq| eq.by.is_some());
                 let cursed_known =
                     models::known_quality(world, e) && world.get::<Curse>(e).is_some();

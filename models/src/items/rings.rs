@@ -19,13 +19,14 @@
 //! [`RingEffect`]: crate::components::RingEffect
 
 use bevy_ecs::prelude::*;
+use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::{Consume, GameLog, Magic, Player, Position};
 use crate::effects::{OnWear, Teleportitis};
 use crate::helpers::item_label;
 use crate::map::FxRng;
-use crate::particles::{GLORY_COLORS, Particles, on_map};
+use crate::particles::{BlastPalette, Particles, on_map};
 use crate::shake::{ShakeKind, kick_shake};
 
 // --- Tuning constants ------------------------------------------------------
@@ -34,9 +35,12 @@ use crate::shake::{ShakeKind, kick_shake};
 //   TELEPORT_MAGIC_COST  what one deliberate `T` jump costs the wearer
 use crate::constants::rings::TELEPORT_MAGIC_COST;
 
-/// The eight tiles a ring of adornment throws a firework onto, clockwise from
-/// due north, so the chain of detonations runs *around* the wearer.
-const AROUND: [(i32, i32); 8] = [
+/// The sixteen tiles a ring of adornment throws a firework onto: the eight
+/// within arm's reach, clockwise from due north, then Frost Nova's own star
+/// points a few tiles further out, clockwise again. Twice the fireworks, so
+/// twice the chain to sit through — the flourish is the one thing in the game
+/// allowed to take its time.
+const AROUND: [(i32, i32); 16] = [
     (0, -1),
     (1, -1),
     (1, 0),
@@ -45,7 +49,20 @@ const AROUND: [(i32, i32); 8] = [
     (-1, 1),
     (-1, 0),
     (-1, -1),
+    (0, -3),
+    (2, -2),
+    (3, 0),
+    (2, 2),
+    (0, 3),
+    (-2, 2),
+    (-3, 0),
+    (-2, -2),
 ];
+
+/// The three colours a flourish comes in. Not the full bright set the score
+/// numbers draw from ([`GLORY_COLORS`](crate::particles::GLORY_COLORS)): a
+/// ring of adornment has a palette, and it is magenta, cyan and yellow.
+const GLAM_COLORS: [Color; 3] = [Color::Magenta, Color::Cyan, Color::Yellow];
 
 /// Milliseconds between one firework and the next.
 const FIREWORK_STAGGER_MS: f32 = 90.0;
@@ -54,7 +71,7 @@ const FIREWORK_STAGGER_MS: f32 = 90.0;
 /// anything else in the game gives one event: this is the only moment in a run
 /// that exists purely to be looked at.
 const FANFARE: [&str; 4] = [
-    "Light pours off you in eight colours at once.",
+    "Magenta, cyan and gold pour off you all at once.",
     "The dungeon, briefly, is a ballroom.",
     "And you do it with style!",
     "Your score is doubled!",
@@ -87,19 +104,20 @@ pub(crate) fn do_it_with_style(world: &mut World) {
     }
 }
 
-/// Eight blasts, one on every tile within arm's reach, each in one of
-/// [`GLORY_COLORS`] and each a beat behind the last. The colour of each is
-/// drawn at random, so no two flourishes look alike and one colour of the seven
-/// always turns up twice.
+/// Sixteen blasts — every tile within arm's reach, then a star of them further
+/// out — each in one of [`GLAM_COLORS`] and each a beat behind the last, over a
+/// [`BlastPalette::Glam`] burst on the wearer's own tile, the way Frost Nova
+/// layers its star. The colour of each is drawn at random, so no two flourishes
+/// look alike.
 fn fireworks(world: &mut World, at: Position) {
     // Off `FxRng`, the cosmetic stream: which colour each firework comes in is
     // decoration, and decoration never moves the gameplay dice.
-    let colors: Vec<crossterm::style::Color> = {
+    let colors: Vec<Color> = {
         let Some(mut rng) = world.get_resource_mut::<FxRng>() else {
             return;
         };
         (0..AROUND.len())
-            .map(|_| GLORY_COLORS[rng.0.gen_range(0..GLORY_COLORS.len())])
+            .map(|_| GLAM_COLORS[rng.0.gen_range(0..GLAM_COLORS.len())])
             .collect()
     };
     let Some(mut fx) = world.get_resource_mut::<Particles>() else {
@@ -111,6 +129,7 @@ fn fireworks(world: &mut World, at: Position) {
         };
         fx.firework(x, y, colors[i], i as f32 * FIREWORK_STAGGER_MS);
     }
+    fx.explosion(&[(at.x, at.y, 0.0)], BlastPalette::Glam);
 }
 
 /// Ring of adornment, the moment it goes on ([`OnWear`]): the flourish fires,
