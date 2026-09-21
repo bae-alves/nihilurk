@@ -308,7 +308,7 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      5,  10,   0,  12,  1,   5).grants(ITEM_USER),
     MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,  10).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>(), Grant::of::<Regenerates>(), Grant::of::<Vampiric>()]),
     MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   5).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>()]).fast().equip(&[
-            EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Weapon },
+            EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Weapon },
             EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Armor },
             EquipRoll { chance: ULTIMATE_GEAR_CHANCE, kind: EquipKind::Ring },
         ]),
