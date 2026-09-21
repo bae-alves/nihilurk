@@ -4,9 +4,14 @@
 //! that used to be readable and inert — the two enchantments, monster
 //! confusion, hold monster, sleep and food detection.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
+
+const VORPAL_TARGET: &[Grant] = &[Grant::of::<VorpalTarget>()];
 
 fn test_world(seed: u64) -> World {
     let mut w = World::new();
@@ -393,14 +398,15 @@ fn every_vorpal_blade_beheads_a_jabberwock_whatever_its_bane() {
     w.get_mut::<Fighter>(p).unwrap().power = 100;
 
     let hero = *w.get::<Position>(p).unwrap();
-    let jab = spawn_monster(
+    let jab = monster::monster(
         &mut w,
-        MonsterDef::named("jabberwock"),
+        "test vorpal target",
         Position {
             x: hero.x + 1,
             y: hero.y,
         },
     );
+    grant_all(&mut w, jab, VORPAL_TARGET);
     w.get_mut::<Fighter>(jab).unwrap().hp = 999;
 
     resolve_attack(&mut w, p, jab);

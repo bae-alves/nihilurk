@@ -3,6 +3,8 @@
 //! eating rather than by shopping.
 
 mod common;
+#[path = "common/monster.rs"]
+mod monster;
 
 use bevy_ecs::prelude::*;
 use models::constants::lurk;
@@ -127,7 +129,7 @@ fn momentum_builds_on_the_lurk_itself() {
     let mut w = lurk_world(7);
     let p = player(&mut w);
     let at = beside_player(&mut w);
-    let prey = spawn_monster(&mut w, MonsterDef::named("emu"), at);
+    let prey = monster::monster(&mut w, "test prey", at);
     w.get_mut::<Fighter>(prey).unwrap().max_hp = 99;
     w.get_mut::<Fighter>(prey).unwrap().hp = 99;
 

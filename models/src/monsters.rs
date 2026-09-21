@@ -18,8 +18,7 @@ use MovementType::{Ambush, Chase};
 /// The spawn weight a bestiary row gets when it doesn't `.weight(n)` for itself.
 /// Defined and documented in `constants.rs`.
 use crate::constants::monsters::{
-    CENTAUR_BOW_CHANCE, DEFAULT_SPAWN_WEIGHT as DEFAULT_WEIGHT, HOBGOBLIN_GEAR_CHANCE,
-    MEDUSA_BOW_CHANCE, ORC_GEAR_CHANCE,
+    DEFAULT_SPAWN_WEIGHT as DEFAULT_WEIGHT, HIGH_GEAR_CHANCE, NORMAL_GEAR_CHANCE, ULTIMATE_GEAR_CHANCE,
 };
 
 /// Static, per-species description: everything about a monster that does not vary
@@ -274,7 +273,7 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("bat",           'B',   Color::DarkGrey,    Chase,      1,   4,   0,   8,  0,   1).grants(&[Grant::of::<Batty>()]),
     MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   5)
         .grants(ITEM_USER)
-        .equip(&[EquipRoll { chance: CENTAUR_BOW_CHANCE, kind: EquipKind::Bow }]),
+        .equip(&[EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Bow }]),
     MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,  10).grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>(), Grant::of::<FireBreath>()]),
     MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      1,   4,   0,   4,  1,   1),
     MonsterDef::row("venus flytrap", 'F',   Color::Green,       Ambush,     6,  10,   0,   8,  0,   5).grants(&[Grant::of::<Binds>()]),
@@ -282,9 +281,9 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("hobgoblin",     'H',   Color::DarkRed,     Chase,      1,   8,   0,   6,  0,   1)
         .grants(ITEM_USER)
         .equip(&[
-            EquipRoll { chance: HOBGOBLIN_GEAR_CHANCE, kind: EquipKind::Weapon },
-            EquipRoll { chance: HOBGOBLIN_GEAR_CHANCE, kind: EquipKind::Armor },
-            EquipRoll { chance: HOBGOBLIN_GEAR_CHANCE, kind: EquipKind::Ring },
+            EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Weapon },
+            EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Armor },
+            EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Ring },
         ]),
     MonsterDef::row("ice monster",   'I',   Color::Cyan,        Ambush,     1,   4,   0,   4, -1,   1).grants(&[Grant::of::<Freezing>()]),
     MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     12,   8,   5,   6,  0,  10).grants(&[Grant::of::<VorpalTarget>(), Grant::of::<Flies>()]),
@@ -292,19 +291,14 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("leprechaun",    'L',   Color::Green,       Chase,      2,   4,   0,   4,  0,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndFlees>()]),
     MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      6,  10,   0,   8,  1,   5)
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<Gorgon>()])
-        .equip(&[EquipRoll { chance: MEDUSA_BOW_CHANCE, kind: EquipKind::Bow }]),
+        .equip(&[EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Bow }]),
     MonsterDef::row("nymph",         'N',   Color::Magenta,     Chase,      2,   4,  -1,   4, -1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndVanishes>()]),
-    // Three hit points, not one, because the orc is the only creature granted
-    // `CoinGreedy` and `ai::orc_coin_goal` asks for `hp < max_hp`: at 1 HP an
-    // orc is only ever at full health or dead, so its coin-greed could never
-    // fire. Three gives it room to be wounded and go looking for a red coin,
-    // which is the behaviour the grant is there for.
     MonsterDef::row("orc",           'O',   Color::Red,         Chase,      3,   8,   0,   6,  0,   1)
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<CoinGreedy>()])
         .equip(&[
-            EquipRoll { chance: ORC_GEAR_CHANCE, kind: EquipKind::Weapon },
-            EquipRoll { chance: ORC_GEAR_CHANCE, kind: EquipKind::Armor },
-            EquipRoll { chance: ORC_GEAR_CHANCE, kind: EquipKind::Ring },
+            EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Weapon },
+            EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Armor },
+            EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Ring },
         ]),
     MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      6,  10,   0,   8,  0,   5).grants(&[Grant::of::<Undead>(), Grant::of::<Batty>()]).invisible(),
     MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      2,   6,   0,   8,  1,   5),
@@ -313,7 +307,11 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      4,  10,   0,   6,  1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<Regenerates>()]),
     MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      5,  10,   0,  12,  1,   5).grants(ITEM_USER),
     MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,  10).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>(), Grant::of::<Regenerates>(), Grant::of::<Vampiric>()]),
-    MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   5).grants(&[Grant::of::<Undead>()]).fast(),
+    MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   5).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>()]).fast().equip(&[
+            EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Weapon },
+            EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Armor },
+            EquipRoll { chance: ULTIMATE_GEAR_CHANCE, kind: EquipKind::Ring },
+        ]),
     MonsterDef::row("xeroc",         'X',   Color::Yellow,      Ambush,     5,   8,   0,   4,  1,  13).grants(&[Grant::of::<Binds>()]).mimics(),
     MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      3,   8,   0,   6,  0,   5).grants(&[Grant::of::<ColdImmune>()]),
     MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      2,   8,   0,   4,  0,   5).grants(&[Grant::of::<Undead>()]),

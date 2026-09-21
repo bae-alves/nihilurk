@@ -14,6 +14,8 @@
 //! time.
 
 mod common;
+#[path = "common/monster.rs"]
+mod monster;
 
 use bevy_ecs::prelude::*;
 use models::*;
@@ -112,8 +114,8 @@ fn open_run(w: &mut World, n: u16) -> Vec<Position> {
 }
 
 /// A monster of the given species with enough HP to survive being studied.
-fn tough(w: &mut World, species: &str, at: Position) -> Entity {
-    let m = spawn_monster(w, MonsterDef::named(species), at);
+fn tough(w: &mut World, name: &str, at: Position) -> Entity {
+    let m = monster::plain_monster(w, name, at);
     w.get_mut::<Fighter>(m).unwrap().hp = 500;
     w.get_mut::<Fighter>(m).unwrap().max_hp = 500;
     m
@@ -555,12 +557,14 @@ fn a_projectile_that_hits_nothing_falls_where_it_landed() {
 
 #[test]
 fn nothing_catches_a_projectile_out_of_the_air() {
-    // An orc will happily field a thrown mace and start using it. A spear
+    // An item-capable monster would happily field a thrown mace. A spear
     // arrives point first, and there is nothing left to pick up either way.
     let mut w = test_world(13);
     let p = player(&mut w);
     let spot = open_run(&mut w, 1)[0];
-    let orc = tough(&mut w, "orc", spot);
+    let orc = monster::monster(&mut w, "test monster", spot);
+    w.get_mut::<Fighter>(orc).unwrap().hp = 500;
+    w.get_mut::<Fighter>(orc).unwrap().max_hp = 500;
     assert!(w.get::<ItemUser>(orc).is_some());
 
     let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));

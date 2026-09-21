@@ -6,6 +6,9 @@
 //! with verbs behind them (adornment, regeneration, teleportation) get the
 //! mechanic exercised.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use models::*;
@@ -182,9 +185,9 @@ fn a_chaser_closes_in(w: &mut World, away: i32) -> bool {
         .copied()
         .expect("a lit room with somewhere to stand in it");
 
-    let mob = spawn_monster(
+    let mob = monster::monster(
         w,
-        MonsterDef::named("orc"),
+        "test monster",
         Position {
             x: spot.0,
             y: spot.1,

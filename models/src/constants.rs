@@ -628,19 +628,9 @@ pub mod monsters {
     /// The ice monster's odds, on a blow that lands, of paralysing what it hit.
     pub const ICE_MONSTER_PARALYZE_CHANCE: f64 = 1.0 / 6.0;
 
-    /// A centaur's odds of arriving already carrying a bow and arrows.
-    pub const CENTAUR_BOW_CHANCE: f64 = 0.40;
-
-    /// A medusa's odds of arriving already carrying a bow and arrows.
-    pub const MEDUSA_BOW_CHANCE: f64 = 0.20;
-
-    /// A hobgoblin's odds, rolled once per equipment slot (weapon, armour,
-    /// ring), of arriving with a piece in it.
-    pub const HOBGOBLIN_GEAR_CHANCE: f64 = 0.35;
-
-    /// An orc's odds, rolled once per equipment slot (weapon, armour, ring),
-    /// of arriving with a piece in it.
-    pub const ORC_GEAR_CHANCE: f64 = 0.15;
+    pub const NORMAL_GEAR_CHANCE: f64 = 0.20;
+    pub const HIGH_GEAR_CHANCE: f64 = 0.40;
+    pub const ULTIMATE_GEAR_CHANCE: f64 = 0.80;
 
     /// How many points of base power a rattlesnake's bite drains — permanently,
     /// and unlike the dart trap's, with no floor of 1: a rattlesnake can drive a
