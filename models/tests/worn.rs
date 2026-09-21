@@ -1,6 +1,9 @@
 //! Gear a creature is wearing rides along in the lines that name it: the
 //! sighting log and `look` both hang a `"(w. …)"` on the creature.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -58,7 +61,7 @@ fn log_has(w: &World, needle: &str) -> bool {
 /// A monster standing next to the player with `gear` already on.
 fn armed_neighbour(w: &mut World, gear: &[&str]) -> Entity {
     let spot = beside_player(w);
-    let mob = spawn_monster(w, MonsterDef::named("emu"), spot);
+    let mob = monster::monster(w, "emu", spot);
     for name in gear {
         let item = spawn_gear(w, name, spot);
         assert!(equip_silently(w, mob, item), "{name} went on");

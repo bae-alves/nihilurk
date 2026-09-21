@@ -2,6 +2,9 @@
 //! attack as "Something") until a perception ring turns them up, which also
 //! reveals hidden traps in view and any invisibly-stashed item.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -74,11 +77,12 @@ fn log_has(w: &World, needle: &str) -> bool {
 fn the_phantom_is_born_invisible() {
     let mut w = test_world(1);
     let spot = beside_player(&mut w);
-    let phantom = spawn_monster(&mut w, MonsterDef::named("phantom"), spot);
+    let phantom = monster::monster(&mut w, "phantom", spot);
+    w.entity_mut(phantom).insert(Invisible);
     assert!(w.get::<Invisible>(phantom).is_some());
 
     // A plain orc, right next to it, is not.
-    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), spot);
+    let orc = monster::monster(&mut w, "orc", spot);
     assert!(w.get::<Invisible>(orc).is_none());
 }
 
@@ -86,7 +90,8 @@ fn the_phantom_is_born_invisible() {
 fn an_invisible_phantom_in_view_stays_hidden_and_unannounced() {
     let mut w = test_world(1);
     let spot = beside_player(&mut w);
-    let phantom = spawn_monster(&mut w, MonsterDef::named("phantom"), spot);
+    let phantom = monster::monster(&mut w, "phantom", spot);
+    w.entity_mut(phantom).insert(Invisible);
 
     run_visibility(&mut w);
 
@@ -103,7 +108,8 @@ fn a_ring_of_perception_turns_up_the_phantom() {
     let mut w = test_world(1);
     let p = player(&mut w);
     let spot = beside_player(&mut w);
-    let phantom = spawn_monster(&mut w, MonsterDef::named("phantom"), spot);
+    let phantom = monster::monster(&mut w, "phantom", spot);
+    w.entity_mut(phantom).insert(Invisible);
     wear_ring(&mut w, p, RingEffect::Perception);
 
     run_visibility(&mut w);
@@ -126,7 +132,8 @@ fn an_unseen_attacker_is_only_ever_something() {
     w.get_mut::<Fighter>(p).unwrap().armor = 0;
     w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
     let spot = beside_player(&mut w);
-    let phantom = spawn_monster(&mut w, MonsterDef::named("phantom"), spot);
+    let phantom = monster::monster(&mut w, "phantom", spot);
+    w.entity_mut(phantom).insert(Invisible);
 
     // Visibility marks the in-view-but-invisible phantom Hidden.
     run_visibility(&mut w);

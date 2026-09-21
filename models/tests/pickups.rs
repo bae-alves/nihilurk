@@ -7,6 +7,9 @@
 //! which would do nothing is left alone, and that a promise is kept or broken
 //! for the right reasons.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -194,9 +197,9 @@ fn hurt(w: &mut World, p: Entity) {
         force_unequip(w, piece);
     }
     let at = *w.get::<Position>(p).unwrap();
-    let brute = spawn_monster(
+    let brute = monster::monster(
         w,
-        MonsterDef::named("dragon"),
+        "test monster",
         Position {
             x: at.x + 1,
             y: at.y,
@@ -418,7 +421,7 @@ fn a_shot_coin_reaches_further_than_a_shot_trap() {
                 w.despawn(m);
             }
         }
-        let victim = spawn_monster(&mut w, MonsterDef::named("troll"), victim_at);
+        let victim = monster::monster(&mut w, "test monster", victim_at);
         w.get_mut::<Fighter>(victim).unwrap().hp = 500;
         let thing = spawn_named(&mut w, what, center).expect(what);
         // A trap has to have been found before a shot can be aimed at it.
@@ -464,7 +467,7 @@ fn a_shot_hero_coin_gives_up_everything_it_knows() {
         x: at.x + 5,
         y: at.y,
     };
-    let troll = spawn_monster(&mut w, MonsterDef::named("troll"), beside);
+    let troll = monster::monster(&mut w, "test monster", beside);
     w.get_mut::<Fighter>(troll).unwrap().hp = 500;
     let (shot, coin) = shoot(&mut w, "hero coin");
 
@@ -522,7 +525,7 @@ fn a_coin_whose_shooter_died_first_is_simply_spent() {
         x: at.x + 4,
         y: at.y,
     };
-    let ghost = spawn_monster(&mut w, MonsterDef::named("orc"), spot);
+    let ghost = monster::monster(&mut w, "test monster", spot);
     let coin = spawn_named(&mut w, "platinum coin", spot).expect("a coin");
     w.despawn(ghost);
 

@@ -1,6 +1,8 @@
 //! The save file: what survives a round trip, and what deliberately does not.
 
 mod common;
+#[path = "common/monster.rs"]
+mod monster;
 
 use bevy_ecs::prelude::*;
 use models::constants::player::START_MAGIC;
@@ -220,7 +222,7 @@ fn equipped_gear_stays_on_across_a_save() {
     // A monster holds gear of its own — the save must not strip it from the
     // orc's hand any more than from the player's.
     let dagger = spawn_weapon(&mut w, "dagger", here);
-    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), here);
+    let orc = monster::monster(&mut w, "test monster", here);
     assert!(equip_silently(&mut w, orc, dagger));
 
     let before = loadout(&w, hero);

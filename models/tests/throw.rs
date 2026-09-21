@@ -4,6 +4,8 @@
 //! a page of instructions for anything literate enough to follow them.
 
 mod common;
+#[path = "common/monster.rs"]
+mod monster;
 
 use bevy_ecs::prelude::*;
 use models::constants::wands::GRENADE_DIE_PER_CHARGE;
@@ -66,10 +68,10 @@ fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Enti
     missile
 }
 
-/// A monster of the given species, dropped onto a tile next to the player so the
-/// throw has a clear one-step flight.
-fn monster(w: &mut World, species: &str, at: Position) -> Entity {
-    spawn_monster(w, MonsterDef::named(species), at)
+/// A plain monster dropped onto a tile next to the player so the throw has a
+/// clear one-step flight.
+fn monster(w: &mut World, _name: &str, at: Position) -> Entity {
+    monster::plain_monster(w, "test monster", at)
 }
 
 /// An open tile `dx` to the east of the player, and the tile beyond it.
@@ -102,7 +104,7 @@ fn a_thrown_weapon_is_caught_and_wielded_by_a_creature_with_hands() {
     // A troll rather than an orc or a hobgoblin on purpose: neither of those
     // two ever rolls a piece of gear at spawn, so its hands are never already
     // full when the mace arrives.
-    let troll = monster(&mut w, "troll", spot);
+    let troll = monster::monster(&mut w, "test monster", spot);
     // Enough HP that the mace can't kill it before it can catch it.
     w.get_mut::<Fighter>(troll).unwrap().hp = 20;
     let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
@@ -459,7 +461,7 @@ fn caught_gear_arms_the_monster_that_caught_it() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let hobgoblin = monster(&mut w, "hobgoblin", spot);
+    let hobgoblin = monster::monster(&mut w, "test monster", spot);
     w.get_mut::<Fighter>(hobgoblin).unwrap().hp = 30;
     let mail = stash(&mut w, p, |w| spawn_armor(w, "plate mail", NOWHERE));
 
@@ -492,7 +494,7 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
     let mut w = test_world(5);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let orc = monster(&mut w, "orc", spot);
+    let orc = monster::plain_monster(&mut w, "test monster", spot);
     {
         let mut f = w.get_mut::<Fighter>(orc).unwrap();
         f.max_hp = 10;
@@ -520,7 +522,7 @@ fn a_potion_that_does_nothing_visible_still_lands_on_its_target() {
     let mut w = test_world(5);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let orc = monster(&mut w, "orc", spot);
+    let orc = monster::plain_monster(&mut w, "test monster", spot);
     // Strength was never drained: restore strength has nothing to show for itself.
     let hp = w.get::<Fighter>(orc).unwrap().max_hp;
     w.get_mut::<Fighter>(orc).unwrap().hp = hp;
@@ -555,7 +557,7 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
         spawn_scroll(w, ScrollEffect::FoodDetection, NOWHERE)
     });
     w.despawn(bat);
-    let orc = monster(&mut w, "orc", spot);
+    let orc = monster::monster(&mut w, "test monster", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 20;
 
     throw(&mut w, p, scroll, spot);
@@ -570,7 +572,7 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
 #[test]
 fn the_item_users_are_the_humanoids_with_wits() {
     // Wielding and reading are one flag, so this roster is both lists at once —
-    // the mindless humanoids (zombie, wraith, phantom) are deliberately absent.
+    // the mindless humanoids (zombie and phantom) are deliberately absent.
     let mut w = test_world(1);
     let users: Vec<&str> = BESTIARY
         .iter()
@@ -594,6 +596,7 @@ fn the_item_users_are_the_humanoids_with_wits() {
             "troll",
             "ur-vile",
             "vampire",
+            "wraith",
         ]
     );
 }
@@ -662,7 +665,7 @@ fn kill_an_armed_troll(seed: u64) -> bool {
     let mut w = test_world(seed);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let troll = monster(&mut w, "troll", spot);
+    let troll = monster::monster(&mut w, "test monster", spot);
     w.get_mut::<Fighter>(troll).unwrap().hp = 20;
     let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
     throw(&mut w, p, mace, spot);
@@ -720,7 +723,7 @@ fn a_monster_keeps_what_it_is_holding_across_a_save() {
     let mut w = test_world(12);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let orc = monster(&mut w, "orc", spot);
+    let orc = monster::monster(&mut w, "test monster", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 20;
     let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
     throw(&mut w, p, mace, spot);

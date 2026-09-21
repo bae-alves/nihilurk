@@ -209,6 +209,29 @@ Three ways out, in order of preference:
 A test's own loop bound is not a tuning number and should not borrow one. `models/tests/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it made a tightened valve look like an infinite loop.
 
 
+One rule of nihilurk's own: behavior tests build components, not bestiary rows
+-------------------------------------------------------------------------------
+
+A behavior test should construct the smallest entity that carries the property
+under test. Do not spawn an orc to test equipment, a dragon to test fire
+immunity, or a phantom to test invisibility. A bestiary row is a content
+definition, and spawning it also brings along its grants, gear rolls, speed,
+name and other balance decisions. That makes an unrelated row edit change the
+fixture before the assertion runs.
+
+Use a neutral monster fixture for ordinary monster mechanics, and attach the
+specific component or grant the test needs. For example, a test of undead
+drain immunity should add `Grant::of::<Undead>()`; a test of catching gear
+should add `ItemUser`; a test of invisibility should insert `Invisible`.
+The assertion then names the contract directly and cannot pass because a
+species happened to carry extra behavior.
+
+Keep bestiary-backed tests only where the bestiary itself is the subject:
+content-table validation, playable-body definitions, spawn behavior, and
+roster-wide contracts. Those tests should say so in their names and comments.
+The shared neutral fixtures live under `models/tests/common/monster.rs`.
+
+
 See also
 --------
 

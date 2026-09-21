@@ -5,6 +5,9 @@
 //! `match ring_effect { ... }` in a subsystem, the "gear grants what a monster
 //! is born with" tests below are what should start failing.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -26,6 +29,7 @@ fn test_world(seed: u64) -> World {
 
 /// A grant list exactly as a catalog row would spell it.
 const FIRE_RESISTANCE: &[Grant] = &[Grant::of::<FireImmune>()];
+const UNDEAD: &[Grant] = &[Grant::of::<Undead>()];
 
 fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
@@ -66,13 +70,10 @@ fn a_ring_can_grant_what_a_monster_is_born_with() {
     let mut w = test_world(1);
     let p = player(&mut w);
 
-    // The dragon's innate immunity is a component, nothing more.
-    let dragon = spawn_monster(
-        &mut w,
-        MonsterDef::named("dragon"),
-        Position { x: 10, y: 10 },
-    );
-    assert!(w.get::<FireImmune>(dragon).is_some());
+    // Innate immunity is a component, nothing more.
+    let monster = monster::monster(&mut w, "test monster", Position { x: 10, y: 10 });
+    grant_all(&mut w, monster, FIRE_RESISTANCE);
+    assert!(w.get::<FireImmune>(monster).is_some());
     assert!(w.get::<FireImmune>(p).is_none());
 
     // A "ring of fire resistance" is one catalog row: the same component, lent.
@@ -104,21 +105,18 @@ fn taking_the_ring_off_takes_the_effect_with_it() {
 #[test]
 fn a_removed_ring_never_strips_innate_magic() {
     let mut w = test_world(3);
-    let dragon = spawn_monster(
-        &mut w,
-        MonsterDef::named("dragon"),
-        Position { x: 10, y: 10 },
-    );
-    w.entity_mut(dragon).insert(Backpack { items: Vec::new() });
+    let monster = monster::monster(&mut w, "test monster", Position { x: 10, y: 10 });
+    w.entity_mut(monster).insert(Backpack { items: Vec::new() });
+    grant_all(&mut w, monster, FIRE_RESISTANCE);
 
     // Hand the dragon a ring of the immunity it already has, then take it away.
     let ring = custom_ring(&mut w, "ring of fire resistance", FIRE_RESISTANCE, ());
-    wear(&mut w, dragon, ring);
-    toggle_equipped(&mut w, dragon, ring);
+    wear(&mut w, monster, ring);
+    toggle_equipped(&mut w, monster, ring);
 
     assert!(
-        w.get::<FireImmune>(dragon).is_some(),
-        "the dragon was born with it; no ring can take it"
+        w.get::<FireImmune>(monster).is_some(),
+        "innate magic remains after the ring is removed"
     );
 }
 
@@ -156,18 +154,15 @@ fn a_rings_armor_bonus_folds_in_exactly_like_armour() {
 #[test]
 fn cancellation_strips_every_effect_in_the_registry() {
     let mut w = test_world(5);
-    let phantom = spawn_monster(
-        &mut w,
-        MonsterDef::named("phantom"),
-        Position { x: 10, y: 10 },
-    );
-    assert!(w.get::<Undead>(phantom).is_some());
+    let monster = monster::monster(&mut w, "test monster", Position { x: 10, y: 10 });
+    grant_all(&mut w, monster, UNDEAD);
+    assert!(w.get::<Undead>(monster).is_some());
 
-    revoke_all(&mut w, phantom);
+    revoke_all(&mut w, monster);
 
     for effect in EFFECTS {
         assert!(
-            !effect.grant.probe(&w, phantom),
+            !effect.grant.probe(&w, monster),
             "cancellation walks the whole registry"
         );
     }

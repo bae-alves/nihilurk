@@ -2,6 +2,9 @@ use bevy_ecs::prelude::*;
 use models::constants::spells::{TURBO_MAGIC_COST_MULT, TURBO_MAGIC_POWER_MULT};
 use models::*;
 
+#[path = "common/monster.rs"]
+mod monster;
+
 fn test_world(seed: u64) -> World {
     let mut w = World::new();
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
@@ -368,7 +371,7 @@ fn a_worn_ring_of_strength_adds_two_to_every_blow() {
 fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     let mut w = test_world(9);
     let p = player(&mut w);
-    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), Position { x: 40, y: 11 });
+    let orc = monster::monster(&mut w, "test monster", Position { x: 40, y: 11 });
 
     let ring = spawn_ring(
         &mut w,
@@ -569,11 +572,11 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
 #[test]
 fn a_monster_equipped_silently_does_not_identify_its_own_gear() {
     let mut w = test_world(5);
-    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), Position { x: 40, y: 11 });
+    let troll = monster::monster(&mut w, "test monster", Position { x: 40, y: 11 });
     let sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
     w.entity_mut(sword).insert(PowerBonus(2));
 
-    assert!(equip_silently(&mut w, orc, sword));
+    assert!(equip_silently(&mut w, troll, sword));
 
     assert!(
         w.get::<KnownQuality>(sword).is_none(),

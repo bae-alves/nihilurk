@@ -7,10 +7,17 @@
 //! decision, and a test that pins one is a test that fails the next time
 //! somebody makes one.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::constants::wands::{DAMAGE_DICE, DAMAGE_SIDES, WAND_CHARGES};
 use models::*;
+
+const UNDEAD: &[Grant] = &[Grant::of::<Undead>()];
+const FIRE_IMMUNITY: &[Grant] = &[Grant::of::<FireImmune>()];
+const COLD_IMMUNITY: &[Grant] = &[Grant::of::<ColdImmune>()];
 
 fn test_world(seed: u64) -> World {
     let mut w = World::new();
@@ -220,7 +227,8 @@ fn undead_are_immune_to_draining_and_grant_no_lifesteal() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    let zombie = spawn_monster(&mut w, MonsterDef::named("zombie"), spot);
+    let zombie = monster::monster(&mut w, "zombie", spot);
+    grant_all(&mut w, zombie, UNDEAD);
     assert!(w.get::<Undead>(zombie).is_some());
     let zhp = w.get::<Fighter>(zombie).unwrap().hp;
     w.get_mut::<Fighter>(p).unwrap().hp = 5;
@@ -257,7 +265,8 @@ fn a_dragon_shrugs_off_fire_and_a_yeti_shrugs_off_cold() {
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
 
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), spot);
+    let dragon = monster::monster(&mut w, "dragon", spot);
+    grant_all(&mut w, dragon, FIRE_IMMUNITY);
     let dhp = w.get::<Fighter>(dragon).unwrap().hp;
     let fire = give_wand(&mut w, p, WandEffect::Fire);
     zap(&mut w, p, fire, spot);
@@ -268,7 +277,8 @@ fn a_dragon_shrugs_off_fire_and_a_yeti_shrugs_off_cold() {
     );
     w.entity_mut(dragon).despawn();
 
-    let yeti = spawn_monster(&mut w, MonsterDef::named("yeti"), spot);
+    let yeti = monster::monster(&mut w, "yeti", spot);
+    grant_all(&mut w, yeti, COLD_IMMUNITY);
     let yhp = w.get::<Fighter>(yeti).unwrap().hp;
     let cold = give_wand(&mut w, p, WandEffect::Cold);
     zap(&mut w, p, cold, spot);
@@ -288,7 +298,7 @@ fn polymorph_swaps_the_target_for_a_different_species_on_the_same_tile() {
     let mut w = test_world(5);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    let orc = spawn_monster(&mut w, MonsterDef::named("orc"), spot);
+    let orc = monster::monster(&mut w, "test monster", spot);
     let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
 
     let wand = give_wand(&mut w, p, WandEffect::Polymorph);
@@ -616,7 +626,8 @@ fn cancellation_strips_the_magic_but_leaves_the_creature() {
     let mut w = test_world(6);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), spot);
+    let dragon = monster::monster(&mut w, "dragon", spot);
+    grant_all(&mut w, dragon, FIRE_IMMUNITY);
     w.get_mut::<Speed>(dragon).unwrap().kind = SpeedKind::Fast;
 
     let wand = give_wand(&mut w, p, WandEffect::Cancellation);
