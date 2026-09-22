@@ -71,7 +71,7 @@ The last column, `dep`, is the shallowest floor the creature appears on. The bat
 Step 2: add a row
 -----------------
 
-A basilisk should be a mid-tier horror: tough, slow to kill, hits hard. Add this line after the bat, keeping the columns lined up:
+A basilisk should sit in the middle stat band: tough, slow to kill, and hitting hard. Add this line after the bat, keeping the columns lined up:
 
     MonsterDef::row("basilisk",  'b',   Color::DarkGreen,  Chase,  5,   8,  1,   8,  1,   5),
 

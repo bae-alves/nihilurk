@@ -118,7 +118,7 @@ Monsters use it as the last column of the row:
     //              name         glyph  colour     move   hp pow pb  ar ab  dep
     MonsterDef::row("dragon",    'D',   Color::Red, Chase, 8, 12, 2, 10, 2, 10),
 
-The bestiary uses 1, 5 and 10 -- fodder from the start, the mid tier from floor 5, the nastiest letters from floor 10. Nothing stops you using 2 or 11.
+The bestiary uses 1, 5 and 10 -- the shallow stat band from the start, the middle band from floor 5, the nastiest letters from floor 10. Nothing stops you using 2 or 11.
 
 The dungeon is 13 floors deep (`FINAL_DEPTH`), so a `min_depth` above 13 means "never" -- on the way in. The climb out is the exception: once the Element of Yoord is in the pack, floor population switches from `pick` to `MonsterDef::pick_any`, which drops the gate entirely, so a `min_depth` of 10 (or 99) is no protection on the ascent.
 
