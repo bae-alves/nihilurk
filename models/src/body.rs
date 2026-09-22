@@ -218,7 +218,7 @@ pub fn feed(world: &mut World) {
     };
     world
         .resource_mut::<GameLog>()
-        .add(format!("FEAR THE WOLF! (+{} {grown})", lurk::GROWTH_STEP));
+        .add(format!("FEAR THE LURK! (+{} {grown})", lurk::GROWTH_STEP));
 }
 
 // ---------------------------------------------------------------------------

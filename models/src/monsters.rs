@@ -269,52 +269,52 @@ pub const BESTIARY: &[MonsterDef] = &[
     // `.fast()`, `.equip(...)`, `.mimics()` and `.weight(n)` are chained on
     // when a row wants more than the default.
     //              name             glyph  colour              move       hp  pow  pb   ar  ab  dep
-    MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      3,   4,  -1,   8,  1,   5).grants(&[Grant::of::<RustsArmor>()]),
-    MonsterDef::row("bat",           'B',   Color::DarkGrey,    Chase,      1,   4,   0,   8,  0,   1).grants(&[Grant::of::<Batty>()]),
-    MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      3,   8,   0,   6,  1,   5)
+    MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      9,   4,  -1,   8,  1,   5).grants(&[Grant::of::<RustsArmor>()]),
+    MonsterDef::row("foxbat",           'B',   Color::DarkGrey,    Chase,      6,   8,   0,   8,  0,   5).grants(&[Grant::of::<Batty>()]),
+    MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      9,   8,   0,   6,  1,   5)
         .grants(ITEM_USER)
         .equip(&[EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Bow }]),
-    MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      8,  12,   2,  10,  2,  10).grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>(), Grant::of::<FireBreath>()]),
-    MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      1,   4,   0,   4,  1,   1),
-    MonsterDef::row("venus flytrap", 'F',   Color::Green,       Ambush,     6,  10,   0,   8,  0,   5).grants(&[Grant::of::<Binds>()]),
-    MonsterDef::row("griffin",       'G',   Color::DarkYellow,  Chase,     10,  12,   1,   8,  1,  10).grants(&[Grant::of::<Flies>(), Grant::of::<Regenerates>()]),
-    MonsterDef::row("hobgoblin",     'H',   Color::DarkRed,     Chase,      1,   8,   0,   6,  0,   1)
+    MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      13,  12,   2,  10,  2,  10).grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>(), Grant::of::<FireBreath>()]),
+    MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      6,   4,   0,   4,  1,   1),
+    MonsterDef::row("venus flytrap", 'f',   Color::Green,       Ambush,     9,  10,   0,   8,  0,   5).grants(&[Grant::of::<Binds>()]),
+    MonsterDef::row("griffin",       'G',   Color::DarkYellow,  Chase,     13,  12,   1,   8,  1,  10).grants(&[Grant::of::<Flies>(), Grant::of::<Regenerates>()]),
+    MonsterDef::row("hobgoblin",     'h',   Color::DarkRed,     Chase,      6,   4,   0,   6,  0,   1)
         .grants(ITEM_USER)
         .equip(&[
             EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Weapon },
             EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Armor },
             EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Ring },
         ]),
-    MonsterDef::row("ice monster",   'I',   Color::Cyan,        Ambush,     1,   4,   0,   4, -1,   1).grants(&[Grant::of::<Freezing>()]),
-    MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     12,   8,   5,   6,  0,  10).grants(&[Grant::of::<VorpalTarget>(), Grant::of::<Flies>()]),
-    MonsterDef::row("kestral",       'K',   Color::Grey,        Chase,      1,   4,   0,   4,  1,   1).grants(&[Grant::of::<Flies>()]),
-    MonsterDef::row("leprechaun",    'L',   Color::Green,       Chase,      2,   4,   0,   4,  0,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndFlees>()]),
-    MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      6,  10,   0,   8,  1,   5)
+    MonsterDef::row("ice monster",   'I',   Color::Cyan,        Ambush,     3,   4,   0,   4, -1,   1).grants(&[Grant::of::<Freezing>()]),
+    MonsterDef::row("jabberwock",    'J',   Color::Magenta,     Chase,     13,   8,   5,   6,  0,  10).grants(&[Grant::of::<VorpalTarget>(), Grant::of::<Flies>()]),
+    MonsterDef::row("kestral",       'K',   Color::Grey,        Chase,      3,   4,   0,   4,  1,   1).grants(&[Grant::of::<Flies>()]),
+    MonsterDef::row("leprechaun",    'L',   Color::Green,       Chase,      3,   4,   0,   4,  0,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndFlees>()]),
+    MonsterDef::row("medusa",        'M',   Color::DarkGreen,   Chase,      9,  5,   0,   8,  1,   5)
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<Gorgon>()])
         .equip(&[EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Bow }]),
-    MonsterDef::row("nymph",         'N',   Color::Magenta,     Chase,      2,   4,  -1,   4, -1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndVanishes>()]),
-    MonsterDef::row("orc",           'O',   Color::Red,         Chase,      3,   8,   0,   6,  0,   1)
+    MonsterDef::row("nymph",         'N',   Color::Magenta,     Chase,      3,   4,  -1,   4, -1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndVanishes>()]),
+    MonsterDef::row("orc",           'o',   Color::Red,         Chase,      4,   6,   0,   4,  0,   1)
         .grants(&[Grant::of::<ItemUser>(), Grant::of::<CoinGreedy>()])
         .equip(&[
             EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Weapon },
             EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Armor },
             EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Ring },
         ]),
-    MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      6,  10,   0,   8,  0,   5).grants(&[Grant::of::<Undead>(), Grant::of::<Batty>()]).invisible(),
-    MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      2,   6,   0,   8,  1,   5),
-    MonsterDef::row("rattlesnake",   'R',   Color::DarkGreen,   Chase,      2,   6,   0,   8,  0,   5).grants(&[Grant::of::<Venomous>()]),
-    MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      2,   4,   0,   4,  0,   5).grants(&[Grant::of::<Splits>()]),
-    MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      4,  10,   0,   6,  1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<Regenerates>()]),
-    MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      5,  10,   0,  12,  1,   5).grants(ITEM_USER),
-    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      6,  10,   0,  10,  1,  10).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>(), Grant::of::<Regenerates>(), Grant::of::<Vampiric>()]),
-    MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      3,   6,   0,   6,  1,   5).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>()]).fast().equip(&[
+    MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      9,  10,   0,   8,  0,   5).grants(&[Grant::of::<Undead>(), Grant::of::<Batty>()]).invisible(),
+    MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      6,   6,   0,   12,  4,   5),
+    MonsterDef::row("rattlesnake",   'R',   Color::DarkGreen,   Chase,      6,   6,   0,   8,  0,   5).grants(&[Grant::of::<Venomous>()]),
+    MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      6,   4,   0,   4,  0,   5).grants(&[Grant::of::<Splits>()]),
+    MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      8,  10,   0,   6,  1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<Regenerates>()]),
+    MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      10,  10,   0,  12,  1,   5).grants(ITEM_USER),
+    MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      10,  10,  0,   8,  1,   5).grants(&[Grant::of::<Vampiric>(), Grant::of::<ItemUser>()]),
+    MonsterDef::row("wraith",        'W',   Color::DarkGrey,    Chase,      9,   6,   0,   6,  1,   5).grants(&[Grant::of::<Undead>(), Grant::of::<ItemUser>()]).fast().equip(&[
             EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Weapon },
             EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Armor },
             EquipRoll { chance: ULTIMATE_GEAR_CHANCE, kind: EquipKind::Ring },
         ]),
-    MonsterDef::row("xeroc",         'X',   Color::Yellow,      Ambush,     5,   8,   0,   4,  1,  13).grants(&[Grant::of::<Binds>()]).mimics(),
-    MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      3,   8,   0,   6,  0,   5).grants(&[Grant::of::<ColdImmune>()]),
-    MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      2,   8,   0,   4,  0,   5).grants(&[Grant::of::<Undead>()]),
+    MonsterDef::row("xeroc",         'X',   Color::Yellow,      Ambush,     6,   8,   0,   4,  1,  5).grants(&[Grant::of::<Binds>()]).mimics(),
+    MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      9,   8,   0,   6,  0,   5).grants(&[Grant::of::<ColdImmune>()]),
+    MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      8,   8,   0,   4,  0,   5).grants(&[Grant::of::<Undead>()]),
 ];
 
 /// Every component a monster is spawned with, built wholesale from a

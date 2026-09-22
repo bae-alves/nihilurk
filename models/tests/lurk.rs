@@ -176,7 +176,7 @@ fn eating_grows_the_lurk_at_the_stated_odds() {
         w.resource::<GameLog>()
             .unread
             .iter()
-            .any(|line| line.contains("FEAR THE WOLF!"))
+            .any(|line| line.contains("FEAR THE LURK!"))
     );
 }
 

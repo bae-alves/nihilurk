@@ -56,7 +56,7 @@ That is the whole procedure. Nothing else in the codebase needs to be told that 
 Choosing the numbers
 --------------------
 
-Copy the band your creature belongs to:
+Copy the stat band your creature belongs to:
 
     fodder      hp 1-2    power 4-8     armor 4-8       min_depth 1
     mid         hp 3-6    power 6-10    armor 6-10      min_depth 5
