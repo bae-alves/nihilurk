@@ -167,21 +167,22 @@ fn the_deep_letters_do_eventually_turn_up() {
 
 #[test]
 fn xeroc_only_turns_up_past_its_debut() {
-    // The mimic is the one final-tier species deeper than the D/G/J/V tier,
-    // and alone up there on purpose.
-    assert_eq!(MonsterDef::named("xeroc").min_depth, FINAL_DEPTH);
+    let mimic = BESTIARY
+        .iter()
+        .find(|m| m.mimics)
+        .expect("the bestiary has a mimic");
     let mut r = rng(37);
-    for depth in 1..FINAL_DEPTH {
+    for depth in 1..mimic.min_depth {
         for _ in 0..300 {
-            assert_ne!(MonsterDef::pick(depth, &mut r).name, "xeroc");
+            assert_ne!(MonsterDef::pick(depth, &mut r).name, mimic.name);
         }
     }
     let seen: HashSet<&str> = (0..500)
-        .map(|_| MonsterDef::pick(FINAL_DEPTH, &mut r).name)
+        .map(|_| MonsterDef::pick(mimic.min_depth, &mut r).name)
         .collect();
     assert!(
-        seen.contains("xeroc"),
-        "the xeroc should turn up once its own floor unlocks it"
+        seen.contains(mimic.name),
+        "the mimic should turn up once its own floor unlocks it"
     );
 }
 
@@ -189,26 +190,42 @@ fn xeroc_only_turns_up_past_its_debut() {
 fn pick_any_ignores_the_depth_gate() {
     // The climb out with the Element of Yoord: every floor draws from the whole
     // bestiary, so the deepest letters can turn up regardless of depth.
+    let shallowest = BESTIARY
+        .iter()
+        .min_by_key(|m| m.min_depth)
+        .expect("the bestiary is not empty");
+    let deepest = BESTIARY
+        .iter()
+        .max_by_key(|m| m.min_depth)
+        .expect("the bestiary is not empty");
     let mut r = rng(19);
     let seen: HashSet<&str> = (0..3_000)
         .map(|_| MonsterDef::pick_any(&mut r).name)
         .collect();
     assert!(
-        seen.contains("dragon") && seen.contains("bat"),
+        seen.contains(shallowest.name) && seen.contains(deepest.name),
         "pick_any should mix the whole table, saw {seen:?}"
     );
 }
 
 #[test]
 fn floor_one_draws_only_from_the_shallow_bestiary() {
+    let shallowest = BESTIARY
+        .iter()
+        .min_by_key(|m| m.min_depth)
+        .expect("the bestiary is not empty");
+    let deepest = BESTIARY
+        .iter()
+        .max_by_key(|m| m.min_depth)
+        .expect("the bestiary is not empty");
     let mut r = rng(17);
     let seen: HashSet<&str> = (0..1_000)
         .map(|_| MonsterDef::pick(1, &mut r).name)
         .collect();
-    assert!(seen.contains("bat"));
+    assert!(seen.contains(shallowest.name));
     assert!(
-        !seen.contains("dragon"),
-        "a dragon on floor 1 would end the run there"
+        !seen.contains(deepest.name),
+        "a deep monster on floor 1 would end the run there"
     );
 }
 

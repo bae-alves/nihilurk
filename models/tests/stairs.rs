@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
 use models::*;
+use std::collections::HashSet;
 
 fn test_world(seed: u64) -> World {
     let mut w = World::new();
@@ -45,6 +46,10 @@ fn descend_generates_new_floor_and_heals() {
     w.get_mut::<Position>(p).unwrap().x = dx;
     w.get_mut::<Position>(p).unwrap().y = dy;
 
+    let old_floor_entities: HashSet<Entity> = w
+        .query_filtered::<Entity, (With<Position>, Without<Player>)>()
+        .iter(&w)
+        .collect();
     let old_tiles = w.resource::<Map>().tiles.clone();
     assert!(change_level(&mut w, true));
 
@@ -54,8 +59,9 @@ fn descend_generates_new_floor_and_heals() {
         old_tiles,
         "a new floor was generated"
     );
-    // Healed 50% of max (12) -> 4 + 6 = 10.
-    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 10);
+    let fighter = w.get::<Fighter>(p).unwrap();
+    let expected_hp = 4 + fighter.max_hp / constants::progression::DESCENT_HEAL_DIVISOR;
+    assert_eq!(fighter.hp, expected_hp);
     // Magic is fully restored on arrival.
     let magic = w.get::<Magic>(p).unwrap();
     assert_eq!(magic.points, magic.max_points);
@@ -63,7 +69,12 @@ fn descend_generates_new_floor_and_heals() {
     let np = *w.get::<Position>(p).unwrap();
     assert_eq!(w.resource::<Map>().tile(np.x, np.y), TileType::Upstairs);
     // No floor items or monsters carried over (the starting kit stays).
-    assert_eq!(w.query::<&Mob>().iter(&w).count() <= 3, true);
+    assert!(
+        old_floor_entities
+            .iter()
+            .all(|&entity| w.get_entity(entity).is_none()),
+        "entities from the old floor carried over"
+    );
     assert_eq!(
         w.query_filtered::<&Backpack, With<Player>>()
             .single(&w)

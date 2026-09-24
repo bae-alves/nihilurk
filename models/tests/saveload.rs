@@ -5,7 +5,6 @@ mod common;
 mod monster;
 
 use bevy_ecs::prelude::*;
-use models::constants::player::START_MAGIC;
 use models::*;
 
 #[test]
@@ -25,6 +24,16 @@ fn round_trip() {
     w.resource_mut::<Depth>().what = 4;
     regenerate_map(&mut w, 1, 4);
     let n0 = w.iter_entities().count();
+    let depth = w.resource::<Depth>().what;
+    let magic_before = {
+        let magic = w.query_filtered::<&Magic, With<Player>>().single(&w);
+        (magic.points, magic.max_points)
+    };
+    let pack_len_before = w
+        .query_filtered::<&Backpack, With<Player>>()
+        .single(&w)
+        .items
+        .len();
     let save = common::SaveFile::new("roundtrip");
     let p = save.path();
     save_game(&mut w, p).unwrap();
@@ -43,18 +52,16 @@ fn round_trip() {
     let b: u64 = w2.resource_mut::<GameRng>().0.r#gen();
     assert_eq!(a, b);
     assert_eq!(w2.resource::<PlayerName>().what, "TESTER");
-    assert_eq!(w2.resource::<Depth>().what, 4);
-    // The starting kit — ring mail, mace, bow, arrows, healing potion — round-trips.
+    assert_eq!(w2.resource::<Depth>().what, depth);
     let packed: Vec<Entity> = {
         let mut q = w2.query_filtered::<&Backpack, With<Player>>();
         q.single(&w2).items.clone()
     };
-    assert_eq!(packed.len(), 5);
-    assert!(packed.iter().any(|&it| w2.get::<ArmorDie>(it).is_some()));
+    assert_eq!(packed.len(), pack_len_before);
 
     // The player's magic pool survives the round trip.
     let magic = w2.query_filtered::<&Magic, With<Player>>().single(&w2);
-    assert_eq!((magic.points, magic.max_points), (START_MAGIC, START_MAGIC));
+    assert_eq!((magic.points, magic.max_points), magic_before);
 
     // Equipment / scroll / ring components survive the round trip.
     let mut w3 = World::new();

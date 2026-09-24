@@ -116,11 +116,11 @@ pub mod player {
 /// born with (see `crate::body::wear_lurk`).
 pub mod lurk {
     /// Starting (and maximum) hit points. Two-thirds of [`super::player::START_HP`].
-    pub const START_HP: i32 = 8;
+    pub const START_HP: i32 = 6;
 
     /// Starting (and maximum) magic points. Enough for two Bides and nothing
     /// else until it grows.
-    pub const START_MAGIC: u8 = 2;
+    pub const START_MAGIC: u8 = 1;
 
     /// Starting attack die (`1d[power]`) — its claws, and no weapon will ever
     /// add to them.
@@ -169,7 +169,7 @@ pub mod progression {
     /// trapdoor plunge is *not* a rest and skips both. Set the divisor to 1 for
     /// a full heal on every floor (a much easier run); a larger divisor makes
     /// attrition bite sooner.
-    pub const DESCENT_HEAL_DIVISOR: i32 = 2;
+    pub const DESCENT_HEAL_DIVISOR: i32 = 3;
 
     /// The last floor of each floor-crowding tier below the deepest one. The
     /// monster and trap *budgets* (`constants::population`, spent in `map.rs`)
@@ -205,7 +205,7 @@ pub mod map {
     /// Chance that a given room past the starting one spawns unlit. A dark room
     /// behaves like a corridor (sight cut to the 3x3) until a wand of light
     /// goes off in it. Raise for a darker, more wand-of-light-dependent game.
-    pub const DARK_ROOM_CHANCE: f64 = 0.1;
+    pub const DARK_ROOM_CHANCE: f64 = 0.15;
 }
 
 // ===========================================================================
@@ -219,13 +219,13 @@ pub mod map {
 pub mod population {
     /// Monster slots on floor 1, before the per-tier bonus. The first slot
     /// always fills; the rest roll [`MONSTER_FILL_CHANCE_BASE`].
-    pub const MONSTER_SLOTS_BASE: usize = 3;
+    pub const MONSTER_SLOTS_BASE: usize = 4;
 
     /// Chance a non-first monster slot actually spawns something, at tier 0.
-    pub const MONSTER_FILL_CHANCE_BASE: f64 = 0.75;
+    pub const MONSTER_FILL_CHANCE_BASE: f64 = 0.80;
 
     /// Added to the monster fill chance per tier.
-    pub const MONSTER_FILL_CHANCE_PER_TIER: f64 = 0.10;
+    pub const MONSTER_FILL_CHANCE_PER_TIER: f64 = 0.5;
 
     /// Ceiling on the monster fill chance, so a slot is never quite certain.
     pub const MONSTER_FILL_CHANCE_CAP: f64 = 0.95;
@@ -234,7 +234,7 @@ pub mod population {
     pub const TRAP_SLOTS_BASE: usize = 4;
 
     /// Chance a trap slot produces a trap, at tier 0.
-    pub const TRAP_FILL_CHANCE_BASE: f64 = 0.75;
+    pub const TRAP_FILL_CHANCE_BASE: f64 = 0.40;
 
     /// Added to the trap fill chance per tier.
     pub const TRAP_FILL_CHANCE_PER_TIER: f64 = 0.10;
@@ -249,21 +249,21 @@ pub mod population {
 
     /// Per-corridor chance of a mid-corridor lurker, once past
     /// [`CORRIDOR_LURKER_MIN_DEPTH`].
-    pub const CORRIDOR_LURKER_CHANCE: f64 = 0.05;
+    pub const CORRIDOR_LURKER_CHANCE: f64 = 0.15;
 
     /// Ordinary item drops attempted on floor 1, before the per-tier bonus.
     /// Like the monster and trap budgets, the item budget gains one attempt per
     /// `map::difficulty_tier(depth)` — `ITEM_SLOTS_BASE + tier` tries, each of
     /// which still needs a free tile. Every attempt that lands a tile drops an
     /// item (no fill roll — deeper floors are simply richer).
-    pub const ITEM_SLOTS_BASE: usize = 3;
+    pub const ITEM_SLOTS_BASE: usize = 4;
 
     /// How often a floor also hides one extra item — no glyph, no
     /// announcement — until a ring of perception turns it up, a detection
     /// finds it, or the player walks onto it. At `1.0` every floor does; lower
     /// it to make a stash something worth hoping for rather than something to
     /// sweep for.
-    pub const HIDDEN_ITEM_CHANCE: f64 = 1.0;
+    pub const HIDDEN_ITEM_CHANCE: f64 = 0.75;
 }
 
 // ===========================================================================
@@ -288,7 +288,7 @@ pub mod traps {
     /// ARROW_DAMAGE_BONUS` before armour-plus.
     pub const ARROW_DAMAGE_DICE: i32 = 1;
     /// See [`ARROW_DAMAGE_DICE`].
-    pub const ARROW_DAMAGE_SIDES: i32 = 4;
+    pub const ARROW_DAMAGE_SIDES: i32 = 2;
     /// See [`ARROW_DAMAGE_DICE`].
     pub const ARROW_DAMAGE_BONUS: i32 = 1;
 
@@ -300,7 +300,7 @@ pub mod traps {
     /// armour-plus.
     pub const DART_DAMAGE_DICE: i32 = 1;
     /// See [`DART_DAMAGE_DICE`].
-    pub const DART_DAMAGE_SIDES: i32 = 2;
+    pub const DART_DAMAGE_SIDES: i32 = 1;
 
     /// Permanent melee power a dart trap drains on a hit in the first depth
     /// tier; each deeper tier drains [`DART_POWER_DRAIN_PER_TIER`] more (tier 0:
@@ -436,7 +436,7 @@ pub mod wands {
     /// armour-ignoring, rolled once and applied whole to everyone it touches.
     pub const DAMAGE_DICE: i32 = 2;
     /// See [`DAMAGE_DICE`].
-    pub const DAMAGE_SIDES: i32 = 3;
+    pub const DAMAGE_SIDES: i32 = 4;
 
     /// Radius, in tiles, of a zapped fire/cold wand's blast disc, and of a
     /// *thrown* utility wand's (damage-free) effect disc.
@@ -455,11 +455,11 @@ pub mod wands {
 
     /// A thrown wand spends *every* remaining charge at once. An attack-wand
     /// grenade rolls this many sides per charge...
-    pub const GRENADE_DIE_PER_CHARGE: i32 = 3;
+    pub const GRENADE_DIE_PER_CHARGE: i32 = 1;
     /// ...and a thrown utility wand's blast rolls this many (it deals no damage,
     /// but the roll still drives the animation's reach). See
     /// [`crate::items`]`::resolve_wand_throw`.
-    pub const EFFECT_DIE_PER_CHARGE: i32 = 2;
+    pub const EFFECT_DIE_PER_CHARGE: i32 = 3;
 
     /// How many turns a fire blast's smoke lingers on the tiles it covered,
     /// DCSS-style — purely cosmetic, never blocks movement or sight. Zapped
@@ -507,7 +507,7 @@ pub mod loot {
     /// [`crate::constants::items::STACK_LIMIT`] once it lands in a pack slot.
     pub const AMMO_BUNDLE_MIN: i32 = 4;
     /// See [`AMMO_BUNDLE_MIN`].
-    pub const AMMO_BUNDLE_MAX: i32 = 8;
+    pub const AMMO_BUNDLE_MAX: i32 = 13;
 }
 
 // ===========================================================================
@@ -559,11 +559,10 @@ pub mod rings {
     /// notices them, in tiles (Chebyshev — a diagonal counts as one). At 1 a
     /// ring of stealth makes you effectively untouchable outside melee; much
     /// past 3 and it stops changing how a room plays.
-    pub const STEALTH_RANGE: i32 = 2;
+    pub const STEALTH_RANGE: i32 = 3;
 
     /// Magic points one deliberate teleport costs a wearer of the ring of
-    /// teleportation. The pool is [`crate::constants::player::START_MAGIC`] and
-    /// only a staircase refills it, so this is how many jumps a floor is worth.
+    /// teleportation.
     pub const TELEPORT_MAGIC_COST: u8 = 2;
 }
 
@@ -587,9 +586,9 @@ pub mod score {
     pub const COMBO_BONUS_PER_KILL: f32 = 0.5;
 
     /// How often a combo is logged as done "With pride." instead of the usual
-    /// "With style." Rare on purpose: the joke is the one you don't expect, and
-    /// a line that shows up every other fight stops being one.
-    pub const COMBO_PRIDE_CHANCE: f64 = 0.10;
+    /// "With style." Rare on purpose: a line that shows up every other fight
+    /// stops being one.
+    pub const COMBO_PRIDE_CHANCE: f64 = 0.05;
 
     /// Score paid per difficulty tier every time a staircase is used, counting
     /// the shallowest band as tier one so the first flight still pays. Raise it
@@ -626,11 +625,11 @@ pub mod monsters {
     pub const PETRIFY_TURNS: u32 = 5;
 
     /// The ice monster's odds, on a blow that lands, of paralysing what it hit.
-    pub const ICE_MONSTER_PARALYZE_CHANCE: f64 = 1.0 / 6.0;
+    pub const ICE_MONSTER_PARALYZE_CHANCE: f64 = 3.0 / 6.0;
 
-    pub const NORMAL_GEAR_CHANCE: f64 = 0.20;
-    pub const HIGH_GEAR_CHANCE: f64 = 0.40;
-    pub const ULTIMATE_GEAR_CHANCE: f64 = 0.80;
+    pub const NORMAL_GEAR_CHANCE: f64 = 0.30;
+    pub const HIGH_GEAR_CHANCE: f64 = 0.60;
+    pub const ULTIMATE_GEAR_CHANCE: f64 = 0.90;
 
     /// How many points of base power a rattlesnake's bite drains — permanently,
     /// and unlike the dart trap's, with no floor of 1: a rattlesnake can drive a
@@ -638,7 +637,7 @@ pub mod monsters {
     pub const RATTLESNAKE_POWER_DRAIN: i32 = 1;
 
     /// How many points of max HP a vampire's touch drains per hit.
-    pub const VAMPIRE_MAX_HP_DRAIN: i32 = 1;
+    pub const VAMPIRE_MAX_HP_DRAIN: i32 = 2;
 
     /// How far a launcher-wielding monster (a centaur, a medusa) can loose a
     /// shot. Shares the player's own launcher reach.
@@ -679,7 +678,7 @@ pub mod spells {
     /// to lock the target up on top of it.
     pub const THUNDERBOLT_DAMAGE_DICE: i32 = 2;
     /// See [`THUNDERBOLT_DAMAGE_DICE`].
-    pub const THUNDERBOLT_DAMAGE_SIDES: i32 = 3;
+    pub const THUNDERBOLT_DAMAGE_SIDES: i32 = 2;
     /// See [`THUNDERBOLT_DAMAGE_DICE`].
     pub const THUNDERBOLT_PARALYZE_CHANCE: f64 = 0.30;
 

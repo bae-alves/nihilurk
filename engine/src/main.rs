@@ -295,7 +295,7 @@ fn main() -> std::io::Result<()> {
     // would have to win, and neither has a claim.
     let mut body_arg: Option<String> = None;
     let mut conflicting_bodies: Option<(String, String)> = None;
-    let mut player_name = "nihil".to_string();
+    let mut player_name = "null".to_string();
     let mut positional: Option<String> = None;
     // Multiplier on every animation frame's on-screen hold time (particles,
     // magic mapping's reveal wipe): the escape hatch for a terminal whose
@@ -481,10 +481,6 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
             );
             return Ok(());
         }
-    }
-    if models::MonsterDef::is_species_name(&player_name) {
-        eprintln!("Don't name yourself a monster. It's quite demeaning.");
-        return Ok(());
     }
 
     let original_hook = std::panic::take_hook();
