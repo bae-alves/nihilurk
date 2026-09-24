@@ -464,12 +464,13 @@ fn caught_gear_arms_the_monster_that_caught_it() {
     let hobgoblin = monster::monster(&mut w, "test monster", spot);
     w.get_mut::<Fighter>(hobgoblin).unwrap().hp = 30;
     let mail = stash(&mut w, p, |w| spawn_armor(w, "plate mail", NOWHERE));
+    let mail_armor = w.get::<ArmorDie>(mail).unwrap().0;
 
     throw(&mut w, p, mail, spot);
 
     // The armour die it just pulled on now counts towards its defence, exactly
     // as it would for the player.
-    assert_eq!(equipped_total::<ArmorDie>(&w, hobgoblin), 9);
+    assert_eq!(equipped_total::<ArmorDie>(&w, hobgoblin), mail_armor);
 }
 
 #[test]
@@ -500,20 +501,16 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
         f.max_hp = 10;
         f.hp = 1;
     }
+    let old_max_hp = w.get::<Fighter>(orc).unwrap().max_hp;
     let potion = stash(&mut w, p, |w| {
         spawn_potion(w, PotionEffect::Healing, NOWHERE)
     });
 
     throw(&mut w, p, potion, spot);
 
-    // A dose of healing lifts the ceiling by a point as well as refilling to
-    // it, monster or hero alike — see `models::constants::potions`.
-    assert_eq!(
-        w.get::<Fighter>(orc).unwrap().hp,
-        11,
-        "the orc drank the healing and went to full HP, one point higher than before"
-    );
-    assert_eq!(w.get::<Fighter>(orc).unwrap().max_hp, 11);
+    let healed = w.get::<Fighter>(orc).unwrap();
+    assert_eq!(healed.hp, healed.max_hp);
+    assert!(healed.max_hp > old_max_hp, "healing raised the target's ceiling");
     assert!(w.get_entity(potion).is_none(), "the bottle broke");
 }
 

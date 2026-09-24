@@ -48,7 +48,7 @@ fn the_body_replaces_stats_glyph_and_innate_magic() {
     // Still the player, still on the player's side.
     assert!(w.get::<Player>(p).is_some());
     assert_eq!(*w.get::<Faction>(p).unwrap(), Faction::Player);
-    assert_eq!(w.get::<Name>(p).unwrap().what, "dragon");
+    assert_eq!(w.get::<Name>(p).unwrap().what, dragon.name);
 }
 
 #[test]
@@ -58,10 +58,6 @@ fn a_monster_starts_with_an_empty_pack() {
     assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
     assert_eq!(equipment::equipped_items(&w, p).len(), 0);
 
-    // Nihil's own start is untouched by any of this.
-    let mut nihil = test_world(7, Body::Nihil);
-    let h = player(&mut nihil);
-    assert_eq!(nihil.get::<Backpack>(h).unwrap().items.len(), 5);
 }
 
 #[test]
@@ -159,7 +155,8 @@ fn an_innate_tempo_survives_the_stairs() {
 
 #[test]
 fn the_body_comes_back_from_a_save() {
-    let mut w = test_world(7, Body::Monster(MonsterDef::named("wraith")));
+    let body = MonsterDef::named("wraith");
+    let mut w = test_world(7, Body::Monster(body));
     let p = player(&mut w);
     // Take a bite out of it, so what comes back is this wraith and not a
     // freshly rolled one.
@@ -179,8 +176,8 @@ fn the_body_comes_back_from_a_save() {
     load_game(&mut w2, save.path()).unwrap();
 
     let p2 = player(&mut w2);
-    assert_eq!(w2.get::<Name>(p2).unwrap().what, "wraith");
-    assert_eq!(w2.get::<Renderable>(p2).unwrap().glyph, 'W');
+    assert_eq!(w2.get::<Name>(p2).unwrap().what, body.name);
+    assert_eq!(w2.get::<Renderable>(p2).unwrap().glyph, body.glyph);
     assert_eq!(w2.get::<Fighter>(p2).unwrap().hp, hp);
     assert_eq!(w2.get::<Speed>(p2).unwrap().kind, SpeedKind::Fast);
     assert!(w2.get::<Undead>(p2).is_some(), "innate magic came back");

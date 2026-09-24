@@ -298,13 +298,14 @@ fn polymorph_swaps_the_target_for_a_different_species_on_the_same_tile() {
     let mut w = test_world(5);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    let orc = monster::monster(&mut w, "test monster", spot);
+    let original = monster::monster(&mut w, "test monster", spot);
+    let original_name = w.get::<Name>(original).unwrap().what.clone();
     let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
 
     let wand = give_wand(&mut w, p, WandEffect::Polymorph);
     zap(&mut w, p, wand, spot);
 
-    assert!(!w.entities().contains(orc), "the original is gone");
+    assert!(!w.entities().contains(original), "the original is gone");
     let after = w.query_filtered::<(), With<Mob>>().iter(&w).count();
     assert_eq!(after, before, "one in, one out");
     let mut q = w.query_filtered::<(&Position, &Name), With<Mob>>();
@@ -312,7 +313,7 @@ fn polymorph_swaps_the_target_for_a_different_species_on_the_same_tile() {
         .iter(&w)
         .find(|(pos, _)| pos.x == spot.x && pos.y == spot.y);
     let (_, name) = replacement.expect("something now stands on that tile");
-    assert_ne!(name.what, "orc", "and it is a different creature");
+    assert_ne!(name.what, original_name, "and it is a different creature");
 }
 
 // ---------------------------------------------------------------------------

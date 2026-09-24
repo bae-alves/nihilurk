@@ -273,7 +273,7 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("foxbat",           'B',   Color::DarkGrey,    Chase,      6,   8,   0,   8,  0,   5).grants(&[Grant::of::<Batty>()]),
     MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      9,   8,   0,   6,  1,   5)
         .grants(ITEM_USER)
-        .equip(&[EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Bow }]),
+        .equip(&[EquipRoll { chance: ULTIMATE_GEAR_CHANCE, kind: EquipKind::Bow }]),
     MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      13,  12,   2,  10,  2,  10).grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>(), Grant::of::<FireBreath>()]),
     MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      6,   4,   0,   4,  1,   1),
     MonsterDef::row("venus flytrap", 'f',   Color::Green,       Ambush,     9,  10,   0,   8,  0,   5).grants(&[Grant::of::<Binds>()]),
