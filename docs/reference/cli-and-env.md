@@ -23,6 +23,7 @@ Single dash, in any order. Unrecognised arguments are treated as the positional 
 | `-nb`        | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
 | `-nshake`    | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
 | `-content`   | Print every name the content tables know, then exit.      |
+| `-scores`    | Print the leaderboard (top 10 scores ever recorded), then exit. |
 | `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
 | `-b <body>` | Play as `nihil` (the default) or `lurk`. See below. |
 | `-am <species>` | Play *as* a monster: any bestiary name (`-am dragon`). See below. |
@@ -138,6 +139,8 @@ is the joke, and `-s` is how you retry it.
 
     cargo run -p engine -- -content | grep ring
     cargo run -p engine -- -content | less
+
+`-scores` reads the same way, straight off `leaderboard.sav` in the current directory -- a small postcard file, same shape as a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)`, where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended.
 
 `-s` fixes the dungeon's *maps*. Every floor's walls are a pure function of `(seed, depth)`, so floor 7 of seed 1234 is the same maze today, tomorrow, after you reload a save, and after somebody adds a monster to the bestiary. Its *contents* -- monsters, loot, traps -- are re-rolled each time you enter the floor (they key off the staircase count as well), so walking back up through floor 7 finds the same corridors freshly stocked. How you play still does not reach into generation: two runs on one seed that take the same staircases see the same everything.
 

@@ -107,6 +107,11 @@ fn run_death_screens<W: std::io::Write>(
             score,
         )
     };
+    let outcome = match models::holding_element_of_yoord(world) {
+        true => models::leaderboard::Outcome::LoseAscent,
+        false => models::leaderboard::Outcome::LoseDescent,
+    };
+    let _ = models::leaderboard::record(&name, outcome, score);
 
     view::render_you_died(stdout, screen, offset)?;
     wait_for_key(|c| matches!(c, KeyCode::Char(' ') | KeyCode::Enter))?;
@@ -129,6 +134,7 @@ fn run_victory_screens<W: std::io::Write>(
         let score = q.iter(world).next().map(|s| s.value).unwrap_or(0);
         (world.resource::<PlayerName>().what.clone(), score)
     };
+    let _ = models::leaderboard::record(&name, models::leaderboard::Outcome::Win, score);
 
     view::render_win(stdout, screen, offset, &name, score)?;
     wait_for_key(|_| true)?;
@@ -157,6 +163,23 @@ fn print_content() {
 /// The full reference lives in the installed `nihilurk(6)` manual.
 fn print_help() {
     println!("{}", strings::help_text());
+}
+
+/// Prints the internal leaderboard, highest score first, without entering the
+/// alternate screen — the same way `-content` never touches the terminal.
+fn print_leaderboard() {
+    let entries = models::leaderboard::top(models::leaderboard::LEADERBOARD_STORE_LIMIT);
+    if entries.is_empty() {
+        println!("{}", strings::leaderboard_empty());
+        return;
+    }
+    println!("{}", strings::leaderboard_header(entries.len()));
+    for (rank, (name, outcome, score, when)) in entries.into_iter().enumerate() {
+        println!(
+            "{}",
+            strings::leaderboard_entry(rank + 1, &name, &outcome.to_string(), score, &when)
+        );
+    }
 }
 
 /// One player-side step of the main loop: an auto-explore tick, a travel-cursor
@@ -250,6 +273,7 @@ fn main() -> std::io::Result<()> {
     let mut no_blood = false;
     let mut no_shake = false;
     let mut list_content = false;
+    let mut show_leaderboard = false;
     let mut pride_off = false;
     // The flag this run flies: the stripes the scorekeeper's DOUBLE and COMBO!
     // and the log's proudest line are painted in. `-pride <name>`; an
@@ -297,6 +321,7 @@ fn main() -> std::io::Result<()> {
             "-nb" => no_blood = true,
             "-nshake" => no_shake = true,
             "-content" => list_content = true,
+            "-scores" => show_leaderboard = true,
             "-pride" => {
                 if let Some(name) = iter.next() {
                     match models::pride::PrideFlag::named(name) {
@@ -350,6 +375,13 @@ fn main() -> std::io::Result<()> {
     // pipes into `grep` and `less` like any other listing.
     if list_content {
         print_content();
+        return Ok(());
+    }
+
+    // `-scores`: the internal leaderboard, read straight off disk. Same deal
+    // as `-content` — never touches the alternate screen, so it pipes.
+    if show_leaderboard {
+        print_leaderboard();
         return Ok(());
     }
 
