@@ -16,6 +16,12 @@ are beta: they compile and run correctly today because `strings/src/pt.rs`,
 until someone translates that function for real. A beta binary shows a notice
 saying so on startup.
 
+Of those three, only Portuguese is done by a native speaker (the maintainer
+is Brazilian) -- Spanish and Haitian Creole are unverified, translated
+without a native speaker checking them, and need review as much as they need
+finishing. Roguelikes have shipped in English-only for decades; if you speak
+Spanish or Haitian Creole, a PR fixing even one sentence is worth sending.
+
 Found an English sentence where a translation should be? Open an issue, or
 send a PR: pick a function in `strings/src/en.rs`, translate it, and add the
 translated version to the matching language file (overriding the `pub use
@@ -35,9 +41,3 @@ translation can't paper over and nobody has designed around yet:
 
 That's out of scope for a translation PR. If you want to take it on, say so
 in an issue first -- it's a small data-model change, not a string edit.
-
-(Message-log coloring used to have the same problem -- it matched English
-substrings like "curse" in the already-composed sentence. It's fixed now:
-every log line carries its own `LogCategory`, set by whoever writes the
-message, so a translation can't break it. See `models/src/components.rs`'s
-`LogCategory`/`LogEntry` and `hud::log_paint`.)

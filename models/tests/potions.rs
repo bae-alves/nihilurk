@@ -149,7 +149,10 @@ fn strength_is_gained_poisoned_and_restored() {
 
     quaff(&mut w, p, PotionEffect::Poison);
     let f = w.get::<Fighter>(p).unwrap();
-    assert!(f.power < base + 1 && f.power >= 1, "poison lowers power safely");
+    assert!(
+        f.power < base + 1 && f.power >= 1,
+        "poison lowers power safely"
+    );
     assert_eq!(f.max_power, base + 1, "the ceiling is untouched");
 
     quaff(&mut w, p, PotionEffect::RestoreStrength);

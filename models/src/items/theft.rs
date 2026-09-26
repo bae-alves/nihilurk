@@ -29,11 +29,13 @@ pub(crate) fn leprechaun_theft(world: &mut World, attacker: Entity, target: Enti
     let item_name = item_label(world, item);
     let attacker_name = item_label(world, attacker);
     let target_label = victim_label(world, target);
-    world.resource_mut::<GameLog>().add(strings::leprechaun_theft(
-        &attacker_name,
-        &item_name,
-        &target_label,
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::leprechaun_theft(
+            &attacker_name,
+            &item_name,
+            &target_label,
+        ));
     use_stolen_item(world, attacker, item);
     teleport_entity_away(world, attacker);
 }

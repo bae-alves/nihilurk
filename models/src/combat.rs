@@ -57,7 +57,10 @@ fn roll_die(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
 /// around that mean — the bell curve that takes the swing out of a normal
 /// exchange without touching any weapon or armour's tuned die size.
 fn roll_die_bell(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
-    (0..BELL_CURVE_DICE).map(|_| roll_die(rng, sides)).sum::<i32>() / BELL_CURVE_DICE
+    (0..BELL_CURVE_DICE)
+        .map(|_| roll_die(rng, sides))
+        .sum::<i32>()
+        / BELL_CURVE_DICE
 }
 
 /// The `bane` of the attacker's currently-wielded weapon, if that weapon has
@@ -189,7 +192,9 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     }
 
     let name = entity_name(world, entity);
-    world.resource_mut::<GameLog>().add(strings::mob_dies(&name));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::mob_dies(&name));
     pay_for_the_corpse(world, entity);
     kill_shake(world, entity);
     death_burst(world, entity, source);

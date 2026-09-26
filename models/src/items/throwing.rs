@@ -693,7 +693,11 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
     if damage <= 0 {
         world
             .resource_mut::<GameLog>()
-            .add(strings::monster_shot_wild(&shooter_name, noun, &target_label));
+            .add(strings::monster_shot_wild(
+                &shooter_name,
+                noun,
+                &target_label,
+            ));
         return;
     }
 
@@ -703,13 +707,15 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
             fx.hit_spark(at.x, at.y);
         }
     }
-    world.resource_mut::<GameLog>().add(strings::monster_shot_hit(
-        &shooter_name,
-        article_for(noun),
-        noun,
-        &target_label,
-        damage,
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::monster_shot_hit(
+            &shooter_name,
+            article_for(noun),
+            noun,
+            &target_label,
+            damage,
+        ));
 }
 
 /// A thrown potion is glass: it breaks on the first thing it reaches and doses

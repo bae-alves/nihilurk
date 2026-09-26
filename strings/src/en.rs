@@ -1261,7 +1261,9 @@ pub fn potion_shatters_floor(seen_name: &str) -> String {
 }
 
 pub fn potion_bursts_over(seen_name: &str, victim_name: &str) -> String {
-    format!("The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!")
+    format!(
+        "The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!"
+    )
 }
 
 pub fn throw_bounces_off(seen_name: &str, hit_name: &str) -> String {
@@ -1710,7 +1712,9 @@ pub fn gear_clatters_to_floor(name: &str) -> String {
 }
 
 pub fn lunge_hit(target_name: &str, damage: i32) -> String {
-    format!("You lunge, blade flashing past every guard, and skewer the {target_name} for {damage} damage!")
+    format!(
+        "You lunge, blade flashing past every guard, and skewer the {target_name} for {damage} damage!"
+    )
 }
 
 pub fn you_have_slain(target_name: &str) -> String {

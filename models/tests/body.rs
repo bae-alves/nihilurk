@@ -57,7 +57,6 @@ fn a_monster_starts_with_an_empty_pack() {
     let p = player(&mut w);
     assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
     assert_eq!(equipment::equipped_items(&w, p).len(), 0);
-
 }
 
 #[test]

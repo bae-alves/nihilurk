@@ -364,9 +364,7 @@ fn heavy_stagger(world: &mut World, attacker: Entity, target: Option<Entity>) ->
 /// alone — see [`is_player`].
 fn chaos_recoil(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bool {
     apply_damage(world, attacker, 1);
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::chaos_recoil());
+    world.resource_mut::<GameLog>().add(strings::chaos_recoil());
     true
 }
 

@@ -79,18 +79,30 @@ fn em_contraction(name: &str) -> &'static str {
 
 /// "por" + [`article`], contracted: "pelo"/"pela".
 fn por_contraction(name: &str) -> &'static str {
-    if is_feminine_name(name) { "pela" } else { "pelo" }
+    if is_feminine_name(name) {
+        "pela"
+    } else {
+        "pelo"
+    }
 }
 
 /// "helpless", agreeing with `name`'s gender: "indefeso"/"indefesa".
 fn helpless(name: &str) -> &'static str {
-    if is_feminine_name(name) { "indefesa" } else { "indefeso" }
+    if is_feminine_name(name) {
+        "indefesa"
+    } else {
+        "indefeso"
+    }
 }
 
 /// "wild" (of a shot gone astray), agreeing with `name`'s gender:
 /// "descontrolado"/"descontrolada".
 fn wild(name: &str) -> &'static str {
-    if is_feminine_name(name) { "descontrolada" } else { "descontrolado" }
+    if is_feminine_name(name) {
+        "descontrolada"
+    } else {
+        "descontrolado"
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +142,10 @@ pub fn no_hands_lurk(item_name: &str) -> String {
 }
 
 pub fn no_hands_monster(species: &str, item_name: &str) -> String {
-    format!("{} {species} não tem mãos para {item_name}.", cap_indef_article(species))
+    format!(
+        "{} {species} não tem mãos para {item_name}.",
+        cap_indef_article(species)
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -215,11 +230,19 @@ pub fn polymorph_self_player() -> &'static str {
 }
 
 pub fn polymorph_same_looking(old_name: &str, new_name: &str) -> String {
-    format!("{} {old_name} se contorce e se transforma em {} {new_name} diferente!", cap_article(old_name), indef_article(new_name))
+    format!(
+        "{} {old_name} se contorce e se transforma em {} {new_name} diferente!",
+        cap_article(old_name),
+        indef_article(new_name)
+    )
 }
 
 pub fn polymorph_different(old_name: &str, _article: &str, new_name: &str) -> String {
-    format!("{} {old_name} se contorce e se transforma em {} {new_name}!", cap_article(old_name), indef_article(new_name))
+    format!(
+        "{} {old_name} se contorce e se transforma em {} {new_name}!",
+        cap_article(old_name),
+        indef_article(new_name)
+    )
 }
 
 pub fn nothing_to_enchant() -> &'static str {
@@ -235,7 +258,10 @@ pub fn yanked_into_dark(name: &str) -> String {
 }
 
 pub fn dragged_to_your_side(name: &str) -> String {
-    format!("{} {name} é arrastado para perto de uma vez só!", cap_article(name))
+    format!(
+        "{} {name} é arrastado para perto de uma vez só!",
+        cap_article(name)
+    )
 }
 
 pub fn bursts_in_transit(name: &str) -> String {
@@ -250,7 +276,10 @@ pub fn teleport_self_player() -> &'static str {
 }
 
 pub fn teleport_self_mob(name: &str) -> String {
-    format!("{} {name} se teletransporta direto para si mesmo.", cap_article(name))
+    format!(
+        "{} {name} se teletransporta direto para si mesmo.",
+        cap_article(name)
+    )
 }
 
 pub fn cancellation_strikes_stone() -> &'static str {
@@ -358,11 +387,17 @@ pub fn dart_poison_took() -> &'static str {
 // ---------------------------------------------------------------------------
 
 pub fn leprechaun_theft(attacker: &str, item: &str, target: &str) -> String {
-    format!("{} {attacker} arranca {item} de {target} e solta uma gargalhada!", cap_article(attacker))
+    format!(
+        "{} {attacker} arranca {item} de {target} e solta uma gargalhada!",
+        cap_article(attacker)
+    )
 }
 
 pub fn nymph_theft(attacker: &str, item: &str, target: &str) -> String {
-    format!("{} {attacker} arranca {item} de {target} e some em uma nuvem de fumaça!", cap_article(attacker))
+    format!(
+        "{} {attacker} arranca {item} de {target} e some em uma nuvem de fumaça!",
+        cap_article(attacker)
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -703,7 +738,10 @@ pub fn already_as_extreme_player(extreme: &str) -> String {
 }
 
 pub fn already_as_extreme_mob(name: &str, extreme: &str) -> String {
-    format!("{} {name} já está no limite máximo de {extreme}.", cap_article(name))
+    format!(
+        "{} {name} já está no limite máximo de {extreme}.",
+        cap_article(name)
+    )
 }
 
 pub fn extreme_quick() -> &'static str {
@@ -720,7 +758,10 @@ pub fn slow_player_line() -> &'static str {
     "Os membros viram chumbo."
 }
 pub fn haste_mob_line(name: &str) -> String {
-    format!("{} {name} vira um borrão de velocidade repentina.", cap_article(name))
+    format!(
+        "{} {name} vira um borrão de velocidade repentina.",
+        cap_article(name)
+    )
 }
 pub fn slow_mob_line(name: &str) -> String {
     format!("{} {name} mergulha em câmera lenta.", cap_article(name))
@@ -749,25 +790,46 @@ pub fn stuck_hand(name: &str) -> String {
     format!("Impossível — {} {name} está soldado à mão!", article(name))
 }
 pub fn stuck_body(name: &str) -> String {
-    format!("Impossível — {} {name} gruda no corpo e não sai!", article(name))
+    format!(
+        "Impossível — {} {name} gruda no corpo e não sai!",
+        article(name)
+    )
 }
 pub fn stuck_finger(name: &str) -> String {
-    format!("Impossível — {} {name} está fundido ao dedo!", article(name))
+    format!(
+        "Impossível — {} {name} está fundido ao dedo!",
+        article(name)
+    )
 }
 pub fn cursed_reveal_hand(name: &str) -> String {
-    format!("{} {name} se solda à mão! Está amaldiçoado!", cap_article(name))
+    format!(
+        "{} {name} se solda à mão! Está amaldiçoado!",
+        cap_article(name)
+    )
 }
 pub fn cursed_reveal_body(name: &str) -> String {
-    format!("{} {name} gruda no corpo! Está amaldiçoado!", cap_article(name))
+    format!(
+        "{} {name} gruda no corpo! Está amaldiçoado!",
+        cap_article(name)
+    )
 }
 pub fn cursed_reveal_finger(name: &str) -> String {
-    format!("{} {name} se funde ao dedo! Está amaldiçoado!", cap_article(name))
+    format!(
+        "{} {name} se funde ao dedo! Está amaldiçoado!",
+        cap_article(name)
+    )
 }
 pub fn blocked_hand(name: &str) -> String {
-    format!("Impossível trocar de arma — {} {name} não sai da mão.", article(name))
+    format!(
+        "Impossível trocar de arma — {} {name} não sai da mão.",
+        article(name)
+    )
 }
 pub fn blocked_body(name: &str) -> String {
-    format!("Impossível trocar de armadura — {} {name} não sai.", article(name))
+    format!(
+        "Impossível trocar de armadura — {} {name} não sai.",
+        article(name)
+    )
 }
 pub fn blocked_finger(name: &str) -> String {
     format!("Impossível — {} {name} não sai do dedo.", article(name))
@@ -799,7 +861,10 @@ pub fn heavy_stagger_player() -> &'static str {
     "O golpe deixa tudo cambaleando — não há tempo de se recompor para revidar!"
 }
 pub fn heavy_stagger_mob(name: &str) -> String {
-    format!("{} {name} cambaleia, atordoado pelo golpe!", cap_article(name))
+    format!(
+        "{} {name} cambaleia, atordoado pelo golpe!",
+        cap_article(name)
+    )
 }
 
 pub fn chaos_recoil() -> &'static str {
@@ -810,20 +875,29 @@ pub fn venom_resisted_player() -> &'static str {
     "O veneno arde, mas a força não cede."
 }
 pub fn venom_resisted_mob(name: &str) -> String {
-    format!("O veneno arde, mas a força {} {name} não cede.", de_contraction(name))
+    format!(
+        "O veneno arde, mas a força {} {name} não cede.",
+        de_contraction(name)
+    )
 }
 pub fn venom_took_player() -> &'static str {
     "O veneno corre por dentro — a força escorre aos poucos."
 }
 pub fn venom_took_mob(name: &str) -> String {
-    format!("O veneno corre {} {name} — sua força escorre aos poucos.", por_contraction(name))
+    format!(
+        "O veneno corre {} {name} — sua força escorre aos poucos.",
+        por_contraction(name)
+    )
 }
 
 pub fn vampiric_drain_player() -> &'static str {
     "Um frio mortal se espalha por dentro — a vitalidade é drenada!"
 }
 pub fn vampiric_drain_mob(name: &str) -> String {
-    format!("Um frio mortal se espalha {} {name} — sua vitalidade é drenada!", por_contraction(name))
+    format!(
+        "Um frio mortal se espalha {} {name} — sua vitalidade é drenada!",
+        por_contraction(name)
+    )
 }
 
 pub fn bind_victim_player(name: &str) -> String {
@@ -833,7 +907,11 @@ pub fn bind_victim_player(name: &str) -> String {
     )
 }
 pub fn bind_victim_mob(attacker_name: &str, target_name: &str) -> String {
-    format!("{} {attacker_name} crava as presas ao redor {} {target_name}!", cap_article(attacker_name), de_contraction(target_name))
+    format!(
+        "{} {attacker_name} crava as presas ao redor {} {target_name}!",
+        cap_article(attacker_name),
+        de_contraction(target_name)
+    )
 }
 
 pub fn medusa_gaze_line() -> &'static str {
@@ -861,7 +939,10 @@ pub fn ward_turns_aside(name: &str) -> String {
 }
 
 pub fn unharmed_by(name: &str, element_noun: &str) -> String {
-    format!("{} {name} não sofre dano de {element_noun}.", cap_article(name))
+    format!(
+        "{} {name} não sofre dano de {element_noun}.",
+        cap_article(name)
+    )
 }
 
 pub fn badly_wounded() -> &'static str {
@@ -919,7 +1000,9 @@ pub fn climb_last_stair() -> &'static str {
 }
 
 pub fn portal_down(depth: u8) -> String {
-    format!("O Mestre abre um portal sob os pés! Uma queda repentina para baixo. (Profundidade {depth})")
+    format!(
+        "O Mestre abre um portal sob os pés! Uma queda repentina para baixo. (Profundidade {depth})"
+    )
 }
 
 pub fn portal_up(depth: u8) -> String {
@@ -929,11 +1012,15 @@ pub fn portal_up(depth: u8) -> String {
 }
 
 pub fn trapdoor_arrival(depth: u8) -> String {
-    format!("Uma queda dura no andar de baixo, em meio a uma nuvem de poeira. (Profundidade {depth})")
+    format!(
+        "Uma queda dura no andar de baixo, em meio a uma nuvem de poeira. (Profundidade {depth})"
+    )
 }
 
 pub fn potion_arrival(depth: u8) -> String {
-    format!("A pedra acima se dissolve no nada e uma subida através dela acontece. (Profundidade {depth})")
+    format!(
+        "A pedra acima se dissolve no nada e uma subida através dela acontece. (Profundidade {depth})"
+    )
 }
 
 pub fn descend_stairs(depth: u8) -> String {
@@ -973,7 +1060,10 @@ pub fn pick_up_pickup(name: &str, line: &str) -> String {
 }
 
 pub fn coin_gives_itself_up(name: &str, line: &str) -> String {
-    format!("{} {name} se entrega por conta própria. {line}", cap_article(name))
+    format!(
+        "{} {name} se entrega por conta própria. {line}",
+        cap_article(name)
+    )
 }
 
 pub fn coin_ledger() -> &'static str {
@@ -1005,7 +1095,9 @@ pub fn learn_spell_all_known() -> &'static str {
 }
 
 pub fn learn_spell_line(name: &str) -> String {
-    format!("Algo ancestral e violento se instala na mente. O feitiço {name} acaba de ser aprendido!")
+    format!(
+        "Algo ancestral e violento se instala na mente. O feitiço {name} acaba de ser aprendido!"
+    )
 }
 
 pub fn restore_strength_line(given: i32) -> String {
@@ -1144,7 +1236,10 @@ pub fn thrown_wand_confetti(seen_name: &str) -> String {
 }
 
 pub fn thrown_wand_shatters(seen_name: &str, charges: i32) -> String {
-    format!("{} {seen_name} se estilhaça, e {charges} cargas de magia escapam de uma vez!", cap_article(seen_name))
+    format!(
+        "{} {seen_name} se estilhaça, e {charges} cargas de magia escapam de uma vez!",
+        cap_article(seen_name)
+    )
 }
 
 pub fn very_clever() -> &'static str {
@@ -1161,15 +1256,25 @@ pub fn mob_fires(thrower: &str, phrase: &str) -> String {
     format!("{} {thrower} dispara {phrase}.", cap_article(thrower))
 }
 pub fn mob_throws(thrower: &str, seen_name: &str) -> String {
-    format!("{} {thrower} joga {} {seen_name}.", cap_article(thrower), article(seen_name))
+    format!(
+        "{} {thrower} joga {} {seen_name}.",
+        cap_article(thrower),
+        article(seen_name)
+    )
 }
 
 pub fn scroll_read_aloud(who: &str, seen_name: &str) -> String {
-    format!("{who} desenrola {} {seen_name} e o lê em voz alta.", article(seen_name))
+    format!(
+        "{who} desenrola {} {seen_name} e o lê em voz alta.",
+        article(seen_name)
+    )
 }
 
 pub fn wand_clatters_unspent(seen_name: &str) -> String {
-    format!("{} {seen_name} cai no chão com estrondo, com a magia ainda intacta.", cap_article(seen_name))
+    format!(
+        "{} {seen_name} cai no chão com estrondo, com a magia ainda intacta.",
+        cap_article(seen_name)
+    )
 }
 
 pub fn picked_up_thrown_verb_hand() -> &'static str {
@@ -1225,23 +1330,42 @@ pub fn monster_shot_hit(
 }
 
 pub fn potion_shatters_floor(seen_name: &str) -> String {
-    format!("{} {seen_name} se estilhaça no chão.", cap_article(seen_name))
+    format!(
+        "{} {seen_name} se estilhaça no chão.",
+        cap_article(seen_name)
+    )
 }
 
 pub fn potion_bursts_over(seen_name: &str, victim_name: &str) -> String {
-    format!("{} {seen_name} explode sobre {} {victim_name}, que se engasga com um gole inteiro!", cap_article(seen_name), article(victim_name))
+    format!(
+        "{} {seen_name} explode sobre {} {victim_name}, que se engasga com um gole inteiro!",
+        cap_article(seen_name),
+        article(victim_name)
+    )
 }
 
 pub fn throw_bounces_off(seen_name: &str, hit_name: &str) -> String {
-    format!("{} {seen_name} quica {} {hit_name}.", cap_article(seen_name), em_contraction(hit_name))
+    format!(
+        "{} {seen_name} quica {} {hit_name}.",
+        cap_article(seen_name),
+        em_contraction(hit_name)
+    )
 }
 
 pub fn throw_glances_off(seen_name: &str, hit_name: &str) -> String {
-    format!("{} {seen_name} raspa {} {hit_name} sem efeito.", cap_article(seen_name), em_contraction(hit_name))
+    format!(
+        "{} {seen_name} raspa {} {hit_name} sem efeito.",
+        cap_article(seen_name),
+        em_contraction(hit_name)
+    )
 }
 
 pub fn throw_hits(seen_name: &str, hit_name: &str, damage: i32) -> String {
-    format!("{} {seen_name} acerta {} {hit_name} por {damage} de dano.", cap_article(seen_name), article(hit_name))
+    format!(
+        "{} {seen_name} acerta {} {hit_name} por {damage} de dano.",
+        cap_article(seen_name),
+        article(hit_name)
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -1263,14 +1387,20 @@ pub fn sting_glances(name: &str) -> String {
     format!("O dardo raspa {} {name} sem efeito.", em_contraction(name))
 }
 pub fn sting_hits(name: &str, damage: i32) -> String {
-    format!("Um dardo verde de veneno fura {} {name} por {damage} de dano!", article(name))
+    format!(
+        "Um dardo verde de veneno fura {} {name} por {damage} de dano!",
+        article(name)
+    )
 }
 
 pub fn thunderbolt_misses() -> &'static str {
     "O trovão estala sobre pedra vazia."
 }
 pub fn thunderbolt_hits(name: &str, damage: i32) -> String {
-    format!("Um raio de trovão atinge {} {name} por {damage} de dano!", article(name))
+    format!(
+        "Um raio de trovão atinge {} {name} por {damage} de dano!",
+        article(name)
+    )
 }
 
 pub fn cure_self_nothing_to_cure() -> &'static str {
@@ -1285,14 +1415,20 @@ pub fn breathe_fire_player() -> &'static str {
     "Uma torrente de fogo jorra para fora!"
 }
 pub fn breathe_fire_mob(name: &str) -> String {
-    format!("Uma torrente de fogo jorra {} {name}!", de_contraction(name))
+    format!(
+        "Uma torrente de fogo jorra {} {name}!",
+        de_contraction(name)
+    )
 }
 
 pub fn force_lance_cast() -> &'static str {
     "Uma lança invisível golpeia ao longo da linha!"
 }
 pub fn force_lance_hits(name: &str, damage: i32) -> String {
-    format!("A lança de força atinge {} {name} por {damage} de dano!", article(name))
+    format!(
+        "A lança de força atinge {} {name} por {damage} de dano!",
+        article(name)
+    )
 }
 
 pub fn setup_planted() -> &'static str {
@@ -1404,24 +1540,39 @@ pub fn create_monster_nowhere() -> &'static str {
     "O ar coalha — depois se acalma. O que quer que estivesse vindo, pensou melhor."
 }
 pub fn create_monster_line(_article: &str, name: &str) -> String {
-    format!("O ar coalha em {} {name}, dentes e tudo!", indef_article(name))
+    format!(
+        "O ar coalha em {} {name}, dentes e tudo!",
+        indef_article(name)
+    )
 }
 
 pub fn vorpalize_fizzles() -> &'static str {
     "O pergaminho se apaga sem conseguir marcar nenhuma arma."
 }
 pub fn vorpalize_crumbles(wname: &str) -> String {
-    format!("{} {wname} grita de dor e se desfaz em pó.", cap_article(wname))
+    format!(
+        "{} {wname} grita de dor e se desfaz em pó.",
+        cap_article(wname)
+    )
 }
 pub fn vorpalize_branded(wname: &str, bane: &str) -> String {
-    format!("{} {wname} canta com um brilho afiado como navalha, um presságio de morte para qualquer {bane}.", cap_article(wname))
+    format!(
+        "{} {wname} canta com um brilho afiado como navalha, um presságio de morte para qualquer {bane}.",
+        cap_article(wname)
+    )
 }
 
 pub fn enchant_sparks(name: &str) -> String {
-    format!("{} {name} solta uma chuva de faíscas laranjas!", cap_article(name))
+    format!(
+        "{} {name} solta uma chuva de faíscas laranjas!",
+        cap_article(name)
+    )
 }
 pub fn enchant_curse_burns(name: &str) -> String {
-    format!("A maldição {} {name} queima junto com elas.", de_contraction(name))
+    format!(
+        "A maldição {} {name} queima junto com elas.",
+        de_contraction(name)
+    )
 }
 pub fn enchant_missing_armor() -> &'static str {
     "As faíscas brilham sobre pele nua e se apagam. Nenhuma armadura está vestida."
@@ -1649,13 +1800,19 @@ pub fn wand_crumbles(seen_name: &str) -> String {
     format!("{} {seen_name} se desfaz em pó!", cap_article(seen_name))
 }
 pub fn you_drink(seen_name: &str) -> String {
-    format!("{} {seen_name} desaparece de um gole.", cap_article(seen_name))
+    format!(
+        "{} {seen_name} desaparece de um gole.",
+        cap_article(seen_name)
+    )
 }
 pub fn you_read(seen_name: &str) -> String {
     format!("{} {seen_name} fica lido.", cap_article(seen_name))
 }
 pub fn ring_shivers_apart(seen_name: &str) -> String {
-    format!("{} {seen_name} se desfaz em mil partículas reluzentes.", cap_article(seen_name))
+    format!(
+        "{} {seen_name} se desfaz em mil partículas reluzentes.",
+        cap_article(seen_name)
+    )
 }
 pub fn item_turns_to_dust() -> &'static str {
     "O item vira pó!"
@@ -1678,11 +1835,17 @@ pub fn gear_clatters_to_floor(name: &str) -> String {
 }
 
 pub fn lunge_hit(target_name: &str, damage: i32) -> String {
-    format!("Uma estocada, lâmina reluzindo além de qualquer guarda, espeta {} {target_name} por {damage} de dano!", article(target_name))
+    format!(
+        "Uma estocada, lâmina reluzindo além de qualquer guarda, espeta {} {target_name} por {damage} de dano!",
+        article(target_name)
+    )
 }
 
 pub fn you_have_slain(target_name: &str) -> String {
-    format!("{} {target_name} acaba de tombar!", cap_article(target_name))
+    format!(
+        "{} {target_name} acaba de tombar!",
+        cap_article(target_name)
+    )
 }
 
 pub fn strike_at_nothing() -> &'static str {
@@ -1694,13 +1857,22 @@ pub fn slain_by(attacker_name: &str) -> String {
 }
 
 pub fn excellent_hit(target_name: &str, damage: i32) -> String {
-    format!("Um golpe excelente marca {} {target_name} por {damage} de dano!", article(target_name))
+    format!(
+        "Um golpe excelente marca {} {target_name} por {damage} de dano!",
+        article(target_name)
+    )
 }
 pub fn glancing_blow(target_name: &str) -> String {
-    format!("Um golpe de raspão alcança {} {target_name}.", article(target_name))
+    format!(
+        "Um golpe de raspão alcança {} {target_name}.",
+        article(target_name)
+    )
 }
 pub fn plain_hit(target_name: &str, damage: i32) -> String {
-    format!("Um golpe alcança {} {target_name} por {damage} de dano.", article(target_name))
+    format!(
+        "Um golpe alcança {} {target_name} por {damage} de dano.",
+        article(target_name)
+    )
 }
 pub fn garrote_kill(target_name: &str) -> String {
     format!(
@@ -1710,7 +1882,10 @@ pub fn garrote_kill(target_name: &str) -> String {
     )
 }
 pub fn vorpal_kill(target_name: &str) -> String {
-    format!("Zás-zás! A lâmina atravessa limpo {} {target_name}!", article(target_name))
+    format!(
+        "Zás-zás! A lâmina atravessa limpo {} {target_name}!",
+        article(target_name)
+    )
 }
 
 pub fn mob_misses(atk: &str, target_label: &str) -> String {

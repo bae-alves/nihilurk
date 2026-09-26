@@ -153,9 +153,7 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         }
         ScrollEffect::VorpalizeWeapon => vorpalize_wielded_weapon(world, user),
         ScrollEffect::BlankPaper => {
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::blank_paper());
+            world.resource_mut::<GameLog>().add(strings::blank_paper());
         }
         ScrollEffect::EnchantWeapon => enchant_gear(world, user, Slot::Hand),
         ScrollEffect::EnchantArmor => enchant_gear(world, user, Slot::Body),
