@@ -1,1 +1,5 @@
+---
+description: Install and run cursor/plugins' thermo-nuclear code quality review
+---
+
 Run `npx skills use "https://github.com/cursor/plugins" --skill "thermo-nuclear-code-quality-review"` and follow the generated skill instructions now. Read its complete output, redirecting it to a temporary file first if necessary. Resolve relative paths from the supporting-files directory it provides.

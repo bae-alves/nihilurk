@@ -1,5 +1,16 @@
 # Journal
 
+## Contents
+
+- [The EFFECTS table in content-tables.md lists 16 of ~45 rows (2026-09-25)](#the-effects-table-in-content-tablesmd-lists-16-of-45-rows-2026-09-25)
+- [Petrification split out of sleep (2026-09-19)](#petrification-split-out-of-sleep-2026-09-19)
+- [The spell docs after the move→spell rename (2026-09-20)](#the-spell-docs-after-the-movespell-rename-2026-09-20)
+- [Second sight stopped being omniscience (2026-09-20)](#second-sight-stopped-being-omniscience-2026-09-20)
+- [Worn gear was still lying on the floor (2026-09-20)](#worn-gear-was-still-lying-on-the-floor-2026-09-20)
+- [The drop-table test was reading the floor, not the roller (2026-09-20)](#the-drop-table-test-was-reading-the-floor-not-the-roller-2026-09-20)
+- [Trick shots became a chain (2026-09-20)](#trick-shots-became-a-chain-2026-09-20)
+
+
 ## The EFFECTS table in content-tables.md lists 16 of ~45 rows (2026-09-25)
 
 Found while documenting the playable-body feature: `docs/reference/content-tables.md`'s

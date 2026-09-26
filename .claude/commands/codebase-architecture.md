@@ -1,1 +1,5 @@
+---
+description: Install and run mattpocock/skills' improve-codebase-architecture review
+---
+
 Run `npx skills use "https://github.com/mattpocock/skills" --skill "improve-codebase-architecture"` and follow the generated skill instructions now. Read its complete output, redirecting it to a temporary file first if necessary. Resolve relative paths from the supporting-files directory it provides.
