@@ -366,6 +366,18 @@ pub fn content_group_header(group: &str, count: usize) -> String {
     format!("\n{group} ({count})")
 }
 
+pub fn leaderboard_header(count: usize) -> String {
+    format!("nihilurk leaderboard — top {count}")
+}
+
+pub fn leaderboard_empty() -> &'static str {
+    "No runs recorded yet."
+}
+
+pub fn leaderboard_entry(rank: usize, name: &str, outcome: &str, score: i64, when: &str) -> String {
+    format!("{rank}. {name} - {outcome} - {score} ({when})")
+}
+
 pub fn help_text() -> &'static str {
     "\
 nihilurk - terminal roguelike
@@ -383,6 +395,7 @@ OPTIONS
     -b BODY          play as nihil (default) or lurk
     -am SPECIES      play as a monster: any bestiary name, e.g. -am dragon
     -content         list names accepted by NIHILURK_SPAWN
+    -scores          show the leaderboard and exit, without playing
     -h, -help, --help show this help and exit
 
 POSITIONAL ARGUMENT (first argument only)

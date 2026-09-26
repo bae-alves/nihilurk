@@ -12,6 +12,9 @@ nihilurk \- terminal roguelike
 \fB\-content\fR
 .PP
 .B nihilurk
+\fB\-scores\fR
+.PP
+.B nihilurk
 \fB\-h\fR | \fB\-help\fR | \fB\-\-help\fR
 .SH DESCRIPTION
 .B nihilurk
@@ -138,6 +141,24 @@ output pipes into
 and
 .BR less (1)
 like any other listing.
+.TP
+.B \-scores
+Print the leaderboard \(em the ten highest scores ever recorded, one per line
+as
+.BR "RANK. NAME - OUTCOME - SCORE (WHEN)" ,
+highest first \(em and exit without entering the alternate screen. Read from
+.B leaderboard.sav
+in the current directory, a small file in the same format as a save. Updated
+whenever a run ends in a win or a death;
+.B OUTCOME
+is
+.BR WIN ,
+.B "LOSE (Asc.)"
+for a death carrying the Element back out, or
+.B "LOSE (Desc.)"
+for a death on the way down;
+.B WHEN
+is the UTC date and time the run ended.
 .SH POSITIONAL ARGUMENT
 The name or save file is the
 .B first

@@ -34,7 +34,8 @@ pub use super::en::{
     body_conflicts_with_load, clear_data_not_saved, clear_data_prompt, clear_data_saved,
     conflicting_bodies, content_group_header, content_header, content_spawn_hint,
     failed_to_save_clear_data, failed_to_save_game, game_not_saved, game_saved, help_text,
-    no_such_body, no_such_monster, no_such_pride_flag, stray_positional, world_keeps_its_light,
+    leaderboard_empty, leaderboard_entry, leaderboard_header, no_such_body, no_such_monster,
+    no_such_pride_flag, stray_positional, world_keeps_its_light,
 };
 
 /// Content ids stay untranslated (see `content_name` above), so one can
