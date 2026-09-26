@@ -103,12 +103,46 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- Demons! (&). They are their own faction and won't be angry at you until you damage one of them. Neutral monsters just move randomly and fight randomly if move gets interrupted. There are a few kinds of demons
+- Helpers: throw a snack (brown %) or a fancy of peace (cyan %) for a 50% chance to, if accepted, turn non-item users and item-users respectively into your boon companion. They will teleport to you and heal when you change floors, will follow you and chase/attack monsters in your viewshed. you swap places when you walk over them, but they can't do that with you. They will only state their finality when being used. Ammo should do that too. When a helper dies the animation is *real dramatic*. They have different background. Can only have one. The other *EXPLODES* (cosmetic and very gory) when you get a new one. You are logged "so much for loyalty these days."
+- Allies: these don't move levels with you, but can be made with the wand of charming (1 creature) or the scroll of charming monsters (whole room). different background. Not as dramatic as Helpers.
+- Spirits! (&). Half the weight of normal monsters. They are their own faction and won't be angry at you until you damage one of them. Neutral monsters just move randomly and fight randomly (but not you) if move gets interrupted and are backgrounded darkgrey. There are a few kinds of spirits. Interacting with a 'demon' gives you a stack of hidden attribute Demonized. interacting with a celestial (e.g. angel, sphynx, yaksni, yaksa) gives you a stack of a hidden attribute named Consecrated. Go 3+ on either variable and spirits become all hostile ("You challenge the balance!").
     - Yellow demon: hit him and instead of an attack it opens a barter menu. your inventory in a column, demon's items in another, you select which ones you want to trade. Kill the demon and you get it all, but it angers all demons. You can cancel a barter. But a successful barter poofs the demon, satisfied
-    - Red demon: this one is trying to kill you if hostile, it won't do anything to you if peace. Random stats (2d6 each). Random grants. Carries a bag full of treasure and is equipped with ULTIMATE chance.
-    - Blue demon: when meleed, gives you a choice of three spells. Pick one to learn.
+    - Red demon: this one is just strong and will grunt if interacted with by you while you're not hostile, it won't do anything to you if peace. Random stats (2d6 each). Random grants. Carries a bag full of treasure and is equipped with ULTIMATE chance.
+    - Blue demon (cyan): when meleed, gives you a choice of three spells. Pick one to learn.
+    - Pink demon (magenta): when meleed, your gear is unmade and they become your Helper or change faction to the monsters (depending how much gear 25% each piece, curses count -25%). 5/5/5 stats. Spams light magic missiles (1die).
+    - Angel (white &): "Tests your faith!" cancels you, halves your current hp (min 1) and gives the ANGE ledger. Hit the stairs with it and everything becomes (randomly) magical again, and equipped gear become +3
+    - Sphynx (darkyellow &): same as barter but for spells
+    - Yaksni (darker blue & ): Gives you a choice of three identified weapons
+    - Yaksa (darker red & ): Gives you a choice of three identified armor
+    - All of the vanish with a poof when they finish their event
 - More player character options
-- The Nemelex decks from DCSS
+- Rare items. The decks from DCSS. Each comes with 5 cards. The cards can be:
+    - The Joker: Random effect from another card. It's what makes the draw cards chain into absurdity
+    - King of Clubs: Recharges Wands
+    - Prince of Swords: Enchant weapon
+    - Queen of cups: Enchant Armor
+    - Princess of diamonds: Enchant Ring (new. affects only rings with numerical grants and their plus also starts showing)
+    - The Balance: 5 Power BALA ledger.
+    - The Bole: 5 Armor BOLE ledger.
+    - The +4: Creates and uses four different cards
+    - THE SKULL KING!: The 12/6/6 Purple S becomes your Ally. They spam lightning.
+    - Pot of Sin: Creates and uses two different cards
+    - THE BLACK MAGE: The 12/5/8 purple & becomes your Helper. Spams FIREBALL but not if it would hit you, goes melee otherwise. 'Agentic' characters need an agents system where they fire their percept and then from the percept they do an action. No-memory symbolic AI. There are some sets for it.
+    - The Child: goes to the upstairs of this level
+    - The Crone: goes to the downstairs of this level
+    - Scopus: sees the cards in the deck
+    - FOOL: Does nothing.
+    - VII THE CHARIOT: Gains the CHRT ledger. Take no damage and vorpal against all.
+    - XXII THE WORLD: stops time on the entire floor. For 5 turns, nobody but you moves and projectiles you fire will only be processed after the time has stopped (but for cosmetic purposes their *starting frames* will render for you while time is stopped). This might be heavy on the save file but ... THE WORLD, you know? People expect it to be in the game.
+    - XXIII GOLDEN WIND: turns all items on the floor into Allies
+- Thrown deck behavior: They are evaluated not as cards but as sets
+    -Anti-Flush (100 points): one single random effect triggers
+    -A Pair (1000 points): the paired effect triggers twice
+    -Two Pair (10000 points): the paired effects trigger twice each
+    -Three of a Kind (100000 points): threed effect triggers thrice
+    -Full House (500000 points): threed and paired effect trigger thrice and twice respectively
+    -Four of a Kind (1000000 points): quartered effect triggers four times
+    -Five of a Kind (5000000 points): If you have pack space, you get the Element. Just get out of here. If you don't have space, the Element destroys your inventory and puts itself in it. Also adornment activates cosmetically.
 - Charms like in Wildfrost
 - Charms like in Brogue
 - Steam
