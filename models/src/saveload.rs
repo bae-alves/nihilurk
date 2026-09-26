@@ -461,6 +461,26 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     }
 
     let count = save.entities.len();
+
+    // `backpack` and `equipped_by` are raw indices into this same list, with
+    // nothing upstream bounding them — a save is untrusted the moment it can
+    // come from anywhere but this build's own `save_game` (a shared file, a
+    // bug report attachment). Check every one before the loop below indexes
+    // `new_ents` with it, so a crafted save fails to load instead of panicking.
+    let index_in_range = |idx: u32| (idx as usize) < count;
+    let indices_valid = save.entities.iter().all(|es| {
+        es.backpack
+            .as_ref()
+            .is_none_or(|items| items.iter().all(|&idx| index_in_range(idx)))
+            && es.equipped_by.is_none_or(index_in_range)
+    });
+    if !indices_valid {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "save file names an entity index outside its own entity list",
+        ));
+    }
+
     let mut new_ents = Vec::with_capacity(count);
     for _ in 0..count {
         new_ents.push(world.spawn_empty().id());
@@ -702,4 +722,113 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::SeedableRng;
+
+    /// An [`EntitySave`] with every field at its empty default, so a test only
+    /// has to name the field it actually cares about.
+    fn blank_entity<'a>() -> EntitySave<'a> {
+        EntitySave {
+            position: None,
+            renderable: None,
+            player: false,
+            hidden: false,
+            invisible: false,
+            consume: false,
+            amulet: false,
+            name: None,
+            viewshed: None,
+            fighter: None,
+            magic: None,
+            faction: None,
+            backpack: None,
+            score: None,
+            mob: None,
+            item: false,
+            value: None,
+            potion: None,
+            battery: None,
+            wand: None,
+            ranged: None,
+            scroll: None,
+            ring: None,
+            equipped: None,
+            power_die: None,
+            power_bonus: None,
+            armor_die: None,
+            armor_bonus: None,
+            throw_bonus: None,
+            stack: None,
+            curse: false,
+            known_quality: false,
+            vorpal: None,
+            effects: Vec::new(),
+            speed: None,
+            trap: None,
+            pickup: None,
+            plated: false,
+            forged: false,
+            spellset: None,
+            equipped_by: None,
+        }
+    }
+
+    /// A save is untrusted the moment it can come from anywhere but this
+    /// build's own [`save_game`] — a shared file, a bug report attachment.
+    /// `backpack` and `equipped_by` are raw indices into the saved entity
+    /// list with nothing upstream bounding them, so a crafted save naming an
+    /// index past the end of the list must fail to load rather than index
+    /// straight into `new_ents`.
+    fn crafted_save_with_backpack_index(index: u32) -> Vec<u8> {
+        let mut entity = blank_entity();
+        entity.backpack = Some(vec![index]);
+        let save = SaveGame {
+            entities: vec![entity],
+            player_name: Cow::Borrowed("X"),
+            depth: 1,
+            floor_changes: 0,
+            rng_seed: 1,
+            rng_state: ChaCha12Rng::seed_from_u64(1),
+            dark_tiles: FixedBitSet::with_capacity(1),
+            cleared: false,
+        };
+        postcard::to_allocvec(&save).unwrap()
+    }
+
+    fn load_bytes(tag: &str, bytes: &[u8]) -> std::io::Result<()> {
+        let path = std::env::temp_dir().join(format!(
+            "nihilurk-saveload-unit-{}-{tag}.sav",
+            std::process::id()
+        ));
+        std::fs::write(&path, bytes).unwrap();
+        let mut world = World::new();
+        world.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2)));
+        world.insert_resource(RngSeed(2));
+        world.init_resource::<GameLog>();
+        world.insert_resource(PlayerName { what: "Y".into() });
+        let result = load_game(&mut world, path.to_str().unwrap());
+        let _ = std::fs::remove_file(&path);
+        result
+    }
+
+    #[test]
+    fn an_out_of_range_backpack_index_is_rejected_not_indexed() {
+        // One entity exists (index 0); this save claims index 1.
+        let bytes = crafted_save_with_backpack_index(1);
+        assert!(
+            load_bytes("oob", &bytes).is_err(),
+            "a crafted save with an out-of-range backpack index must error, not panic"
+        );
+    }
+
+    #[test]
+    fn an_in_range_backpack_index_still_loads() {
+        // Same shape, but pointing at the one entity that actually exists.
+        let bytes = crafted_save_with_backpack_index(0);
+        assert!(load_bytes("ok", &bytes).is_ok());
+    }
 }
