@@ -192,14 +192,14 @@ pub const ABILITIES: &[Ability] = &[
         when: Moment::EachTurn(0.10),
         player_only: false,
         action: |w, e, _| crate::items::aggravate_all_monsters(w, e),
-        flavour: Some("You yip! The whole floor turns your way."),
+        flavour: Some(strings::flavour_aggravates()),
     },
     Ability {
         effect: Grant::of::<Regenerates>(),
         when: Moment::EachTurn(0.50),
         player_only: false,
         action: |w, e, _| crate::items::regenerate(w, e),
-        flavour: Some("The ring on your finger is warm."),
+        flavour: Some(strings::flavour_regenerates()),
     },
     // Rogue's teleportitis, at NetHack's odds: 1 in 85 turns, and the jump
     // lands at the top of the bearer's next turn (see `ability_system`).
@@ -208,7 +208,7 @@ pub const ABILITIES: &[Ability] = &[
         when: Moment::EachTurn(1.0 / 85.0),
         player_only: false,
         action: |w, e, _| crate::items::teleportitis(w, e),
-        flavour: Some("Something on your finger is pleased with itself."),
+        flavour: Some(strings::flavour_teleportitis()),
     },
     // --- hurt and lived --------------------------------------------------
     // The slime's split. It used to be a hardcoded line in
@@ -350,11 +350,8 @@ fn heavy_stagger(world: &mut World, attacker: Entity, target: Option<Entity>) ->
     let staggered = snare(world, target, Grant::of::<Asleep>(), 1);
     if staggered {
         let line = match world.get::<Player>(target).is_some() {
-            true => "The blow staggers you — you can't gather yourself to answer it!".to_string(),
-            false => format!(
-                "The {} reels from the blow, staggered!",
-                item_label(world, target)
-            ),
+            true => strings::heavy_stagger_player().to_string(),
+            false => strings::heavy_stagger_mob(&item_label(world, target)),
         };
         world.resource_mut::<GameLog>().add(line);
     }
@@ -369,7 +366,7 @@ fn chaos_recoil(world: &mut World, attacker: Entity, _target: Option<Entity>) ->
     apply_damage(world, attacker, 1);
     world
         .resource_mut::<GameLog>()
-        .add("The edge of chaos bites you!".to_string());
+        .add(strings::chaos_recoil());
     true
 }
 
@@ -441,6 +438,12 @@ fn freezing_touch(world: &mut World, _attacker: Entity, target: Option<Entity>) 
 /// permanently — like the dart trap's poison, but with no floor of 1, so a
 /// long enough fight can drive a victim's power negative. A ring of strength
 /// ([`SustainsStrength`]) shrugs it off exactly as it does the trap.
+///
+/// Announced either way, the same split `stagger`/`blind` already use: the
+/// player reads it in the second person, anything else gets its own name in
+/// the third. A bite the *player* lands (`-am rattlesnake`, or a hand-written
+/// body that borrows the marker) used to drain in total silence — nothing
+/// else in the ability table stays quiet just because the victim isn't you.
 fn venomous_bite(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool {
     let Some(target) = target else {
         return false;
@@ -448,20 +451,27 @@ fn venomous_bite(world: &mut World, _attacker: Entity, target: Option<Entity>) -
     // No floor: a long enough fight with a rattlesnake drives a victim's
     // power negative, which is the bite's whole reputation.
     let drained = crate::conditions::drain_power(world, target, RATTLESNAKE_POWER_DRAIN, None);
-    let line = match drained {
-        crate::conditions::Drain::Resisted => "The venom burns, but your strength holds firm.",
-        crate::conditions::Drain::Took => "Venom courses through you — your strength ebbs away.",
-        crate::conditions::Drain::Nothing => return false,
+    let is_player = world.get::<Player>(target).is_some();
+    let took = matches!(drained, crate::conditions::Drain::Took);
+    let name = item_label(world, target);
+    let line = match (drained, is_player) {
+        (crate::conditions::Drain::Nothing, _) => return false,
+        (crate::conditions::Drain::Resisted, true) => strings::venom_resisted_player().to_string(),
+        (crate::conditions::Drain::Resisted, false) => strings::venom_resisted_mob(&name),
+        (crate::conditions::Drain::Took, true) => strings::venom_took_player().to_string(),
+        (crate::conditions::Drain::Took, false) => strings::venom_took_mob(&name),
     };
-    if world.get::<Player>(target).is_some() {
-        world.resource_mut::<GameLog>().add(line.to_string());
-    }
-    matches!(drained, crate::conditions::Drain::Took)
+    world.resource_mut::<GameLog>().add(line);
+    took
 }
 
 /// The vampire's touch: [`VAMPIRE_MAX_HP_DRAIN`] points off the victim's
 /// *maximum* HP, permanently, clamping current HP down with it if it now
 /// exceeds the new ceiling.
+///
+/// Announced either way — see [`venomous_bite`], the same fix for the same
+/// reason: a landed drain the player caused instead of suffered used to
+/// leave nothing in the log to show for it.
 fn vampiric_drain(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool {
     let Some(target) = target else {
         return false;
@@ -473,11 +483,12 @@ fn vampiric_drain(world: &mut World, _attacker: Entity, target: Option<Entity>) 
     if fighter.hp > fighter.max_hp {
         fighter.hp = fighter.max_hp;
     }
-    if world.get::<Player>(target).is_some() {
-        world
-            .resource_mut::<GameLog>()
-            .add("A deathly chill spreads through you — your vitality is drained!".to_string());
-    }
+    let line = if world.get::<Player>(target).is_some() {
+        strings::vampiric_drain_player().to_string()
+    } else {
+        strings::vampiric_drain_mob(&item_label(world, target))
+    };
+    world.resource_mut::<GameLog>().add(line);
     true
 }
 
@@ -494,13 +505,8 @@ fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> b
     }
     let name = item_label(world, attacker);
     let line = match world.get::<Player>(target).is_some() {
-        true => format!(
-            "The {name} clamps their jaws around your leg — you can't take a step, but your arms are free!"
-        ),
-        false => format!(
-            "The {name} clamps their jaws around the {}!",
-            item_label(world, target)
-        ),
+        true => strings::bind_victim_player(&name),
+        false => strings::bind_victim_mob(&name, &item_label(world, target)),
     };
     world.resource_mut::<GameLog>().add(line);
     true
@@ -536,7 +542,7 @@ fn medusa_gaze(world: &mut World, looker: Entity, _seen: Entity) -> bool {
     }
     world
         .resource_mut::<GameLog>()
-        .add("Your eyes meet the medusa's — and your flesh turns to cold stone!".to_string());
+        .add(strings::medusa_gaze_line());
     true
 }
 

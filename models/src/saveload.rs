@@ -695,8 +695,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     // the player wonder why their ring went quiet.
     if retired > 0 {
         let line = match retired {
-            1 => "One enchantment in this save is unknown to this build, and is gone.".to_string(),
-            n => format!("{n} enchantments in this save are unknown to this build, and are gone."),
+            1 => strings::retired_enchantment_singular().to_string(),
+            n => strings::retired_enchantment_plural(n),
         };
         world.resource_mut::<GameLog>().add(line);
     }

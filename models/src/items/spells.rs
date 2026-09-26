@@ -109,7 +109,7 @@ pub fn spell_system(world: &mut World) {
             if world.get::<Player>(wants.user).is_some() {
                 world
                     .resource_mut::<GameLog>()
-                    .add("You don't have the magic for that.".to_string());
+                    .add(strings::no_magic_for_that());
             }
             continue;
         }
@@ -118,7 +118,7 @@ pub fn spell_system(world: &mut World) {
         }
         world
             .resource_mut::<GameLog>()
-            .add(format!("You cast {}!", def.name));
+            .add(strings::you_cast(def.display_name()));
         let power_mult = if turbo { TURBO_MAGIC_POWER_MULT } else { 1 };
         apply_spell_effect(world, wants.user, wants.target, wants.effect, power_mult);
     }
@@ -193,9 +193,7 @@ fn sting(world: &mut World, user: Entity, target: Position, power_mult: i32) {
     fly_arrow(world, user_pos, target, '↑', Color::Green);
 
     let Some(victim) = monster_at(world, target) else {
-        world
-            .resource_mut::<GameLog>()
-            .add("The dart of venom finds nothing to bite.".to_string());
+        world.resource_mut::<GameLog>().add(strings::sting_misses());
         return;
     };
     let tier = trap_damage_tier(world.resource::<Depth>().what);
@@ -207,10 +205,10 @@ fn sting(world: &mut World, user: Entity, target: Position, power_mult: i32) {
     if damage <= 0 {
         world
             .resource_mut::<GameLog>()
-            .add(format!("The dart glances off the {name}."));
+            .add(strings::sting_glances(&name));
         return;
     }
-    let line = format!("A green dart of venom pricks the {name} for {damage} damage!");
+    let line = strings::sting_hits(&name, damage);
     if apply_hit(world, victim, Hit::magic(damage), Some(&line)) == 0 {
         return;
     }
@@ -236,12 +234,12 @@ fn thunderbolt(world: &mut World, user: Entity, target: Position, power_mult: i3
     let Some(victim) = monster_at(world, target) else {
         world
             .resource_mut::<GameLog>()
-            .add("Thunder cracks over empty stone.".to_string());
+            .add(strings::thunderbolt_misses());
         return;
     };
     let damage = roll_dice(world, THUNDERBOLT_DAMAGE_DICE, THUNDERBOLT_DAMAGE_SIDES) * power_mult;
     let name = item_label(world, victim);
-    let line = format!("A bolt of thunder slams into the {name} for {damage} damage!");
+    let line = strings::thunderbolt_hits(&name, damage);
     if apply_hit(world, victim, Hit::magic(damage), Some(&line)) == 0 {
         return;
     }
@@ -267,7 +265,7 @@ fn cure_self(world: &mut World, user: Entity) {
     if !cure_one_condition(world, user) {
         world
             .resource_mut::<GameLog>()
-            .add("There's nothing wrong with you to cure.".to_string());
+            .add(strings::cure_self_nothing_to_cure());
     }
 }
 
@@ -287,7 +285,7 @@ fn bide(world: &mut World, user: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add("You coil, gathering strength for the blow to come.".to_string());
+        .add(strings::bide_coil());
 }
 
 // ---------------------------------------------------------------------------
@@ -322,11 +320,8 @@ fn breathe_fire(world: &mut World, user: Entity, target: Position, power_mult: i
         .max(0))
         * power_mult;
     let line = match world.get::<Player>(user).is_some() {
-        true => "A gout of flame erupts from you!".to_string(),
-        false => format!(
-            "A gout of flame erupts from the {}!",
-            item_label(world, user)
-        ),
+        true => strings::breathe_fire_player().to_string(),
+        false => strings::breathe_fire_mob(&item_label(world, user)),
     };
     world.resource_mut::<GameLog>().add(line);
     elemental_blast(
@@ -367,7 +362,7 @@ fn force_lance(world: &mut World, user: Entity, target: Position, power_mult: i3
 
     world
         .resource_mut::<GameLog>()
-        .add("An invisible fist hammers down the line!".to_string());
+        .add(strings::force_lance_cast());
     let mut flight_ms = 0.0;
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         flight_ms = fx.beam(&cells, Color::White);
@@ -377,7 +372,7 @@ fn force_lance(world: &mut World, user: Entity, target: Position, power_mult: i3
         let damage =
             roll_dice(world, FORCE_LANCE_DAMAGE_DICE, FORCE_LANCE_DAMAGE_SIDES) * power_mult;
         let name = item_label(world, victim);
-        let line = format!("The force lance slams the {name} for {damage} damage!");
+        let line = strings::force_lance_hits(&name, damage);
         if apply_hit(world, victim, Hit::magic(damage), Some(&line)) == 0 {
             continue;
         }
@@ -427,9 +422,9 @@ fn setup(world: &mut World, user: Entity) {
     }
 
     let msg = if placed > 0 {
-        "You plant arrow traps at your flanks, springs cocked in plain sight."
+        strings::setup_planted()
     } else {
-        "There's no room at your flanks for a trap."
+        strings::setup_no_room()
     };
     world.resource_mut::<GameLog>().add(msg.to_string());
 }
@@ -443,9 +438,7 @@ fn setup(world: &mut World, user: Entity) {
 /// [`super::throwing::resolve_wand_throw`]), except this one blinds too. No
 /// battery to read a charge count off, so [`LUX_CHARGES`] stands in for one.
 fn lux(world: &mut World, user: Entity, target: Position, power_mult: i32) {
-    world
-        .resource_mut::<GameLog>()
-        .add("You hurl a shard of pure light!".to_string());
+    world.resource_mut::<GameLog>().add(strings::lux_cast());
     let damage = roll_dice(world, LUX_CHARGES, GRENADE_DIE_PER_CHARGE) * power_mult;
     let caught = elemental_blast(
         world,
@@ -475,15 +468,13 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
     if targets.is_empty() {
         world
             .resource_mut::<GameLog>()
-            .add("Ashen light gathers around you and finds nothing at all to feed on.".to_string());
+            .add(strings::circle_of_death_nothing());
         return;
     }
 
-    world.resource_mut::<GameLog>().add(
-        "Ashen light rises off the floor. Unnecessary flames roar through the room, and \
-         everything they touch turns grey."
-            .to_string(),
-    );
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::circle_of_death_cast());
     let cells: Vec<(u16, u16, f32)> = targets
         .iter()
         .filter_map(|&e| tile_of(world, e))
@@ -511,7 +502,7 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
     }
     world
         .resource_mut::<GameLog>()
-        .add(format!("You drain {drained} life from the circle."));
+        .add(strings::circle_of_death_drain(drained));
 }
 
 /// Magic Ward: for the rest of this floor, nothing that isn't the caster's
@@ -528,11 +519,9 @@ fn magic_ward(world: &mut World, user: Entity) {
             fx.firework(x, y, Color::White, 120.0);
         }
     }
-    world.resource_mut::<GameLog>().add(
-        "A cold, silver skin closes over you. Nothing but your own magic can touch you now — \
-         not for the rest of this floor."
-            .to_string(),
-    );
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::magic_ward_cast());
 }
 
 /// Heal: refills the caster's HP to their current ceiling — a potion of
@@ -546,9 +535,9 @@ fn heal_self(world: &mut World, user: Entity) {
     let healed = fighter.hp - before;
     spark_burst_at(world, user, Color::Green);
     let msg = if healed > 0 {
-        format!("Warmth floods through you, and your wounds close. (+{healed} HP)")
+        strings::heal_self_line(healed)
     } else {
-        "You are already at full strength.".to_string()
+        strings::heal_self_full().to_string()
     };
     world.resource_mut::<GameLog>().add(msg);
 }
@@ -565,15 +554,15 @@ fn heal_self(world: &mut World, user: Entity) {
 /// possibly forever, though the odds of it going more than a handful of times
 /// running are the odds of flipping a very long streak of heads.
 fn meteor_strike(world: &mut World, user: Entity, target: Position, power_mult: i32) {
-    world.resource_mut::<GameLog>().add(
-        "You hurl fire at the sky. It does not come back down where you'd expect.".to_string(),
-    );
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::meteor_strike_cast());
     let mut at = target;
     loop {
         let damage = roll_dice(world, METEOR_STRIKE_CHARGES, GRENADE_DIE_PER_CHARGE) * power_mult;
         world
             .resource_mut::<GameLog>()
-            .add("A meteor screams down!".to_string());
+            .add(strings::meteor_screams_down());
         elemental_blast(
             world,
             Some(user),
@@ -606,7 +595,7 @@ fn meteor_strike(world: &mut World, user: Entity, target: Position, power_mult: 
         };
         world
             .resource_mut::<GameLog>()
-            .add("The sky tears open again!".to_string());
+            .add(strings::sky_tears_open_again());
         at = Position { x, y };
     }
 }
@@ -620,9 +609,9 @@ fn frost_nova(world: &mut World, user: Entity, power_mult: i32) {
     };
     let targets = hostiles_in_view(world, user);
 
-    world.resource_mut::<GameLog>().add(
-        "A CYAN STAR erupts around you — ice, glitter, and entirely too much of both.".to_string(),
-    );
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::frost_nova_cast());
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         const POINTS: [(i32, i32); 8] = [
             (0, -3),
@@ -665,7 +654,7 @@ fn haste_self(world: &mut World, user: Entity) {
     };
     world
         .resource_mut::<GameLog>()
-        .add("Power gathers. Power gathers more.".to_string());
+        .add(strings::haste_self_gathers());
     hasten(world, user);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         const COLORS: [Color; 6] = [
@@ -682,5 +671,5 @@ fn haste_self(world: &mut World, user: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add("You are not quick. You are not swift. You are THE FAST.".to_string());
+        .add(strings::haste_self_the_fast());
 }

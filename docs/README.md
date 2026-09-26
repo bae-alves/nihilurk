@@ -14,7 +14,9 @@ Start here
 | Add my first item, hand-held        | `tutorial/add-your-first-item.md`       |
 | Add my first monster, hand-held     | `tutorial/add-your-first-monster.md`    |
 | Add my first spell, hand-held       | `tutorial/add-your-first-spell.md`       |
+| Add my first body, hand-held        | `tutorial/add-your-first-body.md`        |
 | Add a monster                       | `how-to/add-a-monster.md`               |
+| Add a new playable body, like the lurk | `how-to/add-a-body.md`               |
 | Add a potion, wand, weapon, ring    | `how-to/add-an-item.md`                 |
 | Add an active spell                 | `how-to/add-a-spell.md`                  |
 | Add a trap                          | `how-to/add-a-trap.md`                  |

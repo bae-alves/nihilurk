@@ -56,6 +56,14 @@ pub trait ItemDef {
     /// [`crate::spawn::spawn_named`] finds the row again from it.
     fn name(&self) -> &'static str;
 
+    /// What the player sees this row called, in whatever language this binary
+    /// was built for. [`ItemDef::name`] itself never changes meaning — see its
+    /// own doc comment — so every item type gets this the same way, from the
+    /// same id, rather than each redefining it.
+    fn display_name(&self) -> &'static str {
+        strings::content_name(self.name())
+    }
+
     /// How often this row turns up relative to its table-mates. Ten is the
     /// baseline, so a row at 5 is half as common and one at 20 twice.
     ///
@@ -114,7 +122,7 @@ impl ItemDef for PotionDef {
         world
             .spawn((
                 Name {
-                    what: self.name.to_string(),
+                    what: strings::content_name(self.name).to_string(),
                 },
                 Renderable {
                     glyph: '!',
@@ -170,7 +178,7 @@ impl ItemDef for ScrollDef {
         world
             .spawn((
                 Name {
-                    what: self.name.to_string(),
+                    what: strings::content_name(self.name).to_string(),
                 },
                 Renderable {
                     glyph: '?',
@@ -227,7 +235,7 @@ impl ItemDef for WandDef {
         world
             .spawn((
                 Name {
-                    what: self.name.to_string(),
+                    what: strings::content_name(self.name).to_string(),
                 },
                 Renderable {
                     glyph: '/',
@@ -383,7 +391,7 @@ impl ItemDef for WeaponDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         let mut e = world.spawn((
             Name {
-                what: self.name.to_string(),
+                what: strings::content_name(self.name).to_string(),
             },
             Renderable {
                 glyph: ')',
@@ -436,7 +444,7 @@ fn announce_wizard(world: &mut World, wearer: Entity, _item: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add("You're a wizard now!".to_string());
+        .add(strings::wizard_now());
 }
 
 /// [`announce_wizard`] in reverse, the moment the staff is deliberately put
@@ -449,7 +457,7 @@ fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add("You're no longer that magical.".to_string());
+        .add(strings::wizard_no_more());
 }
 
 #[rustfmt::skip]
@@ -550,7 +558,7 @@ impl ItemDef for AmmoDef {
         world
             .spawn((
                 Name {
-                    what: self.name.to_string(),
+                    what: strings::content_name(self.name).to_string(),
                 },
                 Renderable {
                     glyph: ')',
@@ -593,7 +601,7 @@ pub fn ammo_launched_die(fires_quarrel: bool) -> (i32, &'static str) {
         .iter()
         .find(|def| def.name == name)
         .expect("arrow and quarrel are both rows in AMMO");
-    (def.launched_die, def.name)
+    (def.launched_die, def.display_name())
 }
 
 /// A bow or a crossbow. Like a ring, and unlike every other thing you hold, it
@@ -631,7 +639,7 @@ impl ItemDef for LauncherDef {
         world
             .spawn((
                 Name {
-                    what: self.name.to_string(),
+                    what: strings::content_name(self.name).to_string(),
                 },
                 Renderable {
                     glyph: '}',
@@ -688,7 +696,7 @@ impl ItemDef for ArmorDef {
         world
             .spawn((
                 Name {
-                    what: self.name.to_string(),
+                    what: strings::content_name(self.name).to_string(),
                 },
                 Renderable {
                     glyph: ']',
@@ -809,7 +817,7 @@ impl ItemDef for RingDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         let mut e = world.spawn((
             Name {
-                what: self.name.to_string(),
+                what: strings::content_name(self.name).to_string(),
             },
             Renderable {
                 glyph: '=',
@@ -918,6 +926,13 @@ impl SpellDef {
             .find(|m| m.effect == effect)
             .unwrap_or_else(|| panic!("no spell row for {effect:?}"))
     }
+
+    /// What the player sees this spell called, in whatever language this
+    /// binary was built for. `name` itself never changes — see
+    /// [`crate::monsters::MonsterDef::display_name`]'s doc comment for why.
+    pub fn display_name(&self) -> &'static str {
+        strings::content_name(self.name)
+    }
 }
 
 /// Every active spell in the game: four tiers of four, priced by [`Magic`]
@@ -986,7 +1001,7 @@ impl ItemDef for CoinDef {
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
         let mut e = world.spawn((
             Name {
-                what: self.name.to_string(),
+                what: strings::content_name(self.name).to_string(),
             },
             Renderable {
                 glyph: '$',
@@ -1057,7 +1072,7 @@ pub fn spawn_element_of_yoord(world: &mut World, pos: Position) -> Entity {
     world
         .spawn((
             Name {
-                what: String::from(crate::spawn::ELEMENT_OF_YOORD),
+                what: strings::content_name(crate::spawn::ELEMENT_OF_YOORD).to_string(),
             },
             Renderable {
                 glyph: '\"',

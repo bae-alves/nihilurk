@@ -139,15 +139,15 @@ fn run_victory_screens<W: std::io::Write>(
 /// tables themselves, so a row added today shows up here today.
 fn print_content() {
     let names = models::content_names();
-    println!("nihilurk content — {} entries", names.len());
-    println!("Spawn any of them with: NIHILURK_SPAWN=\"<name>,<name>\" nihilurk");
+    println!("{}", strings::content_header(names.len()));
+    println!("{}", strings::content_spawn_hint());
 
     let mut group = "";
     for (category, name) in &names {
         if *category != group {
             group = category;
             let count = names.iter().filter(|(c, _)| c == category).count();
-            println!("\n{group} ({count})");
+            println!("{}", strings::content_group_header(group, count));
         }
         println!("  {name}");
     }
@@ -156,47 +156,7 @@ fn print_content() {
 /// Prints the short command-line guide without entering the alternate screen.
 /// The full reference lives in the installed `nihilurk(6)` manual.
 fn print_help() {
-    println!(
-        "\
-nihilurk - terminal roguelike
-
-USAGE
-    nihilurk [NAME|SAVE] [OPTIONS]
-
-OPTIONS
-    -s SEED          use a reproducible u64 seed
-    -c               centre the map on the player
-    -ns              do not write a save file
-    -nb              disable blood and corpse animation
-    -nshake          disable screen shake
-    -anim-rate N     set animation pacing multiplier (0.1..=5.0)
-    -b BODY          play as nihil (default) or lurk
-    -am SPECIES      play as a monster: any bestiary name, e.g. -am dragon
-    -content         list names accepted by NIHILURK_SPAWN
-    -h, -help, --help show this help and exit
-
-POSITIONAL ARGUMENT (first argument only)
-    NAME             start a new run with this player name
-    SAVE             load an existing save, with or without .sav
-
-ENVIRONMENT
-    NIHILURK_SPAWN       comma-separated names to place near the player on every
-                     generated floor; use -content to list valid names
-
-EXAMPLES
-    nihilurk
-    nihilurk bae
-    nihilurk -s 1234 -ns
-    nihilurk -b lurk
-    nihilurk bae -am dragon
-    NIHILURK_SPAWN=\"dragon,ring of protection\" nihilurk
-
-SEE ALSO
-    man nihilurk          full command, environment, and spawn API reference
-    docs/reference/cli-and-env.md
-    docs/reference/spawn-api.md
-"
-    );
+    println!("{}", strings::help_text());
 }
 
 /// One player-side step of the main loop: an auto-explore tick, a travel-cursor
@@ -394,7 +354,7 @@ fn main() -> std::io::Result<()> {
         execute!(
             stdout(),
             SetForegroundColor(CrosstermColor::Red),
-            Print(models::pride::PRIDE_OFF_REFUSAL),
+            Print(models::pride::pride_off_refusal()),
             Print("\n"),
             ResetColor
         )?;
@@ -405,8 +365,8 @@ fn main() -> std::io::Result<()> {
     // fly the rainbow rather than refusing to start over a cosmetic.
     if let Some(name) = unknown_flag {
         eprintln!(
-            "nihilurk: no flag called '{name}'. Try one of: {}.",
-            models::pride::flag_names().join(", ")
+            "{}",
+            strings::no_such_pride_flag(&name, &models::pride::flag_names().join(", "))
         );
     }
 
@@ -414,7 +374,7 @@ fn main() -> std::io::Result<()> {
     // one, and picking the rightmost for the player would be guessing at the
     // whole run.
     if let Some((first_flag, second)) = conflicting_bodies {
-        eprintln!("nihilurk: {first_flag} and {second} are the same choice. Pick one.");
+        eprintln!("{}", strings::conflicting_bodies(&first_flag, &second));
         return Ok(());
     }
 
@@ -423,19 +383,15 @@ fn main() -> std::io::Result<()> {
     // nihil the player did not ask for is worse than not starting at all.
     if let Some((name, flag)) = unknown_body {
         match flag {
-            "-b" => {
-                eprintln!("nihilurk: no body called '{name}'. There is nihil, and there is lurk.")
-            }
-            _ => eprintln!("nihilurk: no monster called '{name}'. Try -content for the bestiary."),
+            "-b" => eprintln!("{}", strings::no_such_body(&name)),
+            _ => eprintln!("{}", strings::no_such_monster(&name)),
         }
         return Ok(());
     }
 
     // A name that came too late to be one.
     if let Some(stray) = stray_positional {
-        eprintln!(
-            "nihilurk: '{stray}' is not a flag, and a name has to come first: nihilurk {stray} ..."
-        );
+        eprintln!("{}", strings::stray_positional(&stray));
         return Ok(());
     }
 
@@ -456,16 +412,12 @@ fn main() -> std::io::Result<()> {
     // spending it before a new journey overwrites it. Default is No.
     if let Some(path) = &load_path {
         if let Some(clear) = models::clear_data(path)? {
-            println!(
-                "{} has ascended with the Element of Yoord and brought happiness back to the world. \
-If you start another journey, the Element will also return to the Dungeon Lord. Do it? ([Y]es/[N]o)",
-                clear.player_name
-            );
+            println!("{}", strings::clear_data_prompt(&clear.player_name));
             let mut answer = String::new();
             std::io::stdin().read_line(&mut answer)?;
             if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
                 // Default No — the clear data is left untouched.
-                println!("The world keeps its light. Farewell.");
+                println!("{}", strings::world_keeps_its_light());
                 return Ok(());
             }
             // Yes: begin anew under the winner's name. Drop the load so a fresh
@@ -483,10 +435,7 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // `models::load_game` reads a saved body back out of.
     if let Some((body, flag)) = body {
         if load_path.is_some() {
-            eprintln!(
-                "nihilurk: a save already knows what body it is in; drop {flag} {} to load it.",
-                body.name()
-            );
+            eprintln!("{}", strings::body_conflicts_with_load(flag, body.name()));
             return Ok(());
         }
     }
@@ -567,9 +516,13 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
             models::load_game(&mut world, path)?;
             // `load_game` already left a fresh (unloaded-game) GameLog behind;
             // swap its welcome line for the loaded-game version.
+            let mut unread = vec![LogEntry::plain(strings::welcome_back())];
+            if let Some(notice) = strings::beta_notice() {
+                unread.push(LogEntry::plain(notice));
+            }
             world.insert_resource(GameLog {
                 history: Vec::new(),
-                unread: vec!["Welcome back to nihilurk! Good luck and have fun!".to_string()],
+                unread,
             });
         }
         None => models::initialize_world(&mut world),
@@ -669,14 +622,14 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
         run_victory_screens(&mut world, &mut stdout, &mut screen)?;
         if no_save {
             drop(guard);
-            println!("Clear data not saved (-ns).");
+            println!("{}", strings::clear_data_not_saved());
             return Ok(());
         }
         let save_result = models::save_game(&mut world, &save_name);
         drop(guard);
         match save_result {
-            Ok(()) => println!("Clear data saved to '{save_name}'."),
-            Err(e) => eprintln!("Failed to save clear data: {e}"),
+            Ok(()) => println!("{}", strings::clear_data_saved(&save_name)),
+            Err(e) => eprintln!("{}", strings::failed_to_save_clear_data(&e.to_string())),
         }
         return Ok(());
     }
@@ -692,14 +645,14 @@ If you start another journey, the Element will also return to the Dungeon Lord. 
     // Save the game on exit, then restore the terminal so the message is visible.
     if no_save {
         drop(guard);
-        println!("Game not saved (-ns).");
+        println!("{}", strings::game_not_saved());
         return Ok(());
     }
     let save_result = models::save_game(&mut world, &save_name);
     drop(guard);
     match save_result {
-        Ok(()) => println!("Game saved to '{save_name}'. Resume with: nihilurk {save_name}"),
-        Err(e) => eprintln!("Failed to save game: {e}"),
+        Ok(()) => println!("{}", strings::game_saved(&save_name)),
+        Err(e) => eprintln!("{}", strings::failed_to_save_game(&e.to_string())),
     }
 
     Ok(())

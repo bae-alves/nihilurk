@@ -1,5 +1,22 @@
 # Journal
 
+## The EFFECTS table in content-tables.md lists 16 of ~45 rows (2026-09-25)
+
+Found while documenting the playable-body feature: `docs/reference/content-tables.md`'s
+"EFFECTS — the marker registry" table stops at id 15 (`Teleportitis`).
+`models/src/effects.rs`'s actual `effects!` macro call runs to id ~44
+(`Flies`, `Batty`, `Binds`, `Gorgon`, `Vampiric`, `Venomous`, `CoinGreedy`,
+`Splits`, `Freezing`, both steal variants, `FireBreath`, `Cleaves`,
+`HeavySwing`, `Fencer`, `Lunges`, `Lurk`, `WhirlOnMove`,
+`VorpalOnCondition`, `TurboMagic`, `SelfDamageOnHit`, `BuildsMomentum`,
+`ShattersStone`, `ConfusingTouch`, `Bided`, and the four holds/afflictions
+that got their own prose sections lower in the same file). Not something
+from the last dozen commits — this predates them by a long way — so it's
+out of scope for the current pass and left here rather than rewritten
+inline. Whoever regenerates that table should check it against the macro
+call directly rather than trusting the row count.
+
+
 ## Petrification split out of sleep (2026-09-19)
 
 A medusa's gaze used to *be* `Asleep`, so coming out of stone was reported with

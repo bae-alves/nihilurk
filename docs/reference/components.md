@@ -38,6 +38,37 @@ Components — identity, position, appearance
 `Name::article()` returns `"a"` / `"an"` for the name.
 
 
+Components — what the player is
+--------------------------------
+
+`Body` (`models/src/body.rs`, not `components.rs` — it is the one type this
+whole page's "nouns only" file doesn't hold, because it is read at
+character-build time, not by a system) is which of three shapes the run's
+hero descends in: `Nihil` (default), `Lurk`, or `Monster(&'static
+MonsterDef)` — a bestiary row worn as a costume, `-am <species>`. One enum
+rather than three flags, because a player is exactly one of them.
+
+| Type | Data | On | Saved? |
+|------|------|----|--------|
+| `StartingBody` | `Resource`, `Body` | which body the *next* spawned player wakes up in; read once by `map::initialize_world` | not saved directly — see below |
+| `MonsterBody`  | `Component`, `&'static MonsterDef` | the player, only when wearing a species | **no** — read back from `Name`, which *is* the species name, on load |
+| `Lurk`         | effect marker (`crate::effects`) | the player, only as a lurk | yes — an ordinary row in `EFFECTS`, held like anything else a creature was born with |
+
+Neither class nor species costs `saveload::EntitySave` a field: the save
+format isn't versioned, and every field it has ever gained has killed every
+save already in progress. So a body is never written down directly — it is
+reconstructed from something that was already being saved for another
+reason (`Name`, or the effect ledger).
+
+`Body::equip_refusal` is the one gate on whether a body can wear something,
+and `Body::innate_tempo` is the tempo it returns to when a staircase lifts
+whatever the floor lent it — both take `&World` and an `Entity` rather than
+reading `Renderable`'s glyph back out, on purpose: nothing else in the game
+guesses what a creature is from how it's drawn.
+
+See `../how-to/add-a-body.md` for adding a fourth one.
+
+
 Components — creatures and combat
 ---------------------------------
 
@@ -191,7 +222,7 @@ Components — player conditions
 |-------------|--------|---------|--------|
 | `Confused`  | marker | player-only stumble (a monster uses `MovementType::Confused`); blocks fast-move / auto-explore / auto-fight; HUD `CONF` | yes |
 | `Blind`     | marker | player-only: viewshed cut to the 3x3, every glyph in it painted white, every mob `Hidden` (so auto-walk and auto-fight stall too). The AI is unaffected — see below. HUD `BLND` | yes |
-| `Paralyzed` | marker | `Speed` dropped to `Slow`, and for the player a `PARALYSIS_LOST_TURN_CHANCE` share of turns forfeited outright before a key is read. A monster carries it for the renderer's tint only. HUD `PARL` | yes |
+| `Paralyzed` | marker | `Speed` dropped to `Slow`, and for the player a `PARALYSIS_LOST_TURN_CHANCE` share of turns forfeited outright before a key is read. A monster carries it for the renderer's tint too, plus a log line of its own if the player can actually see it land (`conditions::paralyse`). HUD `PARL` | yes |
 | `ConfusingTouch` | marker | hands charged by a scroll of monster confusion: the next blow the bearer *lands* confuses what it hits and is spent doing it (an `ABILITIES` row keyed on `Moment::OnHit` — see `content-tables.md`). Not an impairment, and it survives a staircase. HUD `GLOW` | yes |
 | `Plated` | marker | the platinum coin's promise: reach the next **staircase** unhurt and it pays a permanent point of attack or defence *die*, the dungeon's coin flip. HUD `PLAT` | yes |
 | `Forged` | marker | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon or worn armour, exactly as the matching scroll would. HUD `FORG` | yes |
@@ -358,19 +389,19 @@ Unlike every other animation in the game the shake **never blocks input** — se
 
 | Resource      | Fields                              | Saved? |
 |---------------|-------------------------------------|--------|
-| `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<String>` (waiting for `--MORE--`) | **transient** — not saved; a reload starts with a fresh log ("Welcome back to nihilurk!") |
+| `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<LogEntry>` (waiting for `--MORE--`) | **transient** — not saved; a reload starts with a fresh log ("Welcome back to nihilurk!") |
 | `Depth`        | `what: u8` — current floor, 1-based | yes    |
 | `FloorChanges` | `count: u32` — staircase/portal/trapdoor traversals this run; salts `content_rng` so a repeat visit re-stocks the same layout | yes |
 | `PlayerName`   | `what: String`                      | yes    |
 | `DungeonLord`  | `idle_turns: u32` — turns lingered on this floor; at `DUNGEON_LORD_PATIENCE` a portal opens | **transient** (resets to 0) |
 
-`GameLog::add()` pushes to both `history` and `unread`.
+`GameLog::add()` pushes plain text to both `history` and `unread`. `GameLog::add_colored(message, category)` is the same, except the copy that lands in `unread` — a `LogEntry` — also carries a `LogCategory`. `history` never gets painted, so it stays bare `String`.
 
-The log panel is plain white except for a sparing set of colours (`hud::log_line_color`), applied only to a message that mentions the player ("you"/"your") and falls into one of: a curse taking hold (dark red), a dazzle (magenta), the low-HP warning (red — "You are badly wounded!", fired once as HP crosses down through `constants::player::LOW_HP_WARNING_FRACTION` of max, by `helpers::warn_if_newly_low` — which `helpers::apply_damage` calls for every trap, dart and bolt, and `combat::resolve_attack` calls directly, melee being the one damage path that applies its own damage and would otherwise never report the crossing), the player's own speed shifting (cyan hasted, dark cyan slowed), or the player's own throw/fire (yellow). Two lines are coloured without naming the player at all: a trick shot and a combo's "With style.", both magenta. Matched by substring, not by threading a colour through every `GameLog::add()` call — see `hud::log_line_color` for the exact phrases it keys on.
+The log panel is plain white except for a sparing set of colours, one `LogCategory` per: a curse taking hold (dark red), a dazzle (magenta), the low-HP warning (red — "You are badly wounded!", fired once as HP crosses down through `constants::player::LOW_HP_WARNING_FRACTION` of max, by `helpers::warn_if_newly_low` — which `helpers::apply_damage` calls for every trap, dart and bolt, and `combat::resolve_attack` calls directly, melee being the one damage path that applies its own damage and would otherwise never report the crossing), the player's own speed shifting (cyan hasted, dark cyan slowed), or the player's own throw/fire (yellow). A trick shot and a combo's "With style." are magenta too. Every category is decided once, by the call that writes the message, and never re-derived from the rendered sentence — see `components::LogCategory` and `hud::log_paint`.
 
 **Colour is per message, not per painted row.** Several messages share a row (`hud::pack_line_segments`, which is what `log_view` now returns — the messages on each row, in order, displayed joined by one space), and the renderer paints each one with its own colour. Asking the question of the joined row instead is the bug that had one shouting message repainting every sentence beside it.
 
-`hud::log_paint(message, stripes)` is the painter's entry point and returns a `LogPaint`: `Solid(Color)` for everything, except `Striped` for the one line that comes out in colours rather than a colour — `hud::PRIDE_LINE` ("With pride.", the rare alternative to "With style." on a combo), painted a character at a time, cycling the stripes so red follows purple and no two neighbouring letters match. The stripes come from `pride::stripes(world)`; see `models/src/pride.rs`.
+`hud::log_paint(entry, stripes)` is the painter's entry point and returns a `LogPaint`: `Solid(Color)` for every category but `LogCategory::Pride`, which comes back `Striped` — the one line that comes out in colours rather than a colour (`hud::pride_line()`, "With pride.", the rare alternative to "With style." on a combo), painted a character at a time, cycling the stripes so red follows purple and no two neighbouring letters match. The stripes come from `pride::stripes(world)`; see `models/src/pride.rs`.
 
 Other run-state resources live outside this file: `Map` (`map.rs`), `GameRng` / `RngSeed` / `FxRng` (`map/streams.rs`), `BloodStains`, `Smoke` and `Corpses` (`map/overlays.rs`), `GameState` (`state.rs`). The save file persists the RNG state and the dark-tile set — see `models/src/saveload.rs`.
 
@@ -388,4 +419,5 @@ See also
   ../explanation/ecs-in-nihilurk.md   what each of the three nouns may be
   input-and-turn-loop.md       what reads and writes the UI resources above
   ../how-to/add-an-effect.md   adding a new marker / modifier component
+  ../how-to/add-a-body.md      adding a new hand-written `Body` variant
   ../explanation/data-driven-content.md  why behaviour is not in the row

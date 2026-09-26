@@ -1,0 +1,23 @@
+[package]
+name = "strings"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+# Exactly one of these is meant to be enabled at a time -- one language, one
+# binary, decided at build time (`engine/Cargo.toml`'s `nihilurk-<lang>` bin
+# targets each forward to exactly one of these). `lang-en` is the default so a
+# bare `cargo build`/`cargo test` at the workspace root keeps working; picking
+# another language means `--no-default-features --features lang-pt` (etc.).
+# Enabling more than one at once is not guarded against here -- it fails loud,
+# at compile time, as an "ambiguous glob re-export" in `lib.rs`, rather than
+# silently picking one.
+[features]
+default = ["lang-en"]
+lang-en = []
+lang-pt = []
+lang-es = []
+lang-ht = []

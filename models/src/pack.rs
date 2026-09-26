@@ -53,9 +53,9 @@ impl ItemAction {
     /// The label the pack screen paints, padded to the modal's inner width.
     pub fn label(self) -> &'static str {
         match self {
-            ItemAction::Use => " Use    ",
-            ItemAction::Drop => " Drop   ",
-            ItemAction::Throw => " Throw  ",
+            ItemAction::Use => strings::action_use(),
+            ItemAction::Drop => strings::action_drop(),
+            ItemAction::Throw => strings::action_throw(),
         }
     }
 }
@@ -94,17 +94,17 @@ impl PackMode {
     /// The heading painted across the top of the box.
     pub fn title(self) -> &'static str {
         match self {
-            PackMode::Browse => " INVENTORY ",
-            PackMode::Use => " USE WHAT? ",
-            PackMode::Throw => " THROW WHAT? ",
-            PackMode::Drop => " DROP WHAT? ",
-            PackMode::Equip => " EQUIP WHAT? ",
-            PackMode::Quaff => " QUAFF WHAT? ",
-            PackMode::Read => " READ WHAT? ",
-            PackMode::Zap => " ZAP WHAT? ",
-            PackMode::Wield => " WIELD WHAT? ",
-            PackMode::Wear => " WEAR WHAT? ",
-            PackMode::PutOn => " PUT ON WHAT? ",
+            PackMode::Browse => strings::pack_title_browse(),
+            PackMode::Use => strings::pack_title_use(),
+            PackMode::Throw => strings::pack_title_throw(),
+            PackMode::Drop => strings::pack_title_drop(),
+            PackMode::Equip => strings::pack_title_equip(),
+            PackMode::Quaff => strings::pack_title_quaff(),
+            PackMode::Read => strings::pack_title_read(),
+            PackMode::Zap => strings::pack_title_zap(),
+            PackMode::Wield => strings::pack_title_wield(),
+            PackMode::Wear => strings::pack_title_wear(),
+            PackMode::PutOn => strings::pack_title_put_on(),
         }
     }
 
@@ -113,17 +113,17 @@ impl PackMode {
     /// the same keystroke.
     pub fn nothing_line(self) -> &'static str {
         match self {
-            PackMode::Browse => "You have no items.",
-            PackMode::Use => "You have nothing to use.",
-            PackMode::Throw => "You have nothing to throw.",
-            PackMode::Drop => "You have nothing to drop.",
-            PackMode::Equip => "You have nothing to equip.",
-            PackMode::Quaff => "You have nothing to quaff.",
-            PackMode::Read => "You have nothing to read.",
-            PackMode::Zap => "You have nothing to zap.",
-            PackMode::Wield => "You have nothing to wield.",
-            PackMode::Wear => "You have nothing to wear.",
-            PackMode::PutOn => "You have nothing to put on.",
+            PackMode::Browse => strings::pack_nothing_browse(),
+            PackMode::Use => strings::pack_nothing_use(),
+            PackMode::Throw => strings::pack_nothing_throw(),
+            PackMode::Drop => strings::pack_nothing_drop(),
+            PackMode::Equip => strings::pack_nothing_equip(),
+            PackMode::Quaff => strings::pack_nothing_quaff(),
+            PackMode::Read => strings::pack_nothing_read(),
+            PackMode::Zap => strings::pack_nothing_zap(),
+            PackMode::Wield => strings::pack_nothing_wield(),
+            PackMode::Wear => strings::pack_nothing_wear(),
+            PackMode::PutOn => strings::pack_nothing_put_on(),
         }
     }
 

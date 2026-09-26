@@ -78,6 +78,18 @@ pub fn named_display(name: Option<&Name>, stack: Option<&Stack>) -> String {
     }
 }
 
+// Localization note: `counted`, `phrase_for` and `article_for` below encode
+// English grammar rules -- a bare `-s` plural, an "a"/"an" article chosen off
+// the first letter's sound -- as if they were universal. They aren't:
+// Portuguese and Spanish need gender agreement on the article (`"un daga"` is
+// wrong, `"una daga"` is right), and none of the three languages' plurals are
+// a suffix in the general case. This is silently fine only because `pt`/`es`/
+// `ht` currently re-export `en`'s text wholesale (see `strings/src/lib.rs`);
+// a real translation calling into these functions will read as broken
+// English grammar bolted onto translated words. Fixing it means each
+// language deciding its own article/plural rule, not adding cases here --
+// out of scope for the string-extraction pass that added this note.
+
 /// `name` in a quantity, as it reads in a sentence: `"a dagger"`, `"7 arrows"`.
 /// Plurals are a bare `-s`, which is all the catalog ever needs.
 pub fn counted(name: &str, count: u8) -> String {

@@ -106,16 +106,16 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
             world
                 .resource_mut::<GameLog>()
                 .add(if tile == TileType::Downstairs {
-                    "The Element of Yoord seeks the sun; it will not let you descend."
+                    strings::element_seeks_the_sun()
                 } else {
-                    "You cannot go down from here."
+                    strings::cannot_go_down()
                 });
             return false;
         }
         if tile != TileType::Downstairs {
             world
                 .resource_mut::<GameLog>()
-                .add("You cannot go down from here.");
+                .add(strings::cannot_go_down());
             return false;
         }
         award_stair_score(world);
@@ -128,25 +128,25 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         world
             .resource_mut::<GameLog>()
             .add(if tile == TileType::Upstairs {
-                "The Dungeon Lord's power prevents you from going upstairs."
+                strings::dungeon_lord_prevents_up()
             } else {
-                "You cannot go up from here."
+                strings::cannot_go_up()
             });
         return false;
     }
     if tile != TileType::Upstairs {
         world
             .resource_mut::<GameLog>()
-            .add("You cannot go up from here.");
+            .add(strings::cannot_go_up());
         return false;
     }
     if world.resource::<Depth>().what <= 1 {
         // The surface at last — and only ever by the player's own hand on the
         // stair. The run is won.
         award_stair_score(world);
-        world.resource_mut::<GameLog>().add(
-            "You climb the last stair into open sky, the Element of Yoord blazing in your hands.",
-        );
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::climb_last_stair());
         // Nobody walks out of that dungeon quietly: the last stair is always
         // taken with style, fireworks and doubled score and all, and the engine
         // plays it out before the WIN panel.
@@ -353,22 +353,12 @@ fn arrival_line(cause: LevelChange, going_down: bool, depth: u8) -> String {
     match cause {
         // Descending, it is the Dungeon Lord who wrenches you down; once you
         // carry the Element it is the Element that tears the way open upward.
-        LevelChange::Portal if going_down => format!(
-            "The Dungeon Lord opens a portal beneath your feet! You fall downward. (Depth {depth})"
-        ),
-        LevelChange::Portal => format!(
-            "The Element of Yoord flares and rips a portal above your head! You rise upward. (Depth {depth})"
-        ),
-        LevelChange::Trapdoor => {
-            format!("You crash down onto the floor below in a shower of dust. (Depth {depth})")
-        }
-        LevelChange::Potion => {
-            format!(
-                "The stone above you thins to nothing and you drift up through it. (Depth {depth})"
-            )
-        }
-        LevelChange::Stairs if going_down => format!("You descend the stairs. (Depth {depth})"),
-        LevelChange::Stairs => format!("You climb the stairs. (Depth {depth})"),
+        LevelChange::Portal if going_down => strings::portal_down(depth),
+        LevelChange::Portal => strings::portal_up(depth),
+        LevelChange::Trapdoor => strings::trapdoor_arrival(depth),
+        LevelChange::Potion => strings::potion_arrival(depth),
+        LevelChange::Stairs if going_down => strings::descend_stairs(depth),
+        LevelChange::Stairs => strings::climb_stairs(depth),
     }
 }
 
@@ -412,7 +402,7 @@ pub fn dungeon_lord_system(world: &mut World) {
         if depth <= 1 {
             world
                 .resource_mut::<GameLog>()
-                .add("The Element of Yoord strains toward the sun — but the last stair you must climb yourself.");
+                .add(strings::element_wont_let_you_land());
             return;
         }
         transition_level(world, false, LevelChange::Portal);
@@ -421,7 +411,7 @@ pub fn dungeon_lord_system(world: &mut World) {
     if depth >= FINAL_DEPTH {
         world
             .resource_mut::<GameLog>()
-            .add("The Dungeon Lord claws at the floor, but there is nowhere deeper to cast you.");
+            .add(strings::portal_no_deeper_floor());
         return;
     }
     transition_level(world, true, LevelChange::Portal);

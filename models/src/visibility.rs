@@ -238,7 +238,7 @@ fn hide_and_announce(
             commands.entity(entity).remove::<Hidden>();
             commands.entity(entity).remove::<Invisible>();
             commands.entity(entity).insert(Spotted);
-            log.add("Hey! There's something here!".to_string());
+            log.add(strings::hidden_item_found());
         }
 
         // Never announce something still out of the player's senses, nor an
@@ -259,7 +259,7 @@ fn hide_and_announce(
 /// display name rather than its (possibly still-secret) true [`Name`], with
 /// whatever it is wearing in tow.
 fn spotted_line(seen_name: &str, worn: &str) -> String {
-    format!("You spotted {}{worn}.", phrase_for(seen_name))
+    strings::spotted_line(&phrase_for(seen_name), worn)
 }
 
 /// The `" (w. a bow)"` tag for whatever `wearer` has equipped. Plain [`Name`]s,
@@ -301,10 +301,9 @@ fn reveal_traps(
         }
         trap.revealed = true;
         commands.entity(entity).remove::<Hidden>();
-        log.add(format!(
-            "You spot {} {}.",
+        log.add(strings::trap_spotted(
             trap.effect.label_article(),
-            trap.effect.label()
+            trap.effect.label(),
         ));
     }
 }

@@ -191,6 +191,15 @@ impl MonsterDef {
         BESTIARY.iter().find(|m| m.name == name)
     }
 
+    /// What the player sees this species called, in whatever language this
+    /// binary was built for. `name` itself never changes — it is also the id
+    /// `-am`, `NIHILURK_SPAWN` and save files match against (see
+    /// `docs/reference/cli-and-env.md`) — so every place that prints a
+    /// monster's name for the player to read calls this instead of `.name`.
+    pub fn display_name(&self) -> &'static str {
+        strings::content_name(self.name)
+    }
+
     /// Picks a species appropriate for `depth`: a weighted draw from every row
     /// the floor has unlocked. This is the only place the dungeon decides what
     /// lives on a floor, so a new creature's rarity and debut are the two
@@ -350,7 +359,7 @@ impl MonsterBundle {
     fn from_def(def: &MonsterDef, position: Position) -> Self {
         Self {
             name: Name {
-                what: def.name.to_string(),
+                what: def.display_name().to_string(),
             },
             mob: Mob {
                 movement_type: def.movement,
@@ -544,7 +553,7 @@ fn equip_and_announce(world: &mut World, mob: Entity, item: Entity) {
     let name = crate::identify::with_article(world, item);
     world
         .resource_mut::<GameLog>()
-        .add(format!("They are {verb} {name}."));
+        .add(strings::wearing_gear(verb, &name));
 }
 
 // ---------------------------------------------------------------------------
@@ -554,13 +563,13 @@ fn equip_and_announce(world: &mut World, mob: Entity, item: Entity) {
 /// The plain-item look-alikes a xeroc can wear on an ordinary floor: a name,
 /// a glyph and a colour, off the same appearances the real things spawn with.
 const MIMIC_LOOKS: &[(&str, char, Color)] = &[
-    ("scroll", '?', Color::White),
-    ("potion", '!', Color::Magenta),
-    ("wand", '/', Color::Yellow),
-    ("gold coin", '$', Color::Yellow),
-    ("ring", '=', Color::Yellow),
-    ("suit of armor", ']', Color::Grey),
-    ("weapon", ')', Color::Grey),
+    (strings::mimic_look_scroll(), '?', Color::White),
+    (strings::mimic_look_potion(), '!', Color::Magenta),
+    (strings::mimic_look_wand(), '/', Color::Yellow),
+    (strings::mimic_look_gold_coin(), '$', Color::Yellow),
+    (strings::mimic_look_ring(), '=', Color::Yellow),
+    (strings::mimic_look_suit_of_armor(), ']', Color::Grey),
+    (strings::mimic_look_weapon(), ')', Color::Grey),
 ];
 
 /// Disguises a freshly spawned xeroc as an ordinary item: its [`Name`] and
@@ -622,7 +631,7 @@ pub fn reveal_mimics(world: &mut World) {
     for xeroc in disguised {
         let def = MonsterDef::named("xeroc");
         if let Some(mut n) = world.get_mut::<Name>(xeroc) {
-            n.what = def.name.to_string();
+            n.what = def.display_name().to_string();
         }
         if let Some(mut r) = world.get_mut::<Renderable>(xeroc) {
             r.glyph = def.glyph;
@@ -632,7 +641,7 @@ pub fn reveal_mimics(world: &mut World) {
         world.entity_mut(xeroc).remove::<Spotted>();
         world
             .resource_mut::<GameLog>()
-            .add("The disguise falls away — they were a xeroc all along!".to_string());
+            .add(strings::xeroc_disguise_falls());
     }
 }
 
@@ -694,7 +703,7 @@ pub fn wear_monster(world: &mut World, player: Entity, def: &'static MonsterDef)
     e.insert((
         crate::body::MonsterBody(def),
         Name {
-            what: def.name.to_string(),
+            what: def.display_name().to_string(),
         },
         Renderable {
             glyph: def.glyph,

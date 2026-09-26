@@ -47,7 +47,7 @@ pub fn pick_up(world: &mut World, taker: Entity, item: Entity) -> Option<String>
         world.entity_mut(item).remove::<Invisible>();
         world
             .resource_mut::<GameLog>()
-            .add("Hey! There's something here!".to_string());
+            .add(strings::hidden_item_found());
     }
 
     if world.get::<Pickup>(item).is_some() {
@@ -59,10 +59,8 @@ pub fn pick_up(world: &mut World, taker: Entity, item: Entity) -> Option<String>
     let taken = crate::items::stow(world, taker, item)?;
     pay_out_value(world, item);
     let line = match world.get::<Amulet>(item).is_some() {
-        true => {
-            "You take the Element of Yoord. \"The element of Yoord seeks the sun.\"".to_string()
-        }
-        false => format!("You pick up {taken}."),
+        true => strings::take_element_of_yoord().to_string(),
+        false => strings::pick_up(&taken),
     };
     Some(line)
 }
@@ -94,7 +92,7 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
     pay_out_value(world, item);
     let line = apply(world, taker, effect, amount);
     world.entity_mut(item).despawn();
-    Some(format!("You pick up the {name}. {line}"))
+    Some(strings::pick_up_pickup(&name, &line))
 }
 
 /// A coin-greedy monster (an orc) stepping onto a coin it can actually use —
@@ -155,14 +153,14 @@ pub(crate) fn claim_from_afar(world: &mut World, shooter: Entity, coin: Entity) 
     }
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {name} gives itself up to you. {line}"));
+        .add(strings::coin_gives_itself_up(&name, &line));
 }
 
 /// What one coin does. Exhaustive on purpose — a new [`PickupEffect`] with no
 /// arm here is a build error, not a coin that silently does nothing.
 fn apply(world: &mut World, taker: Entity, effect: PickupEffect, amount: i32) -> String {
     match effect {
-        PickupEffect::Coin => "It goes straight into the ledger.".to_string(),
+        PickupEffect::Coin => strings::coin_ledger().to_string(),
         PickupEffect::Health => heal(world, taker, amount),
         PickupEffect::Power => refill_magic(world, taker, amount),
         PickupEffect::Cleanse => cleanse(world, taker, amount),
@@ -209,7 +207,7 @@ fn heal(world: &mut World, taker: Entity, amount: i32) -> String {
     };
     let healed = amount.min(f.max_hp - f.hp);
     f.hp += healed;
-    format!("Warmth spreads through you. ({healed} HP)")
+    strings::heal_line(healed)
 }
 
 fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> String {
@@ -218,7 +216,7 @@ fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> String {
     };
     let gained = (amount as u8).min(m.max_points - m.points);
     m.points += gained;
-    format!("Something cold and bright fills your head. ({gained} Ma)")
+    strings::refill_magic_line(gained)
 }
 
 /// The rosé coin: lifts up to `amount` afflictions, worst first, and says how
@@ -229,8 +227,8 @@ fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
         .take_while(|_| crate::conditions::cure_one_condition(world, taker))
         .count();
     match lifted {
-        1 => "The taste of it clears one thing.".to_string(),
-        n => format!("The taste of it clears {n} things."),
+        1 => strings::cleanse_one().to_string(),
+        n => strings::cleanse_many(n as i32),
     }
 }
 
@@ -250,7 +248,7 @@ fn learn_spell(world: &mut World, taker: Entity) -> String {
         .get::<Spellset>(taker)
         .is_none_or(|m| m.slots.len() >= SPELLSET_CAP)
     {
-        return "Something ancient stirs in your mind and finds nowhere to sit.".to_string();
+        return strings::learn_spell_full().to_string();
     }
     let known: Vec<SpellEffect> = world
         .get::<Spellset>(taker)
@@ -262,7 +260,7 @@ fn learn_spell(world: &mut World, taker: Entity) -> String {
         .filter(|e| !known.contains(e))
         .collect();
     if learnable.is_empty() {
-        return "Something ancient stirs in your mind and finds nothing new to teach.".to_string();
+        return strings::learn_spell_all_known().to_string();
     }
     let idx = world
         .resource_mut::<GameRng>()
@@ -273,8 +271,8 @@ fn learn_spell(world: &mut World, taker: Entity) -> String {
         return String::new();
     };
     spellset.slots.push(effect);
-    let name = crate::catalog::SpellDef::of(effect).name;
-    format!("Something ancient and violent settles into your mind. You have learned {name}!")
+    let name = crate::catalog::SpellDef::of(effect).display_name();
+    strings::learn_spell_line(name)
 }
 
 fn restore_strength(world: &mut World, taker: Entity, amount: i32) -> String {
@@ -283,7 +281,7 @@ fn restore_strength(world: &mut World, taker: Entity, amount: i32) -> String {
     };
     let given = amount.min(f.max_power - f.power);
     f.power += given;
-    format!("Your arm remembers what it was. ({given} Pow.)")
+    strings::restore_strength_line(given)
 }
 
 // ---------------------------------------------------------------------------
@@ -305,16 +303,16 @@ impl Promise {
     /// What is logged as the coin is taken.
     fn offer(self) -> &'static str {
         match self {
-            Promise::Platinum => "It does not tarnish. Neither, for now, will you. (PLAT)",
-            Promise::Forge => "It is still warm. Something is being made. (FORG)",
+            Promise::Platinum => strings::promise_platinum_offer(),
+            Promise::Forge => strings::promise_forge_offer(),
         }
     }
 
     /// What is logged when a blow takes it back.
     fn broken(self) -> &'static str {
         match self {
-            Promise::Platinum => "The platinum dulls. So much for perfection.",
-            Promise::Forge => "The forge goes cold.",
+            Promise::Platinum => strings::promise_platinum_broken(),
+            Promise::Forge => strings::promise_forge_broken(),
         }
     }
 
@@ -395,11 +393,11 @@ fn pay_platinum(world: &mut World, player: Entity) {
         true => {
             f.power += 1;
             f.max_power += 1;
-            "Untarnished. The platinum goes into your arm. (Pow. +1)"
+            strings::pay_platinum_power()
         }
         false => {
             f.armor += 1;
-            "Untarnished. The platinum goes into your hide. (Arm. +1)"
+            strings::pay_platinum_armor()
         }
     };
     world.resource_mut::<GameLog>().add(line.to_string());
@@ -416,7 +414,7 @@ fn pay_forge(world: &mut World, player: Entity) {
     };
     world
         .resource_mut::<GameLog>()
-        .add("The forge collects. Something of yours is finished properly.".to_string());
+        .add(strings::pay_forge_collects());
     for slot in order {
         if crate::items::enchant_equipped(world, player, slot) {
             return;
@@ -424,5 +422,5 @@ fn pay_forge(world: &mut World, player: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add("...but you are carrying nothing worth finishing.".to_string());
+        .add(strings::pay_forge_nothing_worth());
 }

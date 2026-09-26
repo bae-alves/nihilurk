@@ -99,7 +99,7 @@ use crate::shake::{ShakeKind, kick_shake};
 impl TrapEffect {
     /// The name shown once the trap is known — read straight off the row.
     pub fn label(self) -> &'static str {
-        TrapDef::of(self).name
+        TrapDef::of(self).display_name()
     }
 
     /// `"a"` / `"an"` to read correctly before [`TrapEffect::label`].
@@ -149,6 +149,13 @@ impl TrapDef {
     /// The row called `name`, or `None`.
     pub fn lookup(name: &str) -> Option<&'static TrapDef> {
         TRAPS.iter().find(|t| t.name == name)
+    }
+
+    /// What the player sees this trap called, in whatever language this
+    /// binary was built for. `name` itself never changes — see
+    /// [`crate::monsters::MonsterDef::display_name`]'s doc comment for why.
+    pub fn display_name(&self) -> &'static str {
+        strings::content_name(self.name)
     }
 
     /// A weighted draw from every trap the floor has unlocked.
@@ -206,7 +213,7 @@ pub(crate) fn trap_damage_tier(depth: u8) -> i32 {
 pub fn bear_trap_thrash(world: &mut World, victim: Entity) {
     world
         .resource_mut::<GameLog>()
-        .add("As you try to free yourself, the trap flays your leg.");
+        .add(strings::bear_trap_thrash());
     apply_damage(world, victim, BEAR_TRAP_THRASH_DAMAGE);
     spill_blood(world, victim, BEAR_TRAP_THRASH_GORE, false);
     let spot = world.get::<Position>(victim).copied();
@@ -238,7 +245,7 @@ impl TrapBundle {
     pub fn from_def(def: &TrapDef, reveal: TrapReveal, position: Position) -> Self {
         Self {
             name: Name {
-                what: def.name.to_string(),
+                what: strings::content_name(def.name).to_string(),
             },
             glyph: Renderable {
                 glyph: def.glyph,
@@ -329,7 +336,7 @@ fn actor_label(world: &World, entity: Entity) -> String {
     }
     world
         .get::<Name>(entity)
-        .map(|n| format!("the {}", n.what))
+        .map(|n| strings::the(&n.what))
         .unwrap_or_else(|| "something".to_string())
 }
 
@@ -362,10 +369,10 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
 
     if seen && !is_player {
         let who = actor_label(world, victim);
-        world.resource_mut::<GameLog>().add(format!(
-            "{who} steps on {} {}!",
+        world.resource_mut::<GameLog>().add(strings::steps_on_trap(
+            &who,
             article_for(effect.label()),
-            effect.label()
+            effect.label(),
         ));
     }
 
@@ -383,7 +390,7 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         if seen && effect != TrapEffect::Bear {
             world
                 .resource_mut::<GameLog>()
-                .add(format!("The {} breaks!", effect.label()));
+                .add(strings::trap_breaks(effect.label()));
         }
     }
 
@@ -426,7 +433,7 @@ fn apply_trap_effect(
             Grant::of::<Pinned>(),
             snare_turns,
             is_player,
-            "Steel jaws snap shut on your leg — you can't take a step, but your arms are free!",
+            strings::bear_trap_snare(),
         ),
         TrapEffect::Sleep => snare_victim(
             world,
@@ -434,7 +441,7 @@ fn apply_trap_effect(
             Grant::of::<Asleep>(),
             snare_turns,
             is_player,
-            "Gas billows up around you. Your eyelids turn to lead...",
+            strings::sleep_gas_snare(),
         ),
         TrapEffect::Teleport => teleport_effect(world, victim, is_player),
         TrapEffect::Arrow => arrow_effect(world, victim, is_player, seen, trap_pos),
@@ -535,7 +542,7 @@ pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity
     if effect == PickupEffect::LearnRandomSpell {
         world
             .resource_mut::<GameLog>()
-            .add("The hero coin gives up everything it knows at once.".to_string());
+            .add(strings::hero_coin_ultimate());
         ultimate_burst(world, center, shooter);
         return true;
     }
@@ -566,7 +573,7 @@ pub fn ultimate_trick_shot(world: &mut World, relic: Entity, shooter: Option<Ent
     };
     world
         .resource_mut::<GameLog>()
-        .add("The Element of Yoord takes the hit — and answers.".to_string());
+        .add(strings::relic_takes_the_hit());
     ultimate_burst(world, center, shooter);
     true
 }
@@ -608,7 +615,7 @@ fn ultimate_burst(world: &mut World, center: Position, shooter: Option<Entity>) 
     if let Some(&unlucky) = echoes.first() {
         world
             .resource_mut::<GameLog>()
-            .add("ULTIMATE TRICK SHOT!".to_string());
+            .add_colored(strings::ultimate_trick_shot_shout(), LogCategory::TrickShot);
         burst(
             world,
             unlucky,
@@ -646,10 +653,14 @@ fn burst(
 
     if seen && announce {
         // The player standing in their own blast has a different word for it.
-        let shout = if caught_player { "WHY!" } else { "BAM!" };
+        let shout = if caught_player {
+            strings::trick_shot_shout_self()
+        } else {
+            strings::trick_shot_shout_other()
+        };
         world
             .resource_mut::<GameLog>()
-            .add(format!("{shout} Trick shot!"));
+            .add_colored(strings::trick_shot_line(shout), LogCategory::TrickShot);
         // The lightest kick there is. A trick shot is a *chain* now, and a
         // chain of heavy thumps is a map that never stops moving.
         kick_shake(world, ShakeKind::Hit);
@@ -781,7 +792,7 @@ fn finish_burst_casualty(world: &mut World, victim: Entity, center: Position, ef
         return;
     }
     if let Some(mut ending) = world.get_resource_mut::<crate::state::Ending>() {
-        ending.cause = format!("Blown up by {} {}", effect.label_article(), effect.label());
+        ending.cause = strings::blown_up_by(effect.label_article(), effect.label());
     }
 }
 
@@ -838,7 +849,7 @@ fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: boo
             let who = actor_label(world, victim);
             world
                 .resource_mut::<GameLog>()
-                .add(format!("{who} drops through the trapdoor and is gone."));
+                .add(strings::drops_through_trapdoor(&who));
         }
         // Dust where the floor used to be: a body falling through leaves the
         // plain grey puff, against the magenta of one wrenched away by magic.
@@ -853,7 +864,7 @@ fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: boo
     if depth >= FINAL_DEPTH {
         world
             .resource_mut::<GameLog>()
-            .add("A trapdoor gapes — but there is only solid rock below. It grinds shut.");
+            .add(strings::trapdoor_grinds_shut());
         // Grit shaken loose from a floor that opened onto nothing.
         let here = world.get::<Position>(victim).copied();
         dust_puff(world, here);
@@ -861,7 +872,7 @@ fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: boo
     }
     world
         .resource_mut::<GameLog>()
-        .add("A trapdoor yawns open beneath you!");
+        .add(strings::trapdoor_yawns_open());
     transition_level(world, true, LevelChange::Trapdoor);
     // The fall cannot be animated where it happened — that floor is gone by
     // the time the effect layer plays — so the dust goes up where they land.
@@ -913,7 +924,7 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
     if is_player {
         world
             .resource_mut::<GameLog>()
-            .add("The walls change! You are whisked to a different part of the dungeon.");
+            .add(strings::teleport_trap_whisked());
     }
 }
 
@@ -1013,13 +1024,13 @@ fn arrow_effect(
         if is_player || seen {
             world
                 .resource_mut::<GameLog>()
-                .add(format!("An arrow whistles past {who} and clatters away."));
+                .add(strings::arrow_whistles_past(&who));
         }
         // A missed arrow becomes loot on the trap's tile.
         if let Some(p) = trap_pos {
             world.spawn((
                 Name {
-                    what: "arrow".to_string(),
+                    what: strings::content_name("arrow").to_string(),
                 },
                 Renderable {
                     glyph: '↑',
@@ -1036,7 +1047,7 @@ fn arrow_effect(
     if is_player || seen {
         world
             .resource_mut::<GameLog>()
-            .add(format!("An arrow plinks into {who} for {damage} damage!"));
+            .add(strings::arrow_plinks(&who, damage));
     }
     trap_spark(world, trap_pos);
     apply_damage(world, victim, damage);
@@ -1059,7 +1070,7 @@ fn dart_effect(
         if is_player || seen {
             world
                 .resource_mut::<GameLog>()
-                .add(format!("A dart glances off {who}."));
+                .add(strings::dart_glances_off(&who));
         }
         return;
     }
@@ -1067,7 +1078,7 @@ fn dart_effect(
     if is_player || seen {
         world
             .resource_mut::<GameLog>()
-            .add(format!("A poisoned dart pricks {who} for {damage} damage!"));
+            .add(strings::dart_pricks(&who, damage));
     }
     trap_spark(world, trap_pos);
     apply_damage(world, victim, damage);
@@ -1078,10 +1089,8 @@ fn dart_effect(
     // dart, the harder the bite: one point per depth tier.
     let drain = DART_POWER_DRAIN_BASE + tier * DART_POWER_DRAIN_PER_TIER;
     let line = match crate::conditions::drain_power(world, victim, drain, Some(1)) {
-        crate::conditions::Drain::Resisted => "The poison burns, but your strength holds firm.",
-        crate::conditions::Drain::Took => {
-            "The poison courses through you — you feel your strength ebb away."
-        }
+        crate::conditions::Drain::Resisted => strings::dart_poison_resisted(),
+        crate::conditions::Drain::Took => strings::dart_poison_took(),
         crate::conditions::Drain::Nothing => return,
     };
     if is_player {

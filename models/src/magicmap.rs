@@ -65,9 +65,9 @@ impl MagicMapStyle {
     /// The log line that lands when the reader takes the map in this way.
     pub fn flavour(self) -> &'static str {
         match self {
-            Self::RowByRow => "The dungeon's shape springs into your mind.",
-            Self::Spiral => "The dungeon unwinds around you like a scroll.",
-            Self::Explode => "Knowledge of the dungeon bursts outward from where you stand.",
+            Self::RowByRow => strings::magicmap_row_by_row(),
+            Self::Spiral => strings::magicmap_spiral(),
+            Self::Explode => strings::magicmap_explode(),
         }
     }
 

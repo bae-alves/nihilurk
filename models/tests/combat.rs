@@ -341,3 +341,29 @@ fn a_war_hammer_can_take_a_petrified_creatures_last_point() {
         "a war hammer left a statue standing"
     );
 }
+
+/// The garrote's newest throat: a monster caught mid-flight. A plain 1-point
+/// nick would leave 49 of this target's 50 HP standing — so if the garrote
+/// fires, only the vorpal shear (which zeroes `hp` outright) explains a kill.
+#[test]
+fn a_garrote_finds_a_fleeing_monster_as_helpless_as_a_sleeping_one() {
+    let mut w = combat_world(1);
+    let hero = spawn_attacker(&mut w, 1); // 1d1: a deterministic 1-point nick
+    lend(
+        &mut w,
+        hero,
+        Grant::of::<VorpalOnCondition>(),
+        Lifetime::Permanent,
+    );
+    let target = spawn_target(&mut w, 50, 0);
+    w.entity_mut(target).insert(Mob {
+        movement_type: MovementType::Flee,
+    });
+
+    resolve_attack(&mut w, hero, target);
+
+    assert!(
+        w.get::<Fighter>(target).is_none_or(|f| f.hp <= 0),
+        "a fleeing monster survived a garroted hit that should have zeroed it"
+    );
+}

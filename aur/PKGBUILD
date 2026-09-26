@@ -1,6 +1,6 @@
 # Maintainer: bae <bervillarinho@gmail.com>
 pkgname=nihilurk
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Terminal roguelike about descending thirteen floors to reclaim the Element of Yoord"
 arch=('x86_64')
@@ -17,7 +17,15 @@ prepare() {
 
 build() {
     cd "$pkgname-$pkgver"
-    cargo build --frozen --release --workspace --exclude nihilurk-compat
+    # One binary per language (see strings/src/lib.rs) plus the `nihilurk`
+    # dispatcher that execs the right one for $LANG. Same target dir each
+    # time so shared deps aren't rebuilt four times over.
+    for lang in en pt es ht; do
+        cargo build --frozen --release -p engine --bin nihilurk \
+            --no-default-features --features "lang-$lang"
+        cp target/release/nihilurk "target/release/nihilurk-$lang"
+    done
+    cargo build --frozen --release -p engine --bin nihilurk-dispatch
 }
 
 check() {
@@ -27,7 +35,10 @@ check() {
 
 package() {
     cd "$pkgname-$pkgver"
-    install -Dm755 target/release/nihilurk "$pkgdir/usr/bin/nihilurk"
+    install -Dm755 target/release/nihilurk-dispatch "$pkgdir/usr/bin/nihilurk"
+    for lang in en pt es ht; do
+        install -Dm755 "target/release/nihilurk-$lang" "$pkgdir/usr/bin/nihilurk-$lang"
+    done
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     install -Dm644 doc/nihilurk.6 "$pkgdir/usr/share/man/man6/nihilurk.6"
     install -Dm644 MANUAL.md "$pkgdir/usr/share/doc/$pkgname/MANUAL.md"

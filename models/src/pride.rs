@@ -110,4 +110,6 @@ pub fn flag_names() -> Vec<&'static str> {
 /// It is not implemented, it will not be implemented, and the sentence below is
 /// the entire feature. It is the one place in nihilurk where the documentation and
 /// the program disagree on purpose.
-pub const PRIDE_OFF_REFUSAL: &str = "ERROR: You cannot ever take our pride.";
+pub fn pride_off_refusal() -> &'static str {
+    strings::pride_off_refusal()
+}

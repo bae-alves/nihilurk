@@ -84,7 +84,7 @@ fn identify_everything_hidden(world: &mut World, user: Entity) {
     if revealed.is_empty() {
         world
             .resource_mut::<GameLog>()
-            .add("You already recognise everything in your pack.".to_string());
+            .add(strings::already_recognise_everything());
         return;
     }
 
@@ -94,7 +94,7 @@ fn identify_everything_hidden(world: &mut World, user: Entity) {
 
     world
         .resource_mut::<GameLog>()
-        .add("The scroll identifies everything in your pack!".to_string());
+        .add(strings::identify_everything());
 }
 
 /// Exhaustive over `ScrollEffect`, deliberately with no catch-all: a scroll
@@ -110,12 +110,14 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         ScrollEffect::Identify => identify_everything_hidden(world, user),
         ScrollEffect::RemoveCurse => {
             let freed = lift_curses(world, user);
-            let msg = if freed > 0 {
-                "You feel as though somebody is watching over you. Your cursed gear crumbles away."
+            let (msg, category) = if freed > 0 {
+                (strings::remove_curse_freed(), LogCategory::Curse)
             } else {
-                "You feel as though somebody is watching over you."
+                (strings::remove_curse_nothing(), LogCategory::Plain)
             };
-            world.resource_mut::<GameLog>().add(msg.to_string());
+            world
+                .resource_mut::<GameLog>()
+                .add_colored(msg.to_string(), category);
         }
         ScrollEffect::MagicMapping => {
             // Roll the wipe's shape (or take the `NIHILURK_MAGICMAP` dev override),
@@ -143,9 +145,9 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         ScrollEffect::ScareMonster => {
             let scared = scare_in_view(world, user);
             let msg = if scared > 0 {
-                "The parchment flares with the pathos of fear!"
+                strings::scare_monster_some()
             } else {
-                "The parchment radiates a menacing aura, but nothing is here to feel it."
+                strings::scare_monster_none()
             };
             world.resource_mut::<GameLog>().add(msg.to_string());
         }
@@ -153,7 +155,7 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         ScrollEffect::BlankPaper => {
             world
                 .resource_mut::<GameLog>()
-                .add("The scroll is blank. Someone got the last laugh.".to_string());
+                .add(strings::blank_paper());
         }
         ScrollEffect::EnchantWeapon => enchant_gear(world, user, Slot::Hand),
         ScrollEffect::EnchantArmor => enchant_gear(world, user, Slot::Body),
@@ -176,21 +178,21 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
 /// wipe in reverse.
 fn read_amnesia(world: &mut World, user: Entity) {
     let slot_count = world.get::<Spellset>(user).map_or(0, |m| m.slots.len());
-    let mut lines = vec!["1... 2... Poof!".to_string()];
+    let mut lines = vec![strings::amnesia_poof().to_string()];
     if slot_count == 0 {
-        lines.push("There was nothing there to forget.".to_string());
+        lines.push(strings::amnesia_nothing_to_forget().to_string());
     } else {
         let idx = world.resource_mut::<GameRng>().0.gen_range(0..slot_count);
         let mut spellset = world.get_mut::<Spellset>(user).expect("checked above");
         let effect = spellset.slots.remove(idx);
-        let name = crate::catalog::SpellDef::of(effect).name;
-        lines.push(format!("You've forgotten how to {name}!"));
+        let name = crate::catalog::SpellDef::of(effect).display_name();
+        lines.push(strings::amnesia_forgotten(name));
     }
     if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
         vs.revealed_tiles.clear();
         vs.dirty = true;
     }
-    lines.push("The dungeon around you slips away like a half-remembered dream.".to_string());
+    lines.push(strings::amnesia_dungeon_slips_away().to_string());
     let mut log = world.resource_mut::<GameLog>();
     for line in lines {
         log.add(line);
@@ -221,7 +223,7 @@ pub(super) fn teleport_reader(world: &mut World, user: Entity) {
     crate::effects::revoke_any(world, user, &crate::effects::HOLDS);
     world
         .resource_mut::<GameLog>()
-        .add("BLONK! You are whisked away!".to_string());
+        .add(strings::teleport_scroll_blonk());
 }
 
 /// Scroll of aggravate monsters: every creature on the floor drops what it was
@@ -231,7 +233,7 @@ fn aggravate_floor(world: &mut World, user: Entity) {
     let _heard = aggravate_all_monsters(world, user);
     world
         .resource_mut::<GameLog>()
-        .add("A shrill shriek rips through the dungeon. Everything on this floor heard it — and it knows where you are.".to_string());
+        .add(strings::aggravate_scroll_shriek());
 }
 
 /// The bare mechanic: point every hostile on the floor at `origin`'s tile. The
@@ -286,9 +288,9 @@ fn create_monster(world: &mut World, user: Entity) {
         .and_then(|o| free_adjacent_tile(world, o))
         .or_else(|| random_open_tile(world));
     let Some((x, y)) = spot else {
-        world.resource_mut::<GameLog>().add(
-            "The air curdles — then settles. Whatever was coming thought better of it.".to_string(),
-        );
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::create_monster_nowhere());
         return;
     };
     let idx = {
@@ -297,10 +299,9 @@ fn create_monster(world: &mut World, user: Entity) {
     };
     let e = spawn_monster(world, &BESTIARY[idx], Position { x, y });
     let name = item_label(world, e);
-    world.resource_mut::<GameLog>().add(format!(
-        "The air curdles into {} {name}, teeth and all!",
-        article_for(&name)
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::create_monster_line(article_for(&name), &name));
 }
 
 /// Scroll of vorpalize weapon: brand the reader's wielded weapon [`Vorpal`]
@@ -316,7 +317,7 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
     let Some(weapon) = weapon else {
         world
             .resource_mut::<GameLog>()
-            .add("The scroll gutters out, failing to brand a weapon.".to_string());
+            .add(strings::vorpalize_fizzles());
         return;
     };
     if world.get::<Vorpal>(weapon).is_some() {
@@ -328,22 +329,22 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
         world.entity_mut(weapon).despawn();
         world
             .resource_mut::<GameLog>()
-            .add(format!("The {wname} screams in pain and crumbles to dust."));
+            .add(strings::vorpalize_crumbles(&wname));
         return;
     }
     let bane = {
         let mut rng = world.resource_mut::<GameRng>();
         BESTIARY[rng.0.gen_range(0..BESTIARY.len())]
-            .name
+            .display_name()
             .to_string()
     };
     world
         .entity_mut(weapon)
         .insert(Vorpal { bane: bane.clone() });
     let wname = item_label(world, weapon);
-    world.resource_mut::<GameLog>().add(format!(
-        "The {wname} sings with a razor light, an omen of death to any {bane}."
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::vorpalize_branded(&wname, &bane));
 }
 
 // ---------------------------------------------------------------------------
@@ -430,13 +431,13 @@ pub(crate) fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> b
     spark_burst_at(world, user, Color::DarkYellow);
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {name} throws off a shower of orange sparks!"));
+        .add(strings::enchant_sparks(&name));
     if !was_cursed {
         return true;
     }
     world
         .resource_mut::<GameLog>()
-        .add(format!("The curse on the {name} burns away with them."));
+        .add(strings::enchant_curse_burns(&name));
     true
 }
 
@@ -444,8 +445,8 @@ pub(crate) fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> b
 /// scroll, bare skin for the armour one.
 fn missing_gear_line(slot: Slot) -> &'static str {
     match slot {
-        Slot::Body => "The sparks flare over bare skin and die. You are wearing no armour.",
-        _ => "The sparks flare over an empty hand and die.",
+        Slot::Body => strings::enchant_missing_armor(),
+        _ => strings::enchant_missing_weapon(),
     }
 }
 
@@ -478,14 +479,14 @@ fn charm_hands(world: &mut World, user: Entity) {
     let fresh = actor_line(
         world,
         user,
-        "Your hands begin to glow with a violet light. The next thing you touch will regret it.",
-        "flexes their claws, and a violet light crawls over them",
+        strings::confusing_touch_fresh_player(),
+        strings::confusing_touch_fresh_mob(),
     );
     let deeper = actor_line(
         world,
         user,
-        "The violet light on your hands deepens. It is still one touch.",
-        "shakes out their glowing claws",
+        strings::confusing_touch_deeper_player(),
+        strings::confusing_touch_deeper_mob(),
     );
     let msg = match already {
         true => deeper,
@@ -510,8 +511,9 @@ pub(crate) fn discharge_confusing_touch(world: &mut World, attacker: Entity, vic
     confuse(
         world,
         victim,
-        "The violet light bursts against you — the room tilts!",
-        "staggers as the violet light bursts over it",
+        strings::confusing_touch_discharge_player(),
+        LogCategory::Plain,
+        strings::confusing_touch_discharge_mob(),
     );
 }
 
@@ -530,8 +532,8 @@ fn hold_in_view(world: &mut World, user: Entity) {
     }
     mark_conditions(world, &caught, '#', Color::Cyan);
     let msg = match caught.is_empty() {
-        true => "The words land like iron — on nothing at all.",
-        false => "The words land like iron. Every creature in sight is rooted where it stands.",
+        true => strings::hold_monster_none(),
+        false => strings::hold_monster_some(),
     };
     world.resource_mut::<GameLog>().add(msg.to_string());
 }
@@ -564,8 +566,8 @@ fn read_sleep(world: &mut World, user: Entity) {
     }
     mark_conditions(world, &caught, 'z', Color::Blue);
     let msg = match caught.is_empty() {
-        true => "A wave of drowsiness rolls out over an empty room.",
-        false => "A wave of drowsiness rolls out, and everything in sight goes down with it.",
+        true => strings::sleep_scroll_none(),
+        false => strings::sleep_scroll_some(),
     };
     world.resource_mut::<GameLog>().add(msg.to_string());
 }
@@ -581,8 +583,8 @@ fn sleep_the_reader(world: &mut World, user: Entity) {
     let msg = actor_line(
         world,
         user,
-        "The words slur and thicken in your own mouth. The floor comes up to meet you...",
-        "reads itself into a heap on the floor",
+        strings::sleep_backfire_player(),
+        strings::sleep_backfire_mob(),
     );
     world.resource_mut::<GameLog>().add(msg);
 }
@@ -608,7 +610,7 @@ fn detect_mundane_items(world: &mut World, user: Entity) {
     if world.get::<Player>(user).is_none() {
         world
             .resource_mut::<GameLog>()
-            .add("The words mean nothing to it.".to_string());
+            .add(strings::food_detection_not_player());
         return;
     }
     let loose: Vec<Entity> = world
@@ -624,8 +626,8 @@ fn detect_mundane_items(world: &mut World, user: Entity) {
     }
     spark_burst_at(world, user, Color::Green);
     let msg = match found.is_empty() {
-        true => "You cast about for anything plain and useful, and this floor is bare.",
-        false => "The floor gives up its odds and ends: you know where every plain thing lies.",
+        true => strings::food_detection_none(),
+        false => strings::food_detection_some(),
     };
     world.resource_mut::<GameLog>().add(msg.to_string());
 }

@@ -5,7 +5,8 @@ How to add a monster
     Prerequisites  You have done `../tutorial/add-your-first-item.md`,
                    or you are comfortable enough to skip it.
     Result         A new species that populates floors, can be
-                   polymorphed into, and can be created by a scroll.
+                   polymorphed into, can be created by a scroll, and
+                   can be played as with `-am <name>`.
 
 One line in one table. There is no second place.
 
@@ -51,6 +52,14 @@ The recipe
        cargo test --test content
 
 That is the whole procedure. Nothing else in the codebase needs to be told that basilisks exist.
+
+The row you just wrote is also the whole recipe for playing as one:
+`-am basilisk` puts a player inside it, dice and innate magic and all —
+see `../reference/cli-and-env.md`, "`-am <species>`". Nothing about that
+is a special case for the player; it is the same row a floor-5 basilisk is
+built from. If what you actually want is a *hand-written* playable body,
+with its own kit and its own rules rather than a bestiary row worn as a
+costume, that is `add-a-body.md` instead.
 
 
 Choosing the numbers
@@ -128,6 +137,7 @@ See also
 
   ../tutorial/add-your-first-monster.md  the long version, as a lesson
 
+  add-a-body.md                    a hand-written body instead of a bestiary row
   add-an-effect.md                 give it a property nothing else has
   tune-rarity-and-depth.md         where and how often it shows up
   ../reference/content-tables.md   every field, every type, the palette

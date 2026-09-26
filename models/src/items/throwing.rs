@@ -43,7 +43,7 @@ use crate::constants::wands::{
 /// off, so it can be neither dropped nor hurled. Anything else is fair game.
 pub fn throw_refusal(world: &World, user: Entity, item: Entity) -> Option<String> {
     if world.get::<Amulet>(item).is_some() {
-        return Some("The Element of Yoord will not leave your hand.".to_string());
+        return Some(strings::element_wont_leave_hand().to_string());
     }
     drop_refusal(world, user, item)
 }
@@ -331,9 +331,9 @@ fn resolve_wand_throw(
         .max(0);
 
     if effect == WandEffect::Nothing {
-        world.resource_mut::<GameLog>().add(format!(
-            "The {seen_name} bursts in a shower of colourful confetti. That's it. That's the whole spell."
-        ));
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::thrown_wand_confetti(seen_name));
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             confetti_burst(&mut fx, landing);
         }
@@ -359,9 +359,9 @@ fn resolve_wand_throw(
     };
     let element = if is_attack { Element::of(effect) } else { None };
 
-    world.resource_mut::<GameLog>().add(format!(
-        "The {seen_name} shatters, and {charges} charges' worth of magic gets out at once!"
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::thrown_wand_shatters(seen_name, charges));
 
     let palette = blast_palette(effect);
     let caught = elemental_blast(
@@ -454,7 +454,7 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
     // potion, somebody's spare ring — that is a choice, and the dungeon
     // notices.
     if by_hand && thrower_is_player {
-        world.resource_mut::<GameLog>().add("Very clever.");
+        world.resource_mut::<GameLog>().add(strings::very_clever());
     }
 }
 
@@ -486,17 +486,21 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     // Loosed from the launcher it's matched to (a bow's arrow, a crossbow's
     // quarrel), this reads as firing it, not just chucking it by hand.
     let fired = is_fired(world, thrower, item);
-    let announcement = match (world.get::<Player>(thrower).is_some(), fired) {
-        (true, true) => format!("You fire {}.", phrase_for(&seen_name)),
-        (true, false) => format!("You throw the {seen_name}."),
-        (false, true) => format!(
-            "The {} fires {}.",
-            item_label(world, thrower),
-            phrase_for(&seen_name)
-        ),
-        (false, false) => format!("The {} throws the {seen_name}.", item_label(world, thrower)),
+    let is_player = world.get::<Player>(thrower).is_some();
+    let announcement = match (is_player, fired) {
+        (true, true) => strings::you_fire(&phrase_for(&seen_name)),
+        (true, false) => strings::you_throw(&seen_name),
+        (false, true) => strings::mob_fires(&item_label(world, thrower), &phrase_for(&seen_name)),
+        (false, false) => strings::mob_throws(&item_label(world, thrower), &seen_name),
     };
-    world.resource_mut::<GameLog>().add(announcement);
+    let category = if is_player {
+        LogCategory::Thrown
+    } else {
+        LogCategory::Plain
+    };
+    world
+        .resource_mut::<GameLog>()
+        .add_colored(announcement, category);
 
     let (cells, landing, victims) = flight_path(world, thrower, item, origin, target);
     let victim = victims.first().copied();
@@ -533,9 +537,9 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
         match victim.filter(|&v| world.get::<ItemUser>(v).is_some()) {
             Some(reader) => {
                 let who = item_label(world, reader);
-                world.resource_mut::<GameLog>().add(format!(
-                    "The {who} unrolls the {seen_name} and reads it aloud!"
-                ));
+                world
+                    .resource_mut::<GameLog>()
+                    .add(strings::scroll_read_aloud(&who, &seen_name));
                 apply_scroll_effect(world, reader, effect);
                 world.entity_mut(item).despawn();
             }
@@ -565,9 +569,9 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
             world.entity_mut(item).despawn();
             return Some(landing);
         }
-        world.resource_mut::<GameLog>().add(format!(
-            "The {seen_name} clatters to the floor, its magic still bottled up."
-        ));
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::wand_clatters_unspent(&seen_name));
         land_item(world, item, landing);
         return Some(landing);
     }
@@ -605,13 +609,13 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
     if takes_it && equip_silently(world, victim, item) {
         let slot = world.get::<Equipped>(item).map(|e| e.slot);
         let verb = match slot {
-            Some(Slot::Hand) => "snatches it up and wields it",
-            Some(Slot::Body) => "pulls it on",
-            _ => "slips it on",
+            Some(Slot::Hand) => strings::picked_up_thrown_verb_hand(),
+            Some(Slot::Body) => strings::picked_up_thrown_verb_body(),
+            _ => strings::picked_up_thrown_verb_other(),
         };
         world
             .resource_mut::<GameLog>()
-            .add(format!("The {victim_name} {verb}!"));
+            .add(strings::picks_up_thrown(&victim_name, verb));
         return Some(landing);
     }
     land_item(world, item, landing);
@@ -671,7 +675,7 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
     let target_is_player = world.get::<Player>(target).is_some();
     let target_label = match target_is_player {
         true => "you".to_string(),
-        false => format!("the {}", item_label(world, target)),
+        false => strings::the(&item_label(world, target)),
     };
     let from = world.get::<Position>(shooter).copied();
     let at = world.get::<Position>(target).copied();
@@ -687,9 +691,9 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
     }
 
     if damage <= 0 {
-        world.resource_mut::<GameLog>().add(format!(
-            "The {shooter_name} looses a wild {noun} — it goes nowhere near {target_label}."
-        ));
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::monster_shot_wild(&shooter_name, noun, &target_label));
         return;
     }
 
@@ -699,9 +703,12 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
             fx.hit_spark(at.x, at.y);
         }
     }
-    world.resource_mut::<GameLog>().add(format!(
-        "The {shooter_name} looses {} {noun} at {target_label} for {damage} damage!",
-        article_for(noun)
+    world.resource_mut::<GameLog>().add(strings::monster_shot_hit(
+        &shooter_name,
+        article_for(noun),
+        noun,
+        &target_label,
+        damage,
     ));
 }
 
@@ -718,14 +725,14 @@ fn shatter_potion(
     let Some(v) = victim else {
         world
             .resource_mut::<GameLog>()
-            .add(format!("The {seen_name} shatters on the floor."));
+            .add(strings::potion_shatters_floor(seen_name));
         world.entity_mut(item).despawn();
         return;
     };
     let victim_name = item_label(world, v);
-    world.resource_mut::<GameLog>().add(format!(
-        "The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!"
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::potion_bursts_over(seen_name, &victim_name));
     apply_potion_effect(world, v, effect);
     world.entity_mut(item).despawn();
 }
@@ -743,7 +750,7 @@ fn strike_victim(
     let hit_name = item_label(world, hit);
     let Some(damage) = roll_throw_damage(world, thrower, item, hit) else {
         // Not a thing that hurts anyone: it simply arrives.
-        return format!("The {seen_name} bounces off the {hit_name}.");
+        return strings::throw_bounces_off(seen_name, &hit_name);
     };
     let at = world.get::<Position>(hit).copied().unwrap_or(landing);
     if damage <= 0 {
@@ -754,7 +761,7 @@ fn strike_victim(
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.clink_spark(at.x, at.y);
         }
-        return format!("The {seen_name} glances off the {hit_name}.");
+        return strings::throw_glances_off(seen_name, &hit_name);
     }
     apply_damage(world, hit, damage);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
@@ -769,5 +776,5 @@ fn strike_victim(
     if world.get::<Player>(thrower).is_some() && !slain {
         kick_shake(world, ShakeKind::Hit);
     }
-    format!("The {seen_name} hits the {hit_name} for {damage} damage.")
+    strings::throw_hits(seen_name, &hit_name, damage)
 }

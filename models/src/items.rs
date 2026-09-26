@@ -199,7 +199,7 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         let name = with_the(&item_label(world, item_use.item));
         world
             .resource_mut::<GameLog>()
-            .add(format!("You can't use {name} right now."));
+            .add(strings::cant_use_right_now(&name));
         plan.keep = true;
     }
 
@@ -214,7 +214,7 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         // A wand survives its zap, so its "you use it" beat lives here.
         world
             .resource_mut::<GameLog>()
-            .add(format!("You zap the {seen_name}."));
+            .add(strings::you_zap(&seen_name));
     }
 
     // Dispatch to the right submodule.
@@ -255,14 +255,12 @@ fn log_destruction(world: &mut World, item: Entity, seen_name: &str) {
     );
     let mut log = world.resource_mut::<GameLog>();
     match kinds {
-        (true, _, _, _) => log.add(format!("The {seen_name} crumbles to dust!")),
-        (_, true, _, _) => log.add(format!("You drink the {seen_name}.")),
-        (_, _, true, _) => log.add(format!("You read the {seen_name}.")),
+        (true, _, _, _) => log.add(strings::wand_crumbles(seen_name)),
+        (_, true, _, _) => log.add(strings::you_drink(seen_name)),
+        (_, _, true, _) => log.add(strings::you_read(seen_name)),
         // Only one ring is ever spent this way, and it does not merely crumble:
         // it goes out the way it came in.
-        (_, _, _, true) => log.add(format!(
-            "The {seen_name} shivers apart into a thousand glittering motes."
-        )),
-        _ => log.add("The item turns to dust!".to_string()),
+        (_, _, _, true) => log.add(strings::ring_shivers_apart(seen_name)),
+        _ => log.add(strings::item_turns_to_dust()),
     }
 }

@@ -108,7 +108,7 @@ fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
     let (sx, sy) = STUMBLE_DIRS[rng.0.gen_range(0..STUMBLE_DIRS.len())];
     world
         .resource_mut::<GameLog>()
-        .add("You stumble foolishly.");
+        .add(strings::stumble_foolishly());
     (sx, sy, true)
 }
 
@@ -141,7 +141,7 @@ fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
         // Anything that needs a pack slot and did not get one says so; a
         // coin left where it lies says nothing, because a coin you cannot
         // use yet being still there is not news.
-        None if stowable => world.resource_mut::<GameLog>().add("Your pack is full."),
+        None if stowable => world.resource_mut::<GameLog>().add(strings::pack_full()),
         None => {}
     }
 }
@@ -224,7 +224,7 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     if player_held_by(world, Grant::of::<Rooted>()) {
         world
             .resource_mut::<GameLog>()
-            .add("You strain against whatever is holding you, and go nowhere.");
+            .add(strings::strain_against_rooted());
         return true;
     }
 
@@ -264,13 +264,13 @@ fn auto_fight_turn(world: &mut World) -> bool {
     if player_confused(world) {
         world
             .resource_mut::<GameLog>()
-            .add("You are too confused for that right now.");
+            .add(strings::too_confused_right_now());
         return false;
     }
     if player_too_injured(world) {
         world
             .resource_mut::<GameLog>()
-            .add("You are too injured for that now.");
+            .add(strings::too_injured_now());
         return false;
     }
     let player = player_entity(world);
@@ -280,7 +280,7 @@ fn auto_fight_turn(world: &mut World) -> bool {
     let Some(target) = auto_fight_target(world) else {
         world
             .resource_mut::<GameLog>()
-            .add("There is nothing to fight.");
+            .add(strings::nothing_to_fight());
         return false;
     };
     match fight_step(world, target) {
@@ -291,7 +291,7 @@ fn auto_fight_turn(world: &mut World) -> bool {
         None => {
             world
                 .resource_mut::<GameLog>()
-                .add("You can't reach it from here.");
+                .add(strings::cant_reach_it());
             false
         }
     }
@@ -306,21 +306,21 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
     let Some(target) = auto_fight_target(world) else {
         world
             .resource_mut::<GameLog>()
-            .add("There is nothing to fight.");
+            .add(strings::nothing_to_fight());
         return false;
     };
     let Some(item) = first_matching_ammo(world, player) else {
-        world.resource_mut::<GameLog>().add("You're out of ammo.");
+        world.resource_mut::<GameLog>().add(strings::out_of_ammo());
         return false;
     };
     let target_pos = *world.get::<Position>(target).unwrap();
     let player_pos = *world.get::<Position>(player).unwrap();
     if chebyshev(player_pos, target_pos) > throw_reach(world, player, item) {
-        world.resource_mut::<GameLog>().add("Out of range.");
+        world.resource_mut::<GameLog>().add(strings::out_of_range());
         return false;
     }
     if !has_clear_shot(world, target) {
-        world.resource_mut::<GameLog>().add("No clear shot.");
+        world.resource_mut::<GameLog>().add(strings::no_clear_shot());
         return false;
     }
 
@@ -690,9 +690,7 @@ fn meet_its_eyes(world: &mut World, target: Position) -> bool {
     if !models::fire_on_targeted(world, player, seen) {
         return false;
     }
-    world
-        .resource_mut::<GameLog>()
-        .add("Well played.".to_string());
+    world.resource_mut::<GameLog>().add(strings::well_played());
     let mut ts = world.resource_mut::<TargetingState>();
     ts.active = false;
     ts.looking = false;
@@ -772,7 +770,9 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
         .get::<Position>(player)
         .is_some_and(|p| p.x == target.x && p.y == target.y);
     if at_self {
-        world.resource_mut::<GameLog>().add("Great idea! But no.");
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::great_idea_but_no());
         return Ok(false);
     }
 
@@ -867,20 +867,19 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
         .or_else(|| visible.iter().find(|&&e| world.get::<Trap>(e).is_some()))
         .copied();
     let Some(seen) = pick else {
-        return vec!["You see nothing there.".to_string()];
+        return vec![strings::you_see_nothing_there().to_string()];
     };
 
-    let mut lines = vec![format!(
-        "You see {}{}.",
-        models::with_article(world, seen),
-        models::worn_tag(world, seen)
+    let mut lines = vec![strings::you_see(
+        &models::with_article(world, seen),
+        &models::worn_tag(world, seen),
     )];
     if world.get::<Mob>(seen).is_some() {
         // What a creature is dangerous for is `models`' business: the phrases
         // live on the effect rows themselves, so this crate never learns which
         // markers exist.
         for phrase in models::dangers_of(world, seen) {
-            lines.push(format!("Beware their {phrase}."));
+            lines.push(strings::beware_their(&phrase));
         }
     }
     lines
@@ -1012,9 +1011,7 @@ fn drop_from_pack(world: &mut World, player: Entity, item: Entity, item_idx: usi
     sync_equipment_effects(world, player);
     world.entity_mut(item).insert(pos);
     let name = models::display_name(world, item);
-    world
-        .resource_mut::<GameLog>()
-        .add(format!("You drop the {name}."));
+    world.resource_mut::<GameLog>().add(strings::you_drop(&name));
     true
 }
 
@@ -1267,19 +1264,19 @@ fn start_run(world: &mut World, rdx: i16, rdy: i16) {
     if player_confused(world) {
         world
             .resource_mut::<GameLog>()
-            .add("You are too confused for that right now.");
+            .add(strings::too_confused_right_now());
         return;
     }
     match fast_move_plan(world, rdx, rdy) {
         FastMovePlan::MonsterInSight => {
             world
                 .resource_mut::<GameLog>()
-                .add("Not while a creature is in sight.");
+                .add(strings::not_while_monster_in_sight());
         }
         FastMovePlan::Blocked => {
             world
                 .resource_mut::<GameLog>()
-                .add("You can't run that way.");
+                .add(strings::cant_run_that_way());
         }
         FastMovePlan::Straight => {
             world.resource_mut::<GameLog>().unread.clear();
@@ -1321,7 +1318,7 @@ fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
     else {
         world
             .resource_mut::<GameLog>()
-            .add("You don't have a spell there.");
+            .add(strings::no_spell_there());
         return Ok(false);
     };
     let cost = models::spell_cost(world, player, effect);
@@ -1329,7 +1326,7 @@ fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
     if !affordable {
         world
             .resource_mut::<GameLog>()
-            .add("You don't have the magic for that.");
+            .add(strings::no_magic_for_that());
         return Ok(false);
     }
     // A spell that works on the caster alone or on everything in view has
@@ -1359,7 +1356,7 @@ fn begin_spells_menu(world: &mut World) -> std::io::Result<bool> {
         .get::<Spellset>(player)
         .is_some_and(|m| !m.slots.is_empty());
     if !has_any {
-        world.resource_mut::<GameLog>().add("You have no spells.");
+        world.resource_mut::<GameLog>().add(strings::no_spells());
         return Ok(false);
     }
     let mut menu = world.resource_mut::<SpellsMenu>();
@@ -1423,10 +1420,14 @@ fn toggle_auto_pickup(world: &mut World) {
         pickup.enabled = !pickup.enabled;
         pickup.enabled
     };
-    let state = if enabled { "ON" } else { "OFF" };
+    let state = if enabled {
+        strings::toggle_on()
+    } else {
+        strings::toggle_off()
+    };
     world
         .resource_mut::<GameLog>()
-        .add(format!("Pick-up on auto-explore {state}."));
+        .add(strings::auto_pickup_state(state));
 }
 
 /// `f`: fire the wielded launcher's first matching projectile — a shortcut for
@@ -1439,14 +1440,14 @@ fn begin_fire(world: &mut World) -> std::io::Result<bool> {
     if wielded_launcher(world, player).is_none() {
         world
             .resource_mut::<GameLog>()
-            .add("You aren't wielding a launcher.");
+            .add(strings::not_wielding_launcher());
         return Ok(false);
     }
     let Some(item) = first_matching_ammo(world, player) else {
         let noun = ammo_noun(world, player);
         world
             .resource_mut::<GameLog>()
-            .add(format!("You have no {noun} to fire."));
+            .add(strings::no_ammo_to_fire(&noun));
         return Ok(false);
     };
     if let Some(refusal) = throw_refusal(world, player, item) {
@@ -1466,7 +1467,7 @@ fn begin_reach_attack(world: &mut World) -> std::io::Result<bool> {
     let Some(weapon) = wielded_reach_weapon(world, player) else {
         world
             .resource_mut::<GameLog>()
-            .add("You aren't wielding a reach weapon.");
+            .add(strings::not_wielding_reach_weapon());
         return Ok(false);
     };
     open_reticle_for(world, player, Some(weapon), None, false, false, true);
@@ -1479,19 +1480,19 @@ fn begin_auto_explore(world: &mut World) -> std::io::Result<bool> {
     if player_confused(world) {
         world
             .resource_mut::<GameLog>()
-            .add("You are too confused for that right now.");
+            .add(strings::too_confused_right_now());
         return Ok(false);
     }
     if monster_in_sight(world) {
         world
             .resource_mut::<GameLog>()
-            .add("Not while a creature is in sight.");
+            .add(strings::not_while_monster_in_sight());
         return Ok(false);
     }
     if explore_step(world).is_none() {
         world
             .resource_mut::<GameLog>()
-            .add("There is nothing left to explore.");
+            .add(strings::nothing_left_to_explore());
         return Ok(false);
     }
     world.resource_mut::<GameLog>().unread.clear();
@@ -1517,7 +1518,11 @@ fn open_travel_cursor(world: &mut World) {
 /// to it exists, it starts an auto-walk there; if not, it just prints the usual
 /// "you cannot go that way" line. Never consumes a turn itself.
 fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
-    let dir = if going_down { "down" } else { "up" };
+    let dir = if going_down {
+        strings::dir_down()
+    } else {
+        strings::dir_up()
+    };
     let want_tile = if going_down {
         TileType::Downstairs
     } else {
@@ -1546,20 +1551,20 @@ fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
     let Some(target) = known_target else {
         world
             .resource_mut::<GameLog>()
-            .add(format!("You cannot go {dir} from here."));
+            .add(strings::cannot_go_direction(dir));
         return false;
     };
 
     if monster_in_sight(world) {
         world
             .resource_mut::<GameLog>()
-            .add("Not while a creature is in sight.");
+            .add(strings::not_while_monster_in_sight());
         return false;
     }
     if travel_step(world, target).is_none() {
         world
             .resource_mut::<GameLog>()
-            .add(format!("You can't find a path to the {dir}-stairs."));
+            .add(strings::cant_find_path_to_stairs(dir));
         return false;
     }
 
@@ -1585,9 +1590,9 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         let _ = read()?;
         world.resource_mut::<AutoExplore>().stop();
         world.resource_mut::<GameLog>().add(if travelling {
-            "Travel interrupted."
+            strings::travel_interrupted()
         } else {
-            "Auto-explore interrupted."
+            strings::auto_explore_interrupted()
         });
         return Ok(false);
     }
@@ -1601,8 +1606,8 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         if arrived {
             world.resource_mut::<AutoExplore>().stop();
             let msg = match world.resource::<Map>().tile(target.0, target.1) {
-                TileType::Upstairs | TileType::Downstairs => "You arrive at the staircase.",
-                _ => "You stop.",
+                TileType::Upstairs | TileType::Downstairs => strings::arrive_at_staircase(),
+                _ => strings::you_stop(),
             };
             world.resource_mut::<GameLog>().add(msg);
             return Ok(false);
@@ -1620,7 +1625,7 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         world.resource_mut::<AutoExplore>().stop();
         world
             .resource_mut::<GameLog>()
-            .add("There is a monster nearby.");
+            .add(strings::monster_nearby());
         return Ok(false);
     }
 
@@ -1641,9 +1646,9 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
     let Some((dx, dy)) = next else {
         world.resource_mut::<AutoExplore>().stop();
         world.resource_mut::<GameLog>().add(if travelling {
-            "You can't find a path there."
+            strings::cant_find_path_there()
         } else {
-            "You have explored everywhere you can."
+            strings::explored_everywhere()
         });
         return Ok(false);
     };
@@ -1747,7 +1752,7 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
     if monster_in_sight(world) {
         world
             .resource_mut::<GameLog>()
-            .add("Not while a creature is in sight.");
+            .add(strings::not_while_monster_in_sight());
         return Ok(());
     }
 
@@ -1756,7 +1761,7 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
     let Some(goal) = nearest_reachable(world, (tx, ty)) else {
         world
             .resource_mut::<GameLog>()
-            .add("You can't find a path there.");
+            .add(strings::cant_find_path_there());
         return Ok(());
     };
 
@@ -1765,9 +1770,7 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
         q.iter(world).next().map(|p| (p.x, p.y))
     };
     if here == Some(goal) {
-        world
-            .resource_mut::<GameLog>()
-            .add("You are already there.");
+        world.resource_mut::<GameLog>().add(strings::already_there());
         return Ok(());
     }
 
@@ -1905,8 +1908,9 @@ mod tests {
         let mut log = w.resource_mut::<GameLog>();
         log.unread.clear();
         for i in 0..12 {
-            log.unread
-                .push(format!("Message number {i} is a fairly long one."));
+            log.unread.push(LogEntry::plain(format!(
+                "Message number {i} is a fairly long one."
+            )));
         }
         let unread = w.resource::<GameLog>().unread.len();
         assert!(

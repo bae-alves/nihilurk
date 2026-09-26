@@ -1,19 +1,47 @@
 [package]
 name = "engine"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license.workspace = true
+
+# `cargo run -p engine` / `cargo build -p engine` with no `--bin` keeps
+# meaning exactly what it always has: the game, in English by default. The
+# second bin (`nihilurk-dispatch`) only gets built explicitly or as part of
+# packaging (`aur/PKGBUILD`), never by accident.
+default-run = "nihilurk"
 
 [[bin]]
 name = "nihilurk"
 path = "src/main.rs"
 
+# The locale-sniffing forwarder installed as the plain `nihilurk` command.
+# It is feature-independent -- it never touches `models` or `strings`, only
+# `exec`s whichever `nihilurk-<lang>` binary matches the environment -- so it
+# builds identically no matter which `lang-*` feature this crate itself was
+# built with. See `src/bin/dispatch.rs`.
+[[bin]]
+name = "nihilurk-dispatch"
+path = "src/bin/dispatch.rs"
+
 [lints]
 workspace = true
 
+# One language per binary, decided at build time: `--no-default-features
+# --features lang-pt --bin nihilurk` (then the packaging step renames the
+# resulting artifact to `nihilurk-pt`; see `aur/PKGBUILD`). `default-features
+# = false` on the `models`/`strings` edges below is what makes picking
+# `lang-pt` here actually exclusive -- see `models/Cargo.toml`'s comment.
+[features]
+default = ["lang-en"]
+lang-en = ["strings/lang-en", "models/lang-en", "view/lang-en"]
+lang-pt = ["strings/lang-pt", "models/lang-pt", "view/lang-pt"]
+lang-es = ["strings/lang-es", "models/lang-es", "view/lang-es"]
+lang-ht = ["strings/lang-ht", "models/lang-ht", "view/lang-ht"]
+
 [dependencies]
-models = { path = "../models" }
-view = { path = "../view" }
+models = { path = "../models", default-features = false }
+strings = { path = "../strings", default-features = false }
+view = { path = "../view", default-features = false }
 crossterm = "0.29.0"
 bevy_ecs = "0.12"
 rand = "0.8"

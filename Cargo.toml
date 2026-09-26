@@ -5,6 +5,7 @@ members = [
     "engine",
     "models",
     "particle-core",
+    "strings",
     "view"
 ]
 
@@ -27,6 +28,7 @@ default-members = [
     "engine",
     "models",
     "particle-core",
+    "strings",
     "view"
 ]
 

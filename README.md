@@ -3,6 +3,8 @@ nihilurk
 
 A classic roguelike about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets.
 
+If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
+
     cargo run -p engine                  # play
     cargo run -p engine -- -s 1234       # play a specific seed
     cargo test                           # everything
@@ -14,6 +16,7 @@ Where things are
     MANUAL.md      how to play: controls, combat math, items, monsters.
     doc/nihilurk.6     the installed `man nihilurk` command reference.
     docs/          how to add content to the game. Start at docs/README.md.
+    CONTRIBUTING.md    reporting bugs and sending translations.
     gdd.md         what nihilurk is trying to be. Design, not code.
     models/        the game: rules, content tables, ECS systems.
     view/          the terminal grid: the double buffer and its diff.
@@ -25,6 +28,7 @@ Where things are
 
     ./compat_test.sh                     # nihilurk, built and checked on six machines
     ./docs_style.sh                      # docs/, held to the house style
+    ./aur_check.sh                       # aur/PKGBUILD, against the tag it pins and this working copy
 
 Once per clone, `git config core.hooksPath .githooks` turns on a pre-commit check that runs `docs_style.sh` and refuses a commit that changes the turn schedule or an intent queue without touching a page under `docs/` -- see `.githooks/pre-commit`.
 

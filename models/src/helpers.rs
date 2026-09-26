@@ -31,7 +31,7 @@ use std::collections::HashSet;
 
 use crossterm::style::Color;
 
-use crate::components::Element;
+use crate::components::{Element, LogCategory};
 use crate::effects::{ArmorBonus, equipped_total};
 use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map, Smoke};
 use crate::particles::Particles;
@@ -287,7 +287,7 @@ pub(crate) fn actor_line(
     if world.get::<Player>(actor).is_some() {
         return player_line.to_string();
     }
-    format!("The {} {mob_verb}.", item_label(world, actor))
+    strings::mob_verb_line(&item_label(world, actor), mob_verb)
 }
 
 /// Applies `amount` damage to `entity`'s [`Fighter`] (no-op if it has none), and
@@ -367,7 +367,7 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
         if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
             world
                 .resource_mut::<GameLog>()
-                .add(format!("The {name}'s ward turns the magic aside."));
+                .add(strings::ward_turns_aside(&name));
         }
         crate::items::ward_ricochet(world, entity);
         return 0;
@@ -376,7 +376,7 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
         if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
             world
                 .resource_mut::<GameLog>()
-                .add(format!("The {name} is unharmed by the {}.", el.noun()));
+                .add(strings::unharmed_by(&name, el.noun()));
         }
         return 0;
     }
@@ -460,7 +460,7 @@ pub(crate) fn warn_if_newly_low(world: &mut World, entity: Entity, hp_before: Op
     }
     world
         .resource_mut::<GameLog>()
-        .add("You are badly wounded!".to_string());
+        .add_colored(strings::badly_wounded(), LogCategory::Wounded);
     kick_shake(world, ShakeKind::Wounded);
 }
 

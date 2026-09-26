@@ -29,7 +29,7 @@ use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use rand::Rng;
 
-use crate::components::{GameLog, Player, Score};
+use crate::components::{GameLog, LogCategory, Player, Score};
 use crate::map::FxRng;
 use crate::particles::GLORY_COLORS;
 
@@ -183,7 +183,7 @@ fn pay(world: &mut World, points: i32, kills: u32) {
         let colors = vec![color; amount.chars().count()];
         return light(world, amount, colors);
     }
-    let text = format!("{COMBO} {amount}");
+    let text = format!("{} {amount}", strings::combo_word());
     let mut colors = crate::pride::stripes(world).to_vec();
     colors.push(Color::DarkGrey);
     colors.extend(std::iter::repeat_n(color, amount.chars().count()));
@@ -191,9 +191,6 @@ fn pay(world: &mut World, points: i32, kills: u32) {
     announce_combo(world);
 }
 
-/// The word. Six letters, which is one per stripe of the flag nihilurk flies by
-/// default and a clean cycle of any other — see [`crate::pride`].
-const COMBO: &str = "COMBO!";
 
 /// The line a combo gets in the log. Killing two things at once is the same
 /// achievement the ring of adornment sells, so it gets the ring's own words, in
@@ -208,15 +205,17 @@ fn announce_combo(world: &mut World) {
     let proud = world
         .get_resource_mut::<FxRng>()
         .is_some_and(|mut rng| rng.0.gen_bool(COMBO_PRIDE_CHANCE));
-    let line = match proud {
-        true => crate::hud::PRIDE_LINE,
-        false => "With style.",
+    let (line, category) = match proud {
+        true => (crate::hud::pride_line(), LogCategory::Pride),
+        false => (strings::with_style(), LogCategory::Combo),
     };
     // `GameLog` is required here, not optional: it is initialised before any
     // schedule step runs (`engine/src/main.rs`), and every other logging call
     // in the tree already assumes it. The `get_resource_mut` this replaced
     // protected nothing reachable and hid that assumption instead of stating it.
-    world.resource_mut::<GameLog>().add(line.to_string());
+    world
+        .resource_mut::<GameLog>()
+        .add_colored(line.to_string(), category);
 }
 
 /// What a staircase is worth on a floor of difficulty `tier` (0-based, as

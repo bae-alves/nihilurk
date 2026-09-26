@@ -39,7 +39,8 @@ use crate::state::Ending;
 //   CHIP_DAMAGE                                the player's guaranteed-1 floor
 //   GEAR_SURVIVES_DEATH                        per-item odds a corpse keeps its gear
 use crate::constants::combat::{
-    BIDE_ATTACK_BONUS, CHIP_DAMAGE, EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE, GEAR_SURVIVES_DEATH,
+    BELL_CURVE_DICE, BIDE_ATTACK_BONUS, CHIP_DAMAGE, EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE,
+    GEAR_SURVIVES_DEATH,
 };
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
@@ -49,6 +50,14 @@ fn roll_die(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
         return 0;
     }
     rng.gen_range(1..=sides)
+}
+
+/// Rolls `1dN` [`BELL_CURVE_DICE`] times and averages, rounding down. Same
+/// range and mean as a plain [`roll_die`], just a narrower distribution
+/// around that mean — the bell curve that takes the swing out of a normal
+/// exchange without touching any weapon or armour's tuned die size.
+fn roll_die_bell(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
+    (0..BELL_CURVE_DICE).map(|_| roll_die(rng, sides)).sum::<i32>() / BELL_CURVE_DICE
 }
 
 /// The `bane` of the attacker's currently-wielded weapon, if that weapon has
@@ -175,14 +184,12 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         blank_player_glyph(world, entity);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
-        ending.cause = "Killer unknown".to_string();
+        ending.cause = strings::killer_unknown().to_string();
         return;
     }
 
     let name = entity_name(world, entity);
-    world
-        .resource_mut::<GameLog>()
-        .add(format!("The {name} dies."));
+    world.resource_mut::<GameLog>().add(strings::mob_dies(&name));
     pay_for_the_corpse(world, entity);
     kill_shake(world, entity);
     death_burst(world, entity, source);
@@ -233,7 +240,7 @@ fn leave_gear_behind(world: &mut World, entity: Entity) {
         world.entity_mut(item).insert(pos);
         world
             .resource_mut::<GameLog>()
-            .add(format!("The {name} clatters to the floor."));
+            .add(strings::gear_clatters_to_floor(&name));
     }
 }
 
@@ -436,12 +443,17 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
 fn roll_swing(world: &mut World, matchup: &Matchup) -> Swing {
     let mut rng = world.resource_mut::<GameRng>();
     let excellent = matchup.attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE);
-    let dice = if excellent { EXCELLENT_HIT_DICE } else { 1 };
-    let attack_total: i32 = (0..dice)
-        .map(|_| roll_die(&mut rng.0, matchup.power))
-        .sum::<i32>()
-        + matchup.power_bonus;
-    let armor_roll = roll_die(&mut rng.0, matchup.armor) + matchup.armor_bonus;
+    // A normal swing is bell-curved (see `roll_die_bell`); an excellent hit
+    // already sums `EXCELLENT_HIT_DICE` flat dice, which is its own crit and
+    // stays flat rather than getting curved on top of that.
+    let attack_total: i32 = if excellent {
+        (0..EXCELLENT_HIT_DICE)
+            .map(|_| roll_die(&mut rng.0, matchup.power))
+            .sum::<i32>()
+    } else {
+        roll_die_bell(&mut rng.0, matchup.power)
+    } + matchup.power_bonus;
+    let armor_roll = roll_die_bell(&mut rng.0, matchup.armor) + matchup.armor_bonus;
 
     let net = attack_total - armor_roll;
     let glancing = matchup.attacker_is_player && !excellent && net < CHIP_DAMAGE;
@@ -588,19 +600,21 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
 /// [`crate::catalog::WeaponDef::grants`]) and `target` is carrying a negative
 /// condition — the same afflictions [`crate::conditions::afflicted`] answers
 /// for, plus a snare: pinned, held or asleep is exactly as helpless. A
-/// monster's own confusion never gets the [`Confused`] component `afflicted`
-/// checks — [`crate::conditions::stagger`] tags it on [`Mob::movement_type`]
-/// instead — so that's checked here directly.
+/// monster's own confusion or flight never gets a component `afflicted`
+/// checks — [`crate::conditions::stagger`] and a scare both tag
+/// [`Mob::movement_type`] instead — so both are checked here directly. A
+/// fleeing monster isn't truly helpless, but a garrote through the back is
+/// the reward for having scared it off in the first place.
 /// The player's trick alone — a monster that steals or catches a garrote
 /// still just fights the plain way.
 fn garrote_vorpal(world: &World, attacker: Entity, target: Entity) -> bool {
-    let mob_confused = world
+    let mob_staggering = world
         .get::<Mob>(target)
-        .is_some_and(|m| matches!(m.movement_type, MovementType::Confused));
+        .is_some_and(|m| matches!(m.movement_type, MovementType::Confused | MovementType::Flee));
     world.get::<Player>(attacker).is_some()
         && world.get::<VorpalOnCondition>(attacker).is_some()
         && (afflicted(world, target)
-            || mob_confused
+            || mob_staggering
             || world.get::<Asleep>(target).is_some()
             || world.get::<Pinned>(target).is_some()
             || world.get::<Rooted>(target).is_some())
@@ -715,13 +729,13 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
         return;
     }
     let target_name = entity_name(world, target);
-    world.resource_mut::<GameLog>().add(format!(
-        "You lunge, blade flashing past every guard, and skewer the {target_name} for {damage} damage!"
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::lunge_hit(&target_name, damage));
     if blow.outcome.lethal {
         world
             .resource_mut::<GameLog>()
-            .add(format!("You have slain the {target_name}!"));
+            .add(strings::you_have_slain(&target_name));
     }
     settle_the_dead(world, &blow);
 }
@@ -776,7 +790,7 @@ pub fn resolve_reach_attack(world: &mut World, attacker: Entity, weapon: Entity,
     if victims.is_empty() {
         world
             .resource_mut::<GameLog>()
-            .add("You strike at nothing but air.".to_string());
+            .add(strings::strike_at_nothing());
         return;
     }
     for victim in victims {
@@ -935,14 +949,14 @@ fn report_blow(world: &mut World, blow: &Landed) {
         return report_player_hit(&mut log, &target_name, &blow.swing, &blow.outcome);
     }
     let target_label = if target_is_player {
-        "you".to_string()
+        strings::pronoun_you().to_string()
     } else {
-        format!("the {target_name}")
+        strings::the(&target_name)
     };
     let atk = if attacker_unseen {
-        "Something".to_string()
+        strings::pronoun_something().to_string()
     } else {
-        format!("The {attacker_name}")
+        strings::capital_the(&attacker_name)
     };
     report_monster_hit(
         &mut log,
@@ -973,7 +987,7 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         blank_player_glyph(world, blow.target);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
-        ending.cause = format!("Slain by the {attacker_name}");
+        ending.cause = strings::slain_by(&attacker_name);
         return;
     }
     pay_for_the_corpse(world, blow.target);
@@ -986,27 +1000,17 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
 /// vorpal flourish and the slain line.
 fn report_player_hit(log: &mut GameLog, target_name: &str, swing: &Swing, outcome: &Outcome) {
     match (swing.excellent, swing.glancing) {
-        (true, _) => log.add(format!(
-            "You score an excellent hit on the {target_name} for {} damage!",
-            swing.damage
-        )),
-        (_, true) => log.add(format!("You deal a glancing blow to the {target_name}.")),
-        _ => log.add(format!(
-            "You hit the {target_name} for {} damage.",
-            swing.damage
-        )),
+        (true, _) => log.add(strings::excellent_hit(target_name, swing.damage)),
+        (_, true) => log.add(strings::glancing_blow(target_name)),
+        _ => log.add(strings::plain_hit(target_name, swing.damage)),
     }
     if outcome.lethal && outcome.garrote {
-        log.add(format!(
-            "You choke the life out of the helpless {target_name}! Atrocious!"
-        ));
+        log.add(strings::garrote_kill(target_name));
     } else if outcome.lethal && outcome.vorpal {
-        log.add(format!(
-            "Snicker-snack! The blade shears clean through the {target_name}!"
-        ));
+        log.add(strings::vorpal_kill(target_name));
     }
     if outcome.lethal {
-        log.add(format!("You have slain the {target_name}!"));
+        log.add(strings::you_have_slain(target_name));
     }
 }
 
@@ -1023,13 +1027,13 @@ fn report_monster_hit(
     target_is_player: bool,
 ) {
     match damage {
-        0 => log.add(format!("{atk} misses {target_label}.")),
-        _ => log.add(format!("{atk} hits {target_label} for {damage} damage.")),
+        0 => log.add(strings::mob_misses(atk, target_label)),
+        _ => log.add(strings::mob_hits(atk, target_label, damage)),
     }
     if lethal && target_is_player {
-        log.add(format!("{atk} strikes you down..."));
+        log.add(strings::mob_strikes_you_down(atk));
     }
     if lethal && !target_is_player {
-        log.add(format!("{atk} kills the {target_name}!"));
+        log.add(strings::mob_kills(atk, target_name));
     }
 }

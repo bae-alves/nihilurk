@@ -325,12 +325,13 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
 name = "engine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bevy_ecs",
  "crossterm",
  "models",
  "rand",
+ "strings",
  "view",
 ]
 
@@ -615,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bevy_ecs",
  "crossterm",
@@ -627,6 +628,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "serde",
+ "strings",
  "syn 2.0.119",
 ]
 
@@ -920,6 +922,10 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "strings"
+version = "0.1.0"
 
 [[package]]
 name = "syn"
