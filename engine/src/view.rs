@@ -92,10 +92,31 @@ pub fn centering_offset(world: &World) -> (u16, u16) {
 /// Only the prompt waits. The lines that fit are painted throughout, and the
 /// backlog is out of reach for no longer than the animation the player is
 /// already watching.
-fn log_panel(world: &World) -> (Vec<Vec<String>>, bool) {
+fn log_panel(world: &World) -> (Vec<Vec<LogEntry>>, bool) {
     let animating = world.resource::<Particles>().any_alive();
     let (lines, _consumed, more) = log_view(&world.resource::<GameLog>().unread);
     (lines, more && !animating)
+}
+
+/// The monster-status tint's precedence, as a pure function of the five
+/// conditions it cares about: asleep, paralysed, held-down (a bear trap or
+/// hold monster), staggering (confused or fleeing), slowed. The first that's
+/// true wins.
+fn status_tint(
+    asleep: bool,
+    paralyzed: bool,
+    held_down: bool,
+    staggering: bool,
+    slowed: bool,
+) -> Option<Color> {
+    match (asleep, paralyzed, held_down, staggering, slowed) {
+        (true, _, _, _, _) => Some(Color::DarkBlue),
+        (_, true, _, _, _) => Some(Color::DarkYellow),
+        (_, _, true, _, _) => Some(Color::DarkGreen),
+        (_, _, _, true, _) => Some(Color::Yellow),
+        (_, _, _, _, true) => Some(Color::Grey),
+        _ => None,
+    }
 }
 
 pub fn render<W: Write>(
@@ -279,9 +300,9 @@ pub fn render<W: Write>(
     let auto_label = world.get_resource::<AutoExplore>().and_then(|a| {
         a.active
             .then(|| match (holding_element, a.target.is_some()) {
-                (true, _) => "ASCENDING",
-                (_, true) => "TRAVELING",
-                _ => "EXPLORING",
+                (true, _) => strings::badge_ascending(),
+                (_, true) => strings::badge_traveling(),
+                _ => strings::badge_exploring(),
             })
     });
 
@@ -345,9 +366,9 @@ pub fn render<W: Write>(
         // costs the turn, a bear trap costs the step. A player who is two of
         // them is told the worst one.
         if let Some(label) = match held {
-            Some((true, _, _)) => Some("STONE"),
-            Some((_, true, _)) => Some("ASLEEP"),
-            Some((_, _, true)) => Some("HELD"),
+            Some((true, _, _)) => Some(strings::badge_stone()),
+            Some((_, true, _)) => Some(strings::badge_asleep()),
+            Some((_, _, true)) => Some(strings::badge_held()),
             _ => None,
         } {
             badges.push((label, Color::Red));
@@ -362,7 +383,7 @@ pub fn render<W: Write>(
             ));
         }
         if world.resource::<TravelCursor>().active {
-            badges.push(("TRAVEL?", Color::Yellow));
+            badges.push((strings::badge_travel_query(), Color::Yellow));
         }
         let mut hx: u16 = 1;
         for (i, (label, color)) in badges.iter().enumerate() {
@@ -374,15 +395,17 @@ pub fn render<W: Write>(
             hx += label.chars().count() as u16;
         }
 
-        let depth_text = format!("DEPTH {}", depth);
+        let label = strings::depth_label();
+        let depth_text = format!("{label} {depth}");
         let dx = centered_x(&depth_text);
-        screen.puts(dx, 0, "DEPTH", Color::Magenta);
-        screen.puts(dx + 6, 0, &depth_text["DEPTH ".len()..], Color::White);
+        screen.puts(dx, 0, label, Color::Magenta);
+        let number_x = dx + label.chars().count() as u16 + 1;
+        screen.puts(number_x, 0, &depth.to_string(), Color::White);
 
         // The scorekeeper, right-aligned. A payment no longer takes its place:
         // the flash shouts in the gutter under it (row 1, below), so the
         // running total is readable through the frame that pays it.
-        let score_line = format!("SCORE {}", score_text(player_score));
+        let score_line = strings::score_line(&score_text(player_score));
         let sx = SCREEN_W.saturating_sub(1 + score_line.chars().count() as u16);
         screen.puts(sx, 0, &score_line, Color::White);
     }
@@ -500,17 +523,20 @@ pub fn render<W: Write>(
 
     // ---- Monster status tints ----
     // A monster that can't fight back properly is worth seeing from across the
-    // room, so its cell takes a background: dark blue for one that has lost its
-    // turns outright (asleep in gas, or paralysed), dark green for one held in
-    // a bear trap, dark cyan for one bound by a scroll of hold monster, dark
-    // magenta for one staggering about confused, grey for one merely slowed.
-    // Painted after the actors so it lands under a glyph that is actually
-    // drawn, and only in that order of precedence — a monster that is both
-    // asleep and confused is first of all asleep.
+    // room, so its cell takes a background: dark blue for one asleep, dark
+    // yellow for one paralysed, dark green for one held down (a bear trap or a
+    // scroll of hold monster), yellow for one staggering about confused or
+    // bolting in a panic, grey for one merely slowed. The glyph itself
+    // repaints black over the tint so it stays readable against every one of
+    // those backgrounds. Painted after the actors so it lands under a glyph
+    // that is actually drawn, and only in that order of precedence — a monster
+    // that is both asleep and confused is first of all asleep.
     //
-    // This is also the garrote's whole "tell" — every one of these is exactly
-    // the set of conditions `crate::combat::garrote_vorpal` calls helpless, so
-    // a tinted monster is always one it can end in a single stroke.
+    // Every one of these is also the garrote's whole "tell" — the set of
+    // conditions `crate::combat::garrote_vorpal` calls helpless, so a tinted
+    // monster is always one it can end in a single stroke. Fleeing is in that
+    // set too even though it isn't truly helpless: it's a free garrote by
+    // design, the reward for having scared something off.
     {
         let mut query = world.query_filtered::<(
             &Position,
@@ -526,24 +552,18 @@ pub fn render<W: Write>(
                 continue;
             }
             let confused = matches!(mob.movement_type, MovementType::Confused);
+            let fleeing = matches!(mob.movement_type, MovementType::Flee);
             let slowed = speed.is_some_and(|s| s.kind == SpeedKind::Slow);
-            let tint = match (
+            let tint = status_tint(
                 asleep.is_some(),
-                pinned.is_some(),
-                rooted.is_some(),
                 paralyzed.is_some(),
-                confused,
+                pinned.is_some() || rooted.is_some(),
+                confused || fleeing,
                 slowed,
-            ) {
-                (true, _, _, _, _, _) | (_, _, _, true, _, _) => Some(Color::DarkBlue),
-                (_, true, _, _, _, _) => Some(Color::DarkGreen),
-                (_, _, true, _, _, _) => Some(Color::DarkCyan),
-                (_, _, _, _, true, _) => Some(Color::DarkMagenta),
-                (_, _, _, _, _, true) => Some(Color::Grey),
-                _ => None,
-            };
+            );
             if let Some(tint) = tint {
                 screen.bg_map(pos.x, pos.y, tint);
+                screen.fg_map(pos.x, pos.y, Color::Black);
             }
         }
     }
@@ -689,23 +709,23 @@ pub fn render<W: Write>(
         let mut fields = vec![
             (player_name.to_uppercase(), Color::White, String::new()),
             (
-                "HP".into(),
+                strings::hp_abbr().into(),
                 hp_color,
                 format!("{}/{}", player_hp, player_max_hp),
             ),
             (
-                "Ma".into(),
+                strings::magic_abbr().into(),
                 Color::DarkCyan,
                 format!("{}/{}", player_magic, player_max_magic),
             ),
-            ("Pow.".into(), Color::Red, stat(pow_die, pow_flat)),
-            ("Arm.".into(), Color::Cyan, stat(arm_die, arm_flat)),
+            (strings::power_abbr().into(), Color::Red, stat(pow_die, pow_flat)),
+            (strings::armor_abbr().into(), Color::Cyan, stat(arm_die, arm_flat)),
         ];
         // What a throw is worth is only worth a field once something is making
         // it worth something — a bow, a ring of sharpshooting. A player who
         // never throws never sees it.
         if throw_flat != 0 {
-            fields.push(("Skl.".into(), Color::Green, format!("{throw_flat:+}")));
+            fields.push((strings::skill_abbr().into(), Color::Green, format!("{throw_flat:+}")));
         }
         let mut px: u16 = 1;
         for (i, (label, color, value)) in fields.iter().enumerate() {
@@ -717,8 +737,8 @@ pub fn render<W: Write>(
             px += label.chars().count() as u16;
             if !value.is_empty() {
                 let number = match label.as_str() {
-                    "HP" => hp_color,
-                    "Pow." => pow_color,
+                    s if s == strings::hp_abbr() => hp_color,
+                    s if s == strings::power_abbr() => pow_color,
                     _ => Color::White,
                 };
                 screen.puts(px + 1, 22, value, number);
@@ -772,20 +792,15 @@ pub fn render<W: Write>(
                 x += 1;
             }
             if last && more {
-                screen.puts(57, y, "--MORE-- (Press Space)", Color::Yellow);
+                screen.puts(57, y, strings::more_prompt(), Color::Yellow);
             }
         }
     }
 
     // ---- Travel-cursor prompt (overrides the log rows while picking) ----
     if world.resource::<TravelCursor>().active {
-        screen.puts(0, 24, "Move where?", Color::Yellow);
-        screen.puts(
-            12,
-            24,
-            "[hjkl/arrows move · Enter travel · Esc/x cancel]",
-            Color::DarkGrey,
-        );
+        screen.puts(0, 24, strings::travel_cursor_prompt(), Color::Yellow);
+        screen.puts(12, 24, strings::travel_cursor_hint(), Color::DarkGrey);
     }
 
     // ---- Inventory overlay ----
@@ -1046,9 +1061,9 @@ pub fn render_you_died<W: Write>(
 ) -> std::io::Result<()> {
     screen.clear();
     let y = SCREEN_H / 2;
-    let msg = "You die...";
+    let msg = strings::you_die();
     screen.puts(centered_x(msg), y, msg, Color::Red);
-    let more = "--MORE-- (Press Space)";
+    let more = strings::more_prompt();
     screen.puts(centered_x(more), y + 2, more, Color::Yellow);
     screen.dirty_all = true;
     screen.flush(stdout, offset)?;
@@ -1069,7 +1084,8 @@ pub fn render_lose<W: Write>(
     screen.clear();
 
     let mut y = SCREEN_H / 2 - 2;
-    screen.puts(centered_x("LOSE"), y, "LOSE", Color::Red);
+    let title = strings::lose_title();
+    screen.puts(centered_x(title), y, title, Color::Red);
     y += 2;
 
     let name_line = player_name.to_uppercase();
@@ -1078,11 +1094,11 @@ pub fn render_lose<W: Write>(
     screen.puts(centered_x(cause), y, cause, Color::Grey);
     y += 2;
 
-    let score_line = format!("SCORE {}", score_text(score));
+    let score_line = strings::score_line(&score_text(score));
     screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
     y += 2;
 
-    let prompt = "Press any key to depart.";
+    let prompt = strings::press_any_key_to_depart();
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
 
     screen.dirty_all = true;
@@ -1103,18 +1119,19 @@ pub fn render_win<W: Write>(
     screen.clear();
 
     let mut y = SCREEN_H / 2 - 2;
-    screen.puts(centered_x("WIN"), y, "WIN", Color::Green);
+    let title = strings::win_title();
+    screen.puts(centered_x(title), y, title, Color::Green);
     y += 2;
 
     let name_line = player_name.to_uppercase();
     screen.puts(centered_x(&name_line), y, &name_line, Color::Cyan);
     y += 2;
 
-    let score_line = format!("SCORE {}", score_text(score));
+    let score_line = strings::score_line(&score_text(score));
     screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
     y += 2;
 
-    let prompt = "Press any key to depart.";
+    let prompt = strings::press_any_key_to_depart();
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
 
     screen.dirty_all = true;
@@ -1125,7 +1142,7 @@ pub fn render_win<W: Write>(
 /// One inventory row's full text: `" a) +1 ring mail (E) "`. The one place
 /// this shape lives, so sizing the box and drawing a row can never disagree.
 fn row_text(letter: char, name: &str, equipped: bool) -> String {
-    let suffix = if equipped { " (E)" } else { "" };
+    let suffix = if equipped { strings::equipped_suffix() } else { "" };
     format!(" {letter}) {name}{suffix} ")
 }
 
@@ -1138,10 +1155,10 @@ fn row_text(letter: char, name: &str, equipped: bool) -> String {
 /// answered by reflex, and it spells out both answers instead of leaning on
 /// "any key".
 fn draw_quit_prompt(screen: &mut Screen) {
-    const QUESTION: &str = "Really quit?";
-    const ANSWERS: &str = "[y] yes    [n] no";
+    let question: &str = strings::quit_question();
+    let answers: &str = strings::quit_answers();
 
-    let inner = ANSWERS.chars().count() as u16 + 4;
+    let inner = answers.chars().count() as u16 + 4;
     let x = (SCREEN_W - inner) / 2 - 1;
     let y = MAP_TOP + MAP_HEIGHT / 2 - 2;
     let grey = Color::DarkGrey;
@@ -1149,7 +1166,7 @@ fn draw_quit_prompt(screen: &mut Screen) {
     screen.put(x, y, '┌', grey);
     screen.hline(x + 1, y, '─', inner, grey);
     screen.put(x + 1 + inner, y, '┐', grey);
-    for (row, (text, color)) in [(QUESTION, Color::Yellow), (ANSWERS, Color::White)]
+    for (row, (text, color)) in [(question, Color::Yellow), (answers, Color::White)]
         .into_iter()
         .enumerate()
     {
@@ -1312,14 +1329,14 @@ fn draw_spells(world: &mut World, screen: &mut Screen) {
             let def = SpellDef::of(effect);
             let cost = models::spell_cost(world, player, effect);
             let letter = (b'a' + i as u8) as char;
-            format!(" {letter}) {} ({} Ma) ", def.name, cost)
+            format!(" {letter}) {} ({} Ma) ", def.display_name(), cost)
         })
         .collect();
 
     let start_x: u16 = 5;
     let start_y: u16 = 3;
     let grey = Color::DarkGrey;
-    let title = " SPELLS ";
+    let title = strings::spells_menu_title();
     let box_width = rows
         .iter()
         .map(|r| r.chars().count() as u16)
@@ -1382,8 +1399,9 @@ mod tests {
         let mut log = w.resource_mut::<GameLog>();
         log.unread.clear();
         for i in 0..12 {
-            log.unread
-                .push(format!("Message number {i} is a fairly long one."));
+            log.unread.push(LogEntry::plain(format!(
+                "Message number {i} is a fairly long one."
+            )));
         }
         assert!(
             log_view(&w.resource::<GameLog>().unread).2,
@@ -1437,5 +1455,58 @@ mod tests {
             !log_panel(&w).1,
             "nothing is waiting to be read: the gate has nothing to hold back"
         );
+    }
+
+    #[test]
+    fn status_tint_takes_asleep_over_everything_else() {
+        assert_eq!(
+            status_tint(true, true, true, true, true),
+            Some(Color::DarkBlue),
+            "asleep outranks paralysed, held-down, staggering, slowed"
+        );
+    }
+
+    #[test]
+    fn status_tint_gives_paralysis_its_own_colour() {
+        assert_eq!(
+            status_tint(false, true, true, true, true),
+            Some(Color::DarkYellow),
+            "paralysed outranks held-down, staggering, slowed, and reads as its own colour, not asleep's"
+        );
+    }
+
+    #[test]
+    fn status_tint_puts_a_bear_trap_and_hold_monster_on_the_same_colour() {
+        assert_eq!(
+            status_tint(false, false, true, false, false),
+            Some(Color::DarkGreen)
+        );
+        assert_eq!(
+            status_tint(false, false, true, true, true),
+            Some(Color::DarkGreen),
+            "held-down outranks staggering and slowed"
+        );
+    }
+
+    #[test]
+    fn status_tint_marks_confused_and_fleeing_the_same_yellow() {
+        assert_eq!(
+            status_tint(false, false, false, true, false),
+            Some(Color::Yellow)
+        );
+        assert_eq!(
+            status_tint(false, false, false, true, true),
+            Some(Color::Yellow),
+            "staggering outranks merely slowed"
+        );
+    }
+
+    #[test]
+    fn status_tint_falls_back_to_slowed_then_nothing() {
+        assert_eq!(
+            status_tint(false, false, false, false, true),
+            Some(Color::Grey)
+        );
+        assert_eq!(status_tint(false, false, false, false, false), None);
     }
 }

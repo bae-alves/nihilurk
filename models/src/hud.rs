@@ -3,58 +3,27 @@
 
 use crossterm::style::Color;
 
+use crate::components::{LogCategory, LogEntry};
+
 // Message-log sizing (rows shown, wrap widths). Defined and documented in
 // `constants.rs`; re-exported so `hud::LOG_LINES` etc. keep resolving.
 pub use crate::constants::hud::{LOG_LINES, LOG_MORE_WIDTH, LOG_WIDTH};
 
-/// Sparingly colours one log *message* — with two exceptions (a trick shot and
-/// a combo, both magenta) only when it reads as happening *to the player*
-/// (contains "you"), and only for a handful of categories worth
-/// calling out: a curse taking hold (dark red), a dazzle (magenta), the
-/// low-HP warning (red), the player's own speed shifting (cyan hasted, dark
-/// cyan slowed), or the player throwing/firing something (yellow, to make it
-/// read as juicier than an ordinary log line). Everything else stays the
-/// plain log colour.
-///
-/// This is asked per message, never per painted line. Several messages share a
-/// line ([`pack_line_segments`]) and each keeps its own colour — one shouting
-/// message must not repaint the sentences that happen to sit beside it.
-pub fn log_line_color(line: &str) -> Color {
-    let lower = line.to_ascii_lowercase();
-    // The two lines that shout before the "you" gate below. A trap going off
-    // because something *shot* it is the player's doing whether or not the
-    // sentence says so; and a combo's "With style." is the game applauding the
-    // player in three words, none of which is "you".
-    if lower.contains("trick shot") || lower.contains("with style") {
-        return Color::Magenta;
+impl LogCategory {
+    /// The colour this category alone implies. [`LogCategory::Pride`] is the
+    /// one exception — [`log_paint`] stripes it instead of using this.
+    fn color(self) -> Color {
+        match self {
+            LogCategory::Plain => Color::White,
+            LogCategory::TrickShot | LogCategory::Combo | LogCategory::Dazzle => Color::Magenta,
+            LogCategory::Curse => Color::DarkRed,
+            LogCategory::Wounded => Color::Red,
+            LogCategory::Haste => Color::Cyan,
+            LogCategory::Slowed => Color::DarkCyan,
+            LogCategory::Thrown => Color::Yellow,
+            LogCategory::Pride => Color::White,
+        }
     }
-    if !lower.contains("you") {
-        return Color::White;
-    }
-    if lower.contains("curse") {
-        return Color::DarkRed;
-    }
-    if lower.contains("dazzl") {
-        return Color::Magenta;
-    }
-    if lower.contains("wounded") {
-        return Color::Red;
-    }
-    // The haste/slow messages ("the world lurches into slow motion around
-    // you", "your limbs turn to lead", and the two "already as
-    // quick/sluggish as you can be" refusals) are matched on their distinct
-    // halves rather than a generic "fast"/"slow" — the haste line's own text
-    // ironically contains "slow motion".
-    if lower.contains("quick") || lower.contains("slow motion around you") {
-        return Color::Cyan;
-    }
-    if lower.contains("sluggish") || lower.contains("limbs turn to lead") {
-        return Color::DarkCyan;
-    }
-    if lower.contains("you throw") || lower.contains("you fire") {
-        return Color::Yellow;
-    }
-    Color::White
 }
 
 /// How one log message is painted.
@@ -80,16 +49,18 @@ impl LogPaint {
 
 /// The one log line in the game that comes out in colours rather than a colour.
 /// See [`crate::score`], which writes it on the tenth combo or so.
-pub const PRIDE_LINE: &str = "With pride.";
+pub fn pride_line() -> &'static str {
+    strings::with_pride()
+}
 
-/// How to paint one log message: [`log_line_color`] for all but the one that
-/// earns the flag, which is striped with `stripes` — whatever flag the run is
-/// flying (see [`crate::pride::stripes`]).
-pub fn log_paint(message: &str, stripes: &'static [Color]) -> LogPaint {
-    if message.contains(PRIDE_LINE) {
-        return LogPaint::Striped(stripes);
+/// How to paint one log message: solid, off its own [`LogCategory`], except
+/// [`LogCategory::Pride`] which stripes with `stripes` — whatever flag the
+/// run is flying (see [`crate::pride::stripes`]).
+pub fn log_paint(message: &LogEntry, stripes: &'static [Color]) -> LogPaint {
+    match message.category {
+        LogCategory::Pride => LogPaint::Striped(stripes),
+        other => LogPaint::Solid(other.color()),
     }
-    LogPaint::Solid(log_line_color(message))
 }
 
 /// Packs `messages` into at most `max_lines` lines no wider than `width`, each
@@ -104,12 +75,12 @@ pub fn log_paint(message: &str, stripes: &'static [Color]) -> LogPaint {
 ///
 /// Returns the packed lines and how many messages they cover.
 pub fn pack_line_segments(
-    messages: &[String],
+    messages: &[LogEntry],
     width: usize,
     max_lines: usize,
-) -> (Vec<Vec<String>>, usize) {
-    let mut lines: Vec<Vec<String>> = Vec::new();
-    let mut cur: Vec<String> = Vec::new();
+) -> (Vec<Vec<LogEntry>>, usize) {
+    let mut lines: Vec<Vec<LogEntry>> = Vec::new();
+    let mut cur: Vec<LogEntry> = Vec::new();
     let mut cur_len = 0usize;
     let mut consumed = 0usize;
 
@@ -146,7 +117,7 @@ pub fn pack_line_segments(
 /// into the messages on it, so each can be painted in its own colour — how many
 /// unread messages they cover, and whether a `--MORE--` prompt is required
 /// because more messages are queued than fit.
-pub fn log_view(unread: &[String]) -> (Vec<Vec<String>>, usize, bool) {
+pub fn log_view(unread: &[LogEntry]) -> (Vec<Vec<LogEntry>>, usize, bool) {
     let (lines, consumed) = pack_line_segments(unread, LOG_WIDTH, LOG_LINES);
     if consumed >= unread.len() {
         return (lines, consumed, false);

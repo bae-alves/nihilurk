@@ -69,10 +69,11 @@ fn score(w: &mut World) -> i64 {
 }
 
 fn logged(w: &World, needle: &str) -> bool {
-    w.resource::<GameLog>()
-        .history
+    let log = w.resource::<GameLog>();
+    log.history
         .iter()
-        .chain(w.resource::<GameLog>().unread.iter())
+        .map(String::as_str)
+        .chain(log.unread.iter().map(|e| e.text.as_str()))
         .any(|l| l.contains(needle))
 }
 

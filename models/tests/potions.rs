@@ -226,7 +226,7 @@ fn confusion_confuses_the_player_and_staggers_a_monster() {
     assert!(w.get::<Confused>(p).is_some());
 
     let orc = spawn_dummy(&mut w, "orc", 5, 5);
-    assert!(confuse(&mut w, orc, "you", "reels"));
+    assert!(confuse(&mut w, orc, "you", LogCategory::Plain, "reels"));
     assert!(matches!(
         w.get::<Mob>(orc).unwrap().movement_type,
         MovementType::Confused

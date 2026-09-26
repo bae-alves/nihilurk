@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::body::equip_refusal;
 use crate::components::{
-    Backpack, Curse, GameLog, KnownQuality, Launcher, Player, Position, Reach,
+    Backpack, Curse, GameLog, KnownQuality, Launcher, LogCategory, Player, Position, Reach,
 };
 use crate::effects::{
     ArmorBonus, Bided, Effects, Grant, Grants, Held, Lifetime, Momentum, OnDoff, OnWear,
@@ -55,17 +55,17 @@ impl Slot {
     /// "You ___ the dagger." — logged when the item goes on.
     fn donned(self, name: &str) -> String {
         match self {
-            Slot::Hand => format!("You wield the {name}."),
-            Slot::Body | Slot::Finger => format!("You put on the {name}."),
+            Slot::Hand => strings::donned_hand(name),
+            Slot::Body | Slot::Finger => strings::donned_body_or_finger(name),
         }
     }
 
     /// "You ___ the dagger." — logged when the item comes off.
     fn doffed(self, name: &str) -> String {
         match self {
-            Slot::Hand => format!("You stop wielding the {name}."),
-            Slot::Body => format!("You take off the {name}."),
-            Slot::Finger => format!("You remove the {name}."),
+            Slot::Hand => strings::doffed_hand(name),
+            Slot::Body => strings::doffed_body(name),
+            Slot::Finger => strings::doffed_finger(name),
         }
     }
 
@@ -73,9 +73,9 @@ impl Slot {
     /// can't be thrown (see [`crate::items::throw_refusal`]).
     pub(crate) fn stuck(self, name: &str) -> String {
         match self {
-            Slot::Hand => format!("You can't — the {name} is welded to your grip!"),
-            Slot::Body => format!("You can't — the {name} clings to you and won't come off!"),
-            Slot::Finger => format!("You can't — the {name} is fused to your finger!"),
+            Slot::Hand => strings::stuck_hand(name),
+            Slot::Body => strings::stuck_body(name),
+            Slot::Finger => strings::stuck_finger(name),
         }
     }
 
@@ -83,18 +83,18 @@ impl Slot {
     /// as one, right after [`Slot::donned`].
     fn cursed_reveal(self, name: &str) -> String {
         match self {
-            Slot::Hand => format!("The {name} welds itself to your grip! It is cursed!"),
-            Slot::Body => format!("The {name} clings to your body! It is cursed!"),
-            Slot::Finger => format!("The {name} welds to your finger! It is cursed!"),
+            Slot::Hand => strings::cursed_reveal_hand(name),
+            Slot::Body => strings::cursed_reveal_body(name),
+            Slot::Finger => strings::cursed_reveal_finger(name),
         }
     }
 
     /// Why the cursed item already in this slot blocks a swap.
     fn blocked(self, name: &str) -> String {
         match self {
-            Slot::Hand => format!("You can't switch weapons — the {name} won't leave your hand."),
-            Slot::Body => format!("You can't change armour — the {name} won't come off."),
-            Slot::Finger => format!("You can't — the {name} won't leave your finger."),
+            Slot::Hand => strings::blocked_hand(name),
+            Slot::Body => strings::blocked_body(name),
+            Slot::Finger => strings::blocked_finger(name),
         }
     }
 }
@@ -190,7 +190,7 @@ pub fn worn_tag_from(names: impl Iterator<Item = String>) -> String {
     // ponytail: a plain comma list, no "and" before the last — four items is
     // the ceiling (two hands' worth is one, armour, two rings) and the tag is
     // a glance, not a sentence.
-    format!(" (w. {})", names.join(", "))
+    strings::worn_tag(&names.join(", "))
 }
 
 /// The bow or crossbow `entity` currently has in `Slot::Hand`, if any. `f`
@@ -308,7 +308,7 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         let true_name = item_label(world, item);
         world
             .resource_mut::<GameLog>()
-            .add(slot.cursed_reveal(&true_name));
+            .add_colored(slot.cursed_reveal(&true_name), LogCategory::Curse);
     }
 
     // Last of all, anything that happens *because* it went on, rather than
@@ -391,7 +391,7 @@ pub fn corrode_armor(world: &mut World, victim: Entity) -> bool {
         if is_player {
             world
                 .resource_mut::<GameLog>()
-                .add("Your armour drinks the corrosion and shrugs it off.".to_string());
+                .add(strings::armor_shrugs_off_corrosion());
         }
         return false;
     }
@@ -401,7 +401,7 @@ pub fn corrode_armor(world: &mut World, victim: Entity) -> bool {
         let name = display_name(world, armor);
         world
             .resource_mut::<GameLog>()
-            .add(format!("Your {name} corrodes! It is weaker."));
+            .add(strings::armor_corrodes(&name));
     }
     true
 }

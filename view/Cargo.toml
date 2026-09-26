@@ -7,8 +7,15 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["lang-en"]
+lang-en = ["models/lang-en"]
+lang-pt = ["models/lang-pt"]
+lang-es = ["models/lang-es"]
+lang-ht = ["models/lang-ht"]
+
 [dependencies]
 # The playfield's dimensions, and nothing else. `view` knows how big a frame is
 # and how to get one onto a terminal; what is *in* it is `engine`'s business.
-models = { path = "../models" }
+models = { path = "../models", default-features = false }
 crossterm = "0.29.0"

@@ -64,6 +64,12 @@ pub mod combat {
     /// The flat bonus the spell Bide adds to the attack roll of the very next
     /// blow its caster lands — see [`crate::effects::Bided`].
     pub const BIDE_ATTACK_BONUS: i32 = 4;
+
+    /// How many dice a normal attack or armour roll averages together —
+    /// see [`crate::combat::roll_die_bell`]. At 1 it is a flat `1d[sides]`
+    /// like an excellent hit; raising it narrows the spread further without
+    /// moving the mean or the min/max off the plain die's.
+    pub const BELL_CURVE_DICE: i32 = 2;
 }
 
 // ===========================================================================

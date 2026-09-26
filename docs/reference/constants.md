@@ -27,6 +27,7 @@ The modules
 |---------------|-------|-----------------------------|
 | `combat`      | Excellent-hit odds and dice, the chip-damage floor, the odds a corpse keeps each piece of gear | how swingy a fight is |
 | `player`      | Starting HP / armour / power / magic, sight radius | the hero's opening position (new games only) |
+| `lurk`        | Starting HP / magic (`-b lurk`), `GROWTH_CHANCE` and `GROWTH_STEP` for feeding off a kill | how the lurk starts and how fast it grows |
 | `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor, `DIFFICULTY_TIER_LAST_DEPTH` (the depth bands the crowding budgets step at) | how long a run is and how hard attrition bites |
 | `map`         | `WIDTH`, `HEIGHT`, dark-room chance | the playfield (see the determinism caveat below) |
 | `population`  | Monster / trap / item budgets per floor, how they scale with the difficulty tier, corridor lurkers, hidden items | how crowded and dangerous a floor is |

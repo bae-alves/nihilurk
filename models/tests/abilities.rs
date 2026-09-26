@@ -291,6 +291,40 @@ fn a_venomous_bite_drains_the_victims_power() {
     );
 }
 
+/// A bite the player *lands* used to drain in total silence — the log line
+/// was gated on the victim being the player, never on the victim existing.
+/// Fixed to match `stagger`/`blind`'s split: second person for the player,
+/// the victim's own name in the third otherwise.
+#[test]
+fn a_venomous_bite_announces_itself_whoever_it_bites() {
+    let mut w = arena(1);
+    let biter = dummy(&mut w, 10, 4);
+    w.entity_mut(biter).insert(Venomous);
+    let victim = dummy(&mut w, 10, 8); // Name: "dummy", not the player
+
+    fire_on_hit(&mut w, biter, victim, CLEAN);
+
+    let said = &w.resource::<GameLog>().history;
+    assert!(
+        said.iter().any(|l| l.contains("dummy")),
+        "a bite the player landed on a monster said nothing about it: {said:?}"
+    );
+
+    let mut w = arena(1);
+    let biter = dummy(&mut w, 10, 4);
+    w.entity_mut(biter).insert(Venomous);
+    let victim = hero(&mut w, at(11, 10), 10, 8);
+
+    fire_on_hit(&mut w, biter, victim, CLEAN);
+
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .contains(&"Venom courses through you — your strength ebbs away.".to_string()),
+        "the player-victim line changed shape"
+    );
+}
+
 /// The `SustainsStrength` guard, which is currently written out three times
 /// (`abilities.rs`, `traps.rs`, `spells.rs`). This covers the venom copy; the
 /// other two belong to the trap and spell suites.
@@ -330,6 +364,23 @@ fn a_draining_touch_lowers_the_victims_ceiling() {
     assert!(
         hp_of(&w, victim) <= after,
         "current HP was left above the new ceiling"
+    );
+}
+
+/// Same fix, same shape, for the vampire's touch.
+#[test]
+fn a_draining_touch_announces_itself_whoever_it_drains() {
+    let mut w = arena(1);
+    let attacker = dummy(&mut w, 10, 4);
+    w.entity_mut(attacker).insert(Vampiric);
+    let victim = dummy(&mut w, 20, 8); // Name: "dummy", not the player
+
+    fire_on_hit(&mut w, attacker, victim, CLEAN);
+
+    let said = &w.resource::<GameLog>().history;
+    assert!(
+        said.iter().any(|l| l.contains("dummy")),
+        "a drain the player landed on a monster said nothing about it: {said:?}"
     );
 }
 
@@ -376,6 +427,65 @@ fn a_freezing_touch_can_paralyse_and_nothing_else_does() {
     assert!(
         !froze_without,
         "something with no Freezing marker paralysed its victim"
+    );
+}
+
+/// A monster's `Paralyzed` marker is tint-only in the HUD, but the log should
+/// not stay just as silent: `conditions::set_speed` already prints a generic
+/// slow-down line for *any* monster regardless of what caused it (that part is
+/// unconditional, on purpose — a wand of slow monster wants exactly that
+/// line). Paralysis earns a second, dedicated line on top of it — but only
+/// when the player could actually watch it happen, the same rule
+/// `conditions::report_cure` already holds a mending monster to.
+#[test]
+fn a_visible_monsters_paralysis_gets_a_line_of_its_own() {
+    let mut w = arena(1);
+    let p = hero(&mut w, at(5, 5), 20, 4);
+    let victim = creature(&mut w, at(6, 5), 10, 3);
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(6, 5)];
+
+    paralyse(&mut w, victim);
+
+    let name = w.get::<Name>(victim).unwrap().what.clone();
+    let mentions = w
+        .resource::<GameLog>()
+        .history
+        .iter()
+        .filter(|l| l.contains(&name))
+        .count();
+    assert_eq!(
+        mentions, 2,
+        "a paralysis landing in plain sight should say so, on top of the \
+         generic slow-down: {:?}",
+        w.resource::<GameLog>().history
+    );
+}
+
+/// The other half: nothing new is said about a monster paralysed out of
+/// sight — it still gets the generic slow-down line `set_speed` always
+/// prints, but not the dedicated paralysis line, which would leak that
+/// something happened in a room the player has never seen.
+#[test]
+fn an_unseen_monsters_paralysis_only_gets_the_generic_slow_line() {
+    let mut w = arena(1);
+    let p = hero(&mut w, at(5, 5), 20, 4);
+    let victim = creature(&mut w, at(50, 50), 10, 3);
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(6, 5)];
+
+    paralyse(&mut w, victim);
+
+    let name = w.get::<Name>(victim).unwrap().what.clone();
+    let mentions = w
+        .resource::<GameLog>()
+        .history
+        .iter()
+        .filter(|l| l.contains(&name))
+        .count();
+    assert_eq!(
+        mentions, 1,
+        "a paralysis nobody could see should stay as quiet as it already \
+         was: {:?}",
+        w.resource::<GameLog>().history
     );
 }
 

@@ -95,6 +95,15 @@ Three consequences worth knowing before you pick a rat:
     and never did. It is the same spell a hero coin teaches, cast through the
     same reticle, and the dragons on floor 10 breathe it too.
 
+**This will never be a balanced mode of play.** A floor-1 kestral and a
+floor-10 dragon are both one `-am` away, and nothing gates which one you're
+allowed to start as, or scales the dungeon to match your pick. That's
+deliberate: `-am` is a costume, not a difficulty setting, and every row in
+the bestiary is tuned to be one thing a `@` fights, never to be the `@`
+fighting everything else. Play it for the joke, the curiosity, or the
+content-author's need to see a species from the inside -- not for a fair
+fight.
+
 ### Bodies and species
 
 Cancellation draws a line between the two, on purpose.

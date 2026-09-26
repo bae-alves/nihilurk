@@ -674,7 +674,7 @@ impl Effect {
 /// The id and the type sit on the same line so the two cannot drift apart,
 /// the same reason `modifiers!` generates its struct and its fold together.
 macro_rules! effects {
-    ($($id:literal => $ty:ty $(, ends $ends:literal)? $(, beware $beware:literal)? ;)*) => {
+    ($($id:literal => $ty:ty $(, ends $ends:expr)? $(, beware $beware:expr)? ;)*) => {
         /// Every marker effect in the game.
         ///
         /// Each row pairs a **stable string id** with the component it attaches. The
@@ -715,28 +715,28 @@ effects! {
     "vorpal_target" => VorpalTarget;
     "sees_invisible" => SeesInvisible;
     "sustains_strength" => SustainsStrength;
-    "aggravates_monsters" => AggravatesMonsters, beware "aggravating shriek";
+    "aggravates_monsters" => AggravatesMonsters, beware strings::beware_aggravating_shriek();
     "item_user" => ItemUser;
     "fire_arrow" => FireArrow;
     "fire_quarrel" => FireQuarrel;
     "sustains_armor" => SustainsArmor;
-    "rusts_armor" => RustsArmor, beware "corrosive touch";
+    "rusts_armor" => RustsArmor, beware strings::beware_corrosive_touch();
     "sluggish" => Sluggish;
     "stealthy" => Stealthy;
-    "regenerates" => Regenerates, beware "regeneration";
+    "regenerates" => Regenerates, beware strings::beware_regeneration();
     "teleportitis" => Teleportitis;
     "flies" => Flies;
-    "batty" => Batty, beware "erratic strikes";
-    "binds" => Binds, beware "binding bite";
-    "gorgon" => Gorgon, beware "petrifying gaze";
-    "vampiric" => Vampiric, beware "draining touch";
-    "venomous" => Venomous, beware "venomous bite";
+    "batty" => Batty, beware strings::beware_erratic_strikes();
+    "binds" => Binds, beware strings::beware_binding_bite();
+    "gorgon" => Gorgon, beware strings::beware_petrifying_gaze();
+    "vampiric" => Vampiric, beware strings::beware_draining_touch();
+    "venomous" => Venomous, beware strings::beware_venomous_bite();
     "coin_greedy" => CoinGreedy;
-    "splits" => Splits, beware "splitting flesh";
-    "freezing" => Freezing, beware "paralysing touch";
-    "steals_and_flees" => StealsAndFlees, beware "thieving touch";
-    "steals_and_vanishes" => StealsAndVanishes, beware "thieving touch";
-    "fire_breath" => FireBreath, beware "fire breath";
+    "splits" => Splits, beware strings::beware_splitting_flesh();
+    "freezing" => Freezing, beware strings::beware_paralysing_touch();
+    "steals_and_flees" => StealsAndFlees, beware strings::beware_thieving_touch();
+    "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch();
+    "fire_breath" => FireBreath, beware strings::beware_fire_breath();
     "cleaves" => Cleaves;
     "heavy_swing" => HeavySwing;
     "fencer" => Fencer;
@@ -748,17 +748,17 @@ effects! {
     "self_damage_on_hit" => SelfDamageOnHit;
     "builds_momentum" => BuildsMomentum;
     "shatters_stone" => ShattersStone;
-    "confusing_touch" => ConfusingTouch, beware "confusing touch";
+    "confusing_touch" => ConfusingTouch, beware strings::beware_confusing_touch();
     "bided" => Bided;
     // The holds. Each ends on its own clock, so a creature can be both asleep
     // and pinned and come out of each when its own turns run out — where the
     // one `Snare` component these replaced could only ever record the most
     // recent of them.
-    "asleep" => Asleep, ends "You shake off the drowsiness and come to.";
+    "asleep" => Asleep, ends strings::ends_asleep();
     // The fourth hold, and the one that is not a `HOLDS` row — see `Petrified`.
-    "petrified" => Petrified, ends "The stone sloughs off you and your flesh is your own again.";
-    "pinned" => Pinned, ends "You wrench your leg free of the bear trap.";
-    "rooted" => Rooted, ends "Whatever was holding you lets go.";
+    "petrified" => Petrified, ends strings::ends_petrified();
+    "pinned" => Pinned, ends strings::ends_pinned();
+    "rooted" => Rooted, ends strings::ends_rooted();
     // The afflictions. Held for `Lifetime::Floor`, so a staircase lifts them
     // through the same machinery a potion of see invisible already used.
     "confused" => Confused;

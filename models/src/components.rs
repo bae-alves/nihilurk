@@ -710,9 +710,9 @@ impl Element {
     /// The word for this element in an "unharmed by the ___" log line.
     pub fn noun(self) -> &'static str {
         match self {
-            Element::Fire => "flames",
-            Element::Cold => "cold",
-            Element::Drain => "evil magic",
+            Element::Fire => strings::element_fire_noun(),
+            Element::Cold => strings::element_cold_noun(),
+            Element::Drain => strings::element_drain_noun(),
         }
     }
 }
@@ -1058,28 +1058,120 @@ pub struct TargetingState {
 // Run state (resources)
 // ===========================================================================
 
+/// Why a log line is painted the way it is — decided once, by whoever writes
+/// the message, and carried on [`LogEntry`] from then on. The alternative
+/// (guessing a line's category back out of its rendered English text — see
+/// `hud::log_paint`'s doc comment for why that used to be the design) breaks
+/// the instant a translation stops sharing English's words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LogCategory {
+    #[default]
+    Plain,
+    /// A trick shot's shout — the ordinary one and the ULTIMATE one alike.
+    TrickShot,
+    /// A combo kill's "With style.", and the ring of adornment's own line of
+    /// the same six words — the same feat, so the same colour.
+    Combo,
+    /// A combo kill lucky enough to earn the flag instead — striped, not
+    /// solid; see `hud::log_paint`.
+    Pride,
+    /// A curse taking hold or letting go.
+    Curse,
+    /// A dazzle landing on the player.
+    Dazzle,
+    /// The player crossing the low-HP threshold.
+    Wounded,
+    /// The player's own tempo shifting faster.
+    Haste,
+    /// The player's own tempo shifting slower.
+    Slowed,
+    /// The player throwing or firing something.
+    Thrown,
+}
+
+/// One line for the message log: its text, and the [`LogCategory`] it was
+/// written with. Derefs to `str` and compares equal to one, so most existing
+/// callers that only care about the text (a test's `.contains(...)`) never
+/// have to know this wraps anything.
+#[derive(Debug, Clone)]
+pub struct LogEntry {
+    pub text: String,
+    pub category: LogCategory,
+}
+
+impl LogEntry {
+    pub fn plain<S: Into<String>>(text: S) -> Self {
+        Self {
+            text: text.into(),
+            category: LogCategory::Plain,
+        }
+    }
+
+    pub fn tagged<S: Into<String>>(text: S, category: LogCategory) -> Self {
+        Self {
+            text: text.into(),
+            category,
+        }
+    }
+}
+
+impl std::ops::Deref for LogEntry {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.text
+    }
+}
+
+impl std::fmt::Display for LogEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.text)
+    }
+}
+
+impl PartialEq<str> for LogEntry {
+    fn eq(&self, other: &str) -> bool {
+        self.text == other
+    }
+}
+
 /// The message log: everything that has happened (`history`, capped at 50) and
 /// everything the player has not yet acknowledged with `--MORE--` (`unread`).
+/// `history` is plain text — nothing ever colours the scrollback — while
+/// `unread` is what's actually painted, so it keeps each line's [`LogCategory`].
 #[derive(Resource)]
 pub struct GameLog {
     pub history: Vec<String>,
-    pub unread: Vec<String>, // The queue of messages waiting for a --MORE-- acknowledgment
+    pub unread: Vec<LogEntry>, // The queue of messages waiting for a --MORE-- acknowledgment
 }
 
 impl Default for GameLog {
     fn default() -> Self {
+        let mut unread = vec![LogEntry::plain(strings::welcome_new_run())];
+        // Only a binary whose translation isn't finished has one of these —
+        // see `strings::beta_notice`'s own doc comment.
+        if let Some(notice) = strings::beta_notice() {
+            unread.push(LogEntry::plain(notice));
+        }
         Self {
             history: Vec::new(),
-            unread: vec!["Welcome to nihilurk! Good luck and have fun!".to_string()],
+            unread,
         }
     }
 }
 
 impl GameLog {
+    /// A plain (white) log line — everything that isn't one of the handful of
+    /// categories [`GameLog::add_colored`] exists for.
     pub fn add<S: Into<String>>(&mut self, message: S) {
+        self.add_colored(message, LogCategory::Plain);
+    }
+
+    /// A log line tagged with the category that decides how it's painted —
+    /// set here, at the message's origin, never guessed at later from its text.
+    pub fn add_colored<S: Into<String>>(&mut self, message: S, category: LogCategory) {
         let msg = message.into();
         self.history.push(msg.clone());
-        self.unread.push(msg); // Push to the unread queue!
+        self.unread.push(LogEntry::tagged(msg, category));
 
         if self.history.len() > 50 {
             self.history.remove(0);

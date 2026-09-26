@@ -22,7 +22,7 @@ use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use rand::Rng;
 
-use crate::components::{Consume, GameLog, Magic, Player, Position};
+use crate::components::{Consume, GameLog, LogCategory, Magic, Player, Position};
 use crate::effects::{OnWear, Teleportitis};
 use crate::helpers::item_label;
 use crate::map::FxRng;
@@ -70,12 +70,7 @@ const FIREWORK_STAGGER_MS: f32 = 90.0;
 /// The lines the flourish reads out, in order. Deliberately more words than
 /// anything else in the game gives one event: this is the only moment in a run
 /// that exists purely to be looked at.
-const FANFARE: [&str; 4] = [
-    "Magenta, cyan and gold pour off you all at once.",
-    "The dungeon, briefly, is a ballroom.",
-    "And you do it with style!",
-    "Your score is doubled!",
-];
+use strings::FANFARE;
 
 // ---------------------------------------------------------------------------
 // Adornment
@@ -99,8 +94,15 @@ pub(crate) fn do_it_with_style(world: &mut World) {
     kick_shake(world, ShakeKind::Heavy);
     crate::score::double(world);
     let mut log = world.resource_mut::<GameLog>();
-    for line in FANFARE {
-        log.add(line.to_string());
+    for (i, line) in FANFARE.into_iter().enumerate() {
+        // Line 2, "And you do it with style!", is the same flourish a combo's
+        // magenta shout is (see `LogCategory::Combo`) — the rest are plain.
+        let category = if i == 2 {
+            LogCategory::Combo
+        } else {
+            LogCategory::Plain
+        };
+        log.add_colored(line.to_string(), category);
     }
 }
 
@@ -146,7 +148,7 @@ pub(crate) fn wear_adornment(world: &mut World, wearer: Entity, item: Entity) {
     let name = item_label(world, item);
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {name} has nothing left to give."));
+        .add(strings::adornment_spent(&name));
     // The pack is not this module's to reach into — tagging the ring is how
     // anything in the game asks to be spent, and `crate::items` does the rest.
     world.entity_mut(item).insert(Consume);

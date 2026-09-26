@@ -149,7 +149,7 @@ fn fire_bolt(
         }
         world
             .resource_mut::<GameLog>()
-            .add(format!("You drain {taken} life."));
+            .add(strings::drain_life_gained(taken));
     }
 }
 
@@ -380,8 +380,9 @@ pub(super) fn dazzle(world: &mut World, entity: Entity) {
     confuse(
         world,
         entity,
-        "The flash leaves you reeling — you are dazzled!",
-        "is dazzled",
+        strings::dazzle_player_line(),
+        LogCategory::Dazzle,
+        strings::dazzle_mob_verb(),
     );
 }
 
@@ -441,7 +442,7 @@ pub(super) fn apply_wand_effect(
             user_pos,
             target_pos,
             effect,
-            "A brilliant cyan bolt leaps from the wand!",
+            strings::bolt_magic_missile(),
             Color::Cyan,
         ),
         WandEffect::Lightning => fire_bolt(
@@ -450,7 +451,7 @@ pub(super) fn apply_wand_effect(
             user_pos,
             target_pos,
             effect,
-            "A forking bolt of lightning cracks out!",
+            strings::bolt_lightning(),
             Color::Yellow,
         ),
         WandEffect::Striking => fire_bolt(
@@ -459,7 +460,7 @@ pub(super) fn apply_wand_effect(
             user_pos,
             target_pos,
             effect,
-            "An invisible fist hammers down the line!",
+            strings::bolt_striking(),
             Color::White,
         ),
         WandEffect::DrainLife => fire_bolt(
@@ -468,15 +469,15 @@ pub(super) fn apply_wand_effect(
             user_pos,
             target_pos,
             effect,
-            "A tendril of black light drinks the life from its path.",
+            strings::bolt_drain_life(),
             Color::DarkMagenta,
         ),
         WandEffect::Fire | WandEffect::Cold => {
             let is_fire = effect == WandEffect::Fire;
             let msg = if is_fire {
-                "A roaring sphere of fire erupts!"
+                strings::blast_fire()
             } else {
-                "A blast of freezing air detonates!"
+                strings::blast_cold()
             };
             let damage = roll_wand_damage(world);
             world.resource_mut::<GameLog>().add(msg.to_string());
@@ -499,7 +500,7 @@ pub(super) fn apply_wand_effect(
         WandEffect::Nothing => {
             world
                 .resource_mut::<GameLog>()
-                .add("The wand does nothing. It was well named.".to_string());
+                .add(strings::wand_does_nothing());
         }
         // Light has no target and returns above, before this match — it can
         // never actually reach here, but the arm still has to exist for the
@@ -595,15 +596,15 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
         }
         world
             .resource_mut::<GameLog>()
-            .add(format!("The light reveals {label}!"));
+            .add(strings::light_reveals(&label));
     }
 
     let msg = if in_room {
-        "Warm light floods the room."
+        strings::light_floods_room()
     } else {
-        "Light races the length of the passage."
+        strings::light_races_passage()
     };
-    world.resource_mut::<GameLog>().add(msg.to_string());
+    world.resource_mut::<GameLog>().add(msg);
 }
 
 /// Wand of polymorph: replace the monster on `pos` with a different species,
@@ -612,7 +613,7 @@ fn polymorph_target(world: &mut World, pos: Position) {
     let Some(victim) = monster_at(world, pos) else {
         world
             .resource_mut::<GameLog>()
-            .add("The bolt of change fizzles against nothing.".to_string());
+            .add(strings::polymorph_fizzles());
         return;
     };
     polymorph_entity(world, victim);
@@ -625,7 +626,7 @@ pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
     if world.get::<Player>(victim).is_some() {
         world
             .resource_mut::<GameLog>()
-            .add("You feel like a new person.".to_string());
+            .add(strings::polymorph_self_player());
         return;
     }
     if world.get::<Mob>(victim).is_none() {
@@ -649,14 +650,11 @@ pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
         rng.0.gen_range(0..BESTIARY.len())
     };
     let def = &BESTIARY[idx];
-    let new_name = def.name.to_string();
+    let new_name = def.display_name().to_string();
     spawn_monster(world, def, pos);
     let line = match new_name == old_name {
-        true => format!("The {old_name} twists and warps into a different-looking {new_name}!"),
-        false => format!(
-            "The {old_name} twists and warps into {} {new_name}!",
-            article_for(&new_name)
-        ),
+        true => strings::polymorph_same_looking(&old_name, &new_name),
+        false => strings::polymorph_different(&old_name, article_for(&new_name), &new_name),
     };
     world.resource_mut::<GameLog>().add(line);
     leave_smoke_ring(world, pos);
@@ -669,7 +667,7 @@ fn shift_target_speed(world: &mut World, pos: Position, faster: bool) {
     let Some(victim) = monster_at(world, pos) else {
         world
             .resource_mut::<GameLog>()
-            .add("Nothing there to enchant.".to_string());
+            .add(strings::nothing_to_enchant());
         return;
     };
     shift_entity_speed(world, victim, faster);
@@ -680,7 +678,7 @@ fn teleport_target_away(world: &mut World, pos: Position) {
     let Some(victim) = monster_at(world, pos) else {
         world
             .resource_mut::<GameLog>()
-            .add("The wand's pull finds nothing.".to_string());
+            .add(strings::teleport_pull_finds_nothing());
         return;
     };
     teleport_entity_away(world, victim);
@@ -720,7 +718,7 @@ pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {name} is yanked away into the dark."));
+        .add(strings::yanked_into_dark(&name));
 }
 
 /// Wand of teleport to: drag the target monster to a tile next to the zapper.
@@ -751,7 +749,7 @@ fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos
     }
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {name} is dragged to your side!"));
+        .add(strings::dragged_to_your_side(&name));
 }
 
 /// A teleport with nowhere to put the passenger. The magic does not politely
@@ -766,9 +764,9 @@ fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos
 /// gear and bursts exactly as a bolt's kill does.
 fn burst_in_transit(world: &mut World, victim: Entity, source: Option<Position>) {
     let name = item_label(world, victim);
-    world.resource_mut::<GameLog>().add(format!(
-        "The {name} is dragged into the space between and comes apart — it bursts in a spray of gore!"
-    ));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::bursts_in_transit(&name));
     crate::combat::finish_indirect_kill(world, victim, source);
 }
 
@@ -776,12 +774,9 @@ fn burst_in_transit(world: &mut World, victim: Entity, source: Option<Position>)
 /// started, to no effect but the indignity.
 pub(super) fn teleport_entity_to_self(world: &mut World, who: Entity) {
     let msg = if world.get::<Player>(who).is_some() {
-        "You teleport straight to yourself. What a trip.".to_string()
+        strings::teleport_self_player().to_string()
     } else {
-        format!(
-            "The {} teleports directly to themselves.",
-            item_label(world, who)
-        )
+        strings::teleport_self_mob(&item_label(world, who))
     };
     world.resource_mut::<GameLog>().add(msg);
 }
@@ -794,7 +789,7 @@ fn cancel_target(world: &mut World, pos: Position) {
     let Some(victim) = monster_at(world, pos) else {
         world
             .resource_mut::<GameLog>()
-            .add("The grey ray strikes only stone.".to_string());
+            .add(strings::cancellation_strikes_stone());
         return;
     };
     cancel_entity(world, victim);
@@ -814,7 +809,7 @@ pub(super) fn cancel_entity(world: &mut World, victim: Entity) {
     }
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {name}'s magic sputters and dies."));
+        .add(strings::cancellation_sputters(&name));
 }
 
 /// Cancellation caught the player in its blast. This is a catastrophe: every
@@ -858,13 +853,13 @@ fn cancel_player(world: &mut World, player: Entity) {
         if let Some(mut scroll) = em.get_mut::<Scroll>() {
             scroll.effect = ScrollEffect::BlankPaper;
             if let Some(mut name) = em.get_mut::<Name>() {
-                name.what = "scroll of blank paper".to_string();
+                name.what = strings::content_name("scroll of blank paper").to_string();
             }
         }
         if let Some(mut potion) = em.get_mut::<Potion>() {
             potion.effect = PotionEffect::Water;
             if let Some(mut name) = em.get_mut::<Name>() {
-                name.what = "potion of thirst quenching".to_string();
+                name.what = strings::content_name("potion of thirst quenching").to_string();
             }
         }
     }
@@ -873,5 +868,5 @@ fn cancel_player(world: &mut World, player: Entity) {
     sync_equipment_effects(world, player);
     world
         .resource_mut::<GameLog>()
-        .add("A grey wave washes over you. Your pack goes quiet, your gear goes plain, and every curse on you simply lets go.".to_string());
+        .add_colored(strings::cancellation_player_wave(), LogCategory::Curse);
 }

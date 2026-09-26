@@ -45,20 +45,21 @@ pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: Potio
             world,
             user,
             HEALING_MAX_HP_GAIN,
-            "You feel refreshed as your wounds mend!",
+            strings::potion_healing_player(),
         ),
         PotionEffect::ExtraHealing => heal_fully(
             world,
             user,
             EXTRA_HEALING_MAX_HP_GAIN,
-            "You have never felt better than this!",
+            strings::potion_extra_healing_player(),
         ),
         PotionEffect::Blindness => blind(world, user),
         PotionEffect::Confusion => confuse(
             world,
             user,
-            "The world is spinning! you are confused!",
-            "reels, eyes swimming",
+            strings::potion_confusion_player(),
+            LogCategory::Plain,
+            strings::potion_confusion_mob(),
         ),
         PotionEffect::Paralysis => paralyse(world, user),
         PotionEffect::Haste => hasten(world, user),
@@ -70,8 +71,8 @@ pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: Potio
         PotionEffect::MagicDetection => detect_magic(world, user),
         PotionEffect::MonsterDetection => detect_monsters(world, user),
         PotionEffect::RaiseLevel => raise_level(world, user),
-        PotionEffect::FruitJuice => flavour(world, user, "Cold, sweet and thick. Yummy!"),
-        PotionEffect::Water => flavour(world, user, "It is water. Just water."),
+        PotionEffect::FruitJuice => flavour(world, user, strings::potion_fruit_juice()),
+        PotionEffect::Water => flavour(world, user, strings::potion_water()),
     }
 }
 
@@ -91,7 +92,7 @@ fn heal_fully(world: &mut World, user: Entity, max_hp_gain: i32, player_line: &s
     fighter.max_hp += max_hp_gain;
     fighter.hp = fighter.max_hp;
     let healed = fighter.hp > before;
-    let msg = actor_line(world, user, player_line, "glows eerily, wounds closing");
+    let msg = actor_line(world, user, player_line, strings::potion_healing_mob());
     world.resource_mut::<GameLog>().add(msg);
     healed
 }
@@ -108,8 +109,8 @@ fn gain_strength(world: &mut World, user: Entity) -> bool {
     let msg = actor_line(
         world,
         user,
-        "You feel stronger. What bulging muscles!",
-        "swells with muscle",
+        strings::potion_gain_strength_player(),
+        strings::potion_gain_strength_mob(),
     );
     world.resource_mut::<GameLog>().add(msg);
     true
@@ -127,8 +128,8 @@ fn gain_magic(world: &mut World, user: Entity) -> bool {
     let msg = actor_line(
         world,
         user,
-        "Your head clears and then some — the power is all there.",
-        "hums with borrowed power",
+        strings::potion_gain_magic_player(),
+        strings::potion_gain_magic_mob(),
     );
     world.resource_mut::<GameLog>().add(msg);
     true
@@ -147,8 +148,8 @@ fn poison(world: &mut World, user: Entity) -> bool {
     let msg = actor_line(
         world,
         user,
-        "You feel very sick now — the strength drains out of you.",
-        "retches, their limbs going slack",
+        strings::potion_poison_player(),
+        strings::potion_poison_mob(),
     );
     world.resource_mut::<GameLog>().add(msg);
     sickened
@@ -164,15 +165,20 @@ fn restore_strength(world: &mut World, user: Entity) -> bool {
     fighter.power = fighter.max_power;
     let restored = fighter.power > before;
     if !restored {
-        let msg = actor_line(world, user, "You feel warm all over.", "shivers");
+        let msg = actor_line(
+            world,
+            user,
+            strings::potion_restore_strength_noop_player(),
+            strings::potion_restore_strength_noop_mob(),
+        );
         world.resource_mut::<GameLog>().add(msg);
         return false;
     }
     let msg = actor_line(
         world,
         user,
-        "Your old strength comes surging back into your arm.",
-        "straightens, their strength returning",
+        strings::potion_restore_strength_player(),
+        strings::potion_restore_strength_mob(),
     );
     world.resource_mut::<GameLog>().add(msg);
     true
@@ -195,8 +201,8 @@ fn see_invisible(world: &mut World, user: Entity) -> bool {
     let msg = actor_line(
         world,
         user,
-        "Your eyes sting, and the air fills with things that were never not there.",
-        "eyes gleam, tracking something unseen",
+        strings::potion_see_invisible_player(),
+        strings::potion_see_invisible_mob(),
     );
     world.resource_mut::<GameLog>().add(msg);
     !already
@@ -218,8 +224,8 @@ fn detect_monsters(world: &mut World, user: Entity) -> bool {
         crate::effects::lend(world, *mob, Grant::of::<Detected>(), Lifetime::Floor);
     }
     let msg = match mobs.is_empty() {
-        true => "You listen hard, and hear nothing at all moving on this floor.",
-        false => "You feel the floor's inhabitants shifting in the dark.",
+        true => strings::detect_monsters_none(),
+        false => strings::detect_monsters_some(),
     };
     world.resource_mut::<GameLog>().add(msg.to_string());
     !mobs.is_empty()
@@ -246,8 +252,8 @@ fn detect_magic(world: &mut World, user: Entity) -> bool {
         detect_item(world, *item);
     }
     let msg = match found.is_empty() {
-        true => "You reach for the hum of magic, and this floor holds none.",
-        false => "Magic hums up through the floor, and you know where every piece of it lies.",
+        true => strings::detect_magic_none(),
+        false => strings::detect_magic_some(),
     };
     world.resource_mut::<GameLog>().add(msg.to_string());
     !found.is_empty()
@@ -321,13 +327,12 @@ fn raise_level(world: &mut World, user: Entity) -> bool {
     if !holding_element_of_yoord(world) {
         world
             .resource_mut::<GameLog>()
-            .add("You hear distant laughter.".to_string());
+            .add(strings::distant_laughter());
         return false;
     }
-    world.resource_mut::<GameLog>().add(
-        "The potion hauls you up through stone and root and out into the open sky. You are free."
-            .to_string(),
-    );
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::raise_level_win());
     crate::map::win_with_style(world);
     true
 }
@@ -340,7 +345,7 @@ fn raise_level(world: &mut World, user: Entity) -> bool {
 /// on purpose, so a monster you lob one at never tells you which of the two it
 /// was — and neither does a floor-full of unidentified vials.
 fn flavour(world: &mut World, user: Entity, player_line: &str) -> bool {
-    let msg = actor_line(world, user, player_line, "smacks their lips");
+    let msg = actor_line(world, user, player_line, strings::potion_flavour_mob());
     world.resource_mut::<GameLog>().add(msg);
     false
 }

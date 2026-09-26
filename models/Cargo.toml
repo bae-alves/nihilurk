@@ -1,13 +1,27 @@
 [package]
 name = "models"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license.workspace = true
 
 [lints]
 workspace = true
 
+# One language, chosen at build time, forwarded straight through to `strings`.
+# `default-features = false` here matters: without it, this crate's own
+# default (`lang-en`) would stay active even when something depending on
+# `models` (namely `engine`) asks for a different language, and the two
+# would both be enabled on the one shared `strings` instance at once -- see
+# `strings/Cargo.toml`'s comment on what that does.
+[features]
+default = ["lang-en"]
+lang-en = ["strings/lang-en"]
+lang-pt = ["strings/lang-pt"]
+lang-es = ["strings/lang-es"]
+lang-ht = ["strings/lang-ht"]
+
 [dependencies]
+strings = { path = "../strings", default-features = false }
 # The particle layer's arithmetic, kept in a `no_std` crate with no dependencies
 # so `compat/` can compile it for a microcontroller and have that mean something
 # about the game rather than about a copy of it. `std` is on here because a

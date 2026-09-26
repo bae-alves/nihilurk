@@ -154,14 +154,13 @@ pub fn innate_tempo(world: &World, player: Entity) -> SpeedKind {
 /// a claw, and nothing else goes anywhere.
 pub fn equip_refusal(world: &World, user: Entity, slot: Slot, item_name: &str) -> Option<String> {
     if world.get::<Lurk>(user).is_some() {
-        return (slot != Slot::Finger)
-            .then(|| format!("Fur and fangs and four paws: no part of a lurk holds {item_name}."));
+        return (slot != Slot::Finger).then(|| strings::no_hands_lurk(item_name));
     }
     let Some(MonsterBody(def)) = world.get::<MonsterBody>(user).copied() else {
         return None;
     };
     (world.get::<crate::effects::ItemUser>(user).is_none())
-        .then(|| format!("A {} has no hands for {item_name}.", def.name))
+        .then(|| strings::no_hands_monster(def.display_name(), item_name))
 }
 
 /// One corpse, and a [`lurk::GROWTH_CHANCE`] roll on it. A hit grows the
@@ -196,29 +195,29 @@ pub fn feed(world: &mut World) {
             let mut f = world.get_mut::<Fighter>(player).unwrap();
             f.max_hp += lurk::GROWTH_STEP;
             f.hp += lurk::GROWTH_STEP;
-            "HP"
+            strings::hp_abbr()
         }
         1 => {
             let mut m = world.get_mut::<Magic>(player).unwrap();
             m.max_points = m.max_points.saturating_add(lurk::GROWTH_STEP as u8);
             m.points = m.points.saturating_add(lurk::GROWTH_STEP as u8);
-            "Ma"
+            strings::magic_abbr()
         }
         2 => {
             let mut f = world.get_mut::<Fighter>(player).unwrap();
             f.max_power += lurk::GROWTH_STEP;
             f.power += lurk::GROWTH_STEP;
-            "Pow."
+            strings::power_abbr()
         }
         _ => {
             let mut f = world.get_mut::<Fighter>(player).unwrap();
             f.armor += lurk::GROWTH_STEP;
-            "Arm."
+            strings::armor_abbr()
         }
     };
     world
         .resource_mut::<GameLog>()
-        .add(format!("FEAR THE LURK! (+{} {grown})", lurk::GROWTH_STEP));
+        .add(strings::fear_the_lurk(lurk::GROWTH_STEP, grown));
 }
 
 // ---------------------------------------------------------------------------

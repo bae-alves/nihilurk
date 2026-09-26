@@ -29,8 +29,10 @@ pub(crate) fn leprechaun_theft(world: &mut World, attacker: Entity, target: Enti
     let item_name = item_label(world, item);
     let attacker_name = item_label(world, attacker);
     let target_label = victim_label(world, target);
-    world.resource_mut::<GameLog>().add(format!(
-        "The {attacker_name} snatches the {item_name} from {target_label} and cackles!"
+    world.resource_mut::<GameLog>().add(strings::leprechaun_theft(
+        &attacker_name,
+        &item_name,
+        &target_label,
     ));
     use_stolen_item(world, attacker, item);
     teleport_entity_away(world, attacker);
@@ -45,8 +47,10 @@ pub(crate) fn nymph_theft(world: &mut World, attacker: Entity, target: Entity) {
     let item_name = item_label(world, item);
     let attacker_name = item_label(world, attacker);
     let target_label = victim_label(world, target);
-    world.resource_mut::<GameLog>().add(format!(
-        "The {attacker_name} rips the {item_name} from {target_label} and vanishes in a puff of smoke!"
+    world.resource_mut::<GameLog>().add(strings::nymph_theft(
+        &attacker_name,
+        &item_name,
+        &target_label,
     ));
     if let Some(pos) = world.get::<Position>(attacker).copied() {
         leave_smoke(world, pos);
@@ -60,7 +64,7 @@ pub(crate) fn nymph_theft(world: &mut World, attacker: Entity, target: Entity) {
 fn victim_label(world: &World, target: Entity) -> String {
     match world.get::<Player>(target).is_some() {
         true => "you".to_string(),
-        false => format!("the {}", item_label(world, target)),
+        false => strings::the(&item_label(world, target)),
     }
 }
 

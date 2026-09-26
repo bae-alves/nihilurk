@@ -450,7 +450,7 @@ fn a_glancing_blow_chips_a_foe_down_to_one_but_never_finishes_it() {
     // seed that rolled one here would (correctly) kill the target partway
     // through and this test would no longer be exercising a pure string of
     // glancing blows.
-    let mut w = test_world(564);
+    let mut w = test_world(151);
     let p = player(&mut w);
     // Feeble hero, heavily armoured target: every hit is a chip-damage glance.
     for item in equipped_items(&w, p) {

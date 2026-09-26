@@ -31,7 +31,8 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    Fighter, GameLog, Mob, MovementType, Player, Position, Speed, SpeedKind, Viewshed,
+    Fighter, GameLog, LogCategory, Mob, MovementType, Player, Position, Speed, SpeedKind,
+    Viewshed,
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{
@@ -54,19 +55,31 @@ use crate::map::GameRng;
 ///
 /// Returns whether it took hold: false for a creature already confused, and for
 /// anything that is neither the player nor a monster.
-pub fn confuse(world: &mut World, entity: Entity, player_line: &str, mob_verb: &str) -> bool {
+///
+/// `category` tags the player-directed line for [`crate::hud::log_paint`] —
+/// decided by the caller, since it knows what caused the confusion (a dazzle
+/// reads differently from a potion's swimming head) and this function doesn't.
+pub fn confuse(
+    world: &mut World,
+    entity: Entity,
+    player_line: &str,
+    category: LogCategory,
+    mob_verb: &str,
+) -> bool {
     if world.get::<Player>(entity).is_some() {
-        return confuse_player(world, entity, player_line);
+        return confuse_player(world, entity, player_line, category);
     }
     stagger(world, entity, mob_verb)
 }
 
-fn confuse_player(world: &mut World, player: Entity, line: &str) -> bool {
+fn confuse_player(world: &mut World, player: Entity, line: &str, category: LogCategory) -> bool {
     if world.get::<Confused>(player).is_some() {
         return false;
     }
     crate::effects::lend(world, player, Grant::of::<Confused>(), Lifetime::Floor);
-    world.resource_mut::<GameLog>().add(line.to_string());
+    world
+        .resource_mut::<GameLog>()
+        .add_colored(line.to_string(), category);
     true
 }
 
@@ -82,7 +95,7 @@ pub fn stagger(world: &mut World, entity: Entity, mob_verb: &str) -> bool {
     }
     world
         .resource_mut::<GameLog>()
-        .add(format!("The {name} {mob_verb}."));
+        .add(strings::mob_verb_line(&name, mob_verb));
     true
 }
 
@@ -99,7 +112,7 @@ pub fn stagger(world: &mut World, entity: Entity, mob_verb: &str) -> bool {
 /// dazzle does — it gropes about at random.
 pub fn blind(world: &mut World, entity: Entity) -> bool {
     if world.get::<Player>(entity).is_none() {
-        return stagger(world, entity, "gropes about, blinded");
+        return stagger(world, entity, strings::blind_mob_verb());
     }
     if world.get::<Blind>(entity).is_some() {
         return false;
@@ -108,7 +121,7 @@ pub fn blind(world: &mut World, entity: Entity) -> bool {
     touch_viewshed(world, entity);
     world
         .resource_mut::<GameLog>()
-        .add("A darkness closes over your eyes. You can't see a thing!".to_string());
+        .add(strings::blind_player_line());
     true
 }
 
@@ -121,6 +134,10 @@ pub fn blind(world: &mut World, entity: Entity) -> bool {
 /// ([`paralysis_forfeits_turn`]); a monster keeps the slowing alone — the same
 /// bargain without the coin flip — and wears the tag so the renderer can tint it
 /// as something that can't fight back properly.
+///
+/// A monster the player can actually see also earns a line of its own, on top
+/// of the generic slow-down [`set_speed`] already prints for it — the same
+/// "visible only" rule [`report_cure`] holds a mending monster to.
 pub fn paralyse(world: &mut World, entity: Entity) -> bool {
     if world.get::<Paralyzed>(entity).is_some() {
         return false;
@@ -128,11 +145,18 @@ pub fn paralyse(world: &mut World, entity: Entity) -> bool {
     crate::effects::lend(world, entity, Grant::of::<Paralyzed>(), Lifetime::Floor);
     let slowed = set_speed(world, entity, SpeedKind::Slow, false);
     if world.get::<Player>(entity).is_none() {
+        let pos = world.get::<Position>(entity).copied();
+        if pos.is_some_and(|p| crate::helpers::player_sees(world, p.x, p.y)) {
+            let name = item_label(world, entity);
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::mob_verb_line(&name, strings::paralyzed_mob_verb()));
+        }
         return slowed;
     }
     world
         .resource_mut::<GameLog>()
-        .add("Your limbs seize up. You can barely move!".to_string());
+        .add(strings::paralyse_player_line());
     true
 }
 
@@ -158,7 +182,7 @@ pub fn paralysis_forfeits_turn(world: &mut World) -> bool {
     }
     world
         .resource_mut::<GameLog>()
-        .add("Your body will not answer you.".to_string());
+        .add(strings::paralysis_lost_turn());
     true
 }
 
@@ -210,30 +234,30 @@ pub struct Affliction {
 pub const AFFLICTIONS: &[Affliction] = &[
     Affliction {
         effect: Grant::of::<Blind>(),
-        cured_line: "The darkness lifts from your eyes.",
-        cured_noun: "blindness",
-        lifted_adjective: "blind",
+        cured_line: strings::blind_cured_line(),
+        cured_noun: strings::blind_cured_noun(),
+        lifted_adjective: strings::blind_lifted_adjective(),
         after: Some(touch_viewshed),
     },
     Affliction {
         effect: Grant::of::<Paralyzed>(),
-        cured_line: "Your limbs are your own again.",
-        cured_noun: "paralysis",
-        lifted_adjective: "paralysed",
+        cured_line: strings::paralyzed_cured_line(),
+        cured_noun: strings::paralyzed_cured_noun(),
+        lifted_adjective: strings::paralyzed_lifted_adjective(),
         after: Some(restore_tempo),
     },
     Affliction {
         effect: Grant::of::<Confused>(),
-        cured_line: "Your head clears.",
-        cured_noun: "confusion",
-        lifted_adjective: "confused",
+        cured_line: strings::confused_cured_line(),
+        cured_noun: strings::confused_cured_noun(),
+        lifted_adjective: strings::confused_lifted_adjective(),
         after: None,
     },
 ];
 
 /// Held until a staircase, but nothing a cure can lift — a ward is a boon, not
 /// an affliction, and a rosé coin should not offer to take it off you.
-const FLOOR_BOONS: &[(Grant, &str)] = &[(Grant::of::<MagicWard>(), "warded")];
+const FLOOR_BOONS: &[(Grant, &str)] = &[(Grant::of::<MagicWard>(), strings::adjective_warded())];
 
 // ---------------------------------------------------------------------------
 // Lifting one of them, and mending what they left
@@ -278,8 +302,8 @@ pub fn cure_one_condition(world: &mut World, entity: Entity) -> bool {
         return report_cure(
             world,
             entity,
-            "The lead goes out of your legs.",
-            "sluggishness",
+            strings::sluggish_cured_line(),
+            strings::sluggish_cured_noun(),
         );
     }
     false
@@ -342,8 +366,8 @@ pub fn restore_one_power(world: &mut World, entity: Entity) -> bool {
     report_cure(
         world,
         entity,
-        "Strength trickles back into your arm.",
-        "weakness",
+        strings::power_restored_line(),
+        strings::power_restored_noun(),
     )
 }
 
@@ -372,7 +396,7 @@ fn report_cure(world: &mut World, entity: Entity, player_line: &str, mob_noun: &
         let name = item_label(world, entity);
         world
             .resource_mut::<GameLog>()
-            .add(format!("The {name} snaps out of {mob_noun}."));
+            .add(strings::snaps_out_of(&name, mob_noun));
     }
     true
 }
@@ -431,31 +455,45 @@ fn set_speed(world: &mut World, victim: Entity, kind: SpeedKind, faster: bool) -
     let before = speed.kind;
     speed.kind = kind;
     let changed = kind != before;
-    world
-        .resource_mut::<GameLog>()
-        .add(speed_shift_message(&name, faster, is_player, changed));
+    let (line, category) = speed_shift_message(&name, faster, is_player, changed);
+    world.resource_mut::<GameLog>().add_colored(line, category);
     changed
 }
 
-/// The line a speed change prints, split out so it can early-return its way
-/// through the cases instead of threading one `if`/`else` chain.
-fn speed_shift_message(name: &str, faster: bool, is_player: bool, changed: bool) -> String {
+/// The line a speed change prints, and the category it earns — split out so
+/// the message can early-return its way through the cases instead of
+/// threading one `if`/`else` chain. Only a *player's own* tempo shifting gets
+/// coloured (a monster's speed is nobody's HUD moment); which colour depends
+/// on the direction, not on whether it actually changed — the "already as
+/// quick/sluggish as you can be" refusal reads as the same kind of news.
+fn speed_shift_message(
+    name: &str,
+    faster: bool,
+    is_player: bool,
+    changed: bool,
+) -> (String, LogCategory) {
     let extreme = match faster {
-        true => "quick",
-        false => "sluggish",
+        true => strings::extreme_quick(),
+        false => strings::extreme_sluggish(),
     };
-    if !changed && is_player {
-        return format!("You are already as {extreme} as you can be.");
-    }
-    if !changed {
-        return format!("The {name} is already as {extreme} as they can be.");
-    }
-    match (is_player, faster) {
-        (true, true) => "The world lurches into slow motion around you.".to_string(),
-        (true, false) => "Your limbs turn to lead.".to_string(),
-        (false, true) => format!("The {name} blurs into sudden speed."),
-        (false, false) => format!("The {name} lurches into slow motion."),
-    }
+    let category = match is_player {
+        true if faster => LogCategory::Haste,
+        true => LogCategory::Slowed,
+        false => LogCategory::Plain,
+    };
+    let text = if !changed && is_player {
+        strings::already_as_extreme_player(extreme)
+    } else if !changed {
+        strings::already_as_extreme_mob(name, extreme)
+    } else {
+        match (is_player, faster) {
+            (true, true) => strings::haste_player_line().to_string(),
+            (true, false) => strings::slow_player_line().to_string(),
+            (false, true) => strings::haste_mob_line(name),
+            (false, false) => strings::slow_mob_line(name),
+        }
+    };
+    (text, category)
 }
 
 // ---------------------------------------------------------------------------
@@ -500,7 +538,7 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
         .chain(FLOOR_BOONS.iter().copied())
         .chain(std::iter::once((
             Grant::of::<SeesInvisible>(),
-            "able to see the unseen",
+            strings::adjective_sees_unseen(),
         )))
         .collect();
     let before: Vec<bool> = named.iter().map(|(g, _)| g.probe(world, player)).collect();
@@ -554,9 +592,7 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
         touch_viewshed(world, player);
     }
     for cond in lifted {
-        world
-            .resource_mut::<GameLog>()
-            .add(format!("You are no longer {cond}."));
+        world.resource_mut::<GameLog>().add(strings::no_longer(cond));
     }
 }
 
@@ -576,10 +612,10 @@ fn touch_viewshed(world: &mut World, entity: Entity) {
 /// these four have no list of their own because nothing else ever had to ask
 /// about them together.
 const OTHER_CONDITIONS: &[(Grant, &str)] = &[
-    (Grant::of::<Bided>(), "coiled"),
-    (Grant::of::<Petrified>(), "stone"),
-    (Grant::of::<Stealthy>(), "stealthy"),
-    (Grant::of::<Sluggish>(), "sluggish"),
+    (Grant::of::<Bided>(), strings::adjective_coiled()),
+    (Grant::of::<Petrified>(), strings::adjective_stone()),
+    (Grant::of::<Stealthy>(), strings::adjective_stealthy()),
+    (Grant::of::<Sluggish>(), strings::adjective_sluggish()),
 ];
 
 /// Every condition in the game, each with its "no longer ___" adjective: the
@@ -604,9 +640,9 @@ fn conditions() -> impl Iterator<Item = (Grant, &'static str)> {
 /// `ends` line, and [`shed_line`] prefers that — so this is the fallback that
 /// keeps a hold from being the one condition that could go in silence.
 const HOLD_ADJECTIVES: &[(Grant, &str)] = &[
-    (Grant::of::<Asleep>(), "asleep"),
-    (Grant::of::<Pinned>(), "pinned"),
-    (Grant::of::<Rooted>(), "held"),
+    (Grant::of::<Asleep>(), strings::adjective_asleep()),
+    (Grant::of::<Pinned>(), strings::adjective_pinned()),
+    (Grant::of::<Rooted>(), strings::adjective_held()),
 ];
 
 /// Whether the effect `id` is something the creature is *under* — the set the
@@ -631,7 +667,7 @@ pub fn shed_line(id: &str) -> Option<String> {
     let ends = crate::effects::Effect::by_id(id).and_then(|e| e.ends);
     Some(match ends {
         Some(line) => line.to_string(),
-        None => format!("You are no longer {adjective}."),
+        None => strings::no_longer(adjective),
     })
 }
 

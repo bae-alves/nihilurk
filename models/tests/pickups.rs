@@ -155,7 +155,13 @@ fn a_rose_coin_wants_something_to_clear() {
 
     let p = player(&mut w);
     assert!(blind(&mut w, p));
-    assert!(confuse(&mut w, p, "You are confused!", "reels"));
+    assert!(confuse(
+        &mut w,
+        p,
+        "You are confused!",
+        LogCategory::Plain,
+        "reels"
+    ));
     assert!(step_on(&mut w, "rosé coin"));
     assert!(
         w.get::<Blind>(p).is_none() && w.get::<Confused>(p).is_none(),
