@@ -8,7 +8,7 @@ url="https://github.com/bae-alves/nihilurk"
 license=('GPL3')
 makedepends=('rust')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/bae-alves/nihilurk/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('01c54fedea2609e26a9778020f8ae9287106f61c2916486d347be63a132dc964')
+sha256sums=('5daf4da13eecccbc977d27a575828bcace6ff9336509c32f2a8c4c054f47617a')
 
 prepare() {
     cd "$pkgname-$pkgver"
