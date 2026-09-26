@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 #
-# Two checks, both about the same failure: a doc that quietly stops being
-# true. See docs/explanation/documentation-style.md and
-# scs-improvement-plan.md, "Where it stands" -- this hook exists because that
-# section found the schedule step count and the intent queue count stale in
-# three files at once, with nothing that would have caught it.
+# Three checks, all about the same failure: a doc that quietly stops being
+# true. See docs/explanation/documentation-style.md -- this hook exists
+# because the schedule step count and the intent queue count once went stale
+# in three files at once, with nothing that would have caught it.
 #
 # Not run automatically -- git does not trust a repo-tracked hooks directory
 # by default. Enable it once per clone:
@@ -48,6 +47,20 @@ if ( $touched_schedule || $touched_queues ) && ! staged | grep -q '^docs/'; then
     echo "  docs/reference/input-and-turn-loop.md and docs/reference/components.md" >&2
     echo "  are the pages that name the step count and the queue count." >&2
     exit 1
+fi
+
+# 3. content-tables.md's DROPS weights against the real models::spawn::DROPS.
+# This one isn't a "did you remember" heuristic like the two above -- it's a
+# real equality check (models/tests/content_docs.rs), so there's no false
+# positive to guard against by grepping for a narrower diff shape first. Run
+# it whenever either side of the comparison is staged.
+if staged | grep -qE '^(models/src/spawn\.rs|docs/reference/content-tables\.md)$'; then
+    cargo test -p models --test content_docs --quiet || {
+        echo "pre-commit: models/tests/content_docs.rs failed -- DROPS and" >&2
+        echo "  content-tables.md have drifted apart. See the failure above" >&2
+        echo "  for which side moved." >&2
+        exit 1
+    }
 fi
 
 exit 0

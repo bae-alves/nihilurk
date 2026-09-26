@@ -1,3 +1,7 @@
+//! Descending and ascending: a fresh floor and its heal, tempo carried across
+//! the change, the Element of Yoord swapping the final stair and flipping the
+//! run toward the surface, and the Dungeon Lord's portal and blessing.
+
 use bevy_ecs::prelude::*;
 use models::*;
 use std::collections::HashSet;

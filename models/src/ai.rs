@@ -1,3 +1,15 @@
+//! What every monster on the floor does with its turn.
+//!
+//! [`ai`] is the whole entry point: it snapshots the player once, works out
+//! how many monster rounds this player turn buys, then hands both to
+//! [`monster_round`], which banks tempo energy and steps every mob in up to
+//! two passes so a `Fast` monster can act twice. A single mob's turn —
+//! notice, shoot, chase or flee, attack or step — is [`step_one_mob`].
+//!
+//! Everything here reads the player's view, never their eyes: a blinded
+//! player still stands in whatever light the monsters around them can see by,
+//! so blindness never doubles as a way to hide.
+
 use crate::components::*;
 use crate::effects::{Asleep, Blind, CoinGreedy, Petrified, Pinned, Rooted, Stealthy};
 use crate::helpers::{chebyshev, get_line};
@@ -356,9 +368,9 @@ fn has_line_of_sight(map: &Map, from: Position, to: Position) -> bool {
 /// in a promise or pad the score. `None` for anything else, and for a
 /// coin-greedy creature at full health.
 ///
-/// This is the one ability still written into the pathing code. It overrides
-/// a *goal* rather than taking the turn, which is a different shape from the
-/// ability table's moments; see `.claude/refactor-abilities-plan.md` §6.9.
+/// This is the one ability still written into the pathing code, because it
+/// overrides a *goal* rather than taking the turn — a different shape from
+/// anything [`crate::abilities`]'s moments express.
 fn coin_goal(world: &mut World, mob: Entity, mob_pos: Position) -> Option<Position> {
     if world.get::<CoinGreedy>(mob).is_none() {
         return None;

@@ -47,8 +47,8 @@ None of this makes Rust's borrow-checker friction go away, and it should not try
 ## 3. The three: what is strong, weak, and ugly
 
 Revised after a first pass actually checked it against the tree instead of asserting it. Two rounds
-of that checking are in `scs-improvement-plan.md`, which this section now defers to for anything that
-needs a file and a line rather than a claim.
+of that checking ran as a standalone improvement plan; its items are now closed, and the status list
+at the end of this section is what is left of it.
 
 ### The Strong
 
@@ -139,7 +139,7 @@ The thing worth fixing was never the direct mutation model; it was the hidden ma
 - turn-order invariants that are known but not always stated plainly — closed. The `.after()` edges were already stated; the preconditions they exist to satisfy now are too, at each of the fifteen `&mut World` systems' own definitions.
 - world mutation that is efficient but not well-separated at the boundary — checked, and turned out not to be true. Every despawn and every spawn in the tree already sits at the rule that decided it.
 
-That was never a reason to throw the design out. It was a reason to formalize the contracts — and, once formalized, to find out which of them were already true. Status against the original seven-item improvement path, as of `scs-improvement-plan.md`'s third phase:
+That was never a reason to throw the design out. It was a reason to formalize the contracts — and, once formalized, to find out which of them were already true. Status against the original seven-item improvement path, as of its third and final phase:
 
 1. **Command and effect queues — closed.** Inbound intent already ran through four named queues; the cosmetic half already decided, armed, and forgot. The narrative half (the message log) looked like the same gap wearing a bigger number and was not: it is read back by the game loop in the same turn it is written, which makes it a synchronous signal, not a deferrable one. Queueing it would have broken the thing it was meant to fix.
 

@@ -87,9 +87,10 @@ pub fn holding_element_of_yoord(world: &mut World) -> bool {
 /// [`TileType::Downstairs`] works, `<` is blocked by the Dungeon Lord's power.
 /// Once the Element is in the pack the rules invert — `<` on a
 /// [`TileType::Upstairs`] carries the player back up and `>` is dead. On success
-/// a fresh floor is built, the player repositioned, [`Depth`] adjusted, 50% of
-/// max HP restored and `true` returned (a turn passes); otherwise a log line is
-/// added and `false` returned so no turn is consumed.
+/// a fresh floor is built, the player repositioned, [`Depth`] adjusted,
+/// [`DESCENT_HEAL_DIVISOR`]'s share of max HP restored and `true` returned (a
+/// turn passes); otherwise a log line is added and `false` returned so no turn
+/// is consumed.
 pub fn change_level(world: &mut World, going_down: bool) -> bool {
     let player_entity = world
         .query_filtered::<Entity, With<Player>>()
@@ -195,9 +196,9 @@ pub(crate) enum LevelChange {
 /// Moves the player one floor in the given direction: clears the current floor,
 /// builds the adjacent one, repositions the player (on the up-stair when
 /// descending, on the down-stair when ascending), re-populates, adjusts
-/// [`Depth`], heals 50% of max HP and resets the Dungeon Lord's patience.
-/// `cause` only changes the log line and — for [`LevelChange::Trapdoor`] —
-/// suppresses the arrival heal.
+/// [`Depth`], heals [`DESCENT_HEAL_DIVISOR`]'s share of max HP and resets the
+/// Dungeon Lord's patience. `cause` only changes the log line and — for
+/// [`LevelChange::Trapdoor`] — suppresses the arrival heal.
 pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: LevelChange) {
     let player = world
         .query_filtered::<Entity, With<Player>>()

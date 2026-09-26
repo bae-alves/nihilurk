@@ -1,3 +1,8 @@
+//! The binary: parses the command line into a starting world, builds the turn
+//! schedule ([`turn_schedule`]), then runs the read-act-render loop until
+//! [`Ending`] says the run is over. `update` and `view` are its own submodules
+//! — everything else the turn touches lives in `models`.
+
 mod update;
 mod view;
 use models::*;
@@ -22,7 +27,10 @@ use crate::ai::ai;
 use crate::visibility::visibility_system;
 use models::combat_system;
 
-/// RAII Guard that manages Crossterm terminal setup and cleanup.
+/// Puts the terminal into raw, alternate-screen mode for the run and takes it
+/// back out on drop, panic included — the [`std::panic::set_hook`] below
+/// leaves the terminal sane even if the drop never gets to run because
+/// unwinding is disabled.
 pub struct TerminalGuard;
 
 impl TerminalGuard {

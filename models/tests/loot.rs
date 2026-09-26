@@ -1,3 +1,7 @@
+//! What a floor is stocked with: the Rogue drop table, how the item budget
+//! scales with depth, the guaranteed finds every floor gets, and that a
+//! stash is always both invisible and hidden together, never one alone.
+
 use bevy_ecs::prelude::*;
 use models::constants::loot::{AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN};
 use models::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;

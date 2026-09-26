@@ -54,8 +54,8 @@ pub fn pick_up(world: &mut World, taker: Entity, item: Entity) -> Option<String>
         return spend_pickup(world, taker, item);
     }
 
-    // Score first: the relic is worth its 25000 the moment it is in hand, and a
-    // pack too full to take it is a different sentence, not a different payment.
+    // Score first: the relic pays out the moment it is in hand, and a pack too
+    // full to take it is a different sentence, not a different payment.
     let taken = crate::items::stow(world, taker, item)?;
     pay_out_value(world, item);
     let line = match world.get::<Amulet>(item).is_some() {
@@ -72,8 +72,8 @@ pub fn pick_up(world: &mut World, taker: Entity, item: Entity) -> Option<String>
 ///
 /// **Once.** The [`Value`] comes off with the payment, so the one item that can
 /// be paid for and then set down again — the Element of Yoord — cannot be
-/// dropped and re-taken for another 25000. A coin never needed the rule; it is
-/// spent the moment it is stepped on.
+/// dropped and re-taken for a second payout. A coin never needed the rule; it
+/// is spent the moment it is stepped on.
 fn pay_out_value(world: &mut World, item: Entity) {
     let Some(amount) = world.get::<Value>(item).map(|v| v.amount) else {
         return;

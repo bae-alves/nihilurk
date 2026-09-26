@@ -12,7 +12,7 @@
 //! copy of it. [`models::particles`] owns the `Vec` of keyframes, the colour
 //! type and the ECS resource; every decision it makes about *time* is one of
 //! the functions below. If this crate is wrong, the game is wrong, and
-//! `models/tests/particles.rs` fails.
+//! `models/src/particles.rs`'s own `#[cfg(test)] mod tests` fails.
 //!
 //! # What is deliberately absent
 //!

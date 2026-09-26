@@ -1,3 +1,8 @@
+//! The trap table: what each effect does to a player or a monster that
+//! springs it, the reveal styles that bring a hidden one to light, the odds a
+//! sprung trap breaks, and the holds (bear trap, sleeping gas) that block
+//! movement without blocking a swing at whatever is already in reach.
+
 mod common;
 
 use bevy_ecs::prelude::*;

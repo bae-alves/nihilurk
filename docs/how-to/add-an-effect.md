@@ -114,37 +114,30 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 Making an effect act on its own
 -------------------------------
 
-Most effects are answers to a question something else asks. Some act by themselves, and there are two moments they can pick. Both are tables in `models/src/abilities.rs`, and both answer the same two questions: *when* does this fire, and *what* does it do.
+Most effects are answers to a question something else asks. Some act by themselves, and `ABILITIES` in `models/src/abilities.rs` is all of those: one list, one row per ability, naming the `Moment` it fires at.
 
-**Every turn** -- while you carry it, something keeps happening:
+    models/src/abilities.rs     ->  ABILITIES
 
-    models/src/abilities.rs     ->  PASSIVE_ABILITIES
-
-    PassiveAbility {
+    Ability {
         effect: Grant::of::<AggravatesMonsters>(),
-        chance: 0.10,
-        action: crate::items::aggravate_all_monsters,
-        flavour: "You yip! The whole floor turns your way.",
+        when: Moment::EachTurn(0.10),
+        player_only: false,
+        action: |w, e, _| crate::items::aggravate_all_monsters(w, e),
+        flavour: Some("You yip! The whole floor turns your way."),
     }
 
-`chance` is the probability it fires on each turn its bearer acts; `action` is the mechanic, run on the bearer, returning whether it actually did anything; `flavour` is logged only when the bearer is the player *and* the action returned `true`, so write it in the second person. Return `false` for a no-op -- a ring of regeneration wins its coin flip every other turn, and most of those turns there is nothing wrong with the player to mend.
+`when` is the moment. The two commonest:
+
+* **`Moment::EachTurn(chance)`** -- while you carry it, something keeps happening: at this probability, on every turn the bearer acts. `action` runs on the bearer and reports whether it actually did anything; a ring of regeneration wins its coin flip every other turn, and most of those turns there is nothing wrong with the player to mend, so it returns `false` and stays silent.
+* **`Moment::OnHit { glancing, lethal }`** -- the attacker's magic doing something to what it just hit. `effect` is the marker on the **attacker**, `action` runs as `(attacker, target)`, and the two flags are the only gating there is: does a glancing scrape count (acid says yes, a charm that needs skin says no), and does the killing blow count (there is no point charming a corpse).
+
+Three rarer moments round out the enum: `OnDamaged` (the bearer was hurt and lived), `OnTargeted` (the player turned their attention on the bearer, whether or not the blow that follows lands -- a gorgon's gaze), and `InsteadOfAttacking(chance)` (the bearer would rather do this than swing -- a dragon's fireball). Adding a moment nobody has yet is a `Moment` variant and one arm in whatever drives it; adding an ability at a moment that already exists is one row here.
+
+`flavour` is logged only when the bearer is the player *and* `action` returned `true`, so write it in the second person. `player_only` marks a row as the player's own trick -- a monster that steals or catches the weapon behind it still fights the plain way.
 
 The row names the effect with the same `Grant` handle everything else uses, so the ability never learns what granted it. A ring grants it today; a cursed blade could grant it tomorrow and the behaviour would follow, untouched.
 
-The system runs at the **tail** of the turn schedule (after `ai`, before `visibility_system`), which is deliberate: a passive that *moves* its bearer -- teleportitis -- lands the jump at the top of the bearer's next turn, so the player sees where they ended up and acts from there before anything else moves.
-
-**On a blow that lands** -- the attacker's magic doing something to what it just hit:
-
-    models/src/abilities.rs     ->  ON_HIT_ABILITIES
-
-    OnHitAbility {
-        effect: Grant::of::<RustsArmor>(),
-        on_glancing: true,
-        on_lethal: true,
-        action: corrode,
-    }
-
-`effect` is the marker on the **attacker**; `action` is run as `(attacker, target)`. The two booleans are the only gating there is: does a glancing scrape count (acid says yes, a charm that needs skin says no), and does the killing blow count (there is no point charming a corpse). `combat::resolve_attack` fires the table for every hit that dealt damage and has no idea what is in it -- which is why the aquator's corrosion and a scroll of monster confusion's charm stopped being two special cases in that function.
+`ability_system` drives `EachTurn` and `InsteadOfAttacking` at the **tail** of the turn schedule (after `ai`, before `visibility_system`), which is deliberate: a passive that *moves* its bearer -- teleportitis -- lands the jump at the top of the bearer's next turn, so the player sees where they ended up and acts from there before anything else moves. `combat::resolve_attack` fires every `OnHit` row for a hit that dealt damage and has no idea what is in it -- which is why the aquator's corrosion and a scroll of monster confusion's charm are rows here rather than special cases in that function.
 
 
 Making an effect fire once, when gear goes on

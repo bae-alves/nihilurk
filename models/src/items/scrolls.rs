@@ -353,9 +353,9 @@ fn vorpalize_wielded_weapon(world: &mut World, user: Entity) {
 /// What a plus becomes when a scroll of enchantment is read over it: one better,
 /// unless it was *negative*, in which case the whole minus is mended at once.
 ///
-/// A cursed -5 sword is not a project. One scroll makes it an honest +0 blade,
-/// and — since the same reading burns the [`Curse`] off — one you can finally
-/// take out of your hand.
+/// A badly cursed sword is not a project. One scroll makes it an honest +0
+/// blade, and — since the same reading burns the [`Curse`] off — one you can
+/// finally take out of your hand.
 fn mended_plus(bonus: i32) -> i32 {
     if bonus < 0 {
         return 0;
