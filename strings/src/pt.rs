@@ -786,13 +786,13 @@ pub fn armor_corrodes(name: &str) -> String {
 // ---------------------------------------------------------------------------
 
 pub const fn flavour_aggravates() -> &'static str {
-    "Um uivo escapa sem permissão! O andar inteiro olha para cá."
+    "AUUUUUUUUUU! Um uivo escapa do nada! O andar inteiro vai vir olhar."
 }
 pub const fn flavour_regenerates() -> &'static str {
     "O anel no seu dedo está quente."
 }
 pub const fn flavour_teleportitis() -> &'static str {
-    "Algo no seu dedo parece muito satisfeito consigo mesmo."
+    "Algo que você carrega parece muito satisfeito consigo mesmo."
 }
 
 pub fn heavy_stagger_player() -> &'static str {
@@ -887,11 +887,11 @@ pub fn element_drain_noun() -> &'static str {
 // ---------------------------------------------------------------------------
 
 pub fn retired_enchantment_singular() -> &'static str {
-    "Um encantamento desta partida não existe nesta versão, e se perde."
+    "Um encantamento desta run não existe nesta versão, e se perde."
 }
 
 pub fn retired_enchantment_plural(n: usize) -> String {
-    format!("{n} encantamentos desta partida não existem nesta versão, e se perdem.")
+    format!("{n} encantamentos não existem nesta versão e se perdem.")
 }
 
 // ---------------------------------------------------------------------------
@@ -907,7 +907,7 @@ pub fn cannot_go_down() -> &'static str {
 }
 
 pub fn dungeon_lord_prevents_up() -> &'static str {
-    "O poder do Senhor da Masmorra impede a subida pela escada."
+    "O poder do Mestre impede a subida pela escada."
 }
 
 pub fn cannot_go_up() -> &'static str {
@@ -919,7 +919,7 @@ pub fn climb_last_stair() -> &'static str {
 }
 
 pub fn portal_down(depth: u8) -> String {
-    format!("O Senhor da Masmorra abre um portal sob os pés! Uma queda repentina para baixo. (Profundidade {depth})")
+    format!("O Mestre abre um portal sob os pés! Uma queda repentina para baixo. (Profundidade {depth})")
 }
 
 pub fn portal_up(depth: u8) -> String {
@@ -949,7 +949,7 @@ pub fn element_wont_let_you_land() -> &'static str {
 }
 
 pub fn portal_no_deeper_floor() -> &'static str {
-    "O Senhor da Masmorra arranha o chão, mas não há nenhum andar mais profundo para onde jogar."
+    "O Mestre arranha o chão, mas não há nenhum andar mais profundo para onde jogar."
 }
 
 // ---------------------------------------------------------------------------
@@ -957,19 +957,19 @@ pub fn portal_no_deeper_floor() -> &'static str {
 // ---------------------------------------------------------------------------
 
 pub fn hidden_item_found() -> &'static str {
-    "Ei! Tem algo aqui!"
+    "Opa! Tem algo aqui! Daí sim!"
 }
 
 pub fn take_element_of_yoord() -> &'static str {
-    "O Elemento de Yoord fica nas mãos. \"O elemento de Yoord busca o sol.\""
+    "Você segura Elemento de Yoord com toda a sua força. \"O elemento de Yoord busca o sol.\""
 }
 
 pub fn pick_up(taken: &str) -> String {
-    format!("{taken} entra no inventário.")
+    format!("Você pega {taken}.")
 }
 
 pub fn pick_up_pickup(name: &str, line: &str) -> String {
-    format!("{} {name} entra no inventário. {line}", cap_article(name))
+    format!("Você pega {} {name}. {line}", article(name))
 }
 
 pub fn coin_gives_itself_up(name: &str, line: &str) -> String {
@@ -977,7 +977,7 @@ pub fn coin_gives_itself_up(name: &str, line: &str) -> String {
 }
 
 pub fn coin_ledger() -> &'static str {
-    "Direto para o registro."
+    "Direto para a conta. Viva o Pix!"
 }
 
 pub fn heal_line(healed: i32) -> String {
@@ -989,11 +989,11 @@ pub fn refill_magic_line(gained: u8) -> String {
 }
 
 pub fn cleanse_one() -> &'static str {
-    "O gosto limpa uma coisa."
+    "Você se sente melhor."
 }
 
 pub fn cleanse_many(n: i32) -> String {
-    format!("O gosto limpa {n} coisas.")
+    format!("Você melhora de exatamente {n} coisas.")
 }
 
 pub fn learn_spell_full() -> &'static str {
@@ -1005,7 +1005,7 @@ pub fn learn_spell_all_known() -> &'static str {
 }
 
 pub fn learn_spell_line(name: &str) -> String {
-    format!("Algo ancestral e violento se instala na mente. {name} acaba de ser aprendido!")
+    format!("Algo ancestral e violento se instala na mente. O feitiço {name} acaba de ser aprendido!")
 }
 
 pub fn restore_strength_line(given: i32) -> String {
@@ -1013,7 +1013,7 @@ pub fn restore_strength_line(given: i32) -> String {
 }
 
 pub fn promise_platinum_offer() -> &'static str {
-    "Não perde o brilho. Por enquanto, ninguém mais vai perder também. (PLAT)"
+    "Não perde o brilho. Por agora, ninguém mais vai perder também. (PLAT)"
 }
 pub fn promise_forge_offer() -> &'static str {
     "Ainda está quente. Algo está sendo forjado. (FORJ)"
@@ -1022,7 +1022,7 @@ pub fn promise_platinum_broken() -> &'static str {
     "A platina perde o brilho. Lá se vai a perfeição."
 }
 pub fn promise_forge_broken() -> &'static str {
-    "A forja esfria."
+    "A forja esfria. Lá se vai sua promessa."
 }
 
 pub fn pay_platinum_power() -> &'static str {
@@ -1043,13 +1043,13 @@ pub fn pay_forge_nothing_worth() -> &'static str {
 // ---------------------------------------------------------------------------
 
 pub fn potion_healing_player() -> &'static str {
-    "Os ferimentos se fecham e uma sensação renovada toma conta de tudo!"
+    "Os ferimentos se fecham e uma sensação de frescor toma conta de tudo!"
 }
 pub fn potion_healing_mob() -> &'static str {
     "brilha de forma estranha, com os ferimentos se fechando"
 }
 pub fn potion_extra_healing_player() -> &'static str {
-    "Nunca houve uma sensação melhor do que esta."
+    "Você nunca se sentiu tão bem."
 }
 
 pub fn potion_confusion_player() -> &'static str {
@@ -1060,14 +1060,14 @@ pub fn potion_confusion_mob() -> &'static str {
 }
 
 pub fn potion_gain_strength_player() -> &'static str {
-    "Uma força nova se instala! Que músculos."
+    "Uma força nova surge! Que músculos."
 }
 pub fn potion_gain_strength_mob() -> &'static str {
-    "incha de músculo"
+    "fica GRANDE!"
 }
 
 pub fn potion_gain_magic_player() -> &'static str {
-    "A mente clareia e continua clareando — o poder está todo ali."
+    "A consciência expande! O poder esteve todo ali o tempo todo."
 }
 pub fn potion_gain_magic_mob() -> &'static str {
     "vibra com um poder emprestado"
@@ -1077,7 +1077,7 @@ pub fn potion_poison_player() -> &'static str {
     "Uma náusea profunda se instala — a força escorre por completo."
 }
 pub fn potion_poison_mob() -> &'static str {
-    "se contorce com ânsias, os membros amolecendo"
+    "se contorce com ânsia, os membros amolecendo"
 }
 
 pub fn potion_restore_strength_noop_player() -> &'static str {
@@ -1097,21 +1097,21 @@ pub fn potion_see_invisible_player() -> &'static str {
     "Os olhos ardem, e o ar se enche de coisas que nunca deixaram de estar ali."
 }
 pub fn potion_see_invisible_mob() -> &'static str {
-    "os olhos brilham, seguindo algo invisível"
+    "os olhos brilham, seguindo o invisível"
 }
 
 pub fn detect_monsters_none() -> &'static str {
     "Um silêncio total responde — nada se move neste andar."
 }
 pub fn detect_monsters_some() -> &'static str {
-    "Os moradores do andar se agitam, em algum ponto da escuridão."
+    "Os moradores do andar se agitam nas trevas."
 }
 
 pub fn detect_magic_none() -> &'static str {
     "O zumbido da magia não responde — este andar não tem nenhuma."
 }
 pub fn detect_magic_some() -> &'static str {
-    "A magia zumbe desde o chão, e sua localização exata fica clara."
+    "A magia zumbe pelo chão, e sua localização exata fica clara."
 }
 
 pub fn distant_laughter() -> &'static str {
@@ -1138,7 +1138,7 @@ pub fn potion_flavour_mob() -> &'static str {
 
 pub fn thrown_wand_confetti(seen_name: &str) -> String {
     format!(
-        "{} {seen_name} explode em uma chuva de confete colorido. É isso. É o feitiço inteiro.",
+        "{} {seen_name} explode em uma chuva de confete colorido. É isso. Essa é a mágica. Viva.",
         cap_article(seen_name)
     )
 }
@@ -1289,14 +1289,14 @@ pub fn breathe_fire_mob(name: &str) -> String {
 }
 
 pub fn force_lance_cast() -> &'static str {
-    "Um punho invisível golpeia ao longo da linha!"
+    "Uma lança invisível golpeia ao longo da linha!"
 }
 pub fn force_lance_hits(name: &str, damage: i32) -> String {
     format!("A lança de força atinge {} {name} por {damage} de dano!", article(name))
 }
 
 pub fn setup_planted() -> &'static str {
-    "Armadilhas de flecha ficam plantadas nos flancos, molas prontas à vista de todos."
+    "Armadilhas de flecha são plantadas nos flancos."
 }
 pub fn setup_no_room() -> &'static str {
     "Não há espaço nos flancos para uma armadilha."
