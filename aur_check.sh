@@ -65,10 +65,20 @@ run_stage() {
   echo
   echo "${B}-- $label --$R"
   (
+    # No CARGO_TARGET_DIR override: build()/package() address artifacts by
+    # a path relative to this tree ("target/release/..."), so the target
+    # dir has to stay cargo's own default -- one per tree, same as a real
+    # makepkg run gets, rather than a shared dir a worktree's relative
+    # paths can't see.
+    #
+    # Each function still gets its own subshell, same as real makepkg, so
+    # one function's `cd "$pkgname-$pkgver"` never leaks into the next.
+    # `set -e` in each one is what makes a masked failure (a `cp` or
+    # `install` that can't find its source, but isn't the function's last
+    # command) actually fail the stage instead of passing silently.
     cd "$(dirname "$dir")" || exit 1
-    export CARGO_TARGET_DIR="$ROOT/target"
     pkgdir=$(mktemp -d)
-    (prepare) && (build) && (check) && (package)
+    (set -e; prepare) && (set -e; build) && (set -e; check) && (set -e; package)
   )
   if [ $? -eq 0 ]; then
     ok "$label: build(), check() and package() pass"
