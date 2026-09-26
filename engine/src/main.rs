@@ -229,7 +229,13 @@ fn turn_schedule() -> Schedule {
 }
 
 fn main() -> std::io::Result<()> {
-    let args: Vec<String> = std::env::args().collect();
+    // Sanitized once here so every arg the parser below stores and later
+    // echoes back in an error message (an unknown flag, monster, or pride
+    // name) is already clean, rather than trusting each `eprintln!` site to
+    // remember to strip it.
+    let args: Vec<String> = std::env::args()
+        .map(|a| models::strip_control_chars(&a))
+        .collect();
     if args
         .iter()
         .skip(1)

@@ -294,6 +294,18 @@ pub struct ClearData {
     pub player_name: String,
 }
 
+/// Strips C0 control bytes and DEL from a string read out of a save file.
+///
+/// A save is untrusted the moment it can come from anywhere but this build's
+/// own [`save_game`] — a shared file, a bug report attachment — and its
+/// `player_name` reaches a real terminal verbatim (`clear_data_prompt`, the
+/// status line) rather than through a bounds check like the entity indices
+/// below. Without this, a crafted name carrying an escape sequence runs on
+/// whoever loads the file.
+pub fn strip_control_chars(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
+}
+
 /// If `path` holds the clear data of a won run, returns the winner's name.
 /// `Ok(None)` for an ordinary save — or one this build can no longer parse, so
 /// the normal load path can report that instead.
@@ -303,7 +315,7 @@ pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
         return Ok(None);
     };
     Ok(save.cleared.then(|| ClearData {
-        player_name: save.player_name.into_owned(),
+        player_name: strip_control_chars(&save.player_name),
     }))
 }
 
@@ -434,7 +446,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(Corpses::new());
     world.insert_resource(GameLog::default());
     world.insert_resource(PlayerName {
-        what: save.player_name.into_owned(),
+        what: strip_control_chars(&save.player_name),
     });
     world.insert_resource(Depth { what: save.depth });
     world.insert_resource(FloorChanges {
@@ -799,7 +811,7 @@ mod tests {
         postcard::to_allocvec(&save).unwrap()
     }
 
-    fn load_bytes(tag: &str, bytes: &[u8]) -> std::io::Result<()> {
+    fn load_bytes(tag: &str, bytes: &[u8]) -> std::io::Result<World> {
         let path = std::env::temp_dir().join(format!(
             "nihilurk-saveload-unit-{}-{tag}.sav",
             std::process::id()
@@ -812,7 +824,7 @@ mod tests {
         world.insert_resource(PlayerName { what: "Y".into() });
         let result = load_game(&mut world, path.to_str().unwrap());
         let _ = std::fs::remove_file(&path);
-        result
+        result.map(|_| world)
     }
 
     #[test]
@@ -830,5 +842,54 @@ mod tests {
         // Same shape, but pointing at the one entity that actually exists.
         let bytes = crafted_save_with_backpack_index(0);
         assert!(load_bytes("ok", &bytes).is_ok());
+    }
+
+    /// A save carrying a `player_name` with control/escape bytes -- a shared
+    /// save is untrusted the same way a crafted backpack index is, and this
+    /// field reaches a real terminal verbatim (`clear_data_prompt`, the HUD)
+    /// rather than an index bounds-check.
+    fn crafted_save_with_player_name(name: &str, cleared: bool) -> Vec<u8> {
+        let save = SaveGame {
+            entities: vec![blank_entity()],
+            player_name: Cow::Borrowed(name),
+            depth: 1,
+            floor_changes: 0,
+            rng_seed: 1,
+            rng_state: ChaCha12Rng::seed_from_u64(1),
+            dark_tiles: FixedBitSet::with_capacity(1),
+            cleared,
+        };
+        postcard::to_allocvec(&save).unwrap()
+    }
+
+    #[test]
+    fn a_loaded_player_name_has_its_control_bytes_stripped() {
+        let evil = "Bae\u{1b}]0;pwned\u{7}";
+        let bytes = crafted_save_with_player_name(evil, false);
+        let world = load_bytes("ctrl-name", &bytes).expect("a bad name must not fail the load");
+        let loaded = &world.resource::<PlayerName>().what;
+        assert!(
+            !loaded.chars().any(|c| c.is_control()),
+            "loaded player name still has control bytes: {loaded:?}"
+        );
+        assert_eq!(loaded, "Bae]0;pwned");
+    }
+
+    #[test]
+    fn clear_data_strips_control_bytes_from_the_winners_name() {
+        let evil = "Bae\u{1b}]0;pwned\u{7}";
+        let bytes = crafted_save_with_player_name(evil, true);
+        let path = std::env::temp_dir().join(format!(
+            "nihilurk-saveload-unit-{}-clear-ctrl.sav",
+            std::process::id()
+        ));
+        std::fs::write(&path, &bytes).unwrap();
+        let clear = clear_data(path.to_str().unwrap()).unwrap();
+        let _ = std::fs::remove_file(&path);
+        let name = clear.expect("cleared=true must read back as clear data").player_name;
+        assert!(
+            !name.chars().any(|c| c.is_control()),
+            "clear-data player name still has control bytes: {name:?}"
+        );
     }
 }
