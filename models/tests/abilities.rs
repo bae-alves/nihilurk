@@ -454,7 +454,8 @@ fn a_visible_monsters_paralysis_gets_a_line_of_its_own() {
         .filter(|l| l.contains(&name))
         .count();
     assert_eq!(
-        mentions, 2,
+        mentions,
+        2,
         "a paralysis landing in plain sight should say so, on top of the \
          generic slow-down: {:?}",
         w.resource::<GameLog>().history
@@ -482,7 +483,8 @@ fn an_unseen_monsters_paralysis_only_gets_the_generic_slow_line() {
         .filter(|l| l.contains(&name))
         .count();
     assert_eq!(
-        mentions, 1,
+        mentions,
+        1,
         "a paralysis nobody could see should stay as quiet as it already \
          was: {:?}",
         w.resource::<GameLog>().history

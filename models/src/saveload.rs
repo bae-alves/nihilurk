@@ -886,7 +886,9 @@ mod tests {
         std::fs::write(&path, &bytes).unwrap();
         let clear = clear_data(path.to_str().unwrap()).unwrap();
         let _ = std::fs::remove_file(&path);
-        let name = clear.expect("cleared=true must read back as clear data").player_name;
+        let name = clear
+            .expect("cleared=true must read back as clear data")
+            .player_name;
         assert!(
             !name.chars().any(|c| c.is_control()),
             "clear-data player name still has control bytes: {name:?}"

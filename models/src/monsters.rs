@@ -28,7 +28,8 @@ use MovementType::{Ambush, Chase};
 /// The spawn weight a bestiary row gets when it doesn't `.weight(n)` for itself.
 /// Defined and documented in `constants.rs`.
 use crate::constants::monsters::{
-    DEFAULT_SPAWN_WEIGHT as DEFAULT_WEIGHT, HIGH_GEAR_CHANCE, NORMAL_GEAR_CHANCE, ULTIMATE_GEAR_CHANCE,
+    DEFAULT_SPAWN_WEIGHT as DEFAULT_WEIGHT, HIGH_GEAR_CHANCE, NORMAL_GEAR_CHANCE,
+    ULTIMATE_GEAR_CHANCE,
 };
 
 /// Static, per-species description: everything about a monster that does not vary

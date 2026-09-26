@@ -191,7 +191,6 @@ fn pay(world: &mut World, points: i32, kills: u32) {
     announce_combo(world);
 }
 
-
 /// The line a combo gets in the log. Killing two things at once is the same
 /// achievement the ring of adornment sells, so it gets the ring's own words, in
 /// the ring's own magenta — except for the [`COMBO_PRIDE_CHANCE`] of the time

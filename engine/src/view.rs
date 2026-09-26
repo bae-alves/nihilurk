@@ -718,14 +718,26 @@ pub fn render<W: Write>(
                 Color::DarkCyan,
                 format!("{}/{}", player_magic, player_max_magic),
             ),
-            (strings::power_abbr().into(), Color::Red, stat(pow_die, pow_flat)),
-            (strings::armor_abbr().into(), Color::Cyan, stat(arm_die, arm_flat)),
+            (
+                strings::power_abbr().into(),
+                Color::Red,
+                stat(pow_die, pow_flat),
+            ),
+            (
+                strings::armor_abbr().into(),
+                Color::Cyan,
+                stat(arm_die, arm_flat),
+            ),
         ];
         // What a throw is worth is only worth a field once something is making
         // it worth something — a bow, a ring of sharpshooting. A player who
         // never throws never sees it.
         if throw_flat != 0 {
-            fields.push((strings::skill_abbr().into(), Color::Green, format!("{throw_flat:+}")));
+            fields.push((
+                strings::skill_abbr().into(),
+                Color::Green,
+                format!("{throw_flat:+}"),
+            ));
         }
         let mut px: u16 = 1;
         for (i, (label, color, value)) in fields.iter().enumerate() {
@@ -1142,7 +1154,11 @@ pub fn render_win<W: Write>(
 /// One inventory row's full text: `" a) +1 ring mail (E) "`. The one place
 /// this shape lives, so sizing the box and drawing a row can never disagree.
 fn row_text(letter: char, name: &str, equipped: bool) -> String {
-    let suffix = if equipped { strings::equipped_suffix() } else { "" };
+    let suffix = if equipped {
+        strings::equipped_suffix()
+    } else {
+        ""
+    };
     format!(" {letter}) {name}{suffix} ")
 }
 

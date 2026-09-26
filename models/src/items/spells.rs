@@ -283,9 +283,7 @@ fn bide(world: &mut World, user: Entity) {
             fx.spark_burst(x, y, Color::DarkYellow);
         }
     }
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::bide_coil());
+    world.resource_mut::<GameLog>().add(strings::bide_coil());
 }
 
 // ---------------------------------------------------------------------------

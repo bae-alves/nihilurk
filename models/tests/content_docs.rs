@@ -13,7 +13,10 @@
 use models::spawn::DROPS;
 
 fn content_tables_md() -> String {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/reference/content-tables.md");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../docs/reference/content-tables.md"
+    );
     std::fs::read_to_string(path).expect("docs/reference/content-tables.md should exist")
 }
 
@@ -23,7 +26,12 @@ fn content_tables_md() -> String {
 fn doc_drop_weights(md: &str) -> Vec<(String, u32)> {
     md.lines()
         .filter_map(|line| {
-            let cells: Vec<&str> = line.trim().trim_matches('|').split('|').map(str::trim).collect();
+            let cells: Vec<&str> = line
+                .trim()
+                .trim_matches('|')
+                .split('|')
+                .map(str::trim)
+                .collect();
             let [name, weight, _share] = cells.as_slice() else {
                 return None;
             };
@@ -42,7 +50,10 @@ fn doc_drop_weights(md: &str) -> Vec<(String, u32)> {
 fn the_drops_table_in_the_doc_matches_the_real_weights() {
     let md = content_tables_md();
     let documented = doc_drop_weights(&md);
-    let real: Vec<(String, u32)> = DROPS.iter().map(|c| (c.name.to_string(), c.weight)).collect();
+    let real: Vec<(String, u32)> = DROPS
+        .iter()
+        .map(|c| (c.name.to_string(), c.weight))
+        .collect();
 
     assert_eq!(
         documented, real,

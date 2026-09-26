@@ -442,9 +442,7 @@ fn announce_wizard(world: &mut World, wearer: Entity, _item: Entity) {
     if world.get::<Player>(wearer).is_none() {
         return;
     }
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::wizard_now());
+    world.resource_mut::<GameLog>().add(strings::wizard_now());
 }
 
 /// [`announce_wizard`] in reverse, the moment the staff is deliberately put

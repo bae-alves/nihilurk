@@ -135,9 +135,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         return false;
     }
     if tile != TileType::Upstairs {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::cannot_go_up());
+        world.resource_mut::<GameLog>().add(strings::cannot_go_up());
         return false;
     }
     if world.resource::<Depth>().what <= 1 {

@@ -206,7 +206,10 @@ fn a_crossbow_doubles_a_quarrel_and_a_bow_does_not() {
 
     let hand_max = *by_hand.iter().max().unwrap();
     let crossbow_max = *from_a_crossbow.iter().max().unwrap();
-    assert!(crossbow_max > hand_max, "a crossbow should improve a quarrel");
+    assert!(
+        crossbow_max > hand_max,
+        "a crossbow should improve a quarrel"
+    );
     assert!(
         wrong_launcher.iter().all(|&d| d > 0 && d <= hand_max),
         "{wrong_launcher:?}"
@@ -754,7 +757,10 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
         .single(&loaded);
     assert_eq!(loaded.get::<Stack>(arrows).unwrap().count, 13);
     assert_eq!(loaded.get::<ThrownDamage>(arrows), Some(&arrow_damage));
-    assert_eq!(loaded.get::<LaunchedDamage>(arrows), Some(&arrow_launched_damage));
+    assert_eq!(
+        loaded.get::<LaunchedDamage>(arrows),
+        Some(&arrow_launched_damage)
+    );
     assert!(loaded.get::<Projectile>(arrows).is_some());
     assert!(loaded.get::<LaunchedBy>(arrows).is_some());
 

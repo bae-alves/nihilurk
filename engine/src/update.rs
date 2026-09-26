@@ -320,7 +320,9 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
         return false;
     }
     if !has_clear_shot(world, target) {
-        world.resource_mut::<GameLog>().add(strings::no_clear_shot());
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::no_clear_shot());
         return false;
     }
 
@@ -1011,7 +1013,9 @@ fn drop_from_pack(world: &mut World, player: Entity, item: Entity, item_idx: usi
     sync_equipment_effects(world, player);
     world.entity_mut(item).insert(pos);
     let name = models::display_name(world, item);
-    world.resource_mut::<GameLog>().add(strings::you_drop(&name));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::you_drop(&name));
     true
 }
 
@@ -1770,7 +1774,9 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
         q.iter(world).next().map(|p| (p.x, p.y))
     };
     if here == Some(goal) {
-        world.resource_mut::<GameLog>().add(strings::already_there());
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::already_there());
         return Ok(());
     }
 

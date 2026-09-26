@@ -510,7 +510,10 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
 
     let healed = w.get::<Fighter>(orc).unwrap();
     assert_eq!(healed.hp, healed.max_hp);
-    assert!(healed.max_hp > old_max_hp, "healing raised the target's ceiling");
+    assert!(
+        healed.max_hp > old_max_hp,
+        "healing raised the target's ceiling"
+    );
     assert!(w.get_entity(potion).is_none(), "the bottle broke");
 }
 

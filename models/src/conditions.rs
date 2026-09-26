@@ -31,8 +31,7 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    Fighter, GameLog, LogCategory, Mob, MovementType, Player, Position, Speed, SpeedKind,
-    Viewshed,
+    Fighter, GameLog, LogCategory, Mob, MovementType, Player, Position, Speed, SpeedKind, Viewshed,
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{
@@ -592,7 +591,9 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
         touch_viewshed(world, player);
     }
     for cond in lifted {
-        world.resource_mut::<GameLog>().add(strings::no_longer(cond));
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::no_longer(cond));
     }
 }
 
