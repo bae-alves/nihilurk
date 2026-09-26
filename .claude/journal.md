@@ -9,6 +9,7 @@
 - [Worn gear was still lying on the floor (2026-09-20)](#worn-gear-was-still-lying-on-the-floor-2026-09-20)
 - [The drop-table test was reading the floor, not the roller (2026-09-20)](#the-drop-table-test-was-reading-the-floor-not-the-roller-2026-09-20)
 - [Trick shots became a chain (2026-09-20)](#trick-shots-became-a-chain-2026-09-20)
+- [Special levels, and what Rogue's layout had been hiding (2026-09-26)](#special-levels-and-what-rogues-layout-had-been-hiding-2026-09-26)
 
 
 ## The EFFECTS table in content-tables.md lists 16 of ~45 rows (2026-09-25)
@@ -212,3 +213,47 @@ What it taught:
   queue one behind the other (`Particles::hold`): the feel layer's dials are
   sized for *one* of a thing, and a feature that makes a thing happen five times
   has to re-ask all of them.
+
+## Special levels, and what Rogue's layout had been hiding (2026-09-26)
+
+Six whole-floor variants (`models/src/map/special.rs`). Most of the work was
+finding the places the old 3x3 grid had quietly guaranteed something.
+
+* **Rogue rooms never touch, so a door never led into a room.**
+  `flood_fill_room` spread through `Door`, which was harmless while every door
+  opened onto a corridor. Once vault cells and castle towers share walls, it
+  lit the whole vault from the first cell. The flood now looks past a door and
+  stops, except when the player is standing on the door.
+* **`Map::blocks` answered two questions.** It stood for "a wall" to sight and
+  shots, and for "can't stand here" to feet. Water splits them: `walkable(x, y,
+  swims)` covers feet, and `blocks` stays for sight. Every `blocks(` caller got
+  sorted into one bucket or the other. Particle, blood and smoke callers stay
+  on `blocks`.
+* **Population assumed rectangles and a start room to skip.** Rooms are now
+  tile lists (`Rooms`), and a one-room floor spawns in its only room.
+  `random_point_in_room` on a Rect could hand out a stair tile. Tile lists
+  can't.
+* **A spell written for the player to cast only ever looked for monsters.**
+  `thunderbolt` used `monster_at` (Faction::Monster), so the eel's innate
+  bolt missed the player every time. It now uses `actor_at`. `sting` still uses
+  `monster_at`, which is harmless until something casts it innately.
+* **The level roll has its own seed stream (`level_rng`).** Rolling the kind
+  from `layout_rng` would have reshuffled every ordinary floor on every seed.
+* **Water takes items in one schedule step (`sink_system`), not at each
+  landing site.** Throws, drops, corpse gear and a swimmer's spawn kit all
+  reach the floor by different paths. Worn and packed items have no
+  `Position`, so "an item with a `Position` on water" means exactly "lying in
+  the sea". Population calls the same `sink_items` silently at the end.
+* **Worn gear sits in the `Backpack`, and the thief tests never knew it.**
+  `steal_unequipped_item` only filtered out the Element, so a leprechaun
+  could lift your worn armour, which its own doc and name ruled out. The
+  `abilities.rs` `worn()` fixture never stows gear in the pack, so no test
+  could see it. `a_thief_that_flees_never_lifts_worn_gear` stows it the way
+  `initialize_world` does.
+* **`NIHILURK_LEVEL` is read on load too.** The map is rebuilt from the seed,
+  so loading a save under a different value rebuilds a different floor under
+  the saved entities.
+* **Eyeballing the TUI without tmux:** `script -qfc "stty cols 100 rows 30;
+  ./target/debug/nihilurk NAME -ns" out.raw`, then replay the escape stream
+  into a grid. Closing stdin reaches the game as a keypress and opens the drop
+  menu, so ignore anything drawn after that.

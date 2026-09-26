@@ -65,6 +65,8 @@ fn arena(seed: u64) -> World {
     w.insert_resource(Map {
         tiles: vec![TileType::Room; MAP_TILE_COUNT],
         dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        special: vec![None; MAP_TILE_COUNT],
+        level: None,
     });
     // The overlays a mechanic writes to as it resolves — smoke where something
     // vanished, blood where something was hurt — plus the floor number the
@@ -530,6 +532,62 @@ fn a_thief_that_flees_takes_something_loose_and_goes() {
         Some(stood),
         pos_of(&w, thief),
         "it robbed the victim and then stood there waiting"
+    );
+}
+
+/// Worn gear lives in the pack too, the way `initialize_world` stows the
+/// starting kit before putting it on. A thief that flees takes only what is
+/// loose: stripping the wearer is the other thief's trick.
+#[test]
+fn a_thief_that_flees_never_lifts_worn_gear() {
+    for seed in 0..32u64 {
+        let mut w = arena(seed);
+        let victim = hero(&mut w, at(10, 10), 20, 8);
+        let armour = worn(&mut w, victim, Slot::Body);
+        w.get_mut::<Backpack>(victim).unwrap().items.push(armour);
+        pack_item(&mut w, victim, "loose thing");
+
+        let thief = creature(&mut w, at(10, 10), 5, 4);
+        w.entity_mut(thief).insert(StealsAndFlees);
+        fire_on_hit(&mut w, thief, victim, CLEAN);
+
+        assert_eq!(
+            w.get::<Backpack>(victim).unwrap().items,
+            vec![armour],
+            "seed {seed}: the thief went for the armour on the victim's back"
+        );
+    }
+}
+
+/// And a thief whose hand closes on the Element of Yoord blows apart in gore
+/// on the spot, leaving the Element where it was.
+#[test]
+fn a_thief_that_reaches_for_the_element_blows_apart() {
+    let mut w = arena(11);
+    let victim = hero(&mut w, at(10, 10), 20, 8);
+    let element = spawn_element_of_yoord(&mut w, at(0, 0));
+    w.entity_mut(element).remove::<Position>();
+    w.get_mut::<Backpack>(victim).unwrap().items.push(element);
+
+    let thief = creature(&mut w, at(11, 10), 5, 4);
+    w.entity_mut(thief).insert(StealsAndFlees);
+    fire_on_hit(&mut w, thief, victim, CLEAN);
+
+    assert!(
+        w.get_entity(thief).is_none(),
+        "the thief is still in one piece"
+    );
+    assert_eq!(
+        w.get::<Backpack>(victim).unwrap().items,
+        vec![element],
+        "the Element stays where it was"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l == &strings::element_bursts_thief("creature")),
+        "nothing said the thief burst"
     );
 }
 
@@ -1070,60 +1128,6 @@ fn breath_round(seed: u64, breathes: bool) -> bool {
     ai(&mut w);
 
     hp_of(&w, bystander) < before
-}
-
-/// `CoinGreedy` — `ai::orc_coin_goal`. A wounded bearer breaks off toward a
-/// healing pickup; the same creature at full health keeps coming.
-///
-/// Stated as a comparison between the two rather than as an absolute, because
-/// the claim the ability makes is that being wounded *changes* where it goes.
-#[test]
-fn being_wounded_is_what_turns_a_greedy_creature_toward_a_coin() {
-    let wounded = greedy_walk(47, true);
-    let healthy = greedy_walk(47, false);
-
-    assert!(
-        wounded < healthy,
-        "the wounded one ended no nearer the coin than the healthy one ({wounded} vs {healthy})"
-    );
-}
-
-/// One AI round with a coin-greedy creature standing between the player and a
-/// healing pickup. Returns how far it ended from the pickup.
-///
-/// It needs room to be wounded: `orc_coin_goal` asks for `hp < max_hp`, so a
-/// one-hit-point creature is only ever at full health or dead and its greed
-/// can never fire. That is why the orc is three hit points.
-fn greedy_walk(seed: u64, wounded: bool) -> i32 {
-    let mut w = arena(seed);
-    let here = at(10, 10);
-    hero(&mut w, here, 20, 8);
-
-    let coin_pos = at(16, 10);
-    w.spawn((
-        Name {
-            what: "coin".into(),
-        },
-        Item,
-        Pickup {
-            effect: PickupEffect::Health,
-            amount: 4,
-        },
-        coin_pos,
-    ));
-
-    let greedy = creature(&mut w, at(13, 10), 10, 8);
-    w.entity_mut(greedy).insert(CoinGreedy);
-    if wounded {
-        if let Some(mut f) = w.get_mut::<Fighter>(greedy) {
-            f.hp = 1;
-        }
-    }
-
-    see(&mut w);
-    ai(&mut w);
-
-    chebyshev(pos_of(&w, greedy).unwrap_or(at(13, 10)), coin_pos)
 }
 
 // ---------------------------------------------------------------------------
@@ -2134,6 +2138,30 @@ fn a_breather_can_take_the_turn_instead_of_swinging() {
     assert!(
         breathed,
         "no breather in 64 seeds ever took the turn — the row is not wired"
+    );
+}
+
+/// The eel's lightning is the same bid with the Thunderbolt in it — and the
+/// bolt has to land on the player, which a spell written for the player to
+/// cast never had to manage.
+#[test]
+fn an_eel_can_answer_with_lightning_that_finds_the_player() {
+    let struck = (0..64u64).any(|seed| {
+        let mut w = arena(seed);
+        let eel = creature(&mut w, at(10, 10), 20, 8);
+        lend(
+            &mut w,
+            eel,
+            Grant::of::<LightningBreath>(),
+            Lifetime::Permanent,
+        );
+        let you = hero(&mut w, at(11, 10), 10_000, 8);
+        let before = hp_of(&w, you);
+        fire_instead_of_attacking(&mut w, eel, you) && hp_of(&w, you) < before
+    });
+    assert!(
+        struck,
+        "no eel in 64 seeds ever struck the player with lightning"
     );
 }
 

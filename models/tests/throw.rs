@@ -588,6 +588,7 @@ fn the_item_users_are_the_humanoids_with_wits() {
         users,
         vec![
             "centaur",
+            "ichthyocentaur",
             "hobgoblin",
             "leprechaun",
             "medusa",
@@ -637,8 +638,8 @@ fn the_element_of_yoord_never_leaves_your_hand() {
     let element = stash(&mut w, p, |w| spawn_element_of_yoord(w, NOWHERE));
 
     assert!(throw_refusal(&w, p, element).is_some());
-    // It can still be set down, though — that much is the player's business.
-    assert!(drop_refusal(&w, p, element).is_none());
+    // Nor can it be set down: once in hand, it stays in hand.
+    assert!(drop_refusal(&w, p, element).is_some());
 }
 
 #[test]

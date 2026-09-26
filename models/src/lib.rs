@@ -13,6 +13,7 @@ pub mod ai;
 pub mod autoexplore;
 pub mod autofight;
 pub mod body;
+pub mod bones;
 pub mod catalog;
 pub mod components;
 pub mod conditions;

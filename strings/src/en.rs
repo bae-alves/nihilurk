@@ -391,6 +391,7 @@ OPTIONS
     -ns              do not write a save file
     -nb              disable blood and corpse animation
     -nshake          disable screen shake
+    -nobones         skip the bones mechanic (saving and loading a run's own)
     -anim-rate N     set animation pacing multiplier (0.1..=5.0)
     -b BODY          play as nihil (default) or lurk
     -am SPECIES      play as a monster: any bestiary name, e.g. -am dragon
@@ -645,6 +646,9 @@ pub const fn beware_thieving_touch() -> &'static str {
 }
 pub const fn beware_fire_breath() -> &'static str {
     "fire breath"
+}
+pub const fn beware_lightning_breath() -> &'static str {
+    "lightning breath"
 }
 pub const fn beware_confusing_touch() -> &'static str {
     "confusing touch"
@@ -1015,6 +1019,15 @@ pub fn climb_stairs(depth: u8) -> String {
     format!("You climb the stairs. (Depth {depth})")
 }
 
+pub fn bones_ghost_arrives(name: &str) -> String {
+    format!("A chill runs through you. {name} remembers what you did, and is furious.")
+}
+
+pub fn bones_ghost_arrives_self() -> String {
+    "A chill runs through you. Someone who was once you remembers what you did, and is furious."
+        .to_string()
+}
+
 pub fn element_wont_let_you_land() -> &'static str {
     "The Element of Yoord strains toward the sun — but the last stair you must climb yourself."
 }
@@ -1024,11 +1037,65 @@ pub fn portal_no_deeper_floor() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
+// models/src/map.rs
+// ---------------------------------------------------------------------------
+
+pub fn dragon_hoard_enter() -> &'static str {
+    "You see gleaming gold, but the smell of sulfur assaults you. Here be dragons!"
+}
+
+pub fn treasure_hive_enter() -> &'static str {
+    "The bees. Not the bees."
+}
+
+pub fn red_room_enter() -> &'static str {
+    "Treasure gleams, but you can only pick one."
+}
+
+pub fn labyrinth_arrival() -> &'static str {
+    "Welcome to a world of darkness."
+}
+
+pub fn vault_arrival() -> &'static str {
+    "A treasure vault the Dungeon Lord guards jealously!"
+}
+
+pub fn bee_world_arrival() -> &'static str {
+    "Welcome to the bee world."
+}
+
+/// One of these follows [`bee_world_arrival`], picked at random.
+pub fn bee_world_quotes() -> [&'static str; 2] {
+    [
+        "\"Ya like jazz?\"",
+        "\"Yellow, black, yellow, black. Oh! Black and yellow!\"",
+    ]
+}
+
+// ---------------------------------------------------------------------------
 // models/src/items/pickups.rs
 // ---------------------------------------------------------------------------
 
 pub fn hidden_item_found() -> &'static str {
     "Hey! There's something here!"
+}
+
+pub fn red_room_claimed() -> &'static str {
+    "The rest crumbles to dust the moment your hand closes."
+}
+
+pub fn element_bursts_thief(thief: &str) -> String {
+    format!(
+        "The {thief}'s hand closes on the Element of Yoord, and the {thief} bursts apart in a shower of gore!"
+    )
+}
+
+pub fn element_surfaces() -> &'static str {
+    "The Element of Yoord will not drown. It leaps from the water into your hands, and everything else you carried burns away in a flash."
+}
+
+pub fn sinks_with_a_splash(what: &str) -> String {
+    format!("Splash! The depths take {what}.")
 }
 
 pub fn take_element_of_yoord() -> &'static str {
@@ -1315,6 +1382,9 @@ pub fn sting_hits(name: &str, damage: i32) -> String {
 
 pub fn thunderbolt_misses() -> &'static str {
     "Thunder cracks over empty stone."
+}
+pub fn thunderbolt_hits_you(damage: i32) -> String {
+    format!("A bolt of thunder slams into you for {damage} damage!")
 }
 pub fn thunderbolt_hits(name: &str, damage: i32) -> String {
     format!("A bolt of thunder slams into the {name} for {damage} damage!")
@@ -1756,6 +1826,47 @@ pub fn garrote_kill(target_name: &str) -> String {
 }
 pub fn vorpal_kill(target_name: &str) -> String {
     format!("Snicker-snack! The blade shears clean through the {target_name}!")
+}
+
+/// Bones-ghost-only variants of the five lines above plus `you_have_slain`,
+/// for the one case those can't express in every language at once: the
+/// target is a bones ghost sharing the *player's own* name — see
+/// `crate::combat::report_player_hit`. Kept as dedicated English-only
+/// strings rather than threading a "yourself" label through the shared
+/// functions, which would have broken `pt`/`es`'s own grammar (gendered
+/// articles, contractions) for every ordinary target.
+pub fn excellent_hit_self(damage: i32) -> String {
+    format!("You score an excellent hit on yourself for {damage} damage!")
+}
+pub fn glancing_blow_self() -> &'static str {
+    "You deal a glancing blow to yourself."
+}
+pub fn plain_hit_self(damage: i32) -> String {
+    format!("You hit yourself for {damage} damage.")
+}
+pub fn garrote_kill_self() -> &'static str {
+    "You choke the life out of your helpless self! Atrocious!"
+}
+pub fn vorpal_kill_self() -> &'static str {
+    "Snicker-snack! The blade shears clean through yourself!"
+}
+pub fn you_have_slain_self() -> &'static str {
+    "You have slain yourself!"
+}
+
+/// The reverse direction: a bones ghost sharing the player's own name,
+/// attacking the real player. `mob_hits`/`mob_misses`/`mob_strikes_you_down`
+/// are written for a third-person subject ("The orc hits you"), which breaks
+/// the moment the subject is also "you" — see
+/// `crate::combat::report_ghost_self_hit`.
+pub fn ghost_self_misses() -> &'static str {
+    "You miss yourself."
+}
+pub fn ghost_self_hits(damage: i32) -> String {
+    format!("You hit yourself for {damage} damage.")
+}
+pub fn ghost_self_strikes_you_down() -> &'static str {
+    "You strike yourself down..."
 }
 
 pub fn mob_misses(atk: &str, target_label: &str) -> String {

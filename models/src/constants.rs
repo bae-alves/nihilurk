@@ -212,6 +212,52 @@ pub mod map {
     /// behaves like a corridor (sight cut to the 3x3) until a wand of light
     /// goes off in it. Raise for a darker, more wand-of-light-dependent game.
     pub const DARK_ROOM_CHANCE: f64 = 0.15;
+
+    /// Chance a room past the starting one is entirely coin, guarded by a
+    /// forced dragon or two. See [`crate::map::SpecialRoom::DragonHoard`].
+    pub const DRAGON_HOARD_CHANCE: f64 = 0.0125;
+
+    /// Chance a room past the starting one is packed wall to wall with
+    /// monsters. See [`crate::map::SpecialRoom::MonsterZoo`].
+    pub const MONSTER_ZOO_CHANCE: f64 = 0.0125;
+
+    /// Chance a room past the starting one is entirely coin, guarded by one
+    /// apis. See [`crate::map::SpecialRoom::TreasureHive`].
+    pub const TREASURE_HIVE_CHANCE: f64 = 0.0125;
+
+    /// Chance a room past the starting one holds a normal item budget that
+    /// vanishes down to one the moment any of it is picked up. See
+    /// [`crate::map::SpecialRoom::RedRoom`].
+    pub const RED_ROOM_CHANCE: f64 = 0.05;
+
+    /// The shallowest floor a special level can replace (see
+    /// [`crate::map::SpecialLevel`]). The deepest floor never is one: it is
+    /// where the Element of Yoord waits.
+    pub const SPECIAL_LEVEL_MIN_DEPTH: u8 = 6;
+
+    /// Chance an eligible floor is one open room, wall to wall. See
+    /// [`crate::map::SpecialLevel::Battlefield`].
+    pub const BATTLEFIELD_CHANCE: f64 = 0.05;
+
+    /// Chance an eligible floor is a maze of passages. See
+    /// [`crate::map::SpecialLevel::Labyrinth`].
+    pub const LABYRINTH_CHANCE: f64 = 0.01;
+
+    /// Chance an eligible floor is a treasure vault of doored cells. See
+    /// [`crate::map::SpecialLevel::Vault`].
+    pub const VAULT_CHANCE: f64 = 0.01;
+
+    /// Chance an eligible floor is one yellow cave full of apis. See
+    /// [`crate::map::SpecialLevel::BeeWorld`].
+    pub const BEE_WORLD_CHANCE: f64 = 0.01;
+
+    /// Chance an eligible floor has a castle in the middle of it. See
+    /// [`crate::map::SpecialLevel::Castle`].
+    pub const CASTLE_CHANCE: f64 = 0.01;
+
+    /// Chance an eligible floor is an island in deep water. See
+    /// [`crate::map::SpecialLevel::Island`].
+    pub const ISLAND_CHANCE: f64 = 0.01;
 }
 
 // ===========================================================================
@@ -270,6 +316,13 @@ pub mod population {
     /// it to make a stash something worth hoping for rather than something to
     /// sweep for.
     pub const HIDDEN_ITEM_CHANCE: f64 = 0.75;
+
+    /// On a floor that is one room and nothing else — a battlefield, a
+    /// labyrinth, a bee world, an island — every tile within this many steps
+    /// of where the player lands is kept clear of monsters and loot: the
+    /// start room every other floor already has. Raise it for a gentler
+    /// arrival.
+    pub const START_CLEARING_RADIUS: u16 = 4;
 }
 
 // ===========================================================================
@@ -605,6 +658,11 @@ pub mod score {
     /// screen time: the flash is aged at the tail of the turn it was armed in,
     /// shown by that turn's render, and dark by the player's next action.
     pub const SCORE_FLASH_TURNS: u8 = 2;
+
+    /// The kill-score multiplier a creature carrying
+    /// [`crate::effects::ScoreBounty`] pays out — the apis guarding a
+    /// treasure hive is worth five ordinary rattlesnakes.
+    pub const BOUNTY_SCORE_MULTIPLIER: i32 = 5;
 }
 
 // ===========================================================================
@@ -622,6 +680,10 @@ pub mod monsters {
     /// The dragon's odds, on a turn it would otherwise land a melee blow, of
     /// breathing fire instead. See [`crate::items::dragon_breath`].
     pub const DRAGON_FIREBALL_CHANCE: f64 = 1.0 / 6.0;
+
+    /// The eel's odds, on a turn it would otherwise land a melee blow, of
+    /// loosing a Thunderbolt instead — the dragon's bargain, in lightning.
+    pub const EEL_LIGHTNING_CHANCE: f64 = 1.0 / 6.0;
 
     /// How many turns a medusa's gaze leaves the player standing as stone.
     /// Long enough to be the fight's whole shape and short enough to live

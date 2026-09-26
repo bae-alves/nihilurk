@@ -124,6 +124,17 @@ pub fn mob_at(world: &mut World, pos: Position) -> Option<Entity> {
         .map(|(e, _)| e)
 }
 
+/// Whether the player can swim — whether deep water is floor to them, which
+/// only a swimming body makes it. Every one of the player's path-finders
+/// asks this before counting a water tile as a step.
+pub fn player_swims(world: &mut World) -> bool {
+    world
+        .query_filtered::<(), (With<Player>, With<crate::effects::Swims>)>()
+        .iter(world)
+        .next()
+        .is_some()
+}
+
 /// The Chebyshev (chessboard) distance between two tiles — "closest diagonal
 /// counts as one step" — the adjacency measure used everywhere in combat and
 /// AI: a lunge's or whirl's geometry, a chase's next step.
@@ -238,7 +249,9 @@ pub fn free_adjacent_tile(world: &mut World, origin: Position) -> Option<(u16, u
                     continue;
                 }
                 let (nx, ny) = (nx as u16, ny as u16);
-                if !map.blocks(nx, ny) && !occupied.contains(&(nx, ny)) {
+                // Land only: nothing that lands here — a bat's hop, a slime's
+                // offspring, a creature teleported to someone's side — swims.
+                if map.walkable(nx, ny, false) && !occupied.contains(&(nx, ny)) {
                     v.push((nx, ny));
                 }
             }

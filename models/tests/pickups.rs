@@ -11,6 +11,7 @@
 mod monster;
 
 use bevy_ecs::prelude::*;
+use models::constants::score::{BOUNTY_SCORE_MULTIPLIER, KILL_PER_MAX_HP};
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -537,4 +538,189 @@ fn a_coin_whose_shooter_died_first_is_simply_spent() {
 
     assert!(detonate_pickup(&mut w, coin, Some(ghost)));
     assert!(w.get_entity(coin).is_none(), "spent, and paid to nobody");
+}
+
+// ---------------------------------------------------------------------------
+// Red rooms
+// ---------------------------------------------------------------------------
+
+/// The tail end of `strings::red_room_claimed()`. A literal here rather than
+/// a call into `strings` — the test binary has no dependency on that crate,
+/// same as every other test in this file, which all match log lines by text.
+const RED_ROOM_CLAIMED: &str = "crumbles to dust";
+
+/// Tags the player's own tile as a red room, so a test never has to go
+/// hunting for a seed that happens to roll one.
+fn make_red_room(w: &mut World, at: Position) {
+    let mut map = w.resource_mut::<Map>();
+    let idx = tile_index(at.x, at.y);
+    map.special[idx] = Some(SpecialRoom::RedRoom);
+}
+
+#[test]
+fn claiming_one_item_in_a_red_room_destroys_the_rest() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    make_red_room(&mut w, at);
+
+    let taken = spawn_named(&mut w, "long sword", at).expect("a sword");
+    let leftover = spawn_named(&mut w, "dagger", at).expect("a dagger");
+
+    let line = pick_up(&mut w, p, taken).expect("the sword is taken");
+    assert!(line.contains(RED_ROOM_CLAIMED), "the room's line is logged");
+    assert!(
+        w.get_entity(leftover).is_none(),
+        "the leftover is destroyed"
+    );
+}
+
+#[test]
+fn a_dropped_item_ruins_a_red_room_just_the_same() {
+    // Bae: "A picked up dropped/thrown item counts for the red room" — there
+    // is no native/foreign distinction, only whether the tile reads as one.
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    make_red_room(&mut w, at);
+
+    let native = spawn_named(&mut w, "long sword", at).expect("a sword");
+    let dropped_in = spawn_named(&mut w, "dagger", at).expect("a dagger");
+
+    let line = pick_up(&mut w, p, dropped_in).expect("the dagger is taken");
+    assert!(line.contains(RED_ROOM_CLAIMED));
+    assert!(
+        w.get_entity(native).is_none(),
+        "the other item is destroyed"
+    );
+}
+
+#[test]
+fn a_second_pickup_in_an_already_ruined_red_room_is_silent() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    make_red_room(&mut w, at);
+
+    let first = spawn_named(&mut w, "long sword", at).expect("a sword");
+    let second = spawn_named(&mut w, "dagger", at).expect("a dagger");
+    let line = pick_up(&mut w, p, first).expect("taken");
+    assert!(
+        line.contains(RED_ROOM_CLAIMED),
+        "the room pops the first time"
+    );
+    assert!(
+        w.get_entity(second).is_none(),
+        "the second item was destroyed"
+    );
+
+    // Nothing left to ruin a second time — a fresh item dropped/thrown in
+    // later and then picked up finds the room already empty.
+    let later = spawn_named(&mut w, "dagger", at).expect("a dagger");
+    let line = pick_up(&mut w, p, later).expect("taken");
+    assert!(
+        !line.contains(RED_ROOM_CLAIMED),
+        "nothing else was there to destroy, so nothing extra is logged"
+    );
+}
+
+#[test]
+fn a_second_red_room_elsewhere_on_the_floor_is_untouched() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    make_red_room(&mut w, at);
+    let far = Position {
+        x: at.x.wrapping_add(20).min(MAP_WIDTH - 1),
+        y: at.y,
+    };
+    make_red_room(&mut w, far);
+
+    let taken = spawn_named(&mut w, "long sword", at).expect("a sword");
+    let leftover = spawn_named(&mut w, "dagger", at).expect("a dagger");
+    let elsewhere = spawn_named(&mut w, "dagger", far).expect("a dagger");
+
+    let line = pick_up(&mut w, p, taken).expect("the sword is taken");
+    assert!(line.contains(RED_ROOM_CLAIMED));
+    assert!(
+        w.get_entity(leftover).is_none(),
+        "the leftover in the same room is destroyed"
+    );
+    assert!(
+        w.get_entity(elsewhere).is_some(),
+        "the other red room, unreachable by flood-fill, is untouched"
+    );
+}
+
+#[test]
+fn a_pickup_off_an_ordinary_room_never_touches_other_items() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+
+    let taken = spawn_named(&mut w, "long sword", at).expect("a sword");
+    let untouched = spawn_named(&mut w, "dagger", at).expect("a dagger");
+
+    let line = pick_up(&mut w, p, taken).expect("taken");
+    assert!(!line.contains(RED_ROOM_CLAIMED));
+    assert!(
+        w.get_entity(untouched).is_some(),
+        "an ordinary room is inert"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Score bounty
+// ---------------------------------------------------------------------------
+
+/// Kills `mob` (hp dropped to 0, swept by the reaper) and settles the score
+/// pile it lands in, so the payout is readable off [`Score`] immediately.
+fn kill_and_settle(w: &mut World, mob: Entity) {
+    w.get_mut::<Fighter>(mob).unwrap().hp = 0;
+    reaper_system(w);
+    score_turn_system(w);
+}
+
+#[test]
+fn a_bounty_creature_pays_a_multiplied_kill_score() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let spot = Position {
+        x: at.x + 3,
+        y: at.y,
+    };
+    let apis = spawn_named(&mut w, "apis", spot).expect("apis is a bestiary row");
+    let max_hp = w.get::<Fighter>(apis).unwrap().max_hp;
+    let before = score(&mut w);
+
+    kill_and_settle(&mut w, apis);
+
+    assert_eq!(
+        score(&mut w) - before,
+        i64::from(max_hp * BOUNTY_SCORE_MULTIPLIER * KILL_PER_MAX_HP),
+        "an apis kill pays the bounty multiplier"
+    );
+}
+
+#[test]
+fn a_plain_monster_pays_the_unmultiplied_kill_score() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let spot = Position {
+        x: at.x + 3,
+        y: at.y,
+    };
+    let snake = spawn_named(&mut w, "rattlesnake", spot).expect("rattlesnake is a bestiary row");
+    let max_hp = w.get::<Fighter>(snake).unwrap().max_hp;
+    let before = score(&mut w);
+
+    kill_and_settle(&mut w, snake);
+
+    assert_eq!(
+        score(&mut w) - before,
+        i64::from(max_hp * KILL_PER_MAX_HP),
+        "an ordinary kill pays the plain rate, no bounty"
+    );
 }

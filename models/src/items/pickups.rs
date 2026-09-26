@@ -3,8 +3,10 @@
 //! A pickup is the one item the pack never sees: it works where it lies and is
 //! gone. That single rule is what the whole module is about —
 //!
-//! * [`pick_up`] is the *only* way anything leaves the floor, pickup or not, so
-//!   there is one place that knows a coin is answered differently from a sword.
+//! * [`pick_up`] is the *only* way anything leaves the floor for a pack, pickup
+//!   or not, so there is one place that knows a coin is answered differently
+//!   from a sword. The one exception is the Element of Yoord refusing deep
+//!   water ([`element_surfaces`]), which ends in the same payment.
 //! * [`would_help`] is asked before a coin is spent, and a coin that would do
 //!   nothing is simply not taken. Walking over a red coin at full health leaves
 //!   it there for the fight that goes badly, and auto-explore
@@ -25,7 +27,7 @@ use crate::components::*;
 use crate::constants::spells::SPELLSET_CAP;
 use crate::equipment::Slot;
 use crate::identify::display_name;
-use crate::map::GameRng;
+use crate::map::{GameRng, Map, SpecialRoom};
 use crate::score::award;
 
 // ---------------------------------------------------------------------------
@@ -34,12 +36,23 @@ use crate::score::award;
 
 /// Everything that happens when `taker` steps onto `item`: the invisible-stash
 /// reveal, the score a treasure carries, a pickup's effect, or an ordinary item
-/// going into the pack. Returns the line to log, or `None` when the item is
-/// left exactly where it was.
-///
-/// The one door onto the floor, so the rules about what can and cannot be
-/// carried live together instead of in the input handler.
+/// going into the pack, plus whatever a red room does about it. Returns the
+/// line to log, or `None` when the item is left exactly where it was.
 pub fn pick_up(world: &mut World, taker: Entity, item: Entity) -> Option<String> {
+    let pos = world.get::<Position>(item).copied();
+    let line = take_item(world, taker, item)?;
+    let Some(pos) = pos else { return Some(line) };
+    match ruin_red_room(world, pos, item) {
+        Some(extra) => Some(format!("{line} {extra}")),
+        None => Some(line),
+    }
+}
+
+/// The one door onto the floor, so the rules about what can and cannot be
+/// carried live together instead of in the input handler. Split out of
+/// [`pick_up`] so the red-room consequence above can wrap it without
+/// touching this body.
+fn take_item(world: &mut World, taker: Entity, item: Entity) -> Option<String> {
     // An invisibly-stashed item announces itself the instant you blunder onto
     // its tile, and is then treated like anything else.
     if world.get::<Hidden>(item).is_some() {
@@ -65,13 +78,81 @@ pub fn pick_up(world: &mut World, taker: Entity, item: Entity) -> Option<String>
     Some(line)
 }
 
+/// The Element of Yoord will not drown. Whatever put it in deep water, it
+/// comes straight up into the player's hands, and everything else they
+/// carried — worn or not — burns away in a flash to make room for it. Taken
+/// the way [`take_item`] takes it: stowed, and paid for if it never was.
+///
+/// Nothing the player does can put it there — it can be neither dropped nor
+/// thrown — so this is the rule's answer for anything that ever manages to.
+pub(crate) fn element_surfaces(world: &mut World, player: Entity, element: Entity) {
+    let pack = world
+        .get::<Backpack>(player)
+        .map(|b| b.items.clone())
+        .unwrap_or_default();
+    for item in pack {
+        crate::equipment::force_unequip(world, item);
+        world.despawn(item);
+    }
+    if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
+        backpack.items.clear();
+    }
+    crate::equipment::sync_equipment_effects(world, player);
+
+    crate::items::stow(world, player, element);
+    pay_out_value(world, element);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::element_surfaces());
+    if let Some(at) = world.get::<Position>(player).copied()
+        && let Some(mut fx) = world.get_resource_mut::<crate::particles::Particles>()
+    {
+        fx.spark_burst(at.x, at.y, crossterm::style::Color::White);
+    }
+}
+
+/// A pickup inside a red room destroys every other item still in that same
+/// room — including one the player dropped or threw in themselves, which
+/// counts the same as the room's own treasure. Scoped to the one physical
+/// room reachable from `pos` ([`Map::special_room_tiles`]), so a second red
+/// room elsewhere on the floor is untouched. `None` (no despawn, no line)
+/// when `pos` isn't a red room, or when nothing else was left there to
+/// destroy, which is also what makes a second pickup in an already-ruined
+/// room a silent no-op.
+fn ruin_red_room(world: &mut World, pos: Position, taken: Entity) -> Option<&'static str> {
+    let room = {
+        let map = world.resource::<Map>();
+        if map.special_kind(pos.x, pos.y) != Some(SpecialRoom::RedRoom) {
+            return None;
+        }
+        map.special_room_tiles(pos.x, pos.y)
+    };
+    let candidates: Vec<(Entity, Position)> = world
+        .query_filtered::<(Entity, &Position), With<Item>>()
+        .iter(world)
+        .map(|(e, p)| (e, *p))
+        .collect();
+    let others: Vec<Entity> = candidates
+        .into_iter()
+        .filter(|&(e, p)| e != taken && room.contains(&(p.x, p.y)))
+        .map(|(e, _)| e)
+        .collect();
+    if others.is_empty() {
+        return None;
+    }
+    for e in others {
+        world.despawn(e);
+    }
+    Some(strings::red_room_claimed())
+}
+
 /// Pays whatever score an item carries into the run's total as it is taken. A
 /// thing with no [`Value`] is worth nothing and says nothing.
 ///
-/// **Once.** The [`Value`] comes off with the payment, so the one item that can
-/// be paid for and then set down again — the Element of Yoord — cannot be
-/// dropped and re-taken for a second payout. A coin never needed the rule; it
-/// is spent the moment it is stepped on.
+/// **Once.** The [`Value`] comes off with the payment, so the Element of Yoord
+/// pays out once however it comes to hand — picked up, or leaping back out of
+/// deep water ([`element_surfaces`]). A coin never needed the rule; it is
+/// spent the moment it is stepped on.
 fn pay_out_value(world: &mut World, item: Entity) {
     let Some(amount) = world.get::<Value>(item).map(|v| v.amount) else {
         return;
@@ -93,32 +174,6 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
     let line = apply(world, taker, effect, amount);
     world.entity_mut(item).despawn();
     Some(strings::pick_up_pickup(&name, &line))
-}
-
-/// A coin-greedy monster (an orc) stepping onto a coin it can actually use —
-/// health, magic, a cleared affliction, restored strength. It never touches
-/// the two score coins or the two promise coins, which pay off only for the
-/// player anyway — [`crate::ai::orc_coin_goal`] only ever points one at a red
-/// coin in the first place, but this is what stops an orc that stumbles onto
-/// a gold coin mid-chase from "spending" it for nothing.
-///
-/// Silent: a monster patching itself up is not something the player reads a
-/// line about, unlike the player's own pickups. The coin is spent and gone
-/// either way. Returns whether anything was actually claimed.
-pub(crate) fn monster_claim(world: &mut World, monster: Entity, item: Entity) -> bool {
-    let Some((effect, amount)) = world.get::<Pickup>(item).map(|p| (p.effect, p.amount)) else {
-        return false;
-    };
-    let usable = matches!(
-        effect,
-        PickupEffect::Health | PickupEffect::Power | PickupEffect::Cleanse | PickupEffect::Strength
-    );
-    if !usable || !would_help(world, monster, effect) {
-        return false;
-    }
-    apply(world, monster, effect, amount);
-    world.entity_mut(item).despawn();
-    true
 }
 
 /// The coin somebody *shot* instead of stepping on: its effect reaches the

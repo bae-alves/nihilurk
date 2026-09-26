@@ -81,7 +81,7 @@ fn eligible<D: ItemDef>(table: &'static [D], depth: u8) -> Vec<&'static D> {
 
 /// Rolls one row of `table` as a floor drop — enchantment, battery charge,
 /// bundle size and all, whatever that category rolls for itself.
-fn roll_one<D: ItemDef>(
+pub(crate) fn roll_one<D: ItemDef>(
     world: &mut World,
     rng: &mut ChaCha12Rng,
     depth: u8,
@@ -346,7 +346,7 @@ fn free_tile_near(
                     continue;
                 }
                 let (x, y) = (x as u16, y as u16);
-                if map.blocks(x, y) || occupied.contains(&(x, y)) {
+                if !map.walkable(x, y, false) || occupied.contains(&(x, y)) {
                     continue;
                 }
                 return Some(Position { x, y });

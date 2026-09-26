@@ -11,7 +11,7 @@
 //! so blindness never doubles as a way to hide.
 
 use crate::components::*;
-use crate::effects::{Asleep, Blind, CoinGreedy, Petrified, Pinned, Rooted, Stealthy};
+use crate::effects::{Asleep, Blind, Petrified, Pinned, Rooted, Stealthy, Swims};
 use crate::helpers::{chebyshev, get_line};
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
@@ -295,15 +295,13 @@ fn step_one_mob(
         return true;
     }
 
-    let goal = coin_goal(world, mob, mob_pos)
-        .map(|target| step_toward(mob_pos, target))
-        .or_else(|| desired_step(movement_type, ctx.player_pos, mob_pos, seen));
-    let Some((step_x, step_y)) = goal else {
+    let Some((step_x, step_y)) = desired_step(movement_type, ctx.player_pos, mob_pos, seen) else {
         return false;
     };
     let new_x = (mob_pos.x as i16 + step_x) as u16;
     let new_y = (mob_pos.y as i16 + step_y) as u16;
-    if !mob_can_enter(ctx.map, movement_type, mob_pos, new_x, new_y) {
+    let swims = world.get::<Swims>(mob).is_some();
+    if !mob_can_enter(ctx.map, movement_type, mob_pos, new_x, new_y, swims) {
         return false;
     }
 
@@ -344,14 +342,6 @@ fn step_one_mob(
     true
 }
 
-/// The one-tile step from `from` toward `to`.
-fn step_toward(from: Position, to: Position) -> (i16, i16) {
-    (
-        (to.x as i16 - from.x as i16).signum(),
-        (to.y as i16 - from.y as i16).signum(),
-    )
-}
-
 /// Whether a shot could travel clean from `from` to `to` — no wall standing in
 /// the way. Doesn't care what else is standing in the line: a monster's own
 /// kin are not a good enough reason to hold its fire.
@@ -360,60 +350,6 @@ fn has_line_of_sight(map: &Map, from: Position, to: Position) -> bool {
         .into_iter()
         .filter(|&p| (p.x, p.y) != (from.x, from.y) && (p.x, p.y) != (to.x, to.y))
         .all(|p| !map.blocks(p.x, p.y))
-}
-
-/// Where a wounded, coin-greedy creature should head instead of the player:
-/// the nearest red (healing) coin still lying on the floor. Ignores every
-/// other coin on purpose — something hurt wants to patch itself up, not cash
-/// in a promise or pad the score. `None` for anything else, and for a
-/// coin-greedy creature at full health.
-///
-/// This is the one ability still written into the pathing code, because it
-/// overrides a *goal* rather than taking the turn — a different shape from
-/// anything [`crate::abilities`]'s moments express.
-fn coin_goal(world: &mut World, mob: Entity, mob_pos: Position) -> Option<Position> {
-    if world.get::<CoinGreedy>(mob).is_none() {
-        return None;
-    }
-    if !world.get::<Fighter>(mob).is_some_and(|f| f.hp < f.max_hp) {
-        return None;
-    }
-    let mut q = world.query_filtered::<(&Position, &Pickup), ()>();
-    q.iter(world)
-        .filter(|(_, p)| p.effect == PickupEffect::Health)
-        .map(|(pos, _)| *pos)
-        .min_by_key(|&pos| chebyshev(mob_pos, pos))
-}
-
-/// The other half of that greed: any [`CoinGreedy`] mob that just stepped
-/// onto a coin it can use ([`crate::items::monster_claim`]) scoops it up.
-/// Scheduled right after [`ai`] itself, while [`EntityMoved`] still marks
-/// whoever moved this turn — the same tag [`crate::traps::trap_system`] reads
-/// straight after this.
-///
-/// Assumes [`EntityMoved`] still marks exactly this turn's movers, untouched
-/// since `ai` tagged them — true because nothing between the two schedule
-/// steps reads or clears it.
-pub fn monster_pickup_system(world: &mut World) {
-    let movers: Vec<Entity> = world
-        .query_filtered::<Entity, (With<EntityMoved>, With<CoinGreedy>)>()
-        .iter(world)
-        .collect();
-    for mover in movers {
-        let Some(pos) = world.get::<Position>(mover).copied() else {
-            continue;
-        };
-        let Some(item) = pickup_at(world, pos) else {
-            continue;
-        };
-        crate::items::monster_claim(world, mover, item);
-    }
-}
-
-/// The [`Pickup`] sitting on `pos`, if there is one.
-fn pickup_at(world: &mut World, pos: Position) -> Option<Entity> {
-    let mut q = world.query_filtered::<(Entity, &Position), With<Pickup>>();
-    q.iter(world).find(|(_, p)| **p == pos).map(|(e, _)| e)
 }
 
 /// Whether `mob` can spend a step this pass: with a tempo it must be able to
@@ -489,20 +425,22 @@ fn random_orthogonal_step() -> (i16, i16) {
     DIRS[idx]
 }
 
-/// Whether `mob` may step onto `(new_x, new_y)`: on the map, not a wall, a
-/// legal diagonal, and — for a chaser — not out of a room into a corridor or
-/// doorway (the room leash).
+/// Whether `mob` may step onto `(new_x, new_y)`: on the map, somewhere its
+/// feet can stand (deep water only if it `swims`), a legal diagonal, and —
+/// for a chaser — not out of a room into a corridor or doorway (the room
+/// leash).
 fn mob_can_enter(
     map: &Map,
     movement_type: MovementType,
     mob_pos: Position,
     new_x: u16,
     new_y: u16,
+    swims: bool,
 ) -> bool {
     if new_x >= MAP_WIDTH || new_y >= MAP_HEIGHT {
         return false;
     }
-    if map.blocks(new_x, new_y) {
+    if !map.walkable(new_x, new_y, swims) {
         return false;
     }
     if !map.diagonal_step_ok(mob_pos.x, mob_pos.y, new_x, new_y) {
@@ -531,6 +469,8 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
         };
         map.tiles[tile_index(5, 5)] = TileType::Room;
         map.tiles[tile_index(6, 5)] = TileType::Passage;
@@ -541,6 +481,7 @@ mod tests {
             Position { x: 5, y: 5 },
             6,
             5,
+            false,
         ));
     }
 
@@ -549,6 +490,8 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
         };
         map.tiles[tile_index(5, 5)] = TileType::Passage;
         map.tiles[tile_index(6, 5)] = TileType::Room;
@@ -559,6 +502,7 @@ mod tests {
             Position { x: 5, y: 5 },
             6,
             5,
+            false,
         ));
     }
 
@@ -567,6 +511,8 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
         };
         map.tiles[tile_index(5, 5)] = TileType::Passage;
         map.tiles[tile_index(6, 5)] = TileType::Door;
@@ -577,7 +523,33 @@ mod tests {
             Position { x: 5, y: 5 },
             6,
             5,
+            false,
         ));
+    }
+
+    #[test]
+    fn only_a_swimmer_takes_to_the_water() {
+        let mut map = Map {
+            tiles: vec![TileType::Wall; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
+        };
+        map.tiles[tile_index(5, 5)] = TileType::Room;
+        map.tiles[tile_index(6, 5)] = TileType::Water;
+
+        let steps = |swims| {
+            mob_can_enter(
+                &map,
+                MovementType::Chase,
+                Position { x: 5, y: 5 },
+                6,
+                5,
+                swims,
+            )
+        };
+        assert!(!steps(false), "a walker stops at the shore");
+        assert!(steps(true), "a swimmer goes in");
     }
 }
 

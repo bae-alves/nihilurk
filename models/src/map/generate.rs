@@ -22,11 +22,15 @@ use std::collections::HashSet;
 use bevy_ecs::prelude::*;
 
 use crate::components::Depth;
-use crate::constants::map::DARK_ROOM_CHANCE;
+use crate::constants::map::{
+    DARK_ROOM_CHANCE, DRAGON_HOARD_CHANCE, MONSTER_ZOO_CHANCE, RED_ROOM_CHANCE,
+    TREASURE_HIVE_CHANCE,
+};
 use crate::rect::Rect;
 
+use super::special::{carve, roll_special_level};
 use super::streams::{RngSeed, layout_rng};
-use super::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
+use super::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, Rooms, SpecialRoom, TileType, tile_index};
 
 // ---------------------------------------------------------------------------
 // The grid the floor is laid out on
@@ -60,7 +64,7 @@ const EMPTY_SECTION_CHOICES: usize = 4;
 /// Where each cell of the grid starts and how much room it has. Derived once
 /// from the constants above, so the arithmetic appears in one place rather
 /// than inside the placement loop.
-struct Grid {
+pub(super) struct Grid {
     section_w: u16,
     section_h: u16,
     /// The grid is centred by giving the leading padding whatever is left over
@@ -70,7 +74,7 @@ struct Grid {
 }
 
 impl Grid {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let gutters = SECTIONS - 1;
         let usable_w = MAP_WIDTH
             .saturating_sub(PADDING * 2)
@@ -122,10 +126,18 @@ impl Grid {
 /// state always yields the same tiles, which is what lets us drop the map from
 /// save files and rebuild it from the seed on load.
 ///
-/// Five steps, and each one spends the RNG before the next begins: which cells
+/// Six steps, and each one spends the RNG before the next begins: which cells
 /// stay empty, a room in each of the rest, corridors between neighbours, the
-/// two staircases, and finally which rooms are unlit.
-pub(super) fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, FixedBitSet) {
+/// two staircases, which rooms are special, and finally which of the rest are
+/// unlit.
+pub(super) fn build_tiles(
+    rng: &mut ChaCha12Rng,
+) -> (
+    Vec<TileType>,
+    Vec<Rect>,
+    FixedBitSet,
+    Vec<Option<SpecialRoom>>,
+) {
     let grid = Grid::new();
     let mut tiles = vec![TileType::Wall; MAP_TILE_COUNT];
 
@@ -133,9 +145,11 @@ pub(super) fn build_tiles(rng: &mut ChaCha12Rng) -> (Vec<TileType>, Vec<Rect>, F
     let (cells, mut rooms) = carve_rooms(rng, &grid, &empty, &mut tiles);
     connect_neighbours(rng, &cells, &rooms, &mut tiles);
     place_stairs(rng, &mut rooms, &mut tiles);
-    let dark = roll_dark_rooms(rng, &rooms, &tiles);
+    let room_kinds = roll_special_rooms(rng, &rooms, &tiles);
+    let dark = roll_dark_rooms(rng, &rooms, &tiles, &room_kinds);
+    let special = tile_special_map(&rooms, &room_kinds, &tiles);
 
-    (tiles, rooms, dark)
+    (tiles, rooms, dark, special)
 }
 
 /// Which cells of the grid are left without a room, as a set of cell indices.
@@ -158,7 +172,7 @@ fn empty_sections(rng: &mut ChaCha12Rng) -> Vec<usize> {
 /// Returns the cell grid — index into `rooms` for each of the nine cells, or
 /// `None` for an empty one — alongside the rooms themselves. The grid is what
 /// [`connect_neighbours`] walks; the `Vec` is what everything else wants.
-fn carve_rooms(
+pub(super) fn carve_rooms(
     rng: &mut ChaCha12Rng,
     grid: &Grid,
     empty: &[usize],
@@ -209,7 +223,7 @@ fn connect_neighbours(
 /// Up in the first room — where the player spawns — and down in a random other
 /// one. Done here rather than at spawn time so the map rebuilt from the seed on
 /// load, and the map for every new floor, carries the same stairs.
-fn place_stairs(rng: &mut ChaCha12Rng, rooms: &mut [Rect], tiles: &mut [TileType]) {
+pub(super) fn place_stairs(rng: &mut ChaCha12Rng, rooms: &mut [Rect], tiles: &mut [TileType]) {
     let up = rooms[0].center();
     tiles[tile_index(up.0 as u16, up.1 as u16)] = TileType::Upstairs;
 
@@ -222,33 +236,114 @@ fn place_stairs(rng: &mut ChaCha12Rng, rooms: &mut [Rect], tiles: &mut [TileType
     tiles[tile_index(down.0, down.1)] = TileType::Downstairs;
 }
 
-/// Which rooms spawn unlit. Every room past the start room rolls
-/// [`DARK_ROOM_CHANCE`]; a dark room's floor tiles are flagged so the
-/// visibility system treats them like a passage until a wand of light goes off
-/// in there.
-fn roll_dark_rooms(rng: &mut ChaCha12Rng, rooms: &[Rect], tiles: &[TileType]) -> FixedBitSet {
+/// Which rooms spawn unlit. Every room past the start room that did *not*
+/// already roll a [`SpecialRoom`] (a lit "here be dragons" room can't also
+/// be unlit) rolls [`DARK_ROOM_CHANCE`]; a dark room's floor tiles are
+/// flagged so the visibility system treats them like a passage until a wand
+/// of light goes off in there.
+pub(super) fn roll_dark_rooms(
+    rng: &mut ChaCha12Rng,
+    rooms: &[Rect],
+    tiles: &[TileType],
+    special: &[Option<SpecialRoom>],
+) -> FixedBitSet {
     let mut dark = FixedBitSet::with_capacity(MAP_TILE_COUNT);
-    for room in rooms.iter().skip(1) {
-        if !rng.gen_bool(DARK_ROOM_CHANCE) {
+    for (i, room) in rooms.iter().enumerate().skip(1) {
+        if special[i].is_some() || !rng.gen_bool(DARK_ROOM_CHANCE) {
             continue;
         }
-        for y in room.y1..=room.y2 {
-            for x in room.x1..=room.x2 {
-                let (tx, ty) = (x as u16, y as u16);
-                if tiles[tile_index(tx, ty)] == TileType::Room {
-                    dark.insert(tile_index(tx, ty));
-                }
-            }
+        for (tx, ty) in room_floor_tiles(room, tiles) {
+            dark.insert(tile_index(tx, ty));
         }
     }
     dark
+}
+
+/// Which special kind, if any, every room past the start room is — a single
+/// roll across a weighted table, so each kind lands at exactly its stated
+/// chance regardless of table order (unlike [`roll_dark_rooms`]'s sequential
+/// check, which is fine since there's only the one kind to skew against).
+///
+/// A room holding a staircase is never special: a hoard or a zoo is somewhere
+/// the player walks into, never somewhere they arrive. The stairs are placed
+/// first so this can know, and the room still spends its roll, so where the
+/// down-stair lands never reshuffles which of the other rooms are special.
+fn roll_special_rooms(
+    rng: &mut ChaCha12Rng,
+    rooms: &[Rect],
+    tiles: &[TileType],
+) -> Vec<Option<SpecialRoom>> {
+    const TABLE: [(f64, SpecialRoom); 4] = [
+        (DRAGON_HOARD_CHANCE, SpecialRoom::DragonHoard),
+        (MONSTER_ZOO_CHANCE, SpecialRoom::MonsterZoo),
+        (TREASURE_HIVE_CHANCE, SpecialRoom::TreasureHive),
+        (RED_ROOM_CHANCE, SpecialRoom::RedRoom),
+    ];
+    let mut kinds = vec![None; rooms.len()];
+    for (kind, room) in kinds.iter_mut().zip(rooms).skip(1) {
+        let rolled = roll_table(rng, &TABLE);
+        let has_stairs = (room.y1..=room.y2)
+            .flat_map(|y| (room.x1..=room.x2).map(move |x| tile_index(x as u16, y as u16)))
+            .any(|i| matches!(tiles[i], TileType::Upstairs | TileType::Downstairs));
+        *kind = rolled.filter(|_| !has_stairs);
+    }
+    kinds
+}
+
+/// One roll across a table of `(chance, outcome)` rows: each outcome lands at
+/// exactly its own chance whatever order the rows are in, and `None` takes
+/// whatever the chances leave over. One draw, however long the table.
+pub(super) fn roll_table<T: Copy>(rng: &mut ChaCha12Rng, table: &[(f64, T)]) -> Option<T> {
+    let mut roll = rng.gen_range(0.0..1.0);
+    table.iter().find_map(|&(chance, outcome)| {
+        if roll < chance {
+            Some(outcome)
+        } else {
+            roll -= chance;
+            None
+        }
+    })
+}
+
+/// Builds [`Map::special`]: one [`SpecialRoom`] per tile, `Some` only on a
+/// special room's own floor tiles — mirrors [`roll_dark_rooms`]'s own tile
+/// loop, so a stair tile inside a special room is correctly left untagged.
+fn tile_special_map(
+    rooms: &[Rect],
+    kinds: &[Option<SpecialRoom>],
+    tiles: &[TileType],
+) -> Vec<Option<SpecialRoom>> {
+    let mut special = vec![None; MAP_TILE_COUNT];
+    for (room, kind) in rooms.iter().zip(kinds) {
+        let Some(kind) = kind else { continue };
+        for (tx, ty) in room_floor_tiles(room, tiles) {
+            special[tile_index(tx, ty)] = Some(*kind);
+        }
+    }
+    special
+}
+
+/// Every [`TileType::Room`] tile inside `room`'s bounds — excludes the
+/// staircase tile(s) a room happens to hold, since those are no longer
+/// `Room` once [`place_stairs`] overwrites them.
+pub(super) fn room_floor_tiles(room: &Rect, tiles: &[TileType]) -> Vec<(u16, u16)> {
+    let mut out = Vec::new();
+    for y in room.y1..=room.y2 {
+        for x in room.x1..=room.x2 {
+            let (tx, ty) = (x as u16, y as u16);
+            if tiles[tile_index(tx, ty)] == TileType::Room {
+                out.push((tx, ty));
+            }
+        }
+    }
+    out
 }
 // ---------------------------------------------------------------------------
 // Rooms and corridors
 // ---------------------------------------------------------------------------
 
 /// Carves `rect` into the tile grid as room floor.
-fn create_room(rect: &Rect, tiles: &mut [TileType], map_width: u16) {
+pub(super) fn create_room(rect: &Rect, tiles: &mut [TileType], map_width: u16) {
     for y in rect.y1..=rect.y2 {
         for x in rect.x1..=rect.x2 {
             let idx = (y as u16 * map_width + x as u16) as usize;
@@ -258,7 +353,7 @@ fn create_room(rect: &Rect, tiles: &mut [TileType], map_width: u16) {
 }
 
 /// A uniformly random tile inside `room`, walls excluded.
-fn random_point_in_room(room: &Rect, rng: &mut ChaCha12Rng) -> (u16, u16) {
+pub(super) fn random_point_in_room(room: &Rect, rng: &mut ChaCha12Rng) -> (u16, u16) {
     let width = (room.x2 - room.x1 + 1).max(1) as u32;
     let height = (room.y2 - room.y1 + 1).max(1) as u32;
 
@@ -272,7 +367,7 @@ fn random_point_in_room(room: &Rect, rng: &mut ChaCha12Rng) -> (u16, u16) {
 
 /// Digs a corridor between each consecutive pair of present rooms along one
 /// line (a row or a column) of the 3x3 grid, skipping any pair already joined.
-fn connect_line(
+pub(super) fn connect_line(
     cells: [Option<usize>; 3],
     rooms: &[Rect],
     tiles: &mut [TileType],
@@ -297,7 +392,12 @@ fn connect_line(
 
 /// Digs an L-shaped corridor from `from` to `to`, turning the tiles where it
 /// crosses a room's edge into doors.
-fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map_width: u16) {
+pub(super) fn create_corridor(
+    from: (u16, u16),
+    to: (u16, u16),
+    tiles: &mut [TileType],
+    map_width: u16,
+) {
     let mut x = from.0;
     let mut y = from.1;
     let mut path = Vec::new();
@@ -355,36 +455,66 @@ fn create_corridor(from: (u16, u16), to: (u16, u16), tiles: &mut [TileType], map
         prev_was_room = is_room;
     }
 }
+/// The tile coordinate of flat index `i` — [`tile_index`] backwards.
+pub(super) fn coord(i: usize) -> (u16, u16) {
+    (
+        (i % MAP_WIDTH as usize) as u16,
+        (i / MAP_WIDTH as usize) as u16,
+    )
+}
+
 /// The coordinate of the first tile of `want` in `tiles`, row-major.
 pub(super) fn find_tile(tiles: &[TileType], want: TileType) -> Option<(u16, u16)> {
-    tiles.iter().position(|&t| t == want).map(|i| {
-        (
-            (i % MAP_WIDTH as usize) as u16,
-            (i / MAP_WIDTH as usize) as u16,
-        )
-    })
+    tiles.iter().position(|&t| t == want).map(coord)
 }
+
+/// Every tile of kind `want` in `tiles`, row-major.
+pub(super) fn tiles_of(tiles: &[TileType], want: TileType) -> Vec<(u16, u16)> {
+    (0..tiles.len())
+        .filter(|&i| tiles[i] == want)
+        .map(coord)
+        .collect()
+}
+/// The one way a floor gets built: its [`Map`], and its rooms as the exact
+/// floor tiles each one holds — the start room first — which is all
+/// population needs to know about the shape it is stocking. A floor the roll
+/// makes a [`super::SpecialLevel`] is carved by [`carve`]; every other is
+/// Rogue's own [`build_tiles`]. Pure in `(seed, depth)` either way.
+pub(super) fn build_floor(seed: u64, depth: u8) -> (Map, Rooms) {
+    let rng = &mut layout_rng(seed, depth);
+    if let Some(level) = roll_special_level(seed, depth) {
+        return carve(level, rng);
+    }
+    let (tiles, rooms, dark, special) = build_tiles(rng);
+    let rooms = rooms.iter().map(|r| room_floor_tiles(r, &tiles)).collect();
+    (
+        Map {
+            tiles,
+            dark,
+            special,
+            level: None,
+        },
+        rooms,
+    )
+}
+
 /// Builds the current floor's layout into the [`Map`] resource and returns the
-/// player's starting tile. Reads [`Depth`] and [`RngSeed`]; leaves [`GameRng`]
-/// untouched.
-pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>) {
+/// player's starting tile — the up-stair — and the floor's rooms. Reads
+/// [`Depth`] and [`RngSeed`]; leaves [`GameRng`] untouched.
+pub fn create_map(world: &mut World) -> ((u16, u16), Rooms) {
     let seed = world.resource::<RngSeed>().0;
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
-    let (tiles, rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
-
-    world.insert_resource(Map { tiles, dark });
-
-    // Return the center of the very first room so we can spawn the player safely away from doors
-    let start_pos = rooms[0].center();
-    ((start_pos.0 as u16, start_pos.1 as u16), rooms)
+    let (map, rooms) = build_floor(seed, depth);
+    let start = find_tile(&map.tiles, TileType::Upstairs).expect("every floor has an up-stair");
+    world.insert_resource(map);
+    (start, rooms)
 }
 
 /// Rebuilds the [`Map`] resource for one floor, without touching the live
 /// [`GameRng`] resource or spawning any actors. Used on load, where the map is
 /// reconstructed from `(seed, depth)` rather than read out of the save file.
 pub fn regenerate_map(world: &mut World, seed: u64, depth: u8) {
-    let (tiles, _rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
-    world.insert_resource(Map { tiles, dark });
+    world.insert_resource(build_floor(seed, depth).0);
 }
 
 // What a floor is populated *with* is no longer decided here. Which creature,

@@ -178,6 +178,20 @@ pub struct Flies;
 #[derive(Component, Default, Clone, Copy)]
 pub struct FireBreath;
 
+/// This creature can breathe lightning in place of a melee blow — the
+/// dragon's bargain, with the Thunderbolt spell where the fireball was (the
+/// eel). See [`crate::abilities`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct LightningBreath;
+
+/// Swims: deep water ([`crate::map::TileType::Water`]) is floor to this
+/// creature and a wall to everything else (the eel, the ichthyocentaur). A
+/// swimmer is only ever drawn for a water tile; see
+/// [`crate::monsters::MonsterDef::pick_aquatic`] and
+/// [`crate::map::Map::walkable`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Swims;
+
 /// "Batty": every blow this creature lands, it tries to hop to a random
 /// adjacent tile right afterward — landing only if that tile is open and
 /// unoccupied (the bat, the phantom). See [`crate::abilities`].
@@ -207,11 +221,12 @@ pub struct Vampiric;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Venomous;
 
-/// This creature covets coins: hurt and with a red coin somewhere on the
-/// floor, it abandons the chase for it, and it scoops up any coin it steps on
-/// that would actually help it (an orc). See [`crate::ai`].
+/// This creature's kill pays out extra score — a flat multiplier over the
+/// usual max-HP payout (the apis guarding a treasure hive). See
+/// [`crate::constants::score::BOUNTY_SCORE_MULTIPLIER`] and
+/// [`crate::combat::pay_for_the_corpse`].
 #[derive(Component, Default, Clone, Copy)]
-pub struct CoinGreedy;
+pub struct ScoreBounty;
 
 /// This creature freezes what it touches: a chance on every hit of
 /// paralysing the victim outright (the ice monster). See [`crate::abilities`].
@@ -731,12 +746,14 @@ effects! {
     "gorgon" => Gorgon, beware strings::beware_petrifying_gaze();
     "vampiric" => Vampiric, beware strings::beware_draining_touch();
     "venomous" => Venomous, beware strings::beware_venomous_bite();
-    "coin_greedy" => CoinGreedy;
+    "score_bounty" => ScoreBounty;
     "splits" => Splits, beware strings::beware_splitting_flesh();
     "freezing" => Freezing, beware strings::beware_paralysing_touch();
     "steals_and_flees" => StealsAndFlees, beware strings::beware_thieving_touch();
     "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch();
     "fire_breath" => FireBreath, beware strings::beware_fire_breath();
+    "lightning_breath" => LightningBreath, beware strings::beware_lightning_breath();
+    "swims" => Swims;
     "cleaves" => Cleaves;
     "heavy_swing" => HeavySwing;
     "fencer" => Fencer;

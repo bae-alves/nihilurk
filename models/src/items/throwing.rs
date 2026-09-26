@@ -37,21 +37,19 @@ use crate::constants::wands::{
     BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
 };
 
-/// Why `user` can't throw `item`, if they can't. Two things stay in the pack:
-/// the Element of Yoord, which is the whole point of the run and is not to be
-/// flung down a corridor, and cursed gear, which is welded on — it won't come
-/// off, so it can be neither dropped nor hurled. Anything else is fair game.
+/// Why `user` can't throw `item`, if they can't: exactly the things that
+/// can't be put down either ([`drop_refusal`]). Anything else is fair game.
 pub fn throw_refusal(world: &World, user: Entity, item: Entity) -> Option<String> {
-    if world.get::<Amulet>(item).is_some() {
-        return Some(strings::element_wont_leave_hand().to_string());
-    }
     drop_refusal(world, user, item)
 }
 
-/// Why `user` can't put `item` down, if they can't. Cursed gear is welded on;
-/// the Element of Yoord, unlike a thrown one, *can* be set down — abandoning the
-/// run's prize on the floor is the player's business.
+/// Why `user` can't put `item` down, if they can't. Two things stay in the
+/// pack: the Element of Yoord, which is the whole point of the run and never
+/// leaves the hand that took it, and cursed gear, which is welded on.
 pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String> {
+    if world.get::<Amulet>(item).is_some() {
+        return Some(strings::element_wont_leave_hand().to_string());
+    }
     let equipped = world.get::<Equipped>(item)?;
     if equipped.by != Some(user) || world.get::<Curse>(item).is_none() {
         return None;

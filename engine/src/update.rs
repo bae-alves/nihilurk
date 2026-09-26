@@ -146,6 +146,20 @@ fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
     }
 }
 
+/// Logs a special room's one-line flavor the instant the player's step
+/// crosses into it from anywhere else. A no-op off a special room, past its
+/// threshold, or for the one kind ([`SpecialRoom::MonsterZoo`]) that was
+/// never given a line.
+fn announce_special_room_entry(world: &mut World, old: (u16, u16), new: (u16, u16)) {
+    let message = {
+        let map = world.resource::<Map>();
+        special_room_entry_message(map, old, new)
+    };
+    if let Some(msg) = message {
+        world.resource_mut::<GameLog>().add(msg);
+    }
+}
+
 /// The one path every step and every melee attack goes through — the arrow
 /// keys, auto-explore, fast-move and auto-fight all end up here.
 ///
@@ -179,13 +193,16 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // any) is picked up the same as any other arrival.
     if try_lunge(world, player_entity, dx, dy) {
         if let Some(pos) = world.get::<Position>(player_entity).copied() {
+            announce_special_room_entry(world, (old_x, old_y), (pos.x, pos.y));
             pick_up_here(world, player_entity, pos.x, pos.y);
         }
         return true;
     }
 
-    if world.resource::<Map>().blocks(new_x, new_y) {
+    let swims = world.get::<Swims>(player_entity).is_some();
+    if !world.resource::<Map>().walkable(new_x, new_y, swims) {
         // A deliberate wall-bump is free; a confused lurch into it is not.
+        // Deep water is a wall to anyone who cannot swim.
         return stumbled;
     }
 
@@ -238,6 +255,7 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     }
     // Tag the move so `trap_system` checks the new tile for a trap.
     world.entity_mut(player_entity).insert(EntityMoved);
+    announce_special_room_entry(world, (old_x, old_y), (new_x, new_y));
 
     // The chain-sickle's whirl — self-checked by `models::try_whirl_attack`.
     try_whirl_attack(
@@ -1929,6 +1947,31 @@ mod tests {
     fn player_pos(w: &mut World) -> Position {
         let mut q = w.query_filtered::<&Position, With<Player>>();
         *q.iter(w).next().unwrap()
+    }
+
+    /// Deep water is a wall to feet that cannot swim and floor to feet that
+    /// can — the player's own step included, whatever body they are wearing.
+    #[test]
+    fn only_a_swimming_player_steps_into_deep_water() {
+        for swims in [false, true] {
+            let mut w = test_world(7);
+            let player = player_entity(&mut w);
+            let here = player_pos(&mut w);
+            let east = Position {
+                x: here.x + 1,
+                y: here.y,
+            };
+            w.resource_mut::<Map>().tiles[tile_index(east.x, east.y)] = TileType::Water;
+            if swims {
+                w.entity_mut(player).insert(Swims);
+            }
+            move_player(&mut w, 1, 0);
+            assert_eq!(
+                player_pos(&mut w) == east,
+                swims,
+                "swims = {swims}: the step into the water went the wrong way"
+            );
+        }
     }
 
     /// Tab-fire was the one aiming path that never checked its reach: the

@@ -45,10 +45,12 @@ use std::collections::HashSet;
 // Building the next floor: the tiles, the things that stand on them, and the
 // two seeds that decide each — `layout_rng` for the shape a depth always has,
 // `FxRng` for the stock it gets on this visit.
-use super::generate::{build_tiles, create_map, find_tile};
+use super::generate::{build_floor, create_map, find_tile};
 use super::population::{difficulty_tier, populate_level};
-use super::streams::{FxRng, RngSeed, layout_rng};
-use super::{DUNGEON_LORD_PATIENCE, FINAL_DEPTH, MAP_TILE_COUNT, Map, TileType};
+use super::streams::{FxRng, GameRng, RngSeed};
+use super::{
+    DUNGEON_LORD_PATIENCE, FINAL_DEPTH, MAP_TILE_COUNT, Map, Rooms, TileType, special_level_arrival,
+};
 
 // Unbuilding the last one. Blood, corpses and smoke are floor-local: none of
 // the three follows anybody down a staircase.
@@ -59,13 +61,18 @@ use crate::catalog::{spawn_ammo, spawn_armor, spawn_launcher, spawn_potion, spaw
 use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
 use crate::equipment::equip_silently;
 
+// A bones ghost, on the way back out: whoever died on this depth before,
+// come to make the player pay for it.
+use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
+use crate::monsters::{GHOST, spawn_monster};
+use crate::spawn::spawn_named;
+use rand::Rng;
+
 // The arrival: how much of the descent is paid back as health.
 use crate::constants::progression::DESCENT_HEAL_DIVISOR;
 
-// The vocabulary the whole crate is written in, plus the room rectangle a new
-// floor is measured with.
+// The vocabulary the whole crate is written in.
 use crate::components::*;
-use crate::rect::Rect;
 use crate::state::*;
 
 /// Whether the player is currently carrying the Element of Yoord.
@@ -207,12 +214,22 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     tear_down_the_floor(world);
     let depth = step_depth(world, going_down);
     let rooms = build_the_floor(world, depth);
-    let start = put_the_player_down(world, player, going_down, &rooms);
+    let start = put_the_player_down(world, player, going_down);
     populate_level(world, &rooms, start);
     settle_arrival(world, player, cause);
     world
         .resource_mut::<GameLog>()
         .add(arrival_line(cause, going_down, depth));
+    if world.resource::<crate::bones::Bones>().enabled && holding_element_of_yoord(world) {
+        spawn_bones_ghost(world, depth, &rooms);
+    }
+    if let Some(level) = world.resource::<Map>().level {
+        let lines = special_level_arrival(level, &mut world.resource_mut::<FxRng>().0);
+        let mut log = world.resource_mut::<GameLog>();
+        for line in lines {
+            log.add(line);
+        }
+    }
 }
 
 /// Everything on the old floor stops existing.
@@ -253,9 +270,9 @@ fn tear_down_the_floor(world: &mut World) {
 /// arrived at.
 ///
 /// Both have to happen before anything is built. The layout is a pure function
-/// of `(seed, depth)` ([`layout_rng`]) and the contents are a function of that
-/// plus the staircase count ([`content_rng`]), so building first would build
-/// the floor you just left.
+/// of `(seed, depth)` ([`super::streams::layout_rng`]) and the contents are a
+/// function of that plus the staircase count ([`content_rng`]), so building
+/// first would build the floor you just left.
 fn step_depth(world: &mut World, going_down: bool) -> u8 {
     if let Some(mut fc) = world.get_resource_mut::<FloorChanges>() {
         fc.count = fc.count.saturating_add(1);
@@ -271,10 +288,10 @@ fn step_depth(world: &mut World, going_down: bool) -> u8 {
 /// Carves the new floor into the [`Map`] resource and wipes the overlays the
 /// old one dirtied. Returns its rooms, which the caller needs twice over — to
 /// stand the player in one and to populate the rest.
-fn build_the_floor(world: &mut World, depth: u8) -> Vec<Rect> {
+fn build_the_floor(world: &mut World, depth: u8) -> Rooms {
     let seed = world.resource::<RngSeed>().0;
-    let (tiles, rooms, dark) = build_tiles(&mut layout_rng(seed, depth));
-    world.insert_resource(Map { tiles, dark });
+    let (map, rooms) = build_floor(seed, depth);
+    world.insert_resource(map);
     world.resource_mut::<BloodStains>().clear();
     world.resource_mut::<Smoke>().clear();
     world.resource_mut::<Corpses>().clear();
@@ -282,24 +299,16 @@ fn build_the_floor(world: &mut World, depth: u8) -> Vec<Rect> {
 }
 
 /// Stands the player on the stair they arrive at and blanks their memory of the
-/// floor. Descending drops them on the new floor's up-stair (its first room);
-/// ascending brings them out at the shallower floor's down-stair.
-fn put_the_player_down(
-    world: &mut World,
-    player: Entity,
-    going_down: bool,
-    rooms: &[Rect],
-) -> (u16, u16) {
-    let fallback = {
-        let c = rooms[0].center();
-        (c.0 as u16, c.1 as u16)
+/// floor. Descending drops them on the new floor's up-stair; ascending brings
+/// them out at the shallower floor's down-stair, which every floor above the
+/// last one has.
+fn put_the_player_down(world: &mut World, player: Entity, going_down: bool) -> (u16, u16) {
+    let stair = match going_down {
+        true => TileType::Upstairs,
+        false => TileType::Downstairs,
     };
-    let start = match going_down {
-        true => fallback,
-        false => {
-            find_tile(&world.resource::<Map>().tiles, TileType::Downstairs).unwrap_or(fallback)
-        }
-    };
+    let start = find_tile(&world.resource::<Map>().tiles, stair)
+        .expect("a floor arrived at by stair has the stair to arrive on");
     if let Some(mut pos) = world.get_mut::<Position>(player) {
         pos.x = start.0;
         pos.y = start.1;
@@ -358,6 +367,74 @@ fn arrival_line(cause: LevelChange, going_down: bool, depth: u8) -> String {
         LevelChange::Stairs if going_down => strings::descend_stairs(depth),
         LevelChange::Stairs => strings::climb_stairs(depth),
     }
+}
+
+/// Whoever died on `depth` before, come back for the player — only when this
+/// character has reached it carrying the Element of Yoord (see the caller in
+/// [`transition_level`]), and only when a bones file is actually waiting
+/// there (`crate::bones::take`, which also deletes it: one encounter per
+/// death). A no-op otherwise.
+fn spawn_bones_ghost(world: &mut World, depth: u8, rooms: &Rooms) {
+    let Some(bones) = crate::bones::take(depth) else {
+        return;
+    };
+
+    let occupied: HashSet<(u16, u16)> = world
+        .query::<&Position>()
+        .iter(world)
+        .map(|p| (p.x, p.y))
+        .collect();
+    let mut rng = world.remove_resource::<GameRng>().unwrap().0;
+    let mut pos = None;
+    for _ in 0..10 {
+        let room = &rooms[rng.gen_range(0..rooms.len())];
+        let spot = room[rng.gen_range(0..room.len())];
+        if !occupied.contains(&spot) {
+            pos = Some(spot);
+            break;
+        }
+    }
+    world.insert_resource(GameRng(rng));
+    let Some((x, y)) = pos else { return };
+    let pos = Position { x, y };
+
+    let ghost = spawn_monster(world, &GHOST, pos);
+    world.entity_mut(ghost).insert(Name {
+        what: bones.name.clone(),
+    });
+    let is_self = bones.name == world.resource::<PlayerName>().what;
+    if is_self {
+        world.entity_mut(ghost).insert(GhostOfPlayer);
+    }
+
+    for (name, slot, power_bonus, armor_bonus, throw_bonus, stack) in bones.items() {
+        let Some(item) = spawn_named(world, name, pos) else {
+            continue;
+        };
+        {
+            let mut e = world.entity_mut(item);
+            e.insert(PowerBonus(power_bonus));
+            e.insert(ArmorBonus(armor_bonus));
+            e.insert(ThrowBonus(throw_bonus));
+            if let Some(count) = stack {
+                e.insert(Stack { count });
+            }
+            if slot.is_some() {
+                e.insert(Curse);
+            }
+        }
+        if slot.is_some() {
+            equip_silently(world, ghost, item);
+        }
+    }
+
+    let line = match is_self {
+        true => strings::bones_ghost_arrives_self(),
+        false => strings::bones_ghost_arrives(&bones.name),
+    };
+    world
+        .resource_mut::<GameLog>()
+        .add_colored(line, LogCategory::Ghost);
 }
 
 /// Exclusive system, run each turn just before visibility is recomputed. Ages
@@ -422,6 +499,7 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(BloodStains::new());
     world.insert_resource(Smoke::new());
     world.insert_resource(Corpses::new());
+    world.init_resource::<crate::bones::Bones>();
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.init_resource::<crate::score::ScoreFlash>();
     world.init_resource::<crate::score::Combo>();
