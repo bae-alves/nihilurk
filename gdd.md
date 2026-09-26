@@ -101,12 +101,12 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- More player character options
 - An internal leaderboard and an arg to show it without playing the game.
-- Steam
+- Special Levels!
 - Nethack bones file to make failed characters come for you. A user can just rm the bones and that is okay but would be missing out on past run loot (all wearables cursed). Failed characters will be really angry about you failing them and will spout angry nonsense. If they share names with the current character the failed character will also be treated as 'you' but on a different log font. This whole shebang won't happen all the time (i.e. when making to a character's death depth on ascension only). The ghost's glyph is ' ' like in nethack.
 - Forgotten beasts like in Dwarf Fortress on ascension. Sometimes they die in one hit, sometimes they are literally invincible. The description pop-up will tell which one is which
-- Special Levels!
+- More player character options
 - The Nemelex decks from DCSS
-- Charms link in Wildfrost
+- Charms like in Wildfrost
 - Charms like in Brogue
+- Steam
