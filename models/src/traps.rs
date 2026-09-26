@@ -295,10 +295,7 @@ impl TrapBundle {
 
 /// Springs any trap whose tile an actor entered this turn, then clears the
 /// [`EntityMoved`] markers. Placed just after [`crate::ai`] in the schedule so
-/// it sees both the player's move and the monsters'.
-///
-/// Assumes [`crate::ai::monster_pickup_system`] has already run and claimed
-/// any coin a greedy mob wanted off these tiles — this is the last reader of
+/// it sees both the player's move and the monsters' — the last reader of
 /// [`EntityMoved`] before it clears the tag.
 pub fn trap_system(world: &mut World) {
     let movers: Vec<Entity> = world

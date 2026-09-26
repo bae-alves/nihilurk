@@ -156,8 +156,11 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
         return FastMovePlan::Blocked;
     }
     {
+        let swims = crate::helpers::player_swims(world);
         let map = world.resource::<Map>();
-        if map.blocks(nx as u16, ny as u16) || !map.diagonal_step_ok(px, py, nx as u16, ny as u16) {
+        if !map.walkable(nx as u16, ny as u16, swims)
+            || !map.diagonal_step_ok(px, py, nx as u16, ny as u16)
+        {
             return FastMovePlan::Blocked;
         }
     }
@@ -181,8 +184,11 @@ pub fn straight_step(world: &mut World) -> Option<(i16, i16)> {
         return None;
     }
     {
+        let swims = crate::helpers::player_swims(world);
         let map = world.resource::<Map>();
-        if map.blocks(nx as u16, ny as u16) || !map.diagonal_step_ok(px, py, nx as u16, ny as u16) {
+        if !map.walkable(nx as u16, ny as u16, swims)
+            || !map.diagonal_step_ok(px, py, nx as u16, ny as u16)
+        {
             return None;
         }
     }

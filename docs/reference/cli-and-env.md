@@ -22,6 +22,7 @@ Single dash, in any order. Unrecognised arguments are treated as the positional 
 | `-ns`        | No save. The run is never written to disk.                |
 | `-nb`        | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
 | `-nshake`    | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
+| `-nobones`   | Skip the bones mechanic entirely: a death never writes a `bones-N.sav`, and an ascent never reads one. Not the corpse-fling animation `-nb` mentions above — this is the NetHack-style "a past run's ghost, guarding its own cursed gear" (`models::bones`). |
 | `-content`   | Print every name the content tables know, then exit.      |
 | `-scores`    | Print the leaderboard (top 10 scores ever recorded), then exit. |
 | `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
@@ -179,6 +180,27 @@ Details:
   * It applies to **every floor**, not just the first. Descend and your dragon is waiting again.
   * Items arrive exactly as their row describes them -- unenchanted, uncharged, a single arrow rather than a bundle. For the randomised version, find one on the floor.
 
+### NIHILURK_LEVEL
+
+Makes every floor one kind of special level instead of rolling for it. Most special levels turn up on one floor in a hundred, from floor 6 down; this is how you look at one without hunting for a seed that has it.
+
+    NIHILURK_LEVEL=island cargo run -p engine
+
+| Value                          | Level       |
+|--------------------------------|-------------|
+| `battlefield`                  | Battlefield |
+| `labyrinth`                    | Labyrinth   |
+| `vault`                        | Vault       |
+| `bee`, `beeworld`, `bee world` | Bee World   |
+| `castle`                       | Castle      |
+| `island`                       | Island      |
+
+Details:
+
+  * Case does not matter. A value that names no level is ignored, and floors roll as usual.
+  * It applies to **every floor**, the first and the last included -- floors the roll itself never touches.
+  * A save rebuilds its map from the seed on load, and this is read then too. Load a save with the same value it was written with, or the floor comes back a different shape under everything standing on it.
+
 ### NIHILURK_MAGICMAP
 
 Forces the animation a scroll of magic mapping plays, instead of rolling one. Useful when you are working on the animation itself.
@@ -202,6 +224,10 @@ Look at a new monster immediately:
 Reproduce a run someone reported:
 
     cargo run -p engine -- -s 1234567 -ns
+
+Walk around an island from turn one:
+
+    NIHILURK_LEVEL=island cargo run -p engine
 
 Check a name before you use it:
 

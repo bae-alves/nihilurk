@@ -16,9 +16,9 @@ use rand_chacha::ChaCha12Rng;
 use crate::catalog::ItemDef;
 use crate::components::*;
 use crate::effects::{
-    Batty, Binds, CoinGreedy, ColdImmune, FireBreath, FireImmune, Flies, Freezing, Gorgon, Grant,
-    Grants, ItemUser, Regenerates, RustsArmor, Splits, StealsAndFlees, StealsAndVanishes, Undead,
-    Vampiric, Venomous, VorpalTarget, grant_all,
+    Batty, Binds, ColdImmune, FireBreath, FireImmune, Flies, Freezing, Gorgon, Grant, Grants,
+    ItemUser, LightningBreath, Regenerates, RustsArmor, ScoreBounty, Splits, StealsAndFlees,
+    StealsAndVanishes, Swims, Undead, Vampiric, Venomous, VorpalTarget, grant_all,
 };
 use crate::equipment::equip_silently;
 use crate::map::{FINAL_DEPTH, GameRng};
@@ -206,7 +206,7 @@ impl MonsterDef {
     /// lives on a floor, so a new creature's rarity and debut are the two
     /// numbers on its row and nothing else.
     pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static MonsterDef {
-        Self::draw(rng, |m| m.min_depth <= depth.max(1))
+        Self::draw(rng, |m| !m.swims() && m.min_depth <= depth.max(1))
     }
 
     /// A weighted draw from the *whole* bestiary, depth gate and all. Once the
@@ -214,11 +214,28 @@ impl MonsterDef {
     /// the climb out re-populates each floor through here, so a dragon can turn
     /// up on floor 1. See [`crate::map::holding_element_of_yoord`].
     pub fn pick_any(rng: &mut ChaCha12Rng) -> &'static MonsterDef {
-        Self::draw(rng, |_| true)
+        Self::draw(rng, |m| !m.swims())
     }
 
-    /// The shared body of [`pick`](Self::pick) and [`pick_any`](Self::pick_any):
-    /// a weighted draw from every bestiary row `eligible` accepts.
+    /// A weighted draw from the rows that [`Swims`], and only those — what a
+    /// water tile gets instead of [`pick`](Self::pick). No depth gate: water
+    /// only turns up on floors deep enough for every swimmer. Neither
+    /// ordinary draw ever hands a swimmer out, so this is the one door they
+    /// come into a floor through.
+    pub fn pick_aquatic(rng: &mut ChaCha12Rng) -> &'static MonsterDef {
+        Self::draw(rng, MonsterDef::swims)
+    }
+
+    /// Whether this species lives in the water: its row grants [`Swims`].
+    pub fn swims(&self) -> bool {
+        self.grants
+            .iter()
+            .any(|g| g.effect_id() == Grant::of::<Swims>().effect_id())
+    }
+
+    /// The shared body of [`pick`](Self::pick), [`pick_any`](Self::pick_any)
+    /// and [`pick_aquatic`](Self::pick_aquatic): a weighted draw from every
+    /// bestiary row `eligible` accepts.
     fn draw(rng: &mut ChaCha12Rng, eligible: impl Fn(&MonsterDef) -> bool) -> &'static MonsterDef {
         let pool: Vec<&MonsterDef> = BESTIARY.iter().filter(|m| eligible(m)).collect();
         let weights: Vec<u32> = pool.iter().map(|m| m.weight).collect();
@@ -257,7 +274,8 @@ pub enum EquipKind {
     Bow,
 }
 
-/// The whole bestiary: 26 lettered creatures, in one table. Effects that pick a
+/// The whole bestiary: Rogue's 26 lettered creatures and the few nihilurk
+/// added, in one table. Effects that pick a
 /// creature at random (scrolls of create monster and vorpalize weapon) index
 /// straight into it, and floor population draws from it through
 /// [`MonsterDef::pick`].
@@ -289,13 +307,24 @@ pub const BESTIARY: &[MonsterDef] = &[
     // `.fast()`, `.equip(...)`, `.mimics()` and `.weight(n)` are chained on
     // when a row wants more than the default.
     //              name             glyph  colour              move       hp  pow  pb   ar  ab  dep
+    // A rattlesnake's numbers verbatim, plus a bounty: the guardian a
+    // treasure hive forces in (`SpecialRoom::TreasureHive`), fast where the
+    // snake is not.
+    MonsterDef::row("apis",          'a',   Color::Yellow,      Chase,      6,   6,   0,   8,  0,   5)
+        .grants(&[Grant::of::<Venomous>(), Grant::of::<ScoreBounty>()]).fast(),
     MonsterDef::row("aquator",       'A',   Color::Blue,        Chase,      9,   4,  -1,   8,  1,   5).grants(&[Grant::of::<RustsArmor>()]),
     MonsterDef::row("foxbat",           'B',   Color::DarkGrey,    Chase,      6,   8,   0,   8,  0,   5).grants(&[Grant::of::<Batty>()]),
     MonsterDef::row("centaur",       'C',   Color::DarkYellow,  Chase,      9,   8,   0,   6,  1,   5)
         .grants(ITEM_USER)
         .equip(&[EquipRoll { chance: ULTIMATE_GEAR_CHANCE, kind: EquipKind::Bow }]),
+    // The centaur's own numbers and wits, in the water.
+    MonsterDef::row("ichthyocentaur", 'C',  Color::Cyan,        Chase,      9,   8,   0,   6,  1,   5)
+        .grants(&[Grant::of::<ItemUser>(), Grant::of::<Swims>()])
+        .equip(&[EquipRoll { chance: ULTIMATE_GEAR_CHANCE, kind: EquipKind::Bow }]),
     MonsterDef::row("dragon",        'D',   Color::Red,         Chase,      13,  12,   2,  10,  2,  10).grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>(), Grant::of::<FireBreath>()]),
     MonsterDef::row("emu",           'E',   Color::DarkGreen,   Chase,      6,   4,   0,   4,  1,   1),
+    MonsterDef::row("eel",           'e',   Color::Cyan,        Chase,      6,   6,   0,   6,  0,   6)
+        .grants(&[Grant::of::<Swims>(), Grant::of::<LightningBreath>()]),
     MonsterDef::row("venus flytrap", 'f',   Color::Green,       Ambush,     9,  10,   0,   8,  0,   5).grants(&[Grant::of::<Binds>()]),
     MonsterDef::row("griffin",       'G',   Color::DarkYellow,  Chase,     13,  12,   1,   8,  1,  10).grants(&[Grant::of::<Flies>(), Grant::of::<Regenerates>()]),
     MonsterDef::row("hobgoblin",     'h',   Color::DarkRed,     Chase,      6,   4,   0,   6,  0,   1)
@@ -314,7 +343,7 @@ pub const BESTIARY: &[MonsterDef] = &[
         .equip(&[EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Bow }]),
     MonsterDef::row("nymph",         'N',   Color::Magenta,     Chase,      3,   4,  -1,   4, -1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<StealsAndVanishes>()]),
     MonsterDef::row("orc",           'o',   Color::Red,         Chase,      4,   6,   0,   4,  0,   1)
-        .grants(&[Grant::of::<ItemUser>(), Grant::of::<CoinGreedy>()])
+        .grants(ITEM_USER)
         .equip(&[
             EquipRoll { chance: HIGH_GEAR_CHANCE, kind: EquipKind::Weapon },
             EquipRoll { chance: NORMAL_GEAR_CHANCE, kind: EquipKind::Armor },
@@ -336,6 +365,25 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      9,   8,   0,   6,  0,   5).grants(&[Grant::of::<ColdImmune>()]),
     MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      8,   8,   0,   4,  0,   5).grants(&[Grant::of::<Undead>()]),
 ];
+
+/// A bones ghost — a past character come back angry (see `crate::bones` and
+/// `crate::map::levels::spawn_bones_ghost`). Deliberately *not* in
+/// [`BESTIARY`]: it never turns up in the ordinary weighted population roll,
+/// only ever spawned by name. Its glyph is a blank space, the same trick
+/// NetHack's own ghost uses, and its stats are nihil's own starting numbers —
+/// fixed and the same for every ghost, whoever they used to be.
+pub(crate) const GHOST: MonsterDef = MonsterDef::row(
+    "ghost",
+    ' ',
+    Color::DarkGrey,
+    Chase,
+    crate::constants::player::START_HP,
+    crate::constants::player::START_POWER,
+    0,
+    crate::constants::player::START_ARMOR,
+    0,
+    1,
+);
 
 /// Every component a monster is spawned with, built wholesale from a
 /// [`MonsterDef`] — including a record of the magic it was born with and a

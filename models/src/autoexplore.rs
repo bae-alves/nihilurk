@@ -347,6 +347,7 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
         .then(|| known_item_tiles(world))
         .unwrap_or_default();
     let (px, py, seen) = player_view(world)?;
+    let swims = crate::helpers::player_swims(world);
     // `AutoExplore` isn't inserted in every test world; treat it as having no
     // committed frontier yet rather than panicking.
     let cached_frontier = world.get_resource::<AutoExplore>().and_then(|a| a.frontier);
@@ -357,8 +358,9 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     };
     // A tile the search may stand on and route through: revealed, walkable, and
     // not a trap the player already knows to avoid.
-    let open =
-        |x: u16, y: u16| -> bool { is_seen(x, y) && !map.blocks(x, y) && !traps.contains(&(x, y)) };
+    let open = |x: u16, y: u16| -> bool {
+        is_seen(x, y) && map.walkable(x, y, swims) && !traps.contains(&(x, y))
+    };
 
     // An `open` tile that touches at least one still-unseen tile.
     let is_frontier = |x: u16, y: u16| -> bool {
@@ -449,6 +451,7 @@ pub fn tile_is_revealed(world: &mut World, x: u16, y: u16) -> bool {
 pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> {
     let traps = known_trap_tiles(world);
     let (px, py, seen) = player_view(world)?;
+    let swims = crate::helpers::player_swims(world);
     if (px, py) == target {
         return None;
     }
@@ -458,7 +461,7 @@ pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> 
         x < MAP_WIDTH
             && y < MAP_HEIGHT
             && seen.contains(tile_index(x, y))
-            && !map.blocks(x, y)
+            && map.walkable(x, y, swims)
             && !traps.contains(&(x, y))
     };
 
@@ -472,13 +475,14 @@ pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> 
 pub fn nearest_reachable(world: &mut World, target: (u16, u16)) -> Option<(u16, u16)> {
     let traps = known_trap_tiles(world);
     let (px, py, seen) = player_view(world)?;
+    let swims = crate::helpers::player_swims(world);
     let map = world.resource::<Map>();
 
     let open = |x: u16, y: u16| -> bool {
         x < MAP_WIDTH
             && y < MAP_HEIGHT
             && seen.contains(tile_index(x, y))
-            && !map.blocks(x, y)
+            && map.walkable(x, y, swims)
             && !traps.contains(&(x, y))
     };
     let dist2 = |x: u16, y: u16| -> i64 {

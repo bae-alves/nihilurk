@@ -25,8 +25,8 @@ use crate::components::*;
 use crate::conditions::{cure_one_condition, hasten, paralyse};
 use crate::effects::{Bided, Grant, Lifetime, MagicWard, TurboMagic, loadout};
 use crate::helpers::{
-    Hit, apply_hit, get_entities_at_position, get_line, hostiles_in_view, item_label, monster_at,
-    roll_dice, spark_burst_at, tile_of, total_armor_plus,
+    Hit, actor_at, apply_hit, get_entities_at_position, get_line, hostiles_in_view, item_label,
+    monster_at, roll_dice, spark_burst_at, tile_of, total_armor_plus,
 };
 use crate::map::{GameRng, Map};
 use crate::particles::{BlastPalette, Particles};
@@ -231,15 +231,19 @@ fn thunderbolt(world: &mut World, user: Entity, target: Position, power_mult: i3
     };
     fly_arrow(world, user_pos, target, '⇈', Color::Yellow);
 
-    let Some(victim) = monster_at(world, target) else {
+    // Whoever stands there, the player included: an eel's lightning is this
+    // same spell cast the other way (see `crate::abilities::INNATE_SPELLS`).
+    let Some(victim) = actor_at(world, target, user) else {
         world
             .resource_mut::<GameLog>()
             .add(strings::thunderbolt_misses());
         return;
     };
     let damage = roll_dice(world, THUNDERBOLT_DAMAGE_DICE, THUNDERBOLT_DAMAGE_SIDES) * power_mult;
-    let name = item_label(world, victim);
-    let line = strings::thunderbolt_hits(&name, damage);
+    let line = match world.get::<Player>(victim).is_some() {
+        true => strings::thunderbolt_hits_you(damage),
+        false => strings::thunderbolt_hits(&item_label(world, victim), damage),
+    };
     if apply_hit(world, victim, Hit::magic(damage), Some(&line)) == 0 {
         return;
     }

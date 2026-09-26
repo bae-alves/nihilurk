@@ -60,13 +60,12 @@ flowchart LR
 One `Schedule`, run once per turn, in this fixed order:
 
     smoke_system -> tick_effects -> reveal_mimics -> spell_system
-      -> item_system -> throw_system -> ai -> monster_pickup_system
-      -> trap_system
+      -> item_system -> throw_system -> ai -> trap_system
       -> equipment_effects_system -> combat_system -> reaper_system
-      -> dungeon_lord_system -> passive_ability_system
+      -> dungeon_lord_system -> passive_ability_system -> sink_system
       -> visibility_system -> score_turn_system
 
-`reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `monster_pickup_system` runs before `trap_system`, while `EntityMoved` still marks whoever just stepped: a coin-greedy monster (an orc) that walked onto a coin it can use claims it there, before `trap_system` clears the tag. `spell_system` runs before `ai`: an active spell (`Z`, the only way to one) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which is applied while handling the key before the schedule runs. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
+`reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `spell_system` runs before `ai`: an active spell (`Z`, the only way to one) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which is applied while handling the key before the schedule runs. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
 
 **Everything the player does resolves before `ai` does.** Movement and melee never reach the schedule at all — both are applied while the key is handled (`handle_movement_input` → `models::melee_attack`). The three that do queue — a spell (`SpellQueue`), a used item (`UseQueue`), a throw (`ThrowQueue`) — are drained by `spell_system`, `item_system` and `throw_system`, all of them ahead of `ai`. None of those three queues is ever filled by anything but the player, so nothing of the dungeon's own is hurried along by the order. Monster attacks are the other side of it: `ai` fills `AttackQueue` and `combat_system` drains it *after*, which is why that one stays where it is.
 

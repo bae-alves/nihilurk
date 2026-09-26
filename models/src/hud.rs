@@ -22,6 +22,7 @@ impl LogCategory {
             LogCategory::Slowed => Color::DarkCyan,
             LogCategory::Thrown => Color::Yellow,
             LogCategory::Pride => Color::White,
+            LogCategory::Ghost => Color::DarkGrey,
         }
     }
 }

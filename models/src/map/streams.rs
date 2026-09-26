@@ -51,6 +51,7 @@ fn floor_stream(seed: u64, depth: u8, salt: u64, generation: u64) -> ChaCha12Rng
 }
 
 const LAYOUT_SALT: u64 = 0xF100_0BED_5EED;
+const LEVEL_SALT: u64 = 0x5_BEC1_A11E_7E1;
 const CONTENT_SALT: u64 = 0x0C0F_FEE0_D00D;
 /// Odd multiplier that scatters [`FloorChanges`] across the seed space, so
 /// consecutive visits to a floor are as unlike each other as two random seeds.
@@ -70,6 +71,14 @@ const GENERATION_SALT: u64 = 0x9E37_79B9_7F4A_7C15;
 ///   remember (the contents, though, are re-rolled — see [`content_rng`]).
 pub fn layout_rng(seed: u64, depth: u8) -> ChaCha12Rng {
     floor_stream(seed, depth, LAYOUT_SALT, 0)
+}
+
+/// The RNG that decides whether a floor is a [`super::SpecialLevel`], and
+/// which. A pure function of `(seed, depth)` like [`layout_rng`], but a stream
+/// of its own: the roll costs the layout nothing, so every ordinary floor is
+/// carved exactly as it was before special levels existed.
+pub fn level_rng(seed: u64, depth: u8) -> ChaCha12Rng {
+    floor_stream(seed, depth, LEVEL_SALT, 0)
 }
 
 /// The RNG a floor's **contents** are drawn from — which monsters, which loot,

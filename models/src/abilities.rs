@@ -34,9 +34,9 @@ use crate::components::{
 use crate::conditions::snare;
 use crate::effects::{
     AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Cleaves, ConfusingTouch, FireBreath,
-    Freezing, Gorgon, Grant, HeavySwing, MagicWard, Momentum, Petrified, Pinned, Regenerates,
-    RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees, StealsAndVanishes, Teleportitis, Vampiric,
-    Venomous,
+    Freezing, Gorgon, Grant, HeavySwing, LightningBreath, MagicWard, Momentum, Petrified, Pinned,
+    Regenerates, RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees, StealsAndVanishes,
+    Teleportitis, Vampiric, Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
 use crate::helpers::{adjacent_mobs, apply_damage, item_label};
@@ -44,7 +44,7 @@ use crate::map::GameRng;
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `constants.rs`.
-use crate::constants::monsters::DRAGON_FIREBALL_CHANCE;
+use crate::constants::monsters::{DRAGON_FIREBALL_CHANCE, EEL_LIGHTNING_CHANCE};
 use crate::constants::monsters::{
     ICE_MONSTER_PARALYZE_CHANCE, RATTLESNAKE_POWER_DRAIN, VAMPIRE_MAX_HP_DRAIN,
 };
@@ -239,6 +239,21 @@ pub const ABILITIES: &[Ability] = &[
         },
         flavour: None,
     },
+    // The eel's lightning: the same bid, casting the Thunderbolt.
+    Ability {
+        effect: Grant::of::<LightningBreath>(),
+        when: Moment::InsteadOfAttacking(EEL_LIGHTNING_CHANCE),
+        player_only: false,
+        action: |w, mob, target| {
+            target
+                .and_then(|t| w.get::<Position>(t).copied())
+                .is_some_and(|at| {
+                    crate::items::apply_spell_effect(w, mob, at, SpellEffect::Thunderbolt, 1);
+                    true
+                })
+        },
+        flavour: None,
+    },
     // --- looked upon -----------------------------------------------------
     // The medusa's gaze. It used to be hand-called from four sites, and a
     // fifth attack path would silently have missed it.
@@ -262,8 +277,10 @@ pub const ABILITIES: &[Ability] = &[
 /// Zero, because the grant *is* the licence: a monster has no [`Magic`] to
 /// spend and never did, so innate magic that costs magic points would simply
 /// never fire.
-pub const INNATE_SPELLS: &[(Grant, SpellEffect)] =
-    &[(Grant::of::<FireBreath>(), SpellEffect::DragonBreath)];
+pub const INNATE_SPELLS: &[(Grant, SpellEffect)] = &[
+    (Grant::of::<FireBreath>(), SpellEffect::DragonBreath),
+    (Grant::of::<LightningBreath>(), SpellEffect::Thunderbolt),
+];
 
 /// Whether `caster` carries the grant that makes `effect` innate to them —
 /// asked by [`crate::items::spell_cost`], which makes it free, and by
@@ -548,24 +565,32 @@ fn medusa_gaze(world: &mut World, looker: Entity, _seen: Entity) -> bool {
 // Theft: the leprechaun and the nymph
 // ---------------------------------------------------------------------------
 
-/// A uniformly random item in `victim`'s pack that isn't currently equipped —
-/// the Element of Yoord excepted, since nothing in the dungeon can lift that
-/// off you. `None` for an empty pack, or one holding nothing but the relic.
+/// What a fleeing thief's hand closes on: a uniformly random item loose in
+/// `victim`'s pack — nothing they have on, since worn gear sits in the pack
+/// too — which leaves the pack with it. The Element of Yoord is in the draw
+/// but never leaves: it comes back as the pick, still in the pack, for
+/// [`crate::items::leprechaun_theft`] to answer. `None` for a pack with
+/// nothing loose in it.
 pub(crate) fn steal_unequipped_item(world: &mut World, victim: Entity) -> Option<Entity> {
-    let items = world.get::<Backpack>(victim)?.items.clone();
-    let stealable: Vec<Entity> = items
-        .into_iter()
-        .filter(|&e| world.get::<crate::components::Amulet>(e).is_none())
+    let loose: Vec<Entity> = world
+        .get::<Backpack>(victim)?
+        .items
+        .iter()
+        .copied()
+        .filter(|&e| {
+            world
+                .get::<crate::equipment::Equipped>(e)
+                .is_none_or(|eq| eq.by != Some(victim))
+        })
         .collect();
-    if stealable.is_empty() {
+    if loose.is_empty() {
         return None;
     }
-    let idx = world
-        .resource_mut::<GameRng>()
-        .0
-        .gen_range(0..stealable.len());
-    let item = stealable[idx];
-    if let Some(mut bp) = world.get_mut::<Backpack>(victim) {
+    let idx = world.resource_mut::<GameRng>().0.gen_range(0..loose.len());
+    let item = loose[idx];
+    if world.get::<crate::components::Amulet>(item).is_none()
+        && let Some(mut bp) = world.get_mut::<Backpack>(victim)
+    {
         bp.items.retain(|&e| e != item);
     }
     Some(item)

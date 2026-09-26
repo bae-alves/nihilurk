@@ -653,6 +653,13 @@ pub enum RingEffect {
 #[derive(Component)]
 pub struct Curse;
 
+/// A bones ghost whose name matches the current character's own — set only
+/// by `crate::map::levels::spawn_bones_ghost`. `crate::combat` reads this to
+/// decide when a fight with the ghost is narrated as "you" against yourself
+/// instead of by name.
+#[derive(Component)]
+pub struct GhostOfPlayer;
+
 /// A weapon, suit of armour or launcher whose enchantment plus and curse status
 /// the player has actually learned — by wearing it or by a scroll of identify
 /// singling it out (see [`crate::equipment::toggle_equipped`] and
@@ -1087,6 +1094,10 @@ pub enum LogCategory {
     Slowed,
     /// The player throwing or firing something.
     Thrown,
+    /// A bones ghost's own line — its arrival bark, or a combat line where it
+    /// shares the current character's name and is treated as "you" in a
+    /// different colour from the real you (see `crate::bones`).
+    Ghost,
 }
 
 /// One line for the message log: its text, and the [`LogCategory`] it was

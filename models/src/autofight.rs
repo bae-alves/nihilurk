@@ -95,13 +95,14 @@ pub fn fight_step(world: &mut World, target: Entity) -> Option<(i16, i16)> {
         let mut q = world.query_filtered::<&Viewshed, With<Player>>();
         q.iter(world).next()?.revealed_tiles.clone()
     };
+    let swims = crate::helpers::player_swims(world);
     let map = world.resource::<Map>();
 
     let open = |x: u16, y: u16| -> bool {
         x < MAP_WIDTH
             && y < MAP_HEIGHT
             && seen.contains(tile_index(x, y))
-            && !map.blocks(x, y)
+            && map.walkable(x, y, swims)
             && !occupied.contains(&(x, y))
     };
 

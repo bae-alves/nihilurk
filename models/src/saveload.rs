@@ -444,6 +444,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(BloodStains::new());
     world.insert_resource(Smoke::new());
     world.insert_resource(Corpses::new());
+    world.init_resource::<crate::bones::Bones>();
     world.insert_resource(GameLog::default());
     world.insert_resource(PlayerName {
         what: strip_control_chars(&save.player_name),

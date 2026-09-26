@@ -435,6 +435,17 @@ pub fn render<W: Write>(
         }
     }
 
+    // ---- Special-room tint (walls and floor alike) ----
+    // Same visibility rule as blood: only currently-visible tiles, and no
+    // tint for a blind player.
+    if !blind {
+        for &(x, y) in &visible {
+            if let Some(color) = map.special_tint(x, y) {
+                screen.fg_map(x, y, color);
+            }
+        }
+    }
+
     // ---- Blood overlay ----
     // Bloody tiles are reddened in place by recolouring their glyph, only where
     // the player can currently see, and never on a tile an actor stands on (the

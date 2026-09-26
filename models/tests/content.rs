@@ -438,3 +438,16 @@ fn the_dungeon_never_generates_a_dud_as_normal_loot() {
         "wand of nothing must not be a spawnable row"
     );
 }
+
+/// A swimmer lives in the water, so only a water tile ever asks for one: the
+/// ordinary draws never hand one out, however deep, and the aquatic draw
+/// hands out nothing else.
+#[test]
+fn a_swimmer_is_only_drawn_for_the_water() {
+    let mut r = rng(23);
+    for _ in 0..2_000 {
+        assert!(!MonsterDef::pick(FINAL_DEPTH, &mut r).swims());
+        assert!(!MonsterDef::pick_any(&mut r).swims());
+        assert!(MonsterDef::pick_aquatic(&mut r).swims());
+    }
+}

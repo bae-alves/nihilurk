@@ -17,9 +17,10 @@ use rand_chacha::ChaCha12Rng;
 use crate::abilities::{Blow, cleave_attack, fire_on_hit, fire_on_targeted};
 use crate::components::*;
 use crate::conditions::afflicted;
+use crate::constants::score::BOUNTY_SCORE_MULTIPLIER;
 use crate::effects::{
-    Asleep, Bided, Fencer, Grant, Lunges, Pinned, Rooted, ShattersStone, VorpalOnCondition,
-    VorpalTarget, WhirlOnMove, loadout,
+    Asleep, Bided, Fencer, Grant, Lunges, Pinned, Rooted, ScoreBounty, ShattersStone,
+    VorpalOnCondition, VorpalTarget, WhirlOnMove, loadout,
 };
 use crate::equipment::{equipped_items, force_unequip};
 use crate::helpers::{
@@ -213,7 +214,11 @@ fn pay_for_the_corpse(world: &mut World, victim: Entity) {
     let Some(max_hp) = world.get::<Fighter>(victim).map(|f| f.max_hp) else {
         return;
     };
-    award_kill(world, max_hp);
+    let mult = match world.get::<ScoreBounty>(victim) {
+        Some(_) => BOUNTY_SCORE_MULTIPLIER,
+        None => 1,
+    };
+    award_kill(world, max_hp * mult);
     // And what a corpse is worth to a lurk, which is dinner. Same funnel, and
     // deliberately the same indifference about whose kill it was.
     crate::body::feed(world);
@@ -649,9 +654,11 @@ pub fn try_lunge(world: &mut World, attacker: Entity, dx: i16, dy: i16) -> bool 
         x: near.x.saturating_add_signed(dx),
         y: near.y.saturating_add_signed(dy),
     };
+    let swims = world.get::<crate::effects::Swims>(attacker).is_some();
     let near_clear = {
         let map = world.resource::<Map>();
-        !map.blocks(near.x, near.y) && map.diagonal_step_ok(origin.x, origin.y, near.x, near.y)
+        map.walkable(near.x, near.y, swims)
+            && map.diagonal_step_ok(origin.x, origin.y, near.x, near.y)
     } && mob_at(world, near).is_none();
     let Some(target) = near_clear.then(|| mob_at(world, far)).flatten() else {
         return false;
@@ -949,10 +956,34 @@ fn report_blow(world: &mut World, blow: &Landed) {
     // off in the dark — is reported only as "Something".
     let attacker_unseen = target_is_player && world.get::<Hidden>(blow.attacker).is_some();
 
-    let mut log = world.resource_mut::<GameLog>();
     if blow.attacker_is_player {
-        return report_player_hit(&mut log, &target_name, &blow.swing, &blow.outcome);
+        // A ghost sharing the player's own name is fought as "yourself," in
+        // the ghost's own log colour — see `crate::bones`. Dedicated
+        // `_self` strings, not a "yourself" label threaded through the
+        // ordinary ones: `pt`/`es` compute their own gendered article from
+        // the bare name for every other target, and a label would break
+        // that for all of them, not just this one.
+        let target_is_own_ghost = world.get::<GhostOfPlayer>(blow.target).is_some();
+        let mut log = world.resource_mut::<GameLog>();
+        return report_player_hit(
+            &mut log,
+            &target_name,
+            &blow.swing,
+            &blow.outcome,
+            target_is_own_ghost,
+        );
     }
+
+    // The reverse direction has the same problem in the other grammatical
+    // slot — `mob_hits`/`mob_misses`/`mob_strikes_you_down` are written for
+    // a third-person subject ("The orc hits you"), which breaks the moment
+    // the subject is also "you." A ghost's own name never appears here at
+    // all.
+    if target_is_player && world.get::<GhostOfPlayer>(blow.attacker).is_some() {
+        let mut log = world.resource_mut::<GameLog>();
+        return report_ghost_self_hit(&mut log, blow.swing.damage, blow.outcome.lethal);
+    }
+
     let target_label = if target_is_player {
         strings::pronoun_you().to_string()
     } else {
@@ -963,6 +994,7 @@ fn report_blow(world: &mut World, blow: &Landed) {
     } else {
         strings::capital_the(&attacker_name)
     };
+    let mut log = world.resource_mut::<GameLog>();
     report_monster_hit(
         &mut log,
         &atk,
@@ -1003,7 +1035,36 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
 /// Writes the player-attacked-something lines to the log: the hit line (an
 /// excellent hit, a glancing scrape, or a plain blow) and, on a kill, the
 /// vorpal flourish and the slain line.
-fn report_player_hit(log: &mut GameLog, target_name: &str, swing: &Swing, outcome: &Outcome) {
+/// `target_label` is pre-rendered ("the orc", or "yourself" for a bones
+/// ghost sharing the player's own name — see `crate::bones`), so the six
+/// string functions below only ever interpolate it, never wrap it in their
+/// own "the ".
+fn report_player_hit(
+    log: &mut GameLog,
+    target_name: &str,
+    swing: &Swing,
+    outcome: &Outcome,
+    target_is_own_ghost: bool,
+) {
+    if target_is_own_ghost {
+        match (swing.excellent, swing.glancing) {
+            (true, _) => log.add_colored(
+                strings::excellent_hit_self(swing.damage),
+                LogCategory::Ghost,
+            ),
+            (_, true) => log.add_colored(strings::glancing_blow_self(), LogCategory::Ghost),
+            _ => log.add_colored(strings::plain_hit_self(swing.damage), LogCategory::Ghost),
+        }
+        if outcome.lethal && outcome.garrote {
+            log.add_colored(strings::garrote_kill_self(), LogCategory::Ghost);
+        } else if outcome.lethal && outcome.vorpal {
+            log.add_colored(strings::vorpal_kill_self(), LogCategory::Ghost);
+        }
+        if outcome.lethal {
+            log.add_colored(strings::you_have_slain_self(), LogCategory::Ghost);
+        }
+        return;
+    }
     match (swing.excellent, swing.glancing) {
         (true, _) => log.add(strings::excellent_hit(target_name, swing.damage)),
         (_, true) => log.add(strings::glancing_blow(target_name)),
@@ -1016,6 +1077,21 @@ fn report_player_hit(log: &mut GameLog, target_name: &str, swing: &Swing, outcom
     }
     if outcome.lethal {
         log.add(strings::you_have_slain(target_name));
+    }
+}
+
+/// The one direction a pre-rendered label can't fix: a bones ghost sharing
+/// the player's own name, attacking the real player. `mob_hits`/`mob_misses`/
+/// `mob_strikes_you_down` are written for a third-person subject ("The orc
+/// hits you"), which breaks the moment the subject is also "you" — so this
+/// gets its own three lines instead of reusing them.
+fn report_ghost_self_hit(log: &mut GameLog, damage: i32, lethal: bool) {
+    match damage {
+        0 => log.add_colored(strings::ghost_self_misses(), LogCategory::Ghost),
+        _ => log.add_colored(strings::ghost_self_hits(damage), LogCategory::Ghost),
+    }
+    if lethal {
+        log.add_colored(strings::ghost_self_strikes_you_down(), LogCategory::Ghost);
     }
 }
 

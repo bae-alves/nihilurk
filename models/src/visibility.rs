@@ -133,7 +133,9 @@ fn neighbours(x: u16, y: u16) -> impl Iterator<Item = (u16, u16)> {
 }
 
 /// Every tile the player at `pos` can currently see: the always-on 3x3, plus —
-/// when standing in a lit room — a flood-fill of that room out to its walls. A
+/// when standing in a lit room — a flood-fill of that room out to its walls.
+/// Open water is lit like room floor, so an island's sea is in view from its
+/// shore, all the way out to the rim. A
 /// dark room gives only the 3x3, as if it were a passage, until a wand of light
 /// clears its `dark` bits.
 ///
@@ -160,7 +162,11 @@ pub(crate) fn visible_from(map: &Map, pos: &Position, blind: bool) -> HashSet<(u
     let in_lit_room = !map.is_dark(pos.x, pos.y)
         && matches!(
             map.tile(pos.x, pos.y),
-            TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs
+            TileType::Room
+                | TileType::Door
+                | TileType::Upstairs
+                | TileType::Downstairs
+                | TileType::Water
         );
     if in_lit_room {
         flood_fill_room(map, (pos.x, pos.y), &mut visible);
@@ -172,11 +178,18 @@ pub(crate) fn visible_from(map: &Map, pos: &Position, blind: bool) -> HashSet<(u
 /// adding every tile it reaches — plus the enclosing walls and passage mouths —
 /// to `visible`. Walls and passages are seen but never spread through, which is
 /// what keeps the fill from leaking out of the room.
+///
+/// A doorway is seen through but never spread past: whatever lies one step
+/// beyond it — a corridor's mouth, or the first tile of the next room where
+/// two rooms share a wall (a vault's cells, a castle's towers) — is in view,
+/// and the rest of that room is not. Standing *in* the doorway, it is the
+/// start, and both sides light up.
 fn flood_fill_room(map: &Map, start: (u16, u16), visible: &mut HashSet<(u16, u16)>) {
     let mut queue = VecDeque::from([start]);
     let mut visited: HashSet<(u16, u16)> = HashSet::from([start]);
 
     while let Some((cx, cy)) = queue.pop_front() {
+        let past_a_door = (cx, cy) != start && map.tile(cx, cy) == TileType::Door;
         for (nx, ny) in neighbours(cx, cy) {
             if map.is_dark(nx, ny) {
                 continue; // never see into (or through) an unlit dark room
@@ -184,9 +197,13 @@ fn flood_fill_room(map: &Map, start: (u16, u16), visible: &mut HashSet<(u16, u16
             visible.insert((nx, ny));
             let spreads = matches!(
                 map.tile(nx, ny),
-                TileType::Room | TileType::Door | TileType::Upstairs | TileType::Downstairs
+                TileType::Room
+                    | TileType::Door
+                    | TileType::Upstairs
+                    | TileType::Downstairs
+                    | TileType::Water
             );
-            if spreads && visited.insert((nx, ny)) {
+            if spreads && !past_a_door && visited.insert((nx, ny)) {
                 queue.push_back((nx, ny));
             }
         }

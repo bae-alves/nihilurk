@@ -70,10 +70,6 @@ pub use pickups::{break_promises, pick_up, settle_promises, would_help};
 /// [`crate::traps::detonate_pickup`].
 pub(crate) use pickups::claim_from_afar;
 
-/// A coin-greedy monster claiming one it stepped on — see
-/// [`crate::ai::monster_pickup_system`].
-pub(crate) use pickups::monster_claim;
-
 /// The enchantment a forge coin buys, borrowed from the scroll that invented it.
 pub(crate) use scrolls::enchant_equipped;
 
@@ -101,6 +97,7 @@ pub use crate::constants::items::THROW_RANGE;
 pub use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE};
 
 use bevy_ecs::entity::Entity;
+use bevy_ecs::query::With;
 use bevy_ecs::world::World;
 
 use crate::components::*;
@@ -111,6 +108,68 @@ use crate::identify::{display_name, with_the};
 use self::potions::apply_potion_effect;
 use self::scrolls::apply_scroll_effect;
 use self::wands::apply_wand_effect;
+
+/// The schedule step for deep water: anything lying on a
+/// [`TileType::Water`](crate::map::TileType::Water) tile sinks, with a splash
+/// the log reports if the player saw it go. The Element of Yoord will not
+/// sink: it comes up into the player's hands instead (see
+/// [`pickups::element_surfaces`]).
+///
+/// One step for the whole floor, rather than a check at every place an item
+/// can land — thrown, dropped, shaken off a corpse, carried in on a
+/// swimmer's back — so a new way to put something down cannot forget the
+/// water.
+pub fn sink_system(world: &mut World) {
+    let seen: Vec<(u16, u16)> = world
+        .query_filtered::<&Viewshed, With<Player>>()
+        .iter(world)
+        .next()
+        .map(|v| v.visible_tiles.clone())
+        .unwrap_or_default();
+    for (at, what) in sink_items(world) {
+        if !seen.contains(&(at.x, at.y)) {
+            continue;
+        }
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::sinks_with_a_splash(&what));
+        if let Some(mut fx) = world.get_resource_mut::<crate::particles::Particles>() {
+            fx.impact_sparks(at.x, at.y, crossterm::style::Color::Blue, 0.0);
+        }
+    }
+}
+
+/// Sinks every item lying in deep water, and hands the Element of Yoord back
+/// to the player if it is one of them. Returns where each sunk item went down
+/// and what the player would have called it — for [`sink_system`] to splash
+/// about, and for a floor being stocked to ignore, since nobody was there.
+pub(crate) fn sink_items(world: &mut World) -> Vec<(Position, String)> {
+    let wet: Vec<(Entity, Position)> = {
+        let map = world.resource::<crate::map::Map>().clone();
+        world
+            .query_filtered::<(Entity, &Position), With<Item>>()
+            .iter(world)
+            .filter(|(_, p)| map.tile(p.x, p.y) == crate::map::TileType::Water)
+            .map(|(e, p)| (e, *p))
+            .collect()
+    };
+    let player = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next();
+    let mut sunk = Vec::new();
+    for (item, at) in wet {
+        match (world.get::<Amulet>(item).is_some(), player) {
+            (true, Some(player)) => pickups::element_surfaces(world, player, item),
+            (true, None) => {}
+            (false, _) => {
+                sunk.push((at, crate::identify::phrase_for(&display_name(world, item))));
+                world.despawn(item);
+            }
+        }
+    }
+    sunk
+}
 
 /// The schedule step that resolves every item the player *used* this turn (as
 /// opposed to threw — that is [`throw_system`]).

@@ -112,6 +112,7 @@ fn run_death_screens<W: std::io::Write>(
         false => models::leaderboard::Outcome::LoseDescent,
     };
     let _ = models::leaderboard::record(&name, outcome, score);
+    let _ = models::bones::deposit(world);
 
     view::render_you_died(stdout, screen, offset)?;
     wait_for_key(|c| matches!(c, KeyCode::Char(' ') | KeyCode::Enter))?;
@@ -224,11 +225,7 @@ fn turn_schedule() -> Schedule {
         // the dungeon's own is being hurried along by this.
         throw_system.after(item_system).before(ai),
         ai.after(spell_system),
-        // A coin-greedy orc that just stepped onto a coin it can use claims it
-        // here, while `EntityMoved` still marks it — the same tag the trap
-        // system reads right after.
-        monster_pickup_system.after(ai),
-        trap_system.after(monster_pickup_system),
+        trap_system.after(ai),
         // Gear changed by anything other than the pack screen — a loaded save, a
         // curse-lifting scroll — has its lent effects reconciled here, before
         // combat and visibility read them.
@@ -242,7 +239,11 @@ fn turn_schedule() -> Schedule {
         // they see where they are and act before anything else moves — and
         // early enough that visibility still gets a pass over the new tile.
         ability_system.after(dungeon_lord_system),
-        visibility_system.after(ability_system),
+        // Deep water takes whatever this turn put in it — thrown, dropped,
+        // shaken off a corpse — before visibility could announce it lying
+        // there.
+        sink_system.after(ability_system),
+        visibility_system.after(sink_system),
         // Dead last: everything that can pay the player has paid by now, so a
         // flash armed anywhere in this turn is still lit for this turn's render
         // and dark by the next one.
@@ -272,6 +273,7 @@ fn main() -> std::io::Result<()> {
     let mut no_save = false;
     let mut no_blood = false;
     let mut no_shake = false;
+    let mut no_bones = false;
     let mut list_content = false;
     let mut show_leaderboard = false;
     let mut pride_off = false;
@@ -320,6 +322,7 @@ fn main() -> std::io::Result<()> {
             "-ns" => no_save = true,
             "-nb" => no_blood = true,
             "-nshake" => no_shake = true,
+            "-nobones" => no_bones = true,
             "-content" => list_content = true,
             "-scores" => show_leaderboard = true,
             "-pride" => {
@@ -574,6 +577,11 @@ fn main() -> std::io::Result<()> {
     // `-nshake`: nail the map down. Nothing arms a shake for the rest of the run.
     if no_shake {
         world.resource_mut::<Shake>().enabled = false;
+    }
+
+    // `-nobones`: skip the bones mechanic entirely, saving and loading both.
+    if no_bones {
+        world.resource_mut::<models::bones::Bones>().enabled = false;
     }
 
     // `-pride`: the flag this run flies. Not saved — it is a preference, so a
