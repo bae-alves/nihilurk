@@ -1,3 +1,7 @@
+//! `Tab`'s target selection and reach: which foe it picks, when a wall or a
+//! blocking mob denies a clear shot, and that it walks onto an adjacent
+//! target rather than shooting one it could just as well step up to.
+
 use std::collections::VecDeque;
 
 use bevy_ecs::prelude::*;

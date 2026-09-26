@@ -28,7 +28,7 @@ A component says *what a thing is*. It never says what happens as a result. `mod
 
 The rule this buys is the one the whole codebase rests on: **a property is a component, never an enum a subsystem has to recognise.** A dragon born fire-immune and a player wearing a ring of fire resistance both carry `FireImmune`, so the wand-of-fire code asks one question and never learns that rings exist. Adding a ring of fire resistance is a table row and no behaviour code at all.
 
-The counterpart is that behaviour lives in tables of *data about behaviour* rather than in branches: `PASSIVE_ABILITIES` pairs a `Grant` with a `fn`, `ON_HIT_ABILITIES` does the same for blows that land, and `combat::resolve_attack` fires the second without ever learning what is in it. See `data-driven-content.md`.
+The counterpart is that behaviour lives in tables of *data about behaviour* rather than in branches: `ABILITIES` pairs a `Grant` with a `Moment` and a `fn`, one row per ability at whichever moment it fires — a turn ticking by, a blow that lands — and `combat::resolve_attack` fires the `Moment::OnHit` rows without ever learning what is in the table. See `data-driven-content.md`.
 
 ### Resources are the run's global objects
 

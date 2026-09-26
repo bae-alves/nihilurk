@@ -1,3 +1,7 @@
+//! The `O` travel cursor: opening and closing it, that it only follows the
+//! player's own revealed tiles, and that it resolves to the nearest reachable
+//! walkable tile when the one picked isn't itself one.
+
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;

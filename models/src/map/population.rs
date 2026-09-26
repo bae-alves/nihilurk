@@ -135,10 +135,10 @@ fn place_one_trap(
 /// the magic it needs to cast with, nor of the permanent point of something
 /// that pays for the tier it just survived.
 ///
-/// The progression floors are [`DIFFICULTY_TIER_LAST_DEPTH`] itself — 3, 6, 9
-/// and 12 — rather than a list of their own: one reward for finishing a band,
-/// read off the same array the band is defined by. (Depth 13 is its own tier
-/// and has no last floor before the Element of Yoord, so it gets none.)
+/// The progression floors are [`DIFFICULTY_TIER_LAST_DEPTH`] itself, rather
+/// than a list of their own: one reward for finishing a band, read off the
+/// same array the band is defined by. (The deepest floor is its own tier and
+/// has no last floor before the Element of Yoord, so it gets none.)
 fn place_guaranteed(
     world: &mut World,
     rooms: &[Rect],
@@ -163,9 +163,9 @@ fn place_guaranteed(
 
 /// Which floor-crowding tier `depth` falls in — `0` on the shallowest floors,
 /// rising by one at each boundary in [`DIFFICULTY_TIER_LAST_DEPTH`]. The
-/// monster, trap and item budgets all read this. `[3, 6, 9, 12]` gives five tiers:
-/// depths 1-3, 4-6, 7-9, 10-12, and 13 on its own. (The damage traps scale on
-/// their own coarser bands — `traps::trap_damage_tier`.)
+/// monster, trap and item budgets all read this: the array's length is the
+/// number of tiers, its values are where they break. (The damage traps scale
+/// on their own coarser bands — `traps::trap_damage_tier`.)
 pub fn difficulty_tier(depth: u8) -> u32 {
     DIFFICULTY_TIER_LAST_DEPTH
         .iter()
@@ -207,16 +207,17 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
     // What the floor owes the player before it owes them anything else.
     place_guaranteed(world, rooms, &mut occupied, &mut rng, depth);
 
-    // Both the monster and trap budgets step up in five depth bands (1-3, 4-6,
-    // 7-9, 10-12, and 13 alone — see `difficulty_tier`). Each tier grants one
-    // more spawn slot and widens the odds that a given slot actually fills, so
-    // the dungeon gets more crowded and more dangerous the deeper you go.
+    // Both the monster and trap budgets step up in depth bands drawn from
+    // `DIFFICULTY_TIER_LAST_DEPTH` (see `difficulty_tier`). Each tier grants
+    // one more spawn slot and widens the odds that a given slot actually
+    // fills, so the dungeon gets more crowded and more dangerous the deeper
+    // you go.
     let tier = difficulty_tier(depth);
 
-    // Monsters: three slots at the surface, +1 per tier. The first slot always
-    // fills (no floor is ever completely empty); every later slot fills with a
-    // probability that itself climbs one step per tier (capped so a slot is
-    // never quite certain).
+    // Monsters: `MONSTER_SLOTS_BASE` slots at the surface, one more per tier.
+    // The first slot always fills (no floor is ever completely empty); every
+    // later slot fills with a probability that itself climbs one step per
+    // tier (capped so a slot is never quite certain).
     let max_monsters = MONSTER_SLOTS_BASE + tier as usize;
     let monster_chance = (MONSTER_FILL_CHANCE_BASE + MONSTER_FILL_CHANCE_PER_TIER * tier as f64)
         .min(MONSTER_FILL_CHANCE_CAP);
@@ -231,8 +232,9 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
         spawn_monster_with_rng(world, def, Position { x, y }, &mut rng);
     }
 
-    // From depth 7 on, every corridor also has a small (5%) chance of hiding a
-    // lurker dead centre — right where an unwary traveller runs into it.
+    // From `CORRIDOR_LURKER_MIN_DEPTH` on, every corridor also has a small
+    // chance (`CORRIDOR_LURKER_CHANCE`) of hiding a lurker dead centre — right
+    // where an unwary traveller runs into it.
     if depth >= CORRIDOR_LURKER_MIN_DEPTH {
         let centers = corridor_centers(&world.resource::<Map>().tiles);
         for (cx, cy) in centers {
@@ -246,8 +248,9 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
         }
     }
 
-    // Items: three attempts at the surface, +1 per tier (like the monster and
-    // trap budgets). Every attempt that finds a free tile drops an item.
+    // Items: `ITEM_SLOTS_BASE` attempts at the surface, one more per tier
+    // (like the monster and trap budgets). Every attempt that finds a free
+    // tile drops an item.
     let max_items = ITEM_SLOTS_BASE + tier as usize;
     for _ in 0..max_items {
         let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) else {
@@ -272,9 +275,9 @@ pub(super) fn populate_level(world: &mut World, rooms: &[Rect], player_start: (u
 
     // Traps: placed after the stairs, monsters and loot, before the hero drops
     // in. Like the monster budget, the trap budget steps up a tier at a time —
-    // four slots at the surface, +1 per `tier` — and each slot's chance of
-    // producing a trap climbs the same way, so the deep floors bristle with them
-    // and the first floors rarely hold more than one.
+    // `TRAP_SLOTS_BASE` slots at the surface, one more per `tier` — and each
+    // slot's chance of producing a trap climbs the same way, so the deep
+    // floors bristle with them and the first floors rarely hold more than one.
     let max_traps = TRAP_SLOTS_BASE + tier as usize;
     let trap_chance =
         (TRAP_FILL_CHANCE_BASE + TRAP_FILL_CHANCE_PER_TIER * tier as f64).min(TRAP_FILL_CHANCE_CAP);

@@ -1,3 +1,14 @@
+//! Turns a keypress into a turn: the whole input state machine, and the three
+//! things that can drive it besides a human at the keyboard.
+//!
+//! [`process_input_and_update`] blocks for one key and hands it to
+//! [`dispatch_key`], which routes through the `--MORE--` gate and whichever
+//! modal (pack, spells, targeting, quit prompt) is open before falling
+//! through to [`handle_movement_input`]. [`auto_explore_step`],
+//! [`travel_cursor_step`] and [`fast_move_run`] are the other three ways a
+//! turn gets taken, each called by the main loop in place of a blocking read
+//! while its own flag is set.
+
 use std::time::Duration;
 
 use bevy_ecs::prelude::*;

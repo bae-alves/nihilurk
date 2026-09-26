@@ -1,3 +1,14 @@
+//! One blow, start to finish: the opposed roll, the weapon tricks riding on
+//! top of it, and everything a landed hit sets off — the log lines, the
+//! sparks and shakes, and what is left of a creature it killed.
+//!
+//! [`resolve_attack`] is the one place damage is decided; [`melee_attack`] is
+//! what a player's swing actually calls, since it also has to ask a wielded
+//! weapon whether it strikes twice or cleaves. Everything past the dice is
+//! folded into [`Landed`] once and threaded through the three aftermath
+//! stages — [`punctuate`], [`report_blow`], [`settle_the_dead`] — so each
+//! reads the blow rather than re-deriving it.
+
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use rand::Rng;
@@ -240,8 +251,8 @@ fn leave_gear_behind(world: &mut World, entity: Entity) {
 ///   armour is subtracted. Always lands for at least [`CHIP_DAMAGE`], whatever
 ///   the armour roll or a melee cap left it at — a crit is never reported as
 ///   having done nothing.
-/// * **Chip damage** — a non-excellent player swing still deals at least 1
-///   damage, even when the armour roll fully absorbs the weapon roll (logged
+/// * **Chip damage** — a non-excellent player swing still deals at least
+///   [`CHIP_DAMAGE`], even when the armour roll fully absorbs the weapon roll (logged
 ///   as a "glancing blow"). Unlike an excellent hit, a glancing blow can never
 ///   be the killing one — it leaves a foe on 1 HP.
 ///

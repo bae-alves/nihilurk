@@ -1,3 +1,7 @@
+//! `o`'s pathfinding: the frontier `explore_step` walks toward, the staircase
+//! and item beelines, and the refusals — a known trap, a fully-explored
+//! floor — that end a walk before it starts.
+
 use std::collections::{HashSet, VecDeque};
 
 use bevy_ecs::prelude::*;

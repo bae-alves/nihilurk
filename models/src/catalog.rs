@@ -1191,11 +1191,11 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
 
 /// The quality every weapon, armour and ring drop rolls when it spawns.
 ///
-/// | Quality     | Odds | Bonus (equal-probability integer) |
-/// |-------------|------|-----------------------------------|
-/// | Normal      | 25%  | +0                                |
-/// | Exceptional | 10%  | +1 .. +3                          |
-/// | Cursed      | 65%  | -5 .. +5 (yes, a cursed item can roll positive) |
+/// | Quality     | Odds                       | Bonus (equal-probability integer)              |
+/// |-------------|----------------------------|-------------------------------------------------|
+/// | Normal      | [`NORMAL_QUALITY_PCT`]     | +0                                              |
+/// | Exceptional | [`EXCEPTIONAL_QUALITY_PCT`]| [`EXCEPTIONAL_BONUS_MIN`]..[`EXCEPTIONAL_BONUS_MAX`] |
+/// | Cursed      | whatever is left           | [`CURSED_BONUS_MIN`]..[`CURSED_BONUS_MAX`] (yes, a cursed item can roll positive) |
 ///
 /// The bonus lands on the flat modifier, never the die size.
 #[derive(Clone, Copy, PartialEq, Eq)]

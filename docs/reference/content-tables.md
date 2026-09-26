@@ -53,9 +53,8 @@ Where everything is
 | `COINS`             | `models/src/catalog.rs`    | `CoinDef`      |
 | `TRAPS`             | `models/src/traps.rs`      | `TrapDef`      |
 | `DROPS`             | `models/src/spawn.rs`      | `DropCategory` |
-| `EFFECTS`           | `models/src/effects.rs`    | `Grant`        |
-| `PASSIVE_ABILITIES` | `models/src/abilities.rs`  | `PassiveAbility` |
-| `ON_HIT_ABILITIES`  | `models/src/abilities.rs`  | `OnHitAbility` |
+| `EFFECTS`           | `models/src/effects.rs`    | `Effect`       |
+| `ABILITIES`         | `models/src/abilities.rs`  | `Ability`      |
 | `FLAGS`             | `models/src/pride.rs`      | `PrideFlag`    |
 
 For the live contents of any of them:
@@ -106,7 +105,7 @@ Every row implements `ItemDef`, which supplies:
     fn min_depth(&self) -> u8                  default 1
     fn spawn_as_loot(&self, world, rng, pos)   default: calls spawn
 
-No item row overrides `weight` or `min_depth` today — within a category nihilurk picks evenly on purpose.
+No item row overrides `weight` or `min_depth` — within a category nihilurk picks evenly on purpose.
 
 ### POTIONS — PotionDef
 
@@ -116,7 +115,7 @@ No item row overrides `weight` or `min_depth` today — within a category nihilu
 | `name`   | `&'static str` |                                          |
 | `color`  | `Color`        |                                          |
 
-Draws `!`. Attaches `Item`, `Potion`, `Consume`. Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`. That match has no catch-all, so a new `PotionEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above. An arm is allowed to do nothing on purpose, though only two do today (`FruitJuice` and `Water`, which are a log line and a taste); the other fourteen all bite.
+Draws `!`. Attaches `Item`, `Potion`, `Consume`. Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`. That match has no catch-all, so a new `PotionEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above. An arm is allowed to do nothing on purpose (`FruitJuice` and `Water` are a log line and a taste); every other arm bites.
 
 The dials the arms read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Five arms reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength) and one into `Magic` (the potion of magic, which fills the pool and lifts its ceiling the way gain strength lifts the arm's), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one lends `SeesInvisible` for the floor, and `RaiseLevel` calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
 
@@ -228,7 +227,7 @@ Stacks to `STACK_LIMIT` per pack slot. A floor drop arrives as a bundle of `AMMO
 | `name`      | `&'static str`     |                                    |
 | `color`     | `Color`            |                                    |
 | `grants`    | `&'static [Grant]` | Effects lent to whoever holds it.  |
-| `melee_cap` | `i32`              | Most it is worth swung. Both are 1.|
+| `melee_cap` | `i32`              | Most it is worth swung.            |
 
 Draws `}`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `Launcher`, `ThrowBonus(0)`, `Grants`, `MeleeCap`. Contributes no attack or armour die at all — its enchantment therefore lands on `ThrowBonus`.
 
@@ -252,9 +251,9 @@ Constructor: `RingDef::new(effect, name)`, then chains.
 |---------------|---------------------|---------|---------------------------|
 | `effect`      | `RingEffect`        | --      | Identity for ident/saves. |
 | `name`        | `&'static str`      | --      |                           |
-| `power_die`   | `i32`               | `0`     | No row uses it today.     |
+| `power_die`   | `i32`               | `0`     | Adds to the attack die size, the way `power_bonus` adds a flat amount. |
 | `power_bonus` | `i32`               | `0`     | `.power_bonus(n)`         |
-| `armor_die`   | `i32`               | `0`     | No row uses it today.     |
+| `armor_die`   | `i32`               | `0`     | Adds to the defence die size, the way `armor_bonus` adds a flat amount. |
 | `armor_bonus` | `i32`               | `0`     | `.armor_bonus(n)`         |
 | `throw_bonus` | `i32`               | `0`     | `.throw_bonus(n)`         |
 | `grants`      | `&'static [Grant]`  | `&[]`   | `.grants(&[...])`         |
@@ -307,11 +306,11 @@ Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Valu
 | green | `Strength` | gives back up to `amount` drained `power` |
 | platinum | `Platinum` | the `Plated` promise |
 | forge | `Forge` | the `Forged` promise |
-| hero coin | `LearnRandomSpell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Weight 3, well under the baseline — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
+| hero coin | `LearnRandomSpell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Well under the baseline weight — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
 
 Mechanic: `apply` in `models/src/items/pickups.rs`, an exhaustive match with no catch-all — a new `PickupEffect` does not build until it does something.
 
-**One of them is not left to chance.** Every floor is stocked with a coin for the body before its item budget is spent -- a blue one on the odd floors, a red one on the even. The last floor of each difficulty tier (3, 6, 9, 12) also gets one draw from `catalog::PROGRESSION_ITEMS`: the platinum, forge and hero coins, the three potions that raise a ceiling (healing, magic, gain strength), and the three scrolls that sharpen gear for good (the two enchantments and vorpalize weapon). Neither comes out of the budget. See `../how-to/tune-rarity-and-depth.md`, "Dial 1".
+**One of them is not left to chance.** Every floor is stocked with a coin for the body before its item budget is spent -- a blue one on the odd floors, a red one on the even. The last floor of each difficulty tier (`DIFFICULTY_TIER_LAST_DEPTH`, `constants::progression`) also gets one draw from `catalog::PROGRESSION_ITEMS`: the platinum, forge and hero coins, the three potions that raise a ceiling (healing, magic, gain strength), and the three scrolls that sharpen gear for good (the two enchantments and vorpalize weapon). Neither comes out of the budget. See `../how-to/tune-rarity-and-depth.md`, "Dial 1".
 
 **A coin that would do nothing is not taken.** `pickups::would_help` gates every one of them: a red coin at full health, a rosé coin with nothing wrong with you, a platinum coin when you already hold the promise. The coin stays on the floor, silently, and auto-explore skips it too (`autoexplore::known_item_tiles`) until the day it would help.
 
@@ -319,7 +318,7 @@ Mechanic: `apply` in `models/src/items/pickups.rs`, an exhaustive match with no 
 
 ### The relic
 
-Not a table — one function, `spawn_element_of_yoord`. Draws `"` in magenta, worth 25000, carries `Amulet`. Its name is the constant `ELEMENT_OF_YOORD`. Spawned in place of the down-stair on floor 13.
+Not a table — one function, `spawn_element_of_yoord`. Draws `"` in magenta, carries a `Value` and an `Amulet`. Its name is the constant `ELEMENT_OF_YOORD`. Spawned in place of the down-stair on the deepest floor (`FINAL_DEPTH`, `constants::progression`).
 
 
 TRAPS — TrapDef
@@ -331,8 +330,8 @@ TRAPS — TrapDef
 | `name`        | `&'static str`| What `TrapEffect::label()` returns.            |
 | `glyph`       | `char`        | `'^'` for all six.                             |
 | `color`       | `Color`       | One per row.                                   |
-| `weight`      | `u32`         | Rarity. All six are `10`.                      |
-| `min_depth`   | `u8`          | All six are `1`.                               |
+| `weight`      | `u32`         | Rarity relative to its table-mates.            |
+| `min_depth`   | `u8`          | Shallowest floor it can spawn on.               |
 | `snare_turns` | `u32`         | Turns a bear / gas trap holds you; `0` otherwise. |
 
 A trap entity carries `Name`, `Renderable`, `Position`, `Trap`, `Hidden`. It is never an `Item` and never a tile type.
@@ -450,45 +449,50 @@ Modifier components — numbers that stack across equipped gear, folded by `equi
     ThrowBonus   flat, added once to anything thrown
 
 
-PASSIVE_ABILITIES — PassiveAbility
------------------------------------
+ABILITIES — Ability
+--------------------
 
     models/src/abilities.rs
 
-| Field     | Type                     | Notes                            |
-|-----------|--------------------------|----------------------------------|
-| `effect`  | `Grant`                  | The marker that arms it.         |
-| `chance`  | `f64`                    | Probability per acting turn.     |
-| `action`  | `fn(&mut World, Entity) -> bool` | Run on the bearer; reports whether it actually did anything. |
-| `flavour` | `&'static str`           | Logged only for the player, and only when `action` returned `true`. |
+What an effect does *on its own*, one list for every moment there is. It
+replaced two tables (`PASSIVE_ABILITIES`, `ON_HIT_ABILITIES`) plus a handful of
+markers that had no table at all and were hand-called from `ai`, `combat` and
+`took_damage` instead.
 
-Write `flavour` in the second person. The `bool` is what lets a passive that often has nothing to do (a ring of regeneration on an unhurt player, rolling every other turn) stay silent instead of narrating a non-event.
+| Field         | Type                                              | Notes                        |
+|---------------|----------------------------------------------------|------------------------------|
+| `effect`      | `Grant`                                            | The marker that arms it — on the **attacker** for `Moment::OnHit`, on the bearer for everything else. |
+| `when`        | `Moment`                                           | See below.                    |
+| `player_only` | `bool`                                              | The player's own trick — a monster that steals or catches the weapon behind it still fights the plain way. |
+| `action`      | `fn(&mut World, Entity, Option<Entity>) -> bool`   | The mechanic, run as `(bearer, other_end)`. Reports whether it actually did anything. |
+| `flavour`     | `Option<&'static str>`                             | Logged only for the player, and only when `action` returned `true`. Write it in the second person. |
 
-Three rows: `AggravatesMonsters` (10%), `Regenerates` (50%), `Teleportitis` (1/85). `passive_ability_system` runs at the **tail** of the turn schedule, after `ai` and before `visibility_system` — so a passive that moves its bearer lands the jump at the top of the bearer's next turn, and the player acts from the new tile before anything on the floor moves again.
+The `bool` `action` returns is what lets a row that often has nothing to do (a
+ring of regeneration on an unhurt player, rolling every other turn) stay
+silent instead of narrating a non-event.
 
+`Moment` — one variant per moment the game has:
 
-ON_HIT_ABILITIES — OnHitAbility
---------------------------------
+| Moment | Fires | Notes |
+|---|---|---|
+| `OnHit { glancing, lethal }` | A blow the bearer landed | The two flags are the only gating there is: does a glancing scrape count (acid says yes, a charm that needs skin says no), and does the killing blow count (there is no point charming a corpse). Driven by `combat::resolve_attack`, for every hit that dealt damage, never learning what is in the table. |
+| `EachTurn(f64)` | Every turn the bearer acts, at this probability | `AggravatesMonsters`, `Regenerates` and `Teleportitis` are the three rows — see the table for their exact odds. |
+| `OnDamaged` | The bearer was hurt and lived | Driven by `helpers::took_damage`. |
+| `OnTargeted` | The player turned their attention on the bearer | Fires before the blow, whether or not it lands — a gorgon's gaze is the danger. |
+| `InsteadOfAttacking(f64)` | The bearer is about to swing and would rather not, at this probability | A decision rather than a reaction: a row that fires spends the turn and the blow never happens (a dragon's fireball). |
 
-    models/src/abilities.rs
+`ability_system` drives `EachTurn` and `InsteadOfAttacking` at the **tail** of
+the turn schedule, after `ai` and before `visibility_system` — so a passive
+that moves its bearer lands the jump at the top of the bearer's next turn, and
+the player acts from the new tile before anything on the floor moves again.
 
-The other moment an effect can act on its own: a blow that connected. `combat::resolve_attack` fires the table for every hit that dealt damage and never learns what is in it.
+Adding a moment nobody has yet is a `Moment` variant and one arm in whatever
+drives it. Adding an ability at a moment that already exists is one row.
 
-| Field         | Type                             | Notes                        |
-|---------------|----------------------------------|------------------------------|
-| `effect`      | `Grant`                          | The marker on the *attacker*. |
-| `on_glancing` | `bool`                           | Whether a glancing scrape counts. |
-| `on_lethal`   | `bool`                           | Whether the killing blow counts. |
-| `action`      | `fn(&mut World, Entity, Entity)` | Run as `(attacker, target)`. |
-
-Two rows:
-
-| Effect | Glancing? | Lethal? | Does |
-|---|---|---|---|
-| `ConfusingTouch` | no | no | `items::discharge_confusing_touch` — a scroll of monster confusion's charm, spent passing itself on. Needs skin, and there is no point charming a corpse. |
-| `RustsArmor` | yes | yes | `equipment::corrode_armor` — the aquator. Acid does not care that the armour turned the blow; it landed on the armour. |
-
-`ConfusingTouch` is named here by a `Grant` handle but is deliberately *not* in `EFFECTS`: it is a condition with its own save field (`saveload`), not a cancellable creature property. `Grant::probe` works either way — the registry is only about save bits and cancellation.
+`ConfusingTouch` arms an `OnHit` row but is deliberately *not* in `EFFECTS`: it
+is a condition with its own save field (`saveload`), not a cancellable
+creature property. `Grant::probe` works either way — the registry is only
+about save bits and cancellation.
 
 
 Enchantment
@@ -496,11 +500,11 @@ Enchantment
 
 Rolled by `enchant_equipment` for every weapon, armour, launcher and ring that arrives as a floor drop. Never for a `spawn_named` spawn. The odds and the bonus ranges are `models/src/constants.rs` → `loot` (see `constants.md`).
 
-| Quality     | Odds | Bonus            |
-|-------------|------|------------------|
-| Normal      | 25%  | +0               |
-| Exceptional | 10%  | +1 .. +3         |
-| Cursed      | 65%  | -5 .. +5, plus a `Curse` tag |
+| Quality     | Odds                        | Bonus                        |
+|-------------|-----------------------------|-------------------------------|
+| Normal      | `NORMAL_QUALITY_PCT`        | +0                            |
+| Exceptional | `EXCEPTIONAL_QUALITY_PCT`   | `EXCEPTIONAL_BONUS_MIN` .. `EXCEPTIONAL_BONUS_MAX` |
+| Cursed      | whatever is left            | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX`, plus a `Curse` tag |
 
 A cursed item can roll better than a clean one; it simply cannot be taken off once equipped, short of a scroll of remove curse (which destroys it) or the matching scroll of enchantment (which lifts the `Curse` tag and mends any minus to `+0` — see `constants::scrolls::ENCHANT_BONUS`).
 

@@ -1,3 +1,9 @@
+//! The two resources that answer "is the run still going, and how did it end".
+//!
+//! [`GameState::is_running`] is the main loop's exit flag. [`Ending`] is set
+//! once, the instant a run resolves one way or the other, and carries what the
+//! LOSE/WIN panel needs to say about it.
+
 use bevy_ecs::prelude::*;
 
 #[derive(Resource)]

@@ -1,3 +1,12 @@
+//! What the player's eyes report each turn: the tiles in view, and which mobs,
+//! items and traps that view turns up.
+//!
+//! [`visibility_system`] only runs a viewshed when it is marked dirty (moving,
+//! a wand of light, a door opening), recomputes [`visible_from`], then hands
+//! the result to [`hide_and_announce`] and [`reveal_traps`] to decide what
+//! gets a `Hidden`/`Spotted` flip and a line in the log. It never touches what
+//! a monster can see — that question belongs to [`crate::ai`].
+
 use crate::components::*;
 use crate::effects::{Blind, SeesInvisible};
 use crate::equipment::{Equipped, worn_phrase, worn_tag_from};

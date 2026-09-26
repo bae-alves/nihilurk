@@ -1,3 +1,6 @@
+//! A bare-bones monster fixture for tests that need something to stand on a
+//! tile and fight, without any bestiary row's behaviour or spawn rolls.
+
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use models::*;

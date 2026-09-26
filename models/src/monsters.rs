@@ -1,3 +1,13 @@
+//! The bestiary, and everything that turns a [`MonsterDef`] row into a
+//! creature standing on a tile.
+//!
+//! [`BESTIARY`] is the single table every species is described by;
+//! [`spawn_monster`]/[`spawn_monster_with_rng`] are the only doors into the
+//! world, so gear rolls, mimic disguises and innate magic are assembled once
+//! regardless of whether the spawn came from floor population, a scroll or a
+//! wand. [`wear_monster`] is the odd one out: it puts a species' body on the
+//! *player* instead of spawning a new entity, for playing as a monster.
+
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use rand::Rng;

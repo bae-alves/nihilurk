@@ -223,7 +223,7 @@ Recipe: deal damage
 flowchart LR
   SW(["somebody swung"]):::hero --> RA["combat::resolve_attack"]:::peril
   RA --> R1["opposed rolls<br/>+ gear"] --> R2["chip floor,<br/>melee cap"]
-  R2 --> R3["ON_HIT_ABILITIES"]:::magic --> R4["blood, promise,<br/>low-HP warning"]:::peril
+  R2 --> R3["ABILITIES<br/><i>Moment::OnHit rows</i>"]:::magic --> R4["blood, promise,<br/>low-HP warning"]:::peril
   R4 --> R5["log, shake,<br/>score, despawn"]
 
   NO(["a trap, a bolt,<br/>a blast"]):::magic --> AD["helpers::apply_damage"]:::peril
@@ -242,7 +242,7 @@ There are exactly two ways, and which one you want depends on whether somebody s
 
     crate::combat::resolve_attack(world, attacker, target);
 
-It rolls both sides, folds in every equipped modifier, fires the `ON_HIT_ABILITIES` table, spills blood, logs the line, kicks the shake, pays the score and despawns the corpse. You do not do any of that yourself. Monsters reach it by pushing onto the `AttackQueue` (below); the player's own swing calls it inline from `move_player`.
+It rolls both sides, folds in every equipped modifier, fires every `Moment::OnHit` row in `ABILITIES`, spills blood, logs the line, kicks the shake, pays the score and despawns the corpse. You do not do any of that yourself. Monsters reach it by pushing onto the `AttackQueue` (below); the player's own swing calls it inline from `move_player`.
 
 **Something took damage with no swinger** — a trap, a bolt, a blast:
 

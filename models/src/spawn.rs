@@ -173,9 +173,9 @@ macro_rules! category {
 /// What a dungeon floor drops, and how often.
 ///
 /// The weights are Rogue's own category odds in tenths of a percent, food
-/// swapped for coins, with the armoury split three ways: a melee weapon is 3.6%
-/// of all drops, a bundle of ammunition 2.8%, a launcher 1.6%. Launchers are
-/// the rarest on purpose — one bow is a build, two are clutter.
+/// swapped for coins, with the armoury split three ways between a melee
+/// weapon, a bundle of ammunition and a launcher. Launchers are the rarest of
+/// the three on purpose — one bow is a build, two are clutter.
 ///
 /// | Category | Weight | Share |
 /// |----------|--------|-------|

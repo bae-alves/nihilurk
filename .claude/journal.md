@@ -1,6 +1,5 @@
 # Journal
 
-
 ## Petrification split out of sleep (2026-09-19)
 
 A medusa's gaze used to *be* `Asleep`, so coming out of stone was reported with

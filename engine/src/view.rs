@@ -1,3 +1,13 @@
+//! Everything that goes *in* the terminal grid: the map layers, the HUD, the
+//! overlays and the playback loops that pace an animation across frames.
+//!
+//! The grid itself — `Screen`, its diffing and its flush — lives in its own
+//! `view` crate, so `perf/` measures the renderer the game actually has
+//! rather than a copy of it. [`render`] is the whole frame, drawn layer by
+//! layer (terrain, blood, items, actors, overlays); [`play_particles`],
+//! [`play_magic_map`] and [`play_shake`] are the three ways a turn's
+//! aftermath gets spread across more than one of them.
+
 use std::collections::HashSet;
 use std::io::Write;
 use std::time::Duration;
@@ -11,12 +21,10 @@ use crossterm::{
 
 use models::*;
 
-// The grid itself lives in its own crate, so `perf/` measures the renderer the
-// game actually has rather than a copy of it. This file is what goes *in* the
-// grid: the layers, the HUD, the overlays and the playback loops.
 pub use view::{MAP_TOP, SCREEN_H, SCREEN_W, Screen};
 
-// Targeting-beam trajectory, in map coordinates.
+/// A targeting beam's trajectory from `(x0, y0)` to `(x1, y1)`, in map
+/// coordinates.
 fn bresenham_line(x0: u16, y0: u16, x1: u16, y1: u16) -> Vec<(u16, u16)> {
     let mut result = Vec::new();
 

@@ -1001,7 +1001,8 @@ fn arrow_effect(
 ) {
     let tier = trap_damage_tier(world.resource::<Depth>().what);
     let armor_plus = total_armor_plus(world, victim);
-    // 1d4 + 1 at the surface, one more point of head start per depth tier.
+    // `ARROW_DAMAGE_BONUS` at the surface, one more point of head start per
+    // depth tier.
     let roll = roll_dice(world, ARROW_DAMAGE_DICE, ARROW_DAMAGE_SIDES)
         + ARROW_DAMAGE_BONUS
         + tier * ARROW_DAMAGE_PER_TIER;
@@ -1050,7 +1051,7 @@ fn dart_effect(
 ) {
     let tier = trap_damage_tier(world.resource::<Depth>().what);
     let armor_plus = total_armor_plus(world, victim);
-    let roll = roll_dice(world, DART_DAMAGE_DICE, DART_DAMAGE_SIDES); // 1d2
+    let roll = roll_dice(world, DART_DAMAGE_DICE, DART_DAMAGE_SIDES);
     let damage = (roll - armor_plus).max(0);
     let who = actor_label(world, victim);
 

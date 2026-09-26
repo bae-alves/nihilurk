@@ -1,3 +1,13 @@
+//! Everything the game is made of, flattened onto one crate root.
+//!
+//! `engine` drives the turn loop and the terminal; every rule, component and
+//! system that decides what a turn *does* lives here instead, re-exported so
+//! callers write `models::Fighter` rather than reaching into a submodule. Most
+//! modules are public for that reason. The exceptions — `combat`, `helpers`,
+//! `identify`, `items`, `saveload` — are internal wiring between the public
+//! modules, kept private and re-exported piece by piece where a caller
+//! actually needs one — see the `helpers` re-export below.
+
 pub mod abilities;
 pub mod ai;
 pub mod autoexplore;

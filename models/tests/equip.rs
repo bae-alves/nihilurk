@@ -1,3 +1,8 @@
+//! Wearing and wielding: toggling equipped state, a curse that sticks until
+//! it's lifted, that the folded `Loadout` numbers move by exactly a row's
+//! values, and that a plus or a curse stays hidden until the item is worn or
+//! identified.
+
 use bevy_ecs::prelude::*;
 use models::constants::spells::{TURBO_MAGIC_COST_MULT, TURBO_MAGIC_POWER_MULT};
 use models::*;

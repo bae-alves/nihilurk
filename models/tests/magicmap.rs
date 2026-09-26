@@ -1,3 +1,7 @@
+//! A scroll of magic mapping: that reading one arms the reveal and the sweep
+//! turns up every tile, that a no-op step does nothing, and that every
+//! [`MagicMapStyle`] both animates and finishes with the whole floor known.
+
 use bevy_ecs::prelude::*;
 use models::*;
 
