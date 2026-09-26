@@ -1,1 +1,0 @@
-Run `npx skills use "https://github.com/getsentry/skills" --skill "security-review"` and follow the generated skill instructions now. Read its complete output, redirecting it to a temporary file first if necessary. Resolve relative paths from the supporting-files directory it provides.
