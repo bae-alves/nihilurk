@@ -39,13 +39,29 @@ fn sibling(name: &str) -> PathBuf {
 }
 
 fn main() {
-    let target = sibling(&format!("nihilurk-{}", locale()));
     let args: Vec<String> = env::args().skip(1).collect();
+
+    let has_lang_override =
+        args.len() >= 2 && args[0] == "--lang" && SUPPORTED.contains(&args[1].as_str());
+
+    let lang = if has_lang_override {
+        args[1].clone()
+    } else {
+        locale().to_string()
+    };
+
+    let game_args = if has_lang_override {
+        args[2..].to_vec()
+    } else {
+        args
+    };
+
+    let target = sibling(&format!("nihilurk-{}", lang));
 
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        let err = Command::new(&target).args(&args).exec();
+        let err = Command::new(&target).args(&game_args).exec();
         eprintln!("nihilurk: couldn't run {}: {err}", target.display());
         std::process::exit(1);
     }
@@ -53,7 +69,7 @@ fn main() {
     #[cfg(not(unix))]
     {
         let status = Command::new(&target)
-            .args(&args)
+            .args(&game_args)
             .status()
             .unwrap_or_else(|err| panic!("couldn't run {}: {err}", target.display()));
         std::process::exit(status.code().unwrap_or(1));
