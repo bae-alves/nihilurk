@@ -299,15 +299,19 @@ pub(super) fn elemental_blast(
 
     // Anything in the blast that a shot could have set off goes off with it —
     // the trick shot, worked by a wand instead of a bowstring. Traps first,
-    // then coins, and a coin hands its effect to whoever let the blast off.
-    // Each of those bursts chains on its own (`traps::chain_react`) and none
-    // of them comes back through here, so a blast over a row of traps ends
-    // after it has spent every one of them.
+    // then coins, then any potion caught underfoot, and a coin hands its
+    // effect to whoever let the blast off. Each of those bursts chains on its
+    // own (`traps::chain_react`, `potions::detonate_potion`) and none of them
+    // comes back through here, so a blast over a row of traps ends after it
+    // has spent every one of them.
     for trap in things_in::<Trap>(world, &cell_set) {
         crate::traps::detonate_trap(world, trap, shooter);
     }
     for coin in things_in::<Pickup>(world, &cell_set) {
         crate::traps::detonate_pickup(world, coin, shooter);
+    }
+    for potion in things_in::<Potion>(world, &cell_set) {
+        super::potions::detonate_potion(world, potion, shooter);
     }
 
     affected_entities

@@ -295,12 +295,14 @@ fn step_one_mob(
         return true;
     }
 
-    let Some((step_x, step_y)) = desired_step(movement_type, ctx.player_pos, mob_pos, seen) else {
+    let swims = world.get::<Swims>(mob).is_some();
+    let Some((step_x, step_y)) =
+        desired_step(ctx.map, movement_type, ctx.player_pos, mob_pos, seen, swims)
+    else {
         return false;
     };
     let new_x = (mob_pos.x as i16 + step_x) as u16;
     let new_y = (mob_pos.y as i16 + step_y) as u16;
-    let swims = world.get::<Swims>(mob).is_some();
     if !mob_can_enter(ctx.map, movement_type, mob_pos, new_x, new_y, swims) {
         return false;
     }
@@ -372,12 +374,15 @@ fn hostile(a: Faction, b: Faction) -> bool {
 }
 
 /// The one-tile step a mob wants this turn, or `None` when it holds position —
-/// a `Static` mob always, a `Chase`/`Flee` mob whose tile the player can't see.
+/// a `Static` mob always, a `Chase`/`Flee` mob whose tile the player can't see,
+/// or a `Chase` mob with no walkable route to the player at all.
 fn desired_step(
+    map: &Map,
     movement_type: MovementType,
     player_pos: Position,
     mob_pos: Position,
     seen: bool,
+    swims: bool,
 ) -> Option<(i16, i16)> {
     let toward = |gx: u16, gy: u16| {
         (
@@ -389,7 +394,19 @@ fn desired_step(
         MovementType::Static => None,
         MovementType::Chase if !seen => None,
         MovementType::Flee if !seen => None,
-        MovementType::Chase => Some(toward(player_pos.x, player_pos.y)),
+        // Shortest route over walkable ground, not a blind beeline — so a
+        // chaser goes round a wall between it and the player instead of
+        // butting its head against it. Reuses auto-explore's own BFS
+        // ([`crate::autoexplore::first_step`]); a mob knows the dungeon it's
+        // standing in, so unlike the player it isn't limited to seen tiles.
+        MovementType::Chase => crate::autoexplore::first_step(
+            mob_pos.x,
+            mob_pos.y,
+            |x, y| map.walkable(x, y, swims),
+            |fx, fy, tx, ty| map.diagonal_step_ok(fx, fy, tx, ty),
+            |x, y| (x, y) == (player_pos.x, player_pos.y),
+            Some((player_pos.x, player_pos.y)),
+        ),
         MovementType::Flee => {
             let (sx, sy) = toward(player_pos.x, player_pos.y);
             Some((-sx, -sy))
@@ -463,6 +480,44 @@ mod tests {
     use super::*;
     use crate::map::{MAP_TILE_COUNT, tile_index};
     use fixedbitset::FixedBitSet;
+
+    #[test]
+    fn a_chaser_steps_around_a_wall_instead_of_into_it() {
+        // A 3-wide room with a single wall jutting out between the mob (left)
+        // and the player (right), open on both the row above and below it.
+        let mut map = Map {
+            tiles: vec![TileType::Wall; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
+        };
+        for y in 4..=6 {
+            for x in 5..=9 {
+                map.tiles[tile_index(x, y)] = TileType::Room;
+            }
+        }
+        map.tiles[tile_index(7, 5)] = TileType::Wall;
+
+        let player_pos = Position { x: 9, y: 5 };
+        let mut mob_pos = Position { x: 5, y: 5 };
+        for _ in 0..4 {
+            let (dx, dy) =
+                desired_step(&map, MovementType::Chase, player_pos, mob_pos, true, false)
+                    .expect("a route around the wall exists");
+            mob_pos.x = (mob_pos.x as i16 + dx) as u16;
+            mob_pos.y = (mob_pos.y as i16 + dy) as u16;
+            assert_ne!(
+                (mob_pos.x, mob_pos.y),
+                (7, 5),
+                "never walks into the wall it's routing around"
+            );
+        }
+        assert_eq!(
+            (mob_pos.x, mob_pos.y),
+            (9, 5),
+            "reaches the player in exactly 4 steps — the same as the unobstructed distance"
+        );
+    }
 
     #[test]
     fn room_monsters_are_room_leashed() {

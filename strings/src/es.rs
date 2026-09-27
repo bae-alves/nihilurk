@@ -1343,14 +1343,6 @@ pub fn potion_shatters_floor(seen_name: &str) -> String {
     )
 }
 
-pub fn potion_bursts_over(seen_name: &str, victim_name: &str) -> String {
-    format!(
-        "¡{} {seen_name} estalla sobre {} {victim_name}, que se atraganta con un buche entero!",
-        cap_article(seen_name),
-        article(victim_name)
-    )
-}
-
 pub fn throw_bounces_off(seen_name: &str, hit_name: &str) -> String {
     format!(
         "{} {seen_name} rebota en {} {hit_name}.",

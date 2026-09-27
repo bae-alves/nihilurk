@@ -109,11 +109,18 @@ pub fn fight_step(world: &mut World, target: Entity) -> Option<(i16, i16)> {
     // Goal: any tile bordering the target — from there the adjacency branch
     // above lands the blow next turn.
     let step_ok = |fx: u16, fy: u16, tgx: u16, tgy: u16| map.diagonal_step_ok(fx, fy, tgx, tgy);
-    first_step(px, py, &open, step_ok, |x, y| {
-        let ax = (x as i32 - tx as i32).abs();
-        let ay = (y as i32 - ty as i32).abs();
-        ax <= 1 && ay <= 1 && (ax != 0 || ay != 0)
-    })
+    first_step(
+        px,
+        py,
+        &open,
+        step_ok,
+        |x, y| {
+            let ax = (x as i32 - tx as i32).abs();
+            let ay = (y as i32 - ty as i32).abs();
+            ax <= 1 && ay <= 1 && (ax != 0 || ay != 0)
+        },
+        Some((tx, ty)),
+    )
 }
 
 /// Whether a shot loosed from the player's own tile would actually reach

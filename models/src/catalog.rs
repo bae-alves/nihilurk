@@ -1035,7 +1035,7 @@ pub const COINS: &[CoinDef] = &[
     CoinDef { name: "blue coin",     color: Color::Blue,        effect: PickupEffect::Power,    amount:    4, weight: 10 },
     CoinDef { name: "rosé coin",     color: Color::Magenta,     effect: PickupEffect::Cleanse,  amount:    4, weight: 10 },
     CoinDef { name: "green coin",    color: Color::Green,       effect: PickupEffect::Strength, amount:    4, weight: 10 },
-    CoinDef { name: "platinum coin", color: Color::White,      effect: PickupEffect::Platinum, amount:    0, weight: 10 },
+    CoinDef { name: "platine coin",  color: Color::White,      effect: PickupEffect::Platinum, amount:    0, weight: 10 },
     CoinDef { name: "forge coin",    color: Color::DarkYellow,  effect: PickupEffect::Forge,    amount:    0, weight: 10 },
     // Uncommon, and never disguised: no colour name — it is always just
     // "a hero coin".
@@ -1052,7 +1052,7 @@ pub const COINS: &[CoinDef] = &[
 /// spawns them through [`crate::spawn::spawn_named`], for which a name is the
 /// key. Placed by `map::population`.
 pub const PROGRESSION_ITEMS: &[&str] = &[
-    "platinum coin",
+    "platine coin",
     "forge coin",
     "hero coin",
     "potion of healing",

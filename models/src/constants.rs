@@ -444,6 +444,12 @@ pub mod potions {
     /// slowing paralysis already imposes. Rolled once per turn — see
     /// [`crate::conditions::paralysis_forfeits_turn`].
     pub const PARALYSIS_LOST_TURN_CHANCE: f64 = 0.5;
+
+    /// A potion doesn't just dose whoever it hits: it breaks and spreads over
+    /// this radius, the same delivery a thrown utility wand's blast uses (see
+    /// [`crate::constants::wands::BLAST_RADIUS`]), just narrower — a potion is
+    /// a mouthful of glass, not a wand's whole battery.
+    pub const POTION_SPLASH_RADIUS: f32 = 1.0;
 }
 
 // ===========================================================================

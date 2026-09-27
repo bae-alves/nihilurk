@@ -711,6 +711,9 @@ fn chain_react(world: &mut World, cells: &[(u16, u16, f32)], shooter: Option<Ent
     for coin in things_in::<Pickup>(world, &area) {
         detonate_pickup(world, coin, shooter);
     }
+    for potion in things_in::<Potion>(world, &area) {
+        crate::items::detonate_potion(world, potion, shooter);
+    }
 }
 
 /// Everything carrying `C` standing on one of `cells`. Collected up front
@@ -750,6 +753,10 @@ pub fn detonate_at(world: &mut World, pos: Position, shooter: Option<Entity>) ->
         detonate_pickup(world, pickup, shooter);
         return Some(TrickShot::Pickup);
     }
+    if let Some(potion) = thing_at::<Potion>(world, pos) {
+        crate::items::detonate_potion(world, potion, shooter);
+        return Some(TrickShot::Potion);
+    }
     if let Some(relic) = thing_at::<Amulet>(world, pos) {
         ultimate_trick_shot(world, relic, shooter);
         return Some(TrickShot::Ultimate);
@@ -763,6 +770,7 @@ pub fn detonate_at(world: &mut World, pos: Position, shooter: Option<Entity>) ->
 pub enum TrickShot {
     Trap,
     Pickup,
+    Potion,
     Ultimate,
 }
 

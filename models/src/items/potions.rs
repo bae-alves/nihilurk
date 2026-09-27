@@ -28,7 +28,9 @@ use crate::effects::{
     ArmorBonus, Detected, Grant, Lifetime, PowerBonus, SeesInvisible, ThrowBonus, grant_for_floor,
 };
 use crate::helpers::actor_line;
+use crate::identify::display_name;
 use crate::map::{LevelChange, holding_element_of_yoord, transition_level};
+use crate::particles::BlastPalette;
 
 /// Works a potion on `user`. Returns whether the dose visibly took hold — the
 /// player learns a potion by drinking it either way, but a potion *thrown* at a
@@ -74,6 +76,47 @@ pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: Potio
         PotionEffect::FruitJuice => flavour(world, user, strings::potion_fruit_juice()),
         PotionEffect::Water => flavour(world, user, strings::potion_water()),
     }
+}
+
+/// A potion that breaks without being drunk — thrown, or simply caught in
+/// somebody else's blast — spreads over [`POTION_SPLASH_RADIUS`] instead of
+/// dosing one throat: the same delivery [`super::wands::elemental_blast`]
+/// gives a thrown utility wand's charge, just narrower. The potion itself is
+/// one of the things a blast can find lying underfoot, so this is also how a
+/// wand's grenade or a trap's trick shot sets one off in passing (see
+/// [`crate::traps::chain_react`]).
+///
+/// `false` if `potion` was already gone or carried no [`Position`] — nothing
+/// left to break.
+pub(crate) fn detonate_potion(world: &mut World, potion: Entity, shooter: Option<Entity>) -> bool {
+    let Some(effect) = world.get::<Potion>(potion).map(|p| p.effect) else {
+        return false;
+    };
+    let Some(center) = world.get::<Position>(potion).copied() else {
+        return false;
+    };
+    let seen_name = display_name(world, potion);
+    world.entity_mut(potion).despawn();
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::potion_shatters_floor(&seen_name));
+    let caught = super::wands::elemental_blast(
+        world,
+        shooter,
+        center,
+        POTION_SPLASH_RADIUS,
+        0,
+        None,
+        BlastPalette::Warp,
+    );
+    for entity in caught {
+        let is_creature =
+            world.get::<Mob>(entity).is_some() || world.get::<Player>(entity).is_some();
+        if is_creature {
+            apply_potion_effect(world, entity, effect);
+        }
+    }
+    true
 }
 
 // ---------------------------------------------------------------------------
