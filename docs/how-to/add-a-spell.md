@@ -128,7 +128,7 @@ If this was a dry run, `git checkout models/src/map/levels.rs` along with `catal
 
 > **`Spellset` does survive a save** -- `models/src/saveload.rs` round-trips it like every other piece of the player. So do the two marker components spells have left behind so far, `MagicWard` and `Bided` -- but not through a field of their own: each is a row in the `EFFECTS` registry (`models/src/effects.rs`, `"magic_ward" => MagicWard;`) lent through `effects::lend`, and `EntitySave::effects` saves it by id with the `Lifetime` it is being held for. If your new spell leaves a marker of its own lying around outside `Spellset`, register it there and lend it; a component inserted directly is the one a reload quietly forgets.
 
-> **Nothing routes a spell onto a monster generically.** A `SpellEffect`'s mechanic is shared; the trigger is not. Wiring a species to use one under its own AI, at no Magic cost, is bespoke work in `crate::abilities` -- read how the `FireBreath` row (`Moment::InsteadOfAttacking`) and `dragon_breath` do it for the dragon before assuming a row anywhere makes this automatic.
+> **A monster casts from its spellset, for free.** Its spellset is every `INNATE_SPELLS` row (`models/src/abilities.rs`) whose grant it carries, plus any `Spellset` of its own. Its rule set picks one at random each turn and fires it if it can (`../reference/agents.md`, the `cast` rule). To give a species your spell, pair a grant with it in `INNATE_SPELLS` and put the grant on the bestiary row -- that is all the dragon's `FireBreath` is. Only an `Attack` spell with a range is ever fired this way; a skill never is.
 
 
 Verify what you added

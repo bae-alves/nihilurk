@@ -92,9 +92,10 @@ const DIRS: [(i32, i32); 8] = [
 ];
 
 /// Whether any monster is currently inside the player's viewshed (i.e. drawn on
-/// screen). Auto-walk refuses to start, and halts, while this is true.
+/// screen). Auto-walk refuses to start, and halts, while this is true. The
+/// player's [`Helper`] is drawn too, and is no reason to stop.
 pub fn monster_in_sight(world: &mut World) -> bool {
-    let mut query = world.query_filtered::<(), (With<Mob>, Without<Hidden>)>();
+    let mut query = world.query_filtered::<(), (With<Mob>, Without<Hidden>, Without<Helper>)>();
     query.iter(world).next().is_some()
 }
 

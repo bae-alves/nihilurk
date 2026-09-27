@@ -49,11 +49,12 @@ Drops follow Rogue's own category odds, with coins standing in for food:
 
 - Scrolls, 30%. Magic mapping, enchant weapon, enchant armor, remove curse, teleport, aggravate monster, scare monster, create monster, vorpalize weapon.
 - Potions, 27%. Healing, extra healing, haste self, gain strength, restore strength, see invisible, monster detection, magic detection, raise level, and the ones that are punishments: confusion, paralysis, poison, blindness.
-- Coins, 17%. They buy nothing and they are never carried: a coin is a pickup, spent the instant you step on it. Two of the eight are treasure and go straight into the score; the rest are a small mercy — four HP, four magic, four status effects cleared, four points of drained strength — and two are promises the next staircase keeps if you reach it unhurt, paying the only permanent growth in the game. A coin that would do nothing for you is not picked up at all; it keeps until it would. And a coin can be shot instead of stepped on — twice a trap's burst, and the coin's effect reaches whoever set it off from wherever they are standing, which turns every `$` on the floor into a grenade with a benefit attached.
+- Coins, 13%. They buy nothing and they are never carried: a coin is a pickup, spent the instant you step on it. Two of the eight are treasure and go straight into the score; the rest are a small mercy — four HP, four magic, four status effects cleared, four points of drained strength — and two are promises the next staircase keeps if you reach it unhurt, paying the only permanent growth in the game. A coin that would do nothing for you is not picked up at all; it keeps until it would. And a coin can be shot instead of stepped on — twice a trap's burst, and the coin's effect reaches whoever set it off from wherever they are standing, which turns every `$` on the floor into a grenade with a benefit attached.
 - Armor, 8%. Leather through plate mail, an armor die of 2 up to 9.
 - Weapons, 8%. Within that, 45% a melee weapon (dagger d4, spear d6, mace d6, long sword d8, two-handed sword d10), 35% a bundle of 3 to 12 arrows or quarrels, 20% a bow or crossbow. Launchers are deliberately the rarest, one bow is a build and two are clutter. A bow or crossbow is worth at most 1 damage swung, however good it is, because it takes the hand a sword would have had and you can never pass a turn to swap back.
 - Wands, 5%. Light, striking, lightning, fire, cold, magic missile, polymorph, haste monster, slow monster, drain life, teleport away, teleport to, cancellation. 2d3 damage on the offensive ones, 6 charges, and the range is per wand, 6 or 8. ("Nothing" exists as an effect, but only cancellation ever produces one — it is never a wand you find.)
 - Rings, 5%. Worn, always on. Protection is +2 armor, strength is +2 power plus immunity to strength drain, perception reveals invisible things, sharpshooting is +2 on throws, aggravate monster is a 10% chance per action of waking the floor up.
+- Treats, 4%. A snack (brown %) or a fancy of peace (cyan %), the rest of Rogue's food slot. Thrown, never used: Use just tells you so, and so does Use on an arrow. Throw a snack at a monster with no hands, or a fancy of peace at one with them, and it eats it; half the time it becomes your boon companion, your Helper. A Helper chases and fights whatever monster you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. Walk into it and you trade places; it can't do that to you. It has its own background colour. You only get one: take a second and the first one EXPLODES, all gore and no harm, and you are told "So much for loyalty these days." A Helper's death is played slow, the way yours is.
 
 The item system is one table per kind and a row per item, and a row is nothing but a name, a glyph and the components the thing carries into the world. A ring of protection is not a special case anywhere, it is an item holding ArmorBonus(2), which combat already folds in for plate mail. A bow does not know arrows exist, it grants FireArrow, and an arrow is a thing that answers to FireArrow. Adding an item is one row and no other edit. This is the part I am smug about.
 
@@ -103,21 +104,22 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- Helpers: throw a snack (brown %) or a fancy of peace (cyan %) for a 50% chance to, if accepted, turn non-item users and item-users respectively into your boon companion. They will teleport to you and heal when you change floors, will follow you and chase/attack monsters in your viewshed. you swap places when you walk over them, but they can't do that with you. They will only state their finality when being used. Ammo should do that too. When a helper dies the animation is *real dramatic*. They have different background. Can only have one. The other *EXPLODES* (cosmetic and very gory) when you get a new one. You are logged "so much for loyalty these days."
-- Allies: these don't move levels with you, but can be made with the wand of charming (1 creature) or the scroll of charming monsters (whole room). different background. Not as dramatic as Helpers.
-- Spirits! (&). Half the weight of normal monsters. They are their own faction and won't be angry at you until you damage one of them. Neutral monsters just move randomly and fight randomly (but not you) if move gets interrupted and are backgrounded darkgrey. There are a few kinds of spirits. Interacting with a 'demon' gives you a stack of hidden attribute Demonized. interacting with a celestial (e.g. angel, sphynx, yaksni, yaksa) gives you a stack of a hidden attribute named Consecrated. Go 3+ on either variable and spirits become all hostile ("You challenge the balance!").
+- When the dungeon lord or a trapdoor send you down, you lose a random carried item forever. Does not work with raise level/The Element
+- Allies: these don't move levels with you, but can be made with the wand of charming (1 creature) or the scroll of charming (whole room). different background. No drama like Helpers.
+- Spirits! (&). Half the rarity weight of normal monsters. They are their own faction and won't be angry at you until you damage one of them. Neutral monsters just move randomly and fight randomly (but not you, helpers or allies) if move gets interrupted and are backgrounded darkgrey. There are a few kinds of spirits. Interacting with a cacodaemon (the demons) gives you a stack of hidden attribute Demonized. interacting with an eudaemon (e.g. angel, sphynx, elves) gives you a stack of a hidden attribute named Consecrated. Go 3+ on either variable and spirits become all hostile ("You challenge the balance!").
     - Yellow demon: hit him and instead of an attack it opens a barter menu. your inventory in a column, demon's items in another, you select which ones you want to trade. Kill the demon and you get it all, but it angers all demons. You can cancel a barter. But a successful barter poofs the demon, satisfied
-    - Red demon: this one is just strong and will grunt if interacted with by you while you're not hostile, it won't do anything to you if peace. Random stats (2d6 each). Random grants. Carries a bag full of treasure and is equipped with ULTIMATE chance.
+    - Red demon: this one is just strong and will grunt if interacted with by you while you're not hostile, it won't do anything to you if peace. Random stats (2d6 each). Random grants. Carries a bag full of treasure and is equipped with ULTIMATE chance. Other demons try to spawn two of this one with them.
     - Blue demon (cyan): when meleed, gives you a choice of three spells. Pick one to learn.
     - Pink demon (magenta): when meleed, your gear is unmade and they become your Helper or change faction to the monsters (depending how much gear 25% each piece, curses count -25%). 5/5/5 stats. Spams light magic missiles (1die).
-    - Angel (white &): "Tests your faith!" cancels you, halves your current hp (min 1) and gives the ANGE ledger. Hit the stairs with it and everything becomes (randomly) magical again, and equipped gear become +3
+    - Angel (white &): "Tests your faith!" cancels you, halves your current hp (min 1) and gives the ANGE ledger. Hit the stairs with it and everything non-magical becomes (randomly) magical again, and equipped weapon and armor becomes +3
     - Sphynx (darkyellow &): same as barter but for spells
-    - Yaksni (darker blue & ): Gives you a choice of three identified weapons
-    - Yaksa (darker red & ): Gives you a choice of three identified armor
-    - All of the vanish with a poof when they finish their event
+    - Blue Fairy (darker blue & ): Gives you a choice of three identified weapons
+    - Red Fairy (darker red & ): Gives you a choice of three identified armor
+    - Purple Fairy (purple &): Gives you a choice of three identifies rings
+    - All of the vanish with a poof when they finish their event except the red demon.
 - More player character options
-- Rare items. The decks from DCSS. Each comes with 5 cards. The cards can be:
-    - The Joker: Random effect from another card. It's what makes the draw cards chain into absurdity
+- Rare scroll-type items. The Decks of Cards. Each comes with 5 cards. The cards are decided and stacked when the item is rolled, but cannot be used individually, like a wand but a scroll and what it does is defined by what's on the top of a stack the cards are:
+    - The Joker: Random effect from another card. It's what makes the draw chain into absurdity
     - King of Clubs: Recharges Wands
     - Prince of Swords: Enchant weapon
     - Queen of cups: Enchant Armor
@@ -127,14 +129,15 @@ English, Portuguese and Spanish. A classic roguelike in non-English is important
     - The +4: Creates and uses four different cards
     - THE SKULL KING!: The 12/6/6 Purple S becomes your Ally. They spam lightning.
     - Pot of Sin: Creates and uses two different cards
-    - THE BLACK MAGE: The 12/5/8 purple & becomes your Helper. Spams FIREBALL but not if it would hit you, goes melee otherwise. 'Agentic' characters need an agents system where they fire their percept and then from the percept they do an action. No-memory symbolic AI. There are some sets for it.
+    - THE BLACK MAGE: The 12/5/8 purple & becomes your Helper. Spams Force Lance.
     - The Child: goes to the upstairs of this level
     - The Crone: goes to the downstairs of this level
-    - Scopus: sees the cards in the deck
+    - The Eyes Never Lie: sees the cards in the deck
     - FOOL: Does nothing.
+    - JESTER: Consumes and evaluates the deck. See below.
     - VII THE CHARIOT: Gains the CHRT ledger. Take no damage and vorpal against all.
     - XXII THE WORLD: stops time on the entire floor. For 5 turns, nobody but you moves and projectiles you fire will only be processed after the time has stopped (but for cosmetic purposes their *starting frames* will render for you while time is stopped). This might be heavy on the save file but ... THE WORLD, you know? People expect it to be in the game.
-    - XXIII GOLDEN WIND: turns all items on the floor into Allies
+    - XXIII GOLDEN WIND: turns all items and traps on the floor into Allies
 - Thrown deck behavior: They are evaluated not as cards but as sets
     -Anti-Flush (100 points): one single random effect triggers
     -A Pair (1000 points): the paired effect triggers twice

@@ -218,10 +218,15 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     // Walking into a creature is how you hit it; there is no attack key. The
     // plain opposed-roll swing, plus every trick a wielded weapon lends on
     // top of it, self-checked by `models::melee_attack` the way a ring's own
-    // effect is invisible to this file.
+    // effect is invisible to this file. Walking into your Helper is a step:
+    // the two of you trade places below.
+    let mut swap_with = None;
     if let Some(target_entity) = models::mob_at(world, Position { x: new_x, y: new_y }) {
-        melee_attack(world, player_entity, target_entity);
-        return true; // Attacking consumes a turn
+        if world.get::<Helper>(target_entity).is_none() {
+            melee_attack(world, player_entity, target_entity);
+            return true; // Attacking consumes a turn
+        }
+        swap_with = Some(target_entity);
     }
 
     // Not an attack — a rapier's built-up momentum is done the moment its
@@ -252,6 +257,11 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
         pos.x = new_x;
         pos.y = new_y;
+    }
+    if let Some(helper) = swap_with {
+        world
+            .entity_mut(helper)
+            .insert((Position { x: old_x, y: old_y }, EntityMoved));
     }
     if let Some(mut viewshed) = world.get_mut::<Viewshed>(player_entity) {
         viewshed.dirty = true;
@@ -986,8 +996,14 @@ fn commit_item_action(
 }
 
 /// Use: a plain item goes straight to the use queue (turn spent); a ranged one
-/// goes back in the pack and opens the aiming reticle instead (no turn).
+/// goes back in the pack and opens the aiming reticle instead (no turn); a
+/// thing that is only ever thrown goes back in the pack and says so (no turn).
 fn use_or_aim(world: &mut World, player: Entity, item: Entity, item_idx: usize) -> bool {
+    if let Some(refusal) = use_refusal(world, item) {
+        return_to_pack(world, player, item, item_idx);
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
     // The wand of light is ranged but self-targeted, so it skips the reticle.
     let needs_reticle = world.get::<Ranged>(item).is_some()
         && world
@@ -1108,11 +1124,11 @@ fn open_reticle_for(
 /// [`open_reticle_for`] starts on; `Tab` ([`cycle_target`]) walks the rest.
 /// A [`Hidden`] thing is passed over, exactly as it is everywhere else — a
 /// reticle that snapped to a disguised mimic would be a way to spot one for
-/// free.
+/// free. So is the player's [`Helper`], which `Tab` can still reach.
 fn nearest_mob(world: &mut World, player: Entity, max_range: i32) -> Option<(u16, u16)> {
     let player_pos = *world.get::<Position>(player)?;
     let visible = world.get::<Viewshed>(player)?.visible_tiles.clone();
-    let mut q = world.query_filtered::<&Position, (With<Mob>, Without<Hidden>)>();
+    let mut q = world.query_filtered::<&Position, (With<Mob>, Without<Hidden>, Without<Helper>)>();
     q.iter(world)
         .filter(|p| {
             (p.x, p.y) != (player_pos.x, player_pos.y)
@@ -2701,6 +2717,88 @@ mod tests {
             w.get::<Fighter>(mob).unwrap().hp,
             20,
             "but the dagger was already on the floor by then"
+        );
+    }
+
+    /// A fresh world with the floor's own monsters swept off, and a Helper
+    /// planted one step east of the player.
+    fn world_with_a_helper(seed: u64) -> (World, Entity, Entity) {
+        let mut w = modal_world(seed);
+        let strays: Vec<Entity> = w
+            .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
+            .iter(&w)
+            .collect();
+        for e in strays {
+            w.despawn(e);
+        }
+        let player = player_entity(&mut w);
+        let here = player_pos(&mut w);
+        let east = Position {
+            x: here.x + 1,
+            y: here.y,
+        };
+        assert!(w.resource::<Map>().walkable(east.x, east.y, false));
+        let pal = w
+            .spawn((
+                Name { what: "rat".into() },
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                east,
+                Fighter {
+                    hp: 5,
+                    max_hp: 5,
+                    armor: 0,
+                    power: 1,
+                    max_power: 1,
+                    armor_bonus: 0,
+                    power_bonus: 0,
+                },
+                Faction::Monster,
+                Blood,
+            ))
+            .id();
+        models::recruit(&mut w, pal);
+        (w, player, pal)
+    }
+
+    #[test]
+    fn walking_into_your_helper_swaps_places_with_it() {
+        let (mut w, player, pal) = world_with_a_helper(3);
+        let here = player_pos(&mut w);
+        let there = *w.get::<Position>(pal).unwrap();
+
+        assert!(
+            move_player(&mut w, 1, 0),
+            "the swap is a step, and a step is a turn"
+        );
+
+        assert_eq!(*w.get::<Position>(player).unwrap(), there);
+        assert_eq!(*w.get::<Position>(pal).unwrap(), here);
+        assert_eq!(w.get::<Fighter>(pal).unwrap().hp, 5, "not a swing at it");
+    }
+
+    #[test]
+    fn using_a_snack_says_it_is_for_throwing_and_costs_nothing() {
+        let mut w = modal_world(3);
+        let player = player_entity(&mut w);
+        let snack = models::spawn_named(&mut w, "snack", Position { x: 0, y: 0 }).unwrap();
+        w.entity_mut(snack).remove::<Position>();
+        w.get_mut::<Backpack>(player)
+            .unwrap()
+            .items
+            .insert(0, snack);
+
+        let turn = commit_item_action(&mut w, player, 0, ItemAction::Use);
+
+        assert!(!turn, "no turn spent on a refusal");
+        assert_eq!(w.get::<Backpack>(player).unwrap().items[0], snack);
+        assert!(w.resource::<UseQueue>().uses.is_empty());
+        assert!(
+            w.resource::<GameLog>()
+                .history
+                .iter()
+                .any(|l| l.contains("for throwing"))
         );
     }
 }

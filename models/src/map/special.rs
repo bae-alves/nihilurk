@@ -72,6 +72,7 @@ pub(super) fn carve(level: SpecialLevel, rng: &mut ChaCha12Rng) -> (Map, Rooms) 
     let map = Map {
         tiles,
         dark,
+        inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: Some(level),
     };

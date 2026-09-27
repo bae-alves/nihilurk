@@ -491,6 +491,7 @@ pub(super) fn build_floor(seed: u64, depth: u8) -> (Map, Rooms) {
         Map {
             tiles,
             dark,
+            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special,
             level: None,
         },

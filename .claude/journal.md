@@ -10,6 +10,8 @@
 - [The drop-table test was reading the floor, not the roller (2026-09-20)](#the-drop-table-test-was-reading-the-floor-not-the-roller-2026-09-20)
 - [Trick shots became a chain (2026-09-20)](#trick-shots-became-a-chain-2026-09-20)
 - [Special levels, and what Rogue's layout had been hiding (2026-09-26)](#special-levels-and-what-rogues-layout-had-been-hiding-2026-09-26)
+- [Helpers, and the tests that were one floor from failing (2026-09-26)](#helpers-and-the-tests-that-were-one-floor-from-failing-2026-09-26)
+- [Every mob became an agent (2026-09-26)](#every-mob-became-an-agent-2026-09-26)
 
 
 ## The EFFECTS table in content-tables.md lists 16 of ~45 rows (2026-09-25)
@@ -257,3 +259,102 @@ finding the places the old 3x3 grid had quietly guaranteed something.
   ./target/debug/nihilurk NAME -ns" out.raw`, then replay the escape stream
   into a grid. Closing stdin reaches the game as a keypress and opens the drop
   menu, so ignore anything drawn after that.
+
+## Helpers, and the tests that were one floor from failing (2026-09-26)
+
+Snacks and fancies of peace (`TREATS`), and the boon companion they win
+(`models/src/companion.rs`). A Helper is `Faction::Ally` plus a `Helper`
+component. `Faction::Ally` had been in the enum, unused, since the start.
+
+* **Loyalty is a component, not an effect row.** An `EFFECTS` row would
+  have saved for free, but `revoke_all` (the wand of cancellation) strips
+  every row that isn't in `IDENTITY_EFFECTS`. A cancelled Helper would keep
+  `Faction::Ally` and lose the marker: an ally that neither follows nor
+  swaps. It is saved as its own `EntitySave` field instead.
+* **`Projectile` doesn't mean ammunition.** The dagger and spear carry it,
+  and you wield both. "It's for throwing" keys on `LaunchedBy`.
+* **`ai`'s `spatial` is a `HashMap`, and its iteration order is random.**
+  Choosing "the nearest foe" by `min_by_key` over it picks a different one
+  on every run when two are equally near. The tiebreak is now the tile.
+* **Most "is that an enemy" checks asked `With<Mob>`.** That covers
+  auto-explore's halt, cleave, whirl, lunge, the reticle's first pick, and
+  the "You see a rat" line. A Helper in view halted every walk and
+  re-announced itself at every corner. Each got the `Faction`/`Helper` filter
+  where it lives. `monster_at` already filtered on faction.
+* **Two tests were passing by a hair, and a new drop category tipped
+  both.**
+  * `loot::rolled_loot_follows_the_rogue_drop_table` counted anything with
+    `Stack` as ammo, so treats (which stack) inflated the armoury. Treats get
+    their own count now, checked before ammo.
+  * `traps::no_trap_is_planted_in_a_doorway…` wanted more than 50 of 60
+    floors trapped, and HEAD rolled 51. The expected share is about 87%
+    (four slots at 40%), so that bound failed on about a third of possible
+    content streams. It now samples 200 floors and asks for 75%.
+  * Measured by setting the treat weight to 0: the count went back to 51.
+* **Out of path, not fixed:**
+  * The `pt` and `es` builds were already broken at HEAD: 24 string
+    functions existed only in `en` (`beware_lightning_breath`, the
+    special-level arrivals, the `_self` ghost lines…). Another session filled
+    them in the same day, and `.githooks/pre-commit` now builds every
+    language.
+  * Use on an item with no use still spends a turn ("You can't use X right
+    now"). Only treats and ammo are refused before the queue now.
+  * `split_one` and `restore_from_catalog` match a row by `Name.what`, which
+    is `content_name(id)`. That holds while no language translates content
+    names. The day one does, a quiver throws whole and a save loses its
+    arrows' flight.
+* `docs/reference/rendering.md`'s layer 9 listed tint colours the code
+  hasn't used for a while. It now matches `status_tint`.
+
+* **A new `en.rs` string breaks the pt/es builds silently.** `pt.rs` and
+  `es.rs` don't glob-import `en`, so each new `strings::` function needs its
+  own pt/es version or those binaries stop compiling — and the default
+  `cargo test`/`clippy` only builds `lang-en`, so nothing flags it. 24 went
+  missing that way; fixed 2026-09-26. Check with `cargo check -p engine
+  --no-default-features --features lang-pt` (and `lang-es`).
+
+## Every mob became an agent (2026-09-26)
+
+`ai.rs` no longer decides anything. Each turn it builds a `Percept`,
+`agents::think` runs the mob's `RuleSet`, and `ai::act` carries out the one
+`Action` that comes back. No memory is kept between turns
+(`models/src/agents.rs`, `docs/reference/agents.md`).
+
+* **Aggravation had been overwriting the tactic it was laid on.**
+  `MovementType::Aggravated` replaced `Chase`/`Ambush`, so "switch behaviour
+  once in view" had nothing to switch back to. It is an `Aggravated`
+  component now. The variant stays in the enum (saves are positional), and an
+  old save's `Aggravated` loads as `Chase` plus the component.
+* **I had room-leashed the Helper.** `recruit` sets `movement_type = Chase`,
+  and the step check leashed every `Chase` mob, so a Helper in a room could not
+  follow the player into a corridor. That contradicted the doc written the
+  same day, and no test walked a Helper out of a room. The leash now belongs
+  to the rule set (`RuleSet::leashed`, `CHASER` only).
+  `agents::a_helper_is_not_room_leashed` walks one out.
+* **The old shot ignored the tactic.** Anything with a bow and a line to the
+  player shot it, `Static` included, and a test elsewhere relied on a `Static`
+  archer shooting. Under rule sets `STILL` never acts; that archer is a
+  chaser now.
+* **The dragon's 1-in-6 `InsteadOfAttacking` roll is gone, and so is the
+  `Moment`.** The chaser's own loop ("pick a spell at random from the
+  spellset, fire it if you can, else melee") made it a second, competing way
+  to cast. Its four tests in `abilities.rs` and one in `body.rs` became agent
+  tests covering the same behaviour: a wild dragon breathes on you, an eel's
+  bolt finds you, and a spell-less creature melees. Wild dragons now breathe
+  whenever they have a line, and that is a real balance change.
+* **A spellset is derived, not stored.** It is the `INNATE_SPELLS` rows whose
+  grant the mob carries, plus any `Spellset`. A wand of cancellation that
+  strips `FireBreath` therefore strips the breath too, with no second copy to
+  forget.
+* **Allies check the footprint; monsters don't.** `CAST` asks `ally` and
+  `agents::reaches`, which knows the Fireball (`items::blast_cells`, split out
+  of `elemental_blast` so both use the same cells) and the Thunderbolt. An
+  unknown footprint counts as "reaches the player", so an ally never casts
+  it. Force Lance has none yet, which matters for the GDD's Black Mage.
+* **The random roll uses `getrandom`, not `GameRng`.** Drawing from the seed
+  stream once per mob per turn would have shifted every later combat roll in
+  every seeded test. Confused staggering was already on `getrandom`.
+* **Walking the tutorial for real caught a monster that doesn't exist.** The
+  first draft of `give-a-monster-a-mind.md` made a kobold a coward; the
+  bestiary has no kobold. It was run end to end in a scratch copy and uses the
+  emu now. Also: this machine has no `rsync`.

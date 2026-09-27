@@ -263,6 +263,13 @@ struct EntitySave<'a> {
     /// same way [`EntitySave::backpack`] is.
     #[serde(default)]
     equipped_by: Option<u32>,
+    /// Marker: the player's boon companion. Its [`Faction::Ally`] rides in
+    /// [`EntitySave::faction`].
+    #[serde(default)]
+    helper: bool,
+    /// Where an aggravated monster is heading, `(tx, ty)`. See [`Aggravated`].
+    #[serde(default)]
+    aggravated: Option<(u16, u16)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -284,6 +291,9 @@ struct SaveGame<'a> {
     /// seed on load, then overwritten with this so any room a wand of light lit
     /// stays lit.
     dark_tiles: FixedBitSet,
+    /// The current floor's cracked doorways (see [`Map::inert_doors`]),
+    /// restored over the seed-built map the same way as `dark_tiles`.
+    inert_doors: FixedBitSet,
     /// "Clear data": set when the run was won. The file is kept rather than
     /// deleted; the loader recognises it and asks before starting over.
     cleared: bool,
@@ -408,6 +418,8 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 .get::<Equipped>()
                 .and_then(|e| e.by)
                 .and_then(|w| index_map.get(&w).copied()),
+            helper: er.contains::<Helper>(),
+            aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
         });
     }
 
@@ -419,6 +431,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         rng_seed: world.resource::<RngSeed>().0,
         rng_state: world.resource::<GameRng>().0.clone(),
         dark_tiles: world.resource::<Map>().dark.clone(),
+        inert_doors: world.resource::<Map>().inert_doors.clone(),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
     };
 
@@ -459,9 +472,11 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(DungeonLord::default());
 
     // Rebuild the map from the seed rather than the save file, then restore the
-    // dark-room mask so wand-of-light progress survives the reload.
+    // dark-room mask so wand-of-light progress survives the reload, and the
+    // cracked doorways with it.
     regenerate_map(world, save.rng_seed, save.depth);
     world.resource_mut::<Map>().dark = save.dark_tiles;
+    world.resource_mut::<Map>().inert_doors = save.inert_doors;
 
     // The deepest floor has no down-stair: the seed-built map still carries one,
     // so carve it back to plain floor. The Element of Yoord entity (or its place
@@ -577,7 +592,19 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             em.insert(Score { value: s });
         }
         if let Some(m) = es.mob {
-            em.insert(Mob { movement_type: m });
+            // A save from before aggravation was a state carries it as a
+            // movement type; it comes back as a chaser that is aggravated.
+            let movement_type = match m {
+                MovementType::Aggravated { tx, ty } => {
+                    em.insert(Aggravated { tx, ty });
+                    MovementType::Chase
+                }
+                other => other,
+            };
+            em.insert(Mob { movement_type });
+        }
+        if let Some((tx, ty)) = es.aggravated {
+            em.insert(Aggravated { tx, ty });
         }
         // Blood is not serialised: every creature (player and monsters) bleeds,
         // so it is simply re-attached on load.
@@ -707,6 +734,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.forged {
             em.insert(Forged);
         }
+        if es.helper {
+            em.insert(Helper);
+        }
         if let Some(slots) = es.spellset {
             em.insert(Spellset { slots });
         }
@@ -787,6 +817,8 @@ mod tests {
             forged: false,
             spellset: None,
             equipped_by: None,
+            helper: false,
+            aggravated: None,
         }
     }
 
@@ -807,6 +839,7 @@ mod tests {
             rng_seed: 1,
             rng_state: ChaCha12Rng::seed_from_u64(1),
             dark_tiles: FixedBitSet::with_capacity(1),
+            inert_doors: FixedBitSet::with_capacity(1),
             cleared: false,
         };
         postcard::to_allocvec(&save).unwrap()
@@ -858,6 +891,7 @@ mod tests {
             rng_seed: 1,
             rng_state: ChaCha12Rng::seed_from_u64(1),
             dark_tiles: FixedBitSet::with_capacity(1),
+            inert_doors: FixedBitSet::with_capacity(1),
             cleared,
         };
         postcard::to_allocvec(&save).unwrap()

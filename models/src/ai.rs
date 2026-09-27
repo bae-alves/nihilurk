@@ -3,16 +3,20 @@
 //! [`ai`] is the whole entry point: it snapshots the player once, works out
 //! how many monster rounds this player turn buys, then hands both to
 //! [`monster_round`], which banks tempo energy and steps every mob in up to
-//! two passes so a `Fast` monster can act twice. A single mob's turn —
-//! notice, shoot, chase or flee, attack or step — is [`step_one_mob`].
+//! two passes so a `Fast` monster can act twice. A single mob's turn is
+//! [`step_one_mob`]: the gates (dead, asleep, stone, out of energy), then a
+//! percept, a decision and an action. The decision is not made here: it is
+//! the mob's rule set's, in [`crate::agents`]. This file keeps the clock, the
+//! gates and the hands.
 //!
 //! Everything here reads the player's view, never their eyes: a blinded
 //! player still stands in whatever light the monsters around them can see by,
 //! so blindness never doubles as a way to hide.
 
+use crate::agents::{Action, Percept, Sighting, leashed, rule_set_for, think};
 use crate::components::*;
 use crate::effects::{Asleep, Blind, Clamped, Petrified, Pinned, Rooted, Stealthy, Swims};
-use crate::helpers::{chebyshev, get_line};
+use crate::helpers::chebyshev;
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -21,8 +25,6 @@ use std::collections::{HashMap, HashSet};
 // Defined and documented in `constants.rs`.
 //
 //   STEALTH_RANGE         how close a stealthy player must be to be noticed
-//   MONSTER_SHOT_RANGE      how far a launcher-wielding monster can loose a shot
-use crate::constants::monsters::MONSTER_SHOT_RANGE;
 use crate::constants::rings::STEALTH_RANGE;
 
 /// Monster turn. Exclusive so it can move each mob more than once: the player is
@@ -244,12 +246,10 @@ fn actor_positions(
     spatial
 }
 
-/// One mob's turn within a pass: forfeit if asleep or out of energy (a
-/// bear-trapped mob may still strike but not step), take a ranged shot if it
-/// has one drawn, work out where it wants to go, then either queue an attack
-/// or take the step. Returns whether it did anything — a whole idle pass ends
-/// the round.
-#[allow(clippy::too_many_arguments)] // one mob's whole turn, and the turn's facts
+/// One mob's turn within a pass: forfeit if dead, asleep, stone or out of
+/// energy; otherwise build its [`Percept`], let its rule set pick an
+/// [`Action`] ([`crate::agents::think`]) and carry that out. Returns whether it
+/// did anything — a whole idle pass ends the round.
 fn step_one_mob(
     world: &mut World,
     mob: Entity,
@@ -268,92 +268,160 @@ fn step_one_mob(
     if world.get::<Asleep>(mob).is_some() || world.get::<Petrified>(mob).is_some() {
         return false;
     }
-    let pinned = world.get::<Pinned>(mob).is_some()
-        || world.get::<Rooted>(mob).is_some()
-        || world.get::<Clamped>(mob).is_some();
     if !can_afford_step(world, mob, ctx.pass) {
         return false;
     }
 
-    let mob_pos = *world.get::<Position>(mob).unwrap();
-    let movement_type = world.get::<Mob>(mob).unwrap().movement_type;
-    let mob_faction = *world.get::<Faction>(mob).unwrap();
-    let seen = ctx.noticed_by(mob_pos);
+    let percept = perceive(world, mob, ctx, spatial);
+    let movement = world.get::<Mob>(mob).unwrap().movement_type;
+    let set = rule_set_for(movement, percept.helper);
+    let action = think(&percept, set);
+    let leash = leashed(&percept, set);
+    let (at, pinned, swims) = (percept.at, percept.pinned, percept.swims);
+    drop(percept);
+    act(
+        world, mob, action, at, leash, pinned, swims, ctx.map, spatial,
+    )
+}
 
-    // A launcher drawn is worth nothing swung, so anything wielding one uses
-    // it exactly the way it was found: a centaur or a medusa that can see the
-    // player and has a clear line to them shoots rather than closes — even at
-    // arm's reach, since stepping into melee would only trade the bow for a
-    // stick. Monsters keep no quiver, so this never runs dry.
-    if !pinned
-        && mob_faction == Faction::Monster
-        && seen
-        && chebyshev(mob_pos, ctx.player_pos) <= MONSTER_SHOT_RANGE
-        && crate::equipment::wielded_launcher(world, mob).is_some()
-        && has_line_of_sight(ctx.map, mob_pos, ctx.player_pos)
-    {
-        crate::items::monster_ranged_attack(world, mob, ctx.player);
-        spend_energy(world, mob);
-        return true;
+/// What `mob` knows this turn — see [`Percept`]. Its foes are everything it
+/// would come to blows with standing on a tile the player can see (and not
+/// hidden from them), nearest first; the player only once it has noticed them.
+fn perceive<'a>(
+    world: &World,
+    mob: Entity,
+    ctx: &AiCtx<'a>,
+    spatial: &HashMap<(u16, u16), (Entity, Faction)>,
+) -> Percept<'a> {
+    let at = *world.get::<Position>(mob).unwrap();
+    let faction = *world.get::<Faction>(mob).unwrap();
+    let noticed = ctx.noticed_by(at);
+    // ponytail: one pass over `spatial` per mob per pass; index by faction if
+    // floors ever hold hundreds of mobs.
+    let mut foes: Vec<Sighting> = spatial
+        .iter()
+        .filter(|&(tile, &(who, their))| {
+            hostile(faction, their)
+                && ctx.visible.contains(tile)
+                && world.get::<Hidden>(who).is_none()
+                && (who != ctx.player || noticed)
+        })
+        .map(|(&(x, y), &(who, _))| Sighting {
+            who,
+            at: Position { x, y },
+            is_player: who == ctx.player,
+        })
+        .collect();
+    // Ties broken on the tile, not on the map's iteration order, which is
+    // random.
+    foes.sort_by_key(|f| (chebyshev(at, f.at), f.at.y, f.at.x));
+    Percept {
+        at,
+        in_view: ctx.visible.contains(&(at.x, at.y)),
+        player_at: ctx.player_pos,
+        noticed,
+        pinned: world.get::<Pinned>(mob).is_some()
+            || world.get::<Rooted>(mob).is_some()
+            || world.get::<Clamped>(mob).is_some(),
+        swims: world.get::<Swims>(mob).is_some(),
+        launcher: crate::equipment::wielded_launcher(world, mob).is_some(),
+        spellset: crate::abilities::INNATE_SPELLS
+            .iter()
+            .filter(|(grant, _)| grant.probe(world, mob))
+            .map(|&(_, spell)| spell)
+            .chain(
+                world
+                    .get::<Spellset>(mob)
+                    .into_iter()
+                    .flat_map(|s| s.slots.iter().copied()),
+            )
+            .collect(),
+        // The dungeon's own randomness, not the seed's: which spell a monster
+        // tries and which way a confused one lurches have never been part of
+        // what a seed replays.
+        roll: getrandom::u32().unwrap_or(0),
+        helper: world.get::<Helper>(mob).is_some(),
+        ally: faction == Faction::Ally,
+        aggravated: world
+            .get::<Aggravated>(mob)
+            .map(|a| Position { x: a.tx, y: a.ty }),
+        foes,
+        map: ctx.map,
     }
+}
 
-    let swims = world.get::<Swims>(mob).is_some();
-    let Some((step_x, step_y)) =
-        desired_step(ctx.map, movement_type, ctx.player_pos, mob_pos, seen, swims)
-    else {
-        return false;
+/// Carries out what the rule set decided. A strike is a step onto the foe's
+/// tile, so both go through the same checks — a strike across a doorway's
+/// corner is as impossible as a step there.
+#[allow(clippy::too_many_arguments)] // one action, and what the mob is to act on it
+fn act(
+    world: &mut World,
+    mob: Entity,
+    action: Action,
+    at: Position,
+    leashed: bool,
+    pinned: bool,
+    swims: bool,
+    map: &Map,
+    spatial: &mut HashMap<(u16, u16), (Entity, Faction)>,
+) -> bool {
+    let (dx, dy) = match action {
+        Action::Wait => return false,
+        Action::Shoot(foe) => {
+            crate::items::monster_ranged_attack(world, mob, foe);
+            spend_energy(world, mob);
+            return true;
+        }
+        Action::Cast(spell, target) => {
+            crate::items::apply_spell_effect(world, mob, target, spell, 1);
+            spend_energy(world, mob);
+            return true;
+        }
+        Action::Step(dx, dy) => (dx, dy),
+        Action::Strike(foe) => {
+            let Some(there) = world.get::<Position>(foe).copied() else {
+                return false;
+            };
+            (there.x as i16 - at.x as i16, there.y as i16 - at.y as i16)
+        }
     };
-    let new_x = (mob_pos.x as i16 + step_x) as u16;
-    let new_y = (mob_pos.y as i16 + step_y) as u16;
-    if !mob_can_enter(ctx.map, movement_type, mob_pos, new_x, new_y, swims) {
+    let new_x = (at.x as i16 + dx) as u16;
+    let new_y = (at.y as i16 + dy) as u16;
+    if !mob_can_enter(map, leashed, at, new_x, new_y, swims) {
         return false;
     }
+    let faction = *world.get::<Faction>(mob).unwrap();
 
-    // Entity in the way: attack if hostile, otherwise stand.
-    if let Some(&(target_entity, target_faction)) = spatial.get(&(new_x, new_y)) {
-        if !hostile(mob_faction, target_faction) {
+    // Someone in the way: a swing if it is a foe, otherwise stand.
+    if let Some(&(target, their)) = spatial.get(&(new_x, new_y)) {
+        if !hostile(faction, their) {
             return false;
         }
-        // Anything the attacker would rather do than swing gets first refusal
-        // — a dragon's fireball. `ai` does not learn what those are.
-        if !crate::abilities::fire_instead_of_attacking(world, mob, target_entity) {
-            world
-                .resource_mut::<AttackQueue>()
-                .attacks
-                .push(WantsToAttack {
-                    attacker: mob,
-                    target: target_entity,
-                });
-        }
+        world
+            .resource_mut::<AttackQueue>()
+            .attacks
+            .push(WantsToAttack {
+                attacker: mob,
+                target,
+            });
         spend_energy(world, mob);
         return true;
     }
 
-    // Pinned where it stands: it may lash out (above) but not step.
+    // Held where it stands: it may lash out (above) but not step.
     if pinned {
         return false;
     }
 
-    // Path clear: move.
-    spatial.remove(&(mob_pos.x, mob_pos.y));
+    spatial.remove(&(at.x, at.y));
     if let Some(mut pos) = world.get_mut::<Position>(mob) {
         pos.x = new_x;
         pos.y = new_y;
     }
-    spatial.insert((new_x, new_y), (mob, mob_faction));
+    spatial.insert((new_x, new_y), (mob, faction));
     world.entity_mut(mob).insert(EntityMoved);
     spend_energy(world, mob);
     true
-}
-
-/// Whether a shot could travel clean from `from` to `to` — no wall standing in
-/// the way. Doesn't care what else is standing in the line: a monster's own
-/// kin are not a good enough reason to hold its fire.
-fn has_line_of_sight(map: &Map, from: Position, to: Position) -> bool {
-    get_line(from, to)
-        .into_iter()
-        .filter(|&p| (p.x, p.y) != (from.x, from.y) && (p.x, p.y) != (to.x, to.y))
-        .all(|p| !map.blocks(p.x, p.y))
 }
 
 /// Whether `mob` can spend a step this pass: with a tempo it must be able to
@@ -375,82 +443,13 @@ fn hostile(a: Faction, b: Faction) -> bool {
     )
 }
 
-/// The one-tile step a mob wants this turn, or `None` when it holds position —
-/// a `Static` mob always, a `Chase`/`Flee` mob whose tile the player can't see,
-/// or a `Chase` mob with no walkable route to the player at all.
-fn desired_step(
-    map: &Map,
-    movement_type: MovementType,
-    player_pos: Position,
-    mob_pos: Position,
-    seen: bool,
-    swims: bool,
-) -> Option<(i16, i16)> {
-    let toward = |gx: u16, gy: u16| {
-        (
-            (gx as i16 - mob_pos.x as i16).signum(),
-            (gy as i16 - mob_pos.y as i16).signum(),
-        )
-    };
-    match movement_type {
-        MovementType::Static => None,
-        MovementType::Chase if !seen => None,
-        MovementType::Flee if !seen => None,
-        // Shortest route over walkable ground, not a blind beeline — so a
-        // chaser goes round a wall between it and the player instead of
-        // butting its head against it. Reuses auto-explore's own BFS
-        // ([`crate::autoexplore::first_step`]); a mob knows the dungeon it's
-        // standing in, so unlike the player it isn't limited to seen tiles.
-        MovementType::Chase => crate::autoexplore::first_step(
-            mob_pos.x,
-            mob_pos.y,
-            |x, y| map.walkable(x, y, swims),
-            |fx, fy, tx, ty| map.diagonal_step_ok(fx, fy, tx, ty),
-            |x, y| (x, y) == (player_pos.x, player_pos.y),
-            Some((player_pos.x, player_pos.y)),
-        ),
-        MovementType::Flee => {
-            let (sx, sy) = toward(player_pos.x, player_pos.y);
-            Some((-sx, -sy))
-        }
-        MovementType::Confused => Some(random_orthogonal_step()),
-        MovementType::Aggravated { tx, ty } => {
-            // Head for the tile the shriek came from, from anywhere on the floor
-            // — but lunge once the player is right alongside.
-            let adjacent = (player_pos.x as i16 - mob_pos.x as i16).abs() <= 1
-                && (player_pos.y as i16 - mob_pos.y as i16).abs() <= 1;
-            let (gx, gy) = if adjacent {
-                (player_pos.x, player_pos.y)
-            } else {
-                (tx, ty)
-            };
-            Some(toward(gx, gy))
-        }
-        MovementType::Ambush => {
-            // Lies in wait: never approaches, but a player who draws
-            // alongside it gets lunged at exactly like an aggravated mob
-            // closing the last step.
-            let adjacent = (player_pos.x as i16 - mob_pos.x as i16).abs() <= 1
-                && (player_pos.y as i16 - mob_pos.y as i16).abs() <= 1;
-            adjacent.then(|| toward(player_pos.x, player_pos.y))
-        }
-    }
-}
-
-/// A random N/S/E/W step, for a confused monster. A failed RNG draw goes east.
-fn random_orthogonal_step() -> (i16, i16) {
-    const DIRS: [(i16, i16); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-    let idx = getrandom::u32().map_or(0, |v| v as usize) % DIRS.len();
-    DIRS[idx]
-}
-
 /// Whether `mob` may step onto `(new_x, new_y)`: on the map, somewhere its
 /// feet can stand (deep water only if it `swims`), a legal diagonal, and —
-/// for a chaser — not out of a room into a corridor or doorway (the room
-/// leash).
+/// when `leashed` — not out of a room into a corridor or doorway (the room
+/// leash, which a rule set asks for: see [`crate::agents::RuleSet::leashed`]).
 fn mob_can_enter(
     map: &Map,
-    movement_type: MovementType,
+    leashed: bool,
     mob_pos: Position,
     new_x: u16,
     new_y: u16,
@@ -471,7 +470,7 @@ fn mob_can_enter(
     // door freely. So a corridor monster that steps into a room is leashed
     // from its very next step — which can be the second pass of the same
     // player turn.
-    let room_leashed = matches!(movement_type, MovementType::Chase)
+    let room_leashed = leashed
         && map.tile(mob_pos.x, mob_pos.y) == TileType::Room
         && matches!(map.tile(new_x, new_y), TileType::Passage | TileType::Door);
     !room_leashed
@@ -484,48 +483,11 @@ mod tests {
     use fixedbitset::FixedBitSet;
 
     #[test]
-    fn a_chaser_steps_around_a_wall_instead_of_into_it() {
-        // A 3-wide room with a single wall jutting out between the mob (left)
-        // and the player (right), open on both the row above and below it.
-        let mut map = Map {
-            tiles: vec![TileType::Wall; MAP_TILE_COUNT],
-            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            special: vec![None; MAP_TILE_COUNT],
-            level: None,
-        };
-        for y in 4..=6 {
-            for x in 5..=9 {
-                map.tiles[tile_index(x, y)] = TileType::Room;
-            }
-        }
-        map.tiles[tile_index(7, 5)] = TileType::Wall;
-
-        let player_pos = Position { x: 9, y: 5 };
-        let mut mob_pos = Position { x: 5, y: 5 };
-        for _ in 0..4 {
-            let (dx, dy) =
-                desired_step(&map, MovementType::Chase, player_pos, mob_pos, true, false)
-                    .expect("a route around the wall exists");
-            mob_pos.x = (mob_pos.x as i16 + dx) as u16;
-            mob_pos.y = (mob_pos.y as i16 + dy) as u16;
-            assert_ne!(
-                (mob_pos.x, mob_pos.y),
-                (7, 5),
-                "never walks into the wall it's routing around"
-            );
-        }
-        assert_eq!(
-            (mob_pos.x, mob_pos.y),
-            (9, 5),
-            "reaches the player in exactly 4 steps — the same as the unobstructed distance"
-        );
-    }
-
-    #[test]
     fn room_monsters_are_room_leashed() {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -534,7 +496,7 @@ mod tests {
 
         assert!(!mob_can_enter(
             &map,
-            MovementType::Chase,
+            true,
             Position { x: 5, y: 5 },
             6,
             5,
@@ -547,6 +509,7 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -555,7 +518,7 @@ mod tests {
 
         assert!(mob_can_enter(
             &map,
-            MovementType::Chase,
+            true,
             Position { x: 5, y: 5 },
             6,
             5,
@@ -568,6 +531,7 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -576,7 +540,7 @@ mod tests {
 
         assert!(mob_can_enter(
             &map,
-            MovementType::Chase,
+            true,
             Position { x: 5, y: 5 },
             6,
             5,
@@ -589,22 +553,14 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
         map.tiles[tile_index(5, 5)] = TileType::Room;
         map.tiles[tile_index(6, 5)] = TileType::Water;
 
-        let steps = |swims| {
-            mob_can_enter(
-                &map,
-                MovementType::Chase,
-                Position { x: 5, y: 5 },
-                6,
-                5,
-                swims,
-            )
-        };
+        let steps = |swims| mob_can_enter(&map, true, Position { x: 5, y: 5 }, 6, 5, swims);
         assert!(!steps(false), "a walker stops at the shore");
         assert!(steps(true), "a swimmer goes in");
     }

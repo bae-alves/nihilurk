@@ -2,14 +2,14 @@ How to add a new item category
 ==============================
 
     Audience       Engine developer, or a content author who has
-                   outgrown the nine existing categories.
+                   outgrown the ten existing categories.
     Prerequisites  You have read `add-an-item.md` and none of its nine
                    categories fit. You are comfortable with bevy_ecs
                    components and with Rust traits.
     Result         A tenth kind of item that drops on floors, spawns by
                    name, appears in `-content`, and survives a save.
 
-Do this only when the thing you want is genuinely not one of the nine. A torch is a wand of light with a different flavour; a shield is armour. Reach for a new category when the item carries components no existing `Def` builds, and when it deserves its own share of the drop table.
+Do this only when the thing you want is genuinely not one of the ten. A torch is a wand of light with a different flavour; a shield is armour. Reach for a new category when the item carries components no existing `Def` builds, and when it deserves its own share of the drop table.
 
 Worked example below: **food**, a thing you eat for hit points.
 
@@ -163,7 +163,7 @@ Round-trip a save before you call it done -- step 6 is the one people skip:
 See also
 --------
 
-  add-an-item.md                   the nine categories that already exist
+  add-an-item.md                   the ten categories that already exist
   tune-rarity-and-depth.md         picking that weight
   ../reference/spawn-api.md        ItemDef, DropCategory, the category! macro
   ../explanation/data-driven-content.md   why rows carry components

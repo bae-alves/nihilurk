@@ -437,6 +437,7 @@ fn a_lit_room_does_not_light_the_room_behind_its_door() {
     let mut map = Map {
         tiles: vec![TileType::Wall; MAP_TILE_COUNT],
         dark: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        inert_doors: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     };
@@ -484,6 +485,7 @@ fn water_is_floor_to_a_swimmer_and_a_wall_to_everyone_else() {
     let mut map = Map {
         tiles: vec![TileType::Wall; MAP_TILE_COUNT],
         dark: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        inert_doors: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     };
@@ -624,6 +626,7 @@ fn shore() -> World {
     let mut map = Map {
         tiles: vec![TileType::Room; MAP_TILE_COUNT],
         dark: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        inert_doors: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     };

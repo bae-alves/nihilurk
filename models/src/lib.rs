@@ -9,12 +9,14 @@
 //! actually needs one — see the `helpers` re-export below.
 
 pub mod abilities;
+pub mod agents;
 pub mod ai;
 pub mod autoexplore;
 pub mod autofight;
 pub mod body;
 pub mod bones;
 pub mod catalog;
+pub mod companion;
 pub mod components;
 pub mod conditions;
 pub mod constants;
@@ -50,11 +52,13 @@ mod items;
 mod saveload;
 
 pub use abilities::*;
+pub use agents::*;
 pub use ai::*;
 pub use autoexplore::*;
 pub use autofight::*;
 pub use catalog::*;
 pub use combat::*;
+pub use companion::*;
 pub use components::*;
 pub use conditions::*;
 pub use effects::*;

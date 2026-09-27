@@ -69,13 +69,14 @@ Dial 2: which category of item
 
     category!("scroll",      300,      1,     SCROLLS),
     category!("potion",      270,      1,     POTIONS),
-    category!("coin",        170,      1,     COINS),
+    category!("coin",        130,      1,     COINS),
     category!("armor",        80,      1,     ARMORS),
     category!("wand",         50,      1,     WANDS),
     category!("ring",         50,      1,     RINGS),
     category!("weapon",       36,      1,     WEAPONS),
     category!("ammo",         28,      1,     AMMO),
     category!("launcher",     16,      1,     LAUNCHERS),
+    category!("treat",        40,      1,     TREATS),
                               |        |
                            weight   min_depth
 

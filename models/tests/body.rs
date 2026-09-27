@@ -86,20 +86,35 @@ fn breath_is_a_spell_the_body_knows_for_free() {
     );
 }
 
+/// A wild dragon breathes the same spell a dragon-bodied player casts: its
+/// rule set picks it from the spellset its grant makes innate, and fires it at
+/// the player it has noticed.
 #[test]
 fn a_dragon_npc_breathes_the_same_spell() {
     let mut w = test_world(7, Body::Nihil);
+    w.init_resource::<AttackQueue>();
+    let strays: Vec<Entity> = w
+        .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
+        .iter(&w)
+        .collect();
+    for e in strays {
+        w.despawn(e);
+    }
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
     w.get_mut::<Fighter>(p).unwrap().hp = 99;
     w.get_mut::<Fighter>(p).unwrap().max_hp = 99;
 
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), here);
-    let row = ABILITIES
-        .iter()
-        .find(|a| matches!(a.when, Moment::InsteadOfAttacking(_)))
-        .expect("the breath row");
-    assert!((row.action)(&mut w, dragon, Some(p)));
+    let there = Position {
+        x: here.x + 3,
+        y: here.y,
+    };
+    assert!(w.resource::<Map>().walkable(there.x, there.y, false));
+    spawn_monster(&mut w, MonsterDef::named("dragon"), there);
+    let mut s = Schedule::default();
+    s.add_systems(visibility_system);
+    s.run(&mut w);
+    ai(&mut w);
     assert!(
         w.get::<Fighter>(p).unwrap().hp < 99,
         "the blast burned the player it was aimed at"

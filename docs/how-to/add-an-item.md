@@ -9,7 +9,7 @@ How to add an item
                    enchantment plus and curse until worn or identified;
                    every other kind is always shown by its true name.
 
-Nine categories. Five of them are a single row. Four also need a name to be identified by, and three of those also need somebody to say what the thing *does*. Find your category below and follow that recipe only.
+Ten categories. Six of them are a single row. Four also need a name to be identified by, and three of those also need somebody to say what the thing *does*. Find your category below and follow that recipe only.
 
 
 At a glance
@@ -22,6 +22,7 @@ At a glance
 | Coin      | `COINS`     | yes        | --                               |
 | Ammo      | `AMMO`      | yes*       | *a launcher effect to answer to  |
 | Launcher  | `LAUNCHERS` | yes*       | *an effect to grant              |
+| Treat     | `TREATS`    | yes        | --                               |
 | Ring      | `RINGS`     | no         | a `RingEffect` variant           |
 | Potion    | `POTIONS`   | no         | a `PotionEffect` variant + a mechanic |
 | Scroll    | `SCROLLS`   | no         | a `ScrollEffect` variant + a mechanic |
@@ -86,6 +87,12 @@ A launcher has no attack die and no armour die. All it does is put an effect on 
 `melee_cap` is the most it is worth swung at something, whatever the dice or the enchantment say -- 1 for both existing launchers. It is the price of the hand: a launcher fills the slot a sword would have, and nihilurk has no wait action to swap back with.
 
 Neither half knows the other exists. That is why a sling is one row here and one row in `AMMO`.
+
+### Treat
+
+    TreatDef { name: "bone", color: Color::White, for_item_users: false },
+
+A treat is thrown at a monster as an offer of loyalty and is never used. `for_item_users` says which monsters it is for: those with `ItemUser` (`true`) or those without (`false`). Stacks like ammo. Draws as `%`. What accepting one means is `models/src/companion.rs`.
 
 
 Rings

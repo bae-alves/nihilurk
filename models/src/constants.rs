@@ -258,6 +258,10 @@ pub mod map {
     /// Chance an eligible floor is an island in deep water. See
     /// [`crate::map::SpecialLevel::Island`].
     pub const ISLAND_CHANCE: f64 = 0.01;
+
+    /// Chance a doorway that stops a missile cracks and goes inert — see
+    /// [`crate::map::Map::inert_doors`].
+    pub const DOOR_BREAK_CHANCE: f64 = 0.5;
 }
 
 // ===========================================================================
@@ -683,14 +687,6 @@ pub mod monsters {
     /// value just sets the granularity.
     pub const DEFAULT_SPAWN_WEIGHT: u32 = 10;
 
-    /// The dragon's odds, on a turn it would otherwise land a melee blow, of
-    /// breathing fire instead. See [`crate::items::dragon_breath`].
-    pub const DRAGON_FIREBALL_CHANCE: f64 = 1.0 / 6.0;
-
-    /// The eel's odds, on a turn it would otherwise land a melee blow, of
-    /// loosing a Thunderbolt instead — the dragon's bargain, in lightning.
-    pub const EEL_LIGHTNING_CHANCE: f64 = 1.0 / 6.0;
-
     /// How many turns a medusa's gaze leaves the player standing as stone.
     /// Long enough to be the fight's whole shape and short enough to live
     /// through — nothing can kill a petrified player but a war hammer, so this
@@ -716,6 +712,17 @@ pub mod monsters {
     /// How far a launcher-wielding monster (a centaur, a medusa) can loose a
     /// shot. Shares the player's own launcher reach.
     pub use crate::constants::items::LAUNCHER_RANGE as MONSTER_SHOT_RANGE;
+}
+
+// ===========================================================================
+// Helpers
+// ===========================================================================
+
+/// The boon companion. See [`crate::companion`].
+pub mod helpers {
+    /// The odds a creature accepts the right treat and becomes your Helper.
+    /// The treat is eaten either way.
+    pub const ACCEPT_CHANCE: f64 = 0.5;
 }
 
 // ===========================================================================

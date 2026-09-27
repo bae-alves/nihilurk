@@ -216,6 +216,13 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     let rooms = build_the_floor(world, depth);
     let start = put_the_player_down(world, player, going_down);
     populate_level(world, &rooms, start);
+    if let Some(helper) = crate::companion::the_helper(world) {
+        let beside = Position {
+            x: start.0,
+            y: start.1,
+        };
+        crate::companion::follow_downstairs(world, helper, beside);
+    }
     settle_arrival(world, player, cause);
     world
         .resource_mut::<GameLog>()
@@ -232,16 +239,17 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     }
 }
 
-/// Everything on the old floor stops existing.
+/// Everything on the old floor stops existing, except the player and their
+/// [`Helper`], who are going with them.
 ///
 /// Gear a monster picked up is carried with no `Position` of its own, so it is
 /// laid out on the monster's tile first — otherwise the sweep below walks
 /// straight past it and it haunts the save forever. Backpack contents are the
 /// other `Position`-less things and are deliberately left alone: that is what
-/// makes them the pack.
+/// makes them the pack. A Helper keeps its gear on for the same reason.
 fn tear_down_the_floor(world: &mut World) {
     let armed_mobs: Vec<(Entity, Position)> = world
-        .query_filtered::<(Entity, &Position), (With<Mob>, Without<Player>)>()
+        .query_filtered::<(Entity, &Position), (With<Mob>, Without<Player>, Without<Helper>)>()
         .iter(world)
         .map(|(e, p)| (e, *p))
         .collect();
@@ -257,7 +265,10 @@ fn tear_down_the_floor(world: &mut World) {
     let to_despawn: Vec<Entity> = world
         .iter_entities()
         .filter(|e| {
-            !e.contains::<Player>() && e.contains::<Position>() && !backpacked.contains(&e.id())
+            !e.contains::<Player>()
+                && !e.contains::<Helper>()
+                && e.contains::<Position>()
+                && !backpacked.contains(&e.id())
         })
         .map(|e| e.id())
         .collect();

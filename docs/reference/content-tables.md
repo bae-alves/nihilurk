@@ -316,6 +316,37 @@ Mechanic: `apply` in `models/src/items/pickups.rs`, an exhaustive match with no 
 
 **A full pack is no obstacle**, because there is nothing to find room for. This is the one thing on the floor a full pack can still answer.
 
+### TREATS — TreatDef
+
+A treat is only ever thrown. It is an offer of loyalty: see "Helpers" below.
+
+| Field            | Type           | Notes                                   |
+|------------------|----------------|-----------------------------------------|
+| `name`           | `&'static str` |                                         |
+| `color`          | `Color`        |                                         |
+| `for_item_users` | `bool`         | Whether it is meant for a creature with hands (`ItemUser`). |
+
+Draws `%`. Attaches `Item`, `Treat` and `Stack`: treats stack like ammo, and `split_one` throws one at a time. `restore_from_catalog` puts `Treat` back on load.
+
+| Treat | Colour | For |
+|---|---|---|
+| snack | dark yellow | a creature without hands |
+| fancy of peace | cyan | a creature with hands |
+
+Treats share the coins' old slice of the drop table (Rogue's food slot). The coin guaranteed to every floor, and the coins in a hoard, are still coins.
+
+**Use** on a treat, or on ammunition (anything with `LaunchedBy`), logs that it is for throwing and costs no turn (`items::use_refusal`).
+
+**Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one Helper at a time: recruiting a second explodes the first, cosmetically. A Helper:
+
+* goes for the nearest monster on a tile the player can see, shooting if it holds a launcher, and otherwise comes back to the player's side (`ai::helper_intent`);
+* is hit back by a monster next to it that is not next to the player;
+* trades places with the player who walks into it, and is never hit by the player's cleave, whirl, lunge, or auto-fight;
+* follows the player to every new floor at full HP (`companion::follow_downstairs`), gear and all;
+* pays no score when it dies (`companion::mourn`).
+
+`Helper` is a plain component, saved as its own field, not an `EFFECTS` row: a wand of cancellation does not undo loyalty.
+
 ### The relic
 
 Not a table — one function, `spawn_element_of_yoord`. Draws `"` in magenta, carries a `Value` and an `Amulet`. Its name is the constant `ELEMENT_OF_YOORD`. Spawned in place of the down-stair on the deepest floor (`FINAL_DEPTH`, `constants::progression`).
@@ -395,13 +426,14 @@ Current weights, which happen to total 1000:
 |----------|--------|-------|
 | scroll   | 300    | 30.0% |
 | potion   | 270    | 27.0% |
-| coin     | 170    | 17.0% |
+| coin     | 130    | 13.0% |
 | armor    |  80    |  8.0% |
 | wand     |  50    |  5.0% |
 | ring     |  50    |  5.0% |
 | weapon   |  36    |  3.6% |
 | ammo     |  28    |  2.8% |
 | launcher |  16    |  1.6% |
+| treat    |  40    |  4.0% |
 
 The share column is derived, not maintained.
 
@@ -479,9 +511,10 @@ silent instead of narrating a non-event.
 | `EachTurn(f64)` | Every turn the bearer acts, at this probability | `AggravatesMonsters`, `Regenerates` and `Teleportitis` are the three rows — see the table for their exact odds. |
 | `OnDamaged` | The bearer was hurt and lived | Driven by `helpers::took_damage`. |
 | `OnTargeted` | The player turned their attention on the bearer | Fires before the blow, whether or not it lands — a gorgon's gaze is the danger. |
-| `InsteadOfAttacking(f64)` | The bearer is about to swing and would rather not, at this probability | A decision rather than a reaction: a row that fires spends the turn and the blow never happens (a dragon's fireball). |
 
-`ability_system` drives `EachTurn` and `InsteadOfAttacking` at the **tail** of
+There is no moment for a decision. What a creature *chooses* to do with its turn — a dragon's fireball included — is its rule set's business, not an ability's: see `agents.md`.
+
+`ability_system` drives `EachTurn` at the **tail** of
 the turn schedule, after `ai` and before `visibility_system` — so a passive
 that moves its bearer lands the jump at the top of the bearer's next turn, and
 the player acts from the new tile before anything on the floor moves again.

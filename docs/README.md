@@ -15,12 +15,15 @@ Start here
 | Add my first monster, hand-held     | `tutorial/add-your-first-monster.md`    |
 | Add my first spell, hand-held       | `tutorial/add-your-first-spell.md`       |
 | Add my first body, hand-held        | `tutorial/add-your-first-body.md`        |
+| Give a monster a mind, hand-held    | `tutorial/give-a-monster-a-mind.md`     |
 | Add a monster                       | `how-to/add-a-monster.md`               |
 | Add a new playable body, like the lurk | `how-to/add-a-body.md`               |
 | Add a potion, wand, weapon, ring    | `how-to/add-an-item.md`                 |
 | Add an active spell                 | `how-to/add-a-spell.md`                  |
 | Add a trap                          | `how-to/add-a-trap.md`                  |
 | Add a property like "fire immune"   | `how-to/add-an-effect.md`               |
+| Add a way for a creature to think   | `how-to/add-a-rule-set.md`              |
+| Add one reflex to that thinking     | `how-to/add-a-rule.md`                  |
 | Make something rarer, or deeper     | `how-to/tune-rarity-and-depth.md`       |
 | Add a whole new *kind* of item      | `how-to/add-an-item-category.md`        |
 | Put a specific thing on a specific tile | `how-to/spawn-a-thing.md`           |
@@ -30,10 +33,12 @@ Start here
 | Look up a function I have to call   | `reference/spawn-api.md`                |
 | Look up a flag or an env var        | `reference/cli-and-env.md`              |
 | Look up how input and the turn loop work | `reference/input-and-turn-loop.md` |
+| Look up what a monster does with its turn | `reference/agents.md`             |
 | Look up how a frame gets to the screen | `reference/rendering.md`             |
 | Reach an entity and change it       | `how-to/work-with-the-ecs.md`           |
 | Understand why it is built this way | `explanation/data-driven-content.md`    |
 | Understand how bevy_ecs is used here| `explanation/ecs-in-nihilurk.md`            |
+| Understand why monsters think in rule sets | `explanation/agents.md`          |
 | Know what an effect should look like | `explanation/the-feel-layer.md`        |
 | Write or edit a page in here        | `explanation/documentation-style.md`    |
 | Know what good numbers look like    | `explanation/combat-and-balance.md`     |

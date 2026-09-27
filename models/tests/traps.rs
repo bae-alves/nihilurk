@@ -1166,8 +1166,12 @@ fn a_monster_that_falls_through_a_trapdoor_leaves_smoke() {
 /// budget while doing it, rather than quietly spending its draws on refusals.
 #[test]
 fn no_trap_is_planted_in_a_doorway_or_the_tile_just_inside_one() {
+    // Enough floors that the share below is a measurement, not a coin toss:
+    // at 60 the bound sat one floor under what the seeds happened to roll,
+    // and any new drop category, which shifts the content stream, tipped it.
+    const FLOORS: u64 = 200;
     let mut floors_with_traps = 0;
-    for seed in 0..60u64 {
+    for seed in 0..FLOORS {
         let mut w = test_world(seed);
         let map = w.resource::<Map>().clone();
         let traps: Vec<Position> = w
@@ -1201,9 +1205,11 @@ fn no_trap_is_planted_in_a_doorway_or_the_tile_just_inside_one() {
             );
         }
     }
+    // Four slots at 40% leave about 87% of first floors with a trap; a door
+    // rule that starved placement would be far below this.
     assert!(
-        floors_with_traps > 50,
-        "only {floors_with_traps}/60 floors got any trap at all — the door rule is starving placement"
+        floors_with_traps * 4 >= FLOORS as usize * 3,
+        "only {floors_with_traps}/{FLOORS} floors got any trap at all — the door rule is starving placement"
     );
 }
 

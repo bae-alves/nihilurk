@@ -42,6 +42,7 @@ struct Tally {
     weapons: u32,
     wands: u32,
     rings: u32,
+    treats: u32,
     total: u32,
     // The armoury's own three-way split, counted inside `weapons`.
     melee: u32,
@@ -80,10 +81,14 @@ fn rolled_loot_follows_the_rogue_drop_table() {
         Option<&Pickup>,
         Option<&Stack>,
         Option<&Launcher>,
+        Option<&Treat>,
     ), With<Item>>();
-    for (potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher) in q.iter(&w) {
+    for (potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher, treat) in q.iter(&w) {
         t.total += 1;
-        if scroll.is_some() {
+        if treat.is_some() {
+            // A treat stacks too, so it is asked before ammunition is.
+            t.treats += 1;
+        } else if scroll.is_some() {
             t.scrolls += 1;
         } else if potion.is_some() {
             t.potions += 1;
@@ -113,7 +118,7 @@ fn rolled_loot_follows_the_rogue_drop_table() {
 
     // Every category shows up.
     assert!(t.scrolls > 0 && t.potions > 0 && t.coins > 0);
-    assert!(t.armor > 0 && t.weapons > 0 && t.wands > 0 && t.rings > 0);
+    assert!(t.armor > 0 && t.weapons > 0 && t.wands > 0 && t.rings > 0 && t.treats > 0);
     assert!(
         t.melee > 0 && t.ammo > 0 && t.launchers > 0,
         "armoury gap: {t:?}"
@@ -141,6 +146,7 @@ fn rolled_loot_follows_the_rogue_drop_table() {
     near(pct(t.armor), share_of("armor"));
     near(pct(t.wands), share_of("wand"));
     near(pct(t.rings), share_of("ring"));
+    near(pct(t.treats), share_of("treat"));
     near(
         pct(t.weapons),
         share_of("weapon") + share_of("ammo") + share_of("launcher"),

@@ -669,7 +669,8 @@ const PLAYER_DEATH_STRETCH: f32 = 3.0;
 ///
 /// The player's own death runs the same burst at
 /// [`PLAYER_DEATH_STRETCH`] the length — nothing is waiting behind it, and the
-/// map stays still under it (a player death arms no screen shake).
+/// map stays still under it (a player death arms no screen shake). A
+/// [`crate::components::Helper`]'s death gets the same stretch.
 ///
 /// When [`BloodStains`] is disabled (`-nb`), the whole animation — and the RNG
 /// it would consume — is skipped, same as [`spill_blood`] going quiet under
@@ -698,7 +699,11 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
     }
 
     let has_blood = world.get::<Blood>(entity).is_some();
-    let stretch = if world.get::<Player>(entity).is_some() {
+    // A Helper dies as slowly as the player does: it is the one other death
+    // in the game that is personal.
+    let stretch = if world.get::<Player>(entity).is_some()
+        || world.get::<crate::components::Helper>(entity).is_some()
+    {
         PLAYER_DEATH_STRETCH
     } else {
         1.0
