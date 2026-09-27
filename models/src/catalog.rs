@@ -293,8 +293,8 @@ pub struct WeaponDef {
     /// The die it rolls when thrown. Defaults to `power_die` — a weapon is as
     /// dangerous thrown as it is swung unless the row says otherwise.
     thrown_die: i32,
-    /// Purpose-built for throwing: ignores armour, is spent on what it hits, and
-    /// is never caught.
+    /// Purpose-built for throwing: is spent on what it hits, and is never
+    /// caught.
     projectile: bool,
     /// Whether the throw carries on through everything on its line (see
     /// [`Piercing`]).

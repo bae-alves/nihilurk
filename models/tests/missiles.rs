@@ -428,7 +428,7 @@ fn a_daggers_plus_rides_along_on_the_dagger() {
 }
 
 #[test]
-fn a_projectile_goes_around_armour_and_an_improvised_one_does_not() {
+fn armour_blunts_a_thrown_projectile_the_same_as_an_improvised_one() {
     /// Throw `weapon` at a bat wearing `plus` points of armour bonus, and report
     /// the worst it ever managed.
     fn worst(weapon: &'static str, plus: i32) -> i32 {
@@ -449,10 +449,11 @@ fn a_projectile_goes_around_armour_and_an_improvised_one_does_not() {
             .unwrap()
     }
 
-    // A dagger is a point already in the air: plate mail is not in the argument.
+    // A dagger (1d4, Projectile) still eats the armour bonus off the top, same
+    // as a mace (1d6) does — a point already in the air still lands on
+    // whatever the target is wearing.
     assert_eq!(worst("dagger", 0), 4);
-    assert_eq!(worst("dagger", 3), 4);
-    // A mace is a lump you happened to let go of, and armour still counts.
+    assert_eq!(worst("dagger", 3), 1);
     assert_eq!(worst("mace", 0), 6);
     assert_eq!(worst("mace", 3), 3);
 }

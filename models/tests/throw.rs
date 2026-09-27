@@ -905,3 +905,24 @@ fn a_potion_caught_in_a_wands_grenade_goes_off_too() {
         "and its effect landed on whoever the blast caught"
     );
 }
+
+/// A doorway is cover: whoever is standing in one cannot be hit by a throw
+/// passing through it, whether or not the missile would otherwise pierce.
+#[test]
+fn a_creature_standing_in_a_doorway_cannot_be_hit_by_a_throw() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    w.resource_mut::<Map>().tiles[tile_index(spot.x, spot.y)] = TileType::Door;
+    let bat = monster(&mut w, "bat", spot);
+    let starting_hp = w.get::<Fighter>(bat).unwrap().hp;
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+
+    throw(&mut w, p, dagger, spot);
+
+    assert_eq!(
+        w.get::<Fighter>(bat).unwrap().hp,
+        starting_hp,
+        "the door took the hit, not the creature behind it"
+    );
+}
