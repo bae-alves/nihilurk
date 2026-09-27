@@ -17,6 +17,9 @@ use super::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, tile_index};
 #[derive(Resource)]
 pub struct BloodStains {
     tiles: FixedBitSet,
+    /// Which stained tiles are green (a slime's [`crate::effects::GreenBlood`])
+    /// rather than the default red. A subset of `tiles`.
+    green: FixedBitSet,
     /// When `false` (the `-nb` flag) no tile is ever stained.
     pub enabled: bool,
 }
@@ -25,14 +28,25 @@ impl BloodStains {
     pub fn new() -> Self {
         Self {
             tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            green: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             enabled: true,
         }
     }
 
     /// Marks the tile at `(x, y)` bloody (unless blood is disabled).
     pub fn stain(&mut self, x: u16, y: u16) {
+        self.stain_colored(x, y, false);
+    }
+
+    /// Marks the tile at `(x, y)` bloody, `green` choosing a slime's ichor
+    /// over the default red (unless blood is disabled).
+    pub fn stain_colored(&mut self, x: u16, y: u16, green: bool) {
         if self.enabled && x < MAP_WIDTH && y < MAP_HEIGHT {
-            self.tiles.insert(tile_index(x, y));
+            let idx = tile_index(x, y);
+            self.tiles.insert(idx);
+            if green {
+                self.green.insert(idx);
+            }
         }
     }
 
@@ -40,8 +54,13 @@ impl BloodStains {
         x < MAP_WIDTH && y < MAP_HEIGHT && self.tiles.contains(tile_index(x, y))
     }
 
+    pub fn is_green(&self, x: u16, y: u16) -> bool {
+        x < MAP_WIDTH && y < MAP_HEIGHT && self.green.contains(tile_index(x, y))
+    }
+
     pub fn clear(&mut self) {
         self.tiles.clear();
+        self.green.clear();
     }
 }
 

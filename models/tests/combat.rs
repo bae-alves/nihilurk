@@ -367,3 +367,31 @@ fn a_garrote_finds_a_fleeing_monster_as_helpless_as_a_sleeping_one() {
         "a fleeing monster survived a garroted hit that should have zeroed it"
     );
 }
+
+/// Killing whatever clamped you should free you on the spot — unlike a bear
+/// trap's [`Pinned`], which only turns lift, [`Clamped`] is the biter's grip
+/// and dies with it (`crate::combat::settle_the_dead`).
+#[test]
+fn killing_the_biter_frees_the_victim_it_clamped() {
+    let mut w = combat_world(1);
+    let hero = spawn_attacker(&mut w, 1); // 1d1: a deterministic 1-point kill
+    let biter = spawn_target(&mut w, 1, 0);
+    w.entity_mut(biter).insert(Binds);
+    snare(&mut w, hero, Grant::of::<Clamped>(), 5);
+    w.entity_mut(hero).insert(ClampedBy(biter));
+    assert!(
+        w.get::<Clamped>(hero).is_some(),
+        "setup: hero isn't clamped"
+    );
+
+    resolve_attack(&mut w, hero, biter);
+
+    assert!(
+        w.get::<Fighter>(biter).is_none_or(|f| f.hp <= 0),
+        "setup: the biter should have died"
+    );
+    assert!(
+        w.get::<Clamped>(hero).is_none(),
+        "the victim was still clamped after its biter died"
+    );
+}

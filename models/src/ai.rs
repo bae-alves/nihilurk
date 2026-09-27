@@ -11,7 +11,7 @@
 //! so blindness never doubles as a way to hide.
 
 use crate::components::*;
-use crate::effects::{Asleep, Blind, Petrified, Pinned, Rooted, Stealthy, Swims};
+use crate::effects::{Asleep, Blind, Clamped, Petrified, Pinned, Rooted, Stealthy, Swims};
 use crate::helpers::{chebyshev, get_line};
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
@@ -268,7 +268,9 @@ fn step_one_mob(
     if world.get::<Asleep>(mob).is_some() || world.get::<Petrified>(mob).is_some() {
         return false;
     }
-    let pinned = world.get::<Pinned>(mob).is_some() || world.get::<Rooted>(mob).is_some();
+    let pinned = world.get::<Pinned>(mob).is_some()
+        || world.get::<Rooted>(mob).is_some()
+        || world.get::<Clamped>(mob).is_some();
     if !can_afford_step(world, mob, ctx.pass) {
         return false;
     }

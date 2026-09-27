@@ -19,8 +19,8 @@ use crate::components::*;
 use crate::conditions::afflicted;
 use crate::constants::score::BOUNTY_SCORE_MULTIPLIER;
 use crate::effects::{
-    Asleep, Bided, Fencer, Grant, Lunges, Pinned, Rooted, ScoreBounty, ShattersStone,
-    VorpalOnCondition, VorpalTarget, WhirlOnMove, loadout,
+    Asleep, Bided, Binds, Clamped, ClampedBy, Fencer, Grant, Lunges, Lurk, Pinned, Rooted,
+    ScoreBounty, ShattersStone, VorpalOnCondition, VorpalTarget, WhirlOnMove, loadout, revoke,
 };
 use crate::equipment::{equipped_items, force_unequip};
 use crate::helpers::{
@@ -57,7 +57,7 @@ fn roll_die(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
 /// range and mean as a plain [`roll_die`], just a narrower distribution
 /// around that mean — the bell curve that takes the swing out of a normal
 /// exchange without touching any weapon or armour's tuned die size.
-fn roll_die_bell(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
+pub(crate) fn roll_die_bell(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
     (0..BELL_CURVE_DICE)
         .map(|_| roll_die(rng, sides))
         .sum::<i32>()
@@ -196,6 +196,13 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     world
         .resource_mut::<GameLog>()
         .add(strings::mob_dies(&name));
+    if let Some(player) = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+    {
+        release_biters_grip(world, entity, player);
+    }
     pay_for_the_corpse(world, entity);
     kill_shake(world, entity);
     death_burst(world, entity, source);
@@ -627,7 +634,8 @@ fn garrote_vorpal(world: &World, attacker: Entity, target: Entity) -> bool {
             || mob_staggering
             || world.get::<Asleep>(target).is_some()
             || world.get::<Pinned>(target).is_some()
-            || world.get::<Rooted>(target).is_some())
+            || world.get::<Rooted>(target).is_some()
+            || world.get::<Clamped>(target).is_some())
 }
 
 /// The estoc's lunge, end to end: self-checks [`Lunges`] and the geometry —
@@ -741,9 +749,14 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
         return;
     }
     let target_name = entity_name(world, target);
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::lunge_hit(&target_name, damage));
+    // A lurk has no blade to flash — it lunges on four legs and finishes with
+    // its teeth, so it reads its own line rather than the estoc's.
+    let line = if world.get::<Lurk>(attacker).is_some() {
+        strings::lunge_hit_lurk(&target_name, damage)
+    } else {
+        strings::lunge_hit(&target_name, damage)
+    };
+    world.resource_mut::<GameLog>().add(line);
     if blow.outcome.lethal {
         world
             .resource_mut::<GameLog>()
@@ -1027,9 +1040,29 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         ending.cause = strings::slain_by(&attacker_name);
         return;
     }
+    release_biters_grip(world, blow.target, blow.attacker);
     pay_for_the_corpse(world, blow.target);
     leave_gear_behind(world, blow.target);
     world.despawn(blow.target);
+}
+
+/// A grip is the biter's, not the floor's: unlike a bear trap's [`Pinned`],
+/// which only turns lift, [`Clamped`] lets go the instant whatever clamped
+/// you dies — killing the venus flytrap while it has your leg frees you on
+/// the same blow, rather than leaving you thrashing against a corpse until
+/// the bite's turns happen to run out.
+///
+/// Gated on [`ClampedBy`] naming `dead` specifically, not just on `dead`
+/// having [`Binds`] — two flytraps can share a room, and killing the one that
+/// never bit you must not free you from the one that did.
+fn release_biters_grip(world: &mut World, dead: Entity, victim: Entity) {
+    if world.get::<Binds>(dead).is_some()
+        && world
+            .get::<ClampedBy>(victim)
+            .is_some_and(|by| by.0 == dead)
+    {
+        revoke(world, victim, Grant::of::<Clamped>());
+    }
 }
 
 /// Writes the player-attacked-something lines to the log: the hit line (an

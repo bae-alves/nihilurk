@@ -28,7 +28,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::lurk;
-use crate::effects::{BuildsMomentum, Grant, Lunges, Lurk, Stealthy, grant_all};
+use crate::effects::{BuildsMomentum, Fencer, Grant, Lunges, Lurk, Stealthy, grant_all};
 use crate::equipment::Slot;
 use crate::map::GameRng;
 use crate::monsters::MonsterDef;
@@ -92,6 +92,7 @@ pub fn wear(world: &mut World, player: Entity, body: Body) {
 const LURK_GRANTS: &[Grant] = &[
     Grant::of::<Lurk>(),
     Grant::of::<Lunges>(),
+    Grant::of::<Fencer>(),
     Grant::of::<BuildsMomentum>(),
     Grant::of::<Stealthy>(),
 ];
@@ -101,11 +102,13 @@ const LURK_GRANTS: &[Grant] = &[
 /// It brings nothing and can never wear a weapon or a suit of armour — the
 /// claws *are* the weapon and the fur *is* the armour, which is why both its
 /// dice start where nihil's bare ones do and climb by eating rather than by
-/// shopping. What it gets instead is technique: the estoc's lunge
-/// ([`Lunges`]), the rapier's rhythm ([`BuildsMomentum`], built on the
-/// creature itself since there is no blade to build it on), a hunter's
-/// quiet ([`Stealthy`]), and Bide — which it pays for like anyone else,
-/// because a coiled spring is not something a wolf is born knowing.
+/// shopping. What it gets instead is technique, all of it a wolf's own: the
+/// closing lunge that ends a run ([`Lunges`]) and the second snap of the jaws
+/// that follows any bite landing ([`Fencer`]), a rhythm that builds with
+/// every hit ([`BuildsMomentum`], carried on the creature itself since there
+/// is no blade to carry it), a hunter's quiet ([`Stealthy`]), and Bide —
+/// which it pays for like anyone else, because a coiled spring is not
+/// something a wolf is born knowing.
 fn wear_lurk(world: &mut World, player: Entity) {
     world.entity_mut(player).insert((
         Renderable {

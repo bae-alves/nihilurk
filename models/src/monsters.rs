@@ -17,11 +17,12 @@ use crate::catalog::ItemDef;
 use crate::components::*;
 use crate::effects::{
     Batty, Binds, ColdImmune, FireBreath, FireImmune, Flies, Freezing, Gorgon, Grant, Grants,
-    ItemUser, LightningBreath, Regenerates, RustsArmor, ScoreBounty, Splits, StealsAndFlees,
-    StealsAndVanishes, Swims, Undead, Vampiric, Venomous, VorpalTarget, grant_all,
+    GreenBlood, ItemUser, LightningBreath, Regenerates, RustsArmor, ScoreBounty, Splits,
+    StealsAndFlees, StealsAndVanishes, Swims, Undead, Vampiric, Venomous, VorpalTarget, grant_all,
 };
 use crate::equipment::equip_silently;
 use crate::map::{FINAL_DEPTH, GameRng};
+use crate::particles::{BlastPalette, Particles, on_map};
 use crate::spawn::pick_weighted;
 use MovementType::{Ambush, Chase};
 
@@ -352,7 +353,7 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("phantom",       'P',   Color::DarkGrey,    Chase,      9,  10,   0,   8,  0,   5).grants(&[Grant::of::<Undead>(), Grant::of::<Batty>()]).invisible(),
     MonsterDef::row("quagga",        'Q',   Color::DarkYellow,  Chase,      6,   6,   0,   12,  4,   5),
     MonsterDef::row("rattlesnake",   'R',   Color::DarkGreen,   Chase,      6,   6,   0,   8,  0,   5).grants(&[Grant::of::<Venomous>()]),
-    MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      6,   4,   0,   4,  0,   5).grants(&[Grant::of::<Splits>()]),
+    MonsterDef::row("slime",         'S',   Color::DarkGreen,   Chase,      6,   4,   0,   4,  0,   5).grants(&[Grant::of::<Splits>(), Grant::of::<GreenBlood>()]),
     MonsterDef::row("troll",         'T',   Color::DarkGreen,   Chase,      8,  10,   0,   6,  1,   5).grants(&[Grant::of::<ItemUser>(), Grant::of::<Regenerates>()]),
     MonsterDef::row("ur-vile",       'U',   Color::DarkMagenta, Chase,      10,  10,   0,  12,  1,   5).grants(ITEM_USER),
     MonsterDef::row("vampire",       'V',   Color::DarkRed,     Chase,      10,  10,  0,   8,  1,   5).grants(&[Grant::of::<Vampiric>(), Grant::of::<ItemUser>()]),
@@ -717,6 +718,22 @@ pub fn maybe_split(world: &mut World, victim: Entity) {
         return;
     };
     let Some((x, y)) = crate::helpers::free_adjacent_tile(world, pos) else {
+        // Boxed in — nowhere for the copy to stand. It pops instead: a
+        // harmless, purely cosmetic burst, same palette as a shattering
+        // potion, so a slime cornered in a passage still reads as *doing*
+        // something rather than just eating the hit in silence.
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            let mut cells = Vec::new();
+            for dy in -1i32..=1 {
+                for dx in -1i32..=1 {
+                    let dist = ((dx * dx + dy * dy) as f32).sqrt();
+                    if let Some((x, y)) = on_map(pos.x as i32 + dx, pos.y as i32 + dy) {
+                        cells.push((x, y, dist));
+                    }
+                }
+            }
+            fx.explosion(&cells, BlastPalette::Warp);
+        }
         return;
     };
     let Some(name) = world.get::<Name>(victim).map(|n| n.what.clone()) else {

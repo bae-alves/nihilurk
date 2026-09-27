@@ -230,12 +230,15 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
 
     // Something has your leg. A swing at an adjacent foe (above) still
     // lands either way, but the step you were about to take does not: against a
-    // bear trap it becomes a bloody lurch at the jaws — one wasted turn, a
-    // scratch of damage, a lot of blood — and against a scroll's hold it is
-    // simply a turn spent straining at nothing. Nothing a monster can read
-    // holds the player today; this is here so it stays true if one ever does.
+    // bear trap or a living bite it becomes a bloody lurch at the jaws — one
+    // wasted turn, a scratch of damage, a lot of blood — and against a
+    // scroll's hold it is simply a turn spent straining at nothing.
     if player_held_by(world, Grant::of::<Pinned>()) {
         bear_trap_thrash(world, player_entity);
+        return true;
+    }
+    if player_held_by(world, Grant::of::<Clamped>()) {
+        clamped_thrash(world, player_entity);
         return true;
     }
     if player_held_by(world, Grant::of::<Rooted>()) {

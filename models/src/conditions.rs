@@ -35,8 +35,9 @@ use crate::components::{
 };
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{
-    Asleep, Bided, Blind, Confused, Effects, Grant, Lifetime, MagicWard, Paralyzed, Petrified,
-    Pinned, Rooted, SeesInvisible, Sluggish, Stealthy, SustainsStrength, clear_floor_grants,
+    Asleep, Bided, Blind, Clamped, Confused, Effects, Grant, Lifetime, MagicWard, Paralyzed,
+    Petrified, Pinned, Rooted, SeesInvisible, Sluggish, Stealthy, SustainsStrength,
+    clear_floor_grants,
 };
 use crate::helpers::item_label;
 use crate::map::GameRng;
@@ -635,7 +636,7 @@ fn conditions() -> impl Iterator<Item = (Grant, &'static str)> {
         .chain(OTHER_CONDITIONS.iter().copied())
 }
 
-/// The three [`crate::effects::HOLDS`], with the adjective each would need if
+/// The four [`crate::effects::HOLDS`], with the adjective each would need if
 /// it ever had to be named in a sentence it has no line of its own for. It
 /// never has yet — every hold in [`crate::effects::EFFECTS`] carries an
 /// `ends` line, and [`shed_line`] prefers that — so this is the fallback that
@@ -644,6 +645,7 @@ const HOLD_ADJECTIVES: &[(Grant, &str)] = &[
     (Grant::of::<Asleep>(), strings::adjective_asleep()),
     (Grant::of::<Pinned>(), strings::adjective_pinned()),
     (Grant::of::<Rooted>(), strings::adjective_held()),
+    (Grant::of::<Clamped>(), strings::adjective_clamped()),
 ];
 
 /// Whether the effect `id` is something the creature is *under* — the set the
