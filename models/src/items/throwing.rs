@@ -19,9 +19,9 @@ use rand::Rng;
 use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
-use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_plus};
+use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_roll};
 use crate::identify::{article_for, counted, display_name, phrase_for, with_article};
-use crate::map::{GameRng, Map};
+use crate::map::{GameRng, Map, TileType};
 use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
@@ -66,6 +66,10 @@ pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String>
 /// the way — which is the whole point of aiming past one — unless the thing in
 /// flight is [`Piercing`], in which case it runs the line to its end and the
 /// list comes back with everyone standing in it.
+///
+/// A doorway is cover: whoever is standing in one is not a valid victim at
+/// all, the frame is in the way, and the missile stops right there, whether
+/// or not it was `Piercing` — cover blocks a spear the same as a dart.
 fn flight_path(
     world: &mut World,
     thrower: Entity,
@@ -87,6 +91,9 @@ fn flight_path(
         }
         cells.push((pos.x, pos.y));
         landing = pos;
+        if map.tile(pos.x, pos.y) == TileType::Door && actor_at(world, pos, thrower).is_some() {
+            break;
+        }
         if let Some(victim) = actor_at(world, pos, thrower) {
             victims.push(victim);
             if !piercing {
@@ -137,7 +144,7 @@ pub fn throw_reach(world: &World, thrower: Entity, item: Entity) -> i32 {
 ///
 /// The roll is `1d[thrown damage]`, plus the item's own enchantment, plus every
 /// [`ThrowBonus`] the *thrower* is wearing — a ring of sharpshooting, the plus on
-/// the bow in their hand. Three things bend it:
+/// the bow in their hand. Two things bend it:
 ///
 /// * **A launcher switches the die.** A missile carrying [`LaunchedBy`] asks
 ///   whether its thrower has the effect it answers to; if so it rolls its
@@ -145,10 +152,9 @@ pub fn throw_reach(world: &World, thrower: Entity, item: Entity) -> i32 {
 ///   rolls `1d4`, the same arrow loosed from a bow rolls `1d6`, a quarrel rolls
 ///   its plain double. The bow is not consulted — only the effect is, so a
 ///   monster that picked one up shoots just as well as you do.
-/// * **A [`Projectile`] ignores armour.** A point already in the air does not
-///   care what you are wearing.
-/// * **Anything else is still blunted by it** — by the armour *plus* only, never
-///   the die, exactly as a trap is.
+/// * **Armour blunts it in full** — the same opposed roll a blade would face,
+///   die and all ([`total_armor_roll`]). A point already in the air still
+///   lands on whatever the target is wearing.
 fn roll_throw_damage(
     world: &mut World,
     thrower: Entity,
@@ -165,10 +171,7 @@ fn roll_throw_damage(
     let bonus = world.get::<PowerBonus>(item).map(|b| b.0).unwrap_or(0)
         + equipped_total::<ThrowBonus>(world, thrower);
     let roll = world.resource_mut::<GameRng>().0.gen_range(1..=die) + bonus;
-    let soak = match world.get::<Projectile>(item) {
-        Some(_) => 0,
-        None => total_armor_plus(world, target),
-    };
+    let soak = total_armor_roll(world, target);
     Some((roll - soak).max(0))
 }
 
