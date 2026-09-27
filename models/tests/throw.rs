@@ -847,3 +847,61 @@ fn hitting_a_monster_standing_on_a_trap_sets_the_trap_off() {
         "and the gas it was holding went into the one standing on it"
     );
 }
+
+/// A thrown potion doesn't just dose whoever it hits: it bursts where it
+/// lands and spreads over the same small splash a thrown utility wand's
+/// blast covers, just narrower.
+#[test]
+fn a_thrown_potion_splashes_everyone_in_the_small_burst() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let struck = monster(&mut w, "test monster", spot);
+    let beside = monster(
+        &mut w,
+        "test monster",
+        Position {
+            x: spot.x + 1,
+            y: spot.y,
+        },
+    );
+    for orc in [struck, beside] {
+        let mut f = w.get_mut::<Fighter>(orc).unwrap();
+        f.max_hp = 10;
+        f.hp = 1;
+    }
+    let potion = stash(&mut w, p, |w| {
+        spawn_potion(w, PotionEffect::Healing, NOWHERE)
+    });
+
+    throw(&mut w, p, potion, spot);
+
+    for orc in [struck, beside] {
+        let f = w.get::<Fighter>(orc).unwrap();
+        assert_eq!(f.hp, f.max_hp, "everyone in the splash got a share");
+    }
+    assert!(w.get_entity(potion).is_none(), "the bottle broke");
+}
+
+/// A potion is one of the things a blast can find lying underfoot: caught in
+/// somebody else's burst it goes off just the same as a trap or a coin does.
+#[test]
+fn a_potion_caught_in_a_wands_grenade_goes_off_too() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let orc = monster(&mut w, "test monster", spot);
+    w.get_mut::<Fighter>(orc).unwrap().power -= 2;
+    let starved_power = w.get::<Fighter>(orc).unwrap().power;
+    let potion = spawn_potion(&mut w, PotionEffect::RestoreStrength, spot);
+
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    w.get_mut::<Battery>(wand).unwrap().charges = 4;
+    throw(&mut w, p, wand, spot);
+
+    assert!(w.get_entity(potion).is_none(), "the blast broke it");
+    assert!(
+        w.get::<Fighter>(orc).unwrap().power > starved_power,
+        "and its effect landed on whoever the blast caught"
+    );
+}

@@ -237,7 +237,7 @@ fn descend(w: &mut World) {
 fn a_platinum_coin_pays_a_point_of_die_at_the_stairs() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    assert!(step_on(&mut w, "platinum coin"));
+    assert!(step_on(&mut w, "platine coin"));
     assert!(w.get::<Plated>(p).is_some(), "PLAT");
     let (power, armor) = {
         let f = w.get::<Fighter>(p).unwrap();
@@ -276,7 +276,7 @@ fn a_forge_coin_pays_a_point_of_plus_at_the_stairs() {
 fn being_hurt_breaks_the_promise() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    assert!(step_on(&mut w, "platinum coin"));
+    assert!(step_on(&mut w, "platine coin"));
     assert!(step_on(&mut w, "forge coin"));
 
     hurt(&mut w, p);
@@ -299,9 +299,9 @@ fn being_hurt_breaks_the_promise() {
 #[test]
 fn a_promise_you_already_hold_leaves_the_coin_on_the_floor() {
     let mut w = test_world(1);
-    assert!(step_on(&mut w, "platinum coin"));
+    assert!(step_on(&mut w, "platine coin"));
     assert!(
-        !step_on(&mut w, "platinum coin"),
+        !step_on(&mut w, "platine coin"),
         "no stacking perfection: the second one keeps"
     );
 }
@@ -533,7 +533,7 @@ fn a_coin_whose_shooter_died_first_is_simply_spent() {
         y: at.y,
     };
     let ghost = monster::monster(&mut w, "test monster", spot);
-    let coin = spawn_named(&mut w, "platinum coin", spot).expect("a coin");
+    let coin = spawn_named(&mut w, "platine coin", spot).expect("a coin");
     w.despawn(ghost);
 
     assert!(detonate_pickup(&mut w, coin, Some(ghost)));

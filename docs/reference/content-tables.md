@@ -304,7 +304,7 @@ Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Valu
 | blue | `Power` | refills up to `amount` magic points |
 | rosé | `Cleanse` | lifts up to `amount` afflictions, worst first |
 | green | `Strength` | gives back up to `amount` drained `power` |
-| platinum | `Platinum` | the `Plated` promise |
+| platine | `Platinum` | the `Plated` promise |
 | forge | `Forge` | the `Forged` promise |
 | hero coin | `LearnRandomSpell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Well under the baseline weight — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
 

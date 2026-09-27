@@ -2,10 +2,12 @@
 //!
 //! One entry point — [`throw_system`], the schedule step that drains the
 //! [`ThrowQueue`] — and one resolver, [`resolve_throw`], that traces the item's
-//! flight and works out what it does when it arrives. A potion shatters and is
-//! drunk; a scroll is read aloud by anything literate; a wand bursts, spending
-//! its whole battery at once (borrowing [`super::wands`]'s blast machinery); a
-//! weapon hits, and a monster clever enough may catch it and use it on you.
+//! flight and works out what it does when it arrives. A potion shatters and
+//! spreads its effect over everyone nearby (borrowing [`super::wands`]'s blast
+//! machinery, just narrower); a scroll is read aloud by anything literate; a
+//! wand bursts, spending its whole battery at once (the same machinery, full
+//! width); a weapon hits, and a monster clever enough may catch it and use it
+//! on you.
 //!
 //! [`throw_refusal`] / [`drop_refusal`] are the "you can't" checks the engine
 //! runs before it ever queues a throw.
@@ -24,7 +26,6 @@ use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
 
-use super::potions::apply_potion_effect;
 use super::scrolls::apply_scroll_effect;
 use super::wands::{
     blast_palette, cancel_entity, dazzle, elemental_blast, is_attack_wand, polymorph_entity,
@@ -457,7 +458,8 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
 }
 
 /// The throw itself: from the thrower's hand to whatever it finds along its
-/// line. A potion shatters over its target and is drunk by it; a scroll is read aloud
+/// line. A potion shatters where it lands and spreads its effect over a small
+/// splash; a scroll is read aloud
 /// by anything literate enough and otherwise flutters to the floor; everything
 /// else simply arrives — hurting what it hits only if it carries
 /// [`ThrownDamage`], and staying with a creature that knows what to do with it
@@ -522,10 +524,12 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
         }
     }
 
-    // A potion is glass: it breaks on whatever it reaches, and whoever wears it
-    // gets the dose.
-    if let Some(effect) = world.get::<Potion>(item).map(|p| p.effect) {
-        shatter_potion(world, item, victim, &seen_name, effect);
+    // A potion is glass: it breaks where it lands and spreads its effect over
+    // a small splash rather than dosing only whatever it struck first — see
+    // `potions::detonate_potion`.
+    if world.get::<Potion>(item).is_some() {
+        land_item(world, item, landing);
+        super::potions::detonate_potion(world, item, Some(thrower));
         return Some(landing);
     }
 
@@ -714,31 +718,6 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
             &target_label,
             damage,
         ));
-}
-
-/// A thrown potion is glass: it breaks on the first thing it reaches and doses
-/// whoever that was, or just wets the floor with nobody in the way. Either way
-/// the vial is gone.
-fn shatter_potion(
-    world: &mut World,
-    item: Entity,
-    victim: Option<Entity>,
-    seen_name: &str,
-    effect: PotionEffect,
-) {
-    let Some(v) = victim else {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::potion_shatters_floor(seen_name));
-        world.entity_mut(item).despawn();
-        return;
-    };
-    let victim_name = item_label(world, v);
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::potion_bursts_over(seen_name, &victim_name));
-    apply_potion_effect(world, v, effect);
-    world.entity_mut(item).despawn();
 }
 
 /// One victim in a thrown missile's path: roll damage, apply it, spark the hit,

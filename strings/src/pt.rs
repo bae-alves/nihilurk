@@ -1337,14 +1337,6 @@ pub fn potion_shatters_floor(seen_name: &str) -> String {
     )
 }
 
-pub fn potion_bursts_over(seen_name: &str, victim_name: &str) -> String {
-    format!(
-        "{} {seen_name} explode sobre {} {victim_name}, que se engasga com um gole inteiro!",
-        cap_article(seen_name),
-        article(victim_name)
-    )
-}
-
 pub fn throw_bounces_off(seen_name: &str, hit_name: &str) -> String {
     format!(
         "{} {seen_name} quica {} {hit_name}.",

@@ -1340,12 +1340,6 @@ pub fn potion_shatters_floor(seen_name: &str) -> String {
     format!("The {seen_name} shatters on the floor.")
 }
 
-pub fn potion_bursts_over(seen_name: &str, victim_name: &str) -> String {
-    format!(
-        "The {seen_name} bursts over the {victim_name}, which splutters and swallows a mouthful!"
-    )
-}
-
 pub fn throw_bounces_off(seen_name: &str, hit_name: &str) -> String {
     format!("The {seen_name} bounces off the {hit_name}.")
 }

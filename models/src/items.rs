@@ -70,6 +70,10 @@ pub use pickups::{break_promises, pick_up, settle_promises, would_help};
 /// [`crate::traps::detonate_pickup`].
 pub(crate) use pickups::claim_from_afar;
 
+/// A potion broken by a blast rather than drunk — thrown, or simply caught in
+/// somebody else's. See [`crate::traps::chain_react`].
+pub(crate) use potions::detonate_potion;
+
 /// The enchantment a forge coin buys, borrowed from the scroll that invented it.
 pub(crate) use scrolls::enchant_equipped;
 

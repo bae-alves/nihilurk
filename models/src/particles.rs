@@ -686,20 +686,19 @@ impl Particles {
     /// [`Particles::hold`] instead of on top of it — which is the whole of
     /// what makes a chain of trick shots read as a chain.
     pub fn explosion(&mut self, cells: &[(u16, u16, f32)], palette: BlastPalette) -> f32 {
-        const LIFETIME_MS: f32 = 280.0;
         let frames: [(char, Color); 5] = palette.frames();
         for &(x, y, dist) in cells {
             self.push(Particle {
                 x,
                 y,
                 delay_ms: core_math::ripple_delay(dist),
-                lifetime_ms: LIFETIME_MS,
+                lifetime_ms: BLAST_LIFETIME_MS,
                 age_ms: 0.0,
                 frames: frames.to_vec(),
             });
         }
         let reach = cells.iter().map(|&(_, _, d)| d).fold(0.0, f32::max);
-        core_math::ripple_delay(reach) + LIFETIME_MS
+        core_math::ripple_delay(reach) + BLAST_LIFETIME_MS
     }
 
     /// Pushes everything queued after this point back by `ms`. The flights
@@ -734,8 +733,14 @@ impl Particles {
     /// have already rippled through — grey and white, cosmetic only. `cells`
     /// is the same distance-tagged set [`Particles::explosion`] used for the
     /// primary blast, so the smoke follows the same ring pattern outward.
+    ///
+    /// Waits out [`BLAST_LIFETIME_MS`] before starting on each cell: the
+    /// renderer just overwrites a tile with whichever particle is later in
+    /// [`Particles::live`], so smoke queued while the flame on the same cell
+    /// is still burning painted over its red/dark-red closing frames,
+    /// leaving the blast looking grey from the start.
     pub fn smoke_burst(&mut self, cells: &[(u16, u16, f32)]) {
-        const FOLLOW_MS: f32 = 150.0;
+        const FOLLOW_MS: f32 = 20.0;
         let frames = [
             ('≈', Color::White),
             ('≈', Color::Grey),
@@ -745,7 +750,7 @@ impl Particles {
             self.push(Particle {
                 x,
                 y,
-                delay_ms: core_math::ripple_delay(dist) + FOLLOW_MS,
+                delay_ms: core_math::ripple_delay(dist) + BLAST_LIFETIME_MS + FOLLOW_MS,
                 lifetime_ms: 260.0,
                 age_ms: 0.0,
                 frames: frames.to_vec(),
@@ -809,6 +814,12 @@ fn flight_span(cells: usize, per_cell: f32, lifetime: f32) -> f32 {
         n => (n - 1) as f32 * per_cell + lifetime,
     }
 }
+
+/// How long a primary blast's own flame/frost/etc. frame cycle burns on one
+/// cell — [`Particles::explosion`] and [`Particles::smoke_burst`] both need
+/// it: the former to time its own fade, the latter to know when it's safe to
+/// start drawing over that cell without clobbering the blast's closing frames.
+const BLAST_LIFETIME_MS: f32 = 280.0;
 
 /// Clamp helper: keep an animation tile on the map before it is queued.
 pub fn on_map(x: i32, y: i32) -> Option<(u16, u16)> {
@@ -901,6 +912,29 @@ mod tests {
         fx.hurl(&[], '↑', Color::Grey);
         fx.hit_spark(1, 1);
         assert_eq!(last_start(&fx), 0.0);
+    }
+
+    #[test]
+    fn smoke_never_overlaps_the_flame_on_its_own_cell() {
+        // The renderer just overwrites a tile with whichever particle sits
+        // later in `live`, so smoke queued while the same cell's flame is
+        // still burning paints over its red/dark-red closing frames — the
+        // whole blast reads as grey from the start. Regression for that.
+        let mut fx = Particles::new();
+        let cells = [(5, 5, 0.0)];
+        fx.explosion(&cells, BlastPalette::Fire);
+        let flame = &fx.live[0];
+        let flame_ends = flame.delay_ms + flame.lifetime_ms;
+
+        fx.smoke_burst(&cells);
+        let smoke = fx.live.last().expect("smoke was just queued");
+
+        assert!(
+            smoke.delay_ms >= flame_ends,
+            "smoke starts at {}ms, {}ms before the flame on the same cell is done",
+            smoke.delay_ms,
+            flame_ends - smoke.delay_ms
+        );
     }
 
     #[test]

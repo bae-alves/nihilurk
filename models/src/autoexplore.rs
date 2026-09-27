@@ -196,12 +196,23 @@ fn detours_for_loot(world: &mut World) -> bool {
 /// Breadth-first search across tiles the caller deems `open`, from `(px, py)`,
 /// for the nearest tile satisfying `goal`. Returns the first `(dx, dy)` hop of
 /// the shortest route, or `None` if no such tile is reachable.
+///
+/// `bias`, when given, breaks ties between a node's several open neighbours —
+/// several are equally short routes toward `goal` in Chebyshev distance —
+/// toward whichever lies closest to that point, same trick as
+/// [`nearest_open_tile`]. Without it a mob chasing straight down an open
+/// corridor can zig into a side room and back for no reason: any wobble off
+/// the direct line is still a shortest path by hop count alone, so plain BFS
+/// tie-breaks on queue order, not geometry. Pass the goal itself when there is
+/// a single concrete target; `None` where `goal` matches several tiles and no
+/// one point is the "right" one to bias toward.
 pub(crate) fn first_step<O, S, G>(
     px: u16,
     py: u16,
     open: O,
     step_ok: S,
     goal: G,
+    bias: Option<(u16, u16)>,
 ) -> Option<(i16, i16)>
 where
     O: Fn(u16, u16) -> bool,
@@ -215,12 +226,22 @@ where
     let mut queue: VecDeque<(u16, u16)> = VecDeque::new();
     queue.push_back((px, py));
 
+    let dist_to_bias = |x: u16, y: u16| -> i64 {
+        let Some((bx, by)) = bias else {
+            return 0;
+        };
+        let dx = x as i64 - bx as i64;
+        let dy = y as i64 - by as i64;
+        dx * dx + dy * dy
+    };
+
     let mut found = None;
     'bfs: while let Some((cx, cy)) = queue.pop_front() {
         if (cx != px || cy != py) && goal(cx, cy) {
             found = Some(tile_index(cx, cy));
             break 'bfs;
         }
+        let mut candidates: Vec<(u16, u16)> = Vec::new();
         for &(dx, dy) in &DIRS {
             let nx = cx as i32 + dx;
             let ny = cy as i32 + dy;
@@ -234,8 +255,10 @@ where
             }
             visited[ni] = true;
             prev[ni] = tile_index(cx, cy);
-            queue.push_back((nx, ny));
+            candidates.push((nx, ny));
         }
+        candidates.sort_by_key(|&(x, y)| dist_to_bias(x, y));
+        queue.extend(candidates);
     }
 
     first_hop(px, py, start, found?, &prev)
@@ -382,7 +405,8 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     // the nearest one. Once it's picked up it drops out of `items` and normal
     // exploration takes back over.
     if !items.is_empty() {
-        if let Some(hop) = first_step(px, py, &open, step_ok, |x, y| items.contains(&(x, y))) {
+        if let Some(hop) = first_step(px, py, &open, step_ok, |x, y| items.contains(&(x, y)), None)
+        {
             return Some(hop);
         }
     }
@@ -390,7 +414,14 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     // Still committed to a real frontier: keep walking there.
     if let Some(target) = cached_frontier {
         if is_frontier(target.0, target.1) {
-            if let Some(hop) = first_step(px, py, &open, step_ok, |x, y| (x, y) == target) {
+            if let Some(hop) = first_step(
+                px,
+                py,
+                &open,
+                step_ok,
+                |x, y| (x, y) == target,
+                Some(target),
+            ) {
                 return Some(hop);
             }
         }
@@ -399,12 +430,12 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     // Time to pick a new one — steer toward the downstairs while they're
     // still unseen, so finishing the floor doesn't end with a separate walk
     // back to find them.
-    let bias = stair_location(&map, true).filter(|&(sx, sy)| !is_seen(sx, sy));
-    let next = nearest_open_tile(px, py, &open, step_ok, &is_frontier, bias)?;
+    let stairs_bias = stair_location(&map, true).filter(|&(sx, sy)| !is_seen(sx, sy));
+    let next = nearest_open_tile(px, py, &open, step_ok, &is_frontier, stairs_bias)?;
     if let Some(mut auto) = world.get_resource_mut::<AutoExplore>() {
         auto.frontier = Some(next);
     }
-    first_step(px, py, &open, step_ok, |x, y| (x, y) == next)
+    first_step(px, py, &open, step_ok, |x, y| (x, y) == next, Some(next))
 }
 
 /// Transient UI state for the `O` command: a free-floating cursor the player
@@ -466,7 +497,14 @@ pub fn travel_step(world: &mut World, target: (u16, u16)) -> Option<(i16, i16)> 
     };
 
     let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
-    first_step(px, py, &open, step_ok, |x, y| (x, y) == target)
+    first_step(
+        px,
+        py,
+        &open,
+        step_ok,
+        |x, y| (x, y) == target,
+        Some(target),
+    )
 }
 
 /// The revealed, walkable tile reachable from the player that lies closest to
