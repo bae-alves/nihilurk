@@ -428,7 +428,10 @@ pub fn render<W: Write>(
             if tile == TileType::Wall && !map.is_room_wall(x, y) {
                 continue;
             }
-            let (glyph, lit) = tile_appearance(tile);
+            let (glyph, mut lit) = tile_appearance(tile);
+            if map.is_inert_door(x, y) {
+                lit = Color::Grey;
+            }
             let visible_here = visible.contains(&coord);
             if !visible_here && !revealed.contains(tile_index(x, y)) {
                 continue; // unexplored: leave blank
@@ -575,6 +578,9 @@ pub fn render<W: Write>(
     // monster is always one it can end in a single stroke. Fleeing is in that
     // set too even though it isn't truly helpless: it's a free garrote by
     // design, the reward for having scared something off.
+    //
+    // The player's Helper takes dark cyan instead, whatever state it is in:
+    // it is never a garrote target, so its tell is whose side it is on.
     {
         let mut query = world.query_filtered::<(
             &Position,
@@ -585,9 +591,17 @@ pub fn render<W: Write>(
             Option<&Clamped>,
             Option<&Paralyzed>,
             Option<&Speed>,
+            Option<&Helper>,
         ), Without<Hidden>>();
-        for (pos, mob, asleep, pinned, rooted, clamped, paralyzed, speed) in query.iter(world) {
+        for (pos, mob, asleep, pinned, rooted, clamped, paralyzed, speed, helper) in
+            query.iter(world)
+        {
             if !visible.contains(&(pos.x, pos.y)) {
+                continue;
+            }
+            if helper.is_some() {
+                screen.bg_map(pos.x, pos.y, Color::DarkCyan);
+                screen.fg_map(pos.x, pos.y, Color::Black);
                 continue;
             }
             let confused = matches!(mob.movement_type, MovementType::Confused);

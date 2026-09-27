@@ -44,7 +44,6 @@ use crate::map::GameRng;
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `constants.rs`.
-use crate::constants::monsters::{DRAGON_FIREBALL_CHANCE, EEL_LIGHTNING_CHANCE};
 use crate::constants::monsters::{
     ICE_MONSTER_PARALYZE_CHANCE, RATTLESNAKE_POWER_DRAIN, VAMPIRE_MAX_HP_DRAIN,
 };
@@ -75,13 +74,6 @@ pub enum Moment {
     /// threw something at them. Fires before the blow itself, and whether or
     /// not it lands: looking upon a medusa is the danger.
     OnTargeted,
-    /// The bearer is about to swing at something and would rather not, at
-    /// these odds. A dragon breathes fire instead of clawing.
-    ///
-    /// The one moment that is a *decision* rather than a reaction: nothing has
-    /// happened yet, and the row is bidding for the turn. A row that fires
-    /// spends the turn and the blow never happens.
-    InsteadOfAttacking(f64),
 }
 
 /// One ability: what arms it, when it fires, and what it does.
@@ -217,43 +209,6 @@ pub const ABILITIES: &[Ability] = &[
         crate::monsters::maybe_split(w, e);
         true
     }),
-    // --- instead of the blow ---------------------------------------------
-    // The dragon's fireball. It used to be an `if` in `ai::step_one_mob` —
-    // a probe, a dice roll and a two-armed `match` sitting in the pathing
-    // code, which is how one ability came to span five files with nothing
-    // naming it. This row names it.
-    //
-    // What it fires is the spell, not a private copy of one: see
-    // [`INNATE_SPELLS`].
-    Ability {
-        effect: Grant::of::<FireBreath>(),
-        when: Moment::InsteadOfAttacking(DRAGON_FIREBALL_CHANCE),
-        player_only: false,
-        action: |w, mob, target| {
-            target
-                .and_then(|t| w.get::<Position>(t).copied())
-                .is_some_and(|at| {
-                    crate::items::apply_spell_effect(w, mob, at, SpellEffect::DragonBreath, 1);
-                    true
-                })
-        },
-        flavour: None,
-    },
-    // The eel's lightning: the same bid, casting the Thunderbolt.
-    Ability {
-        effect: Grant::of::<LightningBreath>(),
-        when: Moment::InsteadOfAttacking(EEL_LIGHTNING_CHANCE),
-        player_only: false,
-        action: |w, mob, target| {
-            target
-                .and_then(|t| w.get::<Position>(t).copied())
-                .is_some_and(|at| {
-                    crate::items::apply_spell_effect(w, mob, at, SpellEffect::Thunderbolt, 1);
-                    true
-                })
-        },
-        flavour: None,
-    },
     // --- looked upon -----------------------------------------------------
     // The medusa's gaze. It used to be hand-called from four sites, and a
     // fifth attack path would silently have missed it.
@@ -269,8 +224,8 @@ pub const ABILITIES: &[Ability] = &[
 /// A dragon's breath is the catalog's `Fireball` whether a dragon breathes it
 /// at the player or a dragon-bodied player casts it at a dragon — one
 /// mechanic, one row in [`crate::catalog::SPELLS`], two ways in. This table
-/// is the pairing, and it buys three things at once: the ability row above
-/// casts the spell rather than keeping a second copy of the blast,
+/// is the pairing, and it buys three things at once: it is a monster's
+/// spellset, which its rule set picks from ([`crate::agents`]),
 /// [`crate::monsters::wear_monster`] puts it in the spell bar of a player born
 /// with the grant, and [`crate::items::spell_cost`] charges nothing for it.
 ///
@@ -326,10 +281,11 @@ const fn hit(glancing: bool, lethal: bool) -> Moment {
     Moment::OnHit { glancing, lethal }
 }
 
-/// The battle axe's cleave: everything else standing next to the wielder when
-/// their swing lands takes the same swing, right along with the target
-/// already struck. A no-op for anything not wielding one — the engine calls
-/// this after every player attack rather than checking first.
+/// The battle axe's cleave: every other monster standing next to the wielder
+/// when their swing lands takes the same swing, right along with the target
+/// already struck — the player's [`Helper`] ducks it. A no-op for anything not
+/// wielding one — the engine calls this after every player attack rather than
+/// checking first.
 pub fn cleave_attack(world: &mut World, attacker: Entity, already_hit: Entity) {
     if !is_player(world, attacker) || world.get::<Cleaves>(attacker).is_none() {
         return;
@@ -338,7 +294,10 @@ pub fn cleave_attack(world: &mut World, attacker: Entity, already_hit: Entity) {
         return;
     };
     for target in adjacent_mobs(world, pos, attacker) {
-        if target == already_hit || world.get::<Fighter>(target).is_none() {
+        if target == already_hit
+            || world.get::<Fighter>(target).is_none()
+            || !crate::companion::is_foe(world, target)
+        {
             continue;
         }
         resolve_attack(world, attacker, target);
@@ -692,7 +651,6 @@ fn fires_at(row: Moment, now: Moment) -> bool {
             Moment::OnHit { glancing, lethal },
         ) => (takes_glancing || !glancing) && (takes_lethal || !lethal),
         (Moment::EachTurn(_), Moment::EachTurn(_)) => true,
-        (Moment::InsteadOfAttacking(_), Moment::InsteadOfAttacking(_)) => true,
         (a, b) => a == b,
     }
 }
@@ -721,30 +679,6 @@ pub fn answers_being_looked_at(world: &World, seen: Entity) -> bool {
     ABILITIES
         .iter()
         .any(|a| a.when == Moment::OnTargeted && a.armed(world, seen))
-}
-
-/// `mob` is about to swing at `target`. Gives every ability armed on the
-/// attacker a chance to take the turn instead.
-///
-/// Reports whether one did. When none does, the caller queues the ordinary
-/// blow — which is the whole of what `ai` needs to know, and rather less than
-/// it used to know.
-pub fn fire_instead_of_attacking(world: &mut World, mob: Entity, target: Entity) -> bool {
-    for ability in ABILITIES {
-        let Moment::InsteadOfAttacking(chance) = ability.when else {
-            continue;
-        };
-        if !ability.armed(world, mob) {
-            continue;
-        }
-        if !world.resource_mut::<GameRng>().0.gen_bool(chance) {
-            continue;
-        }
-        if (ability.action)(world, mob, Some(target)) {
-            return true;
-        }
-    }
-    false
 }
 
 /// `looker` has turned their attention on `seen` — attacked, zapped or thrown

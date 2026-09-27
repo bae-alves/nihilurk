@@ -31,7 +31,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::{
-    AMMO, ARMORS, COINS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, WANDS, WEAPONS,
+    AMMO, ARMORS, COINS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, TREATS, WANDS, WEAPONS,
     spawn_element_of_yoord,
 };
 use crate::components::{Position, TrapReveal};
@@ -175,19 +175,21 @@ macro_rules! category {
 /// The weights are Rogue's own category odds in tenths of a percent, food
 /// swapped for coins, with the armoury split three ways between a melee
 /// weapon, a bundle of ammunition and a launcher. Launchers are the rarest of
-/// the three on purpose — one bow is a build, two are clutter.
+/// the three on purpose — one bow is a build, two are clutter. The coins share
+/// what was Rogue's food slot with the treats, which are food of a kind.
 ///
 /// | Category | Weight | Share |
 /// |----------|--------|-------|
 /// | scroll   | 300    | 30.0% |
 /// | potion   | 270    | 27.0% |
-/// | coin     | 170    | 17.0% |
+/// | coin     | 130    | 13.0% |
 /// | armor    |  80    |  8.0% |
 /// | wand     |  50    |  5.0% |
 /// | ring     |  50    |  5.0% |
 /// | weapon   |  36    |  3.6% |
 /// | ammo     |  28    |  2.8% |
 /// | launcher |  16    |  1.6% |
+/// | treat    |  40    |  4.0% |
 ///
 /// The share column is what these weights happen to work out to today; it is
 /// not a thing you have to maintain. Add a category and every share moves,
@@ -197,13 +199,14 @@ pub const DROPS: &[DropCategory] = &[
     //         name        weight  min_depth  table
     category!("scroll",      300,      1,     SCROLLS),
     category!("potion",      270,      1,     POTIONS),
-    category!("coin",        170,      1,     COINS),
+    category!("coin",        130,      1,     COINS),
     category!("armor",        80,      1,     ARMORS),
     category!("wand",         50,      1,     WANDS),
     category!("ring",         50,      1,     RINGS),
     category!("weapon",       36,      1,     WEAPONS),
     category!("ammo",         28,      1,     AMMO),
     category!("launcher",     16,      1,     LAUNCHERS),
+    category!("treat",        40,      1,     TREATS),
 ];
 
 /// Rolls one floor drop for a floor at `depth` and spawns it at `pos`: a

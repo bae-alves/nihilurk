@@ -618,6 +618,9 @@ pub const fn beware_thieving_touch() -> &'static str {
 pub const fn beware_fire_breath() -> &'static str {
     "sopro de fogo"
 }
+pub const fn beware_lightning_breath() -> &'static str {
+    "sopro de relâmpago"
+}
 pub const fn beware_confusing_touch() -> &'static str {
     "toque que confunde"
 }
@@ -1042,12 +1045,71 @@ pub fn climb_stairs(depth: u8) -> String {
     format!("Subida pela escada. (Profundidade {depth})")
 }
 
+pub fn bones_ghost_arrives(name: &str) -> String {
+    format!("Um calafrio percorre a espinha. {name} se lembra do que você fez — e está com raiva.")
+}
+
+pub fn bones_ghost_arrives_self() -> String {
+    "Um calafrio percorre a espinha. O antigo eu se lembra do que você fez — e está com raiva."
+        .to_string()
+}
+
 pub fn element_wont_let_you_land() -> &'static str {
     "O Elemento de Yoord puxa em direção ao sol — mas a última escada precisa ser subida por conta própria."
 }
 
 pub fn portal_no_deeper_floor() -> &'static str {
     "O Mestre arranha o chão, mas não há nenhum andar mais profundo para onde jogar."
+}
+
+pub fn dragon_hoard_enter() -> &'static str {
+    "Ouro reluz por toda parte, mas o cheiro de enxofre sufoca. Aqui há dragões!"
+}
+
+pub fn treasure_hive_enter() -> &'static str {
+    "As abelhas. Não, as abelhas não."
+}
+
+pub fn red_room_enter() -> &'static str {
+    "Tesouros reluzem, mas só um pode ser levado."
+}
+
+pub fn labyrinth_arrival() -> &'static str {
+    "Boas-vindas a um mundo de trevas."
+}
+
+pub fn vault_arrival() -> &'static str {
+    "Um cofre de tesouros que o Mestre guarda com ciúme!"
+}
+
+pub fn bee_world_arrival() -> &'static str {
+    "Boas-vindas ao mundo das abelhas."
+}
+
+pub fn bee_world_quotes() -> [&'static str; 2] {
+    [
+        "\"Você gosta de jazz?\"",
+        "\"Amarelo, preto, amarelo, preto. Oh! Preto e amarelo!\"",
+    ]
+}
+
+pub fn red_room_claimed() -> &'static str {
+    "O resto vira pó no instante em que a mão se fecha."
+}
+
+pub fn element_bursts_thief(thief: &str) -> String {
+    format!(
+        "{} {thief} fecha a mão sobre o Elemento de Yoord — e explode numa chuva de vísceras!",
+        cap_article(thief)
+    )
+}
+
+pub fn element_surfaces() -> &'static str {
+    "O Elemento de Yoord não se afoga. Ele salta da água direto para as mãos, e todo o resto da bagagem queima num clarão."
+}
+
+pub fn sinks_with_a_splash(what: &str) -> String {
+    format!("Tchibum! Some nas profundezas: {what}.")
 }
 
 // ---------------------------------------------------------------------------
@@ -1273,6 +1335,9 @@ pub fn mob_throws(thrower: &str, seen_name: &str) -> String {
         article(seen_name)
     )
 }
+pub fn doorway_goes_inert() -> &'static str {
+    "O batente da porta racha e fica cinza e inerte."
+}
 
 pub fn scroll_read_aloud(who: &str, seen_name: &str) -> String {
     format!(
@@ -1322,6 +1387,14 @@ pub fn monster_shot_wild(shooter_name: &str, noun: &str, target_label: &str) -> 
         indef_article(noun),
         ammo_word(noun),
         wild(noun)
+    )
+}
+pub fn monster_shot_doorway(shooter_name: &str, _article: &str, noun: &str) -> String {
+    format!(
+        "{} {shooter_name} crava {} {} no batente da porta.",
+        cap_article(shooter_name),
+        indef_article(noun),
+        ammo_word(noun)
     )
 }
 
@@ -1398,6 +1471,9 @@ pub fn sting_hits(name: &str, damage: i32) -> String {
 
 pub fn thunderbolt_misses() -> &'static str {
     "O trovão estala sobre pedra vazia."
+}
+pub fn thunderbolt_hits_you(damage: i32) -> String {
+    format!("Um raio de trovão acerta em cheio por {damage} de dano!")
 }
 pub fn thunderbolt_hits(name: &str, damage: i32) -> String {
     format!(
@@ -1833,6 +1909,42 @@ pub fn mob_dies(name: &str) -> String {
     format!("{} {name} morre.", cap_article(name))
 }
 
+// ---------------------------------------------------------------------------
+// Helpers (models/src/companion.rs)
+// ---------------------------------------------------------------------------
+
+pub fn for_throwing(name: &str) -> String {
+    format!("{} {name} é para arremessar.", cap_article(name))
+}
+
+pub fn becomes_helper(name: &str) -> String {
+    format!("{} {name} agora é seu fiel companheiro!", cap_article(name))
+}
+
+pub fn refuses_treat(name: &str, treat: &str) -> String {
+    format!(
+        "{} {name} devora {} {treat} e continua hostil.",
+        cap_article(name),
+        article(treat)
+    )
+}
+
+pub fn old_helper_explodes(name: &str) -> String {
+    format!("{} {name} EXPLODE!", cap_article(name))
+}
+
+pub fn so_much_for_loyalty() -> &'static str {
+    "Lealdade não é mais como antigamente."
+}
+
+pub fn helper_dies(name: &str) -> String {
+    format!("Seu fiel companheiro, {} {name}, se foi!", article(name))
+}
+
+pub fn helper_left_behind(name: &str) -> String {
+    format!("{} {name} não conseguiu te seguir.", cap_article(name))
+}
+
 pub fn gear_clatters_to_floor(name: &str) -> String {
     format!("{} {name} cai no chão com estrondo.", cap_article(name))
 }
@@ -1896,6 +2008,36 @@ pub fn vorpal_kill(target_name: &str) -> String {
         "Zás-zás! A lâmina atravessa limpo {} {target_name}!",
         article(target_name)
     )
+}
+
+// A bones ghost carrying the player's own name, seen from both ends of the
+// blow: "o antigo eu" stands in for "yourself" and needs no gender.
+pub fn excellent_hit_self(damage: i32) -> String {
+    format!("Um golpe excelente marca o antigo eu por {damage} de dano!")
+}
+pub fn glancing_blow_self() -> &'static str {
+    "Um golpe de raspão alcança o antigo eu."
+}
+pub fn plain_hit_self(damage: i32) -> String {
+    format!("Um golpe alcança o antigo eu por {damage} de dano.")
+}
+pub fn garrote_kill_self() -> &'static str {
+    "A vida se apaga à força no antigo eu indefeso! Atroz."
+}
+pub fn vorpal_kill_self() -> &'static str {
+    "Zás-zás! A lâmina atravessa limpo o antigo eu!"
+}
+pub fn you_have_slain_self() -> &'static str {
+    "O antigo eu acaba de tombar!"
+}
+pub fn ghost_self_misses() -> &'static str {
+    "O antigo eu erra o golpe."
+}
+pub fn ghost_self_hits(damage: i32) -> String {
+    format!("O antigo eu acerta por {damage} de dano.")
+}
+pub fn ghost_self_strikes_you_down() -> &'static str {
+    "O antigo eu derruba com um golpe final..."
 }
 
 pub fn mob_misses(atk: &str, target_label: &str) -> String {

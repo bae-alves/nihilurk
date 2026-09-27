@@ -38,7 +38,7 @@ Listing what exists
 
     pub fn content_names() -> Vec<(&'static str, &'static str)>
 
-Every name `spawn_named` answers to, as `(category, name)`, in table order. Categories are `"monster"`, the nine `DROPS` names, `"trap"` and `"relic"`.
+Every name `spawn_named` answers to, as `(category, name)`, in table order. Categories are `"monster"`, the ten `DROPS` names, `"trap"` and `"relic"`.
 
 Backs the `-content` flag. Reads the tables, so it can never go stale.
 

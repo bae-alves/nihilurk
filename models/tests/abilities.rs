@@ -65,6 +65,7 @@ fn arena(seed: u64) -> World {
     w.insert_resource(Map {
         tiles: vec![TileType::Room; MAP_TILE_COUNT],
         dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+        inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     });
@@ -865,13 +866,11 @@ fn an_aggravating_bearer_is_heard_across_the_floor() {
 }
 
 /// How many creatures are homing in on a tile the bearer once stood on.
-/// Aggravation works by switching a mob to a fifth `MovementType`, so a change
-/// in this count is the ability landing. (`MovementType` derives no `Debug`,
-/// hence a count rather than a snapshot.)
+/// Aggravation is the `Aggravated` component laid over a mob, so a change in
+/// this count is the ability landing.
 fn aggravated_count(w: &mut World) -> usize {
-    w.query::<&Mob>()
+    w.query_filtered::<(), (With<Mob>, With<Aggravated>)>()
         .iter(w)
-        .filter(|m| matches!(m.movement_type, MovementType::Aggravated { .. }))
         .count()
 }
 
@@ -2160,87 +2159,4 @@ fn a_drain_respects_the_floor_its_source_asked_for() {
         power_of(&w, unfloored) < 0,
         "a drain with no floor stopped at one anyway"
     );
-}
-
-/// `Moment::InsteadOfAttacking` — the one moment that is a decision rather
-/// than a reaction. Nothing has happened yet; the row is bidding for the turn.
-///
-/// This is what closed §2.3: the dragon's fireball was a probe, a dice roll
-/// and a two-armed `match` sitting in the pathing code, so the ability spanned
-/// five files with nothing naming it. One row names it now, and `ai` never
-/// learns that dragons exist.
-#[test]
-fn a_breather_can_take_the_turn_instead_of_swinging() {
-    // Swept because the row carries odds, not because the wiring is uncertain.
-    let breathed = (0..64u64).any(|seed| {
-        let mut w = arena(seed);
-        let mob = creature(&mut w, at(10, 10), 20, 8);
-        lend(&mut w, mob, Grant::of::<FireBreath>(), Lifetime::Permanent);
-        let victim = creature(&mut w, at(11, 10), 10_000, 8);
-        fire_instead_of_attacking(&mut w, mob, victim)
-    });
-    assert!(
-        breathed,
-        "no breather in 64 seeds ever took the turn — the row is not wired"
-    );
-}
-
-/// The eel's lightning is the same bid with the Thunderbolt in it — and the
-/// bolt has to land on the player, which a spell written for the player to
-/// cast never had to manage.
-#[test]
-fn an_eel_can_answer_with_lightning_that_finds_the_player() {
-    let struck = (0..64u64).any(|seed| {
-        let mut w = arena(seed);
-        let eel = creature(&mut w, at(10, 10), 20, 8);
-        lend(
-            &mut w,
-            eel,
-            Grant::of::<LightningBreath>(),
-            Lifetime::Permanent,
-        );
-        let you = hero(&mut w, at(11, 10), 10_000, 8);
-        let before = hp_of(&w, you);
-        fire_instead_of_attacking(&mut w, eel, you) && hp_of(&w, you) < before
-    });
-    assert!(
-        struck,
-        "no eel in 64 seeds ever struck the player with lightning"
-    );
-}
-
-/// And a creature with nothing to say swings, every time. This is the branch
-/// `ai` relies on: when nothing takes the turn, the ordinary blow queues.
-#[test]
-fn a_plain_creature_never_takes_the_turn_instead() {
-    for seed in 0..64u64 {
-        let mut w = arena(seed);
-        let mob = creature(&mut w, at(10, 10), 20, 8);
-        let victim = creature(&mut w, at(11, 10), 10_000, 8);
-        assert!(
-            !fire_instead_of_attacking(&mut w, mob, victim),
-            "seed {seed}: a creature with no such ability stole its own turn"
-        );
-    }
-}
-
-/// The bid is the attacker's, not the victim's — the marker is read off
-/// whoever is swinging.
-#[test]
-fn the_bid_is_read_off_the_attacker() {
-    for seed in 0..64u64 {
-        let mut w = arena(seed);
-        let mob = creature(&mut w, at(10, 10), 20, 8);
-        let victim = creature(&mut w, at(11, 10), 10_000, 8);
-        lend(
-            &mut w,
-            victim,
-            Grant::of::<FireBreath>(),
-            Lifetime::Permanent,
-        );
-        assert!(
-            !fire_instead_of_attacking(&mut w, mob, victim),
-            "seed {seed}: the victim's own fire breath decided the attacker's turn"
-        );
-    }
 }

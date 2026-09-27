@@ -45,9 +45,12 @@ pub(crate) use spells::apply_spell_effect;
 /// about potions, scrolls or teleportation.
 pub(crate) use theft::{leprechaun_theft, nymph_theft};
 
+/// What a blast covers, for anything that must know before it lets one off.
+pub(crate) use wands::blast_cells;
+
 pub use throwing::{
     ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_reach, throw_refusal,
-    throw_system,
+    throw_system, use_refusal,
 };
 
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a

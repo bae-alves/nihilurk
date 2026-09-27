@@ -1042,6 +1042,54 @@ pub const COINS: &[CoinDef] = &[
     CoinDef { name: "hero coin",     color: Color::Magenta,     effect: PickupEffect::LearnRandomSpell,     amount:    0, weight:  3 },
 ];
 
+// ---------------------------------------------------------------------------
+// Treats
+// ---------------------------------------------------------------------------
+
+/// A treat: thrown at a creature as an offer of loyalty, never used. What
+/// accepting one means lives in [`crate::companion`]. Treats stack like ammo.
+pub struct TreatDef {
+    pub name: &'static str,
+    pub color: Color,
+    /// Whether this one is meant for a creature with hands
+    /// ([`crate::effects::ItemUser`]).
+    pub for_item_users: bool,
+}
+
+impl ItemDef for TreatDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn spawn(&self, world: &mut World, pos: Position) -> Entity {
+        world
+            .spawn((
+                Name {
+                    what: strings::content_name(self.name).to_string(),
+                },
+                Renderable {
+                    glyph: '%',
+                    color: self.color,
+                },
+                pos,
+                Item,
+                Treat {
+                    for_item_users: self.for_item_users,
+                },
+                Stack { count: 1 },
+            ))
+            .id()
+    }
+}
+
+/// The treats. They share the coins' slice of the drop table: Rogue's food
+/// slot, which coins stand in for.
+#[rustfmt::skip]
+pub const TREATS: &[TreatDef] = &[
+    TreatDef { name: "snack",          color: Color::DarkYellow, for_item_users: false },
+    TreatDef { name: "fancy of peace", color: Color::Cyan,       for_item_users: true  },
+];
+
 /// The pool a floor at the end of a difficulty tier draws one extra find from,
 /// over and above its budgeted loot: the nine things that leave the hero
 /// permanently stronger. Two coins whose reward is a promise, the coin that
@@ -1146,7 +1194,8 @@ pub fn spawn_launcher(world: &mut World, name: &str, pos: Position) -> Entity {
 }
 
 /// A fresh single unit of whatever `item` is a stack of, spawned nowhere in
-/// particular — the one arrow that leaves a quiver when you shoot it. `None` if
+/// particular — the one arrow that leaves a quiver when you shoot it, the one
+/// snack that leaves the bag when you throw it. `None` if
 /// `item` is not something the catalog knows how to make more of.
 ///
 /// Re-rolling the row rather than copying the entity is the same trick the save
@@ -1154,8 +1203,13 @@ pub fn spawn_launcher(world: &mut World, name: &str, pos: Position) -> Entity {
 /// one up by name than to remember what it said.
 pub fn split_one(world: &mut World, item: Entity) -> Option<Entity> {
     let name = world.get::<Name>(item)?.what.clone();
-    let def = AMMO.iter().find(|d| d.name == name)?;
-    let one = def.spawn(world, Position { x: 0, y: 0 });
+    let one = match AMMO.iter().find(|d| d.name == name) {
+        Some(def) => def.spawn(world, Position { x: 0, y: 0 }),
+        None => TREATS
+            .iter()
+            .find(|d| d.name == name)?
+            .spawn(world, Position { x: 0, y: 0 }),
+    };
     world.entity_mut(one).remove::<Position>();
     Some(one)
 }
@@ -1195,6 +1249,11 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
     }
     if let Some(def) = LAUNCHERS.iter().find(|d| d.name == name) {
         entity.insert((Launcher, Grants(def.grants), MeleeCap(def.melee_cap)));
+    }
+    if let Some(def) = TREATS.iter().find(|d| d.name == name) {
+        entity.insert(Treat {
+            for_item_users: def.for_item_users,
+        });
     }
 }
 

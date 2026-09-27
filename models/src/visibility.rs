@@ -60,6 +60,9 @@ pub fn visibility_system(
     // Gear somebody is wearing, for the "(w. a bow)" on a sighting line.
     worn_query: Query<(&Equipped, &Name, Option<&Stack>)>,
 
+    // The player's Helper, which is never news.
+    helpers: Query<(), With<Helper>>,
+
     // Hidden traps whose reveal style might trip this turn.
     mut trap_query: Query<(Entity, &Position, &mut Trap), With<Hidden>>,
 
@@ -85,6 +88,7 @@ pub fn visibility_system(
             &mut log,
             &spot_query,
             &worn_query,
+            &helpers,
             &visible,
             perception,
             blind,
@@ -236,6 +240,7 @@ fn hide_and_announce(
         Or<(With<Mob>, With<Item>)>,
     >,
     worn_query: &Query<(&Equipped, &Name, Option<&Stack>)>,
+    helpers: &Query<(), With<Helper>>,
     visible: &HashSet<(u16, u16)>,
     perception: bool,
     blind: bool,
@@ -259,8 +264,10 @@ fn hide_and_announce(
         }
 
         // Never announce something still out of the player's senses, nor an
-        // item that hasn't been turned up yet (still `Invisible`).
-        let announce = perceptible && !(mob.is_none() && invisible.is_some());
+        // item that hasn't been turned up yet (still `Invisible`), nor the
+        // player's own Helper coming back round a corner.
+        let announce =
+            perceptible && !(mob.is_none() && invisible.is_some()) && !helpers.contains(entity);
         if announce && spotted.is_none() {
             let seen_name = named_display(name, stack);
             log.add(spotted_line(&seen_name, &worn_by(worn_query, entity)));

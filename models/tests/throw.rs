@@ -926,3 +926,88 @@ fn a_creature_standing_in_a_doorway_cannot_be_hit_by_a_throw() {
         "the door took the hit, not the creature behind it"
     );
 }
+
+/// A doorway that takes a missile has an even chance of cracking and going
+/// inert. An inert doorway is still a doorway, but it is no longer cover.
+#[test]
+fn a_doorway_used_as_cover_breaks_half_the_time_and_stops_being_cover() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    w.resource_mut::<Map>().tiles[tile_index(spot.x, spot.y)] = TileType::Door;
+    let bat = monster(&mut w, "bat", spot);
+    let starting_hp = w.get::<Fighter>(bat).unwrap().hp;
+
+    let mut breaks = 0;
+    for _ in 0..200 {
+        let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+        throw(&mut w, p, dagger, spot);
+        if w.resource::<Map>().is_inert_door(spot.x, spot.y) {
+            breaks += 1;
+            w.resource_mut::<Map>().inert_doors.clear();
+        }
+    }
+    assert_eq!(
+        w.get::<Fighter>(bat).unwrap().hp,
+        starting_hp,
+        "the door took every hit, even the ones that broke it"
+    );
+    assert!(
+        (70..=130).contains(&breaks),
+        "about half of 200, got {breaks}"
+    );
+
+    w.resource_mut::<Map>()
+        .inert_doors
+        .insert(tile_index(spot.x, spot.y));
+    assert_eq!(w.resource::<Map>().tile(spot.x, spot.y), TileType::Door);
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    throw(&mut w, p, dagger, spot);
+    assert!(
+        w.get::<Fighter>(bat).unwrap().hp < starting_hp,
+        "an inert doorway is no cover"
+    );
+}
+
+/// Cover works both ways: a monster's arrow at a player standing in a doorway
+/// takes the frame instead, and cracks it the same as a thrown dagger does.
+#[test]
+fn a_doorway_covers_you_from_a_monster_s_arrows_too() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    let here = player_pos(&mut w);
+    for dx in 1..=3 {
+        w.resource_mut::<Map>().tiles[tile_index(here.x + dx, here.y)] = TileType::Room;
+    }
+    w.resource_mut::<Map>().tiles[tile_index(here.x, here.y)] = TileType::Door;
+    let perch = east_of_player(&mut w, 3);
+    // A chaser, not a statue: a `Static` mob never acts, and a chaser with a
+    // bow drawn shoots rather than closes, so it stays on its perch.
+    let archer = monster(&mut w, "archer", perch);
+    w.get_mut::<Mob>(archer).unwrap().movement_type = MovementType::Chase;
+    let bow = spawn_launcher(&mut w, "short bow", NOWHERE);
+    w.entity_mut(bow).remove::<Position>();
+    assert!(equip_silently(&mut w, archer, bow));
+    let starting_hp = w.get::<Fighter>(p).unwrap().hp;
+
+    let mut shots = 0;
+    while !w.resource::<Map>().is_inert_door(here.x, here.y) {
+        assert!(shots < 40, "the frame never cracked");
+        let mut s = Schedule::default();
+        s.add_systems(visibility_system);
+        s.run(&mut w);
+        ai(&mut w);
+        shots += 1;
+    }
+    assert_eq!(
+        w.get::<Fighter>(p).unwrap().hp,
+        starting_hp,
+        "the door took every arrow"
+    );
+
+    ai(&mut w);
+    assert!(
+        w.get::<Fighter>(p).unwrap().hp < starting_hp,
+        "an inert doorway is no cover"
+    );
+}

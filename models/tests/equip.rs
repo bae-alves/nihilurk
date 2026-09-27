@@ -401,10 +401,7 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     let mut fired_on = None;
     for turn in 0..300 {
         ability_system(&mut w);
-        if matches!(
-            w.get::<Mob>(orc).unwrap().movement_type,
-            MovementType::Aggravated { .. }
-        ) {
+        if w.get::<Aggravated>(orc).is_some() {
             fired_on = Some(turn);
             break;
         }
@@ -412,10 +409,8 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     let turn = fired_on.expect("the ring never shrieked in 300 turns");
     assert!(turn < 150, "10%/turn should trigger fast, not after {turn}");
     let hero = *w.get::<Position>(p).unwrap();
-    match w.get::<Mob>(orc).unwrap().movement_type {
-        MovementType::Aggravated { tx, ty } => assert_eq!((tx, ty), (hero.x, hero.y)),
-        _ => panic!("expected the orc to be Aggravated on the hero"),
-    }
+    let ag = w.get::<Aggravated>(orc).expect("the orc is Aggravated");
+    assert_eq!((ag.tx, ag.ty), (hero.x, hero.y));
 }
 
 #[test]

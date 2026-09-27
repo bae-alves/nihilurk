@@ -78,16 +78,26 @@ Components — creatures and combat
 | `Fighter` | `hp, max_hp, armor, power, max_power, armor_bonus, power_bonus: i32` | every actor | yes |
 | `Blood`   | marker | creatures that bleed | **transient** — re-attached to the player and every mob on load |
 | `Magic`   | `points, max_points: u8` | the hero | yes |
+| `Helper`  | marker — the player's boon companion, a `Faction::Ally` that follows them between floors | at most one creature | yes (its own field, not an effect row) |
 
 `MovementType` — enum, **saved by variant order**:
 
-| Variant                  | Meaning                                        |
-|--------------------------|------------------------------------------------|
-| `Static`                 | Holds still.                                   |
-| `Chase`                  | Walks toward the player when it can see them.  |
-| `Flee`                   | Walks away.                                    |
-| `Confused`               | Staggers at random (the monster's confusion).  |
-| `Aggravated { tx, ty }`  | Homes in on `(tx, ty)` from anywhere, in or out of view. Applied at run time by the scroll of aggravate monsters — **never put it in a table.** |
+Each variant picks the rule set the monster thinks with; `agents.md` has what each set does.
+
+| Variant                  | Rule set    |
+|--------------------------|-------------|
+| `Static`                 | `STILL` — never acts. |
+| `Chase`                  | `CHASER`    |
+| `Flee`                   | `FLEER`     |
+| `Confused`               | `STAGGERER` (the monster's confusion) |
+| `Aggravated { tx, ty }`  | Retired, kept for its position. A save that carries it loads as `Chase` plus the `Aggravated` component. **Never set it.** |
+| `Ambush`                 | `AMBUSHER`  |
+
+A `Helper` thinks with `HELPER` whatever its variant.
+
+| Component    | Data | On | Saved? |
+|--------------|------|-----|--------|
+| `Aggravated` | `tx, ty: u16` — where the noise came from; out of the player's view the monster beelines there | every monster on the floor, after a scroll of aggravate monsters or a ring's shriek | yes |
 
 Combat: `damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)`, both sides rolled independently, nothing ever misses. `power` is dropped by a poisoned dart trap — one point per depth tier — and healed back toward `max_power`.
 
@@ -141,7 +151,8 @@ Components — items on the floor and in the pack
 | `Backpack`| `items: Vec<Entity>` — inventory order | actors that carry | yes |
 | `Consume` | marker — used up on use | potions, scrolls | yes |
 | `Battery` | `charges: i8` | wands | yes |
-| `Stack`   | `count: u8` — how many share one slot | ammunition only | yes |
+| `Stack`   | `count: u8` — how many share one slot | ammunition, treats | yes |
+| `Treat`   | `for_item_users: bool` — thrown as an offer of loyalty, never used | snack, fancy of peace | rebuilt from the row on load |
 | `Ranged`  | `range: i32` — feeds the zap reticle | wands | yes |
 | `Amulet`  | marker — the Element of Yoord; carrying it inverts the staircases | the relic | yes |
 

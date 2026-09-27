@@ -19,9 +19,11 @@ use rand::Rng;
 use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
-use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_roll};
+use crate::helpers::{
+    actor_at, apply_damage, get_line, item_label, player_sees, roll_dice, total_armor_roll,
+};
 use crate::identify::{article_for, counted, display_name, phrase_for, with_article};
-use crate::map::{GameRng, Map, TileType};
+use crate::map::{GameRng, Map, TileType, tile_index};
 use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
@@ -34,6 +36,7 @@ use super::wands::{
 use crate::conditions::shift_entity_speed;
 
 use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE, PACK_CAPACITY, THROW_RANGE};
+use crate::constants::map::DOOR_BREAK_CHANCE;
 use crate::constants::wands::{
     BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
 };
@@ -42,6 +45,17 @@ use crate::constants::wands::{
 /// can't be put down either ([`drop_refusal`]). Anything else is fair game.
 pub fn throw_refusal(world: &World, user: Entity, item: Entity) -> Option<String> {
     drop_refusal(world, user, item)
+}
+
+/// Why `item` can't be used from the pack, if it can't: a treat or a piece of
+/// ammunition is only ever thrown, and says so. Asked before the use is
+/// queued, so saying so costs no turn.
+///
+/// Ammunition is whatever answers to a launcher ([`LaunchedBy`]), not whatever
+/// flies well ([`Projectile`]): a dagger flies well and is still wielded.
+pub fn use_refusal(world: &World, item: Entity) -> Option<String> {
+    let thrown_only = world.get::<Treat>(item).is_some() || world.get::<LaunchedBy>(item).is_some();
+    thrown_only.then(|| strings::for_throwing(&display_name(world, item)))
 }
 
 /// Why `user` can't put `item` down, if they can't. Two things stay in the
@@ -69,7 +83,8 @@ pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String>
 ///
 /// A doorway is cover: whoever is standing in one is not a valid victim at
 /// all, the frame is in the way, and the missile stops right there, whether
-/// or not it was `Piercing` — cover blocks a spear the same as a dart.
+/// or not it was `Piercing` — cover blocks a spear the same as a dart. See
+/// [`doorway_takes_it`]: the frame may crack, and a cracked one is no cover.
 fn flight_path(
     world: &mut World,
     thrower: Entity,
@@ -91,7 +106,7 @@ fn flight_path(
         }
         cells.push((pos.x, pos.y));
         landing = pos;
-        if map.tile(pos.x, pos.y) == TileType::Door && actor_at(world, pos, thrower).is_some() {
+        if actor_at(world, pos, thrower).is_some() && doorway_takes_it(world, pos) {
             break;
         }
         if let Some(victim) = actor_at(world, pos, thrower) {
@@ -102,6 +117,32 @@ fn flight_path(
         }
     }
     (cells, landing, victims)
+}
+
+/// Whether a missile meant for whoever stands at `pos` hits the doorway
+/// instead: true on a doorway not yet cracked. Taking a hit rolls
+/// [`DOOR_BREAK_CHANCE`] to crack it inert, which ends its days as cover.
+fn doorway_takes_it(world: &mut World, pos: Position) -> bool {
+    let map = world.resource::<Map>();
+    if map.tile(pos.x, pos.y) != TileType::Door || map.is_inert_door(pos.x, pos.y) {
+        return false;
+    }
+    if world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_bool(DOOR_BREAK_CHANCE)
+    {
+        world
+            .resource_mut::<Map>()
+            .inert_doors
+            .insert(tile_index(pos.x, pos.y));
+        if player_sees(world, pos.x, pos.y) {
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::doorway_goes_inert());
+        }
+    }
+    true
 }
 
 /// Whether `item` is ammunition being *loosed* — it carries [`LaunchedBy`] and
@@ -553,6 +594,16 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
         return Some(landing);
     }
 
+    // A treat is an offer. The right creature eats it, and may take you up on
+    // it; anything else it bounces off, and it can be picked up again.
+    if let Some(treat) = world.get::<Treat>(item).copied() {
+        match victim.filter(|&v| crate::companion::fits(world, thrower, v, treat)) {
+            Some(v) => crate::companion::offer(world, v, item, &seen_name),
+            None => land_item(world, item, landing),
+        }
+        return Some(landing);
+    }
+
     // A wand is a stick with its magic held inside it. Hurl it instead of
     // zapping it and everything it was saving comes out at once, where it lands
     // — all its remaining charges spent in a single burst. It does not care
@@ -693,6 +744,18 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.hurl(&cells, if fires_quarrel { '/' } else { '↑' }, Color::Grey);
         }
+    }
+
+    // The same doorway cover a thrown missile respects, as `flight_path` has it.
+    if at.is_some_and(|at| doorway_takes_it(world, at)) {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::monster_shot_doorway(
+                &shooter_name,
+                article_for(noun),
+                noun,
+            ));
+        return;
     }
 
     if damage <= 0 {

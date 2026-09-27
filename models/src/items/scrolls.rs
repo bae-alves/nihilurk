@@ -225,8 +225,8 @@ pub(super) fn teleport_reader(world: &mut World, user: Entity) {
 }
 
 /// Scroll of aggravate monsters: every creature on the floor drops what it was
-/// doing and homes in on the reader's tile — in or out of sight. See
-/// [`MovementType::Aggravated`].
+/// doing and homes in on the reader's tile, out of sight; in sight it fights
+/// the way it always does. See [`Aggravated`].
 fn aggravate_floor(world: &mut World, user: Entity) {
     let _heard = aggravate_all_monsters(world, user);
     world
@@ -254,11 +254,11 @@ pub(crate) fn aggravate_all_monsters(world: &mut World, origin: Entity) -> bool 
         if world.get::<Faction>(m) != Some(&Faction::Monster) {
             continue;
         }
-        if let Some(mut mob) = world.get_mut::<Mob>(m) {
-            mob.movement_type = MovementType::Aggravated {
+        if world.get::<Mob>(m).is_some() {
+            world.entity_mut(m).insert(Aggravated {
                 tx: hero.x,
                 ty: hero.y,
-            };
+            });
             heard = true;
         }
     }

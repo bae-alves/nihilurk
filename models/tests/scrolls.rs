@@ -163,11 +163,11 @@ fn aggravate_turns_every_monster_into_a_hunter_that_closes_in_unseen() {
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    // Marked as an aggravated hunter, homing on the tile the hero read it from.
-    match w.get::<Mob>(mob).unwrap().movement_type {
-        MovementType::Aggravated { tx, ty } => assert_eq!((tx, ty), (hero.x, hero.y)),
-        _ => panic!("aggravate should switch the mob to Aggravated"),
-    }
+    // Marked as aggravated, homing on the tile the hero read it from.
+    let ag = w
+        .get::<Aggravated>(mob)
+        .expect("aggravate should mark the mob Aggravated");
+    assert_eq!((ag.tx, ag.ty), (hero.x, hero.y));
 
     // Even though it is a "Static" bundle and out of sight, it now advances.
     let dist_before = mob_start.0 - hero.x;

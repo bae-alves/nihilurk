@@ -24,7 +24,10 @@
 
 // Always compiled, feature or no: `pt`/`es`/`ht` build their placeholder on
 // top of it (`pub use super::en::*;`), so it has to exist even in a binary
-// that never re-exports it at the crate root itself.
+// that never re-exports it at the crate root itself. There, every `en` line a
+// locale translates is dead; the `lang-en` build still flags what is dead
+// everywhere.
+#[cfg_attr(not(feature = "lang-en"), allow(dead_code))]
 mod en;
 #[cfg(feature = "lang-en")]
 pub use en::*;

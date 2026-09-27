@@ -90,7 +90,7 @@ pub struct Renderable {
 }
 
 /// Whose side an actor is on. Monsters fight the player and (in principle) spare
-/// each other; `Ally` is reserved and currently unused.
+/// each other; `Ally` fights the monsters. A [`Helper`] is an `Ally`.
 #[derive(Component, PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Faction {
     Player,
@@ -98,38 +98,62 @@ pub enum Faction {
     Ally,
 }
 
+/// The player's boon companion: the one [`Faction::Ally`] that follows them
+/// between floors. There is only ever one. Loyalty is not magic, so this is a
+/// plain component and not an effect row a wand of cancellation could strip.
+/// See [`crate::companion`].
+#[derive(Component)]
+pub struct Helper;
+
+/// A thing thrown as an offer of loyalty: a snack for a creature without hands,
+/// a fancy of peace for one with them. See [`crate::companion`].
+#[derive(Component, Clone, Copy)]
+pub struct Treat {
+    /// Whether this is meant for an [`crate::effects::ItemUser`].
+    pub for_item_users: bool,
+}
+
 // ===========================================================================
 // Creatures and combat
 // ===========================================================================
 
-/// Marks an entity as a monster — something the AI drives. Carries the tactic it
-/// uses to pick a move each turn.
+/// Marks an entity as a monster — something the AI drives. Carries the tactic
+/// that picks its rule set ([`crate::agents::rule_set_for`]).
 #[derive(Component)]
 pub struct Mob {
     pub movement_type: MovementType,
 }
 
-/// A monster's movement tactic. `Static` holds still and never acts at all —
-/// the inert placeholder tests reach for. `Chase` walks toward the player when
-/// it can see them, `Flee` walks away, `Confused` staggers at random, `Ambush`
-/// lies in wait and never approaches but lunges to strike the instant the
-/// player is adjacent (the venus flytrap, the ice monster, a xeroc that has
-/// dropped its disguise).
+/// A monster's tactic, which picks the rule set it thinks with (see
+/// [`crate::agents`]). `Static` never acts at all — the inert placeholder tests
+/// reach for. `Chase` hunts the player, `Flee` walks away, `Confused` staggers
+/// at random, `Ambush` lies in wait and strikes only what comes alongside (the
+/// venus flytrap, the ice monster, a xeroc that has dropped its disguise).
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub enum MovementType {
     Static,
     Chase,
     Flee,
     Confused,
-    /// Set on every creature by a scroll of aggravate monsters: the mob homes in
-    /// on `(tx, ty)` — the tile the reader stood on — from anywhere on the floor,
-    /// in or out of the player's view, and lunges the moment it draws alongside
-    /// them. See [`crate::ai`].
+    /// Retired: aggravation is a state now, the [`Aggravated`] component, laid
+    /// over whatever tactic the creature already had. Kept because a save
+    /// writes this enum by position; a save that still carries it loads as
+    /// `Chase` plus the component. Never set it.
     Aggravated {
         tx: u16,
         ty: u16,
     },
     Ambush,
+}
+
+/// Set on every monster on the floor by a scroll of aggravate monsters (or a
+/// ring's shriek): out of the player's view, the creature makes a beeline for
+/// `(tx, ty)`, the tile the noise came from. In view it thinks with its own
+/// rule set again. See [`crate::ai`].
+#[derive(Component, Clone, Copy)]
+pub struct Aggravated {
+    pub tx: u16,
+    pub ty: u16,
 }
 
 /// Everything needed to resolve a fight. Combat is a pair of opposed rolls with

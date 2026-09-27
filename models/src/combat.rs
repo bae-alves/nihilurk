@@ -24,7 +24,7 @@ use crate::effects::{
 };
 use crate::equipment::{equipped_items, force_unequip};
 use crate::helpers::{
-    chebyshev, death_burst, get_line, mob_at, player_sees, spill_blood, took_damage,
+    chebyshev, death_burst, get_line, mob_at, monster_at, player_sees, spill_blood, took_damage,
 };
 use crate::identify::display_name;
 use crate::map::{GameRng, Map};
@@ -203,7 +203,11 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     {
         release_biters_grip(world, entity, player);
     }
-    pay_for_the_corpse(world, entity);
+    // A Helper is mourned, not cashed in.
+    match world.get::<Helper>(entity).is_some() {
+        true => crate::companion::mourn(world, entity),
+        false => pay_for_the_corpse(world, entity),
+    }
     kill_shake(world, entity);
     death_burst(world, entity, source);
     leave_gear_behind(world, entity);
@@ -239,7 +243,7 @@ fn pay_for_the_corpse(world: &mut World, victim: Entity) {
 /// This is what stops a thrown dagger an orc caught (see
 /// [`crate::items::throw_system`]) from either vanishing silently into the dead
 /// entity or coming back every single time.
-fn leave_gear_behind(world: &mut World, entity: Entity) {
+pub(crate) fn leave_gear_behind(world: &mut World, entity: Entity) {
     let Some(pos) = world.get::<Position>(entity).copied() else {
         return;
     };
@@ -668,7 +672,7 @@ pub fn try_lunge(world: &mut World, attacker: Entity, dx: i16, dy: i16) -> bool 
         map.walkable(near.x, near.y, swims)
             && map.diagonal_step_ok(origin.x, origin.y, near.x, near.y)
     } && mob_at(world, near).is_none();
-    let Some(target) = near_clear.then(|| mob_at(world, far)).flatten() else {
+    let Some(target) = near_clear.then(|| monster_at(world, far)).flatten() else {
         return false;
     };
 
@@ -683,7 +687,7 @@ pub fn try_lunge(world: &mut World, attacker: Entity, dx: i16, dy: i16) -> bool 
     true
 }
 
-/// The chain-sickle's whirl: self-checks [`WhirlOnMove`] and finds a [`Mob`]
+/// The chain-sickle's whirl: self-checks [`WhirlOnMove`] and finds a monster
 /// adjacent to both `old` and `new` — a step taken alongside an enemy rather
 /// than toward or away from it — and lands a free [`melee_attack`] on it if
 /// one qualifies. A no-op for anyone not wielding one.
@@ -692,11 +696,13 @@ pub fn try_whirl_attack(world: &mut World, attacker: Entity, old: Position, new:
         return;
     }
     let target = {
-        let mut query = world.query_filtered::<(Entity, &Position), With<Mob>>();
+        let mut query = world.query_filtered::<(Entity, &Position, &Faction), With<Mob>>();
         query
             .iter(world)
-            .find(|&(_, &p)| chebyshev(p, old) <= 1 && chebyshev(p, new) <= 1)
-            .map(|(e, _)| e)
+            .find(|&(_, &p, &f)| {
+                f == Faction::Monster && chebyshev(p, old) <= 1 && chebyshev(p, new) <= 1
+            })
+            .map(|(e, _, _)| e)
     };
     if let Some(target) = target {
         melee_attack(world, attacker, target);
@@ -1041,7 +1047,10 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         return;
     }
     release_biters_grip(world, blow.target, blow.attacker);
-    pay_for_the_corpse(world, blow.target);
+    match world.get::<Helper>(blow.target).is_some() {
+        true => crate::companion::mourn(world, blow.target),
+        false => pay_for_the_corpse(world, blow.target),
+    }
     leave_gear_behind(world, blow.target);
     world.despawn(blow.target);
 }

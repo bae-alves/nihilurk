@@ -1310,6 +1310,9 @@ pub fn mob_fires(thrower: &str, phrase: &str) -> String {
 pub fn mob_throws(thrower: &str, seen_name: &str) -> String {
     format!("The {thrower} throws the {seen_name}.")
 }
+pub fn doorway_goes_inert() -> &'static str {
+    "The doorway cracks and goes grey and inert."
+}
 
 pub fn scroll_read_aloud(who: &str, seen_name: &str) -> String {
     format!("The {who} unrolls the {seen_name} and reads it aloud!")
@@ -1334,6 +1337,9 @@ pub fn picks_up_thrown(victim_name: &str, verb: &str) -> String {
 
 pub fn monster_shot_wild(shooter_name: &str, noun: &str, target_label: &str) -> String {
     format!("The {shooter_name} looses a wild {noun} — it goes nowhere near {target_label}.")
+}
+pub fn monster_shot_doorway(shooter_name: &str, article: &str, noun: &str) -> String {
+    format!("The {shooter_name} looses {article} {noun} — it thuds into the doorway.")
 }
 
 pub fn monster_shot_hit(
@@ -1792,6 +1798,39 @@ pub fn killer_unknown() -> &'static str {
 
 pub fn mob_dies(name: &str) -> String {
     format!("The {name} dies.")
+}
+
+// ---------------------------------------------------------------------------
+// Helpers (models/src/companion.rs)
+// ---------------------------------------------------------------------------
+
+/// Use, from the pack, on a treat or a piece of ammunition.
+pub fn for_throwing(name: &str) -> String {
+    format!("The {name} is for throwing.")
+}
+
+pub fn becomes_helper(name: &str) -> String {
+    format!("The {name} is now your boon companion!")
+}
+
+pub fn refuses_treat(name: &str, treat: &str) -> String {
+    format!("The {name} gobbles the {treat} and stays hostile.")
+}
+
+pub fn old_helper_explodes(name: &str) -> String {
+    format!("The {name} EXPLODES!")
+}
+
+pub fn so_much_for_loyalty() -> &'static str {
+    "So much for loyalty these days."
+}
+
+pub fn helper_dies(name: &str) -> String {
+    format!("Your boon companion, the {name}, is gone!")
+}
+
+pub fn helper_left_behind(name: &str) -> String {
+    format!("The {name} could not follow you.")
 }
 
 pub fn gear_clatters_to_floor(name: &str) -> String {

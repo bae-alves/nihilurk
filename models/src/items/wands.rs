@@ -202,6 +202,37 @@ fn trace_bolt(
     bolt
 }
 
+/// Every tile a blast of `radius` around `center` reaches: within the disc and
+/// in the centre's line of sight (walls stop the flames), each tagged with its
+/// distance from the centre so the animation can ripple outward. What a blast
+/// covers, asked by [`elemental_blast`] before it burns and by an agent before
+/// it breathes (see `crate::agents`).
+pub(crate) fn blast_cells(map: &Map, center: Position, radius: f32) -> Vec<(u16, u16, f32)> {
+    let cx = center.x as i32;
+    let cy = center.y as i32;
+    let r = radius.ceil() as i32;
+    let mut cells = Vec::new();
+    for dy in -r..=r {
+        for dx in -r..=r {
+            let dist = ((dx * dx + dy * dy) as f32).sqrt();
+            if dist > radius {
+                continue;
+            }
+            let Some((tx, ty)) = crate::particles::on_map(cx + dx, cy + dy) else {
+                continue;
+            };
+            let ray = get_line(center, Position { x: tx, y: ty });
+            let blocked = ray
+                .iter()
+                .any(|p| map.blocks(p.x, p.y) && !(p.x == tx && p.y == ty));
+            if !blocked {
+                cells.push((tx, ty, dist));
+            }
+        }
+    }
+    cells
+}
+
 /// Blows a disc of `radius` tiles open around `center`: every creature standing
 /// on a tile the centre can see (walls stop the flames) takes `damage` of
 /// `element`, and the animation ripples outward from the core.
@@ -223,32 +254,7 @@ pub(super) fn elemental_blast(
     element: Option<Element>,
     palette: BlastPalette,
 ) -> Vec<Entity> {
-    let map = world.resource::<Map>().clone();
-    let cx = center.x as i32;
-    let cy = center.y as i32;
-    let r = radius.ceil() as i32;
-
-    // Every tile within the disc that the blast centre has line of sight to,
-    // tagged with its distance from centre so the animation can ripple outward.
-    let mut blast_cells: Vec<(u16, u16, f32)> = Vec::new();
-    for dy in -r..=r {
-        for dx in -r..=r {
-            let dist = ((dx * dx + dy * dy) as f32).sqrt();
-            if dist > radius {
-                continue;
-            }
-            let Some((tx, ty)) = crate::particles::on_map(cx + dx, cy + dy) else {
-                continue;
-            };
-            let ray = get_line(center, Position { x: tx, y: ty });
-            let blocked = ray
-                .iter()
-                .any(|p| map.blocks(p.x, p.y) && !(p.x == tx && p.y == ty));
-            if !blocked {
-                blast_cells.push((tx, ty, dist));
-            }
-        }
-    }
+    let blast_cells = blast_cells(world.resource::<Map>(), center, radius);
 
     // Damage every fighter standing in a blast cell.
     let cell_set: HashSet<(u16, u16)> = blast_cells.iter().map(|&(x, y, _)| (x, y)).collect();
