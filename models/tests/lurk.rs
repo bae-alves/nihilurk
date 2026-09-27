@@ -71,10 +71,10 @@ fn the_lurk_is_its_own_creature() {
     assert!(equipment::equipped_items(&w, p).is_empty());
 
     // The three tricks it is born with, and the one spell it must pay for.
-    assert!(w.get::<Lunges>(p).is_some(), "the estoc's lunge");
-    assert!(w.get::<BuildsMomentum>(p).is_some(), "the rapier's rhythm");
+    assert!(w.get::<Lunges>(p).is_some(), "the wolf's closing lunge");
+    assert!(w.get::<Fencer>(p).is_some(), "the second snap of the jaws");
+    assert!(w.get::<BuildsMomentum>(p).is_some(), "a rhythm that builds");
     assert!(w.get::<Stealthy>(p).is_some(), "a hunter's quiet");
-    assert!(w.get::<Fencer>(p).is_none(), "not the estoc's double time");
     let slots = &w.get::<Spellset>(p).unwrap().slots;
     assert_eq!(slots, &vec![SpellEffect::Bide]);
     assert_eq!(

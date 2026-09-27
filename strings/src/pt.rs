@@ -303,6 +303,10 @@ pub fn bear_trap_thrash() -> &'static str {
     "Na tentativa de escapar, a armadilha rasga a perna presa."
 }
 
+pub fn clamped_thrash() -> &'static str {
+    "Na tentativa de escapar, as mandíbulas rasgam a perna presa."
+}
+
 pub fn steps_on_trap(who: &str, _article: &str, label: &str) -> String {
     format!("{who} pisa em uma {label}!")
 }
@@ -630,6 +634,9 @@ pub const fn ends_pinned() -> &'static str {
 pub const fn ends_rooted() -> &'static str {
     "O que segurava, solta."
 }
+pub const fn ends_clamped() -> &'static str {
+    "As mandíbulas presas na perna finalmente afrouxam."
+}
 
 // ---------------------------------------------------------------------------
 // models/src/conditions.rs
@@ -713,6 +720,9 @@ pub const fn adjective_pinned() -> &'static str {
 }
 pub const fn adjective_held() -> &'static str {
     "imobilizado"
+}
+pub const fn adjective_clamped() -> &'static str {
+    "preso pelas mandíbulas"
 }
 pub const fn adjective_warded() -> &'static str {
     "protegido"
@@ -1830,6 +1840,13 @@ pub fn gear_clatters_to_floor(name: &str) -> String {
 pub fn lunge_hit(target_name: &str, damage: i32) -> String {
     format!(
         "Uma estocada, lâmina reluzindo além de qualquer guarda, espeta {} {target_name} por {damage} de dano!",
+        article(target_name)
+    )
+}
+
+pub fn lunge_hit_lurk(target_name: &str, damage: i32) -> String {
+    format!(
+        "Você avança, presas se fechando, e dilacera {} {target_name} causando {damage} de dano!",
         article(target_name)
     )
 }

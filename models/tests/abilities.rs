@@ -387,7 +387,7 @@ fn a_draining_touch_announces_itself_whoever_it_drains() {
 }
 
 #[test]
-fn a_binding_bite_pins_the_victim() {
+fn a_binding_bite_clamps_the_victim() {
     let mut w = arena(1);
     let attacker = dummy(&mut w, 10, 4);
     w.entity_mut(attacker).insert(Binds);
@@ -396,12 +396,12 @@ fn a_binding_bite_pins_the_victim() {
     fire_on_hit(&mut w, attacker, victim, CLEAN);
 
     assert!(
-        w.get::<Pinned>(victim).is_some(),
-        "the bite should have pinned, and with steel rather than words"
+        w.get::<Clamped>(victim).is_some(),
+        "the bite should have clamped the victim, not pinned it like a bear trap"
     );
     assert!(
-        turns_left(&w, victim, Grant::of::<Pinned>()).is_some_and(|n| n > 0),
-        "pinned for no turns at all"
+        turns_left(&w, victim, Grant::of::<Clamped>()).is_some_and(|n| n > 0),
+        "clamped for no turns at all"
     );
 }
 
@@ -1019,6 +1019,50 @@ fn a_slain_splitter_leaves_nothing_behind() {
     assert!(
         count_named(&mut w, species) <= 1,
         "it split on the blow that killed it"
+    );
+}
+
+/// A splitter boxed in by walls on every side but one, with the player
+/// standing in that one gap — the shape of a passage, where a corridor
+/// leaves a wounded slime nowhere to bud a copy except the tile the player
+/// is already standing on.
+///
+/// The player is not a [`Mob`], so a copy must not land there: it has
+/// nowhere to go and should stay a single slime, not silently duplicate
+/// itself onto the hero.
+#[test]
+fn a_boxed_in_splitter_does_not_bud_onto_the_player() {
+    let species = any_species();
+    let mut w = arena(42);
+    let center = at(20, 20);
+    for dy in -1i32..=1 {
+        for dx in -1i32..=1 {
+            if dx == 0 && dy == 0 || (dx == 1 && dy == 0) {
+                continue;
+            }
+            let (x, y) = ((center.x as i32 + dx) as u16, (center.y as i32 + dy) as u16);
+            w.resource_mut::<Map>().tiles[tile_index(x, y)] = TileType::Wall;
+        }
+    }
+    let hero_pos = at(center.x + 1, center.y);
+    let attacker = hero(&mut w, hero_pos, 20, 10);
+    let splitter = splitter_named(&mut w, species, center, 10_000);
+
+    let before = count_named(&mut w, species);
+    resolve_attack(&mut w, attacker, splitter);
+    let after = count_named(&mut w, species);
+
+    assert_eq!(
+        before, after,
+        "a boxed-in splitter budded a copy with nowhere free to put it"
+    );
+    let occupied_hero_tile = w
+        .query::<(&Position, &Mob)>()
+        .iter(&w)
+        .any(|(p, _)| *p == hero_pos);
+    assert!(
+        !occupied_hero_tile,
+        "the splitter's copy landed on the player's own tile"
     );
 }
 

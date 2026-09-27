@@ -211,9 +211,19 @@ pub(crate) fn trap_damage_tier(depth: u8) -> i32 {
 /// were a [`BEAR_TRAP_THRASH_GORE`] wound, and an impact spark flashes on the
 /// tile.
 pub fn bear_trap_thrash(world: &mut World, victim: Entity) {
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::bear_trap_thrash());
+    thrash(world, victim, strings::bear_trap_thrash());
+}
+
+/// The same lurch as [`bear_trap_thrash`], for a victim held in a living
+/// creature's jaws ([`crate::effects::Clamped`]) rather than a bear trap's —
+/// the venus flytrap's bite, and a revealed xeroc's. Same cost, different
+/// words: nothing here says "trap".
+pub fn clamped_thrash(world: &mut World, victim: Entity) {
+    thrash(world, victim, strings::clamped_thrash());
+}
+
+fn thrash(world: &mut World, victim: Entity, line: &'static str) {
+    world.resource_mut::<GameLog>().add(line);
     apply_damage(world, victim, BEAR_TRAP_THRASH_DAMAGE);
     spill_blood(world, victim, BEAR_TRAP_THRASH_GORE, false);
     let spot = world.get::<Position>(victim).copied();

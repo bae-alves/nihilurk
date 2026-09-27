@@ -307,6 +307,10 @@ pub fn bear_trap_thrash() -> &'static str {
     "Al forcejear por soltarse, la trampa desgarra la pierna atrapada."
 }
 
+pub fn clamped_thrash() -> &'static str {
+    "Al forcejear por soltarse, las fauces desgarran la pierna atrapada."
+}
+
 pub fn steps_on_trap(who: &str, _article: &str, label: &str) -> String {
     format!("¡{who} pisa una {label}!")
 }
@@ -634,6 +638,9 @@ pub const fn ends_pinned() -> &'static str {
 pub const fn ends_rooted() -> &'static str {
     "Lo que sujetaba, suelta."
 }
+pub const fn ends_clamped() -> &'static str {
+    "Las fauces cerradas en la pierna por fin se aflojan."
+}
 
 // ---------------------------------------------------------------------------
 // models/src/conditions.rs
@@ -717,6 +724,9 @@ pub const fn adjective_pinned() -> &'static str {
 }
 pub const fn adjective_held() -> &'static str {
     "inmovilizado"
+}
+pub const fn adjective_clamped() -> &'static str {
+    "atenazado"
 }
 pub const fn adjective_warded() -> &'static str {
     "protegido"
@@ -1839,6 +1849,13 @@ pub fn gear_clatters_to_floor(name: &str) -> String {
 pub fn lunge_hit(target_name: &str, damage: i32) -> String {
     format!(
         "¡Una estocada, hoja destellando más allá de toda guardia, ensarta {} {target_name} por {damage} de daño!",
+        a_contraction(target_name)
+    )
+}
+
+pub fn lunge_hit_lurk(target_name: &str, damage: i32) -> String {
+    format!(
+        "¡Te lanzas, colmillos cerrándose de golpe, y desgarras {} {target_name} por {damage} de daño!",
         a_contraction(target_name)
     )
 }

@@ -33,10 +33,10 @@ use crate::components::{
 };
 use crate::conditions::snare;
 use crate::effects::{
-    AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Cleaves, ConfusingTouch, FireBreath,
-    Freezing, Gorgon, Grant, HeavySwing, LightningBreath, MagicWard, Momentum, Petrified, Pinned,
-    Regenerates, RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees, StealsAndVanishes,
-    Teleportitis, Vampiric, Venomous,
+    AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Clamped, ClampedBy, Cleaves,
+    ConfusingTouch, FireBreath, Freezing, Gorgon, Grant, HeavySwing, LightningBreath, MagicWard,
+    Momentum, Petrified, Regenerates, RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees,
+    StealsAndVanishes, Teleportitis, Vampiric, Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
 use crate::helpers::{adjacent_mobs, apply_damage, item_label};
@@ -507,17 +507,20 @@ fn vampiric_drain(world: &mut World, _attacker: Entity, target: Option<Entity>) 
     true
 }
 
-/// The venus flytrap's (and a revealed xeroc's) bite: clamps the victim in a
-/// bear trap's jaws — the same [`crate::effects::Pinned`] snare, for the same number
-/// of turns a bear trap holds for.
+/// The venus flytrap's (and a revealed xeroc's) bite: clamps the victim in its
+/// jaws — [`crate::effects::Clamped`], for up to the same number of turns a
+/// bear trap holds for, but let go the instant the biter dies
+/// ([`crate::combat::settle_the_dead`]) rather than only when the turns run
+/// out, the way a bear trap's [`crate::effects::Pinned`] does.
 fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> bool {
     let Some(target) = target else {
         return false;
     };
     let turns = crate::traps::TrapDef::of(TrapEffect::Bear).snare_turns;
-    if !snare(world, target, Grant::of::<Pinned>(), turns) {
+    if !snare(world, target, Grant::of::<Clamped>(), turns) {
         return false;
     }
+    world.entity_mut(target).insert(ClampedBy(attacker));
     let name = item_label(world, attacker);
     let line = match world.get::<Player>(target).is_some() {
         true => strings::bind_victim_player(&name),

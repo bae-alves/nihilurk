@@ -32,7 +32,7 @@ use std::collections::HashSet;
 use crossterm::style::Color;
 
 use crate::components::{Element, LogCategory};
-use crate::effects::{ArmorBonus, equipped_total};
+use crate::effects::{ArmorBonus, GreenBlood, equipped_total, loadout};
 use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map, Smoke};
 use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
@@ -82,14 +82,27 @@ pub fn get_line(start: Position, end: Position) -> Vec<Position> {
 
 /// The defender's "armour plus": the flat `armor_bonus` on its [`Fighter`] plus
 /// every [`ArmorBonus`] its equipped gear contributes. This is the *only* part
-/// of a target's defence that a trap's — or a hurled weapon's — damage is
-/// measured against; the armour *die* is never rolled for either.
+/// of a target's defence that a trap's damage is measured against; the armour
+/// *die* is never rolled for one.
 pub fn total_armor_plus(world: &World, entity: Entity) -> i32 {
     let base = world
         .get::<Fighter>(entity)
         .map(|f| f.armor_bonus)
         .unwrap_or(0);
     base + equipped_total::<ArmorBonus>(world, entity)
+}
+
+/// The defender's full armour roll: `1d[armor]` (bell-curved, same as a
+/// melee swing's) plus [`total_armor_plus`]. This is what an arrow or a
+/// hurled weapon's damage is measured against — the same soak a blade would
+/// have to get through, since a point already flying is still just landing
+/// on the same armour.
+pub fn total_armor_roll(world: &mut World, entity: Entity) -> i32 {
+    let armor_die =
+        world.get::<Fighter>(entity).map_or(0, |f| f.armor) + loadout(world, entity).armor_die;
+    let plus = total_armor_plus(world, entity);
+    let mut rng = world.resource_mut::<GameRng>();
+    crate::combat::roll_die_bell(&mut rng.0, armor_die) + plus
 }
 
 /// Every entity — creature, item, feature — standing on `pos`.
@@ -225,14 +238,14 @@ pub(crate) fn mark_conditions(world: &mut World, caught: &[Entity], glyph: char,
 /// random. `None` if `origin` is boxed in. Used to place a conjured monster, or
 /// to land a creature dragged to the zapper's side.
 ///
-/// Only a [`Mob`] occupies a tile. This used to read every entity with a
-/// [`Position`], which counted a dropped dagger as a body in the way — so one
-/// piece of loot on the floor beside you was enough to tell a teleport-to
-/// there was nowhere to put its target, and a summoned monster that there was
-/// no room to arrive in.
+/// Only a [`Mob`] or the [`Player`] occupies a tile. This used to read every
+/// entity with a [`Position`], which counted a dropped dagger as a body in
+/// the way — so one piece of loot on the floor beside you was enough to tell
+/// a teleport-to there was nowhere to put its target, and a summoned monster
+/// that there was no room to arrive in.
 pub fn free_adjacent_tile(world: &mut World, origin: Position) -> Option<(u16, u16)> {
     let occupied: HashSet<(u16, u16)> = world
-        .query_filtered::<&Position, With<Mob>>()
+        .query_filtered::<&Position, Or<(With<Mob>, With<Player>)>>()
         .iter(world)
         .map(|p| (p.x, p.y))
         .collect();
@@ -521,6 +534,8 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         return;
     }
 
+    let green = world.get::<GreenBlood>(entity).is_some();
+
     // Droplet count and reach both grow with the wound — a further 25% heavier
     // than a bare damage/4 would give. A glancing blow only wets the tile
     // underfoot.
@@ -548,7 +563,9 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
             .collect(),
     };
 
-    world.resource_mut::<BloodStains>().stain(pos.x, pos.y);
+    world
+        .resource_mut::<BloodStains>()
+        .stain_colored(pos.x, pos.y, green);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.blood_hit(pos.x, pos.y, 0.0);
     }
@@ -586,7 +603,7 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         if !map.blocks(landing.x, landing.y) {
             world
                 .resource_mut::<BloodStains>()
-                .stain(landing.x, landing.y);
+                .stain_colored(landing.x, landing.y, green);
         }
 
         let pts: Vec<(u16, u16)> = path.iter().map(|p| (p.x, p.y)).collect();

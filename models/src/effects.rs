@@ -251,6 +251,12 @@ pub struct StealsAndVanishes;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Splits;
 
+/// This creature's wounds well up green rather than red (a slime). Purely
+/// cosmetic — read by [`crate::helpers::spill_blood`] to colour the stain it
+/// leaves.
+#[derive(Component, Default, Clone, Copy)]
+pub struct GreenBlood;
+
 // ---------------------------------------------------------------------------
 // Weapon tricks — lent to the wielder exactly like a monster's innate magic
 // (see `crate::catalog::WeaponDef::grants`), so `crate::abilities` and
@@ -291,9 +297,9 @@ pub struct Lurk;
 /// of a step — see `crate::combat::resolve_lunge`.
 ///
 /// Its own marker rather than half of [`Fencer`] because the two are not one
-/// trick. The estoc grants both; the lurk is *born* with the lunge and never
-/// gets the double time, and a single marker would have made the lurk swing
-/// twice a turn with its bare hands.
+/// trick, even though the lurk is born with both: a wolf's opening lunge and
+/// the second snap of the jaws that follows it are separate things a bestiary
+/// entry could grant one without the other.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Lunges;
 
@@ -624,6 +630,27 @@ pub struct Pinned;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Rooted;
 
+/// Clamped in a living creature's jaws — the venus flytrap's bite, and a
+/// revealed xeroc's. Mechanically a bear trap: movement is impossible and
+/// straining at it costs a turn and draws blood, but the victim can still
+/// strike whatever comes within reach.
+///
+/// Kept apart from [`Pinned`] because the two end differently. A bear trap's
+/// hold is the floor's business and only turns lift it; a bite is the
+/// biter's, so killing whatever is holding you frees you outright
+/// ([`crate::combat::settle_the_dead`]) whether or not its turns have run
+/// out.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Clamped;
+
+/// Which entity's jaws a [`Clamped`] victim is caught in. Two venus flytraps
+/// can both be alive in the same room, and only the one that actually bit you
+/// should free you by dying — without this, killing an unrelated flytrap
+/// would release a bite that flytrap never landed
+/// ([`crate::combat::release_biters_grip`]).
+#[derive(Component, Clone, Copy)]
+pub struct ClampedBy(pub Entity);
+
 /// Lent by a war hammer while it is wielded: mass, and nothing else, gets
 /// through stone. A blow from one is not capped by [`Petrified`] — it lands
 /// whole, last point of HP included. See [`stone_chip`], whose one exception
@@ -748,6 +775,7 @@ effects! {
     "venomous" => Venomous, beware strings::beware_venomous_bite();
     "score_bounty" => ScoreBounty;
     "splits" => Splits, beware strings::beware_splitting_flesh();
+    "green_blood" => GreenBlood;
     "freezing" => Freezing, beware strings::beware_paralysing_touch();
     "steals_and_flees" => StealsAndFlees, beware strings::beware_thieving_touch();
     "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch();
@@ -776,6 +804,7 @@ effects! {
     "petrified" => Petrified, ends strings::ends_petrified();
     "pinned" => Pinned, ends strings::ends_pinned();
     "rooted" => Rooted, ends strings::ends_rooted();
+    "clamped" => Clamped, ends strings::ends_clamped();
     // The afflictions. Held for `Lifetime::Floor`, so a staircase lifts them
     // through the same machinery a potion of see invisible already used.
     "confused" => Confused;
@@ -1268,19 +1297,20 @@ pub fn stone_chip(world: &World, target: Entity, amount: i32) -> Option<Chip> {
     Some(Chip { through, line })
 }
 
-/// The three holds: what keeps a creature where it stands, each on its own
+/// The four holds: what keeps a creature where it stands, each on its own
 /// clock. They are listed once, here, because the two ways out of one — the
 /// scroll of teleportation and the wand of teleport away — have to let go of
-/// all three, and a fourth hold added to the registry and forgotten at one of
+/// all four, and a fifth hold added to the registry and forgotten at one of
 /// those two sites would strand a creature nowhere near what was holding it.
 ///
 /// [`Petrified`] is a hold and is deliberately not here: it is not something
 /// holding the victim in a place, it is the victim's own body, and a teleport
 /// takes the statue with it.
-pub const HOLDS: [Grant; 3] = [
+pub const HOLDS: [Grant; 4] = [
     Grant::of::<Asleep>(),
     Grant::of::<Pinned>(),
     Grant::of::<Rooted>(),
+    Grant::of::<Clamped>(),
 ];
 
 /// Holds `victim` for `turns` more turns — the steel jaws of a bear trap, a

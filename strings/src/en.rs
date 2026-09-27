@@ -198,6 +198,10 @@ pub fn bear_trap_thrash() -> &'static str {
     "As you try to free yourself, the trap flays your leg."
 }
 
+pub fn clamped_thrash() -> &'static str {
+    "As you try to pull free, its jaws tear at your leg."
+}
+
 pub fn steps_on_trap(who: &str, article: &str, label: &str) -> String {
     format!("{who} steps on {article} {label}!")
 }
@@ -666,6 +670,9 @@ pub const fn ends_pinned() -> &'static str {
 pub const fn ends_rooted() -> &'static str {
     "Whatever was holding you lets go."
 }
+pub const fn ends_clamped() -> &'static str {
+    "The jaws locked around your leg finally go slack."
+}
 
 // ---------------------------------------------------------------------------
 // models/src/conditions.rs
@@ -752,6 +759,9 @@ pub const fn adjective_pinned() -> &'static str {
 }
 pub const fn adjective_held() -> &'static str {
     "held"
+}
+pub const fn adjective_clamped() -> &'static str {
+    "clamped"
 }
 pub const fn adjective_warded() -> &'static str {
     "warded"
@@ -1792,6 +1802,12 @@ pub fn lunge_hit(target_name: &str, damage: i32) -> String {
     format!(
         "You lunge, blade flashing past every guard, and skewer the {target_name} for {damage} damage!"
     )
+}
+
+/// [`lunge_hit`], for the lurk: a wolf closing the last stride of a run and
+/// finishing with its teeth rather than a blade.
+pub fn lunge_hit_lurk(target_name: &str, damage: i32) -> String {
+    format!("You lunge, jaws snapping shut, and tear into the {target_name} for {damage} damage!")
 }
 
 pub fn you_have_slain(target_name: &str) -> String {

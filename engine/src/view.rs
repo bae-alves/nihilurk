@@ -358,10 +358,17 @@ pub fn render<W: Write>(
                 Option<&Asleep>,
                 Option<&Pinned>,
                 Option<&Rooted>,
+                Option<&Clamped>,
             ), With<Player>>()
             .iter(world)
             .next()
-            .map(|(s, a, p, r)| (s.is_some(), a.is_some(), p.is_some() || r.is_some()));
+            .map(|(s, a, p, r, c)| {
+                (
+                    s.is_some(),
+                    a.is_some(),
+                    p.is_some() || r.is_some() || c.is_some(),
+                )
+            });
         // Worst first: stone costs the turn and everything else besides, sleep
         // costs the turn, a bear trap costs the step. A player who is two of
         // them is told the worst one.
@@ -457,7 +464,12 @@ pub fn render<W: Write>(
             if !stains.is_bloody(x, y) || occupied_by_actor.contains(&(x, y)) {
                 continue;
             }
-            screen.fg_map(x, y, Color::DarkRed);
+            let color = if stains.is_green(x, y) {
+                Color::DarkGreen
+            } else {
+                Color::DarkRed
+            };
+            screen.fg_map(x, y, color);
         }
     }
 
@@ -510,10 +522,25 @@ pub fn render<W: Write>(
     // Drawn over the floor and anything lying on it, only where currently
     // visible, and never on a tile an actor stands on — like blood, it marks
     // the floor, not whatever is standing there.
+    //
+    // A blast lays this down the instant it resolves, but its own flame is
+    // still rippling outward frame by frame afterward — so every cell the
+    // lingering overlay marks pending on this same turn would otherwise flash
+    // grey before its flame ever reaches it, and the whole blast would read
+    // as smoke with a red dot at the centre instead of a wave of fire. Any
+    // tile a still-playing particle owns is skipped here; it takes over the
+    // moment that particle finishes, which is the "afterward" this overlay
+    // is supposed to be.
     {
         let smoke = world.resource::<Smoke>();
+        let particles = world.resource::<Particles>();
+        let mid_animation: HashSet<(u16, u16)> =
+            particles.live.iter().map(|p| (p.x, p.y)).collect();
         for &(x, y) in &visible {
-            if !smoke.is_smoky(x, y) || occupied_by_actor.contains(&(x, y)) {
+            if !smoke.is_smoky(x, y)
+                || occupied_by_actor.contains(&(x, y))
+                || mid_animation.contains(&(x, y))
+            {
                 continue;
             }
             screen.put_map(x, y, '≈', by_touch(Color::Grey));
@@ -555,10 +582,11 @@ pub fn render<W: Write>(
             Option<&Asleep>,
             Option<&Pinned>,
             Option<&Rooted>,
+            Option<&Clamped>,
             Option<&Paralyzed>,
             Option<&Speed>,
         ), Without<Hidden>>();
-        for (pos, mob, asleep, pinned, rooted, paralyzed, speed) in query.iter(world) {
+        for (pos, mob, asleep, pinned, rooted, clamped, paralyzed, speed) in query.iter(world) {
             if !visible.contains(&(pos.x, pos.y)) {
                 continue;
             }
@@ -568,7 +596,7 @@ pub fn render<W: Write>(
             let tint = status_tint(
                 asleep.is_some(),
                 paralyzed.is_some(),
-                pinned.is_some() || rooted.is_some(),
+                pinned.is_some() || rooted.is_some() || clamped.is_some(),
                 confused || fleeing,
                 slowed,
             );
@@ -893,6 +921,23 @@ fn interrupted(frame: Duration) -> std::io::Result<bool> {
     Ok(matches!(read()?, Event::Key(k) if k.kind == KeyEventKind::Press))
 }
 
+/// Global slowdown on how long each animation frame holds on screen, layered
+/// independently of [`AnimRate`]: it stretches only the real time between
+/// redraws, leaving how far the simulated clock (and every particle's own
+/// keyframe timing) advances per frame untouched. So every blast, spark,
+/// flight, shake and magic-map wipe plays out the same sequence of frames it
+/// always did, just held a beat longer — one knob, not a retune of each
+/// effect's own duration constants.
+const ANIMATION_SLOWDOWN: f32 = 4.0 / 3.0;
+
+/// Stretches a frame's real on-screen hold time by [`ANIMATION_SLOWDOWN`].
+/// Never applied to the dt fed into `advance`/`age_shake`/a reveal step — only
+/// to how long the loop sleeps before the next one, which is what actually
+/// controls how fast an animation *feels*.
+fn slow(frame_ms: u64) -> u64 {
+    (frame_ms as f32 * ANIMATION_SLOWDOWN) as u64
+}
+
 /// Play out whatever hit / beam / blast particles the turn just queued.
 ///
 /// The turn is already fully resolved — this only animates the aftermath — so it
@@ -925,7 +970,7 @@ pub fn play_particles<W: Write>(
         }
         render(world, stdout, screen)?;
         // The frame delay doubles as an "abort on keypress" poll.
-        if interrupted(Duration::from_millis(frame_ms))? {
+        if interrupted(Duration::from_millis(slow(frame_ms)))? {
             // Skipping the sparks skips the shake with them: they are one
             // effect, and half of it left rocking after the other half was
             // dismissed reads as a bug.
@@ -957,14 +1002,15 @@ pub fn play_magic_map<W: Write>(
 
     drain_input()?;
     let base_frame_ms = world.resource::<MagicMapReveal>().frame_ms();
-    let frame = Duration::from_millis(world.resource::<AnimRate>().scale(base_frame_ms));
+    let frame_ms = world.resource::<AnimRate>().scale(base_frame_ms);
+    let sleep = Duration::from_millis(slow(frame_ms));
     loop {
-        age_shake(world, frame.as_millis() as u64);
+        age_shake(world, frame_ms);
         if !magic_map_reveal_step(world) {
             break;
         }
         render(world, stdout, screen)?;
-        if interrupted(frame)? {
+        if interrupted(sleep)? {
             finish_magic_map_reveal(world);
             settle_shake(world);
             break;
@@ -1015,7 +1061,7 @@ pub fn play_shake<W: Write>(
             break;
         }
         render(world, stdout, screen)?;
-        if poll(Duration::from_millis(frame_ms))? {
+        if poll(Duration::from_millis(slow(frame_ms)))? {
             settle_shake(world);
             break;
         }
