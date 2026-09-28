@@ -72,7 +72,7 @@ fi
 #
 # Translating is not this commit's job, though, and was never meant to be --
 # a contributor adding an English line shouldn't have to also write Portuguese
-# and Spanish before git will take the commit. `stub_missing_translations.py`
+# and Spanish before git will take the commit. `stub_missing_translations.lua`
 # runs first and auto-fills anything `pt.rs`/`es.rs` hasn't caught up with as
 # an empty, `// TODO: translate.`-marked stub, and stages whatever it touched
 # -- so translating stays something people pick up on their own time, in its
@@ -81,7 +81,7 @@ fi
 # actually compile (a return type this script doesn't know an empty value
 # for) or a hand-written translation with a real mistake in it.
 if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
-    stub_output="$(python3 .githooks/stub_missing_translations.py)"
+    stub_output="$(lua .githooks/stub_missing_translations.lua)"
     if [[ -n "$stub_output" ]]; then
         echo "$stub_output"
         # Only the last lines (one per touched file) are paths; re-stage
@@ -93,7 +93,7 @@ if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
         cargo check -p engine --no-default-features --features "lang-$lang" --quiet || {
             echo "pre-commit: the lang-$lang build failed -- see above. If this" >&2
             echo "  wasn't stubbed away above, it's a real mistake, not a missing" >&2
-            echo "  translation -- stub_missing_translations.py already covers that." >&2
+            echo "  translation -- stub_missing_translations.lua already covers that." >&2
             exit 1
         }
     done
