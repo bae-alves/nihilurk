@@ -13,11 +13,14 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::helpers::ACCEPT_CHANCE;
-use crate::effects::{Asleep, Grant, ItemUser, revoke, revoke_matching};
+use crate::effects::{Asleep, Grant, ItemUser, Phasing, grant_all, revoke, revoke_matching};
 use crate::helpers::{death_burst, free_adjacent_tile, item_label};
 use crate::map::{BloodStains, GameRng};
 use crate::particles::{BlastPalette, Particles, on_map};
 use crate::shake::{ShakeKind, kick_shake};
+
+/// What a Helper is born into when recruited: it walks through terrain.
+const GHOSTLY: &[Grant] = &[Grant::of::<Phasing>()];
 
 /// The current Helper, if there is one.
 pub fn the_helper(world: &mut World) -> Option<Entity> {
@@ -85,6 +88,7 @@ pub fn recruit(world: &mut World, mob: Entity) {
         explode(world, old);
     }
     world.entity_mut(mob).insert((Helper, Faction::Ally));
+    grant_all(world, mob, GHOSTLY);
     if let Some(mut m) = world.get_mut::<Mob>(mob) {
         m.movement_type = MovementType::Chase;
     }

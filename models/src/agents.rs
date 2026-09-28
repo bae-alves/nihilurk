@@ -55,6 +55,8 @@ pub struct Percept<'a> {
     pub pinned: bool,
     /// Deep water is floor to it.
     pub swims: bool,
+    /// Terrain means nothing to it: it walks through walls and water.
+    pub phasing: bool,
     /// It holds a launcher, drawn.
     pub launcher: bool,
     /// The spells it can cast: the ones it was born with
@@ -353,15 +355,15 @@ fn toward(from: Position, to: Position) -> (i16, i16) {
 }
 
 /// The first step of the shortest walk over ground the mob can stand on to
-/// any tile satisfying `goal`, biased toward `bias` when several routes tie.
+/// any tile satisfying `goal` (any tile at all, for a phasing mob), biased toward `bias` when several routes tie.
 /// A mob knows the dungeon it stands in, so unlike the player it is not
 /// limited to tiles it has seen. Reuses auto-explore's own search.
 fn route(p: &Percept, goal: impl Fn(u16, u16) -> bool, bias: Position) -> Option<Action> {
     crate::autoexplore::first_step(
         p.at.x,
         p.at.y,
-        |x, y| p.map.walkable(x, y, p.swims),
-        |fx, fy, tx, ty| p.map.diagonal_step_ok(fx, fy, tx, ty),
+        |x, y| p.phasing || p.map.walkable(x, y, p.swims),
+        |fx, fy, tx, ty| p.phasing || p.map.diagonal_step_ok(fx, fy, tx, ty),
         goal,
         Some((bias.x, bias.y)),
     )
@@ -431,6 +433,7 @@ mod tests {
             noticed: true,
             pinned: false,
             swims: false,
+            phasing: false,
             launcher: false,
             spellset: Vec::new(),
             roll: 0,

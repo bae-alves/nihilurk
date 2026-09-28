@@ -1346,9 +1346,6 @@ pub fn picks_up_thrown(victim_name: &str, verb: &str) -> String {
 pub fn monster_shot_wild(shooter_name: &str, noun: &str, target_label: &str) -> String {
     format!("The {shooter_name} looses a wild {noun} — it goes nowhere near {target_label}.")
 }
-pub fn monster_shot_doorway(shooter_name: &str, article: &str, noun: &str) -> String {
-    format!("The {shooter_name} looses {article} {noun} — it thuds into the doorway.")
-}
 
 pub fn monster_shot_hit(
     shooter_name: &str,

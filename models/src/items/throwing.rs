@@ -20,10 +20,10 @@ use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
 use crate::helpers::{
-    actor_at, apply_damage, get_line, item_label, player_sees, roll_dice, total_armor_roll,
+    actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_roll,
 };
 use crate::identify::{article_for, counted, display_name, phrase_for, with_article};
-use crate::map::{GameRng, Map, TileType, tile_index};
+use crate::map::{GameRng, Map};
 use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
@@ -36,7 +36,6 @@ use super::wands::{
 use crate::conditions::shift_entity_speed;
 
 use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE, PACK_CAPACITY, THROW_RANGE};
-use crate::constants::map::DOOR_BREAK_CHANCE;
 use crate::constants::wands::{
     BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
 };
@@ -81,10 +80,6 @@ pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String>
 /// flight is [`Piercing`], in which case it runs the line to its end and the
 /// list comes back with everyone standing in it.
 ///
-/// A doorway is cover: whoever is standing in one is not a valid victim at
-/// all, the frame is in the way, and the missile stops right there, whether
-/// or not it was `Piercing` — cover blocks a spear the same as a dart. See
-/// [`doorway_takes_it`]: the frame may crack, and a cracked one is no cover.
 fn flight_path(
     world: &mut World,
     thrower: Entity,
@@ -106,9 +101,6 @@ fn flight_path(
         }
         cells.push((pos.x, pos.y));
         landing = pos;
-        if actor_at(world, pos, thrower).is_some() && doorway_takes_it(world, pos) {
-            break;
-        }
         if let Some(victim) = actor_at(world, pos, thrower) {
             victims.push(victim);
             if !piercing {
@@ -117,32 +109,6 @@ fn flight_path(
         }
     }
     (cells, landing, victims)
-}
-
-/// Whether a missile meant for whoever stands at `pos` hits the doorway
-/// instead: true on a doorway not yet cracked. Taking a hit rolls
-/// [`DOOR_BREAK_CHANCE`] to crack it inert, which ends its days as cover.
-fn doorway_takes_it(world: &mut World, pos: Position) -> bool {
-    let map = world.resource::<Map>();
-    if map.tile(pos.x, pos.y) != TileType::Door || map.is_inert_door(pos.x, pos.y) {
-        return false;
-    }
-    if world
-        .resource_mut::<GameRng>()
-        .0
-        .gen_bool(DOOR_BREAK_CHANCE)
-    {
-        world
-            .resource_mut::<Map>()
-            .inert_doors
-            .insert(tile_index(pos.x, pos.y));
-        if player_sees(world, pos.x, pos.y) {
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::doorway_goes_inert());
-        }
-    }
-    true
 }
 
 /// Whether `item` is ammunition being *loosed* — it carries [`LaunchedBy`] and
@@ -744,18 +710,6 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.hurl(&cells, if fires_quarrel { '/' } else { '↑' }, Color::Grey);
         }
-    }
-
-    // The same doorway cover a thrown missile respects, as `flight_path` has it.
-    if at.is_some_and(|at| doorway_takes_it(world, at)) {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::monster_shot_doorway(
-                &shooter_name,
-                article_for(noun),
-                noun,
-            ));
-        return;
     }
 
     if damage <= 0 {

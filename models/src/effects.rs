@@ -199,6 +199,12 @@ pub struct ThrowsWands;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Swims;
 
+/// Phasing: terrain means nothing to this creature. It walks through walls
+/// and deep water, and neither the diagonal rule nor the room leash holds it
+/// (the ghost, and the player's Helper).
+#[derive(Component, Default, Clone, Copy)]
+pub struct Phasing;
+
 /// "Batty": every blow this creature lands, it tries to hop to a random
 /// adjacent tile right afterward — landing only if that tile is open and
 /// unoccupied (the bat, the phantom). See [`crate::abilities`].
@@ -790,6 +796,7 @@ effects! {
     "lightning_breath" => LightningBreath, beware strings::beware_lightning_breath();
     "throws_wands" => ThrowsWands;
     "swims" => Swims;
+    "phasing" => Phasing;
     "cleaves" => Cleaves;
     "heavy_swing" => HeavySwing;
     "fencer" => Fencer;

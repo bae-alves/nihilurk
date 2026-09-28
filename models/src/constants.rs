@@ -258,10 +258,6 @@ pub mod map {
     /// Chance an eligible floor is an island in deep water. See
     /// [`crate::map::SpecialLevel::Island`].
     pub const ISLAND_CHANCE: f64 = 0.01;
-
-    /// Chance a doorway that stops a missile cracks and goes inert — see
-    /// [`crate::map::Map::inert_doors`].
-    pub const DOOR_BREAK_CHANCE: f64 = 0.5;
 }
 
 // ===========================================================================

@@ -15,9 +15,9 @@
 
 use crate::agents::{Action, Percept, Sighting, leashed, rule_set_for, think};
 use crate::components::*;
-use crate::effects::{Asleep, Blind, Clamped, Petrified, Pinned, Rooted, Stealthy, Swims};
+use crate::effects::{Asleep, Blind, Clamped, Petrified, Phasing, Pinned, Rooted, Stealthy, Swims};
 use crate::helpers::chebyshev;
-use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
+use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index};
 use bevy_ecs::prelude::*;
 use std::collections::{HashMap, HashSet};
 
@@ -109,6 +109,7 @@ pub fn ai(world: &mut World) {
         rounds += 1;
     }
 
+    let warded = door_ward(world, player_entity, player_pos);
     let map = world.resource::<Map>().clone();
 
     // Blindness is the player's problem, not the dungeon's. A blinded hero's
@@ -128,11 +129,34 @@ pub fn ai(world: &mut World) {
         player_faction,
         visible: &visible_tiles,
         stealthy: player_stealthy,
+        warded,
         map: &map,
     };
     for _round in 0..rounds {
         monster_round(world, &mut ctx);
     }
+}
+
+/// A doorway is a ward while the player's last turn was a step onto it: every
+/// hostile that can see them does nothing. Any other turn spent there — a
+/// swing, a throw, a spell, an item — cracks the frame for good (the map's
+/// inert doorways, drawn grey) and the ward with it.
+fn door_ward(world: &mut World, player: Entity, at: Position) -> bool {
+    let map = world.resource::<Map>();
+    if map.tile(at.x, at.y) != TileType::Door || map.is_inert_door(at.x, at.y) {
+        return false;
+    }
+    if world.get::<EntityMoved>(player).is_some() {
+        return true;
+    }
+    world
+        .resource_mut::<Map>()
+        .inert_doors
+        .insert(tile_index(at.x, at.y));
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::doorway_goes_inert());
+    false
 }
 
 /// Whether a mob standing on `mob_pos` knows where the player is this turn.
@@ -175,6 +199,9 @@ struct AiCtx<'a> {
     visible: &'a HashSet<(u16, u16)>,
     /// Whether the player is currently hard to notice — a ring of stealth.
     stealthy: bool,
+    /// Whether the player stands on an intact doorway they just stepped onto:
+    /// every hostile that can see them holds still (see [`door_ward`]).
+    warded: bool,
     map: &'a Map,
 }
 
@@ -271,6 +298,12 @@ fn step_one_mob(
     if !can_afford_step(world, mob, ctx.pass) {
         return false;
     }
+    if ctx.warded
+        && world.get::<Faction>(mob) == Some(&Faction::Monster)
+        && ctx.noticed_by(*world.get::<Position>(mob).unwrap())
+    {
+        return false;
+    }
 
     let percept = perceive(world, mob, ctx, spatial);
     let movement = world.get::<Mob>(mob).unwrap().movement_type;
@@ -324,6 +357,7 @@ fn perceive<'a>(
             || world.get::<Rooted>(mob).is_some()
             || world.get::<Clamped>(mob).is_some(),
         swims: world.get::<Swims>(mob).is_some(),
+        phasing: world.get::<Phasing>(mob).is_some(),
         launcher: crate::equipment::wielded_launcher(world, mob).is_some(),
         spellset: crate::abilities::INNATE_SPELLS
             .iter()
@@ -387,7 +421,10 @@ fn act(
     };
     let new_x = (at.x as i16 + dx) as u16;
     let new_y = (at.y as i16 + dy) as u16;
-    if !mob_can_enter(map, leashed, at, new_x, new_y, swims) {
+    // A phasing mob is stopped only by the map's edge.
+    let ghost = world.get::<Phasing>(mob).is_some();
+    let on_map = new_x < MAP_WIDTH && new_y < MAP_HEIGHT;
+    if !(on_map && (ghost || mob_can_enter(map, leashed, at, new_x, new_y, swims))) {
         return false;
     }
     let faction = *world.get::<Faction>(mob).unwrap();
@@ -486,7 +523,7 @@ fn mob_can_enter(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::{MAP_TILE_COUNT, tile_index};
+    use crate::map::MAP_TILE_COUNT;
     use fixedbitset::FixedBitSet;
 
     #[test]
