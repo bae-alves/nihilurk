@@ -12,6 +12,7 @@ Conflicts: correctness > my goal > repo convention. Cite repo evidence to resolv
 - Bugs you caused: fix. Pre-existing in-path: fix+report. Out-of-path: journal.
 - Arch/frameworks/major refactors: mine — ask if unclear. Multiple approaches→present options, never pick silently.
 - Plan Mode for major arch/multi-phase. Enforcement=hooks/permissions; docs=guidance.
+- Scripting: bash or lua. No other.  
 
 # Test/debug
 Reference code→match its patterns, not its description.

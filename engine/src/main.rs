@@ -274,6 +274,7 @@ fn main() -> std::io::Result<()> {
     let mut no_blood = false;
     let mut no_shake = false;
     let mut no_bones = false;
+    let mut endless = false;
     let mut list_content = false;
     let mut show_leaderboard = false;
     let mut pride_off = false;
@@ -323,6 +324,7 @@ fn main() -> std::io::Result<()> {
             "-nb" => no_blood = true,
             "-nshake" => no_shake = true,
             "-nobones" => no_bones = true,
+            "-endless" => endless = true,
             "-content" => list_content = true,
             "-scores" => show_leaderboard = true,
             "-pride" => {
@@ -553,6 +555,11 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(models::StartingBody(
         body.map(|(b, _)| b).unwrap_or_default(),
     ));
+
+    // `-endless`: no Element of Yoord ever spawns, so there is no way up and no
+    // way to win — every stair down leads to another floor. Has to be in place
+    // before `initialize_world`/`load_game` build or restore the first floor.
+    world.insert_resource(models::Endless { enabled: endless });
 
     match &load_path {
         Some(path) => {

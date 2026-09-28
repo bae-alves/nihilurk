@@ -18,6 +18,19 @@ fn test_world(seed: u64) -> World {
     w
 }
 
+fn endless_test_world(seed: u64) -> World {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
+    w.insert_resource(RngSeed(seed));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    w.insert_resource(Endless { enabled: true });
+    initialize_world(&mut w);
+    w
+}
+
 fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
@@ -157,6 +170,25 @@ fn deepest_floor_swaps_the_downstairs_for_the_element() {
     *w.get_mut::<Position>(p).unwrap() = epos;
     assert!(!change_level(&mut w, true));
     assert_eq!(w.resource::<Depth>().what, 13);
+}
+
+#[test]
+fn endless_mode_never_spawns_the_element_and_keeps_the_downstairs() {
+    let mut w = endless_test_world(7);
+    descend_to(&mut w, 13);
+
+    // Depth 13 still has its down-stair -- nothing swapped it out.
+    assert!(w.resource::<Map>().tiles.contains(&TileType::Downstairs));
+    assert_eq!(
+        w.query_filtered::<Entity, With<Amulet>>().iter(&w).count(),
+        0,
+        "the Element never spawns in endless mode"
+    );
+
+    // The dungeon keeps going: Depth 14 exists and still has a down-stair.
+    descend_to(&mut w, 14);
+    assert_eq!(w.resource::<Depth>().what, 14);
+    assert!(w.resource::<Map>().tiles.contains(&TileType::Downstairs));
 }
 
 #[test]

@@ -23,7 +23,7 @@ use crate::effects::{
     VorpalTarget, grant_all,
 };
 use crate::equipment::equip_silently;
-use crate::map::{FINAL_DEPTH, GameRng};
+use crate::map::{Endless, FINAL_DEPTH, GameRng};
 use crate::particles::{BlastPalette, Particles, on_map};
 use crate::spawn::pick_weighted;
 use crate::spirits::{
@@ -761,7 +761,8 @@ const MIMIC_LOOKS: &[(&str, char, Color)] = &[
 /// player hunting the real thing cannot help but walk up to.
 fn disguise_as_item(world: &mut World, mob: Entity, rng: &mut ChaCha12Rng) {
     let depth = world.get_resource::<Depth>().map_or(1, |d| d.what);
-    let (name, glyph, color): (&str, char, Color) = if depth >= FINAL_DEPTH {
+    let endless = world.get_resource::<Endless>().is_some_and(|e| e.enabled);
+    let (name, glyph, color): (&str, char, Color) = if depth >= FINAL_DEPTH && !endless {
         (crate::spawn::ELEMENT_OF_YOORD, '"', Color::Magenta)
     } else {
         MIMIC_LOOKS[rng.gen_range(0..MIMIC_LOOKS.len())]
