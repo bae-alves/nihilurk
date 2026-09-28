@@ -224,3 +224,77 @@ fn capitalised(name: &str) -> String {
         None => String::new(),
     }
 }
+
+fn logged(w: &World, line: &str) -> bool {
+    let log = w.resource::<GameLog>();
+    log.unread.iter().any(|e| e == line) || log.history.iter().any(|h| h == line)
+}
+
+#[test]
+fn an_apis_is_called_a_monster_on_the_first_turn() {
+    let w = test_world(7, Body::Monster(MonsterDef::named("apis")));
+    assert!(logged(&w, strings::you_monster()));
+}
+
+#[test]
+fn nobody_else_is_called_a_monster() {
+    for body in [Body::Nihil, Body::Monster(MonsterDef::named("dragon"))] {
+        let w = test_world(7, body);
+        assert!(!logged(&w, strings::you_monster()));
+    }
+}
+
+/// The `Map` alone for `(seed, depth)`, as an apis player would get it.
+fn bee_map_at(seed: u64, depth: u8) -> Map {
+    let mut w = World::new();
+    w.insert_resource(StartingBody(Body::Monster(MonsterDef::named("apis"))));
+    regenerate_map(&mut w, seed, depth);
+    w.remove_resource::<Map>().unwrap()
+}
+
+#[test]
+fn an_apis_run_makes_every_eligible_floor_a_bee_world() {
+    for seed in 0..40 {
+        for depth in constants::map::SPECIAL_LEVEL_MIN_DEPTH..FINAL_DEPTH {
+            let m = bee_map_at(seed, depth);
+            assert_eq!(
+                m.level,
+                Some(SpecialLevel::BeeWorld),
+                "seed {seed} depth {depth}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_apis_run_only_has_hives_for_special_rooms_about_a_tenth_of_the_time() {
+    let (mut rooms, mut hives) = (0usize, 0usize);
+    for seed in 0..300 {
+        let m = bee_map_at(seed, 3);
+        assert_eq!(m.level, None);
+        let kinds: Vec<_> = m.special.iter().flatten().collect();
+        assert!(kinds.iter().all(|k| **k == SpecialRoom::TreasureHive));
+        hives += (!kinds.is_empty()) as usize;
+        rooms += 1;
+    }
+    // A floor has ~4 rooms that can be a hive, so 10% each is about a third of
+    // floors: far above the 1.25% a normal run gets, far below every floor.
+    assert!(
+        hives * 10 > rooms * 2 && hives * 10 < rooms * 6,
+        "{hives} of {rooms} floors had a hive"
+    );
+}
+
+#[test]
+fn a_saved_apis_run_stays_a_bee_run() {
+    let mut w = test_world(7, Body::Monster(MonsterDef::named("apis")));
+    let path = std::env::temp_dir().join("nihilurk-bee-save-test.sav");
+    let path = path.to_str().unwrap();
+    save_game(&mut w, path).unwrap();
+    let mut loaded = World::new();
+    load_game(&mut loaded, path).unwrap();
+    std::fs::remove_file(path).ok();
+    let depth = constants::map::SPECIAL_LEVEL_MIN_DEPTH;
+    regenerate_map(&mut loaded, 7, depth);
+    assert_eq!(loaded.resource::<Map>().level, Some(SpecialLevel::BeeWorld));
+}

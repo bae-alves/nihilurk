@@ -305,7 +305,7 @@ fn step_depth(world: &mut World, going_down: bool) -> u8 {
 /// stand the player in one and to populate the rest.
 fn build_the_floor(world: &mut World, depth: u8) -> Rooms {
     let seed = world.resource::<RngSeed>().0;
-    let (map, rooms) = build_floor(seed, depth);
+    let (map, rooms) = build_floor(seed, depth, crate::body::bee_run(world));
     world.insert_resource(map);
     world.resource_mut::<BloodStains>().clear();
     world.resource_mut::<Smoke>().clear();

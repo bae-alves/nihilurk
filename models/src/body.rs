@@ -64,6 +64,12 @@ impl Body {
     pub fn brings_a_pack(self) -> bool {
         matches!(self, Body::Nihil)
     }
+
+    /// Whether this is `-am apis`, which turns the whole dungeon into the
+    /// bees' (see [`crate::map::SpecialLevel::BeeWorld`]).
+    pub fn is_bee(self) -> bool {
+        matches!(self, Body::Monster(def) if def.name == "apis")
+    }
 }
 
 /// Which body the *next* player spawned wakes up in. Read once, by
@@ -75,6 +81,15 @@ impl Body {
 /// starting pack only to take it away.
 #[derive(Resource, Default)]
 pub struct StartingBody(pub Body);
+
+/// Whether this run is a bee run. Layout is pure in `(seed, depth)` and
+/// nothing else, so the body it depends on has to be somewhere floors can
+/// read: [`StartingBody`], which a load restores from the saved player.
+pub fn bee_run(world: &World) -> bool {
+    world
+        .get_resource::<StartingBody>()
+        .is_some_and(|b| b.0.is_bee())
+}
 
 /// Puts `body` on the freshly spawned `player`. A no-op for nihil, who is
 /// what the spawn already built.

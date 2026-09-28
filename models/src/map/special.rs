@@ -35,7 +35,7 @@ use super::{
 /// the content author's way to look at a kind without hunting for a seed
 /// that has one, the same kind of knob `NIHILURK_SPAWN` is. A value that
 /// names no kind is ignored.
-pub(super) fn roll_special_level(seed: u64, depth: u8) -> Option<SpecialLevel> {
+pub(super) fn roll_special_level(seed: u64, depth: u8, bees: bool) -> Option<SpecialLevel> {
     if let Some(forced) = std::env::var("NIHILURK_LEVEL")
         .ok()
         .and_then(|v| SpecialLevel::named(&v))
@@ -44,6 +44,9 @@ pub(super) fn roll_special_level(seed: u64, depth: u8) -> Option<SpecialLevel> {
     }
     if !(SPECIAL_LEVEL_MIN_DEPTH..FINAL_DEPTH).contains(&depth) {
         return None;
+    }
+    if bees {
+        return Some(SpecialLevel::BeeWorld);
     }
     const TABLE: [(f64, SpecialLevel); 6] = [
         (BATTLEFIELD_CHANCE, SpecialLevel::Battlefield),

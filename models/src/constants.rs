@@ -225,6 +225,10 @@ pub mod map {
     /// apis. See [`crate::map::SpecialRoom::TreasureHive`].
     pub const TREASURE_HIVE_CHANCE: f64 = 0.0125;
 
+    /// Chance a room past the starting one is a hive when the player is an
+    /// apis (`-am apis`), the only special room such a run has.
+    pub const BEE_RUN_HIVE_CHANCE: f64 = 0.10;
+
     /// Chance a room past the starting one holds a normal item budget that
     /// vanishes down to one the moment any of it is picked up. See
     /// [`crate::map::SpecialRoom::RedRoom`].
@@ -721,9 +725,9 @@ pub mod spirits {
     /// good.
     pub const ALIGNMENT_POLE: i8 = 3;
 
-    /// The spawn weight every spirit row gets: a quarter of an ordinary
+    /// The spawn weight every spirit row gets: an eighth of an ordinary
     /// monster's default ([`crate::constants::monsters::DEFAULT_SPAWN_WEIGHT`]).
-    pub const SPAWN_WEIGHT: u32 = crate::constants::monsters::DEFAULT_SPAWN_WEIGHT / 4;
+    pub const SPAWN_WEIGHT: u32 = crate::constants::monsters::DEFAULT_SPAWN_WEIGHT / 8;
 
     /// Odds, when a row with [`crate::monsters::MonsterDef::pairs_companion`]
     /// spawns, that it also brings two of its companion along.

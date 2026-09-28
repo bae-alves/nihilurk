@@ -462,6 +462,10 @@ pub fn welcome_back() -> &'static str {
     "De volta ao nihilurk! Boa sorte e divirta-se!"
 }
 
+pub fn you_monster() -> &'static str {
+    "Monstro."
+}
+
 // ---------------------------------------------------------------------------
 // engine/src/view.rs
 // ---------------------------------------------------------------------------

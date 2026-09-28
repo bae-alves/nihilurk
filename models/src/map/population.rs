@@ -332,9 +332,9 @@ fn spawn_monster_budget(
 
 /// A row's [`MonsterDef::pairs_companion`] paying off: on
 /// [`crate::constants::spirits::PAIR_CHANCE`], up to two more of `name` land
-/// on a walkable tile next door to `(x, y)`, one adjacency try each. A tile
-/// that's a wall, water or already taken just means one fewer companion —
-/// the floor never reaches past next-door looking for room.
+/// on a walkable tile next door to `(x, y)`. All eight neighbours are
+/// shuffled and tried in that order, so a wall or water on one side doesn't
+/// cost the companion its spot — only a `(x, y)` boxed in on every side does.
 fn spawn_companion_pair(
     world: &mut World,
     (x, y): (u16, u16),
@@ -346,25 +346,29 @@ fn spawn_companion_pair(
         return;
     }
     let def = MonsterDef::named(name);
-    for _ in 0..2 {
-        let (dx, dy) = *[
-            (-1, -1),
-            (-1, 0),
-            (-1, 1),
-            (0, -1),
-            (0, 1),
-            (1, -1),
-            (1, 0),
-            (1, 1),
-        ]
-        .choose(rng)
-        .expect("nonempty");
+    let mut neighbors = [
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+        (0, -1),
+        (0, 1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+    ];
+    neighbors.shuffle(rng);
+    let mut placed = 0;
+    for (dx, dy) in neighbors {
+        if placed == 2 {
+            break;
+        }
         let (nx, ny) = (x.saturating_add_signed(dx), y.saturating_add_signed(dy));
         if !world.resource::<Map>().walkable(nx, ny, false) {
             continue;
         }
         if occupied.insert((nx, ny)) {
             spawn_monster_with_rng(world, def, Position { x: nx, y: ny }, rng);
+            placed += 1;
         }
     }
 }

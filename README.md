@@ -1,7 +1,7 @@
 nihilurk
 ====
 
-A classic roguelike about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets, a lot of punch.
+A Rogue retroclone about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets, a lot of punch.
 
 If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
 
