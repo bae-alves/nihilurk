@@ -49,7 +49,8 @@ use super::generate::{build_floor, create_map, find_tile};
 use super::population::{difficulty_tier, populate_level};
 use super::streams::{FxRng, GameRng, RngSeed};
 use super::{
-    DUNGEON_LORD_PATIENCE, FINAL_DEPTH, MAP_TILE_COUNT, Map, Rooms, TileType, special_level_arrival,
+    DUNGEON_LORD_PATIENCE, Endless, FINAL_DEPTH, MAP_TILE_COUNT, Map, Rooms, TileType,
+    special_level_arrival,
 };
 
 // Unbuilding the last one. Blood, corpses and smoke are floor-local: none of
@@ -539,7 +540,7 @@ pub fn dungeon_lord_system(world: &mut World) {
         transition_level(world, false, LevelChange::Portal);
         return;
     }
-    if depth >= FINAL_DEPTH {
+    if depth >= FINAL_DEPTH && !world.resource::<Endless>().enabled {
         world
             .resource_mut::<GameLog>()
             .add(strings::portal_no_deeper_floor());
@@ -556,6 +557,7 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(Smoke::new());
     world.insert_resource(Corpses::new());
     world.init_resource::<crate::bones::Bones>();
+    world.init_resource::<Endless>();
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.init_resource::<crate::score::ScoreFlash>();
     world.init_resource::<crate::score::Combo>();

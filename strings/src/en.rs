@@ -396,6 +396,7 @@ OPTIONS
     -nb              disable blood and corpse animation
     -nshake          disable screen shake
     -nobones         skip the bones mechanic (saving and loading a run's own)
+    -endless         no Element of Yoord, no way up, no way to win: just floors
     -anim-rate N     set animation pacing multiplier (0.1..=5.0)
     -b BODY          play as nihil (default) or lurk
     -am SPECIES      play as a monster: any bestiary name, e.g. -am dragon

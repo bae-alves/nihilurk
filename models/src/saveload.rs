@@ -60,7 +60,7 @@ use crate::effects::{
 };
 use crate::equipment::{Equipped, Slot};
 use crate::map::{
-    BloodStains, Corpses, FINAL_DEPTH, FxRng, GameRng, Map, RngSeed, Smoke, TileType,
+    BloodStains, Corpses, Endless, FINAL_DEPTH, FxRng, GameRng, Map, RngSeed, Smoke, TileType,
     regenerate_map,
 };
 use crate::monsters::MonsterDef;
@@ -492,7 +492,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     // The deepest floor has no down-stair: the seed-built map still carries one,
     // so carve it back to plain floor. The Element of Yoord entity (or its place
     // in the pack) comes back from the save itself.
-    if save.depth >= FINAL_DEPTH {
+    let endless = world.get_resource::<Endless>().is_some_and(|e| e.enabled);
+    if save.depth >= FINAL_DEPTH && !endless {
         let mut map = world.resource_mut::<Map>();
         if let Some(i) = map.tiles.iter().position(|&t| t == TileType::Downstairs) {
             map.tiles[i] = TileType::Room;

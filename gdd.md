@@ -104,8 +104,7 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- More player character options
-- Very Rare scroll-type items (1/8 weight). The Decks of Cards. Each comes with 5 cards. The cards are decided and stacked when the item is rolled, but cannot be used individually, like a wand but a scroll and what it does is defined by what's on the top of a stack the cards are:
+- Very Rare scroll-type items (1/8 weight). The Decks of Cards. Each comes with 5 cards. The cards are decided and stacked when the item is rolled, but cannot be used individually, what it does is defined by what's on the top of a stack the cards are:
     - The Joker: Random effect from another card. It's what makes the draw chain into absurdity
     - King of Clubs: Recharges Wands
     - Prince of Swords: Enchant weapon
@@ -133,10 +132,13 @@ English, Portuguese and Spanish. A classic roguelike in non-English is important
     -Three of a Kind (100000 points): threed effect triggers thrice
     -Full House (500000 points): threed and paired effect trigger thrice and twice respectively
     -Four of a Kind (1000000 points): quartered effect triggers four times
-    -Five of a Kind (5000000 points): If you have pack space, you get the Element. Just get out of here. If you don't have space, the Element destroys your inventory and puts itself in it. Also adornment activates cosmetically.
+    -Five Flush! (5000000 points): If you have pack space, you get the Element. Just get out of here. If you don't have space, the Element destroys your inventory and puts itself in it. Also adornment activates cosmetically.
     -For evaluation, FOOL counts as a *wildcard*
-- Charms (*): they bind to the character who uses them/gets them by throw. They offer persistent grants but do lock the invetory slot if they're on backpack. They never drop from monsters.
-    -
-- Tools (|): like scrolls but are not consumed, they become 'inert' instead. When you hit stairs a random one recovers.
-    -
+- Charms (*): quarter weight in the rings table.  They bind to the character who uses them/gets them by throw. They offer persistent grants but do lock the invetory slot if they're on backpack. They never drop from slain monsters.
+    - Battle charm - as ring of increase damage +1
+    - Tough charm - as ring of protection +1
+    - Vampire charm - kills heal 1 HP
+    - Sniper charm - as ring of sharpshooting +1
+    - Moon charm - Cycling strength bonus (-3 to +3 to -3 to +3 to...)
+- More player character options
 - Steam

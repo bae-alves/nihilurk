@@ -99,7 +99,7 @@ fn random_tile(room: &[(u16, u16)], rng: &mut ChaCha12Rng) -> (u16, u16) {
 /// On the deepest floor, replaces the down-stair with the Element of Yoord. A
 /// no-op on every shallower floor.
 fn place_element_of_yoord(world: &mut World, occupied: &mut HashSet<(u16, u16)>, depth: u8) {
-    if depth < FINAL_DEPTH {
+    if depth < FINAL_DEPTH || world.resource::<super::Endless>().enabled {
         return;
     }
     let Some((ex, ey)) = find_tile(&world.resource::<Map>().tiles, TileType::Downstairs) else {

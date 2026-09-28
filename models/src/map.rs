@@ -54,6 +54,15 @@ pub(crate) use levels::{LevelChange, transition_level, win_with_style};
 pub use crate::constants::map::{HEIGHT as MAP_HEIGHT, WIDTH as MAP_WIDTH};
 pub use crate::constants::progression::{DUNGEON_LORD_PATIENCE, FINAL_DEPTH};
 
+/// `-endless`: the Element of Yoord never spawns, so there is no way up and
+/// no way to win — the dungeon just keeps going down past [`FINAL_DEPTH`].
+/// Everything downstream that treats `depth >= FINAL_DEPTH` as "the Element
+/// took the down-stair" checks this first.
+#[derive(Resource, Default)]
+pub struct Endless {
+    pub enabled: bool,
+}
+
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum TileType {
     Wall,
