@@ -1045,6 +1045,10 @@ pub fn potion_arrival(depth: u8) -> String {
     )
 }
 
+pub fn lost_in_the_fall(name: &str) -> String {
+    format!("¡Tu {name} se cae de la mochila y se pierde en la caída!")
+}
+
 pub fn descend_stairs(depth: u8) -> String {
     format!("Descenso por la escalera. (Profundidad {depth})")
 }
@@ -1301,6 +1305,9 @@ pub fn potion_water() -> &'static str {
 }
 pub fn potion_flavour_mob() -> &'static str {
     "se relame los labios"
+}
+pub fn potion_adjustment_player() -> &'static str {
+    "Una ola de calma te envuelve. El tirón que sentías desaparece."
 }
 
 // ---------------------------------------------------------------------------
@@ -1629,6 +1636,25 @@ pub fn create_monster_line(_article: &str, name: &str) -> String {
         "¡El aire se cuaja en {} {name}, dientes y todo!",
         indef_article(name)
     )
+}
+
+pub fn charm_fizzles() -> &'static str {
+    "La varita destella, pero no hay nada aquí que encantar."
+}
+pub fn charm_self() -> &'static str {
+    "Te sientes lo más adorable que te has sentido jamás."
+}
+pub fn charm_target_line(name: &str) -> String {
+    format!(
+        "{} {name} te mira con ojos de adoración — ¡ahora es tuyo!",
+        cap_article(name)
+    )
+}
+pub fn charm_room_some() -> &'static str {
+    "Todas las miradas de la sala se vuelven hacia ti, rendidas."
+}
+pub fn charm_room_none() -> &'static str {
+    "El pergamino brilla de encanto, pero no hay nada aquí para atraparlo."
 }
 
 pub fn vorpalize_fizzles() -> &'static str {
@@ -2093,6 +2119,10 @@ pub fn depth_label() -> &'static str {
     "PROF."
 }
 
+pub fn time_label() -> &'static str {
+    "TIEMPO"
+}
+
 pub fn travel_cursor_prompt() -> &'static str {
     "¿Moverse hacia dónde?"
 }
@@ -2109,6 +2139,10 @@ pub fn quit_answers() -> &'static str {
 
 pub fn spells_menu_title() -> &'static str {
     " HECHIZOS "
+}
+
+pub fn offer_menu_title() -> &'static str {
+    " ELIGE UNO "
 }
 
 // ---------------------------------------------------------------------------
@@ -2187,6 +2221,46 @@ pub fn pronoun_something() -> &'static str {
 
 pub fn adjective_sees_unseen() -> &'static str {
     "capaz de ver lo invisible"
+}
+
+pub fn challenge_the_balance() -> &'static str {
+    "¡Desafías el equilibrio!"
+}
+
+pub fn spirit_does_nothing(name: &str) -> String {
+    format!("{} no te presta atención.", capital_the(name))
+}
+
+pub fn barter_satisfied() -> &'static str {
+    "El espíritu desaparece con un chasquido, satisfecho."
+}
+
+pub fn barter_your_side() -> &'static str {
+    " MOCHILA "
+}
+
+pub fn barter_their_side() -> &'static str {
+    " OTRO LADO "
+}
+
+pub fn barter_confirm_row() -> &'static str {
+    "[ Intercambiar ]"
+}
+
+pub fn red_demon_grunts(name: &str) -> String {
+    format!("{} gruñe, nada impresionado.", capital_the(name))
+}
+
+pub fn pink_demon_submits() -> &'static str {
+    "Despojado de sus galas robadas, el demonio gimotea y se entrega a tu servicio."
+}
+
+pub fn pink_demon_turns() -> &'static str {
+    "El demonio suelta una carcajada y se vuelve contra ti, sin importarle su ropaje."
+}
+
+pub fn angel_tests_your_faith() -> &'static str {
+    "¡Pone a prueba tu fe!"
 }
 
 pub fn equipped_suffix() -> &'static str {

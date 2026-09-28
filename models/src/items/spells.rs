@@ -20,6 +20,7 @@
 use bevy_ecs::{entity::Entity, world::World};
 use crossterm::style::Color;
 use rand::Rng;
+use rand::seq::SliceRandom;
 
 use crate::components::*;
 use crate::conditions::{cure_one_condition, hasten, paralyse};
@@ -33,7 +34,7 @@ use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::{TrapBundle, spring_trap, trap_at, trap_damage_tier};
 
-use super::wands::{dazzle, elemental_blast};
+use super::wands::{apply_wand_effect, dazzle, elemental_blast};
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `crate::constants::wands` / `crate::constants::traps`
@@ -156,7 +157,22 @@ pub(crate) fn apply_spell_effect(
             super::scrolls::apply_scroll_effect(world, user, ScrollEffect::MagicMapping)
         }
         SpellEffect::HasteSelf => haste_self(world, user),
+        SpellEffect::RandomWand => random_wand_throw(world, user, target),
     }
+}
+
+/// The gnome's whole trick: a random wand, generated and discharged on the
+/// spot through the same [`apply_wand_effect`] an actual wand's zap goes
+/// through, so its magic stings exactly as hard as the real thing.
+fn random_wand_throw(world: &mut World, user: Entity, target: Position) {
+    let effect = {
+        let mut rng = world.resource_mut::<GameRng>();
+        crate::catalog::WANDS.choose(&mut rng.0).map(|w| w.effect)
+    };
+    let Some(effect) = effect else {
+        return;
+    };
+    apply_wand_effect(world, user, Some(target), effect);
 }
 
 // ---------------------------------------------------------------------------

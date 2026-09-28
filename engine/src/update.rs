@@ -469,6 +469,12 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     if world.resource::<SpellsMenu>().open {
         return handle_spells_input(world, key);
     }
+    if world.resource::<OfferMenu>().open {
+        return handle_offer_input(world, key);
+    }
+    if world.resource::<BarterMenu>().open {
+        return handle_barter_input(world, key);
+    }
     handle_movement_input(world, key)
 }
 
@@ -495,6 +501,16 @@ fn close_all_modals(world: &mut World) -> bool {
     let mut menu = world.resource_mut::<SpellsMenu>();
     if menu.open {
         menu.open = false;
+        closed = true;
+    }
+    let mut offer = world.resource_mut::<OfferMenu>();
+    if offer.open {
+        offer.open = false;
+        offer.options.clear();
+        closed = true;
+    }
+    if world.resource::<BarterMenu>().open {
+        cancel_barter(world);
         closed = true;
     }
     let mut quit = world.resource_mut::<QuitPrompt>();
@@ -1453,6 +1469,121 @@ fn handle_spells_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool
     fire_spell(world, idx)
 }
 
+/// A keypress while a spirit's "choose one of three" offer menu is up:
+/// navigate, jump straight to a row by its letter, confirm, or cancel. A
+/// spirit's melee already spent the turn that opened this menu, so
+/// confirming never spends another — [`models::spirits::confirm_offer`]
+/// only applies whichever option was picked.
+fn handle_offer_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    let row_count = world.resource::<OfferMenu>().options.len();
+    let selected = world.resource::<OfferMenu>().selected;
+
+    let mut close = false;
+    let mut pick = None;
+    match key.code {
+        KeyCode::Esc => close = true,
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('8') => {
+            world.resource_mut::<OfferMenu>().selected = (selected + row_count - 1) % row_count;
+        }
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('2') => {
+            world.resource_mut::<OfferMenu>().selected = (selected + 1) % row_count;
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => pick = Some(selected),
+        KeyCode::Char(c) if c.is_ascii_lowercase() => {
+            let idx = c as usize - 'a' as usize;
+            if idx < row_count {
+                pick = Some(idx);
+            }
+        }
+        _ => {}
+    }
+
+    if close {
+        let mut menu = world.resource_mut::<OfferMenu>();
+        menu.open = false;
+        menu.options.clear();
+        return Ok(false);
+    }
+    let Some(idx) = pick else {
+        return Ok(false);
+    };
+    let choice = world.resource::<OfferMenu>().options[idx];
+    let player = player_entity(world);
+    confirm_offer(world, player, choice);
+    world.resource_mut::<OfferMenu>().options.clear();
+    Ok(false)
+}
+
+/// A keypress while the barter menu is up: left/right switches columns,
+/// up/down moves the cursor within one, Enter/Space toggles the row under it
+/// in or out of the trade — except on the player column's trailing "confirm
+/// the trade" row, which instead closes the deal via
+/// [`models::spirits::confirm_barter`]. Esc backs out with nothing moved.
+/// Never spends a turn: the melee that opened this already did.
+fn handle_barter_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    let (column, cursor, player_rows, demon_rows) = {
+        let menu = world.resource::<BarterMenu>();
+        (
+            menu.column,
+            menu.cursor,
+            menu.player_side.len(),
+            menu.demon_side.len(),
+        )
+    };
+    // The player column carries one extra virtual row past its items: the
+    // "confirm the trade" button.
+    let row_count = match column {
+        BarterColumn::Player => player_rows + 1,
+        BarterColumn::Demon => demon_rows.max(1),
+    };
+
+    let mut close = false;
+    let mut confirm = false;
+    let mut toggle = false;
+    match key.code {
+        KeyCode::Esc => close = true,
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('8') => {
+            world.resource_mut::<BarterMenu>().cursor = (cursor + row_count - 1) % row_count;
+        }
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('2') => {
+            world.resource_mut::<BarterMenu>().cursor = (cursor + 1) % row_count;
+        }
+        KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('4') => {
+            let mut menu = world.resource_mut::<BarterMenu>();
+            menu.column = BarterColumn::Player;
+            menu.cursor = 0;
+        }
+        KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('6') => {
+            if demon_rows > 0 {
+                let mut menu = world.resource_mut::<BarterMenu>();
+                menu.column = BarterColumn::Demon;
+                menu.cursor = 0;
+            }
+        }
+        KeyCode::Enter | KeyCode::Char(' ') => {
+            if column == BarterColumn::Player && cursor == player_rows {
+                confirm = true;
+            } else {
+                toggle = true;
+            }
+        }
+        _ => {}
+    }
+
+    if close {
+        cancel_barter(world);
+        return Ok(false);
+    }
+    if toggle {
+        toggle_barter_selection(world);
+    }
+    if confirm {
+        let player = player_entity(world);
+        confirm_barter(world, player);
+    }
+    Ok(false)
+}
+
 /// `A`: flip whether auto-explore detours to pick things up, and say which way
 /// it landed. A preference, not an action — no turn is spent.
 fn toggle_auto_pickup(world: &mut World) {
@@ -1929,6 +2060,8 @@ mod tests {
         w.init_resource::<AttackQueue>();
         w.init_resource::<SpellQueue>();
         w.init_resource::<SpellsMenu>();
+        w.init_resource::<OfferMenu>();
+        w.init_resource::<BarterMenu>();
         w.insert_resource(TargetingState {
             active: false,
             item: None,

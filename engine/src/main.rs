@@ -517,6 +517,8 @@ fn main() -> std::io::Result<()> {
         cursor_y: 0,
     });
     world.init_resource::<SpellsMenu>();
+    world.init_resource::<OfferMenu>();
+    world.init_resource::<BarterMenu>();
     world.init_resource::<QuitPrompt>();
     world.insert_resource(PlayerName {
         what: player_name.to_ascii_uppercase(),

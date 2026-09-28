@@ -38,6 +38,7 @@ use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
 
+use crate::catalog::{ArmorDef, ItemDef, RingDef, WeaponDef};
 use crate::effects::{ColdImmune, FireImmune, Grant, Undead};
 
 /// The most a single pack slot will hold before the overflow spills into a
@@ -91,11 +92,139 @@ pub struct Renderable {
 
 /// Whose side an actor is on. Monsters fight the player and (in principle) spare
 /// each other; `Ally` fights the monsters. A [`Helper`] is an `Ally`.
+///
+/// `Spirits` is its own side: peaceful toward everyone until
+/// [`SpiritsHostile`] flips, at which point it reads hostile toward the
+/// player and their allies exactly like `Monster` does. See
+/// [`crate::ai::hostile`].
+///
+/// Appended, not filed under M: a save encodes a variant by its position
+/// (`postcard`), so new variants only ever go at the end.
 #[derive(Component, PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Faction {
     Player,
     Monster,
     Ally,
+    Spirits,
+}
+
+/// The hidden pull between the demons (cacodaemons) and the angels/sphynx/
+/// elves (eudaemons): `-3` is fully cacodaemon-aligned, `3` fully
+/// eudaemon-aligned, `0` neutral. Interacting with a cacodaemon spirit moves
+/// this by `-1`, a eudaemon spirit by `+1`. Reaching either pole flips
+/// [`SpiritsHostile`] for good. A player-only stat, so it lives on the
+/// player entity the same way [`Fighter`]/[`Spellset`] do rather than as a
+/// bare resource.
+#[derive(Component, Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub struct Alignment(pub i8);
+
+/// Whether the spirits have turned on the player for good this run: either
+/// [`Alignment`] reached a pole, or the player landed a direct hit (melee or
+/// a fired/thrown shot — never an AoE blast or a trap) on a peaceful spirit.
+/// Permanent once set; there is no path back down except starting a new run.
+#[derive(Resource, Default, Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct SpiritsHostile(pub bool);
+
+/// Which way a spirit's row pulls [`Alignment`] when the player interacts
+/// with it peacefully: a cacodaemon (the demons) by `-1`, a eudaemon (the
+/// angel, sphynx, sylphid, salamander, undyne, gnome) by `+1`. Set from
+/// `crate::monsters::MonsterDef::spirit_kind`, not saved — cheap to rebuild
+/// from the bestiary row on load, the same way `Grants` is.
+#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SpiritKind {
+    Cacodaemon,
+    Eudaemon,
+}
+
+/// What melee does to a peaceful [`Faction::Spirits`] mob instead of a normal
+/// attack: opens a menu, teaches a spell, unmakes the player's gear —
+/// whatever that species' row says. `None` (no component at all) falls back
+/// to a generic "nothing happens" line — see `crate::spirits::trigger_event`.
+/// Set from `crate::monsters::MonsterDef::spirit_event`, not saved, for the
+/// same reason as [`SpiritKind`].
+#[derive(Component, Clone, Copy)]
+pub struct SpiritEvent(pub fn(&mut World, Entity, Entity));
+
+/// The angel's blessing, pending: set the instant its "Tests your faith!"
+/// event fires, cleared the next time the player takes any staircase. See
+/// [`crate::spirits::apply_test_of_faith`].
+#[derive(Component, Default)]
+pub struct TestOfFaithLedger;
+
+/// One thing a spirit's "choose one of three" menu is offering — the blue
+/// demon's spells, the sylphid's weapons, the salamander's armor, undyne's
+/// rings. See [`crate::spirits`].
+#[derive(Clone, Copy)]
+pub enum OfferOption {
+    Spell(SpellEffect),
+    Weapon(&'static WeaponDef),
+    Armor(&'static ArmorDef),
+    Ring(&'static RingDef),
+}
+
+impl OfferOption {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            OfferOption::Spell(effect) => crate::catalog::SpellDef::of(*effect).display_name(),
+            OfferOption::Weapon(def) => def.display_name(),
+            OfferOption::Armor(def) => def.display_name(),
+            OfferOption::Ring(def) => def.display_name(),
+        }
+    }
+}
+
+/// The "choose one of three" menu: open, which row the cursor sits on, and
+/// exactly what was rolled to offer — rolled once, when the spirit's event
+/// opens it, so backing out and reopening the menu is not how this is done
+/// (a spirit only ever gets one interaction). See
+/// [`crate::spirits::open_offer_menu`], and the `Z` [`SpellsMenu`] this is
+/// modeled on.
+#[derive(Resource, Default)]
+pub struct OfferMenu {
+    pub open: bool,
+    pub selected: usize,
+    pub options: Vec<OfferOption>,
+    /// The spirit whose event opened this menu, if a spirit's did — it
+    /// poofs once the player confirms a choice (not on cancel, so a
+    /// player who backs out can just melee it again). `None` for anything
+    /// that reaches this menu some other way.
+    pub source: Option<Entity>,
+}
+
+/// One thing that can sit on either side of a [`BarterMenu`]: an entity in a
+/// pack (the yellow demon's trade) or a spell either side already knows or
+/// offers (the sphynx's). See [`crate::spirits`].
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Tradeable {
+    Item(Entity),
+    Spell(SpellEffect),
+}
+
+/// Which column the cursor is in.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum BarterColumn {
+    #[default]
+    Player,
+    Demon,
+}
+
+/// The barter menu: the yellow demon's item trade, or the sphynx's spell
+/// trade — same shape either way. `player_side`/`demon_side` are the full
+/// pools each column lists (rolled or read once, when the menu opens);
+/// `player_selected`/`demon_selected` are what's currently staged to change
+/// hands. Confirming moves every selected [`Tradeable`] the way it says to
+/// and poofs the demon; cancelling moves nothing. See
+/// [`crate::spirits::confirm_barter`].
+#[derive(Resource, Default)]
+pub struct BarterMenu {
+    pub open: bool,
+    pub demon: Option<Entity>,
+    pub column: BarterColumn,
+    pub cursor: usize,
+    pub player_side: Vec<Tradeable>,
+    pub demon_side: Vec<Tradeable>,
+    pub player_selected: Vec<Tradeable>,
+    pub demon_selected: Vec<Tradeable>,
 }
 
 /// The player's boon companion: the one [`Faction::Ally`] that follows them
@@ -499,6 +628,9 @@ pub enum PotionEffect {
     Water,
     // Appended, not filed under M: a save encodes a variant as its position.
     Magic,
+    /// Resets `Alignment` to neutral. Appended after `Magic` for the same
+    /// reason.
+    Adjustment,
 }
 
 /// Type-key for a scroll. Mechanic: the `scrolls` submodule of `crate::items`.
@@ -529,6 +661,9 @@ pub enum ScrollEffect {
     /// 1... 2... Poof! Forgets one random spell off the reader's [`Spellset`]
     /// and every tile they have ever seen on this floor.
     Amnesia,
+    /// Every monster the reader can see is charmed — a plain
+    /// [`Faction::Ally`], the same as [`WandEffect::Charming`] lands on one.
+    Charming,
 }
 
 /// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`
@@ -556,6 +691,11 @@ pub enum WandEffect {
     TeleportAway,
     TeleportTo,
     Cancellation,
+    /// Tames the monster on the target tile: a plain [`Faction::Ally`], not
+    /// the [`Helper`] — it fights at your side but doesn't follow downstairs,
+    /// and taking a second one doesn't retire a first. See
+    /// [`crate::companion::charm`].
+    Charming,
 }
 
 impl WandEffect {
@@ -589,6 +729,10 @@ pub enum SpellEffect {
     FrostNova,
     MagicMapping,
     HasteSelf,
+    // Appended, not filed under R: a save encodes a variant as its position.
+    // Never in `catalog::SPELLS` — the gnome's innate wand-throw, not a
+    // spell any player ever learns or sees in the `Z` menu.
+    RandomWand,
 }
 
 impl SpellEffect {

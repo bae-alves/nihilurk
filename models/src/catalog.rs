@@ -156,6 +156,7 @@ pub const POTIONS: &[PotionDef] = &[
     PotionDef { effect: PotionEffect::Blindness,       name: "potion of blindness",        color: Color::DarkGrey },
     PotionDef { effect: PotionEffect::FruitJuice,      name: "potion of fruit juice",      color: Color::DarkYellow },
     PotionDef { effect: PotionEffect::Magic,           name: "potion of magic",            color: Color::Blue },
+    PotionDef { effect: PotionEffect::Adjustment,      name: "potion of adjustment",       color: Color::DarkCyan },
 ];
 
 // ---------------------------------------------------------------------------
@@ -212,6 +213,7 @@ pub const SCROLLS: &[ScrollDef] = &[
     ScrollDef { effect: ScrollEffect::AggravateMonsters, name: "scroll of aggravate monsters" },
     ScrollDef { effect: ScrollEffect::VorpalizeWeapon,   name: "scroll of vorpalize weapon" },
     ScrollDef { effect: ScrollEffect::Amnesia,           name: "scroll of amnesia" },
+    ScrollDef { effect: ScrollEffect::Charming,          name: "scroll of charming" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -270,6 +272,7 @@ pub const WANDS: &[WandDef] = &[
     WandDef { effect: WandEffect::TeleportAway, name: "wand of teleport away", color: Color::Green,       range: 8 },
     WandDef { effect: WandEffect::TeleportTo,   name: "wand of teleport to",   color: Color::Green,       range: 8 },
     WandDef { effect: WandEffect::Cancellation, name: "wand of cancellation",  color: Color::DarkMagenta, range: 6 },
+    WandDef { effect: WandEffect::Charming,     name: "wand of charming",      color: Color::Magenta,     range: 6 },
 ];
 
 // ---------------------------------------------------------------------------

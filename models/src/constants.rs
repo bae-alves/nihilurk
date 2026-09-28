@@ -715,6 +715,26 @@ pub mod monsters {
 }
 
 // ===========================================================================
+// Spirits
+// ===========================================================================
+
+/// The neutral faction. See [`crate::spirits`].
+pub mod spirits {
+    /// How far [`crate::components::Alignment`] can drift toward either
+    /// pole. Reaching it flips [`crate::components::SpiritsHostile`] for
+    /// good.
+    pub const ALIGNMENT_POLE: i8 = 3;
+
+    /// The spawn weight every spirit row gets: a quarter of an ordinary
+    /// monster's default ([`crate::constants::monsters::DEFAULT_SPAWN_WEIGHT`]).
+    pub const SPAWN_WEIGHT: u32 = crate::constants::monsters::DEFAULT_SPAWN_WEIGHT / 4;
+
+    /// Odds, when a row with [`crate::monsters::MonsterDef::pairs_companion`]
+    /// spawns, that it also brings two of its companion along.
+    pub const PAIR_CHANCE: f64 = 0.3;
+}
+
+// ===========================================================================
 // Helpers
 // ===========================================================================
 
@@ -723,6 +743,15 @@ pub mod helpers {
     /// The odds a creature accepts the right treat and becomes your Helper.
     /// The treat is eaten either way.
     pub const ACCEPT_CHANCE: f64 = 0.5;
+
+    /// Scroll of create monster: the odds the creature conjured arrives
+    /// already charmed, as a plain ally. Rolled against the same draw as
+    /// [`CREATE_HELPER_CHANCE`] — the two never both land on one summon.
+    pub const CREATE_ALLY_CHANCE: f64 = 0.13;
+
+    /// Scroll of create monster: the odds the creature conjured arrives as
+    /// your Helper outright, rather than a plain ally or a plain monster.
+    pub const CREATE_HELPER_CHANCE: f64 = 0.07;
 }
 
 // ===========================================================================

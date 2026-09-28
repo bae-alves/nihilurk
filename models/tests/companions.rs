@@ -140,6 +140,21 @@ fn the_wrong_treat_bounces_off_and_can_be_picked_up_again() {
 }
 
 #[test]
+fn a_treat_thrown_at_an_already_charmed_ally_always_takes() {
+    for seed in 0..15 {
+        let mut w = test_world(seed);
+        let spot = east_of_player(&mut w, 1);
+        let rat = monster::plain_monster(&mut w, "rat", spot);
+        charm(&mut w, rat);
+        assert_eq!(w.get::<Faction>(rat), Some(&Faction::Ally));
+        assert!(w.get::<Helper>(rat).is_none(), "charmed, not recruited yet");
+
+        throw_treat(&mut w, "snack", spot);
+        assert!(is_helper(&w, rat), "an ally always takes the offer");
+    }
+}
+
+#[test]
 fn a_second_helper_costs_you_the_first() {
     let mut w = test_world(5);
     let at = east_of_player(&mut w, 1);

@@ -106,6 +106,45 @@ fn trapdoor_on_the_deepest_floor_only_fizzles() {
 }
 
 #[test]
+fn trapdoor_loses_a_random_unequipped_item_but_spares_equipped_gear() {
+    let mut w = test_world(7);
+    clear_traps(&mut w);
+    let p = player(&mut w);
+
+    let loose = w
+        .spawn(Name {
+            what: "a dagger".into(),
+        })
+        .id();
+    w.get_mut::<Backpack>(p).unwrap().items.push(loose);
+
+    let worn = w
+        .spawn((
+            Name {
+                what: "a suit of armor".into(),
+            },
+            Equipped::loose(Slot::Body),
+        ))
+        .id();
+    w.get_mut::<Backpack>(p).unwrap().items.push(worn);
+    assert!(equip_silently(&mut w, p, worn));
+
+    let here = player_pos(&mut w);
+    w.spawn(TrapBundle::trapdoor(here));
+    step_player_onto(&mut w, here.x, here.y);
+
+    trap_system(&mut w);
+
+    assert!(w.get_entity(loose).is_none(), "the loose item was lost");
+    assert!(w.get_entity(worn).is_some(), "worn gear survives the fall");
+    assert!(
+        w.get::<Backpack>(p).unwrap().items.contains(&worn),
+        "worn gear stays in the pack"
+    );
+    assert!(log_contains(&w, "dagger"));
+}
+
+#[test]
 fn a_monster_that_hits_a_trapdoor_is_gone() {
     let mut w = test_world(7);
     clear_traps(&mut w);

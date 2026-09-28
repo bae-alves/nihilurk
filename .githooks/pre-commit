@@ -69,12 +69,31 @@ fi
 # and a bare `cargo check` only ever builds `lang-en`, so nothing else would
 # say so. 24 strings went missing that way before this check existed. Any
 # staged Rust in a crate that calls into `strings` can add such a call.
+#
+# Translating is not this commit's job, though, and was never meant to be --
+# a contributor adding an English line shouldn't have to also write Portuguese
+# and Spanish before git will take the commit. `stub_missing_translations.py`
+# runs first and auto-fills anything `pt.rs`/`es.rs` hasn't caught up with as
+# an empty, `// TODO: translate.`-marked stub, and stages whatever it touched
+# -- so translating stays something people pick up on their own time, in its
+# own commit, rather than a tax on every unrelated change. The `cargo check`
+# loop below still runs after: it's the safety net for a stub that doesn't
+# actually compile (a return type this script doesn't know an empty value
+# for) or a hand-written translation with a real mistake in it.
 if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
+    stub_output="$(python3 .githooks/stub_missing_translations.py)"
+    if [[ -n "$stub_output" ]]; then
+        echo "$stub_output"
+        # Only the last lines (one per touched file) are paths; re-stage
+        # exactly those rather than trusting the whole strings/ tree.
+        echo "$stub_output" | grep -E '^strings/src/(pt|es)\.rs$' | xargs -r git add
+    fi
+
     for lang in pt es ht; do
         cargo check -p engine --no-default-features --features "lang-$lang" --quiet || {
-            echo "pre-commit: the lang-$lang build failed -- see above. A missing" >&2
-            echo "  function there usually means a new en.rs string needs its" >&2
-            echo "  strings/src/$lang.rs line." >&2
+            echo "pre-commit: the lang-$lang build failed -- see above. If this" >&2
+            echo "  wasn't stubbed away above, it's a real mistake, not a missing" >&2
+            echo "  translation -- stub_missing_translations.py already covers that." >&2
             exit 1
         }
     done

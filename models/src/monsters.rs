@@ -11,6 +11,7 @@
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
 use rand::Rng;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::ItemDef;
@@ -18,13 +19,18 @@ use crate::components::*;
 use crate::effects::{
     Batty, Binds, ColdImmune, FireBreath, FireImmune, Flies, Freezing, Gorgon, Grant, Grants,
     GreenBlood, ItemUser, LightningBreath, Regenerates, RustsArmor, ScoreBounty, Splits,
-    StealsAndFlees, StealsAndVanishes, Swims, Undead, Vampiric, Venomous, VorpalTarget, grant_all,
+    StealsAndFlees, StealsAndVanishes, Swims, ThrowsWands, Undead, Vampiric, Venomous,
+    VorpalTarget, grant_all,
 };
 use crate::equipment::equip_silently;
 use crate::map::{FINAL_DEPTH, GameRng};
 use crate::particles::{BlastPalette, Particles, on_map};
 use crate::spawn::pick_weighted;
-use MovementType::{Ambush, Chase};
+use crate::spirits::{
+    angel_event, blue_demon_event, pink_demon_event, red_demon_event, salamander_event,
+    sphynx_event, sylphid_event, undyne_event, yellow_demon_event,
+};
+use MovementType::{Ambush, Chase, Confused};
 
 /// The spawn weight a bestiary row gets when it doesn't `.weight(n)` for itself.
 /// Defined and documented in `constants.rs`.
@@ -32,6 +38,7 @@ use crate::constants::monsters::{
     DEFAULT_SPAWN_WEIGHT as DEFAULT_WEIGHT, HIGH_GEAR_CHANCE, NORMAL_GEAR_CHANCE,
     ULTIMATE_GEAR_CHANCE,
 };
+use crate::constants::spirits::SPAWN_WEIGHT as SPIRIT_WEIGHT;
 
 /// Static, per-species description: everything about a monster that does not vary
 /// between individuals of the same kind. The whole bestiary is one table of
@@ -80,6 +87,27 @@ pub struct MonsterDef {
     /// Born disguised as an item until the player is adjacent — the xeroc. See
     /// [`disguise_as_item`].
     pub mimics: bool,
+    /// `Some` makes this a [`Faction::Spirits`] row instead of an ordinary
+    /// [`Faction::Monster`] one, and says which way it pulls [`Alignment`]
+    /// when the player interacts with it peacefully. See
+    /// [`crate::spirits`].
+    pub spirit_kind: Option<SpiritKind>,
+    /// What a peaceful melee against this row does instead of a normal
+    /// attack. `None` is the generic "nothing happens" fallback — the red
+    /// demon's grunt and the gnome's silence are both still `Some`, just
+    /// event functions that only log a line. Only meaningful alongside
+    /// `spirit_kind: Some(_)`.
+    pub spirit_event: Option<SpiritEvent>,
+    /// When this row spawns, try to also place two of the named species
+    /// nearby — "other demons try to spawn two of this one with them" (the
+    /// red demon), mirrored on the eudaemon side for the gnome. See
+    /// [`crate::map::population::spawn_monster_budget`].
+    pub pairs_companion: Option<&'static str>,
+    /// A pool to draw `n` distinct random [`Grant`]s from at spawn time,
+    /// instead of (or alongside) the fixed `grants` list — the red demon's
+    /// "4 random grants". `None` for every ordinary row: a species' magic is
+    /// almost always the same magic every time.
+    pub random_grants: Option<(&'static [Grant], u8)>,
 }
 
 impl MonsterDef {
@@ -116,6 +144,10 @@ impl MonsterDef {
             speed: SpeedKind::Normal,
             equip_rolls: &[],
             mimics: false,
+            spirit_kind: None,
+            spirit_event: None,
+            pairs_companion: None,
+            random_grants: None,
         }
     }
 
@@ -154,6 +186,37 @@ impl MonsterDef {
     /// this to the fire.
     const fn mimics(mut self) -> Self {
         self.mimics = true;
+        self
+    }
+
+    /// Mark a bestiary row as a spirit ([`Faction::Spirits`] instead of
+    /// [`Faction::Monster`]), and give it the melee event a peaceful
+    /// interaction fires. See `crate::spirits`.
+    const fn spirit(mut self, kind: SpiritKind, event: SpiritEvent) -> Self {
+        self.spirit_kind = Some(kind);
+        self.spirit_event = Some(event);
+        self
+    }
+
+    /// A spirit row with no melee event of its own (the red demon, the
+    /// gnome) — still `Faction::Spirits` and still pulls [`Alignment`], just
+    /// nothing happens on a peaceful hit beyond the generic line.
+    const fn spirit_no_event(mut self, kind: SpiritKind) -> Self {
+        self.spirit_kind = Some(kind);
+        self
+    }
+
+    /// When this row spawns, roll a chance of also placing two of `name`
+    /// nearby. See [`MonsterDef::pairs_companion`].
+    const fn pairs_companion(mut self, name: &'static str) -> Self {
+        self.pairs_companion = Some(name);
+        self
+    }
+
+    /// Draw `n` distinct random [`Grant`]s from `pool` at spawn time. See
+    /// [`MonsterDef::random_grants`].
+    const fn random_grants(mut self, pool: &'static [Grant], n: u8) -> Self {
+        self.random_grants = Some((pool, n));
         self
     }
 
@@ -251,6 +314,19 @@ impl MonsterDef {
 /// humanoids are deliberately left out: a zombie has hands and no idea what to
 /// do with them.
 const ITEM_USER: &[Grant] = &[Grant::of::<ItemUser>()];
+
+/// The red demon's own boon pool: gdd.md's "4 Random grants", drawn distinct
+/// and without replacement at spawn ([`roll_random_grants`]).
+const RED_DEMON_BOONS: &[Grant] = &[
+    Grant::of::<FireImmune>(),
+    Grant::of::<ColdImmune>(),
+    Grant::of::<Flies>(),
+    Grant::of::<Regenerates>(),
+    Grant::of::<Vampiric>(),
+    Grant::of::<ItemUser>(),
+    Grant::of::<Venomous>(),
+    Grant::of::<GreenBlood>(),
+];
 
 /// How often a bestiary row that carries [`EquipRoll`]s rolls each one, and what
 /// it reaches for when it hits. Rolled independently at spawn by
@@ -365,6 +441,33 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("xeroc",         'X',   Color::Yellow,      Ambush,     6,   8,   0,   4,  1,  5).grants(&[Grant::of::<Binds>()]).mimics(),
     MonsterDef::row("yeti",          'Y',   Color::White,       Chase,      9,   8,   0,   6,  0,   5).grants(&[Grant::of::<ColdImmune>()]),
     MonsterDef::row("zombie",        'Z',   Color::DarkGrey,    Chase,      8,   8,   0,   4,  0,   5).grants(&[Grant::of::<Undead>()]),
+
+    // Spirits (gdd.md "Spirits!"). Quarter the ordinary spawn weight, peaceful
+    // (`Confused`, a random wander) until `SpiritsHostile` or an individual
+    // conversion (the pink demon) sends them to `Chase` — see `crate::spirits`.
+    // Cacodaemon stats are 6/6/6, eudaemon 9/8/7, per the design doc.
+    MonsterDef::row("yellow demon",  '&',   Color::Yellow,      Confused,   6,   6,   0,   6,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Cacodaemon, SpiritEvent(yellow_demon_event)).pairs_companion("red demon"),
+    MonsterDef::row("red demon",     '&',   Color::Red,         Confused,   6,   6,   0,   6,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Cacodaemon, SpiritEvent(red_demon_event))
+        .random_grants(RED_DEMON_BOONS, 4)
+        .equip(&[EquipRoll { chance: ULTIMATE_GEAR_CHANCE, kind: EquipKind::Weapon }]),
+    MonsterDef::row("blue demon",    '&',   Color::Cyan,        Confused,   6,   6,   0,   6,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Cacodaemon, SpiritEvent(blue_demon_event)).pairs_companion("red demon"),
+    MonsterDef::row("pink demon",    '&',   Color::Magenta,     Confused,   6,   6,   0,   6,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Cacodaemon, SpiritEvent(pink_demon_event)).pairs_companion("red demon"),
+    MonsterDef::row("angel",         '&',   Color::White,       Confused,   9,   8,   0,   7,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Eudaemon, SpiritEvent(angel_event)).pairs_companion("gnome"),
+    MonsterDef::row("sphynx",        '&',   Color::DarkYellow,  Confused,   9,   8,   0,   7,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Eudaemon, SpiritEvent(sphynx_event)).pairs_companion("gnome"),
+    MonsterDef::row("sylphid",       '&',   Color::DarkBlue,    Confused,   9,   8,   0,   7,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Eudaemon, SpiritEvent(sylphid_event)).pairs_companion("gnome"),
+    MonsterDef::row("salamander",    '&',   Color::DarkRed,     Confused,   9,   8,   0,   7,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Eudaemon, SpiritEvent(salamander_event)).pairs_companion("gnome"),
+    MonsterDef::row("undyne",        '&',   Color::DarkMagenta, Confused,   9,   8,   0,   7,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Eudaemon, SpiritEvent(undyne_event)).pairs_companion("gnome"),
+    MonsterDef::row("gnome",         '&',   Color::Grey,        Confused,   9,   8,   0,   7,  0,   1)
+        .weight(SPIRIT_WEIGHT).spirit_no_event(SpiritKind::Eudaemon).grants(&[Grant::of::<ThrowsWands>()]),
 ];
 
 /// A bones ghost — a past character come back angry (see `crate::bones` and
@@ -428,7 +531,10 @@ impl MonsterBundle {
                 color: def.color,
             },
             position,
-            faction: Faction::Monster,
+            faction: match def.spirit_kind {
+                Some(_) => Faction::Spirits,
+                None => Faction::Monster,
+            },
             blood: Blood,
             grants: Grants(def.grants),
             speed: Speed::new(def.speed),
@@ -453,6 +559,12 @@ fn base_spawn(world: &mut World, def: &MonsterDef, pos: Position) -> Entity {
     if def.invisible {
         world.entity_mut(e).insert(Invisible);
     }
+    if let Some(kind) = def.spirit_kind {
+        world.entity_mut(e).insert(kind);
+    }
+    if let Some(event) = def.spirit_event {
+        world.entity_mut(e).insert(event);
+    }
     e
 }
 
@@ -471,6 +583,7 @@ pub fn spawn_monster(world: &mut World, def: &MonsterDef, pos: Position) -> Enti
         return e;
     };
     roll_spawn_gear(world, e, def, &mut rng);
+    roll_random_grants(world, e, def, &mut rng);
     if def.mimics {
         disguise_as_item(world, e, &mut rng);
     }
@@ -494,6 +607,7 @@ pub fn spawn_monster_with_rng(
 ) -> Entity {
     let e = base_spawn(world, def, pos);
     roll_spawn_gear(world, e, def, rng);
+    roll_random_grants(world, e, def, rng);
     if def.mimics {
         disguise_as_item(world, e, rng);
     }
@@ -509,6 +623,18 @@ pub fn spawn_monster_with_rng(
 /// exactly the way any other freshly worn item is — but only when the player
 /// can actually see the spot, so a hobgoblin geared up on the far side of the
 /// floor doesn't spoil itself in the log before it's ever met.
+/// [`MonsterDef::random_grants`] paying off: `n` distinct grants off `pool`,
+/// lent the same way [`MonsterDef::grants`]'s fixed list is
+/// ([`grant_all`]). A no-op for every row that doesn't ask for one.
+fn roll_random_grants(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {
+    let Some((pool, n)) = def.random_grants else {
+        return;
+    };
+    for &grant in pool.choose_multiple(rng, n as usize) {
+        crate::effects::lend(world, mob, grant, crate::effects::Lifetime::Permanent);
+    }
+}
+
 fn roll_spawn_gear(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {
     if def.equip_rolls.is_empty() {
         return;

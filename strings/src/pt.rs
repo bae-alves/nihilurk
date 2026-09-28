@@ -87,6 +87,12 @@ fn por_contraction(name: &str) -> &'static str {
     }
 }
 
+/// "your" ("seu"/"sua"), agreeing with `name`'s gender, capitalized for
+/// sentence-initial use.
+fn cap_possessive(name: &str) -> &'static str {
+    if is_feminine_name(name) { "Sua" } else { "Seu" }
+}
+
 /// "helpless", agreeing with `name`'s gender: "indefeso"/"indefesa".
 fn helpless(name: &str) -> &'static str {
     if is_feminine_name(name) {
@@ -1037,6 +1043,13 @@ pub fn potion_arrival(depth: u8) -> String {
     )
 }
 
+pub fn lost_in_the_fall(name: &str) -> String {
+    format!(
+        "{} {name} cai da mochila e se perde na queda!",
+        cap_possessive(name)
+    )
+}
+
 pub fn descend_stairs(depth: u8) -> String {
     format!("Descida pela escada. (Profundidade {depth})")
 }
@@ -1295,6 +1308,9 @@ pub fn potion_water() -> &'static str {
 }
 pub fn potion_flavour_mob() -> &'static str {
     "lambe os lábios"
+}
+pub fn potion_adjustment_player() -> &'static str {
+    "Uma onda de calma toma conta de você. O que quer que estivesse puxando sumiu."
 }
 
 // ---------------------------------------------------------------------------
@@ -1623,6 +1639,25 @@ pub fn create_monster_line(_article: &str, name: &str) -> String {
         "O ar coalha em {} {name}, dentes e tudo!",
         indef_article(name)
     )
+}
+
+pub fn charm_fizzles() -> &'static str {
+    "A varinha brilha, mas não há nada aqui para encantar."
+}
+pub fn charm_self() -> &'static str {
+    "Você se sente o mais adorável que já se sentiu."
+}
+pub fn charm_target_line(name: &str) -> String {
+    format!(
+        "{} {name} olha para você com olhos de adoração — agora é seu!",
+        cap_article(name)
+    )
+}
+pub fn charm_room_some() -> &'static str {
+    "Todos os olhos da sala se voltam para você, rendidos."
+}
+pub fn charm_room_none() -> &'static str {
+    "O pergaminho brilha de encanto, mas não há nada aqui para capturá-lo."
 }
 
 pub fn vorpalize_fizzles() -> &'static str {
@@ -2087,6 +2122,10 @@ pub fn depth_label() -> &'static str {
     "PROF."
 }
 
+pub fn time_label() -> &'static str {
+    "TEMPO"
+}
+
 pub fn travel_cursor_prompt() -> &'static str {
     "Mover para onde?"
 }
@@ -2103,6 +2142,10 @@ pub fn quit_answers() -> &'static str {
 
 pub fn spells_menu_title() -> &'static str {
     " FEITIÇOS "
+}
+
+pub fn offer_menu_title() -> &'static str {
+    " ESCOLHA UM "
 }
 
 // ---------------------------------------------------------------------------
@@ -2181,6 +2224,46 @@ pub fn pronoun_something() -> &'static str {
 
 pub fn adjective_sees_unseen() -> &'static str {
     "capaz de ver o invisível"
+}
+
+pub fn challenge_the_balance() -> &'static str {
+    "Você desafia o equilíbrio!"
+}
+
+pub fn spirit_does_nothing(name: &str) -> String {
+    format!("{} não te dá atenção.", capital_the(name))
+}
+
+pub fn barter_satisfied() -> &'static str {
+    "O espírito desaparece com um estalo, satisfeito."
+}
+
+pub fn barter_your_side() -> &'static str {
+    " MOCHILA "
+}
+
+pub fn barter_their_side() -> &'static str {
+    " OUTRO LADO "
+}
+
+pub fn barter_confirm_row() -> &'static str {
+    "[ Trocar ]"
+}
+
+pub fn red_demon_grunts(name: &str) -> String {
+    format!("{} resmunga, nada impressionado.", capital_the(name))
+}
+
+pub fn pink_demon_submits() -> &'static str {
+    "Despojado de seus trajes roubados, o demônio choraminga e se entrega a você."
+}
+
+pub fn pink_demon_turns() -> &'static str {
+    "O demônio solta uma gargalhada e se volta contra você, roupagem que seja."
+}
+
+pub fn angel_tests_your_faith() -> &'static str {
+    "Testa sua fé!"
 }
 
 pub fn equipped_suffix() -> &'static str {

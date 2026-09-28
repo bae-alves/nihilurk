@@ -184,6 +184,13 @@ pub struct FireBreath;
 #[derive(Component, Default, Clone, Copy)]
 pub struct LightningBreath;
 
+/// This creature's innate spell is a random wand, generated and discharged on
+/// the spot instead of a fixed effect (the gnome). See
+/// [`crate::items::spells::apply_spell_effect`]'s `SpellEffect::RandomWand`
+/// arm.
+#[derive(Component, Default, Clone, Copy)]
+pub struct ThrowsWands;
+
 /// Swims: deep water ([`crate::map::TileType::Water`]) is floor to this
 /// creature and a wall to everything else (the eel, the ichthyocentaur). A
 /// swimmer is only ever drawn for a water tile; see
@@ -781,6 +788,7 @@ effects! {
     "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch();
     "fire_breath" => FireBreath, beware strings::beware_fire_breath();
     "lightning_breath" => LightningBreath, beware strings::beware_lightning_breath();
+    "throws_wands" => ThrowsWands;
     "swims" => Swims;
     "cleaves" => Cleaves;
     "heavy_swing" => HeavySwing;

@@ -104,21 +104,8 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- When the dungeon lord or a trapdoor send you down, you lose a random carried item forever. Does not work with raise level/The Element
-- Allies: these don't move levels with you, but can be made with the wand of charming (1 creature) or the scroll of charming (whole room). different background. No drama like Helpers.
-- Spirits! (&). Half the rarity weight of normal monsters. They are their own faction and won't be angry at you until you damage one of them. Neutral monsters just move randomly and fight randomly (but not you, helpers or allies) if move gets interrupted and are backgrounded darkgrey. There are a few kinds of spirits. Interacting with a cacodaemon (the demons) gives you a stack of hidden attribute Demonized. interacting with an eudaemon (e.g. angel, sphynx, elves) gives you a stack of a hidden attribute named Consecrated. Go 3+ on either variable and spirits become all hostile ("You challenge the balance!").
-    - Yellow demon: hit him and instead of an attack it opens a barter menu. your inventory in a column, demon's items in another, you select which ones you want to trade. Kill the demon and you get it all, but it angers all demons. You can cancel a barter. But a successful barter poofs the demon, satisfied
-    - Red demon: this one is just strong and will grunt if interacted with by you while you're not hostile, it won't do anything to you if peace. Random stats (2d6 each). Random grants. Carries a bag full of treasure and is equipped with ULTIMATE chance. Other demons try to spawn two of this one with them.
-    - Blue demon (cyan): when meleed, gives you a choice of three spells. Pick one to learn.
-    - Pink demon (magenta): when meleed, your gear is unmade and they become your Helper or change faction to the monsters (depending how much gear 25% each piece, curses count -25%). 5/5/5 stats. Spams light magic missiles (1die).
-    - Angel (white &): "Tests your faith!" cancels you, halves your current hp (min 1) and gives the ANGE ledger. Hit the stairs with it and everything non-magical becomes (randomly) magical again, and equipped weapon and armor becomes +3
-    - Sphynx (darkyellow &): same as barter but for spells
-    - Blue Fairy (darker blue & ): Gives you a choice of three identified weapons
-    - Red Fairy (darker red & ): Gives you a choice of three identified armor
-    - Purple Fairy (purple &): Gives you a choice of three identifies rings
-    - All of the vanish with a poof when they finish their event except the red demon.
 - More player character options
-- Rare scroll-type items. The Decks of Cards. Each comes with 5 cards. The cards are decided and stacked when the item is rolled, but cannot be used individually, like a wand but a scroll and what it does is defined by what's on the top of a stack the cards are:
+- Very Rare scroll-type items (1/8 weight). The Decks of Cards. Each comes with 5 cards. The cards are decided and stacked when the item is rolled, but cannot be used individually, like a wand but a scroll and what it does is defined by what's on the top of a stack the cards are:
     - The Joker: Random effect from another card. It's what makes the draw chain into absurdity
     - King of Clubs: Recharges Wands
     - Prince of Swords: Enchant weapon
@@ -134,8 +121,9 @@ English, Portuguese and Spanish. A classic roguelike in non-English is important
     - The Crone: goes to the downstairs of this level
     - The Eyes Never Lie: sees the cards in the deck
     - FOOL: Does nothing.
-    - JESTER: Consumes and evaluates the deck. See below.
-    - VII THE CHARIOT: Gains the CHRT ledger. Take no damage and vorpal against all.
+    - THE EXCUSE: confuses all monsters in viewshed
+    - JESTER: Consumes and evaluates the deck as if thrown. See below.
+    - VII THE CHARIOT: Gains the CRT! ledgher. All hits are excelent.
     - XXII THE WORLD: stops time on the entire floor. For 5 turns, nobody but you moves and projectiles you fire will only be processed after the time has stopped (but for cosmetic purposes their *starting frames* will render for you while time is stopped). This might be heavy on the save file but ... THE WORLD, you know? People expect it to be in the game.
     - XXIII GOLDEN WIND: turns all items and traps on the floor into Allies
 - Thrown deck behavior: They are evaluated not as cards but as sets
@@ -146,6 +134,9 @@ English, Portuguese and Spanish. A classic roguelike in non-English is important
     -Full House (500000 points): threed and paired effect trigger thrice and twice respectively
     -Four of a Kind (1000000 points): quartered effect triggers four times
     -Five of a Kind (5000000 points): If you have pack space, you get the Element. Just get out of here. If you don't have space, the Element destroys your inventory and puts itself in it. Also adornment activates cosmetically.
-- Charms like in Wildfrost
-- Charms like in Brogue
+    -For evaluation, FOOL counts as a *wildcard*
+- Charms (*): they bind to the character who uses them/gets them by throw. They offer persistent grants but do lock the invetory slot if they're on backpack. They never drop from monsters.
+    -
+- Tools (|): like scrolls but are not consumed, they become 'inert' instead. When you hit stairs a random one recovers.
+    -
 - Steam

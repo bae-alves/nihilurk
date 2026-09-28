@@ -112,6 +112,13 @@ fn dummy(w: &mut World, name: &str, at: Position, hp: i32) -> Entity {
     .id()
 }
 
+fn logged(w: &World, needle: &str) -> bool {
+    w.resource::<GameLog>()
+        .history
+        .iter()
+        .any(|l| l.contains(needle))
+}
+
 fn run_ai(w: &mut World) {
     let mut s = Schedule::default();
     s.add_systems(ai);
@@ -658,6 +665,37 @@ fn cancellation_strips_the_magic_but_leaves_the_creature() {
         w.get::<Fighter>(dragon).unwrap().hp < dhp,
         "a cancelled dragon burns"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Charming
+// ---------------------------------------------------------------------------
+
+#[test]
+fn charming_tames_the_target_as_a_plain_ally_not_the_helper() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let orc = monster::monster(&mut w, "orc", spot);
+
+    let wand = give_wand(&mut w, p, WandEffect::Charming);
+    zap(&mut w, p, wand, spot);
+
+    assert_eq!(w.get::<Faction>(orc), Some(&Faction::Ally));
+    assert!(w.get::<Helper>(orc).is_none(), "charmed, not recruited");
+}
+
+#[test]
+fn charming_yourself_does_nothing_but_feel_adorable() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+
+    let wand = give_wand(&mut w, p, WandEffect::Charming);
+    zap(&mut w, p, wand, here);
+
+    assert_eq!(w.get::<Faction>(p), Some(&Faction::Player));
+    assert!(logged(&w, &strings::charm_self()));
 }
 
 // ---------------------------------------------------------------------------

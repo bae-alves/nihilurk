@@ -243,6 +243,68 @@ fn create_monster_conjures_a_fresh_creature_on_the_floor() {
     assert!(placed_ok);
 }
 
+#[test]
+fn create_monster_sometimes_conjures_it_already_tamed() {
+    let (mut monster, mut ally, mut helper) = (0, 0, 0);
+    for seed in 0..60 {
+        let mut w = test_world(seed);
+        let p = player(&mut w);
+        let before: std::collections::HashSet<Entity> =
+            w.query_filtered::<Entity, With<Mob>>().iter(&w).collect();
+
+        let scroll = spawn_scroll(&mut w, ScrollEffect::CreateMonster, Position { x: 0, y: 0 });
+        stash(&mut w, p, scroll);
+        use_item(&mut w, p, scroll);
+
+        let mut q = w.query_filtered::<(Entity, &Faction, Option<&Helper>), With<Mob>>();
+        let (_, faction, helper_row) = q
+            .iter(&w)
+            .find(|(e, _, _)| !before.contains(e))
+            .expect("the scroll conjured exactly one new creature");
+        match (faction, helper_row.is_some()) {
+            (Faction::Monster, _) => monster += 1,
+            (Faction::Ally, true) => helper += 1,
+            (Faction::Ally, false) => ally += 1,
+            _ => unreachable!(),
+        }
+    }
+    assert!(
+        monster > 0 && ally > 0 && helper > 0,
+        "monster {monster}, ally {ally}, helper {helper}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Charming
+// ---------------------------------------------------------------------------
+
+#[test]
+fn charming_tames_every_monster_in_view_and_leaves_the_rest_alone() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let hero = *w.get::<Position>(p).unwrap();
+
+    let seen = spawn_dummy(&mut w, "troll", hero.x + 1, hero.y, 4, MovementType::Chase);
+    let unseen = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
+
+    let scroll = spawn_scroll(&mut w, ScrollEffect::Charming, Position { x: 0, y: 0 });
+    stash(&mut w, p, scroll);
+    use_item(&mut w, p, scroll);
+
+    assert_eq!(
+        w.get::<Faction>(seen),
+        Some(&Faction::Ally),
+        "in view: charmed"
+    );
+    assert!(w.get::<Helper>(seen).is_none(), "charmed, not recruited");
+    assert_eq!(
+        w.get::<Faction>(unseen),
+        Some(&Faction::Monster),
+        "out of view: untouched"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Vorpalize weapon
 // ---------------------------------------------------------------------------

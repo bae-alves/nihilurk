@@ -33,22 +33,29 @@ pub fn is_foe(world: &World, e: Entity) -> bool {
     world.get::<Faction>(e) == Some(&Faction::Monster)
 }
 
+/// Whether `e` is a plain ally — charmed, but not (yet) the Helper. A treat
+/// thrown at one always takes: it already trusts you.
+fn is_charmed(world: &World, e: Entity) -> bool {
+    world.get::<Faction>(e) == Some(&Faction::Ally) && world.get::<Helper>(e).is_none()
+}
+
 /// Whether a treat thrown by `thrower` at `victim` is an offer `victim` can
-/// take: the player threw it, `victim` is a monster, and the treat is the right
-/// kind for it — a fancy of peace for a creature with hands, a snack for one
-/// without. Anything else bounces off.
+/// take: the player threw it, `victim` is a monster or an already-charmed
+/// ally, and the treat is the right kind for it — a fancy of peace for a
+/// creature with hands, a snack for one without. Anything else bounces off.
 pub(crate) fn fits(world: &World, thrower: Entity, victim: Entity, treat: Treat) -> bool {
     world.get::<Player>(thrower).is_some()
         && world.get::<Mob>(victim).is_some()
-        && is_foe(world, victim)
+        && (is_foe(world, victim) || is_charmed(world, victim))
         && treat.for_item_users == world.get::<ItemUser>(victim).is_some()
 }
 
-/// `victim` eats `item` and, on an [`ACCEPT_CHANCE`] roll, becomes the
-/// player's Helper. The treat is gone either way.
+/// `victim` eats `item` and becomes the player's Helper. The treat is gone
+/// either way: a hostile monster only takes it on an [`ACCEPT_CHANCE`] roll,
+/// but a plain ally already trusts you and always takes.
 pub(crate) fn offer(world: &mut World, victim: Entity, item: Entity, treat_name: &str) {
     world.entity_mut(item).despawn();
-    if world.resource_mut::<GameRng>().0.gen_bool(ACCEPT_CHANCE) {
+    if is_charmed(world, victim) || world.resource_mut::<GameRng>().0.gen_bool(ACCEPT_CHANCE) {
         recruit(world, victim);
         return;
     }
@@ -56,6 +63,19 @@ pub(crate) fn offer(world: &mut World, victim: Entity, item: Entity, treat_name:
     world
         .resource_mut::<GameLog>()
         .add(strings::refuses_treat(&name, treat_name));
+}
+
+/// Makes `mob` a plain ally: a [`Faction::Ally`] that fights the monsters and
+/// chases whatever the player can see, same as a Helper — but it is not *the*
+/// Helper. Unlike [`recruit`], there is no limit of one (nothing explodes to
+/// make room) and it does not follow the player downstairs
+/// ([`crate::map::levels`] only carries the [`Helper`] along).
+pub fn charm(world: &mut World, mob: Entity) {
+    world.entity_mut(mob).insert(Faction::Ally);
+    if let Some(mut m) = world.get_mut::<Mob>(mob) {
+        m.movement_type = MovementType::Chase;
+    }
+    revoke(world, mob, Grant::of::<Asleep>());
 }
 
 /// Makes `mob` the player's Helper. A Helper already at the player's side

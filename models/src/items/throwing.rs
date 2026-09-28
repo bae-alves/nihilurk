@@ -813,6 +813,7 @@ fn strike_victim(
         return strings::throw_glances_off(seen_name, &hit_name);
     }
     apply_damage(world, hit, damage);
+    crate::spirits::on_direct_hit(world, thrower, hit, damage);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.hit_spark(at.x, at.y);
     }

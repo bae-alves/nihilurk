@@ -23,6 +23,17 @@ fn test_world(seed: u64) -> World {
         what: "TESTER".into(),
     });
     initialize_world(&mut w);
+    // Only what each test plants: the floor's own monsters and traps can
+    // otherwise land on the very tile a test means to control
+    // (`beside_player`), or a trap a blast detonates can add its own
+    // non-magical damage on top of the one hit a test means to measure.
+    let strays: Vec<Entity> = w
+        .query_filtered::<Entity, (Or<(With<Mob>, With<Trap>)>, Without<Player>)>()
+        .iter(&w)
+        .collect();
+    for e in strays {
+        w.despawn(e);
+    }
     w
 }
 

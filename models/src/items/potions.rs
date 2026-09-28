@@ -75,7 +75,25 @@ pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: Potio
         PotionEffect::RaiseLevel => raise_level(world, user),
         PotionEffect::FruitJuice => flavour(world, user, strings::potion_fruit_juice()),
         PotionEffect::Water => flavour(world, user, strings::potion_water()),
+        PotionEffect::Adjustment => adjustment(world, user),
     }
+}
+
+/// Resets the drinker's [`Alignment`] to the middle point — the one way back
+/// down from a pole that isn't starting a new run. Player-only, like
+/// [`raise_level`]: a monster that swallows this has nothing to adjust.
+fn adjustment(world: &mut World, user: Entity) -> bool {
+    if world.get::<Player>(user).is_none() {
+        return false;
+    }
+    let was_off_center = world.get::<Alignment>(user).is_some_and(|a| a.0 != 0);
+    if let Some(mut alignment) = world.get_mut::<Alignment>(user) {
+        alignment.0 = 0;
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::potion_adjustment_player());
+    was_off_center
 }
 
 /// A potion that breaks without being drunk — thrown, or simply caught in

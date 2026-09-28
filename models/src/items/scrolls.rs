@@ -24,7 +24,7 @@ use crate::helpers::{
 use crate::identify::article_for;
 use crate::magicmap::{MagicMapReveal, MagicMapStyle};
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH};
-use crate::monsters::{BESTIARY, spawn_monster};
+use crate::monsters::{BESTIARY, MonsterDef, spawn_monster};
 use crate::particles::Particles;
 use crate::traps::random_open_tile;
 
@@ -162,7 +162,28 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         ScrollEffect::Sleep => read_sleep(world, user),
         ScrollEffect::FoodDetection => detect_mundane_items(world, user),
         ScrollEffect::Amnesia => read_amnesia(world, user),
+        ScrollEffect::Charming => {
+            let charmed = charm_room(world, user);
+            let msg = if charmed > 0 {
+                strings::charm_room_some()
+            } else {
+                strings::charm_room_none()
+            };
+            world.resource_mut::<GameLog>().add(msg.to_string());
+        }
     }
+}
+
+/// Scroll of charming: every monster the reader can see is tamed — a plain
+/// ally each, not the Helper (see [`crate::companion::charm`]). Returns how
+/// many were caught.
+fn charm_room(world: &mut World, user: Entity) -> usize {
+    let targets = hostiles_in_view(world, user);
+    for &t in &targets {
+        crate::companion::charm(world, t);
+    }
+    mark_conditions(world, &targets, '♥', Color::Magenta);
+    targets.len()
 }
 
 // ---------------------------------------------------------------------------
@@ -291,15 +312,37 @@ fn create_monster(world: &mut World, user: Entity) {
             .add(strings::create_monster_nowhere());
         return;
     };
+    // Ordinary monsters only — a spirit conjured this way would either dodge
+    // `Faction::Spirits`'s whole peaceful-until-crossed point (tamed on the
+    // spot below) or wander off unaligned to anything, neither of which is
+    // what this scroll is for.
+    let pool: Vec<&MonsterDef> = BESTIARY
+        .iter()
+        .filter(|m| m.spirit_kind.is_none())
+        .collect();
     let idx = {
         let mut rng = world.resource_mut::<GameRng>();
-        rng.0.gen_range(0..BESTIARY.len())
+        rng.0.gen_range(0..pool.len())
     };
-    let e = spawn_monster(world, &BESTIARY[idx], Position { x, y });
+    let e = spawn_monster(world, pool[idx], Position { x, y });
     let name = item_label(world, e);
     world
         .resource_mut::<GameLog>()
         .add(strings::create_monster_line(article_for(&name), &name));
+
+    // A small slice of summons arrive already tamed: mostly a plain ally,
+    // rarer still as the Helper outright. One roll decides which, so the two
+    // odds never both land on the same creature.
+    use crate::constants::helpers::{CREATE_ALLY_CHANCE, CREATE_HELPER_CHANCE};
+    let roll = world.resource_mut::<GameRng>().0.gen_range(0.0..1.0);
+    if roll < CREATE_HELPER_CHANCE {
+        crate::companion::recruit(world, e);
+    } else if roll < CREATE_HELPER_CHANCE + CREATE_ALLY_CHANCE {
+        crate::companion::charm(world, e);
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::charm_target_line(&name));
+    }
 }
 
 /// Scroll of vorpalize weapon: brand the reader's wielded weapon [`Vorpal`]

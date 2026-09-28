@@ -378,6 +378,7 @@ pub(super) fn blast_palette(effect: WandEffect) -> BlastPalette {
         | WandEffect::SlowMonster
         | WandEffect::TeleportAway
         | WandEffect::TeleportTo
+        | WandEffect::Charming
         | WandEffect::Nothing => BlastPalette::Warp,
     }
 }
@@ -507,6 +508,7 @@ pub(super) fn apply_wand_effect(
         WandEffect::TeleportAway => teleport_target_away(world, target_pos),
         WandEffect::TeleportTo => teleport_target_here(world, user, user_pos, target_pos),
         WandEffect::Cancellation => cancel_target(world, target_pos),
+        WandEffect::Charming => charm_target(world, target_pos),
         WandEffect::Nothing => {
             world
                 .resource_mut::<GameLog>()
@@ -627,6 +629,31 @@ fn polymorph_target(world: &mut World, pos: Position) {
         return;
     };
     polymorph_entity(world, victim);
+}
+
+/// Wand of charming: the monster on `pos`, tamed on the spot — a plain
+/// [`Faction::Ally`], not the Helper (see [`crate::companion::charm`]). Aimed
+/// at the player's own tile, it has nothing to take hold of and just tickles.
+fn charm_target(world: &mut World, pos: Position) {
+    if world
+        .query_filtered::<&Position, With<Player>>()
+        .iter(world)
+        .any(|p| *p == pos)
+    {
+        world.resource_mut::<GameLog>().add(strings::charm_self());
+        return;
+    }
+    let Some(victim) = monster_at(world, pos) else {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::charm_fizzles());
+        return;
+    };
+    let name = item_label(world, victim);
+    crate::companion::charm(world, victim);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::charm_target_line(&name));
 }
 
 /// Polymorph applied to one creature — a monster becomes a fresh random species

@@ -15,6 +15,7 @@
 
 use bevy_ecs::prelude::*;
 use rand::Rng;
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 use std::collections::HashSet;
 
@@ -323,6 +324,48 @@ fn spawn_monster_budget(
         };
         let def = pick_species(rng, (x, y));
         spawn_monster_with_rng(world, def, Position { x, y }, rng);
+        if let Some(companion) = def.pairs_companion {
+            spawn_companion_pair(world, (x, y), companion, occupied, rng);
+        }
+    }
+}
+
+/// A row's [`MonsterDef::pairs_companion`] paying off: on
+/// [`crate::constants::spirits::PAIR_CHANCE`], up to two more of `name` land
+/// on a walkable tile next door to `(x, y)`, one adjacency try each. A tile
+/// that's a wall, water or already taken just means one fewer companion —
+/// the floor never reaches past next-door looking for room.
+fn spawn_companion_pair(
+    world: &mut World,
+    (x, y): (u16, u16),
+    name: &'static str,
+    occupied: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+) {
+    if !rng.gen_bool(crate::constants::spirits::PAIR_CHANCE) {
+        return;
+    }
+    let def = MonsterDef::named(name);
+    for _ in 0..2 {
+        let (dx, dy) = *[
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+            (0, -1),
+            (0, 1),
+            (1, -1),
+            (1, 0),
+            (1, 1),
+        ]
+        .choose(rng)
+        .expect("nonempty");
+        let (nx, ny) = (x.saturating_add_signed(dx), y.saturating_add_signed(dy));
+        if !world.resource::<Map>().walkable(nx, ny, false) {
+            continue;
+        }
+        if occupied.insert((nx, ny)) {
+            spawn_monster_with_rng(world, def, Position { x: nx, y: ny }, rng);
+        }
     }
 }
 

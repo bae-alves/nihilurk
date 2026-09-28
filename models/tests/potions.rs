@@ -496,3 +496,27 @@ fn magic_refills_the_pool_and_raises_its_ceiling() {
     assert_eq!(m.max_points, max + 1, "a dose is worth a point of ceiling");
     assert_eq!(m.points, m.max_points, "and fills you to it");
 }
+
+#[test]
+fn adjustment_resets_alignment_to_neutral() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    w.get_mut::<Alignment>(p).unwrap().0 = -3;
+
+    quaff(&mut w, p, PotionEffect::Adjustment);
+
+    assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
+    assert!(logged(&w, "calm"));
+}
+
+#[test]
+fn adjustment_on_an_already_neutral_player_still_logs_but_changes_nothing() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
+
+    quaff(&mut w, p, PotionEffect::Adjustment);
+
+    assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
+    assert!(logged(&w, "calm"));
+}
