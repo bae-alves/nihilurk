@@ -404,8 +404,8 @@ pub fn render<W: Write>(
 
         let level_time = world
             .get_resource::<DungeonLord>()
-            .map(|dl| dl.idle_turns)
-            .unwrap_or(0);
+            .map(|dl| DUNGEON_LORD_PATIENCE.saturating_sub(dl.idle_turns))
+            .unwrap_or(DUNGEON_LORD_PATIENCE);
         let label = strings::depth_label();
         let time_label = strings::time_label();
         let depth_str = depth.to_string();

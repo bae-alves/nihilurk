@@ -18,7 +18,7 @@ use crate::catalog::ItemDef;
 use crate::components::*;
 use crate::effects::{
     Batty, Binds, ColdImmune, FireBreath, FireImmune, Flies, Freezing, Gorgon, Grant, Grants,
-    GreenBlood, ItemUser, LightningBreath, Regenerates, RustsArmor, ScoreBounty, Splits,
+    GreenBlood, ItemUser, LightningBreath, Phasing, Regenerates, RustsArmor, ScoreBounty, Splits,
     StealsAndFlees, StealsAndVanishes, Swims, ThrowsWands, Undead, Vampiric, Venomous,
     VorpalTarget, grant_all,
 };
@@ -487,7 +487,8 @@ pub(crate) const GHOST: MonsterDef = MonsterDef::row(
     crate::constants::player::START_ARMOR,
     0,
     1,
-);
+)
+.grants(&[Grant::of::<Phasing>()]);
 
 /// Every component a monster is spawned with, built wholesale from a
 /// [`MonsterDef`] — including a record of the magic it was born with and a
@@ -935,4 +936,16 @@ pub fn wear_monster(world: &mut World, player: Entity, def: &'static MonsterDef)
     // No gear roll and no mimic disguise: an `EquipRoll` is how a floor
     // *stocks* a monster, and the player is not stocked. A body that can use
     // gear can still pick some up — see `crate::equipment::toggle_equipped`.
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_ghost_phases() {
+        let mut w = World::new();
+        let ghost = spawn_monster(&mut w, &GHOST, Position { x: 1, y: 1 });
+        assert!(Grant::of::<Phasing>().probe(&w, ghost));
+    }
 }

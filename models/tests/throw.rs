@@ -906,108 +906,53 @@ fn a_potion_caught_in_a_wands_grenade_goes_off_too() {
     );
 }
 
-/// A doorway is cover: whoever is standing in one cannot be hit by a throw
-/// passing through it, whether or not the missile would otherwise pierce.
-#[test]
-fn a_creature_standing_in_a_doorway_cannot_be_hit_by_a_throw() {
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    w.resource_mut::<Map>().tiles[tile_index(spot.x, spot.y)] = TileType::Door;
-    let bat = monster(&mut w, "bat", spot);
-    let starting_hp = w.get::<Fighter>(bat).unwrap().hp;
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-
-    throw(&mut w, p, dagger, spot);
-
-    assert_eq!(
-        w.get::<Fighter>(bat).unwrap().hp,
-        starting_hp,
-        "the door took the hit, not the creature behind it"
-    );
-}
-
-/// A doorway that takes a missile has an even chance of cracking and going
-/// inert. An inert doorway is still a doorway, but it is no longer cover.
-#[test]
-fn a_doorway_used_as_cover_breaks_half_the_time_and_stops_being_cover() {
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    w.resource_mut::<Map>().tiles[tile_index(spot.x, spot.y)] = TileType::Door;
-    let bat = monster(&mut w, "bat", spot);
-    let starting_hp = w.get::<Fighter>(bat).unwrap().hp;
-
-    let mut breaks = 0;
-    for _ in 0..200 {
-        let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-        throw(&mut w, p, dagger, spot);
-        if w.resource::<Map>().is_inert_door(spot.x, spot.y) {
-            breaks += 1;
-            w.resource_mut::<Map>().inert_doors.clear();
-        }
-    }
-    assert_eq!(
-        w.get::<Fighter>(bat).unwrap().hp,
-        starting_hp,
-        "the door took every hit, even the ones that broke it"
-    );
-    assert!(
-        (70..=130).contains(&breaks),
-        "about half of 200, got {breaks}"
-    );
-
-    w.resource_mut::<Map>()
-        .inert_doors
-        .insert(tile_index(spot.x, spot.y));
-    assert_eq!(w.resource::<Map>().tile(spot.x, spot.y), TileType::Door);
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    throw(&mut w, p, dagger, spot);
-    assert!(
-        w.get::<Fighter>(bat).unwrap().hp < starting_hp,
-        "an inert doorway is no cover"
-    );
-}
-
-/// Cover works both ways: a monster's arrow at a player standing in a doorway
-/// takes the frame instead, and cracks it the same as a thrown dagger does.
-#[test]
-fn a_doorway_covers_you_from_a_monster_s_arrows_too() {
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let here = player_pos(&mut w);
+/// A chaser three tiles east of a player who stands on a doorway, and where
+/// the player stands. `moved` is whether the player's last turn was a step.
+fn doorway_standoff(w: &mut World, moved: bool) -> (Entity, Position, Position) {
+    let p = player(w);
+    let here = player_pos(w);
     for dx in 1..=3 {
         w.resource_mut::<Map>().tiles[tile_index(here.x + dx, here.y)] = TileType::Room;
     }
     w.resource_mut::<Map>().tiles[tile_index(here.x, here.y)] = TileType::Door;
-    let perch = east_of_player(&mut w, 3);
-    // A chaser, not a statue: a `Static` mob never acts, and a chaser with a
-    // bow drawn shoots rather than closes, so it stays on its perch.
-    let archer = monster(&mut w, "archer", perch);
-    w.get_mut::<Mob>(archer).unwrap().movement_type = MovementType::Chase;
-    let bow = spawn_launcher(&mut w, "short bow", NOWHERE);
-    w.entity_mut(bow).remove::<Position>();
-    assert!(equip_silently(&mut w, archer, bow));
-    let starting_hp = w.get::<Fighter>(p).unwrap().hp;
-
-    let mut shots = 0;
-    while !w.resource::<Map>().is_inert_door(here.x, here.y) {
-        assert!(shots < 40, "the frame never cracked");
-        let mut s = Schedule::default();
-        s.add_systems(visibility_system);
-        s.run(&mut w);
-        ai(&mut w);
-        shots += 1;
+    let perch = east_of_player(w, 3);
+    let chaser = monster(w, "chaser", perch);
+    w.get_mut::<Mob>(chaser).unwrap().movement_type = MovementType::Chase;
+    if moved {
+        w.entity_mut(p).insert(EntityMoved);
     }
-    assert_eq!(
-        w.get::<Fighter>(p).unwrap().hp,
-        starting_hp,
-        "the door took every arrow"
-    );
+    let mut s = Schedule::default();
+    s.add_systems(visibility_system);
+    s.run(w);
+    (chaser, here, perch)
+}
+
+/// Step onto a doorway and everything that can see you stands still.
+#[test]
+fn a_creature_that_sees_you_step_onto_a_doorway_does_nothing() {
+    let mut w = test_world(11);
+    let (chaser, _, perch) = doorway_standoff(&mut w, true);
 
     ai(&mut w);
-    assert!(
-        w.get::<Fighter>(p).unwrap().hp < starting_hp,
-        "an inert doorway is no cover"
-    );
+
+    assert_eq!(pos_of(&w, chaser), (perch.x, perch.y), "it held its ground");
+}
+
+/// Do anything but move while you stand there and the ward breaks for good.
+#[test]
+fn acting_on_a_doorway_breaks_the_ward_and_greys_the_door() {
+    let mut w = test_world(11);
+    let (chaser, here, perch) = doorway_standoff(&mut w, false);
+
+    ai(&mut w);
+
+    assert!(w.resource::<Map>().is_inert_door(here.x, here.y));
+    assert_ne!(pos_of(&w, chaser), (perch.x, perch.y), "it came for you");
+
+    // A cracked door stays cracked: stepping back onto it wards nothing.
+    let p = player(&mut w);
+    w.entity_mut(p).insert(EntityMoved);
+    let before = pos_of(&w, chaser);
+    ai(&mut w);
+    assert_ne!(pos_of(&w, chaser), before, "an inert doorway is no ward");
 }

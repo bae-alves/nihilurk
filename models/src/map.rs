@@ -192,10 +192,10 @@ pub struct Map {
     /// Rolled deterministically from the seed in [`build_tiles`]; the cleared
     /// state is persisted in the save file.
     pub dark: FixedBitSet,
-    /// One bit per tile: set on a doorway a missile cracked (see
-    /// `throwing::flight_path`). An inert doorway is still a doorway to walk
-    /// and see through, but it is no longer cover, and it draws grey. Starts
-    /// empty on every floor; persisted in the save file like `dark`.
+    /// One bit per tile: set on a doorway whose ward the player broke (see
+    /// `ai::door_ward`). An inert doorway is still a doorway to walk and see
+    /// through, but it no longer wards, and it draws grey. Starts empty on
+    /// every floor; persisted in the save file like `dark`.
     pub inert_doors: FixedBitSet,
     /// One [`SpecialRoom`] per tile, `Some` only on that room's own floor
     /// tiles. Rolled deterministically from the seed in [`build_tiles`] the
@@ -244,7 +244,7 @@ impl Map {
         x < MAP_WIDTH && y < MAP_HEIGHT && self.dark.contains(tile_index(x, y))
     }
 
-    /// Whether `(x, y)` is a doorway a missile has cracked.
+    /// Whether `(x, y)` is a doorway whose ward the player has broken.
     #[inline]
     pub fn is_inert_door(&self, x: u16, y: u16) -> bool {
         x < MAP_WIDTH && y < MAP_HEIGHT && self.inert_doors.contains(tile_index(x, y))

@@ -373,3 +373,32 @@ fn a_cleave_and_a_whirl_spare_your_helper() {
         "the sickle swung past it"
     );
 }
+
+#[test]
+fn a_helper_ignores_terrain_like_a_ghost() {
+    let mut w = test_world(9);
+    let at = east_of_player(&mut w, 3);
+    let pal = monster::plain_monster(&mut w, "rat", at);
+    recruit(&mut w, pal);
+    // Walled in on every side, and the tile toward the player is deep water.
+    {
+        let mut map = w.resource_mut::<Map>();
+        for dy in -1i32..=1 {
+            for dx in -1i32..=1 {
+                let (x, y) = ((at.x as i32 + dx) as u16, (at.y as i32 + dy) as u16);
+                map.tiles[tile_index(x, y)] = TileType::Wall;
+            }
+        }
+        map.tiles[tile_index(at.x - 1, at.y)] = TileType::Water;
+        map.tiles[tile_index(at.x, at.y)] = TileType::Room;
+    }
+    run_visibility(&mut w);
+
+    ai(&mut w);
+    let p = player_pos(&mut w);
+    let now = *w.get::<Position>(pal).unwrap();
+    assert!(
+        chebyshev(now, p) < 3,
+        "walked out of its cell toward the player"
+    );
+}

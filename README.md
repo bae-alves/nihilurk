@@ -1,7 +1,7 @@
 nihilurk
 ====
 
-A classic roguelike about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets.
+A classic roguelike about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets, a lot of punch.
 
 If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
 
@@ -36,7 +36,7 @@ Once per clone, `git config core.hooksPath .githooks` turns on a pre-commit chec
 Adding content
 --------------
 
-There is no pink dragon in nihilurk. This is the whole of putting one in.
+There is no pink dragon in nihilurk. The whole point is putting one in.
 
 Open `models/src/monsters.rs`, find `BESTIARY`, add a line:
 

@@ -1405,14 +1405,6 @@ pub fn monster_shot_wild(shooter_name: &str, noun: &str, target_label: &str) -> 
         wild(noun)
     )
 }
-pub fn monster_shot_doorway(shooter_name: &str, _article: &str, noun: &str) -> String {
-    format!(
-        "{} {shooter_name} crava {} {} no batente da porta.",
-        cap_article(shooter_name),
-        indef_article(noun),
-        ammo_word(noun)
-    )
-}
 
 pub fn monster_shot_hit(
     shooter_name: &str,

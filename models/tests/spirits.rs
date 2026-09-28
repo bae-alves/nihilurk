@@ -1,8 +1,8 @@
 //! `Faction::Spirits`: peaceful until crossed, either by an `Alignment` pole
 //! or a direct hit. See `models::spirits`.
 
-mod common;
 #[path = "common/monster.rs"]
+#[allow(dead_code)] // only the handless fixture is wanted here
 mod monster;
 
 use bevy_ecs::prelude::*;

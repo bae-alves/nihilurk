@@ -2912,6 +2912,19 @@ mod tests {
     }
 
     #[test]
+    fn you_cannot_swap_into_a_wall_your_helper_is_standing_in() {
+        let (mut w, player, pal) = world_with_a_helper(3);
+        let here = player_pos(&mut w);
+        let there = *w.get::<Position>(pal).unwrap();
+        w.resource_mut::<Map>().tiles[models::tile_index(there.x, there.y)] = TileType::Wall;
+
+        move_player(&mut w, 1, 0);
+
+        assert_eq!(*w.get::<Position>(player).unwrap(), here);
+        assert_eq!(*w.get::<Position>(pal).unwrap(), there);
+    }
+
+    #[test]
     fn using_a_snack_says_it_is_for_throwing_and_costs_nothing() {
         let mut w = modal_world(3);
         let player = player_entity(&mut w);
