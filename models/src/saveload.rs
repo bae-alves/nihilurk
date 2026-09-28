@@ -485,6 +485,17 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     // Rebuild the map from the seed rather than the save file, then restore the
     // dark-room mask so wand-of-light progress survives the reload, and the
     // cracked doorways with it.
+    // A bee run's layout differs floor by floor, and the body that says so
+    // is an entity restored below: read it off the save first.
+    if let Some(def) = save
+        .entities
+        .iter()
+        .find(|es| es.player)
+        .and_then(|es| es.name.as_deref())
+        .and_then(MonsterDef::lookup)
+    {
+        world.insert_resource(crate::body::StartingBody(crate::body::Body::Monster(def)));
+    }
     regenerate_map(world, save.rng_seed, save.depth);
     world.resource_mut::<Map>().dark = save.dark_tiles;
     world.resource_mut::<Map>().inert_doors = save.inert_doors;

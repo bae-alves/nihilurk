@@ -348,6 +348,10 @@ pub fn welcome_back() -> &'static str {
     "Welcome back to nihilurk! Good luck and have fun!"
 }
 
+pub fn you_monster() -> &'static str {
+    "You monster."
+}
+
 // ---------------------------------------------------------------------------
 // engine/src/main.rs
 //

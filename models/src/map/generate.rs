@@ -23,8 +23,8 @@ use bevy_ecs::prelude::*;
 
 use crate::components::Depth;
 use crate::constants::map::{
-    DARK_ROOM_CHANCE, DRAGON_HOARD_CHANCE, MONSTER_ZOO_CHANCE, RED_ROOM_CHANCE,
-    TREASURE_HIVE_CHANCE,
+    BEE_RUN_HIVE_CHANCE, DARK_ROOM_CHANCE, DRAGON_HOARD_CHANCE, MONSTER_ZOO_CHANCE,
+    RED_ROOM_CHANCE, TREASURE_HIVE_CHANCE,
 };
 use crate::rect::Rect;
 
@@ -132,6 +132,7 @@ impl Grid {
 /// unlit.
 pub(super) fn build_tiles(
     rng: &mut ChaCha12Rng,
+    bees: bool,
 ) -> (
     Vec<TileType>,
     Vec<Rect>,
@@ -145,7 +146,7 @@ pub(super) fn build_tiles(
     let (cells, mut rooms) = carve_rooms(rng, &grid, &empty, &mut tiles);
     connect_neighbours(rng, &cells, &rooms, &mut tiles);
     place_stairs(rng, &mut rooms, &mut tiles);
-    let room_kinds = roll_special_rooms(rng, &rooms, &tiles);
+    let room_kinds = roll_special_rooms(rng, &rooms, &tiles, bees);
     let dark = roll_dark_rooms(rng, &rooms, &tiles, &room_kinds);
     let special = tile_special_map(&rooms, &room_kinds, &tiles);
 
@@ -272,6 +273,7 @@ fn roll_special_rooms(
     rng: &mut ChaCha12Rng,
     rooms: &[Rect],
     tiles: &[TileType],
+    bees: bool,
 ) -> Vec<Option<SpecialRoom>> {
     const TABLE: [(f64, SpecialRoom); 4] = [
         (DRAGON_HOARD_CHANCE, SpecialRoom::DragonHoard),
@@ -279,9 +281,11 @@ fn roll_special_rooms(
         (TREASURE_HIVE_CHANCE, SpecialRoom::TreasureHive),
         (RED_ROOM_CHANCE, SpecialRoom::RedRoom),
     ];
+    const BEE_TABLE: [(f64, SpecialRoom); 1] = [(BEE_RUN_HIVE_CHANCE, SpecialRoom::TreasureHive)];
+    let table: &[(f64, SpecialRoom)] = if bees { &BEE_TABLE } else { &TABLE };
     let mut kinds = vec![None; rooms.len()];
     for (kind, room) in kinds.iter_mut().zip(rooms).skip(1) {
-        let rolled = roll_table(rng, &TABLE);
+        let rolled = roll_table(rng, table);
         let has_stairs = (room.y1..=room.y2)
             .flat_map(|y| (room.x1..=room.x2).map(move |x| tile_index(x as u16, y as u16)))
             .any(|i| matches!(tiles[i], TileType::Upstairs | TileType::Downstairs));
@@ -480,12 +484,12 @@ pub(super) fn tiles_of(tiles: &[TileType], want: TileType) -> Vec<(u16, u16)> {
 /// population needs to know about the shape it is stocking. A floor the roll
 /// makes a [`super::SpecialLevel`] is carved by [`carve`]; every other is
 /// Rogue's own [`build_tiles`]. Pure in `(seed, depth)` either way.
-pub(super) fn build_floor(seed: u64, depth: u8) -> (Map, Rooms) {
+pub(super) fn build_floor(seed: u64, depth: u8, bees: bool) -> (Map, Rooms) {
     let rng = &mut layout_rng(seed, depth);
-    if let Some(level) = roll_special_level(seed, depth) {
+    if let Some(level) = roll_special_level(seed, depth, bees) {
         return carve(level, rng);
     }
-    let (tiles, rooms, dark, special) = build_tiles(rng);
+    let (tiles, rooms, dark, special) = build_tiles(rng, bees);
     let rooms = rooms.iter().map(|r| room_floor_tiles(r, &tiles)).collect();
     (
         Map {
@@ -505,7 +509,7 @@ pub(super) fn build_floor(seed: u64, depth: u8) -> (Map, Rooms) {
 pub fn create_map(world: &mut World) -> ((u16, u16), Rooms) {
     let seed = world.resource::<RngSeed>().0;
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
-    let (map, rooms) = build_floor(seed, depth);
+    let (map, rooms) = build_floor(seed, depth, crate::body::bee_run(world));
     let start = find_tile(&map.tiles, TileType::Upstairs).expect("every floor has an up-stair");
     world.insert_resource(map);
     (start, rooms)
@@ -515,7 +519,8 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Rooms) {
 /// [`GameRng`] resource or spawning any actors. Used on load, where the map is
 /// reconstructed from `(seed, depth)` rather than read out of the save file.
 pub fn regenerate_map(world: &mut World, seed: u64, depth: u8) {
-    world.insert_resource(build_floor(seed, depth).0);
+    let bees = crate::body::bee_run(world);
+    world.insert_resource(build_floor(seed, depth, bees).0);
 }
 
 // What a floor is populated *with* is no longer decided here. Which creature,

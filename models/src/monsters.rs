@@ -933,6 +933,13 @@ pub fn wear_monster(world: &mut World, player: Entity, def: &'static MonsterDef)
         spellset.slots.extend(innate);
     }
 
+    // A bee that walks into the dungeon on purpose is told what it is.
+    if def.name == "apis"
+        && let Some(mut log) = world.get_resource_mut::<GameLog>()
+    {
+        log.add(strings::you_monster());
+    }
+
     // No gear roll and no mimic disguise: an `EquipRoll` is how a floor
     // *stocks* a monster, and the player is not stocked. A body that can use
     // gear can still pick some up — see `crate::equipment::toggle_equipped`.
