@@ -293,6 +293,15 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         return;
     }
 
+    // A peaceful spirit isn't fought — the player's blow opens its menu, or
+    // teaches its spell, or does whatever else that species' row says,
+    // instead of rolling any damage. See `crate::spirits`.
+    if world.get::<Player>(attacker).is_some() && crate::spirits::is_peaceful_spirit(world, target)
+    {
+        crate::spirits::trigger_event(world, attacker, target);
+        return;
+    }
+
     // Looking upon a medusa costs you before your blade ever lands — see
     // `crate::abilities::medusa_gaze`.
     fire_on_targeted(world, attacker, target);
@@ -315,6 +324,8 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         swing,
         outcome,
     };
+
+    crate::spirits::on_direct_hit(world, attacker, target, blow.swing.damage);
 
     // The aftermath, in the order it has to happen: the punctuation while the
     // corpse still has a tile to be flung off, then the log, then the despawn.

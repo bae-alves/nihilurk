@@ -1021,6 +1021,10 @@ pub fn potion_arrival(depth: u8) -> String {
     format!("The stone above you thins to nothing and you drift up through it. (Depth {depth})")
 }
 
+pub fn lost_in_the_fall(name: &str) -> String {
+    format!("Your {name} tumbles from your pack and is lost in the fall!")
+}
+
 pub fn descend_stairs(depth: u8) -> String {
     format!("You descend the stairs. (Depth {depth})")
 }
@@ -1279,6 +1283,9 @@ pub fn potion_water() -> &'static str {
 pub fn potion_flavour_mob() -> &'static str {
     "smacks their lips"
 }
+pub fn potion_adjustment_player() -> &'static str {
+    "A wave of calm settles over you. Whatever pull you felt is gone."
+}
 
 // ---------------------------------------------------------------------------
 // models/src/items/throwing.rs
@@ -1532,6 +1539,22 @@ pub fn create_monster_nowhere() -> &'static str {
 }
 pub fn create_monster_line(article: &str, name: &str) -> String {
     format!("The air curdles into {article} {name}, teeth and all!")
+}
+
+pub fn charm_fizzles() -> &'static str {
+    "The wand sparkles, but there is nothing here to charm."
+}
+pub fn charm_self() -> &'static str {
+    "You feel the most adorable you've ever felt."
+}
+pub fn charm_target_line(name: &str) -> String {
+    format!("The {name} gazes at you with adoring eyes — it's yours now!")
+}
+pub fn charm_room_some() -> &'static str {
+    "Every eye in the room turns to you, adoring."
+}
+pub fn charm_room_none() -> &'static str {
+    "The scroll glows with charm, but nothing here to catch it."
 }
 
 pub fn vorpalize_fizzles() -> &'static str {
@@ -1965,6 +1988,10 @@ pub fn depth_label() -> &'static str {
     "DEPTH"
 }
 
+pub fn time_label() -> &'static str {
+    "TIME"
+}
+
 pub fn travel_cursor_prompt() -> &'static str {
     "Move where?"
 }
@@ -1981,6 +2008,10 @@ pub fn quit_answers() -> &'static str {
 
 pub fn spells_menu_title() -> &'static str {
     " SPELLS "
+}
+
+pub fn offer_menu_title() -> &'static str {
+    " CHOOSE ONE "
 }
 
 // ---------------------------------------------------------------------------
@@ -2043,6 +2074,46 @@ pub fn worn_tag(names: &str) -> String {
 // Shared "the X" / "The X" / pronoun fragments (models/src/combat.rs,
 // models/src/items/theft.rs, models/src/traps.rs)
 // ---------------------------------------------------------------------------
+
+pub fn challenge_the_balance() -> &'static str {
+    "You challenge the balance!"
+}
+
+pub fn spirit_does_nothing(name: &str) -> String {
+    format!("The {name} takes no notice of you.")
+}
+
+pub fn barter_satisfied() -> &'static str {
+    "The spirit poofs, satisfied."
+}
+
+pub fn barter_your_side() -> &'static str {
+    " YOU "
+}
+
+pub fn barter_their_side() -> &'static str {
+    " THEM "
+}
+
+pub fn barter_confirm_row() -> &'static str {
+    "[ Trade ]"
+}
+
+pub fn red_demon_grunts(name: &str) -> String {
+    format!("The {name} grunts, unimpressed.")
+}
+
+pub fn pink_demon_submits() -> &'static str {
+    "Stripped of their stolen finery, the demon whimpers and pledges themselves to you."
+}
+
+pub fn pink_demon_turns() -> &'static str {
+    "The demon cackles and turns on you, gear be damned."
+}
+
+pub fn angel_tests_your_faith() -> &'static str {
+    "Tests your faith!"
+}
 
 pub fn the(name: &str) -> String {
     format!("the {name}")

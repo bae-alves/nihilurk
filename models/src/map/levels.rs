@@ -59,7 +59,7 @@ use super::overlays::{BloodStains, Corpses, Smoke};
 // Setting a run up — what the hero starts with, worn without a log line about it.
 use crate::catalog::{spawn_ammo, spawn_armor, spawn_launcher, spawn_potion, spawn_weapon};
 use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
-use crate::equipment::equip_silently;
+use crate::equipment::{Equipped, equip_silently};
 
 // A bones ghost, on the way back out: whoever died on this depth before,
 // come to make the player pay for it.
@@ -125,6 +125,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
                 .add(strings::cannot_go_down());
             return false;
         }
+        crate::spirits::apply_test_of_faith(world, player_entity);
         award_stair_score(world);
         transition_level(world, true, LevelChange::Stairs);
         return true;
@@ -158,6 +159,7 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         win_with_style(world);
         return true;
     }
+    crate::spirits::apply_test_of_faith(world, player_entity);
     award_stair_score(world);
     transition_level(world, false, LevelChange::Stairs);
     true
@@ -224,6 +226,7 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         crate::companion::follow_downstairs(world, helper, beside);
     }
     settle_arrival(world, player, cause);
+    lose_item_to_the_fall(world, player, cause, going_down);
     world
         .resource_mut::<GameLog>()
         .add(arrival_line(cause, going_down, depth));
@@ -364,6 +367,48 @@ fn settle_arrival(world: &mut World, player: Entity, cause: LevelChange) {
     if let Some(mut dl) = world.get_resource_mut::<DungeonLord>() {
         dl.idle_turns = 0;
     }
+}
+
+/// A trapdoor or the Dungeon Lord's shove (never the Element's portal up, and
+/// never a potion of raise level — both are the player's own doing, not a
+/// fall) jars a random unequipped item loose from the pack and it is gone for
+/// good. Equipped gear rides down safe; an empty pack of loose items is a
+/// no-op.
+fn lose_item_to_the_fall(world: &mut World, player: Entity, cause: LevelChange, going_down: bool) {
+    let forced_down =
+        cause == LevelChange::Trapdoor || (cause == LevelChange::Portal && going_down);
+    if !forced_down {
+        return;
+    }
+    let candidates: Vec<Entity> = world
+        .get::<Backpack>(player)
+        .map(|bp| {
+            bp.items
+                .iter()
+                .copied()
+                .filter(|&item| {
+                    world
+                        .get::<Equipped>(item)
+                        .is_none_or(|eq| eq.by != Some(player))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if candidates.is_empty() {
+        return;
+    }
+    let item = {
+        let mut rng = world.resource_mut::<GameRng>();
+        candidates[rng.0.gen_range(0..candidates.len())]
+    };
+    if let Some(mut bp) = world.get_mut::<Backpack>(player) {
+        bp.items.retain(|&i| i != item);
+    }
+    let name = crate::helpers::item_label(world, item);
+    world.despawn(item);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::lost_in_the_fall(&name));
 }
 
 /// The one sentence the player reads about how they got here.
@@ -514,6 +559,7 @@ pub fn initialize_world(world: &mut World) {
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.init_resource::<crate::score::ScoreFlash>();
     world.init_resource::<crate::score::Combo>();
+    world.init_resource::<SpiritsHostile>();
     let seed = world.resource::<RngSeed>().0;
     world.insert_resource(FxRng::new(seed));
 
@@ -573,6 +619,8 @@ pub fn initialize_world(world: &mut World) {
             // Empty at the start of a run: every spell is learned from a
             // hero coin (see `crate::items::pickups::learn_spell`), up to four.
             Spellset::default(),
+            // Neutral until a spirit interaction nudges it. See `Faction::Spirits`.
+            Alignment::default(),
         ))
         .id();
 

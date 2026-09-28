@@ -301,7 +301,7 @@ fn perceive<'a>(
     let mut foes: Vec<Sighting> = spatial
         .iter()
         .filter(|&(tile, &(who, their))| {
-            hostile(faction, their)
+            hostile(world, faction, their)
                 && ctx.visible.contains(tile)
                 && world.get::<Hidden>(who).is_none()
                 && (who != ctx.player || noticed)
@@ -394,7 +394,7 @@ fn act(
 
     // Someone in the way: a swing if it is a foe, otherwise stand.
     if let Some(&(target, their)) = spatial.get(&(new_x, new_y)) {
-        if !hostile(faction, their) {
+        if !hostile(world, faction, their) {
             return false;
         }
         world
@@ -433,14 +433,21 @@ fn can_afford_step(world: &mut World, mob: Entity, pass: usize) -> bool {
     }
 }
 
-/// Whether these two factions come to blows.
-fn hostile(a: Faction, b: Faction) -> bool {
-    matches!(
-        (a, b),
+/// Whether these two factions come to blows. `Spirits` is conditional on
+/// [`SpiritsHostile`]: peaceful toward the player and their allies until it
+/// flips, but always ready to trade blows with a real monster it bumps into.
+fn hostile(world: &World, a: Faction, b: Faction) -> bool {
+    match (a, b) {
         (Faction::Monster, Faction::Player)
-            | (Faction::Monster, Faction::Ally)
-            | (Faction::Ally, Faction::Monster)
-    )
+        | (Faction::Monster, Faction::Ally)
+        | (Faction::Ally, Faction::Monster) => true,
+        (Faction::Spirits, Faction::Monster) | (Faction::Monster, Faction::Spirits) => true,
+        (Faction::Spirits, Faction::Player | Faction::Ally)
+        | (Faction::Player | Faction::Ally, Faction::Spirits) => {
+            world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0)
+        }
+        _ => false,
+    }
 }
 
 /// Whether `mob` may step onto `(new_x, new_y)`: on the map, somewhere its

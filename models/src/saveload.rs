@@ -270,6 +270,10 @@ struct EntitySave<'a> {
     /// Where an aggravated monster is heading, `(tx, ty)`. See [`Aggravated`].
     #[serde(default)]
     aggravated: Option<(u16, u16)>,
+    /// The player's pull toward the cacodaemon/eudaemon poles. See
+    /// [`Alignment`].
+    #[serde(default)]
+    alignment: Option<i8>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -297,6 +301,10 @@ struct SaveGame<'a> {
     /// "Clear data": set when the run was won. The file is kept rather than
     /// deleted; the loader recognises it and asks before starting over.
     cleared: bool,
+    /// Whether the spirits have turned on the player for good. See
+    /// [`crate::components::SpiritsHostile`].
+    #[serde(default)]
+    spirits_hostile: bool,
 }
 
 /// The winner's details, pulled from a won game's clear-data save file.
@@ -420,6 +428,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 .and_then(|w| index_map.get(&w).copied()),
             helper: er.contains::<Helper>(),
             aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
+            alignment: er.get::<Alignment>().map(|a| a.0),
         });
     }
 
@@ -433,6 +442,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         dark_tiles: world.resource::<Map>().dark.clone(),
         inert_doors: world.resource::<Map>().inert_doors.clone(),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
+        spirits_hostile: world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0),
     };
 
     let file = std::fs::File::create(path)?;
@@ -470,6 +480,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(GameRng(save.rng_state));
     world.insert_resource(FxRng::new(save.rng_seed));
     world.insert_resource(DungeonLord::default());
+    world.insert_resource(SpiritsHostile(save.spirits_hostile));
 
     // Rebuild the map from the seed rather than the save file, then restore the
     // dark-room mask so wand-of-light progress survives the reload, and the
@@ -705,6 +716,12 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             if !def.grants.is_empty() {
                 em.insert(Grants(def.grants));
             }
+            if let Some(kind) = def.spirit_kind {
+                em.insert(kind);
+            }
+            if let Some(event) = def.spirit_event {
+                em.insert(event);
+            }
             if es.player {
                 em.insert(crate::body::MonsterBody(def));
             }
@@ -739,6 +756,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some(slots) = es.spellset {
             em.insert(Spellset { slots });
+        }
+        if let Some(a) = es.alignment {
+            em.insert(Alignment(a));
         }
     }
 
@@ -819,6 +839,7 @@ mod tests {
             equipped_by: None,
             helper: false,
             aggravated: None,
+            alignment: None,
         }
     }
 
@@ -841,6 +862,7 @@ mod tests {
             dark_tiles: FixedBitSet::with_capacity(1),
             inert_doors: FixedBitSet::with_capacity(1),
             cleared: false,
+            spirits_hostile: false,
         };
         postcard::to_allocvec(&save).unwrap()
     }
@@ -893,6 +915,7 @@ mod tests {
             dark_tiles: FixedBitSet::with_capacity(1),
             inert_doors: FixedBitSet::with_capacity(1),
             cleared,
+            spirits_hostile: false,
         };
         postcard::to_allocvec(&save).unwrap()
     }

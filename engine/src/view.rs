@@ -402,12 +402,23 @@ pub fn render<W: Write>(
             hx += label.chars().count() as u16;
         }
 
+        let level_time = world
+            .get_resource::<DungeonLord>()
+            .map(|dl| dl.idle_turns)
+            .unwrap_or(0);
         let label = strings::depth_label();
-        let depth_text = format!("{label} {depth}");
-        let dx = centered_x(&depth_text);
-        screen.puts(dx, 0, label, Color::Magenta);
-        let number_x = dx + label.chars().count() as u16 + 1;
-        screen.puts(number_x, 0, &depth.to_string(), Color::White);
+        let time_label = strings::time_label();
+        let depth_str = depth.to_string();
+        let time_str = level_time.to_string();
+        let center_text = format!("{label} {depth_str}  {time_label} {time_str}");
+        let mut cx = centered_x(&center_text);
+        screen.puts(cx, 0, label, Color::Magenta);
+        cx += label.chars().count() as u16 + 1;
+        screen.puts(cx, 0, &depth_str, Color::White);
+        cx += depth_str.chars().count() as u16 + 2;
+        screen.puts(cx, 0, time_label, Color::Magenta);
+        cx += time_label.chars().count() as u16 + 1;
+        screen.puts(cx, 0, &time_str, Color::White);
 
         // The scorekeeper, right-aligned. A payment no longer takes its place:
         // the flash shouts in the gutter under it (row 1, below), so the
@@ -592,8 +603,9 @@ pub fn render<W: Write>(
             Option<&Paralyzed>,
             Option<&Speed>,
             Option<&Helper>,
+            Option<&Faction>,
         ), Without<Hidden>>();
-        for (pos, mob, asleep, pinned, rooted, clamped, paralyzed, speed, helper) in
+        for (pos, mob, asleep, pinned, rooted, clamped, paralyzed, speed, helper, faction) in
             query.iter(world)
         {
             if !visible.contains(&(pos.x, pos.y)) {
@@ -601,6 +613,15 @@ pub fn render<W: Write>(
             }
             if helper.is_some() {
                 screen.bg_map(pos.x, pos.y, Color::DarkCyan);
+                screen.fg_map(pos.x, pos.y, Color::Black);
+                continue;
+            }
+            // A peaceful spirit reads as neutral, not as staggering about
+            // confused (which its `MovementType::Confused` wander would
+            // otherwise paint it as) — dark grey outranks the generic tint
+            // below for as long as `SpiritsHostile` hasn't flipped.
+            if faction == Some(&Faction::Spirits) && !world.resource::<SpiritsHostile>().0 {
+                screen.bg_map(pos.x, pos.y, Color::DarkGrey);
                 screen.fg_map(pos.x, pos.y, Color::Black);
                 continue;
             }
@@ -876,6 +897,16 @@ pub fn render<W: Write>(
     // ---- Moves overlay ----
     if world.resource::<SpellsMenu>().open {
         draw_spells(world, screen);
+    }
+
+    // ---- Spirit offer overlay ----
+    if world.resource::<OfferMenu>().open {
+        draw_offer_menu(world, screen);
+    }
+
+    // ---- Barter overlay ----
+    if world.resource::<BarterMenu>().open {
+        draw_barter_menu(world, screen);
     }
 
     // ---- "Really quit?" ----
@@ -1463,6 +1494,189 @@ fn draw_spells(world: &mut World, screen: &mut Screen) {
     screen.put(start_x, bottom_y, '└', grey);
     screen.hline(start_x + 1, bottom_y, '─', box_width, grey);
     screen.put(start_x + 1 + box_width, bottom_y, '┘', grey);
+}
+
+/// The spirit "choose one of three" overlay — a blue demon's spells, a
+/// sylphid's weapons, a salamander's suits, undyne's rings. Same box as
+/// [`draw_spells`], reading straight off [`OfferMenu::options`] instead of
+/// live player state, since these three were rolled once when the menu
+/// opened and don't change while it's up.
+fn draw_offer_menu(world: &mut World, screen: &mut Screen) {
+    let menu = world.resource::<OfferMenu>();
+    let selected = menu.selected;
+    let rows: Vec<String> = menu
+        .options
+        .iter()
+        .enumerate()
+        .map(|(i, opt)| {
+            let letter = (b'a' + i as u8) as char;
+            format!(" {letter}) {} ", opt.display_name())
+        })
+        .collect();
+
+    let start_x: u16 = 5;
+    let start_y: u16 = 3;
+    let grey = Color::DarkGrey;
+    let title = strings::offer_menu_title();
+    let box_width = rows
+        .iter()
+        .map(|r| r.chars().count() as u16)
+        .chain([title.len() as u16])
+        .max()
+        .unwrap_or(0)
+        .max(20);
+
+    screen.put(start_x, start_y, '┌', grey);
+    screen.hline(start_x + 1, start_y, '─', box_width, grey);
+    screen.put(start_x + 1 + box_width, start_y, '┐', grey);
+    screen.puts(
+        start_x + box_width / 2 - title.len() as u16 / 2,
+        start_y,
+        title,
+        Color::Yellow,
+    );
+
+    for (row, text) in rows.iter().enumerate() {
+        let y = start_y + 1 + row as u16;
+        let color = if row == selected {
+            Color::Yellow
+        } else {
+            Color::White
+        };
+        screen.put(start_x, y, '│', grey);
+        screen.puts(
+            start_x + 1,
+            y,
+            &format!("{:<w$}", text, w = box_width as usize),
+            color,
+        );
+        screen.put(start_x + 1 + box_width, y, '│', grey);
+    }
+
+    let bottom_y = start_y + 1 + rows.len() as u16;
+    screen.put(start_x, bottom_y, '└', grey);
+    screen.hline(start_x + 1, bottom_y, '─', box_width, grey);
+    screen.put(start_x + 1 + box_width, bottom_y, '┘', grey);
+}
+
+/// One row's label in a [`BarterMenu`] column: an item's display name, or a
+/// spell's — whatever the demon's trading in.
+fn tradeable_label(world: &World, item: Tradeable) -> String {
+    match item {
+        Tradeable::Item(e) => models::display_name(world, e),
+        Tradeable::Spell(effect) => SpellDef::of(effect).display_name().to_string(),
+    }
+}
+
+/// One barter column: a box of rows, a checkmark on whichever are staged for
+/// the trade, the cursor's row picked out in yellow only when `active` (the
+/// other column's rows still show their checkmarks, just not highlighted).
+/// `extra_row`, when given, is one more line below the items — the player
+/// column's "confirm the trade" button.
+#[allow(clippy::too_many_arguments)]
+fn draw_barter_column(
+    world: &World,
+    screen: &mut Screen,
+    start_x: u16,
+    start_y: u16,
+    title: &str,
+    pool: &[Tradeable],
+    selected: &[Tradeable],
+    cursor: usize,
+    active: bool,
+    extra_row: Option<&str>,
+) -> u16 {
+    let grey = Color::DarkGrey;
+    let mut rows: Vec<String> = pool
+        .iter()
+        .map(|&t| {
+            let mark = if selected.contains(&t) { '*' } else { ' ' };
+            format!(" {mark} {} ", tradeable_label(world, t))
+        })
+        .collect();
+    if let Some(extra) = extra_row {
+        rows.push(format!(" {extra} "));
+    }
+
+    let box_width = rows
+        .iter()
+        .map(|r| r.chars().count() as u16)
+        .chain([title.len() as u16])
+        .max()
+        .unwrap_or(0)
+        .max(20);
+
+    screen.put(start_x, start_y, '┌', grey);
+    screen.hline(start_x + 1, start_y, '─', box_width, grey);
+    screen.put(start_x + 1 + box_width, start_y, '┐', grey);
+    screen.puts(
+        start_x + box_width / 2 - title.len() as u16 / 2,
+        start_y,
+        title,
+        Color::Yellow,
+    );
+
+    for (row, text) in rows.iter().enumerate() {
+        let y = start_y + 1 + row as u16;
+        let color = if active && row == cursor {
+            Color::Yellow
+        } else {
+            Color::White
+        };
+        screen.put(start_x, y, '│', grey);
+        screen.puts(
+            start_x + 1,
+            y,
+            &format!("{:<w$}", text, w = box_width as usize),
+            color,
+        );
+        screen.put(start_x + 1 + box_width, y, '│', grey);
+    }
+
+    let bottom_y = start_y + 1 + rows.len() as u16;
+    screen.put(start_x, bottom_y, '└', grey);
+    screen.hline(start_x + 1, bottom_y, '─', box_width, grey);
+    screen.put(start_x + 1 + box_width, bottom_y, '┘', grey);
+    start_x + box_width + 2
+}
+
+/// The barter overlay: the player's pack in one box, the demon's in another
+/// beside it — a `*` marks a staged row, yellow picks out the cursor in
+/// whichever column is active. See [`draw_barter_column`].
+fn draw_barter_menu(world: &mut World, screen: &mut Screen) {
+    let menu = world.resource::<BarterMenu>();
+    let (column, cursor) = (menu.column, menu.cursor);
+    let player_side = menu.player_side.clone();
+    let demon_side = menu.demon_side.clone();
+    let player_selected = menu.player_selected.clone();
+    let demon_selected = menu.demon_selected.clone();
+
+    let start_x: u16 = 2;
+    let start_y: u16 = 3;
+    let next_x = draw_barter_column(
+        world,
+        screen,
+        start_x,
+        start_y,
+        strings::barter_your_side(),
+        &player_side,
+        &player_selected,
+        cursor,
+        column == BarterColumn::Player,
+        Some(strings::barter_confirm_row()),
+    );
+    draw_barter_column(
+        world,
+        screen,
+        next_x,
+        start_y,
+        strings::barter_their_side(),
+        &demon_side,
+        &demon_selected,
+        cursor,
+        column == BarterColumn::Demon,
+        None,
+    );
 }
 
 #[cfg(test)]

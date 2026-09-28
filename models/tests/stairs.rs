@@ -339,6 +339,80 @@ fn dungeon_lord_portal_shunts_the_dawdler_onward() {
 }
 
 #[test]
+fn dungeon_lord_portal_down_loses_an_unequipped_item() {
+    let mut w = test_world(7);
+    w.insert_resource(DungeonLord {
+        idle_turns: DUNGEON_LORD_PATIENCE - 2,
+    });
+    let p = w.query_filtered::<Entity, With<Player>>().single(&w);
+    let before: HashSet<Entity> = w
+        .get::<Backpack>(p)
+        .unwrap()
+        .items
+        .iter()
+        .copied()
+        .collect();
+
+    let plain = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Room)
+        .unwrap();
+    w.get_mut::<Position>(p).unwrap().x = (plain % MAP_WIDTH as usize) as u16;
+    w.get_mut::<Position>(p).unwrap().y = (plain / MAP_WIDTH as usize) as u16;
+
+    dungeon_lord_system(&mut w);
+    dungeon_lord_system(&mut w);
+
+    let after: HashSet<Entity> = w
+        .get::<Backpack>(p)
+        .unwrap()
+        .items
+        .iter()
+        .copied()
+        .collect();
+    assert_eq!(
+        before.difference(&after).count(),
+        1,
+        "the shove down costs exactly one item from the starting kit"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l.contains("lost in the fall")),
+        "the loss is logged"
+    );
+}
+
+#[test]
+fn the_elements_portal_up_never_costs_an_item() {
+    let mut w = test_world(7);
+    descend_to(&mut w, 13);
+
+    let p = w.query_filtered::<Entity, With<Player>>().single(&w);
+    let element = w
+        .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
+        .single(&w);
+    w.entity_mut(element).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(element);
+    let before = w.get::<Backpack>(p).unwrap().items.len();
+
+    w.insert_resource(DungeonLord {
+        idle_turns: DUNGEON_LORD_PATIENCE - 1,
+    });
+    dungeon_lord_system(&mut w);
+
+    assert_eq!(w.resource::<Depth>().what, 12, "the portal carried it up");
+    assert_eq!(
+        w.get::<Backpack>(p).unwrap().items.len(),
+        before,
+        "the Element's portal up is the player's own doing, not a fall"
+    );
+}
+
+#[test]
 fn cannot_descend_without_stairs() {
     let mut w = test_world(7);
     let p = player(&mut w);

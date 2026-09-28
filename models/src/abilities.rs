@@ -36,7 +36,7 @@ use crate::effects::{
     AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Clamped, ClampedBy, Cleaves,
     ConfusingTouch, FireBreath, Freezing, Gorgon, Grant, HeavySwing, LightningBreath, MagicWard,
     Momentum, Petrified, Regenerates, RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees,
-    StealsAndVanishes, Teleportitis, Vampiric, Venomous,
+    StealsAndVanishes, Teleportitis, ThrowsWands, Vampiric, Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
 use crate::helpers::{adjacent_mobs, apply_damage, item_label};
@@ -235,6 +235,7 @@ pub const ABILITIES: &[Ability] = &[
 pub const INNATE_SPELLS: &[(Grant, SpellEffect)] = &[
     (Grant::of::<FireBreath>(), SpellEffect::DragonBreath),
     (Grant::of::<LightningBreath>(), SpellEffect::Thunderbolt),
+    (Grant::of::<ThrowsWands>(), SpellEffect::RandomWand),
 ];
 
 /// Whether `caster` carries the grant that makes `effect` innate to them —
