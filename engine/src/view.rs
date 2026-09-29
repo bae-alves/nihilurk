@@ -1,9 +1,8 @@
 //! Everything that goes *in* the terminal grid: the map layers, the HUD, the
 //! overlays and the playback loops that pace an animation across frames.
 //!
-//! The grid itself — `Screen`, its diffing and its flush — lives in its own
-//! `view` crate, so `perf/` measures the renderer the game actually has
-//! rather than a copy of it. [`render`] is the whole frame, drawn layer by
+//! The grid itself — `Screen`, its diffing and its flush — lives in
+//! `screen.rs`. [`render`] is the whole frame, drawn layer by
 //! layer (terrain, blood, items, actors, overlays); [`play_particles`],
 //! [`play_magic_map`] and [`play_shake`] are the three ways a turn's
 //! aftermath gets spread across more than one of them.
@@ -21,7 +20,7 @@ use crossterm::{
 
 use models::*;
 
-pub use view::{MAP_TOP, SCREEN_H, SCREEN_W, Screen};
+pub use crate::screen::{MAP_TOP, SCREEN_H, SCREEN_W, Screen};
 
 /// A targeting beam's trajectory from `(x0, y0)` to `(x1, y1)`, in map
 /// coordinates.

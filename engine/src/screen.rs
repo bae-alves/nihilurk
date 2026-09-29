@@ -1,18 +1,11 @@
 //! The terminal grid nihilurk paints onto, and the diff that gets it there.
 //!
-//! One crate, so there is **one** `Screen` in the workspace. `engine` paints
-//! the game into it; `perf` measures what a frame of that costs. Both are
-//! looking at the same type, which is the whole reason this is a crate rather
-//! than a module: the rig used to carry a hand-maintained copy, nothing
-//! checked the two stayed in step, and a copy that drifts reports numbers for
-//! a renderer the game no longer has.
-//!
 //! What lives here is the *grid*: its size, its double buffer, the cell-diff
 //! that turns a painted frame into escape sequences, and the map/screen
 //! coordinate split the screen shake rides on. What does not live here is any
-//! knowledge of the game — no map, no HUD, no monsters. `view` knows how big a
-//! frame is and how to get one onto a terminal; what goes in it is `engine`'s
-//! business, and what goes in it for a measurement is `perf`'s.
+//! knowledge of the game -- no map, no HUD, no monsters. `view` decides what
+//! goes in a frame; this module knows how big a frame is and how to get one
+//! onto a terminal.
 //!
 //! # The two coordinate systems
 //!

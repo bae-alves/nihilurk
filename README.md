@@ -19,7 +19,7 @@ Where things are
     CONTRIBUTING.md    reporting bugs and sending translations.
     gdd.md         what nihilurk is trying to be. Design, not code.
     models/        the game: rules, content tables, ECS systems.
-    view/          the terminal grid: the double buffer and its diff.
+    strings/       every player-facing sentence, one file per language.
     engine/        the terminal front end: input, rendering, the loop.
     particle-core/ the particle arithmetic, `no_std` and dependency-free.
     compat/        the machine matrix. Does it still run on a Pi?

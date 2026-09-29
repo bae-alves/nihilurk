@@ -1,8 +1,9 @@
 //! The binary: parses the command line into a starting world, builds the turn
 //! schedule ([`turn_schedule`]), then runs the read-act-render loop until
-//! [`Ending`] says the run is over. `update` and `view` are its own submodules
+//! [`Ending`] says the run is over. `screen`, `update` and `view` are its own submodules
 //! — everything else the turn touches lives in `models`.
 
+mod screen;
 mod update;
 mod view;
 use models::*;

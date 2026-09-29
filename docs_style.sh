@@ -326,7 +326,7 @@ stage "Cross-references"
 # kind of change that falsifies a pile of them at once.
 STALE_SRC=""
 for f in $PAGES; do
-  for path in $(grep -oP '`(models|engine|perf|compat|particle-core|docs)/[^`[:space:]]+`' "$f" \
+  for path in $(grep -oP '`(models|engine|strings|compat|particle-core|docs)/[^`[:space:]]+`' "$f" \
                   | tr -d '`' | grep -v '[*]' | grep -v '::' | grep -v '/$'); do
     [ -e "$path" ] || STALE_SRC="$STALE_SRC$f -> $path"$'\n'
   done

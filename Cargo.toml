@@ -5,8 +5,7 @@ members = [
     "engine",
     "models",
     "particle-core",
-    "strings",
-    "view"
+    "strings"
 ]
 
 # `compat` is a test rig, not part of the game: it pulls in ratatui, which the
@@ -28,8 +27,7 @@ default-members = [
     "engine",
     "models",
     "particle-core",
-    "strings",
-    "view"
+    "strings"
 ]
 
 [workspace.package]
