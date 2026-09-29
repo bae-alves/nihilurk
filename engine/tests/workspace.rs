@@ -92,3 +92,26 @@ fn every_crate_in_the_tree_is_a_workspace_member() {
          add them to `members` (and to `default-members` unless they are rigs)"
     );
 }
+
+#[test]
+fn the_docs_crate_map_names_every_crate() {
+    let root = workspace_root();
+    let manifest = std::fs::read_to_string(root.join("Cargo.toml"))
+        .expect("the workspace manifest is readable");
+    let map = std::fs::read_to_string(root.join("docs/README.md"))
+        .expect("docs/README.md is readable");
+    let (_, map) = map
+        .split_once("\nThe crates\n")
+        .expect("docs/README.md has a `The crates` section");
+    let map = map.split_once("\nThe rule that keeps this true").map_or(map, |s| s.0);
+
+    let missing: Vec<String> = array(&manifest, "members")
+        .into_iter()
+        .filter(|name| !map.contains(&format!("  {name}/")))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "crates missing from the `The crates` map in docs/README.md: {missing:?}"
+    );
+}

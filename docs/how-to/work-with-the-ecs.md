@@ -8,6 +8,8 @@ Working with the ECS
                    system are. You have read
                    `../reference/components.md` at least once.
 
+The snippets are written from inside `models`, so they say `crate::conditions::...`. From `engine` or a test, the same name is `models::...` (see `../reference/spawn-api.md` for what the crate root exports).
+
 Recipes: copy the shape, change the nouns. *Why* the code is arranged this way is `../explanation/ecs-in-nihilurk.md`.
 
 Fifteen of nihilurk's sixteen schedule steps take `&mut World` and nothing else. That one fact decides everything below: you are not writing `Query<&mut Fighter>` and letting bevy sort out the aliasing, you are holding the whole world and borrowing bits of it by hand. The borrow checker is stricter here than it is in a `Query`-based codebase, and the five patterns in the first section are how every mechanic in the tree gets past it.

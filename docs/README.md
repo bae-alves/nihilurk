@@ -88,14 +88,35 @@ Every page names its own audience and prerequisites in a header. Broadly:
                     `how-to/work-with-the-ecs.md`, then lives in
                     `reference/` and `explanation/`.
                     `engine/` itself (input handling, rendering) is
-                    thinner ground than `models/`: it carries very
-                    little test coverage — two numpad tests and
-                    `view.rs`'s frame geometry — so a change there is
-                    mostly checked by playing the game, not by
-                    `cargo test`. See `reference/input-and-turn-loop.md`
+                    thinner ground than `models/`: its tests
+                    cover key dispatch (`update.rs`) and the log gate
+                    and status tints (`view.rs`), not what a frame looks
+                    like, so a change to a frame is checked by playing
+                    the game, not by `cargo test`. See `reference/input-and-turn-loop.md`
                     and `reference/rendering.md`.
 
 The game design document (`../gdd.md`) is a third thing again: what nihilurk is trying to *be*. It is not a spec of the code.
+
+
+The crates
+----------
+
+The code is a workspace of small libraries and one binary. Pages name files by their path from the repo root, so this is the map.
+
+  models/         The game. Rules, content tables, ECS systems, save
+                  files. No input, no drawing. Almost everything in
+                  `tutorial/`, `how-to/` and `reference/` lives here.
+  strings/        Every player-facing sentence, one file per language,
+                  chosen by a `lang-*` feature at build time.
+  particle-core/  The particle arithmetic. `no_std`, no dependencies.
+  engine/         The binary. Key handling, the turn loop, `Screen`
+                  (the cell grid and its diff) and every layer that
+                  paints into it. Also
+                  `nihilurk-dispatch`, which picks a language binary.
+  compat/         A test rig, outside a bare `cargo build` and
+                  `cargo test`. See `how-to/run-the-compat-pipeline.md`.
+
+Dependencies run one way, toward the leaves: `engine` uses `models` and `strings`; `models` uses `strings` and `particle-core`. Nothing depends on `engine`. `models` re-exports its public API from the crate root, so `use models::*;` reaches it. `helpers` is private bar four names (`Hit`, `apply_hit`, `chebyshev`, `mob_at`), and so is anything marked `pub(crate)`. A page that names one of those says so.
 
 
 The rule that keeps this true

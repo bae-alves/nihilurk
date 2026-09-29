@@ -1,7 +1,6 @@
 /target
 
-# `perf record` and `cargo flamegraph` write these into the working directory;
-# the pipeline's own copies live under /target/perf and are covered above.
+# `perf record` and `cargo flamegraph` write these into the working directory.
 /perf.data*
 /flamegraph.svg
 

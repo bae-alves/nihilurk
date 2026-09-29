@@ -160,6 +160,16 @@ One bare argument, meaning one of two things:
 If the save is *clear data* -- a won run, which is kept rather than deleted -- the game asks before spending it.
 
 
+Language
+--------
+
+The language is a build-time choice, not a flag. `engine` forwards one `lang-*` feature (`en` by default, `pt`, `es`, `ht`) to `strings`, `models` and `view`, and the binary carries that language only:
+
+    cargo run -p engine --no-default-features --features lang-pt
+
+The installed `nihilurk` command is `nihilurk-dispatch`, which reads `LC_ALL`, `LANG` or `LANGUAGE`, and `exec`s the matching `nihilurk-<lang>` beside it, passing every argument through. `--lang <en|pt|es|ht>` as the first two arguments overrides that and is stripped before forwarding. Anything it does not recognise gets English.
+
+
 Environment variables
 ---------------------
 
