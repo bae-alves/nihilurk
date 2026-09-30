@@ -33,7 +33,7 @@ Components — identity, position, appearance
 | `Player`     | marker                                  | the hero      | yes    |
 | `Position`   | `x, y: u16`                             | anything on the floor; removed while in a `Backpack` | yes |
 | `Renderable` | `glyph: char`, `color: Color`           | anything drawn | yes (colour packs to one byte against a 16-entry palette) |
-| `Faction`    | enum `Player` / `Monster` / `Ally`      | every actor   | yes    |
+| `Faction`    | enum `Player` / `Monster` / `Ally` / `Spirits` | every actor   | yes    |
 
 `Name::article()` returns `"a"` / `"an"` for the name.
 
@@ -79,6 +79,10 @@ Components — creatures and combat
 | `Blood`   | marker | creatures that bleed | **transient** — re-attached to the player and every mob on load |
 | `Magic`   | `points, max_points: u8` | the hero | yes |
 | `Helper`  | marker — the player's boon companion, a `Faction::Ally` that follows them between floors | at most one creature | yes (its own field, not an effect row) |
+
+| `Mimic`   | marker — a xeroc still in disguise: it reads as an item and every "monster nearby" check skips it. `reveal_mimics` strips it when the player stands adjacent | xerocs | no |
+| `Spellset` | `slots: Vec<SpellEffect>` — the spells the creature knows, capped at `constants::spells::SPELLSET_CAP` | the hero | yes |
+| `GhostOfPlayer` | marker — the bones ghost of the player's own past run; `combat.rs` narrates a fight with it as "you" against yourself | the bones ghost | no |
 
 `MovementType` — enum, **saved by variant order**:
 
@@ -225,6 +229,13 @@ A missile and a launcher never name each other; they meet at an effect (`FireArr
 
 "catalog" = re-attached by item name on load (`restore_from_catalog`), never written to the save.
 
+Reach weapons (`combat::resolve_reach_attack`, aimed with `v`) are the melee counterpart:
+
+| Component       | Data  | Meaning                          | Saved? |
+|-----------------|-------|----------------------------------|--------|
+| `Reach`         | `i32` | strikes this many tiles out instead of adjacent (bardiche 2, whip 5) | catalog |
+| `ReachPiercing` | marker | the strike runs the whole line instead of stopping at the first body (bardiche yes, whip no) | catalog |
+
 
 Components — player conditions
 ------------------------------
@@ -248,15 +259,15 @@ The first three are **effects**, not components of their own: rows in `crate::ef
 
 The verbs that put them on — `confuse`, `blind`, `paralyse`, `hasten`, `shift_entity_speed`, `snare` — live in `crate::conditions`, one per affliction, and each one already knows the difference between the player and a monster. `snare` is the exception to the "never wears off" rule above: it is counted in turns from the moment it lands, and it logs nothing, because the sentence belongs to whatever pinned you. A blinded monster has no viewshed to put out, so it gets `MovementType::Confused`; a paralysed one gets the slowing and no coin flip.
 
-**A creature carries at most three conditions.** A fourth sheds the oldest, in `effects::lend` — the one gate every transient effect already passes through, so a trap, a potion and a monster's touch are all capped by the same line and none of them needs to know the rule exists. Oldest first because the newest is the one that just happened, and a blow that lands should be felt. Shedding runs the same `AFFLICTIONS` `after` column a cure does (`conditions::after_lifted`), so a shed blindness recomputes the viewshed exactly as a cured one would.
+**A creature carries at most three conditions.** A fourth is refused, in `effects::lend` — the one gate every transient effect already passes through, so a trap, a potion and a monster's touch are all capped by the same line. `lend` returns `false` and attaches nothing; the verbs that print a success line (`blind`, `confuse`, `paralyse`, `bide`, magic ward) check it and stop. What the creature already holds stays, so nothing has to be undone.
 
-What counts is `Held::is_condition`: transient **and** named by `conditions::is_condition`, which reads the lists that already declare conditions — `AFFLICTIONS`, `FLOOR_BOONS`, `effects::HOLDS`, and `OTHER_CONDITIONS` for the four with no list of their own. Both halves have to hold, and the default is exemption. A ring of regeneration lends `Lifetime::WhileEquipped` and fails the first half; a potion of magic detection's `Detected` mark is transient but is nothing the marked creature feels, and fails the second. Neither may shoulder a real condition off.
+What counts is `Held::is_condition`: transient **and** named by `conditions::is_condition`, which reads the lists that already declare conditions — `AFFLICTIONS`, `FLOOR_BOONS`, `effects::HOLDS`, and `OTHER_CONDITIONS` for the four with no list of their own. Both halves have to hold, and the default is exemption. A ring of regeneration lends `Lifetime::WhileEquipped` and fails the first half; a potion of magic detection's `Detected` mark is transient but is nothing the marked creature feels, and fails the second. Neither may crowd a real condition out.
 
-**Shedding is never silent.** `conditions::shed_line` gives the sentence: a hold says what it already says when its own clock runs out (`Effect::ends`), and everything else borrows the staircase's phrasing — "You are no longer blind." — because that is the sentence the player has already learned to read as "that one is over". Only the player is told, the same rule `tick_effects` keeps. A condition whose badge vanished with nothing said would read as a bug in the badge line rather than as a rule.
+**Refusing is never silent.** The player reads "You already have too many conditions." (`strings::too_many_conditions`). A monster's refusal is silent, the same rule `tick_effects` keeps.
 
 ### The priority badges
 
-`Speed` haste/slow, `Plated` and `Forged` are **priority badges**: they are outside the ledger, so they are neither counted against the ceiling nor ever shed for a fourth condition. That is deliberate, not an oversight of the cap.
+`Speed` haste/slow, `Plated` and `Forged` are **priority badges**: they are outside the ledger, so they are neither counted against the ceiling nor ever refused for a fourth condition. That is deliberate, not an oversight of the cap.
 
 They earn it by being things the player cannot act correctly without. A tempo changes what every single step costs, and it is a value on `Speed` rather than a marker something either has or has not — there is nothing to shed. The two coin promises are standing bets that any damage at all cancels (`helpers::took_damage`) and a staircase settles (`items::settle_promises`); a promise silently displaced by a fourth condition would be a bet the player is still playing around and can no longer see. So they always show.
 
@@ -342,6 +353,25 @@ Resources
 | `PlayerTempo`   | `fast_parity: bool`                                       | the player half of the speed system: a `Fast` turn flips it, monsters move only when it flips back. |
 | `AttackQueue` / `UseQueue` / `ThrowQueue` / `SpellQueue` | `Vec<…>`            | see Events above. |
 | `Shake`         | `enabled: bool` (`-nshake`), plus a private kind + age    | screen shake. Gameplay arms one with `shake::kick_shake(world, ShakeKind::…)` and forgets; the engine ages it, reads `offset()` and `settle()`s it. See below. |
+
+### Spirits
+
+Peaceful `Faction::Spirits` mobs (`spirits.rs`): melee on one triggers an event instead of an attack.
+
+| Type | Kind | Data | Saved? |
+|------|------|------|--------|
+| `Alignment` | component, hero | `i8`, `-3` (cacodaemon pole) to `3` (eudaemon pole); a peaceful interaction moves it `∓1` | yes |
+| `SpiritsHostile` | resource | `bool`; set for good when `Alignment` hits a pole or the player lands a direct hit on a peaceful spirit | yes |
+| `SpiritKind` | component | `Cacodaemon` / `Eudaemon`; which way the spirit pulls `Alignment` | **transient** (from `MonsterDef::spirit_kind`) |
+| `SpiritEvent` | component | `fn(&mut World, Entity, Entity)`; what melee does to it | **transient** (from `MonsterDef::spirit_event`) |
+| `TestOfFaithLedger` | component | marker; the angel's blessing is pending until the next staircase | no |
+| `OfferMenu` | resource | `open`, `selected`, `options: Vec<OfferOption>`, `source: Option<Entity>`; the "choose one of three" menu, rolled once on open | transient |
+| `OfferOption` | enum | `Spell` / `Weapon` / `Armor` / `Ring`; one row of that menu | transient |
+| `BarterMenu` | resource | `open`, `demon`, `column: BarterColumn`, `cursor`, `player_side` / `demon_side` and `player_selected` / `demon_selected: Vec<Tradeable>` | transient |
+| `BarterColumn` | enum | `Player` / `Demon`; which column the cursor is in | transient |
+| `Tradeable` | enum | `Item(Entity)` / `Spell(SpellEffect)`; one thing on either side of a barter | transient |
+
+Also here: `SpellsMenu` (`open`, `selected`; the `Z` menu, the only way to an active spell) and `SpellKind` (`Attack` / `Skill`; a staff's `TurboMagic` scales only the first). `ExtraMonsterRound(bool)` is set by a greatclub's heavy swing; the turn loop runs one extra monster round after that action and clears it.
 
 ### The pack screen
 

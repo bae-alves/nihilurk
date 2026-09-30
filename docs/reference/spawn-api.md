@@ -196,7 +196,7 @@ A const handle to one marker effect. Lets a `const` table name a component it ca
 
     pub fn grant_all(world, entity: Entity, grants: &'static [Grant])
     pub fn revoke_all(world, entity: Entity)
-    pub fn lend(world, entity: Entity, grant: Grant, lifetime: Lifetime)
+    pub fn lend(world, entity: Entity, grant: Grant, lifetime: Lifetime) -> bool
     pub fn revoke_matching(world, entity: Entity, doomed: impl Fn(&Held) -> bool)
     pub fn hold(world, victim: Entity, grant: Grant, turns: u32) -> bool
     pub fn turns_left(world: &World, entity: Entity, grant: Grant) -> Option<u32>

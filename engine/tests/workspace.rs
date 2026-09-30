@@ -98,12 +98,14 @@ fn the_docs_crate_map_names_every_crate() {
     let root = workspace_root();
     let manifest = std::fs::read_to_string(root.join("Cargo.toml"))
         .expect("the workspace manifest is readable");
-    let map = std::fs::read_to_string(root.join("docs/README.md"))
-        .expect("docs/README.md is readable");
+    let map =
+        std::fs::read_to_string(root.join("docs/README.md")).expect("docs/README.md is readable");
     let (_, map) = map
         .split_once("\nThe crates\n")
         .expect("docs/README.md has a `The crates` section");
-    let map = map.split_once("\nThe rule that keeps this true").map_or(map, |s| s.0);
+    let map = map
+        .split_once("\nThe rule that keeps this true")
+        .map_or(map, |s| s.0);
 
     let missing: Vec<String> = array(&manifest, "members")
         .into_iter()

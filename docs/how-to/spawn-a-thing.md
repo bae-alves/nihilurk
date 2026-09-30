@@ -26,6 +26,10 @@ No code. `NIHILURK_SPAWN` drops names on free tiles around the player on every f
     NIHILURK_SPAWN="dragon" cargo run -p engine      # 2. put one in front of me
     NIHILURK_SPAWN="bow,arrow,arrow,dart trap" cargo run -p engine
 
+Gear and ammunition take dressing: `cursed`, `+N`/`-N` and `xN`.
+
+    NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p engine
+
 Names are comma-separated and trimmed; a name the tables do not know is skipped **silently**, so check it against `-content` rather than trusting an empty floor. Full rules: `../reference/cli-and-env.md`.
 
 

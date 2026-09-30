@@ -416,6 +416,55 @@ fn a_spawn_list_drops_each_name_on_its_own_free_tile() {
     );
 }
 
+#[test]
+fn a_spawn_list_can_curse_enchant_and_stack() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(rng(31)));
+    w.insert_resource(RngSeed(31));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+    let start = *w.query_filtered::<&Position, With<Player>>().single(&w);
+    let mut occupied: HashSet<(u16, u16)> = HashSet::from([(start.x, start.y)]);
+    let before: HashSet<Entity> = w.iter_entities().map(|e| e.id()).collect();
+
+    let n = models::spawn_list(
+        &mut w,
+        "cursed -2 long sword, +3 ring mail, arrow x5, arrow x99, sandwich x2",
+        start,
+        &mut occupied,
+    );
+    assert_eq!(n, 4);
+
+    let find = |w: &World, name: &str| -> Vec<Entity> {
+        w.iter_entities()
+            .filter(|e| !before.contains(&e.id()))
+            .filter(|e| e.get::<Name>().is_some_and(|n| n.what == name))
+            .map(|e| e.id())
+            .collect()
+    };
+    let sword = find(&w, "long sword")[0];
+    let mail = find(&w, "ring mail")[0];
+    let arrows = find(&w, "arrow");
+
+    let plain_sword = models::spawn_named(&mut w, "long sword", start).unwrap();
+    let plain_mail = models::spawn_named(&mut w, "ring mail", start).unwrap();
+    let power = |w: &World, e| w.get::<PowerBonus>(e).map_or(0, |b| b.0);
+    let guard = |w: &World, e| w.get::<ArmorBonus>(e).map_or(0, |b| b.0);
+    assert!(w.get::<Curse>(sword).is_some());
+    assert_eq!(power(&w, sword), power(&w, plain_sword) - 2);
+    assert!(w.get::<Curse>(mail).is_none());
+    assert_eq!(guard(&w, mail), guard(&w, plain_mail) + 3);
+    let mut counts: Vec<u8> = arrows
+        .iter()
+        .map(|&e| w.get::<Stack>(e).unwrap().count)
+        .collect();
+    counts.sort();
+    assert_eq!(counts, [5, models::STACK_LIMIT]);
+}
+
 // ---------------------------------------------------------------------------
 // Identification
 // ---------------------------------------------------------------------------

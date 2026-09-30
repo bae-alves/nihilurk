@@ -19,9 +19,7 @@ use rand::Rng;
 use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
-use crate::helpers::{
-    actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_roll,
-};
+use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_roll};
 use crate::identify::{article_for, counted, display_name, phrase_for, with_article};
 use crate::map::{GameRng, Map};
 use crate::particles::Particles;

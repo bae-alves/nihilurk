@@ -784,6 +784,10 @@ pub const fn adjective_sluggish() -> &'static str {
     "sluggish"
 }
 
+pub fn too_many_conditions() -> &'static str {
+    "You already have too many conditions."
+}
+
 pub fn no_longer(adjective: &str) -> String {
     format!("You are no longer {adjective}.")
 }

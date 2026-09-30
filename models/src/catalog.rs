@@ -1309,6 +1309,16 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
         Quality::Cursed => rng.gen_range(CURSED_BONUS_MIN..=CURSED_BONUS_MAX),
     };
 
+    apply_bonus(world, item, bonus);
+    if quality == Quality::Cursed {
+        world.entity_mut(item).insert(Curse);
+    }
+}
+
+/// Adds `bonus` to whichever roll the item contributes to: the weapon's hit, the
+/// armour's guard, or a launcher's throw. A ring is none of those and is left
+/// alone. Shared by [`enchant_equipment`] and the `NIHILURK_SPAWN` `+N` prefix.
+pub fn apply_bonus(world: &mut World, item: Entity, bonus: i32) {
     let mut entity = world.entity_mut(item);
     if entity.get::<PowerDie>().is_some() {
         let base = entity.get::<PowerBonus>().map(|b| b.0).unwrap_or(0);
@@ -1323,8 +1333,5 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     if entity.contains::<Launcher>() {
         let base = entity.get::<ThrowBonus>().map(|b| b.0).unwrap_or(0);
         entity.insert(ThrowBonus(base + bonus));
-    }
-    if quality == Quality::Cursed {
-        entity.insert(Curse);
     }
 }

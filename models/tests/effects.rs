@@ -533,34 +533,33 @@ fn conditions_held(w: &World, e: Entity) -> usize {
 }
 
 #[test]
-fn a_fourth_condition_sheds_the_oldest() {
+fn a_fourth_condition_is_refused() {
     let mut w = test_world(7);
     let p = player(&mut w);
 
-    lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor);
-    lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
-    lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
+    assert!(lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor));
+    assert!(lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor));
+    assert!(lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor));
     assert_eq!(conditions_held(&w, p), 3);
-    assert!(w.get::<Blind>(p).is_some());
 
-    lend(&mut w, p, Grant::of::<Paralyzed>(), Lifetime::Floor);
-    assert_eq!(conditions_held(&w, p), 3, "the ceiling is three");
     assert!(
-        w.get::<Blind>(p).is_none(),
-        "the oldest is the one that goes"
+        !lend(&mut w, p, Grant::of::<Paralyzed>(), Lifetime::Floor),
+        "the fourth is turned away"
     );
+    assert_eq!(conditions_held(&w, p), 3, "the ceiling is three");
+    assert!(w.get::<Blind>(p).is_some(), "what is held stays held");
     assert!(w.get::<Confused>(p).is_some());
     assert!(w.get::<MagicWard>(p).is_some());
-    assert!(w.get::<Paralyzed>(p).is_some());
-    // Blindness leaving has to put the viewshed back, the same as a cure does.
-    assert!(w.get::<Viewshed>(p).is_some_and(|v| v.dirty));
-    // And the player has to be told, in the words a staircase uses.
+    assert!(
+        w.get::<Paralyzed>(p).is_none(),
+        "a refused condition attaches nothing"
+    );
     assert!(
         w.resource::<GameLog>()
             .history
             .iter()
-            .any(|e| e.contains("no longer blind")),
-        "a shed condition is never silent: {:?}",
+            .any(|e| e.contains("too many conditions")),
+        "a refusal is never silent: {:?}",
         w.resource::<GameLog>().history
     );
 }

@@ -30,11 +30,12 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
+use crate::catalog::apply_bonus;
 use crate::catalog::{
     AMMO, ARMORS, COINS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, TREATS, WANDS, WEAPONS,
     spawn_element_of_yoord,
 };
-use crate::components::{Position, TrapReveal};
+use crate::components::{Curse, Position, STACK_LIMIT, Stack, TrapReveal};
 use crate::map::Map;
 use crate::monsters::{MonsterDef, spawn_monster};
 use crate::traps::{TrapBundle, TrapDef};
@@ -297,7 +298,10 @@ pub fn content_names() -> Vec<(&'static str, &'static str)> {
 ///
 /// ```text
 /// NIHILURK_SPAWN="dragon,bow,arrow,ring of protection" cargo run -p engine
+/// NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p engine
 /// ```
+///
+/// `cursed`, `+N`/`-N` and `xN` dress gear and ammunition; see [`SpawnMods`].
 ///
 /// A name the tables do not know is skipped in silence — this is a debug knob,
 /// not a parser. Placement walks outward from `near` and takes the first free
@@ -323,12 +327,62 @@ pub fn spawn_list(
         let Some(pos) = free_tile_near(world, near, occupied) else {
             break;
         };
-        if spawn_named(world, name, pos).is_some() {
+        let (mods, name) = SpawnMods::parse(name);
+        if let Some(entity) = spawn_named(world, name, pos) {
+            mods.apply(world, entity);
             occupied.insert((pos.x, pos.y));
             spawned += 1;
         }
     }
     spawned
+}
+
+/// The optional dressing on a `NIHILURK_SPAWN` entry: `cursed`, a `+N`/`-N`
+/// enchantment and an `xN` stack size, in that order around the name --
+/// `cursed -2 long sword`, `arrow x13`. Each is ignored by a thing it does not
+/// fit (a stack on a dragon, a plus on a ring). A curse and a minus are
+/// separate dials, as they are in the dungeon.
+#[derive(Default)]
+struct SpawnMods {
+    cursed: bool,
+    bonus: Option<i32>,
+    count: Option<u8>,
+}
+
+impl SpawnMods {
+    fn parse(mut s: &str) -> (Self, &str) {
+        let mut m = SpawnMods::default();
+        if let Some(rest) = s.strip_prefix("cursed ") {
+            m.cursed = true;
+            s = rest.trim_start();
+        }
+        if let Some((num, rest)) = s.split_once(' ')
+            && (num.starts_with('+') || num.starts_with('-'))
+            && let Ok(n) = num.parse()
+        {
+            m.bonus = Some(n);
+            s = rest.trim_start();
+        }
+        if let Some((rest, num)) = s.rsplit_once(" x")
+            && let Ok(n) = num.parse::<u8>()
+        {
+            m.count = Some(n);
+            s = rest.trim_end();
+        }
+        (m, s)
+    }
+
+    fn apply(&self, world: &mut World, e: Entity) {
+        if self.cursed {
+            world.entity_mut(e).insert(Curse);
+        }
+        if let Some(b) = self.bonus {
+            apply_bonus(world, e, b);
+        }
+        if let (Some(n), Some(mut stack)) = (self.count, world.get_mut::<Stack>(e)) {
+            stack.count = n.clamp(1, STACK_LIMIT);
+        }
+    }
 }
 
 /// The nearest free walkable tile to `origin`, searching in widening rings.
