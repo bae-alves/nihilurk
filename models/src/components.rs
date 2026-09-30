@@ -227,6 +227,17 @@ pub struct BarterMenu {
     pub demon_selected: Vec<Tradeable>,
 }
 
+impl BarterMenu {
+    /// The demon rows the player can actually reach: one per thing they hold
+    /// to put against it, so a short pack or spellset hides the demon's
+    /// tail. Rendering, cursor travel and staging all read this, never
+    /// `demon_side` directly.
+    pub fn demon_visible(&self) -> &[Tradeable] {
+        let reach = self.player_side.len().min(self.demon_side.len());
+        &self.demon_side[..reach]
+    }
+}
+
 /// The player's boon companion: the one [`Faction::Ally`] that follows them
 /// between floors. There is only ever one. Loyalty is not magic, so this is a
 /// plain component and not an effect row a wand of cancellation could strip.

@@ -1527,7 +1527,7 @@ fn handle_barter_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool
             menu.column,
             menu.cursor,
             menu.player_side.len(),
-            menu.demon_side.len(),
+            menu.demon_visible().len(),
         )
     };
     // The player column carries one extra virtual row past its items: the
@@ -1561,11 +1561,8 @@ fn handle_barter_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool
             }
         }
         KeyCode::Enter | KeyCode::Char(' ') => {
-            if column == BarterColumn::Player && cursor == player_rows {
-                confirm = true;
-            } else {
-                toggle = true;
-            }
+            confirm = column == BarterColumn::Player && cursor == player_rows;
+            toggle = !confirm;
         }
         _ => {}
     }

@@ -189,6 +189,34 @@ fn place_guaranteed(
     }
 }
 
+fn spawn_from_free(
+    world: &mut World,
+    species: &str,
+    free: &mut Vec<(u16, u16)>,
+    occupied: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+) {
+    let i = rng.gen_range(0..free.len());
+    let (x, y) = free.remove(i);
+    occupied.insert((x, y));
+    spawn_monster_with_rng(world, MonsterDef::named(species), Position { x, y }, rng);
+}
+
+/// Coins on every still-unclaimed tile of a hoard.
+fn scatter_coins(
+    world: &mut World,
+    free: Vec<(u16, u16)>,
+    occupied: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+    depth: u8,
+) {
+    for (x, y) in free {
+        if occupied.insert((x, y)) {
+            roll_one(world, rng, depth, Position { x, y }, COINS);
+        }
+    }
+}
+
 /// Fills every room [`build_tiles`] rolled a [`SpecialRoom`] kind for,
 /// reading the kind straight off the [`Map`] resource at the room's first
 /// floor tile. Every tile claimed here goes into `occupied` first, so the
@@ -213,21 +241,9 @@ fn populate_special_rooms(
             SpecialRoom::DragonHoard => {
                 let slots = (tier as usize + 1).min(free.len());
                 for _ in 0..slots {
-                    let i = rng.gen_range(0..free.len());
-                    let (x, y) = free.remove(i);
-                    occupied.insert((x, y));
-                    spawn_monster_with_rng(
-                        world,
-                        MonsterDef::named("dragon"),
-                        Position { x, y },
-                        rng,
-                    );
+                    spawn_from_free(world, "dragon", &mut free, occupied, rng);
                 }
-                for (x, y) in free {
-                    if occupied.insert((x, y)) {
-                        roll_one(world, rng, depth, Position { x, y }, COINS);
-                    }
-                }
+                scatter_coins(world, free, occupied, rng, depth);
             }
             SpecialRoom::MonsterZoo => {
                 for (x, y) in free {
@@ -239,21 +255,9 @@ fn populate_special_rooms(
             }
             SpecialRoom::TreasureHive => {
                 if !free.is_empty() {
-                    let i = rng.gen_range(0..free.len());
-                    let (x, y) = free.remove(i);
-                    occupied.insert((x, y));
-                    spawn_monster_with_rng(
-                        world,
-                        MonsterDef::named("apis"),
-                        Position { x, y },
-                        rng,
-                    );
+                    spawn_from_free(world, "apis", &mut free, occupied, rng);
                 }
-                for (x, y) in free {
-                    if occupied.insert((x, y)) {
-                        roll_one(world, rng, depth, Position { x, y }, COINS);
-                    }
-                }
+                scatter_coins(world, free, occupied, rng, depth);
             }
             SpecialRoom::RedRoom => {
                 let max_items = ITEM_SLOTS_BASE + tier as usize;

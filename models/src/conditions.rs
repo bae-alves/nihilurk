@@ -487,17 +487,13 @@ fn speed_shift_message(
         true => LogCategory::Slowed,
         false => LogCategory::Plain,
     };
-    let text = if !changed && is_player {
-        strings::already_as_extreme_player(extreme)
-    } else if !changed {
-        strings::already_as_extreme_mob(name, extreme)
-    } else {
-        match (is_player, faster) {
-            (true, true) => strings::haste_player_line().to_string(),
-            (true, false) => strings::slow_player_line().to_string(),
-            (false, true) => strings::haste_mob_line(name),
-            (false, false) => strings::slow_mob_line(name),
-        }
+    let text = match (changed, is_player, faster) {
+        (false, true, _) => strings::already_as_extreme_player(extreme),
+        (false, false, _) => strings::already_as_extreme_mob(name, extreme),
+        (true, true, true) => strings::haste_player_line().to_string(),
+        (true, true, false) => strings::slow_player_line().to_string(),
+        (true, false, true) => strings::haste_mob_line(name),
+        (true, false, false) => strings::slow_mob_line(name),
     };
     (text, category)
 }

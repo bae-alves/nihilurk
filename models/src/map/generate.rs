@@ -301,11 +301,10 @@ pub(super) fn roll_table<T: Copy>(rng: &mut ChaCha12Rng, table: &[(f64, T)]) -> 
     let mut roll = rng.gen_range(0.0..1.0);
     table.iter().find_map(|&(chance, outcome)| {
         if roll < chance {
-            Some(outcome)
-        } else {
-            roll -= chance;
-            None
+            return Some(outcome);
         }
+        roll -= chance;
+        None
     })
 }
 
