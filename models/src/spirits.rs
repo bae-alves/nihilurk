@@ -21,7 +21,7 @@ use crate::components::{
     SpiritEvent, SpiritKind, SpiritsHostile, TestOfFaithLedger, Tradeable,
 };
 use crate::constants::spells::SPELLSET_CAP;
-use crate::constants::spirits::ALIGNMENT_POLE;
+use crate::constants::spirits::{ALIGNMENT_POLE, BARTER_STOCK_MAX, BARTER_STOCK_MIN};
 use crate::effects::{ArmorBonus, PowerBonus, revoke_all};
 use crate::equipment::{Equipped, Slot, equipped_items, force_unequip};
 use crate::helpers::item_label;
@@ -129,19 +129,6 @@ pub fn shift_alignment(world: &mut World, player: Entity, delta: i8) {
 /// uses one.
 const OFFER_COUNT: usize = 3;
 
-/// Up to [`OFFER_COUNT`] distinct values drawn uniformly from `pool`,
-/// wrapped as `wrap`. Fewer than that only if `pool` itself is smaller.
-fn sample<T: Copy>(
-    pool: &[T],
-    rng: &mut impl rand::RngCore,
-    wrap: impl Fn(T) -> OfferOption,
-) -> Vec<OfferOption> {
-    pool.choose_multiple(rng, OFFER_COUNT)
-        .copied()
-        .map(wrap)
-        .collect()
-}
-
 /// [`sample`], but over a `'static` catalog table too big to copy —
 /// [`WEAPONS`]/[`ARMORS`]/[`RINGS`] rows are borrowed, never cloned.
 fn sample_refs<T>(
@@ -171,6 +158,20 @@ fn roll_with_shared_rng(
 /// pool [`crate::items::pickups::learn_spell`] draws its one random pick
 /// from. Fewer than three (down to none) if that many aren't left to learn.
 pub fn roll_spell_offer(world: &mut World, player: Entity) -> Vec<OfferOption> {
+    roll_spells(world, player, OFFER_COUNT)
+}
+
+/// [`roll_spell_offer`] for the sphynx: [`BARTER_STOCK_MIN`] to
+/// [`BARTER_STOCK_MAX`] of them, the count itself rolled.
+fn roll_spell_stock(world: &mut World, player: Entity) -> Vec<OfferOption> {
+    let count = world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_range(BARTER_STOCK_MIN..=BARTER_STOCK_MAX);
+    roll_spells(world, player, count)
+}
+
+fn roll_spells(world: &mut World, player: Entity, count: usize) -> Vec<OfferOption> {
     let known: Vec<_> = world
         .get::<Spellset>(player)
         .map(|s| s.slots.clone())
@@ -180,7 +181,10 @@ pub fn roll_spell_offer(world: &mut World, player: Entity) -> Vec<OfferOption> {
         .map(|def| def.effect)
         .filter(|e| !known.contains(e))
         .collect();
-    roll_with_shared_rng(world, |rng| sample(&learnable, rng, OfferOption::Spell))
+    roll_with_shared_rng(world, |rng| {
+        let picked = learnable.choose_multiple(rng, count).copied();
+        picked.map(OfferOption::Spell).collect()
+    })
 }
 
 pub fn roll_weapon_offer(world: &mut World) -> Vec<OfferOption> {
@@ -318,12 +322,21 @@ pub fn open_spell_barter(
     );
 }
 
+/// With nothing of the player's to put on the table there is no trade to
+/// stage, so the demon grunts like the red one does and no menu opens.
 fn open_barter(
     world: &mut World,
     demon: Entity,
     player_side: Vec<Tradeable>,
     demon_side: Vec<Tradeable>,
 ) {
+    if player_side.is_empty() {
+        let name = item_label(world, demon);
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::red_demon_grunts(&name));
+        return;
+    }
     let mut menu = world.resource_mut::<BarterMenu>();
     menu.open = true;
     menu.demon = Some(demon);
@@ -342,7 +355,7 @@ pub fn toggle_barter_selection(world: &mut World) {
     let mut menu = world.resource_mut::<BarterMenu>();
     let item = match menu.column {
         BarterColumn::Player => menu.player_side.get(menu.cursor).copied(),
-        BarterColumn::Demon => menu.demon_side.get(menu.cursor).copied(),
+        BarterColumn::Demon => menu.demon_visible().get(menu.cursor).copied(),
     };
     let Some(item) = item else {
         return;
@@ -490,18 +503,19 @@ pub(crate) fn pink_demon_event(world: &mut World, player: Entity, spirit: Entity
         world
             .resource_mut::<GameLog>()
             .add(strings::pink_demon_submits());
-    } else {
-        world.entity_mut(spirit).insert(Faction::Monster);
-        if let Some(mut mob) = world.get_mut::<Mob>(spirit) {
-            mob.movement_type = MovementType::Chase;
-        }
-        world.entity_mut(spirit).insert(Spellset {
-            slots: vec![SpellEffect::ForceLance],
-        });
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::pink_demon_turns());
+        return;
     }
+    // The branch above always returns; this is the demon refusing.
+    world.entity_mut(spirit).insert(Faction::Monster);
+    if let Some(mut mob) = world.get_mut::<Mob>(spirit) {
+        mob.movement_type = MovementType::Chase;
+    }
+    world.entity_mut(spirit).insert(Spellset {
+        slots: vec![SpellEffect::ForceLance],
+    });
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::pink_demon_turns());
 }
 
 /// Angel: "Tests your faith!" — cancels every active effect on the player
@@ -525,7 +539,7 @@ pub(crate) fn angel_event(world: &mut World, player: Entity, spirit: Entity) {
 /// known spell given up for one of its own, off the same "not already
 /// known" pool [`roll_spell_offer`] draws from.
 pub(crate) fn sphynx_event(world: &mut World, player: Entity, spirit: Entity) {
-    let offered: Vec<SpellEffect> = roll_spell_offer(world, player)
+    let offered: Vec<SpellEffect> = roll_spell_stock(world, player)
         .into_iter()
         .filter_map(|o| match o {
             OfferOption::Spell(effect) => Some(effect),

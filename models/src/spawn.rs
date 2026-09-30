@@ -216,7 +216,22 @@ pub const DROPS: &[DropCategory] = &[
 /// This is the only place the dungeon decides what loot exists, so a new
 /// category is one line in [`DROPS`] and no arithmetic anywhere.
 pub fn roll_item(world: &mut World, rng: &mut ChaCha12Rng, depth: u8, pos: Position) -> Entity {
-    let pool: Vec<&DropCategory> = DROPS.iter().filter(|c| c.available(depth)).collect();
+    roll_item_except(world, rng, depth, pos, &[])
+}
+
+/// [`roll_item`] with whole categories struck from the draw, by
+/// [`DropCategory::name`] — a demon's pack, say, never holds `"coin"`.
+pub fn roll_item_except(
+    world: &mut World,
+    rng: &mut ChaCha12Rng,
+    depth: u8,
+    pos: Position,
+    skip: &[&str],
+) -> Entity {
+    let pool: Vec<&DropCategory> = DROPS
+        .iter()
+        .filter(|c| c.available(depth) && !skip.contains(&c.name))
+        .collect();
     let weights: Vec<u32> = pool.iter().map(|c| c.weight).collect();
     let idx = pick_weighted(&weights, rng).expect("DROPS always has a depth-1 category");
     (pool[idx].roll)(world, rng, depth, pos)

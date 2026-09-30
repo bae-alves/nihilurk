@@ -1108,10 +1108,10 @@ fn report_player_hit(
             (_, true) => log.add_colored(strings::glancing_blow_self(), LogCategory::Ghost),
             _ => log.add_colored(strings::plain_hit_self(swing.damage), LogCategory::Ghost),
         }
-        if outcome.lethal && outcome.garrote {
-            log.add_colored(strings::garrote_kill_self(), LogCategory::Ghost);
-        } else if outcome.lethal && outcome.vorpal {
-            log.add_colored(strings::vorpal_kill_self(), LogCategory::Ghost);
+        match (outcome.lethal, outcome.garrote, outcome.vorpal) {
+            (true, true, _) => log.add_colored(strings::garrote_kill_self(), LogCategory::Ghost),
+            (true, _, true) => log.add_colored(strings::vorpal_kill_self(), LogCategory::Ghost),
+            _ => {}
         }
         if outcome.lethal {
             log.add_colored(strings::you_have_slain_self(), LogCategory::Ghost);
@@ -1123,10 +1123,10 @@ fn report_player_hit(
         (_, true) => log.add(strings::glancing_blow(target_name)),
         _ => log.add(strings::plain_hit(target_name, swing.damage)),
     }
-    if outcome.lethal && outcome.garrote {
-        log.add(strings::garrote_kill(target_name));
-    } else if outcome.lethal && outcome.vorpal {
-        log.add(strings::vorpal_kill(target_name));
+    match (outcome.lethal, outcome.garrote, outcome.vorpal) {
+        (true, true, _) => log.add(strings::garrote_kill(target_name)),
+        (true, _, true) => log.add(strings::vorpal_kill(target_name)),
+        _ => {}
     }
     if outcome.lethal {
         log.add(strings::you_have_slain(target_name));

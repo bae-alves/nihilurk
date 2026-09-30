@@ -615,13 +615,10 @@ pub fn render<W: Write>(
                 screen.fg_map(pos.x, pos.y, Color::Black);
                 continue;
             }
-            // A peaceful spirit reads as neutral, not as staggering about
-            // confused (which its `MovementType::Confused` wander would
-            // otherwise paint it as) — dark grey outranks the generic tint
-            // below for as long as `SpiritsHostile` hasn't flipped.
+            // A peaceful spirit wears no tint at all, not the confused one its
+            // `MovementType::Confused` wander would otherwise paint it with,
+            // for as long as `SpiritsHostile` hasn't flipped.
             if faction == Some(&Faction::Spirits) && !world.resource::<SpiritsHostile>().0 {
-                screen.bg_map(pos.x, pos.y, Color::DarkGrey);
-                screen.fg_map(pos.x, pos.y, Color::Black);
                 continue;
             }
             let confused = matches!(mob.movement_type, MovementType::Confused);
@@ -1646,7 +1643,7 @@ fn draw_barter_menu(world: &mut World, screen: &mut Screen) {
     let menu = world.resource::<BarterMenu>();
     let (column, cursor) = (menu.column, menu.cursor);
     let player_side = menu.player_side.clone();
-    let demon_side = menu.demon_side.clone();
+    let demon_side = menu.demon_visible().to_vec();
     let player_selected = menu.player_selected.clone();
     let demon_selected = menu.demon_selected.clone();
 

@@ -16,6 +16,7 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::ItemDef;
 use crate::components::*;
+use crate::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
 use crate::effects::{
     Batty, Binds, ColdImmune, FireBreath, FireImmune, Flies, Freezing, Gorgon, Grant, Grants,
     GreenBlood, ItemUser, LightningBreath, Phasing, Regenerates, RustsArmor, ScoreBounty, Splits,
@@ -25,7 +26,7 @@ use crate::effects::{
 use crate::equipment::equip_silently;
 use crate::map::{Endless, FINAL_DEPTH, GameRng};
 use crate::particles::{BlastPalette, Particles, on_map};
-use crate::spawn::pick_weighted;
+use crate::spawn::{pick_weighted, roll_item_except};
 use crate::spirits::{
     angel_event, blue_demon_event, pink_demon_event, red_demon_event, salamander_event,
     sphynx_event, sylphid_event, undyne_event, yellow_demon_event,
@@ -108,6 +109,10 @@ pub struct MonsterDef {
     /// "4 random grants". `None` for every ordinary row: a species' magic is
     /// almost always the same magic every time.
     pub random_grants: Option<(&'static [Grant], u8)>,
+    /// Born with a pack of floor loot to trade away — the yellow demon's
+    /// stock, [`BARTER_STOCK_MIN`] to [`BARTER_STOCK_MAX`] drops. See
+    /// [`roll_barter_stock`].
+    pub stocks_barter: bool,
 }
 
 impl MonsterDef {
@@ -148,7 +153,14 @@ impl MonsterDef {
             spirit_event: None,
             pairs_companion: None,
             random_grants: None,
+            stocks_barter: false,
         }
+    }
+
+    /// Stock a bestiary row's pack with loot at spawn (the yellow demon).
+    const fn stocks_barter(mut self) -> Self {
+        self.stocks_barter = true;
+        self
     }
 
     /// Attach innate magic to a bestiary row.
@@ -447,7 +459,7 @@ pub const BESTIARY: &[MonsterDef] = &[
     // conversion (the pink demon) sends them to `Chase` — see `crate::spirits`.
     // Cacodaemon stats are 6/6/6, eudaemon 9/8/7, per the design doc.
     MonsterDef::row("yellow demon",  '&',   Color::Yellow,      Confused,   6,   6,   0,   6,  0,   1)
-        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Cacodaemon, SpiritEvent(yellow_demon_event)).pairs_companion("red demon"),
+        .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Cacodaemon, SpiritEvent(yellow_demon_event)).pairs_companion("red demon").stocks_barter(),
     MonsterDef::row("red demon",     '&',   Color::Red,         Confused,   6,   6,   0,   6,  0,   1)
         .weight(SPIRIT_WEIGHT).spirit(SpiritKind::Cacodaemon, SpiritEvent(red_demon_event))
         .random_grants(RED_DEMON_BOONS, 4)
@@ -585,6 +597,7 @@ pub fn spawn_monster(world: &mut World, def: &MonsterDef, pos: Position) -> Enti
     };
     roll_spawn_gear(world, e, def, &mut rng);
     roll_random_grants(world, e, def, &mut rng);
+    roll_barter_stock(world, e, def, &mut rng);
     if def.mimics {
         disguise_as_item(world, e, &mut rng);
     }
@@ -609,6 +622,7 @@ pub fn spawn_monster_with_rng(
     let e = base_spawn(world, def, pos);
     roll_spawn_gear(world, e, def, rng);
     roll_random_grants(world, e, def, rng);
+    roll_barter_stock(world, e, def, rng);
     if def.mimics {
         disguise_as_item(world, e, rng);
     }
@@ -634,6 +648,27 @@ fn roll_random_grants(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mu
     for &grant in pool.choose_multiple(rng, n as usize) {
         crate::effects::lend(world, mob, grant, crate::effects::Lifetime::Permanent);
     }
+}
+
+/// [`MonsterDef::stocks_barter`] paying off: floor drops for this depth
+/// ([`roll_item_except`], coins struck out), tucked straight into a fresh [`Backpack`] one entity
+/// each — never merged, so the count is the count. A no-op for every row that
+/// doesn't ask for one.
+fn roll_barter_stock(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {
+    if !def.stocks_barter {
+        return;
+    }
+    let Some(pos) = world.get::<Position>(mob).copied() else {
+        return;
+    };
+    let depth = world.get_resource::<Depth>().map_or(1, |d| d.what);
+    let mut items = Vec::new();
+    for _ in 0..rng.gen_range(BARTER_STOCK_MIN..=BARTER_STOCK_MAX) {
+        let item = roll_item_except(world, rng, depth, pos, &["coin"]);
+        world.entity_mut(item).remove::<Position>();
+        items.push(item);
+    }
+    world.entity_mut(mob).insert(Backpack { items });
 }
 
 fn roll_spawn_gear(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {

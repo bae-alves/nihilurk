@@ -387,6 +387,31 @@ fn cancelling_moves_nothing() {
 }
 
 #[test]
+fn an_item_barter_with_an_empty_pack_grunts_instead_of_opening() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let their_item = dagger(&mut w);
+    let demon = spawn_demon(&mut w, vec![their_item]);
+
+    spirits::open_item_barter(&mut w, player, demon);
+
+    assert!(!w.resource::<BarterMenu>().open);
+    assert!(logged(&w, "grunts"));
+}
+
+#[test]
+fn a_spell_barter_with_an_empty_spellset_grunts_instead_of_opening() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let demon = spawn_demon(&mut w, Vec::new());
+
+    spirits::open_spell_barter(&mut w, player, demon, &[SpellEffect::Cure]);
+
+    assert!(!w.resource::<BarterMenu>().open);
+    assert!(logged(&w, "grunts"));
+}
+
+#[test]
 fn spell_barter_trades_a_known_spell_for_an_offered_one() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
@@ -403,6 +428,84 @@ fn spell_barter_trades_a_known_spell_for_an_offered_one() {
 
     let slots = &w.get::<Spellset>(player).unwrap().slots;
     assert_eq!(slots, &vec![SpellEffect::Cure]);
+}
+
+#[test]
+fn the_demons_side_only_shows_as_many_rows_as_you_can_pay_for() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let mine = dagger(&mut w);
+    w.get_mut::<Backpack>(player).unwrap().items.push(mine);
+    let theirs: Vec<Entity> = (0..3).map(|_| dagger(&mut w)).collect();
+    let demon = spawn_demon(&mut w, theirs.clone());
+
+    spirits::open_item_barter(&mut w, player, demon);
+
+    let menu = w.resource::<BarterMenu>();
+    assert_eq!(menu.demon_visible(), &[Tradeable::Item(theirs[0])]);
+}
+
+#[test]
+fn a_hidden_demon_row_cannot_be_staged() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let mine = dagger(&mut w);
+    w.get_mut::<Backpack>(player).unwrap().items.push(mine);
+    let theirs: Vec<Entity> = (0..3).map(|_| dagger(&mut w)).collect();
+    let demon = spawn_demon(&mut w, theirs);
+    spirits::open_item_barter(&mut w, player, demon);
+    {
+        let mut menu = w.resource_mut::<BarterMenu>();
+        menu.column = BarterColumn::Demon;
+        menu.cursor = 1;
+    }
+
+    spirits::toggle_barter_selection(&mut w);
+
+    assert!(w.resource::<BarterMenu>().demon_selected.is_empty());
+}
+
+#[test]
+fn a_spawned_yellow_demon_carries_a_stocked_pack() {
+    use models::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
+    for seed in 0..20 {
+        let mut w = spirits_world(seed);
+        let demon = spawn_monster(
+            &mut w,
+            MonsterDef::named("yellow demon"),
+            Position { x: 5, y: 5 },
+        );
+        let stock = w.get::<Backpack>(demon).unwrap().items.len();
+        assert!((BARTER_STOCK_MIN..=BARTER_STOCK_MAX).contains(&stock));
+    }
+}
+
+#[test]
+fn a_demons_pack_never_holds_coins() {
+    for seed in 0..200 {
+        let mut w = spirits_world(seed);
+        let demon = spawn_monster(
+            &mut w,
+            MonsterDef::named("yellow demon"),
+            Position { x: 5, y: 5 },
+        );
+        let items = w.get::<Backpack>(demon).unwrap().items.clone();
+        assert!(items.iter().all(|&i| w.get::<Pickup>(i).is_none()));
+    }
+}
+
+#[test]
+fn the_sphynx_offers_a_stocked_range_of_spells() {
+    use models::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
+    for seed in 0..20 {
+        let mut w = spirits_world(seed);
+        let player = spawn_player(&mut w, 6);
+        w.get_mut::<Spellset>(player).unwrap().slots = vec![SpellEffect::Sting];
+        let sphynx = spawn_monster(&mut w, MonsterDef::named("sphynx"), Position { x: 5, y: 5 });
+        resolve_attack(&mut w, player, sphynx);
+        let offered = w.resource::<BarterMenu>().demon_side.len();
+        assert!((BARTER_STOCK_MIN..=BARTER_STOCK_MAX).contains(&offered));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -471,6 +574,8 @@ fn the_red_demon_only_grunts() {
 fn the_yellow_demon_opens_an_item_barter() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
+    let item = dagger(&mut w);
+    w.get_mut::<Backpack>(player).unwrap().items.push(item);
     let spirit = spawn_monster(
         &mut w,
         MonsterDef::named("yellow demon"),
@@ -585,6 +690,7 @@ fn the_test_of_faith_is_a_no_op_without_a_pending_ledger() {
 fn the_sphynx_opens_a_spell_barter() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
+    w.get_mut::<Spellset>(player).unwrap().slots = vec![SpellEffect::Sting];
     let spirit = spawn_monster(&mut w, MonsterDef::named("sphynx"), Position { x: 5, y: 5 });
     resolve_attack(&mut w, player, spirit);
     let menu = w.resource::<BarterMenu>();

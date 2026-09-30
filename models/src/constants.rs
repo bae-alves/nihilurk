@@ -732,6 +732,11 @@ pub mod spirits {
     /// Odds, when a row with [`crate::monsters::MonsterDef::pairs_companion`]
     /// spawns, that it also brings two of its companion along.
     pub const PAIR_CHANCE: f64 = 0.3;
+
+    /// How many things a barterer lays on the table: the yellow demon's
+    /// pack, the sphynx's spells. Inclusive on both ends.
+    pub const BARTER_STOCK_MIN: usize = 2;
+    pub const BARTER_STOCK_MAX: usize = 4;
 }
 
 // ===========================================================================

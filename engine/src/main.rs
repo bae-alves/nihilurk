@@ -347,22 +347,18 @@ fn main() -> std::io::Result<()> {
                     if let Some(first) = body_arg.replace(spelling.clone()) {
                         conflicting_bodies = Some((first, spelling));
                     }
-                    match (flag, name.as_str()) {
-                        ("-b", "nihil") => body = Some((models::Body::Nihil, "-b")),
-                        ("-b", "lurk") => body = Some((models::Body::Lurk, "-b")),
-                        ("-b", _) => unknown_body = Some((name.clone(), "-b")),
-                        (_, species) => match models::MonsterDef::lookup(species) {
-                            Some(def) => body = Some((models::Body::Monster(def), "-am")),
-                            None => unknown_body = Some((name.clone(), "-am")),
-                        },
+                    match (flag, name.as_str(), models::MonsterDef::lookup(name)) {
+                        ("-b", "nihil", _) => body = Some((models::Body::Nihil, "-b")),
+                        ("-b", "lurk", _) => body = Some((models::Body::Lurk, "-b")),
+                        ("-b", _, _) => unknown_body = Some((name.clone(), "-b")),
+                        (_, _, Some(def)) => body = Some((models::Body::Monster(def), "-am")),
+                        (_, _, None) => unknown_body = Some((name.clone(), "-am")),
                     }
                 }
             }
             "-anim-rate" => {
-                if let Some(rate_str) = iter.next() {
-                    if let Ok(rate) = rate_str.parse::<f32>() {
-                        anim_rate = rate.clamp(0.1, 5.0);
-                    }
+                if let Some(rate) = iter.next().and_then(|s| s.parse::<f32>().ok()) {
+                    anim_rate = rate.clamp(0.1, 5.0);
                 }
             }
             // A name or a save file, and only ever the first argument: see

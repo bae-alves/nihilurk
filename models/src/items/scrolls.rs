@@ -198,14 +198,15 @@ fn charm_room(world: &mut World, user: Entity) -> usize {
 fn read_amnesia(world: &mut World, user: Entity) {
     let slot_count = world.get::<Spellset>(user).map_or(0, |m| m.slots.len());
     let mut lines = vec![strings::amnesia_poof().to_string()];
-    if slot_count == 0 {
-        lines.push(strings::amnesia_nothing_to_forget().to_string());
-    } else {
-        let idx = world.resource_mut::<GameRng>().0.gen_range(0..slot_count);
-        let mut spellset = world.get_mut::<Spellset>(user).expect("checked above");
-        let effect = spellset.slots.remove(idx);
-        let name = crate::catalog::SpellDef::of(effect).display_name();
-        lines.push(strings::amnesia_forgotten(name));
+    match slot_count {
+        0 => lines.push(strings::amnesia_nothing_to_forget().to_string()),
+        _ => {
+            let idx = world.resource_mut::<GameRng>().0.gen_range(0..slot_count);
+            let mut spellset = world.get_mut::<Spellset>(user).expect("checked above");
+            let effect = spellset.slots.remove(idx);
+            let name = crate::catalog::SpellDef::of(effect).display_name();
+            lines.push(strings::amnesia_forgotten(name));
+        }
     }
     if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
         vs.revealed_tiles.clear();
@@ -335,13 +336,15 @@ fn create_monster(world: &mut World, user: Entity) {
     // odds never both land on the same creature.
     use crate::constants::helpers::{CREATE_ALLY_CHANCE, CREATE_HELPER_CHANCE};
     let roll = world.resource_mut::<GameRng>().0.gen_range(0.0..1.0);
-    if roll < CREATE_HELPER_CHANCE {
-        crate::companion::recruit(world, e);
-    } else if roll < CREATE_HELPER_CHANCE + CREATE_ALLY_CHANCE {
-        crate::companion::charm(world, e);
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::charm_target_line(&name));
+    match roll {
+        r if r < CREATE_HELPER_CHANCE => crate::companion::recruit(world, e),
+        r if r < CREATE_HELPER_CHANCE + CREATE_ALLY_CHANCE => {
+            crate::companion::charm(world, e);
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::charm_target_line(&name));
+        }
+        _ => {}
     }
 }
 
