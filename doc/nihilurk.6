@@ -185,13 +185,26 @@ argument replaces an earlier one.
 A comma-separated list of exact content names. Each recognised name is
 spawned on the nearest free walkable tile around the player whenever a floor
 is built. Empty entries and unknown names are ignored. The setting applies to
-every floor, including floors revisited on the way back up. Use
+every floor, including floors revisited on the way back up. Gear and
+ammunition accept dressing around the name, in this order:
+.RB [ cursed ]
+.RB [ +N | \-N ]
+.I name
+.RB [ xN ].
+.B cursed
+adds a curse,
+.BR +N / \-N
+adds N to a weapon's hit, armour's guard or a launcher's throw, and
+.B xN
+sets a stack size, clamped to the stack limit of 13. A curse and a minus are
+independent. A modifier the item cannot use is ignored. Use
 .B \-content
 to discover names:
 .sp
 .EX
 nihilurk -content | grep -i dragon
 NIHILURK_SPAWN="dragon,bow,arrow" nihilurk
+NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" nihilurk
 .EE
 .TP
 .B NIHILURK_MAGICMAP

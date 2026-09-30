@@ -18,11 +18,12 @@ Single dash, in any order. Unrecognised arguments are treated as the positional 
 | Flag         | Effect                                                    |
 |--------------|-----------------------------------------------------------|
 | `-s <seed>`  | Start the run from a specific `u64` seed. Reproducible.   |
-| `-c`         | Centre the map on the player instead of a fixed viewport. |
+| `-c`         | Centre the map on the terminal instead of on top left. |
 | `-ns`        | No save. The run is never written to disk.                |
 | `-nb`        | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
 | `-nshake`    | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
 | `-nobones`   | Skip the bones mechanic entirely: a death never writes a `bones-N.sav`, and an ascent never reads one. Not the corpse-fling animation `-nb` mentions above — this is the NetHack-style "a past run's ghost, guarding its own cursed gear" (`models::bones`). |
+| `-endless`   | No Element of Yoord ever spawns, so there is no way to win: the dungeon keeps going down past `FINAL_DEPTH`. Sets the `Endless` resource (`models/src/map.rs`); the depth-`FINAL_DEPTH` checks in `traps.rs`, `monsters.rs` and `saveload.rs` read it. |
 | `-content`   | Print every name the content tables know, then exit.      |
 | `-scores`    | Print the leaderboard (top 10 scores ever recorded), then exit. |
 | `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
@@ -35,11 +36,7 @@ Which of the two written-to-be-played creatures descends. `-b nihil` is the
 default and changes nothing.
 
 `-b lurk` is the other one: quadruped, fanged, clawed, furred, and a magenta
-`@`. Eight hit points and two magic against nihil's twelve and four; the same
-bare attack and defence dice nihil starts with, and no way to ever add to them
-with gear -- it carries nothing, and the only thing it can put on is a ring.
-
-What it has instead:
+`@`. Lower stats and the only thing it can put on is rings. What it has instead:
 
   * `SpeedKind::Quick`, half again as fast as `Normal` and the only creature
     in the game born at that tempo. Two monster rounds bought per three player
@@ -48,28 +45,24 @@ What it has instead:
   * The rapier's momentum (`BuildsMomentum`), built on the creature rather
     than on a blade it does not have.
   * A ring of stealth's quiet (`Stealthy`).
-  * Bide in the spell bar, paid for at the usual cost -- it is learned, not
-    innate.
-  * **Growth.** Every creature that dies on the floor is rolled against
-    `lurk::GROWTH_CHANCE` (15%), and a hit puts one point on one of the four
-    numbers on the status line, drawn at random: `FEAR THE WOLF!` Rolled per
-    corpse rather than counted toward a tenth one, so there is no counter to
+  * Bide in its spellset.
+  * **Growth.** Every creature that dies on the floor is rolled against tuning
+    constant `lurk::GROWTH_CHANCE`, and a hit puts one point on one of the four
+    numbers on the status line, drawn at random: `FEAR THE LURK!` Rolled per
+    kill rather than counted toward a tenth one, so there is no counter to
     pace against and nothing for a save file to remember.
 
 Its tempo is deliberately lumpy: two monster rounds per three player turns
 means the free turn always lands third, and pacing yourself against that beat
-is how a lurk is played.
-
-A wand of cancellation strips everything on that list except what the lurk
-*is* -- see [Bodies and species](#bodies-and-species).
+is how lurk is played.
 
 ### `-am <species>`
 
-The run starts in that species' body instead of nihil's or the lurk's. The
-name must be
-a bestiary row exactly as `-content` prints it; anything else stops the game
-before it starts rather than quietly starting you as nihil. `-b` and `-am`
-are the same choice asked two ways, so passing both is refused too.
+The run starts in that species' body instead of nihil's or lurk's. The
+name must be a bestiary row exactly as `-content` prints it;
+anything else stops the game before it starts rather than quietly starting
+you as nihil. `-b` and `-am` are the same choice asked two ways,
+so passing both is refused too.
 
 What the body changes is what the bestiary row says: the glyph and its colour,
 the hit points, the attack and armour dice and their bonuses, the tempo (`-am
@@ -84,7 +77,7 @@ What it does not change is who you are. You keep the `@`'s side of the fight,
 your viewshed, your pack, your score and your magic points; `ai` never gets
 hold of you.
 
-Three consequences worth knowing before you pick a rat:
+Three consequences worth knowing before you pick a monster:
 
   * **You start with nothing.** The ring mail, mace, short bow, quiver and
     potion are *nihil's* kit.
@@ -92,7 +85,7 @@ Three consequences worth knowing before you pick a rat:
     own `ItemUser` mark -- the orc, hobgoblin, centaur, medusa, nymph,
     leprechaun, troll, vampire and ur-vile have hands; a dragon has claws and
     is told so when it tries.
-  * **Innate magic that is a spell lands in your spell bar, free.** A dragon
+  * **Innate magic that is a spell lands in your spellset, free.** A dragon
     knows Fireball at zero magic cost, because a dragon has no magic points
     and never did. It is the same spell a hero coin teaches, cast through the
     same reticle, and the dragons on floor 10 breathe it too.
@@ -102,9 +95,7 @@ floor-10 dragon are both one `-am` away, and nothing gates which one you're
 allowed to start as, or scales the dungeon to match your pick. That's
 deliberate: `-am` is a costume, not a difficulty setting, and every row in
 the bestiary is tuned to be one thing a `@` fights, never to be the `@`
-fighting everything else. Play it for the joke, the curiosity, or the
-content-author's need to see a species from the inside -- not for a fair
-fight.
+fighting everything else. Play it for the thrills, not for a fair fight.
 
 ### Bodies and species
 
@@ -129,8 +120,8 @@ refused up front to keep that true, both before the terminal is touched:
     nihilurk -am orc mysave     # the save already knows what body it is in
     nihilurk -b lurk Bae        # a name is the first argument or it is not a name
 
-A monster's hit points are its own, so several rows are a two-hit death: that
-is the joke, and `-s` is how you retry it.
+A monster's hit points are its own, so several rows are a one or two-hit death: that
+is intended, and `-s` is how you retry it.
 
 `-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is installed as `nihilurk(6)`:
 
@@ -155,7 +146,7 @@ One bare argument, meaning one of two things:
   * **A player name**, otherwise. A fresh run starts under that name.
 
         cargo run -p engine -- nihilurk          # loads nihilurk.sav if it exists
-        cargo run -p engine -- Bae           # otherwise: a new run as Bae
+        cargo run -p engine -- bae           # otherwise: a new run as bae
 
 If the save is *clear data* -- a won run, which is kept rather than deleted -- the game asks before spending it.
 
@@ -180,15 +171,27 @@ Comma-separated content names, dropped on free tiles around the player the momen
     NIHILURK_SPAWN="dragon" cargo run -p engine
     NIHILURK_SPAWN="bow,arrow,ring of protection" cargo run -p engine
     NIHILURK_SPAWN="dart trap, long sword" cargo run -p engine
+    NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p engine
 
 Details:
 
-  * Any name from `-content` works -- monsters, items, traps, the relic.
+  * Any name from `-content` works -- monsters, items, traps, the Element itself.
   * Whitespace around each name is trimmed; empty entries are skipped.
+  * Gear and ammunition take optional dressing, written around the name in this order: `[cursed] [+N|-N] name [xN]`.
+
+    | Piece    | Example             | Effect |
+    |----------|---------------------|--------|
+    | `cursed` | `cursed ring mail`  | Adds the `Curse` tag: once worn or wielded it will not come off until a scroll of remove curse. |
+    | `+N`/`-N`| `+3 long sword`     | Adds N to the item's flat bonus: a weapon's hit roll, armour's guard, or a launcher's throw (the arrows it looses). Same code as the dungeon's own enchantment roll (`catalog::apply_bonus`). |
+    | `xN`     | `arrow x13`         | Sets the stack size, clamped to `1..=STACK_LIMIT` (13). `x0` gives 1, `x99` gives 13. |
+
+    A curse and a minus are independent: `-2 long sword` is not cursed, and `cursed +2 long sword` is. The quality is hidden until worn or identified, as for any gear.
+  * A modifier the thing cannot use (a plus on a ring, a stack on a dragon) is ignored, and the entry still counts as recognised.
+  * A malformed modifier (`+x sword`) is not a modifier: it stays part of the name, so the entry is skipped like any unknown name.
   * A name the tables do not know is skipped **silently**. This is a debug knob, not a parser. Check your spelling against `-content`.
   * Things are placed on the nearest free walkable tiles, searching outward in rings from the player. Nothing lands in a wall or on top of anything else.
   * It applies to **every floor**, not just the first. Descend and your dragon is waiting again.
-  * Items arrive exactly as their row describes them -- unenchanted, uncharged, a single arrow rather than a bundle. For the randomised version, find one on the floor.
+  * Items arrive exactly as their row describes them -- unenchanted, uncursed, uncharged, a single arrow rather than a bundle -- unless you dress them as above. For the randomised version, find one on the floor.
 
 ### NIHILURK_LEVEL
 
@@ -245,7 +248,7 @@ Check a name before you use it:
 
 Test a throw build from turn one:
 
-    NIHILURK_SPAWN="bow,arrow,arrow,ring of sharpshooting" cargo run -p engine
+    NIHILURK_SPAWN="short bow,arrow,arrow,ring of sharpshooting" cargo run -p engine
 
 
 See also

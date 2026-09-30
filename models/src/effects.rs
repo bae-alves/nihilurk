@@ -884,9 +884,9 @@ impl Lifetime {
     }
 }
 
-/// How many conditions one creature carries at once. A fourth shoulders the
-/// oldest one off — the body has only so much room to be wrong in, and a
-/// player buried under six badges cannot read their own state anyway.
+/// How many conditions one creature carries at once. A fourth is refused — the
+/// body has only so much room to be wrong in, and a player buried under six
+/// badges cannot read their own state anyway.
 pub const CONDITION_CAP: usize = 3;
 
 /// One effect an entity is holding, and for how long.
@@ -904,7 +904,7 @@ impl Held {
     /// Both halves have to hold. A ring of regeneration lends a boon that is
     /// not transient, and a potion of magic detection lends a transient mark
     /// that is nothing the marked creature is feeling — neither is a
-    /// condition, and neither may shoulder a real one off. Which is why the
+    /// condition, and neither may crowd a real one out. Which is why the
     /// effect half is [`crate::conditions::is_condition`], read off the lists
     /// that already declare the conditions, rather than a fresh list here:
     /// anything not on one of those lists is exempt by default, which is the
@@ -952,74 +952,39 @@ impl Effects {
 }
 
 /// Gives `entity` one effect for as long as `lifetime` says, attaching the
-/// component if it is not already there.
+/// component if it is not already there. Returns whether it landed.
 ///
 /// Lending the same effect twice leaves two entries on purpose: two sources,
 /// two claims, and losing one must not strip what the other still lends.
-pub fn lend(world: &mut World, entity: Entity, grant: Grant, lifetime: Lifetime) {
+///
+/// A creature already carrying [`CONDITION_CAP`] conditions refuses another:
+/// nothing attaches and this returns `false`. The player is told why; a
+/// monster's refusal is silent, the same rule `tick_effects` keeps.
+pub fn lend(world: &mut World, entity: Entity, grant: Grant, lifetime: Lifetime) -> bool {
     let Some(id) = grant.effect_id() else {
-        return;
+        return false;
     };
     let held = Held { id, lifetime };
-    {
-        let mut e = world.entity_mut(entity);
-        grant.attach(&mut e);
-        let mut ledger = e.take::<Effects>().unwrap_or_default();
-        ledger.0.push(held);
-        e.insert(ledger);
+    if held.is_condition() && conditions_held(world, entity) >= CONDITION_CAP {
+        if world.get::<Player>(entity).is_some() {
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::too_many_conditions());
+        }
+        return false;
     }
-    if held.is_condition() {
-        shed_oldest_condition(world, entity);
-    }
+    let mut e = world.entity_mut(entity);
+    grant.attach(&mut e);
+    let mut ledger = e.take::<Effects>().unwrap_or_default();
+    ledger.0.push(held);
+    e.insert(ledger);
+    true
 }
 
-/// Enforces [`CONDITION_CAP`]: over the ceiling, the condition that has been
-/// there longest comes off.
-///
-/// Oldest first because the newest is the one that just happened, and a hit
-/// that lands should be felt. The ledger is already in arrival order, so
-/// "oldest" is the first entry and no timestamp has to be kept.
-///
-/// Entries are shed one at a time, on the way in, so the ledger is never more
-/// than one over — which is why this takes the first offender rather than
-/// looping.
-fn shed_oldest_condition(world: &mut World, entity: Entity) {
-    let Some(ledger) = world.get::<Effects>(entity) else {
-        return;
-    };
-    let mut conditions = ledger
-        .0
-        .iter()
-        .enumerate()
-        .filter(|(_, h)| h.is_condition());
-    let doomed = match conditions.clone().count() > CONDITION_CAP {
-        true => conditions.next().map(|(i, h)| (i, h.id)),
-        false => None,
-    };
-    let Some((index, id)) = doomed else {
-        return;
-    };
-
-    let mut ledger = world.get_mut::<Effects>(entity).expect("just read it");
-    ledger.0.remove(index);
-    let still_held = ledger.holds(id);
-    if !still_held && let Some(effect) = Effect::by_id(id) {
-        effect.grant.detach(&mut world.entity_mut(entity));
-    }
-    // A condition leaving by this route leaves the same mess behind as one
-    // lifted by a cure: a viewshed to recompute, a tempo to put back.
-    crate::conditions::after_lifted(world, entity, id);
-
-    // And it is never silent. A condition the player can no longer see the
-    // badge for has to have been read going, or the ceiling looks like a bug
-    // in the badge line. Only the player is told, the same rule `tick_effects`
-    // keeps: the sentences are written to them.
-    if world.get::<Player>(entity).is_none() {
-        return;
-    }
-    if let Some(line) = crate::conditions::shed_line(id) {
-        world.resource_mut::<GameLog>().add(line);
-    }
+fn conditions_held(world: &World, entity: Entity) -> usize {
+    world
+        .get::<Effects>(entity)
+        .map_or(0, |l| l.0.iter().filter(|h| h.is_condition()).count())
 }
 
 /// Drops every entry `doomed` accepts, and detaches the component behind any
@@ -1075,8 +1040,8 @@ pub fn revoke_any(world: &mut World, entity: Entity, grants: &[Grant]) {
 /// Lends `entity` one effect until it leaves the floor. Lending twice is
 /// harmless — the second dose of the same potion is a second entry, and the
 /// staircase takes both.
-pub fn grant_for_floor(world: &mut World, entity: Entity, grant: Grant) {
-    lend(world, entity, grant, Lifetime::Floor);
+pub fn grant_for_floor(world: &mut World, entity: Entity, grant: Grant) -> bool {
+    lend(world, entity, grant, Lifetime::Floor)
 }
 
 /// Gives back everything `entity` was lent for this floor — what a staircase
@@ -1361,8 +1326,7 @@ pub fn hold(world: &mut World, victim: Entity, grant: Grant, turns: u32) -> bool
     // Replace rather than stack: a second dose of the same gas is a longer
     // sleep, not two sleeps running down side by side.
     revoke_matching(world, victim, |h| h.id == id);
-    lend(world, victim, grant, Lifetime::Turns(turns));
-    true
+    lend(world, victim, grant, Lifetime::Turns(turns))
 }
 
 /// How many turns `entity` has left of `grant`, or `None` if it is not held by

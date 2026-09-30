@@ -76,7 +76,9 @@ fn confuse_player(world: &mut World, player: Entity, line: &str, category: LogCa
     if world.get::<Confused>(player).is_some() {
         return false;
     }
-    crate::effects::lend(world, player, Grant::of::<Confused>(), Lifetime::Floor);
+    if !crate::effects::lend(world, player, Grant::of::<Confused>(), Lifetime::Floor) {
+        return false;
+    }
     world
         .resource_mut::<GameLog>()
         .add_colored(line.to_string(), category);
@@ -117,7 +119,9 @@ pub fn blind(world: &mut World, entity: Entity) -> bool {
     if world.get::<Blind>(entity).is_some() {
         return false;
     }
-    crate::effects::lend(world, entity, Grant::of::<Blind>(), Lifetime::Floor);
+    if !crate::effects::lend(world, entity, Grant::of::<Blind>(), Lifetime::Floor) {
+        return false;
+    }
     touch_viewshed(world, entity);
     world
         .resource_mut::<GameLog>()
@@ -142,7 +146,9 @@ pub fn paralyse(world: &mut World, entity: Entity) -> bool {
     if world.get::<Paralyzed>(entity).is_some() {
         return false;
     }
-    crate::effects::lend(world, entity, Grant::of::<Paralyzed>(), Lifetime::Floor);
+    if !crate::effects::lend(world, entity, Grant::of::<Paralyzed>(), Lifetime::Floor) {
+        return false;
+    }
     let slowed = set_speed(world, entity, SpeedKind::Slow, false);
     if world.get::<Player>(entity).is_none() {
         let pos = world.get::<Position>(entity).copied();
@@ -639,8 +645,7 @@ fn conditions() -> impl Iterator<Item = (Grant, &'static str)> {
 /// The four [`crate::effects::HOLDS`], with the adjective each would need if
 /// it ever had to be named in a sentence it has no line of its own for. It
 /// never has yet — every hold in [`crate::effects::EFFECTS`] carries an
-/// `ends` line, and [`shed_line`] prefers that — so this is the fallback that
-/// keeps a hold from being the one condition that could go in silence.
+/// `ends` line — so this is only the fallback for one that ever lacks it.
 const HOLD_ADJECTIVES: &[(Grant, &str)] = &[
     (Grant::of::<Asleep>(), strings::adjective_asleep()),
     (Grant::of::<Pinned>(), strings::adjective_pinned()),
@@ -653,40 +658,7 @@ const HOLD_ADJECTIVES: &[(Grant, &str)] = &[
 ///
 /// The default is the safe way round: an effect [`conditions`] does not name
 /// is not a condition, so a ring's lent boon or the mark a potion of magic
-/// detection leaves on a monster can never shoulder a real condition off.
+/// detection leaves on a monster can never crowd out a real condition.
 pub fn is_condition(id: &str) -> bool {
     conditions().any(|(g, _)| g.effect_id() == Some(id))
-}
-
-/// The sentence the player reads when the effect `id` is shed to make room for
-/// a fourth condition, or `None` for anything that is not a condition at all.
-///
-/// A hold says what it says when its own clock runs out — the words are
-/// already written and they fit either ending. Everything else borrows the
-/// staircase's phrasing, because "you are no longer blind" is the sentence the
-/// player has already learned to read as "that one is over".
-pub fn shed_line(id: &str) -> Option<String> {
-    let (_, adjective) = conditions().find(|(g, _)| g.effect_id() == Some(id))?;
-    let ends = crate::effects::Effect::by_id(id).and_then(|e| e.ends);
-    Some(match ends {
-        Some(line) => line.to_string(),
-        None => strings::no_longer(adjective),
-    })
-}
-
-/// What still has to happen when the effect `id` comes off a creature by some
-/// route other than a cure — [`crate::effects::shed_oldest_condition`] making
-/// room for a fourth condition.
-///
-/// The same `after` column [`cure_one_condition`] runs, read off the same
-/// table, so a condition that needs a viewshed recomputed needs it whichever
-/// way it left.
-pub fn after_lifted(world: &mut World, entity: Entity, id: &str) {
-    let after = AFFLICTIONS
-        .iter()
-        .find(|a| a.effect.effect_id() == Some(id))
-        .and_then(|a| a.after);
-    if let Some(after) = after {
-        after(world, entity);
-    }
 }

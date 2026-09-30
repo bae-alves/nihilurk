@@ -296,7 +296,9 @@ fn bide(world: &mut World, user: Entity) {
     // Through the ledger, with the lifetime that says what ends it: nothing
     // lends this one, so the ledger is the only record, and a run saved mid-coil
     // is reopened still coiled.
-    crate::effects::lend(world, user, Grant::of::<Bided>(), Lifetime::NextAction);
+    if !crate::effects::lend(world, user, Grant::of::<Bided>(), Lifetime::NextAction) {
+        return;
+    }
     if let Some((x, y)) = tile_of(world, user) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.condition_mark(x, y, '≡', Color::DarkYellow, 0.0);
@@ -530,7 +532,9 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
 /// ([`crate::abilities::fire_on_hit`]). Lifted at the next staircase like any
 /// other floor-scoped condition.
 fn magic_ward(world: &mut World, user: Entity) {
-    crate::effects::lend(world, user, Grant::of::<MagicWard>(), Lifetime::Floor);
+    if !crate::effects::lend(world, user, Grant::of::<MagicWard>(), Lifetime::Floor) {
+        return;
+    }
     if let Some((x, y)) = tile_of(world, user) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.spark_burst(x, y, Color::Cyan);

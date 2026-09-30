@@ -751,6 +751,10 @@ pub const fn adjective_sluggish() -> &'static str {
     "lento"
 }
 
+pub fn too_many_conditions() -> &'static str {
+    "Ya tienes demasiadas condiciones."
+}
+
 pub fn no_longer(adjective: &str) -> String {
     format!("Eso de estar {adjective} ya quedó atrás.")
 }
