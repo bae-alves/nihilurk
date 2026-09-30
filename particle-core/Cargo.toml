@@ -1,10 +1,13 @@
 [package]
-name = "particle-core"
+name = "nihilurk-particle-core"
 version = "0.1.0"
 edition = "2024"
-publish = false
 license.workspace = true
+repository.workspace = true
 description = "The arithmetic half of nihilurk's particle layer. `no_std`, no allocator, no dependencies."
+
+[lib]
+name = "particle_core"
 
 [lints]
 workspace = true
@@ -20,6 +23,6 @@ workspace = true
 # The flag must stay *observationally* additive -- both branches have to return
 # the same number, or the game and the bare-metal build have stopped agreeing
 # and the whole point of the split is gone. `tests/parity.rs` is what holds
-# that line; run it with `cargo test -p particle-core --all-features`.
+# that line; run it with `cargo test -p nihilurk-particle-core --all-features`.
 default = []
 std = []

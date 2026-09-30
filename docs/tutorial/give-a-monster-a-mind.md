@@ -88,7 +88,7 @@ In the `tests` module at the bottom of `agents.rs`:
         assert_eq!(think(&p, &COWARD), Action::Strike(e[0]));
     }
 
-    cargo test -p models --lib coward
+    cargo test -p nihilurk-models --lib coward
 
 No world was built. That is the point of a mind made of plain functions: the test is three lines of percept.
 
@@ -110,7 +110,7 @@ In `models/src/monsters.rs`, change the emu's movement from `Chase` to `Cower`, 
 Step 6: meet it
 ---------------
 
-    NIHILURK_SPAWN="emu" cargo run -p engine
+    NIHILURK_SPAWN="emu" cargo run -p nihilurk
 
 Walk toward it. At three tiles it runs. Corner it and it bites. Step back past three and it stops and watches. Walk out of the room: it does nothing at all, because a mob off your view never acts.
 

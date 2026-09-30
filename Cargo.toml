@@ -32,6 +32,7 @@ default-members = [
 
 [workspace.package]
 license = "GPL-3.0-or-later"
+repository = "https://github.com/bae-alves/nihilurk"
 
 # Clippy: only the `correctness`, `suspicious`, `complexity` and `perf` lint
 # groups are used. Everything else (notably `style`, plus `pedantic`/`nursery`)

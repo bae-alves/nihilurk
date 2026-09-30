@@ -52,8 +52,8 @@ A unit test in `agents.rs` per rule the set lists, built on `percept(...)`: one 
 Verify
 ------
 
-    cargo test -p models --lib agents
-    NIHILURK_SPAWN="your monster" cargo run -p engine
+    cargo test -p nihilurk-models --lib agents
+    NIHILURK_SPAWN="your monster" cargo run -p nihilurk
 
 Then add the set's row to the sets table in `../reference/agents.md`.
 

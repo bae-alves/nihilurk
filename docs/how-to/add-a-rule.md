@@ -51,7 +51,7 @@ In the `tests` module of `agents.rs`, build a percept with `percept(...)`, set t
 Verify
 ------
 
-    cargo test -p models --lib agents
+    cargo test -p nihilurk-models --lib agents
 
 Then add the rule's row to the rules table in `../reference/agents.md`.
 

@@ -91,7 +91,7 @@ Step 3: see that the game knows about it
 
 Ask the game what it has:
 
-    cargo run -p engine -- -content | grep basilisk
+    cargo run -p nihilurk -- -content | grep basilisk
 
 You should get:
 
@@ -115,13 +115,13 @@ Step 4: meet it
 
 Playing down to floor 5 to look at your own work is a miserable way to spend an evening. So:
 
-    NIHILURK_SPAWN="basilisk" cargo run -p engine
+    NIHILURK_SPAWN="basilisk" cargo run -p nihilurk
 
 The floor is built as normal, and then the things you named are dropped on free tiles near you. `NIHILURK_SPAWN` ignores the depth gate, so you can look at a floor-10 creature on floor 1.
 
 Fight it. Then try it with company:
 
-    NIHILURK_SPAWN="basilisk,basilisk,potion of healing" cargo run -p engine
+    NIHILURK_SPAWN="basilisk,basilisk,potion of healing" cargo run -p nihilurk
 
 
 Step 5: prove it, so it stays proved
@@ -160,7 +160,7 @@ Three things happened, and none of them is code you have to write.
 
 Rebuild and meet it now:
 
-    NIHILURK_SPAWN="basilisk" cargo run -p engine
+    NIHILURK_SPAWN="basilisk" cargo run -p nihilurk
 
 It is somewhere next to you and you cannot see it. Try burning it with `NIHILURK_SPAWN="basilisk,wand of fire"` -- it will shrug, and the log will say so in as many words.
 

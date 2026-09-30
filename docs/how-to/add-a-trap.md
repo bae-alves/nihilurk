@@ -67,7 +67,7 @@ Then:
 
     cargo build
     cargo test --test content
-    NIHILURK_SPAWN="pit trap" cargo run -p engine
+    NIHILURK_SPAWN="pit trap" cargo run -p nihilurk
 
 
 Writing the mechanic

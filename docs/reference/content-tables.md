@@ -59,7 +59,7 @@ Where everything is
 
 For the live contents of any of them:
 
-    cargo run -p engine -- -content
+    cargo run -p nihilurk -- -content
 
 
 BESTIARY — MonsterDef

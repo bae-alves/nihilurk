@@ -1,10 +1,12 @@
 [package]
-name = "engine"
-version = "0.1.1"
+name = "nihilurk"
+description = "A terminal roguelike about descending thirteen floors to reclaim the Element of Yoord."
+version = "0.1.2"
 edition = "2024"
 license.workspace = true
+repository.workspace = true
 
-# `cargo run -p engine` / `cargo build -p engine` with no `--bin` keeps
+# `cargo run -p nihilurk` / `cargo build -p nihilurk` with no `--bin` keeps
 # meaning exactly what it always has: the game, in English by default. The
 # second bin (`nihilurk-dispatch`) only gets built explicitly or as part of
 # packaging (`aur/PKGBUILD`), never by accident.
@@ -22,6 +24,11 @@ path = "src/main.rs"
 [[bin]]
 name = "nihilurk-dispatch"
 path = "src/bin/dispatch.rs"
+# Behind a feature so `cargo install nihilurk` does not install it. From
+# crates.io there is no `nihilurk-<lang>` next to it, so it could only fail.
+# Packaging (`release/package.sh`, `aur/PKGBUILD`) builds it with
+# `--features dispatch`; `engine/tests/workspace.rs` holds this line in place.
+required-features = ["dispatch"]
 
 [lints]
 workspace = true
@@ -33,14 +40,15 @@ workspace = true
 # `lang-pt` here actually exclusive -- see `models/Cargo.toml`'s comment.
 [features]
 default = ["lang-en"]
+dispatch = []
 lang-en = ["strings/lang-en", "models/lang-en"]
 lang-pt = ["strings/lang-pt", "models/lang-pt"]
 lang-es = ["strings/lang-es", "models/lang-es"]
 lang-ht = ["strings/lang-ht", "models/lang-ht"]
 
 [dependencies]
-models = { path = "../models", default-features = false }
-strings = { path = "../strings", default-features = false }
+models = { package = "nihilurk-models", path = "../models", version = "0.1.2", default-features = false }
+strings = { package = "nihilurk-strings", path = "../strings", version = "0.1.0", default-features = false }
 crossterm = "0.29.0"
 bevy_ecs = "0.12"
 rand = "0.8"

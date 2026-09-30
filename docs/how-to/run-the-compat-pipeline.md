@@ -208,7 +208,7 @@ A qemu row skipped saying it could not fetch its interpreter
 
     The host's own musl triple will still build with plain cargo:
 
-        cargo build --release --target x86_64-unknown-linux-musl -p engine
+        cargo build --release --target x86_64-unknown-linux-musl -p nihilurk
 
 `no binary at target/cross/<triple>/<triple>/release/nihilurk`
 

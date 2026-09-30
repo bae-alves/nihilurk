@@ -312,8 +312,8 @@ pub fn content_names() -> Vec<(&'static str, &'static str)> {
 /// without playing down to the depth that would produce it.
 ///
 /// ```text
-/// NIHILURK_SPAWN="dragon,bow,arrow,ring of protection" cargo run -p engine
-/// NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p engine
+/// NIHILURK_SPAWN="dragon,bow,arrow,ring of protection" cargo run -p nihilurk
+/// NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p nihilurk
 /// ```
 ///
 /// `cursed`, `+N`/`-N` and `xN` dress gear and ammunition; see [`SpawnMods`].

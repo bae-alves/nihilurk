@@ -120,7 +120,7 @@ What follows from it
 
 **Tools come free.** Because content is data, anything that walks the tables works on all of it at once, forever:
 
-    cargo run -p engine -- -content      lists every name, live
+    cargo run -p nihilurk -- -content      lists every name, live
     NIHILURK_SPAWN="dragon,bow"              spawns any of them
     spawn_named(world, name, pos)        one door for tests and scripts
     models/tests/content.rs              tests the data as data

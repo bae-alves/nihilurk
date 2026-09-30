@@ -21,14 +21,14 @@ Recipe 1: look at it right now
 
 No code. `NIHILURK_SPAWN` drops names on free tiles around the player on every floor it builds:
 
-    cargo run -p engine -- -content              # 1. what are the names?
-    cargo run -p engine -- -content | grep -i wand
-    NIHILURK_SPAWN="dragon" cargo run -p engine      # 2. put one in front of me
-    NIHILURK_SPAWN="bow,arrow,arrow,dart trap" cargo run -p engine
+    cargo run -p nihilurk -- -content              # 1. what are the names?
+    cargo run -p nihilurk -- -content | grep -i wand
+    NIHILURK_SPAWN="dragon" cargo run -p nihilurk      # 2. put one in front of me
+    NIHILURK_SPAWN="bow,arrow,arrow,dart trap" cargo run -p nihilurk
 
 Gear and ammunition take dressing: `cursed`, `+N`/`-N` and `xN`.
 
-    NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p engine
+    NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p nihilurk
 
 Names are comma-separated and trimmed; a name the tables do not know is skipped **silently**, so check it against `-content` rather than trusting an empty floor. Full rules: `../reference/cli-and-env.md`.
 
@@ -183,7 +183,7 @@ That is deliberate: a test that spawns a thing needs it to be the same thing eve
 When it does not work
 ---------------------
 
-**`spawn_named` returned `None`.** The lookup is a case-sensitive exact match on the row's name -- `"Dragon"` and `"long Sword"` find nothing. Check `cargo run -p engine -- -content`.
+**`spawn_named` returned `None`.** The lookup is a case-sensitive exact match on the row's name -- `"Dragon"` and `"long Sword"` find nothing. Check `cargo run -p nihilurk -- -content`.
 
 **It spawned but nothing is drawn.** Either it has no `Position` (being in a `Backpack` means exactly that: `stow` removes it, and the renderer draws the pack separately), or the tile is not currently visible -- floor items are only drawn on revealed tiles, and a monster gets `Hidden` until the player's viewshed reaches it.
 
@@ -203,7 +203,7 @@ Check yourself
 
     cargo test --test content        # every name still spawns and keeps its name
     cargo test --test determinism    # seeds still mean what they meant
-    cargo run -p engine -- -content  # what the game knows, live from the tables
+    cargo run -p nihilurk -- -content  # what the game knows, live from the tables
 
 
 See also

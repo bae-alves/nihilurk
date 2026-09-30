@@ -45,6 +45,9 @@ Start here
 | Know what shape to leave the code in| `explanation/code-calisthenics.md`      |
 | Check it still runs on a Pi         | `how-to/run-the-compat-pipeline.md`     |
 | Know how portability is tested      | `explanation/cross-platform-testing.md` |
+| Publish a release to crates.io      | `how-to/publish-to-crates-io.md`        |
+| Publish a GitHub release            | `how-to/publish-a-github-release.md`    |
+| Know why package names differ from directories | `explanation/why-the-crates-are-named-twice.md` |
 
 And one architecture decision record, on why content is compiled into the binary rather than loaded from JSON raw files:
 
@@ -101,7 +104,7 @@ The game design document (`../gdd.md`) is a third thing again: what nihilurk is 
 The crates
 ----------
 
-The code is a workspace of small libraries and one binary. Pages name files by their path from the repo root, so this is the map.
+The code is a workspace of small libraries and one binary. Pages name files by their path from the repo root, so this is the map. The directory names are the short ones below; the packages are `nihilurk-models`, `nihilurk-strings`, `nihilurk-particle-core` and `nihilurk` (for `engine/`), and `cargo -p` takes those. See `explanation/why-the-crates-are-named-twice.md`.
 
   models/         The game. Rules, content tables, ECS systems, save
                   files. No input, no drawing. Almost everything in
@@ -128,9 +131,7 @@ Three things make that cheap here:
 
   1. The docs describe *tables*, and the tables are short. There is rarely more than one page to touch.
 
-  2. `models/tests/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
-
-  3. `cargo run -p engine -- -content` prints the live content list. It reads the tables, so it can never go stale. Prefer pointing a reader at it over pasting a list into a page.
+  2. `models/tests/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot ent` prints the live content list. It reads the tables, so it can never go stale. Prefer pointing a reader at it over pasting a list into a page.
 
 
 Quick sanity check
@@ -140,9 +141,9 @@ Quick sanity check
     cargo test                                # everything still works
     cargo test --test content                 # the tables specifically
     cargo test --test determinism             # seeds still mean what they meant
-    cargo test -p engine --test workspace     # the root test run still covers everything
-    cargo run -p engine -- -content           # what the game knows
-    NIHILURK_SPAWN="dragon" cargo run -p engine   # put one in front of me
+    cargo test -p nihilurk --test workspace     # the root test run still covers everything
+    cargo run -p nihilurk -- -content           # what the game knows
+    NIHILURK_SPAWN="dragon" cargo run -p nihilurk   # put one in front of me
 
 And the compatibility pipeline, which is slower and answers a different question:
 

@@ -9,10 +9,10 @@ Starting the game
 
 Start a new expedition with:
 
-    cargo run -p engine                  # start a game
-    cargo run -p engine -- YourName       # name your nihilurk
-    cargo run -p engine -- -s 1234        # play a particular seed
-    cargo run -p engine -- -b lurk        # descend as a lurk
+    cargo run -p nihilurk                  # start a game
+    cargo run -p nihilurk -- YourName       # name your nihilurk
+    cargo run -p nihilurk -- -s 1234        # play a particular seed
+    cargo run -p nihilurk -- -b lurk        # descend as a lurk
 
 Your name, if you give one, comes first. Everything else comes after it.
 
