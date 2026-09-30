@@ -52,7 +52,7 @@ if [ -z "$CROSS" ]; then
   bad "cross not found (cargo install cross), and no fallback can produce a"
   bad "foreign binary on its own"
   note "the host's own musl triple may still build with plain cargo:"
-  note "  cargo build --release --target x86_64-unknown-linux-musl -p engine"
+  note "  cargo build --release --target x86_64-unknown-linux-musl -p nihilurk"
   exit 1
 fi
 note "$("$CROSS" --version 2>/dev/null | head -1)"

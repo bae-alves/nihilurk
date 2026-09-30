@@ -149,8 +149,8 @@ Verify
 ------
 
     cargo build
-    cargo run -p engine -- -content | grep -A3 '^food'
-    NIHILURK_SPAWN="ration" cargo run -p engine
+    cargo run -p nihilurk -- -content | grep -A3 '^food'
+    NIHILURK_SPAWN="ration" cargo run -p nihilurk
     cargo test
 
 The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `the_loot_table_covers_every_category_over_a_long_run` will fail if twenty thousand drops never produce one.

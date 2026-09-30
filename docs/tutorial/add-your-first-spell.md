@@ -170,7 +170,7 @@ There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play
 Build and run:
 
     cargo build
-    cargo run -p engine
+    cargo run -p nihilurk
 
 
 Step 5: cast it

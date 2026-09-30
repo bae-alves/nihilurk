@@ -295,7 +295,7 @@ Step 7: meet it
 -----------------
 
     cargo build
-    cargo run -p engine -- -b ninja
+    cargo run -p nihilurk -- -b ninja
 
 You wake up quick, quiet, venomous, holding a dagger, wearing leather and a
 ring of protection, with four spare daggers and Sting in your spell bar.
@@ -325,9 +325,9 @@ It is tempting to guess this bug lives behind a save and reload, the way a
 lurk's identity does. It doesn't — try it first, so you believe the actual
 answer:
 
-    cargo run -p engine -- -b ninja -ns
+    cargo run -p nihilurk -- -b ninja -ns
     # play a turn or two, quit, then:
-    cargo run -p engine -- -b ninja -ns
+    cargo run -p nihilurk -- -b ninja -ns
 
 You come back quick, quiet and venomous, exactly as you left. `Speed.kind`,
 `Stealthy` and `Venomous` are all ordinary saved state — a plain field and

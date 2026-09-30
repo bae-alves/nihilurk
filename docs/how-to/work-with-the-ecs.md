@@ -210,7 +210,7 @@ Then the bookkeeping, in order:
   * **Drawing.** A `Renderable` gets it on screen, but *when* it draws is a layer in `engine/src/view.rs`'s `render`, and the order matters — a later layer covers an earlier one. See `../reference/rendering.md`.
   * **Documenting.** A row in `../reference/content-tables.md` for the table and one in `../reference/components.md` for anything new it carries.
 
-The test that tells you it landed: `cargo run -p engine -- -content` lists it, and `NIHILURK_SPAWN="<name>"` puts one in front of you.
+The test that tells you it landed: `cargo run -p nihilurk -- -content` lists it, and `NIHILURK_SPAWN="<name>"` puts one in front of you.
 
 
 Recipe: deal damage

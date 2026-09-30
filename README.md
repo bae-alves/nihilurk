@@ -5,9 +5,13 @@ A Rogue retroclone about descending thirteen floors, taking the Element of Yoord
 
 If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
 
-    cargo run -p engine                  # play
-    cargo run -p engine -- -s 1234       # play a specific seed
+    cargo install nihilurk                  # install the English game
+    cargo run -p nihilurk                  # play, from a clone
+    cargo run -p nihilurk -- -s 1234       # play a specific seed
     cargo test                           # everything
+
+
+Prebuilt tarballs for Linux (x86_64, aarch64), macOS (Apple silicon and Intel) and Windows (x86_64) are on the [releases page](https://github.com/bae-alves/nihilurk/releases). Unpack one and run `./nihilurk`. CI builds and launches each one; it does not play the game.
 
 
 Where things are
@@ -59,8 +63,8 @@ A row is a name, an appearance, and the components the thing carries into the wo
 
 To see what you made without playing down to floor 7:
 
-    NIHILURK_SPAWN="pink dragon" cargo run -p engine
-    cargo run -p engine -- -content       # every name the game knows
+    NIHILURK_SPAWN="pink dragon" cargo run -p nihilurk
+    cargo run -p nihilurk -- -content       # every name the game knows
 
 
 Documentation

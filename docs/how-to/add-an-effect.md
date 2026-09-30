@@ -198,7 +198,7 @@ Verify
 
     cargo build
     cargo test                   # save round-trips: tests/saveload.rs
-    NIHILURK_SPAWN="<a thing that grants it>" cargo run -p engine
+    NIHILURK_SPAWN="<a thing that grants it>" cargo run -p nihilurk
 
 If your effect should survive a reload, the test worth copying is in `models/tests/wands.rs`: the one named `cancellation_strips_the_magic_but_leaves_the_creature` exercises the grant / probe / revoke path end to end.
 

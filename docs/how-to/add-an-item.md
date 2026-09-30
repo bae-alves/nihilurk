@@ -193,8 +193,8 @@ Verify, whichever you added
 ---------------------------
 
     cargo build
-    cargo run -p engine -- -content | grep '<your name>'
-    NIHILURK_SPAWN="<your name>" cargo run -p engine
+    cargo run -p nihilurk -- -content | grep '<your name>'
+    NIHILURK_SPAWN="<your name>" cargo run -p nihilurk
     cargo test --test content
 
 The tests check that names are unique, that every row can be built by name, that what spawns keeps its name, and that every drop category can still produce something.

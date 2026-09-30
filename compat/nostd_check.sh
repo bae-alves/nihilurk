@@ -64,7 +64,7 @@ mkdir -p "$OUT"
 
 # The crate under test. Deliberately the only one: `models` and `engine` are
 # hosted crates and there is no version of this stage that involves them.
-CORE=particle-core
+CORE=nihilurk-particle-core
 
 # Where a container's cargo writes. Never the repo's own target/ -- the SDK
 # images run as their own user, and a root-owned artifact left in target/ makes

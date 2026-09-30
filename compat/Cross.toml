@@ -7,7 +7,7 @@
 # hand works the same way:
 #
 #     CROSS_CONFIG=compat/Cross.toml cross build --release \
-#         --target aarch64-unknown-linux-musl -p engine
+#         --target aarch64-unknown-linux-musl -p nihilurk
 #
 # WHY MUSL, EVERY TIME
 #
@@ -89,7 +89,7 @@ image = "ghcr.io/cross-rs/armv7-unknown-linux-musleabihf:0.2.5"
 #
 # `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf` are deliberately
 # absent from this file. They are never linked into an executable and never run,
-# so they need no container and no linker: `cargo check -p particle-core
+# so they need no container and no linker: `cargo check -p nihilurk-particle-core
 # --target <triple>` is the whole job, and it runs on the host toolchain in
 # under a second. `nostd_check.sh` does that, and reaches for a container only
 # for the Xtensa target, whose compiler is a fork rustup does not carry.

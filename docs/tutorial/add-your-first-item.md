@@ -87,7 +87,7 @@ Step 3: see that the game knows about it
 
 Ask the game what content it has:
 
-    cargo run -p engine -- -content | grep quarterstaff
+    cargo run -p nihilurk -- -content | grep quarterstaff
 
 You should get:
 
@@ -101,13 +101,13 @@ Step 4: hold it in your hands
 
 Waiting for a 3.6%-chance drop to prove your work is a miserable way to spend an evening. So there is a shortcut:
 
-    NIHILURK_SPAWN="quarterstaff" cargo run -p engine
+    NIHILURK_SPAWN="quarterstaff" cargo run -p nihilurk
 
 The floor is built as normal, and then the things you named are dropped on free tiles next to you. Walk one step, pick it up, wield it.
 
 You can ask for several at once, and mix kinds freely:
 
-    NIHILURK_SPAWN="quarterstaff,dragon,ring of protection" cargo run -p engine
+    NIHILURK_SPAWN="quarterstaff,dragon,ring of protection" cargo run -p nihilurk
 
 Anything the tables do not recognise is skipped in silence. See `../reference/cli-and-env.md`.
 
@@ -139,7 +139,7 @@ Suppose your quarterstaff is really a javelin. Change your row to:
 
 Rebuild, and throw it at something:
 
-    NIHILURK_SPAWN="quarterstaff,bat" cargo run -p engine
+    NIHILURK_SPAWN="quarterstaff,bat" cargo run -p nihilurk
 
 It now flies properly: it goes around the target's armour die instead of being blunted by it, it is spent on what it hits, and nothing can pluck it out of the air. You did not implement any of that. Those three behaviours belong to `.missile(...)`, and every row that asks for them gets all three.
 
@@ -175,7 +175,7 @@ Nine categories drop in nihilurk, and they divide cleanly into two halves: the o
 
 The second half is not a chore the design failed to remove. A potion is a promise that drinking it will do something, and no table can invent what. What the design does remove is everything else: you never register a type, never touch the loot roller, never add a name to a list.
 
-Try any of these the way you tried the quarterstaff -- add the row, `cargo build`, then `NIHILURK_SPAWN="<name>" cargo run -p engine`.
+Try any of these the way you tried the quarterstaff -- add the row, `cargo build`, then `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
 
 ### A row and nothing else
 

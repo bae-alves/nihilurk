@@ -358,3 +358,39 @@ component. `Faction::Ally` had been in the enum, unused, since the start.
   first draft of `give-a-monster-a-mind.md` made a kobold a coward; the
   bestiary has no kobold. It was run end to end in a scratch copy and uses the
   emu now. Also: this machine has no `rsync`.
+
+## 2026-09-30 -- crates.io prep
+
+* **`engine`, `models`, `strings` are taken on crates.io.** Packages are now
+  `nihilurk`, `nihilurk-models`, `nihilurk-strings`, `nihilurk-particle-core`.
+  Directories and library names are unchanged (`[lib] name`, and
+  `package = "..."` on the dependency), so no `use` line moved. `cargo -p`
+  takes the package name; `docs/explanation/why-the-crates-are-named-twice.md`.
+* **`cargo publish --workspace --dry-run --allow-dirty` passes** for all four.
+  Nothing has been uploaded. The real publish needs a version bump first: the
+  `v0.1.1` tag predates `master`.
+* **`cargo install nihilurk` without `--bin nihilurk` also installs
+  `nihilurk-dispatch`,** which then can't find `nihilurk-<lang>`. Documented,
+  not fixed. `required-features` on that bin would hide it if it bites.
+* **`aur/PKGBUILD` now says `-p nihilurk`,** which is right for the next tag
+  and wrong for `v0.1.1`. Bump `pkgver` and the sha in the same commit.
+* **Only `nihilurk -content` was run on a `--features lang-pt` build,** and it
+  prints English. Not checked whether that is intended.
+
+## 2026-09-30 -- GitHub release workflow
+
+* **`release/package.sh` + `release/test_package.sh`** hold the build logic so
+  it runs locally; `.github/workflows/release.yml` only calls them. The test
+  passed for `x86_64-unknown-linux-musl` (4m31s, fat LTO x4). It also checks
+  the four language binaries differ, which catches a stale `cp` in the loop.
+* **Not run: the workflow itself.** actionlint is clean (brew-installed);
+  there has been no push, so the first tag is the first real run. `ubuntu-24.04-arm` and `macos-latest` are unverified
+  for this repo; the arm runner is free only on public repos.
+* **Windows and Intel macOS are in the matrix, never run.** The dispatcher
+  gained `EXE_SUFFIX`; Windows spawns it as a child, unlike Unix `exec`.
+* **`nihilurk-dispatch` is behind `required-features = ["dispatch"]`,** so
+  `cargo install nihilurk` installs one binary. Packaging passes the feature.
+* **`aur/PKGBUILD` stays on the `v0.1.1` snapshot on purpose;** `aur_check.sh
+  --head` is red until the release that ships the rename. Version is 0.1.2.
+* **`-content` in English on `lang-pt` is expected:** pt re-exports English
+  until translated (CONTRIBUTING.md).

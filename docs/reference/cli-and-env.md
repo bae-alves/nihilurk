@@ -7,7 +7,7 @@ Reference: command line and environment
                    `engine/src/main.rs`. If this page and the source
                    disagree, the source is right and this page is a bug.
 
-    cargo run -p engine -- [flags] [name-or-save]
+    cargo run -p nihilurk -- [flags] [name-or-save]
 
 
 Flags
@@ -129,8 +129,8 @@ is intended, and `-s` is how you retry it.
 
 `-content` never touches the alternate screen, so it pipes:
 
-    cargo run -p engine -- -content | grep ring
-    cargo run -p engine -- -content | less
+    cargo run -p nihilurk -- -content | grep ring
+    cargo run -p nihilurk -- -content | less
 
 `-scores` reads the same way, straight off `leaderboard.sav` in the current directory -- a small postcard file, same shape as a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)`, where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended.
 
@@ -145,8 +145,8 @@ One bare argument, meaning one of two things:
   * **A save file**, if it names a file that exists -- verbatim or with `.sav` appended, matched case-insensitively. The run is loaded.
   * **A player name**, otherwise. A fresh run starts under that name.
 
-        cargo run -p engine -- nihilurk          # loads nihilurk.sav if it exists
-        cargo run -p engine -- bae           # otherwise: a new run as bae
+        cargo run -p nihilurk -- nihilurk          # loads nihilurk.sav if it exists
+        cargo run -p nihilurk -- bae           # otherwise: a new run as bae
 
 If the save is *clear data* -- a won run, which is kept rather than deleted -- the game asks before spending it.
 
@@ -156,7 +156,7 @@ Language
 
 The language is a build-time choice, not a flag. `engine` forwards one `lang-*` feature (`en` by default, `pt`, `es`, `ht`) to `strings`, `models` and `view`, and the binary carries that language only:
 
-    cargo run -p engine --no-default-features --features lang-pt
+    cargo run -p nihilurk --no-default-features --features lang-pt
 
 The installed `nihilurk` command is `nihilurk-dispatch`, which reads `LC_ALL`, `LANG` or `LANGUAGE`, and `exec`s the matching `nihilurk-<lang>` beside it, passing every argument through. `--lang <en|pt|es|ht>` as the first two arguments overrides that and is stripped before forwarding. Anything it does not recognise gets English.
 
@@ -168,10 +168,10 @@ Environment variables
 
 Comma-separated content names, dropped on free tiles around the player the moment a floor is built. The content author's shortcut: it means you never have to play down to floor 9 to look at a floor-9 monster.
 
-    NIHILURK_SPAWN="dragon" cargo run -p engine
-    NIHILURK_SPAWN="bow,arrow,ring of protection" cargo run -p engine
-    NIHILURK_SPAWN="dart trap, long sword" cargo run -p engine
-    NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p engine
+    NIHILURK_SPAWN="dragon" cargo run -p nihilurk
+    NIHILURK_SPAWN="bow,arrow,ring of protection" cargo run -p nihilurk
+    NIHILURK_SPAWN="dart trap, long sword" cargo run -p nihilurk
+    NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p nihilurk
 
 Details:
 
@@ -197,7 +197,7 @@ Details:
 
 Makes every floor one kind of special level instead of rolling for it. Most special levels turn up on one floor in a hundred, from floor 6 down; this is how you look at one without hunting for a seed that has it.
 
-    NIHILURK_LEVEL=island cargo run -p engine
+    NIHILURK_LEVEL=island cargo run -p nihilurk
 
 | Value                          | Level       |
 |--------------------------------|-------------|
@@ -232,23 +232,23 @@ Recipes
 
 Look at a new monster immediately:
 
-    NIHILURK_SPAWN="basilisk" cargo run -p engine
+    NIHILURK_SPAWN="basilisk" cargo run -p nihilurk
 
 Reproduce a run someone reported:
 
-    cargo run -p engine -- -s 1234567 -ns
+    cargo run -p nihilurk -- -s 1234567 -ns
 
 Walk around an island from turn one:
 
-    NIHILURK_LEVEL=island cargo run -p engine
+    NIHILURK_LEVEL=island cargo run -p nihilurk
 
 Check a name before you use it:
 
-    cargo run -p engine -- -content | grep -i staff
+    cargo run -p nihilurk -- -content | grep -i staff
 
 Test a throw build from turn one:
 
-    NIHILURK_SPAWN="short bow,arrow,arrow,ring of sharpshooting" cargo run -p engine
+    NIHILURK_SPAWN="short bow,arrow,arrow,ring of sharpshooting" cargo run -p nihilurk
 
 
 See also

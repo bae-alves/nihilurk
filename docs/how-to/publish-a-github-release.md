@@ -1,0 +1,130 @@
+How to publish a GitHub release
+===============================
+
+    Audience       The maintainer, cutting a release.
+    Prerequisites  Push access to the repository. The version bumped
+                   and committed, as in
+                   `publish-to-crates-io.md`.
+    Result         A GitHub release with one tarball per machine, each
+                   with a checksum, built and checked by CI.
+
+Pushing a tag is the whole procedure. `.github/workflows/release.yml` does the rest, and it cannot be undone from your side once the release is public, so check the version before you tag.
+
+
+Quick commands
+--------------
+
+    cargo test                            green before you tag
+    git tag v0.1.2                        the number in engine/Cargo.toml
+    git push origin v0.1.2                starts the workflow
+
+Watch it with `gh run watch`. When the `publish` job finishes, the release is at `https://github.com/bae-alves/nihilurk/releases`.
+
+To try the packaging on your own machine before you tag, without CI:
+
+    release/test_package.sh x86_64-unknown-linux-musl
+
+It builds all four languages with fat LTO, so it takes a few minutes, then unpacks the tarball and runs it.
+
+
+What the workflow does
+----------------------
+
+Three jobs, in a row. Any failure stops the ones after it.
+
+  check     Fails if the tag is not `v` plus the version in
+            `engine/Cargo.toml`, then runs `cargo test`.
+  build     One runner per target. Runs `release/test_package.sh`, which
+            calls `release/package.sh` and then plays with the result.
+            Uploads the tarball and its `.sha256`.
+  publish   Collects every tarball and creates the release with
+            generated notes.
+
+The targets:
+
+    x86_64-unknown-linux-musl     ubuntu-latest
+    aarch64-unknown-linux-musl    ubuntu-24.04-arm
+    aarch64-apple-darwin          macos-latest
+    x86_64-apple-darwin           macos-15-intel
+    x86_64-pc-windows-msvc        windows-latest
+
+The Linux builds are musl, so each is one static file with no glibc to match. `../explanation/cross-platform-testing.md` says why that is a promise and not a preference.
+
+
+What is in a tarball
+--------------------
+
+    nihilurk-<version>-<target>/
+        nihilurk          the dispatcher; picks a language from $LANG
+                          (every binary is `*.exe` on Windows)
+        nihilurk-en       the English game
+        nihilurk-pt       Portuguese (beta)
+        nihilurk-es       Spanish (beta)
+        nihilurk-ht       Haitian Creole (beta)
+        nihilurk.6        the man page
+        MANUAL.md
+        LICENSE
+
+The five binaries must stay in one directory. The dispatcher looks for `nihilurk-<lang>` next to itself and exits if it is not there. A user can put the directory anywhere, or `install` the files into `/usr/local/bin`.
+
+
+What CI has and has not shown
+----------------------------
+
+Every tarball is unpacked and run by CI on the machine that built it: the dispatcher has to start all four language binaries, and the four have to differ. That proves each binary launches and that the packaging is right. It is not a playtest.
+
+  Linux            The two musl targets are the ones `compat/` already
+                   covers. `release/test_package.sh` has been run for
+                   x86_64 by hand; aarch64 has only run under qemu, in
+                   `compat/`.
+  macOS, Windows   The workflow has never run for these. Windows in
+                   particular has one path nothing else exercises: the
+                   dispatcher starts its sibling as a child process and
+                   forwards the exit code, where on Unix it replaces itself.
+                   Play a release on each before you call it supported, and
+                   drop the row from `release.yml` if it does not work.
+
+Another target is one line in the `matrix` of `release.yml`, plus a runner label.
+
+
+Updating the AUR package
+------------------------
+
+`aur/PKGBUILD` is pinned to a tag, and `aur_check.sh` builds that tag with the PKGBUILD as written. So the PKGBUILD stays on the last released tag until the new one exists, and its `build()` matches that tag's package names and feature set. `./aur_check.sh --head` is red between a change like the crate rename and the release that ships it. That is what it is for.
+
+After the tag is pushed:
+
+    updpkgsums                     in aur/, refreshes sha256sums
+    ./aur_check.sh                 both trees green
+
+and set `pkgver` to the new version. This release needs three edits in `build()` and `check()` besides the version: `-p engine` is `-p nihilurk`, the dispatcher build takes `--features dispatch`, and `cargo test ... --exclude nihilurk-compat` stays as it is.
+
+When it goes wrong
+------------------
+
+  `check` says the tag disagrees        Delete the tag, bump the version,
+                                        commit, tag again:
+                                        `git tag -d v0.1.2`
+                                        `git push origin :refs/tags/v0.1.2`
+  One `build` job fails                 Read its log. The same command runs
+                                        on your machine as
+                                        `release/test_package.sh <target>`.
+                                        Fix, delete the tag, tag again.
+  `publish` fails after the builds pass Re-run the failed job from the
+                                        Actions tab. The artifacts are kept
+                                        for the run.
+  A bad release is live                 `gh release delete v0.1.2 --yes`,
+                                        then `git push origin
+                                        :refs/tags/v0.1.2`. Anyone who
+                                        already downloaded it keeps it.
+
+
+See also
+--------
+
+    publish-to-crates-io.md                    the other half of a release
+    ../../aur_check.sh                         builds the PKGBUILD's pinned tag and this tree
+    ../explanation/cross-platform-testing.md   why the Linux builds are musl
+    ../../release/package.sh                   the build, one target
+    ../../release/test_package.sh              the check on that build
+    ../../.github/workflows/release.yml        the workflow itself

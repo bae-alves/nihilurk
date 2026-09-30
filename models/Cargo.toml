@@ -1,8 +1,13 @@
 [package]
-name = "models"
-version = "0.1.1"
+name = "nihilurk-models"
+description = "The rules of nihilurk: components, monsters, items, spells, combat and map generation."
+version = "0.1.2"
 edition = "2024"
 license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "models"
 
 [lints]
 workspace = true
@@ -21,13 +26,13 @@ lang-es = ["strings/lang-es"]
 lang-ht = ["strings/lang-ht"]
 
 [dependencies]
-strings = { path = "../strings", default-features = false }
+strings = { package = "nihilurk-strings", path = "../strings", version = "0.1.0", default-features = false }
 # The particle layer's arithmetic, kept in a `no_std` crate with no dependencies
 # so `compat/` can compile it for a microcontroller and have that mean something
 # about the game rather than about a copy of it. `std` is on here because a
 # hosted build has an `f32::ceil` intrinsic worth using; see the crate's own
 # `Cargo.toml` for why that flag cannot change an answer.
-particle-core = { path = "../particle-core", features = ["std"] }
+particle-core = { package = "nihilurk-particle-core", path = "../particle-core", version = "0.1.0", features = ["std"] }
 crossterm = "0.29.0"
 bevy_ecs = "0.12" 
 getrandom = "0.4.3"

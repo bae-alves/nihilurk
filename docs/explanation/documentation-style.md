@@ -100,7 +100,7 @@ The one exception the corpus keeps is in `reference/`, which fences a bare **dec
 Shell examples carry a comment saying what the command answers:
 
     cargo test --test content                 # the tables specifically
-    cargo run -p engine -- -content           # what the game knows
+    cargo run -p nihilurk -- -content           # what the game knows
 
 ### Tables
 
@@ -173,7 +173,7 @@ What a page must not do
 -----------------------
 
   * **Restate a tuning number.** Name the constant — `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`, not "3 to 12". A number copied into prose is a number that goes stale the first time somebody rebalances, and nihilurk has had every one of them go wrong at least once. The same rule holds for doc comments in the source, and for tests (`code-calisthenics.md`, "a test never asserts a constant").
-  * **Paste a list the program can print.** `cargo run -p engine -- -content` reads the tables, so it can never be wrong. Point at it.
+  * **Paste a list the program can print.** `cargo run -p nihilurk -- -content` reads the tables, so it can never be wrong. Point at it.
   * **Be two kinds of document at once.** A how-to that starts explaining itself is a how-to and an explanation; split it and link. That rule is in `../README.md` and this page is the result of following it — the ECS pages are a how-to and an explanation, not one page.
   * **Document a deliberate secret.** The `T` key and the `-pride` flags stay out of `MANUAL.md` and out of `../reference/cli-and-env.md` on purpose. Where a page has to mention one — because an engine developer will meet it in the source — it says *keep it out of the manual* in as many words.
   * **Go stale quietly.** If a claim can be a test, make it a test and cite the test. `models/tests/content.rs` exists to hold up the claims `how-to/` makes about the tables.

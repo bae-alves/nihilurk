@@ -10,3 +10,5 @@
 # Working notes on the architecture (SCS): drafts, not documentation. `docs/`
 # is what ships.
 /scs-architecture/
+# release/package.sh writes tarballs here.
+/dist

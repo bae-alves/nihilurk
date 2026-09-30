@@ -1,8 +1,13 @@
 [package]
-name = "strings"
+name = "nihilurk-strings"
+description = "The text of nihilurk, one module per language, chosen at build time."
 version = "0.1.0"
 edition = "2024"
 license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "strings"
 
 [lints]
 workspace = true

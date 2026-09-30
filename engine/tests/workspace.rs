@@ -117,3 +117,103 @@ fn the_docs_crate_map_names_every_crate() {
         "crates missing from the `The crates` map in docs/README.md: {missing:?}"
     );
 }
+
+/// Every crate that goes to crates.io: the members that are not rigs.
+fn published(root: &Path) -> Vec<(String, String)> {
+    let manifest = std::fs::read_to_string(root.join("Cargo.toml"))
+        .expect("the workspace manifest is readable");
+    array(&manifest, "members")
+        .into_iter()
+        .filter(|dir| !RIGS.contains(&dir.as_str()))
+        .map(|dir| {
+            let text = std::fs::read_to_string(root.join(&dir).join("Cargo.toml"))
+                .unwrap_or_else(|_| panic!("{dir}/Cargo.toml is readable"));
+            (dir, text)
+        })
+        .collect()
+}
+
+/// crates.io hands out names first come, first served, and `engine`,
+/// `models` and `strings` went to other people long ago. A workspace crate
+/// under a bare name cannot be published, and `engine` cannot go out until
+/// the three crates it depends on have. So every crate that ships carries the
+/// game's name; the directories keep their short names.
+#[test]
+fn every_published_crate_is_named_for_the_game() {
+    let root = workspace_root();
+    let wrong: Vec<String> = published(&root)
+        .into_iter()
+        .filter_map(|(dir, text)| {
+            let name = text
+                .lines()
+                .find_map(|l| l.strip_prefix("name = \""))?
+                .trim_end_matches('"')
+                .to_string();
+            let ok = name == "nihilurk" || name.starts_with("nihilurk-");
+            (!ok).then(|| format!("{dir}/ is named `{name}`"))
+        })
+        .collect();
+
+    assert!(
+        wrong.is_empty(),
+        "crates that crates.io would refuse or that squat a generic name: {wrong:?}\n\
+         name them `nihilurk` or `nihilurk-<thing>`; see docs/how-to/publish-to-crates-io.md"
+    );
+}
+
+#[test]
+fn every_published_crate_has_what_crates_io_asks_for() {
+    let root = workspace_root();
+    let mut missing = Vec::new();
+    for (dir, text) in published(&root) {
+        if text.contains("publish = false") {
+            missing.push(format!("{dir}/ is marked `publish = false`"));
+        }
+        if !text.contains("description = ") {
+            missing.push(format!("{dir}/ has no `description`"));
+        }
+        if !text.contains("repository.workspace = true") {
+            missing.push(format!("{dir}/ does not inherit `repository`"));
+        }
+        // A path dependency with no version is rejected at publish time,
+        // after every crate before it in the order has already gone out.
+        for line in text.lines().filter(|l| l.contains("path = \"../")) {
+            if !line.contains("version = ") {
+                missing.push(format!("{dir}/ has a path dependency with no version: {line}"));
+            }
+        }
+    }
+
+    assert!(
+        missing.is_empty(),
+        "not ready for crates.io: {missing:#?}\n\
+         see docs/how-to/publish-to-crates-io.md"
+    );
+}
+
+/// `cargo install nihilurk` installs every `[[bin]]` that does not need a
+/// feature. The dispatcher execs a `nihilurk-<lang>` sitting next to it, and
+/// an install from crates.io has no such file, so installed by default it is a
+/// command that only ever errors. It has to sit behind a feature that packaging
+/// asks for by name.
+#[test]
+fn the_dispatcher_is_not_installed_by_default() {
+    let manifest = std::fs::read_to_string(workspace_root().join("engine/Cargo.toml"))
+        .expect("engine/Cargo.toml is readable");
+    let bin = manifest
+        .split("[[bin]]")
+        .find(|b| b.contains("name = \"nihilurk-dispatch\""))
+        .expect("engine declares the nihilurk-dispatch bin");
+    let bin = bin.split("\n[").next().expect("the table has a body");
+
+    assert!(
+        bin.contains("required-features = [\"dispatch\"]"),
+        "nihilurk-dispatch must carry `required-features = [\"dispatch\"]`, or \
+         `cargo install nihilurk` installs a command that cannot work.\n\
+         release/package.sh and aur/PKGBUILD build it with `--features dispatch`."
+    );
+    assert!(
+        !manifest.contains("default = [\"lang-en\", \"dispatch\"]"),
+        "`dispatch` must not be a default feature"
+    );
+}

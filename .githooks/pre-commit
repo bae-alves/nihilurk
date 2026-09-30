@@ -56,7 +56,7 @@ fi
 # positive to guard against by grepping for a narrower diff shape first. Run
 # it whenever either side of the comparison is staged.
 if staged | grep -qE '^(models/src/spawn\.rs|docs/reference/content-tables\.md)$'; then
-    cargo test -p models --test content_docs --quiet || {
+    cargo test -p nihilurk-models --test content_docs --quiet || {
         echo "pre-commit: models/tests/content_docs.rs failed -- DROPS and" >&2
         echo "  content-tables.md have drifted apart. See the failure above" >&2
         echo "  for which side moved." >&2
@@ -90,7 +90,7 @@ if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
     fi
 
     for lang in pt es ht; do
-        cargo check -p engine --no-default-features --features "lang-$lang" --quiet || {
+        cargo check -p nihilurk --no-default-features --features "lang-$lang" --quiet || {
             echo "pre-commit: the lang-$lang build failed -- see above. If this" >&2
             echo "  wasn't stubbed away above, it's a real mistake, not a missing" >&2
             echo "  translation -- stub_missing_translations.lua already covers that." >&2
