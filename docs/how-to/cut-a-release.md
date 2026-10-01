@@ -76,6 +76,13 @@ Do this once. It is the one part CI cannot do for you. For each of `nihilurk`, `
 
 A crate has to exist before it can have a trusted publisher. All four do.
 
+To check the setup without releasing anything, rehearse it:
+
+    gh workflow run release.yml --ref master
+    gh run watch
+
+The `rehearsal` job asks crates.io for a publish token and discards it. It passes only if every trusted publisher names this repository and `release.yml`. Nothing is built or published, and the jobs that need a tag skip themselves.
+
 
 When it goes wrong
 ------------------
