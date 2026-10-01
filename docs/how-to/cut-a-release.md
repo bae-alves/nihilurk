@@ -38,7 +38,7 @@ It refuses, and edits nothing, if the working tree has uncommitted changes, if y
     doc/nihilurk.6                the version and date in the `.TH` line
     aur/PKGBUILD                  `pkgver`, and `pkgrel` back to 1
 
-All four crates move to the same number, so there is one version to think about. `compat/` is a test rig and is left alone.
+All four crates move to the same number, so there is one version to think about. `engine/tests/workspace.rs` fails if one crate or one pin falls behind. `compat/` is a test rig and is left alone.
 
 Then, unless `--no-cargo`: `cargo update --workspace` refreshes `Cargo.lock`, `cargo test --locked` runs the suite, and `cargo publish --workspace --dry-run` proves all four packages build. If a step fails, the edits stay in the working tree and `git checkout .` puts them back. When they pass, it commits `Release vX.Y.Z` and tags it.
 
