@@ -6,12 +6,16 @@ name: release
 on:
   push:
     tags: ["v*"]
+  # A manual run is a rehearsal: it only proves crates.io will accept this
+  # workflow. See the `rehearsal` job. Nothing is built or published.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   check:
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -95,3 +99,23 @@ jobs:
               cargo publish -p "$name" --locked
             fi
           done
+
+  # `gh workflow run release.yml` runs only this job. It asks crates.io for a
+  # publish token, which succeeds only if each crate's trusted publisher names
+  # this repository and this workflow file, then throws the token away. It is
+  # the way to test the crates.io setup without releasing anything.
+  rehearsal:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - name: the exchange worked
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          test -n "$TOKEN"
+          echo "crates.io issued a publish token for this workflow. Nothing was published."
