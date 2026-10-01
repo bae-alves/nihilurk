@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 readme.workspace = true
 rust-version = "1.85"
-keywords = ["i18n", "localization", "translations", "game-text", "roguelike"]
+keywords = ["i18n", "l10n", "localization", "translations", "roguelike"]
 categories = ["internationalization", "localization"]
 
 [lib]

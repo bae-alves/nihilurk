@@ -406,3 +406,21 @@ component. `Faction::Ally` had been in the enum, unused, since the start.
   pages show the game's front page and crate map.
 * **Categories were checked against the live crates.io list;** keywords and
   descriptions are my wording, not tested against search ranking.
+* **`rust-version = "1.91"` is exact for `models`:** 1.90 fails on the const
+  `TypeId::of` (`--ignore-rust-version`). The 1.85 floor for `strings` and
+  `particle-core` was built, not assumed.
+* **Three tests read outside their crate** (`engine/tests/workspace.rs`,
+  `models/tests/effects.rs`, `models/tests/content_docs.rs`) and would fail on
+  `cargo test` from a downloaded crate. They are in `exclude` now, and
+  `workspace.rs` fails on a fourth. Not verified by unpacking: the siblings
+  are not on crates.io yet, so the unpacked crates cannot resolve.
+* **Keywords were picked from live crates.io counts.** `dungeon-crawler`,
+  `bevy-ecs` and `game-text` had no crates at all, so nobody browses them;
+  swapped for `ascii`, `rpg`, `bevy`, `l10n`. `roguelike` has 51 crates.
+* **`nihilurk -content | head` panics on a broken pipe** (a `println!` after
+  `head` closes). Cosmetic, not fixed; the how-to uses `sed -n 1,8p`.
+* **CI steps run locally:** `release/test_package.sh x86_64-unknown-linux-musl`
+  passes (incremental build, not clean), actionlint is clean, `cargo install
+  --path engine` installs one binary. aarch64 musl only type-checked: no
+  linker or emulator here. `ubuntu-24.04-arm` is a real label, free on public
+  repos.

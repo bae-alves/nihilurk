@@ -7,8 +7,11 @@ license.workspace = true
 repository.workspace = true
 readme.workspace = true
 rust-version = "1.91"
-keywords = ["roguelike", "bevy-ecs", "ecs", "procgen", "game-rules"]
+keywords = ["roguelike", "ecs", "bevy", "procedural", "gamedev"]
 categories = ["game-development", "games"]
+# Both read the workspace around the crate (`../docs`, and `engine/src`), so
+# neither can pass from a download. They still run in the repository.
+exclude = ["tests/content_docs.rs", "tests/effects.rs"]
 
 [lib]
 name = "models"

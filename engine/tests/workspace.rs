@@ -215,6 +215,24 @@ fn every_published_crate_has_what_crates_io_asks_for() {
                 ));
             }
         }
+        // An integration test that reads the workspace around its crate
+        // (`CARGO_MANIFEST_DIR` plus `..`) cannot pass once the crate is
+        // unpacked from crates.io, where there is no workspace. It has to be
+        // left out of the package, or `cargo test` on the download fails.
+        let tests = root.join(&dir).join("tests");
+        for entry in std::fs::read_dir(&tests).into_iter().flatten().flatten() {
+            let file = entry.file_name().to_string_lossy().into_owned();
+            let Ok(src) = std::fs::read_to_string(entry.path()) else {
+                continue;
+            };
+            let leaves = src.contains("CARGO_MANIFEST_DIR")
+                && (src.contains(".parent()") || src.contains("/../"));
+            if leaves && !text.contains(&format!("\"tests/{file}\"")) {
+                missing.push(format!(
+                    "{dir}/tests/{file} reads outside its crate but is not in `exclude`"
+                ));
+            }
+        }
     }
 
     assert!(

@@ -1,14 +1,17 @@
 [package]
 name = "nihilurk"
-description = "A Rogue-like for the terminal: descend thirteen floors, take the Element of Yoord, carry it back up. One binary, no assets, permanent death."
+description = "A Rogue-like dungeon crawler for the terminal: descend thirteen floors, take the Element of Yoord, carry it back up. One binary, no assets, permanent death."
 version = "0.1.2"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
 readme.workspace = true
 rust-version = "1.91"
-keywords = ["roguelike", "rogue", "dungeon-crawler", "terminal", "game"]
+keywords = ["roguelike", "game", "terminal", "ascii", "rpg"]
 categories = ["games"]
+# Reads the workspace around it, so it cannot pass from a download. It still
+# runs in the repository. `engine/tests/workspace.rs` holds this line in place.
+exclude = ["tests/workspace.rs"]
 
 # `cargo run -p nihilurk` / `cargo build -p nihilurk` with no `--bin` keeps
 # meaning exactly what it always has: the game, in English by default. The
