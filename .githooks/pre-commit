@@ -16,6 +16,10 @@ cd "$(git rev-parse --show-toplevel)"
 
 staged() { git diff --cached --name-only --diff-filter=ACM; }
 
+# 0. No Python. nihilurk is Rust, bash and Lua. Runs first because it is the
+# cheapest check and the one with no way to be argued with.
+lua .githooks/no_python.lua || exit 1
+
 # 1. The house documentation lint, whenever a page under docs/ is staged.
 if staged | grep -q '^docs/'; then
     ./docs_style.sh || {

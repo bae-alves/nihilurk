@@ -12,3 +12,8 @@
 /scs-architecture/
 # release/package.sh writes tarballs here.
 /dist
+
+# Personal Claude Code files. The journal is long and about one person's
+# sessions, so a contributor's Claude should not read it. See .claude/README.md.
+/.claude/*.local.md
+/.claude/settings.local.json

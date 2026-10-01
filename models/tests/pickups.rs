@@ -577,7 +577,7 @@ fn claiming_one_item_in_a_red_room_destroys_the_rest() {
 
 #[test]
 fn a_dropped_item_ruins_a_red_room_just_the_same() {
-    // Bae: "A picked up dropped/thrown item counts for the red room" — there
+    // bae: "A picked up dropped/thrown item counts for the red room" — there
     // is no native/foreign distinction, only whether the tile reads as one.
     let mut w = test_world(1);
     let p = player(&mut w);
