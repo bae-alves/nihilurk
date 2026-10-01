@@ -9,7 +9,8 @@
 #   tag     the tree a real `makepkg` downloads today: the git tag that
 #           PKGBUILD's own pkgver names, checked out via `git worktree`
 #           (skips the GitHub round-trip; sha256sums is checked separately,
-#           below, and only if the network is up).
+#           below, only if the network is up, and not at all when the
+#           repo copy carries SKIP).
 #   head    the tree a release cut right now would tag: this working copy,
 #           uncommitted changes included.
 #
@@ -106,14 +107,21 @@ if [ "$DO_TAG" -eq 1 ]; then
 
   url=${source[0]#*::}
   want=${sha256sums[0]}
-  got=$(curl -fsSL --max-time 20 "$url" 2>/dev/null | sha256sum | awk '{print $1}')
-  if [ -z "$got" ]; then
-    warn "no network (or fetch failed): skipped sha256sums check against $url"
-  elif [ "$got" = "$want" ]; then
-    ok "sha256sums matches the tarball at $url"
+  if [ "$want" = "SKIP" ]; then
+    # The repo copy never carries a real sha: it would be stale the moment a
+    # release is tagged. The AUR job writes the real one, from the tag
+    # tarball, into the copy it pushes to the AUR.
+    warn "sha256sums is SKIP in the repo; the AUR job computes the real one"
   else
-    bad "sha256sums stale: PKGBUILD says $want, tarball is $got"
-    STATUS=1
+    got=$(curl -fsSL --max-time 20 "$url" 2>/dev/null | sha256sum | awk '{print $1}')
+    if [ -z "$got" ]; then
+      warn "no network (or fetch failed): skipped sha256sums check against $url"
+    elif [ "$got" = "$want" ]; then
+      ok "sha256sums matches the tarball at $url"
+    else
+      bad "sha256sums stale: PKGBUILD says $want, tarball is $got"
+      STATUS=1
+    fi
   fi
 fi
 

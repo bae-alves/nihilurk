@@ -8,6 +8,8 @@ How to publish nihilurk to crates.io
     Result         Four crates on crates.io, and `cargo install
                    nihilurk` gives a stranger the game.
 
+This is the manual path. A release is now `lua release/bump.lua` and a tag push, and CI publishes: see `cut-a-release.md`. Use this page when CI cannot.
+
 Publishing is the one step in this repository that cannot be taken back. A version, once uploaded, can be yanked but never deleted, and a crate name is held for good. Everything before the last command is a dry run. Do those first, every time.
 
 

@@ -45,6 +45,7 @@ Start here
 | Know what shape to leave the code in| `explanation/code-calisthenics.md`      |
 | Check it still runs on a Pi         | `how-to/run-the-compat-pipeline.md`     |
 | Know how portability is tested      | `explanation/cross-platform-testing.md` |
+| Cut a release, one command and a push | `how-to/cut-a-release.md`             |
 | Publish a release to crates.io      | `how-to/publish-to-crates-io.md`        |
 | Publish a GitHub release            | `how-to/publish-a-github-release.md`    |
 | Know why package names differ from directories | `explanation/why-the-crates-are-named-twice.md` |
