@@ -1,6 +1,6 @@
 [package]
 name = "nihilurk-particle-core"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
