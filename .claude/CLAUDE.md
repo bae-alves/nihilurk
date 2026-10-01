@@ -22,10 +22,13 @@ No mock modes in app code.
 
 # Context/output
 Plan doc→read it, skip tree explore. Else /docs+grep specifics; no free exploring.
-Journal insights in `.claude/`; search first on complex tasks.
+Journal insights in `.claude/journal.local.md` (git-ignored); search first on complex tasks.
 Feedback mem. only on "remember"/"memorize".
 Post non-trivial work: weaknesses+severity+pre-ship fixes.
 Long output→file, read selectively, never dump raw. Q&A: one Q at a time, multiple-choice/boolean.
+
+# Contributing
+LLM-assisted code welcome everywhere. Player-facing text in `strings/` is the game's only art: LLM or machine-translated text is fine as a starter or placeholder in any language, English included, and nobody has to flag it. Treat LLM-written English as placeholder text for a human to replace when they want; nothing checks this, and bae trusts contributors. Final localization (pt/es/ht) is human work, because localization needs a human culture, which LLMs lack; whoever localizes puts heart in it. pt is native (bae); es/ht were started by machine translation and need native help. Scripts are bash or lua; pre-commit and CI refuse python. Details: CONTRIBUTING.md.
 
 # Prose
 Plain, active, short words, no filler. No passive, no "not X, it's Y," no stock metaphors. Voice consistent w/ base. Say it, don't announce it.

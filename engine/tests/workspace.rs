@@ -268,3 +268,26 @@ fn the_dispatcher_is_not_installed_by_default() {
         "`dispatch` must not be a default feature"
     );
 }
+
+/// The minimum Rust is written in the manifest and again in prose that tells a
+/// contributor what to install. Nothing connects the two, so a bump in the
+/// manifest that misses the prose sends people to the wrong compiler.
+#[test]
+fn the_docs_name_the_real_minimum_rust() {
+    let root = workspace_root();
+    let manifest = std::fs::read_to_string(root.join("engine/Cargo.toml"))
+        .expect("engine/Cargo.toml is readable");
+    let floor = manifest
+        .lines()
+        .find_map(|l| l.strip_prefix("rust-version = \""))
+        .expect("engine declares a rust-version")
+        .trim_end_matches('"');
+
+    for file in ["README.md", "CONTRIBUTING.md"] {
+        let text = std::fs::read_to_string(root.join(file)).expect("the file is readable");
+        assert!(
+            text.contains(&format!("Rust {floor}")),
+            "{file} should say `Rust {floor}`, the `rust-version` in engine/Cargo.toml"
+        );
+    }
+}

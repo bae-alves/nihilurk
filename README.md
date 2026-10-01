@@ -36,7 +36,7 @@ Where things are
     MANUAL.md      how to play: controls, combat math, items, monsters.
     doc/nihilurk.6     the installed `man nihilurk` command reference.
     docs/          how to add content to the game. Start at docs/README.md.
-    CONTRIBUTING.md    reporting bugs and sending translations.
+    CONTRIBUTING.md    reporting bugs, sending patches and translations, and the LLM rule.
     gdd.md         what nihilurk is trying to be. Design, not code.
     models/        the game: rules, content tables, ECS systems.
     strings/       every player-facing sentence, one file per language.
