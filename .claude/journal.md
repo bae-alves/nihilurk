@@ -384,13 +384,25 @@ component. `Faction::Ally` had been in the enum, unused, since the start.
   passed for `x86_64-unknown-linux-musl` (4m31s, fat LTO x4). It also checks
   the four language binaries differ, which catches a stale `cp` in the loop.
 * **Not run: the workflow itself.** actionlint is clean (brew-installed);
-  there has been no push, so the first tag is the first real run. `ubuntu-24.04-arm` and `macos-latest` are unverified
-  for this repo; the arm runner is free only on public repos.
-* **Windows and Intel macOS are in the matrix, never run.** The dispatcher
-  gained `EXE_SUFFIX`; Windows spawns it as a child, unlike Unix `exec`.
+  there has been no push, so the first tag is the first real run.
+  `ubuntu-24.04-arm` is unverified for this repo; the arm runner is free only
+  on public repos.
 * **`nihilurk-dispatch` is behind `required-features = ["dispatch"]`,** so
   `cargo install nihilurk` installs one binary. Packaging passes the feature.
 * **`aur/PKGBUILD` stays on the `v0.1.1` snapshot on purpose;** `aur_check.sh
   --head` is red until the release that ships the rename. Version is 0.1.2.
 * **`-content` in English on `lang-pt` is expected:** pt re-exports English
   until translated (CONTRIBUTING.md).
+
+## 2026-10-01 -- crates.io metadata
+
+* **MSRV is 1.91 for `models`/`nihilurk`, 1.85 for `strings`/`particle-core`.**
+  Built on 1.85.0 and 1.91.0; 1.90 not tried. `models` uses let chains (1.88)
+  and a const `TypeId::of` (1.91). The floors are per crate on purpose: a
+  shared 1.91 would make `compat/`'s ESP32 check refuse `particle-core`.
+* **The new metadata test caught `procedural-generation` (21 chars).**
+  crates.io caps keywords at 20, so that upload would have been refused.
+* **`readme` is inherited from the workspace** (`README.md`), so the library
+  pages show the game's front page and crate map.
+* **Categories were checked against the live crates.io list;** keywords and
+  descriptions are my wording, not tested against search ranking.

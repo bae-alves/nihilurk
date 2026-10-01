@@ -175,11 +175,44 @@ fn every_published_crate_has_what_crates_io_asks_for() {
         if !text.contains("repository.workspace = true") {
             missing.push(format!("{dir}/ does not inherit `repository`"));
         }
+        // Metadata is frozen per version: a crate that goes up without these
+        // has an empty page until the next number.
+        if !text.contains("readme.workspace = true") {
+            missing.push(format!("{dir}/ does not inherit `readme`"));
+        }
+        // Not inherited: the crates do not share a floor. See the workspace
+        // manifest.
+        if !text.contains("\nrust-version = \"") {
+            missing.push(format!("{dir}/ has no `rust-version`"));
+        }
+        if !text.contains("categories = [") {
+            missing.push(format!("{dir}/ has no `categories`"));
+        }
+        if text.contains("keywords = [") {
+            // crates.io refuses an upload over these limits.
+            let keywords = array(&text, "keywords");
+            if keywords.is_empty() || keywords.len() > 5 {
+                missing.push(format!("{dir}/ needs 1 to 5 keywords, has {keywords:?}"));
+            }
+            for k in keywords {
+                let ok = k.len() <= 20
+                    && k.starts_with(|c: char| c.is_ascii_alphanumeric())
+                    && k.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "_-+".contains(c));
+                if !ok {
+                    missing.push(format!("{dir}/ has a keyword crates.io refuses: `{k}`"));
+                }
+            }
+        } else {
+            missing.push(format!("{dir}/ has no `keywords`"));
+        }
         // A path dependency with no version is rejected at publish time,
         // after every crate before it in the order has already gone out.
         for line in text.lines().filter(|l| l.contains("path = \"../")) {
             if !line.contains("version = ") {
-                missing.push(format!("{dir}/ has a path dependency with no version: {line}"));
+                missing.push(format!(
+                    "{dir}/ has a path dependency with no version: {line}"
+                ));
             }
         }
     }

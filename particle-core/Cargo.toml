@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
-description = "The arithmetic half of nihilurk's particle layer. `no_std`, no allocator, no dependencies."
+readme.workspace = true
+rust-version = "1.85"
+description = "The arithmetic half of nihilurk's particle layer for a terminal roguelike. `no_std`, no allocator, no dependencies."
+keywords = ["no-std", "particles", "particle-system", "embedded", "roguelike"]
+categories = ["no-std", "game-development"]
 
 [lib]
 name = "particle_core"

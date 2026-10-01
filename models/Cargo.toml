@@ -1,10 +1,14 @@
 [package]
 name = "nihilurk-models"
-description = "The rules of nihilurk: components, monsters, items, spells, combat and map generation."
+description = "The rules of nihilurk, a terminal roguelike: bevy_ecs components, monsters, items, spells, combat and procedural map generation."
 version = "0.1.2"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
+readme.workspace = true
+rust-version = "1.91"
+keywords = ["roguelike", "bevy-ecs", "ecs", "procgen", "game-rules"]
+categories = ["game-development", "games"]
 
 [lib]
 name = "models"

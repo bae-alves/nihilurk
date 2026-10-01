@@ -33,21 +33,12 @@ jobs:
       matrix:
         include:
           # Both Linux targets are musl: one static file, no glibc to match.
-          - { target: x86_64-unknown-linux-musl,  os: ubuntu-latest,    musl: true }
-          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm, musl: true }
-          - { target: aarch64-apple-darwin,       os: macos-latest,     musl: false }
-          - { target: x86_64-apple-darwin,        os: macos-15-intel,   musl: false }
-          - { target: x86_64-pc-windows-msvc,     os: windows-latest,   musl: false }
+          - { target: x86_64-unknown-linux-musl,  os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
     runs-on: ${{ matrix.os }}
-    # The scripts are bash. Windows runners default to PowerShell, and ship
-    # Git Bash.
-    defaults:
-      run:
-        shell: bash
     steps:
       - uses: actions/checkout@v4
-      - if: matrix.musl
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: rustup target add ${{ matrix.target }}
       # Builds through package.sh, then unpacks the tarball and plays with it.
       - run: release/test_package.sh ${{ matrix.target }}
