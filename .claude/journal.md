@@ -424,3 +424,22 @@ component. `Faction::Ally` had been in the enum, unused, since the start.
   --path engine` installs one binary. aarch64 musl only type-checked: no
   linker or emulator here. `ubuntu-24.04-arm` is a real label, free on public
   repos.
+
+## 2026-10-01 -- release day
+
+* **GitHub release `v0.1.2` is live and verified:** both tarballs, checksum
+  matches, and the aarch64 leg ran natively on `ubuntu-24.04-arm`.
+* **The first tag push started no workflow.** It went up in the same push that
+  first brought `release.yml` to GitHub, and the events API showed a `master`
+  push and no tag event. Deleting and re-pushing the tag at the same commit
+  worked. The cause is a guess, not confirmed. In the how-to now.
+* **Runners are pinned to `ubuntu-24.04`:** `ubuntu-latest` moves to Ubuntu 26
+  on 2026-10-19. Untested on 26; the old image is the one that passed.
+* **`actions/*@v4` run forced onto Node 24** with a deprecation annotation.
+  Works today; not bumped, because a major bump can only be tested by a tag.
+* **crates.io upload failed before the first crate: no verified email.** Nothing
+  went up. New-crate rate limit is about 5 then one per 10 minutes, so four
+  crates fit.
+* **`cargo publish` warns `ignoring test ... not included in the published
+  package`** for the three excluded tests. Not known whether `cargo install`
+  from the registry prints it; check on the first real install.
