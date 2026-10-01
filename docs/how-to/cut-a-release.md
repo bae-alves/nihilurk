@@ -28,6 +28,20 @@ Use `patch`, `minor`, `major` or an exact `X.Y.Z`. Two flags:
 The script prints the exact push command when it finishes, with the version filled in.
 
 
+Which number to bump
+--------------------
+
+The number says what an upgrade costs a player:
+
+    patch    0.1.3 to 0.1.4    nothing. Saves and everything else carry over.
+    minor    0.1.3 to 0.2.0    old saves stop loading.
+    major    0.2.0 to 1.0.0    everything from the old version is invalid.
+
+So a release that breaks saves is a minor bump, and a release that breaks everything the old version made is a major one.
+
+Nothing checks this. The save format is not versioned (`models/src/saveload.rs` says so), so no tool can tell that a change breaks saves. The call is yours, and you make it when you pick the word. The two usual causes are a changed field in the save, because postcard stores fields by position (`add-an-item-category.md`), and a renamed content row, because a save stores names (`add-a-monster.md`). If in doubt, read the diff since the last tag with those two in mind.
+
+
 What the script does
 --------------------
 
