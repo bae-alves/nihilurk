@@ -42,8 +42,10 @@ Three jobs, in a row. Any failure stops the ones after it.
 
 The targets:
 
-    x86_64-unknown-linux-musl     ubuntu-latest
+    x86_64-unknown-linux-musl     ubuntu-24.04
     aarch64-unknown-linux-musl    ubuntu-24.04-arm
+
+The runner images are named, not `ubuntu-latest`. GitHub moves that label to Ubuntu 26 on 2026-10-19, which would change the `musl-tools` the build installs without a commit in this repository. Move to a newer image on purpose, and run `release/test_package.sh` first.
 
 The Linux builds are musl, so each is one static file with no glibc to match. `../explanation/cross-platform-testing.md` says why that is a promise and not a preference.
 
@@ -97,6 +99,15 @@ When it goes wrong
   `publish` fails after the builds pass Re-run the failed job from the
                                         Actions tab. The artifacts are kept
                                         for the run.
+  The tag is on GitHub, no run starts   Happened on 2026-10-01, when the
+                                        tag went up in the same push that
+                                        first brought `release.yml` to
+                                        GitHub. The cause is not confirmed.
+                                        `gh run list` shows nothing. Delete
+                                        the remote tag and push it again at
+                                        the same commit:
+                                        `git push origin :refs/tags/v0.1.2`
+                                        `git push origin v0.1.2`
   A bad release is live                 `gh release delete v0.1.2 --yes`,
                                         then `git push origin
                                         :refs/tags/v0.1.2`. Anyone who
