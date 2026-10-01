@@ -1,6 +1,6 @@
-# Push a tag like `v0.1.2` and this builds the tarballs and attaches them to a
-# GitHub release. The recipe, and what to do when a job fails, is
-# docs/how-to/publish-a-github-release.md.
+# Push a tag like `v0.1.2` and this builds the tarballs, attaches them to a
+# GitHub release, and publishes the crates to crates.io. The recipe, and what to
+# do when a job fails, is docs/how-to/cut-a-release.md.
 name: release
 
 on:
@@ -62,3 +62,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+
+  # Publishes the four crates with crates.io Trusted Publishing: the job trades
+  # GitHub's OIDC token for a short-lived publish token, so no secret is
+  # stored. Set up once per crate on crates.io (repo bae-alves/nihilurk,
+  # workflow release.yml). docs/how-to/cut-a-release.md has the steps.
+  #
+  # One crate at a time, in dependency order, skipping any version crates.io
+  # already has. A failed run can be re-run: it picks up where it stopped.
+  # Keep the list in step with `members` in Cargo.toml.
+  crates-io:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - name: publish what crates.io does not have yet
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          for dir in particle-core strings models engine; do
+            name="$(sed -n 's/^name = "\(.*\)"/\1/p' "$dir/Cargo.toml" | head -1)"
+            version="$(sed -n 's/^version = "\(.*\)"/\1/p' "$dir/Cargo.toml" | head -1)"
+            if curl -fs -A "nihilurk-release (github.com/bae-alves/nihilurk)" \
+                "https://crates.io/api/v1/crates/$name/$version" > /dev/null; then
+              echo "$name $version is already on crates.io, skipping"
+            else
+              cargo publish -p "$name" --locked
+            fi
+          done

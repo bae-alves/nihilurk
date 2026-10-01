@@ -32,10 +32,11 @@ Only for some jobs:
   `docs/how-to/run-the-compat-pipeline.md`.
 - Changing a workflow under `.github/`: `actionlint`.
 - Claude Code users: `npx`, for the `/codebase-architecture` command only.
-- Cutting a release, which is the maintainer's job: `gh`, the musl targets, a
-  crates.io token, and on Arch `makepkg` for `aur_check.sh`. See
-  `docs/how-to/publish-to-crates-io.md` and
-  `docs/how-to/publish-a-github-release.md`.
+- Cutting a release, which is the maintainer's job: `gh` to watch CI. Lua
+  runs `release/bump.lua`, and CI publishes, so no crates.io token lives on
+  your machine. The local checks need a little more: the musl targets for
+  `release/test_package.sh`, and `curl` and `sha256sum` for `aur_check.sh`.
+  See `docs/how-to/cut-a-release.md`.
 
 In Claude Code, `/prepare-for-nihilurk` checks your machine against this list
 and fixes the gaps. It asks before it installs anything, turns on the

@@ -8,6 +8,8 @@ How to publish a GitHub release
     Result         A GitHub release with one tarball per machine, each
                    with a checksum, built and checked by CI.
 
+This is the manual path. `release/bump.lua` does the bump and the tag for you: see `cut-a-release.md`.
+
 Pushing a tag is the whole procedure. `.github/workflows/release.yml` does the rest, and it cannot be undone from your side once the release is public, so check the version before you tag.
 
 
@@ -30,7 +32,7 @@ It builds all four languages with fat LTO, so it takes a few minutes, then unpac
 What the workflow does
 ----------------------
 
-Three jobs, in a row. Any failure stops the ones after it.
+Four jobs. `check` runs first, then `build`, then `publish` and `crates-io` side by side. Any failure stops the ones after it.
 
   check     Fails if the tag is not `v` plus the version in
             `engine/Cargo.toml`, then runs `cargo test`.
@@ -39,6 +41,8 @@ Three jobs, in a row. Any failure stops the ones after it.
             Uploads the tarball and its `.sha256`.
   publish   Collects every tarball and creates the release with
             generated notes.
+  crates-io Publishes the four crates to crates.io, skipping any
+            version already there. See `cut-a-release.md`.
 
 The targets:
 
@@ -76,14 +80,17 @@ Adding a target is one line in the `matrix` of `release.yml`, once someone has r
 Updating the AUR package
 ------------------------
 
-`aur/PKGBUILD` is pinned to a tag, and `aur_check.sh` builds that tag with the PKGBUILD as written. So the PKGBUILD stays on the last released tag until the new one exists, and its `build()` matches that tag's package names and feature set. `./aur_check.sh --head` is red between a change like the crate rename and the release that ships it. That is what it is for.
+`aur/PKGBUILD` is bumped with everything else. `release/bump.lua` sets `pkgver` in the release commit, so the PKGBUILD names the tag that commit gets, and `aur_check.sh` builds that tag with the PKGBUILD as written.
 
-After the tag is pushed:
+The repo copy carries `sha256sums=('SKIP')`. A real sha exists only once the tag does, and it would be stale from then on. The copy that goes to the AUR needs the real one, and `aur_check.sh` does not compare it.
 
-    updpkgsums                     in aur/, refreshes sha256sums
-    ./aur_check.sh                 both trees green
+CI does not publish to the AUR yet, so until it does that is a hand step after the tag exists. Work on a copy, and never commit the result:
 
-and set `pkgver` to the new version. This release needs three edits in `build()` and `check()` besides the version: `-p engine` is `-p nihilurk`, the dispatcher build takes `--features dispatch`, and `cargo test ... --exclude nihilurk-compat` stays as it is.
+    cp -r aur /tmp/aur-publish && cd /tmp/aur-publish
+    updpkgsums                     writes the real sha256sums
+    makepkg --printsrcinfo > .SRCINFO
+
+then push `PKGBUILD` and `.SRCINFO` to the AUR repository. Run `./aur_check.sh` in the repository first: both trees must be green.
 
 When it goes wrong
 ------------------
