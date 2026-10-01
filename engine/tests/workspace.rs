@@ -291,3 +291,45 @@ fn the_docs_name_the_real_minimum_rust() {
         );
     }
 }
+
+/// `release/bump.lua` moves all four published crates to one number, and every
+/// `path` pin with them. Nothing else would notice if one crate or one pin were
+/// edited by hand and fell behind, and the next release would publish a crate
+/// that asks for a version of its neighbour that no longer matches.
+#[test]
+fn all_published_crates_share_one_version() {
+    let root = workspace_root();
+    let crates = published(&root);
+    let version_of = |text: &str| {
+        text.lines()
+            .find_map(|l| l.strip_prefix("version = \""))
+            .map(|v| v.trim_end_matches('"').to_string())
+            .expect("a [package] version")
+    };
+    let first = version_of(&crates[0].1);
+
+    let mut wrong = Vec::new();
+    for (dir, text) in &crates {
+        let version = version_of(text);
+        if version != first {
+            wrong.push(format!("{dir}/ is {version}, the others are {first}"));
+        }
+        for line in text.lines().filter(|l| l.contains("path = \"../")) {
+            let pin = line
+                .split("version = \"")
+                .nth(1)
+                .and_then(|rest| rest.split('"').next());
+            if pin != Some(first.as_str()) {
+                wrong.push(format!(
+                    "{dir}/ pins a neighbour at the wrong version: {line}"
+                ));
+            }
+        }
+    }
+
+    assert!(
+        wrong.is_empty(),
+        "the published crates are not in lockstep: {wrong:#?}\n\
+         `lua release/bump.lua` moves them together; see docs/how-to/cut-a-release.md"
+    );
+}
