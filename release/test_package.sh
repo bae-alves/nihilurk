@@ -12,18 +12,11 @@
 #   4. a musl build has no dynamic loader, which is the whole point of musl
 #
 # TARGET defaults to this machine's own triple. Pass the musl one to check 4.
-# A Windows target names its files `*.exe`; nothing else here changes.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 TARGET="${1:-$(rustc -vV | sed -n 's/host: //p')}"
-
-EXE=""
-case "$TARGET" in *-windows-*) EXE=".exe" ;; esac
-
-# macOS has `shasum`, not `sha256sum`; Git Bash on Windows may have either.
-sha_check() { if command -v sha256sum >/dev/null; then sha256sum -c "$1"; else shasum -a 256 -c "$1"; fi; }
 
 fail() { printf 'FAIL  %s\n' "$*" >&2; exit 1; }
 ok()   { printf 'ok    %s\n' "$*"; }
@@ -37,9 +30,9 @@ TARBALL="dist/$NAME.tar.gz"
 
 # 1. contents
 want="$(printf '%s\n' \
-  "$NAME/" "$NAME/LICENSE" "$NAME/MANUAL.md" "$NAME/nihilurk$EXE" \
-  "$NAME/nihilurk-en$EXE" "$NAME/nihilurk-es$EXE" "$NAME/nihilurk-ht$EXE" \
-  "$NAME/nihilurk-pt$EXE" "$NAME/nihilurk.6" | sort)"
+  "$NAME/" "$NAME/LICENSE" "$NAME/MANUAL.md" "$NAME/nihilurk" \
+  "$NAME/nihilurk-en" "$NAME/nihilurk-es" "$NAME/nihilurk-ht" \
+  "$NAME/nihilurk-pt" "$NAME/nihilurk.6" | sort)"
 got="$(tar -tzf "$TARBALL" | sort)"
 [ "$want" = "$got" ] || fail "tarball contents differ
 --- want
@@ -48,7 +41,7 @@ $want
 $got"
 ok "tarball holds exactly the expected files"
 
-( cd dist && sha_check "$NAME.tar.gz.sha256" >/dev/null ) \
+( cd dist && sha256sum -c "$NAME.tar.gz.sha256" >/dev/null ) \
   || fail "the .sha256 file does not match the tarball"
 ok "checksum file matches"
 
@@ -58,14 +51,14 @@ dir="$tmp/$NAME"
 
 # 2. dispatcher reaches every language
 for lang in en pt es ht; do
-  LC_ALL="${lang}_XX.UTF-8" "$dir/nihilurk$EXE" -content >/dev/null 2>&1 \
+  LC_ALL="${lang}_XX.UTF-8" "$dir/nihilurk" -content >/dev/null 2>&1 \
     || fail "nihilurk with LC_ALL=${lang}_XX could not run its sibling"
 done
 ok "the dispatcher runs all four languages"
 
 # 3. the loop switched features between builds
 for lang in pt es ht; do
-  cmp -s "$dir/nihilurk-en$EXE" "$dir/nihilurk-$lang$EXE" \
+  cmp -s "$dir/nihilurk-en" "$dir/nihilurk-$lang" \
     && fail "nihilurk-$lang is byte-identical to nihilurk-en"
 done
 ok "the language binaries differ from English"

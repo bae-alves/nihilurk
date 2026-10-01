@@ -44,9 +44,6 @@ The targets:
 
     x86_64-unknown-linux-musl     ubuntu-latest
     aarch64-unknown-linux-musl    ubuntu-24.04-arm
-    aarch64-apple-darwin          macos-latest
-    x86_64-apple-darwin           macos-15-intel
-    x86_64-pc-windows-msvc        windows-latest
 
 The Linux builds are musl, so each is one static file with no glibc to match. `../explanation/cross-platform-testing.md` says why that is a promise and not a preference.
 
@@ -56,7 +53,6 @@ What is in a tarball
 
     nihilurk-<version>-<target>/
         nihilurk          the dispatcher; picks a language from $LANG
-                          (every binary is `*.exe` on Windows)
         nihilurk-en       the English game
         nihilurk-pt       Portuguese (beta)
         nihilurk-es       Spanish (beta)
@@ -68,24 +64,12 @@ What is in a tarball
 The five binaries must stay in one directory. The dispatcher looks for `nihilurk-<lang>` next to itself and exits if it is not there. A user can put the directory anywhere, or `install` the files into `/usr/local/bin`.
 
 
-What CI has and has not shown
-----------------------------
+What CI shows
+-------------
 
 Every tarball is unpacked and run by CI on the machine that built it: the dispatcher has to start all four language binaries, and the four have to differ. That proves each binary launches and that the packaging is right. It is not a playtest.
 
-  Linux            The two musl targets are the ones `compat/` already
-                   covers. `release/test_package.sh` has been run for
-                   x86_64 by hand; aarch64 has only run under qemu, in
-                   `compat/`.
-  macOS, Windows   The workflow has never run for these. Windows in
-                   particular has one path nothing else exercises: the
-                   dispatcher starts its sibling as a child process and
-                   forwards the exit code, where on Unix it replaces itself.
-                   Play a release on each before you call it supported, and
-                   drop the row from `release.yml` if it does not work.
-
-Another target is one line in the `matrix` of `release.yml`, plus a runner label.
-
+Adding a target is one line in the `matrix` of `release.yml`, once someone has run the game on it. `x86_64` musl was run by hand with `release/test_package.sh`; `aarch64` has run under qemu in `compat/`, and runs natively in CI on the first tag.
 
 Updating the AUR package
 ------------------------

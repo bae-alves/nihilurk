@@ -56,9 +56,7 @@ fn main() {
         args
     };
 
-    // `.exe` on Windows, nothing elsewhere: a path with no extension is not
-    // found by `CreateProcess`.
-    let target = sibling(&format!("nihilurk-{lang}{}", env::consts::EXE_SUFFIX));
+    let target = sibling(&format!("nihilurk-{}", lang));
 
     #[cfg(unix)]
     {

@@ -33,6 +33,15 @@ default-members = [
 [workspace.package]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/bae-alves/nihilurk"
+# One README for every crate: it is the game's front page and its crate map, so
+# a library's page on crates.io points the reader at the thing it belongs to.
+readme = "README.md"
+#
+# `rust-version` is not shared, because the crates do not share a floor: the
+# two leaf crates build on 1.85 (what edition 2024 sets) and `models` needs
+# 1.91, for let chains (1.88) and a const `TypeId::of` (1.91). Sharing 1.91
+# would also make the ESP32 check in `compat/` refuse `particle-core` on a
+# toolchain it builds on fine. `engine` follows `models`.
 
 # Clippy: only the `correctness`, `suspicious`, `complexity` and `perf` lint
 # groups are used. Everything else (notably `style`, plus `pedantic`/`nursery`)

@@ -5,13 +5,29 @@ A Rogue retroclone about descending thirteen floors, taking the Element of Yoord
 
 If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
 
+What you get:
+
+  * A classic roguelike on a turn-based grid: thirteen floors, traps, unidentified items, and permanent death. There is one save, and it is deleted when an expedition ends.
+  * Auto-explore (`o`) and auto-fight (`Tab`), so safe ground is quick and the fights are the game.
+  * Seeded floors (`-s 1234`), and two ways down: nihil, who carries gear, or the lurk (`-b lurk`), who has claws and fur.
+  * Four languages, English, Portuguese, Spanish and Haitian Creole, one binary each, picked at build time.
+
+Install from crates.io (needs Rust 1.91 or newer) and play:
+
     cargo install nihilurk                  # install the English game
-    cargo run -p nihilurk                  # play, from a clone
+    cargo install nihilurk --no-default-features --features lang-pt    # or another language
+    nihilurk                                # play
+
+From a clone:
+
+    cargo run -p nihilurk                  # play
     cargo run -p nihilurk -- -s 1234       # play a specific seed
     cargo test                           # everything
 
 
-Prebuilt tarballs for Linux (x86_64, aarch64), macOS (Apple silicon and Intel) and Windows (x86_64) are on the [releases page](https://github.com/bae-alves/nihilurk/releases). Unpack one and run `./nihilurk`. CI builds and launches each one; it does not play the game.
+Prebuilt Linux tarballs (x86_64 and aarch64, static musl) are on the [releases page](https://github.com/bae-alves/nihilurk/releases). Unpack one and run `./nihilurk`.
+
+Windows and macOS are not officially supported yet. Nothing in the code is Linux-only, and it type-checks for both, so cloning and building with `cargo` should work. Nobody has run it there.
 
 
 Where things are
@@ -88,3 +104,9 @@ Changing the *engine* rather than the content is a different door:
     cat docs/how-to/work-with-the-ecs.md        # and how to get past the borrow checker
 
 `gdd.md` is a fifth thing: what nihilurk is trying to *be*. Design, not code.
+
+
+License
+-------
+
+nihilurk is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It comes with no warranty. The full text is in `LICENSE`.

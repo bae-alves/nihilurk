@@ -1,10 +1,14 @@
 [package]
 name = "nihilurk"
-description = "A terminal roguelike about descending thirteen floors to reclaim the Element of Yoord."
+description = "A Rogue-like for the terminal: descend thirteen floors, take the Element of Yoord, carry it back up. One binary, no assets, permanent death."
 version = "0.1.2"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
+readme.workspace = true
+rust-version = "1.91"
+keywords = ["roguelike", "rogue", "dungeon-crawler", "terminal", "game"]
+categories = ["games"]
 
 # `cargo run -p nihilurk` / `cargo build -p nihilurk` with no `--bin` keeps
 # meaning exactly what it always has: the game, in English by default. The

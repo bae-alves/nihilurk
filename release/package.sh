@@ -10,8 +10,7 @@
 # version is `engine/Cargo.toml`'s; the release workflow refuses a tag that
 # disagrees with it.
 #
-# A Windows target gets `.exe` on every binary. See
-# docs/how-to/publish-a-github-release.md.
+# Linux targets only. See docs/how-to/publish-a-github-release.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -22,11 +21,6 @@ NAME="nihilurk-$VERSION-$TARGET"
 OUT="dist/$NAME"
 BIN="target/$TARGET/release"
 
-EXE=""
-case "$TARGET" in *-windows-*) EXE=".exe" ;; esac
-
-# macOS has `shasum`, not `sha256sum`; Git Bash on Windows may have either.
-sha() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 
 rm -rf "$OUT" "dist/$NAME.tar.gz" "dist/$NAME.tar.gz.sha256"
 mkdir -p "$OUT"
@@ -34,15 +28,15 @@ mkdir -p "$OUT"
 for lang in en pt es ht; do
     cargo build --locked --release --target "$TARGET" -p nihilurk --bin nihilurk \
         --no-default-features --features "lang-$lang"
-    cp "$BIN/nihilurk$EXE" "$OUT/nihilurk-$lang$EXE"
+    cp "$BIN/nihilurk" "$OUT/nihilurk-$lang"
 done
 cargo build --locked --release --target "$TARGET" -p nihilurk --bin nihilurk-dispatch \
     --features dispatch
-cp "$BIN/nihilurk-dispatch$EXE" "$OUT/nihilurk$EXE"
+cp "$BIN/nihilurk-dispatch" "$OUT/nihilurk"
 
 cp LICENSE MANUAL.md doc/nihilurk.6 "$OUT/"
 
 tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
-(cd dist && sha "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+(cd dist && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
 rm -rf "$OUT"
 echo "dist/$NAME.tar.gz"
