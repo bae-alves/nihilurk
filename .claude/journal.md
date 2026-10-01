@@ -443,3 +443,15 @@ component. `Faction::Ally` had been in the enum, unused, since the start.
 * **`cargo publish` warns `ignoring test ... not included in the published
   package`** for the three excluded tests. Not known whether `cargo install`
   from the registry prints it; check on the first real install.
+* **PUBLISHED to crates.io 2026-10-01:** `nihilurk` 0.1.2, `nihilurk-models`
+  0.1.2, `nihilurk-strings` 0.1.0, `nihilurk-particle-core` 0.1.0, uploaded
+  from a clean worktree of tag `v0.1.2` (a97c5b1). The first attempt had
+  failed on an unverified email before any crate went up.
+* **Verified after the upload:** metadata and `rust-version = 1.91` recorded;
+  `cargo install nihilurk` installs one binary with no `ignoring test`
+  warning; `--features lang-pt` installs; 1.90 refuses with "requires rustc
+  1.91"; the downloaded `nihilurk-models` passes 601 tests, so the excludes
+  hold. `cargo search roguelike` lists all four.
+* **Not verified:** the docs.rs builds (it answered "no such crate" minutes
+  after the upload, which is probably its queue), and the crates.io page as a
+  human sees it (README rendering, links).
