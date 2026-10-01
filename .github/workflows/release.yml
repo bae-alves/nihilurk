@@ -101,9 +101,10 @@ jobs:
           done
 
   # `gh workflow run release.yml` runs only this job. It asks crates.io for a
-  # publish token, which succeeds only if each crate's trusted publisher names
-  # this repository and this workflow file, then throws the token away. It is
-  # the way to test the crates.io setup without releasing anything.
+  # publish token and throws it away. That proves crates.io accepts this
+  # repository and this workflow file. It does not prove all four crates are
+  # set up: the token's scope is not reported, so check each crate's settings
+  # on crates.io once. Nothing is published.
   rehearsal:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04

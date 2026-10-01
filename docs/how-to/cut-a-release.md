@@ -81,7 +81,7 @@ To check the setup without releasing anything, rehearse it:
     gh workflow run release.yml --ref master
     gh run watch
 
-The `rehearsal` job asks crates.io for a publish token and discards it. It passes only if every trusted publisher names this repository and `release.yml`. Nothing is built or published, and the jobs that need a tag skip themselves.
+The `rehearsal` job asks crates.io for a publish token and discards it. A pass proves crates.io accepts this repository and `release.yml`. It does not prove all four crates are configured, because crates.io does not report which crates the token covers: look at each crate's settings once. Nothing is built or published, and the jobs that need a tag skip themselves.
 
 
 When it goes wrong
