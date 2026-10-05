@@ -55,10 +55,40 @@ export CROSS_CONFIG="$COMPAT_DIR/Cross.toml"
 
 # What the containers run: the game itself, built to have its size measured,
 # to prove the target links, and to prove it starts. `GAME_PKG` is the cargo
-# package to build (`-p`); `GAME` is the binary that package produces, which
-# is not the same name since `engine`'s `[[bin]]` renamed its output.
-GAME_PKG=engine
+# package to build (`-p`); `GAME` is the binary that package produces. The
+# package lives in engine/ but is named nihilurk, so cargo knows it by that.
+GAME_PKG=nihilurk
 GAME=nihilurk
+
+# The image whose static qemu-user interpreters run the foreign-arch rows.
+QEMU_IMAGE=tonistiigi/binfmt
+
+# Every docker image the pipeline can pull: the matrix rows, the cross
+# toolchains in Cross.toml, and the qemu image. Read from those files, so a new
+# row is covered without touching this.
+pipeline_images() {
+  { grep -v "^#" "$MATRIX" | cut -f5
+    sed -n "s/^image = \"\(.*\)\"/\1/p" "$COMPAT_DIR/Cross.toml"
+    echo "$QEMU_IMAGE"; } | grep . | sort -u
+}
+
+# Give back the disk a run took: those images (~22 GB) and the per-triple
+# build dirs (~5 GB). Only what the pipeline names. No `prune`, and no `-f` on
+# `rmi`, so an image a running or stopped container still uses is kept.
+free_pipeline_disk() {
+  heading "Freeing disk"
+  if docker info >/dev/null 2>&1; then
+    local img
+    while read -r img; do
+      docker image inspect "$img" >/dev/null 2>&1 || continue
+      if docker rmi "$img" >/dev/null 2>&1; then ok "removed $img"
+      else note "kept $img (a container uses it)"; fi
+    done < <(pipeline_images)
+  else
+    warn "docker is not answering; images left alone"
+  fi
+  rm -rf "$ROOT/target/cross" && ok "removed target/cross"
+}
 
 # ---------------------------------------------------------------------------
 # Tools that hide

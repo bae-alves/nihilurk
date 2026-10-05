@@ -37,7 +37,13 @@
 #   ./compat_test.sh --no-build       reuse the binaries already built
 #   ./compat_test.sh --no-bare        skip the microcontroller check
 #   ./compat_test.sh --timeout 60     per-row seconds for the run check
+#   ./compat_test.sh --keep           keep the images and target/cross (see below)
 #   ./compat_test.sh --help
+#
+# When it ends, pass or fail, it frees the disk it took: the docker images it
+# pulled (~22 GB) and target/cross (~5 GB). It removes only the images the
+# pipeline names, never prunes, and keeps any image a container is using.
+# --keep skips that, and --no-build needs it: it reuses target/cross.
 
 set -uo pipefail
 
@@ -47,6 +53,7 @@ cd "$(dirname "$0")" || exit 1
 ONLY=""
 DO_BUILD=1
 DO_BARE=1
+KEEP=0
 TIMEOUT=60
 
 while [ $# -gt 0 ]; do
@@ -55,11 +62,19 @@ while [ $# -gt 0 ]; do
     --timeout)  TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
     --no-build) DO_BUILD=0 ;;
     --no-bare)  DO_BARE=0 ;;
+    --keep)     KEEP=1 ;;
     --help|-h)  sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) echo "compat_test.sh: unknown option $1 (try --help)" >&2; exit 1 ;;
   esac
   shift
 done
+
+# Pass or fail, and on Ctrl-C, hand the disk back (`exit` on a signal so the
+# EXIT trap runs).
+if [ "$KEEP" -eq 0 ]; then
+  trap free_pipeline_disk EXIT
+  trap "exit 130" INT TERM
+fi
 
 TARGET_ARGS=()
 [ -n "$ONLY" ] && TARGET_ARGS=(--targets "$ONLY")

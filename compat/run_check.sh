@@ -68,7 +68,6 @@ fi
 # directly as the container's own command, on a container built for the
 # *host's* architecture: no `--platform`, no binfmt_misc, no `--privileged`.
 
-QEMU_IMAGE=tonistiigi/binfmt
 QEMU_DIR="$OUT/qemu"
 
 # Which static interpreter a row needs, by docker platform. Empty for a row

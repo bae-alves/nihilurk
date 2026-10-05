@@ -24,11 +24,17 @@ Quick commands
 
     ./compat_test.sh                  everything (~10 min cold)
     ./compat_test.sh --targets cloud  one machine
-    ./compat_test.sh --no-build       reuse what is already built
+    ./compat_test.sh --no-build       reuse what is already built (needs --keep on the run before)
+    ./compat_test.sh --keep           keep the images and target/cross afterwards
     ./compat_test.sh --targets pi-zero --no-bare     one row, no ESP32
     ./compat_test.sh --no-bare        skip the microcontroller check
     ./compat_test.sh --timeout 60     per-row seconds for the run check
     ./compat_test.sh --help
+
+When a run ends, pass or fail, it frees the disk it took: the docker images
+it pulled (about 22 GB) and `target/cross` (about 6 GB). It removes only the
+images the pipeline names, never prunes, and keeps any image a container is
+using. So every run is a cold run; use `--keep` while you iterate.
 
 The three phases on their own:
 

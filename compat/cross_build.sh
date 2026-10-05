@@ -6,7 +6,7 @@
 # One container per target, driven by cross-rs, reading the matrix in
 # matrix.tsv. One binary per row:
 #
-#   nihilurk    the game (built from the `engine` package). Built `--release`,
+#   nihilurk    the game (built from the `nihilurk` package in engine/). Built `--release`,
 #               which is the profile that ships: fat LTO, one codegen unit,
 #               panic=abort, symbols stripped. This is the artifact whose
 #               size is reported, and the one `run_check.sh` runs inside the
