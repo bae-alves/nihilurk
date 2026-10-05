@@ -38,7 +38,9 @@ use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{ArmorDef, ItemDef, RingDef, WeaponDef};
+use crate::catalog::{ArmorDef, ItemDef, PotionDef, RingDef, ScrollDef, WandDef, WeaponDef};
+use crate::constants::hud::LOG_HISTORY_CAP;
+use crate::constants::speed::{ACTION_COST, FAST_RATE, NORMAL_RATE, QUICK_RATE, SLOW_RATE};
 use crate::effects::{ColdImmune, FireImmune, Grant, Undead};
 
 /// The most a single pack slot will hold before the overflow spills into a
@@ -56,6 +58,7 @@ pub use crate::constants::items::STACK_LIMIT;
 /// by `crate::identify`.
 #[derive(Component)]
 pub struct Name {
+    /// The name. `crate::identify` swaps another in for display where the thing is not yet identified.
     pub what: String,
 }
 
@@ -78,7 +81,9 @@ pub struct Player;
 /// it is dropped again.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Position {
+    /// Column. With `y`, flattened into an array index by [`crate::map::tile_index`].
     pub x: u16,
+    /// Row.
     pub y: u16,
 }
 
@@ -86,7 +91,9 @@ pub struct Position {
 /// against a fixed 16-entry palette on save (see `crate::saveload`).
 #[derive(Component)]
 pub struct Renderable {
+    /// The character it draws as.
     pub glyph: char,
+    /// The colour it draws in.
     pub color: Color,
 }
 
@@ -102,16 +109,22 @@ pub struct Renderable {
 /// (`postcard`), so new variants only ever go at the end.
 #[derive(Component, PartialEq, Eq, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Faction {
+    /// The player, and the one side every [`Faction::Monster`] hunts.
     Player,
+    /// Fights [`Faction::Player`] and [`Faction::Ally`], never another monster.
     Monster,
+    /// On the player's side: fights [`Faction::Monster`].
     Ally,
+    /// Peaceful toward everyone until [`SpiritsHostile`] is set.
     Spirits,
 }
 
 /// The hidden pull between the demons (cacodaemons) and the angels/sphynx/
-/// elves (eudaemons): `-3` is fully cacodaemon-aligned, `3` fully
-/// eudaemon-aligned, `0` neutral. Interacting with a cacodaemon spirit moves
-/// this by `-1`, a eudaemon spirit by `+1`. Reaching either pole flips
+/// elves (eudaemons): minus [`ALIGNMENT_POLE`](crate::constants::spirits::ALIGNMENT_POLE)
+/// is fully cacodaemon-aligned, plus that fully eudaemon-aligned, `0` neutral.
+/// Interacting with a cacodaemon spirit moves this toward its pole by
+/// [`ALIGNMENT_STEP`](crate::constants::spirits::ALIGNMENT_STEP), a eudaemon
+/// spirit toward the other. Reaching either pole flips
 /// [`SpiritsHostile`] for good. A player-only stat, so it lives on the
 /// player entity the same way [`Fighter`]/[`Spellset`] do rather than as a
 /// bare resource.
@@ -126,13 +139,18 @@ pub struct Alignment(pub i8);
 pub struct SpiritsHostile(pub bool);
 
 /// Which way a spirit's row pulls [`Alignment`] when the player interacts
-/// with it peacefully: a cacodaemon (the demons) by `-1`, a eudaemon (the
-/// angel, sphynx, sylphid, salamander, undyne, gnome) by `+1`. Set from
+/// with it peacefully: a cacodaemon (the demons) one way, a eudaemon (the
+/// angel, sphynx, sylphid, salamander, undyne, gnome) the other, each by
+/// [`ALIGNMENT_STEP`](crate::constants::spirits::ALIGNMENT_STEP). Set from
 /// `crate::monsters::MonsterDef::spirit_kind`, not saved — cheap to rebuild
 /// from the bestiary row on load, the same way `Grants` is.
 #[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SpiritKind {
+    /// A demon: interacting with it moves [`Alignment`] toward the cacodaemon
+    /// pole.
     Cacodaemon,
+    /// An angel or kin: interacting with it moves [`Alignment`] toward the
+    /// eudaemon pole.
     Eudaemon,
 }
 
@@ -153,22 +171,63 @@ pub struct TestOfFaithLedger;
 
 /// One thing a spirit's "choose one of three" menu is offering — the blue
 /// demon's spells, the sylphid's weapons, the salamander's armor, undyne's
-/// rings. See [`crate::spirits`].
+/// rings, the red demon's gear, the gnome's magic. See [`crate::spirits`].
 #[derive(Clone, Copy)]
 pub enum OfferOption {
+    /// A spell to learn. Free even in a priced menu: see [`OfferOption::price`].
     Spell(SpellEffect),
+    /// A weapon to take. Costs Max HP in a priced menu.
     Weapon(&'static WeaponDef),
+    /// A suit of armour to take. Costs Max HP in a priced menu.
     Armor(&'static ArmorDef),
+    /// A ring to take. Costs Max HP in a priced menu.
     Ring(&'static RingDef),
+    /// A scroll to take. Costs Max Ma in a priced menu.
+    Scroll(&'static ScrollDef),
+    /// A potion to take. Costs Max Ma in a priced menu.
+    Potion(&'static PotionDef),
+    /// A wand to take. Costs Max Ma in a priced menu.
+    Wand(&'static WandDef),
+}
+
+/// What a priced offer costs: Max HP for the red demon's gear, Max Ma for the
+/// gnome's magic. See [`OfferMenu::priced`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Price {
+    /// This much off the player's max HP, for good. A price equal to the whole of
+    /// it is still payable, and paying it ends the run.
+    MaxHp(i32),
+    /// This much off the player's max Ma, for good.
+    MaxMa(u8),
 }
 
 impl OfferOption {
+    /// The name the menu lists this row under.
     pub fn display_name(&self) -> &'static str {
         match self {
             OfferOption::Spell(effect) => crate::catalog::SpellDef::of(*effect).display_name(),
             OfferOption::Weapon(def) => def.display_name(),
             OfferOption::Armor(def) => def.display_name(),
             OfferOption::Ring(def) => def.display_name(),
+            OfferOption::Scroll(def) => def.display_name(),
+            OfferOption::Potion(def) => def.display_name(),
+            OfferOption::Wand(def) => def.display_name(),
+        }
+    }
+
+    /// What this row costs when the menu is [`OfferMenu::priced`]. The kind
+    /// of thing sets the price, so the red demon and the gnome need no table
+    /// of their own. `None` for a spell: no spirit sells one.
+    pub fn price(&self) -> Option<Price> {
+        use crate::constants::spirits::*;
+        match self {
+            OfferOption::Spell(_) => None,
+            OfferOption::Weapon(_) | OfferOption::Armor(_) | OfferOption::Ring(_) => {
+                Some(Price::MaxHp(RED_DEMON_GEAR_PRICE))
+            }
+            OfferOption::Scroll(_) => Some(Price::MaxMa(GNOME_SCROLL_PRICE)),
+            OfferOption::Potion(_) => Some(Price::MaxMa(GNOME_POTION_PRICE)),
+            OfferOption::Wand(_) => Some(Price::MaxMa(GNOME_WAND_PRICE)),
         }
     }
 }
@@ -181,14 +240,20 @@ impl OfferOption {
 /// modeled on.
 #[derive(Resource, Default)]
 pub struct OfferMenu {
+    /// Whether the menu is up and taking the keyboard.
     pub open: bool,
+    /// The row the cursor sits on, an index into `options`.
     pub selected: usize,
+    /// What was rolled to offer, in the order the rows are drawn.
     pub options: Vec<OfferOption>,
     /// The spirit whose event opened this menu, if a spirit's did — it
     /// poofs once the player confirms a choice (not on cancel, so a
     /// player who backs out can just melee it again). `None` for anything
     /// that reaches this menu some other way.
     pub source: Option<Entity>,
+    /// Whether picking a row costs its [`OfferOption::price`] (the red demon,
+    /// the gnome) or comes free (every other spirit).
+    pub priced: bool,
 }
 
 /// One thing that can sit on either side of a [`BarterMenu`]: an entity in a
@@ -196,15 +261,19 @@ pub struct OfferMenu {
 /// offers (the sphynx's). See [`crate::spirits`].
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Tradeable {
+    /// An item in a pack, by entity.
     Item(Entity),
+    /// A spell, by kind. It moves between spellsets rather than between packs.
     Spell(SpellEffect),
 }
 
 /// Which column the cursor is in.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum BarterColumn {
+    /// The pool of what the player holds.
     #[default]
     Player,
+    /// The pool of what the demon or sphynx holds.
     Demon,
 }
 
@@ -217,13 +286,24 @@ pub enum BarterColumn {
 /// [`crate::spirits::confirm_barter`].
 #[derive(Resource, Default)]
 pub struct BarterMenu {
+    /// Whether the menu is up and taking the keyboard.
     pub open: bool,
+    /// The trader across the table. It poofs once a trade is confirmed.
     pub demon: Option<Entity>,
+    /// Which pool the cursor is in.
     pub column: BarterColumn,
+    /// The row the cursor sits on, within the pool `column` names.
     pub cursor: usize,
+    /// Everything the player could put up.
     pub player_side: Vec<Tradeable>,
+    /// Everything the trader could put up. Read it through
+    /// [`BarterMenu::demon_visible`], which hides the rows the player cannot
+    /// match.
     pub demon_side: Vec<Tradeable>,
+    /// What the player has staged to give away. Nothing moves until the trade
+    /// is confirmed.
     pub player_selected: Vec<Tradeable>,
+    /// What the player has staged to receive.
     pub demon_selected: Vec<Tradeable>,
 }
 
@@ -232,6 +312,19 @@ impl BarterMenu {
     /// to put against it, so a short pack or spellset hides the demon's
     /// tail. Rendering, cursor travel and staging all read this, never
     /// `demon_side` directly.
+    ///
+    /// ```
+    /// use models::{BarterMenu, SpellEffect, Tradeable};
+    ///
+    /// let spell = Tradeable::Spell(SpellEffect::Heal);
+    /// let menu = BarterMenu {
+    ///     player_side: vec![spell],
+    ///     demon_side: vec![spell, spell, spell],
+    ///     ..Default::default()
+    /// };
+    /// // One thing to put against three: only one demon row is in reach.
+    /// assert_eq!(menu.demon_visible().len(), 1);
+    /// ```
     pub fn demon_visible(&self) -> &[Tradeable] {
         let reach = self.player_side.len().min(self.demon_side.len());
         &self.demon_side[..reach]
@@ -261,6 +354,7 @@ pub struct Treat {
 /// that picks its rule set ([`crate::agents::rule_set_for`]).
 #[derive(Component)]
 pub struct Mob {
+    /// The tactic it thinks with.
     pub movement_type: MovementType,
 }
 
@@ -271,18 +365,25 @@ pub struct Mob {
 /// venus flytrap, the ice monster, a xeroc that has dropped its disguise).
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub enum MovementType {
+    /// Never acts at all.
     Static,
+    /// Hunts the player.
     Chase,
+    /// Walks away from the player.
     Flee,
+    /// Staggers at random.
     Confused,
     /// Retired: aggravation is a state now, the [`Aggravated`] component, laid
     /// over whatever tactic the creature already had. Kept because a save
     /// writes this enum by position; a save that still carries it loads as
     /// `Chase` plus the component. Never set it.
     Aggravated {
+        /// Column of the tile the noise came from.
         tx: u16,
+        /// Row of the tile the noise came from.
         ty: u16,
     },
+    /// Lies in wait and strikes only what comes alongside.
     Ambush,
 }
 
@@ -292,7 +393,9 @@ pub enum MovementType {
 /// rule set again. See [`crate::ai`].
 #[derive(Component, Clone, Copy)]
 pub struct Aggravated {
+    /// Column of the tile the noise came from.
     pub tx: u16,
+    /// Row of the tile the noise came from.
     pub ty: u16,
 }
 
@@ -302,7 +405,10 @@ pub struct Aggravated {
 /// `crate::combat`.
 #[derive(Component)]
 pub struct Fighter {
+    /// Current hit points. Zero or below is dead.
     pub hp: i32,
+    /// The most `hp` can hold. A red demon's priced offer lowers it for good
+    /// ([`Price::MaxHp`]).
     pub max_hp: i32,
     /// Defence die size: the opposed armour roll is `1d[armor] + armor_bonus`.
     pub armor: i32,
@@ -331,7 +437,10 @@ pub struct Blood;
 /// [`crate::initialize_world`]).
 #[derive(Component, Clone, Copy, Serialize, Deserialize)]
 pub struct Magic {
+    /// Ma to spend now.
     pub points: u8,
+    /// The most `points` can hold. A gnome's priced offer lowers it for good
+    /// ([`Price::MaxMa`]).
     pub max_points: u8,
 }
 
@@ -343,8 +452,8 @@ pub struct Magic {
 // through `PlayerTempo`.
 // ===========================================================================
 
-/// The tempos an actor can move at. `Fast` acts twice for every `Normal`
-/// action, `Quick` three times for every two, `Slow` once for every two. The
+/// The tempos an actor can move at. How often each acts is its
+/// [`rate`](SpeedKind::rate) against the [`Speed::COST`] of an action. The
 /// player is the clock: monsters bank [`Speed::energy`] each of the player's
 /// turns and spend it in [`crate::ai`], while the player's own tempo is
 /// handled by the engine loop (see [`PlayerTempo`]). Wands of haste/slow
@@ -358,11 +467,14 @@ pub struct Magic {
 /// [`slower`](SpeedKind::slower).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum SpeedKind {
+    /// The slowest tempo: banks the least energy per turn ([`SpeedKind::rate`]).
     Slow,
+    /// The reference tempo: the other rates are read against it.
     #[default]
     Normal,
+    /// The quickest tempo a wand can reach: banks the most energy per turn.
     Fast,
-    /// Half again as fast as `Normal`: the lurk's own tempo, and nothing
+    /// Between `Normal` and `Fast`: the lurk's own tempo, and nothing
     /// else's. A wand can still push a creature onto or off it.
     Quick,
 }
@@ -372,10 +484,10 @@ impl SpeedKind {
     /// reference; acting costs [`Speed::COST`].
     pub fn rate(self) -> i32 {
         match self {
-            SpeedKind::Slow => 1,
-            SpeedKind::Normal => 2,
-            SpeedKind::Quick => 3,
-            SpeedKind::Fast => 4,
+            SpeedKind::Slow => SLOW_RATE,
+            SpeedKind::Normal => NORMAL_RATE,
+            SpeedKind::Quick => QUICK_RATE,
+            SpeedKind::Fast => FAST_RATE,
         }
     }
 
@@ -386,6 +498,15 @@ impl SpeedKind {
     /// make room for a class's tempo would be a nerf to every haste in the
     /// game. `Quick` is a place a creature is *born*, not a rung a wand
     /// climbs through.
+    ///
+    /// ```
+    /// use models::SpeedKind;
+    ///
+    /// assert_eq!(SpeedKind::Slow.faster(), SpeedKind::Normal);
+    /// assert_eq!(SpeedKind::Normal.faster(), SpeedKind::Fast);
+    /// // `Quick` is a place a creature is born, so a wand takes it to `Fast`.
+    /// assert_eq!(SpeedKind::Quick.faster(), SpeedKind::Fast);
+    /// ```
     pub fn faster(self) -> Self {
         match self {
             SpeedKind::Slow => SpeedKind::Normal,
@@ -408,14 +529,18 @@ impl SpeedKind {
 /// serialised and simply resets to zero on load.
 #[derive(Component)]
 pub struct Speed {
+    /// The tempo, which sets how much energy a turn banks ([`SpeedKind::rate`]).
     pub kind: SpeedKind,
+    /// Banked energy; each action spends [`Speed::COST`]. Not saved, so a reload
+    /// starts every creature at zero.
     pub energy: i32,
 }
 
 impl Speed {
     /// The energy one action costs, in `Normal`-tempo units.
-    pub const COST: i32 = 2;
+    pub const COST: i32 = ACTION_COST;
 
+    /// A creature at tempo `kind` with no energy banked.
     pub fn new(kind: SpeedKind) -> Self {
         Self { kind, energy: 0 }
     }
@@ -460,7 +585,13 @@ pub struct Viewshed {
     pub visible_tiles: Vec<(u16, u16)>,
     /// Fog-of-war memory, one bit per map tile (see [`crate::map::tile_index`]).
     pub revealed_tiles: FixedBitSet,
+    /// Seeded from [`crate::constants::player::SIGHT_RANGE`] and saved, but no
+    /// system reads it: sight is the 3x3 around the viewer plus the lit room
+    /// they stand in (`visible_from` in `crate::visibility`), with no radius.
     pub range: u16,
+    /// Set when something changed what the viewer can see: a step, a door, a
+    /// wand of light. The visibility system recomputes only dirty viewsheds and
+    /// clears the flag.
     pub dirty: bool,
 }
 
@@ -508,6 +639,7 @@ pub struct Item;
 /// [`crate::items::pickups::pick_up`].
 #[derive(Component)]
 pub struct Value {
+    /// The score paid on pickup.
     pub amount: i32,
 }
 
@@ -523,10 +655,13 @@ pub struct Value {
 ///   ([`crate::items::pickups::would_help`]), and auto-explore does not detour
 ///   for one it cannot use either.
 /// * **It can be shot.** A missile that comes down on one sets it off like a
-///   trap, in a burst twice the usual width — see
+///   trap, in a wider burst
+///   ([`PICKUP_TRICK_SHOT_RADIUS`](crate::constants::traps::PICKUP_TRICK_SHOT_RADIUS)
+///   against [`TRICK_SHOT_RADIUS`](crate::constants::traps::TRICK_SHOT_RADIUS)) — see
 ///   [`crate::traps::detonate_pickup`].
 #[derive(Component)]
 pub struct Pickup {
+    /// What picking it up does.
     pub effect: PickupEffect,
     /// The number the effect works with — points, hit points, afflictions
     /// lifted — straight off the [`crate::catalog::CoinDef`] row.
@@ -566,6 +701,7 @@ pub enum PickupEffect {
 /// its [`Position`] removed; dropping or throwing puts one back.
 #[derive(Component)]
 pub struct Backpack {
+    /// The items carried, in inventory-letter order.
     pub items: Vec<Entity>,
 }
 
@@ -578,6 +714,7 @@ pub struct Consume;
 /// Every wand spawns with [`crate::constants::wands::WAND_CHARGES`], full.
 #[derive(Component)]
 pub struct Battery {
+    /// Zaps left. At zero the wand crumbles.
     pub charges: i8,
 }
 
@@ -587,6 +724,7 @@ pub struct Battery {
 /// the stack back up to at most [`STACK_LIMIT`].
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Stack {
+    /// How many are in the stack.
     pub count: u8,
 }
 
@@ -594,6 +732,7 @@ pub struct Stack {
 /// the item is zapped (a thrown item uses [`crate::items::THROW_RANGE`] instead).
 #[derive(Component)]
 pub struct Ranged {
+    /// How far the reticle reaches when the item is zapped.
     pub range: i32,
 }
 
@@ -615,6 +754,7 @@ pub struct Amulet;
 /// Type-key for a potion. Mechanic: the `potions` submodule of `crate::items`.
 #[derive(Component)]
 pub struct Potion {
+    /// Which potion this is.
     pub effect: PotionEffect,
 }
 
@@ -622,31 +762,63 @@ pub struct Potion {
 /// [`crate::catalog::POTIONS`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PotionEffect {
+    /// Blinds the drinker for the floor ([`crate::conditions::blind`]): sight
+    /// shrinks to the 3x3 around them.
     Blindness,
+    /// Confuses the drinker ([`crate::conditions::confuse`]).
     Confusion,
+    /// Refills HP and raises max HP for good, by more than
+    /// [`Healing`](PotionEffect::Healing) does.
     ExtraHealing,
+    /// Nothing happens, and it reports nothing, so a thrown one never gives
+    /// itself away.
     FruitJuice,
+    /// Raises the attack die for good, floor and ceiling both ([`Fighter::power`]
+    /// and [`Fighter::max_power`]).
     GainStrength,
+    /// Hastes the drinker ([`crate::conditions::hasten`]).
     Haste,
+    /// Refills HP and raises max HP for good, so one drunk at full health is not
+    /// wasted.
     Healing,
+    /// Marks every magic item on the floor as [`Detected`](crate::effects::Detected)
+    /// until the drinker leaves it. The Element of Yoord counts as magic.
     MagicDetection,
+    /// Marks every creature on the floor as [`Detected`](crate::effects::Detected)
+    /// until the drinker leaves it. They are sensed, not watched: no sighting is
+    /// announced.
     MonsterDetection,
+    /// Locks the drinker's limbs ([`crate::conditions::paralyse`]). The player
+    /// forfeits a share of their turns.
     Paralysis,
+    /// Drains the drinker's attack die and does not give it back. Only
+    /// [`RestoreStrength`](PotionEffect::RestoreStrength) cures it.
     Poison,
+    /// Pulls the drinker up one floor, Element of Yoord or not. On Depth 1 it
+    /// wins the run for a player carrying the Element.
     RaiseLevel,
+    /// Back up to [`Fighter::max_power`], undoing every poison and poisoned dart
+    /// at once.
     RestoreStrength,
+    /// Lends the ring of perception's sight for the floor
+    /// ([`crate::effects::SeesInvisible`]).
     SeeInvisible,
+    /// Plain water. Reports nothing, like [`PotionEffect::FruitJuice`].
     Water,
     // Appended, not filed under M: a save encodes a variant as its position.
+    /// Refills Ma and raises max Ma for good.
     Magic,
     /// Resets `Alignment` to neutral. Appended after `Magic` for the same
     /// reason.
     Adjustment,
+    /// The wand of polymorph, drunk. Appended for the same reason.
+    Polymorph,
 }
 
 /// Type-key for a scroll. Mechanic: the `scrolls` submodule of `crate::items`.
 #[derive(Component)]
 pub struct Scroll {
+    /// Which scroll this is.
     pub effect: ScrollEffect,
 }
 
@@ -654,20 +826,47 @@ pub struct Scroll {
 /// [`crate::catalog::SCROLLS`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScrollEffect {
+    /// Charges the reader's hands instead of acting now: the next blow they land
+    /// confuses what it hits ([`crate::effects::ConfusingTouch`]).
     MonsterConfusion,
+    /// Maps the whole floor into the reader's memory, wiped out from where they
+    /// stand ([`crate::magicmap`]).
     MagicMapping,
+    /// Roots everything in sight where it stands for a while
+    /// ([`crate::effects::Rooted`]). A held monster still bites what comes
+    /// within reach.
     HoldMonster,
+    /// Puts everything in sight to sleep. Now and then the words turn on the
+    /// reader and put them out instead.
     Sleep,
+    /// A permanent plus on the worn armour, and its curse lifted. Fizzles with
+    /// nothing worn.
     EnchantArmor,
+    /// Reveals the hidden enchantment and curse of every piece of gear in the
+    /// pack.
     Identify,
+    /// Every monster in view turns tail for good.
     ScareMonster,
+    /// Marks the mundane items on the floor as [`Detected`](crate::effects::Detected):
+    /// exactly what [`PotionEffect::MagicDetection`] skips.
     FoodDetection,
+    /// Moves the reader to a random open tile on the floor.
     Teleportation,
+    /// A permanent plus on the wielded weapon, and its curse lifted. Fizzles
+    /// with an empty hand.
     EnchantWeapon,
+    /// Conjures a creature from the bestiary beside the reader.
     CreateMonster,
+    /// Destroys every cursed item the reader has equipped. Cursed items left in
+    /// the pack are untouched.
     RemoveCurse,
+    /// Every creature on the floor homes in on the reader's tile, out of sight
+    /// ([`Aggravated`]).
     AggravateMonsters,
+    /// Does nothing, and means it.
     BlankPaper,
+    /// Brands the wielded weapon [`Vorpal`] against one random species. A weapon
+    /// that is already vorpal crumbles instead.
     VorpalizeWeapon,
     /// 1... 2... Poof! Forgets one random spell off the reader's [`Spellset`]
     /// and every tile they have ever seen on this floor.
@@ -675,12 +874,18 @@ pub enum ScrollEffect {
     /// Every monster the reader can see is charmed — a plain
     /// [`Faction::Ally`], the same as [`WandEffect::Charming`] lands on one.
     Charming,
+    /// Opens a trapdoor under the reader: the same plunge as [`TrapEffect::Trapdoor`].
+    /// Appended for the save-order reason above.
+    Pitfall,
+    /// Makes the spirits neutral again: [`crate::spirits::atone`].
+    Atonement,
 }
 
 /// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`
 /// (zapped), and `throwing` (hurled).
 #[derive(Component)]
 pub struct Wand {
+    /// Which wand this is.
     pub effect: WandEffect,
 }
 
@@ -688,25 +893,55 @@ pub struct Wand {
 /// [`crate::catalog::WANDS`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WandEffect {
+    /// Lights the room (or passage) the zapper stands in for good, and turns up
+    /// any hidden trap there. Takes no target ([`WandEffect::needs_target`]).
     Light,
+    /// A bolt of armour-ignoring force along the aimed line.
     Striking,
+    /// A bolt of lightning along the aimed line.
     Lightning,
+    /// A fire blast over [`BLAST_RADIUS`](crate::constants::wands::BLAST_RADIUS)
+    /// where aimed, resisted by [`FireImmune`] ([`Element::Fire`]).
     Fire,
+    /// A cold blast over [`BLAST_RADIUS`](crate::constants::wands::BLAST_RADIUS)
+    /// where aimed, resisted by [`ColdImmune`] ([`Element::Cold`]).
     Cold,
+    /// Replaces the monster on the aimed tile with a random other species.
+    /// Aimed at the zapper's own tile, it polymorphs them.
     Polymorph,
+    /// A bolt of magic missile along the aimed line.
     MagicMissile,
+    /// Steps the target one notch faster, for good.
     HasteMonster,
+    /// Steps the target one notch slower, for good.
     SlowMonster,
+    /// A bolt that hands the HP it takes back to the zapper, never past their
+    /// maximum ([`Element::Drain`]).
     DrainLife,
+    /// Does nothing, and says so.
     Nothing,
+    /// Flings the target monster to a random open tile.
     TeleportAway,
+    /// Drags the target monster to a tile beside the zapper.
     TeleportTo,
+    /// Strips every marker effect from the target and resets its tempo. The
+    /// player zapped by it loses far more.
     Cancellation,
     /// Tames the monster on the target tile: a plain [`Faction::Ally`], not
     /// the [`Helper`] — it fights at your side but doesn't follow downstairs,
     /// and taking a second one doesn't retire a first. See
     /// [`crate::companion::charm`].
     Charming,
+    /// Bores a tunnel through rock along the aim, [`DIG_RANGE`] tiles deep
+    /// (never through the map's outer wall). See
+    /// [`crate::items::wands`]'s `dig_tunnel`.
+    ///
+    /// [`DIG_RANGE`]: crate::constants::wands::DIG_RANGE
+    Digging,
+    /// The zapper and what stands on the aimed tile trade places; thrown, the
+    /// blast's creatures trade among themselves. See
+    /// [`crate::items::wands`]'s `swap_with_target`.
+    Swapping,
 }
 
 impl WandEffect {
@@ -724,26 +959,53 @@ impl WandEffect {
 /// Serialised by variant position — append, never reorder.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SpellEffect {
+    /// A fire blast like [`WandEffect::Fire`], but the damage is whatever the
+    /// caster's own attack deals. A dragon's breath is this spell; the player
+    /// knows it as Fireball.
     DragonBreath,
+    /// A poisoned dart cast at range: the dart trap's damage and its depth-scaled
+    /// strength drain.
     Sting,
+    /// Armour-ignoring damage, and a chance to paralyse the target.
     Thunderbolt,
+    /// Lifts the caster's single worst affliction.
     Cure,
+    /// Does nothing now, and strengthens the caster's next swing
+    /// ([`crate::effects::Bided`]).
     Bide,
+    /// A line of armour-ignoring damage: [`WandEffect::Striking`], cast.
     ForceLance,
+    /// [`ScrollEffect::Identify`] on demand.
     Identify,
+    /// Plants a revealed arrow trap on each of the caster's four diagonals.
     Setup,
+    /// [`WandEffect::Light`] hurled as a grenade: a wide, hot burst that blinds.
     Lux,
+    /// Armour-ignoring drain on every hostile in view, handed back to the caster
+    /// as HP.
     CircleOfDeath,
+    /// For the rest of the floor, wand-shaped harm bounces off the caster and
+    /// nothing a monster's blow carries takes hold.
     MagicWard,
+    /// Refills the caster's HP to their ceiling without raising it.
     Heal,
+    /// A fire grenade thrown at the aimed tile. Each impact may call another
+    /// down nearby.
     MeteorStrike,
+    /// Cold damage to everything in view, and paralysis for what survives.
     FrostNova,
+    /// [`ScrollEffect::MagicMapping`] on demand.
     MagicMapping,
+    /// Hastes the caster ([`crate::conditions::hasten`]).
     HasteSelf,
-    // Appended, not filed under R: a save encodes a variant as its position.
-    // Never in `catalog::SPELLS` — the gnome's innate wand-throw, not a
-    // spell any player ever learns or sees in the `Z` menu.
-    RandomWand,
+    /// Appended, not filed under P: a save encodes a variant as its
+    /// position. See [`crate::items::wands::polymorph_entity`].
+    PolymorphSelf,
+    /// Polymorphs the creature on the aimed tile, as [`WandEffect::Polymorph`]
+    /// does.
+    PolymorphOther,
+    /// Opens a trapdoor under the caster: [`ScrollEffect::Pitfall`] on demand.
+    GateDown,
 }
 
 impl SpellEffect {
@@ -756,6 +1018,7 @@ impl SpellEffect {
         !matches!(
             self,
             SpellEffect::Cure
+                | SpellEffect::GateDown
                 | SpellEffect::Bide
                 | SpellEffect::Identify
                 | SpellEffect::Setup
@@ -765,14 +1028,17 @@ impl SpellEffect {
                 | SpellEffect::FrostNova
                 | SpellEffect::MagicMapping
                 | SpellEffect::HasteSelf
+                | SpellEffect::PolymorphSelf
         )
     }
 }
 
 /// The two shapes an active spell comes in — an attack wand's own split
 /// ([`crate::items::wands::is_attack_wand`]), drawn again here because a spell
-/// answers to it too: a staff's [`crate::effects::TurboMagic`] doubles the
-/// cost and triples the damage of an [`Attack`](SpellKind::Attack), and leaves a
+/// answers to it too: a staff's [`crate::effects::TurboMagic`] multiplies the
+/// cost ([`TURBO_MAGIC_COST_MULT`](crate::constants::spells::TURBO_MAGIC_COST_MULT))
+/// and the damage ([`TURBO_MAGIC_POWER_MULT`](crate::constants::spells::TURBO_MAGIC_POWER_MULT))
+/// of an [`Attack`](SpellKind::Attack), and leaves a
 /// [`Skill`](SpellKind::Skill) — the utility half, potions and scrolls play the
 /// same way — alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -795,6 +1061,7 @@ pub enum SpellKind {
 /// costs [`Magic`] per use instead of a battery running dry.
 #[derive(Component, Default, Clone, Serialize, Deserialize)]
 pub struct Spellset {
+    /// The spells known, in slot order.
     pub slots: Vec<SpellEffect>,
 }
 
@@ -804,6 +1071,7 @@ pub struct Spellset {
 /// This tag exists so the ring can be identified and saved.
 #[derive(Component)]
 pub struct Ring {
+    /// Which ring this is.
     pub effect: RingEffect,
 }
 
@@ -811,18 +1079,39 @@ pub struct Ring {
 /// description of its behaviour. See [`crate::catalog::RINGS`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RingEffect {
+    /// A bonus to the armour roll.
     Protection,
+    /// A bonus to the damage roll, and strength that a poisoned dart cannot drain
+    /// ([`crate::effects::SustainsStrength`]).
     Strength,
+    /// Sees what is invisible: hidden traps, stashes and monsters
+    /// ([`crate::effects::SeesInvisible`]).
     Perception,
+    /// Worn once, for one action, it doubles the run's score and is gone.
     Adornment,
+    /// Now and then everything on the floor learns where the wearer is
+    /// ([`crate::effects::AggravatesMonsters`]).
     AggravateMonster,
+    /// A bonus to the throw roll, on a hurled dagger as much as a loosed arrow.
     Sharpshooting,
+    /// A bonus to the damage roll, without [`RingEffect::Strength`]'s protection
+    /// from drain.
     IncreaseDamage,
+    /// Knits the wearer back together as they go
+    /// ([`crate::effects::Regenerates`]).
     Regeneration,
+    /// Slows the wearer one notch ([`crate::effects::Sluggish`]).
     SlowDigestion,
+    /// Now and then the wearer is somewhere else ([`crate::effects::Teleportitis`]).
     Teleportation,
+    /// Nothing notices the wearer until it is within
+    /// [`STEALTH_RANGE`](crate::constants::rings::STEALTH_RANGE) tiles
+    /// ([`crate::effects::Stealthy`]).
     Stealth,
+    /// What the wearer has on cannot be corroded ([`crate::effects::SustainsArmor`]).
     MaintainArmor,
+    /// Appended: a save encodes a variant as its position.
+    Polymorph,
 }
 
 /// Tag for a cursed piece of equipment. Rolled on at spawn for the majority of
@@ -855,6 +1144,7 @@ pub struct KnownQuality;
 /// [`crate::combat::resolve_attack`].
 #[derive(Component)]
 pub struct Vorpal {
+    /// The name of the species it slays outright.
     pub bane: String,
 }
 
@@ -866,8 +1156,12 @@ pub struct Vorpal {
 /// reach for it.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Element {
+    /// Resisted by [`FireImmune`].
     Fire,
+    /// Resisted by [`ColdImmune`].
     Cold,
+    /// Life drain. Resisted by [`Undead`](crate::effects::Undead), which has no
+    /// life to take.
     Drain,
 }
 
@@ -1058,8 +1352,11 @@ pub enum TrapReveal {
 /// `crate::visibility`.
 #[derive(Component)]
 pub struct Trap {
+    /// What it does to whatever steps on it.
     pub effect: TrapEffect,
+    /// How the player gets to know it is there before it goes off.
     pub reveal: TrapReveal,
+    /// Whether the player knows about it yet. Once true, it stays true.
     pub revealed: bool,
 }
 
@@ -1092,6 +1389,7 @@ pub struct EntityMoved;
 /// exactly zero.
 #[derive(Component)]
 pub struct Score {
+    /// The run's score so far.
     pub value: i64,
 }
 
@@ -1106,7 +1404,9 @@ pub struct Score {
 /// Intent: `attacker` swings at `target`. Drained by `crate::combat`.
 #[derive(Event, Clone, Copy)]
 pub struct WantsToAttack {
+    /// Whoever swings.
     pub attacker: Entity,
+    /// Whoever is swung at.
     pub target: Entity,
 }
 
@@ -1116,9 +1416,13 @@ pub struct WantsToAttack {
 /// [`item_system`](crate::items::item_system).
 #[derive(Event, Clone, Copy)]
 pub struct WantsToUse {
+    /// Whoever quaffs, reads, zaps or equips.
     pub user: Entity,
+    /// The item used.
     pub item: Entity,
+    /// The aimed tile. `None` for anything that is not aimed.
     pub target: Option<Position>,
+    /// The pack row the item came from. `None` when it did not come from one.
     pub slot_idx: Option<usize>,
 }
 
@@ -1126,8 +1430,11 @@ pub struct WantsToUse {
 /// [`crate::items::throw_system`], which is where it finds out what it hits.
 #[derive(Event, Clone, Copy)]
 pub struct WantsToThrow {
+    /// Whoever throws.
     pub thrower: Entity,
+    /// What is thrown.
     pub item: Entity,
+    /// The tile it is thrown at.
     pub target: Position,
 }
 
@@ -1135,6 +1442,8 @@ pub struct WantsToThrow {
 /// `crate::combat`.
 #[derive(Resource, Default)]
 pub struct AttackQueue {
+    /// Taken whole when combat runs. An attack pushed while those resolve waits
+    /// for the next run.
     pub attacks: Vec<WantsToAttack>,
 }
 
@@ -1142,12 +1451,16 @@ pub struct AttackQueue {
 /// [`item_system`](crate::items::item_system).
 #[derive(Resource, Default)]
 pub struct UseQueue {
+    /// Taken whole when the item system runs; a use pushed meanwhile waits for
+    /// the next run.
     pub uses: Vec<WantsToUse>,
 }
 
 /// The turn's pending throws. Drained by [`crate::items::throw_system`].
 #[derive(Resource, Default)]
 pub struct ThrowQueue {
+    /// Taken whole when the throw system runs; a throw pushed meanwhile waits
+    /// for the next run.
     pub throws: Vec<WantsToThrow>,
 }
 
@@ -1156,8 +1469,11 @@ pub struct ThrowQueue {
 /// Drained by [`spell_system`](crate::items::spell_system).
 #[derive(Event, Clone, Copy)]
 pub struct WantsToCast {
+    /// Whoever casts.
     pub user: Entity,
+    /// The spell cast.
     pub effect: SpellEffect,
+    /// The aimed tile.
     pub target: Position,
 }
 
@@ -1165,6 +1481,8 @@ pub struct WantsToCast {
 /// [`spell_system`](crate::items::spell_system).
 #[derive(Resource, Default)]
 pub struct SpellQueue {
+    /// Taken whole when the spell system runs; a cast pushed meanwhile waits
+    /// for the next run.
     pub spells: Vec<WantsToCast>,
 }
 
@@ -1175,12 +1493,14 @@ pub struct SpellQueue {
 /// The name the player typed at the start of the run, shown on the death screen.
 #[derive(Resource, Default)]
 pub struct PlayerName {
+    /// The name the player typed.
     pub what: String,
 }
 
 /// Whether the viewport scrolls to keep the player centred (`-centered`).
 #[derive(Resource, Default)]
 pub struct RenderConfig {
+    /// `true` when the run started with `-centered`.
     pub centered: bool,
 }
 
@@ -1188,14 +1508,16 @@ pub struct RenderConfig {
 // lives in [`crate::pack`], next to the row filtering that decides what each of
 // its ten modes shows.
 
-/// Whether the `Z` spells menu is open, and which slot (0-3) the cursor sits
-/// on. Picking a row — by its letter `a`-`d`, or by navigating and confirming
+/// Whether the `Z` spells menu is open, and which slot the cursor sits on (one
+/// per [`SPELLSET_CAP`](crate::constants::spells::SPELLSET_CAP)). Picking a row — by its letter, or by navigating and confirming
 /// — opens the aiming reticle on that spell exactly the way the pack's `Use`
 /// row does on an item. This menu is the only way to an active spell; no key
 /// fires a slot directly.
 #[derive(Resource, Default)]
 pub struct SpellsMenu {
+    /// Whether the menu is up and taking the keyboard.
     pub open: bool,
+    /// The slot the cursor sits on.
     pub selected: usize,
 }
 
@@ -1209,6 +1531,7 @@ pub struct SpellsMenu {
 /// kill twice.
 #[derive(Resource, Default)]
 pub struct QuitPrompt {
+    /// Whether the prompt is up.
     pub open: bool,
 }
 
@@ -1216,7 +1539,10 @@ pub struct QuitPrompt {
 /// zap, and where the cursor is.
 #[derive(Resource, Default)]
 pub struct TargetingState {
+    /// Whether the reticle is up.
     pub active: bool,
+    /// The item being thrown or zapped. `None` for a spell, a look, or a reach
+    /// strike.
     pub item: Option<Entity>,
     /// The reticle is aiming a throw rather than a zap: the range is
     /// [`crate::items::THROW_RANGE`] instead of the item's own, and confirming
@@ -1236,7 +1562,9 @@ pub struct TargetingState {
     /// [`Reach`], and confirming resolves the strike in place — no item ever
     /// leaves the wielder's hand. See `crate::combat::resolve_reach_attack`.
     pub reach_attack: bool,
+    /// The cursor's column, as a map tile coordinate.
     pub cursor_x: i16,
+    /// The cursor's row, as a map tile coordinate.
     pub cursor_y: i16,
 }
 
@@ -1251,6 +1579,7 @@ pub struct TargetingState {
 /// the instant a translation stops sharing English's words.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LogCategory {
+    /// No special paint: the default colour.
     #[default]
     Plain,
     /// A trick shot's shout — the ordinary one and the ULTIMATE one alike.
@@ -1277,6 +1606,9 @@ pub enum LogCategory {
     /// shares the current character's name and is treated as "you" in a
     /// different colour from the real you (see `crate::bones`).
     Ghost,
+    /// A faerie shapeshifter's reveal, the dog's death (see
+    /// `crate::combat`'s `reveal_faerie`). Pink.
+    Faerie,
 }
 
 /// One line for the message log: its text, and the [`LogCategory`] it was
@@ -1285,11 +1617,14 @@ pub enum LogCategory {
 /// have to know this wraps anything.
 #[derive(Debug, Clone)]
 pub struct LogEntry {
+    /// The words.
     pub text: String,
+    /// How it is painted.
     pub category: LogCategory,
 }
 
 impl LogEntry {
+    /// A line with no special paint ([`LogCategory::Plain`]).
     pub fn plain<S: Into<String>>(text: S) -> Self {
         Self {
             text: text.into(),
@@ -1297,6 +1632,15 @@ impl LogEntry {
         }
     }
 
+    /// A line painted as `category`.
+    ///
+    /// ```
+    /// use models::{LogCategory, LogEntry};
+    ///
+    /// let line = LogEntry::tagged("Bang!", LogCategory::TrickShot);
+    /// assert!(line == *"Bang!");
+    /// assert_eq!(line.category, LogCategory::TrickShot);
+    /// ```
     pub fn tagged<S: Into<String>>(text: S, category: LogCategory) -> Self {
         Self {
             text: text.into(),
@@ -1324,13 +1668,15 @@ impl PartialEq<str> for LogEntry {
     }
 }
 
-/// The message log: everything that has happened (`history`, capped at 50) and
+/// The message log: everything that has happened (`history`, capped at [`LOG_HISTORY_CAP`]) and
 /// everything the player has not yet acknowledged with `--MORE--` (`unread`).
 /// `history` is plain text — nothing ever colours the scrollback — while
 /// `unread` is what's actually painted, so it keeps each line's [`LogCategory`].
 #[derive(Resource)]
 pub struct GameLog {
+    /// Everything that has happened, as plain text.
     pub history: Vec<String>,
+    /// What the player has not yet acknowledged, with each line's category.
     pub unread: Vec<LogEntry>, // The queue of messages waiting for a --MORE-- acknowledgment
 }
 
@@ -1363,7 +1709,7 @@ impl GameLog {
         self.history.push(msg.clone());
         self.unread.push(LogEntry::tagged(msg, category));
 
-        if self.history.len() > 50 {
+        if self.history.len() > LOG_HISTORY_CAP {
             self.history.remove(0);
         }
     }
@@ -1372,6 +1718,7 @@ impl GameLog {
 /// The current dungeon floor, 1-based.
 #[derive(Resource)]
 pub struct Depth {
+    /// The floor number, counted down from the top.
     pub what: u8,
 }
 
@@ -1383,6 +1730,7 @@ pub struct Depth {
 /// monsters and loot. Saved, so a reload lands on the same re-roll.
 #[derive(Resource, Default)]
 pub struct FloorChanges {
+    /// Staircases, portals and trapdoors taken so far this run.
     pub count: u32,
 }
 
@@ -1392,5 +1740,6 @@ pub struct FloorChanges {
 /// the player's feet and shunts them to the next level. Transient, never saved.
 #[derive(Resource, Default)]
 pub struct DungeonLord {
+    /// Turns spent on this floor since arriving.
     pub idle_turns: u32,
 }

@@ -20,14 +20,14 @@ How weights work
 
 An entry's chance is its weight over the sum of the weights it competes against, and it competes only inside one draw: a monster's weight against other monsters, a `DROPS` weight against other categories.
 
-**Ten is the baseline.** A row at 5 is half as common as its neighbours; one at 20 is twice. Nothing has to total 100, so you can add a row without editing another number.
+**The default weight is the baseline** (`constants::monsters::DEFAULT_SPAWN_WEIGHT` for the bestiary). A row at half of it is half as common as its neighbours; one at double it is twice. Nothing has to total anything, so you can add a row without editing another number.
 
 Dial 1: how many things per floor
 ---------------------------------
 
 This is not content. It is floor generation, in `populate_level` in `models/src/map/population.rs`, and it is the same for every row.
 
-Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at the depths in `constants::progression::DIFFICULTY_TIER_LAST_DEPTH` (`[3, 6, 9, 12]`): tier 0 on floors 1-3, tier 1 on 4-6, tier 2 on 7-9, tier 3 on 10-12, tier 4 on floor 13 alone. The damage traps scale too, but on their own coarser three bands (`constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`, `[4, 8]`).
+Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at the depths in `constants::progression::DIFFICULTY_TIER_LAST_DEPTH`: tier 0 on the shallowest floors, and the deepest floor a tier of its own. The damage traps scale too, but on their own coarser bands (`constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`). Every name below is in `constants::population`.
 
     guaranteed    placed before any budget is spent, and never out of
                   one: a blue coin on the odd floors and a red one on
@@ -35,21 +35,25 @@ Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at th
                   depths in DIFFICULTY_TIER_LAST_DEPTH -- one draw from
                   `catalog::PROGRESSION_ITEMS` as well.
 
-    monsters      3 + tier slots. The first always fills; each later one
-                  fills with probability min(0.75 + 0.10 * tier, 0.95).
+    monsters      MONSTER_SLOTS_BASE + tier slots. The first always
+                  fills; each later one fills with probability
+                  MONSTER_FILL_CHANCE_BASE + MONSTER_FILL_CHANCE_PER_TIER
+                  * tier, capped at MONSTER_FILL_CHANCE_CAP.
 
-    lurkers       from floor 7, each corridor centre has a 5% chance of
-                  hiding one more.
+    lurkers       from floor CORRIDOR_LURKER_MIN_DEPTH, each corridor
+                  centre has a CORRIDOR_LURKER_CHANCE chance of hiding
+                  one more.
 
-    items         3 + tier attempts. Every attempt that finds a free
-                  tile drops an item (no fill roll).
+    items         ITEM_SLOTS_BASE + tier attempts. Every attempt that
+                  finds a free tile drops an item (no fill roll).
 
     hidden item   HIDDEN_ITEM_CHANCE of floors hide one more in plain
-                  sight -- no glyph until you walk onto it. At the
-                  current 1.0, that is every floor.
+                  sight -- no glyph until you walk onto it.
 
-    traps         4 + tier slots, each filling with probability
-                  min(0.75 + 0.10 * tier, 0.95).
+    traps         TRAP_SLOTS_BASE + tier slots, each filling with
+                  probability TRAP_FILL_CHANCE_BASE +
+                  TRAP_FILL_CHANCE_PER_TIER * tier, capped at
+                  TRAP_FILL_CHANCE_CAP.
 
 Change these when the dungeon feels too empty or too crowded. Do not change them to make one creature rarer -- that is dial 3.
 
@@ -67,22 +71,15 @@ Dial 2: which category of item
 
     models/src/spawn.rs     ->  DROPS
 
-    category!("scroll",      300,      1,     SCROLLS),
-    category!("potion",      270,      1,     POTIONS),
-    category!("coin",        130,      1,     COINS),
-    category!("armor",        80,      1,     ARMORS),
-    category!("wand",         50,      1,     WANDS),
-    category!("ring",         50,      1,     RINGS),
-    category!("weapon",       36,      1,     WEAPONS),
-    category!("ammo",         28,      1,     AMMO),
-    category!("launcher",     16,      1,     LAUNCHERS),
-    category!("treat",        40,      1,     TREATS),
+    category!("scroll",   <weight>,    1,     SCROLLS),
+    category!("potion",   <weight>,    1,     POTIONS),
+    ...
                               |        |
                            weight   min_depth
 
-Those weights are Rogue's own drop odds in tenths of a percent: scrolls are 30% of drops, potions 27%, and so on down to launchers at 1.6%. They happen to total 1000, which is convenient to read and not required.
+Those weights are Rogue's own drop odds in tenths of a percent. `../reference/content-tables.md` carries the current table, and a test holds it in step with `DROPS`. They do not have to total anything round, which is only convenient to read.
 
-To double how often rings turn up, change `50` to `100`. Every other share drops slightly to pay for it, automatically.
+To double how often rings turn up, double the ring row's weight. Every other share drops slightly to pay for it, automatically.
 
 To keep a category out of the shallow dungeon, raise its `min_depth`. A category that cannot appear is simply not in the draw, and the remaining categories divide its share between them in proportion.
 
@@ -121,7 +118,7 @@ Monsters use it as the last column of the row:
 
 The bestiary uses 1, 5 and 10 -- the shallow stat band from the start, the middle band from floor 5, the nastiest letters from floor 10. Nothing stops you using 2 or 11.
 
-The dungeon is 13 floors deep (`FINAL_DEPTH`), so a `min_depth` above 13 means "never" -- on the way in. The climb out is the exception: once the Element of Yoord is in the pack, floor population switches from `pick` to `MonsterDef::pick_any`, which drops the gate entirely, so a `min_depth` of 10 (or 99) is no protection on the ascent.
+The dungeon is `FINAL_DEPTH` floors deep, so a `min_depth` above that means "never" -- on the way in. The climb out is the exception: once the Element of Yoord is in the pack, floor population switches from `pick` to `MonsterDef::pick_any`, which drops the gate entirely, so a `min_depth` of 10 (or 99) is no protection on the ascent.
 
 > **Every floor still draws from everything it has unlocked.** A bat
 > does not stop appearing on floor 9; it competes with the dragon. That
@@ -137,9 +134,22 @@ The table tests cover the gating but not your intent, so measure it:
 
     cargo test --test content
 
-`the_loot_table_covers_every_category_over_a_long_run` rolls twenty thousand drops and asserts every category still produces something. If you weight a category down to nothing, that test tells you.
+`every_loot_category_can_be_drawn_and_has_rows_to_give` asks the table, not a sampler: every category keeps a nonzero weight and has rows at its debut floor and at the deepest. If you weight a category down to nothing, that test tells you.
 
 For a feel, the quickest instrument is a throwaway loop over `roll_item` or `MonsterDef::pick` counting names -- see `models/tests/content.rs` for the shape.
+
+
+Appendix: quick check
+---------------------
+
+1. Decide which question you are asking: how many per floor, which category, which row, or allowed here at all.
+2. Per floor: edit `populate_level` in `models/src/map/population.rs`; this moves every row at once.
+3. Category: change its weight in `DROPS` (`models/src/spawn.rs`).
+4. Row: `.weight(n)` on a monster, or `weight` on a trap; ten is the baseline and items have no per-row weight.
+5. Gate: raise `min_depth`; it is a hard gate, and nothing makes a row stop appearing deeper.
+6. Run `cargo test --test content`.
+7. Count what a draw gives you with a throwaway loop over `roll_item` or `MonsterDef::pick`.
+8. Fix the docs: if you changed a `DROPS` weight, update the weights table in `../reference/content-tables.md` and the listing in this page.
 
 
 See also

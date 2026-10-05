@@ -20,7 +20,6 @@
 use bevy_ecs::{entity::Entity, world::World};
 use crossterm::style::Color;
 use rand::Rng;
-use rand::seq::SliceRandom;
 
 use crate::components::*;
 use crate::conditions::{cure_one_condition, hasten, paralyse};
@@ -34,7 +33,7 @@ use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::{TrapBundle, spring_trap, trap_at, trap_damage_tier};
 
-use super::wands::{apply_wand_effect, dazzle, elemental_blast};
+use super::wands::{dazzle, elemental_blast};
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `crate::constants::wands` / `crate::constants::traps`
@@ -52,7 +51,8 @@ use crate::constants::traps::{
 use crate::constants::wands::{BLAST_RADIUS, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS};
 
 /// Whether `user` is wielding a staff — every damaging spell they cast costs
-/// double [`Magic`] and deals triple damage, in exchange for the fury behind
+/// [`TURBO_MAGIC_COST_MULT`] times the [`Magic`] and deals
+/// [`TURBO_MAGIC_POWER_MULT`] times the damage, in exchange for the fury behind
 /// it. [`TurboMagic`] is lent to the wielder the moment the staff goes on
 /// (see [`crate::catalog::WeaponDef::grants`]), so this asks `user` directly,
 /// exactly the way any other weapon trick is probed on its wielder rather
@@ -62,20 +62,13 @@ fn wields_turbo_magic(world: &World, user: Entity) -> bool {
 }
 
 /// The [`Magic`] cost `user` will actually be charged for casting `effect` —
-/// [`SpellDef::cost`](crate::catalog::SpellDef::cost) doubled when `user` wields
+/// [`SpellDef::cost`](crate::catalog::SpellDef::cost) times [`TURBO_MAGIC_COST_MULT`] when `user` wields
 /// a staff and the spell is an [`Attack`](SpellKind::Attack). Shared by
 /// [`spell_system`] and by callers that need to show or check that true cost
 /// before the spell is queued (the reticle affordability check, the spells
 /// menu's `Ma` label) so none of them can drift from what will actually be
 /// spent.
 pub fn spell_cost(world: &World, user: Entity, effect: SpellEffect) -> u8 {
-    // What a creature was born with is free to use: see
-    // [`crate::abilities::INNATE_SPELLS`]. A dragon has no [`Magic`] at all,
-    // so a dragon's breath that cost magic points would never fire; a
-    // dragon-bodied player breathes on the same terms.
-    if crate::abilities::casts_innately(world, user, effect) {
-        return 0;
-    }
     let def = crate::catalog::SpellDef::of(effect);
     let turbo = def.kind == SpellKind::Attack && wields_turbo_magic(world, user);
     if turbo {
@@ -83,6 +76,26 @@ pub fn spell_cost(world: &World, user: Entity, effect: SpellEffect) -> u8 {
     } else {
         def.cost
     }
+}
+
+/// Whether `user`'s [`Magic`] covers `effect`. A creature with no pool covers
+/// nothing, however little the spell costs.
+pub fn can_afford_spell(world: &World, user: Entity, effect: SpellEffect) -> bool {
+    let cost = spell_cost(world, user, effect);
+    world.get::<Magic>(user).is_some_and(|m| m.points >= cost)
+}
+
+/// Takes `effect`'s cost out of `user`'s [`Magic`]. `false`, and nothing
+/// taken, when they cannot pay.
+pub fn pay_for_spell(world: &mut World, user: Entity, effect: SpellEffect) -> bool {
+    if !can_afford_spell(world, user, effect) {
+        return false;
+    }
+    let cost = spell_cost(world, user, effect);
+    if let Some(mut magic) = world.get_mut::<Magic>(user) {
+        magic.points -= cost;
+    }
+    true
 }
 
 /// The schedule step that resolves every spell triggered this turn. Spends the
@@ -102,20 +115,13 @@ pub fn spell_system(world: &mut World) {
         crate::equipment::reset_momentum(world, wants.user);
         let def = crate::catalog::SpellDef::of(wants.effect);
         let turbo = def.kind == SpellKind::Attack && wields_turbo_magic(world, wants.user);
-        let cost = spell_cost(world, wants.user, wants.effect);
-        let affordable = world
-            .get::<Magic>(wants.user)
-            .is_some_and(|m| m.points >= cost);
-        if !affordable {
+        if !pay_for_spell(world, wants.user, wants.effect) {
             if world.get::<Player>(wants.user).is_some() {
                 world
                     .resource_mut::<GameLog>()
                     .add(strings::no_magic_for_that());
             }
             continue;
-        }
-        if let Some(mut magic) = world.get_mut::<Magic>(wants.user) {
-            magic.points -= cost;
         }
         world
             .resource_mut::<GameLog>()
@@ -157,22 +163,12 @@ pub(crate) fn apply_spell_effect(
             super::scrolls::apply_scroll_effect(world, user, ScrollEffect::MagicMapping)
         }
         SpellEffect::HasteSelf => haste_self(world, user),
-        SpellEffect::RandomWand => random_wand_throw(world, user, target),
+        SpellEffect::PolymorphSelf => super::wands::polymorph_entity(world, user),
+        SpellEffect::PolymorphOther => super::wands::polymorph_target(world, target),
+        SpellEffect::GateDown => {
+            super::scrolls::apply_scroll_effect(world, user, ScrollEffect::Pitfall)
+        }
     }
-}
-
-/// The gnome's whole trick: a random wand, generated and discharged on the
-/// spot through the same [`apply_wand_effect`] an actual wand's zap goes
-/// through, so its magic stings exactly as hard as the real thing.
-fn random_wand_throw(world: &mut World, user: Entity, target: Position) {
-    let effect = {
-        let mut rng = world.resource_mut::<GameRng>();
-        crate::catalog::WANDS.choose(&mut rng.0).map(|w| w.effect)
-    };
-    let Some(effect) = effect else {
-        return;
-    };
-    apply_wand_effect(world, user, Some(target), effect);
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +244,7 @@ fn thunderbolt(world: &mut World, user: Entity, target: Position, power_mult: i3
     fly_arrow(world, user_pos, target, '⇈', Color::Yellow);
 
     // Whoever stands there, the player included: an eel's lightning is this
-    // same spell cast the other way (see `crate::abilities::INNATE_SPELLS`).
+    // same spell cast the other way.
     let Some(victim) = actor_at(world, target, user) else {
         world
             .resource_mut::<GameLog>()
@@ -317,12 +313,13 @@ fn bide(world: &mut World, user: Entity) {
 /// elemental damage — except the damage is whatever the user's own claws (or
 /// fists) would deal this swing, not the wand's own dice.
 ///
-/// The dragon's own breath is this, not a copy of it: its ability row casts
-/// the spell (see [`crate::abilities::INNATE_SPELLS`]), which is why the
+/// The dragon's own breath is this, not a copy of it: its bestiary row teaches
+/// it the spell ([`crate::monsters::MonsterDef::spells`]), which is why the
 /// damage is read off the caster's [`Fighter`] rather than a dice row — the
 /// same sentence describes a dragon clawing and a player punching.
-/// `power_mult` is a staff's [`TurboMagic`] tripling the damage on top of
-/// doubling the cost — 1 for anyone casting bare-handed.
+/// `power_mult` is a staff's [`TurboMagic`] multiplying the damage
+/// ([`TURBO_MAGIC_POWER_MULT`]) on top of the cost — 1 for anyone casting
+/// bare-handed.
 fn breathe_fire(world: &mut World, user: Entity, target: Position, power_mult: i32) {
     let (power, power_bonus) = {
         let fighter = world.get::<Fighter>(user);

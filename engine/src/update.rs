@@ -14,6 +14,7 @@ use std::time::Duration;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, poll, read};
+use models::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use models::*;
 use models::{GameState, components::GameLog};
 use rand::Rng;
@@ -94,15 +95,15 @@ fn player_entity(world: &mut World) -> Entity {
     player_entity_opt(world).expect("player entity exists during input handling")
 }
 
-/// Confusion tax: half of every intended step goes off in a random direction
-/// instead. Returns the step to actually attempt and whether it was hijacked (a
+/// Confusion tax: some share ([`CONFUSION_STUMBLE_CHANCE`]) of intended steps go
+/// off in a random direction instead. Returns the step to actually attempt and whether it was hijacked (a
 /// hijacked lurch into a wall still burns the turn).
 fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
     if !player_confused(world) {
         return (dx, dy, false);
     }
     let mut rng = world.resource_mut::<models::GameRng>();
-    if !rng.0.gen_bool(0.5) {
+    if !rng.0.gen_bool(CONFUSION_STUMBLE_CHANCE) {
         return (dx, dy, false);
     }
     let (sx, sy) = STUMBLE_DIRS[rng.0.gen_range(0..STUMBLE_DIRS.len())];
@@ -887,7 +888,8 @@ fn begin_look(world: &mut World) -> std::io::Result<bool> {
 
 /// What `Look` reads off the aimed tile: whichever monster or item is
 /// standing there (a monster wins over something lying under it), or —
-/// failing that — an already-revealed trap, or nothing at all. A [`Hidden`]
+/// failing that — an already-revealed trap, or nothing at all, which logs
+/// nothing: the reticle already shows bare floor. A [`Hidden`]
 /// thing is passed over exactly as it is for every other purpose in the game:
 /// looking is not a way to cheat a search.
 ///
@@ -895,8 +897,8 @@ fn begin_look(world: &mut World) -> std::io::Result<bool> {
 /// (w. a short bow)."` — exactly as it does when the thing is first spotted
 /// ([`models::worn_tag`]).
 ///
-/// A monster gets a line of its own after the sighting: every notable move or
-/// on-hit trick it carries, one `"Beware their ___."` each. Every creature in
+/// A monster gets a line of its own after the sighting: every notable move,
+/// immunity or on-hit trick it carries, `"Beware: flying; spellcasting."`. Every creature in
 /// the dungeon is a they, whatever it is — a dungeon has no business guessing
 /// at what lives in it, and "its" for the ones without the wits to use items
 /// was a distinction the player never asked for.
@@ -916,7 +918,7 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
         .or_else(|| visible.iter().find(|&&e| world.get::<Trap>(e).is_some()))
         .copied();
     let Some(seen) = pick else {
-        return vec![strings::you_see_nothing_there().to_string()];
+        return Vec::new();
     };
 
     let mut lines = vec![strings::you_see(
@@ -927,8 +929,9 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
         // What a creature is dangerous for is `models`' business: the phrases
         // live on the effect rows themselves, so this crate never learns which
         // markers exist.
-        for phrase in models::dangers_of(world, seen) {
-            lines.push(strings::beware_their(&phrase));
+        let dangers = models::dangers_of(world, seen);
+        if !dangers.is_empty() {
+            lines.push(strings::beware(&dangers));
         }
     }
     lines
@@ -1510,7 +1513,11 @@ fn handle_offer_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool>
     let choice = world.resource::<OfferMenu>().options[idx];
     let player = player_entity(world);
     confirm_offer(world, player, choice);
-    world.resource_mut::<OfferMenu>().options.clear();
+    // A refused purchase leaves the menu up, rows and all.
+    let mut menu = world.resource_mut::<OfferMenu>();
+    if !menu.open {
+        menu.options.clear();
+    }
     Ok(false)
 }
 
@@ -2112,7 +2119,7 @@ mod tests {
             };
             w.resource_mut::<Map>().tiles[tile_index(east.x, east.y)] = TileType::Water;
             if swims {
-                w.entity_mut(player).insert(Swims);
+                lend(&mut w, player, Grant::of::<Swims>(), Lifetime::Permanent);
             }
             move_player(&mut w, 1, 0);
             assert_eq!(
@@ -2739,6 +2746,58 @@ mod tests {
             (ts.cursor_x, ts.cursor_y),
             (near.x as i16, near.y as i16),
             "the closer of the two, not the player's own tile"
+        );
+    }
+
+    /// Looking at bare floor says nothing: the reticle already shows there is
+    /// nothing there, and every cursor step would otherwise log it again.
+    #[test]
+    fn looking_at_nothing_logs_nothing() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let empty = Position {
+            x: here.x + 1,
+            y: here.y,
+        };
+        assert!(describe_target(&mut w, empty).is_empty());
+    }
+
+    /// A creature's dangers share one line after the sighting, so a dragon
+    /// costs two log lines however much it carries.
+    #[test]
+    fn dangers_share_one_line() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let beside = Position {
+            x: here.x + 1,
+            y: here.y,
+        };
+        let mob = w
+            .spawn((
+                Name {
+                    what: "kestrel".into(),
+                },
+                Mob {
+                    movement_type: MovementType::Static,
+                },
+                beside,
+                Faction::Monster,
+            ))
+            .id();
+        for g in [
+            models::Grant::of::<models::Flies>(),
+            models::Grant::of::<models::FireImmune>(),
+        ] {
+            models::lend(&mut w, mob, g, models::Lifetime::Permanent);
+        }
+
+        let lines = describe_target(&mut w, beside);
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert_eq!(
+            lines[1],
+            strings::beware(&["fire doesn't harm them", "flying"])
         );
     }
 

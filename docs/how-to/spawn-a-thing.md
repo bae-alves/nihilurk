@@ -158,11 +158,6 @@ To roll one piece of quality onto something you spawned by name:
     let sword = spawn_named(world, "long sword", pos).unwrap();
     enchant_equipment(world, &mut rng, sword);    // +1..+3, or cursed
 
-    let wand = spawn_named(world, "wand of fire", pos).unwrap();
-    if let Some(mut b) = world.get_mut::<Battery>(wand) {
-        b.charges = roll_wand_charges(&mut rng);
-    }
-
 
 What comes out is the bare row
 ------------------------------
@@ -171,7 +166,7 @@ What comes out is the bare row
 
 | You spawn | You get | Not |
 |-----------|---------|-----|
-| a wand    | `Battery { charges: 0 }` -- one zap and it crumbles | a battery rolled off `constants::wands` |
+| a wand    | `Battery { charges: WAND_CHARGES }`, full, same as a drop | a battery rolled off `constants::wands` |
 | a weapon, armour, a ring | no bonus, no `Curse` | an enchantment roll |
 | arrows, quarrels | `Stack { count: 1 }` | a bundle |
 | a trap    | `TrapReveal::Sight`, so you can see what you placed | a rolled reveal style |
@@ -204,6 +199,19 @@ Check yourself
     cargo test --test content        # every name still spawns and keeps its name
     cargo test --test determinism    # seeds still mean what they meant
     cargo run -p nihilurk -- -content  # what the game knows, live from the tables
+
+
+Appendix: quick check
+---------------------
+
+1. Look at it now: `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, with names from `-content`.
+2. In a test: `spawn_named(&mut w, "<name>", Position { x, y }).unwrap()` on a bare `World`.
+3. Needs a floor: build the world with `initialize_world`, as `models/tests/identify.rs` does.
+4. In the pack: `stow(&mut w, player, item)`. Worn: `force_unequip` the incumbent, then `equip_silently`.
+5. From game code: find a free tile, roll from `GameRng` in a scoped block, then spawn through `spawn_monster`, `spawn_named` or `TrapBundle::from_def`.
+6. Many at once: `spawn_list`, which tracks occupancy.
+7. Loot as the dungeon rolls it: `roll_item(world, &mut rng, depth, pos)`.
+8. Run `cargo test --test content` and `cargo test --test determinism`.
 
 
 See also

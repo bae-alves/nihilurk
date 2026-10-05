@@ -276,6 +276,42 @@ fn aggravation_survives_a_save_and_an_old_save_still_loads() {
     assert_eq!(found, vec![(3, 4), (7, 8)]);
 }
 
+/// A caster spends the Ma a spell costs, and a dry one goes back to its claws:
+/// the wild dragon's fireball is a spell like the player's, not a free trick.
+#[test]
+fn a_wild_dragon_pays_for_its_fireball_and_runs_dry() {
+    let mut w = test_world(9);
+    let p = player(&mut w);
+    w.get_mut::<Fighter>(p).unwrap().hp = 10_000;
+    w.get_mut::<Fighter>(p).unwrap().max_hp = 10_000;
+    let at = east_of_player(&mut w, 3);
+    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), at);
+    let cost = SpellDef::of(SpellEffect::DragonBreath).cost;
+    // Exactly one fireball's worth.
+    *w.get_mut::<Magic>(dragon)
+        .expect("a dragon is born with a Magic pool") = Magic {
+        points: cost,
+        max_points: cost,
+    };
+    run_visibility(&mut w);
+    w.resource_mut::<GameLog>().history.clear();
+    ai(&mut w);
+    assert!(
+        logged(&w, &strings::breathe_fire_mob("dragon")),
+        "the dragon did not breathe with the Ma to do it"
+    );
+    assert_eq!(w.get::<Magic>(dragon).unwrap().points, 0);
+
+    w.resource_mut::<GameLog>().history.clear();
+    for _ in 0..12 {
+        ai(&mut w);
+    }
+    assert!(
+        !logged(&w, &strings::breathe_fire_mob("dragon")),
+        "the dragon breathed fire on no Ma"
+    );
+}
+
 /// The eel's lightning is picked from its spellset like any other spell, and
 /// the bolt has to land on the player, which a spell written for the player to
 /// cast never had to manage.
@@ -287,12 +323,15 @@ fn a_wild_eel_answers_with_lightning_that_finds_the_player() {
     w.get_mut::<Fighter>(p).unwrap().max_hp = 10_000;
     let at = east_of_player(&mut w, 3);
     let eel = monster::plain_monster(&mut w, "eel", at);
-    lend(
-        &mut w,
-        eel,
-        Grant::of::<LightningBreath>(),
-        Lifetime::Permanent,
-    );
+    w.entity_mut(eel).insert((
+        Spellset {
+            slots: vec![SpellEffect::Thunderbolt],
+        },
+        Magic {
+            points: 1,
+            max_points: 1,
+        },
+    ));
     run_visibility(&mut w);
     ai(&mut w);
     assert!(

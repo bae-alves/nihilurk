@@ -52,7 +52,7 @@ Both switch to their rule set the moment they stand in view. "The player's view"
 | `pinned` | `bool` | `Pinned`, `Rooted` or `Clamped`: strikes, but never steps or shoots. |
 | `swims` | `bool` | Deep water is floor to it. |
 | `launcher` | `bool` | A launcher is drawn in its hand. |
-| `spellset` | `Vec<SpellEffect>` | Every `INNATE_SPELLS` row whose grant it carries, then any `Spellset` of its own. |
+| `spellset` | `Vec<SpellEffect>` | Each spell in its `Spellset` that its `Magic` can pay for. |
 | `roll` | `u32` | A die rolled for this turn (`getrandom`, not the seed's `GameRng`). |
 | `helper` | `bool` | It is the player's `Helper`. |
 | `ally` | `bool` | Its `Faction` is `Ally`: its spells never go where they would catch the player. |
@@ -122,7 +122,8 @@ Where the pieces live
 |---|---|
 | `Percept`, `Action`, `Rule`, `RuleSet`, the rules, the sets, `think`, `rule_set_for` | `models/src/agents.rs` |
 | `perceive`, `act`, the gates, energy and rounds | `models/src/ai.rs` |
-| `INNATE_SPELLS` (which grant is which spell) | `models/src/abilities.rs` |
+| `MonsterDef::casts` (a species' spells and Ma) | `models/src/monsters.rs` |
+| `can_afford_spell`, `pay_for_spell` | `models/src/items/spells.rs` |
 | `Aggravated` | `models/src/components.rs` |
 | `blast_cells` | `models/src/items/wands.rs` |
 

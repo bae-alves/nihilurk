@@ -33,7 +33,7 @@
 //! A trap only *bites* something standing on it. Set one off from across the
 //! room — put a missile on its tile, or wash a wand's blast over it — and it
 //! has nobody to bite, so the whole mechanism lets go at once instead:
-//! [`detonate_trap`] bursts it over the 3×3 around the tile, armour-ignoring,
+//! [`detonate_trap`] bursts it over [`TRICK_SHOT_RADIUS`] tiles around it, armour-ignoring,
 //! and works the trap's own effect on everyone caught. It is nobody's friend;
 //! stand a tile away from your own shot and it catches you too.
 //!
@@ -66,9 +66,11 @@
 //! subtract its flat bonus — "armour plus", i.e. `armor_bonus` plus any equipped
 //! suit's `arm_bonus` (see [`crate::helpers::total_armor_plus`]).
 //!
-//! Their bite also scales with depth, in three tiers ending at floors 4, 8 and
-//! 13: each tier adds a point to the arrow trap's roll and a point to the dart
-//! trap's permanent power drain. The dials are [`crate::constants::traps`].
+//! Their bite also scales with depth, in tiers that end at
+//! [`TRAP_DAMAGE_TIER_LAST_DEPTH`]:
+//! each tier adds [`ARROW_DAMAGE_PER_TIER`] to the arrow trap's roll and
+//! [`DART_POWER_DRAIN_PER_TIER`] to the dart trap's permanent power drain. The
+//! dials are [`crate::constants::traps`].
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
@@ -122,9 +124,13 @@ impl TrapEffect {
 /// of [`apply_trap_effect`] and [`trap_flourish`]. See
 /// `docs/how-to/add-a-trap.md`.
 pub struct TrapDef {
+    /// The [`TrapEffect`] this row is the entry for.
     pub effect: TrapEffect,
+    /// The row's identity, and what the trap is called.
     pub name: &'static str,
+    /// The character it draws as once known.
     pub glyph: char,
+    /// The colour it draws in.
     pub color: Color,
     /// How often the dungeon lays this one relative to the others it could lay.
     /// Ten is the baseline (see [`crate::spawn::pick_weighted`]).
@@ -242,10 +248,15 @@ pub fn player_incapacitated(world: &mut World) -> bool {
 /// pickable — and starts [`Hidden`] regardless of reveal style.
 #[derive(Bundle)]
 pub struct TrapBundle {
+    /// What the trap is called.
     pub name: Name,
+    /// How it draws once revealed.
     pub glyph: Renderable,
+    /// The tile it lies on.
     pub position: Position,
+    /// The trap itself: effect, reveal style and whether it is known.
     pub trap: Trap,
+    /// Every trap starts hidden, whatever its reveal style.
     pub hidden: Hidden,
 }
 
@@ -275,21 +286,27 @@ impl TrapBundle {
         Self::from_def(TrapDef::of(effect), reveal, position)
     }
 
+    /// A trapdoor at `position`, revealed by sight.
     pub fn trapdoor(position: Position) -> Self {
         Self::new(TrapEffect::Trapdoor, TrapReveal::Sight, position)
     }
+    /// A bear trap at `position`, revealed by sight.
     pub fn bear(position: Position) -> Self {
         Self::new(TrapEffect::Bear, TrapReveal::Sight, position)
     }
+    /// A sleeping-gas trap at `position`, revealed by sight.
     pub fn sleep(position: Position) -> Self {
         Self::new(TrapEffect::Sleep, TrapReveal::Sight, position)
     }
+    /// A teleport trap at `position`, revealed by sight.
     pub fn teleport(position: Position) -> Self {
         Self::new(TrapEffect::Teleport, TrapReveal::Sight, position)
     }
+    /// An arrow trap at `position`, revealed by sight.
     pub fn arrow(position: Position) -> Self {
         Self::new(TrapEffect::Arrow, TrapReveal::Sight, position)
     }
+    /// A poisoned-dart trap at `position`, revealed by sight.
     pub fn dart(position: Position) -> Self {
         Self::new(TrapEffect::Dart, TrapReveal::Sight, position)
     }
@@ -341,10 +358,10 @@ fn actor_label(world: &World, entity: Entity) -> String {
     if world.get::<Player>(entity).is_some() {
         return "you".to_string();
     }
-    world
-        .get::<Name>(entity)
-        .map(|n| strings::the(&n.what))
-        .unwrap_or_else(|| "something".to_string())
+    match world.get::<Name>(entity) {
+        Some(_) => strings::the(&crate::helpers::item_label(world, entity)),
+        None => "something".to_string(),
+    }
 }
 
 /// The trap sitting on `pos`, if there is one. At most one trap is ever laid
@@ -518,7 +535,8 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
 /// The other thing on a floor worth shooting: a coin.
 ///
 /// A pickup has no mechanism to let go, so what goes off is the shot itself —
-/// which is why it covers [`PICKUP_TRICK_SHOT_RADIUS`], twice a trap's reach.
+/// which is why it covers [`PICKUP_TRICK_SHOT_RADIUS`], wider than a trap's
+/// [`TRICK_SHOT_RADIUS`].
 /// And `shooter` **gets the coin's effect**, across the room, before the burst
 /// rolls out: a red coin heals whoever shot it, a gold one pays them, a
 /// platinum one makes them its promise. That is the whole appeal — a coin you
@@ -778,9 +796,13 @@ pub fn detonate_at(world: &mut World, pos: Position, shooter: Option<Entity>) ->
 /// `crate::items::throw_system`'s business — this only says what happened.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TrickShot {
+    /// A trap the player already knew about went off.
     Trap,
+    /// A coin or other pickup went off, paying its effect to the shooter.
     Pickup,
+    /// A potion on the floor shattered over the area around it.
     Potion,
+    /// The Element of Yoord answered with its burst. It survives.
     Ultimate,
 }
 
@@ -858,7 +880,7 @@ fn trap_spark(world: &mut World, trap_pos: Option<Position>) {
     }
 }
 
-fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: bool) {
+pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: bool) {
     if !is_player {
         if seen {
             let who = actor_label(world, victim);

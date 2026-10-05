@@ -40,8 +40,8 @@ pub mod combat {
     pub const EXCELLENT_HIT_CHANCE: f64 = 0.15;
 
     /// How many weapon dice an excellent hit rolls: `1d[power]` becomes
-    /// `Nd[power]`, summed, *before* armour is subtracted. At 3 a lucky swing
-    /// roughly triples its ceiling.
+    /// `Nd[power]`, summed, *before* armour is subtracted. The more dice, the
+    /// higher a lucky swing's ceiling.
     pub const EXCELLENT_HIT_DICE: i32 = 3;
 
     /// The floor under a player's swing: even when the armour roll eats the
@@ -52,7 +52,7 @@ pub mod combat {
     /// so raising this does not let chip damage finish things, only speeds the
     /// grind. Monsters have no such floor: a monster that cannot beat your
     /// armour simply cannot hurt you, and that asymmetry is why armour is worth
-    /// wearing. Leave at 1 unless you are re-teaching that lesson.
+    /// wearing. Leave it at its minimum unless you are re-teaching that lesson.
     pub const CHIP_DAMAGE: i32 = 1;
 
     /// The odds that any one piece of a dead creature's gear survives to be
@@ -81,7 +81,7 @@ pub mod combat {
 /// a run in progress.
 pub mod player {
     /// Starting (and maximum) hit points. The whole bestiary is tuned against a
-    /// 12-HP player — see `combat-and-balance.md` — so raising this quietly
+    /// player on this much HP — see `combat-and-balance.md` — so raising this quietly
     /// makes the early floors safer across the board. There is no level-up:
     /// this is the number for the whole run, bar potions of raise level.
     pub const START_HP: i32 = 12;
@@ -121,11 +121,10 @@ pub mod player {
 /// eaten. Less meat and less magic than nihil to pay for the technique it is
 /// born with (see `crate::body::wear_lurk`).
 pub mod lurk {
-    /// Starting (and maximum) hit points. Two-thirds of [`super::player::START_HP`].
+    /// Starting (and maximum) hit points. Well under [`super::player::START_HP`].
     pub const START_HP: i32 = 6;
 
-    /// Starting (and maximum) magic points. Enough for two Bides and nothing
-    /// else until it grows.
+    /// Starting (and maximum) magic points. Little to spend until it grows.
     pub const START_MAGIC: u8 = 1;
 
     /// Starting attack die (`1d[power]`) — its claws, and no weapon will ever
@@ -136,9 +135,8 @@ pub mod lurk {
     /// add to it.
     pub const START_ARMOR: i32 = 2;
 
-    /// Odds that one corpse feeds the lurk, rolled per death. Roughly one
-    /// kill in seven, which is about a floor's worth at the depths a lurk
-    /// survives — but rolled rather than counted, so a growth is something
+    /// Odds that one corpse feeds the lurk, rolled per death. Rolled rather
+    /// than counted, so a growth is something
     /// that *happens* to a hunt and never something to count down to.
     pub const GROWTH_CHANCE: f64 = 0.15;
 
@@ -157,8 +155,8 @@ pub mod progression {
     ///
     /// **If you change this:** the Element-of-Yoord placement and the
     /// staircase-inversion logic key off it automatically, but
-    /// `docs/reference/content-tables.md` and `gdd.md` name "depth 13" in prose
-    /// and would need a pass. Monster/trap `min_depth` values in the catalog
+    /// `docs/reference/content-tables.md` and `gdd.md` name the final depth in
+    /// prose and would need a pass. Monster/trap `min_depth` values in the catalog
     /// are relative to 1, not to this, so deep content still appears — just
     /// with fewer floors to spread over.
     pub const FINAL_DEPTH: u8 = 13;
@@ -179,9 +177,9 @@ pub mod progression {
 
     /// The last floor of each floor-crowding tier below the deepest one. The
     /// monster and trap *budgets* (`constants::population`, spent in `map.rs`)
-    /// gain a slot and widen their fill odds at each of these depths. `[3, 6,
-    /// 9, 12]` against a 13-floor dungeon gives five tiers spanning depths 1-3,
-    /// 4-6, 7-9, 10-12, and 13 alone — the deepest floor its own hardest band.
+    /// gain a slot and widen their fill odds at each of these depths. Each entry
+    /// closes a tier, and the floors after the last entry, up to
+    /// [`FINAL_DEPTH`], are the hardest band.
     ///
     /// The damage traps scale on their own, coarser bands
     /// ([`crate::constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`]).
@@ -269,8 +267,8 @@ pub mod map {
 // ===========================================================================
 
 /// The monster, trap and item budgets a floor spends when it is populated.
-/// Everything here scales with `map::difficulty_tier(depth)` — `0` through `4`,
-/// stepping at [`crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH`] —
+/// Everything here scales with `map::difficulty_tier(depth)` — `0` up to the
+/// hardest band, stepping at [`crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH`] —
 /// so the dungeon gets nastier in bands as you descend.
 pub mod population {
     /// Monster slots on floor 1, before the per-tier bonus. The first slot
@@ -327,6 +325,28 @@ pub mod population {
     /// start room every other floor already has. Raise it for a gentler
     /// arrival.
     pub const START_CLEARING_RADIUS: u16 = 4;
+
+    /// How many times a floor with no special level (and the labyrinth, castle
+    /// and island, which promise no crowd) runs each of the monster and item
+    /// budgets: once, the ordinary floor.
+    pub const ORDINARY_BUDGET_RUNS: usize = 1;
+
+    /// A battlefield runs the monster budget this many times: one lit room, all
+    /// of it in view, so it needs the crowd to be a fight at all.
+    pub const BATTLEFIELD_MONSTER_RUNS: usize = 2;
+
+    /// A battlefield runs the item budget this many times.
+    pub const BATTLEFIELD_ITEM_RUNS: usize = 2;
+
+    /// A vault runs the monster budget this many times.
+    pub const VAULT_MONSTER_RUNS: usize = 2;
+
+    /// A vault runs the item budget this many times: the haul is the point.
+    pub const VAULT_ITEM_RUNS: usize = 3;
+
+    /// A bee world runs the item budget this many times (its monster budget
+    /// runs once per difficulty tier instead).
+    pub const BEE_WORLD_ITEM_RUNS: usize = 3;
 }
 
 // ===========================================================================
@@ -341,9 +361,8 @@ pub mod population {
 pub mod traps {
     /// The last floor of each damage tier below the deepest. Coarser than the
     /// floor-crowding bands
-    /// ([`crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH`]): `[4,
-    /// 8]` gives three tiers — depths 1-4, 5-8, 9-13 — so the arrow and dart
-    /// step up three times over a run, not four. Read by
+    /// ([`crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH`]), so the
+    /// arrow and dart step up fewer times over a run. Read by
     /// `traps::trap_damage_tier`.
     pub const TRAP_DAMAGE_TIER_LAST_DEPTH: [u8; 2] = [4, 8];
 
@@ -355,8 +374,7 @@ pub mod traps {
     /// See [`ARROW_DAMAGE_DICE`].
     pub const ARROW_DAMAGE_BONUS: i32 = 1;
 
-    /// Added to an arrow trap's damage roll for each depth tier past the first
-    /// (tier 0: +0, tier 1: +1, tier 2: +2).
+    /// Added to an arrow trap's damage roll for each depth tier past the first.
     pub const ARROW_DAMAGE_PER_TIER: i32 = 1;
 
     /// A dart trap's hit rolls `DART_DAMAGE_DICE d DART_DAMAGE_SIDES` before
@@ -366,8 +384,7 @@ pub mod traps {
     pub const DART_DAMAGE_SIDES: i32 = 1;
 
     /// Permanent melee power a dart trap drains on a hit in the first depth
-    /// tier; each deeper tier drains [`DART_POWER_DRAIN_PER_TIER`] more (tier 0:
-    /// 1, tier 1: 2, tier 2: 3). Floored so `power` never drops below 1, and
+    /// tier; each deeper tier drains [`DART_POWER_DRAIN_PER_TIER`] more. Floored so `power` never drops to nothing, and
     /// negated entirely by a ring of strength.
     pub const DART_POWER_DRAIN_BASE: i32 = 1;
     /// See [`DART_POWER_DRAIN_BASE`].
@@ -426,7 +443,7 @@ pub mod potions {
     /// nothing else raises it.
     pub const HEALING_MAX_HP_GAIN: i32 = 1;
 
-    /// A potion of extra healing does the same, three times over.
+    /// A potion of extra healing does the same, for more.
     pub const EXTRA_HEALING_MAX_HP_GAIN: i32 = 3;
 
     /// A potion of gain strength adds this to the drinker's attack die, floor
@@ -496,10 +513,28 @@ pub mod scrolls {
 /// Charges, damage dice, and the two blast radii. The wand *table* (which wand
 /// is which colour, which range, which effect) is data in `catalog.rs`.
 pub mod wands {
+    /// The odds that polymorphing something already [`Polymorphed`] is a system
+    /// shock instead: it comes apart (a monster dies in a burst of gore; the
+    /// player is left on 1 HP). Otherwise it settles into a chimeric form.
+    ///
+    /// [`Polymorphed`]: crate::effects::Polymorphed
+    pub const SYSTEM_SHOCK_CHANCE: f64 = 0.5;
+
+    /// How many times a system shock splashes the gore, and how hard each
+    /// splash is: `spill_blood`'s droplets and reach stop growing at a cap, and
+    /// this sits at or above it, so each splash is the heaviest there is.
+    pub const SHOCK_SPLASHES: u32 = 3;
+    /// The damage each splash is drawn at; see [`SHOCK_SPLASHES`].
+    pub const SHOCK_GORE_DAMAGE: i32 = 40;
+
     /// Every wand enters the dungeon fully charged. Charges are never shown
     /// to the player, so the number is pure gameplay balance, not a hidden
     /// roll to identify.
     pub const WAND_CHARGES: i8 = 6;
+
+    /// How far, in tiles, a wand of digging bores along the aim, however
+    /// near the tile the reticle is on.
+    pub const DIG_RANGE: i32 = 8;
 
     /// A *zapped* attack wand deals `DAMAGE_DICE d DAMAGE_SIDES`,
     /// armour-ignoring, rolled once and applied whole to everyone it touches.
@@ -554,7 +589,8 @@ pub mod loot {
     /// `docs/reference/content-tables.md` is prose — update it too.
     pub const NORMAL_QUALITY_PCT: i32 = 25;
 
-    /// Percent chance a gear drop is exceptional — a clean `+1..+3`. See
+    /// Percent chance a gear drop is exceptional — a clean bonus in
+    /// [`EXCEPTIONAL_BONUS_MIN`]..=[`EXCEPTIONAL_BONUS_MAX`]. See
     /// [`NORMAL_QUALITY_PCT`].
     pub const EXCEPTIONAL_QUALITY_PCT: i32 = 10;
 
@@ -596,8 +632,8 @@ pub mod items {
     pub const LIGHT_THROW_RANGE: i32 = 6;
 
     /// How far ammunition carries when it is *loosed* rather than lobbed — an
-    /// arrow from a bow, a quarrel from a crossbow. Twice the arm behind it,
-    /// which is the whole reason to carry the stick.
+    /// arrow from a bow, a quarrel from a crossbow. Further than the arm alone
+    /// carries it, which is the whole reason to carry the stick.
     pub const LAUNCHER_RANGE: i32 = 8;
 
     /// The most one pack slot will hold before the overflow spills into a
@@ -609,10 +645,10 @@ pub mod items {
     /// a pass.
     pub const STACK_LIMIT: u8 = 13;
 
-    /// The most inventory slots a pack will hold at once. Nine stops the row
-    /// letters at `i`, one short of the `j` and `k` the pack menu reserves for
-    /// down and up — raise it past 9 and those two rows become unreachable by
-    /// letter, since `navigate_pack` reads the direction first.
+    /// The most inventory slots a pack will hold at once. It has to stop short of
+    /// the `j` and `k` rows the pack menu reserves for down and up: raise it
+    /// past that and those two rows become unreachable by letter, since
+    /// `navigate_pack` reads the direction first.
     pub const PACK_CAPACITY: usize = 9;
 }
 
@@ -625,9 +661,9 @@ pub mod items {
 /// row in `catalog.rs`. See `models/src/items/rings.rs`.
 pub mod rings {
     /// How close a stealthy player has to be before anything on the floor
-    /// notices them, in tiles (Chebyshev — a diagonal counts as one). At 1 a
-    /// ring of stealth makes you effectively untouchable outside melee; much
-    /// past 3 and it stops changing how a room plays.
+    /// notices them, in tiles (Chebyshev — a diagonal counts as one). Set it
+    /// small and a ring of stealth makes you effectively untouchable outside
+    /// melee; set it large and it stops changing how a room plays.
     pub const STEALTH_RANGE: i32 = 3;
 
     /// Magic points one deliberate teleport costs a wearer of the ring of
@@ -648,9 +684,9 @@ pub mod score {
     pub const KILL_PER_MAX_HP: i32 = 100;
 
     /// What each corpse past the first adds to a turn's kill score, as a
-    /// fraction of the whole pile: at `0.5`, two in one turn pay 1.5x and
-    /// three pay 2x — applied to the turn's kills together, not to the last one
-    /// alone. This is the dial that decides whether a thrown wand is worth more
+    /// fraction of the whole pile: the turn's kills are multiplied by one plus
+    /// this for each extra corpse, applied to the kills together, not to the
+    /// last one alone. This is the dial that decides whether a thrown wand is worth more
     /// than the same six kills one at a time.
     pub const COMBO_BONUS_PER_KILL: f32 = 0.5;
 
@@ -664,14 +700,14 @@ pub mod score {
     /// and diving outscores clearing; lower it and the reverse.
     pub const STAIR_PER_TIER: i32 = 500;
 
-    /// Turns a payment stays lit on the scorekeeper. Two is one full frame of
-    /// screen time: the flash is aged at the tail of the turn it was armed in,
+    /// Turns a payment stays lit on the scorekeeper. The default is one full
+    /// frame of screen time: the flash is aged at the tail of the turn it was armed in,
     /// shown by that turn's render, and dark by the player's next action.
     pub const SCORE_FLASH_TURNS: u8 = 2;
 
     /// The kill-score multiplier a creature carrying
     /// [`crate::effects::ScoreBounty`] pays out — the apis guarding a
-    /// treasure hive is worth five ordinary rattlesnakes.
+    /// treasure hive is worth several ordinary rattlesnakes.
     pub const BOUNTY_SCORE_MULTIPLIER: i32 = 5;
 }
 
@@ -697,12 +733,16 @@ pub mod monsters {
     /// The ice monster's odds, on a blow that lands, of paralysing what it hit.
     pub const ICE_MONSTER_PARALYZE_CHANCE: f64 = 3.0 / 6.0;
 
+    /// The lowest of the three chances a bestiary row hands its
+    /// [`EquipRoll`](crate::monsters::EquipRoll)s.
     pub const NORMAL_GEAR_CHANCE: f64 = 0.30;
+    /// The middle gear chance, for a species that is more often armed.
     pub const HIGH_GEAR_CHANCE: f64 = 0.60;
+    /// The highest gear chance, for a species that is armed nearly every time.
     pub const ULTIMATE_GEAR_CHANCE: f64 = 0.90;
 
     /// How many points of base power a rattlesnake's bite drains — permanently,
-    /// and unlike the dart trap's, with no floor of 1: a rattlesnake can drive a
+    /// and unlike the dart trap's, with no floor: a rattlesnake can drive a
     /// victim's power negative.
     pub const RATTLESNAKE_POWER_DRAIN: i32 = 1;
 
@@ -725,18 +765,47 @@ pub mod spirits {
     /// good.
     pub const ALIGNMENT_POLE: i8 = 3;
 
+    /// The odds, per piece of gear the pink demon destroyed, that they join
+    /// you as your Helper. Enough pieces make it certain.
+    pub const PINK_DEMON_ODDS_PER_PIECE: f64 = 0.25;
+
+    /// What the red demon charges for one piece of gear, in Max HP. Paying
+    /// your last Max HP kills you.
+    pub const RED_DEMON_GEAR_PRICE: i32 = 3;
+
+    /// What the gnome charges, in Max Ma: a scroll, a potion, a wand.
+    pub const GNOME_SCROLL_PRICE: u8 = 1;
+    /// What the gnome charges for a potion, in Max Ma.
+    pub const GNOME_POTION_PRICE: u8 = 1;
+    /// What the gnome charges for a wand, in Max Ma.
+    pub const GNOME_WAND_PRICE: u8 = 2;
+
     /// The spawn weight every spirit row gets: an eighth of an ordinary
     /// monster's default ([`crate::constants::monsters::DEFAULT_SPAWN_WEIGHT`]).
     pub const SPAWN_WEIGHT: u32 = crate::constants::monsters::DEFAULT_SPAWN_WEIGHT / 8;
 
-    /// Odds, when a row with [`crate::monsters::MonsterDef::pairs_companion`]
-    /// spawns, that it also brings two of its companion along.
-    pub const PAIR_CHANCE: f64 = 0.3;
-
     /// How many things a barterer lays on the table: the yellow demon's
     /// pack, the sphynx's spells. Inclusive on both ends.
     pub const BARTER_STOCK_MIN: usize = 2;
+    /// The most things a barterer lays out; see [`BARTER_STOCK_MIN`].
     pub const BARTER_STOCK_MAX: usize = 4;
+
+    /// How far one spirit's poof moves [`crate::components::Alignment`]: toward
+    /// the cacodaemon pole for a demon, toward the eudaemon pole for an angel
+    /// or kin.
+    pub const ALIGNMENT_STEP: i8 = 1;
+
+    /// The angel's test of faith takes the player's current HP down by this
+    /// divisor (never below one point), on top of cancelling every effect.
+    pub const TEST_OF_FAITH_HP_DIVISOR: i32 = 2;
+
+    /// What the test of faith pays off with on the weapon and the armour: a
+    /// flat enchantment, and the curse lifted.
+    pub const TEST_OF_FAITH_GEAR_BONUS: i32 = 3;
+
+    /// What a dud equipped item (no enchantment at all) rerolls to when the test
+    /// of faith pays off.
+    pub const TEST_OF_FAITH_DUD_BONUS: i32 = 1;
 }
 
 // ===========================================================================
@@ -748,6 +817,10 @@ pub mod helpers {
     /// The odds a creature accepts the right treat and becomes your Helper.
     /// The treat is eaten either way.
     pub const ACCEPT_CHANCE: f64 = 0.5;
+
+    /// The odds a kill turns a [`crate::effects::ShapeshiftOnKill`] creature
+    /// into another monster.
+    pub const SHAPESHIFT_CHANCE: f64 = 0.10;
 
     /// Scroll of create monster: the odds the creature conjured arrives
     /// already charmed, as a plain ally. Rolled against the same draw as
@@ -770,7 +843,7 @@ pub mod helpers {
 /// reaches for.
 pub mod spells {
     /// The most spells a [`crate::components::Spellset`] may ever hold — the
-    /// four rows `a`-`d` of the `Z` menu, and no fifth to reach for. A hero
+    /// rows of the `Z` menu, and no further row to reach for. A hero
     /// coin stops teaching once this is full.
     pub const SPELLSET_CAP: usize = 4;
 
@@ -783,7 +856,7 @@ pub mod spells {
 
     /// What that same staff multiplies the Attack's *damage* by, reaching
     /// every mechanic as `power_mult`. Deliberately above
-    /// [`TURBO_MAGIC_COST_MULT`]: a staff eats two-thirds of a starting
+    /// [`TURBO_MAGIC_COST_MULT`]: a staff eats most of a starting
     /// [`crate::constants::player::START_MAGIC`] pool per cast, so it has to
     /// give back more than it takes or nobody would wield one. Bring the two
     /// level and the staff becomes a strictly worse wand.
@@ -839,6 +912,10 @@ pub mod travel {
 
     /// Hard stop on a single fast-move (travel-to-cursor / run) invocation.
     pub const FAST_MOVE_STEP_CAP: u32 = 260;
+
+    /// Auto-fight refuses once the player's HP is at or below `max_hp` divided
+    /// by this. Kept as a divisor so the check stays in integer maths.
+    pub const AUTO_FIGHT_MIN_HP_DIVISOR: i32 = 4;
 }
 
 // ===========================================================================
@@ -860,4 +937,73 @@ pub mod hud {
     /// Wrap width for a log line in the "-- more --" backlog pager, which is
     /// inset from the edges.
     pub const LOG_MORE_WIDTH: usize = 56;
+
+    /// How many past message-log lines the scrollback keeps before the oldest
+    /// falls off.
+    pub const LOG_HISTORY_CAP: usize = 50;
+}
+
+// ===========================================================================
+// Passive abilities
+// ===========================================================================
+
+/// The odds and the step behind the abilities that act by themselves (the
+/// `ABILITIES` table in `crate::abilities`). The effect markers carry no
+/// numbers; the table row names one of these.
+pub mod abilities {
+    /// A ring of aggravate monster: the odds, on each turn its bearer acts, that
+    /// everything on the floor learns where they are.
+    pub const AGGRAVATES_MONSTERS_CHANCE: f64 = 0.10;
+
+    /// A ring of regeneration: the odds, on each turn its bearer acts, that it
+    /// tries to mend something.
+    pub const REGENERATES_CHANCE: f64 = 0.50;
+
+    /// Rogue's teleportitis, at NetHack's odds, per turn the bearer acts. The
+    /// jump lands at the top of their next turn.
+    pub const TELEPORTITIS_CHANCE: f64 = 1.0 / 85.0;
+
+    /// A ring of polymorph: the odds, per turn the bearer acts, that it turns
+    /// them into something else.
+    pub const POLYMORPHITIS_CHANCE: f64 = 1.0 / 83.0;
+
+    /// What each landed hit of a rapier (or a lurk's own technique) adds to
+    /// [`crate::effects::Momentum`].
+    pub const MOMENTUM_PER_HIT: i32 = 2;
+}
+
+// ===========================================================================
+// Conditions
+// ===========================================================================
+
+/// What the afflictions cost. Paralysis has its own dial in
+/// [`potions`](super::potions); confusion's lives here.
+pub mod conditions {
+    /// While the player is confused, the odds that any one step goes off in a
+    /// random direction instead of the intended one.
+    pub const CONFUSION_STUMBLE_CHANCE: f64 = 0.5;
+}
+
+// ===========================================================================
+// Speed
+// ===========================================================================
+
+/// The tempo scale: energy banked per player turn by each
+/// [`SpeedKind`](crate::components::SpeedKind), and what one action costs. How
+/// often a creature acts is its rate against the cost.
+pub mod speed {
+    /// Energy a `Slow` creature banks per player turn.
+    pub const SLOW_RATE: i32 = 1;
+
+    /// Energy a `Normal` creature banks per player turn. The reference tempo.
+    pub const NORMAL_RATE: i32 = 2;
+
+    /// Energy a `Quick` creature banks per player turn: the lurk's tempo.
+    pub const QUICK_RATE: i32 = 3;
+
+    /// Energy a `Fast` creature banks per player turn.
+    pub const FAST_RATE: i32 = 4;
+
+    /// What one action costs, in the same units.
+    pub const ACTION_COST: i32 = 2;
 }

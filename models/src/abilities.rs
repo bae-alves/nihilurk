@@ -29,14 +29,14 @@ use rand::Rng;
 use crate::combat::resolve_attack;
 use crate::components::{
     Backpack, Curse, EntityMoved, ExtraMonsterRound, Fighter, GameLog, Mob, Player, Position,
-    SpellEffect, TrapEffect,
+    TrapEffect,
 };
 use crate::conditions::snare;
 use crate::effects::{
     AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Clamped, ClampedBy, Cleaves,
-    ConfusingTouch, FireBreath, Freezing, Gorgon, Grant, HeavySwing, LightningBreath, MagicWard,
-    Momentum, Petrified, Regenerates, RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees,
-    StealsAndVanishes, Teleportitis, ThrowsWands, Vampiric, Venomous,
+    ConfusingTouch, Freezing, Gorgon, Grant, HeavySwing, MagicWard, Momentum, Petrified,
+    Polymorphitis, Regenerates, RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees,
+    StealsAndVanishes, Teleportitis, Vampiric, Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
 use crate::helpers::{adjacent_mobs, apply_damage, item_label};
@@ -44,6 +44,10 @@ use crate::map::GameRng;
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `constants.rs`.
+use crate::constants::abilities::{
+    AGGRAVATES_MONSTERS_CHANCE, MOMENTUM_PER_HIT, POLYMORPHITIS_CHANCE, REGENERATES_CHANCE,
+    TELEPORTITIS_CHANCE,
+};
 use crate::constants::monsters::{
     ICE_MONSTER_PARALYZE_CHANCE, RATTLESNAKE_POWER_DRAIN, VAMPIRE_MAX_HP_DRAIN,
 };
@@ -64,7 +68,12 @@ pub enum Moment {
     /// does a glancing scrape count (acid says yes, a charm that needs skin
     /// says no), and does the killing blow count (there is no point charming
     /// a corpse).
-    OnHit { glancing: bool, lethal: bool },
+    OnHit {
+        /// Whether a glancing scrape counts.
+        glancing: bool,
+        /// Whether the killing blow counts.
+        lethal: bool,
+    },
     /// Every turn its bearer acts, at these odds.
     EachTurn(f64),
     /// The bearer was hurt and lived. Fires from `helpers::took_damage`, which
@@ -87,6 +96,7 @@ pub struct Ability {
     /// The marker that arms this. On the **attacker** for [`Moment::OnHit`],
     /// on the bearer for everything else.
     pub effect: Grant,
+    /// The moment it fires, and the gating that moment carries.
     pub when: Moment,
     /// The player's alone. Every weapon trick in this file is: a monster that
     /// steals, catches or spawns wielding an estoc still fights the plain way.
@@ -181,26 +191,34 @@ pub const ABILITIES: &[Ability] = &[
     // --- every turn ------------------------------------------------------
     Ability {
         effect: Grant::of::<AggravatesMonsters>(),
-        when: Moment::EachTurn(0.10),
+        when: Moment::EachTurn(AGGRAVATES_MONSTERS_CHANCE),
         player_only: false,
         action: |w, e, _| crate::items::aggravate_all_monsters(w, e),
         flavour: Some(strings::flavour_aggravates()),
     },
     Ability {
         effect: Grant::of::<Regenerates>(),
-        when: Moment::EachTurn(0.50),
+        when: Moment::EachTurn(REGENERATES_CHANCE),
         player_only: false,
         action: |w, e, _| crate::items::regenerate(w, e),
         flavour: Some(strings::flavour_regenerates()),
     },
-    // Rogue's teleportitis, at NetHack's odds: 1 in 85 turns, and the jump
-    // lands at the top of the bearer's next turn (see `ability_system`).
+    // Rogue's teleportitis, at NetHack's odds, and the jump lands at the top of
+    // the bearer's next turn (see `ability_system`).
     Ability {
         effect: Grant::of::<Teleportitis>(),
-        when: Moment::EachTurn(1.0 / 85.0),
+        when: Moment::EachTurn(TELEPORTITIS_CHANCE),
         player_only: false,
         action: |w, e, _| crate::items::teleportitis(w, e),
         flavour: Some(strings::flavour_teleportitis()),
+    },
+    // The ring of polymorph.
+    Ability {
+        effect: Grant::of::<Polymorphitis>(),
+        when: Moment::EachTurn(POLYMORPHITIS_CHANCE),
+        player_only: false,
+        action: |w, e, _| crate::items::polymorphitis(w, e),
+        flavour: Some(strings::flavour_polymorphitis()),
     },
     // --- hurt and lived --------------------------------------------------
     // The slime's split. It used to be a hardcoded line in
@@ -218,34 +236,6 @@ pub const ABILITIES: &[Ability] = &[
         |w, seen, looker| looker.is_some_and(|looker| medusa_gaze(w, looker, seen)),
     ),
 ];
-
-/// The spell a born-with grant *is*.
-///
-/// A dragon's breath is the catalog's `Fireball` whether a dragon breathes it
-/// at the player or a dragon-bodied player casts it at a dragon — one
-/// mechanic, one row in [`crate::catalog::SPELLS`], two ways in. This table
-/// is the pairing, and it buys three things at once: it is a monster's
-/// spellset, which its rule set picks from ([`crate::agents`]),
-/// [`crate::monsters::wear_monster`] puts it in the spell bar of a player born
-/// with the grant, and [`crate::items::spell_cost`] charges nothing for it.
-///
-/// Zero, because the grant *is* the licence: a monster has no [`Magic`] to
-/// spend and never did, so innate magic that costs magic points would simply
-/// never fire.
-pub const INNATE_SPELLS: &[(Grant, SpellEffect)] = &[
-    (Grant::of::<FireBreath>(), SpellEffect::DragonBreath),
-    (Grant::of::<LightningBreath>(), SpellEffect::Thunderbolt),
-    (Grant::of::<ThrowsWands>(), SpellEffect::RandomWand),
-];
-
-/// Whether `caster` carries the grant that makes `effect` innate to them —
-/// asked by [`crate::items::spell_cost`], which makes it free, and by
-/// [`crate::monsters::wear_monster`], which hands it over.
-pub fn casts_innately(world: &World, caster: Entity, effect: SpellEffect) -> bool {
-    INNATE_SPELLS
-        .iter()
-        .any(|(grant, spell)| *spell == effect && grant.probe(world, caster))
-}
 
 /// A row anything can carry.
 const fn row(
@@ -360,7 +350,9 @@ fn build_momentum(world: &mut World, attacker: Entity, _target: Option<Entity>) 
     // itself the same way it folds one held by its gear.
     let holder = equipped_in(world, attacker, Slot::Hand).unwrap_or(attacker);
     let built = world.get::<Momentum>(holder).map_or(0, |m| m.0);
-    world.entity_mut(holder).insert(Momentum(built + 2));
+    world
+        .entity_mut(holder)
+        .insert(Momentum(built + MOMENTUM_PER_HIT));
     true
 }
 
@@ -410,7 +402,7 @@ fn freezing_touch(world: &mut World, _attacker: Entity, target: Option<Entity>) 
 }
 
 /// The rattlesnake's bite: [`RATTLESNAKE_POWER_DRAIN`] points of base power,
-/// permanently — like the dart trap's poison, but with no floor of 1, so a
+/// permanently — like the dart trap's poison, but with no floor, so a
 /// long enough fight can drive a victim's power negative. A ring of strength
 /// ([`SustainsStrength`]) shrugs it off exactly as it does the trap.
 ///

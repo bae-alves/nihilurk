@@ -99,9 +99,9 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 
 > **An id a save names and the build has no row for is dropped**, counted,
 > and reported to the player in one line at the end of the load. Losing one
-> property beats losing the run. This is what saving by name buys: with
-> positions, a retired row shifted every later effect in every save and
-> nothing could have told, because every index was still a valid index.
+> property beats losing the run. This is what saving by name buys: a saved
+> position would shift every later effect when a row retired, and nothing
+> could tell, because every index would still be a valid index.
 
 > **An effect missing from `EFFECTS` half-works.** It will attach, and it
 > will do its job for the rest of the session. It will not be saved, will
@@ -120,7 +120,7 @@ Most effects are answers to a question something else asks. Some act by themselv
 
     Ability {
         effect: Grant::of::<AggravatesMonsters>(),
-        when: Moment::EachTurn(0.10),
+        when: Moment::EachTurn(AGGRAVATES_MONSTERS_CHANCE),
         player_only: false,
         action: |w, e, _| crate::items::aggravate_all_monsters(w, e),
         flavour: Some("You yip! The whole floor turns your way."),
@@ -168,7 +168,7 @@ Rarer, and a bigger change, because a number has to be added *somewhere* specifi
    That row is the whole declaration. It gives you `pub struct
    SightBonus(pub i32)` implementing `Modifier`, a `Loadout.sight_bonus`
    field, and the line of `Loadout::absorb` that sums it -- so the
-   single-pass fold cannot be left holding five of your six modifiers.
+   single-pass fold cannot leave one of your modifiers out.
    The rows are the only place a modifier is named.
 
 2. Attach it from rows the way `ArmorBonus` is attached -- see `RingDef::armor_bonus` and `insert_modifier`, which skips a zero so an inert row costs nothing.
@@ -193,6 +193,13 @@ Rarer, and a bigger change, because a number has to be added *somewhere* specifi
 Modifiers are not in `EFFECTS`; they are saved as the values they are.
 
 
+An effect nothing can cancel
+---------------------------
+
+A wand of cancellation strips every effect except the ones listed in `IDENTITY_EFFECTS` (`models/src/effects.rs`). The lurk's body uses it, and so does every part of a dog. To make your effect one of them, add its stable id to that list. Nothing else changes: `revoke_all` puts the listed ids back with their ledger entry, so they are saved and still there after a reload.
+
+Use it for what a creature *is*, not for magic it merely has. A dragon's `FireImmune` stays cancellable on purpose, and a cancelled dragon loses it. Make a part uncancellable when taking it away would leave something that is no longer that creature: a dog that can be cancelled into an ordinary helper is not a dog.
+
 Verify
 ------
 
@@ -201,6 +208,21 @@ Verify
     NIHILURK_SPAWN="<a thing that grants it>" cargo run -p nihilurk
 
 If your effect should survive a reload, the test worth copying is in `models/tests/wands.rs`: the one named `cancellation_strips_the_magic_but_leaves_the_creature` exercises the grant / probe / revoke path end to end.
+
+
+Appendix: quick check
+---------------------
+
+1. Marker: add a unit struct deriving `Component, Default, Clone, Copy` in `models/src/effects.rs`.
+2. Add one `"stable_id" => Type` row to `EFFECTS`, and never rename the id later.
+3. Hand it out with `.grants(&[Grant::of::<Type>()])` on a monster, ring or launcher row.
+4. Read it with a `With<Type>` filter, `world.get::<Type>(e)`, or `grant.probe(world, e)`.
+5. Acts on its own: add one row to `ABILITIES` in `models/src/abilities.rs`, with its `Moment`.
+6. Fires once on wear: attach `OnWear` from the row.
+7. Number: add one row to `modifiers!`, attach it from rows, and read it with `equipped_total`.
+8. Nothing may cancel it: add its id to `IDENTITY_EFFECTS`.
+9. Run `cargo test`, spawn something that grants it, save, reload, and check it is still there.
+10. Fix the docs: one row in the `EFFECTS` table in `../reference/content-tables.md` (`update-the-docs.md`).
 
 
 See also
@@ -213,3 +235,4 @@ See also
   work-with-the-ecs.md             reaching the entity you want to change
   ../explanation/data-driven-content.md   why effects are components
   ../explanation/ecs-in-nihilurk.md    what a component is allowed to be
+  ../explanation/adr-0006-effects-saved-by-id.md   why an id, not a position

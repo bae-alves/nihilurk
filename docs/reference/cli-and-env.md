@@ -77,7 +77,7 @@ What it does not change is who you are. You keep the `@`'s side of the fight,
 your viewshed, your pack, your score and your magic points; `ai` never gets
 hold of you.
 
-Three consequences worth knowing before you pick a monster:
+Four consequences worth knowing before you pick a monster:
 
   * **You start with nothing.** The ring mail, mace, short bow, quiver and
     potion are *nihil's* kit.
@@ -85,10 +85,16 @@ Three consequences worth knowing before you pick a monster:
     own `ItemUser` mark -- the orc, hobgoblin, centaur, medusa, nymph,
     leprechaun, troll, vampire and ur-vile have hands; a dragon has claws and
     is told so when it tries.
-  * **Innate magic that is a spell lands in your spellset, free.** A dragon
-    knows Fireball at zero magic cost, because a dragon has no magic points
-    and never did. It is the same spell a hero coin teaches, cast through the
-    same reticle, and the dragons on floor 10 breathe it too.
+  * **A species' spells land in your spellset, and cost your Ma.** A dragon
+    knows Fireball, the same spell a hero coin teaches, cast through the
+    same reticle at the same price out of your own pool. The dragons on
+    floor 10 breathe it too, from a small pool of their own that never
+    refills.
+  * **The log tells you what you were born with.** One "You feel..." line
+    per grant the body carries, a spirit's two random boons included:
+    "You feel venomous." Tags the HUD already shows are not repeated.
+**Try `-am dragon`.** You start on floor 1 with Fireball in your spell bar
+and claws that hold no sword.
 
 **This will never be a balanced mode of play.** A floor-1 kestral and a
 floor-10 dragon are both one `-am` away, and nothing gates which one you're
@@ -105,7 +111,7 @@ A **body** cannot be cancelled. It is the creature the run is about, and no
 wand in the dungeon is a wand of being something else: a lurk stays a lurk,
 keeps its shape, and keeps the rule about rings.
 
-A **species** can. A player wearing a bestiary row keeps the shape and the
+A **species** can, apart from any part its row marks as an identity effect (the dog's five grants, see `content-tables.md`, "Identity effects"). A player wearing a bestiary row keeps the shape and the
 dice -- those are not effects at all -- but the magic is only on loan: a
 cancelled dragon-bodied player loses fire immunity exactly as a real dragon
 would, and a cancelled orc-bodied one loses `ItemUser`, which is to say the
@@ -183,7 +189,7 @@ Details:
     |----------|---------------------|--------|
     | `cursed` | `cursed ring mail`  | Adds the `Curse` tag: once worn or wielded it will not come off until a scroll of remove curse. |
     | `+N`/`-N`| `+3 long sword`     | Adds N to the item's flat bonus: a weapon's hit roll, armour's guard, or a launcher's throw (the arrows it looses). Same code as the dungeon's own enchantment roll (`catalog::apply_bonus`). |
-    | `xN`     | `arrow x13`         | Sets the stack size, clamped to `1..=STACK_LIMIT` (13). `x0` gives 1, `x99` gives 13. |
+    | `xN`     | `arrow x13`         | Sets the stack size, clamped to `1..=STACK_LIMIT`. `x0` gives 1, and anything over the limit gives the limit. |
 
     A curse and a minus are independent: `-2 long sword` is not cursed, and `cursed +2 long sword` is. The quality is hidden until worn or identified, as for any gear.
   * A modifier the thing cannot use (a plus on a ring, a stack on a dragon) is ignored, and the entry still counts as recognised.
@@ -191,11 +197,11 @@ Details:
   * A name the tables do not know is skipped **silently**. This is a debug knob, not a parser. Check your spelling against `-content`.
   * Things are placed on the nearest free walkable tiles, searching outward in rings from the player. Nothing lands in a wall or on top of anything else.
   * It applies to **every floor**, not just the first. Descend and your dragon is waiting again.
-  * Items arrive exactly as their row describes them -- unenchanted, uncursed, uncharged, a single arrow rather than a bundle -- unless you dress them as above. For the randomised version, find one on the floor.
+  * Items arrive exactly as their row describes them -- unenchanted, uncursed, a single arrow rather than a bundle -- unless you dress them as above. For the randomised version, find one on the floor.
 
 ### NIHILURK_LEVEL
 
-Makes every floor one kind of special level instead of rolling for it. Most special levels turn up on one floor in a hundred, from floor 6 down; this is how you look at one without hunting for a seed that has it.
+Makes every floor one kind of special level instead of rolling for it. Most special levels turn up at their own small chance (`constants::map`), from `SPECIAL_LEVEL_MIN_DEPTH` down; this is how you look at one without hunting for a seed that has it.
 
     NIHILURK_LEVEL=island cargo run -p nihilurk
 

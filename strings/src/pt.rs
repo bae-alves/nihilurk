@@ -148,6 +148,11 @@ pub fn no_hands_lurk(item_name: &str) -> String {
     format!("Pelo, presas e quatro patas: nenhuma parte de um lurk seguraria {item_name}.")
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn no_hands_polymorphed(item_name: &str) -> String {
+    format!("Esta forma não tem mãos para {item_name}.")
+}
+
 pub fn no_hands_monster(species: &str, item_name: &str) -> String {
     format!(
         "{} {species} não tem mãos para {item_name}.",
@@ -212,6 +217,11 @@ pub fn blast_cold() -> &'static str {
     "Uma rajada de ar congelante detona!"
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn dig_crumbles() -> &'static str {
+    "A rocha se desfaz em linha reta."
+}
+
 pub fn wand_does_nothing() -> &'static str {
     "A varinha não faz nada. Bem que o nome combina."
 }
@@ -232,8 +242,17 @@ pub fn polymorph_fizzles() -> &'static str {
     "A mágica da mudança se apaga contra o nada."
 }
 
-pub fn polymorph_self_player() -> &'static str {
-    "Você se sente uma nova pessoa!"
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn polymorph_self(_article: &str, new_name: &str) -> String {
+    format!(
+        "Você assume a natureza de {} {new_name}!",
+        indef_article(new_name)
+    )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn polymorph_drops_gear() -> &'static str {
+    "Seu equipamento escorrega de você."
 }
 
 pub fn polymorph_same_looking(old_name: &str, new_name: &str) -> String {
@@ -249,6 +268,23 @@ pub fn polymorph_different(old_name: &str, _article: &str, new_name: &str) -> St
         "{} {old_name} se contorce e se transforma em {} {new_name}!",
         cap_article(old_name),
         indef_article(new_name)
+    )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn shapeshift_reveal(_from_article: &str, from: &str, _to_article: &str, to: &str) -> String {
+    format!(
+        "Nunca foi {} {from}, mas {} {to}!",
+        indef_article(from),
+        indef_article(to)
+    )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn faerie_reveal(_from_article: &str, from: &str) -> String {
+    format!(
+        "Nunca foi {} {from}, mas uma fada metamorfa!",
+        indef_article(from)
     )
 }
 
@@ -287,6 +323,33 @@ pub fn teleport_self_mob(name: &str) -> String {
         "{} {name} se teletransporta direto para si mesmo.",
         cap_article(name)
     )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn swap_finds_nothing() -> &'static str {
+    "A torção da varinha não encontra nada com que trocar de lugar."
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn you_swap_places(name: &str) -> String {
+    format!("Você troca de lugar com {} {name}.", article(name))
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn mob_swaps_places(name: &str, with: Option<&str>) -> String {
+    match with {
+        Some(other) => format!(
+            "{} {name} troca de lugar com {} {other}.",
+            cap_article(name),
+            article(other)
+        ),
+        None => format!("{} {name} troca de lugar com você!", cap_article(name)),
+    }
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn blast_shuffles_places() -> &'static str {
+    "Todos na explosão trocam de lugar!"
 }
 
 pub fn cancellation_strikes_stone() -> &'static str {
@@ -462,6 +525,106 @@ pub fn welcome_back() -> &'static str {
     "De volta ao nihilurk! Boa sorte e divirta-se!"
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_fireproof() -> &'static str {
+    "Você se sente à prova de fogo."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_frostproof() -> &'static str {
+    "Você se sente imune ao frio."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_undead() -> &'static str {
+    "Você se sente morto por dentro."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_vorpal_target() -> &'static str {
+    "Você se sente marcado para a degola."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_item_user() -> &'static str {
+    "Você se sente habilidoso."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_rusts_armor() -> &'static str {
+    "Você se sente corrosivo."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_regenerates() -> &'static str {
+    "Você sente suas feridas se fecharem sozinhas."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_flies() -> &'static str {
+    "Você se sente leve como o ar."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_batty() -> &'static str {
+    "Você se sente desnorteado."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_binds() -> &'static str {
+    "Você se sente grudento."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_gorgon() -> &'static str {
+    "Você sente que seu olhar petrifica."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_vampiric() -> &'static str {
+    "Você sente sede de sangue."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_venomous() -> &'static str {
+    "Você se sente venenoso."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_score_bounty() -> &'static str {
+    "Você se sente valendo uma fortuna."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_splits() -> &'static str {
+    "Você sente que poderia se partir em dois."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_green_blood() -> &'static str {
+    "Você sente o sangue verde."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_freezing() -> &'static str {
+    "Você se sente gélido."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_steals_and_flees() -> &'static str {
+    "Você se sente mão-leve."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_steals_and_vanishes() -> &'static str {
+    "Você se sente sorrateiro."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_swims() -> &'static str {
+    "Você se sente em casa na água."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_always_tamed() -> &'static str {
+    "Você se sente leal."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_always_helper() -> &'static str {
+    "Você se sente prestativo."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_priority_helper() -> &'static str {
+    "Você se sente o melhor amigo de alguém."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_shapeshift_on_kill() -> &'static str {
+    "Você se sente inquieto na própria pele."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_faerie_on_death() -> &'static str {
+    "Você sente uma fada se mexer dentro de você."
+}
 pub fn you_monster() -> &'static str {
     "Monstro."
 }
@@ -625,11 +788,29 @@ pub const fn beware_paralysing_touch() -> &'static str {
 pub const fn beware_thieving_touch() -> &'static str {
     "toque ladrão"
 }
-pub const fn beware_fire_breath() -> &'static str {
-    "sopro de fogo"
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn beware_fireproof() -> &'static str {
+    "o fogo não os fere"
 }
-pub const fn beware_lightning_breath() -> &'static str {
-    "sopro de relâmpago"
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn beware_frostproof() -> &'static str {
+    "o frio não os fere"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn beware_flying() -> &'static str {
+    "voo"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn beware_phasing() -> &'static str {
+    "atravessar paredes"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn beware_ranged_shots() -> &'static str {
+    "tiros à distância"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn beware_spellcasting() -> &'static str {
+    "magia"
 }
 pub const fn beware_confusing_touch() -> &'static str {
     "toque que confunde"
@@ -736,6 +917,30 @@ pub const fn adjective_held() -> &'static str {
 }
 pub const fn adjective_clamped() -> &'static str {
     "preso pelas mandíbulas"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn form_chimera() -> &'static str {
+    "quimera"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn form_typhon() -> &'static str {
+    "tifão"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn form_echidna() -> &'static str {
+    "équidna"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn system_shock_player() -> &'static str {
+    "CHOQUE DE SISTEMA! Você se desfaz e mal consegue voltar."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn system_shock_mob(name: &str) -> String {
+    format!("CHOQUE DE SISTEMA! {name} se desfaz num jorro de sangue!")
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn adjective_polymorphed() -> &'static str {
+    "transformado"
 }
 pub const fn adjective_warded() -> &'static str {
     "protegido"
@@ -881,6 +1086,11 @@ pub const fn flavour_aggravates() -> &'static str {
 pub const fn flavour_regenerates() -> &'static str {
     "O anel no seu dedo está quente."
 }
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn flavour_polymorphitis() -> &'static str {
+    "Algo no seu dedo não consegue ficar parado."
+}
+
 pub const fn flavour_teleportitis() -> &'static str {
     "Algo que você carrega parece muito satisfeito consigo mesmo."
 }
@@ -1796,16 +2006,13 @@ pub fn great_idea_but_no() -> &'static str {
     "Boa ideia! Mas não."
 }
 
-pub fn you_see_nothing_there() -> &'static str {
-    "Nada visível ali."
-}
-
 pub fn you_see(phrase: &str, worn: &str) -> String {
     format!("À vista: {phrase}{worn}.")
 }
 
-pub fn beware_their(phrase: &str) -> String {
-    format!("Cuidado com {phrase}.")
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn beware(phrases: &[&str]) -> String {
+    format!("Cuidado: {}.", phrases.join("; "))
 }
 
 pub fn you_drop(name: &str) -> String {
@@ -2226,6 +2433,11 @@ pub fn adjective_sees_unseen() -> &'static str {
     "capaz de ver o invisível"
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn atonement() -> &'static str {
+    "Os espíritos te perdoam."
+}
+
 pub fn challenge_the_balance() -> &'static str {
     "Você desafia o equilíbrio!"
 }
@@ -2250,7 +2462,8 @@ pub fn barter_confirm_row() -> &'static str {
     "[ Trocar ]"
 }
 
-pub fn red_demon_grunts(name: &str) -> String {
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn spirit_refuses(name: &str) -> String {
     format!("{} resmunga, nada impressionado.", capital_the(name))
 }
 
@@ -2258,8 +2471,17 @@ pub fn pink_demon_submits() -> &'static str {
     "Despojado de seus trajes roubados, o demônio choraminga e se entrega a você."
 }
 
-pub fn pink_demon_turns() -> &'static str {
-    "O demônio solta uma gargalhada e se volta contra você, roupagem que seja."
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn pink_demon_vanishes() -> &'static str {
+    "O demônio faz pouco caso e some."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn offer_too_dear() -> &'static str {
+    "Você não tem o bastante para pagar por isso."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn offer_price(amount: i32, stat: &str) -> String {
+    format!("(-{amount} {stat} máx.)")
 }
 
 pub fn angel_tests_your_faith() -> &'static str {

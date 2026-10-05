@@ -72,7 +72,7 @@ impl MagicMapStyle {
     }
 
     /// The pause the engine holds between frames for this style, tuned so every
-    /// shape finishes in roughly the same half-second regardless of how many
+    /// shape finishes in roughly the same total time regardless of how many
     /// waves it breaks into.
     pub fn frame_ms(self) -> u64 {
         match self {
@@ -87,7 +87,9 @@ impl MagicMapStyle {
 /// reloads with every wave already in memory, so there is nothing left to play.
 #[derive(Resource, Default)]
 pub struct MagicMapReveal {
+    /// Whether a wipe is playing.
     pub active: bool,
+    /// The shape this wipe takes.
     pub style: MagicMapStyle,
     /// Reveal waves, in play order; the engine commits one wave of tile indices
     /// to the player's fog-of-war memory per frame.
@@ -203,8 +205,8 @@ fn explode_waves(hero: (u16, u16)) -> Vec<Vec<usize>> {
     buckets
 }
 
-/// A square spiral of tiles starting at `hero`, sliced into ~60 frames so the
-/// arm visibly winds outward.
+/// A square spiral of tiles starting at `hero`, sliced into `WAVES` frames so
+/// the arm visibly winds outward.
 fn spiral_waves(hero: (u16, u16)) -> Vec<Vec<usize>> {
     const WAVES: usize = 60;
 

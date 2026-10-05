@@ -25,7 +25,7 @@ A spell lives as a bare [`SpellEffect`](../../models/src/components.rs) value in
 
 Today only the player has one, taught in play by a hero coin (an uncommon coin-table row that puts a random, not-yet-known spell straight into the taker's `Spellset`, up to `constants::spells::SPELLSET_CAP` -- four) rather than started with any. Giving a spell to the player for testing without going through the drop table means putting it in that `Vec` by hand -- there is no `NIHILURK_SPAWN` for this, because there is no entity to spawn. See "Hold it in your hands" below.
 
-The other consequence of not being an item: a spell costs [`Magic`](../../models/src/components.rs), not a battery. `SpellDef::cost` is spent by [`spell_system`](../../models/src/items/spells.rs) every time the *player* triggers it. A monster that happens to do the same trick under its own steam -- the dragon's fireball is the one example today -- does not go anywhere near `Spellset`, `SpellQueue` or a Magic cost; it is wired straight into `crate::abilities` (an `ABILITIES` row firing at `Moment::InsteadOfAttacking`) and `crate::items::dragon_breath`, and pays nothing. A `SpellEffect` variant is a shared *mechanic*, not a shared *economy*.
+The other consequence of not being an item: a spell costs [`Magic`](../../models/src/components.rs), not a battery. `SpellDef::cost` is spent by [`spell_system`](../../models/src/items/spells.rs) every time the *player* triggers it. A monster that does the same trick under its own steam -- the dragon's fireball, the eel's thunderbolt -- has a `Spellset` and a `Magic` pool of its own, put there by its bestiary row (`MonsterDef::casts`). It pays `SpellDef::cost` out of that pool through the same `spell_cost` the player does (`pay_for_spell`), and it never refills.
 
 
 The recipe
@@ -37,8 +37,8 @@ Two steps are the same whatever you're building; then the path forks on `SpellKi
 
        pub enum SpellEffect {
            DragonBreath,
-           // ... fourteen more ...
-           HasteSelf,
+           // ... more variants ...
+           GateDown,
            IceBolt,
        }
 
@@ -46,7 +46,9 @@ Two steps are the same whatever you're building; then the path forks on `SpellKi
 
        SpellDef { effect: SpellEffect::IceBolt, name: "Ice Bolt", cost: 2, range: 6, kind: SpellKind::Attack },
 
-   `cost` is Magic points, multiplied by `constants::spells::TURBO_MAGIC_COST_MULT` when a staff (`TurboMagic`) is wielded and `kind` is `SpellKind::Attack`, never for a `SpellKind::Skill`. `cost` is also calibrated against `constants::player::START_MAGIC` (4) and sits in one of four Magic-cost tiers, 1 through 4 -- see MANUAL.md, "Magic and spells", for where the existing sixteen land. `range` feeds the aiming reticle exactly like a wand's `Ranged`, and is meaningless -- leave it `0` -- for a spell you're about to make a Skill.
+   `cost` is Magic points, multiplied by `constants::spells::TURBO_MAGIC_COST_MULT` when a staff (`TurboMagic`) is wielded and `kind` is `SpellKind::Attack`, never for a `SpellKind::Skill`. `cost` is also calibrated against `constants::player::START_MAGIC` and sits in one of four Magic-cost tiers, 1 through 4; the rows already in `SPELLS` show where each tier lands. `range` feeds the aiming reticle exactly like a wand's `Ranged`, and is meaningless -- leave it `0` -- for a spell you're about to make a Skill.
+
+   List the spell in `every_spell_has_a_catalog_row` (`models/tests/creature_casts.rs`), in its `match` and in its `all` array. `cargo test` will not build until you do.
 
 Which of the two you're building decides everything from here.
 
@@ -82,7 +84,7 @@ An `Attack` opens the aiming reticle, deals damage (or a status a target can shr
 
 A `Skill` never opens on damage. It changes the caster (Cure, Heal, Bide, Magic Ward, Haste Self), the floor around them (Setup), or borrows a scroll's own effect outright (Identify, Magic Mapping) -- and `TurboMagic` never touches its cost.
 
-3. **Decide if it needs a target at all.** Almost none do -- a skill works on the caster or on everyone in view, the same as a room-wide attack. Add your variant to `SpellEffect::needs_target`'s `false` list (`models/src/components.rs`) unless you are building the rare aimed skill (nothing in the game does this yet; if you do, treat `target` as step 3 of "Create an attack" would).
+3. **Decide if it needs a target at all.** Almost none do -- a skill works on the caster or on everyone in view, the same as a room-wide attack. Add your variant to `SpellEffect::needs_target`'s `false` list (`models/src/components.rs`) unless you are building the rare aimed skill (Polymorph Other is the one today: `kind: Skill` with a `range`, so a staff does not double its cost; treat `target` as step 3 of "Create an attack" would).
 
 4. **Write the mechanic**, the same match arm as an attack, but built one of two ways:
 
@@ -128,7 +130,7 @@ If this was a dry run, `git checkout models/src/map/levels.rs` along with `catal
 
 > **`Spellset` does survive a save** -- `models/src/saveload.rs` round-trips it like every other piece of the player. So do the two marker components spells have left behind so far, `MagicWard` and `Bided` -- but not through a field of their own: each is a row in the `EFFECTS` registry (`models/src/effects.rs`, `"magic_ward" => MagicWard;`) lent through `effects::lend`, and `EntitySave::effects` saves it by id with the `Lifetime` it is being held for. If your new spell leaves a marker of its own lying around outside `Spellset`, register it there and lend it; a component inserted directly is the one a reload quietly forgets.
 
-> **A monster casts from its spellset, for free.** Its spellset is every `INNATE_SPELLS` row (`models/src/abilities.rs`) whose grant it carries, plus any `Spellset` of its own. Its rule set picks one at random each turn and fires it if it can (`../reference/agents.md`, the `cast` rule). To give a species your spell, pair a grant with it in `INNATE_SPELLS` and put the grant on the bestiary row -- that is all the dragon's `FireBreath` is. Only an `Attack` spell with a range is ever fired this way; a skill never is.
+> **A monster casts from its spellset, out of its own Ma.** Its rule set picks one of the spells in its `Spellset` that its `Magic` can pay for, at random each turn, and fires it if it can (`../reference/agents.md`, the `cast` rule). To give a species your spell, chain `.casts(n, &[SpellEffect::YourSpell])` on its bestiary row -- that is all the dragon's Fireball is. Only an `Attack` spell with a range is ever fired this way; a skill never is. A player wearing the row (`-am`) gets the spells in the spell bar and pays from the player's Ma.
 
 
 Verify what you added
@@ -140,6 +142,21 @@ Verify what you added
 There is no `cargo test --test content` coverage for spells the way there is for monsters and items -- `SPELLS` is not part of `spawn_named` or `content_names()`, because nothing about a spell is spawned. `models/tests/spells.rs` pins a spell's *mechanic* instead: it pushes a `WantsToCast` onto `SpellQueue` and runs `spell_system` against a dummy. Copy `sting_bites_like_the_dart_trap_it_borrows_from` if your spell has a number worth holding still.
 
 Then prove it by hand: give it to the player, aim it, and watch the log line `spell_system` prints (`"You cast ___!"`) followed by whatever `apply_spell_effect` logs itself.
+
+
+Appendix: quick check
+---------------------
+
+1. Append a variant at the end of `SpellEffect` in `models/src/components.rs`.
+2. Add the `SpellDef` row to `SPELLS` in `models/src/catalog.rs`: `cost`, `range` (`0` for a skill), `kind`. List it in `every_spell_has_a_catalog_row` (`models/tests/creature_casts.rs`).
+3. Attack: write the arm in `apply_spell_effect` (`models/src/items/spells.rs`), and land damage through `apply_hit` with `Hit::magic` or `Hit::elemental`.
+4. Attack that hits everyone in view: add it to `SpellEffect::needs_target`.
+5. Skill: add it to the `needs_target` list unless it is aimed, then write the arm, borrowing a scroll if one already does the job.
+6. A marker the spell leaves behind: add it to `EFFECTS` and lend it through `effects::lend`.
+7. Give it to a species with `.casts(n, &[SpellEffect::<Name>])`; only a ranged attack is ever cast that way.
+8. Try it: put it in the starting `Spellset` in `initialize_world`, press `Z`, then revert that edit.
+9. Run `cargo test --test spells`.
+10. Fix the docs: nothing, unless it adds a `constants::` module (`update-the-docs.md`).
 
 
 See also

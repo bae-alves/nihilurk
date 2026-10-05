@@ -1,7 +1,7 @@
 nihilurk documentation
 ==================
 
-This is the documentation for people who want to *put things in the dungeon*: monsters, items, traps, magic. It lives in the repository, in plain text, wide enough to `cat` and short enough to `head`.
+This is the documentation for people who want to *put things in the dungeon*: monsters, items, traps, magic. It lives in the repository, in plain text, and reads in a terminal.
 
     cat docs/how-to/add-a-monster.md
 
@@ -9,50 +9,57 @@ This is the documentation for people who want to *put things in the dungeon*: mo
 Start here
 ----------
 
-| I want to...                        | Read                                    |
-|-------------------------------------|-----------------------------------------|
-| Add my first item, hand-held        | `tutorial/add-your-first-item.md`       |
-| Add my first monster, hand-held     | `tutorial/add-your-first-monster.md`    |
-| Add my first spell, hand-held       | `tutorial/add-your-first-spell.md`       |
-| Add my first body, hand-held        | `tutorial/add-your-first-body.md`        |
-| Give a monster a mind, hand-held    | `tutorial/give-a-monster-a-mind.md`     |
-| Add a monster                       | `how-to/add-a-monster.md`               |
-| Add a new playable body, like the lurk | `how-to/add-a-body.md`               |
-| Add a potion, wand, weapon, ring    | `how-to/add-an-item.md`                 |
-| Add an active spell                 | `how-to/add-a-spell.md`                  |
-| Add a trap                          | `how-to/add-a-trap.md`                  |
-| Add a property like "fire immune"   | `how-to/add-an-effect.md`               |
-| Add a way for a creature to think   | `how-to/add-a-rule-set.md`              |
-| Add one reflex to that thinking     | `how-to/add-a-rule.md`                  |
-| Make something rarer, or deeper     | `how-to/tune-rarity-and-depth.md`       |
-| Add a whole new *kind* of item      | `how-to/add-an-item-category.md`        |
-| Put a specific thing on a specific tile | `how-to/spawn-a-thing.md`           |
-| Look up a field, a type, a default  | `reference/content-tables.md`           |
-| Look up a component, resource, event| `reference/components.md`               |
-| Change a balance number             | `reference/constants.md`                |
-| Look up a function I have to call   | `reference/spawn-api.md`                |
-| Look up a flag or an env var        | `reference/cli-and-env.md`              |
-| Look up how input and the turn loop work | `reference/input-and-turn-loop.md` |
-| Look up what a monster does with its turn | `reference/agents.md`             |
-| Look up how a frame gets to the screen | `reference/rendering.md`             |
-| Reach an entity and change it       | `how-to/work-with-the-ecs.md`           |
-| Understand why it is built this way | `explanation/data-driven-content.md`    |
-| Understand how bevy_ecs is used here| `explanation/ecs-in-nihilurk.md`            |
-| Understand why monsters think in rule sets | `explanation/agents.md`          |
-| Know what an effect should look like | `explanation/the-feel-layer.md`        |
-| Write or edit a page in here        | `explanation/documentation-style.md`    |
-| Know what good numbers look like    | `explanation/combat-and-balance.md`     |
-| Know what shape to leave the code in| `explanation/code-calisthenics.md`      |
-| Check it still runs on a Pi         | `how-to/run-the-compat-pipeline.md`     |
-| Know how portability is tested      | `explanation/cross-platform-testing.md` |
-| Cut a release, one command and a push | `how-to/cut-a-release.md`             |
-| Publish a release to crates.io      | `how-to/publish-to-crates-io.md`        |
-| Publish a GitHub release            | `how-to/publish-a-github-release.md`    |
-| Know why package names differ from directories | `explanation/why-the-crates-are-named-twice.md` |
+| I want to...                                   | Read                                            |
+|------------------------------------------------|-------------------------------------------------|
+| Add my first item, hand-held                   | `tutorial/add-your-first-item.md`               |
+| Add my first monster, hand-held                | `tutorial/add-your-first-monster.md`            |
+| Add my first spell, hand-held                  | `tutorial/add-your-first-spell.md`              |
+| Add my first body, hand-held                   | `tutorial/add-your-first-body.md`               |
+| Give a monster a mind, hand-held               | `tutorial/give-a-monster-a-mind.md`             |
+| Add a monster                                  | `how-to/add-a-monster.md`                       |
+| Add a new playable body, like the lurk         | `how-to/add-a-body.md`                          |
+| Add a potion, wand, weapon, ring               | `how-to/add-an-item.md`                         |
+| Add an active spell                            | `how-to/add-a-spell.md`                         |
+| Add a trap                                     | `how-to/add-a-trap.md`                          |
+| Add a property like "fire immune"              | `how-to/add-an-effect.md`                       |
+| Add a way for a creature to think              | `how-to/add-a-rule-set.md`                      |
+| Add one reflex to that thinking                | `how-to/add-a-rule.md`                          |
+| Make something rarer, or deeper                | `how-to/tune-rarity-and-depth.md`               |
+| Add a whole new *kind* of item                 | `how-to/add-an-item-category.md`                |
+| Put a specific thing on a specific tile        | `how-to/spawn-a-thing.md`                       |
+| Look up a field, a type, a default             | `reference/content-tables.md`                   |
+| Look up a component, resource, event           | `reference/components.md`                       |
+| Change a balance number                        | `reference/constants.md`                        |
+| Look up a function I have to call              | `reference/spawn-api.md`                        |
+| Look up a flag or an env var                   | `reference/cli-and-env.md`                      |
+| Look up how input and the turn loop work       | `reference/input-and-turn-loop.md`              |
+| Look up what a monster does with its turn      | `reference/agents.md`                           |
+| Look up how a frame gets to the screen         | `reference/rendering.md`                        |
+| Reach an entity and change it                  | `how-to/work-with-the-ecs.md`                   |
+| Understand why it is built this way            | `explanation/data-driven-content.md`            |
+| Understand how bevy_ecs is used here           | `explanation/ecs-in-nihilurk.md`                |
+| Understand why monsters think in rule sets     | `explanation/agents.md`                         |
+| Know what an effect should look like           | `explanation/the-feel-layer.md`                 |
+| Write or edit a page in here                   | `explanation/documentation-style.md`            |
+| Know which pages to touch after a change       | `how-to/update-the-docs.md`                     |
+| Know what good numbers look like               | `explanation/combat-and-balance.md`             |
+| Know what shape to leave the code in           | `explanation/code-calisthenics.md`              |
+| Check it still runs on a Pi                    | `how-to/run-the-compat-pipeline.md`             |
+| Know how portability is tested                 | `explanation/cross-platform-testing.md`         |
+| Cut a release, one command and a push          | `how-to/cut-a-release.md`                       |
+| Publish a release to crates.io                 | `how-to/publish-to-crates-io.md`                |
+| Publish a GitHub release                       | `how-to/publish-a-github-release.md`            |
+| Know why package names differ from directories | `explanation/adr-0002-two-names-per-crate.md`   |
 
-And one architecture decision record, on why content is compiled into the binary rather than loaded from JSON raw files:
+And architecture decision records. They keep the history the other pages leave out: what was tried, what was rejected, and when to reopen it.
 
-    explanation/adr-0001-tables-not-raws.md
+    explanation/adr-0001-tables-not-raws.md                  content is compiled in, not loaded from JSON
+    explanation/adr-0002-two-names-per-crate.md              package names differ from library names
+    explanation/adr-0003-compat-checks-start-not-speed.md    the matrix checks that it starts, not that it is fast
+    explanation/adr-0004-no-tests-of-presentation.md         presentation is checked by playing
+    explanation/adr-0005-aim-resolves-before-the-mobs-move.md  a zap and a throw resolve before the mobs move
+    explanation/adr-0006-effects-saved-by-id.md              effects are saved by string id
+    explanation/adr-0007-aggravation-is-a-component.md       aggravation sits on top of the tactic
 
 
 How this is organised
@@ -105,7 +112,7 @@ The game design document (`../gdd.md`) is a third thing again: what nihilurk is 
 The crates
 ----------
 
-The code is a workspace of small libraries and one binary. Pages name files by their path from the repo root, so this is the map. The directory names are the short ones below; the packages are `nihilurk-models`, `nihilurk-strings`, `nihilurk-particle-core` and `nihilurk` (for `engine/`), and `cargo -p` takes those. See `explanation/why-the-crates-are-named-twice.md`.
+The code is a workspace of small libraries and one binary. Pages name files by their path from the repo root, so this is the map. The directory names are the short ones below; the packages are `nihilurk-models`, `nihilurk-strings`, `nihilurk-particle-core` and `nihilurk` (for `engine/`), and `cargo -p` takes those. See `explanation/adr-0002-two-names-per-crate.md`.
 
   models/         The game. Rules, content tables, ECS systems, save
                   files. No input, no drawing. Almost everything in
@@ -132,7 +139,9 @@ Three things make that cheap here:
 
   1. The docs describe *tables*, and the tables are short. There is rarely more than one page to touch.
 
-  2. `models/tests/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot ent` prints the live content list. It reads the tables, so it can never go stale. Prefer pointing a reader at it over pasting a list into a page.
+  2. `models/tests/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
+
+  3. `cargo run -p nihilurk -- -content` prints the live content list. It reads the tables, so it can never go stale. Prefer pointing a reader at it over pasting a list into a page.
 
 
 Quick sanity check

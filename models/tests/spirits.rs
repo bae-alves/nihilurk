@@ -16,6 +16,7 @@ fn spirits_world(seed: u64) -> World {
     w.init_resource::<SpiritsHostile>();
     w.init_resource::<OfferMenu>();
     w.init_resource::<BarterMenu>();
+    w.init_resource::<Ending>();
     w
 }
 
@@ -72,10 +73,8 @@ fn logged(w: &World, needle: &str) -> bool {
 }
 
 /// Melee is intercepted before any damage roll — a peaceful spirit is never
-/// actually *fought* by a sword. Only a ranged/thrown hit
-/// (`items::throwing::strike_victim`, exercised in `missiles.rs`) can ever
-/// reach `spirits::on_direct_hit` with real damage. See
-/// `combat::resolve_attack`'s spirit branch.
+/// actually *fought* by a sword. See `combat::resolve_attack`'s spirit
+/// branch.
 #[test]
 fn melee_on_a_peaceful_spirit_never_deals_damage_or_flips_the_flag() {
     let mut w = spirits_world(0);
@@ -87,14 +86,60 @@ fn melee_on_a_peaceful_spirit_never_deals_damage_or_flips_the_flag() {
     assert!(logged(&w, "takes no notice"));
 }
 
+fn alignment(w: &World, player: Entity) -> i8 {
+    w.get::<Alignment>(player).unwrap().0
+}
+
 #[test]
-fn melee_on_a_peaceful_spirit_still_shifts_alignment_by_its_kind() {
+fn talking_to_a_spirit_alone_leaves_alignment_be() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
     let spirit = spawn_spirit(&mut w, 100);
     w.entity_mut(spirit).insert(SpiritKind::Cacodaemon);
     resolve_attack(&mut w, player, spirit);
-    assert_eq!(w.get::<Alignment>(player).unwrap().0, -1);
+    assert_eq!(alignment(&w, player), 0);
+}
+
+#[test]
+fn a_cancelled_offer_leaves_alignment_be() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    talk_to(&mut w, player, "sylphid");
+    assert!(w.resource::<OfferMenu>().open);
+    assert_eq!(alignment(&w, player), 0);
+}
+
+#[test]
+fn a_spirit_poofing_pulls_alignment_by_its_kind() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    talk_to(&mut w, player, "sylphid");
+    let choice = offered(&w)[0];
+    spirits::confirm_offer(&mut w, player, choice);
+    assert_eq!(alignment(&w, player), 1);
+    talk_to(&mut w, player, "red demon");
+    let choice = offered(&w)[0];
+    spirits::confirm_offer(&mut w, player, choice);
+    assert_eq!(alignment(&w, player), 0);
+}
+
+#[test]
+fn a_finished_barter_pulls_alignment() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let item = dagger(&mut w);
+    w.get_mut::<Backpack>(player).unwrap().items.push(item);
+    talk_to(&mut w, player, "yellow demon");
+    spirits::confirm_barter(&mut w, player);
+    assert_eq!(alignment(&w, player), -1);
+}
+
+#[test]
+fn the_angel_pulls_alignment_as_they_poof() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    talk_to(&mut w, player, "angel");
+    assert_eq!(alignment(&w, player), 1);
 }
 
 fn poof_event(world: &mut World, _player: Entity, spirit: Entity) {
@@ -114,8 +159,10 @@ fn a_spirit_events_own_fn_runs_instead_of_the_generic_line() {
     assert!(w.get_entity(spirit).is_none());
 }
 
+/// Spirits are fickle: a monster drawing blood angers them as surely as the
+/// player does.
 #[test]
-fn a_monster_hitting_a_spirit_does_not_flip_the_flag() {
+fn a_monster_hitting_a_spirit_angers_them() {
     let mut w = spirits_world(0);
     let attacker = monster::plain_monster(&mut w, "orc", Position { x: 1, y: 1 });
     w.get_mut::<Fighter>(attacker).unwrap().power = 6;
@@ -126,15 +173,25 @@ fn a_monster_hitting_a_spirit_does_not_flip_the_flag() {
             break;
         }
     }
-    assert!(!w.resource::<SpiritsHostile>().0);
+    assert!(w.get::<Fighter>(spirit).unwrap().hp < 100, "never landed");
+    assert!(w.resource::<SpiritsHostile>().0);
+}
+
+/// A blast, a bolt, a trap or a trick shot: every source with no swing
+/// behind it hurts through `apply_hit`.
+#[test]
+fn any_wound_on_a_spirit_angers_them() {
+    let mut w = spirits_world(0);
+    let spirit = spawn_spirit(&mut w, 100);
+    apply_hit(&mut w, spirit, Hit::physical(3), None);
+    assert!(w.resource::<SpiritsHostile>().0);
 }
 
 #[test]
-fn zero_damage_never_flips_the_flag() {
+fn a_hit_that_draws_no_blood_angers_nobody() {
     let mut w = spirits_world(0);
-    let player = spawn_player(&mut w, 6);
     let spirit = spawn_spirit(&mut w, 100);
-    spirits::on_direct_hit(&mut w, player, spirit, 0);
+    apply_hit(&mut w, spirit, Hit::physical(0), None);
     assert!(!w.resource::<SpiritsHostile>().0);
 }
 
@@ -253,7 +310,7 @@ fn a_full_pack_leaves_the_offered_item_on_the_ground() {
 #[test]
 fn opening_the_menu_with_no_options_is_a_no_op() {
     let mut w = spirits_world(0);
-    spirits::open_offer_menu(&mut w, Vec::new(), None);
+    spirits::open_offer_menu(&mut w, Vec::new(), None, false);
     assert!(!w.resource::<OfferMenu>().open);
 }
 
@@ -262,7 +319,7 @@ fn opening_the_menu_stores_the_rolled_options() {
     let mut w = spirits_world(0);
     let options = spirits::roll_armor_offer(&mut w);
     let count = options.len();
-    spirits::open_offer_menu(&mut w, options, None);
+    spirits::open_offer_menu(&mut w, options, None, false);
     let menu = w.resource::<OfferMenu>();
     assert!(menu.open);
     assert_eq!(menu.selected, 0);
@@ -545,29 +602,186 @@ fn every_spirit_row_spawns_peaceful_and_wandering() {
     }
 }
 
-#[test]
-fn the_gnome_carries_its_wand_throwing_grant() {
-    let mut w = spirits_world(0);
-    let def = MonsterDef::named("gnome");
-    let e = spawn_monster(&mut w, def, Position { x: 5, y: 5 });
-    assert!(w.get::<ThrowsWands>(e).is_some());
-    assert!(def.spirit_event.is_none(), "gnome has no melee event");
+/// Spawns the spirit named `name` and talks to it (a peaceful melee).
+fn talk_to(w: &mut World, player: Entity, name: &str) -> Entity {
+    let spirit = spawn_monster(w, MonsterDef::named(name), Position { x: 5, y: 5 });
+    resolve_attack(w, player, spirit);
+    spirit
+}
+
+fn offered(w: &World) -> Vec<OfferOption> {
+    w.resource::<OfferMenu>().options.clone()
 }
 
 #[test]
-fn the_red_demon_only_grunts() {
+fn the_red_demon_sells_a_weapon_an_armor_and_a_ring_for_max_hp() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
-    let spirit = spawn_monster(
-        &mut w,
-        MonsterDef::named("red demon"),
-        Position { x: 5, y: 5 },
-    );
-    resolve_attack(&mut w, player, spirit);
-    assert!(logged(&w, "grunts"));
-    assert!(w.get_entity(spirit).is_some(), "the red demon never poofs");
+    let spirit = talk_to(&mut w, player, "red demon");
+    let menu = w.resource::<OfferMenu>();
+    assert!(menu.open);
+    assert!(menu.priced);
+    assert_eq!(menu.source, Some(spirit));
+    let options = offered(&w);
+    assert!(matches!(options[0], OfferOption::Weapon(_)));
+    assert!(matches!(options[1], OfferOption::Armor(_)));
+    assert!(matches!(options[2], OfferOption::Ring(_)));
+    assert!(options.iter().all(|o| o.price() == Some(Price::MaxHp(3))));
+}
+
+#[test]
+fn buying_from_the_red_demon_costs_max_hp_and_poofs_them() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    w.get_mut::<Fighter>(player).unwrap().max_hp = 20;
+    w.get_mut::<Fighter>(player).unwrap().hp = 19;
+    let spirit = talk_to(&mut w, player, "red demon");
+    let choice = offered(&w)[1];
+    spirits::confirm_offer(&mut w, player, choice);
+    let f = w.get::<Fighter>(player).unwrap();
+    assert_eq!((f.hp, f.max_hp), (17, 17));
+    assert_eq!(w.get::<Backpack>(player).unwrap().items.len(), 1);
+    assert!(w.get_entity(spirit).is_none());
+    assert!(!w.resource::<OfferMenu>().open);
+}
+
+/// Asserts `spirit` refused `player`: a grunt, no menu, still standing, and
+/// no pull on their alignment, since nothing was dealt.
+fn refused(w: &World, player: Entity, spirit: Entity) {
+    assert!(logged(w, "grunts"));
+    assert_eq!(w.get::<Alignment>(player).unwrap().0, 0);
     assert!(!w.resource::<OfferMenu>().open);
     assert!(!w.resource::<BarterMenu>().open);
+    assert!(w.get_entity(spirit).is_some(), "a refusal is no poof");
+}
+
+#[test]
+fn the_red_demon_refuses_a_player_short_of_max_hp() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    w.get_mut::<Fighter>(player).unwrap().max_hp = 2;
+    w.get_mut::<Fighter>(player).unwrap().hp = 2;
+    let spirit = talk_to(&mut w, player, "red demon");
+    refused(&w, player, spirit);
+    assert_eq!(w.get::<Fighter>(player).unwrap().max_hp, 2);
+}
+
+#[test]
+fn the_gnome_refuses_a_player_with_no_max_ma() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    w.entity_mut(player).insert(Magic {
+        points: 0,
+        max_points: 0,
+    });
+    let spirit = talk_to(&mut w, player, "gnome");
+    refused(&w, player, spirit);
+}
+
+#[test]
+fn the_yellow_demon_refuses_an_empty_pack() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let spirit = talk_to(&mut w, player, "yellow demon");
+    refused(&w, player, spirit);
+}
+
+#[test]
+fn the_sphynx_refuses_an_empty_spellset() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let spirit = talk_to(&mut w, player, "sphynx");
+    refused(&w, player, spirit);
+}
+
+#[test]
+fn paying_the_red_demon_your_last_max_hp_kills_you() {
+    let mut w = spirits_world(0);
+    // Dying leaves a corpse.
+    w.init_resource::<BloodStains>();
+    w.init_resource::<Corpses>();
+    let player = spawn_player(&mut w, 6);
+    w.get_mut::<Fighter>(player).unwrap().max_hp = 3;
+    talk_to(&mut w, player, "red demon");
+    let choice = offered(&w)[2];
+    spirits::confirm_offer(&mut w, player, choice);
+    assert_eq!(w.get::<Fighter>(player).unwrap().hp, 0);
+    assert!(w.resource::<Ending>().player_dead);
+}
+
+#[test]
+fn the_gnome_sells_a_scroll_a_potion_and_a_wand_for_max_ma() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    w.entity_mut(player).insert(Magic {
+        points: 2,
+        max_points: 2,
+    });
+    talk_to(&mut w, player, "gnome");
+    assert!(w.resource::<OfferMenu>().priced);
+    let options = offered(&w);
+    assert!(matches!(options[0], OfferOption::Scroll(_)));
+    assert!(matches!(options[1], OfferOption::Potion(_)));
+    assert!(matches!(options[2], OfferOption::Wand(_)));
+    let prices: Vec<_> = options.iter().map(OfferOption::price).collect();
+    assert_eq!(
+        prices,
+        [
+            Some(Price::MaxMa(1)),
+            Some(Price::MaxMa(1)),
+            Some(Price::MaxMa(2))
+        ]
+    );
+    assert!(MonsterDef::named("gnome").spells.is_empty());
+}
+
+#[test]
+fn buying_a_wand_from_the_gnome_costs_two_max_ma() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    w.entity_mut(player).insert(Magic {
+        points: 3,
+        max_points: 3,
+    });
+    let spirit = talk_to(&mut w, player, "gnome");
+    let choice = offered(&w)[2];
+    spirits::confirm_offer(&mut w, player, choice);
+    let m = w.get::<Magic>(player).unwrap();
+    assert_eq!((m.points, m.max_points), (1, 1));
+    assert_eq!(w.get::<Backpack>(player).unwrap().items.len(), 1);
+    assert!(w.get_entity(spirit).is_none());
+}
+
+#[test]
+fn the_gnome_refuses_a_player_short_of_max_ma() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    w.entity_mut(player).insert(Magic {
+        points: 1,
+        max_points: 1,
+    });
+    let spirit = talk_to(&mut w, player, "gnome");
+    let wand = offered(&w)[2];
+    spirits::confirm_offer(&mut w, player, wand);
+    assert_eq!(w.get::<Magic>(player).unwrap().max_points, 1);
+    assert!(w.get_entity(spirit).is_some());
+    assert!(w.resource::<OfferMenu>().open);
+    // The scroll is still within reach.
+    let scroll = offered(&w)[0];
+    spirits::confirm_offer(&mut w, player, scroll);
+    assert_eq!(w.get::<Magic>(player).unwrap().max_points, 0);
+    assert!(w.get_entity(spirit).is_none());
+}
+
+#[test]
+fn a_free_offer_costs_nothing() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    talk_to(&mut w, player, "sylphid");
+    assert!(!w.resource::<OfferMenu>().priced);
+    let choice = offered(&w)[0];
+    spirits::confirm_offer(&mut w, player, choice);
+    assert_eq!(w.get::<Fighter>(player).unwrap().max_hp, 20);
 }
 
 #[test]
@@ -607,22 +821,79 @@ fn the_blue_demon_opens_a_spell_offer() {
     );
 }
 
+fn wear(w: &mut World, player: Entity, slot: Slot) -> Entity {
+    let item = dagger(w);
+    w.entity_mut(item).insert(Equipped {
+        by: Some(player),
+        slot,
+    });
+    w.get_mut::<Backpack>(player).unwrap().items.push(item);
+    item
+}
+
 #[test]
-fn an_unequipped_player_always_makes_the_pink_demon_turn() {
+fn the_pink_demon_destroys_every_piece_you_wear_cursed_or_not() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
-    let spirit = spawn_monster(
-        &mut w,
-        MonsterDef::named("pink demon"),
-        Position { x: 5, y: 5 },
+    let sword = wear(&mut w, player, Slot::Hand);
+    let cursed = wear(&mut w, player, Slot::Body);
+    w.entity_mut(cursed).insert(Curse);
+    let pocketed = dagger(&mut w);
+    w.get_mut::<Backpack>(player).unwrap().items.push(pocketed);
+    talk_to(&mut w, player, "pink demon");
+    assert!(w.get_entity(sword).is_none());
+    assert!(w.get_entity(cursed).is_none());
+    assert_eq!(w.get::<Backpack>(player).unwrap().items, vec![pocketed]);
+}
+
+#[test]
+fn the_pink_demon_refuses_an_unequipped_player() {
+    let mut w = spirits_world(0);
+    let player = spawn_player(&mut w, 6);
+    let pocketed = dagger(&mut w);
+    w.get_mut::<Backpack>(player).unwrap().items.push(pocketed);
+    let spirit = talk_to(&mut w, player, "pink demon");
+    refused(&w, player, spirit);
+    assert!(
+        w.get_entity(pocketed).is_some(),
+        "the pack is not their business"
     );
-    resolve_attack(&mut w, player, spirit);
-    assert_eq!(w.get::<Faction>(spirit).copied(), Some(Faction::Monster));
-    assert!(matches!(
-        w.get::<Mob>(spirit).map(|m| m.movement_type),
-        Some(MovementType::Chase)
-    ));
-    assert!(logged(&w, "turns on you"));
+    assert!(!w.resource::<SpiritsHostile>().0);
+}
+
+#[test]
+fn a_pink_demon_who_will_not_join_vanishes() {
+    // One piece is 25%: some seed refuses.
+    let refusal = (0..40).find_map(|seed| {
+        let mut w = spirits_world(seed);
+        let player = spawn_player(&mut w, 6);
+        wear(&mut w, player, Slot::Hand);
+        let spirit = talk_to(&mut w, player, "pink demon");
+        w.get_entity(spirit).is_none().then_some(w)
+    });
+    let w = refusal.expect("no seed in 40 refused at 25% odds");
+    assert!(logged(&w, "vanishes"));
+    let player = w
+        .iter_entities()
+        .find(|e| e.contains::<Player>())
+        .unwrap()
+        .id();
+    assert_eq!(alignment(&w, player), -1, "vanishing is a poof");
+    assert!(!w.resource::<SpiritsHostile>().0);
+}
+
+#[test]
+fn four_pieces_destroyed_always_win_the_pink_demon_over() {
+    for seed in 0..20 {
+        let mut w = spirits_world(seed);
+        let player = spawn_player(&mut w, 6);
+        for slot in [Slot::Hand, Slot::Body, Slot::Finger, Slot::Finger] {
+            wear(&mut w, player, slot);
+        }
+        let spirit = talk_to(&mut w, player, "pink demon");
+        assert!(w.get::<Helper>(spirit).is_some(), "seed {seed}");
+        assert_eq!(alignment(&w, player), -1, "joining pulls alignment");
+    }
 }
 
 #[test]
@@ -728,5 +999,118 @@ fn sylphid_salamander_and_undyne_open_their_respective_offers() {
         let menu = w.resource::<OfferMenu>();
         assert!(menu.open, "{name}");
         assert!(menu.options.iter().all(is_right_kind), "{name}");
+    }
+}
+
+#[test]
+fn a_spirit_killed_poofs_too() {
+    let mut w = spirits_world(0);
+    w.init_resource::<BloodStains>();
+    w.init_resource::<Corpses>();
+    w.resource_mut::<SpiritsHostile>().0 = true;
+    let player = spawn_player(&mut w, 200);
+    let spirit = spawn_monster(
+        &mut w,
+        MonsterDef::named("red demon"),
+        Position { x: 2, y: 1 },
+    );
+    w.get_mut::<Fighter>(spirit).unwrap().hp = 1;
+    for _ in 0..50 {
+        if w.get_entity(spirit).is_none() {
+            break;
+        }
+        resolve_attack(&mut w, player, spirit);
+    }
+    assert!(w.get_entity(spirit).is_none(), "never landed the kill");
+    assert_eq!(alignment(&w, player), -1);
+}
+
+/// Every spirit shrugs off fire and cold, so a blast of either draws no
+/// blood and angers nobody.
+#[test]
+fn fire_and_cold_neither_hurt_nor_anger_a_spirit() {
+    for element in [Element::Fire, Element::Cold] {
+        let mut w = spirits_world(0);
+        let spirit = spawn_monster(&mut w, MonsterDef::named("gnome"), Position { x: 5, y: 5 });
+        assert_eq!(
+            apply_hit(&mut w, spirit, Hit::elemental(5, element), None),
+            0
+        );
+        assert!(!w.resource::<SpiritsHostile>().0);
+    }
+}
+
+/// A whole generated floor, for paths that need the map and its overlays.
+fn game_world(seed: u64) -> (World, Entity) {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
+    w.insert_resource(RngSeed(seed));
+    w.init_resource::<GameLog>();
+    w.init_resource::<UseQueue>();
+    w.init_resource::<AttackQueue>();
+    w.init_resource::<Ending>();
+    w.init_resource::<PlayerTempo>();
+    w.init_resource::<OfferMenu>();
+    w.init_resource::<BarterMenu>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
+    (w, player)
+}
+
+/// Joins the player as a pink demon Helper, with alignment back at 0.
+fn pink_ally(w: &mut World, player: Entity) -> Entity {
+    for slot in [Slot::Hand, Slot::Body, Slot::Finger, Slot::Finger] {
+        wear(w, player, slot);
+    }
+    let pink = talk_to(w, player, "pink demon");
+    assert!(w.get::<Helper>(pink).is_some());
+    w.get_mut::<Alignment>(player).unwrap().0 = 0;
+    pink
+}
+
+#[test]
+fn wounding_a_pink_demon_ally_angers_nobody() {
+    let (mut w, player) = game_world(0);
+    let pink = pink_ally(&mut w, player);
+    apply_hit(&mut w, pink, Hit::physical(3), None);
+    assert!(!w.resource::<SpiritsHostile>().0);
+}
+
+#[test]
+fn a_pink_demon_ally_exploding_for_a_new_helper_leaves_alignment_be() {
+    let (mut w, player) = game_world(0);
+    let pink = pink_ally(&mut w, player);
+    let orc = monster::plain_monster(&mut w, "orc", Position { x: 3, y: 3 });
+    recruit(&mut w, orc);
+    assert!(w.get_entity(pink).is_none(), "the old Helper exploded");
+    assert_eq!(alignment(&w, player), 0);
+    assert!(!w.resource::<SpiritsHostile>().0);
+}
+
+/// Every spirit is born with two random boons on top of what its row lends,
+/// never the same one twice.
+#[test]
+fn every_spirit_is_born_with_two_distinct_random_boons() {
+    for def in BESTIARY.iter().filter(|d| d.spirit_kind.is_some()) {
+        for seed in 0..8 {
+            let mut w = spirits_world(seed);
+            let e = spawn_monster(&mut w, def, Position { x: 5, y: 5 });
+            // Born with, not lent by gear the row happened to roll.
+            let mut held: Vec<&str> = w
+                .get::<Effects>(e)
+                .unwrap()
+                .0
+                .iter()
+                .filter(|h| matches!(h.lifetime, Lifetime::Permanent))
+                .map(|h| h.id)
+                .collect();
+            held.sort();
+            held.dedup();
+            let fixed = def.grants.iter().filter_map(|g| g.effect_id()).count();
+            assert_eq!(held.len(), fixed + 2, "{} seed {seed}: {held:?}", def.name);
+        }
     }
 }

@@ -40,11 +40,11 @@ The two rules that apply only to the player
 
 Both exist to stop the maths above producing a *stalemate*, which is the one outcome a turn-based fight cannot survive.
 
-  * **Excellent hit.** 15% of the player's swings roll `3d[power]` instead of `1d[power]`, before armour is subtracted. Without it, a player in poor gear facing good armour has no path at all.
+  * **Excellent hit.** A share of the player's swings (`EXCELLENT_HIT_CHANCE`) roll `EXCELLENT_HIT_DICE` dice of `[power]` instead of one, before armour is subtracted. Without it, a player in poor gear facing good armour has no path at all.
 
-  * **Chip damage.** The player's worst swing still takes one point off -- but a blow that weak can never be the killing one. It leaves things alive on 1 HP. Without it, an unlucky player against a well-armoured monster can swing forever and never move the number.
+  * **Chip damage.** The player's worst swing still takes `CHIP_DAMAGE` off -- but a blow that weak can never be the killing one. It leaves things alive on the last point of HP. Without it, an unlucky player against a well-armoured monster can swing forever and never move the number.
 
-The two numbers above -- the 15% and the `3d` -- and the 1-point floor are `constants::combat`. See `../reference/constants.md`.
+The two dials above and the chip floor (`CHIP_DAMAGE`) are in `constants::combat`. See `../reference/constants.md`.
 
 Monsters get neither. A monster that cannot hurt you simply cannot hurt you, and that asymmetry is what makes armour worth wearing.
 
@@ -62,7 +62,7 @@ So an archer is not a melee character with a ranged option. An archer is someone
 Why most gear is cursed
 -----------------------
 
-Two thirds of weapon, armour and ring drops roll cursed. That sounds punishing until you look at the bonus range: a cursed item rolls between -5 and +5, so it is often *better* than the 25% that roll plain. What you are gambling is not the number, it is the commitment -- a cursed item cannot be taken off again without a scroll of remove curse, which will destroy it, or the matching scroll of enchantment, which lifts the curse and mends the minus but has to be found and has to match the slot.
+Most weapon, armour and ring drops roll cursed: whatever `NORMAL_QUALITY_PCT` and `EXCEPTIONAL_QUALITY_PCT` leave over. That sounds punishing until you look at the bonus range: a cursed item rolls anywhere in `CURSED_BONUS_MIN..=CURSED_BONUS_MAX`, which reaches above zero, so it is often *better* than the plain ones. What you are gambling is not the number, it is the commitment -- a cursed item cannot be taken off again without a scroll of remove curse, which will destroy it, or the matching scroll of enchantment, which lifts the curse and mends the minus but has to be found and has to match the slot.
 
 So the drop table is not "most of your loot is bad". It is "most of your loot is a decision". Picking up an unidentified sword and putting it on is the game asking whether you are sure.
 
@@ -71,11 +71,11 @@ The bonus always lands on the flat modifier and never on the die size, so a +3 d
 Traps that scale
 ----------------
 
-A trap on floor 2 and the same trap on floor 11 are the same row in the same table, but they should not bite the same. The two damage traps -- arrow and dart -- grow with depth in three bands, ending at floors 4, 8 and 13 (`constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`). Each band adds one point to the arrow trap's damage roll and one point to the dart trap's *permanent* strength drain -- a depth-13 dart trap that connects costs three points of `power` for the rest of the run.
+A trap on floor 2 and the same trap on floor 11 are the same row in the same table, but they should not bite the same. The two damage traps -- arrow and dart -- grow with depth in bands that end at the floors in `constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`. Each band adds `ARROW_DAMAGE_PER_TIER` to the arrow trap's damage roll and `DART_POWER_DRAIN_PER_TIER` to the dart trap's *permanent* strength drain, so the deepest dart trap that connects costs several points of `power` for the rest of the run.
 
-Those bands are deliberately coarser than the floor-crowding ones (`DIFFICULTY_TIER_LAST_DEPTH = [3, 6, 9, 12]`, which steps five times so the deepest floor gets its own worst budget). A trap that stepped that often would out-scale the player; three bands is enough to make depth felt.
+Those bands are deliberately coarser than the floor-crowding ones (`DIFFICULTY_TIER_LAST_DEPTH`, which steps more often so the deepest floor gets its own worst budget). A trap that stepped that often would out-scale the player; fewer bands are enough to make depth felt.
 
-The bear trap took a different fix. It used to eat three whole turns, which on a bad floor is just a death sentence with a delay. Now it pins your feet and nothing else: you can still swing at whatever walked up to you while you were stuck, and the three turns are spent shrinking, not frozen. Trying to *walk* out, though, tears the leg -- a point of damage, a wasted turn, and a floor tile you will recognise later. The dial is `constants::traps::BEAR_TRAP_THRASH_DAMAGE`; the gore is cosmetic and separate.
+The bear trap pins your feet and nothing else: you can still swing at whatever walked up to you while you were stuck, and the turns are spent shrinking, not frozen. Trying to *walk* out tears the leg -- a point of damage, a wasted turn, and a floor tile you will recognise later. The dial is `constants::traps::BEAR_TRAP_THRASH_DAMAGE`; the gore is cosmetic and separate.
 
 
 Reading the existing table

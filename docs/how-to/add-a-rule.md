@@ -56,6 +56,17 @@ Verify
 Then add the rule's row to the rules table in `../reference/agents.md`.
 
 
+Appendix: quick check
+---------------------
+
+1. Write `fn <name>(p: &Percept) -> Option<Action>` in `models/src/agents.rs`; read only the percept, and take chance from `p.roll`.
+2. Name it as a `pub const <NAME>: Rule`, with a one-line "fires when" doc comment.
+3. List it in a rule set (`add-a-rule-set.md`).
+4. Test both sides on a hand-built `percept(...)`: once where it fires, once where it passes.
+5. Run `cargo test -p nihilurk-models --lib agents`.
+6. Add the rule's row to the rules table in `../reference/agents.md`.
+
+
 See also
 --------
 

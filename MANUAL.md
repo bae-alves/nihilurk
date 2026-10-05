@@ -176,6 +176,8 @@ A hero coin teaches a new spell when you step on it. You can know only a few spe
 
 A staff in your hand changes what your attacking spells are worth: each one costs more magic than usual and hits harder than usual, and it hits harder than it costs. The spells that heal, ward, reveal or steady you are untouched. Nothing on the screen shows this, so the staff says so itself -- when you take it up, and again when you put it away.
 
+Polymorph lends you a creature's powers until the next staircase. A potion, a wand, a ring (which rolls on its own) and two spells, Polymorph Self and Polymorph Other, all do it. You keep your own face and numbers. A shape with no hands cannot hold gear: yours comes off and stays off. `POLY` on the status line shows it. Polymorph something that is already polymorphed and it is a coin flip: system shock, where a monster bursts and you are left on 1 HP, or a chimera, a typhon or an echidna. The ring never shocks.
+
 Some effects change how you act. Confusion makes movement unreliable. Blindness limits what you can see. Paralysis and sleep steal time. A medusa's gaze steals them too, by turning you to stone -- but stone is hard: while it lasts nothing gets more than a chip through you and nothing can take your last point of health, unless what is standing over you is swinging a war hammer. Haste makes you quicker; slow makes you slower. A staircase clears these effects.
 
 

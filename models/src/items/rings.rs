@@ -11,6 +11,7 @@
 //! * **Regeneration** — [`regenerate`], rolled each turn by
 //!   [`crate::abilities`].
 //! * **Teleportation** — [`teleportitis`], likewise.
+//! * **Polymorph** — [`polymorphitis`], likewise.
 //!
 //! Even these are named by the catalog row and dispatched through a general
 //! mechanism; no file outside this one matches on a [`RingEffect`] to decide
@@ -188,6 +189,20 @@ pub(crate) fn regenerate(world: &mut World, bearer: Entity) -> bool {
 /// difference between a ring you might keep on and a curse.
 pub(crate) fn teleportitis(world: &mut World, bearer: Entity) -> bool {
     super::wands::teleport_entity_away(world, bearer);
+    true
+}
+
+// ---------------------------------------------------------------------------
+// Polymorph
+// ---------------------------------------------------------------------------
+
+/// Ring of polymorph, one roll's worth: the bearer turns into something else.
+///
+/// The polymorph a wand casts, minus the system shock: the ring comes due on
+/// its own schedule, and nothing that does that may kill or maim its bearer.
+/// A bearer already [`Polymorphed`] settles into a chimeric form instead.
+pub(crate) fn polymorphitis(world: &mut World, bearer: Entity) -> bool {
+    super::wands::polymorph_entity_with(world, bearer, false);
     true
 }
 

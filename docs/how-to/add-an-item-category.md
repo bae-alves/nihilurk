@@ -75,7 +75,7 @@ If a floor drop should differ from the plain row -- an enchantment, a battery ch
 
 Categories with nothing to roll inherit the default, which just calls `spawn`.
 
-`weight()` and `min_depth()` also have defaults (10 and 1). Override them only if this category wants per-row rarity -- see `tune-rarity-and-depth.md`.
+`weight()` and `min_depth()` also have defaults (an ordinary weight, and the first floor). Override them only if this category wants per-row rarity -- see `tune-rarity-and-depth.md`.
 
 
 Step 3: write the table
@@ -153,11 +153,26 @@ Verify
     NIHILURK_SPAWN="ration" cargo run -p nihilurk
     cargo test
 
-The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `the_loot_table_covers_every_category_over_a_long_run` will fail if twenty thousand drops never produce one.
+The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `every_loot_category_can_be_drawn_and_has_rows_to_give` fails the same way, and also if it has no rows at the deepest floor.
 
 Round-trip a save before you call it done -- step 6 is the one people skip:
 
     cargo test --test saveload
+
+
+Appendix: quick check
+---------------------
+
+1. Add the `Def` struct in `models/src/catalog.rs` and the component it attaches in `models/src/components.rs`.
+2. Implement `ItemDef`: `name`, `spawn`, and `spawn_as_loot`, `weight` or `min_depth` only if you need them.
+3. Write the table as a `pub const` with `#[rustfmt::skip]`.
+4. Add one `category!(..)` line to `DROPS` in `models/src/spawn.rs`.
+5. Behaviour: hook the component into `item_system` and a file under `models/src/items/`.
+6. Save: extend `restore_from_catalog`, or append a field to `EntitySave`; never insert one.
+7. Worn gear with a hidden quality: run `enchant_equipment` at spawn and let `KnownQuality` gate it.
+8. Run `cargo run -p nihilurk -- -content | grep -A3 '^<category>'` and `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
+9. Run `cargo test`, then `cargo test --test saveload`.
+10. Fix the docs: `update-the-docs.md`, "A whole item category".
 
 
 See also

@@ -32,13 +32,14 @@ mod theft;
 mod throwing;
 mod wands;
 
-pub use spells::{spell_cost, spell_system};
+pub use spells::{can_afford_spell, pay_for_spell, spell_cost, spell_system};
+pub use wands::polymorph_player_into;
 
-/// One spell resolved on the spot, cost already settled (or never owed).
+/// One spell resolved on the spot, cost already settled.
 /// [`spell_system`] is the way in for a spell the player triggered; this is
-/// the way in for one a creature simply *has* — see
-/// [`crate::abilities::INNATE_SPELLS`].
+/// the way in for a monster's, which [`pay_for_spell`] first.
 pub(crate) use spells::apply_spell_effect;
+pub(crate) use wands::leave_smoke_ring;
 
 /// The leprechaun's and the nymph's on-hit tricks, named by
 /// [`crate::abilities::ABILITIES`] without that table knowing anything
@@ -84,7 +85,7 @@ pub(crate) use scrolls::enchant_equipped;
 /// `crate::items::aggravate_all_monsters` and friends (see
 /// [`crate::abilities`]). Everything in that table has the same shape — run on
 /// a bearer, report whether it did anything — whichever submodule it lives in.
-pub(crate) use rings::{regenerate, teleportitis};
+pub(crate) use rings::{polymorphitis, regenerate, teleportitis};
 pub(crate) use scrolls::aggravate_all_monsters;
 
 /// Re-exported so [`crate::combat`] can spend a charmed pair of hands on the

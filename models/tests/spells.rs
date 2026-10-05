@@ -358,3 +358,82 @@ fn a_mob_a_spell_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
         "a mob already at 0 HP queued an attack during `ai`"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Polymorph Self, Polymorph Other
+// ---------------------------------------------------------------------------
+
+#[test]
+fn polymorph_self_polymorphs_the_caster_and_charges_for_it() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+    let before = w.get::<Magic>(p).unwrap().points;
+    let cost = SpellDef::of(SpellEffect::PolymorphSelf).cost;
+
+    cast(&mut w, p, SpellEffect::PolymorphSelf, here);
+
+    assert!(w.get::<Polymorphed>(p).is_some());
+    assert_eq!(w.get::<Magic>(p).unwrap().points, before - cost);
+}
+
+#[test]
+fn polymorph_other_polymorphs_what_it_is_aimed_at() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let victim = dummy(&mut w, spot, 5);
+
+    cast(&mut w, p, SpellEffect::PolymorphOther, spot);
+
+    assert!(!w.entities().contains(victim), "the dummy was swapped out");
+    let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
+    let now = q.iter(&w).find(|(_, pos)| **pos == spot).map(|(e, _)| e);
+    let now = now.expect("something stands there now");
+    assert!(w.get::<Polymorphed>(now).is_some());
+    assert!(
+        w.get::<Polymorphed>(p).is_none(),
+        "and the caster is untouched"
+    );
+}
+
+#[test]
+fn only_polymorph_other_opens_the_reticle() {
+    assert!(SpellEffect::PolymorphOther.needs_target());
+    assert!(!SpellEffect::PolymorphSelf.needs_target());
+}
+
+#[test]
+fn a_staff_does_not_double_what_a_polymorph_costs() {
+    // Polymorph does no damage, so it is a skill: TurboMagic is for attacks.
+    for e in [SpellEffect::PolymorphSelf, SpellEffect::PolymorphOther] {
+        assert_eq!(SpellDef::of(e).kind, SpellKind::Skill);
+    }
+}
+
+#[test]
+fn a_hero_coin_can_teach_the_polymorph_spells() {
+    let taught: Vec<SpellEffect> = SpellDef::learnable().collect();
+    assert!(taught.contains(&SpellEffect::PolymorphSelf));
+    assert!(taught.contains(&SpellEffect::PolymorphOther));
+}
+
+// ---------------------------------------------------------------------------
+// Gate Down
+// ---------------------------------------------------------------------------
+
+#[test]
+fn gate_down_drops_the_caster_a_floor_and_charges_for_it() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+    let def = SpellDef::of(SpellEffect::GateDown);
+    assert_eq!((def.cost, def.kind), (4, SpellKind::Skill));
+    assert!(!SpellEffect::GateDown.needs_target());
+    w.get_mut::<Magic>(p).unwrap().points = def.cost;
+
+    cast(&mut w, p, SpellEffect::GateDown, here);
+
+    assert_eq!(w.resource::<Depth>().what, 2, "fell one floor");
+    assert_eq!(w.get::<Magic>(p).unwrap().points, 0);
+}

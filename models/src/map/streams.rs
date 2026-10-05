@@ -13,6 +13,12 @@ use bevy_ecs::prelude::*;
 use rand::SeedableRng;
 use rand_chacha::ChaCha12Rng;
 
+/// The live gameplay stream: every combat roll, trap, loot drop and effect draws
+/// from this one generator, in the order the turns happen. Anything that draws
+/// from it changes every roll after it, so decoration must use [`FxRng`] instead.
+///
+/// Unlike [`FxRng`] it is saved, in full, so a reload carries on from the exact
+/// roll the player quit on rather than from a fresh draw.
 #[derive(Resource)]
 pub struct GameRng(pub ChaCha12Rng);
 
@@ -35,6 +41,20 @@ pub struct RngSeed(pub u64);
 pub struct FxRng(pub ChaCha12Rng);
 
 impl FxRng {
+    /// The cosmetic stream for a run's `seed`. The seed is salted first, so
+    /// `FxRng::new(seed)` and a [`GameRng`] built from the same `seed` never
+    /// produce the same numbers.
+    ///
+    /// ```
+    /// use models::{ChaCha12Rng, FxRng};
+    /// use rand::{RngCore, SeedableRng};
+    ///
+    /// let (mut a, mut b) = (FxRng::new(7), FxRng::new(7));
+    /// assert_eq!(a.0.next_u64(), b.0.next_u64());
+    ///
+    /// let mut gameplay = ChaCha12Rng::seed_from_u64(7);
+    /// assert_ne!(gameplay.next_u64(), FxRng::new(7).0.next_u64());
+    /// ```
     pub fn new(seed: u64) -> Self {
         Self(ChaCha12Rng::seed_from_u64(seed ^ 0xF12E_A5A5_C05E_u64))
     }

@@ -64,7 +64,7 @@ pub(crate) fn nymph_theft(world: &mut World, attacker: Entity, target: Entity) {
         leave_smoke(world, pos);
     }
     world.entity_mut(item).despawn();
-    world.entity_mut(attacker).despawn();
+    crate::spirits::poof(world, attacker);
 }
 
 /// Damage enough for the biggest splatter [`crate::helpers::spill_blood`]

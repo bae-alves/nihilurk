@@ -46,11 +46,11 @@ Chain `.missile(die)` if it is built to be thrown -- it then rolls that die on i
 
 Any weapon can be thrown. `.missile()` is the difference between a purpose-built missile and a hurled lump of metal.
 
-Chain `.reach(n)` for a weapon aimed with its own reticle (`v`) instead of a walk into the target's tile — a bardiche's 2, a whip's 5. Add `.reach_piercing()` if the strike should run the whole line rather than stopping at the first body, the melee twin of `.piercing()`.
+Chain `.reach(n)` for a weapon aimed with its own reticle (`v`) instead of a walk into the target's tile -- a bardiche's 2, a whip's 5. Add `.reach_piercing()` if the strike should run the whole line rather than stopping at the first body, the melee twin of `.piercing()`.
 
-Chain `.grants(&[Grant::of::<SomeMarker>()])` for a trick the weapon lends its wielder while it's in hand — exactly a ring's own `.grants()`, and read by the same places a ring's effects are: an `ABILITIES` row keyed on `Moment::OnHit` for something that fires when a blow lands, or a direct `world.get::<SomeMarker>(attacker)` probe for something checked elsewhere (the battle axe's `Cleaves`, checked once from `models::melee_attack`). This is also how a weapon-only marker stays invisible to `combat.rs` and `engine/` alike — see `crate::effects`'s module doc.
+Chain `.grants(&[Grant::of::<SomeMarker>()])` for a trick the weapon lends its wielder while it's in hand -- exactly a ring's own `.grants()`, and read by the same places a ring's effects are: an `ABILITIES` row keyed on `Moment::OnHit` for something that fires when a blow lands, or a direct `world.get::<SomeMarker>(attacker)` probe for something checked elsewhere (the battle axe's `Cleaves`, checked once from `models::melee_attack`). This is also how a weapon-only marker stays invisible to `combat.rs` and `engine/` alike -- see `crate::effects`'s module doc.
 
-Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded — the staff's "You're a wizard now!" — the same mechanism a ring of adornment's flourish uses. `.on_doff(OnDoff(some_fn))` is its mirror, fired when the weapon is deliberately put away again ("You're no longer that magical."), and it is worth adding only when what the weapon lends is invisible on the HUD: the player has no other way to notice it leaving. It fires from `equipment::toggle_equipped` alone, never from `force_unequip`, so dropping it, being disarmed of it and dying with it say nothing.
+Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded -- the staff's "You're a wizard now!" -- the same mechanism a ring of adornment's flourish uses. `.on_doff(OnDoff(some_fn))` is its mirror, fired when the weapon is deliberately put away again ("You're no longer that magical."), and it is worth adding only when what the weapon lends is invisible on the HUD: the player has no other way to notice it leaving. It fires from `equipment::toggle_equipped` alone, never from `force_unequip`, so dropping it, being disarmed of it and dying with it say nothing.
 
     WeaponDef::new("bardiche", Color::Grey, 7).reach(2).reach_piercing(),
     WeaponDef::new("garrote", Color::DarkGrey, 0).grants(&[Grant::of::<VorpalOnCondition>()]),
@@ -73,7 +73,7 @@ Coins are the pickup category: never carried, spent where they lie. A row is `na
     AmmoDef { name: "bolt", color: Color::Grey, die: 5,
               launched_by: Grant::of::<FireQuarrel>() },
 
-`die` is what one rolls hurled by hand; a wielder carrying the `launched_by` effect doubles it. Stacks up to 13 per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
+`die` is what one rolls hurled by hand; a wielder carrying the `launched_by` effect doubles it. Stacks up to `constants::items::STACK_LIMIT` per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
 
 If your ammunition answers to a launcher that does not exist yet, you need a new effect for the pair to meet at -- see `add-an-effect.md`.
 
@@ -98,7 +98,7 @@ A treat is thrown at a monster as an offer of loyalty and is never used. `for_it
 Rings
 -----
 
-A ring is a modifier item, exactly like a sword. Eleven of the twelve have no behaviour code anywhere -- they stack numbers through the same components combat already folds, and lend marker effects through `Grants`.
+A ring is a modifier item, exactly like a sword. Most of them have no behaviour code anywhere -- they stack numbers through the same components combat already folds, and lend marker effects through `Grants`.
 
 1. Append a variant to `RingEffect` in `models/src/components.rs`:
 
@@ -158,7 +158,7 @@ These three are consumables with a mechanic, so they take three edits. The patte
 
    A potion's mechanic returns whether it visibly did anything.
 
-> **Step 3 is the one the compiler now makes you do.** All three of
+> **Step 3 is the one the compiler makes you do.** All three of
 > those functions are exhaustive matches over their effect enum, the
 > same as `apply_trap_effect` is over `TrapEffect` -- no catch-all arm, so
 > step 1's new variant will not build until step 3 gives it one. The
@@ -201,6 +201,21 @@ The tests check that names are unique, that every row can be built by name, that
 
 
 You do not have to register the item, update the loot table, teach the save file about it, or teach combat about it. Why none of that is needed is `../explanation/data-driven-content.md`.
+
+
+Appendix: quick check
+---------------------
+
+1. Find your category in "At a glance".
+2. Weapon, armour, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
+3. Ring: append a `RingEffect` variant at the end, then add the `RingDef::new` row.
+4. Potion, scroll, wand: append the effect variant at the end, add the row, write the arm in `apply_potion_effect`, `apply_scroll_effect` or `apply_wand_effect`.
+5. A wand with no reticle (it acts on the room or the zapper): add it to `WandEffect::needs_target`.
+6. Never insert or reorder an enum variant; a save stores its position.
+7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.
+8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test content`.
+9. Fix the docs: the enum line in `../reference/components.md`, and for a wand its table row (`update-the-docs.md`).
+
 
 See also
 --------

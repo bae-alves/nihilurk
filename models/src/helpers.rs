@@ -151,6 +151,15 @@ pub fn player_swims(world: &mut World) -> bool {
 /// The Chebyshev (chessboard) distance between two tiles — "closest diagonal
 /// counts as one step" — the adjacency measure used everywhere in combat and
 /// AI: a lunge's or whirl's geometry, a chase's next step.
+///
+/// ```
+/// use models::{Position, chebyshev};
+///
+/// let a = Position { x: 1, y: 1 };
+/// let b = Position { x: 4, y: 2 };
+/// // A diagonal step covers both axes at once, so the longer axis is the distance.
+/// assert_eq!(chebyshev(a, b), 3);
+/// ```
 pub fn chebyshev(a: Position, b: Position) -> i32 {
     (a.x as i32 - b.x as i32)
         .abs()
@@ -290,6 +299,9 @@ pub fn roll_dice(world: &mut World, count: i32, sides: i32) -> i32 {
 /// raw id. Works on anything with a [`Name`] — a potion, a monster, the player's
 /// own corpse.
 pub fn item_label(world: &World, item: Entity) -> String {
+    if let Some(form) = crate::effects::chimeric_form(world, item) {
+        return form.name.to_string();
+    }
     world
         .get::<Name>(item)
         .map(|n| n.what.clone())
@@ -331,6 +343,8 @@ pub fn apply_damage(world: &mut World, entity: Entity, amount: i32) {
 /// remembered. Of thirteen, two checked the element and six checked the ward.
 #[derive(Clone, Copy)]
 pub struct Hit {
+    /// The damage before mitigation. What [`apply_hit`] returns can be less,
+    /// down to zero when a ward or an immunity turns the blow aside.
     pub amount: i32,
     /// The element, if any. `None` is a physical blow — a dart, an arrow, a
     /// thrown dagger — which no immunity covers.
@@ -342,6 +356,14 @@ pub struct Hit {
 
 impl Hit {
     /// Steel, wood and gravity. No element, and a ward is no help.
+    ///
+    /// ```
+    /// use models::Hit;
+    ///
+    /// let dart = Hit::physical(3);
+    /// assert_eq!(dart.amount, 3);
+    /// assert!(dart.element.is_none() && !dart.magical);
+    /// ```
     pub fn physical(amount: i32) -> Self {
         Self {
             amount,
@@ -390,7 +412,8 @@ impl Hit {
 /// elemental trap would simply have burned a dragon.
 pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&str>) -> i32 {
     if hit.magical && world.get::<crate::effects::MagicWard>(entity).is_some() {
-        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
+        if world.get::<Name>(entity).is_some() {
+            let name = item_label(world, entity);
             world
                 .resource_mut::<GameLog>()
                 .add(strings::ward_turns_aside(&name));
@@ -399,7 +422,8 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
         return 0;
     }
     if let Some(el) = hit.element.filter(|el| el.immunity().probe(world, entity)) {
-        if let Some(name) = world.get::<Name>(entity).map(|n| n.what.clone()) {
+        if world.get::<Name>(entity).is_some() {
+            let name = item_label(world, entity);
             world
                 .resource_mut::<GameLog>()
                 .add(strings::unharmed_by(&name, el.noun()));
@@ -437,8 +461,9 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
 
 /// Everything that happens to a creature *because it was hurt*, whatever hurt
 /// it: a promise the dungeon made it is off ([`crate::items::break_promises`]),
-/// and the player gets the low-HP warning if this blow crossed the line
-/// ([`warn_if_newly_low`]).
+/// the player gets the low-HP warning if this blow crossed the line
+/// ([`warn_if_newly_low`]), and a wounded spirit angers them all
+/// ([`crate::spirits::on_wounded`]).
 ///
 /// Called from the two places damage is dealt — here and
 /// [`crate::combat::resolve_attack`], which applies its own. Anything that
@@ -446,6 +471,7 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
 pub(crate) fn took_damage(world: &mut World, entity: Entity, hp_before: Option<i32>) {
     crate::items::break_promises(world, entity);
     warn_if_newly_low(world, entity, hp_before);
+    crate::spirits::on_wounded(world, entity);
     // Everything a creature does *because* it was hurt. The slime's split used
     // to be a third hardcoded line here, beside two things that are not
     // abilities at all.
@@ -522,7 +548,10 @@ const DIRS: [(i32, i32); 8] = [
 /// A glancing blow never splatters; otherwise both the number of droplets and
 /// how far they can fly scale with the damage dealt.
 pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: bool) {
-    if world.get::<Blood>(entity).is_none() {
+    // A faerie shapeshifter underneath has no blood to spill.
+    if world.get::<Blood>(entity).is_none()
+        || world.get::<crate::effects::FaerieOnDeath>(entity).is_some()
+    {
         return;
     }
     let Some(&pos) = world.get::<Position>(entity) else {

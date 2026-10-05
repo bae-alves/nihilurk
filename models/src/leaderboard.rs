@@ -15,8 +15,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// — a death on the way back out cost more than one on the way down.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Outcome {
+    /// The Element of Yoord was carried up the last stair.
     Win,
+    /// Died with the Element of Yoord in the pack, on the way back out.
     LoseAscent,
+    /// Died without it, on the way down.
     LoseDescent,
 }
 

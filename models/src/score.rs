@@ -56,7 +56,9 @@ pub use crate::constants::score::{
 /// string and six paint `DOUBLE` a letter each.
 #[derive(Resource, Default)]
 pub struct ScoreFlash {
+    /// The words flashed.
     pub text: String,
+    /// The colours the characters cycle through.
     pub colors: Vec<Color>,
     turns: u8,
 }
@@ -88,7 +90,7 @@ impl ScoreFlash {
 /// A turn's kills are scored as one pile, once, when the dying is over — not a
 /// payment per corpse. Every corpse past the first is worth
 /// [`COMBO_BONUS_PER_KILL`] more on the whole pile, so a blast that takes three
-/// at once pays double what the same three would piece by piece, and the
+/// at once pays more than the same three would piece by piece, and the
 /// scoreboard says so with a single number and a single line rather than
 /// counting them off one at a time.
 ///

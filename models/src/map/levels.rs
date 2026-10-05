@@ -219,11 +219,11 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     let rooms = build_the_floor(world, depth);
     let start = put_the_player_down(world, player, going_down);
     populate_level(world, &rooms, start);
-    if let Some(helper) = crate::companion::the_helper(world) {
-        let beside = Position {
-            x: start.0,
-            y: start.1,
-        };
+    let beside = Position {
+        x: start.0,
+        y: start.1,
+    };
+    for helper in crate::companion::all_helpers(world) {
         crate::companion::follow_downstairs(world, helper, beside);
     }
     settle_arrival(world, player, cause);
@@ -549,6 +549,13 @@ pub fn dungeon_lord_system(world: &mut World) {
     transition_level(world, true, LevelChange::Portal);
 }
 
+/// Sets up a new run's world at depth 1: the per-run resources, the floor
+/// ([`create_map`]), the player in their starting body with the starting kit
+/// worn, and the floor's population.
+///
+/// [`RngSeed`], [`GameRng`] and [`PlayerName`] must already be in the world, or
+/// this panics. A [`crate::body::StartingBody`] is optional and defaults to the
+/// plain one.
 pub fn initialize_world(world: &mut World) {
     world.insert_resource(GameState::new());
     world.insert_resource(Depth { what: 1 });

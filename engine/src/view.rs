@@ -230,6 +230,7 @@ pub fn render<W: Write>(
     // SLOW exactly like a potion of paralysis does. It *is* the same slowing.
     let tempo = player_entity.map(|pe| models::tempo(world, pe));
     let stealthy = player_entity.is_some_and(|pe| world.get::<Stealthy>(pe).is_some());
+    let polymorphed = player_entity.is_some_and(|pe| world.get::<Polymorphed>(pe).is_some());
     let conditions: Vec<(&str, Color)> = {
         let mut q = world.query_filtered::<(
             Option<&Confused>,
@@ -256,6 +257,9 @@ pub fn render<W: Write>(
             }
             if stealthy {
                 v.push(("STLH", Color::DarkGreen));
+            }
+            if polymorphed {
+                v.push(("POLY", Color::DarkMagenta));
             }
             if confused.is_some() {
                 v.push(("CONF", Color::Magenta));
@@ -563,12 +567,14 @@ pub fn render<W: Write>(
     // ---- Actors (visibility system already tags out-of-sight mobs Hidden) ----
     {
         let mut query = world
-            .query_filtered::<(&Position, &Renderable), (Or<(With<Player>, With<Mob>)>, Without<Hidden>)>();
-        for (pos, renderable) in query.iter(world) {
+            .query_filtered::<(Entity, &Position, &Renderable), (Or<(With<Player>, With<Mob>)>, Without<Hidden>)>();
+        for (entity, pos, renderable) in query.iter(world) {
             if !visible.contains(&(pos.x, pos.y)) {
                 continue;
             }
-            screen.put_map(pos.x, pos.y, renderable.glyph, by_touch(renderable.color));
+            // A chimeric form is drawn as itself; nothing stored changes.
+            let glyph = models::chimeric_form(world, entity).map_or(renderable.glyph, |f| f.glyph);
+            screen.put_map(pos.x, pos.y, glyph, by_touch(renderable.color));
         }
     }
 
@@ -1506,7 +1512,16 @@ fn draw_offer_menu(world: &mut World, screen: &mut Screen) {
         .enumerate()
         .map(|(i, opt)| {
             let letter = (b'a' + i as u8) as char;
-            format!(" {letter}) {} ", opt.display_name())
+            let price = match opt.price().filter(|_| menu.priced) {
+                Some(Price::MaxHp(n)) => {
+                    format!(" {}", strings::offer_price(n, strings::hp_abbr()))
+                }
+                Some(Price::MaxMa(n)) => {
+                    format!(" {}", strings::offer_price(n.into(), strings::magic_abbr()))
+                }
+                None => String::new(),
+            };
+            format!(" {letter}) {}{price} ", opt.display_name())
         })
         .collect();
 

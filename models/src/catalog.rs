@@ -64,8 +64,9 @@ pub trait ItemDef {
         strings::content_name(self.name())
     }
 
-    /// How often this row turns up relative to its table-mates. Ten is the
-    /// baseline, so a row at 5 is half as common and one at 20 twice.
+    /// How often this row turns up relative to its table-mates. The default is
+    /// the baseline, so a row at half of it is half as common and one at double
+    /// it twice.
     ///
     /// Every row in the game currently sits at the default — within a category
     /// nihilurk picks evenly, on purpose. Overriding it is how a category earns
@@ -108,8 +109,13 @@ fn insert_modifier<C: Modifier>(entity: &mut bevy_ecs::world::EntityWorldMut, va
 /// A potion: quaffed once, then gone. What it *does* lives in the `potions`
 /// submodule of `crate::items`, keyed by [`PotionDef::effect`].
 pub struct PotionDef {
+    /// The [`PotionEffect`] this row is the entry for.
     pub effect: PotionEffect,
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
 }
 
@@ -139,6 +145,7 @@ impl ItemDef for PotionDef {
     }
 }
 
+/// Every potion in the game, one row each.
 #[rustfmt::skip]
 pub const POTIONS: &[PotionDef] = &[
     PotionDef { effect: PotionEffect::Confusion,       name: "potion of confusion",        color: Color::Magenta },
@@ -157,6 +164,7 @@ pub const POTIONS: &[PotionDef] = &[
     PotionDef { effect: PotionEffect::FruitJuice,      name: "potion of fruit juice",      color: Color::DarkYellow },
     PotionDef { effect: PotionEffect::Magic,           name: "potion of magic",            color: Color::Blue },
     PotionDef { effect: PotionEffect::Adjustment,      name: "potion of adjustment",       color: Color::DarkCyan },
+    PotionDef { effect: PotionEffect::Polymorph,       name: "potion of polymorph",        color: Color::DarkMagenta },
 ];
 
 // ---------------------------------------------------------------------------
@@ -166,7 +174,11 @@ pub const POTIONS: &[PotionDef] = &[
 /// A scroll: read once, then it crumbles. Its mechanic lives in the `scrolls`
 /// submodule of `crate::items`, keyed by [`ScrollDef::effect`].
 pub struct ScrollDef {
+    /// The [`ScrollEffect`] this row is the entry for.
     pub effect: ScrollEffect,
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
 }
 
@@ -196,6 +208,7 @@ impl ItemDef for ScrollDef {
     }
 }
 
+/// Every scroll in the game, one row each.
 #[rustfmt::skip]
 pub const SCROLLS: &[ScrollDef] = &[
     ScrollDef { effect: ScrollEffect::MonsterConfusion,  name: "scroll of monster confusion" },
@@ -214,6 +227,8 @@ pub const SCROLLS: &[ScrollDef] = &[
     ScrollDef { effect: ScrollEffect::VorpalizeWeapon,   name: "scroll of vorpalize weapon" },
     ScrollDef { effect: ScrollEffect::Amnesia,           name: "scroll of amnesia" },
     ScrollDef { effect: ScrollEffect::Charming,          name: "scroll of charming" },
+    ScrollDef { effect: ScrollEffect::Pitfall,           name: "scroll of pitfall" },
+    ScrollDef { effect: ScrollEffect::Atonement,         name: "scroll of atonement" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -222,9 +237,15 @@ pub const SCROLLS: &[ScrollDef] = &[
 
 /// A wand: zapped until its battery runs dry. `range` feeds the aiming reticle.
 pub struct WandDef {
+    /// The [`WandEffect`] this row is the entry for.
     pub effect: WandEffect,
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
+    /// How far the aiming reticle reaches.
     pub range: i32,
 }
 
@@ -257,6 +278,7 @@ impl ItemDef for WandDef {
     }
 }
 
+/// Every wand in the game, one row each.
 #[rustfmt::skip]
 pub const WANDS: &[WandDef] = &[
     WandDef { effect: WandEffect::Light,        name: "wand of light",         color: Color::Yellow,      range: 8 },
@@ -273,6 +295,8 @@ pub const WANDS: &[WandDef] = &[
     WandDef { effect: WandEffect::TeleportTo,   name: "wand of teleport to",   color: Color::Green,       range: 8 },
     WandDef { effect: WandEffect::Cancellation, name: "wand of cancellation",  color: Color::DarkMagenta, range: 6 },
     WandDef { effect: WandEffect::Charming,     name: "wand of charming",      color: Color::Magenta,     range: 6 },
+    WandDef { effect: WandEffect::Digging,      name: "wand of digging",       color: Color::DarkYellow,  range: 8 },
+    WandDef { effect: WandEffect::Swapping,     name: "wand of swapping",      color: Color::DarkGreen,   range: 8 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -290,8 +314,13 @@ pub const WANDS: &[WandDef] = &[
 /// spear is balanced for the flight ([`Projectile`]) and, being balanced, does
 /// not stop at the first body it finds ([`Piercing`]).
 pub struct WeaponDef {
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
+    /// The size of the damage die a blow with it rolls.
     pub power_die: i32,
     /// The die it rolls when thrown. Defaults to `power_die` — a weapon is as
     /// dangerous thrown as it is swung unless the row says otherwise.
@@ -352,8 +381,7 @@ impl WeaponDef {
         self
     }
 
-    /// A reach weapon, aimed rather than walked into: a bardiche (2), a whip
-    /// (5).
+    /// A reach weapon, aimed rather than walked into: a bardiche, a whip.
     const fn reach(mut self, tiles: i32) -> Self {
         self.reach = tiles;
         self
@@ -461,6 +489,7 @@ fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
         .add(strings::wizard_no_more());
 }
 
+/// Every melee weapon in the game, one row each.
 #[rustfmt::skip]
 pub const WEAPONS: &[WeaponDef] = &[
     WeaponDef::new("dagger",           Color::Grey,       4).missile(4).piercing(),
@@ -529,12 +558,16 @@ pub const WEAPONS: &[WeaponDef] = &[
 /// it **answers to a launcher**: whoever throws it with `launched_by` already on
 /// them looses it properly, on `launched_die` instead of `die`.
 pub struct AmmoDef {
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
     /// The die one of these rolls, lobbed by hand.
     pub die: i32,
     /// The die one of these rolls loosed from its launcher instead. A quarrel's
-    /// is the plain double a crossbow earns; an arrow's is short of that — the
+    /// is the full step up a crossbow earns; an arrow's is short of that — the
     /// bow is the best thing in the dungeon drawn, and this keeps it from also
     /// being the hardest-hitting.
     pub launched_die: i32,
@@ -586,6 +619,7 @@ impl ItemDef for AmmoDef {
     }
 }
 
+/// Every kind of ammunition in the game, one row each.
 #[rustfmt::skip]
 pub const AMMO: &[AmmoDef] = &[
     AmmoDef { name: "arrow",   color: Color::DarkYellow, die: 4, launched_die: 6,  launched_by: Grant::of::<FireArrow>()   },
@@ -621,8 +655,14 @@ pub fn ammo_launched_die(fires_quarrel: bool) -> (i32, &'static str) {
 ///
 /// [`ThrowBonus(0)`]: ThrowBonus
 pub struct LauncherDef {
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
+    /// What it lends its wielder while equipped: the effect ([`FireArrow`],
+    /// [`FireQuarrel`]) that lets it loose the matching ammunition.
     pub grants: &'static [Grant],
     /// The most this is worth swung at something. A launcher occupies the hand
     /// a sword would have had, and this is the price of that: drawn it is the
@@ -664,6 +704,7 @@ impl ItemDef for LauncherDef {
     }
 }
 
+/// Every launcher in the game, one row each.
 #[rustfmt::skip]
 pub const LAUNCHERS: &[LauncherDef] = &[
     LauncherDef { name: "short bow", color: Color::DarkYellow, grants: &[Grant::of::<FireArrow>()],   melee_cap: 1 },
@@ -683,8 +724,13 @@ fn attach_flight(entity: &mut bevy_ecs::world::EntityWorldMut, projectile: bool,
 
 /// A suit of armour. `armor_die` is what wearing it adds to the defence die.
 pub struct ArmorDef {
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
+    /// What wearing it adds to the defence die.
     pub armor_die: i32,
 }
 
@@ -718,6 +764,7 @@ impl ItemDef for ArmorDef {
     }
 }
 
+/// Every suit of armour in the game, one row each.
 #[rustfmt::skip]
 pub const ARMORS: &[ArmorDef] = &[
     ArmorDef { name: "leather armor",          color: Color::DarkYellow, armor_die: 2 },
@@ -739,7 +786,11 @@ pub const ARMORS: &[ArmorDef] = &[
 /// lends marker effects to its wearer through [`Grants`]. There is no such thing
 /// as "ring logic" anywhere else in the codebase.
 pub struct RingDef {
+    /// The [`RingEffect`] this row is the entry for.
     pub effect: RingEffect,
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
     power_die: i32,
     power_bonus: i32,
@@ -894,6 +945,8 @@ pub const RINGS: &[RingDef] = &[
     // arm, this one keeps the corrosion off your plate.
     RingDef::new(RingEffect::MaintainArmor, "ring of maintain armor")
         .grants(&[Grant::of::<SustainsArmor>()]),
+    RingDef::new(RingEffect::Polymorph, "ring of polymorph")
+        .grants(&[Grant::of::<Polymorphitis>()]),
 ];
 
 // ---------------------------------------------------------------------------
@@ -906,14 +959,17 @@ pub const RINGS: &[RingDef] = &[
 /// [`Position`] on the floor and no pack slot. Its mechanic lives in
 /// `crate::items::spells`, keyed by [`SpellDef::effect`].
 pub struct SpellDef {
+    /// The [`SpellEffect`] this row is the entry for.
     pub effect: SpellEffect,
+    /// The spell's identity, as [`ItemDef::name`] is an item's. The player reads
+    /// [`SpellDef::display_name`] instead.
     pub name: &'static str,
     /// [`Magic`] points one use costs.
     pub cost: u8,
     /// How far the aiming reticle reaches.
     pub range: i32,
     /// Attack or skill — the dial a staff's [`TurboMagic`] checks before
-    /// doubling the cost and tripling the damage of the cast. See
+    /// multiplying the cost and the damage of the cast. See
     /// [`crate::items::spell_system`].
     pub kind: SpellKind,
 }
@@ -928,6 +984,11 @@ impl SpellDef {
             .unwrap_or_else(|| panic!("no spell row for {effect:?}"))
     }
 
+    /// The spells a coin or a spirit may teach: every one in [`SPELLS`].
+    pub fn learnable() -> impl Iterator<Item = SpellEffect> {
+        SPELLS.iter().map(|m| m.effect)
+    }
+
     /// What the player sees this spell called, in whatever language this
     /// binary was built for. `name` itself never changes — see
     /// [`crate::monsters::MonsterDef::display_name`]'s doc comment for why.
@@ -936,11 +997,10 @@ impl SpellDef {
     }
 }
 
-/// Every active spell in the game: four tiers of four, priced by [`Magic`]
-/// cost — 1 through 4 — the same way a floor's danger is priced by depth. A
-/// monster's own copy of a shared trick ([`crate::items::dragon_breath`], the
-/// dragon's innate attack) spends no [`Magic`] at all; the cost here is the
-/// price of the player borrowing it, not a property of the trick itself.
+/// Every active spell in the game: tiers priced by [`Magic`]
+/// cost, the same way a floor's danger is priced by depth. A
+/// monster pays the same price out of its own
+/// [`Magic`] ([`crate::monsters::MonsterDef::magic`]).
 ///
 /// `range` is meaningless for a spell whose [`SpellEffect::needs_target`] is
 /// `false` — it fires on its slot press with no reticle at all — and is left
@@ -957,16 +1017,20 @@ pub const SPELLS: &[SpellDef] = &[
     SpellDef { effect: SpellEffect::ForceLance,  name: "Force Lance", cost: 2, range: 8, kind: SpellKind::Attack },
     SpellDef { effect: SpellEffect::Identify,    name: "Identify",    cost: 2, range: 0, kind: SpellKind::Skill },
     SpellDef { effect: SpellEffect::Setup,       name: "Setup",       cost: 2, range: 0, kind: SpellKind::Skill },
+    SpellDef { effect: SpellEffect::PolymorphSelf, name: "Polymorph Self", cost: 2, range: 0, kind: SpellKind::Skill },
     // --- 3 Ma ---------------------------------------------------------
     SpellDef { effect: SpellEffect::Lux,          name: "Lux",           cost: 3, range: 8, kind: SpellKind::Attack },
     SpellDef { effect: SpellEffect::CircleOfDeath, name: "Circle of Death", cost: 3, range: 0, kind: SpellKind::Attack },
     SpellDef { effect: SpellEffect::MagicWard,    name: "Magic Ward",    cost: 3, range: 0, kind: SpellKind::Skill },
     SpellDef { effect: SpellEffect::Heal,         name: "Heal",          cost: 3, range: 0, kind: SpellKind::Skill },
+    // An aimed skill: it does no damage, so a staff has nothing to double.
+    SpellDef { effect: SpellEffect::PolymorphOther, name: "Polymorph Other", cost: 3, range: 8, kind: SpellKind::Skill },
     // --- 4 Ma ---------------------------------------------------------
     SpellDef { effect: SpellEffect::MeteorStrike, name: "Meteor Strike", cost: 4, range: 8, kind: SpellKind::Attack },
     SpellDef { effect: SpellEffect::FrostNova,    name: "Frost Nova",    cost: 4, range: 0, kind: SpellKind::Attack },
     SpellDef { effect: SpellEffect::MagicMapping, name: "Magic Mapping", cost: 4, range: 0, kind: SpellKind::Skill },
     SpellDef { effect: SpellEffect::HasteSelf,    name: "Haste Self",    cost: 4, range: 0, kind: SpellKind::Skill },
+    SpellDef { effect: SpellEffect::GateDown,     name: "Gate Down",     cost: 4, range: 0, kind: SpellKind::Skill },
 ];
 
 // ---------------------------------------------------------------------------
@@ -981,12 +1045,18 @@ pub const SPELLS: &[SpellDef] = &[
 /// points for a treasure coin, hit points for the red one, afflictions lifted
 /// for the rosé. A row that needs no number leaves it at zero.
 pub struct CoinDef {
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
+    /// What picking it up does.
     pub effect: PickupEffect,
+    /// The dial `effect` reads. Zero for an effect that needs none.
     pub amount: i32,
-    /// This row's share of the coin table against its table-mates. Ten is the
-    /// baseline; the hero coin sits well under it — an uncommon find.
+    /// This row's share of the coin table against its table-mates. Most sit at
+    /// the default; the hero coin sits well under it — an uncommon find.
     pub weight: u32,
 }
 
@@ -1052,7 +1122,11 @@ pub const COINS: &[CoinDef] = &[
 /// A treat: thrown at a creature as an offer of loyalty, never used. What
 /// accepting one means lives in [`crate::companion`]. Treats stack like ammo.
 pub struct TreatDef {
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// The colour it draws in.
     pub color: Color,
     /// Whether this one is meant for a creature with hands
     /// ([`crate::effects::ItemUser`]).
@@ -1150,6 +1224,8 @@ fn named<'a, D: ItemDef>(table: &'a [D], name: &str, kind: &str) -> &'a D {
         .unwrap_or_else(|| panic!("no {kind} named {name:?}"))
 }
 
+/// A potion of `effect` on the floor at `pos`. Panics if [`POTIONS`] has no row
+/// for it, which would mean a [`PotionEffect`] variant nobody gave a row.
 pub fn spawn_potion(world: &mut World, effect: PotionEffect, pos: Position) -> Entity {
     POTIONS
         .iter()
@@ -1158,6 +1234,8 @@ pub fn spawn_potion(world: &mut World, effect: PotionEffect, pos: Position) -> E
         .spawn(world, pos)
 }
 
+/// A scroll of `effect` on the floor at `pos`. Panics if [`SCROLLS`] has no row
+/// for it, which would mean a [`ScrollEffect`] variant nobody gave a row.
 pub fn spawn_scroll(world: &mut World, effect: ScrollEffect, pos: Position) -> Entity {
     SCROLLS
         .iter()
@@ -1166,6 +1244,8 @@ pub fn spawn_scroll(world: &mut World, effect: ScrollEffect, pos: Position) -> E
         .spawn(world, pos)
 }
 
+/// A wand of `effect` on the floor at `pos`. Panics if [`WANDS`] has no row for
+/// it, which would mean a [`WandEffect`] variant nobody gave a row.
 pub fn spawn_wand(world: &mut World, effect: WandEffect, pos: Position) -> Entity {
     WANDS
         .iter()
@@ -1174,14 +1254,21 @@ pub fn spawn_wand(world: &mut World, effect: WandEffect, pos: Position) -> Entit
         .spawn(world, pos)
 }
 
+/// A ring of `effect` on the floor at `pos`. Panics on a variant with no row in
+/// [`RINGS`], same as [`RingDef::of`].
 pub fn spawn_ring(world: &mut World, effect: RingEffect, pos: Position) -> Entity {
     RingDef::of(effect).spawn(world, pos)
 }
 
+/// The weapon called `name` on the floor at `pos`. Panics if [`WEAPONS`] has no
+/// such row: pass a literal from the catalog, or go through
+/// [`crate::spawn::spawn_named`] for a name you did not write.
 pub fn spawn_weapon(world: &mut World, name: &str, pos: Position) -> Entity {
     named(WEAPONS, name, "weapon").spawn(world, pos)
 }
 
+/// The armour called `name` on the floor at `pos`. Panics if [`ARMORS`] has no
+/// such row; see [`spawn_weapon`].
 pub fn spawn_armor(world: &mut World, name: &str, pos: Position) -> Entity {
     named(ARMORS, name, "armor").spawn(world, pos)
 }
@@ -1192,6 +1279,8 @@ pub fn spawn_ammo(world: &mut World, name: &str, pos: Position) -> Entity {
     named(AMMO, name, "ammo").spawn(world, pos)
 }
 
+/// The bow or crossbow called `name` on the floor at `pos`. Panics if [`LAUNCHERS`]
+/// has no such row; see [`spawn_weapon`].
 pub fn spawn_launcher(world: &mut World, name: &str, pos: Position) -> Entity {
     named(LAUNCHERS, name, "launcher").spawn(world, pos)
 }

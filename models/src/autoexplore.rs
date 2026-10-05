@@ -27,6 +27,7 @@ pub use crate::constants::travel::AUTO_EXPLORE_STEP_CAP;
 /// reload always starts idle.
 #[derive(Resource, Default)]
 pub struct AutoExplore {
+    /// Whether an auto-walk is under way.
     pub active: bool,
     /// Steps taken on the current run. A guard against a pathologically long
     /// walk: [`AUTO_EXPLORE_STEP_CAP`] stops it dead.
@@ -38,7 +39,7 @@ pub struct AutoExplore {
     /// currently committed to walking toward. [`explore_step`] keeps heading
     /// here — rather than re-picking the globally nearest frontier every
     /// single turn — until it's reached or stops being a frontier, so a room
-    /// that's 95% mapped gets finished before something else takes over.
+    /// that's nearly mapped gets finished before something else takes over.
     pub frontier: Option<(u16, u16)>,
 }
 
@@ -70,6 +71,7 @@ impl AutoExplore {
 /// doubling back for every dart it can see.
 #[derive(Resource)]
 pub struct AutoPickup {
+    /// Whether a walk detours to pick up what it spots.
     pub enabled: bool,
 }
 
@@ -358,7 +360,7 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
 /// it last committed to — for as long as that's still a real frontier, rather
 /// than re-picking the globally nearest one fresh every turn. Recomputing
 /// "nearest" on every step is what let auto-explore abandon a room that was
-/// 95% mapped the moment something elsewhere became marginally closer, only to
+/// nearly mapped the moment something elsewhere became marginally closer, only to
 /// trek back through it later; sticking to one destination until it's actually
 /// reached (or made moot) avoids that. Once a new frontier needs picking, ties
 /// toward the still-unseen downstairs when there's a real choice of direction.
@@ -444,8 +446,11 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
 /// hands the tile to [`AutoExplore`] as a travel target. Never serialised.
 #[derive(Resource, Default)]
 pub struct TravelCursor {
+    /// Whether the cursor is up and taking the keyboard.
     pub active: bool,
+    /// The cursor's column, as a map tile coordinate.
     pub x: u16,
+    /// The cursor's row, as a map tile coordinate.
     pub y: u16,
     /// Highlight blink phase; the engine flips it on a timer while active.
     pub blink_on: bool,

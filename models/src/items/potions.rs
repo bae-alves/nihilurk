@@ -76,6 +76,10 @@ pub(super) fn apply_potion_effect(world: &mut World, user: Entity, effect: Potio
         PotionEffect::FruitJuice => flavour(world, user, strings::potion_fruit_juice()),
         PotionEffect::Water => flavour(world, user, strings::potion_water()),
         PotionEffect::Adjustment => adjustment(world, user),
+        PotionEffect::Polymorph => {
+            super::wands::polymorph_entity(world, user);
+            true
+        }
     }
 }
 

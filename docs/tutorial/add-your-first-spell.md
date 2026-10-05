@@ -6,9 +6,9 @@ Tutorial: add your first spell
                    comfortable enough to skip it.
     Prerequisites  A checkout, and a working `cargo`. That is all.
     Time           About ten minutes.
-    You will       Give the player a second active spell, aim it,
-                   feel it cost Magic, then see where the pattern
-                   stops looking like an item.
+    You will       Add an active spell, aim it, feel it cost Magic,
+                   then see where the pattern stops looking like an
+                   item.
 
 This is a lesson, not a recipe. When you want the short version, read `../how-to/add-a-spell.md`.
 
@@ -34,7 +34,7 @@ flowchart LR
 What you are about to learn
 ----------------------------
 
-nihilurk has sixteen active spells today, taught to the player at random by a hero coin (an uncommon coin-table pickup) rather than started with any. A spell is coded the way a potion or a wand is -- one identity enum, one catalog row, one mechanic keyed off it -- because it is exactly as *active* as either of those. This tutorial adds a seventeenth, by hand, the way every one of the sixteen was first tried.
+nihilurk teaches its active spells to the player at random, through a hero coin (an uncommon coin-table pickup), rather than starting anyone with any. A spell is coded the way a potion or a wand is -- one identity enum, one catalog row, one mechanic keyed off it -- because it is exactly as *active* as either of those. This tutorial adds one more, by hand, the way every spell in the table was first tried.
 
 It is also, on purpose, not an item. It has no `Position`, no `Item` marker, no pack slot. It cannot be dropped, thrown, or found on a floor. It lives permanently in whoever's `Spellset` it's in, and it spends Magic instead of a battery.
 
@@ -54,14 +54,14 @@ Search for it:
         DragonBreath,
         Sting,
         Thunderbolt,
-        // ... thirteen more ...
+        // ... more variants ...
     }
 
-Sixteen variants today. Next to it, in `models/src/catalog.rs`, is the table that gives each variant a name, a cost, a reach and a kind:
+Next to it, in `models/src/catalog.rs`, is the table that gives each variant a name, a cost, a reach and a kind:
 
     pub const SPELLS: &[SpellDef] = &[
         SpellDef { effect: SpellEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: SpellKind::Attack },
-        // ... fifteen more ...
+        // ... more rows ...
     ];
 
 Read Fireball's row:
@@ -82,8 +82,8 @@ Ice Bolt is Fireball's cold twin. Append a variant at the very end of the enum -
 
     pub enum SpellEffect {
         DragonBreath,
-        // ... the other fourteen ...
-        HasteSelf,
+        // ... the other variants ...
+        GateDown,
         IceBolt,
     }
 
@@ -112,7 +112,7 @@ The error names a missing match arm in `models/src/items/spells.rs`:
     ) {
         match effect {
             SpellEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
-            // ... fourteen more arms ...
+            // ... more arms ...
         }
     }
 
@@ -155,17 +155,19 @@ Build again:
 
     cargo build
 
-It compiles.
+It compiles. `cargo test` has one more exhaustive match: `every_spell_has_a_catalog_row` in `models/tests/creature_casts.rs` lists every spell, so add `SpellEffect::IceBolt` to its `match` and to its `all` array.
 
 
 Step 4: give it to yourself
 ------------------------------
 
-There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play, the only way to learn one is a hero coin (an uncommon coin-table pickup that teaches a random not-yet-known spell); to try Ice Bolt without hunting for a coin, put it straight into the player's starting `Spellset`, in `initialize_world` (`models/src/map/levels.rs`):
+There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play, the only way to learn one is a hero coin (an uncommon coin-table pickup that teaches a random not-yet-known spell); to try Ice Bolt without hunting for a coin, replace the empty `Spellset::default()` in `initialize_world` (`models/src/map/levels.rs`) with:
 
     Spellset {
         slots: vec![SpellEffect::IceBolt],
     },
+
+Tests about the lurk, the hero coin and amnesia expect an empty starting `Spellset`, so `cargo test` fails while this edit stands. Step 7 reverts it.
 
 Build and run:
 
@@ -176,7 +178,7 @@ Build and run:
 Step 5: cast it
 ------------------
 
-Press `Z`. You should see a small box listing both spells, each with its Magic cost. Press `b` (or navigate down and confirm) to pick Ice Bolt, and the aiming reticle opens exactly as it would for a wand.
+Press `Z`. You should see a small box listing Ice Bolt and its Magic cost. Press `a` (or confirm the highlighted row) to pick it, and the aiming reticle opens exactly as it would for a wand.
 
 Rows are lettered `a` to `d`, the way the pack's are, and the menu is the only way to a spell -- no key fires a slot directly. While the reticle is up, `Tab` snaps it to the next monster or item in view instead of nudging it one tile at a time.
 
@@ -191,7 +193,7 @@ Try the things that work on a potion, a wand, a dagger:
   * **Open the pack (`i`) and look for Ice Bolt.** It isn't there. A spell never enters a `Backpack`; the player's copy of it lives only in `Spellset`.
   * **Try to throw it (`t`).** There is nothing to select -- the throw menu only ever lists `Backpack` contents, and a spell was never in one.
   * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/saveload.rs` round-trips it like every other piece of the player. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that marker would need a row in the `EFFECTS` registry and an `effects::lend` to put it there -- see `../how-to/add-a-spell.md` for the two that already do.
-  * **Give a monster the same trick.** `SpellEffect` is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset for free. Pair a grant with Ice Bolt in `INNATE_SPELLS` (`models/src/abilities.rs`), put the grant on a bestiary row, and that creature's rule set will pick it and fire it at you. The dragon's `FireBreath` is exactly that. See `../reference/agents.md`.
+  * **Give a monster the same trick.** `SpellEffect` is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset out of its own `Magic`. Chain `.casts(3, &[SpellEffect::IceBolt])` on a bestiary row, and that creature is born with the spell and the Ma for three casts of it, and its rule set will pick it and fire it at you until the Ma runs out. The dragon's Fireball is exactly that. See `../reference/agents.md`.
 
 None of that is a bug in what you built. It's the shape of the thing: a spell is a mechanic on loan to whoever's `Spellset` names it, not a possession with a life of its own on the floor.
 
@@ -214,7 +216,7 @@ What you actually learned
 
   * A spell is *not* an item, deliberately: no `Position`, no `Item`, no pack slot, no `NIHILURK_SPAWN`, nothing to throw or drop. It lives in a `Spellset`, and it costs Magic instead of running out of charges.
 
-  * A `SpellEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does — but *triggering* it is not generic yet. Wiring a species to use one under its own AI, at no Magic cost, is still bespoke work in `crate::abilities`.
+  * A `SpellEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does. `.casts(...)` on a bestiary row gives it the spell and the Magic to pay for it, and its rule set does the triggering.
 
 
 Where to go next

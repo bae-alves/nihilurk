@@ -56,7 +56,7 @@ The recipe
 That is the whole procedure. Nothing else in the codebase needs to be told that basilisks exist.
 
 The row you just wrote is also the whole recipe for playing as one:
-`-am basilisk` puts a player inside it, dice and innate magic and all —
+`-am basilisk` puts a player inside it, dice and innate magic and all --
 see `../reference/cli-and-env.md`, "`-am <species>`". Nothing about that
 is a special case for the player; it is the same row a floor-5 basilisk is
 built from. If what you actually want is a *hand-written* playable body,
@@ -88,11 +88,23 @@ Anything past the ten numbers is chained, so a plain creature stays one readable
 
 The effect must already exist. See `add-an-effect.md`. There is a shorthand for the common one -- `.grants(ITEM_USER)` -- which makes a creature clever enough to catch thrown gear, wear it, and read scrolls that land on it.
 
+**Spells** -- a `Spellset` and the `Magic` to pay for it (the dragon):
+
+    MonsterDef::row("basilisk", ...).casts(3, &[SpellEffect::Thunderbolt]),
+
+The first number is how many casts of its dearest spell the creature has the Ma for (`MonsterDef::magic_pool`): two for the beefy, three for the weak. The pool never refills; each cast spends the spell's `SpellDef::cost`, and a dry caster goes back to its claws. A player wearing the row gets the spells in the spell bar.
+
+**Parts nothing can cancel** -- what the creature *is*, as opposed to magic it has. A wand of cancellation strips everything in `.grants(...)` except effects whose id is in `IDENTITY_EFFECTS`, so give the row such effects and cancellation leaves them. The dog is built this way:
+
+    MonsterDef::row("dog", ...).grants(DOG_GRANTS),
+
+`DOG_GRANTS` is five grants, one per behaviour (any treat tames it, a charm makes it the Helper, it outranks the ordinary Helper, a kill may reshape it, and its death reveals a faerie shapeshifter with no gore), and all five are identity effects. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels it, why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog.  A shapeshift keeps whichever of them the old body held (`monsters::reshape`). To build a creature like that, write one effect per behaviour (`add-an-effect.md`, "An effect nothing can cancel"), list their ids in `IDENTITY_EFFECTS`, and grant them from the row. Keep the behaviours separate: one grant per atomic behaviour, so each can be given and tested on its own.
+
 **Born invisible** -- unseeable without see-invisible (the phantom):
 
     MonsterDef::row("basilisk", ...).invisible(),
 
-**Rarity** -- how often it is drawn against the rest of the floor's eligible pool. The default is 10; leave it alone unless you mean it:
+**Rarity** -- how often it is drawn against the rest of the floor's eligible pool. The default is `DEFAULT_SPAWN_WEIGHT`; leave it alone unless you mean it:
 
     MonsterDef::row("basilisk", ...).weight(3),
 
@@ -132,6 +144,19 @@ Checks that will catch you
   * a species turns up above its `min_depth` (`a_species_never_appears_above_its_min_depth`)
 
 Glyph collisions are *not* checked. Two creatures may share a letter; the existing bestiary uses one letter per species by convention, and `D` is already the dragon's.
+
+
+Appendix: quick check
+---------------------
+
+1. Copy the closest row in `BESTIARY` (`models/src/monsters.rs`) and change it.
+2. Give it a unique lowercase name, a stat band from "Choosing the numbers", and a `min_depth`.
+3. Chain extras only if you need them: `.grants(..)`, `.casts(..)`, `.invisible()`, `.weight(..)`.
+4. Pick a colour from the sixteen in the palette, and never write `Aggravated` as the movement.
+5. Never rename an existing row; saved monsters look their species up by name.
+6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk` and look at it.
+7. Run `cargo test --test content`.
+8. Fix the docs: nothing, unless the row brings a new mechanic (`update-the-docs.md`).
 
 
 See also

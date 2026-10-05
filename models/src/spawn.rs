@@ -18,9 +18,9 @@
 //! ## The weights are relative, not percentages
 //!
 //! A weight means nothing on its own; it means something next to its
-//! table-mates. Ten is the baseline everything sits at unless it asks
-//! otherwise, so a row at 5 is half as common as its neighbours and one at 20
-//! is twice. You can add a row without touching any other number — which is the
+//! table-mates. The default weight is the baseline everything sits at unless it
+//! asks otherwise, so a row at half of it is half as common as its neighbours
+//! and one at double it is twice. You can add a row without touching any other number — which is the
 //! whole reason the loot table is not a list of percentages that must total 100
 //! any more.
 
@@ -179,22 +179,10 @@ macro_rules! category {
 /// the three on purpose — one bow is a build, two are clutter. The coins share
 /// what was Rogue's food slot with the treats, which are food of a kind.
 ///
-/// | Category | Weight | Share |
-/// |----------|--------|-------|
-/// | scroll   | 300    | 30.0% |
-/// | potion   | 270    | 27.0% |
-/// | coin     | 130    | 13.0% |
-/// | armor    |  80    |  8.0% |
-/// | wand     |  50    |  5.0% |
-/// | ring     |  50    |  5.0% |
-/// | weapon   |  36    |  3.6% |
-/// | ammo     |  28    |  2.8% |
-/// | launcher |  16    |  1.6% |
-/// | treat    |  40    |  4.0% |
-///
-/// The share column is what these weights happen to work out to today; it is
-/// not a thing you have to maintain. Add a category and every share moves,
-/// which is the point.
+/// The weights are not copied here, so they cannot go stale. The table below
+/// is the source, `docs/reference/content-tables.md` carries the one copy that
+/// a test holds in step (`models/tests/content_docs.rs`), and the shares are
+/// derived: add a category and every share moves, which is the point.
 #[rustfmt::skip]
 pub const DROPS: &[DropCategory] = &[
     //         name        weight  min_depth  table

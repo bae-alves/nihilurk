@@ -7,7 +7,7 @@
 # of that page; if the two ever disagree, the page is the specification and
 # this script is the bug.
 #
-# Eight checks, in the order a page is read:
+# Nine checks, in the order a page is read:
 #
 #   1. header block        the title underline, Audience, Prerequisites
 #   2. the third key       Status for reference/, This is for explanation/
@@ -20,6 +20,7 @@
 #   7. restated dice       `2d6` in prose is a number that will go stale
 #   8. broken links        a page-to-page link that lands nowhere, and a
 #                          `models/src/...` path that names a file that is gone
+#   9. the index           a page that docs/README.md does not list
 #
 # Line width is deliberately *not* checked. These pages are read rendered as
 # often as they are `cat`ed, and a rendered paragraph reflows to the reader's
@@ -28,7 +29,7 @@
 # Why not prettier, or any other markdown formatter
 # -------------------------------------------------
 # Because it would fight the style rather than enforce it. nihilurk's pages are
-# hand-wrapped plain text with setext headings, four-space code blocks and a
+# plain text with setext headings, four-space code blocks and a
 # column-aligned See-also block, all of which exist so that `cat docs/…` reads
 # correctly in a terminal. Every markdown formatter worth the name reflows
 # tables, converts setext headings to ATX and rewraps or unwraps paragraphs on
@@ -360,6 +361,27 @@ if [ -n "$BROKEN" ]; then
   note "paths are relative to the page they are written on"
 else
   pass "every page-to-page link resolves"
+fi
+
+# ---------------------------------------------------------------------------
+# 9. Pages the index forgot
+# ---------------------------------------------------------------------------
+
+stage "Index"
+
+# `docs/README.md` is how a reader finds a page, and an ADR, a how-to or a new
+# tutorial that it does not name is not found. The path is written there
+# relative to docs/, as it is in the tables and in the ADR list.
+UNLISTED=""
+for f in $PAGES; do
+  [ "$f" = docs/README.md ] && continue
+  grep -qF "${f#docs/}" docs/README.md || UNLISTED="$UNLISTED$f"$'\n'
+done
+if [ -n "$UNLISTED" ]; then
+  while IFS= read -r u; do [ -n "$u" ] && hit "not in docs/README.md: $u"; done <<< "$UNLISTED"
+  note "add a row to the index table, or a line to the ADR list"
+else
+  pass "every page is in the index"
 fi
 
 # ---------------------------------------------------------------------------

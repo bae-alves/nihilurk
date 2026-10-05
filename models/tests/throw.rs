@@ -8,7 +8,7 @@ mod common;
 mod monster;
 
 use bevy_ecs::prelude::*;
-use models::constants::wands::GRENADE_DIE_PER_CHARGE;
+use models::constants::wands::{GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS};
 use models::*;
 
 fn test_world(seed: u64) -> World {
@@ -442,6 +442,30 @@ fn a_thrown_wand_of_teleport_to_with_no_target_sends_a_victim_to_itself() {
 }
 
 #[test]
+fn a_thrown_wand_of_swapping_shuffles_everyone_it_catches() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let near = east_of_player(&mut w, 1);
+    let far = east_of_player(&mut w, 2);
+    let a = monster(&mut w, "orc", near);
+    let b = monster(&mut w, "orc", far);
+    let before = [p, a, b].map(|e| pos_of(&w, e));
+
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Swapping, NOWHERE));
+    w.get_mut::<Battery>(wand).unwrap().charges = 5;
+    throw(&mut w, p, wand, near);
+
+    let after = [p, a, b].map(|e| pos_of(&w, e));
+    for (was, now) in before.iter().zip(&after) {
+        assert_ne!(was, now, "nobody keeps their own tile");
+    }
+    let (mut was, mut now) = (before, after);
+    was.sort();
+    now.sort();
+    assert_eq!(was, now, "and every tile still holds one of them");
+}
+
+#[test]
 fn a_creature_without_hands_just_takes_the_hit_and_the_weapon_falls() {
     let mut w = test_world(7);
     let p = player(&mut w);
@@ -573,9 +597,11 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
 fn the_item_users_are_the_humanoids_with_wits() {
     // Wielding and reading are one flag, so this roster is both lists at once —
     // the mindless humanoids (zombie and phantom) are deliberately absent.
+    // Spirits are left out: theirs is a random boon, not the species'.
     let mut w = test_world(1);
     let users: Vec<&str> = BESTIARY
         .iter()
+        .filter(|def| def.spirit_kind.is_none())
         .filter(|def| {
             let m = spawn_monster(&mut w, def, Position { x: 1, y: 1 });
             let uses_items = w.get::<ItemUser>(m).is_some();
@@ -955,4 +981,46 @@ fn acting_on_a_doorway_breaks_the_ward_and_greys_the_door() {
     let before = pos_of(&w, chaser);
     ai(&mut w);
     assert_ne!(pos_of(&w, chaser), before, "an inert doorway is no ward");
+}
+
+/// A wand of digging that bursts on impact leaves a crater: every wall inside
+/// the grenade's radius goes, in line of sight or not, and none outside it.
+#[test]
+fn a_thrown_wand_of_digging_makes_a_crater() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    {
+        let mut map = w.resource_mut::<Map>();
+        map.tiles.fill(TileType::Wall);
+        for x in 20..=22 {
+            map.tiles[tile_index(x, 10)] = TileType::Room;
+        }
+    }
+    w.get_mut::<Position>(p).unwrap().x = 20;
+    w.get_mut::<Position>(p).unwrap().y = 10;
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Digging, NOWHERE));
+    // Thrown at the rock: it breaks on the wall, on the last open tile.
+    throw(&mut w, p, wand, Position { x: 23, y: 10 });
+
+    let r = GRENADE_RADIUS;
+    let map = w.resource::<Map>();
+    for y in 1..MAP_HEIGHT - 1 {
+        for x in 1..MAP_WIDTH - 1 {
+            let (dx, dy) = (x as f32 - 22.0, y as f32 - 10.0);
+            let inside = (dx * dx + dy * dy).sqrt() <= r;
+            let was_rock = !(20..=22).contains(&x) || y != 10;
+            if was_rock {
+                assert_eq!(
+                    map.tile(x, y) != TileType::Wall,
+                    inside,
+                    "({x},{y}) {}",
+                    if inside {
+                        "survived the crater"
+                    } else {
+                        "was dug outside it"
+                    }
+                );
+            }
+        }
+    }
 }

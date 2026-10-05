@@ -62,7 +62,7 @@ One `Schedule`, run once per turn, in this fixed order:
     smoke_system -> tick_effects -> reveal_mimics -> spell_system
       -> item_system -> throw_system -> ai -> trap_system
       -> equipment_effects_system -> combat_system -> reaper_system
-      -> dungeon_lord_system -> passive_ability_system -> sink_system
+      -> dungeon_lord_system -> ability_system -> sink_system
       -> visibility_system -> score_turn_system
 
 `ai` keeps the clock, the gates and the hands; what each mob decides to do is its rule set's (`agents.md`). A mob off the player's view does nothing, unless it is aggravated or a Helper.
@@ -71,11 +71,11 @@ One `Schedule`, run once per turn, in this fixed order:
 
 **Everything the player does resolves before `ai` does.** Movement and melee never reach the schedule at all — both are applied while the key is handled (`handle_movement_input` → `models::melee_attack`). The three that do queue — a spell (`SpellQueue`), a used item (`UseQueue`), a throw (`ThrowQueue`) — are drained by `spell_system`, `item_system` and `throw_system`, all of them ahead of `ai`. None of those three queues is ever filled by anything but the player, so nothing of the dungeon's own is hurried along by the order. Monster attacks are the other side of it: `ai` fills `AttackQueue` and `combat_system` drains it *after*, which is why that one stays where it is.
 
-`item_system` runs before `ai` for the same reason, and for a while it did not — which is what made the aiming reticle look broken. A zapped wand is aimed at the dungeon as it stood when the key was pressed; resolved after `ai`, it read a tile the target had already walked off. The bolt wands hid it (a bolt sweeps a line, a blast a disc, so they still caught somebody), but every wand that reads one exact tile — teleport away, teleport to, polymorph, haste, slow, cancellation — reported finding nothing there while the reticle had been sitting on the monster the whole time. `throw_system` moved for the same reason and shows the same tell from the other side: aimed at the empty tile in front of an approaching orc, the dagger used to arrive after the orc had stepped onto it and hit one it was never thrown at. Pinned by `a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left` and `a_throw_lands_where_the_floor_was_when_the_player_let_go` in `update.rs` — which is also why the schedule is built by `turn_schedule()` rather than inline in `main`: a turn order with load-bearing edges needs something able to run it.
+`item_system` runs before `ai` for the same reason. A zapped wand is aimed at the dungeon as it stood when the key was pressed; resolved after `ai`, it would read a tile the target had already walked off. The bolt wands would hide it (a bolt sweeps a line, a blast a disc, so they still catch somebody), but every wand that reads one exact tile — teleport away, teleport to, polymorph, haste, slow, cancellation — would report finding nothing there while the reticle sat on the monster. `throw_system` runs before `ai` for the same reason: aimed at the empty tile in front of an approaching orc, the dagger would arrive after the orc had stepped onto it and hit one it was never thrown at. Pinned by `a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left` and `a_throw_lands_where_the_floor_was_when_the_player_let_go` in `update.rs` — which is also why the schedule is built by `turn_schedule()` rather than inline in `main`: a turn order with load-bearing edges needs something able to run it.
 
-One edge was dropped to do it: `throw_system` used to be ordered after `trap_system`. Nothing needed that. A shot that comes down on a trap sets the trap off through `detonate_at`, inside the throw's own resolution, not by waiting for the trap step.
+One edge is absent on purpose: `throw_system` is not ordered after `trap_system`. A shot that comes down on a trap sets the trap off through `detonate_at`, inside the throw's own resolution, not by waiting for the trap step.
 
-`passive_ability_system` sits second-to-last on purpose. A passive that merely happens to you can roll anywhere; one that *moves* you cannot. Rolled after `ai`, a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again — and there is still a visibility pass and a render left in the turn to show it to them.
+`ability_system` sits second-to-last on purpose. A passive that merely happens to you can roll anywhere; one that *moves* you cannot. Rolled after `ai`, a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again — and there is still a visibility pass and a render left in the turn to show it to them.
 
 `score_turn_system` is dead last, after `visibility_system`, because it is the one step that must never run early: it totals the turn's kills with the combo multiplier and pays them out in one go, and a multiplier applied to a pile that is still growing is not a number anyone could read.
 
@@ -185,7 +185,7 @@ flowchart LR
   T(["turn spent"]):::hero
   F(["free"])
 
-  S --> C -- "50%: stumble" --> W
+  S --> C -- "CONFUSION_STUMBLE_CHANCE" --> W
   C -- no --> W
   W -- yes --> F
   W -- no --> DG
@@ -234,7 +234,7 @@ The keyboard on the map
 
 Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to run (`run_direction`). **WASD is not a movement scheme any more**, shifted or otherwise: those letters are commands.
 
-**`Esc` does not quit.** It is the key a player mashes to get out of a menu; from the map it now does nothing at all. Quitting is `Q` or `X` through the prompt, or Ctrl+C without one.
+**`Esc` does not quit.** It is the key a player mashes to get out of a menu; from the map it does nothing at all. Quitting is `Q` or `X` through the prompt, or Ctrl+C without one.
 
 | Key | `handle_movement_input` does |
 |-----|------------------------------|
@@ -256,7 +256,7 @@ Adding a command key is a row in that `match` and (if it opens the pack) a row i
   * **the `x`/`X` escape hatch** in `dispatch_key`, which fires from every context including the map.
   * **Ctrl+C**, taken at the very top of `dispatch_key`, above everything.
 
-Check a new key against the menus' own letters too: pack rows are `a`..`i` (`PACK_CAPACITY` is 9) and spells rows are `a`..`d`, and both menus' letter arms claim every lowercase key that isn't already navigation. In a menu, navigation is read before the letter, so `j` and `k` can never select a row.
+Check a new key against the menus' own letters too: pack rows run from `a` for `PACK_CAPACITY` rows and spells rows from `a` for `SPELLSET_CAP`, and both menus' letter arms claim every lowercase key that isn't already navigation. In a menu, navigation is read before the letter, so `j` and `k` can never select a row.
 
 
 The pack and the action modal
@@ -284,7 +284,7 @@ The reticle opens on the closest visible monster within its own reach (`nearest_
 
 `TargetingState` holds which of an item, an active spell, a plain look, or a reach weapon's own strike the reticle is for (exactly one of `item` / `spell_effect` / `looking` / `reach_attack` is meaningfully set — `reach_attack` is the one exception that still carries `item`, since the weapon never leaves the wielder's hand), plus whether it's a throw, and the cursor. `spell_target_cursor` only allows the cursor onto a tile that is both currently visible and within `aim_range` — for a throw, whatever `models::throw_reach` says: `LAUNCHER_RANGE` for ammunition matched to the launcher in hand, `LIGHT_THROW_RANGE` for a potion, scroll, wand or ring, `THROW_RANGE` for everything heavier; the spell's own `SpellDef.range`, the wielded weapon's own `Reach` for a reach attack, the item's own `Ranged.range` for a zap, a look's own reach the width of the map (the `in_view` check does the real bounding), `8` as a fallback. `Tab` (`cycle_target`) snaps the cursor to the next monster or item in view instead of nudging it one tile. Confirming (`fire_at_target`) refuses a shot at the player's own tile ("Great idea! But no.") for every purpose except looking — that one is allowed on your own tile, and spends no turn at all. A reach attack resolves in place (`models::resolve_reach_attack`) and never touches the pack; otherwise it removes the item from the pack and pushes a `WantsToThrow` or `WantsToUse` onto the matching queue, or a `WantsToCast` onto `SpellQueue`, for `throw_system` / `item_system` / `spell_system` to resolve next schedule run. A throw of a stacked item (arrows) goes through `models::draw_one` first, which splits one unit off and leaves the rest in the pack slot.
 
-`;` opens the reticle in look mode; every cursor move (arrows or `Tab`) reads the tile out loud through `announce_look` rather than waiting for `Enter` — `;` then `Tab Tab Tab` walks everything in view. On a monster, it also lists `"Beware their ___."` for each notable ability or on-hit trick it carries. The phrases come from `models::dangers_of`, which reads the `beware` field off each `EFFECTS` row — the engine crate names no markers of its own. Every creature is a *they*, whatever it is.
+`;` opens the reticle in look mode; every cursor move (arrows or `Tab`) reads the tile out loud through `announce_look` rather than waiting for `Enter` — `;` then `Tab Tab Tab` walks everything in view. On a monster, it also logs one line, `"Beware: flying; spellcasting."`, listing each notable ability, immunity or on-hit trick it carries. Bare floor logs nothing. The phrases come from `models::dangers_of`, which reads the `beware` field off each `EFFECTS` row, plus the creature's spellbook and launcher — the engine crate names no markers of its own. Every creature is a *they*, whatever it is.
 
 
 Running, auto-explore, and travel
@@ -320,7 +320,7 @@ Testing
   * **The quit prompt.** `y` / `n`; every other key ignored rather than guessed at; it outranks a movement key; `Esc` closes one but never raises one.
   * **The keyboard.** A numpad digit moves identically to its vi-key equivalent, and Shift+numpad reads as a run direction like Shift+arrow.
 
-`view.rs` has no tests at all, on purpose — see `rendering.md`. What is exercised only by playing the game: everything the renderer draws, the run / travel / auto-explore loops (they poll and sleep), and the aiming reticle. What *can* be tested is also tested one level down, in `models/`: `tests/pack.rs` pins what each menu shows, and `tests/autoexplore.rs` pins when the loot beeline is called off.
+`view.rs` has no tests of what a frame looks like, on purpose — see `rendering.md`. It pins only the log gate and the status tints. What is exercised only by playing the game: everything the renderer draws, the run / travel / auto-explore loops (they poll and sleep), and the aiming reticle. What *can* be tested is also tested one level down, in `models/`: `tests/pack.rs` pins what each menu shows, and `tests/autoexplore.rs` pins when the loot beeline is called off.
 
 When you add a branch here, prefer moving the *decision* (what should happen) into a pure function — `dispatch_key`, or something in `models/` — and leave `engine/` holding only the parts that must touch the terminal.
 
@@ -331,6 +331,7 @@ See also
   rendering.md                  the other half of the frame: `view.rs`
   ../how-to/work-with-the-ecs.md   adding a system, and the borrow patterns
   ../explanation/ecs-in-nihilurk.md    why the schedule is shaped this way
+  ../explanation/adr-0005-aim-resolves-before-the-mobs-move.md  why aiming systems sit ahead of `ai`
   ../reference/components.md    the resources named throughout this page
   ../reference/cli-and-env.md   the flags this code reads (`-anim-rate`, `-nshake`)
   ../explanation/code-calisthenics.md   the shape this code (and all engine code) is held to

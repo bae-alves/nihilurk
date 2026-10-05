@@ -25,7 +25,7 @@ flowchart LR
   S2 --> S3["3 · -content<br/><i>and five other<br/>systems, free</i>"]:::cold
   S3 --> S4["4 · NIHILURK_SPAWN<br/><i>meet it</i>"]:::peril
   S4 --> S5["5 · content +<br/>determinism"]:::cold
-  S5 --> S6["6 · .grants()<br/>.invisible()<br/>.weight()"]:::magic
+  S5 --> S6["6 · .grants()<br/>.casts()<br/>.weight()"]:::magic
   S6 --> S7["7 · keep it,<br/>or git checkout"]
   classDef hero fill:#3a3418,stroke:#d7ba4a,color:#e8dfa8
   classDef peril fill:#3a1f1f,stroke:#c05050,color:#f0c8c8
@@ -37,7 +37,7 @@ flowchart LR
 What you are about to learn
 ---------------------------
 
-There is no bat class in nihilurk. There is no `Monster` trait, no `impl Dragon`, and no file called `monsters/` full of behaviour. There is one table, and a bat is a line in it.
+There is no emu class in nihilurk. There is no `Monster` trait, no `impl Dragon`, and no file called `monsters/` full of behaviour. There is one table, and an emu is a line in it.
 
 By the end you will have added a basilisk that is immune to fire, invisible, rare, and waiting on the deep floors -- and you will not have written a single line of behaviour to get any of that.
 
@@ -49,11 +49,10 @@ Every creature in the game lives in one file:
 
     models/src/monsters.rs
 
-Open it and search for `BESTIARY`. Twenty-six lines, one per species. Read the bat:
+Open it and search for `BESTIARY`. One line per species. Read the emu:
 
     //              name       glyph  colour            move   hp  pow  pb  ar  ab  dep
-    MonsterDef::row("bat",     'B',   Color::DarkGrey,  Chase,  1,   4,  0,  8,  0,   1)
-        .grants(&[Grant::of::<Batty>()]),
+    MonsterDef::row("emu",     'E',   Color::DarkGreen, Chase,  6,   4,  0,  4,  1,   1),
 
 Ten columns, and the header comment above the table names them. The four that decide how a fight goes are the middle ones:
 
@@ -65,17 +64,17 @@ Ten columns, and the header comment above the table names them. The four that de
 
 There is no to-hit roll and nothing ever misses. A blow is your roll minus its roll, and what is left comes off somebody's hit points. That is the whole of combat; see `../explanation/combat-and-balance.md` when you want to know why the numbers are small.
 
-The last column, `dep`, is the shallowest floor the creature appears on. The bat starts at 1. The dragon starts at 10.
+The last column, `dep`, is the shallowest floor the creature appears on. The emu starts at 1. The dragon starts at 10.
 
 
 Step 2: add a row
 -----------------
 
-A basilisk should sit in the middle stat band: tough, slow to kill, and hitting hard. Add this line after the bat, keeping the columns lined up:
+A basilisk should sit in the middle stat band: tough, slow to kill, and hitting hard. Add this line after the emu, keeping the columns lined up:
 
     MonsterDef::row("basilisk",  'b',   Color::DarkGreen,  Chase,  5,   8,  1,   8,  1,   5),
 
-`Chase` is one of five tactics, and it is the only one that walks toward you. The others are `Flee` (walks away), `Static` (never acts at all -- the inert placeholder the test suite reaches for), `Ambush` (lies in wait and never approaches, but lunges the instant you draw alongside it -- the venus flytrap, the ice monster) and `Confused` (staggers at random, which is what anything does after a flash of light).
+`Chase` is the only tactic that walks toward you. The others are `Flee` (walks away), `Static` (never acts at all -- the inert placeholder the test suite reaches for), `Ambush` (lies in wait and never approaches, but lunges the instant you draw alongside it -- the venus flytrap, the ice monster) and `Confused` (staggers at random, which is what anything does after a flash of light).
 
 The table carries `#[rustfmt::skip]`, so `cargo fmt` will leave your alignment alone. These tables are meant to be read as columns.
 
@@ -102,7 +101,7 @@ That listing is not a hand-maintained document. It walks the tables at run time.
 More than the listing changed, and this is the part worth pausing on. Your basilisk is now:
 
   * something a floor at depth 5 or deeper can populate itself with,
-  * something a wand of polymorph can turn a bat into,
+  * something a wand of polymorph can turn an emu into,
   * something a scroll of create monster can conjure,
   * a legal bane for a scroll of vorpalize weapon,
   * and something that comes back correctly out of a save file.
@@ -143,26 +142,53 @@ That test says adding content cannot move a wall. A floor's layout is a pure fun
 Step 6: give it magic nobody wrote
 ----------------------------------
 
-A row is not only numbers. Chain onto it:
+A row can carry more than numbers. Chain onto it:
 
     MonsterDef::row("basilisk",  'b',   Color::DarkGreen,  Chase,  5,   8,  1,   8,  1,   5)
         .grants(&[Grant::of::<FireImmune>()])
+        .casts(2, &[SpellEffect::Thunderbolt])
         .invisible()
         .weight(4),
 
-Three things happened, and none of them is code you have to write.
+Four things happened, and you wrote no code for any of them.
 
-**`.grants(...)`** hands the creature a property. `FireImmune` is a plain marker component. The wand-of-fire code asks whether its target carries one -- that is the whole check -- and it has never heard of a basilisk, or of a dragon, or of the ring of fire resistance that grants the same thing to a player. Every effect on the list works this way; see `../reference/content-tables.md` for what is available, and `../how-to/add-an-effect.md` for adding one.
+**`.grants(...)`** hands the creature a property. `FireImmune` is a plain marker component. The wand-of-fire code asks whether its target carries one, and that is the whole check. It has never heard of a basilisk, or of a dragon, or of any ring that might grant the same thing to a player. Every effect on the list works this way; see `../reference/content-tables.md` for what is available, and `../how-to/add-an-effect.md` for adding one.
+
+**`.casts(2, &[...])`** teaches it a spell and the Ma for two casts of it. Thunderbolt costs 1, so the basilisk is born with 2 Ma and a spellset of one. The chaser rule set tries a spell before it tries a bite, so the basilisk zaps you from range until the Ma runs out, and then it walks up and bites. The pool never refills.
 
 **`.invisible()`** makes it unseeable without second sight. The visibility system already knows what to do with that, because the phantom needed it first.
 
-**`.weight(4)`** makes it rarer. Ten is the baseline every row sits at unless it says otherwise, so four is a shade under half as common as its floor-mates. The weights are relative to each other and to nothing else: you can make one creature rarer without touching any other number.
+**`.weight(4)`** makes it rarer. `DEFAULT_SPAWN_WEIGHT` is the baseline every row sits at unless it says otherwise, so a weight below it is rarer than its floor-mates. The weights are relative to each other and to nothing else: you can make one creature rarer without touching any other number.
 
 Rebuild and meet it now:
 
     NIHILURK_SPAWN="basilisk" cargo run -p nihilurk
 
 It is somewhere next to you and you cannot see it. Try burning it with `NIHILURK_SPAWN="basilisk,wand of fire"` -- it will shrug, and the log will say so in as many words.
+
+### A creature made of grants
+
+The best row to read next is the dog. Find it in `models/src/monsters.rs`:
+
+    MonsterDef::row("dog", 'd', Color::DarkYellow, Chase, 8, 6, 0, 7, 0, 3)
+        .grants(DOG_GRANTS)
+        .weight(2),
+
+The numbers are a plain chaser's. It uses `Chase`, so it thinks with the same rule set as the dragon and tries a spell first. Everything that makes it a dog is in `DOG_GRANTS`, a list of grants with one behaviour each:
+
+  * `AlwaysTamed`: any treat tames it, every time.
+  * `AlwaysHelper`: a charm or a scroll of create monster makes it your Helper, not a plain ally.
+  * `PriorityHelper`: it never explodes to make room, so you can keep any number of dogs. Recruiting one explodes the ordinary Helper.
+  * `ShapeshiftOnKill`: each melee kill may turn it into another random monster (`constants::helpers::SHAPESHIFT_CHANCE`).
+  * `FaerieOnDeath`: when it dies it is revealed as a faerie shapeshifter and is gone, with no gore.
+
+No system in the game mentions dogs. Each one asks about its own grant, so any creature that carries the grant gets the behaviour. Try it:
+
+    NIHILURK_SPAWN="dog,snack" cargo run -p nihilurk
+
+Pick up the snack and throw it at the dog (`t`). A snack tames a creature without hands on a `constants::helpers::ACCEPT_CHANCE` roll. It tames a dog every time. Walk a dog into a fight and watch for "It was never a dog, but a ...!". The (d) is a dogppelganger: a faerie shapeshifter wearing a dog, which is why it can change its shape and why no dog ever dies.
+
+Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. Nothing changes. The dog's grants are *identity effects*: a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. Zap the basilisk and it loses `FireImmune`, because a species' ordinary magic stays cancellable. The only difference between the two cases is whether the grant's id is on that list. See "Parts nothing can cancel" in `../how-to/add-a-monster.md` to build a creature that way.
 
 
 Step 7: keep it or drop it
@@ -179,6 +205,8 @@ What you actually learned
   * A species is a row, and the row is the only definition. Nothing else in the game enumerates creatures.
 
   * A creature's special behaviour is a *property it carries*, named on the row. The systems look for the property and never for your monster, which is why `.grants(&[Grant::of::<FireImmune>()])` is the whole of "fire does nothing to it".
+
+  * A whole creature can be nothing but grants. The dog is a plain chaser plus its grants, one per behaviour, and the ones listed in `IDENTITY_EFFECTS` cannot be cancelled.
 
   * Rarity and depth are two numbers on the row, relative to the rest of the table, and changing one changes nothing else.
 

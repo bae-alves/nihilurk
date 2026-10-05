@@ -10,7 +10,7 @@ How to cut a release
                    Linux machines, and on crates.io, as four crates.
                    One command and one push.
 
-Everything a release used to need by hand is now `release/bump.lua` and a tag. The script edits the files, runs the checks and tags the commit. CI does the publishing when the tag is pushed. The push is the one step that cannot be taken back, and the script never does it for you.
+A release is `release/bump.lua` and a tag. The script edits the files, runs the checks and tags the commit. CI does the publishing when the tag is pushed. The push is the one step that cannot be taken back, and the script never does it for you.
 
 
 Quick commands

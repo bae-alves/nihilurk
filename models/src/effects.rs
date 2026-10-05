@@ -27,7 +27,7 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::world::{EntityRef, EntityWorldMut};
 use std::any::TypeId;
 
-use crate::components::{Fighter, GameLog, Name, Player};
+use crate::components::{Fighter, GameLog, Player};
 use crate::constants::combat::CHIP_DAMAGE;
 
 // ---------------------------------------------------------------------------
@@ -113,8 +113,9 @@ pub struct ConfusingTouch;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Bided;
 
-/// Nothing notices this creature until it is close enough to touch — two tiles
-/// (a ring of stealth). Monsters that already know where it is because somebody
+/// Nothing notices this creature until it is within
+/// [`STEALTH_RANGE`](crate::constants::rings::STEALTH_RANGE) tiles (a ring of
+/// stealth). Monsters that already know where it is because somebody
 /// shrieked ([`crate::components::MovementType::Aggravated`]) come anyway: the
 /// ring hides you, it does not unsay what the floor already heard. See
 /// [`crate::ai`].
@@ -130,11 +131,109 @@ pub struct Regenerates;
 
 /// Space will not hold still around this creature: every so often it is
 /// somewhere else (a ring of teleportation). Rolled by
-/// [`crate::abilities::passive_ability_system`], which runs at the tail of the
+/// [`crate::abilities::ability_system`], which runs at the tail of the
 /// turn schedule — so the jump lands at the *start* of the bearer's next turn
 /// and it acts from the new tile before anything else moves.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Teleportitis;
+
+/// This creature is wearing a species' powers for the floor (a potion or wand
+/// of polymorph, a ring of polymorph's roll coming due). The badge, and the
+/// answer to "may this one polymorph again" — the species itself is not
+/// recorded: it is the grants lent beside this marker, each a
+/// [`Lifetime::Floor`] entry in the ledger, so a staircase, a save and a wand
+/// of cancellation all treat the loan like any other. The creature's own name,
+/// glyph and numbers never change. Shown in the HUD as `POLY`.
+///
+/// A monster that is polymorphed is marked too — permanently, since no floor
+/// ends a monster's polymorph, and a Helper keeps it down the stairs — so
+/// polymorphing anything that holds this is the coin flip between system shock and a chimeric form
+/// ([`Chimera`], [`FORMS`]).
+#[derive(Component, Default, Clone, Copy)]
+pub struct Polymorphed;
+
+/// Every so often this creature turns into something else (a ring of
+/// polymorph), at [`POLYMORPHITIS_CHANCE`](crate::constants::abilities::POLYMORPHITIS_CHANCE) a turn. Like any other polymorph, it is a coin flip
+/// between a chimeric form and system shock once the bearer is [`Polymorphed`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Polymorphitis;
+
+/// Polymorphed twice and not shocked to pieces: this creature is a chimera.
+/// One of the three [`FORMS`], each a ledger effect for the floor like the
+/// loan under it — so a staircase, a save and a wand of cancellation end it
+/// without anything having been stashed. It changes only what the creature
+/// is *called* and *drawn as*, read at the point of use ([`chimeric_form`]);
+/// [`Name`] and [`crate::components::Renderable`] are never rewritten.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Chimera;
+
+/// The second of the three [`FORMS`]. See [`Chimera`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Typhon;
+
+/// The third of the three [`FORMS`]. See [`Chimera`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct Echidna;
+
+/// One of the shapes a twice-polymorphed creature settles into.
+pub struct FormDef {
+    /// The marker that makes a creature this form ([`Chimera`], [`Typhon`] or
+    /// [`Echidna`]), lent through the ledger like any other effect.
+    pub grant: Grant,
+    /// What the creature is drawn as while it holds the form. [`Renderable`]
+    /// itself is left alone.
+    ///
+    /// [`Renderable`]: crate::components::Renderable
+    pub glyph: char,
+    /// What the creature is called while it holds the form, taken from the
+    /// language table so each build names its forms in its own tongue.
+    pub name: &'static str,
+}
+
+/// The chimeric forms: (C)himera, (T)yphon, (E)chidna. A creature holds at
+/// most one.
+pub const FORMS: &[FormDef] = &[
+    FormDef {
+        grant: Grant::of::<Chimera>(),
+        glyph: 'C',
+        name: strings::form_chimera(),
+    },
+    FormDef {
+        grant: Grant::of::<Typhon>(),
+        glyph: 'T',
+        name: strings::form_typhon(),
+    },
+    FormDef {
+        grant: Grant::of::<Echidna>(),
+        glyph: 'E',
+        name: strings::form_echidna(),
+    },
+];
+
+/// The three form markers as one optional query term, for the systems that
+/// only have a `Query` and so cannot call [`chimeric_form`]. Read the result
+/// with [`form_of_marks`].
+pub type FormMarks<'a> = Option<AnyOf<(&'a Chimera, &'a Typhon, &'a Echidna)>>;
+
+/// [`chimeric_form`] for a [`FormMarks`] query term. Relies on [`FORMS`] being
+/// in the order `Chimera`, `Typhon`, `Echidna`, which `FORMS` pins by its own
+/// row order and a test pins from here.
+pub fn form_of_marks(
+    marks: Option<(Option<&Chimera>, Option<&Typhon>, Option<&Echidna>)>,
+) -> Option<&'static FormDef> {
+    let (c, t, e) = marks?;
+    FORMS
+        .iter()
+        .zip([c.is_some(), t.is_some(), e.is_some()])
+        .find_map(|(form, held)| held.then_some(form))
+}
+
+/// The form `entity` has settled into, if it has. The one place a name or a
+/// glyph is overridden: [`crate::helpers::item_label`] and the map draw ask
+/// here, and nothing stored on the creature changes.
+pub fn chimeric_form(world: &World, entity: Entity) -> Option<&'static FormDef> {
+    FORMS.iter().find(|f| f.grant.probe(world, entity))
+}
 
 /// This creature knows what items are *for*. It catches gear thrown at it and
 /// puts it on — a hobgoblin that fields your dagger will be wielding it next
@@ -172,24 +271,33 @@ pub struct FireQuarrel;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Flies;
 
-/// This creature can breathe fire in place of a melee blow — a chance, on any
-/// turn it would otherwise land one, of unleashing a wand-of-fire blast
-/// instead (the dragon). See [`crate::items::dragon_breath`].
+/// Any treat thrown at this creature takes, every time, whichever kind it is
+/// (the dog). See [`crate::companion::offer`].
 #[derive(Component, Default, Clone, Copy)]
-pub struct FireBreath;
+pub struct AlwaysTamed;
 
-/// This creature can breathe lightning in place of a melee blow — the
-/// dragon's bargain, with the Thunderbolt spell where the fireball was (the
-/// eel). See [`crate::abilities`].
+/// Charmed or conjured, this creature is the player's Helper outright, not a
+/// plain ally (the dog). See [`crate::companion::charm`].
 #[derive(Component, Default, Clone, Copy)]
-pub struct LightningBreath;
+pub struct AlwaysHelper;
 
-/// This creature's innate spell is a random wand, generated and discharged on
-/// the spot instead of a fixed effect (the gnome). See
-/// [`crate::items::spells::apply_spell_effect`]'s `SpellEffect::RandomWand`
-/// arm.
+/// A Helper that outranks the ordinary kind (the dog): it never explodes to
+/// make room, so any number of them can stand beside you, and recruiting one
+/// explodes the ordinary Helper, who is the one that gets replaced. See
+/// [`crate::companion::the_helper`].
 #[derive(Component, Default, Clone, Copy)]
-pub struct ThrowsWands;
+pub struct PriorityHelper;
+
+/// Underneath, this creature is a faerie shapeshifter. When it dies it is
+/// revealed as one and is gone, with no corpse, no gore and no score, the way
+/// a spirit poofs (the dog). See [`crate::combat`]'s `reveal_faerie`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct FaerieOnDeath;
+
+/// A kill by this creature sometimes turns it into another random monster
+/// (the dog). See [`crate::monsters::shapeshift`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct ShapeshiftOnKill;
 
 /// Swims: deep water ([`crate::map::TileType::Water`]) is floor to this
 /// creature and a wall to everything else (the eel, the ichthyocentaur). A
@@ -229,7 +337,7 @@ pub struct Gorgon;
 pub struct Vampiric;
 
 /// This creature's bite saps its victim's base power outright — like the dart
-/// trap, but with no floor of 1: it can drive a victim's power negative (the
+/// trap, but with no floor: it can drive a victim's power negative (the
 /// rattlesnake). See [`crate::abilities`].
 #[derive(Component, Default, Clone, Copy)]
 pub struct Venomous;
@@ -328,9 +436,13 @@ pub struct WhirlOnMove;
 #[derive(Component, Default, Clone, Copy)]
 pub struct VorpalOnCondition;
 
-/// The staff's bargain: every damaging move the wielder casts costs double the
-/// [`crate::components::Magic`] and deals double the damage. See
+/// The staff's bargain: every damaging move the wielder casts costs
+/// [`TURBO_MAGIC_COST_MULT`] times the [`crate::components::Magic`] and deals
+/// [`TURBO_MAGIC_POWER_MULT`] times the damage. See
 /// [`crate::items::spell_system`].
+///
+/// [`TURBO_MAGIC_COST_MULT`]: crate::constants::spells::TURBO_MAGIC_COST_MULT
+/// [`TURBO_MAGIC_POWER_MULT`]: crate::constants::spells::TURBO_MAGIC_POWER_MULT
 #[derive(Component, Default, Clone, Copy)]
 pub struct TurboMagic;
 
@@ -351,6 +463,7 @@ pub struct BuildsMomentum;
 /// A number that stacks across every equipped source. Implemented by the
 /// modifiers below so [`equipped_total`] can fold any of them with one body.
 pub trait Modifier: Component + Copy {
+    /// This source's contribution, which may be negative (a cursed blade).
     fn amount(self) -> i32;
 }
 
@@ -437,7 +550,8 @@ macro_rules! modifiers {
 
 modifiers! {
     /// Adds to the bearer's attack **die size**: damage rolls `1d[power]`. This
-    /// is what a weapon's class is worth (dagger 4, two-handed sword 10).
+    /// is what a weapon's class is worth: a dagger's die is small, a two-handed
+    /// sword's large.
     PowerDie => power_die,
     /// Flat modifier added once to the bearer's damage roll — an enchantment, or
     /// a ring of strength.
@@ -453,7 +567,7 @@ modifiers! {
     /// equipped source the same way the melee bonus is, so it never matters
     /// which piece of gear supplied it.
     ThrowBonus => throw_bonus,
-    /// A rapier's built-up momentum: +2 for every consecutive hit it lands,
+    /// A rapier's built-up momentum: [`MOMENTUM_PER_HIT`](crate::constants::abilities::MOMENTUM_PER_HIT) for every consecutive hit it lands,
     /// reset the moment its wielder stops swinging it (see
     /// [`crate::equipment::force_unequip`] and `crate::abilities::build_momentum`).
     /// Kept apart from [`PowerBonus`] so an enchanted rapier's plus and its
@@ -547,10 +661,15 @@ impl Grant {
         }
     }
 
+    /// Puts the marker on `entity` and does nothing else. No ledger row says
+    /// who lent it or for how long, so it is missing from a save and nothing can
+    /// revoke it. Go through [`lend`] unless you are the ledger itself.
     pub fn attach(&self, entity: &mut EntityWorldMut) {
         (self.attach)(entity)
     }
 
+    /// Takes the marker off `entity` and does nothing else, so its ledger row
+    /// outlives it. Go through [`revoke`] unless you are the ledger itself.
     pub fn detach(&self, entity: &mut EntityWorldMut) {
         (self.detach)(entity)
     }
@@ -696,6 +815,7 @@ pub struct Petrified;
 pub struct Effect {
     /// Stable, never renamed. See [`EFFECTS`].
     pub id: &'static str,
+    /// The handle that attaches, detaches and probes this effect's marker.
     pub grant: Grant,
     /// What the player reads when this runs out of turns, for the effects
     /// that end on their own. `None` for everything that does not — an
@@ -714,6 +834,10 @@ pub struct Effect {
     /// row anywhere. The engine used to keep its own 15-row copy of this list,
     /// in another crate, with nothing holding the two in agreement.
     pub beware: Option<&'static str>,
+    /// What the player is told at the start of a run as a creature born with
+    /// this (`-am`): "You feel venomous." `None` for everything no bestiary
+    /// row is born with — and for anything the HUD already shows as a tag.
+    pub feel: Option<&'static str>,
 }
 
 impl Effect {
@@ -729,7 +853,7 @@ impl Effect {
 /// The id and the type sit on the same line so the two cannot drift apart,
 /// the same reason `modifiers!` generates its struct and its fold together.
 macro_rules! effects {
-    ($($id:literal => $ty:ty $(, ends $ends:expr)? $(, beware $beware:expr)? ;)*) => {
+    ($($id:literal => $ty:ty $(, ends $ends:expr)? $(, beware $beware:expr)? $(, feel $feel:expr)? ;)*) => {
         /// Every marker effect in the game.
         ///
         /// Each row pairs a **stable string id** with the component it attaches. The
@@ -756,6 +880,8 @@ macro_rules! effects {
                 ends: { let mut e = None; $(e = Some($ends);)? e },
                 #[allow(unused_mut, unused_assignments)]
                 beware: { let mut b = None; $(b = Some($beware);)? b },
+                #[allow(unused_mut, unused_assignments)]
+                feel: { let mut f = None; $(f = Some($feel);)? f },
             },)*
         ];
     };
@@ -764,39 +890,41 @@ macro_rules! effects {
 // The table itself. Its rules are documented on `EFFECTS` below, which is
 // what a reader reaches for.
 effects! {
-    "fire_immune" => FireImmune;
-    "cold_immune" => ColdImmune;
-    "undead" => Undead;
-    "vorpal_target" => VorpalTarget;
+    "fire_immune" => FireImmune, beware strings::beware_fireproof(), feel strings::feel_fireproof();
+    "cold_immune" => ColdImmune, beware strings::beware_frostproof(), feel strings::feel_frostproof();
+    "undead" => Undead, feel strings::feel_undead();
+    "vorpal_target" => VorpalTarget, feel strings::feel_vorpal_target();
     "sees_invisible" => SeesInvisible;
     "sustains_strength" => SustainsStrength;
     "aggravates_monsters" => AggravatesMonsters, beware strings::beware_aggravating_shriek();
-    "item_user" => ItemUser;
+    "item_user" => ItemUser, feel strings::feel_item_user();
     "fire_arrow" => FireArrow;
     "fire_quarrel" => FireQuarrel;
     "sustains_armor" => SustainsArmor;
-    "rusts_armor" => RustsArmor, beware strings::beware_corrosive_touch();
+    "rusts_armor" => RustsArmor, beware strings::beware_corrosive_touch(), feel strings::feel_rusts_armor();
     "sluggish" => Sluggish;
     "stealthy" => Stealthy;
-    "regenerates" => Regenerates, beware strings::beware_regeneration();
+    "regenerates" => Regenerates, beware strings::beware_regeneration(), feel strings::feel_regenerates();
     "teleportitis" => Teleportitis;
-    "flies" => Flies;
-    "batty" => Batty, beware strings::beware_erratic_strikes();
-    "binds" => Binds, beware strings::beware_binding_bite();
-    "gorgon" => Gorgon, beware strings::beware_petrifying_gaze();
-    "vampiric" => Vampiric, beware strings::beware_draining_touch();
-    "venomous" => Venomous, beware strings::beware_venomous_bite();
-    "score_bounty" => ScoreBounty;
-    "splits" => Splits, beware strings::beware_splitting_flesh();
-    "green_blood" => GreenBlood;
-    "freezing" => Freezing, beware strings::beware_paralysing_touch();
-    "steals_and_flees" => StealsAndFlees, beware strings::beware_thieving_touch();
-    "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch();
-    "fire_breath" => FireBreath, beware strings::beware_fire_breath();
-    "lightning_breath" => LightningBreath, beware strings::beware_lightning_breath();
-    "throws_wands" => ThrowsWands;
-    "swims" => Swims;
-    "phasing" => Phasing;
+    "flies" => Flies, beware strings::beware_flying(), feel strings::feel_flies();
+    "batty" => Batty, beware strings::beware_erratic_strikes(), feel strings::feel_batty();
+    "binds" => Binds, beware strings::beware_binding_bite(), feel strings::feel_binds();
+    "gorgon" => Gorgon, beware strings::beware_petrifying_gaze(), feel strings::feel_gorgon();
+    "vampiric" => Vampiric, beware strings::beware_draining_touch(), feel strings::feel_vampiric();
+    "venomous" => Venomous, beware strings::beware_venomous_bite(), feel strings::feel_venomous();
+    "score_bounty" => ScoreBounty, feel strings::feel_score_bounty();
+    "splits" => Splits, beware strings::beware_splitting_flesh(), feel strings::feel_splits();
+    "green_blood" => GreenBlood, feel strings::feel_green_blood();
+    "freezing" => Freezing, beware strings::beware_paralysing_touch(), feel strings::feel_freezing();
+    "steals_and_flees" => StealsAndFlees, beware strings::beware_thieving_touch(), feel strings::feel_steals_and_flees();
+    "steals_and_vanishes" => StealsAndVanishes, beware strings::beware_thieving_touch(), feel strings::feel_steals_and_vanishes();
+    "always_tamed" => AlwaysTamed, feel strings::feel_always_tamed();
+    "always_helper" => AlwaysHelper, feel strings::feel_always_helper();
+    "priority_helper" => PriorityHelper, feel strings::feel_priority_helper();
+    "shapeshift_on_kill" => ShapeshiftOnKill, feel strings::feel_shapeshift_on_kill();
+    "faerie_on_death" => FaerieOnDeath, feel strings::feel_faerie_on_death();
+    "swims" => Swims, feel strings::feel_swims();
+    "phasing" => Phasing, beware strings::beware_phasing();
     "cleaves" => Cleaves;
     "heavy_swing" => HeavySwing;
     "fencer" => Fencer;
@@ -827,6 +955,11 @@ effects! {
     "paralyzed" => Paralyzed;
     "magic_ward" => MagicWard;
     "detected" => Detected;
+    "polymorphed" => Polymorphed;
+    "polymorphitis" => Polymorphitis;
+    "chimera" => Chimera;
+    "typhon" => Typhon;
+    "echidna" => Echidna;
 }
 
 /// The effects an entity hands out: innate magic on a monster, the effects a
@@ -865,6 +998,15 @@ impl Lifetime {
     /// Whether this lifetime survives being written to a save file. A
     /// gear-lent effect does not: the gear is saved, and lending it again is
     /// how it comes back.
+    ///
+    /// ```
+    /// use bevy_ecs::prelude::Entity;
+    /// use models::Lifetime;
+    ///
+    /// assert!(Lifetime::Permanent.is_saved());
+    /// assert!(Lifetime::Turns(3).is_saved());
+    /// assert!(!Lifetime::WhileEquipped(Entity::PLACEHOLDER).is_saved());
+    /// ```
     pub fn is_saved(self) -> bool {
         !matches!(self, Lifetime::WhileEquipped(_))
     }
@@ -894,6 +1036,8 @@ pub const CONDITION_CAP: usize = 3;
 pub struct Held {
     /// The [`Effect::id`] — a stable string, which is what reaches the disk.
     pub id: &'static str,
+    /// What ends it. Only the saved kinds survive a reload; see
+    /// [`Lifetime::is_saved`].
     pub lifetime: Lifetime,
 }
 
@@ -917,6 +1061,15 @@ impl Held {
     /// do — see [`IDENTITY_EFFECTS`]. The one thing [`revoke_all`] leaves.
     pub fn is_identity(&self) -> bool {
         IDENTITY_EFFECTS.contains(&self.id)
+    }
+}
+
+impl Grant {
+    /// [`Held::is_identity`], asked of the handle: a species' grants are lent
+    /// to a polymorphed creature, but what a dog *is* is not.
+    pub fn is_identity(&self) -> bool {
+        self.effect_id()
+            .is_some_and(|id| IDENTITY_EFFECTS.contains(&id))
     }
 }
 
@@ -960,6 +1113,26 @@ impl Effects {
 /// A creature already carrying [`CONDITION_CAP`] conditions refuses another:
 /// nothing attaches and this returns `false`. The player is told why; a
 /// monster's refusal is silent, the same rule `tick_effects` keeps.
+///
+/// ```
+/// use bevy_ecs::prelude::*;
+/// use models::{FireImmune, Grant, Lifetime, lend, revoke, revoke_matching};
+///
+/// let mut world = World::new();
+/// let dragon = world.spawn_empty().id();
+/// let fire = Grant::of::<FireImmune>();
+///
+/// // Two sources lend the same immunity: a birthright, and a potion for the floor.
+/// lend(&mut world, dragon, fire, Lifetime::Permanent);
+/// lend(&mut world, dragon, fire, Lifetime::Floor);
+///
+/// // Losing one source leaves the other, so the immunity stays.
+/// revoke_matching(&mut world, dragon, |held| held.lifetime == Lifetime::Floor);
+/// assert!(fire.probe(&world, dragon));
+///
+/// revoke(&mut world, dragon, fire);
+/// assert!(!fire.probe(&world, dragon));
+/// ```
 pub fn lend(world: &mut World, entity: Entity, grant: Grant, lifetime: Lifetime) -> bool {
     let Some(id) = grant.effect_id() else {
         return false;
@@ -1103,7 +1276,16 @@ pub fn revoke_all(world: &mut World, entity: Entity) {
 ///   dragon's — and an orc-bodied player loses [`ItemUser`], which is to say
 ///   the wits to work a buckle. That is the bargain of wearing something
 ///   else's magic: it can be taken off you.
-const IDENTITY_EFFECTS: &[&str] = &["lurk"];
+/// * A dog is its grants, and nothing cancels them: they are what the dog
+///   is, through any change of shape ([`crate::monsters::DOG_GRANTS`]).
+const IDENTITY_EFFECTS: &[&str] = &[
+    "lurk",
+    "always_tamed",
+    "always_helper",
+    "priority_helper",
+    "shapeshift_on_kill",
+    "faerie_on_death",
+];
 
 /// What `entity` holds, for saving. Gear-lent entries are left out; a loaded
 /// save lends them again off the gear itself.
@@ -1263,10 +1445,7 @@ pub fn stone_chip(world: &World, target: Entity, amount: i32) -> Option<Chip> {
     let (who, verb) = match world.get::<Player>(target).is_some() {
         true => ("You".to_string(), "are"),
         false => (
-            format!(
-                "The {}",
-                world.get::<Name>(target).map_or("creature", |n| &n.what)
-            ),
+            format!("The {}", crate::helpers::item_label(world, target)),
             "is",
         ),
     };
@@ -1365,7 +1544,13 @@ pub fn dangers_of(world: &World, entity: Entity) -> Vec<&'static str> {
     // will happen to them, not which creature is doing it.
     seen.dedup();
     if crate::equipment::wielded_launcher(world, entity).is_some() {
-        seen.push("ranged shots");
+        seen.push(strings::beware_ranged_shots());
+    }
+    if world
+        .get::<crate::components::Spellset>(entity)
+        .is_some_and(|s| !s.slots.is_empty())
+    {
+        seen.push(strings::beware_spellcasting());
     }
     seen
 }

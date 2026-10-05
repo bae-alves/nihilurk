@@ -130,6 +130,7 @@ grants a slice of effects through `grant_all`:
     const LURK_GRANTS: &[Grant] = &[
         Grant::of::<Lurk>(),
         Grant::of::<Lunges>(),
+        Grant::of::<Fencer>(),
         Grant::of::<BuildsMomentum>(),
         Grant::of::<Stealthy>(),
     ];
@@ -195,6 +196,8 @@ list:
 
     const NINJA_GRANTS: &[Grant] = &[Grant::of::<Stealthy>(), Grant::of::<Venomous>()];
 
+Add `Venomous` to the `use crate::effects::{...}` line at the top of `body.rs`.
+
 Rebuild:
 
     cargo build
@@ -220,10 +223,9 @@ Sting already exists — a venomed dart at range, 1 Magic, in
         spellset.slots.push(SpellEffect::Sting);
     }
 
-It costs Magic like anybody else's copy of it would — a ninja is not
-special-cased in `spell_cost`, the same way a dragon's innate Fireball
-*is* (that one's free; see `../reference/cli-and-env.md`, "`-am <species>`").
-Sting is learned, so it's paid for.
+It costs Magic like anybody else's copy of it would — nothing is
+special-cased in `spell_cost`, and a dragon-bodied player pays for its
+Fireball the same way (see `../reference/cli-and-env.md`, "`-am <species>`").
 
 
 Step 6: gear, and `equip_silently`
@@ -239,7 +241,7 @@ ring mail), put it in the `Backpack`, then equip it.
 `equipment::equip_silently(world, wearer, item)` is the function for that
 last part — it puts the item on without narrating it, which is exactly
 what you want for something the player is *born* wearing rather than
-something they just picked up and pulled on.
+something they just picked up and pulled on. Import it beside `Slot` in the `use crate::equipment::` line.
 
     let origin = Position { x: 0, y: 0 };
     let strip = |world: &mut World, item: Entity| {
@@ -282,11 +284,11 @@ It compiles. `-b` doesn't know the word "ninja" yet — that's the last wire.
 
 Add a line in `engine/src/main.rs`, next to the two that are already there:
 
-    match (flag, name.as_str()) {
-        ("-b", "nihil") => body = Some((models::Body::Nihil, "-b")),
-        ("-b", "lurk") => body = Some((models::Body::Lurk, "-b")),
-        ("-b", "ninja") => body = Some((models::Body::Ninja, "-b")),
-        ("-b", _) => unknown_body = Some((name.clone(), "-b")),
+    match (flag, name.as_str(), models::MonsterDef::lookup(name)) {
+        ("-b", "nihil", _) => body = Some((models::Body::Nihil, "-b")),
+        ("-b", "lurk", _) => body = Some((models::Body::Lurk, "-b")),
+        ("-b", "ninja", _) => body = Some((models::Body::Ninja, "-b")),
+        ("-b", _, _) => unknown_body = Some((name.clone(), "-b")),
         ...
     }
 
@@ -305,17 +307,6 @@ as nihil's ever do.
 Fight something and watch the log: "Venom courses through the <name>
 — its strength ebbs away," the same sentence a rattlesnake's bite would
 read against you, just turned around to name what you bit instead.
-
-That line didn't always exist. Writing this lesson turned up the gap:
-`abilities::venomous_bite` used to print its sentence only when the
-*victim* of the bite was the player — the one direction a real rattlesnake
-ever attacks in — so a bite the player landed on a monster drained it in
-total silence. Borrowing a monster's ability borrows its code exactly, and
-that code had only ever been asked to speak in one direction. Fixed now
-(`models/src/abilities.rs`, alongside the identical gap in the vampire's
-`vampiric_drain`), but it's worth carrying the lesson forward: reusing an
-effect is trusting whatever it was actually tested against, not what its
-doc comment claims it does.
 
 
 Step 8: the part a body cannot skip

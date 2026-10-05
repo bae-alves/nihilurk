@@ -60,7 +60,7 @@ fn a_monster_starts_with_an_empty_pack() {
 }
 
 #[test]
-fn breath_is_a_spell_the_body_knows_for_free() {
+fn breath_is_a_spell_the_body_pays_for_like_any_other() {
     let mut w = test_world(7, Body::Monster(MonsterDef::named("dragon")));
     let p = player(&mut w);
     assert!(
@@ -69,8 +69,11 @@ fn breath_is_a_spell_the_body_knows_for_free() {
             .slots
             .contains(&SpellEffect::DragonBreath)
     );
-    // Innate: the body pays nothing to use what it was born with.
-    assert_eq!(spell_cost(&w, p, SpellEffect::DragonBreath), 0);
+    // Born with it, but it costs what its row says, out of the player's Ma.
+    assert_eq!(
+        spell_cost(&w, p, SpellEffect::DragonBreath),
+        SpellDef::of(SpellEffect::DragonBreath).cost
+    );
 
     // Learned from a hero coin by nihil, the same spell costs its row.
     let mut nihil = test_world(7, Body::Nihil);
@@ -87,7 +90,7 @@ fn breath_is_a_spell_the_body_knows_for_free() {
 }
 
 /// A wild dragon breathes the same spell a dragon-bodied player casts: its
-/// rule set picks it from the spellset its grant makes innate, and fires it at
+/// rule set picks it from the spellset its row gives it, and fires it at
 /// the player it has noticed.
 #[test]
 fn a_dragon_npc_breathes_the_same_spell() {
@@ -297,4 +300,50 @@ fn a_saved_apis_run_stays_a_bee_run() {
     let depth = constants::map::SPECIAL_LEVEL_MIN_DEPTH;
     regenerate_map(&mut loaded, 7, depth);
     assert_eq!(loaded.resource::<Map>().level, Some(SpecialLevel::BeeWorld));
+}
+
+/// Every line the run's log has said.
+fn said(w: &World) -> Vec<String> {
+    w.resource::<GameLog>().history.to_vec()
+}
+
+/// Wearing a creature tells you what you were born with: one "you feel" line
+/// per grant, the random boons a spirit rolls included.
+#[test]
+fn a_worn_body_feels_every_grant_it_was_born_with() {
+    for def in BESTIARY {
+        let mut w = test_world(3, Body::Monster(def));
+        let p = player(&mut w);
+        let log = said(&w);
+        let born: Vec<&str> = w
+            .get::<Effects>(p)
+            .map(|e| e.0.iter().map(|h| h.id).collect())
+            .unwrap_or_default();
+        for id in &born {
+            let feel = Effect::by_id(id)
+                .and_then(|e| e.feel)
+                .unwrap_or_else(|| panic!("{}: no feel line for {id}", def.name));
+            assert!(
+                log.iter().any(|l| l == feel),
+                "{}: never said {feel:?}",
+                def.name
+            );
+        }
+    }
+}
+
+#[test]
+fn a_worn_spirit_is_born_with_its_boons() {
+    let mut w = test_world(3, Body::Monster(MonsterDef::named("sylphid")));
+    let p = player(&mut w);
+    let held = w.get::<Effects>(p).unwrap().0.len();
+    let fixed = MonsterDef::named("sylphid").grants.len();
+    assert_eq!(held, fixed + 2);
+}
+
+#[test]
+fn nihil_feels_nothing_at_the_start() {
+    let w = test_world(3, Body::Nihil);
+    let feels: Vec<&str> = EFFECTS.iter().filter_map(|e| e.feel).collect();
+    assert!(!said(&w).iter().any(|l| feels.contains(&l.as_str())));
 }

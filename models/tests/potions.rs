@@ -520,3 +520,16 @@ fn adjustment_on_an_already_neutral_player_still_logs_but_changes_nothing() {
     assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
     assert!(logged(&w, "calm"));
 }
+
+#[test]
+fn a_potion_of_polymorph_polymorphs_the_drinker_for_the_floor() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+
+    quaff(&mut w, p, PotionEffect::Polymorph);
+    assert!(w.get::<Polymorphed>(p).is_some());
+
+    descend(&mut w, p);
+    assert!(w.get::<Polymorphed>(p).is_none());
+    assert!(logged(&w, "You are no longer polymorphed."));
+}

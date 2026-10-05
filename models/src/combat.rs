@@ -76,6 +76,9 @@ fn wielded_vorpal_bane(world: &World, entity: Entity) -> Option<String> {
 /// Looks up an entity's display name, falling back to a vague noun so the log
 /// never prints a raw entity id at the player.
 fn entity_name(world: &World, entity: Entity) -> String {
+    if let Some(form) = crate::effects::chimeric_form(world, entity) {
+        return form.name.to_string();
+    }
     world
         .get::<Name>(entity)
         .map(|n| n.what.clone())
@@ -192,10 +195,6 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         return;
     }
 
-    let name = entity_name(world, entity);
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::mob_dies(&name));
     if let Some(player) = world
         .query_filtered::<Entity, With<Player>>()
         .iter(world)
@@ -203,6 +202,13 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     {
         release_biters_grip(world, entity, player);
     }
+    if reveal_faerie(world, entity) {
+        return;
+    }
+    let name = entity_name(world, entity);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::mob_dies(&name));
     // A Helper is mourned, not cashed in.
     match world.get::<Helper>(entity).is_some() {
         true => crate::companion::mourn(world, entity),
@@ -211,7 +217,7 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     kill_shake(world, entity);
     death_burst(world, entity, source);
     leave_gear_behind(world, entity);
-    world.despawn(entity);
+    crate::spirits::poof(world, entity);
 }
 
 /// What a corpse is worth, paid into the player's score the moment a creature
@@ -324,8 +330,6 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
         swing,
         outcome,
     };
-
-    crate::spirits::on_direct_hit(world, attacker, target, blow.swing.damage);
 
     // The aftermath, in the order it has to happen: the punctuation while the
     // corpse still has a tile to be flung off, then the log, then the despawn.
@@ -774,7 +778,7 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
         strings::lunge_hit(&target_name, damage)
     };
     world.resource_mut::<GameLog>().add(line);
-    if blow.outcome.lethal {
+    if blow.outcome.lethal && world.get::<crate::effects::FaerieOnDeath>(target).is_none() {
         world
             .resource_mut::<GameLog>()
             .add(strings::you_have_slain(&target_name));
@@ -951,11 +955,16 @@ fn punctuate(world: &mut World, blow: &Landed) {
     if let Some(kind) = flourish.strike {
         kick_shake(world, kind);
     }
+    // A faerie shapeshifter's reveal (see `reveal_faerie`) is no death: no
+    // kick and no gore.
+    let faerie = world
+        .get::<crate::effects::FaerieOnDeath>(blow.target)
+        .is_some();
     // Asked for while the corpse still has the Position the sight gate reads.
-    if flourish.kill_kick {
+    if flourish.kill_kick && !faerie {
         kill_shake(world, blow.target);
     }
-    if flourish.burst {
+    if flourish.burst && !faerie {
         death_burst(world, blow.target, attacker_pos);
     }
     // The garrote's own flourish: a helpless victim doesn't fall so much as
@@ -982,6 +991,20 @@ fn report_blow(world: &mut World, blow: &Landed) {
     let attacker_name = entity_name(world, blow.attacker);
     let target_name = entity_name(world, blow.target);
     let target_is_player = blow.target_is_player;
+    // A reveal ([`reveal_faerie`]) stands in for the kill line, so the blow is
+    // reported as a wound and not as a kill.
+    let revealed = blow.outcome.lethal
+        && world
+            .get::<crate::effects::FaerieOnDeath>(blow.target)
+            .is_some();
+    let outcome = match revealed {
+        true => &Outcome {
+            lethal: false,
+            vorpal: false,
+            garrote: false,
+        },
+        false => &blow.outcome,
+    };
     // An attacker the player can't see — an invisible phantom, or a mob still
     // off in the dark — is reported only as "Something".
     let attacker_unseen = target_is_player && world.get::<Hidden>(blow.attacker).is_some();
@@ -999,7 +1022,7 @@ fn report_blow(world: &mut World, blow: &Landed) {
             &mut log,
             &target_name,
             &blow.swing,
-            &blow.outcome,
+            outcome,
             target_is_own_ghost,
         );
     }
@@ -1031,7 +1054,7 @@ fn report_blow(world: &mut World, blow: &Landed) {
         &target_label,
         &target_name,
         blow.swing.damage,
-        blow.outcome.lethal,
+        outcome.lethal,
         target_is_player,
     );
 }
@@ -1058,12 +1081,34 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         return;
     }
     release_biters_grip(world, blow.target, blow.attacker);
-    match world.get::<Helper>(blow.target).is_some() {
-        true => crate::companion::mourn(world, blow.target),
-        false => pay_for_the_corpse(world, blow.target),
+    if !reveal_faerie(world, blow.target) {
+        match world.get::<Helper>(blow.target).is_some() {
+            true => crate::companion::mourn(world, blow.target),
+            false => pay_for_the_corpse(world, blow.target),
+        }
+        leave_gear_behind(world, blow.target);
+        crate::spirits::poof(world, blow.target);
     }
-    leave_gear_behind(world, blow.target);
-    world.despawn(blow.target);
+    crate::monsters::maybe_shapeshift(world, blow.attacker);
+}
+
+/// A creature that is a faerie shapeshifter underneath ([`FaerieOnDeath`], the
+/// dog) does not die: it is revealed as one, and gone. It leaves no corpse,
+/// no gore and no score, and says so in pink: "It was never a dog, but a
+/// faerie shapeshifter!" That line stands in for the kill line. It drops what it wore, as anything does.
+/// `true` when it did, and the caller has nothing left to settle.
+fn reveal_faerie(world: &mut World, entity: Entity) -> bool {
+    if world.get::<crate::effects::FaerieOnDeath>(entity).is_none() {
+        return false;
+    }
+    let name = entity_name(world, entity);
+    world.resource_mut::<GameLog>().add_colored(
+        strings::faerie_reveal(crate::identify::article_for(&name), &name),
+        LogCategory::Faerie,
+    );
+    leave_gear_behind(world, entity);
+    crate::spirits::poof(world, entity);
+    true
 }
 
 /// A grip is the biter's, not the floor's: unlike a bear trap's [`Pinned`],

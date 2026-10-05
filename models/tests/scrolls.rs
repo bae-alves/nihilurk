@@ -989,3 +989,57 @@ fn the_new_scrolls_queue_their_flourish_when_there_is_an_effect_layer() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Pitfall
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pitfall_drops_the_reader_a_floor_like_a_trapdoor() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    w.get_mut::<Fighter>(p).unwrap().hp = 5;
+
+    let scroll = spawn_scroll(&mut w, ScrollEffect::Pitfall, Position { x: 0, y: 0 });
+    stash(&mut w, p, scroll);
+    use_item(&mut w, p, scroll);
+
+    assert_eq!(w.resource::<Depth>().what, 2, "fell one floor");
+    assert_eq!(w.get::<Fighter>(p).unwrap().hp, 5, "a fall is not a rest");
+}
+
+// ---------------------------------------------------------------------------
+// Atonement
+// ---------------------------------------------------------------------------
+
+#[test]
+fn atonement_makes_angered_spirits_neutral_again() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let hero = *w.get::<Position>(p).unwrap();
+    let spirit = spawn_monster(
+        &mut w,
+        MonsterDef::named("angel"),
+        Position {
+            x: hero.x + 3,
+            y: hero.y,
+        },
+    );
+    for _ in 0..3 {
+        spirits::shift_alignment(&mut w, p, 1);
+    }
+    assert!(w.resource::<SpiritsHostile>().0);
+    assert!(matches!(
+        w.get::<Mob>(spirit).unwrap().movement_type,
+        MovementType::Chase
+    ));
+
+    read(&mut w, p, ScrollEffect::Atonement);
+
+    assert!(!w.resource::<SpiritsHostile>().0);
+    assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
+    assert!(matches!(
+        w.get::<Mob>(spirit).unwrap().movement_type,
+        MovementType::Confused
+    ));
+}

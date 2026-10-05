@@ -34,8 +34,11 @@ use crate::map::Map;
 /// other side.
 #[derive(Clone, Copy, Debug)]
 pub struct Sighting {
+    /// The one seen.
     pub who: Entity,
+    /// Where they stand.
     pub at: Position,
+    /// Whether it is the player rather than another creature.
     pub is_player: bool,
 }
 
@@ -47,6 +50,7 @@ pub struct Percept<'a> {
     /// Whether the mob stands on a tile the player can see. When it does not,
     /// [`think`] never consults the rule set.
     pub in_view: bool,
+    /// Where the player stands, noticed or not.
     pub player_at: Position,
     /// Whether it has noticed the player: in view, and close enough that a
     /// ring of stealth no longer hides them.
@@ -59,9 +63,9 @@ pub struct Percept<'a> {
     pub phasing: bool,
     /// It holds a launcher, drawn.
     pub launcher: bool,
-    /// The spells it can cast: the ones it was born with
-    /// ([`crate::abilities::INNATE_SPELLS`]) and any in a
-    /// [`Spellset`](crate::components::Spellset) of its own.
+    /// The spells it can cast: those in its
+    /// [`Spellset`](crate::components::Spellset) its [`Magic`](crate::components::Magic)
+    /// can pay for.
     pub spellset: Vec<SpellEffect>,
     /// A die already rolled for this turn, for the rules that choose at random
     /// (which spell to try, which way to stagger). Rolled with the percept so a
@@ -78,6 +82,7 @@ pub struct Percept<'a> {
     /// Everything it would fight that stands where the player can see, nearest
     /// first, ties broken by tile. The player is only in here once noticed.
     pub foes: Vec<Sighting>,
+    /// The floor, for asking what can be walked on or seen through.
     pub map: &'a Map,
 }
 
@@ -92,22 +97,27 @@ pub enum Action {
     Cast(SpellEffect, Position),
     /// Take one step. Into someone it would fight, that is a swing.
     Step(i16, i16),
+    /// Do nothing this turn.
     Wait,
 }
 
 /// One reflex: a condition on the percept and the action it calls for, in one
 /// function that answers `None` when the condition does not hold.
 pub struct Rule {
+    /// A label for the reflex. Nothing matches on it.
     pub name: &'static str,
+    /// The condition and its action: `Some` when the reflex fires.
     pub fire: fn(&Percept) -> Option<Action>,
 }
 
 /// A mob's whole mind: rules in the order they are tried.
 pub struct RuleSet {
+    /// A label for the mind. Nothing matches on it.
     pub name: &'static str,
     /// Whether a step out of a room into a doorway or a corridor is refused —
     /// the room leash that keeps a chaser from following the player out.
     pub leashed: bool,
+    /// The reflexes in the order they are tried. The first to fire wins.
     pub rules: &'static [Rule],
 }
 

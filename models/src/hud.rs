@@ -23,6 +23,7 @@ impl LogCategory {
             LogCategory::Thrown => Color::Yellow,
             LogCategory::Pride => Color::White,
             LogCategory::Ghost => Color::DarkGrey,
+            LogCategory::Faerie => Color::Magenta,
         }
     }
 }
@@ -34,7 +35,9 @@ impl LogCategory {
 /// colour per character, cycled — red through purple and straight back to red,
 /// so no two neighbouring letters ever share a stripe.
 pub enum LogPaint {
+    /// One colour for the whole message.
     Solid(Color),
+    /// A colour per character, cycled.
     Striped(&'static [Color]),
 }
 
@@ -49,7 +52,8 @@ impl LogPaint {
 }
 
 /// The one log line in the game that comes out in colours rather than a colour.
-/// See [`crate::score`], which writes it on the tenth combo or so.
+/// See [`crate::score`], which writes it at
+/// [`COMBO_PRIDE_CHANCE`](crate::constants::score::COMBO_PRIDE_CHANCE) odds.
 pub fn pride_line() -> &'static str {
     strings::with_pride()
 }

@@ -6,7 +6,7 @@
 //! (rows in [`ABILITIES`]); the rest are hand-written
 //! into `ai`, `combat`, `traps` and `helpers::took_damage`. Until this file
 //! existed, none of them were covered: 315 tests and not one named `Gorgon`,
-//! `FireBreath` or `Splits`.
+//! a spell or `Splits`.
 //!
 //! This is a *characterisation* net, written to hold the behaviour still
 //! while the moments are generalised. Two rules shape it.
@@ -1131,21 +1131,21 @@ fn trap_sprang(seed: u64, flies: bool) -> bool {
     power_of(&w, mover) < power_before || hp_of(&w, mover) < hp_before
 }
 
-/// `FireBreath` — hand-wired into `ai::step_one_mob`. The claim is that a
-/// breather sometimes answers with fire, which reaches tiles a claw cannot: a
-/// second creature standing beside the player gets hurt too.
+/// A fireball in a spellset — cast by `ai::act`. The claim is that a caster
+/// answers with fire, which reaches tiles a claw cannot: a second creature
+/// standing beside the player gets hurt too.
 #[test]
 fn a_breather_sometimes_answers_with_fire_rather_than_claws() {
     let splashed = (0..48u64).any(|seed| breath_round(seed, true));
     assert!(
         splashed,
-        "no breather in 48 seeds ever breathed — FireBreath is not reaching the AI"
+        "no caster in 48 seeds ever breathed — the spellset is not reaching the AI"
     );
 
     let splashed_without = (0..48u64).any(|seed| breath_round(seed, false));
     assert!(
         !splashed_without,
-        "something with no FireBreath marker still breathed fire"
+        "something with no spellset still breathed fire"
     );
 }
 
@@ -1159,7 +1159,15 @@ fn breath_round(seed: u64, breathes: bool) -> bool {
 
     let breather = creature(&mut w, at(11, 10), 20, 8);
     if breathes {
-        w.entity_mut(breather).insert(FireBreath);
+        w.entity_mut(breather).insert((
+            Spellset {
+                slots: vec![SpellEffect::DragonBreath],
+            },
+            Magic {
+                points: 2,
+                max_points: 2,
+            },
+        ));
     }
 
     let bystander = creature(&mut w, at(10, 11), 10_000, 8);
@@ -1797,32 +1805,44 @@ fn dangers_are_read_off_the_creature_not_guessed() {
     let nasty = creature(&mut w, at(11, 10), 10, 4);
     lend(&mut w, nasty, Grant::of::<Venomous>(), Lifetime::Permanent);
     lend(&mut w, nasty, Grant::of::<Gorgon>(), Lifetime::Permanent);
-    // Carried, but nothing a Look should warn about: the player cannot be hurt
-    // by a creature's own immunity.
+    // Not attacks, but the player wants them before picking a fight: fire
+    // will not work, it flies, it casts.
     lend(
         &mut w,
         nasty,
         Grant::of::<FireImmune>(),
         Lifetime::Permanent,
     );
+    lend(&mut w, nasty, Grant::of::<Flies>(), Lifetime::Permanent);
+    w.entity_mut(nasty).insert(Spellset {
+        slots: vec![SpellEffect::DragonBreath],
+    });
 
     let warned = dangers_of(&w, nasty);
     assert!(warned.contains(&"venomous bite"), "{warned:?}");
     assert!(warned.contains(&"petrifying gaze"), "{warned:?}");
+    assert!(warned.contains(&"flying"), "{warned:?}");
+    assert!(warned.contains(&"fire doesn't harm them"), "{warned:?}");
+    assert!(warned.contains(&"spellcasting"), "{warned:?}");
     assert_eq!(
         warned.len(),
-        2,
-        "an immunity was reported as a danger: {warned:?}"
+        5,
+        "reported something it does not carry: {warned:?}"
     );
+
+    // A creature that was born knowing nothing casts nothing.
+    let mute = creature(&mut w, at(12, 10), 10, 4);
+    w.entity_mut(mute).insert(Spellset::default());
+    assert!(dangers_of(&w, mute).is_empty());
 }
 
-/// `Gorgon`, `FireBreath` and `Splits` reach no ability table at all — they are
-/// three of the six markers hand-wired into `ai`, `combat` and `took_damage`.
+/// `Gorgon` and `Splits` reach no ability table at all — they are two of the
+/// markers hand-wired into `combat` and `took_damage`.
 /// Putting the phrase on the effect row rather than on an ability row is what
 /// lets Look warn about them anyway.
 #[test]
 fn look_warns_about_abilities_that_have_no_table_row() {
-    for id in ["gorgon", "fire_breath", "splits"] {
+    for id in ["gorgon", "splits"] {
         let effect = Effect::by_id(id).expect("a registered effect");
         assert!(
             effect.beware.is_some(),

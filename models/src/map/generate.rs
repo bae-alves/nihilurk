@@ -514,6 +514,14 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Rooms) {
     (start, rooms)
 }
 
+/// The tiles `(seed, depth)` generates, before anything in play (a wand of
+/// digging) changed them — what a save diffs the live map against.
+pub(crate) fn pristine_tiles(world: &World, seed: u64, depth: u8) -> Vec<TileType> {
+    build_floor(seed, depth, crate::body::bee_run(world))
+        .0
+        .tiles
+}
+
 /// Rebuilds the [`Map`] resource for one floor, without touching the live
 /// [`GameRng`] resource or spawning any actors. Used on load, where the map is
 /// reconstructed from `(seed, depth)` rather than read out of the save file.

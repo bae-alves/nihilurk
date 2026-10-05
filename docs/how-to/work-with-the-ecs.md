@@ -284,7 +284,7 @@ Never insert a condition component directly. Call the verb in `crate::conditions
     // belongs to whatever pinned them.
     snare(world, victim, Grant::of::<Asleep>(), SLEEP_TURNS);
 
-Every verb returns `bool`: whether it actually took hold. That answer is load-bearing — a potion thrown at a monster only identifies itself when something plainly happened (`items::throwing::shatter_potion`), so pass it up rather than discarding it.
+Every verb returns `bool`: whether it actually took hold. That answer is load-bearing — a potion thrown at a monster only identifies itself when something plainly happened (`items::potions::detonate_potion`), so pass it up rather than discarding it.
 
 **To add a new condition**, in order:
 
@@ -332,7 +332,7 @@ Anything the content tables know, by name:
 
     let dragon = crate::spawn_named(world, "dragon", pos);      // Option<Entity>
 
-That is the door a test, a debug command and `NIHILURK_SPAWN` all use. It builds the thing **exactly as its row describes it** — no enchantment roll, no battery charge, no ammunition bundle. For the dungeon's own randomised version, `spawn::roll_item(world, rng, depth, pos)`.
+That is the door a test, a debug command and `NIHILURK_SPAWN` all use. It builds the thing **exactly as its row describes it** — no enchantment roll, no ammunition bundle. For the dungeon's own randomised version, `spawn::roll_item(world, rng, depth, pos)`.
 
 Assembling an entity by hand is for one case only: you are adding a new *kind* of thing. Then it is a `Bundle` next to its table, never a pile of `insert` calls at a call site:
 
@@ -381,7 +381,7 @@ Register it in `engine/src/main.rs` with an explicit `.after()`. There is no imp
         // …
     ));
 
-Then say *why* the edge exists in `../reference/input-and-turn-loop.md`, which prints the whole order. Before you add a step, check whether it belongs at the tail: `passive_ability_system` and `score_turn_system` are both there on purpose (a passive that moves you must land at the top of your next turn; a combo cannot be totalled until the dying is over).
+Then say *why* the edge exists in `../reference/input-and-turn-loop.md`, which prints the whole order. Before you add a step, check whether it belongs at the tail: `ability_system` and `score_turn_system` are both there on purpose (a passive that moves you must land at the top of your next turn; a combo cannot be totalled until the dying is over).
 
 
 Recipe: decorate without depending on the renderer
@@ -443,6 +443,22 @@ And the one that catches an ECS mistake specifically:
     cargo test --test determinism
 
 It pins that a seed produces the same walls and the same floor contents it always has. If a change to *when* something is spawned moves that, you have drawn from the wrong RNG stream — see `map::streams::content_rng`.
+
+
+Appendix: quick check
+---------------------
+
+1. Before a new component, check it is not an effect, a modifier, or a row of an existing kind.
+2. Component: add it to `models/src/components.rs` as nouns only, decide and say if it is saved, and add its row to `../reference/components.md`.
+3. New kind of entity: a `Def` row type and table, a `Bundle`, then `spawn_named` and `content_names`.
+4. Damage: `combat::resolve_attack` if somebody swung, `helpers::apply_damage` if not; the reaper finishes the dead.
+5. Condition: call the verb in `crate::conditions`; a new one needs a marker, a verb, two match arms, a save field and a HUD badge.
+6. Gear stat: `equipped_total::<C>`, or `loadout` for several; probe the marker to ask a yes or no.
+7. Spawn: `spawn_named` for a row, `roll_item` for a drop; remove an item from the pack before you despawn it.
+8. Input: push an intent onto its queue and return; the matching system drains it.
+9. System: register it in `engine/src/main.rs` with an explicit `.after()`, and explain the edge in `../reference/input-and-turn-loop.md`.
+10. Cosmetics: use `get_resource_mut`, roll from `FxRng`, and gate anything that leaks on `player_sees`.
+11. Run `cargo test --workspace`, `cargo clippy --all-targets`, `cargo fmt --all`, and `cargo test --test determinism`.
 
 
 See also

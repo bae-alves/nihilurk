@@ -12,12 +12,13 @@ mod monster;
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
-use models::constants::wands::{DAMAGE_DICE, DAMAGE_SIDES, WAND_CHARGES};
+use models::constants::wands::{DAMAGE_DICE, DAMAGE_SIDES, DIG_RANGE, WAND_CHARGES};
 use models::*;
 
 const UNDEAD: &[Grant] = &[Grant::of::<Undead>()];
 const FIRE_IMMUNITY: &[Grant] = &[Grant::of::<FireImmune>()];
 const COLD_IMMUNITY: &[Grant] = &[Grant::of::<ColdImmune>()];
+const GHOSTLY: &[Grant] = &[Grant::of::<Phasing>()];
 
 fn test_world(seed: u64) -> World {
     let mut w = World::new();
@@ -825,4 +826,271 @@ fn teleporting_a_pinned_monster_clears_the_ledger_not_just_the_component() {
         models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 3),
         "a bear trap on the far side of the floor can still pin it"
     );
+}
+
+/// A player standing in a floor-sized slab of rock, a lit tile of room under
+/// their feet and nothing else: the wand of digging's own testing ground.
+fn buried(w: &mut World, p: Entity, at: Position) {
+    let mut map = w.resource_mut::<Map>();
+    map.tiles.fill(TileType::Wall);
+    map.tiles[tile_index(at.x, at.y)] = TileType::Room;
+    w.get_mut::<Position>(p).unwrap().x = at.x;
+    w.get_mut::<Position>(p).unwrap().y = at.y;
+}
+
+fn open(w: &World, x: u16, y: u16) -> bool {
+    w.resource::<Map>().tile(x, y) != TileType::Wall
+}
+
+#[test]
+fn a_wand_of_digging_bores_a_tunnel_down_the_aim() {
+    let mut w = test_world(11);
+    let p = player(&mut w);
+    let here = Position { x: 10, y: 10 };
+    buried(&mut w, p, here);
+    let wand = give_wand(&mut w, p, WandEffect::Digging);
+    // Aimed at a wall two tiles off: the tunnel runs on past it, to the
+    // wand's reach.
+    zap(&mut w, p, wand, Position { x: 12, y: 10 });
+    for x in 11..=(10 + DIG_RANGE as u16) {
+        assert!(open(&w, x, 10), "no tunnel at x={x}");
+    }
+    assert!(
+        !open(&w, 10 + DIG_RANGE as u16 + 1, 10),
+        "the tunnel ran past the wand's reach"
+    );
+    assert!(
+        !open(&w, 11, 9) && !open(&w, 11, 11),
+        "a tunnel, not a hall"
+    );
+}
+
+#[test]
+fn a_wand_of_digging_cannot_break_the_edge_of_the_map() {
+    let mut w = test_world(12);
+    let p = player(&mut w);
+    buried(&mut w, p, Position { x: 3, y: 10 });
+    let wand = give_wand(&mut w, p, WandEffect::Digging);
+    zap(&mut w, p, wand, Position { x: 1, y: 10 });
+    assert!(open(&w, 1, 10) && open(&w, 2, 10));
+    assert!(!open(&w, 0, 10), "the dungeon's outer wall is not rock");
+}
+
+#[test]
+fn a_wand_of_polymorph_zapped_at_yourself_polymorphs_you() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+
+    let here = *w.get::<Position>(p).unwrap();
+    zap(&mut w, p, wand, here);
+
+    assert!(w.get::<Polymorphed>(p).is_some());
+}
+
+// ---------------------------------------------------------------------------
+// Polymorph on something already polymorphed: system shock, or a chimeric form
+// ---------------------------------------------------------------------------
+
+/// How many tiles within five of `at` carry blood.
+fn bloody_tiles_near(w: &World, at: Position) -> usize {
+    let stains = w.resource::<BloodStains>();
+    (0..MAP_HEIGHT)
+        .flat_map(|y| (0..MAP_WIDTH).map(move |x| (x, y)))
+        .filter(|&(x, y)| x.abs_diff(at.x) <= 5 && y.abs_diff(at.y) <= 5 && stains.is_bloody(x, y))
+        .count()
+}
+
+#[test]
+fn polymorphing_the_polymorphed_player_shocks_them_or_makes_a_chimeric_form() {
+    let (mut shocked, mut shaped) = (0, 0);
+    for seed in 0..64 {
+        let mut w = test_world(seed);
+        let p = player(&mut w);
+        let here = *w.get::<Position>(p).unwrap();
+        let hp = w.get::<Fighter>(p).unwrap().hp;
+        assert!(hp > 1);
+        lend(&mut w, p, Grant::of::<Polymorphed>(), Lifetime::Floor);
+        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+
+        zap(&mut w, p, wand, here);
+
+        match chimeric_form(&w, p) {
+            None => {
+                shocked += 1;
+                assert_eq!(w.get::<Fighter>(p).unwrap().hp, 1, "shock leaves 1 HP");
+                assert!(
+                    bloody_tiles_near(&w, here) >= 3,
+                    "and gore well past what one hit leaves: seed {seed}"
+                );
+                assert!(!w.resource::<Ending>().player_dead, "but not death");
+            }
+            Some(_) => {
+                shaped += 1;
+                assert_eq!(w.get::<Fighter>(p).unwrap().hp, hp, "a form costs nothing");
+            }
+        }
+    }
+    assert!(
+        shocked > 0 && shaped > 0,
+        "{shocked} shocks, {shaped} forms"
+    );
+    assert!(
+        (16..=48).contains(&shocked),
+        "about half: got {shocked} of 64"
+    );
+}
+
+#[test]
+fn polymorphing_the_polymorphed_monster_bursts_it_or_makes_a_chimeric_form() {
+    let (mut burst, mut shaped) = (0, 0);
+    for seed in 0..64 {
+        let mut w = test_world(seed);
+        let p = player(&mut w);
+        let (_here, spot) = beside_player(&mut w);
+        let mob = monster::monster(&mut w, "test monster", spot);
+        lend(&mut w, mob, Grant::of::<Polymorphed>(), Lifetime::Floor);
+        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+
+        zap(&mut w, p, wand, spot);
+
+        let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
+        let survivor = q.iter(&w).find(|(_, pos)| **pos == spot).map(|(e, _)| e);
+        match survivor {
+            None => {
+                burst += 1;
+                assert!(
+                    bloody_tiles_near(&w, spot) >= 6,
+                    "a burst monster is gore all over: seed {seed}"
+                );
+            }
+            Some(e) => {
+                shaped += 1;
+                assert!(chimeric_form(&w, e).is_some(), "it came out chimeric");
+                assert!(w.get::<Polymorphed>(e).is_some(), "and still marked");
+            }
+        }
+    }
+    assert!(burst > 0 && shaped > 0, "{burst} bursts, {shaped} forms");
+}
+
+#[test]
+fn the_first_polymorph_of_a_monster_marks_it_and_never_shocks_it() {
+    for seed in 0..32 {
+        let mut w = test_world(seed);
+        let p = player(&mut w);
+        let (_here, spot) = beside_player(&mut w);
+        monster::monster(&mut w, "test monster", spot);
+        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+
+        zap(&mut w, p, wand, spot);
+
+        let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
+        let e = q
+            .iter(&w)
+            .find(|(_, pos)| **pos == spot)
+            .map(|(e, _)| e)
+            .expect("a first polymorph never kills");
+        assert!(w.get::<Polymorphed>(e).is_some());
+        assert!(chimeric_form(&w, e).is_none());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Swapping
+// ---------------------------------------------------------------------------
+
+fn at(w: &World, e: Entity) -> Position {
+    *w.get::<Position>(e).unwrap()
+}
+
+#[test]
+fn swapping_trades_places_with_the_monster_on_the_aimed_tile() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let (here, spot) = beside_player(&mut w);
+    let orc = dummy(&mut w, "orc", spot, 5);
+
+    let wand = give_wand(&mut w, p, WandEffect::Swapping);
+    zap(&mut w, p, wand, spot);
+
+    assert!(at(&w, p) == spot, "you stand where the orc stood");
+    assert!(at(&w, orc) == here, "and the orc where you stood");
+}
+
+#[test]
+fn swapping_trades_places_with_an_item_or_a_found_trap() {
+    for found_trap in [false, true] {
+        let mut w = test_world(4);
+        let p = player(&mut w);
+        let (here, spot) = beside_player(&mut w);
+        let thing = match found_trap {
+            true => {
+                let trap = w.spawn(TrapBundle::bear(spot)).id();
+                w.entity_mut(trap).remove::<Hidden>();
+                trap
+            }
+            false => spawn_weapon(&mut w, "dagger", spot),
+        };
+
+        let wand = give_wand(&mut w, p, WandEffect::Swapping);
+        zap(&mut w, p, wand, spot);
+
+        assert!(
+            at(&w, p) == spot,
+            "you land on its tile (trap: {found_trap})"
+        );
+        assert!(
+            at(&w, thing) == here,
+            "and it lands on yours (trap: {found_trap})"
+        );
+    }
+}
+
+/// The same rule as an aimed shot (`traps::detonate_at`): nobody can aim at a
+/// mechanism nobody has found.
+#[test]
+fn swapping_passes_over_a_trap_nobody_has_found() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let (here, spot) = beside_player(&mut w);
+    let trap = w.spawn(TrapBundle::bear(spot)).id();
+
+    let wand = give_wand(&mut w, p, WandEffect::Swapping);
+    zap(&mut w, p, wand, spot);
+
+    assert!(at(&w, p) == here, "you stay put");
+    assert!(at(&w, trap) == spot, "and so does the trap");
+}
+
+#[test]
+fn swapping_never_sets_anyone_down_where_they_cannot_stand() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let (here, spot) = beside_player(&mut w);
+    w.resource_mut::<Map>().tiles[tile_index(spot.x, spot.y)] = TileType::Wall;
+    let ghost = dummy(&mut w, "ghost", spot, 5);
+    grant_all(&mut w, ghost, GHOSTLY);
+
+    let wand = give_wand(&mut w, p, WandEffect::Swapping);
+    zap(&mut w, p, wand, spot);
+
+    assert!(at(&w, p) == here, "you are not walled up in the rock");
+    assert!(at(&w, ghost) == spot);
+}
+
+/// A monster aiming this wand at your tile reaches you.
+#[test]
+fn a_monster_zapping_swapping_at_you_trades_places_with_you() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let (here, spot) = beside_player(&mut w);
+    let gnome = dummy(&mut w, "gnome", spot, 5);
+    w.entity_mut(gnome).insert(Backpack { items: Vec::new() });
+
+    let wand = give_wand(&mut w, gnome, WandEffect::Swapping);
+    zap(&mut w, gnome, wand, here);
+
+    assert!(at(&w, p) == spot);
+    assert!(at(&w, gnome) == here);
 }

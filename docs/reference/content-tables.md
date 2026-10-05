@@ -141,9 +141,13 @@ The dials the arms read — what one enchantment is worth, how long sleep and ho
 | `color`  | `Color`        |                                          |
 | `range`  | `i32`          | Feeds the aiming reticle. In use: 6, 8.  |
 
-Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. A floor drop rolls its battery with `roll_wand_charges`. Charge dice, zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Whether zapping opens the reticle: `WandEffect::needs_target`, which is true for everything except the wand of light. Mechanic: `apply_wand_effect` in `models/src/items/wands.rs`. That match has no catch-all, so a new `WandEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above; every existing variant already does something real. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), a narrower, still-`_`-fallback dispatch over only the six utility effects a thrown blast can carry (`apply_thrown_wand_effect`) — it is not the "unwired effect" checkpoint; `apply_wand_effect` is.
+Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. Every wand spawns full, with `WAND_CHARGES`, however it was made. Zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Whether zapping opens the reticle: `WandEffect::needs_target`, which is true for everything except the wand of light. Mechanic: `apply_wand_effect` in `models/src/items/wands.rs`. That match has no catch-all, so a new `WandEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above; every existing variant already does something real. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), a narrower, still-`_`-fallback dispatch over only the six utility effects a thrown blast can carry (`apply_thrown_wand_effect`) — it is not the "unwired effect" checkpoint; `apply_wand_effect` is.
 
 Every wand's zap, burst, poof and blast palette is described in `../explanation/the-feel-layer.md`; none of it is a field on this table.
+
+A thrown one bursts only on impact like any wand, so aim it at the rock. A zapped **wand of digging** (`dig_tunnel`) turns every wall on the aim's line, out to `DIG_RANGE` tiles, into passage, and never what `Map::diggable` refuses: the map's outer wall, and the floor and bounding walls of any room whose `SpecialRoom::undiggable` marker is set. Only the red room sets it. A tunnel is not in the seed, so the save carries it (`dug_tiles`, found by diffing the live map against `map::pristine_tiles`).
+
+A zapped **wand of swapping** (`swap_with_target`) trades the zapper's tile for that of one thing on the aimed tile: a creature first, then a trap somebody has found, then an item. A hidden trap is passed over, the same rule as `traps::detonate_at`. Nobody is set down where they could not stand (`can_stand`: a phasing creature anywhere, a swimmer in deep water too, everyone and everything else on dry floor), so a ghost in the rock refuses the swap. Like a teleport, it springs no trap and lifts every hold (`effects::HOLDS`) on both sides.
 
 Neither a zap nor a throw can be aimed at the player's own tile: the engine refuses it with "Great idea! But no." and no turn passes.
 
@@ -155,6 +159,8 @@ Neither a zap nor a throw can be aimed at the player's own tile: the engine refu
 | wand of light | `GRENADE_RADIUS` | the same | `dazzle` on every creature caught |
 | utility | `BLAST_RADIUS` | none | the wand's own effect, on every creature caught |
 | wand of nothing | — | none | confetti |
+| wand of digging | `GRENADE_RADIUS` | none | a crater: every wall in the disc goes, in sight or not (`wands::crater`) |
+| wand of swapping | `BLAST_RADIUS` | none | every creature caught on dry floor moves to another's tile, in a random ring so none keeps its own (`wands::shuffle_places`) |
 
 Dials: `constants::wands`. Resolution: `resolve_wand_throw` and `apply_thrown_wand_effect` in `models/src/items/throwing.rs`. What each of those looks like on screen is `../explanation/the-feel-layer.md`; what a condition does to the player it lands on is `components.md`.
 
@@ -170,7 +176,7 @@ The one catalog row that never spawns anything: a spell carries no `Item`, no `P
 | `range`  | `i32`          | Feeds the aiming reticle. Meaningless — left at `0` — for a spell whose `SpellEffect::needs_target()` is `false`. |
 | `kind`   | `SpellKind`     | `Attack` or `Skill` — the same split `WandEffect`'s attack/utility divide makes, and the one `TurboMagic` checks. |
 
-Sixteen rows, four `Magic`-cost tiers of four: see MANUAL.md, "Magic and spells", for what each one does. `SpellEffect::needs_target` says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy `WandEffect::needs_target` gives the wand of light.
+One row per `SpellEffect`, in four `Magic`-cost tiers, any of which a coin or spirit may teach (`SpellDef::learnable`). `SpellEffect::needs_target` says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy `WandEffect::needs_target` gives the wand of light.
 
 Mechanic: `apply_spell_effect` in `models/src/items/spells.rs`, keyed by `SpellEffect`, exhaustive with no catch-all like every other effect table in the game. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into `scrolls::apply_scroll_effect`; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a spell has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
 
@@ -261,7 +267,7 @@ Constructor: `RingDef::new(effect, name)`, then chains.
 
 Draws `=`, always yellow. Attaches `Item`, `Ring`, `Equipped::loose(Slot::Finger)`, each non-zero modifier, `Grants` when non-empty, and `OnWear` when the row has one. A zero modifier attaches nothing. `grants` and `on_wear` are both re-read from the row on load, never stored in the save.
 
-All twelve rings are live, and eleven of them are pure table — a modifier combat already folds, or a marker some system already asks about:
+Every ring is live, and all but adornment are pure table — a modifier combat already folds, or a marker some system already asks about:
 
 | Ring | Row content |
 |---|---|
@@ -274,11 +280,12 @@ All twelve rings are live, and eleven of them are pure table — a modifier comb
 | regeneration | grants `Regenerates` |
 | slow digestion | grants `Sluggish` |
 | teleportation | grants `Teleportitis` |
+| polymorph | grants `Polymorphitis` |
 | stealth | grants `Stealthy` |
 | maintain armor | grants `SustainsArmor` |
 | adornment | `.on_wear(items::rings::ADORNMENT)` |
 
-The only ring behaviour code in the tree is `models/src/items/rings.rs`, and it holds three verbs, not a `match` on `RingEffect`: the adornment flourish (which the victory climb also calls), the regeneration tick and the teleportitis jump. Nothing outside that file asks which ring it has.
+The only ring behaviour code in the tree is `models/src/items/rings.rs`, and it holds four verbs, not a `match` on `RingEffect`: the adornment flourish (which the victory climb also calls), the regeneration tick, the teleportitis jump and the polymorphitis roll. Nothing outside that file asks which ring it has.
 
 `do_it_with_style` is the flourish, and two things call it: wearing the ring, and `map::levels::win_with_style` (both ways out of the dungeon — the last stair, and a potion of raise level drunk on Depth 1). What it looks like is `../explanation/the-feel-layer.md`; what it is *worth* is `score::double`.
 
@@ -310,7 +317,7 @@ Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Valu
 
 Mechanic: `apply` in `models/src/items/pickups.rs`, an exhaustive match with no catch-all — a new `PickupEffect` does not build until it does something.
 
-**One of them is not left to chance.** Every floor is stocked with a coin for the body before its item budget is spent -- a blue one on the odd floors, a red one on the even. The last floor of each difficulty tier (`DIFFICULTY_TIER_LAST_DEPTH`, `constants::progression`) also gets one draw from `catalog::PROGRESSION_ITEMS`: the platinum, forge and hero coins, the three potions that raise a ceiling (healing, magic, gain strength), and the three scrolls that sharpen gear for good (the two enchantments and vorpalize weapon). Neither comes out of the budget. See `../how-to/tune-rarity-and-depth.md`, "Dial 1".
+**One of them is not left to chance.** Every floor is stocked with a coin for the body before its item budget is spent — a blue one on the odd floors, a red one on the even. The last floor of each difficulty tier (`DIFFICULTY_TIER_LAST_DEPTH`, `constants::progression`) also gets one draw from `catalog::PROGRESSION_ITEMS`: the platinum, forge and hero coins, the three potions that raise a ceiling (healing, magic, gain strength), and the three scrolls that sharpen gear for good (the two enchantments and vorpalize weapon). Neither comes out of the budget. See `../how-to/tune-rarity-and-depth.md`, "Dial 1".
 
 **A coin that would do nothing is not taken.** `pickups::would_help` gates every one of them: a red coin at full health, a rosé coin with nothing wrong with you, a platinum coin when you already hold the promise. The coin stays on the floor, silently, and auto-explore skips it too (`autoexplore::known_item_tiles`) until the day it would help.
 
@@ -337,12 +344,12 @@ Treats share the coins' old slice of the drop table (Rogue's food slot). The coi
 
 **Use** on a treat, or on ammunition (anything with `LaunchedBy`), logs that it is for throwing and costs no turn (`items::use_refusal`).
 
-**Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one Helper at a time: recruiting a second explodes the first, cosmetically. A Helper:
+**Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one *ordinary* Helper at a time: recruiting a second explodes the first, cosmetically. A creature with `PriorityHelper` (the dog) is never that first one and any number can stand beside you; recruiting one explodes the ordinary Helper. `AlwaysTamed` makes every treat take, `AlwaysHelper` makes a charm or a conjuring the Helper outright, and `ShapeshiftOnKill` rolls `constants::helpers::SHAPESHIFT_CHANCE` on each melee kill to turn the dog into another monster (`monsters::shapeshift`, which keeps whichever of the five grants it held, and its side). `FaerieOnDeath` is the reveal: when the dog dies it is revealed as a faerie shapeshifter and is gone, the way a spirit poofs: no corpse, no gore, no score, no blood even from the wounds before (`combat::reveal_faerie`). The faerie has no body: it is a log line only, in pink (`LogCategory::Faerie`), "It was never a dog, but a faerie shapeshifter!", and it stands in for the kill line. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels it, why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog. Each is its own grant, and each is an identity effect that no cancellation strips; the dog row is just all five (`monsters::DOG_GRANTS`). A Helper:
 
-* goes for the nearest monster on a tile the player can see, shooting if it holds a launcher, and otherwise comes back to the player's side (`ai::helper_intent`);
+* goes for the nearest monster on a tile the player can see, shooting if it holds a launcher, and otherwise comes back to the player's side (the `HELPER` rule set in `agents.rs`);
 * is hit back by a monster next to it that is not next to the player;
 * trades places with the player who walks into it, and is never hit by the player's cleave, whirl, lunge, or auto-fight;
-* follows the player to every new floor at full HP (`companion::follow_downstairs`), gear and all;
+* every Helper follows the player to every new floor at full HP (`companion::follow_downstairs`), gear and all;
 * pays no score when it dies (`companion::mourn`).
 
 `Helper` is a plain component, saved as its own field, not an `EFFECTS` row: a wand of cancellation does not undo loyalty.
@@ -359,7 +366,7 @@ TRAPS — TrapDef
 |---------------|---------------|------------------------------------------------|
 | `effect`      | `TrapEffect`  | Keys the mechanic; identity in saves.          |
 | `name`        | `&'static str`| What `TrapEffect::label()` returns.            |
-| `glyph`       | `char`        | `'^'` for all six.                             |
+| `glyph`       | `char`        | `'^'` for every row.                             |
 | `color`       | `Color`       | One per row.                                   |
 | `weight`      | `u32`         | Rarity relative to its table-mates.            |
 | `min_depth`   | `u8`          | Shallowest floor it can spawn on.               |
@@ -443,11 +450,13 @@ EFFECTS — the marker registry
 
     models/src/effects.rs
 
-Each row pairs a **stable string id** with the component it attaches, and that id is what the save file stores. Rows may be reordered and retired freely; the one rule is **never rename an id**, the same rule a bestiary row lives by. There is no ceiling on how many effects there can be — the `u64` bitset that capped the list at 64 is gone.
+Each row pairs a **stable string id** with the component it attaches, and that id is what the save file stores. Rows may be reordered and retired freely; the one rule is **never rename an id**, the same rule a bestiary row lives by. There is no ceiling on how many effects there can be.
 
 A row may also carry the line the player reads when it runs out of turns, in brackets after the type:
 
     "asleep" => Asleep ["You shake off the drowsiness and come to."],
+
+**Identity effects: parts nothing can cancel.** A wand of cancellation strips every effect a creature holds, except the ones whose id is listed in `IDENTITY_EFFECTS` in `effects.rs`. `revoke_all` removes the rest, then puts the identity ones back with their ledger entry, so they are still saved. Today that is `lurk` (the lurk's body) and the five that make a dog: `always_tamed`, `always_helper`, `priority_helper`, `shapeshift_on_kill` and `faerie_on_death`. The rule of thumb: an identity effect is what a creature *is*, not magic it merely has. A dragon's `FireImmune` stays cancellable on purpose. To make a part of a monster uncancellable, write the effect as usual (`../how-to/add-an-effect.md`), list its id in `IDENTITY_EFFECTS`, and grant it from the bestiary row (`../how-to/add-a-monster.md`).
 
 | # | Effect              | Meaning                                        |
 |---|---------------------|------------------------------------------------|
@@ -467,6 +476,53 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 |13 | `Stealthy`          | Unnoticed until `rings::STEALTH_RANGE` tiles away. |
 |14 | `Regenerates`       | Mends one condition, or a point of drained power, on a roll. Passive. |
 |15 | `Teleportitis`      | Jumps somewhere else on a roll. Passive. Also arms the `T` key. |
+|16 | `Flies`             | Never springs a floor trap. |
+|17 | `Batty`             | After a landed blow, hops to a random open adjacent tile. |
+|18 | `Binds`             | Every hit clamps the victim in a bear trap's jaws. |
+|19 | `Gorgon`            | Petrifies whoever targets, shoots or zaps it. |
+|20 | `Vampiric`          | Every hit drinks a point of the victim's maximum HP. |
+|21 | `Venomous`          | Its bite saps the victim's base power, with no floor. |
+|22 | `ScoreBounty`       | Its corpse pays a multiple of the usual score. |
+|23 | `Splits`            | Cut down short of the last point, it buds a copy of itself. |
+|24 | `GreenBlood`        | Wounds well up green. Cosmetic. |
+|25 | `Freezing`          | A chance on every hit to paralyse the victim. |
+|26 | `StealsAndFlees`    | Lifts something loose from the victim's pack, uses it, and vanishes (the leprechaun). |
+|27 | `StealsAndVanishes` | Strips one equipped item and vanishes with it (the nymph). |
+|28 | `AlwaysTamed`       | Any treat takes, every time (the dog). |
+|29 | `AlwaysHelper`      | Charmed or conjured, it is the Helper, not a plain ally (the dog). |
+|30 | `PriorityHelper`    | A Helper that never explodes to make room, and explodes the ordinary one (the dog). |
+|31 | `ShapeshiftOnKill`  | A melee kill sometimes turns it into another random monster (the dog). |
+|32 | `FaerieOnDeath`     | Dying, it is revealed as a faerie shapeshifter and is gone, with no gore (the dog). |
+|33 | `Swims`             | Deep water is floor. |
+|34 | `Phasing`           | Walks through walls and water; no diagonal rule, no room leash. |
+|35 | `Cleaves`           | A connecting swing also lands on every other enemy next to the wielder. |
+|36 | `HeavySwing`        | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
+|37 | `Fencer`            | Every attack is thrown twice. |
+|38 | `Lunges`            | Closing the last stride of a run lands a lunge instead of a step. |
+|39 | `Lurk`              | The lurk's body. An identity effect: `revoke_all` leaves it. |
+|40 | `WhirlOnMove`       | Stepping between two tiles beside the same enemy lands a free attack. |
+|41 | `VorpalOnCondition` | A hit on a target with a negative condition slays it outright. |
+|42 | `TurboMagic`        | Damaging spells cost `TURBO_MAGIC_COST_MULT` times the Magic and deal `TURBO_MAGIC_POWER_MULT` times the damage. |
+|43 | `SelfDamageOnHit`   | Every connecting hit costs the wielder a point of HP. |
+|44 | `BuildsMomentum`    | Every hit builds `Momentum` on the weapon. |
+|45 | `ShattersStone`     | Lands whole on a `Petrified` target, past `stone_chip`. |
+|46 | `ConfusingTouch`    | Charged by a scroll: the next blow it lands confuses the target, then the charge is spent. |
+|47 | `Bided`             | The spell Bide: the next attack gets `BIDE_ATTACK_BONUS`, then it is spent or lost. |
+|48 | `Asleep`            | Hold: out cold, no action of any kind. |
+|49 | `Petrified`         | Hold, but not in `HOLDS`: stone is the body, so it travels with its owner. |
+|50 | `Pinned`            | Hold: cannot step, can still strike. Straining costs a turn and blood. |
+|51 | `Rooted`            | Hold: cannot step, can still strike. Straining costs only the turn. |
+|52 | `Clamped`           | Hold: a biter's grip. Killing the biter frees the victim. |
+|53 | `Confused`          | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
+|54 | `Blind`             | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
+|55 | `Paralyzed`         | Affliction: slowed, and the player loses a share of their turns. |
+|56 | `MagicWard`         | The spell: magical hits and a blow's riders bounce off, for the floor. |
+|57 | `Detected`          | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
+|58 | `Polymorphed`       | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |
+|59 | `Polymorphitis`     | Turns the bearer into something else on a roll (`POLYMORPHITIS_CHANCE`): the polymorph a wand casts, without the system shock (`polymorph_entity_with(.., false)`), so a bearer already `Polymorphed` settles into a form instead. Passive. |
+|60 | `Chimera`           | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
+|61 | `Typhon`            | The form drawn as `T`. |
+|62 | `Echidna`           | The form drawn as `E`. |
 
 Cap components — ceilings the dice cannot beat. Folded with `min`, not `+`, because the strictest one wins. Not in `EFFECTS`, not bits:
 
@@ -486,10 +542,7 @@ ABILITIES — Ability
 
     models/src/abilities.rs
 
-What an effect does *on its own*, one list for every moment there is. It
-replaced two tables (`PASSIVE_ABILITIES`, `ON_HIT_ABILITIES`) plus a handful of
-markers that had no table at all and were hand-called from `ai`, `combat` and
-`took_damage` instead.
+What an effect does *on its own*, one list for every moment there is.
 
 | Field         | Type                                              | Notes                        |
 |---------------|----------------------------------------------------|------------------------------|
@@ -508,7 +561,7 @@ silent instead of narrating a non-event.
 | Moment | Fires | Notes |
 |---|---|---|
 | `OnHit { glancing, lethal }` | A blow the bearer landed | The two flags are the only gating there is: does a glancing scrape count (acid says yes, a charm that needs skin says no), and does the killing blow count (there is no point charming a corpse). Driven by `combat::resolve_attack`, for every hit that dealt damage, never learning what is in the table. |
-| `EachTurn(f64)` | Every turn the bearer acts, at this probability | `AggravatesMonsters`, `Regenerates` and `Teleportitis` are the three rows — see the table for their exact odds. |
+| `EachTurn(f64)` | Every turn the bearer acts, at this probability | `AggravatesMonsters`, `Regenerates`, `Teleportitis` and `Polymorphitis` are the rows; see the table for their exact odds. |
 | `OnDamaged` | The bearer was hurt and lived | Driven by `helpers::took_damage`. |
 | `OnTargeted` | The player turned their attention on the bearer | Fires before the blow, whether or not it lands — a gorgon's gaze is the danger. |
 
@@ -549,9 +602,9 @@ Identification
 
     models/src/identify.rs
 
-Potions, scrolls, wands and rings are always shown by their true name -- no cosmetic appearance, no per-effect knowledge to track, nothing to keep in step with the catalog when a row is added.
+Potions, scrolls, wands and rings are always shown by their true name — no cosmetic appearance, no per-effect knowledge to track, nothing to keep in step with the catalog when a row is added.
 
-Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) -- and a ring, which `enchant_equipment` can also curse (never a plus, since it rolls no die), hides that curse the same way. `KnownQuality` is per-*instance* -- two rings of protection each rolled their own curse, so each needs its own.
+Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_equipment` can also curse (never a plus, since it rolls no die), hides that curse the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
 
 A dud effect (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `WandEffect::Nothing`) is never a spawnable row; it only ever happens as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`). Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/content.rs`.
 
@@ -595,3 +648,4 @@ See also
   cli-and-env.md                flags and environment variables
   input-and-turn-loop.md        how confusion, snares, etc. play out at the keyboard
   ../how-to/add-an-item.md      how to add a row to one of these
+  ../explanation/adr-0006-effects-saved-by-id.md  why an effect is saved by id

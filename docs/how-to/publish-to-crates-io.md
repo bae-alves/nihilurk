@@ -8,7 +8,7 @@ How to publish nihilurk to crates.io
     Result         Four crates on crates.io, and `cargo install
                    nihilurk` gives a stranger the game.
 
-This is the manual path. A release is now `lua release/bump.lua` and a tag push, and CI publishes: see `cut-a-release.md`. Use this page when CI cannot.
+This is the manual path. A release is `lua release/bump.lua` and a tag push, and CI publishes: see `cut-a-release.md`. Use this page when CI cannot.
 
 Publishing is the one step in this repository that cannot be taken back. A version, once uploaded, can be yanked but never deleted, and a crate name is held for good. Everything before the last command is a dry run. Do those first, every time.
 
@@ -33,7 +33,7 @@ Four crates, in the order cargo sends them:
     nihilurk-models          models/          the game
     nihilurk                 engine/          the binary
 
-The directories keep their short names. Only the package names carry the game's name, and `[lib] name` keeps the old library names, so `use models::*;` still compiles. `../explanation/why-the-crates-are-named-twice.md` has the reasoning.
+The directories keep their short names. Only the package names carry the game's name, and `[lib] name` keeps the short library names, so `use models::*;` still compiles. `../explanation/adr-0002-two-names-per-crate.md` has the reasoning.
 
 `compat/` does not go out. It pulls in ratatui, which the shipped binary may not depend on, and nobody installs a test rig.
 
@@ -41,7 +41,7 @@ The directories keep their short names. Only the package names carry the game's 
 Before the first upload
 -----------------------
 
-1. Pick the version. The `v0.1.1` tag holds older code than `master`, so a release from `master` needs a new number. Bump every crate that changed, and the `version = "..."` on each `path` dependency that points at it:
+1. Pick a version no tag has used. Bump every crate that changed, and the `version = "..."` on each `path` dependency that points at it:
 
         engine/Cargo.toml    version, and models = { ..., version = "0.1.2", ... }
         models/Cargo.toml    version
@@ -94,7 +94,7 @@ See also
 --------
 
     publish-a-github-release.md                        the other half of a release
-    ../explanation/why-the-crates-are-named-twice.md   why the names differ from the directories
+    ../explanation/adr-0002-two-names-per-crate.md     why the names differ from the directories
     ../reference/cli-and-env.md                        the flags of the installed binary
     ../../engine/tests/workspace.rs                    the tests that guard the manifests
     ../../aur/PKGBUILD                                 the other way a release gets installed

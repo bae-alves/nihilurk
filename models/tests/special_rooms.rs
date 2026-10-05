@@ -249,3 +249,60 @@ fn the_entry_line_fires_once_on_the_threshold_and_never_for_a_zoo() {
         "the monster zoo was never given a line"
     );
 }
+
+#[test]
+fn only_the_red_room_walls_are_undiggable() {
+    let mut map = blank_map();
+    map.tiles[tile_index(5, 5)] = TileType::Room;
+    map.special[tile_index(5, 5)] = Some(SpecialRoom::RedRoom);
+    map.tiles[tile_index(20, 5)] = TileType::Room;
+    map.special[tile_index(20, 5)] = Some(SpecialRoom::MonsterZoo);
+
+    assert!(!map.diggable(4, 5), "a wall bounding a red room");
+    assert!(!map.diggable(4, 4), "its corner too");
+    assert!(map.diggable(19, 5), "a zoo's wall is plain rock");
+    assert!(map.diggable(40, 10), "ordinary rock");
+    assert!(!map.diggable(0, 10), "the outer wall");
+    assert!(!map.diggable(MAP_WIDTH - 1, 10), "the outer wall");
+}
+
+#[test]
+fn a_wand_of_digging_leaves_a_red_rooms_walls_alone() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
+    w.insert_resource(RngSeed(3));
+    w.init_resource::<GameLog>();
+    w.init_resource::<UseQueue>();
+    w.insert_resource(PlayerName { what: "X".into() });
+    initialize_world(&mut w);
+    let p = w.query_filtered::<Entity, With<Player>>().single(&w);
+    {
+        let mut map = w.resource_mut::<Map>();
+        map.tiles.fill(TileType::Wall);
+        map.special.fill(None);
+        map.tiles[tile_index(10, 10)] = TileType::Room;
+        map.tiles[tile_index(13, 10)] = TileType::Room;
+        map.special[tile_index(13, 10)] = Some(SpecialRoom::RedRoom);
+    }
+    w.get_mut::<Position>(p).unwrap().x = 10;
+    w.get_mut::<Position>(p).unwrap().y = 10;
+    let wand = spawn_wand(&mut w, WandEffect::Digging, Position { x: 0, y: 0 });
+    w.entity_mut(wand).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
+    let slot = w.get::<Backpack>(p).unwrap().items.len() - 1;
+    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
+        user: p,
+        item: wand,
+        target: Some(Position { x: 11, y: 10 }),
+        slot_idx: Some(slot),
+    });
+    item_system(&mut w);
+
+    let map = w.resource::<Map>();
+    assert_ne!(map.tile(11, 10), TileType::Wall, "plain rock is dug");
+    assert_eq!(
+        map.tile(12, 10),
+        TileType::Wall,
+        "the red room's wall holds"
+    );
+}

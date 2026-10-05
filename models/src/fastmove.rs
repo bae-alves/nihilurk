@@ -27,9 +27,11 @@ pub use crate::constants::travel::FAST_MOVE_STEP_CAP;
 /// so a reload always starts idle.
 #[derive(Resource, Default)]
 pub struct FastMove {
+    /// Whether a run is in progress.
     pub active: bool,
     /// The pressed direction; drives a straight-line run.
     pub dx: i16,
+    /// The vertical half of the pressed direction; see `dx`.
     pub dy: i16,
     /// `Some` while beelining to a fixed feature tile; `None` for a straight run.
     pub target: Option<(u16, u16)>,

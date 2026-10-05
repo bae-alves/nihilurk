@@ -26,7 +26,7 @@ A mob on a tile the player cannot see does nothing. Sight in nihilurk is symmetr
 
 Two things break that on purpose. An aggravated monster heard a shriek, and a shriek carries through walls, so it walks toward the noise. The player's Helper walks back to the player, because a companion stranded around a corner is no companion. Both are single moves with no percept behind them, and both hand back to their rule set the moment they are in view: an aggravated venus flytrap walks in from the next room, then lies in wait like a flytrap once you can see it.
 
-That is also why aggravation became a component. As a `MovementType` it overwrote the tactic it was laid on, so an aggravated flytrap had forgotten it was a flytrap. As a state on top of the tactic, the tactic is still there to go back to.
+That is also why aggravation is a component. As a `MovementType` it would overwrite the tactic it was laid on, and an aggravated flytrap would forget it was a flytrap. As a state on top of the tactic, the tactic is still there to go back to.
 
 
 First match wins
@@ -56,3 +56,4 @@ See also
 
   ../reference/agents.md            every rule and set
   data-driven-content.md            the same idea for content tables
+  adr-0007-aggravation-is-a-component.md  why aggravation sits on top of the tactic

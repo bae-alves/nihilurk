@@ -69,7 +69,7 @@ The machines
     esp32c3    riscv32imc      none     ESP32-C3, compiled only
     esp32      xtensa-esp32    none     ESP32, compiled only
 
-There is no CPU or memory cap on any row, and there used to be one. nihilurk has no workload heavy enough to need a stress test -- every feel-layer effect is bounded -- so the matrix checks a narrower, cheaper claim instead: if it builds, the image has a shell, and the target is std (every `linux` row here is), nihilurk can run there. `cloud` and `potato` run on the host CPU directly; every other `linux` row runs under a directly-invoked qemu-user-static interpreter, fetched by the pipeline on its own -- no `binfmt_misc`, no `--privileged`.
+There is no CPU or memory cap on any row. nihilurk has no workload heavy enough to need a stress test -- every feel-layer effect is bounded -- so the matrix checks a narrower, cheaper claim instead: if it builds, the image has a shell, and the target is std (every `linux` row here is), nihilurk can run there. `cloud` and `potato` run on the host CPU directly; every other `linux` row runs under a directly-invoked qemu-user-static interpreter, fetched by the pipeline on its own -- no `binfmt_misc`, no `--privileged`.
 
 Every `linux` row's image is checked for a shell before the binary is run -- that is not optional, nihilurk cannot start without a real terminal under it -- and a row that fails the check fails the pipeline rather than being silently skipped. See "why every `linux` row must have a shell" in `../explanation/cross-platform-testing.md`.
 

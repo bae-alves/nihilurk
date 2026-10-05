@@ -172,10 +172,13 @@ Both `--` and `—` are in use, and both are fine. Do not mix them *within a pag
 What a page must not do
 -----------------------
 
-  * **Restate a tuning number.** Name the constant — `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`, not "3 to 12". A number copied into prose is a number that goes stale the first time somebody rebalances, and nihilurk has had every one of them go wrong at least once. The same rule holds for doc comments in the source, and for tests (`code-calisthenics.md`, "a test never asserts a constant").
+  * **Restate a tuning number.** Name the constant — `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`, not "3 to 12". A number copied into prose is a number that goes stale the first time somebody rebalances. The same rule holds for doc comments in the source, and for tests (`code-calisthenics.md`, "a test never asserts a constant").
+  * **Go unlisted.** A page that `../README.md` does not name is not found. Add a row to its index table, or a line to the ADR list.
+  * **Tell history.** "Used to", "was fixed", "became", commit hashes and the story of a removed thing belong in an ADR, or in git. A page says what is true now. When a decision is worth reopening, write an ADR in the shape of `adr-0001-tables-not-raws.md`.
   * **Paste a list the program can print.** `cargo run -p nihilurk -- -content` reads the tables, so it can never be wrong. Point at it.
-  * **Be two kinds of document at once.** A how-to that starts explaining itself is a how-to and an explanation; split it and link. That rule is in `../README.md` and this page is the result of following it — the ECS pages are a how-to and an explanation, not one page.
+  * **Be two kinds of document at once.** A how-to that starts explaining itself is a how-to and an explanation; split it and link. That rule is in `../README.md`, and the ECS pages follow it: a how-to and an explanation, not one page.
   * **Document a deliberate secret.** The `T` key and the `-pride` flags stay out of `MANUAL.md` and out of `../reference/cli-and-env.md` on purpose. Where a page has to mention one — because an engine developer will meet it in the source — it says *keep it out of the manual* in as many words.
+  * **Leave a public item in `models` without a doc comment.** The crate carries `#![warn(missing_docs)]`, so a build names the item. Say what the thing is *for*; a field its name already explains needs one short line, and a doc that only repeats the name is worse than none. The voice rules above apply to doc comments too.
   * **Go stale quietly.** If a claim can be a test, make it a test and cite the test. `models/tests/content.rs` exists to hold up the claims `how-to/` makes about the tables.
   * **Qualify a path it cannot keep.** `` `models/src/map/levels.rs` `` is a claim about where something lives, and `docs_style.sh` checks it. A bare `` `levels.rs` `` is prose and is not checked — so name the directory when the reader needs it, and drop it once context has established where you are.
 
@@ -187,13 +190,11 @@ Every rule above is checked by one script, so none of this has to be remembered:
 
     ./docs_style.sh                   every page under docs/
     ./docs_style.sh docs/how-to       one directory, or one file
-    ./docs_style.sh --strict          legacy overruns fail too
+    ./docs_style.sh --quiet           print only what failed
 
 It reports and never rewrites, because where a check fires the fix is a judgement call about where a sentence should break. Nine checks, one per section of this page; its own header comment says which is which, and why a markdown formatter is the wrong tool for this particular corpus.
 
 Exit status is 0 when everything passes, so it drops into a pre-commit hook or a CI step as `./docs_style.sh || exit 1`.
-
-A handful of over-width lines predate this page being written. They are inside a budget the script holds, so a *new* one fails immediately; the budget comes down as pages get touched for other reasons.
 
 
 See also

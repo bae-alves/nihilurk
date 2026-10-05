@@ -169,10 +169,17 @@ pub fn innate_tempo(world: &World, player: Entity) -> SpeedKind {
 /// [`crate::effects::ItemUser`] — so that marker already *is* the game's
 /// answer to "can this species use equipment", and a player wearing the
 /// species answers to it too. A lurk answers to its own shape: a ring goes on
-/// a claw, and nothing else goes anywhere.
+/// a claw, and nothing else goes anywhere. A polymorphed creature answers to
+/// the same marker, lent for the floor: a shape without [`ItemUser`] has no
+/// hands.
 pub fn equip_refusal(world: &World, user: Entity, slot: Slot, item_name: &str) -> Option<String> {
     if world.get::<Lurk>(user).is_some() {
         return (slot != Slot::Finger).then(|| strings::no_hands_lurk(item_name));
+    }
+    if world.get::<crate::effects::Polymorphed>(user).is_some()
+        && world.get::<crate::effects::ItemUser>(user).is_none()
+    {
+        return Some(strings::no_hands_polymorphed(item_name));
     }
     let Some(MonsterBody(def)) = world.get::<MonsterBody>(user).copied() else {
         return None;
@@ -182,9 +189,10 @@ pub fn equip_refusal(world: &World, user: Entity, slot: Slot, item_name: &str) -
 }
 
 /// One corpse, and a [`lurk::GROWTH_CHANCE`] roll on it. A hit grows the
-/// lurk: +1 to one of the four numbers on the HUD, drawn at random.
+/// lurk: [`lurk::GROWTH_STEP`] on one of the four numbers on the HUD, drawn at
+/// random.
 ///
-/// Rolled per corpse rather than counted toward a tenth one, which is worth
+/// Rolled per corpse rather than counted toward the Nth one, which is worth
 /// the paragraph: a counter is a thing to pace yourself against and a thing
 /// the save file would have to remember, and neither is what eating is. The
 /// odds carry no state at all, so there is nothing to lose on a reload.

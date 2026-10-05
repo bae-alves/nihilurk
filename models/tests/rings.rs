@@ -506,3 +506,19 @@ fn a_run_cannot_be_doubled_into_nothing() {
     }
     assert_eq!(score(&mut w), i64::MAX, "the score pins at the ceiling");
 }
+
+#[test]
+fn polymorphitis_eventually_polymorphs_its_bearer() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    put_on(&mut w, p, RingEffect::Polymorph);
+    assert!(w.get::<Polymorphitis>(p).is_some());
+
+    // 1 in 83 a turn: the claim is "eventually", so sweep turns, not seeds.
+    let turned = (0..4000).any(|_| {
+        ability_system(&mut w);
+        w.get::<Polymorphed>(p).is_some()
+    });
+
+    assert!(turned, "4000 turns of polymorphitis never changed anyone");
+}

@@ -12,7 +12,7 @@ Reference: rendering
                    source. If this page and the source disagree, the
                    source is right and this page is a bug.
 
-**Nothing on this page is covered by an automated test, and that is the policy rather than a gap.** The renderer, the HUD and the frame geometry were all asserted once; those tests were removed deliberately. What they checked was presentation — which glyph landed in which cell, which colour a log line came out — so they broke whenever a layer moved and never once caught something a glance at the terminal would have missed. See `../explanation/the-feel-layer.md`, "Why none of this is unit-tested".
+**Nothing on this page is covered by an automated test, and that is the policy rather than a gap.** A test of the renderer, the HUD or the frame geometry would check presentation — which glyph lands in which cell, which colour a log line comes out — so it would break whenever a layer moved and never catch something a glance at the terminal would miss. See `../explanation/the-feel-layer.md`, "Why none of this is unit-tested".
 
 So the thing easiest to get subtly wrong here — the draw order in `render`, where a later layer silently covers an earlier one — is caught by you, not by CI. Change it, then run the game and look, in more than one terminal if you can.
 
@@ -113,9 +113,9 @@ Painted in this order — everything after "Terrain" draws over whatever came be
 The HUD
 --------
 
-Two lines, on opposite sides of the map: the dungeon's half on row 0, the player's half on row 22, directly under the viewport. The second one costs the map's bottom row — the log's first line used to sit there and cost exactly the same one, which is why the log is two lines now instead of three.
+Two lines, on opposite sides of the map: the dungeon's half on row 0, the player's half on row 22, directly under the viewport. The second one costs the map's bottom row; that is why the log is two lines.
 
-**Row 0** carries condition badges from column 1, `DEPTH n` centred (the word in magenta, the number white) and the score pinned to the right edge in white. Nothing on it is laid out relative to anything else on it, so a player wearing six badges cannot push the depth or the score off the line, and the score no longer yields its place to a badge the way it did when all three shared one run of fields.
+**Row 0** carries condition badges from column 1, `DEPTH n` centred (the word in magenta, the number white) and the score pinned to the right edge in white. Nothing on it is laid out relative to anything else on it, so a player wearing six badges cannot push the depth or the score off the line.
 
 **Row 22** is the player: name, `HP x/y`, `Ma x/y`, `Pow.`, `Arm.`, optionally `Skl.` — joined with `" · "` in `DarkGrey`. The label carries the colour and the figure beside it stays white — `Ma` dark cyan, `Pow.` red, `Arm.` cyan, `Skl.` green, the name white — so the line reads as one row of numbers over a colour-coded key rather than six differently coloured numbers.
 

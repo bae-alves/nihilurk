@@ -104,36 +104,6 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- Very Rare scroll-type items (1/8 weight). The Decks of Cards. Each comes with 5 cards. The cards are decided and stacked when the item is rolled, but cannot be used individually, what it does is defined by what's on the top of a stack the cards are:
-    - The Joker: Random effect from another card. It's what makes the draw chain into absurdity
-    - King of Clubs: Recharges Wands
-    - Prince of Swords: Enchant weapon
-    - Queen of cups: Enchant Armor
-    - Princess of diamonds: Enchant Ring (new. affects only rings with numerical grants and their plus also starts showing)
-    - The Balance: 5 Power BALA ledger.
-    - The Bole: 5 Armor BOLE ledger.
-    - The +4: Creates and uses four different cards
-    - THE SKULL KING!: The 12/6/6 Purple S becomes your Ally. They spam lightning.
-    - Pot of Sin: Creates and uses two different cards
-    - THE BLACK MAGE: The 12/5/8 purple & becomes your Helper. Spams Force Lance.
-    - The Child: goes to the upstairs of this level
-    - The Crone: goes to the downstairs of this level
-    - The Eyes Never Lie: sees the cards in the deck
-    - FOOL: Does nothing.
-    - THE EXCUSE: confuses all monsters in viewshed
-    - JESTER: Consumes and evaluates the deck as if thrown. See below.
-    - VII THE CHARIOT: Gains the CRT! ledgher. All hits are excelent.
-    - XXII THE WORLD: stops time on the entire floor. For 5 turns, nobody but you moves and projectiles you fire will only be processed after the time has stopped (but for cosmetic purposes their *starting frames* will render for you while time is stopped). This might be heavy on the save file but ... THE WORLD, you know? People expect it to be in the game.
-    - XXIII GOLDEN WIND: turns all items and traps on the floor into Allies
-- Thrown deck behavior: They are evaluated not as cards but as sets
-    -Anti-Flush (100 points): one single random effect triggers
-    -A Pair (1000 points): the paired effect triggers twice
-    -Two Pair (10000 points): the paired effects trigger twice each
-    -Three of a Kind (100000 points): threed effect triggers thrice
-    -Full House (500000 points): threed and paired effect trigger thrice and twice respectively
-    -Four of a Kind (1000000 points): quartered effect triggers four times
-    -Five Flush! (5000000 points): If you have pack space, you get the Element. Just get out of here. If you don't have space, the Element destroys your inventory and puts itself in it. Also adornment activates cosmetically.
-    -For evaluation, FOOL counts as a *wildcard*
 - Charms (*): quarter weight in the rings table.  They bind to the character who uses them/gets them by throw. They offer persistent grants but do lock the invetory slot if they're on backpack. They never drop from slain monsters.
     - Battle charm - as ring of increase damage +1
     - Tough charm - as ring of protection +1

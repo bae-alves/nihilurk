@@ -104,7 +104,9 @@ impl Slot {
 /// ring — the components *alongside* it are what make those three different.
 #[derive(Component, Clone, Copy)]
 pub struct Equipped {
+    /// Whoever has it on, or `None` when it is loose.
     pub by: Option<Entity>,
+    /// The slot it goes in.
     pub slot: Slot,
 }
 
@@ -233,6 +235,20 @@ pub fn force_unequip(world: &mut World, item: Entity) {
     if world.get::<Momentum>(item).is_some() {
         world.entity_mut(item).insert(Momentum(0));
     }
+}
+
+/// Destroys `doomed`, gear `wearer` has on: each piece comes off, leaves the
+/// pack and is gone, and whatever it lent its wearer goes with it. The scroll
+/// of remove curse and the pink demon both end gear this way.
+pub fn destroy_worn(world: &mut World, wearer: Entity, doomed: &[Entity]) {
+    for &e in doomed {
+        force_unequip(world, e);
+        if let Some(mut bp) = world.get_mut::<Backpack>(wearer) {
+            bp.items.retain(|&i| i != e);
+        }
+        world.entity_mut(e).despawn();
+    }
+    sync_equipment_effects(world, wearer);
 }
 
 /// Puts `item` on, or takes it off if it's already on — the one path for every

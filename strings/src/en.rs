@@ -60,6 +60,10 @@ pub fn no_hands_lurk(item_name: &str) -> String {
     format!("Fur and fangs and four paws: no part of a lurk holds {item_name}.")
 }
 
+pub fn no_hands_polymorphed(item_name: &str) -> String {
+    format!("This shape has no hands for {item_name}.")
+}
+
 pub fn no_hands_monster(species: &str, item_name: &str) -> String {
     format!("A {species} has no hands for {item_name}.")
 }
@@ -116,6 +120,10 @@ pub fn blast_cold() -> &'static str {
     "A blast of freezing air detonates!"
 }
 
+pub fn dig_crumbles() -> &'static str {
+    "The rock crumbles away in a straight line."
+}
+
 pub fn wand_does_nothing() -> &'static str {
     "The wand does nothing. It was well named."
 }
@@ -136,8 +144,12 @@ pub fn polymorph_fizzles() -> &'static str {
     "The bolt of change fizzles against nothing."
 }
 
-pub fn polymorph_self_player() -> &'static str {
-    "You feel like a new person."
+pub fn polymorph_self(article: &str, new_name: &str) -> String {
+    format!("You take on the nature of {article} {new_name}!")
+}
+
+pub fn polymorph_drops_gear() -> &'static str {
+    "Your gear slips off you."
 }
 
 pub fn polymorph_same_looking(old_name: &str, new_name: &str) -> String {
@@ -146,6 +158,14 @@ pub fn polymorph_same_looking(old_name: &str, new_name: &str) -> String {
 
 pub fn polymorph_different(old_name: &str, article: &str, new_name: &str) -> String {
     format!("The {old_name} twists and warps into {article} {new_name}!")
+}
+
+pub fn shapeshift_reveal(from_article: &str, from: &str, to_article: &str, to: &str) -> String {
+    format!("It was never {from_article} {from}, but {to_article} {to}!")
+}
+
+pub fn faerie_reveal(from_article: &str, from: &str) -> String {
+    format!("It was never {from_article} {from}, but a faerie shapeshifter!")
 }
 
 pub fn nothing_to_enchant() -> &'static str {
@@ -176,6 +196,26 @@ pub fn teleport_self_player() -> &'static str {
 
 pub fn teleport_self_mob(name: &str) -> String {
     format!("The {name} teleports directly to themselves.")
+}
+
+pub fn swap_finds_nothing() -> &'static str {
+    "The wand's twist finds nothing to trade places with."
+}
+
+pub fn you_swap_places(name: &str) -> String {
+    format!("You trade places with the {name}.")
+}
+
+/// `with` is `None` when the other side is you.
+pub fn mob_swaps_places(name: &str, with: Option<&str>) -> String {
+    match with {
+        Some(other) => format!("The {name} trades places with the {other}."),
+        None => format!("The {name} trades places with you!"),
+    }
+}
+
+pub fn blast_shuffles_places() -> &'static str {
+    "Everyone in the blast trades places!"
 }
 
 pub fn cancellation_strikes_stone() -> &'static str {
@@ -350,6 +390,110 @@ pub fn welcome_back() -> &'static str {
 
 pub fn you_monster() -> &'static str {
     "You monster."
+}
+
+// ---------------------------------------------------------------------------
+// models/src/effects.rs — what a worn body is born with (`-am`)
+// ---------------------------------------------------------------------------
+
+pub const fn feel_fireproof() -> &'static str {
+    "You feel fireproof."
+}
+
+pub const fn feel_frostproof() -> &'static str {
+    "You feel frostproof."
+}
+
+pub const fn feel_undead() -> &'static str {
+    "You feel dead inside."
+}
+
+pub const fn feel_vorpal_target() -> &'static str {
+    "You feel marked for beheading."
+}
+
+pub const fn feel_item_user() -> &'static str {
+    "You feel handy."
+}
+
+pub const fn feel_rusts_armor() -> &'static str {
+    "You feel corrosive."
+}
+
+pub const fn feel_regenerates() -> &'static str {
+    "You feel your wounds knit on their own."
+}
+
+pub const fn feel_flies() -> &'static str {
+    "You feel light as air."
+}
+
+pub const fn feel_batty() -> &'static str {
+    "You feel batty."
+}
+
+pub const fn feel_binds() -> &'static str {
+    "You feel clingy."
+}
+
+pub const fn feel_gorgon() -> &'static str {
+    "You feel your gaze could turn flesh to stone."
+}
+
+pub const fn feel_vampiric() -> &'static str {
+    "You feel thirsty for blood."
+}
+
+pub const fn feel_venomous() -> &'static str {
+    "You feel venomous."
+}
+
+pub const fn feel_score_bounty() -> &'static str {
+    "You feel worth a fortune."
+}
+
+pub const fn feel_splits() -> &'static str {
+    "You feel like you could split in two."
+}
+
+pub const fn feel_green_blood() -> &'static str {
+    "You feel green-blooded."
+}
+
+pub const fn feel_freezing() -> &'static str {
+    "You feel numbingly cold."
+}
+
+pub const fn feel_steals_and_flees() -> &'static str {
+    "You feel light-fingered."
+}
+
+pub const fn feel_steals_and_vanishes() -> &'static str {
+    "You feel sneaky."
+}
+
+pub const fn feel_swims() -> &'static str {
+    "You feel at home in the water."
+}
+
+pub const fn feel_always_tamed() -> &'static str {
+    "You feel loyal."
+}
+
+pub const fn feel_always_helper() -> &'static str {
+    "You feel helpful."
+}
+
+pub const fn feel_priority_helper() -> &'static str {
+    "You feel like somebody's best friend."
+}
+
+pub const fn feel_shapeshift_on_kill() -> &'static str {
+    "You feel restless in your own skin."
+}
+
+pub const fn feel_faerie_on_death() -> &'static str {
+    "You feel a faerie stir inside you."
 }
 
 // ---------------------------------------------------------------------------
@@ -653,11 +797,23 @@ pub const fn beware_paralysing_touch() -> &'static str {
 pub const fn beware_thieving_touch() -> &'static str {
     "thieving touch"
 }
-pub const fn beware_fire_breath() -> &'static str {
-    "fire breath"
+pub const fn beware_fireproof() -> &'static str {
+    "fire doesn't harm them"
 }
-pub const fn beware_lightning_breath() -> &'static str {
-    "lightning breath"
+pub const fn beware_frostproof() -> &'static str {
+    "cold doesn't harm them"
+}
+pub const fn beware_flying() -> &'static str {
+    "flying"
+}
+pub const fn beware_phasing() -> &'static str {
+    "walking through walls"
+}
+pub const fn beware_ranged_shots() -> &'static str {
+    "ranged shots"
+}
+pub const fn beware_spellcasting() -> &'static str {
+    "spellcasting"
 }
 pub const fn beware_confusing_touch() -> &'static str {
     "confusing touch"
@@ -767,6 +923,24 @@ pub const fn adjective_held() -> &'static str {
 }
 pub const fn adjective_clamped() -> &'static str {
     "clamped"
+}
+pub const fn form_chimera() -> &'static str {
+    "chimera"
+}
+pub const fn form_typhon() -> &'static str {
+    "typhon"
+}
+pub const fn form_echidna() -> &'static str {
+    "echidna"
+}
+pub fn system_shock_player() -> &'static str {
+    "SYSTEM SHOCK! You come apart, and barely come back."
+}
+pub fn system_shock_mob(name: &str) -> String {
+    format!("SYSTEM SHOCK! The {name} comes apart in a spray of gore!")
+}
+pub const fn adjective_polymorphed() -> &'static str {
+    "polymorphed"
 }
 pub const fn adjective_warded() -> &'static str {
     "warded"
@@ -886,6 +1060,10 @@ pub const fn flavour_aggravates() -> &'static str {
 pub const fn flavour_regenerates() -> &'static str {
     "The ring on your finger is warm."
 }
+pub const fn flavour_polymorphitis() -> &'static str {
+    "Something on your finger will not sit still."
+}
+
 pub const fn flavour_teleportitis() -> &'static str {
     "Something on your finger is pleased with itself."
 }
@@ -1687,16 +1865,12 @@ pub fn great_idea_but_no() -> &'static str {
     "Great idea! But no."
 }
 
-pub fn you_see_nothing_there() -> &'static str {
-    "You see nothing there."
-}
-
 pub fn you_see(phrase: &str, worn: &str) -> String {
     format!("You see {phrase}{worn}.")
 }
 
-pub fn beware_their(phrase: &str) -> String {
-    format!("Beware their {phrase}.")
+pub fn beware(phrases: &[&str]) -> String {
+    format!("Beware: {}.", phrases.join("; "))
 }
 
 pub fn you_drop(name: &str) -> String {
@@ -2081,6 +2255,10 @@ pub fn worn_tag(names: &str) -> String {
 // models/src/items/theft.rs, models/src/traps.rs)
 // ---------------------------------------------------------------------------
 
+pub fn atonement() -> &'static str {
+    "The spirits forgive you."
+}
+
 pub fn challenge_the_balance() -> &'static str {
     "You challenge the balance!"
 }
@@ -2105,7 +2283,7 @@ pub fn barter_confirm_row() -> &'static str {
     "[ Trade ]"
 }
 
-pub fn red_demon_grunts(name: &str) -> String {
+pub fn spirit_refuses(name: &str) -> String {
     format!("The {name} grunts, unimpressed.")
 }
 
@@ -2113,8 +2291,17 @@ pub fn pink_demon_submits() -> &'static str {
     "Stripped of their stolen finery, the demon whimpers and pledges themselves to you."
 }
 
-pub fn pink_demon_turns() -> &'static str {
-    "The demon cackles and turns on you, gear be damned."
+pub fn pink_demon_vanishes() -> &'static str {
+    "The demon sneers and vanishes."
+}
+
+pub fn offer_too_dear() -> &'static str {
+    "You don't have enough to pay for that."
+}
+
+/// A priced offer row's tag: `stat` is [`hp_abbr`] or [`magic_abbr`].
+pub fn offer_price(amount: i32, stat: &str) -> String {
+    format!("(-{amount} max {stat})")
 }
 
 pub fn angel_tests_your_faith() -> &'static str {

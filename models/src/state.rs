@@ -7,11 +7,14 @@
 use bevy_ecs::prelude::*;
 
 #[derive(Resource)]
+/// Whether the main loop is still running.
 pub struct GameState {
+    /// Cleared to end the loop.
     pub is_running: bool,
 }
 
 impl GameState {
+    /// A state that is running.
     pub fn new() -> Self {
         Self { is_running: true }
     }
@@ -23,6 +26,7 @@ impl GameState {
 /// the process exits.
 #[derive(Resource, Default)]
 pub struct Ending {
+    /// Set when the player dies.
     pub player_dead: bool,
     /// Human-readable cause of death, e.g. "Slain by a kobold".
     pub cause: String,

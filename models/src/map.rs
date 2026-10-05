@@ -36,6 +36,7 @@ mod population;
 mod special;
 mod streams;
 
+pub(crate) use generate::pristine_tiles;
 pub use generate::{create_map, regenerate_map};
 pub use levels::*;
 pub use overlays::*;
@@ -60,16 +61,24 @@ pub use crate::constants::progression::{DUNGEON_LORD_PATIENCE, FINAL_DEPTH};
 /// took the down-stair" checks this first.
 #[derive(Resource, Default)]
 pub struct Endless {
+    /// `true` when the run started with `-endless`.
     pub enabled: bool,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
+/// What one map tile is made of: the whole vocabulary of the terrain.
 pub enum TileType {
+    /// Rock. Blocks sight, shots and feet ([`Map::blocks`]).
     Wall,
+    /// The floor of a room.
     Room,
+    /// A corridor tile between rooms.
     Passage,
+    /// A doorway between a room and what lies past it.
     Door,
+    /// The stair up. Taking it climbs a floor.
     Upstairs,
+    /// The stair down. Taking it descends a floor.
     Downstairs,
     /// Deep water: floor to anything that [`Swims`](crate::effects::Swims),
     /// a wall to anything that does not, and nothing at all to sight or a
@@ -94,6 +103,18 @@ pub enum SpecialRoom {
     RedRoom,
 }
 
+impl SpecialRoom {
+    /// Whether the rock around this kind of room resists a wand of digging.
+    /// The marker is per kind, so a room that should hold its walls says so
+    /// here and nowhere else. Only the red room does.
+    pub fn undiggable(self) -> bool {
+        match self {
+            SpecialRoom::RedRoom => true,
+            SpecialRoom::DragonHoard | SpecialRoom::MonsterZoo | SpecialRoom::TreasureHive => false,
+        }
+    }
+}
+
 /// A floor that is not Rogue's 3x3 of rooms at all. Rolled per floor from
 /// the seed on depths [`SPECIAL_LEVEL_MIN_DEPTH`] up to the one above the
 /// last — see `models/src/map/special.rs` for the roll and for how each kind
@@ -103,24 +124,27 @@ pub enum SpecialRoom {
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum SpecialLevel {
     /// One lit room, wall to wall: the whole floor in view from the stairs,
-    /// twice the monsters and twice the loot.
+    /// a crowd and a haul to match ([`BATTLEFIELD_MONSTER_RUNS`](crate::constants::population::BATTLEFIELD_MONSTER_RUNS) and
+    /// [`BATTLEFIELD_ITEM_RUNS`](crate::constants::population::BATTLEFIELD_ITEM_RUNS) runs of the budgets).
     Battlefield,
     /// A maze of passages with a few loops knocked through it, and no room
     /// anywhere to light it.
     Labyrinth,
     /// A white honeycomb of rooms, each joined to every neighbour by one
-    /// door, with the stairs in two of its four corners: twice the monsters,
-    /// thrice the treasure.
+    /// door, with the stairs in two of its four corners: [`VAULT_MONSTER_RUNS`](crate::constants::population::VAULT_MONSTER_RUNS)
+    /// runs of the monster budget, [`VAULT_ITEM_RUNS`](crate::constants::population::VAULT_ITEM_RUNS) of the item budget.
     Vault,
     /// Land in the middle of deep water, all of it in view: swimmers in the
     /// water, the usual crowd on the shore.
     Island,
     /// One yellow cave, every monster in it an apis — as many budgets of them
-    /// as the floor's difficulty tier — and thrice the treasure.
+    /// as the floor's difficulty tier — and [`BEE_WORLD_ITEM_RUNS`](crate::constants::population::BEE_WORLD_ITEM_RUNS) runs of the item
+    /// budget.
     BeeWorld,
-    /// An ordinary floor with a castle in the middle of it: a 7x7 keep with a
-    /// dragon inside and a walled 5x5 tower on each corner, every one of the
-    /// five stocked like a whole floor of its own. It arrives without a word.
+    /// An ordinary floor with a castle in the middle of it: a keep (`KEEP_SIZE`
+    /// square in `map::special`) with a dragon inside and a walled tower
+    /// (`TOWER_SIZE`) on each corner, every one of them stocked like a whole floor
+    /// of its own. It arrives without a word.
     Castle,
 }
 
@@ -185,6 +209,7 @@ fn special_room_color(kind: SpecialRoom) -> Color {
 /// map — terrain is no longer stored as one ECS entity per tile.
 #[derive(Resource, Clone)]
 pub struct Map {
+    /// The terrain, one entry per tile, indexed by [`tile_index`].
     pub tiles: Vec<TileType>,
     /// One bit per tile: set on the floor of a "dark" room. Visibility inside a
     /// dark room is cut to the always-on 3x3 (as if it were a passage) until a
@@ -332,6 +357,27 @@ impl Map {
         room
     }
 
+    /// Whether a wand of digging may open `(x, y)`: not the map's outer wall,
+    /// and not a tile of, or touching, a room whose kind is
+    /// [`SpecialRoom::undiggable`].
+    pub fn diggable(&self, x: u16, y: u16) -> bool {
+        let edge = x == 0 || y == 0 || x >= MAP_WIDTH - 1 || y >= MAP_HEIGHT - 1;
+        if edge {
+            return false;
+        }
+        let guarded = |nx: i32, ny: i32| {
+            nx >= 0
+                && ny >= 0
+                && self
+                    .special_kind(nx as u16, ny as u16)
+                    .is_some_and(SpecialRoom::undiggable)
+        };
+        !guarded(x as i32, y as i32)
+            && !NEIGHBOUR_DIRS
+                .iter()
+                .any(|&(dx, dy)| guarded(x as i32 + dx, y as i32 + dy))
+    }
+
     /// The tint a special level paints `(x, y)` with if it is a wall or floor
     /// tile of one, else the tint a special room paints it with, whether it's
     /// one of the room's own floor tiles or a wall bounding it (reusing
@@ -415,7 +461,15 @@ pub type Rooms = Vec<Vec<(u16, u16)>>;
 /// Total tile count; the length of a fog-of-war bitset.
 pub const MAP_TILE_COUNT: usize = MAP_WIDTH as usize * MAP_HEIGHT as usize;
 
-/// Flattens a tile coordinate into a bitset/array index.
+/// Flattens a tile coordinate into a bitset/array index, row by row.
+///
+/// ```
+/// use models::{MAP_WIDTH, tile_index};
+///
+/// assert_eq!(tile_index(0, 0), 0);
+/// assert_eq!(tile_index(1, 0), 1);
+/// assert_eq!(tile_index(0, 1), MAP_WIDTH as usize);
+/// ```
 #[inline]
 pub const fn tile_index(x: u16, y: u16) -> usize {
     y as usize * MAP_WIDTH as usize + x as usize

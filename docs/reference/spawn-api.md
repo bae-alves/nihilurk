@@ -22,7 +22,7 @@ The one you probably want
 
     models/src/spawn.rs
 
-Spawns whatever the game knows by that name -- monster, any item category, trap, or the relic -- and returns `None` if it knows nothing by it. What comes out is the thing **exactly as its row describes it**: no enchantment roll, no battery charge, no ammunition bundle.
+Spawns whatever the game knows by that name -- monster, any item category, trap, or the relic -- and returns `None` if it knows nothing by it. What comes out is the thing **exactly as its row describes it**: no enchantment roll, no ammunition bundle.
 
     let dragon = spawn_named(&mut world, "dragon", pos).unwrap();
     let sword  = spawn_named(&mut world, "long sword", pos).unwrap();
@@ -165,10 +165,6 @@ Other catalog helpers
 
 Rolls quality for a freshly spawned piece of gear and stamps the result on. Reads the item to decide which bonus applies.
 
-    pub fn roll_wand_charges(rng: &mut ChaCha12Rng) -> i8
-
-`CHARGE_DICE d CHARGE_SIDES + CHARGE_BONUS`, all three from `constants::wands`. A wand spawned any other way carries `Battery { charges: 0 }`.
-
     pub fn split_one(world: &mut World, item: Entity) -> Option<Entity>
 
 A fresh single unit of whatever `item` is a stack of, spawned nowhere in particular -- the one arrow that leaves a quiver when you shoot it. `None` if the item is not something the catalog can make more of.
@@ -192,7 +188,7 @@ Effects
 
 A const handle to one marker effect. Lets a `const` table name a component it cannot store.
 
-`lend` and `revoke_matching` are the two ends of the ledger (`Effects`, a `Vec<Held>` on the entity): what is attached, from where, and for how long. One id may appear more than once — a creature born fire-immune *and* wearing a ring of fire resistance holds two entries — so `revoke_matching` is the single place that asks "is anything else still lending this?" before detaching. `attach_effects` returns the ids a save named that this build has no row for.
+`lend` and `revoke_matching` are the two ends of the ledger (`Effects`, a `Vec<Held>` on the entity): what is attached, from where, and for how long. One id may appear more than once -- a creature born fire-immune *and* wearing a ring of fire resistance holds two entries -- so `revoke_matching` is the single place that asks "is anything else still lending this?" before detaching. `attach_effects` returns the ids a save named that this build has no row for.
 
     pub fn grant_all(world, entity: Entity, grants: &'static [Grant])
     pub fn revoke_all(world, entity: Entity)

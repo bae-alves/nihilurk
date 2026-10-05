@@ -64,7 +64,7 @@ flowchart LR
 
 What each step does, and every `.after()` edge that holds them in that order, is `../reference/input-and-turn-loop.md` — this page is about *why the shape is a shape*, and repeating the list here would be one more copy to keep true.
 
-The two tail positions are what the diagram is for. `passive_ability_system` rolls *after* the monsters move so a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again, which is the difference between a ring you might keep on and a curse. `score_turn_system` is dead last so a combo multiplier is applied once the dying is over, never to a number still growing.
+The two tail positions are what the diagram is for. `ability_system` rolls *after* the monsters move so a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again, which is the difference between a ring you might keep on and a curse. `score_turn_system` is dead last so a combo multiplier is applied once the dying is over, never to a number still growing.
 
 Behaviour that does *not* belong to a schedule step belongs to a module verb called from one — `conditions::confuse`, `equipment::toggle_equipped`, `items::pick_up`. The test for whether something is in the right place is whether you can name the domain it owns in three words.
 
@@ -103,8 +103,8 @@ Narrow what you fetch
 
 Exclusive systems make it easy to reach for the whole world, so the discipline has to be deliberate. Three rules:
 
-  * **Ask for actors when you mean actors.** `passive_ability_system` used to probe every entity in the world for `Regenerates`. It walks `Or<(With<Player>, With<Mob>)>` now, because an effect never lands on an item — a ring carries `Grants`, and it is the *wearer* who ends up with the marker.
-  * **Fetch nothing the body does not read.** A tuple that grows past what a system uses is the first sign it is doing two jobs. `visibility_system`'s `spot_query` used to carry `Option<&Potion>`/`Scroll`/`Wand`/`Ring` fields purely to feed `identify::named_display`'s old cosmetic-appearance branches; once those were gone, so were the fields nobody else read.
+  * **Ask for actors when you mean actors.** `ability_system` walks `Or<(With<Player>, With<Mob>)>`, not every entity in the world, because an effect never lands on an item — a ring carries `Grants`, and it is the *wearer* who ends up with the marker.
+  * **Fetch nothing the body does not read.** A tuple that grows past what a system uses is the first sign it is doing two jobs. A query that carries `Option<&Potion>`/`Scroll`/`Wand`/`Ring` fields the body never reads is that sign.
   * **Collect ids, not references.** The point of collecting before a mutating loop is to stop borrowing; a `Vec<&Position>` has not stopped.
 
 One place still scans the whole world on purpose, and it is worth knowing why. `equipment::equipped` answers "what is this creature wearing?" by walking every entity and asking whose `Equipped.by` points at them. Gear points at its wearer rather than the other way round — which is right, because the item system lifts an item out of the pack while it resolves a use, and a ring must not stop working for those few lines, and a monster that caught a thrown dagger has no pack to look in at all. The narrow query that would answer it, `Query<&Equipped>`, needs `&mut World`, and every caller holds `&World` partway through reading something else. The scan is cheap on a floor of tens of entities and allocation-free; if a floor ever held thousands, the fix is an index resource, not a smaller loop.
@@ -115,7 +115,7 @@ What the world is *not* asked to remember
 
 Two whole categories of state are kept out of the ECS, and both for the same reason: they are cheaper to derive than to store.
 
-**Terrain is a resource, not entities.** `Map` is one `Vec<TileType>` plus a bitset of which tiles are unlit. nihilurk never had one entity per tile, and a 1,760-entity floor with a `Renderable` each would cost more to iterate every frame than the whole rest of the world put together.
+**Terrain is a resource, not entities.** `Map` is one `Vec<TileType>` plus a bitset of which tiles are unlit. nihilurk never had one entity per tile, and a floor-sized crop of entities (`WIDTH` by `HEIGHT`) with a `Renderable` each would cost more to iterate every frame than the whole rest of the world put together.
 
 **Nothing cosmetic is saved.** Bloodstains, corpse marks, smoke, live particles, the shake, the scorekeeper's flash and `FxRng` are all rebuilt empty on load. The three map-sized overlays alone would come to 2.2 KB — more than the entire save file they would be joining — and none of it is gameplay. A reloaded floor is the floor you left, scrubbed of the mess you made on it. The map and the message log are out for the same reason; `saveload.rs` lists all four exclusions at the top.
 

@@ -238,7 +238,7 @@ fn registered_effects(src: &str) -> Vec<String> {
         .map(str::trim)
         .filter(|line| !line.starts_with("//"))
         .filter_map(|line| line.split_once("=>"))
-        .filter_map(|(_, rhs)| rhs.trim().split(['[', ' ', ',']).next())
+        .filter_map(|(_, rhs)| rhs.trim().split(['[', ' ', ',', ';']).next())
         .filter(|ty| !ty.is_empty())
         .map(str::to_string)
         .collect()
@@ -256,33 +256,117 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// Every place `body` names one of `effects` outside the ledger.
+///
+/// `effects.rs` defines attaching and detaching, in terms of a type
+/// parameter rather than any named effect — there is nothing there for
+/// this to match, so it needs no exemption and gets none.
+fn audit_source(effects: &HashSet<String>, body: &str) -> syn::Result<Vec<Offence>> {
+    let parsed = syn::parse_file(body)?;
+    let mut collector = NameCollector {
+        effects,
+        names: LocalNames::default(),
+    };
+    collector.visit_file(&parsed);
+    let mut audit = LedgerAudit {
+        effects,
+        names: &collector.names,
+        found: Vec::new(),
+    };
+    audit.visit_file(&parsed);
+    Ok(audit.found)
+}
+
+/// The audit reads every row of the table and tells an effect from a
+/// same-named variant. It once split rows on everything but `;`, so a row
+/// with nothing after its type parsed as `Type;` and was never checked.
+#[test]
+fn the_ledger_audit_reads_every_row_and_knows_a_variant_from_an_effect() {
+    let table = "effects! {\n    \"asleep\" => Asleep;\n    \"confused\" => Confused;\n    \"phasing\" => Phasing, beware x();\n}\n";
+    assert_eq!(registered_effects(table), ["Asleep", "Confused", "Phasing"]);
+
+    let effects: HashSet<String> = ["Asleep", "Confused", "Phasing"].map(String::from).into();
+    let lines = |body: &str| -> Vec<usize> {
+        audit_source(&effects, body)
+            .unwrap()
+            .iter()
+            .map(|o| o.line)
+            .collect()
+    };
+    // A variant imported by name is that variant in this file.
+    assert!(lines("use MovementType::{Chase, Confused};\nfn f() { g(Confused); }\n").is_empty());
+    // A turbofish reads the effect, inside a macro or out.
+    assert!(lines("fn f() { assert!(Grant::of::<Phasing>().probe(w, e)); }\n").is_empty());
+    // Still caught: a bare value, in code and inside a macro.
+    assert_eq!(lines("fn f() {\n    e.insert(Asleep);\n}\n"), [2]);
+    assert_eq!(lines("fn f() {\n    assert!(x == Phasing);\n}\n"), [2]);
+    // An import through a type shadows only what it imports.
+    assert_eq!(
+        lines("use MovementType::Confused;\nfn f() {\n    e.insert(Asleep);\n}\n"),
+        [3]
+    );
+}
+
 /// What one effect is called *in one file*: its own name, plus whatever a
-/// `use ... as ...` renamed it to there. Collected first so the walk below can
-/// recognise `Sleepy` as `Asleep` without having to resolve anything.
+/// `use ... as ...` renamed it to there, minus any effect name a `use`
+/// brought in through a type instead — `use MovementType::{Chase, Confused}`
+/// makes a bare `Confused` the variant in that file. Collected first so the
+/// walk below can recognise `Sleepy` as `Asleep` without having to resolve
+/// anything.
 #[derive(Default)]
-struct LocalNames(HashMap<String, String>);
+struct LocalNames {
+    renamed: HashMap<String, String>,
+    shadowed: HashSet<String>,
+}
 
 impl LocalNames {
     fn effect_for(&self, ident: &str) -> Option<&str> {
-        self.0.get(ident).map(String::as_str)
+        self.renamed.get(ident).map(String::as_str)
     }
 }
 
-/// Walks a file's `use` trees, recording every local name that means an effect.
+/// Walks a file's `use` trees, recording every local name that means an
+/// effect, and every effect name that means something else here.
 struct NameCollector<'a> {
     effects: &'a HashSet<String>,
     names: LocalNames,
 }
 
-impl<'ast> Visit<'ast> for NameCollector<'_> {
-    fn visit_use_tree(&mut self, tree: &'ast syn::UseTree) {
-        if let syn::UseTree::Rename(rename) = tree {
-            let original = rename.ident.to_string();
-            if self.effects.contains(&original) {
-                self.names.0.insert(rename.rename.to_string(), original);
+impl NameCollector<'_> {
+    /// `through_type` is whether the path so far passed a capitalised
+    /// segment: past a type, what is imported is its variant or item, the
+    /// same convention `LedgerAudit::effect_in` reads paths by.
+    fn collect(&mut self, tree: &syn::UseTree, through_type: bool) {
+        match tree {
+            syn::UseTree::Path(p) => {
+                let is_type = p.ident.to_string().starts_with(char::is_uppercase);
+                self.collect(&p.tree, through_type || is_type);
             }
+            syn::UseTree::Name(n) => {
+                let name = n.ident.to_string();
+                if through_type && self.effects.contains(&name) {
+                    self.names.shadowed.insert(name);
+                }
+            }
+            syn::UseTree::Rename(r) => {
+                let original = r.ident.to_string();
+                if !through_type && self.effects.contains(&original) {
+                    self.names.renamed.insert(r.rename.to_string(), original);
+                }
+            }
+            syn::UseTree::Group(g) => {
+                for t in &g.items {
+                    self.collect(t, through_type);
+                }
+            }
+            syn::UseTree::Glob(_) => {}
         }
-        syn::visit::visit_use_tree(self, tree);
+    }
+}
+
+impl<'ast> Visit<'ast> for NameCollector<'_> {
+    fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
+        self.collect(&item.tree, false);
     }
 }
 
@@ -297,6 +381,13 @@ fn qualified_by_a_type(trees: &[proc_macro2::TokenTree], i: usize) -> bool {
         trees.get(i - 3),
         Some(proc_macro2::TokenTree::Ident(id)) if id.to_string().starts_with(char::is_uppercase)
     )
+}
+
+/// Whether the token at `i` opens a turbofish — `::<Phasing>` — where a type
+/// is read, never built: `Grant::of::<Phasing>()` inside an `assert!`.
+fn in_turbofish(trees: &[proc_macro2::TokenTree], i: usize) -> bool {
+    let punct = |n: usize, c: char| matches!(trees.get(n), Some(proc_macro2::TokenTree::Punct(p)) if p.as_char() == c);
+    i >= 3 && punct(i - 1, '<') && punct(i - 2, ':') && punct(i - 3, ':')
 }
 
 /// One place an effect was named outside the ledger.
@@ -333,7 +424,7 @@ impl LedgerAudit<'_> {
     /// What this local name means, if it means an effect: the effect itself,
     /// or whatever a `use ... as ...` renamed it to in this file.
     fn resolve(&self, ident: &str) -> Option<String> {
-        if self.effects.contains(ident) {
+        if self.effects.contains(ident) && !self.names.shadowed.contains(ident) {
             return Some(ident.to_string());
         }
         self.names.effect_for(ident).map(str::to_string)
@@ -388,7 +479,7 @@ impl LedgerAudit<'_> {
                     // capitalised one is a variant or an associated item.
                     // `matches!(m.movement_type, MovementType::Confused)` is
                     // the shape this has to let through.
-                    if qualified_by_a_type(&trees, i) {
+                    if qualified_by_a_type(&trees, i) || in_turbofish(&trees, i) {
                         continue;
                     }
                     let found = self
@@ -482,26 +573,9 @@ fn no_effect_is_attached_or_detached_behind_the_ledgers_back() {
             .display()
             .to_string();
         let body = std::fs::read_to_string(&file).expect("a source file is readable");
-        let parsed = syn::parse_file(&body)
+        let found = audit_source(&effects, &body)
             .unwrap_or_else(|e| panic!("{shown} is valid Rust, but did not parse: {e}"));
-
-        // `effects.rs` defines attaching and detaching, in terms of a type
-        // parameter rather than any named effect — there is nothing there for
-        // this to match, so it needs no exemption and gets none.
-        let mut collector = NameCollector {
-            effects: &effects,
-            names: LocalNames::default(),
-        };
-        collector.visit_file(&parsed);
-
-        let mut audit = LedgerAudit {
-            effects: &effects,
-            names: &collector.names,
-            found: Vec::new(),
-        };
-        audit.visit_file(&parsed);
-
-        for offence in audit.found {
+        for offence in found {
             offences.push(format!(
                 "{shown}:{}: {} {}",
                 offence.line, offence.effect, offence.how

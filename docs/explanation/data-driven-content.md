@@ -40,7 +40,7 @@ The three moves
 
 That line is the entire dragon. Level population reads it, the scroll of create monster reads it, the wand of polymorph reads it, the save file reads it back by name on load. Nothing else in the codebase enumerates species -- so there is no second list to fall out of step, and the question "what is a dragon" has exactly one answer.
 
-The same holds for every category. Nine item tables, one bestiary, one trap table, one loot table.
+The same holds for every category. Each kind of item has its own table, and there is one bestiary, one trap table, one loot table.
 
 ### 2. Behaviour is a component the row attaches, not code the row names
 
@@ -56,7 +56,7 @@ So the design rule is: **when you want new behaviour, first look for a question 
 
 ### 3. Rarity is data on the row, not arithmetic in the spawner
 
-The loot table used to be this:
+The loot table could be a chain of ranges:
 
     match rng.gen_range(0..100) {
         0..=29 => one(world, rng, pos, SCROLLS),
@@ -65,9 +65,9 @@ The loot table used to be this:
         ...
     }
 
-Adding a category meant recomputing every boundary by hand and hoping the last arm still reached 99. The percentages were a constraint the author had to satisfy, and they were satisfied nowhere in particular.
+Adding a category would mean recomputing every boundary by hand and hoping the last arm still reached 99. The percentages would be a constraint the author had to satisfy, and satisfied nowhere in particular.
 
-It is now a weighted table:
+It is a weighted table instead:
 
     category!("scroll",  300,  1,  SCROLLS),
     category!("potion",  270,  1,  POTIONS),
@@ -131,7 +131,7 @@ None of those has a list of content in it. They read the tables. A row added tod
 
 **Saves get smaller and more robust.** A saved item stores its *name*, not its components; `restore_from_catalog` rebuilds the rest from the row. A save that stored a bow's grant list would only be storing the table twice, and would go stale the moment the table changed.
 
-**The gaps become visible, and closing one is a chain.** Seven of the twelve rings used to have a name and an appearance and no content. In the old shape that would have been seven missing match arms scattered about, indistinguishable from bugs; here it was seven rows with no chains -- unfinished in a way you could see at a glance. Six of the seven were finished by adding exactly that: `.power_bonus(2)` for increase damage, `.grants(&[Grant::of::<Stealthy>()])` for stealth, and so on for regeneration, slow digestion, teleportation and maintain armor. Two of those needed a new marker in `EFFECTS` and a system that reads it; none of them needed `catalog.rs` to learn what a ring of stealth is.
+**An unfinished row is visible, and finishing it is a chain.** A ring with a name and no chains does nothing, and you can see that at a glance. As a match arm it would be one of several scattered about, indistinguishable from a bug. Finishing it is adding the chain: `.power_bonus(2)` for increase damage, `.grants(&[Grant::of::<Stealthy>()])` for stealth, and so on for regeneration, slow digestion, teleportation and maintain armor. A chain that needs a new marker needs an entry in `EFFECTS` and a system that reads it; none of them needs `catalog.rs` to learn what a ring of stealth is.
 
 
 Where it does not reach
@@ -139,13 +139,13 @@ Where it does not reach
 
 Honesty about the seams, because they are where people get stuck.
 
-**Potions, scrolls and wands still need a mechanic.** "Restore hit points" is not expressible as a component the engine already folds, so those three categories keep an effect enum and a `match` (in `models/src/items/potions.rs`, `scrolls.rs` and `wands.rs` respectively). Those matches are exhaustive now, the same as traps: no catch-all arm, so a variant given no arm does not build, rather than compiling and shipping as a silent dud.
+**Potions, scrolls and wands still need a mechanic.** "Restore hit points" is not expressible as a component the engine already folds, so those three categories keep an effect enum and a `match` (in `models/src/items/potions.rs`, `scrolls.rs` and `wands.rs` respectively). Those matches are exhaustive, the same as traps: no catch-all arm, so a variant given no arm does not build, rather than compiling and shipping as a silent dud.
 
-That buys the missing-arm case, not the missing-*behaviour* case -- exhaustiveness only proves every variant was mentioned, not that what it does is finished. `PotionEffect` is fully wired now (its do-nothing arm, `FruitJuice`, is deliberate: it's a taste and a log line, nothing more; `Water` is the same arm, but only ever reached by a wand of cancellation mutating a carried potion in place -- it is not a spawnable row). `ScrollEffect` is fully wired too, as of the six that used to share an explicit do-nothing arm (`MonsterConfusion`, `HoldMonster`, `Sleep`, `EnchantArmor`, `FoodDetection`, `EnchantWeapon`); `BlankPaper` is the one arm left that does nothing, and -- like `Water` -- it is never a spawnable row; it only ever happens when a wand of cancellation blanks a carried scroll. What exhaustiveness buys is that nobody can add a *new* such gap by accident -- a new variant has to be named in the match, whether the arm you give it is real behaviour or an honest placeholder.
+That buys the missing-arm case, not the missing-*behaviour* case -- exhaustiveness only proves every variant was mentioned, not that what it does is finished. `PotionEffect` is fully wired (its do-nothing arm, `FruitJuice`, is deliberate: it's a taste and a log line, nothing more; `Water` is the same arm, but only ever reached by a wand of cancellation mutating a carried potion in place -- it is not a spawnable row). `ScrollEffect` is fully wired too; `BlankPaper` is the one arm left that does nothing, and -- like `Water` -- it is never a spawnable row; it only ever happens when a wand of cancellation blanks a carried scroll. What exhaustiveness buys is that nobody can add a *new* such gap by accident -- a new variant has to be named in the match, whether the arm you give it is real behaviour or an honest placeholder.
 
-**And one ring did need a verb.** Eleven of the twelve are a number or a marker; the ring of adornment is an *event* -- it fires once, when it goes on, and spends itself doing it. A `Grant` cannot say that, so it rides as an `OnWear` component the row attaches, and `models/src/items/rings.rs` holds the three ring verbs that exist (the adornment flourish, the regeneration tick, the teleportitis jump). That file is the honest cost of the design: it is where a ring's behaviour goes when the row cannot hold it. It still contains no `match` on `RingEffect`, and nothing outside it knows which ring is which.
+**And one ring did need a verb.** Most rings are a number or a marker; the ring of adornment is an *event* -- it fires once, when it goes on, and spends itself doing it. A `Grant` cannot say that, so it rides as an `OnWear` component the row attaches, and `models/src/items/rings.rs` holds the ring verbs (the adornment flourish, the regeneration tick, the teleportitis jump). That file is the honest cost of the design: it is where a ring's behaviour goes when the row cannot hold it. It still contains no `match` on `RingEffect`, and nothing outside it knows which ring is which.
 
-Wiring the potions is also where the third home for a mechanic showed up. A condition (confusion, blindness, paralysis, a shifted tempo) is not a potion's property any more than it is a wand's: both put the same affliction on the same creature, and both have to know that the player takes it as a marker component the input loop reads while a monster takes it as a `MovementType` or a slower tempo. So the verbs live in `models/src/conditions.rs`, one per affliction, and the potion arm and the wand arm are each one line into them.
+A mechanic has a third home. A condition (confusion, blindness, paralysis, a shifted tempo) is not a potion's property any more than it is a wand's: both put the same affliction on the same creature, and both have to know that the player takes it as a marker component the input loop reads while a monster takes it as a `MovementType` or a slower tempo. So the verbs live in `models/src/conditions.rs`, one per affliction, and the potion arm and the wand arm are each one line into them.
 
 **Numeric modifiers need a place to be *read*.** A new `SightBonus` is one row in `modifiers!`, and that row folds it into `Loadout` for you -- but somebody still has to read the field from the calculation it modifies. There is no generic answer to "where does a new number belong".
 

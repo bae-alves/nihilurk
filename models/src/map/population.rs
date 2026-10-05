@@ -15,17 +15,17 @@
 
 use bevy_ecs::prelude::*;
 use rand::Rng;
-use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 use std::collections::HashSet;
 
 use crate::catalog::{COINS, PROGRESSION_ITEMS, spawn_element_of_yoord};
 use crate::components::*;
 use crate::constants::population::{
-    CORRIDOR_LURKER_CHANCE, CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEM_SLOTS_BASE,
-    MONSTER_FILL_CHANCE_BASE, MONSTER_FILL_CHANCE_CAP, MONSTER_FILL_CHANCE_PER_TIER,
-    MONSTER_SLOTS_BASE, START_CLEARING_RADIUS, TRAP_FILL_CHANCE_BASE, TRAP_FILL_CHANCE_CAP,
-    TRAP_FILL_CHANCE_PER_TIER, TRAP_SLOTS_BASE,
+    BATTLEFIELD_ITEM_RUNS, BATTLEFIELD_MONSTER_RUNS, BEE_WORLD_ITEM_RUNS, CORRIDOR_LURKER_CHANCE,
+    CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEM_SLOTS_BASE, MONSTER_FILL_CHANCE_BASE,
+    MONSTER_FILL_CHANCE_CAP, MONSTER_FILL_CHANCE_PER_TIER, MONSTER_SLOTS_BASE,
+    ORDINARY_BUDGET_RUNS, START_CLEARING_RADIUS, TRAP_FILL_CHANCE_BASE, TRAP_FILL_CHANCE_CAP,
+    TRAP_FILL_CHANCE_PER_TIER, TRAP_SLOTS_BASE, VAULT_ITEM_RUNS, VAULT_MONSTER_RUNS,
 };
 use crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 
@@ -293,13 +293,13 @@ pub fn difficulty_tier(depth: u8) -> u32 {
 /// crowd or a haul.
 fn budget_runs(level: Option<SpecialLevel>, tier: u32) -> (usize, usize) {
     match level {
-        Some(SpecialLevel::Battlefield) => (2, 2),
-        Some(SpecialLevel::Vault) => (2, 3),
+        Some(SpecialLevel::Battlefield) => (BATTLEFIELD_MONSTER_RUNS, BATTLEFIELD_ITEM_RUNS),
+        Some(SpecialLevel::Vault) => (VAULT_MONSTER_RUNS, VAULT_ITEM_RUNS),
         // A bee world only rolls at tier 1 or deeper; the floor of one keeps a
         // `NIHILURK_LEVEL` bee world on a shallower floor from standing empty.
-        Some(SpecialLevel::BeeWorld) => (tier.max(1) as usize, 3),
+        Some(SpecialLevel::BeeWorld) => (tier.max(1) as usize, BEE_WORLD_ITEM_RUNS),
         Some(SpecialLevel::Labyrinth | SpecialLevel::Castle | SpecialLevel::Island) | None => {
-            (1, 1)
+            (ORDINARY_BUDGET_RUNS, ORDINARY_BUDGET_RUNS)
         }
     }
 }
@@ -328,52 +328,6 @@ fn spawn_monster_budget(
         };
         let def = pick_species(rng, (x, y));
         spawn_monster_with_rng(world, def, Position { x, y }, rng);
-        if let Some(companion) = def.pairs_companion {
-            spawn_companion_pair(world, (x, y), companion, occupied, rng);
-        }
-    }
-}
-
-/// A row's [`MonsterDef::pairs_companion`] paying off: on
-/// [`crate::constants::spirits::PAIR_CHANCE`], up to two more of `name` land
-/// on a walkable tile next door to `(x, y)`. All eight neighbours are
-/// shuffled and tried in that order, so a wall or water on one side doesn't
-/// cost the companion its spot — only a `(x, y)` boxed in on every side does.
-fn spawn_companion_pair(
-    world: &mut World,
-    (x, y): (u16, u16),
-    name: &'static str,
-    occupied: &mut HashSet<(u16, u16)>,
-    rng: &mut ChaCha12Rng,
-) {
-    if !rng.gen_bool(crate::constants::spirits::PAIR_CHANCE) {
-        return;
-    }
-    let def = MonsterDef::named(name);
-    let mut neighbors = [
-        (-1, -1),
-        (-1, 0),
-        (-1, 1),
-        (0, -1),
-        (0, 1),
-        (1, -1),
-        (1, 0),
-        (1, 1),
-    ];
-    neighbors.shuffle(rng);
-    let mut placed = 0;
-    for (dx, dy) in neighbors {
-        if placed == 2 {
-            break;
-        }
-        let (nx, ny) = (x.saturating_add_signed(dx), y.saturating_add_signed(dy));
-        if !world.resource::<Map>().walkable(nx, ny, false) {
-            continue;
-        }
-        if occupied.insert((nx, ny)) {
-            spawn_monster_with_rng(world, def, Position { x: nx, y: ny }, rng);
-            placed += 1;
-        }
     }
 }
 

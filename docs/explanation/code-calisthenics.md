@@ -160,7 +160,7 @@ So the rule here is a **ceiling, not a target**: get out of the deep nests, stop
 
 Mostly the same moves as Phase 1, plus two:
 
-**Extract the loop body.** A `for` whose body is 60 lines and three levels deep is a function that has not been written yet. `ai::monster_round` became a `for` over `step_one_mob`; `items::item_system` a `for` over `resolve_use`; `update::process_input_and_update` -- a 600-line, 13-deep input handler -- split into `handle_targeting_input`, `handle_inventory_input`, `handle_movement_input` and their callees.
+**Extract the loop body.** A `for` whose body is 60 lines and three levels deep is a function that has not been written yet. `ai::monster_round` is a `for` over `step_one_mob`; `items::item_system` a `for` over `resolve_use`; `update::process_input_and_update` is split into `handle_targeting_input`, `handle_inventory_input`, `handle_movement_input` and their callees.
 
 **Name the phases of a procedure.** Not every long function is deep; some are just long, and read as one undifferentiated wall. The cure is the same and the motive is different -- you are not reducing indentation, you are giving a reader somewhere to stop. `combat::resolve_attack` was 180 straight lines and is now seven named steps (`fold_matchup`, `roll_swing`, `clamp_swing`, `land_swing`, `punctuate`, `report_blow`, `settle_the_dead`), each of which can be read or skipped on its name. `map.rs` had the same problem one level up -- 1,374 lines doing four unrelated jobs -- and became `map/` with a submodule per job, the way `items.rs` did before it.
 
@@ -203,10 +203,10 @@ Not a calisthenics rule, but it belongs next to them, because it is the same kin
 Three ways out, in order of preference:
 
 1. **Assert the relation.** "A thrown wand hits harder than the zap it gave up." "Two corpses in one turn beat two corpses in two turns." "A coin's burst reaches a tile a trap's does not." These stay true across every rebalance because they are what the feature *is*.
-2. **Read the constant.** `CHARGE_DICE * CHARGE_SIDES + CHARGE_BONUS` instead of `13`; `share_of("coin")` off `DROPS` instead of `17.0`. Now the test proves the roller honours the table rather than proving the table says what it says.
-3. **Purge it.** If a test's only claim was the number, delete it and put something real in its place. The stash test became "a stashed item carries `Invisible` *and* `Hidden`", which is an invariant a rebalance cannot touch and a bug could.
+2. **Read the constant.** `DAMAGE_DICE * DAMAGE_SIDES` instead of `8`; `share_of("coin")` off `DROPS` instead of `17.0`. Now the test proves the roller honours the table rather than proving the table says what it says.
+3. **Purge it.** If a test's only claim was the number, delete it and put something real in its place. "A stashed item carries `Invisible` *and* `Hidden`" is the kind of claim to put there: an invariant a rebalance cannot touch and a bug could.
 
-A test's own loop bound is not a tuning number and should not borrow one. `models/tests/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it made a tightened valve look like an infinite loop.
+A test's own loop bound is not a tuning number and should not borrow one. `models/tests/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it would make a tightened valve look like an infinite loop.
 
 
 One rule of nihilurk's own: behavior tests build components, not bestiary rows

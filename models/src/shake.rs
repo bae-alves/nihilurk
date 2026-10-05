@@ -129,6 +129,7 @@ impl Default for Shake {
 }
 
 impl Shake {
+    /// An idle shake, with shaking switched on.
     pub fn new() -> Self {
         Self::default()
     }

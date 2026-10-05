@@ -46,7 +46,7 @@ Every item in the game lives in one file:
 
     models/src/catalog.rs
 
-Open it and search for `WEAPONS`. You are looking at something like this:
+Open it and search for `WEAPONS`. The top of it looks like this:
 
     #[rustfmt::skip]
     pub const WEAPONS: &[WeaponDef] = &[
@@ -55,9 +55,10 @@ Open it and search for `WEAPONS`. You are looking at something like this:
         WeaponDef::new("mace",             Color::DarkGrey, 6),
         WeaponDef::new("long sword",       Color::White,    8),
         WeaponDef::new("two-handed sword", Color::Cyan,    10),
+        // ... more rows ...
     ];
 
-Five weapons, five lines. Read one:
+One weapon, one line. Read one:
 
     WeaponDef::new("mace", Color::DarkGrey, 6)
                      |          |           |
@@ -99,7 +100,7 @@ That listing is not a hand-maintained document. It reads the tables at run time,
 Step 4: hold it in your hands
 -----------------------------
 
-Waiting for a 3.6%-chance drop to prove your work is a miserable way to spend an evening. So there is a shortcut:
+Waiting for a rare drop to prove your work is a miserable way to spend an evening. So there is a shortcut:
 
     NIHILURK_SPAWN="quarterstaff" cargo run -p nihilurk
 
@@ -139,7 +140,7 @@ Suppose your quarterstaff is really a javelin. Change your row to:
 
 Rebuild, and throw it at something:
 
-    NIHILURK_SPAWN="quarterstaff,bat" cargo run -p nihilurk
+    NIHILURK_SPAWN="quarterstaff,emu" cargo run -p nihilurk
 
 It now flies properly: it goes around the target's armour die instead of being blunted by it, it is spent on what it hits, and nothing can pluck it out of the air. You did not implement any of that. Those three behaviours belong to `.missile(...)`, and every row that asks for them gets all three.
 
@@ -165,13 +166,13 @@ What you actually learned
 
   * The tables are data, so the tools work on them for free: the `-content` listing, `NIHILURK_SPAWN`, and the table tests all read the same rows you edited.
 
-Weapons are the easy case. Some categories need one more edit -- a potion needs somebody to say what drinking it does. The next section is one worked row for each of the nine, so you can see exactly where the line falls.
+Weapons are the easy case. Some categories need one more edit -- a potion needs somebody to say what drinking it does. The next section is one worked row for each kind, so you can see exactly where the line falls.
 
 
 One row for every kind
 ----------------------
 
-Nine categories drop in nihilurk, and they divide cleanly into two halves: the ones that are a row and nothing else, and the ones that also need somebody to say what the new thing *does*.
+Every category that drops in nihilurk falls into one of two halves: the ones that are a row and nothing else, and the ones that also need somebody to say what the new thing *does*.
 
 The second half is not a chore the design failed to remove. A potion is a promise that drinking it will do something, and no table can invent what. What the design does remove is everything else: you never register a type, never touch the loot roller, never add a name to a list.
 
@@ -188,14 +189,18 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 **A coin**, as long as it does something a coin already does. `COINS` pairs a `PickupEffect` with the one number that effect works with -- so a cheaper treasure coin is a row, full stop:
 
     CoinDef { name: "copper coin", color: Color::DarkYellow,
-              effect: PickupEffect::Coin, amount: 250 },
+              effect: PickupEffect::Coin, amount: 250, weight: 10 },
 
 **A ring**, as long as what it does is a number combat already folds or a marker some system already asks about. This one is the whole argument for the design in three lines:
 
     RingDef::new(RingEffect::FireResistance, "ring of fire resistance")
         .grants(&[Grant::of::<FireImmune>()]),
 
-`FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. `RingEffect::FireResistance` is just the key the row is spawned by -- an identity, not behaviour.
+`FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. `RingEffect::FireResistance` is a variant you append to the enum. It is just the key the row is spawned by -- an identity, not behaviour.
+
+**A treat.** `TREATS`. A treat is thrown at a creature as an offer of loyalty; `for_item_users` says whether it is meant for a creature with hands.
+
+    TreatDef { name: "bone", color: Color::Grey, for_item_users: false },
 
 **Ammunition and a launcher** are one job in two rows, and neither names the other. They meet at an effect:
 
@@ -204,14 +209,14 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
     pub struct FireStone;
 
     // in AMMO
-    AmmoDef { name: "sling stone", color: Color::Grey, die: 3,
+    AmmoDef { name: "sling stone", color: Color::Grey, die: 3, launched_die: 6,
               launched_by: Grant::of::<FireStone>() },
 
     // in LAUNCHERS
     LauncherDef { name: "sling", color: Color::DarkYellow,
                   grants: &[Grant::of::<FireStone>()], melee_cap: 1 },
 
-Thrown by hand the stone rolls `1d3`. Loosed by somebody carrying `FireStone` it rolls double. The sling is not consulted -- only the effect is, which is why a hobgoblin that picks one up shoots just as well as you do. Add `FireStone` to the `EFFECTS` registry so it survives a save; see `../how-to/add-an-effect.md`.
+Thrown by hand the stone rolls its `die`. Loosed by somebody carrying `FireStone` it rolls its larger `launched_die`. The sling is not consulted -- only the effect is, which is why a hobgoblin that picks one up shoots just as well as you do. Add `FireStone` to the `EFFECTS` registry so it survives a save; see `../how-to/add-an-effect.md`.
 
 ### A row, plus one place that says what it does
 

@@ -183,10 +183,16 @@ fn goes_in(world: &World, item: Entity, slot: Slot) -> bool {
 /// see this module's header on why a row keeps its pack letter.
 #[derive(Resource, Default)]
 pub struct PackIsOpen {
+    /// Whether the modal is up and taking the keyboard.
     pub open: bool,
+    /// The mode that opened it, which decides which rows it lists.
     pub mode: PackMode,
+    /// The item the cursor sits on, as a backpack index.
     pub selected: usize,
+    /// The item the action row is for, as a backpack index. `None` until one is
+    /// picked.
     pub action_mode: Option<usize>,
+    /// The action the cursor sits on, once an item is picked.
     pub action_selected: usize,
 }
 

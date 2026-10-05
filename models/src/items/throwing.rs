@@ -28,8 +28,8 @@ use crate::traps::detonate_at;
 
 use super::scrolls::apply_scroll_effect;
 use super::wands::{
-    blast_palette, cancel_entity, dazzle, elemental_blast, is_attack_wand, polymorph_entity,
-    teleport_entity_away, teleport_entity_to_self,
+    blast_palette, cancel_entity, crater, dazzle, elemental_blast, is_attack_wand,
+    polymorph_entity, shuffle_places, teleport_entity_away, teleport_entity_to_self,
 };
 use crate::conditions::shift_entity_speed;
 
@@ -154,8 +154,8 @@ pub fn throw_reach(world: &World, thrower: Entity, item: Entity) -> i32 {
 /// * **A launcher switches the die.** A missile carrying [`LaunchedBy`] asks
 ///   whether its thrower has the effect it answers to; if so it rolls its
 ///   [`LaunchedDamage`] instead of [`ThrownDamage`] — an arrow lobbed by hand
-///   rolls `1d4`, the same arrow loosed from a bow rolls `1d6`, a quarrel rolls
-///   its plain double. The bow is not consulted — only the effect is, so a
+///   rolls its [`AmmoDef::die`], the same arrow loosed from a bow its
+///   [`AmmoDef::launched_die`]. The bow is not consulted — only the effect is, so a
 ///   monster that picked one up shoots just as well as you do.
 /// * **Armour blunts it in full** — the same opposed roll a blade would face,
 ///   die and all ([`total_armor_roll`]). A point already in the air still
@@ -347,6 +347,14 @@ fn resolve_wand_throw(
         return;
     }
 
+    if effect == WandEffect::Digging {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::thrown_wand_shatters(seen_name, charges));
+        crater(world, landing, GRENADE_RADIUS);
+        return;
+    }
+
     let is_attack = is_attack_wand(effect);
     let is_light = effect == WandEffect::Light;
     // The wand of light throws the same wide, hot grenade an attack wand does —
@@ -383,6 +391,9 @@ fn resolve_wand_throw(
 
     if is_attack {
         return;
+    }
+    if effect == WandEffect::Swapping {
+        shuffle_places(world, &caught);
     }
     for entity in caught {
         // Only creatures answer to a wand's effect — a scroll lying in the blast
@@ -765,7 +776,6 @@ fn strike_victim(
         return strings::throw_glances_off(seen_name, &hit_name);
     }
     apply_damage(world, hit, damage);
-    crate::spirits::on_direct_hit(world, thrower, hit, damage);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.hit_spark(at.x, at.y);
     }

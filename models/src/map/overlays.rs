@@ -25,6 +25,7 @@ pub struct BloodStains {
 }
 
 impl BloodStains {
+    /// An empty floor with staining switched on.
     pub fn new() -> Self {
         Self {
             tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
@@ -40,6 +41,18 @@ impl BloodStains {
 
     /// Marks the tile at `(x, y)` bloody, `green` choosing a slime's ichor
     /// over the default red (unless blood is disabled).
+    ///
+    /// ```
+    /// use models::BloodStains;
+    ///
+    /// let mut blood = BloodStains::new();
+    /// blood.stain_colored(3, 4, true);
+    /// assert!(blood.is_bloody(3, 4) && blood.is_green(3, 4));
+    ///
+    /// blood.enabled = false; // what `-nb` does
+    /// blood.stain(5, 5);
+    /// assert!(!blood.is_bloody(5, 5));
+    /// ```
     pub fn stain_colored(&mut self, x: u16, y: u16, green: bool) {
         if self.enabled && x < MAP_WIDTH && y < MAP_HEIGHT {
             let idx = tile_index(x, y);
@@ -50,14 +63,17 @@ impl BloodStains {
         }
     }
 
+    /// Whether `(x, y)` is stained, red or green.
     pub fn is_bloody(&self, x: u16, y: u16) -> bool {
         x < MAP_WIDTH && y < MAP_HEIGHT && self.tiles.contains(tile_index(x, y))
     }
 
+    /// Whether the stain at `(x, y)` is a slime's rather than red.
     pub fn is_green(&self, x: u16, y: u16) -> bool {
         x < MAP_WIDTH && y < MAP_HEIGHT && self.green.contains(tile_index(x, y))
     }
 
+    /// Wipes every stain, for a new floor.
     pub fn clear(&mut self) {
         self.tiles.clear();
         self.green.clear();
@@ -82,6 +98,7 @@ pub struct Corpses {
 }
 
 impl Corpses {
+    /// A floor with no corpses on it.
     pub fn new() -> Self {
         Self {
             tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
@@ -89,16 +106,28 @@ impl Corpses {
     }
 
     /// Marks `(x, y)` as holding a corpse.
+    ///
+    /// ```
+    /// use models::Corpses;
+    ///
+    /// let mut corpses = Corpses::new();
+    /// corpses.mark(2, 2);
+    /// assert!(corpses.has(2, 2));
+    /// corpses.clear();
+    /// assert!(!corpses.has(2, 2));
+    /// ```
     pub fn mark(&mut self, x: u16, y: u16) {
         if x < MAP_WIDTH && y < MAP_HEIGHT {
             self.tiles.insert(tile_index(x, y));
         }
     }
 
+    /// Whether a corpse lies on `(x, y)`.
     pub fn has(&self, x: u16, y: u16) -> bool {
         x < MAP_WIDTH && y < MAP_HEIGHT && self.tiles.contains(tile_index(x, y))
     }
 
+    /// Removes every corpse, for a new floor.
     pub fn clear(&mut self) {
         self.tiles.clear();
     }
@@ -121,6 +150,7 @@ pub struct Smoke {
 }
 
 impl Smoke {
+    /// A floor with no smoke on it.
     pub fn new() -> Self {
         Self {
             turns_left: vec![0; MAP_TILE_COUNT],
@@ -129,6 +159,17 @@ impl Smoke {
 
     /// Lays (or refreshes) a puff of smoke on `(x, y)`, good for `turns` more
     /// calls to [`Smoke::tick`].
+    ///
+    /// ```
+    /// use models::Smoke;
+    ///
+    /// let mut smoke = Smoke::new();
+    /// smoke.puff(10, 5, 2);
+    /// smoke.tick();
+    /// assert!(smoke.is_smoky(10, 5));
+    /// smoke.tick();
+    /// assert!(!smoke.is_smoky(10, 5));
+    /// ```
     pub fn puff(&mut self, x: u16, y: u16, turns: u8) {
         if x < MAP_WIDTH && y < MAP_HEIGHT {
             let slot = &mut self.turns_left[tile_index(x, y)];
@@ -136,6 +177,7 @@ impl Smoke {
         }
     }
 
+    /// Whether a puff still hangs on `(x, y)`.
     pub fn is_smoky(&self, x: u16, y: u16) -> bool {
         x < MAP_WIDTH && y < MAP_HEIGHT && self.turns_left[tile_index(x, y)] > 0
     }
@@ -147,6 +189,7 @@ impl Smoke {
         }
     }
 
+    /// Clears every puff, for a new floor.
     pub fn clear(&mut self) {
         self.turns_left.fill(0);
     }

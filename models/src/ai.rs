@@ -286,8 +286,10 @@ fn step_one_mob(
     // Already dead forfeits everything. An indirect kill — a spell, a wand bolt
     // — only zeroes the HP and leaves the body for `reaper_system` at the far
     // end of the turn, and `spell_system` resolves before this does, so a
-    // corpse is reachable here. It does not get a parting shot.
-    if world.get::<Fighter>(mob).is_some_and(|f| f.hp <= 0) {
+    // corpse is reachable here. It does not get a parting shot. Nor does a
+    // mob already gone from the world: the pass listed it before something
+    // this turn despawned it (polymorph respawns its target as a new entity).
+    if world.get_entity(mob).is_none() || world.get::<Fighter>(mob).is_some_and(|f| f.hp <= 0) {
         return false;
     }
     // Asleep — or stone — forfeits the turn outright. Pinned or rooted means
@@ -359,16 +361,12 @@ fn perceive<'a>(
         swims: world.get::<Swims>(mob).is_some(),
         phasing: world.get::<Phasing>(mob).is_some(),
         launcher: crate::equipment::wielded_launcher(world, mob).is_some(),
-        spellset: crate::abilities::INNATE_SPELLS
-            .iter()
-            .filter(|(grant, _)| grant.probe(world, mob))
-            .map(|&(_, spell)| spell)
-            .chain(
-                world
-                    .get::<Spellset>(mob)
-                    .into_iter()
-                    .flat_map(|s| s.slots.iter().copied()),
-            )
+        // Only what its Magic can pay for: a dry caster has nothing to cast.
+        spellset: world
+            .get::<Spellset>(mob)
+            .into_iter()
+            .flat_map(|s| s.slots.iter().copied())
+            .filter(|&spell| crate::items::can_afford_spell(world, mob, spell))
             .collect(),
         // The dungeon's own randomness, not the seed's: which spell a monster
         // tries and which way a confused one lurches have never been part of
@@ -407,6 +405,9 @@ fn act(
             return true;
         }
         Action::Cast(spell, target) => {
+            if !crate::items::pay_for_spell(world, mob, spell) {
+                return false;
+            }
             crate::items::apply_spell_effect(world, mob, target, spell, 1);
             spend_energy(world, mob);
             return true;
@@ -470,17 +471,16 @@ fn can_afford_step(world: &mut World, mob: Entity, pass: usize) -> bool {
     }
 }
 
-/// Whether these two factions come to blows. `Spirits` is conditional on
-/// [`SpiritsHostile`]: peaceful toward the player and their allies until it
-/// flips, but always ready to trade blows with a real monster it bumps into.
+/// Whether these two factions come to blows. `Spirits` hinges on
+/// [`SpiritsHostile`]: a peaceful spirit fights nobody and nobody fights it;
+/// once it flips, spirits fight everyone but each other.
 fn hostile(world: &World, a: Faction, b: Faction) -> bool {
     match (a, b) {
         (Faction::Monster, Faction::Player)
         | (Faction::Monster, Faction::Ally)
         | (Faction::Ally, Faction::Monster) => true,
-        (Faction::Spirits, Faction::Monster) | (Faction::Monster, Faction::Spirits) => true,
-        (Faction::Spirits, Faction::Player | Faction::Ally)
-        | (Faction::Player | Faction::Ally, Faction::Spirits) => {
+        (Faction::Spirits, Faction::Spirits) => false,
+        (Faction::Spirits, _) | (_, Faction::Spirits) => {
             world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0)
         }
         _ => false,
@@ -525,6 +525,62 @@ mod tests {
     use super::*;
     use crate::map::MAP_TILE_COUNT;
     use fixedbitset::FixedBitSet;
+
+    const OTHERS: [Faction; 3] = [Faction::Player, Faction::Ally, Faction::Monster];
+
+    /// A mob the pass already listed can be gone by its turn: polymorph
+    /// despawns its target and spawns the new shape as a fresh entity.
+    #[test]
+    fn a_mob_despawned_mid_pass_forfeits_its_turn() {
+        let mut world = World::new();
+        let player = world.spawn(Player).id();
+        let mob = world
+            .spawn(Mob {
+                movement_type: MovementType::Chase,
+            })
+            .id();
+        world.despawn(mob);
+        let map = Map {
+            tiles: vec![TileType::Room; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
+        };
+        let visible = HashSet::new();
+        let ctx = AiCtx {
+            pass: 0,
+            player,
+            player_pos: Position { x: 1, y: 1 },
+            player_faction: Faction::Player,
+            visible: &visible,
+            stealthy: false,
+            warded: false,
+            map: &map,
+        };
+        assert!(!step_one_mob(&mut world, mob, &ctx, &mut HashMap::new()));
+    }
+
+    #[test]
+    fn a_peaceful_spirit_fights_nobody_and_nobody_fights_it() {
+        let mut world = World::new();
+        world.init_resource::<SpiritsHostile>();
+        for other in OTHERS {
+            assert!(!hostile(&world, Faction::Spirits, other), "{other:?}");
+            assert!(!hostile(&world, other, Faction::Spirits), "{other:?}");
+        }
+    }
+
+    #[test]
+    fn an_angered_spirit_fights_everyone_but_its_own() {
+        let mut world = World::new();
+        world.insert_resource(SpiritsHostile(true));
+        for other in OTHERS {
+            assert!(hostile(&world, Faction::Spirits, other), "{other:?}");
+            assert!(hostile(&world, other, Faction::Spirits), "{other:?}");
+        }
+        assert!(!hostile(&world, Faction::Spirits, Faction::Spirits));
+    }
 
     #[test]
     fn room_monsters_are_room_leashed() {

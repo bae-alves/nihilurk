@@ -13,15 +13,19 @@ use bevy_ecs::prelude::*;
 
 use crate::autoexplore::first_step;
 use crate::components::*;
+use crate::constants::travel::AUTO_FIGHT_MIN_HP_DIVISOR;
 use crate::helpers::get_line;
 use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, tile_index};
 
-/// Whether the player is at or below a quarter of their maximum HP — the cutoff
-/// below which auto-fight refuses. Kept in integer maths: `hp * 4 <= max_hp` is
-/// exactly `hp <= 25% of max_hp`.
+/// Whether the player is at or below their maximum HP divided by
+/// [`AUTO_FIGHT_MIN_HP_DIVISOR`] — the cutoff below which auto-fight refuses.
+/// Kept in integer maths: `hp * divisor <= max_hp` is exactly
+/// `hp <= max_hp / divisor`.
 pub fn player_too_injured(world: &mut World) -> bool {
     let mut q = world.query_filtered::<&Fighter, With<Player>>();
-    q.iter(world).next().is_some_and(|f| f.hp * 4 <= f.max_hp)
+    q.iter(world)
+        .next()
+        .is_some_and(|f| f.hp * AUTO_FIGHT_MIN_HP_DIVISOR <= f.max_hp)
 }
 
 /// The player's map position, if there is a player.

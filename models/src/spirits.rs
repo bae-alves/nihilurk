@@ -3,27 +3,30 @@
 //! on its bestiary row — but two things turn every spirit on the player for
 //! good, permanently, for the rest of the run:
 //!
-//! 1. [`crate::components::Alignment`] reaching a pole (±3), from repeated
-//!    interaction with cacodaemons or eudaemons.
-//! 2. The player landing a *direct* hit on a peaceful spirit — melee or a
-//!    fired/thrown shot, never an AoE blast or a trap. See
-//!    [`on_direct_hit`]'s callers: [`crate::combat::resolve_attack`] and
-//!    [`crate::items::throwing`]'s single-target hit.
+//! 1. [`crate::components::Alignment`] reaching a pole (±[`ALIGNMENT_POLE`]): every spirit
+//!    that poofs pulls it one step toward its own kind.
+//! 2. Any wound on a spirit, whoever dealt it: a blast, a trap, a trick
+//!    shot, a monster's claws. Spirits are fickle. See [`on_wounded`].
+//!
+//! A scroll of atonement makes them neutral again.
 
 use bevy_ecs::prelude::*;
 use rand::Rng;
 use rand::seq::SliceRandom;
 
-use crate::catalog::{ARMORS, ItemDef, RINGS, SPELLS, WEAPONS};
+use crate::catalog::{ARMORS, ItemDef, POTIONS, RINGS, SCROLLS, SpellDef, WANDS, WEAPONS};
 use crate::components::{
     Alignment, Backpack, BarterColumn, BarterMenu, Curse, Faction, Fighter, GameLog, KnownQuality,
-    Mob, MovementType, OfferMenu, OfferOption, Player, Position, SpellEffect, Spellset,
-    SpiritEvent, SpiritKind, SpiritsHostile, TestOfFaithLedger, Tradeable,
+    Magic, Mob, MovementType, OfferMenu, OfferOption, Player, Position, Price, SpellEffect,
+    Spellset, SpiritEvent, SpiritKind, SpiritsHostile, TestOfFaithLedger, Tradeable,
 };
 use crate::constants::spells::SPELLSET_CAP;
-use crate::constants::spirits::{ALIGNMENT_POLE, BARTER_STOCK_MAX, BARTER_STOCK_MIN};
+use crate::constants::spirits::{
+    ALIGNMENT_POLE, ALIGNMENT_STEP, BARTER_STOCK_MAX, BARTER_STOCK_MIN, PINK_DEMON_ODDS_PER_PIECE,
+    TEST_OF_FAITH_DUD_BONUS, TEST_OF_FAITH_GEAR_BONUS, TEST_OF_FAITH_HP_DIVISOR,
+};
 use crate::effects::{ArmorBonus, PowerBonus, revoke_all};
-use crate::equipment::{Equipped, Slot, equipped_items, force_unequip};
+use crate::equipment::{Equipped, Slot, destroy_worn, equipped_items};
 use crate::helpers::item_label;
 use crate::items::stow;
 use crate::map::GameRng;
@@ -55,30 +58,46 @@ pub fn challenge_the_balance(world: &mut World) {
         .add(strings::challenge_the_balance());
 }
 
-/// Call after any single-target hit lands: a melee swing or a fired/thrown
-/// shot, never an AoE blast or a trap. Flips the spirits hostile if the
-/// player just drew blood from a peaceful one.
-pub fn on_direct_hit(world: &mut World, attacker: Entity, target: Entity, damage: i32) {
-    if damage <= 0 {
-        return;
+/// The scroll of atonement: the spirits forgive. [`SpiritsHostile`] lifts,
+/// every spirit goes back to its peaceful wander, and the player's
+/// [`Alignment`] returns to the middle, so the next poof doesn't tip it
+/// straight back over the pole. Whoever reads it, the player is the one
+/// forgiven.
+pub(crate) fn atone(world: &mut World) {
+    world.resource_mut::<SpiritsHostile>().0 = false;
+    let spirits: Vec<Entity> = world
+        .query::<(Entity, &Faction)>()
+        .iter(world)
+        .filter(|(_, f)| **f == Faction::Spirits)
+        .map(|(e, _)| e)
+        .collect();
+    for spirit in spirits {
+        if let Some(mut mob) = world.get_mut::<Mob>(spirit) {
+            mob.movement_type = MovementType::Confused;
+        }
     }
-    if world.get::<Player>(attacker).is_none() {
-        return;
+    let mut players = world.query_filtered::<&mut Alignment, With<Player>>();
+    for mut alignment in players.iter_mut(world) {
+        alignment.0 = 0;
     }
-    if world.get::<Faction>(target) != Some(&Faction::Spirits) {
-        return;
+    world.resource_mut::<GameLog>().add(strings::atonement());
+}
+
+/// Every wound runs through here ([`crate::helpers::took_damage`]): blood
+/// drawn from a spirit, by anyone or anything, angers them all.
+pub(crate) fn on_wounded(world: &mut World, entity: Entity) {
+    if world.get::<Faction>(entity) == Some(&Faction::Spirits) {
+        challenge_the_balance(world);
     }
-    challenge_the_balance(world);
 }
 
 /// What a peaceful melee against a `Faction::Spirits` mob does instead of a
-/// normal attack: runs its [`SpiritEvent`] if it has one, then nudges
-/// [`Alignment`] the way its [`SpiritKind`] says to. A spirit with no
-/// `SpiritEvent` just logs the generic "nothing happens" line and still
-/// takes the alignment nudge — melee is *some* kind of interaction either
-/// way. Called from [`crate::combat::resolve_attack`] before it would
-/// otherwise roll damage; never reached once the target isn't peaceful, so
-/// this never runs twice for the same swing.
+/// normal attack: runs its [`SpiritEvent`] if it has one. A spirit with no
+/// `SpiritEvent` just logs the generic "nothing happens" line. Talking alone
+/// never moves [`Alignment`]; a spirit's `poof` does. Called from
+/// [`crate::combat::resolve_attack`] before it would otherwise roll damage;
+/// never reached once the target isn't peaceful, so this never runs twice for
+/// the same swing.
 pub fn trigger_event(world: &mut World, player: Entity, spirit: Entity) {
     match world.get::<SpiritEvent>(spirit).copied() {
         Some(SpiritEvent(f)) => f(world, player, spirit),
@@ -89,10 +108,28 @@ pub fn trigger_event(world: &mut World, player: Entity, spirit: Entity) {
                 .add(strings::spirit_does_nothing(&name));
         }
     }
-    match world.get::<SpiritKind>(spirit).copied() {
-        Some(SpiritKind::Cacodaemon) => shift_alignment(world, player, -1),
-        Some(SpiritKind::Eudaemon) => shift_alignment(world, player, 1),
-        None => {}
+}
+
+/// Nudges the player's [`Alignment`] the way `spirit`'s [`SpiritKind`]
+/// pulls: [`ALIGNMENT_STEP`] toward each pole, nothing for anyone
+/// else. Only two things move it: a spirit's [`poof`], and the pink demon
+/// joining. A spirit that joined the player is no spirit any more: it keeps
+/// its kind but not its faction, and pulls nothing when it goes.
+fn pull_alignment(world: &mut World, spirit: Entity) {
+    if world.get::<Faction>(spirit) != Some(&Faction::Spirits) {
+        return;
+    }
+    let delta = match world.get::<SpiritKind>(spirit) {
+        Some(SpiritKind::Cacodaemon) => -ALIGNMENT_STEP,
+        Some(SpiritKind::Eudaemon) => ALIGNMENT_STEP,
+        None => return,
+    };
+    let player = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next();
+    if let Some(player) = player {
+        shift_alignment(world, player, delta);
     }
 }
 
@@ -103,8 +140,8 @@ pub fn is_peaceful_spirit(world: &World, target: Entity) -> bool {
     world.get::<Faction>(target) == Some(&Faction::Spirits) && !world.resource::<SpiritsHostile>().0
 }
 
-/// Nudges the player's [`Alignment`] by `delta` — `-1` from a cacodaemon
-/// interaction, `+1` from a eudaemon one — clamped to `±`[`ALIGNMENT_POLE`].
+/// Nudges the player's [`Alignment`] by `delta` — [`ALIGNMENT_STEP`] either
+/// way, by the spirit's kind — clamped to `±`[`ALIGNMENT_POLE`].
 /// Reaching either pole challenges the balance the same way a direct hit
 /// does. A no-op if `player` has no `Alignment` (never true for the real
 /// player, but a scripted test entity might skip it).
@@ -176,9 +213,7 @@ fn roll_spells(world: &mut World, player: Entity, count: usize) -> Vec<OfferOpti
         .get::<Spellset>(player)
         .map(|s| s.slots.clone())
         .unwrap_or_default();
-    let learnable: Vec<_> = SPELLS
-        .iter()
-        .map(|def| def.effect)
+    let learnable: Vec<_> = SpellDef::learnable()
         .filter(|e| !known.contains(e))
         .collect();
     roll_with_shared_rng(world, |rng| {
@@ -187,23 +222,41 @@ fn roll_spells(world: &mut World, player: Entity, count: usize) -> Vec<OfferOpti
     })
 }
 
+/// Rolls the weapons a spirit's menu offers, a sample of [`WEAPONS`].
 pub fn roll_weapon_offer(world: &mut World) -> Vec<OfferOption> {
     roll_with_shared_rng(world, |rng| sample_refs(WEAPONS, rng, OfferOption::Weapon))
 }
 
+/// Rolls the armour a spirit's menu offers, a sample of [`ARMORS`].
 pub fn roll_armor_offer(world: &mut World) -> Vec<OfferOption> {
     roll_with_shared_rng(world, |rng| sample_refs(ARMORS, rng, OfferOption::Armor))
 }
 
+/// Rolls the rings a spirit's menu offers, a sample of [`RINGS`].
 pub fn roll_ring_offer(world: &mut World) -> Vec<OfferOption> {
     roll_with_shared_rng(world, |rng| sample_refs(RINGS, rng, OfferOption::Ring))
+}
+
+/// One row off each table: the red demon's weapon, armor and ring, or the
+/// gnome's scroll, potion and wand.
+fn roll_one_of_each(
+    world: &mut World,
+    roll: impl FnOnce(&mut rand_chacha::ChaCha12Rng) -> [Option<OfferOption>; OFFER_COUNT],
+) -> Vec<OfferOption> {
+    roll_with_shared_rng(world, |rng| roll(rng).into_iter().flatten().collect())
 }
 
 /// Opens the offer menu on `options` — a no-op if there's nothing to offer
 /// (an exhausted spell pool), so a spirit event that rolled zero options
 /// just says nothing happened rather than raising an empty menu. `source`
-/// is the spirit whose event this is, if any — see [`OfferMenu::source`].
-pub fn open_offer_menu(world: &mut World, options: Vec<OfferOption>, source: Option<Entity>) {
+/// is the spirit whose event this is, if any — see [`OfferMenu::source`];
+/// `priced` is [`OfferMenu::priced`].
+pub fn open_offer_menu(
+    world: &mut World,
+    options: Vec<OfferOption>,
+    source: Option<Entity>,
+    priced: bool,
+) {
     if options.is_empty() {
         if let Some(spirit) = source {
             let name = item_label(world, spirit);
@@ -218,28 +271,118 @@ pub fn open_offer_menu(world: &mut World, options: Vec<OfferOption>, source: Opt
     menu.selected = 0;
     menu.options = options;
     menu.source = source;
+    menu.priced = priced;
 }
 
-/// The `Z`-menu-style confirm: applies whichever [`OfferOption`] the player
-/// picked, closes the menu, and poofs [`OfferMenu::source`] if it had one.
-/// Called from the engine's input handler.
+/// The `Z`-menu-style confirm: charges the player if the menu is
+/// [`OfferMenu::priced`], applies whichever [`OfferOption`] they picked,
+/// closes the menu, and poofs [`OfferMenu::source`] if it had one. A player
+/// short of the price is refused and the menu stays up, so a cheaper row is
+/// still within reach. Called from the engine's input handler.
 pub fn confirm_offer(world: &mut World, player: Entity, choice: OfferOption) {
-    let source = world.resource::<OfferMenu>().source;
+    let (source, priced) = {
+        let menu = world.resource::<OfferMenu>();
+        (menu.source, menu.priced)
+    };
+    let price = choice.price().filter(|_| priced);
+    if let Some(price) = price
+        && !can_pay(world, player, price)
+    {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::offer_too_dear());
+        return;
+    }
     world.resource_mut::<OfferMenu>().open = false;
+    if let Some(price) = price
+        && pay(world, player, price, source)
+    {
+        return;
+    }
     match choice {
         OfferOption::Spell(effect) => learn_offered_spell(world, player, effect),
         OfferOption::Weapon(def) => give_item(world, player, def),
         OfferOption::Armor(def) => give_item(world, player, def),
         OfferOption::Ring(def) => give_item(world, player, def),
+        OfferOption::Scroll(def) => give_item(world, player, def),
+        OfferOption::Potion(def) => give_item(world, player, def),
+        OfferOption::Wand(def) => give_item(world, player, def),
     }
     if let Some(spirit) = source {
         poof(world, spirit);
     }
 }
 
-/// Despawns a spirit whose event just finished, with the poof every spirit
-/// but the red demon and the gnome goes out on.
-fn poof(world: &mut World, spirit: Entity) {
+/// Whether `player` has the Max HP or Max Ma `price` asks for. Max HP may be
+/// paid down to nothing, which kills them; see [`pay`].
+fn can_pay(world: &World, player: Entity, price: Price) -> bool {
+    match price {
+        Price::MaxHp(n) => world.get::<Fighter>(player).is_some_and(|f| f.max_hp >= n),
+        Price::MaxMa(n) => world
+            .get::<Magic>(player)
+            .is_some_and(|m| m.max_points >= n),
+    }
+}
+
+/// Takes `price` off `player`'s maximum, current points clamped down to it.
+/// Returns whether the payment killed them: their last Max HP gone to
+/// `seller`, the deal is off and the run is over.
+fn pay(world: &mut World, player: Entity, price: Price, seller: Option<Entity>) -> bool {
+    match price {
+        Price::MaxHp(n) => {
+            let Some(mut f) = world.get_mut::<Fighter>(player) else {
+                return false;
+            };
+            f.max_hp -= n;
+            f.hp = f.hp.min(f.max_hp);
+            if f.max_hp > 0 {
+                return false;
+            }
+            f.hp = 0;
+            let from = seller.and_then(|s| world.get::<Position>(s).copied());
+            let killer = seller.map(|s| item_label(world, s)).unwrap_or_default();
+            crate::combat::finish_indirect_kill(world, player, from);
+            world.resource_mut::<crate::state::Ending>().cause = strings::slain_by(&killer);
+            true
+        }
+        Price::MaxMa(n) => {
+            if let Some(mut m) = world.get_mut::<Magic>(player) {
+                m.max_points -= n;
+                m.points = m.points.min(m.max_points);
+            }
+            false
+        }
+    }
+}
+
+/// A spirit turning the player away: a grunt, no menu, and the spirit stays
+/// put. Every spirit that wants something the player lacks (an item to swap,
+/// a spell to swap, the price, gear to destroy) says no this way.
+fn refuse(world: &mut World, spirit: Entity) {
+    let name = item_label(world, spirit);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::spirit_refuses(&name));
+}
+
+/// Opens a priced offer, or [`refuse`]s a player who can't pay for any row.
+fn open_shop(world: &mut World, player: Entity, spirit: Entity, options: Vec<OfferOption>) {
+    let affordable = options
+        .iter()
+        .any(|o| o.price().is_some_and(|p| can_pay(world, player, p)));
+    if !affordable {
+        refuse(world, spirit);
+        return;
+    }
+    open_offer_menu(world, options, Some(spirit), true);
+}
+
+/// Despawns a creature. A spirit goes out with a poof that pulls the
+/// player's [`Alignment`], however it leaves: a deal done, a kill, a
+/// polymorph, a Helper lost. Every mob despawn calls this rather than
+/// `World::despawn`, since a spirit can be any of them.
+pub(crate) fn poof(world: &mut World, spirit: Entity) {
+    pull_alignment(world, spirit);
     if world.get_entity(spirit).is_some() {
         world.despawn(spirit);
     }
@@ -323,7 +466,7 @@ pub fn open_spell_barter(
 }
 
 /// With nothing of the player's to put on the table there is no trade to
-/// stage, so the demon grunts like the red one does and no menu opens.
+/// stage, so the demon [`refuse`]s.
 fn open_barter(
     world: &mut World,
     demon: Entity,
@@ -331,10 +474,7 @@ fn open_barter(
     demon_side: Vec<Tradeable>,
 ) {
     if player_side.is_empty() {
-        let name = item_label(world, demon);
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::red_demon_grunts(&name));
+        refuse(world, demon);
         return;
     }
     let mut menu = world.resource_mut::<BarterMenu>();
@@ -406,9 +546,7 @@ pub fn confirm_barter(world: &mut World, player: Entity) {
     for item in leftover {
         world.despawn(item);
     }
-    if world.get_entity(demon).is_some() {
-        world.despawn(demon);
-    }
+    poof(world, demon);
     world
         .resource_mut::<GameLog>()
         .add(strings::barter_satisfied());
@@ -447,8 +585,8 @@ fn give_to_player(world: &mut World, player: Entity, item: Tradeable) {
 }
 
 // ---------------------------------------------------------------------------
-// The nine species. Each is a `SpiritEvent` a bestiary row hands to
-// `MonsterDef::spirit`/`spirit_no_event` — see `monsters.rs`'s `BESTIARY`.
+// The ten species. Each is a `SpiritEvent` a bestiary row hands to
+// `MonsterDef::spirit` — see `monsters.rs`'s `BESTIARY`.
 // ---------------------------------------------------------------------------
 
 /// Yellow demon: opens the item barter. A successful trade poofs it
@@ -458,75 +596,72 @@ pub(crate) fn yellow_demon_event(world: &mut World, player: Entity, spirit: Enti
     open_item_barter(world, player, spirit);
 }
 
-/// Red demon: not interactible — a grunt, nothing else. Never poofs; the
-/// only way to its treasure is to kill it, which angers every spirit.
-pub(crate) fn red_demon_event(world: &mut World, _player: Entity, spirit: Entity) {
-    let name = item_label(world, spirit);
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::red_demon_grunts(&name));
+/// Red demon: a weapon, a suit of armor and a ring, each sold for Max HP.
+/// Paying the last of it kills you.
+pub(crate) fn red_demon_event(world: &mut World, player: Entity, spirit: Entity) {
+    let options = roll_one_of_each(world, |rng| {
+        [
+            WEAPONS.choose(rng).map(OfferOption::Weapon),
+            ARMORS.choose(rng).map(OfferOption::Armor),
+            RINGS.choose(rng).map(OfferOption::Ring),
+        ]
+    });
+    open_shop(world, player, spirit, options);
+}
+
+/// Gnome: a scroll, a potion and a wand, each sold for Max Ma.
+pub(crate) fn gnome_event(world: &mut World, player: Entity, spirit: Entity) {
+    let options = roll_one_of_each(world, |rng| {
+        [
+            SCROLLS.choose(rng).map(OfferOption::Scroll),
+            POTIONS.choose(rng).map(OfferOption::Potion),
+            WANDS.choose(rng).map(OfferOption::Wand),
+        ]
+    });
+    open_shop(world, player, spirit, options);
 }
 
 /// Blue demon: a straight choice of three spells.
 pub(crate) fn blue_demon_event(world: &mut World, player: Entity, spirit: Entity) {
     let options = roll_spell_offer(world, player);
-    open_offer_menu(world, options, Some(spirit));
+    open_offer_menu(world, options, Some(spirit), false);
 }
 
-/// Pink demon: every equipped piece independently rolls a 25% chance to be
-/// stripped (a cursed piece resists at `25% - 25%` — effectively never); the
-/// fraction actually stripped is then the odds it submits and becomes the
-/// player's Helper rather than keeping its habit and turning on them. A
-/// player with nothing equipped has nothing to strip and nothing to
-/// convince it with, so it always turns.
+/// Pink demon: destroys every piece of gear the player has on, cursed or
+/// not. Each piece gone is [`PINK_DEMON_ODDS_PER_PIECE`] toward them joining
+/// as the player's Helper; if they won't join, they vanish. A player with
+/// nothing on has nothing to offer, and is [`refuse`]d.
 pub(crate) fn pink_demon_event(world: &mut World, player: Entity, spirit: Entity) {
-    let items = equipped_items(world, player);
-    let total = items.len();
-    let mut stripped = 0usize;
-    for item in items {
-        let cursed = world.get::<Curse>(item).is_some();
-        let chance = if cursed { 0.0 } else { 0.25 };
-        let hit = world.resource_mut::<GameRng>().0.gen_bool(chance);
-        if hit {
-            stripped += 1;
-            force_unequip(world, item);
-        }
+    let worn = equipped_items(world, player);
+    if worn.is_empty() {
+        refuse(world, spirit);
+        return;
     }
-    let fraction = if total == 0 {
-        0.0
-    } else {
-        stripped as f64 / total as f64
-    };
-    let submits = world.resource_mut::<GameRng>().0.gen_bool(fraction);
-    if submits {
+    destroy_worn(world, player, &worn);
+    let odds = (worn.len() as f64 * PINK_DEMON_ODDS_PER_PIECE).min(1.0);
+    if world.resource_mut::<GameRng>().0.gen_bool(odds) {
+        pull_alignment(world, spirit);
         crate::companion::recruit(world, spirit);
         world
             .resource_mut::<GameLog>()
             .add(strings::pink_demon_submits());
         return;
     }
-    // The branch above always returns; this is the demon refusing.
-    world.entity_mut(spirit).insert(Faction::Monster);
-    if let Some(mut mob) = world.get_mut::<Mob>(spirit) {
-        mob.movement_type = MovementType::Chase;
-    }
-    world.entity_mut(spirit).insert(Spellset {
-        slots: vec![SpellEffect::ForceLance],
-    });
+    poof(world, spirit);
     world
         .resource_mut::<GameLog>()
-        .add(strings::pink_demon_turns());
+        .add(strings::pink_demon_vanishes());
 }
 
 /// Angel: "Tests your faith!" — cancels every active effect on the player
-/// (the wand of cancellation's own `revoke_all`), halves current HP (never
+/// (the wand of cancellation's own `revoke_all`), divides current HP by [`TEST_OF_FAITH_HP_DIVISOR`] (never
 /// below 1), and leaves a [`TestOfFaithLedger`] that pays off on the next
 /// staircase (see [`apply_test_of_faith`]). Poofs immediately; there's no
 /// menu to wait on.
 pub(crate) fn angel_event(world: &mut World, player: Entity, spirit: Entity) {
     revoke_all(world, player);
     if let Some(mut f) = world.get_mut::<Fighter>(player) {
-        f.hp = (f.hp / 2).max(1);
+        f.hp = (f.hp / TEST_OF_FAITH_HP_DIVISOR).max(1);
     }
     world.entity_mut(player).insert(TestOfFaithLedger);
     world
@@ -552,25 +687,25 @@ pub(crate) fn sphynx_event(world: &mut World, player: Entity, spirit: Entity) {
 /// Sylphid: a choice of three identified weapons.
 pub(crate) fn sylphid_event(world: &mut World, _player: Entity, spirit: Entity) {
     let options = roll_weapon_offer(world);
-    open_offer_menu(world, options, Some(spirit));
+    open_offer_menu(world, options, Some(spirit), false);
 }
 
 /// Salamander: a choice of three identified suits of armor.
 pub(crate) fn salamander_event(world: &mut World, _player: Entity, spirit: Entity) {
     let options = roll_armor_offer(world);
-    open_offer_menu(world, options, Some(spirit));
+    open_offer_menu(world, options, Some(spirit), false);
 }
 
 /// Undyne: a choice of three identified rings.
 pub(crate) fn undyne_event(world: &mut World, _player: Entity, spirit: Entity) {
     let options = roll_ring_offer(world);
-    open_offer_menu(world, options, Some(spirit));
+    open_offer_menu(world, options, Some(spirit), false);
 }
 
 /// The angel's blessing paying off: every currently **equipped** item only
 /// (never the pack, never the floor) — the weapon and armor become a flat
-/// `+3` and lose any curse; anything else equipped that was a dud (no
-/// enchantment at all) rerolls to a token `+1` instead of staying dead
+/// [`TEST_OF_FAITH_GEAR_BONUS`] and lose any curse; anything else equipped that was a dud (no
+/// enchantment at all) rerolls to a token [`TEST_OF_FAITH_DUD_BONUS`] instead of staying dead
 /// weight. A no-op without a pending [`TestOfFaithLedger`], so this is safe
 /// to call on every staircase and only ever do something the one time it
 /// matters.
@@ -583,18 +718,24 @@ pub fn apply_test_of_faith(world: &mut World, player: Entity) {
         let slot = world.get::<Equipped>(item).map(|e| e.slot);
         match slot {
             Some(Slot::Hand) => {
-                world.entity_mut(item).insert((PowerBonus(3), KnownQuality));
+                world
+                    .entity_mut(item)
+                    .insert((PowerBonus(TEST_OF_FAITH_GEAR_BONUS), KnownQuality));
                 world.entity_mut(item).remove::<Curse>();
             }
             Some(Slot::Body) => {
-                world.entity_mut(item).insert((ArmorBonus(3), KnownQuality));
+                world
+                    .entity_mut(item)
+                    .insert((ArmorBonus(TEST_OF_FAITH_GEAR_BONUS), KnownQuality));
                 world.entity_mut(item).remove::<Curse>();
             }
             _ => {
                 let is_dud = world.get::<PowerBonus>(item).is_none()
                     && world.get::<ArmorBonus>(item).is_none();
                 if is_dud {
-                    world.entity_mut(item).insert((ArmorBonus(1), KnownQuality));
+                    world
+                        .entity_mut(item)
+                        .insert((ArmorBonus(TEST_OF_FAITH_DUD_BONUS), KnownQuality));
                 }
             }
         }

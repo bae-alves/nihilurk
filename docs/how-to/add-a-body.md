@@ -117,6 +117,22 @@ and will say something wrong about your body if you don't touch it:
   * `MANUAL.md` / `doc/nihilurk.6` — the shipped manual page.
 
 
+Appendix: quick check
+---------------------
+
+1. Add the `Body` variant in `models/src/body.rs`, and its arm in `Body::name()`.
+2. Write `wear_<name>` next to `wear_lurk`, with every number in a new `constants::<name>` module.
+3. Add the `Body::<Name> => wear_<name>(world, player)` arm in `wear`.
+4. Give it a save marker: an effect already in `EFFECTS` that nothing else puts on the player.
+5. Teach `innate_tempo` if the body does not return to `SpeedKind::Normal`.
+6. Teach `equip_refusal` if the body cannot wear everything, and say why in the string.
+7. Add the `("-b", "<name>")` arm in `engine/src/main.rs`.
+8. Leave `brings_a_pack` returning `false`.
+9. Copy `models/tests/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
+10. Run that test with `cargo test --test <file>`, then `cargo test`.
+11. Fix the docs: `update-the-docs.md`, "A playable body".
+
+
 See also
 --------
 

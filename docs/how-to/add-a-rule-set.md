@@ -58,6 +58,19 @@ Verify
 Then add the set's row to the sets table in `../reference/agents.md`.
 
 
+Appendix: quick check
+---------------------
+
+1. Write `pub static <NAME>: RuleSet` in `models/src/agents.rs`; the order of `rules` is the behaviour.
+2. Set `leashed: true` only for a set that hunts the player.
+3. Append a `MovementType` variant at the end in `models/src/components.rs`, and add its arm to `rule_set_for`.
+4. Fix every other `match` on `MovementType` the compiler names.
+5. Put the variant in the `movement` column of a bestiary row.
+6. Test each rule the set lists: one case where it wins, one where an earlier rule passes.
+7. Run `cargo test -p nihilurk-models --lib agents` and `NIHILURK_SPAWN="<monster>" cargo run -p nihilurk`.
+8. Add the set's row to the sets table in `../reference/agents.md`.
+
+
 See also
 --------
 

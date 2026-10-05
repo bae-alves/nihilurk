@@ -193,7 +193,9 @@ pub const GLORY_COLORS: [Color; 7] = [
 
 /// One transient mote, living in map-tile coordinates.
 pub struct Particle {
+    /// Column, as a map tile coordinate.
     pub x: u16,
+    /// Row, as a map tile coordinate.
     pub y: u16,
     /// Milliseconds to wait, after the batch is spawned, before this mote starts
     /// drawing. Lets a single batch ripple outward one ring at a time (a beam
@@ -261,6 +263,7 @@ impl AnimRate {
 /// it afterwards.
 #[derive(Resource, Default)]
 pub struct Particles {
+    /// Every mote queued or in flight.
     pub live: Vec<Particle>,
     /// Raised whenever a batch is queued, so the engine knows a turn produced an
     /// animation worth playing out.
@@ -277,6 +280,7 @@ pub struct Particles {
 }
 
 impl Particles {
+    /// An empty layer.
     pub fn new() -> Self {
         Self::default()
     }
@@ -357,7 +361,7 @@ impl Particles {
     /// A droplet's flight from a wound to wherever it splatters: a trail of red
     /// dots — unlike [`Particles::beam`], blood doesn't need a directional
     /// glyph to read as a spray. A little faster than a thrown item's
-    /// [`Particles::hurl`] (70ms/cell) — droplets fly quicker than a hand can
+    /// [`Particles::hurl`] — droplets fly quicker than a hand can
     /// throw — but not by much; it should still read as a spray, not a shot.
     /// `pts` is the traced line, the wound tile excluded. Returns the flight's
     /// total duration in ms, so a caller can time a [`Particles::blood_hit`] to
@@ -796,6 +800,7 @@ impl Particles {
         !self.live.is_empty()
     }
 
+    /// Drops every mote and the batch's timing, ready for the next turn.
     pub fn clear(&mut self) {
         self.live.clear();
         self.pending = false;

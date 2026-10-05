@@ -309,9 +309,7 @@ fn learn_spell(world: &mut World, taker: Entity) -> String {
         .get::<Spellset>(taker)
         .map(|m| m.slots.clone())
         .unwrap_or_default();
-    let learnable: Vec<SpellEffect> = crate::catalog::SPELLS
-        .iter()
-        .map(|m| m.effect)
+    let learnable: Vec<SpellEffect> = crate::catalog::SpellDef::learnable()
         .filter(|e| !known.contains(e))
         .collect();
     if learnable.is_empty() {

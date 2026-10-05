@@ -18,11 +18,9 @@ What is being checked
 
 If it builds, the image it runs in has a shell, and the target is std (every `linux` row here is), nihilurk can run there.
 
-That claim used to be checked by driving the game under load inside a resource-capped container -- a real dungeon floor for the gate, Bad Apple at eight hundred motes a frame for a ceiling, and a pty-attached run to prove the terminal stack actually draws -- borrowed wholesale from a stress rig built to find performance cliffs on a workstation. It was the wrong tool for this job even when it worked: nihilurk has no workload that asks a machine to be fast. Every feel-layer effect is bounded -- a dozen sparks when something dies, not a music video -- and a Pi that could not keep up with Bad Apple might still play nihilurk at a comfortable thirty frames a second. Grading a Pi on a synthetic ceiling it was never going to face answered a question nobody asked, at the cost of a stress rig with its own CPU caps, memory caps, qemu interpreter plumbing and pty sizing to keep working.
+That claim is not checked under load. nihilurk has no workload that asks a machine to be fast. Every feel-layer effect is bounded -- a dozen sparks when something dies, not a music video -- and a Pi that cannot keep up with a synthetic ceiling might still play nihilurk at a comfortable thirty frames a second. Grading a Pi on a ceiling it will never face answers a question nobody asked, and costs a stress rig with its own CPU caps, memory caps, qemu interpreter plumbing and pty sizing to keep working.
 
-For the record, the rig did run Bad Apple through the particle system with no trouble on the maintainer's workstation. It was added in `6fdb716` and removed in `e18db33`; `git show 8efa8ec:perf/bad-apple` still has it. It is also why a clone weighs what it does: the file is 10.7 MB raw, about 685 KiB packed, and the largest object in a 3.4 MiB repository. That is the price of hubris.
-
-What the matrix actually needs to prove is narrower, and it was hiding in plain sight the whole time: `cross_build.sh` already cross-compiles a full Rust toolchain for the target, which is by every measure that matters (time, memory, code paths exercised) a heavier task than nihilurk's own frame loop will ever ask of that machine. A machine that can do that can run nihilurk. The two things left to check are the ones the build itself cannot prove -- does the image have a shell to launch the binary from, and does the binary actually start there -- and `run_check.sh` checks exactly those two things, with `nihilurk -content`: a headless print-and-exit that needs nothing from the environment beyond a shell to launch it from.
+What the matrix actually needs to prove is narrower: `cross_build.sh` already cross-compiles a full Rust toolchain for the target, which is by every measure that matters (time, memory, code paths exercised) a heavier task than nihilurk's own frame loop will ever ask of that machine. A machine that can do that can run nihilurk. The two things left to check are the ones the build itself cannot prove -- does the image have a shell to launch the binary from, and does the binary actually start there -- and `run_check.sh` checks exactly those two things, with `nihilurk -content`: a headless print-and-exit that needs nothing from the environment beyond a shell to launch it from.
 
 
 One table, two readers
@@ -68,7 +66,7 @@ The check has to run under qemu-user-static for most of the matrix (see below), 
 Why each target gets its own target directory
 -----------------------------------------------
 
-`compat/lib.sh` puts every triple's build in `target/cross/<triple>/` rather than the workspace's own `target/`, and that is a bug fix rather than housekeeping.
+`compat/lib.sh` puts every triple's build in `target/cross/<triple>/` rather than the workspace's own `target/`.
 
 A cross build compiles two different things. The crate is compiled for the target, and cargo already namespaces that by triple. Every dependency's *build script* is compiled for the host, and those all land in one shared `target/release/build/` with nothing in the path to say which toolchain produced them.
 
@@ -89,7 +87,7 @@ Running under emulation
 
 `aarch64` and `armv7` run under a qemu-user-static interpreter `run_check.sh` fetches and runs directly -- no `binfmt_misc`, no `--privileged`. It can do that because every binary the matrix runs is static: the interpreter never needs a foreign sysroot, only to translate the guest's syscalls, so it works as the container's own command on a container built for the *host's* architecture.
 
-qemu-user-static's job is exactly that -- syscall translation -- and nothing more, which is what makes it safe to lean on for `nihilurk -content`: the check makes no ioctl calls a translation layer could get wrong, because it never touches the terminal. That was not true of the old game-load and reel runs, which is the reason those existed as a separate, opt-in `--exec-emulated` path rather than the default; there is no equivalent carve-out needed here.
+qemu-user-static's job is exactly that -- syscall translation -- and nothing more, which is what makes it safe to lean on for `nihilurk -content`: the check makes no ioctl calls a translation layer could get wrong, because it never touches the terminal.
 
 The `cloud` row is the control: the host's own architecture, no emulation in the way.
 
@@ -117,7 +115,7 @@ Why the grading lives in Rust
 
 The scripts write raw status strings and never judge them beyond that. `nihilurk-compat` turns them into a verdict, in `results.rs`, with tests.
 
-The alternative is a threshold in awk, and then a second threshold in the Rust report, and then a CI check with a third. Three answers to one question is worse than no answer, because everyone believes whichever one they saw first. There is less to disagree about now than there used to be -- the verdict is `runs`, `no shell`, `does not run` or `-`, not a performance band -- but the reason for keeping it in one place, checked by tests, has not changed.
+The alternative is a threshold in awk, and then a second threshold in the Rust report, and then a CI check with a third. Three answers to one question is worse than no answer, because everyone believes whichever one they saw first. The verdict is `runs`, `no shell`, `does not run` or `-`, not a performance band, so there is little to disagree about, and the reason for keeping it in one place, checked by tests, still stands.
 
 
 Who is to blame for the binary
@@ -137,4 +135,6 @@ See also
 
     ../how-to/run-the-compat-pipeline.md   the recipe
     adr-0001-tables-not-raws.md            why the matrix is a table
+    adr-0002-two-names-per-crate.md        why `particle-core` stays its own crate
+    adr-0003-compat-checks-start-not-speed.md  why nothing is graded on speed
     ../../gdd.md                           the portability claim itself

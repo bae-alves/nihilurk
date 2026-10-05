@@ -75,7 +75,7 @@ What CI shows
 
 Every tarball is unpacked and run by CI on the machine that built it: the dispatcher has to start all four language binaries, and the four have to differ. That proves each binary launches and that the packaging is right. It is not a playtest.
 
-Adding a target is one line in the `matrix` of `release.yml`, once someone has run the game on it. `x86_64` musl was run by hand with `release/test_package.sh`; `aarch64` has run under qemu in `compat/`, and runs natively in CI on the first tag.
+Adding a target is one line in the `matrix` of `release.yml`, once someone has run the game on it.
 
 Updating the AUR package
 ------------------------

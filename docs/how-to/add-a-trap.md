@@ -37,7 +37,7 @@ The recipe
    The name is what the player sees once the trap is known -- there is no
    separate label function to update. `weight` is how often the dungeon
    lays this one against the others it could lay; `min_depth` is the
-   first floor it appears on. All six existing traps are `10` and `1`,
+   first floor it appears on. Every existing trap is `10` and `1`,
    which is to say equally likely from the start.
 
 3. **Write the mechanic** as an arm of `apply_trap_effect`:
@@ -84,7 +84,7 @@ Look at what the existing six do, and reuse the pieces:
 
 If your trap snares, put the duration in the row's `snare_turns` and let `apply_trap_effect` pass it through -- no constant to add.
 
-The arrow and dart also scale with depth. `trap_damage_tier(depth)` is 0/1/2, stepping at floors 4 and 8, and it adds to the arrow's roll and the dart's drain. The bands and every per-tier amount are in `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and friends). This band is the trap's own -- coarser than the floor-crowding `map::difficulty_tier`, on purpose.
+The arrow and dart also scale with depth. `trap_damage_tier(depth)` steps up at the depths in `TRAP_DAMAGE_TIER_LAST_DEPTH`, and it adds to the arrow's roll and the dart's drain. The bands and every per-tier amount are in `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and friends). This band is the trap's own -- coarser than the floor-crowding `map::difficulty_tier`, on purpose.
 
 Your arm receives:
 
@@ -147,6 +147,18 @@ What you never have to do
   * Add it to a list of trap kinds. `TrapDef::pick` walks the table.
   * Teach the save file about it, beyond the enum variant.
   * Place it. Floor generation decides how many traps and where; the table decides which.
+
+
+Appendix: quick check
+---------------------
+
+1. Append a variant at the end of `TrapEffect` in `models/src/components.rs`.
+2. Add the `TrapDef` row to `TRAPS` in `models/src/traps.rs`: `weight`, `min_depth`, and `snare_turns` if it holds.
+3. Write the arm in `apply_trap_effect`; log through `seen` and `is_player`, and subtract `total_armor_plus` only.
+4. Write the arm in `trap_flourish`, or an empty one that says why.
+5. Run `cargo build`, then `cargo test --test content`.
+6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
+7. Fix the docs: the `TrapEffect` line in `../reference/components.md` (`update-the-docs.md`).
 
 
 See also

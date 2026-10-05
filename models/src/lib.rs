@@ -8,6 +8,10 @@
 //! modules, kept private and re-exported piece by piece where a caller
 //! actually needs one — see the `helpers` re-export below.
 
+// Every public item says what it is for. Coverage reached 100% and this keeps
+// it there: a new `pub` item with no doc is a warning, not a surprise on docs.rs.
+#![warn(missing_docs)]
+
 pub mod abilities;
 pub mod agents;
 pub mod ai;

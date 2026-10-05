@@ -50,7 +50,7 @@ Where things are
     ./docs_style.sh                      # docs/, held to the house style
     ./aur_check.sh                       # aur/PKGBUILD, against the tag it pins and this working copy
 
-Once per clone, `git config core.hooksPath .githooks` turns on a pre-commit check that runs `docs_style.sh` and refuses a commit that changes the turn schedule or an intent queue without touching a page under `docs/` -- see `.githooks/pre-commit`.
+Once per clone, `git config core.hooksPath .githooks` turns on a pre-commit check that runs `docs_style.sh` and refuses a commit that changes the turn schedule or an intent queue without touching a page under `docs/`. It also names the pages to update when you add a ring, a flag, a key or the like, and never refuses for that -- see `.githooks/pre-commit`.
 
 
 Adding content

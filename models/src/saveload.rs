@@ -298,6 +298,10 @@ struct SaveGame<'a> {
     /// The current floor's cracked doorways (see [`Map::inert_doors`]),
     /// restored over the seed-built map the same way as `dark_tiles`.
     inert_doors: FixedBitSet,
+    /// Tiles a wand of digging turned from rock to passage: the one thing the
+    /// seed cannot rebuild about the map.
+    #[serde(default)]
+    dug_tiles: Vec<u32>,
     /// "Clear data": set when the run was won. The file is kept rather than
     /// deleted; the loader recognises it and asks before starting over.
     cleared: bool,
@@ -309,10 +313,13 @@ struct SaveGame<'a> {
 
 /// The winner's details, pulled from a won game's clear-data save file.
 pub struct ClearData {
+    /// The name the winner played under, already run through
+    /// [`strip_control_chars`] so it is safe to print to a terminal.
     pub player_name: String,
 }
 
-/// Strips C0 control bytes and DEL from a string read out of a save file.
+/// Strips control characters (C0, DEL and C1) from a string read out of a save
+/// file.
 ///
 /// A save is untrusted the moment it can come from anywhere but this build's
 /// own [`save_game`] — a shared file, a bug report attachment — and its
@@ -320,6 +327,13 @@ pub struct ClearData {
 /// status line) rather than through a bounds check like the entity indices
 /// below. Without this, a crafted name carrying an escape sequence runs on
 /// whoever loads the file.
+///
+/// ```
+/// use models::strip_control_chars;
+///
+/// // The escape byte goes; the text around it stays.
+/// assert_eq!(strip_control_chars("nihil\x1b[31m"), "nihil[31m");
+/// ```
 pub fn strip_control_chars(s: &str) -> String {
     s.chars().filter(|c| !c.is_control()).collect()
 }
@@ -350,6 +364,72 @@ pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
 /// The save struct borrows everything it can (names, item labels) straight out
 /// of the ECS, so no second copy of the world is built in RAM, and the bytes
 /// are streamed to disk through a `BufWriter` rather than buffered.
+/// The tiles a wand of digging has opened on this floor, as indices into
+/// [`Map::tiles`]: whatever the seed builds as rock that no longer is.
+fn dug_tiles(world: &World) -> Vec<u32> {
+    let pristine = crate::map::pristine_tiles(
+        world,
+        world.resource::<RngSeed>().0,
+        world.resource::<Depth>().what,
+    );
+    world
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .zip(pristine)
+        .enumerate()
+        .filter(|&(_, (&now, was))| was == TileType::Wall && now != TileType::Wall)
+        .map(|(i, _)| i as u32)
+        .collect()
+}
+
+/// Writes the whole run to `path` as a postcard file, replacing whatever was
+/// there. Entities are saved by index, so [`load_game`] can rebuild every link
+/// between them (a pack's items, who wears what).
+///
+/// Three things are left out on purpose. The map is rebuilt from the seed and
+/// the depth, with only the tiles that changed (dark, inert doors, dug walls)
+/// saved on top. The message log starts fresh on load. And [`FxRng`] and
+/// [`Speed::energy`] reset: one only draws decoration, the other is a transient
+/// that zero is a fair restart for.
+///
+/// Fails with the I/O error if `path` cannot be created or written, and wraps a
+/// serialisation failure in [`std::io::ErrorKind::Other`]. A failed write can
+/// leave a truncated file at `path`.
+///
+/// Panics if the world has no [`PlayerName`], [`Depth`], [`RngSeed`],
+/// [`GameRng`] or [`Map`] resource. A world set up by the engine and
+/// [`crate::initialize_world`] has them all.
+///
+/// ```
+/// use bevy_ecs::prelude::*;
+/// use models::*;
+/// use rand::{RngCore, SeedableRng};
+///
+/// # fn fresh(seed: u64, name: &str) -> World {
+/// #     let mut w = World::new();
+/// #     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
+/// #     w.insert_resource(RngSeed(seed));
+/// #     w.init_resource::<GameLog>();
+/// #     w.insert_resource(PlayerName { what: name.into() });
+/// #     w
+/// # }
+/// let path = std::env::temp_dir().join(format!("nihilurk-doc-{}.sav", std::process::id()));
+/// let path = path.to_str().unwrap();
+///
+/// let mut run = fresh(1, "NIHIL");
+/// initialize_world(&mut run);
+/// save_game(&mut run, path).unwrap();
+///
+/// // A reload picks the dice up where the run left them, not at a fresh draw.
+/// let mut reloaded = fresh(2, "OTHER");
+/// load_game(&mut reloaded, path).unwrap();
+/// let a = run.resource_mut::<GameRng>().0.next_u64();
+/// let b = reloaded.resource_mut::<GameRng>().0.next_u64();
+/// assert_eq!(a, b);
+/// assert_eq!(reloaded.resource::<PlayerName>().what, "NIHIL");
+/// # std::fs::remove_file(path).unwrap();
+/// ```
 pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
@@ -441,6 +521,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         rng_state: world.resource::<GameRng>().0.clone(),
         dark_tiles: world.resource::<Map>().dark.clone(),
         inert_doors: world.resource::<Map>().inert_doors.clone(),
+        dug_tiles: dug_tiles(world),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
         spirits_hostile: world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0),
     };
@@ -499,6 +580,16 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     regenerate_map(world, save.rng_seed, save.depth);
     world.resource_mut::<Map>().dark = save.dark_tiles;
     world.resource_mut::<Map>().inert_doors = save.inert_doors;
+    {
+        let mut map = world.resource_mut::<Map>();
+        for i in save.dug_tiles {
+            if let Some(tile) = map.tiles.get_mut(i as usize)
+                && *tile == TileType::Wall
+            {
+                *tile = TileType::Passage;
+            }
+        }
+    }
 
     // The deepest floor has no down-stair: the seed-built map still carries one,
     // so carve it back to plain floor. The Element of Yoord entity (or its place
@@ -873,6 +964,7 @@ mod tests {
             rng_state: ChaCha12Rng::seed_from_u64(1),
             dark_tiles: FixedBitSet::with_capacity(1),
             inert_doors: FixedBitSet::with_capacity(1),
+            dug_tiles: Vec::new(),
             cleared: false,
             spirits_hostile: false,
         };
@@ -926,6 +1018,7 @@ mod tests {
             rng_state: ChaCha12Rng::seed_from_u64(1),
             dark_tiles: FixedBitSet::with_capacity(1),
             inert_doors: FixedBitSet::with_capacity(1),
+            dug_tiles: Vec::new(),
             cleared,
             spirits_hostile: false,
         };

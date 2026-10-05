@@ -36,7 +36,7 @@ use crate::components::{
 use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::effects::{
     Asleep, Bided, Blind, Clamped, Confused, Effects, Grant, Lifetime, MagicWard, Paralyzed,
-    Petrified, Pinned, Rooted, SeesInvisible, Sluggish, Stealthy, SustainsStrength,
+    Petrified, Pinned, Polymorphed, Rooted, SeesInvisible, Sluggish, Stealthy, SustainsStrength,
     clear_floor_grants,
 };
 use crate::helpers::item_label;
@@ -47,8 +47,8 @@ use crate::map::GameRng;
 // ---------------------------------------------------------------------------
 
 /// Lands confusion on one creature, whatever confused it. The player picks up
-/// the [`Confused`] condition (half of every step and swing goes off in a random
-/// direction); a monster is switched to a random walk. `player_line` is the
+/// the [`Confused`] condition (a share of their steps, [`CONFUSION_STUMBLE_CHANCE`](crate::constants::conditions::CONFUSION_STUMBLE_CHANCE),
+/// goes off in a random direction); a monster is switched to a random walk. `player_line` is the
 /// whole sentence the player reads, `mob_verb` completes "The rat ___." for
 /// anything else — so a wand's flash and a potion's swimming head read
 /// differently while meaning the same thing.
@@ -231,7 +231,7 @@ pub struct Affliction {
 }
 
 /// Every affliction a cure can lift, **worst first**: blindness costs you the
-/// floor, paralysis costs you turns, confusion costs you half your steps.
+/// floor, paralysis costs you turns, confusion costs you the steps it sends astray.
 /// [`cure_one_condition`] takes the first one it finds, so the order here is
 /// the order they hurt in.
 ///
@@ -262,8 +262,12 @@ pub const AFFLICTIONS: &[Affliction] = &[
 ];
 
 /// Held until a staircase, but nothing a cure can lift — a ward is a boon, not
-/// an affliction, and a rosé coin should not offer to take it off you.
-const FLOOR_BOONS: &[(Grant, &str)] = &[(Grant::of::<MagicWard>(), strings::adjective_warded())];
+/// an affliction, and a rosé coin should not offer to take it off you. A
+/// polymorph is the same kind of thing: a loan, not a malady.
+const FLOOR_BOONS: &[(Grant, &str)] = &[
+    (Grant::of::<MagicWard>(), strings::adjective_warded()),
+    (Grant::of::<Polymorphed>(), strings::adjective_polymorphed()),
+];
 
 // ---------------------------------------------------------------------------
 // Lifting one of them, and mending what they left

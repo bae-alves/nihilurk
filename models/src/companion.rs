@@ -1,11 +1,14 @@
 //! The boon companion: the one creature on your side.
 //!
 //! A snack thrown at a creature without hands, or a fancy of peace thrown at
-//! one with them, is eaten either way, and half the time the creature becomes
+//! one with them, is eaten either way, and at
+//! [`ACCEPT_CHANCE`] odds the creature becomes
 //! your [`Helper`]. A Helper is an [`Faction::Ally`] that chases whatever the
 //! player can see ([`crate::ai`]), follows the player to every new floor
 //! ([`crate::map`]'s level change), and trades places with them when they walk
-//! into it. There is only ever one: taking a second makes the first explode.
+//! into it. There is only ever one ordinary one: taking a second makes the
+//! first explode. A [`PriorityHelper`] (the dog) is exempt from that, and
+//! explodes the ordinary kind when it joins.
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
@@ -13,7 +16,10 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::helpers::ACCEPT_CHANCE;
-use crate::effects::{Asleep, Grant, ItemUser, Phasing, grant_all, revoke, revoke_matching};
+use crate::effects::{
+    AlwaysHelper, AlwaysTamed, Asleep, Grant, ItemUser, Phasing, PriorityHelper, grant_all, revoke,
+    revoke_matching,
+};
 use crate::helpers::{death_burst, free_adjacent_tile, item_label};
 use crate::map::{BloodStains, GameRng};
 use crate::particles::{BlastPalette, Particles, on_map};
@@ -22,12 +28,21 @@ use crate::shake::{ShakeKind, kick_shake};
 /// What a Helper is born into when recruited: it walks through terrain.
 const GHOSTLY: &[Grant] = &[Grant::of::<Phasing>()];
 
-/// The current Helper, if there is one.
+/// The ordinary Helper, if there is one: the one a new Helper replaces.
+/// A [`PriorityHelper`] is never it.
 pub fn the_helper(world: &mut World) -> Option<Entity> {
+    world
+        .query_filtered::<Entity, (With<Helper>, Without<PriorityHelper>)>()
+        .iter(world)
+        .next()
+}
+
+/// Every Helper, ordinary or priority: the ones that follow the player down.
+pub fn all_helpers(world: &mut World) -> Vec<Entity> {
     world
         .query_filtered::<Entity, With<Helper>>()
         .iter(world)
-        .next()
+        .collect()
 }
 
 /// Whether `e` is a creature the player should fight: a [`Faction::Monster`].
@@ -50,7 +65,8 @@ pub(crate) fn fits(world: &World, thrower: Entity, victim: Entity, treat: Treat)
     world.get::<Player>(thrower).is_some()
         && world.get::<Mob>(victim).is_some()
         && (is_foe(world, victim) || is_charmed(world, victim))
-        && treat.for_item_users == world.get::<ItemUser>(victim).is_some()
+        && (world.get::<AlwaysTamed>(victim).is_some()
+            || treat.for_item_users == world.get::<ItemUser>(victim).is_some())
 }
 
 /// `victim` eats `item` and becomes the player's Helper. The treat is gone
@@ -58,7 +74,10 @@ pub(crate) fn fits(world: &World, thrower: Entity, victim: Entity, treat: Treat)
 /// but a plain ally already trusts you and always takes.
 pub(crate) fn offer(world: &mut World, victim: Entity, item: Entity, treat_name: &str) {
     world.entity_mut(item).despawn();
-    if is_charmed(world, victim) || world.resource_mut::<GameRng>().0.gen_bool(ACCEPT_CHANCE) {
+    if is_charmed(world, victim)
+        || world.get::<AlwaysTamed>(victim).is_some()
+        || world.resource_mut::<GameRng>().0.gen_bool(ACCEPT_CHANCE)
+    {
         recruit(world, victim);
         return;
     }
@@ -74,6 +93,10 @@ pub(crate) fn offer(world: &mut World, victim: Entity, item: Entity, treat_name:
 /// make room) and it does not follow the player downstairs
 /// ([`crate::map::levels`] only carries the [`Helper`] along).
 pub fn charm(world: &mut World, mob: Entity) {
+    if world.get::<AlwaysHelper>(mob).is_some() {
+        recruit(world, mob);
+        return;
+    }
     world.entity_mut(mob).insert(Faction::Ally);
     if let Some(mut m) = world.get_mut::<Mob>(mob) {
         m.movement_type = MovementType::Chase;
@@ -87,16 +110,27 @@ pub fn recruit(world: &mut World, mob: Entity) {
     if let Some(old) = the_helper(world).filter(|&old| old != mob) {
         explode(world, old);
     }
-    world.entity_mut(mob).insert((Helper, Faction::Ally));
-    grant_all(world, mob, GHOSTLY);
-    if let Some(mut m) = world.get_mut::<Mob>(mob) {
-        m.movement_type = MovementType::Chase;
-    }
-    revoke(world, mob, Grant::of::<Asleep>());
+    stand_with_the_player(world, mob, true);
     let name = item_label(world, mob);
     world
         .resource_mut::<GameLog>()
         .add(strings::becomes_helper(&name));
+}
+
+/// Puts `mob` on the player's side: an ally that hunts, awake, and a Helper
+/// too when `helper` (it then also walks through terrain). Silent, so a
+/// shapeshift can hand the same side to a new body without a second "becomes
+/// your helper".
+pub(crate) fn stand_with_the_player(world: &mut World, mob: Entity, helper: bool) {
+    world.entity_mut(mob).insert(Faction::Ally);
+    if helper {
+        world.entity_mut(mob).insert(Helper);
+        grant_all(world, mob, GHOSTLY);
+    }
+    if let Some(mut m) = world.get_mut::<Mob>(mob) {
+        m.movement_type = MovementType::Chase;
+    }
+    revoke(world, mob, Grant::of::<Asleep>());
 }
 
 /// The old Helper's send-off when a new one is taken: all gore, no harm. It
@@ -128,7 +162,7 @@ fn explode(world: &mut World, old: Entity) {
     log.add(strings::old_helper_explodes(&name));
     log.add(strings::so_much_for_loyalty());
     crate::combat::leave_gear_behind(world, old);
-    world.despawn(old);
+    crate::spirits::poof(world, old);
 }
 
 /// What a Helper's death adds to an ordinary one: the line, a heavy shake, and
@@ -166,7 +200,7 @@ pub(crate) fn follow_downstairs(world: &mut World, helper: Entity, beside: Posit
         for item in crate::equipment::equipped_items(world, helper) {
             world.despawn(item);
         }
-        world.despawn(helper);
+        crate::spirits::poof(world, helper);
         return;
     };
     world.entity_mut(helper).insert(Position { x, y });

@@ -13,10 +13,10 @@ use crate::components::*;
 use crate::conditions::{confuse, snare};
 use crate::constants::scrolls::*;
 use crate::effects::{
-    ArmorBonus, ArmorDie, Asleep, ConfusingTouch, Grant, Lifetime, PowerBonus, PowerDie, Rooted,
-    ThrowBonus,
+    AlwaysHelper, ArmorBonus, ArmorDie, Asleep, ConfusingTouch, Grant, Lifetime, PowerBonus,
+    PowerDie, Rooted, ThrowBonus,
 };
-use crate::equipment::{Slot, equipped_in, equipped_items, force_unequip, sync_equipment_effects};
+use crate::equipment::{Slot, destroy_worn, equipped_in, equipped_items, force_unequip};
 use crate::helpers::{
     actor_line, free_adjacent_tile, hostiles_in_view, item_label, mark_conditions, spark_burst_at,
     tile_of,
@@ -26,7 +26,7 @@ use crate::magicmap::{MagicMapReveal, MagicMapStyle};
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH};
 use crate::monsters::{BESTIARY, MonsterDef, spawn_monster};
 use crate::particles::Particles;
-use crate::traps::random_open_tile;
+use crate::traps::{random_open_tile, trapdoor_effect};
 
 use super::potions::{is_the_relic, worth_detecting};
 
@@ -39,16 +39,7 @@ pub(super) fn lift_curses(world: &mut World, user: Entity) -> usize {
         .into_iter()
         .filter(|&e| world.get::<Curse>(e).is_some())
         .collect();
-
-    for &e in &doomed {
-        force_unequip(world, e);
-        if let Some(mut bp) = world.get_mut::<Backpack>(user) {
-            bp.items.retain(|&i| i != e);
-        }
-        world.entity_mut(e).despawn();
-    }
-    // The gear is gone, so whatever it was lending its wearer goes with it.
-    sync_equipment_effects(world, user);
+    destroy_worn(world, user, &doomed);
     doomed.len()
 }
 
@@ -162,6 +153,11 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         ScrollEffect::Sleep => read_sleep(world, user),
         ScrollEffect::FoodDetection => detect_mundane_items(world, user),
         ScrollEffect::Amnesia => read_amnesia(world, user),
+        ScrollEffect::Pitfall => {
+            let is_player = world.get::<Player>(user).is_some();
+            trapdoor_effect(world, user, is_player, true);
+        }
+        ScrollEffect::Atonement => crate::spirits::atone(world),
         ScrollEffect::Charming => {
             let charmed = charm_room(world, user);
             let msg = if charmed > 0 {
@@ -336,7 +332,9 @@ fn create_monster(world: &mut World, user: Entity) {
     // odds never both land on the same creature.
     use crate::constants::helpers::{CREATE_ALLY_CHANCE, CREATE_HELPER_CHANCE};
     let roll = world.resource_mut::<GameRng>().0.gen_range(0.0..1.0);
+    let always_helper = world.get::<AlwaysHelper>(e).is_some();
     match roll {
+        _ if always_helper => crate::companion::recruit(world, e),
         r if r < CREATE_HELPER_CHANCE => crate::companion::recruit(world, e),
         r if r < CREATE_HELPER_CHANCE + CREATE_ALLY_CHANCE => {
             crate::companion::charm(world, e);

@@ -28,6 +28,7 @@ use crate::equipment::{Equipped, Slot, equipped_items};
 /// ever gets touched.
 #[derive(Resource)]
 pub struct Bones {
+    /// `true` unless the run started with `-nobones`.
     pub enabled: bool,
 }
 
@@ -53,8 +54,13 @@ struct BonesItem {
     stack: Option<u8>,
 }
 
+/// One dead character's leavings on one floor: who they were and everything
+/// they carried. [`deposit`] writes it when the run ends, and [`take`] reads it
+/// back, once, for a later character.
 #[derive(Serialize, Deserialize)]
 pub struct BonesFile {
+    /// The dead character's name. The ghost that comes back for their gear is
+    /// called by it.
     pub name: String,
     items: Vec<BonesItem>,
 }

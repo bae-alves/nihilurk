@@ -78,7 +78,7 @@ Components — creatures and combat
 | `Fighter` | `hp, max_hp, armor, power, max_power, armor_bonus, power_bonus: i32` | every actor | yes |
 | `Blood`   | marker | creatures that bleed | **transient** — re-attached to the player and every mob on load |
 | `Magic`   | `points, max_points: u8` | the hero | yes |
-| `Helper`  | marker — the player's boon companion, a `Faction::Ally` that follows them between floors | at most one creature | yes (its own field, not an effect row) |
+| `Helper`  | marker — the player's boon companion, a `Faction::Ally` that follows them between floors | at most one ordinary one, plus any number with `PriorityHelper` | yes (its own field, not an effect row) |
 
 | `Mimic`   | marker — a xeroc still in disguise: it reads as an item and every "monster nearby" check skips it. `reveal_mimics` strips it when the player stands adjacent | xerocs | no |
 | `Spellset` | `slots: Vec<SpellEffect>` — the spells the creature knows, capped at `constants::spells::SPELLSET_CAP` | the hero | yes |
@@ -115,15 +115,15 @@ The player is the clock. Monsters bank energy on each player turn and spend it i
 |-----------|------|-----|--------|
 | `Speed`   | `kind: SpeedKind`, `energy: i32` | every actor | `kind` yes; `energy` **transient** (resets to 0) |
 
-`SpeedKind` — enum, **saved by variant order** (`Slow`, `Normal`, `Fast`; `Normal` is `#[default]`):
+`SpeedKind` — enum, **saved by variant order** (`Slow`, `Normal`, `Fast`, `Quick` — `Quick` last on purpose; `Normal` is `#[default]`):
 
 | Method     | Returns                                            |
 |------------|---------------------------------------------------|
-| `rate()`   | energy banked per player turn — 1 / 2 / 4.        |
+| `rate()`   | energy banked per player turn, against `Speed::COST`. |
 | `faster()` | one notch up, `Fast` the ceiling (haste monster). |
 | `slower()` | one notch down, `Slow` the floor (slow monster).  |
 
-`Speed::COST` = 2 — the energy one action costs.
+`Speed::COST` — the energy one action costs.
 
 
 Components — perception and memory
@@ -192,13 +192,13 @@ All four key enums are **saved by variant order** — append, never reorder. The
 
 `WandEffect::needs_target()` is `false` only for the wand of light (it floods the room, no reticle).
 
-`PotionEffect`: Blindness, Confusion, ExtraHealing, FruitJuice, GainStrength, Haste, Healing, MagicDetection, MonsterDetection, Paralysis, Poison, RaiseLevel, RestoreStrength, SeeInvisible, Water.
+`PotionEffect`: Blindness, Confusion, ExtraHealing, FruitJuice, GainStrength, Haste, Healing, MagicDetection, MonsterDetection, Paralysis, Poison, RaiseLevel, RestoreStrength, SeeInvisible, Water, Magic, Adjustment, Polymorph.
 
-`ScrollEffect` (every arm wired; `BlankPaper` does nothing on purpose): MonsterConfusion, MagicMapping, HoldMonster, Sleep, EnchantArmor, Identify, ScareMonster, FoodDetection, Teleportation, EnchantWeapon, CreateMonster, RemoveCurse, AggravateMonsters, BlankPaper, VorpalizeWeapon.
+`ScrollEffect` (every arm wired; `BlankPaper` does nothing on purpose): MonsterConfusion, MagicMapping, HoldMonster, Sleep, EnchantArmor, Identify, ScareMonster, FoodDetection, Teleportation, EnchantWeapon, CreateMonster, RemoveCurse, AggravateMonsters, BlankPaper, VorpalizeWeapon, Amnesia, Charming, Pitfall, Atonement.
 
-`WandEffect`: Light, Striking, Lightning, Fire, Cold, Polymorph, MagicMissile, HasteMonster, SlowMonster, DrainLife, Nothing, TeleportAway, TeleportTo, Cancellation.
+`WandEffect`: Light, Striking, Lightning, Fire, Cold, Polymorph, MagicMissile, HasteMonster, SlowMonster, DrainLife, Nothing, TeleportAway, TeleportTo, Cancellation, Charming, Digging, Swapping.
 
-`RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor.
+`RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor, Polymorph.
 
 
 `Element` — not a component
@@ -255,7 +255,7 @@ Components — player conditions
 
 `Confused`, `Blind`, `Paralyzed` and `Speed` haste/slow are treacherous — they never wear off with time. Only a staircase or a wand of cancellation clears them, all through `crate::conditions::clear_player_conditions`.
 
-The first three are **effects**, not components of their own: rows in `crate::effects`'s `EFFECTS`, held for `Lifetime::Floor`, and listed once in `conditions::AFFLICTIONS` with the words for lifting each. That one table is what `afflicted`, `cure_one_condition` and `clear_player_conditions` all read — they used to be three hand-written lists in three different orders. The table's order is worst-first, because a cure takes the first row it finds. `Speed` haste/slow is not a row and cannot be: a tempo is a value, not a marker something either has or has not.
+The first three are **effects**, not components of their own: rows in `crate::effects`'s `EFFECTS`, held for `Lifetime::Floor`, and listed once in `conditions::AFFLICTIONS` with the words for lifting each. That one table is what `afflicted`, `cure_one_condition` and `clear_player_conditions` all read. The table's order is worst-first, because a cure takes the first row it finds. `Speed` haste/slow is not a row and cannot be: a tempo is a value, not a marker something either has or has not.
 
 The verbs that put them on — `confuse`, `blind`, `paralyse`, `hasten`, `shift_entity_speed`, `snare` — live in `crate::conditions`, one per affliction, and each one already knows the difference between the player and a monster. `snare` is the exception to the "never wears off" rule above: it is counted in turns from the moment it lands, and it logs nothing, because the sentence belongs to whatever pinned you. A blinded monster has no viewshed to put out, so it gets `MovementType::Confused`; a paralysed one gets the slowing and no coin flip.
 
@@ -360,7 +360,7 @@ Peaceful `Faction::Spirits` mobs (`spirits.rs`): melee on one triggers an event 
 
 | Type | Kind | Data | Saved? |
 |------|------|------|--------|
-| `Alignment` | component, hero | `i8`, `-3` (cacodaemon pole) to `3` (eudaemon pole); a peaceful interaction moves it `∓1` | yes |
+| `Alignment` | component, hero | `i8`, `-3` (cacodaemon pole) to `3` (eudaemon pole); a spirit poofing (a deal done, a kill, a polymorph) or the pink demon joining moves it `∓1` | yes |
 | `SpiritsHostile` | resource | `bool`; set for good when `Alignment` hits a pole or the player lands a direct hit on a peaceful spirit | yes |
 | `SpiritKind` | component | `Cacodaemon` / `Eudaemon`; which way the spirit pulls `Alignment` | **transient** (from `MonsterDef::spirit_kind`) |
 | `SpiritEvent` | component | `fn(&mut World, Entity, Entity)`; what melee does to it | **transient** (from `MonsterDef::spirit_event`) |
@@ -393,7 +393,7 @@ Also here: `SpellsMenu` (`open`, `selected`; the `Z` menu, the only way to an ac
 
 Everything but Browse, Throw and Drop is `Use`, because "quaff", "read" and "wear" are all one verb once `item_system` has the item in hand — the mode only decides what you were offered.
 
-`ItemAction::MENU` is the fixed Use / Throw / Drop order of the Browse modal (`ItemAction::at(idx)` indexes it). It was a resource with a flag behind it (`ActionMenu`, `-dropthrow`) while that modal was the only route to any of the three; `a`, `t` and `d` are what replaced the flag.
+`ItemAction::MENU` is the fixed Use / Throw / Drop order of the Browse modal (`ItemAction::at(idx)` indexes it).
 
 `pack_rows(world, mode)` is the single place the filter is applied, and it returns **backpack indices**. Both the renderer and the cursor key off that list, so a menu can never highlight or act on a row it isn't showing, and a row keeps its pack letter in every mode (the potion that is `c` in the pack is `c` in the quaff menu, alone on screen or not).
 
@@ -401,7 +401,7 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 
 ### The screen shake
 
-`Shake` (`shake.rs`) is the effect layer's second half, and the only cosmetic resource that is deliberately *not* played the way [`Particles`] is. Thirteen call sites arm it, and nothing else may:
+`Shake` (`shake.rs`) is the effect layer's second half, and the only cosmetic resource that is deliberately *not* played the way [`Particles`] is. These call sites arm it, and nothing else may:
 
 | `ShakeKind` | Armed by | Shape |
 |-------------|----------|-------|
@@ -414,7 +414,7 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 
 The durations are on `ShakeKind::shape()`, not in `constants.rs`. A kick only displaces an already-running shake if it is worth more than what is *left* of it, so a kill mid-blast cannot truncate the blast — and an ordinary hit landed during either cannot truncate anything. Amplitude 2 means the first half throws the map two cells and the rest one; a terminal has no half-cell to decay through.
 
-No kind may be shorter than two of `play_shake`'s 33 ms frames: it ages the shake *before* it draws, so anything shorter would retire without ever displacing a frame the player saw. `Hit`'s 80 ms is that floor. Nothing asserts it — the shake tests were removed with the rest of the feel layer's coverage — so the constraint lives in `ShakeKind::shape`'s doc comment, and a kind that breaks it shows up as a shake nobody can see.
+No kind may be shorter than two of `play_shake`'s 33 ms frames: it ages the shake *before* it draws, so anything shorter would retire without ever displacing a frame the player saw. `Hit`'s 80 ms is that floor. Nothing asserts it, so the constraint lives in `ShakeKind::shape`'s doc comment, and a kind that breaks it shows up as a shake nobody can see.
 
 A glancing blow is the one hit that draws blood and arms no shake. It gets `Particles::clink_spark` instead of the landed hit's `hit_spark` — same shape, no warm colour, gone quicker — because the chip-damage floor exists so a turned-aside swing isn't *nothing*, not so it lands like a real one. A throw or shot the armour turned aside (`strike_victim`'s "glances off" branch) is the same rule at range, and takes the same spark — harsher, in fact: there is no chip-damage floor out there, so it deals nothing at all.
 
@@ -430,7 +430,7 @@ Unlike every other animation in the game the shake **never blocks input** — se
 
 | Resource      | Fields                              | Saved? |
 |---------------|-------------------------------------|--------|
-| `GameLog`     | `history: Vec<String>` (capped 50), `unread: Vec<LogEntry>` (waiting for `--MORE--`) | **transient** — not saved; a reload starts with a fresh log ("Welcome back to nihilurk!") |
+| `GameLog`     | `history: Vec<String>` (capped at `LOG_HISTORY_CAP`), `unread: Vec<LogEntry>` (waiting for `--MORE--`) | **transient** — not saved; a reload starts with a fresh log ("Welcome back to nihilurk!") |
 | `Depth`        | `what: u8` — current floor, 1-based | yes    |
 | `FloorChanges` | `count: u32` — staircase/portal/trapdoor traversals this run; salts `content_rng` so a repeat visit re-stocks the same layout | yes |
 | `PlayerName`   | `what: String`                      | yes    |
@@ -440,7 +440,7 @@ Unlike every other animation in the game the shake **never blocks input** — se
 
 The log panel is plain white except for a sparing set of colours, one `LogCategory` per: a curse taking hold (dark red), a dazzle (magenta), the low-HP warning (red — "You are badly wounded!", fired once as HP crosses down through `constants::player::LOW_HP_WARNING_FRACTION` of max, by `helpers::warn_if_newly_low` — which `helpers::apply_damage` calls for every trap, dart and bolt, and `combat::resolve_attack` calls directly, melee being the one damage path that applies its own damage and would otherwise never report the crossing), the player's own speed shifting (cyan hasted, dark cyan slowed), or the player's own throw/fire (yellow). A trick shot and a combo's "With style." are magenta too. Every category is decided once, by the call that writes the message, and never re-derived from the rendered sentence — see `components::LogCategory` and `hud::log_paint`.
 
-**Colour is per message, not per painted row.** Several messages share a row (`hud::pack_line_segments`, which is what `log_view` now returns — the messages on each row, in order, displayed joined by one space), and the renderer paints each one with its own colour. Asking the question of the joined row instead is the bug that had one shouting message repainting every sentence beside it.
+**Colour is per message, not per painted row.** Several messages share a row (`hud::pack_line_segments`, which `log_view` returns — the messages on each row, in order, displayed joined by one space), and the renderer paints each one with its own colour. Asking the question of the joined row instead would repaint every sentence beside one shouting message.
 
 `hud::log_paint(entry, stripes)` is the painter's entry point and returns a `LogPaint`: `Solid(Color)` for every category but `LogCategory::Pride`, which comes back `Striped` — the one line that comes out in colours rather than a colour (`hud::pride_line()`, "With pride.", the rare alternative to "With style." on a combo), painted a character at a time, cycling the stripes so red follows purple and no two neighbouring letters match. The stripes come from `pride::stripes(world)`; see `models/src/pride.rs`.
 

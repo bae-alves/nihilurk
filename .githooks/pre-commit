@@ -103,4 +103,22 @@ if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
     done
 fi
 
+# 5. A reminder, never a refusal. When the staged code adds a ring, a flag, a
+# key, a constants module or anything else a page lists by hand, name the pages
+# that are not staged too. docs/how-to/update-the-docs.md is the full table.
+# Check 2 above refuses because the schedule and queue counts drifted three
+# files deep; most additions need no page at all, so this one only asks.
+lua .githooks/docs_nudge.lua || true
+
+# The nudge's rules and docs/how-to/update-the-docs.md are two copies of one
+# table. docs_nudge_test.lua refuses a commit that leaves them disagreeing. It
+# builds scratch git repos, so it must not inherit this commit's index.
+if staged | grep -qE '^(docs/how-to/update-the-docs\.md|\.githooks/docs_nudge.*\.lua)$'; then
+    env -u GIT_INDEX_FILE -u GIT_DIR -u GIT_WORK_TREE lua .githooks/docs_nudge_test.lua >/dev/null || {
+        echo "pre-commit: update-the-docs.md and .githooks/docs_nudge_rules.lua disagree --" >&2
+        echo "  run: lua .githooks/docs_nudge_test.lua" >&2
+        exit 1
+    }
+fi
+
 exit 0

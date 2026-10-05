@@ -8,7 +8,7 @@
 //! a monster can see — that question belongs to [`crate::ai`].
 
 use crate::components::*;
-use crate::effects::{Blind, SeesInvisible};
+use crate::effects::{Blind, FormMarks, SeesInvisible, form_of_marks};
 use crate::equipment::{Equipped, worn_phrase, worn_tag_from};
 use crate::identify::{named_display, phrase_for};
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
@@ -20,6 +20,8 @@ fn in_bounds(x: i16, y: i16) -> bool {
     x >= 0 && y >= 0 && (x as u16) < MAP_WIDTH && (y as u16) < MAP_HEIGHT
 }
 
+/// Recomputes what the player can see, once per turn, for every [`Viewshed`]
+/// marked dirty. See this module's header for what it hands the result to.
 #[allow(clippy::type_complexity)] // one query covering both mobs and floor items
 #[allow(clippy::too_many_arguments)]
 pub fn visibility_system(
@@ -53,6 +55,7 @@ pub fn visibility_system(
             Option<&Name>,
             Option<&Stack>,
             Option<&Spotted>,
+            FormMarks<'static>,
         ),
         Or<(With<Mob>, With<Item>)>,
     >,
@@ -236,6 +239,7 @@ fn hide_and_announce(
             Option<&Name>,
             Option<&Stack>,
             Option<&Spotted>,
+            FormMarks<'static>,
         ),
         Or<(With<Mob>, With<Item>)>,
     >,
@@ -245,7 +249,7 @@ fn hide_and_announce(
     perception: bool,
     blind: bool,
 ) {
-    for (entity, pos, mob, invisible, name, stack, spotted) in spot_query.iter() {
+    for (entity, pos, mob, invisible, name, stack, spotted, marks) in spot_query.iter() {
         let in_view = !blind && visible.contains(&(pos.x, pos.y));
         let perceptible = in_view && (invisible.is_none() || perception);
 
@@ -269,7 +273,11 @@ fn hide_and_announce(
         let announce =
             perceptible && !(mob.is_none() && invisible.is_some()) && !helpers.contains(entity);
         if announce && spotted.is_none() {
-            let seen_name = named_display(name, stack);
+            // A chimeric form is what it is called, not the species under it.
+            let seen_name = match form_of_marks(marks) {
+                Some(form) => form.name.to_string(),
+                None => named_display(name, stack),
+            };
             log.add(spotted_line(&seen_name, &worn_by(worn_query, entity)));
             commands.entity(entity).insert(Spotted);
         }

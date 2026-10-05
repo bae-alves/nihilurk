@@ -396,3 +396,78 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
         "Bide's coiled blow did not survive the save"
     );
 }
+
+/// A monster's Ma is state: a dragon that spent its fireball does not get it
+/// back by the player saving and loading.
+#[test]
+fn a_monsters_spent_magic_and_spellset_survive_a_save() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
+    w.insert_resource(RngSeed(7));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName { what: "X".into() });
+    initialize_world(&mut w);
+    let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
+    let here = *w.get::<Position>(hero).unwrap();
+    let dragon = spawn_monster(
+        &mut w,
+        MonsterDef::named("dragon"),
+        Position {
+            x: here.x + 1,
+            y: here.y,
+        },
+    );
+    w.get_mut::<Magic>(dragon).unwrap().points = 1;
+
+    let save = common::SaveFile::new("dragon_magic");
+    save_game(&mut w, save.path()).unwrap();
+
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(8)));
+    w2.insert_resource(RngSeed(8));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+
+    let (magic, spells) = w2
+        .query_filtered::<(&Magic, &Spellset), With<Mob>>()
+        .single(&w2);
+    assert_eq!(magic.points, 1);
+    assert_eq!(spells.slots, vec![SpellEffect::DragonBreath]);
+}
+
+/// A tunnel is not in the seed, so the save has to carry it.
+#[test]
+fn a_dug_tunnel_survives_a_save() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
+    w.insert_resource(RngSeed(7));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName { what: "X".into() });
+    initialize_world(&mut w);
+    let (x, y) = {
+        let map = w.resource::<Map>();
+        (0..MAP_WIDTH)
+            .flat_map(|x| (0..MAP_HEIGHT).map(move |y| (x, y)))
+            .find(|&(x, y)| {
+                x > 0
+                    && y > 0
+                    && x < MAP_WIDTH - 1
+                    && y < MAP_HEIGHT - 1
+                    && map.tile(x, y) == TileType::Wall
+            })
+            .expect("a floor has some rock")
+    };
+    w.resource_mut::<Map>().tiles[tile_index(x, y)] = TileType::Passage;
+
+    let save = common::SaveFile::new("dug");
+    save_game(&mut w, save.path()).unwrap();
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(8)));
+    w2.insert_resource(RngSeed(8));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+
+    assert_eq!(w2.resource::<Map>().tile(x, y), TileType::Passage);
+}

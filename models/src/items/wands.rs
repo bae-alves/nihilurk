@@ -9,6 +9,7 @@
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
 use crossterm::style::Color;
 use rand::Rng;
+use rand::seq::SliceRandom;
 use std::collections::{HashSet, VecDeque};
 
 use crate::components::*;
@@ -17,17 +18,20 @@ use crate::effects::*;
 use crate::equipment::{equipped_items, sync_equipment_effects};
 use crate::helpers::{
     Hit, apply_hit, get_entities_at_position, get_line, item_label, leave_smoke, monster_at,
-    player_sees, roll_dice,
+    player_sees, roll_dice, spill_blood,
 };
 use crate::identify::article_for;
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index};
-use crate::monsters::{BESTIARY, spawn_monster};
+use crate::monsters::{BESTIARY, MonsterDef, reshape};
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::{random_open_tile, things_in};
 
 use super::scrolls::teleport_reader;
-use crate::constants::wands::{BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES, SMOKE_LINGER_TURNS};
+use crate::constants::wands::{
+    BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES, DIG_RANGE, SHOCK_GORE_DAMAGE, SHOCK_SPLASHES,
+    SMOKE_LINGER_TURNS, SYSTEM_SHOCK_CHANCE,
+};
 
 /// A wand's damage: `[DAMAGE_DICE]d[DAMAGE_SIDES]`, rolled once per zap and
 /// applied whole to every creature it touches (armour is never subtracted).
@@ -327,7 +331,7 @@ pub(super) fn elemental_blast(
 /// Every open neighbouring tile (never through a wall) gets its own puff,
 /// staggered a beat apart so it reads as smoke rolling outward from the
 /// transformed creature rather than every tile igniting at once.
-fn leave_smoke_ring(world: &mut World, center: Position) {
+pub(crate) fn leave_smoke_ring(world: &mut World, center: Position) {
     const RING: [(i32, i32); 8] = [
         (-1, -1),
         (0, -1),
@@ -379,6 +383,8 @@ pub(super) fn blast_palette(effect: WandEffect) -> BlastPalette {
         | WandEffect::TeleportAway
         | WandEffect::TeleportTo
         | WandEffect::Charming
+        | WandEffect::Digging
+        | WandEffect::Swapping
         | WandEffect::Nothing => BlastPalette::Warp,
     }
 }
@@ -509,6 +515,8 @@ pub(super) fn apply_wand_effect(
         WandEffect::TeleportTo => teleport_target_here(world, user, user_pos, target_pos),
         WandEffect::Cancellation => cancel_target(world, target_pos),
         WandEffect::Charming => charm_target(world, target_pos),
+        WandEffect::Digging => dig_tunnel(world, user_pos, target_pos),
+        WandEffect::Swapping => swap_with_target(world, user, user_pos, target_pos),
         WandEffect::Nothing => {
             world
                 .resource_mut::<GameLog>()
@@ -518,6 +526,88 @@ pub(super) fn apply_wand_effect(
         // never actually reach here, but the arm still has to exist for the
         // match to stay exhaustive over the whole enum.
         WandEffect::Light => {}
+    }
+}
+
+/// Wand of digging: every wall on the line from the zapper through the aimed
+/// tile, out to [`DIG_RANGE`], becomes passage. The line runs on past the tile
+/// the reticle is on, so aiming at the rock in front of you is enough. The
+/// map's outer wall is not rock: it stays, or a tunnel would walk the player
+/// off the grid.
+fn dig_tunnel(world: &mut World, from: Position, aim: Position) {
+    let (dx, dy) = (aim.x as i32 - from.x as i32, aim.y as i32 - from.y as i32);
+    let reach = dx.abs().max(dy.abs());
+    if reach == 0 {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::wand_does_nothing().to_string());
+        return;
+    }
+    // The aim, stretched until it is DIG_RANGE tiles long.
+    let end = Position {
+        x: (from.x as i32 + dx * DIG_RANGE / reach).clamp(0, MAP_WIDTH as i32 - 1) as u16,
+        y: (from.y as i32 + dy * DIG_RANGE / reach).clamp(0, MAP_HEIGHT as i32 - 1) as u16,
+    };
+    let dug = break_rock(
+        world,
+        get_line(from, end).into_iter().skip(1).map(|c| (c.x, c.y)),
+    );
+    if dug.is_empty() {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::wand_does_nothing().to_string());
+        return;
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::dig_crumbles().to_string());
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.beam(&dug, Color::DarkYellow);
+    }
+}
+
+/// Turns every wall among `cells` into passage and returns the ones it did.
+/// What [`Map::diggable`] refuses stays: the outer wall, or a tunnel would
+/// walk the player off the grid, and the walls of an undiggable room. What
+/// the player can see changes shape, so every viewshed is redone.
+fn break_rock(world: &mut World, cells: impl Iterator<Item = (u16, u16)>) -> Vec<(u16, u16)> {
+    let mut dug = Vec::new();
+    {
+        let mut map = world.resource_mut::<Map>();
+        for (x, y) in cells {
+            if map.tile(x, y) == TileType::Wall && map.diggable(x, y) {
+                map.tiles[tile_index(x, y)] = TileType::Passage;
+                dug.push((x, y));
+            }
+        }
+    }
+    if !dug.is_empty() {
+        let mut views = world.query::<&mut Viewshed>();
+        for mut vs in views.iter_mut(world) {
+            vs.dirty = true;
+        }
+    }
+    dug
+}
+
+/// A thrown wand of digging bursting on `center`: every wall in the disc of
+/// `radius` goes, in sight of the centre or not.
+pub(super) fn crater(world: &mut World, center: Position, radius: f32) {
+    let r = radius.ceil() as i32;
+    let disc = (-r..=r)
+        .flat_map(|dy| (-r..=r).map(move |dx| (dx, dy)))
+        .filter(|&(dx, dy)| ((dx * dx + dy * dy) as f32).sqrt() <= radius)
+        .filter_map(|(dx, dy)| {
+            crate::particles::on_map(center.x as i32 + dx, center.y as i32 + dy)
+        });
+    let dug = break_rock(world, disc);
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        for &(x, y) in &dug {
+            let dist = ((x as f32 - center.x as f32).powi(2)
+                + (y as f32 - center.y as f32).powi(2))
+            .sqrt();
+            fx.poof(x, y, dist * 40.0);
+        }
     }
 }
 
@@ -620,9 +710,15 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
 }
 
 /// Wand of polymorph: replace the monster on `pos` with a different species,
-/// fresh, on the same tile.
-fn polymorph_target(world: &mut World, pos: Position) {
-    let Some(victim) = monster_at(world, pos) else {
+/// fresh, on the same tile. Aimed at the player's own tile, it polymorphs the
+/// player ([`polymorph_player_into`]).
+pub(super) fn polymorph_target(world: &mut World, pos: Position) {
+    let player = world
+        .query_filtered::<(Entity, &Position), With<Player>>()
+        .iter(world)
+        .find(|(_, p)| **p == pos)
+        .map(|(e, _)| e);
+    let Some(victim) = player.or_else(|| monster_at(world, pos)) else {
         world
             .resource_mut::<GameLog>()
             .add(strings::polymorph_fizzles());
@@ -658,15 +754,41 @@ fn charm_target(world: &mut World, pos: Position) {
 
 /// Polymorph applied to one creature — a monster becomes a fresh random species
 /// on its tile; the player, who cannot be swapped out from under themselves,
-/// just feels briefly rearranged.
+/// borrows a random species' powers for the floor ([`polymorph_player_into`]).
+///
+/// Either way the creature is left [`Polymorphed`], and polymorphing one that
+/// already is has two outcomes at even odds: system shock ([`system_shock`]),
+/// or the creature settles into a chimeric form ([`assume_form`]).
 pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
-    if world.get::<Player>(victim).is_some() {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::polymorph_self_player());
+    polymorph_entity_with(world, victim, true);
+}
+
+/// [`polymorph_entity`], with the system shock switched off for a polymorph
+/// that must never kill: the ring's, which comes due on its own. Without the
+/// shock, polymorphing the [`Polymorphed`] is simply a chimeric form.
+pub(super) fn polymorph_entity_with(world: &mut World, victim: Entity, can_shock: bool) {
+    let is_player = world.get::<Player>(victim).is_some();
+    if !is_player && world.get::<Mob>(victim).is_none() {
         return;
     }
-    if world.get::<Mob>(victim).is_none() {
+    let again = world.get::<Polymorphed>(victim).is_some();
+    if again
+        && can_shock
+        && world
+            .resource_mut::<GameRng>()
+            .0
+            .gen_bool(SYSTEM_SHOCK_CHANCE)
+    {
+        system_shock(world, victim);
+        return;
+    }
+    if is_player {
+        let pool: Vec<&'static MonsterDef> = BESTIARY
+            .iter()
+            .filter(|m| m.spirit_kind.is_none())
+            .collect();
+        let idx = world.resource_mut::<GameRng>().0.gen_range(0..pool.len());
+        polymorph_player_into(world, victim, pool[idx]);
         return;
     }
     let pos = match world.get::<Position>(victim) {
@@ -674,7 +796,6 @@ pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
         None => return,
     };
     let old_name = item_label(world, victim);
-    world.entity_mut(victim).despawn();
 
     // One roll, not a re-roll until it differs. A loop that spins until the
     // bestiary hands back something else is a hang waiting for the day the
@@ -687,14 +808,92 @@ pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
         rng.0.gen_range(0..BESTIARY.len())
     };
     let def = &BESTIARY[idx];
-    let new_name = def.display_name().to_string();
-    spawn_monster(world, def, pos);
+    let mut new_name = def.display_name().to_string();
+    let new = reshape(world, victim, def);
+    // Permanent, unlike the player's loan: a monster's polymorph is not
+    // something a floor ends, and a Helper that follows the player down keeps
+    // it ([`crate::companion::follow_downstairs`] only lifts transient
+    // conditions).
+    lend(world, new, Grant::of::<Polymorphed>(), Lifetime::Permanent);
+    if again {
+        new_name = assume_form(world, new).to_string();
+    }
     let line = match new_name == old_name {
         true => strings::polymorph_same_looking(&old_name, &new_name),
         false => strings::polymorph_different(&old_name, article_for(&new_name), &new_name),
     };
     world.resource_mut::<GameLog>().add(line);
     leave_smoke_ring(world, pos);
+}
+
+/// The player takes on `def`'s powers until they leave the floor: its innate
+/// grants, each a [`Lifetime::Floor`] ledger entry, beside a [`Polymorphed`]
+/// badge. Name, glyph, numbers and spells stay the player's own, so nothing is
+/// swapped out and nothing new is saved — the ledger already is. What a dog
+/// *is* is not a power and is not lent ([`Grant::is_identity`]).
+///
+/// A shape with no [`ItemUser`] has no hands: everything worn comes off into
+/// the pack, and [`crate::body::equip_refusal`] keeps it there.
+pub fn polymorph_player_into(world: &mut World, player: Entity, def: &'static MonsterDef) {
+    let again = world.get::<Polymorphed>(player).is_some();
+    lend(world, player, Grant::of::<Polymorphed>(), Lifetime::Floor);
+    for grant in def.grants.iter().filter(|g| !g.is_identity()) {
+        lend(world, player, *grant, Lifetime::Floor);
+    }
+    let name = match again {
+        true => assume_form(world, player),
+        false => def.display_name(),
+    };
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::polymorph_self(article_for(name), name));
+
+    let worn = equipped_items(world, player);
+    if world.get::<ItemUser>(player).is_none() && !worn.is_empty() {
+        for item in worn {
+            crate::equipment::force_unequip(world, item);
+        }
+        sync_equipment_effects(world, player);
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::polymorph_drops_gear());
+    }
+    if let Some(pos) = world.get::<Position>(player).copied() {
+        leave_smoke_ring(world, pos);
+    }
+}
+
+/// Settles `who` into one of the chimeric [`FORMS`] for the floor, in place of
+/// any form it held, and returns the form's name.
+fn assume_form(world: &mut World, who: Entity) -> &'static str {
+    let held: Vec<Grant> = FORMS.iter().map(|f| f.grant).collect();
+    revoke_any(world, who, &held);
+    let idx = world.resource_mut::<GameRng>().0.gen_range(0..FORMS.len());
+    lend(world, who, FORMS[idx].grant, Lifetime::Floor);
+    FORMS[idx].name
+}
+
+/// What polymorphing the [`Polymorphed`] can do instead of a form: the creature
+/// comes apart. A monster bursts, dead, in a great deal of gore. The player is
+/// left on 1 HP, with the same gore: it is a near thing, not an ending.
+fn system_shock(world: &mut World, victim: Entity) {
+    for _ in 0..SHOCK_SPLASHES {
+        spill_blood(world, victim, SHOCK_GORE_DAMAGE, false);
+    }
+    if world.get::<Player>(victim).is_some() {
+        if let Some(mut f) = world.get_mut::<Fighter>(victim) {
+            f.hp = 1;
+        }
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::system_shock_player());
+        return;
+    }
+    let name = item_label(world, victim);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::system_shock_mob(&name));
+    crate::combat::finish_indirect_kill(world, victim, None);
 }
 
 /// Wand of haste / slow monster: step the target one notch along the speed scale
@@ -816,6 +1015,104 @@ pub(super) fn teleport_entity_to_self(world: &mut World, who: Entity) {
         strings::teleport_self_mob(&item_label(world, who))
     };
     world.resource_mut::<GameLog>().add(msg);
+}
+
+/// Wand of swapping: the zapper and whatever stands on the aimed tile trade
+/// places. A creature comes first, then a trap somebody has found (a hidden one
+/// is passed over, the same rule as an aimed shot in
+/// [`crate::traps::detonate_at`]), then an item. Nobody is set down where they
+/// could not stand: aimed at a ghost in the rock, or by a ghost in the rock, the
+/// swap fails.
+///
+/// A teleport by another name, so it keeps the teleport's rules: no trap
+/// springs under either side, and whatever held them lets go.
+fn swap_with_target(world: &mut World, user: Entity, user_pos: Position, pos: Position) {
+    let partner = swap_partner(world, user, pos)
+        .filter(|&other| can_stand(world, user, pos) && can_stand(world, other, user_pos));
+    let Some(other) = partner else {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::swap_finds_nothing());
+        return;
+    };
+    let msg = if world.get::<Player>(user).is_some() {
+        strings::you_swap_places(&item_label(world, other))
+    } else {
+        let with = world
+            .get::<Player>(other)
+            .is_none()
+            .then(|| item_label(world, other));
+        strings::mob_swaps_places(&item_label(world, user), with.as_deref())
+    };
+    relocate(world, user, pos);
+    relocate(world, other, user_pos);
+    world.resource_mut::<GameLog>().add(msg);
+}
+
+/// What on `pos` a swap trades with, in [`swap_with_target`]'s order.
+fn swap_partner(world: &mut World, user: Entity, pos: Position) -> Option<Entity> {
+    let rank = |world: &World, e: Entity| {
+        if world.get::<Mob>(e).is_some() || world.get::<Player>(e).is_some() {
+            Some(0)
+        } else if world.get::<Trap>(e).is_some() {
+            world.get::<Hidden>(e).is_none().then_some(1)
+        } else {
+            world.get::<Item>(e).map(|_| 2)
+        }
+    };
+    get_entities_at_position(world, pos)
+        .into_iter()
+        .filter(|&e| e != user)
+        .filter_map(|e| Some((rank(world, e)?, e)))
+        .min_by_key(|&(r, _)| r)
+        .map(|(_, e)| e)
+}
+
+/// Whether `who` can be set down on `pos`: anywhere for a phasing creature,
+/// deep water too for a swimmer, dry floor for everyone and everything else.
+fn can_stand(world: &World, who: Entity, pos: Position) -> bool {
+    world.get::<Phasing>(who).is_some()
+        || world
+            .resource::<Map>()
+            .walkable(pos.x, pos.y, world.get::<Swims>(who).is_some())
+}
+
+/// Sets `who` down on `to` the way a teleport does: a magenta puff where they
+/// land, a fresh view, and out of whatever held them.
+fn relocate(world: &mut World, who: Entity, to: Position) {
+    if let Some(mut pos) = world.get_mut::<Position>(who) {
+        *pos = to;
+    }
+    if let Some(mut vs) = world.get_mut::<Viewshed>(who) {
+        vs.dirty = true;
+    }
+    revoke_any(world, who, &HOLDS);
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.tinted_poof(to.x, to.y, 0.0, Color::Magenta);
+    }
+}
+
+/// A thrown wand of swapping: the creatures the blast caught trade places, each
+/// onto the tile of the next in a random ring, so nobody keeps their own. Only
+/// creatures on dry floor join, since anyone can stand there; a ghost in the
+/// rock or a swimmer in deep water sits it out.
+pub(super) fn shuffle_places(world: &mut World, caught: &[Entity]) {
+    let mut ring: Vec<(Entity, Position)> = caught
+        .iter()
+        .filter(|&&e| world.get::<Mob>(e).is_some() || world.get::<Player>(e).is_some())
+        .filter_map(|&e| Some((e, *world.get::<Position>(e)?)))
+        .filter(|(_, p)| world.resource::<Map>().walkable(p.x, p.y, false))
+        .collect();
+    if ring.len() < 2 {
+        return;
+    }
+    ring.shuffle(&mut world.resource_mut::<GameRng>().0);
+    for (i, &(who, _)) in ring.iter().enumerate() {
+        relocate(world, who, ring[(i + 1) % ring.len()].1);
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::blast_shuffles_places());
 }
 
 /// Wand of cancellation: strip every marker effect the target has and reset its
