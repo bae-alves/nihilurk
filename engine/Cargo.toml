@@ -6,6 +6,9 @@ edition = "2024"
 license.workspace = true
 repository.workspace = true
 readme.workspace = true
+# A bin-only crate has no API docs, so docs.rs says "not a library". Send the
+# Documentation link on crates.io to the player manual instead.
+documentation = "https://github.com/bae-alves/nihilurk/blob/master/MANUAL.md"
 rust-version = "1.91"
 keywords = ["roguelike", "game", "terminal", "ascii", "rpg"]
 categories = ["games"]
