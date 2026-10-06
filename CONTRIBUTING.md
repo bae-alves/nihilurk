@@ -23,8 +23,9 @@ To build the game, run the tests and send a patch:
   `docs_style.sh` uses.
 - A terminal, and a network connection for the first build, which downloads
   the crates.
-- Linux. macOS and Windows are not officially supported yet: the code is not
-  Linux-only and type-checks for both, but nobody has run it there.
+- Linux. The game also runs on Windows (a tester built and played it), but the
+  scripts and hooks here are bash and Lua, so develop on Linux. macOS builds
+  and passes its tests in CI, but nobody has played it there yet.
 
 Only for some jobs:
 

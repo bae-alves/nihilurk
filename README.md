@@ -27,7 +27,7 @@ From a clone:
 
 Prebuilt Linux tarballs (x86_64 and aarch64, static musl) are on the [releases page](https://github.com/bae-alves/nihilurk/releases). Unpack one and run `./nihilurk`.
 
-Windows and macOS are not officially supported yet. Nothing in the code is Linux-only, and it type-checks for both, so cloning and building with `cargo` should work. Nobody has run it there.
+It runs on Windows: a tester built it there and played it. There are no prebuilt Windows binaries yet, so build with `cargo install nihilurk`. On macOS it builds and passes its tests in CI (Apple Silicon), but nobody has played it there yet. If you try Windows or macOS, [open an issue](https://github.com/bae-alves/nihilurk/issues) and say what happened, good or bad.
 
 
 Where things are

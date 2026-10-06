@@ -7,7 +7,7 @@ Facts:
 - Install: `cargo install nihilurk` (needs Rust 1.91 or newer), then run `nihilurk`.
 - Languages: English, Portuguese, Spanish and Haitian Creole, one binary each, picked at build time (`--no-default-features --features lang-pt`).
 - Two ways down: nihil (carries gear, the default) or the lurk (`-b lurk`, claws and fur). Seeded floors with `-s 1234`.
-- Platforms: prebuilt static Linux tarballs (x86_64, aarch64). Windows and macOS are not officially supported yet.
+- Platforms: prebuilt static Linux tarballs (x86_64, aarch64). Windows works (a tester built it with cargo and played it; no prebuilt binary yet). macOS builds and passes its tests in CI, but nobody has played it there yet.
 - License: GPL-3.0-or-later.
 
 ## Play
