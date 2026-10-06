@@ -1,7 +1,7 @@
 nihilurk
 ====
 
-A Rogue retroclone about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets, a lot of punch.
+nihilurk is a free, open-source Rogue-like (roguelike) for the terminal, written in Rust. A Rogue retroclone about descending thirteen floors, taking the Element of Yoord off the Dungeon Lord, and carrying it back up. Life is unfair and death is permanent. Terminal only, one binary, no assets, a lot of punch.
 
 If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
 
@@ -34,6 +34,7 @@ Where things are
 ----------------
 
     MANUAL.md      how to play: controls, combat math, items, monsters.
+    the site       https://bae-alves.github.io/nihilurk/, the manual and docs/, built from this repository.
     doc/nihilurk.6     the installed `man nihilurk` command reference.
     docs/          how to add content to the game. Start at docs/README.md.
     CONTRIBUTING.md    reporting bugs, sending patches and translations, and the LLM rule.

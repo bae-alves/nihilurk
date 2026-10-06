@@ -1,0 +1,16 @@
+# Read by site/build.lua, which copies it to target/site-book/ next to the
+# staged pages. The site URL lives here and nowhere else: the script fills it
+# into head.hbs, llms.txt, the sitemap and robots.txt.
+[book]
+title = "nihilurk"
+description = "nihilurk is a free, open-source Rogue-like (roguelike) for the terminal, written in Rust: descend thirteen floors, take the Element of Yoord, carry it back up. One binary, no assets, permanent death."
+language = "en"
+
+[output.html]
+site-url = "https://bae-alves.github.io/nihilurk/"
+git-repository-url = "https://github.com/bae-alves/nihilurk"
+# The staged pages keep their repository paths, so {path} is the file to edit.
+edit-url-template = "https://github.com/bae-alves/nihilurk/edit/master/{path}"
+
+[output.html.search]
+enable = true

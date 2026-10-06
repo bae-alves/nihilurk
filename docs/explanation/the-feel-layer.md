@@ -62,7 +62,7 @@ A zapped bolt (`fire_bolt` → `Particles::beam`) is a line of suns (`☼`) — 
 
 Teleport away/to (`teleport_entity_away`, `teleport_target_here`) leaves a `Particles::poof` and a short `map::Smoke` puff (`helpers::VANISHING_SMOKE_TURNS`) where the creature stood — the same magenta signature the teleport trap and the scroll of teleportation now leave. A swap (`wands::relocate`) puffs the same magenta poof on the tile each side lands on, and no smoke. Polymorph (`polymorph_entity`) puffs the same smoke in a small ring around the transformed creature's tile (`leave_smoke_ring`), staggered so it reads as smoke rolling outward.
 
-Polymorph draws **once** from the bestiary and takes what it gets. When that happens to be the species it started from, the magic still worked — the log says the creature "twists and warps into a different-looking <name>!" and the dungeon moves on. Re-rolling until the species differs would be a loop whose exit depends on the table being long enough, which is a hang waiting for the day somebody shortens it.
+Polymorph draws **once** from the bestiary and takes what it gets. When that happens to be the species it started from, the magic still worked — the log says the creature "twists and warps into a different-looking `<name>`!" and the dungeon moves on. Re-rolling until the species differs would be a loop whose exit depends on the table being long enough, which is a hang waiting for the day somebody shortens it.
 
 Every particle animation's frame pacing (a zap's beam, a blast's ripple, a teleport's poof, the magic-mapping reveal wipe) scales with the `AnimRate` resource, set once at startup from `-anim-rate` — see `../reference/cli-and-env.md`.
 

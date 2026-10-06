@@ -27,6 +27,7 @@ jobs:
           lua5.4 .githooks/tag_english_placeholders_test.lua
           lua5.4 .claude/hooks/rustfmt_test.lua
           lua5.4 release/bump_test.lua
+          lua5.4 site/build_test.lua
       - run: ./docs_style.sh
       - run: cargo test --locked --workspace --exclude nihilurk-compat
       # A bare `cargo test` only builds English. pt, es and ht each need a

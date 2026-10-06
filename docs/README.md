@@ -49,6 +49,7 @@ Start here
 | Cut a release, one command and a push          | `how-to/cut-a-release.md`                       |
 | Publish a release to crates.io                 | `how-to/publish-to-crates-io.md`                |
 | Publish a GitHub release                       | `how-to/publish-a-github-release.md`            |
+| Publish the documentation site                 | `how-to/publish-the-site.md`                    |
 | Know why package names differ from directories | `explanation/adr-0002-two-names-per-crate.md`   |
 
 And architecture decision records. They keep the history the other pages leave out: what was tried, what was rejected, and when to reopen it.

@@ -1,0 +1,26 @@
+# nihilurk
+
+> nihilurk is a free, open-source Rogue-like (roguelike) for the terminal, written in Rust. Descend thirteen floors, take the Element of Yoord off the Dungeon Lord, and carry it back up. Turn-based grid, unidentified items, traps, and permanent death. One binary, no assets.
+
+Facts:
+
+- Install: `cargo install nihilurk` (needs Rust 1.91 or newer), then run `nihilurk`.
+- Languages: English, Portuguese, Spanish and Haitian Creole, one binary each, picked at build time (`--no-default-features --features lang-pt`).
+- Two ways down: nihil (carries gear, the default) or the lurk (`-b lurk`, claws and fur). Seeded floors with `-s 1234`.
+- Platforms: prebuilt static Linux tarballs (x86_64, aarch64). Windows and macOS are not officially supported yet.
+- License: GPL-3.0-or-later.
+
+## Play
+
+- [Instruction manual](@SITE_URL@MANUAL.html): controls, combat math, items, monsters, spells.
+
+## Make things for it
+
+- [Documentation index](@SITE_URL@docs/): tutorials, how-to guides, reference and explanation for adding monsters, items, traps and spells.
+
+## Source
+
+- [Repository](https://github.com/bae-alves/nihilurk)
+- [Releases](https://github.com/bae-alves/nihilurk/releases)
+- [crates.io: nihilurk](https://crates.io/crates/nihilurk)
+- [crates.io: nihilurk-models](https://crates.io/crates/nihilurk-models) (the rules, as bevy_ecs components)

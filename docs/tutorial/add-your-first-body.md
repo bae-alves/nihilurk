@@ -304,7 +304,7 @@ ring of protection, with four spare daggers and Sting in your spell bar.
 Open the pack (`i`) and look — the armour and ring show as worn, the same
 as nihil's ever do.
 
-Fight something and watch the log: "Venom courses through the <name>
+Fight something and watch the log: "Venom courses through the `<name>`
 — its strength ebbs away," the same sentence a rattlesnake's bite would
 read against you, just turned around to name what you bit instead.
 

@@ -37,6 +37,7 @@ Look it up
 | A key                             | `MANUAL.md`, "Useful commands" and the quick reference; `doc/nihilurk.6`, "GAME CONTROLS"; `../reference/input-and-turn-loop.md`, the key table | three places list keys |
 | A flag or an env var              | `../reference/cli-and-env.md`; `doc/nihilurk.6`; `print_help` in `engine/src/main.rs` | the `-h` text is separate from the page     |
 | A player-facing sentence          | a new function in `strings/src/en.rs`                                 | see "Player-facing text" below               |
+| The install line, the languages or the license | `../../site/llms.txt`                                                 | it repeats them for AI crawlers              |
 | A new page                        | `../README.md`, one row in the index; a `See also` block | an unlisted page is not found              |
 
 A secret (the `T` key, the `-pride` flags) stays out of `MANUAL.md` and `../reference/cli-and-env.md`. See `../explanation/documentation-style.md`.

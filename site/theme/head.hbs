@@ -1,0 +1,23 @@
+{{!-- mdBook puts this in every page's <head>. Variables: title, description (from book.toml). "@SITE_URL@" is filled in by site/build.lua. --}}
+<meta property="og:site_name" content="nihilurk">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "nihilurk",
+  "alternateName": "nihilurk roguelike",
+  "applicationCategory": "GameApplication",
+  "genre": "Roguelike",
+  "operatingSystem": "Linux",
+  "url": "@SITE_URL@",
+  "codeRepository": "https://github.com/bae-alves/nihilurk",
+  "programmingLanguage": "Rust",
+  "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "inLanguage": ["en", "pt", "es", "ht"],
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>

@@ -1,0 +1,50 @@
+# Builds the documentation site (MANUAL.md and docs/) with mdBook and puts it
+# on GitHub Pages. The recipe is docs/how-to/publish-the-site.md. A one-time
+# step lives outside the repository: Settings > Pages > Source must be
+# "GitHub Actions".
+name: pages
+
+on:
+  push:
+    branches: [master]
+    paths: [README.md, MANUAL.md, "docs/**", "site/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - run: lua5.4 site/build_test.lua
+      # Pinned, with its checksum: the site should not change because a
+      # download did. To move up, change both lines (sha256sum the tarball).
+      - name: install mdBook
+        run: |
+          curl -sSfL -o mdbook.tgz https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-musl.tar.gz
+          echo "5222beabd3e37dc5be0d18ff99b79058469354db5c220153a1b92db5ba12be89  mdbook.tgz" | sha256sum -c -
+          tar xzf mdbook.tgz mdbook
+      - run: lua5.4 site/build.lua
+      - run: ./mdbook build target/site-book
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/site-book/book
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
