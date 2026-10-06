@@ -48,8 +48,12 @@ The targets:
 
     x86_64-unknown-linux-musl     ubuntu-24.04
     aarch64-unknown-linux-musl    ubuntu-24.04-arm
+    x86_64-pc-windows-msvc        windows-latest
+    aarch64-apple-darwin          macos-latest
 
 The runner images are named, not `ubuntu-latest`. GitHub moves that label to Ubuntu 26 on 2026-10-19, which would change the `musl-tools` the build installs without a commit in this repository. Move to a newer image on purpose, and run `release/test_package.sh` first.
+
+Windows gets a `.zip` of `.exe` files and the other targets a `.tar.gz`. `release/package.sh` and `release/test_package.sh` run in bash on all three systems, and the workflow names `shell: bash` because Windows would otherwise run a `.sh` file in PowerShell and report success. Windows has no `LANG`, so the dispatcher starts English there; `nihilurk --lang pt` picks another language. A macOS download from a browser is quarantined by Gatekeeper, since the binaries are not signed: `xattr -d com.apple.quarantine nihilurk*` clears it.
 
 The Linux builds are musl, so each is one static file with no glibc to match. `../explanation/cross-platform-testing.md` says why that is a promise and not a preference.
 
@@ -75,7 +79,7 @@ What CI shows
 
 Every tarball is unpacked and run by CI on the machine that built it: the dispatcher has to start all four language binaries, and the four have to differ. That proves each binary launches and that the packaging is right. It is not a playtest.
 
-Adding a target is one line in the `matrix` of `release.yml`, once someone has run the game on it.
+Adding a target is one line in the `matrix` of `release.yml`. Windows was played by a person before it went in. The macOS build has not been played yet: CI is all it has.
 
 Updating the AUR package
 ------------------------

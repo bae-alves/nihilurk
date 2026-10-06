@@ -39,17 +39,26 @@ jobs:
           # Both Linux targets are musl: one static file, no glibc to match.
           - { target: x86_64-unknown-linux-musl,  os: ubuntu-24.04 }
           - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm }
+          # Windows gets a .zip of .exe files, macOS the same tarball as Linux
+          # (Apple Silicon only). Played by CI, not yet by a person on macOS.
+          - { target: x86_64-pc-windows-msvc,     os: windows-latest }
+          - { target: aarch64-apple-darwin,       os: macos-latest }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: rustup target add ${{ matrix.target }}
-      # Builds through package.sh, then unpacks the tarball and plays with it.
+      # Builds through package.sh, then unpacks the archive and plays with it.
+      # `shell: bash`: Windows would run a .sh file in PowerShell and pass.
       - run: release/test_package.sh ${{ matrix.target }}
+        shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: nihilurk-${{ matrix.target }}
-          path: dist/*.tar.gz*
+          path: |
+            dist/*.tar.gz*
+            dist/*.zip*
 
   publish:
     needs: build

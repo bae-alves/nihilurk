@@ -6,8 +6,9 @@ How to cut a release
                    Trusted Publishing set up once for each of the
                    four crates (see "Before the first automated
                    release").
-    Result         A new version on GitHub, with tarballs for two
-                   Linux machines, and on crates.io, as four crates.
+    Result         A new version on GitHub, with archives for two
+                   Linux machines, Windows and Apple Silicon Macs,
+                   and on crates.io, as four crates.
                    One command and one push.
 
 A release is `release/bump.lua` and a tag. The script edits the files, runs the checks and tags the commit. CI does the publishing when the tag is pushed. The push is the one step that cannot be taken back, and the script never does it for you.
