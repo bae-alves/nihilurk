@@ -1,0 +1,3 @@
+# Windows checkouts default to CRLF, which breaks tests that split docs on "\n"
+# and bash scripts. One line ending everywhere.
+* text=auto eol=lf
