@@ -939,13 +939,17 @@ pub mod hud {
     /// the bar.
     pub const LOG_X: u16 = 26;
 
+    /// Wrap width for a log line once the command bar is hidden: the whole
+    /// screen, which is the map's width.
+    pub const LOG_FULL_WIDTH: usize = super::map::WIDTH as usize;
+
     /// Wrap width for a log line in the normal view: the screen's width less
     /// the command bar.
-    pub const LOG_WIDTH: usize = 80 - LOG_X as usize;
+    pub const LOG_WIDTH: usize = LOG_FULL_WIDTH - LOG_X as usize;
 
-    /// Wrap width for a log line in the "-- more --" backlog pager: leaves
-    /// room on the last line for the 22-column prompt.
-    pub const LOG_MORE_WIDTH: usize = LOG_WIDTH - 23;
+    /// Columns the "-- more --" prompt takes from the last log line: its 22
+    /// plus a space. The pager wraps that line this much narrower.
+    pub const MORE_PROMPT_WIDTH: usize = 23;
 
     /// How many past message-log lines the scrollback keeps before the oldest
     /// falls off.

@@ -1544,7 +1544,8 @@ pub struct HelpMenu {
 }
 
 /// The yellow command bar at the bottom left: whether the player has opted out
-/// of it with F2. Hiding it leaves its columns blank; the log does not move.
+/// of it with F2. Hiding it hands its columns to the log and the player line
+/// (see `CommandBar::log_x` and `log_width` in `hud`).
 #[derive(Resource, Default)]
 pub struct CommandBar {
     /// Whether the bar is hidden.

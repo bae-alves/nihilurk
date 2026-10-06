@@ -93,7 +93,8 @@ pub fn centering_offset(world: &World) -> (u16, u16) {
 /// already watching.
 fn log_panel(world: &World) -> (Vec<Vec<LogEntry>>, bool) {
     let animating = world.resource::<Particles>().any_alive();
-    let (lines, _consumed, more) = log_view(&world.resource::<GameLog>().unread);
+    let width = world.resource::<CommandBar>().log_width();
+    let (lines, _consumed, more) = log_view(&world.resource::<GameLog>().unread, width);
     (lines, more && !animating)
 }
 
@@ -126,6 +127,13 @@ pub fn render<W: Write>(
     screen.clear();
 
     let offset = centering_offset(world);
+
+    // Where the log and the player line start and how wide they run: right of
+    // the command bar, or the whole bottom once F2 has hidden it.
+    let (log_x, log_width) = {
+        let bar = world.resource::<CommandBar>();
+        (bar.log_x(), bar.log_width())
+    };
 
     // How far the screen shake has thrown the map this frame. Only the map
     // layers below read it (through `put_map` and friends); the status line,
@@ -821,7 +829,7 @@ pub fn render<W: Write>(
                 format!("{throw_flat:+}"),
             ));
         }
-        let mut px: u16 = LOG_X;
+        let mut px: u16 = log_x;
         for (i, (label, color, value)) in fields.iter().enumerate() {
             if i > 0 {
                 screen.puts(px, 22, " · ", Color::DarkGrey);
@@ -866,8 +874,8 @@ pub fn render<W: Write>(
 
     // ---- Command bar (rows 22..=24, left of the log) ----
     // The three keys a new player needs, one per row, in yellow. F2 hides
-    // them and leaves the columns blank. Blank space alone parts them from
-    // the log and the player line.
+    // them and the log and the player line slide left into their columns.
+    // Blank space alone parts them from the log and the player line.
     if !world.resource::<CommandBar>().hidden {
         for (i, line) in strings::onboarding_keys().iter().enumerate() {
             screen.puts(BAR_X, 22 + i as u16, line, Color::Yellow);
@@ -885,7 +893,7 @@ pub fn render<W: Write>(
         for (i, segments) in lines.iter().enumerate() {
             let y = 23 + i as u16;
             let last = i + 1 == lines.len();
-            let mut x: u16 = LOG_X;
+            let mut x: u16 = log_x;
             for message in segments {
                 let paint = log_paint(message, stripes);
                 for (n, ch) in message.chars().enumerate() {
@@ -897,7 +905,7 @@ pub fn render<W: Write>(
             }
             if last && more {
                 screen.puts(
-                    LOG_X + LOG_MORE_WIDTH as u16 + 1,
+                    log_x + (log_width - MORE_PROMPT_WIDTH) as u16 + 1,
                     y,
                     strings::more_prompt(),
                     Color::Yellow,
@@ -909,10 +917,10 @@ pub fn render<W: Write>(
     // ---- Travel-cursor prompt (overrides the log rows while picking) ----
     if world.resource::<TravelCursor>().active {
         for y in 23..=24 {
-            screen.hline(LOG_X, y, ' ', LOG_WIDTH as u16, Color::Reset);
+            screen.hline(log_x, y, ' ', log_width as u16, Color::Reset);
         }
-        screen.puts(LOG_X, 23, strings::travel_cursor_prompt(), Color::Yellow);
-        screen.puts(LOG_X, 24, strings::travel_cursor_hint(), Color::DarkGrey);
+        screen.puts(log_x, 23, strings::travel_cursor_prompt(), Color::Yellow);
+        screen.puts(log_x, 24, strings::travel_cursor_hint(), Color::DarkGrey);
     }
 
     // ---- Inventory overlay ----
@@ -1768,6 +1776,7 @@ mod tests {
         let mut w = World::new();
         w.init_resource::<GameLog>();
         w.init_resource::<Particles>();
+        w.init_resource::<CommandBar>();
         w
     }
 
@@ -1782,7 +1791,7 @@ mod tests {
             )));
         }
         assert!(
-            log_view(&w.resource::<GameLog>().unread).2,
+            log_view(&w.resource::<GameLog>().unread, LOG_WIDTH).2,
             "the fixture did not actually give the log a backlog to prompt about"
         );
     }

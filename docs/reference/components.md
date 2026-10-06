@@ -346,7 +346,7 @@ Resources
 |-----------------|----------------------------------------------------------|-------|
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
 | `HelpMenu`      | `open: bool`                                              | the F1 key list. Any key closes it and does nothing else. |
-| `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar. Its columns stay blank. |
+| `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar; the log and player line move left into its columns. |
 | `QuitPrompt`    | `open: bool`                                              | the "Really quit?" modal, raised by `Q` / `X` **with nothing else open** and answered `y` / `n`. Ctrl+C bypasses it; `Esc` never raises it. |
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
 | `PackMode`      | enum: `Browse` `Use` `Throw` `Drop` `Equip` `Quaff` `Read` `Zap` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |

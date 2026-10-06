@@ -384,8 +384,9 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     // *not* forfeit the turn: it only blocks movement (see `move_player`), so
     // input is still read and the player can swing or thrash.
     let more_pending = {
+        let width = world.resource::<CommandBar>().log_width();
         let log = world.resource::<GameLog>();
-        log_view(&log.unread).2
+        log_view(&log.unread, width).2
     };
     if !more_pending && player_incapacitated(world) {
         return Ok(true);
@@ -431,13 +432,14 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     // While a --MORE-- prompt is up, the only input accepted is the
     // acknowledgement: it drops the messages already shown and lets the rest
     // flow up on the next frame.
+    let width = world.resource::<CommandBar>().log_width();
     let more = {
         let log = world.resource::<GameLog>();
-        log_view(&log.unread).2
+        log_view(&log.unread, width).2
     };
     if more {
         if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
-            acknowledge(&mut world.resource_mut::<GameLog>().unread);
+            acknowledge(&mut world.resource_mut::<GameLog>().unread, width);
         }
         return Ok(false);
     }
@@ -2118,7 +2120,7 @@ mod tests {
         }
         let unread = w.resource::<GameLog>().unread.len();
         assert!(
-            log_view(&w.resource::<GameLog>().unread).2,
+            log_view(&w.resource::<GameLog>().unread, LOG_WIDTH).2,
             "the fixture did not actually raise a --MORE-- prompt"
         );
         unread
@@ -2301,7 +2303,7 @@ mod tests {
         for ack in [KeyCode::Char(' '), KeyCode::Enter] {
             let mut w = modal_world(4);
             let queued = flood_the_log(&mut w);
-            let shown = log_view(&w.resource::<GameLog>().unread).1;
+            let shown = log_view(&w.resource::<GameLog>().unread, LOG_WIDTH).1;
             assert!(shown > 0 && shown < queued, "the fixture proves nothing");
 
             let turn = dispatch_key(&mut w, KeyEvent::new(ack, KeyModifiers::NONE)).unwrap();
