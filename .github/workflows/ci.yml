@@ -59,3 +59,19 @@ jobs:
       - run: cargo test --locked --workspace --exclude nihilurk-compat
       - name: the binary starts
         run: cargo run --locked -p nihilurk -- --help
+
+  # The release tarball and zip, built and played the way release.yml does it.
+  # Four fat-LTO builds per OS, so not on pull requests. Linux gets this check
+  # on a tag; Windows and macOS get it here so a tag day is not the first run.
+  package:
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          - { target: aarch64-apple-darwin,   os: macos-latest }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: release/test_package.sh ${{ matrix.target }}
