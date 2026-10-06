@@ -2346,6 +2346,42 @@ pub fn quit_question() -> &'static str {
 pub fn quit_answers() -> &'static str {
     "[s] sim    [n] não"
 }
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn onboarding_keys() -> [&'static str; 3] {
+    ["[hjklyubn] MOVER", "[o/TAB] EXPLORAR/LUTAR", "[i] ITENS"]
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn pack_slots(free: usize, total: usize) -> String {
+    format!("MOCHILA: ({free}/{total})")
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn help_title() -> &'static str {
+    " TECLAS "
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn help_rows() -> [&'static str; 13] {
+    [
+        "hjklyubn    mover ou atacar (setas e teclado numérico também)",
+        "Shift+dir   correr",
+        "o           explorar",
+        "Tab         lutar contra o inimigo mais fraco à vista",
+        "O           viajar até um ponto",
+        "> <         usar as escadas",
+        "i           itens",
+        "a t d       usar, jogar, largar",
+        "e w W P     equipar, empunhar, vestir, colocar",
+        "q r z       beber, ler, usar varinha",
+        "f v         atirar, ataque de alcance",
+        "Z ;         feitiços, olhar",
+        "A x Q       coleta automática, fechar menu, sair",
+    ]
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn help_close() -> &'static str {
+    "[qualquer tecla] fechar"
+}
 
 pub fn spells_menu_title() -> &'static str {
     " FEITIÇOS "

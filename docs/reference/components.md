@@ -345,6 +345,8 @@ Resources
 | Resource        | Fields                                                    | Notes |
 |-----------------|----------------------------------------------------------|-------|
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
+| `HelpMenu`      | `open: bool`                                              | the F1 key list. Any key closes it and does nothing else. |
+| `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar. Its columns stay blank. |
 | `QuitPrompt`    | `open: bool`                                              | the "Really quit?" modal, raised by `Q` / `X` **with nothing else open** and answered `y` / `n`. Ctrl+C bypasses it; `Esc` never raises it. |
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
 | `PackMode`      | enum: `Browse` `Use` `Throw` `Drop` `Equip` `Quaff` `Read` `Zap` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
@@ -440,7 +442,7 @@ Unlike every other animation in the game the shake **never blocks input** — se
 
 The log panel is plain white except for a sparing set of colours, one `LogCategory` per: a curse taking hold (dark red), a dazzle (magenta), the low-HP warning (red — "You are badly wounded!", fired once as HP crosses down through `constants::player::LOW_HP_WARNING_FRACTION` of max, by `helpers::warn_if_newly_low` — which `helpers::apply_damage` calls for every trap, dart and bolt, and `combat::resolve_attack` calls directly, melee being the one damage path that applies its own damage and would otherwise never report the crossing), the player's own speed shifting (cyan hasted, dark cyan slowed), or the player's own throw/fire (yellow). A trick shot and a combo's "With style." are magenta too. Every category is decided once, by the call that writes the message, and never re-derived from the rendered sentence — see `components::LogCategory` and `hud::log_paint`.
 
-**Colour is per message, not per painted row.** Several messages share a row (`hud::pack_line_segments`, which `log_view` returns — the messages on each row, in order, displayed joined by one space), and the renderer paints each one with its own colour. Asking the question of the joined row instead would repaint every sentence beside one shouting message.
+**Colour is per message, not per painted row.** Several messages share a row (`hud::pack_line_segments`, which `log_view` returns — the pieces of messages on each row, in order, displayed joined by one space; a message too long for its row wraps at a word boundary onto the next, each piece keeping the message's category), and the renderer paints each one with its own colour. Asking the question of the joined row instead would repaint every sentence beside one shouting message.
 
 `hud::log_paint(entry, stripes)` is the painter's entry point and returns a `LogPaint`: `Solid(Color)` for every category but `LogCategory::Pride`, which comes back `Striped` — the one line that comes out in colours rather than a colour (`hud::pride_line()`, "With pride.", the rare alternative to "With style." on a combo), painted a character at a time, cycling the stripes so red follows purple and no two neighbouring letters match. The stripes come from `pride::stripes(world)`; see `models/src/pride.rs`.
 

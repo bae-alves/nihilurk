@@ -195,10 +195,9 @@ pub mod progression {
 
 /// The grid itself.
 pub mod map {
-    /// Playfield width in tiles. The HUD log is sized to match
-    /// ([`crate::constants::hud::LOG_WIDTH`]) and `determinism.rs` pins the
-    /// layout for existing seeds — changing either dimension moves every wall
-    /// on every seed and that test will (correctly) fail. Only change these
+    /// Playfield width in tiles. `determinism.rs` pins the layout for existing
+    /// seeds — changing either dimension moves every wall on every seed and
+    /// that test will (correctly) fail. Only change these
     /// together with a deliberate "all old seeds are void" decision.
     pub const WIDTH: u16 = 80;
 
@@ -930,13 +929,23 @@ pub mod hud {
     /// means less playfield unless the terminal is tall.
     pub const LOG_LINES: usize = 2;
 
-    /// Wrap width for a log line in the normal view. Kept equal to the map
-    /// width so the log spans the playfield exactly.
-    pub const LOG_WIDTH: usize = 80;
+    /// Column the command bar's text starts at. The bar fills the screen's
+    /// bottom three rows and leaves two blank columns before [`LOG_X`], so its
+    /// lines hold up to `LOG_X - 3` characters (the longest, Spanish, is 23).
+    pub const BAR_X: u16 = 1;
 
-    /// Wrap width for a log line in the "-- more --" backlog pager, which is
-    /// inset from the edges.
-    pub const LOG_MORE_WIDTH: usize = 56;
+    /// Column the log and the player line start at: right of the command bar
+    /// and its divider. Everything to its left on the bottom three rows is
+    /// the bar.
+    pub const LOG_X: u16 = 26;
+
+    /// Wrap width for a log line in the normal view: the screen's width less
+    /// the command bar.
+    pub const LOG_WIDTH: usize = 80 - LOG_X as usize;
+
+    /// Wrap width for a log line in the "-- more --" backlog pager: leaves
+    /// room on the last line for the 22-column prompt.
+    pub const LOG_MORE_WIDTH: usize = LOG_WIDTH - 23;
 
     /// How many past message-log lines the scrollback keeps before the oldest
     /// falls off.

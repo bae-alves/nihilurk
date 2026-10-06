@@ -24,6 +24,7 @@ jobs:
         run: |
           lua5.4 .githooks/no_python_test.lua
           lua5.4 .githooks/docs_nudge_test.lua
+          lua5.4 .githooks/tag_english_placeholders_test.lua
           lua5.4 .claude/hooks/rustfmt_test.lua
           lua5.4 release/bump_test.lua
       - run: ./docs_style.sh

@@ -77,7 +77,7 @@ pub fn wearing_gear(verb: &str, name: &str) -> String {
 }
 
 pub fn xeroc_disguise_falls() -> &'static str {
-    "The disguise falls away — they were a xeroc all along!"
+    "The disguise falls away - they were a xeroc all along!"
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ pub fn xeroc_disguise_falls() -> &'static str {
 // ---------------------------------------------------------------------------
 
 pub fn dazzle_player_line() -> &'static str {
-    "The flash leaves you reeling — you are dazzled!"
+    "The flash leaves you reeling - you are dazzled!"
 }
 
 pub fn dazzle_mob_verb() -> &'static str {
@@ -186,7 +186,7 @@ pub fn dragged_to_your_side(name: &str) -> String {
 
 pub fn bursts_in_transit(name: &str) -> String {
     format!(
-        "The {name} is dragged into the space between and comes apart — it bursts in a spray of gore!"
+        "The {name} is dragged into the space between and comes apart - it bursts in a spray of gore!"
     )
 }
 
@@ -255,7 +255,7 @@ pub fn hero_coin_ultimate() -> &'static str {
 }
 
 pub fn relic_takes_the_hit() -> &'static str {
-    "The Element of Yoord takes the hit — and answers."
+    "The Element of Yoord takes the hit - and answers."
 }
 
 pub fn ultimate_trick_shot_shout() -> &'static str {
@@ -279,7 +279,7 @@ pub fn drops_through_trapdoor(who: &str) -> String {
 }
 
 pub fn trapdoor_grinds_shut() -> &'static str {
-    "A trapdoor gapes — but there is only solid rock below. It grinds shut."
+    "A trapdoor gapes - but there is only solid rock below. It grinds shut."
 }
 
 pub fn trapdoor_yawns_open() -> &'static str {
@@ -287,7 +287,7 @@ pub fn trapdoor_yawns_open() -> &'static str {
 }
 
 pub fn bear_trap_snare() -> &'static str {
-    "Steel jaws snap shut on your leg — you can't take a step, but your arms are free!"
+    "Steel jaws snap shut on your leg - you can't take a step, but your arms are free!"
 }
 
 pub fn sleep_gas_snare() -> &'static str {
@@ -319,7 +319,7 @@ pub fn dart_poison_resisted() -> &'static str {
 }
 
 pub fn dart_poison_took() -> &'static str {
-    "The poison courses through you — you feel your strength ebb away."
+    "The poison courses through you - you feel your strength ebb away."
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +393,7 @@ pub fn you_monster() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/effects.rs — what a worn body is born with (`-am`)
+// models/src/effects.rs - what a worn body is born with (`-am`)
 // ---------------------------------------------------------------------------
 
 pub const fn feel_fireproof() -> &'static str {
@@ -500,14 +500,14 @@ pub const fn feel_faerie_on_death() -> &'static str {
 // engine/src/main.rs
 //
 // CLI output: prompts, `-help`, and error messages for a misused flag. In
-// scope for the same reason a `GameLog` line is — a real person reads these —
+// scope for the same reason a `GameLog` line is - a real person reads these -
 // but note that `-content`'s own per-category listing (the actual content
 // names, grouped) is deliberately NOT translated here: those names are the
 // same ids `NIHILURK_SPAWN` and `-am` match against, not prose.
 // ---------------------------------------------------------------------------
 
 pub fn content_header(count: usize) -> String {
-    format!("nihilurk content — {count} entries")
+    format!("nihilurk content - {count} entries")
 }
 
 pub fn content_spawn_hint() -> &'static str {
@@ -519,7 +519,7 @@ pub fn content_group_header(group: &str, count: usize) -> String {
 }
 
 pub fn leaderboard_header(count: usize) -> String {
-    format!("nihilurk leaderboard — top {count}")
+    format!("nihilurk leaderboard - top {count}")
 }
 
 pub fn leaderboard_empty() -> &'static str {
@@ -757,7 +757,7 @@ pub fn magicmap_explode() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/effects.rs — the EFFECTS table's `ends`/`beware` text.
+// models/src/effects.rs - the EFFECTS table's `ends`/`beware` text.
 //
 // `const fn`, not `fn`: `EFFECTS` is a `const` (see the table's own doc
 // comment on why an id can never be reused as an index), so whatever fills
@@ -852,7 +852,7 @@ pub fn paralyzed_mob_verb() -> &'static str {
 }
 
 pub fn blind_player_line() -> &'static str {
-    "A darkness closes over your eyes. You can't see a thing!"
+    "You can't see a thing!"
 }
 
 pub fn paralyse_player_line() -> &'static str {
@@ -937,7 +937,7 @@ pub fn system_shock_player() -> &'static str {
     "SYSTEM SHOCK! You come apart, and barely come back."
 }
 pub fn system_shock_mob(name: &str) -> String {
-    format!("SYSTEM SHOCK! The {name} comes apart in a spray of gore!")
+    format!("SYSTEM SHOCK! The {name} unravels!")
 }
 pub const fn adjective_polymorphed() -> &'static str {
     "polymorphed"
@@ -988,7 +988,7 @@ pub fn slow_player_line() -> &'static str {
     "Your limbs turn to lead."
 }
 pub fn haste_mob_line(name: &str) -> String {
-    format!("The {name} blurs into sudden speed.")
+    format!("The {name} blurs into sudden speed!")
 }
 pub fn slow_mob_line(name: &str) -> String {
     format!("The {name} lurches into slow motion.")
@@ -1005,7 +1005,7 @@ pub fn donned_body_or_finger(name: &str) -> String {
     format!("You put on the {name}.")
 }
 pub fn doffed_hand(name: &str) -> String {
-    format!("You stop wielding the {name}.")
+    format!("You unwield the {name}.")
 }
 pub fn doffed_body(name: &str) -> String {
     format!("You take off the {name}.")
@@ -1014,13 +1014,13 @@ pub fn doffed_finger(name: &str) -> String {
     format!("You remove the {name}.")
 }
 pub fn stuck_hand(name: &str) -> String {
-    format!("You can't — the {name} is welded to your grip!")
+    format!("You can't - the {name} is welded to your grip!")
 }
 pub fn stuck_body(name: &str) -> String {
-    format!("You can't — the {name} clings to you and won't come off!")
+    format!("You can't - the {name} clings to you and won't come off!")
 }
 pub fn stuck_finger(name: &str) -> String {
-    format!("You can't — the {name} is fused to your finger!")
+    format!("You can't - the {name} is fused to your finger!")
 }
 pub fn cursed_reveal_hand(name: &str) -> String {
     format!("The {name} welds itself to your grip! It is cursed!")
@@ -1032,13 +1032,13 @@ pub fn cursed_reveal_finger(name: &str) -> String {
     format!("The {name} welds to your finger! It is cursed!")
 }
 pub fn blocked_hand(name: &str) -> String {
-    format!("You can't switch weapons — the {name} won't leave your hand.")
+    format!("You can't switch weapons! The {name} won't leave your hand.")
 }
 pub fn blocked_body(name: &str) -> String {
-    format!("You can't change armour — the {name} won't come off.")
+    format!("You can't change armour! The {name} won't come off.")
 }
 pub fn blocked_finger(name: &str) -> String {
-    format!("You can't — the {name} won't leave your finger.")
+    format!("You can't - the {name} won't leave your finger.")
 }
 
 pub fn armor_shrugs_off_corrosion() -> &'static str {
@@ -1069,7 +1069,7 @@ pub const fn flavour_teleportitis() -> &'static str {
 }
 
 pub fn heavy_stagger_player() -> &'static str {
-    "The blow staggers you — you can't gather yourself to answer it!"
+    "The blow staggers you and you can't gather yourself to answer it!"
 }
 pub fn heavy_stagger_mob(name: &str) -> String {
     format!("The {name} reels from the blow, staggered!")
@@ -1086,22 +1086,22 @@ pub fn venom_resisted_mob(name: &str) -> String {
     format!("The venom burns, but the {name}'s strength holds firm.")
 }
 pub fn venom_took_player() -> &'static str {
-    "Venom courses through you — your strength ebbs away."
+    "Venom! Your strength ebbs away."
 }
 pub fn venom_took_mob(name: &str) -> String {
-    format!("Venom courses through the {name} — its strength ebbs away.")
+    format!("Venom courses through the {name} - its strength ebbs away.")
 }
 
 pub fn vampiric_drain_player() -> &'static str {
-    "A deathly chill spreads through you — your vitality is drained!"
+    "The vampiric kiss drains your life!"
 }
 pub fn vampiric_drain_mob(name: &str) -> String {
-    format!("A deathly chill spreads through the {name} — its vitality is drained!")
+    format!("The vampiric kiss drains the {name}'s life!")
 }
 
 pub fn bind_victim_player(name: &str) -> String {
     format!(
-        "The {name} clamps their jaws around your leg — you can't take a step, but your arms are free!"
+        "The {name} clamps their jaws around your leg - you can't take a step, but your arms are free!"
     )
 }
 pub fn bind_victim_mob(attacker_name: &str, target_name: &str) -> String {
@@ -1109,7 +1109,7 @@ pub fn bind_victim_mob(attacker_name: &str, target_name: &str) -> String {
 }
 
 pub fn medusa_gaze_line() -> &'static str {
-    "Your eyes meet the medusa's — and your flesh turns to cold stone!"
+    "Your eyes meet the medusa's and your flesh turns to cold stone!"
 }
 
 // ---------------------------------------------------------------------------
@@ -1141,7 +1141,7 @@ pub fn badly_wounded() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/components.rs — Element::noun()
+// models/src/components.rs - Element::noun()
 // ---------------------------------------------------------------------------
 
 pub fn element_fire_noun() -> &'static str {
@@ -1187,7 +1187,7 @@ pub fn cannot_go_up() -> &'static str {
 }
 
 pub fn climb_last_stair() -> &'static str {
-    "You climb the last stair into open sky, the Element of Yoord blazing in your hands."
+    "You climb the last stair into the final sky, the Element of Yoord blazing in your hands."
 }
 
 pub fn portal_down(depth: u8) -> String {
@@ -1230,7 +1230,7 @@ pub fn bones_ghost_arrives_self() -> String {
 }
 
 pub fn element_wont_let_you_land() -> &'static str {
-    "The Element of Yoord strains toward the sun — but the last stair you must climb yourself."
+    "The Element of Yoord strains toward the sun - but the last stair you must climb yourself."
 }
 
 pub fn portal_no_deeper_floor() -> &'static str {
@@ -1266,10 +1266,15 @@ pub fn bee_world_arrival() -> &'static str {
 }
 
 /// One of these follows [`bee_world_arrival`], picked at random.
-pub fn bee_world_quotes() -> [&'static str; 2] {
+pub fn bee_world_quotes() -> [&'static str; 7] {
     [
         "\"Ya like jazz?\"",
         "\"Yellow, black, yellow, black. Oh! Black and yellow!\"",
+        "\"According to all known laws of aviation, there is no way an apis should be able to fly.\"",
+        "\"Thinking bee! Thinking bee!\"",
+        "\"And I have no pants.\"",
+        "\"I'm talking to a human! And the human is talking to me!\"",
+        "\"Ooh, a little breakfast to go!\"",
     ]
 }
 
@@ -1324,7 +1329,7 @@ pub fn heal_line(healed: i32) -> String {
 }
 
 pub fn refill_magic_line(gained: u8) -> String {
-    format!("Something cold and bright fills your head. ({gained} Ma)")
+    format!("Your head cools. ({gained} Ma)")
 }
 
 pub fn cleanse_one() -> &'static str {
@@ -1348,7 +1353,7 @@ pub fn learn_spell_line(name: &str) -> String {
 }
 
 pub fn restore_strength_line(given: i32) -> String {
-    format!("Your arm remembers what it was. ({given} Pow.)")
+    format!("Your strength returns! ({given} Pow.)")
 }
 
 pub fn promise_platinum_offer() -> &'static str {
@@ -1371,7 +1376,7 @@ pub fn pay_platinum_armor() -> &'static str {
     "Untarnished. The platinum goes into your hide. (Arm. +1)"
 }
 pub fn pay_forge_collects() -> &'static str {
-    "The forge collects. Something of yours is finished properly."
+    "The forge collects. By its magic, something of yours shall be finished properly."
 }
 pub fn pay_forge_nothing_worth() -> &'static str {
     "...but you are carrying nothing worth finishing."
@@ -1406,14 +1411,14 @@ pub fn potion_gain_strength_mob() -> &'static str {
 }
 
 pub fn potion_gain_magic_player() -> &'static str {
-    "Your head clears and then some — the power is all there."
+    "Your head clears and then some - the power is all there."
 }
 pub fn potion_gain_magic_mob() -> &'static str {
     "hums with borrowed power"
 }
 
 pub fn potion_poison_player() -> &'static str {
-    "You feel very sick now — the strength drains out of you."
+    "You feel very sick now - the strength drains out of you."
 }
 pub fn potion_poison_mob() -> &'static str {
     "retches, their limbs going slack"
@@ -1426,7 +1431,7 @@ pub fn potion_restore_strength_noop_mob() -> &'static str {
     "shivers"
 }
 pub fn potion_restore_strength_player() -> &'static str {
-    "Your old strength comes surging back into your arm."
+    "Your old strength comes surging back into your body."
 }
 pub fn potion_restore_strength_mob() -> &'static str {
     "straightens, their strength returning"
@@ -1458,7 +1463,7 @@ pub fn distant_laughter() -> &'static str {
 }
 
 pub fn raise_level_win() -> &'static str {
-    "The potion hauls you up through stone and root and out into the open sky. You are free."
+    "The potion hauls you up through stone and root and out into the open sky. You are IN RAPTURE."
 }
 
 pub fn potion_fruit_juice() -> &'static str {
@@ -1530,7 +1535,7 @@ pub fn picks_up_thrown(victim_name: &str, verb: &str) -> String {
 }
 
 pub fn monster_shot_wild(shooter_name: &str, noun: &str, target_label: &str) -> String {
-    format!("The {shooter_name} looses a wild {noun} — it goes nowhere near {target_label}.")
+    format!("The {shooter_name} looses a wild {noun} - it goes nowhere near {target_label}.")
 }
 
 pub fn monster_shot_hit(
@@ -1575,10 +1580,10 @@ pub fn sting_misses() -> &'static str {
     "The dart of venom finds nothing to bite."
 }
 pub fn sting_glances(name: &str) -> String {
-    format!("The dart glances off the {name}.")
+    format!("The sting glances off the {name}.")
 }
 pub fn sting_hits(name: &str, damage: i32) -> String {
-    format!("A green dart of venom pricks the {name} for {damage} damage!")
+    format!("A venomous sting pricks the {name} for {damage} damage!")
 }
 
 pub fn thunderbolt_misses() -> &'static str {
@@ -1600,17 +1605,17 @@ pub fn bide_coil() -> &'static str {
 }
 
 pub fn breathe_fire_player() -> &'static str {
-    "A gout of flame erupts from you!"
+    "A gout of fl-FIREBALL!"
 }
 pub fn breathe_fire_mob(name: &str) -> String {
     format!("A gout of flame erupts from the {name}!")
 }
 
 pub fn force_lance_cast() -> &'static str {
-    "An invisible fist hammers down the line!"
+    "An invisible lance hammers down the line!"
 }
 pub fn force_lance_hits(name: &str, damage: i32) -> String {
-    format!("The force lance slams the {name} for {damage} damage!")
+    format!("The lance forces the {name} for {damage} damage!")
 }
 
 pub fn setup_planted() -> &'static str {
@@ -1636,8 +1641,7 @@ pub fn circle_of_death_drain(drained: i32) -> String {
 }
 
 pub fn magic_ward_cast() -> &'static str {
-    "A cold, silver skin closes over you. Nothing but your own magic can touch you now — \
-         not for the rest of this floor."
+    "You ward yourself. Only your own magic can touch you now."
 }
 
 pub fn heal_self_line(healed: i32) -> String {
@@ -1658,14 +1662,14 @@ pub fn sky_tears_open_again() -> &'static str {
 }
 
 pub fn frost_nova_cast() -> &'static str {
-    "A CYAN STAR erupts around you — ice, glitter, and entirely too much of both."
+    "A CYAN STAR erupts around you - Ice! Glitter! And entirely too much of both."
 }
 
 pub fn haste_self_gathers() -> &'static str {
-    "Power gathers. Power gathers more."
+    "Power gathers. Power gathers more. It's time to go further beyond."
 }
 pub fn haste_self_the_fast() -> &'static str {
-    "You are not quick. You are not swift. You are THE FAST."
+    "You are not quick. You are not swift. You are THE FAST!"
 }
 
 // ---------------------------------------------------------------------------
@@ -1704,7 +1708,7 @@ pub fn amnesia_nothing_to_forget() -> &'static str {
     "There was nothing there to forget."
 }
 pub fn amnesia_forgotten(name: &str) -> String {
-    format!("You've forgotten how to {name}!")
+    format!("You've forgotten how to use {name}!")
 }
 pub fn amnesia_dungeon_slips_away() -> &'static str {
     "The dungeon around you slips away like a half-remembered dream."
@@ -1715,14 +1719,14 @@ pub fn teleport_scroll_blonk() -> &'static str {
 }
 
 pub fn aggravate_scroll_shriek() -> &'static str {
-    "A shrill shriek rips through the dungeon. Everything on this floor heard it — and it knows where you are."
+    "A shrill shriek rips through the dungeon. Everything on this floor heard it and knows your address."
 }
 
 pub fn create_monster_nowhere() -> &'static str {
-    "The air curdles — then settles. Whatever was coming thought better of it."
+    "The air curdles - then settles. Whatever was coming thought better of it."
 }
 pub fn create_monster_line(article: &str, name: &str) -> String {
-    format!("The air curdles into {article} {name}, teeth and all!")
+    format!("The air curdles into {article} {name}, created from nothing!")
 }
 
 pub fn charm_fizzles() -> &'static str {
@@ -1732,7 +1736,7 @@ pub fn charm_self() -> &'static str {
     "You feel the most adorable you've ever felt."
 }
 pub fn charm_target_line(name: &str) -> String {
-    format!("The {name} gazes at you with adoring eyes — it's yours now!")
+    format!("The {name} gazes at you with adoring eyes!")
 }
 pub fn charm_room_some() -> &'static str {
     "Every eye in the room turns to you, adoring."
@@ -1765,26 +1769,26 @@ pub fn enchant_missing_weapon() -> &'static str {
 }
 
 pub fn confusing_touch_fresh_player() -> &'static str {
-    "Your hands begin to glow with a violet light. The next thing you touch will regret it."
+    "Your hands begin to glow with a violet light! Prepare to be confusing!"
 }
 pub fn confusing_touch_fresh_mob() -> &'static str {
     "flexes their claws, and a violet light crawls over them"
 }
 pub fn confusing_touch_deeper_player() -> &'static str {
-    "The violet light on your hands deepens. It is still one touch."
+    "The violet light on your hands deepens to no real effect."
 }
 pub fn confusing_touch_deeper_mob() -> &'static str {
     "shakes out their glowing claws"
 }
 pub fn confusing_touch_discharge_player() -> &'static str {
-    "The violet light bursts against you — the room tilts!"
+    "The violet light bursts against you - the room tilts!"
 }
 pub fn confusing_touch_discharge_mob() -> &'static str {
     "staggers as the violet light bursts over it"
 }
 
 pub fn hold_monster_none() -> &'static str {
-    "The words land like iron — on nothing at all."
+    "The words land like iron - on nothing at all."
 }
 pub fn hold_monster_some() -> &'static str {
     "The words land like iron. Every creature in sight is rooted where it stands."
@@ -2082,7 +2086,7 @@ pub fn vorpal_kill(target_name: &str) -> String {
 
 /// Bones-ghost-only variants of the five lines above plus `you_have_slain`,
 /// for the one case those can't express in every language at once: the
-/// target is a bones ghost sharing the *player's own* name — see
+/// target is a bones ghost sharing the *player's own* name - see
 /// `crate::combat::report_player_hit`. Kept as dedicated English-only
 /// strings rather than threading a "yourself" label through the shared
 /// functions, which would have broken `pt`/`es`'s own grammar (gendered
@@ -2109,7 +2113,7 @@ pub fn you_have_slain_self() -> &'static str {
 /// The reverse direction: a bones ghost sharing the player's own name,
 /// attacking the real player. `mob_hits`/`mob_misses`/`mob_strikes_you_down`
 /// are written for a third-person subject ("The orc hits you"), which breaks
-/// the moment the subject is also "you" — see
+/// the moment the subject is also "you" - see
 /// `crate::combat::report_ghost_self_hit`.
 pub fn ghost_self_misses() -> &'static str {
     "You miss yourself."
@@ -2139,7 +2143,7 @@ pub fn blown_up_by(article: &str, label: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// engine/src/view.rs — HUD badges, prompts, menu titles
+// engine/src/view.rs - HUD badges, prompts, menu titles
 // ---------------------------------------------------------------------------
 
 pub fn badge_stone() -> &'static str {
@@ -2186,6 +2190,45 @@ pub fn quit_answers() -> &'static str {
     "[y] yes    [n] no"
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn onboarding_keys() -> [&'static str; 3] {
+    ["[hjklyubn] MOVE", "[o/TAB] EXPLORE/FIGHT", "[i] ITEMS"]
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn pack_slots(free: usize, total: usize) -> String {
+    format!("PACK: ({free}/{total})")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn help_title() -> &'static str {
+    " KEYS "
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn help_rows() -> [&'static str; 13] {
+    [
+        "hjklyubn    move or attack (arrows and numpad too)",
+        "Shift+dir   run",
+        "o           explore",
+        "Tab         fight the weakest foe in sight",
+        "O           travel to a spot",
+        "> <         take the stairs",
+        "i           items",
+        "a t d       use, throw, drop",
+        "e w W P     equip, wield, wear, put on",
+        "q r z       quaff, read, zap",
+        "f v         fire, reach attack",
+        "Z ;         spells, look",
+        "A x Q       auto-pickup, close a menu, quit",
+    ]
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn help_close() -> &'static str {
+    "[any key] close"
+}
+
 pub fn spells_menu_title() -> &'static str {
     " SPELLS "
 }
@@ -2195,7 +2238,7 @@ pub fn offer_menu_title() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/pack.rs — the Use/Throw/Drop action modal
+// models/src/pack.rs - the Use/Throw/Drop action modal
 // ---------------------------------------------------------------------------
 
 pub fn action_use() -> &'static str {
@@ -2217,7 +2260,7 @@ pub fn element_wont_leave_hand() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/monsters.rs — the xeroc's disguise, a cosmetic-only category word
+// models/src/monsters.rs - the xeroc's disguise, a cosmetic-only category word
 // ---------------------------------------------------------------------------
 
 pub const fn mimic_look_scroll() -> &'static str {
@@ -2288,7 +2331,7 @@ pub fn spirit_refuses(name: &str) -> String {
 }
 
 pub fn pink_demon_submits() -> &'static str {
-    "Stripped of their stolen finery, the demon whimpers and pledges themselves to you."
+    "The demon whimpers and pledges themselves to you."
 }
 
 pub fn pink_demon_vanishes() -> &'static str {

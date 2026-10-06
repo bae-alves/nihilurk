@@ -103,6 +103,14 @@ if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
     done
 fi
 
+# 4b. English is placeholder text until a human replaces it. Any `pub fn` or
+# `pub const` that en.rs gained since HEAD is tagged `// TODO: placeholder
+# English` and re-staged, never refused: a human who writes a real sentence
+# deletes the tag in a later commit, and the script leaves HEAD's items alone.
+if staged | grep -qx 'strings/src/en.rs'; then
+    lua .githooks/tag_english_placeholders.lua | xargs -r git add
+fi
+
 # 5. A reminder, never a refusal. When the staged code adds a ring, a flag, a
 # key, a constants module or anything else a page lists by hand, name the pages
 # that are not staged too. docs/how-to/update-the-docs.md is the full table.

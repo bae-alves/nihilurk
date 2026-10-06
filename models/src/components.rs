@@ -1535,6 +1535,22 @@ pub struct QuitPrompt {
     pub open: bool,
 }
 
+/// The F1 key list: whether it is up. Any key closes it and does nothing else,
+/// so it can never cost a turn.
+#[derive(Resource, Default)]
+pub struct HelpMenu {
+    /// Whether the list is up.
+    pub open: bool,
+}
+
+/// The yellow command bar at the bottom left: whether the player has opted out
+/// of it with F2. Hiding it leaves its columns blank; the log does not move.
+#[derive(Resource, Default)]
+pub struct CommandBar {
+    /// Whether the bar is hidden.
+    pub hidden: bool,
+}
+
 /// The aiming reticle: which item is being aimed, whether this is a throw or a
 /// zap, and where the cursor is.
 #[derive(Resource, Default)]

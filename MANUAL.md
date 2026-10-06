@@ -129,6 +129,8 @@ Several commands let you spend less time walking:
 | `Tab` | Fight the nearest visible threat automatically |
 | `f` | Fire the launcher in your hand |
 | `v` | Make a reach attack with a suitable weapon |
+| `F1` | Show the key list |
+| `F2` | Hide or show the yellow key hints at the bottom left |
 
 Automation stops when a monster enters view. Auto-fight will not start when you are badly hurt or confused. Treat these commands as a way to handle safe ground, not as a substitute for looking at the screen.
 

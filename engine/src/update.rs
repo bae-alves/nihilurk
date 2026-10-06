@@ -431,13 +431,13 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     // While a --MORE-- prompt is up, the only input accepted is the
     // acknowledgement: it drops the messages already shown and lets the rest
     // flow up on the next frame.
-    let (_lines, shown, more) = {
+    let more = {
         let log = world.resource::<GameLog>();
-        log_view(&log.unread)
+        log_view(&log.unread).2
     };
     if more {
         if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
-            world.resource_mut::<GameLog>().unread.drain(0..shown);
+            acknowledge(&mut world.resource_mut::<GameLog>().unread);
         }
         return Ok(false);
     }
@@ -451,6 +451,12 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     // through to the quit prompt.
     let escape_hatch = matches!(key.code, KeyCode::Char('x') | KeyCode::Char('X'));
     if escape_hatch && close_all_modals(world) {
+        return Ok(false);
+    }
+
+    // The key list swallows exactly one key, whatever it is.
+    if world.resource::<HelpMenu>().open {
+        world.resource_mut::<HelpMenu>().open = false;
         return Ok(false);
     }
 
@@ -517,6 +523,11 @@ fn close_all_modals(world: &mut World) -> bool {
     let mut quit = world.resource_mut::<QuitPrompt>();
     if quit.open {
         quit.open = false;
+        closed = true;
+    }
+    let mut help = world.resource_mut::<HelpMenu>();
+    if help.open {
+        help.open = false;
         closed = true;
     }
     closed
@@ -1265,6 +1276,17 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         // the keyboard layout (`!` `@` `#` `$` are Shift + the digits only on
         // a US one).
         KeyCode::Char('Z') => return begin_spells_menu(world),
+        // F1: the key list. Never a turn.
+        KeyCode::F(1) => {
+            world.resource_mut::<HelpMenu>().open = true;
+            return Ok(false);
+        }
+        // F2: show or hide the command bar. Never a turn.
+        KeyCode::F(2) => {
+            let mut bar = world.resource_mut::<CommandBar>();
+            bar.hidden = !bar.hidden;
+            return Ok(false);
+        }
         // `;`: look — read what's on a tile without acting on it. Not `L`:
         // that is the shifted vi key for east, which `run_direction` above
         // claims before this table is ever reached.
@@ -2055,6 +2077,8 @@ mod tests {
         let mut w = test_world(seed);
         w.init_resource::<PackIsOpen>();
         w.init_resource::<QuitPrompt>();
+        w.init_resource::<HelpMenu>();
+        w.init_resource::<CommandBar>();
         w.init_resource::<AutoExplore>();
         w.init_resource::<AutoPickup>();
         w.init_resource::<FastMove>();
@@ -2620,6 +2644,46 @@ mod tests {
         let mut w = modal_world(28);
         dispatch_key(&mut w, ctrl_c).unwrap();
         assert!(!w.resource::<GameState>().is_running);
+    }
+
+    /// F1 raises the key list and never spends a turn.
+    #[test]
+    fn f1_opens_the_help_and_spends_no_turn() {
+        let mut w = modal_world(40);
+        let spent = dispatch_key(&mut w, KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE)).unwrap();
+        assert!(!spent, "F1 spent a turn");
+        assert!(w.resource::<HelpMenu>().open, "F1 left the help shut");
+    }
+
+    /// F2 hides the command bar, a second F2 brings it back; neither costs a turn.
+    #[test]
+    fn f2_toggles_the_command_bar_and_spends_no_turn() {
+        let mut w = modal_world(40);
+        let f2 = KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE);
+        for hidden in [true, false] {
+            let spent = dispatch_key(&mut w, f2).unwrap();
+            assert!(!spent, "F2 spent a turn");
+            assert_eq!(w.resource::<CommandBar>().hidden, hidden);
+        }
+    }
+
+    /// With the help up, the next key only closes it: `j` must not also walk
+    /// south, and `x` (the escape hatch) shuts it like any other modal.
+    #[test]
+    fn a_key_closes_the_help_and_does_nothing_else() {
+        for key in ['j', 'x', 'Q'] {
+            let mut w = modal_world(41);
+            let before = player_pos(&mut w);
+            w.resource_mut::<HelpMenu>().open = true;
+            let spent = dispatch_key(&mut w, press(key)).unwrap();
+            assert!(!spent, "'{key}' spent a turn behind the help");
+            assert!(!w.resource::<HelpMenu>().open, "'{key}' left the help up");
+            assert_eq!(player_pos(&mut w), before, "'{key}' moved the player");
+            assert!(
+                !w.resource::<QuitPrompt>().open,
+                "'{key}' reached the map under the help"
+            );
+        }
     }
 
     // -----------------------------------------------------------------------

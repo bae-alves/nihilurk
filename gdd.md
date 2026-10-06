@@ -104,11 +104,5 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- Charms (*): quarter weight in the rings table.  They bind to the character who uses them/gets them by throw. They offer persistent grants but do lock the invetory slot if they're on backpack. They never drop from slain monsters.
-    - Battle charm - as ring of increase damage +1
-    - Tough charm - as ring of protection +1
-    - Vampire charm - kills heal 1 HP
-    - Sniper charm - as ring of sharpshooting +1
-    - Moon charm - Cycling strength bonus (-3 to +3 to -3 to +3 to...)
 - More player character options
 - Steam

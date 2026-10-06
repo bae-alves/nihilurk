@@ -53,7 +53,7 @@ If your change settles or reverses a design question, write an ADR in the shape 
 Player-facing text
 ------------------
 
-Every sentence the player reads is a function in `strings/src/en.rs`. `es.rs`, `pt.rs` and `ht.rs` re-export English until someone translates the function, so a new English function needs no other file. If a language stops building, run `lua .githooks/stub_missing_translations.lua`. English you write is placeholder text; the translators and the maintainer replace it when they want to.
+Every sentence the player reads is a function in `strings/src/en.rs`. `es.rs`, `pt.rs` and `ht.rs` re-export English until someone translates the function, so a new English function needs no other file. If a language stops building, run `lua .githooks/stub_missing_translations.lua`. English you write starts unreviewed: the pre-commit hook tags each new `en.rs` function `// TODO: placeholder English; needs a human's pass.`, and whoever has read it and stands behind it deletes the tag, reworded or not.
 
 
 The three habits
