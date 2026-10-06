@@ -74,4 +74,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # Windows runs `run:` in PowerShell, which would skip a .sh file and
+      # report success. Name bash.
       - run: release/test_package.sh ${{ matrix.target }}
+        shell: bash
