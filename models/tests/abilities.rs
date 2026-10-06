@@ -323,7 +323,7 @@ fn a_venomous_bite_announces_itself_whoever_it_bites() {
     assert!(
         w.resource::<GameLog>()
             .history
-            .contains(&"Venom courses through you — your strength ebbs away.".to_string()),
+            .contains(&strings::venom_took_player().to_string()),
         "the player-victim line changed shape"
     );
 }
