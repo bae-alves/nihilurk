@@ -6,6 +6,7 @@ name: ci
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches: [master]
 
@@ -42,3 +43,14 @@ jobs:
               exit 1
             }
           done
+
+  # Does the game build, pass its tests and start on Windows? This does not
+  # replace a human at a real console: it cannot see rendering or key input.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo build --locked -p nihilurk
+      - run: cargo test --locked --workspace --exclude nihilurk-compat
+      - name: the binary starts
+        run: target/debug/nihilurk.exe --help
