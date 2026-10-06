@@ -6,11 +6,13 @@
 # that picks between them from $LANG. Same target dir for every build, so the
 # shared dependencies are not compiled four times over.
 #
-# Writes dist/nihilurk-<version>-<TARGET>.tar.gz and a .sha256 next to it. The
-# version is `engine/Cargo.toml`'s; the release workflow refuses a tag that
-# disagrees with it.
+# Writes dist/nihilurk-<version>-<TARGET>.tar.gz (a .zip for a Windows target,
+# whose binaries end in .exe) and a .sha256 next to it. The version is
+# `engine/Cargo.toml`'s; the release workflow refuses a tag that disagrees with
+# it.
 #
-# Linux targets only. See docs/how-to/publish-a-github-release.md.
+# Runs in bash on Linux, macOS and Windows (Git Bash). See
+# docs/how-to/publish-a-github-release.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -21,22 +23,33 @@ NAME="nihilurk-$VERSION-$TARGET"
 OUT="dist/$NAME"
 BIN="target/$TARGET/release"
 
+case "$TARGET" in
+    *-windows-*) EXT=.exe; ARCHIVE=zip ;;
+    *)           EXT="";   ARCHIVE=tar.gz ;;
+esac
 
-rm -rf "$OUT" "dist/$NAME.tar.gz" "dist/$NAME.tar.gz.sha256"
+
+rm -rf "$OUT" "dist/$NAME.$ARCHIVE" "dist/$NAME.$ARCHIVE.sha256"
 mkdir -p "$OUT"
 
 for lang in en pt es ht; do
     cargo build --locked --release --target "$TARGET" -p nihilurk --bin nihilurk \
         --no-default-features --features "lang-$lang"
-    cp "$BIN/nihilurk" "$OUT/nihilurk-$lang"
+    cp "$BIN/nihilurk$EXT" "$OUT/nihilurk-$lang$EXT"
 done
 cargo build --locked --release --target "$TARGET" -p nihilurk --bin nihilurk-dispatch \
     --features dispatch
-cp "$BIN/nihilurk-dispatch" "$OUT/nihilurk"
+cp "$BIN/nihilurk-dispatch$EXT" "$OUT/nihilurk$EXT"
 
 cp LICENSE MANUAL.md doc/nihilurk.6 "$OUT/"
 
-tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
-(cd dist && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+# macOS has no sha256sum, and Git Bash on Windows has no zip, but has 7z.
+sha256() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+if [ "$ARCHIVE" = zip ]; then
+    (cd dist && 7z a -tzip -bso0 "$NAME.zip" "$NAME")
+else
+    tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
+fi
+(cd dist && sha256 "$NAME.$ARCHIVE" > "$NAME.$ARCHIVE.sha256")
 rm -rf "$OUT"
-echo "dist/$NAME.tar.gz"
+echo "dist/$NAME.$ARCHIVE"
