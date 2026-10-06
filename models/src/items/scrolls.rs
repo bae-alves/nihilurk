@@ -218,28 +218,31 @@ fn read_amnesia(world: &mut World, user: Entity) {
 /// Scroll of teleportation: whisk the reader to a random open tile somewhere on
 /// the current floor.
 pub(super) fn teleport_reader(world: &mut World, user: Entity) {
-    // The magenta puff a teleport always leaves where its victim stood — the
-    // wand of teleportation's calling card, and the teleport trap's.
-    let was = world.get::<Position>(user).copied();
-    if let Some(was) = was {
-        crate::helpers::leave_tinted_smoke(world, was, Color::Magenta);
+    if let Some(tile) = random_open_tile(world) {
+        move_reader_to(world, user, tile);
     }
-    if let Some((x, y)) = random_open_tile(world) {
-        if let Some(mut pos) = world.get_mut::<Position>(user) {
-            pos.x = x;
-            pos.y = y;
-        }
-        if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
-            vs.dirty = true;
-        }
-    }
-    // A teleport carries you clean out of whatever was holding you in place —
-    // otherwise a bear trap's Snare survives the jump and keeps thrashing a
-    // leg on a tile nowhere near the actual trap.
-    crate::effects::revoke_any(world, user, &crate::effects::HOLDS);
     world
         .resource_mut::<GameLog>()
         .add(strings::teleport_scroll_blonk());
+}
+
+/// Whisks `user` to `(x, y)`: the magenta puff a teleport always leaves where
+/// its victim stood (the wand of teleportation's calling card, and the teleport
+/// trap's), and out of whatever was holding them in place — otherwise a bear
+/// trap's snare survives the jump and keeps thrashing a leg on a tile nowhere
+/// near the actual trap. Shared with the deck's Child and Crone.
+pub(super) fn move_reader_to(world: &mut World, user: Entity, (x, y): (u16, u16)) {
+    if let Some(was) = world.get::<Position>(user).copied() {
+        crate::helpers::leave_tinted_smoke(world, was, Color::Magenta);
+    }
+    if let Some(mut pos) = world.get_mut::<Position>(user) {
+        pos.x = x;
+        pos.y = y;
+    }
+    if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
+        vs.dirty = true;
+    }
+    crate::effects::revoke_any(world, user, &crate::effects::HOLDS);
 }
 
 /// Scroll of aggravate monsters: every creature on the floor drops what it was
@@ -298,12 +301,8 @@ fn scare_in_view(world: &mut World, user: Entity) -> usize {
 
 /// Scroll of create monster: conjure any creature from the bestiary next to the
 /// reader (or, failing an open adjacent tile, anywhere on the floor).
-fn create_monster(world: &mut World, user: Entity) {
-    let origin = world.get::<Position>(user).copied();
-    let spot = origin
-        .and_then(|o| free_adjacent_tile(world, o))
-        .or_else(|| random_open_tile(world));
-    let Some((x, y)) = spot else {
+pub(super) fn create_monster(world: &mut World, user: Entity) {
+    let Some((x, y)) = summon_spot(world, user) else {
         world
             .resource_mut::<GameLog>()
             .add(strings::create_monster_nowhere());
@@ -344,6 +343,15 @@ fn create_monster(world: &mut World, user: Entity) {
         }
         _ => {}
     }
+}
+
+/// Where a conjured creature arrives: beside `user`, or failing an open
+/// adjacent tile, anywhere on the floor.
+pub(super) fn summon_spot(world: &mut World, user: Entity) -> Option<(u16, u16)> {
+    let origin = world.get::<Position>(user).copied();
+    origin
+        .and_then(|o| free_adjacent_tile(world, o))
+        .or_else(|| random_open_tile(world))
 }
 
 /// Scroll of vorpalize weapon: brand the reader's wielded weapon [`Vorpal`]
@@ -413,24 +421,48 @@ fn mended_plus(bonus: i32) -> i32 {
 /// enchantment has no melee roll to land on and so lands on the throw. Returns
 /// whether there was anything on it to improve.
 fn raise_plus(world: &mut World, item: Entity) -> bool {
+    shift_plus(world, item, mended_plus)
+}
+
+/// [`raise_plus`] with any rule for the new plus: `to` maps the old one to it.
+/// Returns whether there was anything on `item` to change.
+fn shift_plus(world: &mut World, item: Entity, to: fn(i32) -> i32) -> bool {
     let mut e = world.entity_mut(item);
-    let mut raised = false;
+    let mut shifted = false;
     if e.contains::<PowerDie>() {
         let base = e.get::<PowerBonus>().map_or(0, |b| b.0);
-        e.insert(PowerBonus(mended_plus(base)));
-        raised = true;
+        e.insert(PowerBonus(to(base)));
+        shifted = true;
     }
     if e.contains::<ArmorDie>() {
         let base = e.get::<ArmorBonus>().map_or(0, |b| b.0);
-        e.insert(ArmorBonus(mended_plus(base)));
-        raised = true;
+        e.insert(ArmorBonus(to(base)));
+        shifted = true;
     }
     if e.contains::<Launcher>() {
         let base = e.get::<ThrowBonus>().map_or(0, |b| b.0);
-        e.insert(ThrowBonus(mended_plus(base)));
-        raised = true;
+        e.insert(ThrowBonus(to(base)));
+        shifted = true;
     }
-    raised
+    shifted
+}
+
+/// The reversed Prince of Swords and Queen of Cups: one point off the plus of
+/// whatever `user` has in `slot`. Returns whether there was gear to dull.
+pub(super) fn lower_equipped(world: &mut World, user: Entity, slot: Slot) -> bool {
+    let Some(item) = equipped_in(world, user, slot) else {
+        return false;
+    };
+    if !shift_plus(world, item, |b| b - 1) {
+        return false;
+    }
+    world.entity_mut(item).insert(KnownQuality);
+    let name = crate::identify::display_name(world, item);
+    spark_burst_at(world, user, Color::DarkGrey);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::card_dulls(&name));
+    true
 }
 
 /// Scroll of enchant weapon / enchant armor: the gear in the reader's `slot`
@@ -441,7 +473,7 @@ fn raise_plus(world: &mut World, item: Entity) -> bool {
 ///
 /// Read over an empty hand (or an unarmoured back) it gutters out the way a
 /// scroll of vorpalize weapon does: the words need something to bite into.
-fn enchant_gear(world: &mut World, user: Entity, slot: Slot) {
+pub(super) fn enchant_gear(world: &mut World, user: Entity, slot: Slot) {
     if enchant_equipped(world, user, slot) {
         return;
     }
@@ -485,7 +517,7 @@ pub(crate) fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> b
 
 /// Why an enchantment found nothing to land on — an empty hand for the weapon
 /// scroll, bare skin for the armour one.
-fn missing_gear_line(slot: Slot) -> &'static str {
+pub(super) fn missing_gear_line(slot: Slot) -> &'static str {
     match slot {
         Slot::Body => strings::enchant_missing_armor(),
         _ => strings::enchant_missing_weapon(),

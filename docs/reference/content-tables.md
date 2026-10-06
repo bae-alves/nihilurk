@@ -427,20 +427,21 @@ DROPS — DropCategory
 
 Three further fields are function pointers filled in by the `category!` macro from the table's name. Never write them by hand.
 
-Current weights, which happen to total 1000:
+Current weights, which total 1011:
 
 | Category | Weight | Share |
 |----------|--------|-------|
-| scroll   | 300    | 30.0% |
-| potion   | 270    | 27.0% |
-| coin     | 130    | 13.0% |
-| armor    |  80    |  8.0% |
-| wand     |  50    |  5.0% |
-| ring     |  50    |  5.0% |
+| scroll   | 300    | 29.7% |
+| potion   | 270    | 26.7% |
+| coin     | 130    | 12.9% |
+| armor    |  80    |  7.9% |
+| wand     |  50    |  4.9% |
+| ring     |  50    |  4.9% |
 | weapon   |  36    |  3.6% |
 | ammo     |  28    |  2.8% |
 | launcher |  16    |  1.6% |
 | treat    |  40    |  4.0% |
+| deck     |  11    |  1.1% |
 
 The share column is derived, not maintained.
 

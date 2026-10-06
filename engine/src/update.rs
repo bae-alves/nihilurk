@@ -384,8 +384,9 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     // *not* forfeit the turn: it only blocks movement (see `move_player`), so
     // input is still read and the player can swing or thrash.
     let more_pending = {
+        let width = world.resource::<CommandBar>().log_width();
         let log = world.resource::<GameLog>();
-        log_view(&log.unread).2
+        log_view(&log.unread, width).2
     };
     if !more_pending && player_incapacitated(world) {
         return Ok(true);
@@ -430,14 +431,18 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
 
     // While a --MORE-- prompt is up, the only input accepted is the
     // acknowledgement: it drops the messages already shown and lets the rest
-    // flow up on the next frame.
-    let (_lines, shown, more) = {
+    // flow up on the next frame. A spirit's open offer or barter is the
+    // exception: the player's choice comes first, and Space and Enter are its
+    // keys too, so the prompt would otherwise eat them. It stays up and waits.
+    let width = world.resource::<CommandBar>().log_width();
+    let more = {
         let log = world.resource::<GameLog>();
-        log_view(&log.unread)
+        log_view(&log.unread, width).2
     };
-    if more {
+    let spirit_menu = world.resource::<OfferMenu>().open || world.resource::<BarterMenu>().open;
+    if more && !spirit_menu {
         if key.code == KeyCode::Char(' ') || key.code == KeyCode::Enter {
-            world.resource_mut::<GameLog>().unread.drain(0..shown);
+            acknowledge(&mut world.resource_mut::<GameLog>().unread, width);
         }
         return Ok(false);
     }
@@ -451,6 +456,12 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
     // through to the quit prompt.
     let escape_hatch = matches!(key.code, KeyCode::Char('x') | KeyCode::Char('X'));
     if escape_hatch && close_all_modals(world) {
+        return Ok(false);
+    }
+
+    // The key list swallows exactly one key, whatever it is.
+    if world.resource::<HelpMenu>().open {
+        world.resource_mut::<HelpMenu>().open = false;
         return Ok(false);
     }
 
@@ -517,6 +528,11 @@ fn close_all_modals(world: &mut World) -> bool {
     let mut quit = world.resource_mut::<QuitPrompt>();
     if quit.open {
         quit.open = false;
+        closed = true;
+    }
+    let mut help = world.resource_mut::<HelpMenu>();
+    if help.open {
+        help.open = false;
         closed = true;
     }
     closed
@@ -1265,6 +1281,17 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         // the keyboard layout (`!` `@` `#` `$` are Shift + the digits only on
         // a US one).
         KeyCode::Char('Z') => return begin_spells_menu(world),
+        // F1: the key list. Never a turn.
+        KeyCode::F(1) => {
+            world.resource_mut::<HelpMenu>().open = true;
+            return Ok(false);
+        }
+        // F2: show or hide the command bar. Never a turn.
+        KeyCode::F(2) => {
+            let mut bar = world.resource_mut::<CommandBar>();
+            bar.hidden = !bar.hidden;
+            return Ok(false);
+        }
         // `;`: look — read what's on a tile without acting on it. Not `L`:
         // that is the shifted vi key for east, which `run_direction` above
         // claims before this table is ever reached.
@@ -2055,6 +2082,8 @@ mod tests {
         let mut w = test_world(seed);
         w.init_resource::<PackIsOpen>();
         w.init_resource::<QuitPrompt>();
+        w.init_resource::<HelpMenu>();
+        w.init_resource::<CommandBar>();
         w.init_resource::<AutoExplore>();
         w.init_resource::<AutoPickup>();
         w.init_resource::<FastMove>();
@@ -2094,7 +2123,7 @@ mod tests {
         }
         let unread = w.resource::<GameLog>().unread.len();
         assert!(
-            log_view(&w.resource::<GameLog>().unread).2,
+            log_view(&w.resource::<GameLog>().unread, LOG_WIDTH).2,
             "the fixture did not actually raise a --MORE-- prompt"
         );
         unread
@@ -2277,7 +2306,7 @@ mod tests {
         for ack in [KeyCode::Char(' '), KeyCode::Enter] {
             let mut w = modal_world(4);
             let queued = flood_the_log(&mut w);
-            let shown = log_view(&w.resource::<GameLog>().unread).1;
+            let shown = log_view(&w.resource::<GameLog>().unread, LOG_WIDTH).1;
             assert!(shown > 0 && shown < queued, "the fixture proves nothing");
 
             let turn = dispatch_key(&mut w, KeyEvent::new(ack, KeyModifiers::NONE)).unwrap();
@@ -2299,6 +2328,55 @@ mod tests {
         assert!(
             w.resource::<PackIsOpen>().open,
             "the pack closed behind the prompt"
+        );
+        assert_eq!(w.resource::<GameLog>().unread.len(), queued);
+    }
+
+    #[test]
+    fn an_open_barter_takes_the_keys_ahead_of_a_pending_more() {
+        // A demon's greeting can leave `--MORE--` up under the barter it just
+        // opened. The trade is the player's action; the prompt waits for it.
+        let mut w = modal_world(10);
+        let player = player_entity(&mut w);
+        let item = w.get::<Backpack>(player).unwrap().items[0];
+        {
+            let mut menu = w.resource_mut::<BarterMenu>();
+            menu.open = true;
+            menu.player_side = vec![Tradeable::Item(item)];
+        }
+        let queued = flood_the_log(&mut w);
+
+        dispatch_key(&mut w, press(' ')).unwrap();
+        assert_eq!(
+            w.resource::<BarterMenu>().player_selected,
+            vec![Tradeable::Item(item)],
+            "Space went to the --MORE-- prompt, not the barter"
+        );
+        assert_eq!(
+            w.resource::<GameLog>().unread.len(),
+            queued,
+            "the barter's Space also acknowledged the prompt"
+        );
+    }
+
+    #[test]
+    fn an_open_offer_takes_the_keys_ahead_of_a_pending_more() {
+        let mut w = modal_world(11);
+        {
+            let mut menu = w.resource_mut::<OfferMenu>();
+            menu.open = true;
+            menu.options = vec![
+                OfferOption::Spell(SpellEffect::DragonBreath),
+                OfferOption::Spell(SpellEffect::DragonBreath),
+            ];
+        }
+        let queued = flood_the_log(&mut w);
+
+        dispatch_key(&mut w, press('j')).unwrap();
+        assert_eq!(
+            w.resource::<OfferMenu>().selected,
+            1,
+            "the cursor key went to the --MORE-- prompt, not the offer"
         );
         assert_eq!(w.resource::<GameLog>().unread.len(), queued);
     }
@@ -2622,6 +2700,46 @@ mod tests {
         assert!(!w.resource::<GameState>().is_running);
     }
 
+    /// F1 raises the key list and never spends a turn.
+    #[test]
+    fn f1_opens_the_help_and_spends_no_turn() {
+        let mut w = modal_world(40);
+        let spent = dispatch_key(&mut w, KeyEvent::new(KeyCode::F(1), KeyModifiers::NONE)).unwrap();
+        assert!(!spent, "F1 spent a turn");
+        assert!(w.resource::<HelpMenu>().open, "F1 left the help shut");
+    }
+
+    /// F2 hides the command bar, a second F2 brings it back; neither costs a turn.
+    #[test]
+    fn f2_toggles_the_command_bar_and_spends_no_turn() {
+        let mut w = modal_world(40);
+        let f2 = KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE);
+        for hidden in [true, false] {
+            let spent = dispatch_key(&mut w, f2).unwrap();
+            assert!(!spent, "F2 spent a turn");
+            assert_eq!(w.resource::<CommandBar>().hidden, hidden);
+        }
+    }
+
+    /// With the help up, the next key only closes it: `j` must not also walk
+    /// south, and `x` (the escape hatch) shuts it like any other modal.
+    #[test]
+    fn a_key_closes_the_help_and_does_nothing_else() {
+        for key in ['j', 'x', 'Q'] {
+            let mut w = modal_world(41);
+            let before = player_pos(&mut w);
+            w.resource_mut::<HelpMenu>().open = true;
+            let spent = dispatch_key(&mut w, press(key)).unwrap();
+            assert!(!spent, "'{key}' spent a turn behind the help");
+            assert!(!w.resource::<HelpMenu>().open, "'{key}' left the help up");
+            assert_eq!(player_pos(&mut w), before, "'{key}' moved the player");
+            assert!(
+                !w.resource::<QuitPrompt>().open,
+                "'{key}' reached the map under the help"
+            );
+        }
+    }
+
     // -----------------------------------------------------------------------
     // The turn order
     // -----------------------------------------------------------------------
@@ -2698,6 +2816,28 @@ mod tests {
             SpeedKind::Slow,
             "the zap found the target on the tile it was aimed at"
         );
+    }
+
+    /// `visibility_system` queues `Hidden` for every mob out of sight. The
+    /// trapdoor is a `&mut World` system that despawns the whole floor, so if it
+    /// runs after `visibility_system` and before that system's commands apply,
+    /// they land on dead entities and bevy panics (B0003). Run the real turn
+    /// over many floors: the executor is free to pick either order unless the
+    /// schedule pins one.
+    #[test]
+    fn a_trapdoor_fall_never_races_the_visibility_commands() {
+        for seed in 0..60 {
+            let mut w = modal_world(seed);
+            let player = player_entity(&mut w);
+            let here = *w.get::<Position>(player).unwrap();
+            w.spawn(models::TrapBundle::trapdoor(here));
+            w.entity_mut(player).insert(EntityMoved);
+            w.get_mut::<Viewshed>(player).unwrap().dirty = true;
+
+            crate::turn_schedule().run(&mut w);
+
+            assert_eq!(w.resource::<Depth>().what, 2, "seed {seed}: fell one floor");
+        }
     }
 
     /// The reticle opens on the nearest thing in view, so the common case —

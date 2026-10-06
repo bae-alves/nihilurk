@@ -46,6 +46,16 @@ use crate::constants::rings::STEALTH_RANGE;
 /// merely unprocessed yet — the disguise gate this loop reads for
 /// `MovementType::Ambush` depends on that being settled first.
 pub fn ai(world: &mut World) {
+    // THE WORLD: while the player holds time still, nothing else moves, ally
+    // or foe.
+    if world
+        .query_filtered::<(), (With<Player>, With<crate::effects::TimeStopped>)>()
+        .iter(world)
+        .next()
+        .is_some()
+    {
+        return;
+    }
     // The whole turn is decided against one snapshot of the player, taken
     // before any monster moves — so a mob that steps aside in pass 0 cannot
     // change what the mob after it can see.

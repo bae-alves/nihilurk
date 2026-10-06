@@ -162,7 +162,11 @@ impl PackMode {
             PackMode::Browse | PackMode::Use | PackMode::Throw | PackMode::Drop => true,
             PackMode::Equip => world.get::<Equipped>(item).is_some(),
             PackMode::Quaff => world.get::<Potion>(item).is_some(),
-            PackMode::Read => world.get::<Scroll>(item).is_some(),
+            // A deck is read the way a scroll is, one card at a time.
+            PackMode::Read => {
+                world.get::<Scroll>(item).is_some()
+                    || world.get::<crate::components::Deck>(item).is_some()
+            }
             PackMode::Zap => world.get::<Wand>(item).is_some(),
             PackMode::Wield => goes_in(world, item, Slot::Hand),
             PackMode::Wear => goes_in(world, item, Slot::Body),

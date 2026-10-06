@@ -274,6 +274,9 @@ struct EntitySave<'a> {
     /// [`Alignment`].
     #[serde(default)]
     alignment: Option<i8>,
+    /// A deck's remaining cards, bottom first. See [`Deck`].
+    #[serde(default)]
+    deck: Option<Vec<Card>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -431,6 +434,9 @@ fn dug_tiles(world: &World) -> Vec<u32> {
 /// # std::fs::remove_file(path).unwrap();
 /// ```
 pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
+    // The save has no slot for a throw hanging in stopped time: it goes back
+    // in the pack rather than being lost.
+    crate::items::thaw_into_pack(world);
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
     let index_map: HashMap<Entity, u32> = ents
@@ -509,6 +515,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             helper: er.contains::<Helper>(),
             aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
             alignment: er.get::<Alignment>().map(|a| a.0),
+            deck: er.get::<Deck>().map(|d| d.cards.clone()),
         });
     }
 
@@ -863,6 +870,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(a) = es.alignment {
             em.insert(Alignment(a));
         }
+        if let Some(cards) = es.deck {
+            em.insert(Deck { cards });
+        }
     }
 
     // What gear lends its bearer comes back with the gear: the saved effect
@@ -943,6 +953,7 @@ mod tests {
             helper: false,
             aggravated: None,
             alignment: None,
+            deck: None,
         }
     }
 

@@ -214,6 +214,8 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         .next()
         .unwrap();
 
+    // A throw hanging in stopped time was aimed at this floor.
+    crate::items::thaw_into_pack(world);
     tear_down_the_floor(world);
     let depth = step_depth(world, going_down);
     let rooms = build_the_floor(world, depth);

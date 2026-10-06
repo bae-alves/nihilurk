@@ -33,6 +33,7 @@ The modules
 | `population`  | Monster / trap / item budgets per floor, how they scale with the difficulty tier, how many runs of the budgets a battlefield, vault or bee world gets, corridor lurkers, hidden items | how crowded and dangerous a floor is |
 | `potions`     | What a dose is worth: the max-HP a healing / extra healing potion adds, the power gain strength adds and poison takes (with its floor), the share of turns paralysis eats | how much a potion swings a run |
 | `scrolls`     | What one enchantment is worth (and that a minus is mended whole), how long sleep and hold last, how often sleep backfires on the reader | how strong the room-clearing scrolls are |
+| `decks`       | `DECK_SIZE`, `REVERSED_MIN` / `REVERSED_MAX`, `CARD_CHAIN_CAP`, `BALA_POWER`, `BOLE_ARMOR`, `WORLD_TURNS`, `CARD_CASTER_CASTS`, `GOLDEN_WIND_SUMMONS`, the score of each hand | how wild a deck of cards runs |
 | `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash, the trick-shot burst (`TRICK_SHOT_RADIUS`, `PICKUP_TRICK_SHOT_RADIUS` and the shared dice), `TRAP_BREAK_CHANCE` | how much a trap hurts and how fast it scales |
 | `wands`       | `WAND_CHARGES`, zap damage dice, both blast radii, per-charge dice a thrown wand spends, `DIG_RANGE` (how deep a wand of digging bores) | how good a wand is |
 | `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the launcher die multiplier | how the drop table feels |

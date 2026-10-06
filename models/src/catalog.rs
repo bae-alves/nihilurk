@@ -232,6 +232,132 @@ pub const SCROLLS: &[ScrollDef] = &[
 ];
 
 // ---------------------------------------------------------------------------
+// Decks of cards
+// ---------------------------------------------------------------------------
+
+/// One card: its face and the name the log calls it.
+pub struct CardDef {
+    /// The [`CardFace`] this row is the entry for.
+    pub face: CardFace,
+    /// What the log calls it, through [`strings::content_name`].
+    pub name: &'static str,
+}
+
+impl CardDef {
+    /// The row for `face`.
+    pub fn of(face: CardFace) -> &'static CardDef {
+        CARDS
+            .iter()
+            .find(|c| c.face == face)
+            .expect("every CardFace has a CARDS row")
+    }
+}
+
+/// Every card a deck can hold, one row each. A rolled deck draws from these
+/// evenly, with replacement.
+#[rustfmt::skip]
+pub const CARDS: &[CardDef] = &[
+    CardDef { face: CardFace::Joker,              name: "The Joker" },
+    CardDef { face: CardFace::KingOfClubs,        name: "King of Clubs" },
+    CardDef { face: CardFace::PrinceOfSwords,     name: "Prince of Swords" },
+    CardDef { face: CardFace::QueenOfCups,        name: "Queen of Cups" },
+    CardDef { face: CardFace::PrincessOfDiamonds, name: "Princess of Diamonds" },
+    CardDef { face: CardFace::Balance,            name: "The Balance" },
+    CardDef { face: CardFace::Bole,               name: "The Bole" },
+    CardDef { face: CardFace::PlusFour,           name: "The +4" },
+    CardDef { face: CardFace::SkullKing,          name: "THE SKULL KING!" },
+    CardDef { face: CardFace::PotOfSin,           name: "Pot of Sin" },
+    CardDef { face: CardFace::BlackMage,          name: "THE BLACK MAGE" },
+    CardDef { face: CardFace::Child,              name: "The Child" },
+    CardDef { face: CardFace::Crone,              name: "The Crone" },
+    CardDef { face: CardFace::Eyes,               name: "The Eyes Never Lie" },
+    CardDef { face: CardFace::Fool,               name: "FOOL" },
+    CardDef { face: CardFace::Excuse,             name: "THE EXCUSE" },
+    CardDef { face: CardFace::Jester,             name: "JESTER" },
+    CardDef { face: CardFace::Chariot,            name: "VII THE CHARIOT" },
+    CardDef { face: CardFace::World,              name: "XXII THE WORLD" },
+    CardDef { face: CardFace::GoldenWind,         name: "XXIII GOLDEN WIND" },
+];
+
+/// A deck of cards: read off the top one card at a time, or thrown and played
+/// as a poker hand. Its mechanic lives in the `decks` submodule of
+/// `crate::items`.
+pub struct DeckDef {
+    /// The row's identity, as [`ScrollDef::name`].
+    pub name: &'static str,
+}
+
+impl ItemDef for DeckDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// The deck as the table prints it: the first [`DECK_SIZE`] rows of
+    /// [`CARDS`], all upright, the last of them on top.
+    ///
+    /// [`DECK_SIZE`]: crate::constants::decks::DECK_SIZE
+    fn spawn(&self, world: &mut World, pos: Position) -> Entity {
+        use crate::constants::decks::DECK_SIZE;
+        let cards = CARDS[..DECK_SIZE]
+            .iter()
+            .map(|c| Card {
+                face: c.face,
+                reversed: false,
+            })
+            .collect();
+        world
+            .spawn((
+                Name {
+                    what: strings::content_name(self.name).to_string(),
+                },
+                Renderable {
+                    glyph: '?',
+                    color: Color::Magenta,
+                },
+                pos,
+                Item,
+                Deck { cards },
+            ))
+            .id()
+    }
+
+    fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
+        let e = self.spawn(world, pos);
+        world.entity_mut(e).insert(roll_deck(rng));
+        e
+    }
+}
+
+/// A freshly rolled deck: [`DECK_SIZE`] faces drawn evenly from [`CARDS`] with
+/// replacement, then [`REVERSED_MIN`] to [`REVERSED_MAX`] of them turned over.
+///
+/// [`DECK_SIZE`]: crate::constants::decks::DECK_SIZE
+/// [`REVERSED_MIN`]: crate::constants::decks::REVERSED_MIN
+/// [`REVERSED_MAX`]: crate::constants::decks::REVERSED_MAX
+pub fn roll_deck(rng: &mut ChaCha12Rng) -> Deck {
+    use crate::constants::decks::{DECK_SIZE, REVERSED_MAX, REVERSED_MIN};
+    use rand::seq::SliceRandom;
+    let mut cards: Vec<Card> = (0..DECK_SIZE)
+        .map(|_| Card {
+            face: CARDS[rng.gen_range(0..CARDS.len())].face,
+            reversed: false,
+        })
+        .collect();
+    let flips = rng.gen_range(REVERSED_MIN..=REVERSED_MAX).min(DECK_SIZE);
+    let mut slots: Vec<usize> = (0..DECK_SIZE).collect();
+    slots.shuffle(rng);
+    for &i in &slots[..flips] {
+        cards[i].reversed = true;
+    }
+    Deck { cards }
+}
+
+/// Every kind of deck: there is one.
+pub const DECKS: &[DeckDef] = &[DeckDef {
+    name: "deck of cards",
+}];
+
+// ---------------------------------------------------------------------------
 // Wands
 // ---------------------------------------------------------------------------
 
@@ -858,6 +984,17 @@ impl RingDef {
             .iter()
             .find(|r| r.effect == effect)
             .unwrap_or_else(|| panic!("no ring row for {effect:?}"))
+    }
+
+    /// The row's flat modifiers: `(power, armor, throw)`.
+    pub fn bonuses(&self) -> (i32, i32, i32) {
+        (self.power_bonus, self.armor_bonus, self.throw_bonus)
+    }
+
+    /// Whether this ring is a number at all: protection, strength, increase
+    /// damage, sharpshooting. The Princess of Diamonds only enchants these.
+    pub fn is_numeric(&self) -> bool {
+        self.bonuses() != (0, 0, 0)
     }
 }
 

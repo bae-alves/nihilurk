@@ -43,6 +43,7 @@ use crate::constants::combat::{
     BELL_CURVE_DICE, BIDE_ATTACK_BONUS, CHIP_DAMAGE, EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE,
     GEAR_SURVIVES_DEATH,
 };
+use crate::constants::decks::{BALA_POWER, BOLE_ARMOR};
 
 /// Rolls `1dN`. A non-positive number of sides means "no die", which rolls 0 so
 /// an unarmoured/unarmed entity simply contributes nothing to the opposed roll.
@@ -383,6 +384,10 @@ struct Matchup {
     /// Two rules apply only to the hero's own swing: the excellent hit and the
     /// chip-damage floor. Carried here so the three stages below each ask once.
     attacker_is_player: bool,
+    /// Every blow in this exchange is excellent, whoever swings: the attacker
+    /// holds [`crate::effects::Crit`] or the target holds
+    /// [`crate::effects::Oof`] (a deck's Chariot, either way up).
+    always_excellent: bool,
 }
 
 /// A blow that has already happened: who swung at whom, what the dice said,
@@ -459,11 +464,26 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
                 BIDE_ATTACK_BONUS
             } else {
                 0
+            }
+            + if world.get::<crate::effects::Bala>(attacker).is_some() {
+                BALA_POWER
+            } else {
+                0
             },
         armor: armor + targets.armor_die,
-        armor_bonus: armor_bonus + targets.armor_bonus,
+        // The Bole stands on the guard the way the Balance stands on the
+        // swing: a flat bonus for the floor (a deck card).
+        armor_bonus: armor_bonus
+            + targets.armor_bonus
+            + if world.get::<crate::effects::Bole>(target).is_some() {
+                BOLE_ARMOR
+            } else {
+                0
+            },
         melee_cap: attackers.melee_cap,
         attacker_is_player: world.get::<Player>(attacker).is_some(),
+        always_excellent: world.get::<crate::effects::Crit>(attacker).is_some()
+            || world.get::<crate::effects::Oof>(target).is_some(),
     }
 }
 
@@ -478,7 +498,8 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
 /// [`clamp_swing`].
 fn roll_swing(world: &mut World, matchup: &Matchup) -> Swing {
     let mut rng = world.resource_mut::<GameRng>();
-    let excellent = matchup.attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE);
+    let excellent = matchup.always_excellent
+        || (matchup.attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE));
     // A normal swing is bell-curved (see `roll_die_bell`); an excellent hit
     // already sums `EXCELLENT_HIT_DICE` flat dice, which is its own crit and
     // stays flat rather than getting curved on top of that.

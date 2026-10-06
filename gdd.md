@@ -55,6 +55,14 @@ Drops follow Rogue's own category odds, with coins standing in for food:
 - Wands, 5%. Light, striking, lightning, fire, cold, magic missile, polymorph, haste monster, slow monster, drain life, teleport away, teleport to, cancellation. 2d3 damage on the offensive ones, 6 charges, and the range is per wand, 6 or 8. ("Nothing" exists as an effect, but only cancellation ever produces one — it is never a wand you find.)
 - Rings, 5%. Worn, always on. Protection is +2 armor, strength is +2 power plus immunity to strength drain, perception reveals invisible things, sharpshooting is +2 on throws, aggravate monster is a 10% chance per action of waking the floor up.
 - Treats, 4%. A snack (brown %) or a fancy of peace (cyan %), the rest of Rogue's food slot. Thrown, never used: Use just tells you so, and so does Use on an arrow. Throw a snack at a monster with no hands, or a fancy of peace at one with them, and it eats it; half the time it becomes your boon companion, your Helper. A Helper chases and fights whatever monster you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. Walk into it and you trade places; it can't do that to you. It has its own background colour. You only get one: take a second and the first one EXPLODES, all gore and no harm, and you are told "So much for loyalty these days." A Helper's death is played slow, the way yours is.
+- Decks of cards, 1.1%. Each comes with 5 cards, decided and stacked when the deck is rolled, and 1 to 2 of them reversed. Reading the deck plays the top card. Every card plays on whoever drew it. One draw plays at most 32 cards, chains included. A thrown deck plays everything left in it as a poker hand, on the thrower, and never reverses. FOOL is wild. Points go to the score.
+    - Anti-Flush (100 points): one random card plays.
+    - A Pair (1000 points): the pair plays twice.
+    - Two Pair (10000 points): each pair plays twice.
+    - Three of a Kind (100000 points): it plays thrice.
+    - Full House (500000 points): thrice and twice.
+    - Four of a Kind (1000000 points): it plays four times.
+    - Five Flush! (5000000 points): the Element. Just get out of here. No room in the pack and the Element destroys your inventory and puts itself in it. Adornment's fireworks go off, without the doubling.
 
 The item system is one table per kind and a row per item, and a row is nothing but a name, a glyph and the components the thing carries into the world. A ring of protection is not a special case anywhere, it is an item holding ArmorBonus(2), which combat already folds in for plate mail. A bow does not know arrows exist, it grants FireArrow, and an arrow is a thing that answers to FireArrow. Adding an item is one row and no other edit. This is the part I am smug about.
 
@@ -104,11 +112,5 @@ I'll put it ou AUR with a Ko-Fi link.
 English, Portuguese and Spanish. A classic roguelike in non-English is important to exist. Haitian Creole planned.
 
 ### Other ideas/Expansion backlog
-- Charms (*): quarter weight in the rings table.  They bind to the character who uses them/gets them by throw. They offer persistent grants but do lock the invetory slot if they're on backpack. They never drop from slain monsters.
-    - Battle charm - as ring of increase damage +1
-    - Tough charm - as ring of protection +1
-    - Vampire charm - kills heal 1 HP
-    - Sniper charm - as ring of sharpshooting +1
-    - Moon charm - Cycling strength bonus (-3 to +3 to -3 to +3 to...)
 - More player character options
 - Steam

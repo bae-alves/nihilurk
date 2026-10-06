@@ -16,6 +16,7 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::ItemDef;
 use crate::components::*;
+use crate::constants::decks::CARD_CASTER_CASTS;
 use crate::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
 use crate::effects::{
     AlwaysHelper, AlwaysTamed, Batty, Binds, ColdImmune, FaerieOnDeath, FireImmune, Flies,
@@ -274,12 +275,15 @@ impl MonsterDef {
     /// bestiary row, so the arg parser refuses one — case and all, because
     /// "Dragon" is the spelling someone would actually try.
     pub fn is_species_name(name: &str) -> bool {
-        BESTIARY.iter().any(|m| m.name.eq_ignore_ascii_case(name))
+        BESTIARY
+            .iter()
+            .chain(SUMMONS)
+            .any(|m| m.name.eq_ignore_ascii_case(name))
     }
 
     /// Look up a species by name, or `None` if the bestiary has no such row.
     pub fn lookup(name: &str) -> Option<&'static MonsterDef> {
-        BESTIARY.iter().find(|m| m.name == name)
+        BESTIARY.iter().chain(SUMMONS).find(|m| m.name == name)
     }
 
     /// What the player sees this species called, in whatever language this
@@ -728,6 +732,19 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("gnome", '&', Color::Grey, Confused, 13, 13, 0, 13, 0, 1)
         .weight(SPIRIT_WEIGHT)
         .spirit(SpiritKind::Eudaemon, SpiritEvent(gnome_event)),
+];
+
+/// The creatures only a deck of cards brings: THE SKULL KING! and THE BLACK
+/// MAGE. Not in [`BESTIARY`], so no floor, conjuring or polymorph ever rolls
+/// one; [`MonsterDef::lookup`] still finds them, so a save, `NIHILURK_SPAWN`
+/// and `-am` do. The deck reads them by position: the Skull King first.
+#[rustfmt::skip]
+pub const SUMMONS: &[MonsterDef] = &[
+    //              name          glyph  colour          move   hp  pow  pb  ar  ab  dep
+    MonsterDef::row("skull king", 'S', Color::Magenta, Chase, 12,  6,  0,  6,  0,  1)
+        .casts(CARD_CASTER_CASTS, &[SpellEffect::Thunderbolt]),
+    MonsterDef::row("black mage", '&', Color::Magenta, Chase, 12,  5,  0,  8,  0,  1)
+        .casts(CARD_CASTER_CASTS, &[SpellEffect::ForceLance]),
 ];
 
 /// A bones ghost — a past character come back angry (see `crate::bones` and

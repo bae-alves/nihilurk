@@ -467,7 +467,7 @@ pub(super) fn coord(i: usize) -> (u16, u16) {
 }
 
 /// The coordinate of the first tile of `want` in `tiles`, row-major.
-pub(super) fn find_tile(tiles: &[TileType], want: TileType) -> Option<(u16, u16)> {
+pub(crate) fn find_tile(tiles: &[TileType], want: TileType) -> Option<(u16, u16)> {
     tiles.iter().position(|&t| t == want).map(coord)
 }
 

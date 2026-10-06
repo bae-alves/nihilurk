@@ -249,6 +249,9 @@ fn hide_and_announce(
     perception: bool,
     blind: bool,
 ) {
+    // What was first seen this pass, by name and gear, in the order it turned
+    // up: the same thing in several places reads as one counted line.
+    let mut sightings: Vec<(String, String, u32)> = Vec::new();
     for (entity, pos, mob, invisible, name, stack, spotted, marks) in spot_query.iter() {
         let in_view = !blind && visible.contains(&(pos.x, pos.y));
         let perceptible = in_view && (invisible.is_none() || perception);
@@ -274,16 +277,31 @@ fn hide_and_announce(
             perceptible && !(mob.is_none() && invisible.is_some()) && !helpers.contains(entity);
         if announce && spotted.is_none() {
             // A chimeric form is what it is called, not the species under it.
-            let seen_name = match form_of_marks(marks) {
+            let what = match form_of_marks(marks) {
                 Some(form) => form.name.to_string(),
-                None => named_display(name, stack),
+                None => name.map_or("item", |n| n.what.as_str()).to_string(),
             };
-            log.add(spotted_line(&seen_name, &worn_by(worn_query, entity)));
+            let worn = worn_by(worn_query, entity);
+            let count = stack.map_or(1, |s| u32::from(s.count));
+            match sightings
+                .iter_mut()
+                .find(|(n, w, _)| *n == what && *w == worn)
+            {
+                Some((_, _, total)) => *total += count,
+                None => sightings.push((what, worn, count)),
+            }
             commands.entity(entity).insert(Spotted);
         }
         if !announce && spotted.is_some() {
             commands.entity(entity).remove::<Spotted>();
         }
+    }
+    for (what, worn, total) in sightings {
+        let seen = match total {
+            1 => what,
+            n => crate::identify::counted(&what, n.min(u8::MAX.into()) as u8),
+        };
+        log.add(spotted_line(&seen, &worn));
     }
 }
 

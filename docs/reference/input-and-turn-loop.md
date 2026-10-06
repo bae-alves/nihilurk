@@ -154,6 +154,7 @@ Once a key is read, `x` and `X` are checked first, everywhere: they are the univ
 
 | Context (checked in this order) | Resource      | Handler                    |
 |----------------------------------|---------------|-----------------------------|
+| Key list (F1)                    | `HelpMenu.open` | `dispatch_key` itself: any key closes it, nothing else runs |
 | "Really quit?"                   | `QuitPrompt.open` | `answer_quit_prompt`   |
 | Aiming (a throw or a ranged use)| `TargetingState.active` | `handle_targeting_input` |
 | Pack open                        | `PackIsOpen.open` | `handle_inventory_input` |
@@ -247,6 +248,8 @@ Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to 
 | `;` | `begin_look` — opens the reticle in look mode (see below). Not `L`: that is the shifted vi key for east and `run_direction` claims it first |
 | `Z` | `begin_spells_menu` — the spells list, rows lettered `a`-`d`. The only way to an active spell: there is **no** direct-fire key for a slot, and adding one means finding a key that neither `run_direction` nor a menu's letter arm already claims and that is not layout-dependent |
 | `>` `.` / `<` `,` | stairs, or travel to them |
+| `F1` | open `HelpMenu`, the key list. No turn |
+| `F2` | toggle `CommandBar.hidden`, the yellow bar. No turn |
 | `Q` / `X` | raise `QuitPrompt` — the "Really quit?" modal. `X` only reaches here with nothing open; otherwise it is the escape hatch above |
 | Ctrl+C | **never reaches this table.** `dispatch_key` claims it first, above the `--MORE--` gate, so it quits from every context — a menu that selects rows by letter would otherwise read it as picking row `c` |
 

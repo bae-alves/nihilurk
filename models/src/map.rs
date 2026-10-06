@@ -36,6 +36,7 @@ mod population;
 mod special;
 mod streams;
 
+pub(crate) use generate::find_tile;
 pub(crate) use generate::pristine_tiles;
 pub use generate::{create_map, regenerate_map};
 pub use levels::*;

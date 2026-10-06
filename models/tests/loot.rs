@@ -43,6 +43,7 @@ struct Tally {
     wands: u32,
     rings: u32,
     treats: u32,
+    decks: u32,
     total: u32,
     // The armoury's own three-way split, counted inside `weapons`.
     melee: u32,
@@ -82,10 +83,15 @@ fn rolled_loot_follows_the_rogue_drop_table() {
         Option<&Stack>,
         Option<&Launcher>,
         Option<&Treat>,
+        Option<&Deck>,
     ), With<Item>>();
-    for (potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher, treat) in q.iter(&w) {
+    for (potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher, treat, deck) in
+        q.iter(&w)
+    {
         t.total += 1;
-        if treat.is_some() {
+        if deck.is_some() {
+            t.decks += 1;
+        } else if treat.is_some() {
             // A treat stacks too, so it is asked before ammunition is.
             t.treats += 1;
         } else if scroll.is_some() {
@@ -147,6 +153,7 @@ fn rolled_loot_follows_the_rogue_drop_table() {
     near(pct(t.wands), share_of("wand"));
     near(pct(t.rings), share_of("ring"));
     near(pct(t.treats), share_of("treat"));
+    near(pct(t.decks), share_of("deck"));
     near(
         pct(t.weapons),
         share_of("weapon") + share_of("ammo") + share_of("launcher"),

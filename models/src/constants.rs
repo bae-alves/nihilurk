@@ -195,10 +195,9 @@ pub mod progression {
 
 /// The grid itself.
 pub mod map {
-    /// Playfield width in tiles. The HUD log is sized to match
-    /// ([`crate::constants::hud::LOG_WIDTH`]) and `determinism.rs` pins the
-    /// layout for existing seeds — changing either dimension moves every wall
-    /// on every seed and that test will (correctly) fail. Only change these
+    /// Playfield width in tiles. `determinism.rs` pins the layout for existing
+    /// seeds — changing either dimension moves every wall on every seed and
+    /// that test will (correctly) fail. Only change these
     /// together with a deliberate "all old seeds are void" decision.
     pub const WIDTH: u16 = 80;
 
@@ -504,6 +503,60 @@ pub mod scrolls {
     /// than sleep, because a held monster is only pinned and can still fight:
     /// it buys distance, not a free kill.
     pub const HOLD_TURNS: u32 = 8;
+}
+
+// ===========================================================================
+// Decks of cards
+// ===========================================================================
+
+/// The deck's size, its reversals, the chain cap and what each card is worth.
+/// The cards themselves are `crate::catalog::CARDS`; what they do lives in the
+/// `decks` submodule of `crate::items`.
+pub mod decks {
+    /// Cards stacked into a deck when it is rolled.
+    pub const DECK_SIZE: usize = 5;
+
+    /// The fewest cards a rolled deck holds reversed.
+    pub const REVERSED_MIN: usize = 1;
+
+    /// The most cards a rolled deck holds reversed.
+    pub const REVERSED_MAX: usize = 2;
+
+    /// The most cards one draw may play, chains included (the Joker, Pot of
+    /// Sin, The +4). A chain dies out on its own almost always; this is the
+    /// guarantee that it does.
+    pub const CARD_CHAIN_CAP: u32 = 32;
+
+    /// What `BALA` adds to its holder's damage roll.
+    pub const BALA_POWER: i32 = 5;
+
+    /// What `BOLE` adds to its holder's armour roll.
+    pub const BOLE_ARMOR: i32 = 5;
+
+    /// How many turns THE WORLD stops time for.
+    pub const WORLD_TURNS: u32 = 5;
+
+    /// How many casts of their spell the Skull King and the Black Mage are
+    /// born with. They spam it.
+    pub const CARD_CASTER_CASTS: u8 = 12;
+
+    /// How many monsters a reversed GOLDEN WIND conjures.
+    pub const GOLDEN_WIND_SUMMONS: usize = 8;
+
+    /// Score for a thrown hand of five different cards.
+    pub const ANTI_FLUSH_POINTS: i32 = 100;
+    /// Score for a pair.
+    pub const PAIR_POINTS: i32 = 1_000;
+    /// Score for two pairs.
+    pub const TWO_PAIR_POINTS: i32 = 10_000;
+    /// Score for three of a kind.
+    pub const THREE_OF_A_KIND_POINTS: i32 = 100_000;
+    /// Score for a full house.
+    pub const FULL_HOUSE_POINTS: i32 = 500_000;
+    /// Score for four of a kind.
+    pub const FOUR_OF_A_KIND_POINTS: i32 = 1_000_000;
+    /// Score for five of a kind: the Element.
+    pub const FIVE_FLUSH_POINTS: i32 = 5_000_000;
 }
 
 // ===========================================================================
@@ -930,13 +983,27 @@ pub mod hud {
     /// means less playfield unless the terminal is tall.
     pub const LOG_LINES: usize = 2;
 
-    /// Wrap width for a log line in the normal view. Kept equal to the map
-    /// width so the log spans the playfield exactly.
-    pub const LOG_WIDTH: usize = 80;
+    /// Column the command bar's text starts at. The bar fills the screen's
+    /// bottom three rows and leaves two blank columns before [`LOG_X`], so its
+    /// lines hold up to `LOG_X - 3` characters (the longest, Spanish, is 23).
+    pub const BAR_X: u16 = 1;
 
-    /// Wrap width for a log line in the "-- more --" backlog pager, which is
-    /// inset from the edges.
-    pub const LOG_MORE_WIDTH: usize = 56;
+    /// Column the log and the player line start at: right of the command bar
+    /// and its divider. Everything to its left on the bottom three rows is
+    /// the bar.
+    pub const LOG_X: u16 = 26;
+
+    /// Wrap width for a log line once the command bar is hidden: the whole
+    /// screen, which is the map's width.
+    pub const LOG_FULL_WIDTH: usize = super::map::WIDTH as usize;
+
+    /// Wrap width for a log line in the normal view: the screen's width less
+    /// the command bar.
+    pub const LOG_WIDTH: usize = LOG_FULL_WIDTH - LOG_X as usize;
+
+    /// Columns the "-- more --" prompt takes from the last log line: its 22
+    /// plus a space. The pager wraps that line this much narrower.
+    pub const MORE_PROMPT_WIDTH: usize = 23;
 
     /// How many past message-log lines the scrollback keeps before the oldest
     /// falls off.

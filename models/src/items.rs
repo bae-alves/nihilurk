@@ -11,6 +11,7 @@
 //! * [`throwing`] — hurling anything at anything, and what catches it
 //! * [`rings`] — the three rings whose effect is a verb rather than a number
 //! * [`pickups`] — coins: what happens the instant you step on one
+//! * [`decks`] — drawing a card off a deck, and playing a thrown one as a hand
 //!
 //! [`item_system`] is the single schedule step: it drains the use-queue, works
 //! out what kind of thing each queued item is, manages its physical existence
@@ -23,6 +24,7 @@
 //! [`crate::helpers::free_adjacent_tile`] — live in [`crate::helpers`]. The
 //! verbs that put an affliction on or take one off are [`crate::conditions`].
 
+mod decks;
 mod pickups;
 mod potions;
 pub(crate) mod rings;
@@ -49,9 +51,11 @@ pub(crate) use theft::{leprechaun_theft, nymph_theft};
 /// What a blast covers, for anything that must know before it lets one off.
 pub(crate) use wands::blast_cells;
 
+pub use decks::{Hand, Rank, score_hand};
+
 pub use throwing::{
-    ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, throw_reach, throw_refusal,
-    throw_system, use_refusal,
+    FrozenThrows, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, thaw_into_pack,
+    throw_reach, throw_refusal, throw_system, use_refusal,
 };
 
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
@@ -208,6 +212,8 @@ struct UsePlan {
     potion: Option<PotionEffect>,
     wand: Option<WandEffect>,
     scroll: Option<ScrollEffect>,
+    /// The card just taken off the top of a deck.
+    card: Option<Card>,
     is_equipment: bool,
     destroy: bool,
     keep: bool,
@@ -224,9 +230,19 @@ fn plan_use(world: &mut World, item: Entity) -> UsePlan {
     plan.scroll = e.get::<Scroll>().map(|s| s.effect);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
     if let Some(mut battery) = e.get_mut::<Battery>() {
+        // A wand a reversed King of Clubs emptied has nothing left to give:
+        // it crumbles without going off.
+        if battery.charges <= 0 {
+            plan.wand = None;
+        }
         battery.charges -= 1;
         plan.destroy = battery.charges <= 0;
         plan.keep = battery.charges > 0;
+    }
+    if let Some(mut deck) = e.get_mut::<Deck>() {
+        plan.card = deck.cards.pop();
+        plan.destroy = deck.cards.is_empty();
+        plan.keep = !plan.destroy;
     }
     plan.destroy |= e.get::<Consume>().is_some();
     plan
@@ -261,7 +277,8 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         && !plan.keep
         && plan.potion.is_none()
         && plan.wand.is_none()
-        && plan.scroll.is_none();
+        && plan.scroll.is_none()
+        && plan.card.is_none();
     if inert {
         let name = with_the(&item_label(world, item_use.item));
         world
@@ -274,7 +291,10 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         return_used_item(world, &item_use);
     }
     if plan.destroy {
-        log_destruction(world, item_use.item, &seen_name);
+        // A deck's last card says enough; the deck needs no line of its own.
+        if plan.card.is_none() {
+            log_destruction(world, item_use.item, &seen_name);
+        }
         world.entity_mut(item_use.item).despawn();
     }
     if !plan.destroy && plan.wand.is_some() {
@@ -293,6 +313,10 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
     }
     if let Some(eff) = plan.scroll {
         apply_scroll_effect(world, item_use.user, eff);
+    }
+    if let Some(card) = plan.card {
+        let deck = (!plan.destroy).then_some(item_use.item);
+        decks::draw(world, item_use.user, deck, card);
     }
 }
 

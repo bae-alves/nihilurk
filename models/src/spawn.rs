@@ -32,8 +32,8 @@ use rand_chacha::ChaCha12Rng;
 
 use crate::catalog::apply_bonus;
 use crate::catalog::{
-    AMMO, ARMORS, COINS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, TREATS, WANDS, WEAPONS,
-    spawn_element_of_yoord,
+    AMMO, ARMORS, COINS, DECKS, ItemDef, LAUNCHERS, POTIONS, RINGS, SCROLLS, TREATS, WANDS,
+    WEAPONS, spawn_element_of_yoord,
 };
 use crate::components::{Curse, Position, STACK_LIMIT, Stack, TrapReveal};
 use crate::map::Map;
@@ -196,6 +196,8 @@ pub const DROPS: &[DropCategory] = &[
     category!("ammo",         28,      1,     AMMO),
     category!("launcher",     16,      1,     LAUNCHERS),
     category!("treat",        40,      1,     TREATS),
+    // Rare, but at least one drop in a hundred.
+    category!("deck",         11,      1,     DECKS),
 ];
 
 /// Rolls one floor drop for a floor at `depth` and spawns it at `pos`: a

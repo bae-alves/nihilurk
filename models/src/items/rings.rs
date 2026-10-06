@@ -88,12 +88,21 @@ use strings::FANFARE;
 /// engine plays it out before the WIN panel) and as a thing that happens in the
 /// middle of a floor.
 pub(crate) fn do_it_with_style(world: &mut World) {
+    if player_tile(world).is_none() {
+        return;
+    }
+    crate::score::double(world);
+    flourish(world);
+}
+
+/// [`do_it_with_style`] for show: the fireworks, the shake and the fanfare,
+/// and no score doubled. A deck's Five Flush ends this way.
+pub(crate) fn flourish(world: &mut World) {
     let Some(at) = player_tile(world) else {
         return;
     };
     fireworks(world, at);
     kick_shake(world, ShakeKind::Heavy);
-    crate::score::double(world);
     let mut log = world.resource_mut::<GameLog>();
     for (i, line) in FANFARE.into_iter().enumerate() {
         // Line 2, "And you do it with style!", is the same flourish a combo's

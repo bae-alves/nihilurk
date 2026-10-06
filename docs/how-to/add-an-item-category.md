@@ -2,7 +2,7 @@ How to add a new item category
 ==============================
 
     Audience       Engine developer, or a content author who has
-                   outgrown the ten existing categories.
+                   outgrown the eleven existing categories.
     Prerequisites  You have read `add-an-item.md` and none of its nine
                    categories fit. You are comfortable with bevy_ecs
                    components and with Rust traits.
@@ -178,7 +178,7 @@ Appendix: quick check
 See also
 --------
 
-  add-an-item.md                   the ten categories that already exist
+  add-an-item.md                   the eleven categories that already exist
   tune-rarity-and-depth.md         picking that weight
   ../reference/spawn-api.md        ItemDef, DropCategory, the category! macro
   ../explanation/data-driven-content.md   why rows carry components

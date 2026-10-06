@@ -229,8 +229,13 @@ fn turn_schedule() -> Schedule {
         trap_system.after(ai),
         // Gear changed by anything other than the pack screen — a loaded save, a
         // curse-lifting scroll — has its lent effects reconciled here, before
-        // combat and visibility read them.
-        equipment_effects_system.after(item_system),
+        // combat and visibility read them. After `trap_system` on purpose: a
+        // trapdoor despawns the whole floor, so it has to run before everything
+        // that queues commands on the floor's entities (an unordered one leaves
+        // those commands to land on the dead — bevy's B0003).
+        equipment_effects_system
+            .after(item_system)
+            .after(trap_system),
         combat_system.after(equipment_effects_system),
         reaper_system.after(combat_system),
         dungeon_lord_system.after(reaper_system),
@@ -519,6 +524,8 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<OfferMenu>();
     world.init_resource::<BarterMenu>();
     world.init_resource::<QuitPrompt>();
+    world.init_resource::<HelpMenu>();
+    world.init_resource::<CommandBar>();
     world.insert_resource(PlayerName {
         what: player_name.to_ascii_uppercase(),
     });

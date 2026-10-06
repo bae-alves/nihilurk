@@ -440,11 +440,71 @@ fn apply_thrown_wand_effect(world: &mut World, entity: Entity, effect: WandEffec
 /// queued, so this only has to resolve what arrives.
 pub fn throw_system(world: &mut World) {
     let throws = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
-    for throw in throws {
+    for throw in &throws {
         // A thrown item is one of the things that lets go of a rapier's
         // built-up momentum — see `crate::equipment::reset_momentum`.
         crate::equipment::reset_momentum(world, throw.thrower);
-        resolve_throw(world, throw);
+    }
+    // THE WORLD: while time stands still a throw leaves the hand and stops
+    // there, to fly from that tile the turn time runs again.
+    if time_stopped(world) {
+        for throw in throws {
+            let Some(&from) = world.get::<Position>(throw.thrower) else {
+                continue;
+            };
+            let name = display_name(world, throw.item);
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::throw_hangs_in_the_air(&name));
+            world
+                .get_resource_or_insert_with(FrozenThrows::default)
+                .0
+                .push((throw, from));
+        }
+        return;
+    }
+    let thawed = world
+        .get_resource_mut::<FrozenThrows>()
+        .map(|mut f| std::mem::take(&mut f.0))
+        .unwrap_or_default();
+    for (throw, from) in thawed {
+        resolve_throw(world, throw, Some(from));
+    }
+    for throw in throws {
+        resolve_throw(world, throw, None);
+    }
+}
+
+/// Throws made while THE WORLD held time still, each with the tile it left the
+/// hand from. Released, in order, by [`throw_system`] the turn time runs again.
+#[derive(bevy_ecs::prelude::Resource, Default)]
+pub struct FrozenThrows(pub Vec<(WantsToThrow, Position)>);
+
+/// Whether the player holds [`TimeStopped`] right now.
+fn time_stopped(world: &mut World) -> bool {
+    world
+        .query_filtered::<(), (
+            bevy_ecs::prelude::With<Player>,
+            bevy_ecs::prelude::With<TimeStopped>,
+        )>()
+        .iter(world)
+        .next()
+        .is_some()
+}
+
+/// Every throw still hanging in the air goes back to its thrower's pack. Called
+/// before a save and before a floor change: a frozen throw is aimed at this
+/// floor as it stands, and the save has no slot for one in flight, so nothing
+/// thrown is ever lost.
+pub fn thaw_into_pack(world: &mut World) {
+    let frozen = world
+        .get_resource_mut::<FrozenThrows>()
+        .map(|mut f| std::mem::take(&mut f.0))
+        .unwrap_or_default();
+    for (throw, _) in frozen {
+        if let Some(mut bp) = world.get_mut::<Backpack>(throw.thrower) {
+            bp.items.push(throw.item);
+        }
     }
 }
 
@@ -456,13 +516,13 @@ pub fn throw_system(world: &mut World) {
 /// That is the trick shot, and it is why this is a wrapper rather than the
 /// whole job — it happens whatever the item was, whether or not the shot hit
 /// anyone, and whether or not it was the shot the thrower had in mind.
-fn resolve_throw(world: &mut World, throw: WantsToThrow) {
+fn resolve_throw(world: &mut World, throw: WantsToThrow, from: Option<Position>) {
     // Whether this was a shot or a lob has to be asked before the throw: a
     // potion that shatters is not around afterwards to be asked anything.
     let by_hand = world.get::<LaunchedBy>(throw.item).is_none();
     let thrower_is_player = world.get::<Player>(throw.thrower).is_some();
 
-    let Some(landing) = deliver_throw(world, throw) else {
+    let Some(landing) = deliver_throw(world, throw, from) else {
         return;
     };
     let Some(_shot) = detonate_at(world, landing, Some(throw.thrower)) else {
@@ -489,13 +549,20 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow) {
 ///
 /// Returns the tile the throw came down on, or `None` if there was no throw to
 /// make.
-fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
+fn deliver_throw(
+    world: &mut World,
+    throw: WantsToThrow,
+    from: Option<Position>,
+) -> Option<Position> {
     let WantsToThrow {
         thrower,
         item,
         target,
     } = throw;
-    let &origin = world.get::<Position>(thrower)?;
+    let origin = match from {
+        Some(from) => from,
+        None => *world.get::<Position>(thrower)?,
+    };
 
     // Gear leaves the hand the moment it is thrown, taking its bonuses with it.
     force_unequip(world, item);
@@ -541,6 +608,13 @@ fn deliver_throw(world: &mut World, throw: WantsToThrow) -> Option<Position> {
                 }
             }
         }
+    }
+
+    // A deck comes apart where it lands, and what was in it plays as a hand
+    // on whoever threw it.
+    if world.get::<Deck>(item).is_some() {
+        super::decks::throw_deck(world, thrower, item);
+        return Some(landing);
     }
 
     // A potion is glass: it breaks where it lands and spreads its effect over

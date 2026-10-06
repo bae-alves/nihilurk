@@ -881,6 +881,71 @@ pub enum ScrollEffect {
     Atonement,
 }
 
+/// A deck of cards: five faces stacked when the deck was rolled, read one at a
+/// time off the top. Mechanic: the `decks` submodule of `crate::items`. The top
+/// card is the *last* one, so a draw is a `pop`.
+#[derive(Component, Clone, Debug, Default)]
+pub struct Deck {
+    /// What is left, bottom first.
+    pub cards: Vec<Card>,
+}
+
+/// One card in a [`Deck`]: what it is, and whether it lies reversed (which
+/// plays its other effect).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Card {
+    /// Which card.
+    pub face: CardFace,
+    /// Upside down: plays the card's reversed effect.
+    pub reversed: bool,
+}
+
+/// Which card this is. Identity for saves — see [`crate::catalog::CARDS`].
+/// Serialised by variant position: append, never reorder.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CardFace {
+    /// Plays another card at random.
+    Joker,
+    /// Refills the pack's wands. Reversed: empties them.
+    KingOfClubs,
+    /// Enchants the wielded weapon. Reversed: one point off.
+    PrinceOfSwords,
+    /// Enchants the worn armour. Reversed: one point off.
+    QueenOfCups,
+    /// Enchants a worn ring that has a number. Reversed: one point off, or gone.
+    PrincessOfDiamonds,
+    /// `BALA`: a flat bonus on the damage roll for the floor. Same reversed.
+    Balance,
+    /// `BOLE`: a flat bonus on the armour roll for the floor. Same reversed.
+    Bole,
+    /// Plays four different cards.
+    PlusFour,
+    /// The Skull King arrives as an ally. Reversed: as a foe.
+    SkullKing,
+    /// Plays two different cards.
+    PotOfSin,
+    /// The Black Mage arrives as the Helper. Reversed: as a foe.
+    BlackMage,
+    /// To this floor's up-stair. Reversed: the down-stair.
+    Child,
+    /// To this floor's down-stair. Reversed: the up-stair.
+    Crone,
+    /// Shows what is left in the deck. Same reversed, with a remark.
+    Eyes,
+    /// Nothing, either way up. Wild in a hand.
+    Fool,
+    /// Confuses every foe in view. Reversed: confuses the reader.
+    Excuse,
+    /// Plays the rest of the deck as a hand, as if it were thrown.
+    Jester,
+    /// `CRT!`: every blow lands excellent. Reversed: `OOF!`, every blow taken does.
+    Chariot,
+    /// Time stops on the floor. Reversed: the reader is paralysed.
+    World,
+    /// Floor items and traps come alive as allies. Reversed: eight summons.
+    GoldenWind,
+}
+
 /// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`
 /// (zapped), and `throwing` (hurled).
 #[derive(Component)]
@@ -1533,6 +1598,23 @@ pub struct SpellsMenu {
 pub struct QuitPrompt {
     /// Whether the prompt is up.
     pub open: bool,
+}
+
+/// The F1 key list: whether it is up. Any key closes it and does nothing else,
+/// so it can never cost a turn.
+#[derive(Resource, Default)]
+pub struct HelpMenu {
+    /// Whether the list is up.
+    pub open: bool,
+}
+
+/// The yellow command bar at the bottom left: whether the player has opted out
+/// of it with F2. Hiding it hands its columns to the log and the player line
+/// (see `CommandBar::log_x` and `log_width` in `hud`).
+#[derive(Resource, Default)]
+pub struct CommandBar {
+    /// Whether the bar is hidden.
+    pub hidden: bool,
 }
 
 /// The aiming reticle: which item is being aimed, whether this is a throw or a

@@ -9,7 +9,7 @@ How to add an item
                    enchantment plus and curse until worn or identified;
                    every other kind is always shown by its true name.
 
-Ten categories. Six of them are a single row. Four also need a name to be identified by, and three of those also need somebody to say what the thing *does*. Find your category below and follow that recipe only.
+Eleven categories. Six of them are a single row; the deck has one row and twenty cards. Four also need a name to be identified by, and three of those also need somebody to say what the thing *does*. Find your category below and follow that recipe only.
 
 
 At a glance
@@ -27,6 +27,7 @@ At a glance
 | Potion    | `POTIONS`   | no         | a `PotionEffect` variant + a mechanic |
 | Scroll    | `SCROLLS`   | no         | a `ScrollEffect` variant + a mechanic |
 | Wand      | `WANDS`     | no         | a `WandEffect` variant + a mechanic |
+| Deck      | `DECKS`     | yes        | a new card: a `CardFace` variant, a `CARDS` row + an arm in `items/decks.rs` |
 
 Every table is in `models/src/catalog.rs`. Every effect enum is in `models/src/components.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `throwing.rs` (`models/src/items.rs` itself is just the `item_system` dispatcher).
 

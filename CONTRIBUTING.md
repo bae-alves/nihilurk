@@ -66,11 +66,12 @@ load when you open the repo.
 
 Text is the one place with a convention. English strings in `strings/` that an
 LLM wrote are placeholders. The text is part of the game's feel, so write your
-own when you can. Nothing checks this, and bae is the maintainer, not anyone's
-mom. Machine translation, LLM text included, is fine for starters and
-placeholders in any language, and you do not have to flag it if you would
-rather not. If player-facing slop slips through, someone else will fix it, or
-you will. bae trusts contributors, and trusts their own eye too.
+own when you can. Every English string carries `// TODO: placeholder English;
+needs a human's pass.`, and the pre-commit hook tags the new ones for you.
+When you have read a string and stand behind it, delete its tag, reworded or not. Machine translation, LLM
+text included, is fine for starters and placeholders in any language. bae is
+the maintainer, not anyone's mom, and trusts contributors, and trusts their
+own eye too.
 
 The reasoning is bae's own opinion about LLMs in code. In short:
 

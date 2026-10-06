@@ -2346,6 +2346,42 @@ pub fn quit_question() -> &'static str {
 pub fn quit_answers() -> &'static str {
     "[s] sim    [n] não"
 }
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn onboarding_keys() -> [&'static str; 3] {
+    ["[hjklyubn] MOVER", "[o/TAB] EXPLORAR/LUTAR", "[i] ITENS"]
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn pack_slots(used: usize, total: usize) -> String {
+    format!("MOCHILA: ({used}/{total})")
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn help_title() -> &'static str {
+    " TECLAS "
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn help_rows() -> [&'static str; 13] {
+    [
+        "hjklyubn    mover ou atacar (setas e teclado numérico também)",
+        "Shift+dir   correr",
+        "o           explorar",
+        "Tab         lutar contra o inimigo mais fraco à vista",
+        "O           viajar até um ponto",
+        "> <         usar as escadas",
+        "i           itens",
+        "a t d       usar, jogar, largar",
+        "e w W P     equipar, empunhar, vestir, colocar",
+        "q r z       beber, ler, usar varinha",
+        "f v         atirar, ataque de alcance",
+        "Z ;         feitiços, olhar",
+        "A x Q       coleta automática, fechar menu, sair",
+    ]
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn help_close() -> &'static str {
+    "[qualquer tecla] fechar"
+}
 
 pub fn spells_menu_title() -> &'static str {
     " FEITIÇOS "
@@ -2515,4 +2551,209 @@ mod tests {
         assert_eq!(de_contraction("orc"), "do");
         assert!(garrote_kill("medusa").contains("na indefesa medusa"));
     }
+}
+
+// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_drawn(name: &str, reversed: bool) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_chain_spent() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_dulls(name: &str) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_bala() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_bole() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_crit() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_oof() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_fool() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_world() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_wands_full() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_wands_empty() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_no_ring() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_no_stair() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_to_stair(up: bool) -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_seen(name: &str, reversed: bool) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_eyes(names: &[String]) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_eyes_nothing() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_eyes_never_lie() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_excuse_nobody() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_jester_nothing() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_golden_wind() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_golden_wind_nothing() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_hand(hand: &str, points: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn hand_anti_flush() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn hand_pair() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn hand_two_pair() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn hand_three_of_a_kind() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn hand_full_house() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn hand_four_of_a_kind() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn hand_five_flush() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_element() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn card_element_wipes_pack() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn throw_hangs_in_the_air(name: &str) -> String {
+    String::new()
+}
+
+// TODO: translate.
+pub const fn ends_time_stopped() -> &'static str {
+    ""
 }

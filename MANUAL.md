@@ -129,6 +129,8 @@ Several commands let you spend less time walking:
 | `Tab` | Fight the nearest visible threat automatically |
 | `f` | Fire the launcher in your hand |
 | `v` | Make a reach attack with a suitable weapon |
+| `F1` | Show the key list |
+| `F2` | Hide or show the yellow key hints at the bottom left |
 
 Automation stops when a monster enters view. Auto-fight will not start when you are badly hurt or confused. Treat these commands as a way to handle safe ground, not as a substitute for looking at the screen.
 
@@ -159,6 +161,11 @@ Your pack has limited space. Ammunition shares a slot with matching ammunition, 
 
 **Trick shots.** A trap has nobody to bite when nobody is standing on it, so a missile that lands on one sets the whole mechanism off at once, over every square around it. A coin shot the same way bursts wider still and gives its effect to you from across the room. You can only do this to a trap you have already found. A creature standing on a trap you know about, on a coin, or on the Element of Yoord is drawn on a magenta square: hit it and you set off what it is standing on. One burst sets off anything it covers, including traps nobody has found, so a good shot can run a long way. None of this is on your side. Stand too close to your own trick shot and it will catch you as readily as anything else.
 
+
+Decks of cards
+--------------
+
+A deck of cards is very rare. It holds five cards, stacked when the deck turns up, and one or two of them lie reversed. Read it (`r`) and you play the top card; a reversed card plays its darker side. Some cards play other cards. Throw the deck instead and all that is left plays at once as a poker hand, never reversed, on you: the better the hand, the more points, and a FOOL counts as any card. Five of a kind hands you the Element of Yoord.
 
 Unknown things
 --------------

@@ -93,7 +93,8 @@ pub fn centering_offset(world: &World) -> (u16, u16) {
 /// already watching.
 fn log_panel(world: &World) -> (Vec<Vec<LogEntry>>, bool) {
     let animating = world.resource::<Particles>().any_alive();
-    let (lines, _consumed, more) = log_view(&world.resource::<GameLog>().unread);
+    let width = world.resource::<CommandBar>().log_width();
+    let (lines, _consumed, more) = log_view(&world.resource::<GameLog>().unread, width);
     (lines, more && !animating)
 }
 
@@ -126,6 +127,13 @@ pub fn render<W: Write>(
     screen.clear();
 
     let offset = centering_offset(world);
+
+    // Where the log and the player line start and how wide they run: right of
+    // the command bar, or the whole bottom once F2 has hidden it.
+    let (log_x, log_width) = {
+        let bar = world.resource::<CommandBar>();
+        (bar.log_x(), bar.log_width())
+    };
 
     // How far the screen shake has thrown the map this frame. Only the map
     // layers below read it (through `put_map` and friends); the status line,
@@ -231,6 +239,35 @@ pub fn render<W: Write>(
     let tempo = player_entity.map(|pe| models::tempo(world, pe));
     let stealthy = player_entity.is_some_and(|pe| world.get::<Stealthy>(pe).is_some());
     let polymorphed = player_entity.is_some_and(|pe| world.get::<Polymorphed>(pe).is_some());
+    // A deck's ledgers: what the cards left on the player for the floor.
+    let holds = |has: fn(&World, Entity) -> bool| player_entity.is_some_and(|pe| has(world, pe));
+    let card_badges: Vec<(&str, Color)> = [
+        (holds(|w, e| w.get::<Bala>(e).is_some()), "BALA", Color::Red),
+        (
+            holds(|w, e| w.get::<Bole>(e).is_some()),
+            "BOLE",
+            Color::DarkYellow,
+        ),
+        (
+            holds(|w, e| w.get::<Crit>(e).is_some()),
+            "CRT!",
+            Color::Yellow,
+        ),
+        (
+            holds(|w, e| w.get::<Oof>(e).is_some()),
+            "OOF!",
+            Color::DarkRed,
+        ),
+        (
+            holds(|w, e| w.get::<TimeStopped>(e).is_some()),
+            "WRLD",
+            Color::Yellow,
+        ),
+    ]
+    .into_iter()
+    .filter(|(on, _, _)| *on)
+    .map(|(_, tag, color)| (tag, color))
+    .collect();
     let conditions: Vec<(&str, Color)> = {
         let mut q = world.query_filtered::<(
             Option<&Confused>,
@@ -261,6 +298,7 @@ pub fn render<W: Write>(
             if polymorphed {
                 v.push(("POLY", Color::DarkMagenta));
             }
+            v.extend(card_badges.iter().copied());
             if confused.is_some() {
                 v.push(("CONF", Color::Magenta));
             }
@@ -429,6 +467,12 @@ pub fn render<W: Write>(
         let score_line = strings::score_line(&score_text(player_score));
         let sx = SCREEN_W.saturating_sub(1 + score_line.chars().count() as u16);
         screen.puts(sx, 0, &score_line, Color::White);
+
+        // Used pack slots, in white, just left of the score.
+        let pack_line =
+            strings::pack_slots(pack_items.len(), models::constants::items::PACK_CAPACITY);
+        let px = sx.saturating_sub(2 + pack_line.chars().count() as u16);
+        screen.puts(px, 0, &pack_line, Color::White);
     }
 
     // ---- Terrain ----
@@ -815,7 +859,7 @@ pub fn render<W: Write>(
                 format!("{throw_flat:+}"),
             ));
         }
-        let mut px: u16 = 1;
+        let mut px: u16 = log_x;
         for (i, (label, color, value)) in fields.iter().enumerate() {
             if i > 0 {
                 screen.puts(px, 22, " · ", Color::DarkGrey);
@@ -858,7 +902,17 @@ pub fn render<W: Write>(
         }
     }
 
-    // ---- Message log (rows 23..=24) ----
+    // ---- Command bar (rows 22..=24, left of the log) ----
+    // The three keys a new player needs, one per row, in yellow. F2 hides
+    // them and the log and the player line slide left into their columns.
+    // Blank space alone parts them from the log and the player line.
+    if !world.resource::<CommandBar>().hidden {
+        for (i, line) in strings::onboarding_keys().iter().enumerate() {
+            screen.puts(BAR_X, 22 + i as u16, line, Color::Yellow);
+        }
+    }
+
+    // ---- Message log (rows 23..=24, right of the bar) ----
     // Messages are packed onto shared lines and only wrap when the next one
     // would overflow; a message is never split across the wrap. Each keeps its
     // own colour on the line it shares — a shouting message must never repaint
@@ -869,7 +923,7 @@ pub fn render<W: Write>(
         for (i, segments) in lines.iter().enumerate() {
             let y = 23 + i as u16;
             let last = i + 1 == lines.len();
-            let mut x: u16 = 0;
+            let mut x: u16 = log_x;
             for message in segments {
                 let paint = log_paint(message, stripes);
                 for (n, ch) in message.chars().enumerate() {
@@ -880,15 +934,23 @@ pub fn render<W: Write>(
                 x += 1;
             }
             if last && more {
-                screen.puts(57, y, strings::more_prompt(), Color::Yellow);
+                screen.puts(
+                    log_x + (log_width - MORE_PROMPT_WIDTH) as u16 + 1,
+                    y,
+                    strings::more_prompt(),
+                    Color::Yellow,
+                );
             }
         }
     }
 
     // ---- Travel-cursor prompt (overrides the log rows while picking) ----
     if world.resource::<TravelCursor>().active {
-        screen.puts(0, 24, strings::travel_cursor_prompt(), Color::Yellow);
-        screen.puts(12, 24, strings::travel_cursor_hint(), Color::DarkGrey);
+        for y in 23..=24 {
+            screen.hline(log_x, y, ' ', log_width as u16, Color::Reset);
+        }
+        screen.puts(log_x, 23, strings::travel_cursor_prompt(), Color::Yellow);
+        screen.puts(log_x, 24, strings::travel_cursor_hint(), Color::DarkGrey);
     }
 
     // ---- Inventory overlay ----
@@ -909,6 +971,11 @@ pub fn render<W: Write>(
     // ---- Barter overlay ----
     if world.resource::<BarterMenu>().open {
         draw_barter_menu(world, screen);
+    }
+
+    // ---- Key list (F1) ----
+    if world.resource::<HelpMenu>().open {
+        draw_help(screen);
     }
 
     // ---- "Really quit?" ----
@@ -1300,6 +1367,43 @@ fn draw_quit_prompt(screen: &mut Screen) {
     screen.put(x, y + 3, '└', grey);
     screen.hline(x + 1, y + 3, '─', inner, grey);
     screen.put(x + 1 + inner, y + 3, '┘', grey);
+}
+
+/// The F1 key list: a bordered box, centred, one row per `strings::help_rows`.
+fn draw_help(screen: &mut Screen) {
+    let rows = strings::help_rows();
+    let title = strings::help_title();
+    let close = strings::help_close();
+    let inner = rows
+        .iter()
+        .map(|r| r.chars().count())
+        .chain([title.chars().count(), close.chars().count()])
+        .max()
+        .unwrap_or(0) as u16
+        + 2;
+    let x = SCREEN_W.saturating_sub(inner + 2) / 2;
+    let y = MAP_TOP + 1;
+    let grey = Color::DarkGrey;
+    let height = rows.len() as u16 + 2;
+
+    screen.put(x, y, '┌', grey);
+    screen.hline(x + 1, y, '─', inner, grey);
+    screen.put(x + 1 + inner, y, '┐', grey);
+    screen.puts(x + 2, y, title, Color::Yellow);
+    for row in 0..height {
+        let ty = y + 1 + row;
+        screen.put(x, ty, '│', grey);
+        screen.hline(x + 1, ty, ' ', inner, grey);
+        screen.put(x + 1 + inner, ty, '│', grey);
+        match rows.get(row as usize) {
+            Some(text) => screen.puts(x + 2, ty, text, Color::White),
+            None if row == height - 1 => screen.puts(x + 2, ty, close, Color::DarkGrey),
+            None => {}
+        }
+    }
+    screen.put(x, y + height + 1, '└', grey);
+    screen.hline(x + 1, y + height + 1, '─', inner, grey);
+    screen.put(x + 1 + inner, y + height + 1, '┘', grey);
 }
 
 fn draw_inventory(world: &mut World, screen: &mut Screen) {
@@ -1702,6 +1806,7 @@ mod tests {
         let mut w = World::new();
         w.init_resource::<GameLog>();
         w.init_resource::<Particles>();
+        w.init_resource::<CommandBar>();
         w
     }
 
@@ -1716,7 +1821,7 @@ mod tests {
             )));
         }
         assert!(
-            log_view(&w.resource::<GameLog>().unread).2,
+            log_view(&w.resource::<GameLog>().unread, LOG_WIDTH).2,
             "the fixture did not actually give the log a backlog to prompt about"
         );
     }
