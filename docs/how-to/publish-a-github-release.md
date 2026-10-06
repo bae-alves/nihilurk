@@ -17,8 +17,8 @@ Quick commands
 --------------
 
     cargo test                            green before you tag
-    git tag v0.1.2                        the number in engine/Cargo.toml
-    git push origin v0.1.2                starts the workflow
+    git tag vX.Y.Z                        the number in engine/Cargo.toml
+    git push origin vX.Y.Z                starts the workflow
 
 Watch it with `gh run watch`. When the `publish` job finishes, the release is at `https://github.com/bae-alves/nihilurk/releases`.
 
@@ -101,8 +101,8 @@ When it goes wrong
 
   `check` says the tag disagrees        Delete the tag, bump the version,
                                         commit, tag again:
-                                        `git tag -d v0.1.2`
-                                        `git push origin :refs/tags/v0.1.2`
+                                        `git tag -d vX.Y.Z`
+                                        `git push origin :refs/tags/vX.Y.Z`
   One `build` job fails                 Read its log. The same command runs
                                         on your machine as
                                         `release/test_package.sh <target>`.
@@ -117,11 +117,11 @@ When it goes wrong
                                         `gh run list` shows nothing. Delete
                                         the remote tag and push it again at
                                         the same commit:
-                                        `git push origin :refs/tags/v0.1.2`
-                                        `git push origin v0.1.2`
-  A bad release is live                 `gh release delete v0.1.2 --yes`,
+                                        `git push origin :refs/tags/vX.Y.Z`
+                                        `git push origin vX.Y.Z`
+  A bad release is live                 `gh release delete vX.Y.Z --yes`,
                                         then `git push origin
-                                        :refs/tags/v0.1.2`. Anyone who
+                                        :refs/tags/vX.Y.Z`. Anyone who
                                         already downloaded it keeps it.
 
 

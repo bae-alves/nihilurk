@@ -13,7 +13,7 @@ Reference: input handling and the turn loop
                    If this page and the source disagree, the source is
                    right and this page is a bug.
 
-**This is higher-risk ground than a content table.** A wrong row in `models/src/monsters.rs` is a monster with too much HP; a wrong branch here is a keypress that eats a turn it shouldn't, a modal that can't be closed, or a run loop that spins. `engine/` carries very little test coverage: `update.rs`'s two numpad tests and `view.rs`'s frame-geometry tests are all of it, and none of them touches the modal stack — so a mistake here is far more likely to be caught by a person playing the game than by `cargo test`. Change this file by reading it end to end first, and test by hand: walk into a wall confused, open the pack mid-throw, run a Shift-direction into a monster.
+**This is higher-risk ground than a content table.** A wrong row in `models/src/monsters.rs` is a monster with too much HP; a wrong branch here is a keypress that eats a turn it shouldn't, a modal that can't be closed, or a run loop that spins. `engine/` carries little test coverage: `update.rs` tests what `dispatch_key` decides and `view.rs` tests the log gate and the status tints (see "Testing" below), but the loops that poll and sleep and everything the renderer draws have none — so a mistake there is far more likely to be caught by a person playing the game than by `cargo test`. Change this file by reading it end to end first, and test by hand: walk into a wall confused, open the pack mid-throw, run a Shift-direction into a monster.
 
 
 The split this code sits on
@@ -323,7 +323,7 @@ Testing
   * **The quit prompt.** `y` / `n`; every other key ignored rather than guessed at; it outranks a movement key; `Esc` closes one but never raises one.
   * **The keyboard.** A numpad digit moves identically to its vi-key equivalent, and Shift+numpad reads as a run direction like Shift+arrow.
 
-`view.rs` has no tests of what a frame looks like, on purpose — see `rendering.md`. It pins only the log gate and the status tints. What is exercised only by playing the game: everything the renderer draws, the run / travel / auto-explore loops (they poll and sleep), and the aiming reticle. What *can* be tested is also tested one level down, in `models/`: `tests/pack.rs` pins what each menu shows, and `tests/autoexplore.rs` pins when the loot beeline is called off.
+`view.rs` has no tests of what a frame looks like, on purpose — see `rendering.md`. It pins only the log gate and the status tints. What is exercised only by playing the game: everything the renderer draws, and the run / travel / auto-explore loops (they poll and sleep). The reticle's opening target and the tile a zap or throw lands on are tested in `update.rs`; its cursor loop is not. What *can* be tested is also tested one level down, in `models/`: `tests/pack.rs` pins what each menu shows, and `tests/autoexplore.rs` pins when the loot beeline is called off.
 
 When you add a branch here, prefer moving the *decision* (what should happen) into a pure function — `dispatch_key`, or something in `models/` — and leave `engine/` holding only the parts that must touch the terminal.
 

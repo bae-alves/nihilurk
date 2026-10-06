@@ -18,7 +18,7 @@ Quick commands
 --------------
 
     lua release/bump.lua patch             bump, test, commit, tag
-    git push origin master v0.1.3          starts the release
+    git push origin master vX.Y.Z          starts the release
     gh run watch                           watch CI
 
 Use `patch`, `minor`, `major` or an exact `X.Y.Z`. Two flags:
@@ -109,14 +109,14 @@ When it goes wrong
   `check` or `build` fails            Nothing was published. Fix it,
                                       delete the tag locally and on
                                       GitHub, and run the script again:
-                                      `git tag -d v0.1.3`
-                                      `git push origin :refs/tags/v0.1.3`
+                                      `git tag -d vX.Y.Z`
+                                      `git push origin :refs/tags/vX.Y.Z`
   `crates-io` fails part way          Re-run the failed job from the
                                       Actions tab. It skips what is
                                       already published.
   The tag is on GitHub, no run starts Delete the remote tag and push it
                                       again at the same commit.
-  A bad version is live               `cargo yank --version 0.1.3
+  A bad version is live               `cargo yank --version X.Y.Z
                                       nihilurk` for each crate. A
                                       yank stops new projects from
                                       picking it up. It does not

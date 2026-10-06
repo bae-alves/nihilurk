@@ -43,7 +43,7 @@ Before the first upload
 
 1. Pick a version no tag has used. Bump every crate that changed, and the `version = "..."` on each `path` dependency that points at it:
 
-        engine/Cargo.toml    version, and models = { ..., version = "0.1.2", ... }
+        engine/Cargo.toml    version, and models = { ..., version = "X.Y.Z", ... }
         models/Cargo.toml    version
 
     `engine/tests/workspace.rs` fails if a `path` dependency has no version at all. It cannot tell you the version is stale, and cargo cannot either until the upload has half happened.

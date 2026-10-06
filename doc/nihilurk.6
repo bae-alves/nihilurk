@@ -5,7 +5,8 @@ nihilurk \- terminal roguelike
 .B nihilurk
 .RI [ name | save ]
 [\fB\-s\fR \fIseed\fR] [\fB\-c\fR] [\fB\-ns\fR] [\fB\-nb\fR]
-[\fB\-nshake\fR] [\fB\-anim\-rate\fR \fImultiplier\fR]
+[\fB\-nshake\fR] [\fB\-nobones\fR] [\fB\-endless\fR]
+[\fB\-anim\-rate\fR \fImultiplier\fR]
 [\fB\-b\fR \fIbody\fR | \fB\-am\fR \fIspecies\fR]
 .PP
 .B nihilurk
@@ -80,6 +81,15 @@ Disable bloodstains and the corpse-and-bones death animation.
 Disable screen shake. The map never leaves its moorings;
 .B \-anim\-rate
 can only slow a shake, not still one.
+.TP
+.B \-nobones
+Skip the bones mechanic: a death never writes a
+.BR bones\-N.sav ,
+and an ascent never reads one.
+.TP
+.B \-endless
+No Element of Yoord ever spawns, so there is no way to win. The dungeon keeps
+going down past the thirteenth floor.
 .TP
 .BI \-anim\-rate " multiplier"
 Set the on-screen hold time for particle, mapping, and shake animation
@@ -206,6 +216,20 @@ nihilurk -content | grep -i dragon
 NIHILURK_SPAWN="dragon,bow,arrow" nihilurk
 NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" nihilurk
 .EE
+.TP
+.B NIHILURK_LEVEL
+Make every floor one kind of special level instead of rolling for it:
+.BR battlefield ,
+.BR labyrinth ,
+.BR vault ,
+.BR bee
+(or
+.BR beeworld ),
+.BR castle
+or
+.BR island .
+Case does not matter. An unrecognised value is ignored. A save rebuilds its
+map from the seed, so load it with the value it was written with.
 .TP
 .B NIHILURK_MAGICMAP
 Select the style of the magic-mapping reveal animation instead of rolling one.

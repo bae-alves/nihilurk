@@ -243,6 +243,7 @@ Quick reference
     Travel        O, steer, Enter
     Auto-fight    Tab
     Fire          f        with a bow or crossbow drawn
+    Reach         v        with a reach weapon
     Look          ;        steer the cursor, no turn spent
     Stairs        > down, < up (or . and ,)
     Pack          i
