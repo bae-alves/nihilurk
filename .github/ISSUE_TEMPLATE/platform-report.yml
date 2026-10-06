@@ -1,0 +1,59 @@
+name: Platform report
+description: Tell us whether nihilurk runs on your machine, good or bad.
+title: "Platform report: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Windows has been played by a person. macOS builds and passes its tests in CI, and nobody has played it yet. Linux is the home platform. A report that says "it works" helps as much as a bug.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: Windows 11 23H2, macOS 15.1, Arch ...
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal
+      placeholder: Windows Terminal, conhost, iTerm2, Terminal.app, kitty ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: nihilurk version and how you got it
+      placeholder: 0.2.0 from `cargo install nihilurk`
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - It works
+        - It runs, with problems
+        - It starts and then breaks
+        - It will not build or start
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened
+      description: Colors, box lines, keys that do nothing, save and load, the leaderboard. Paste any error text.
+    validations:
+      required: true
