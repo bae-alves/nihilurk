@@ -92,7 +92,7 @@ fn an_excellent_hit_can_finish_a_foe_a_glancing_blow_could_not() {
         let log = w.resource::<GameLog>();
         let excellent = log.unread.iter().any(|l| l.contains("excellent hit"));
         if excellent && !w.entities().contains(target) {
-            return; // found one: an excellent hit finished a 1-HP target.
+            return;
         }
     }
     panic!("no excellent hit finished a 1-HP target across 2000 seeds");
@@ -144,14 +144,12 @@ fn spawn_armored_target(w: &mut World, hp: i32, armor: i32, armor_bonus: i32) ->
 #[test]
 fn a_blow_is_exactly_the_attack_total_minus_the_armour_total() {
     let mut w = combat_world(1);
-    // Attacking: 1d1 + 14 = 15. Defending: 1d1 + 9 = 10. Five gets through.
     let foe = spawn_monster_attacker(&mut w, 1, 14);
     let target = spawn_armored_target(&mut w, 40, 1, 9);
 
     resolve_attack(&mut w, foe, target);
     assert_eq!(w.get::<Fighter>(target).unwrap().hp, 35, "40 - 5");
 
-    // Again, to show it is the rule rather than one lucky roll.
     resolve_attack(&mut w, foe, target);
     assert_eq!(w.get::<Fighter>(target).unwrap().hp, 30, "40 - 5 - 5");
 }
@@ -161,8 +159,8 @@ fn a_blow_is_exactly_the_attack_total_minus_the_armour_total() {
 #[test]
 fn armour_that_outrolls_a_monsters_blow_lets_nothing_through() {
     let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 0); // 1
-    let target = spawn_armored_target(&mut w, 40, 1, 20); // 21
+    let foe = spawn_monster_attacker(&mut w, 1, 0);
+    let target = spawn_armored_target(&mut w, 40, 1, 20);
     resolve_attack(&mut w, foe, target);
     assert_eq!(
         w.get::<Fighter>(target).unwrap().hp,
@@ -186,8 +184,8 @@ fn armour_that_outrolls_a_monsters_blow_lets_nothing_through() {
 #[test]
 fn a_blow_that_would_wound_a_petrified_creature_only_chips_it() {
     let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
-    let target = spawn_armored_target(&mut w, 40, 1, 9); // 10, so five gets through
+    let foe = spawn_monster_attacker(&mut w, 1, 14);
+    let target = spawn_armored_target(&mut w, 40, 1, 9);
     hold(&mut w, target, Grant::of::<Petrified>(), 5);
 
     resolve_attack(&mut w, foe, target);
@@ -210,8 +208,8 @@ fn a_blow_that_would_wound_a_petrified_creature_only_chips_it() {
 #[test]
 fn nothing_takes_a_petrified_creatures_last_point() {
     let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
-    let target = spawn_armored_target(&mut w, 1, 1, 9); // 10, five would be lethal
+    let foe = spawn_monster_attacker(&mut w, 1, 14);
+    let target = spawn_armored_target(&mut w, 1, 1, 9);
     hold(&mut w, target, Grant::of::<Petrified>(), 5);
 
     resolve_attack(&mut w, foe, target);
@@ -268,8 +266,8 @@ fn stone_caps_every_other_source_of_harm_as_well() {
 #[test]
 fn a_blow_that_misses_a_petrified_creature_is_still_a_miss() {
     let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 0); // 1
-    let target = spawn_armored_target(&mut w, 40, 1, 20); // 21
+    let foe = spawn_monster_attacker(&mut w, 1, 0);
+    let target = spawn_armored_target(&mut w, 40, 1, 20);
     hold(&mut w, target, Grant::of::<Petrified>(), 5);
 
     resolve_attack(&mut w, foe, target);
@@ -292,8 +290,8 @@ fn a_blow_that_misses_a_petrified_creature_is_still_a_miss() {
 #[test]
 fn a_war_hammer_goes_through_stone_whole() {
     let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
-    let target = spawn_armored_target(&mut w, 40, 1, 9); // 10, so five gets through
+    let foe = spawn_monster_attacker(&mut w, 1, 14);
+    let target = spawn_armored_target(&mut w, 40, 1, 9);
     hold(&mut w, target, Grant::of::<Petrified>(), 5);
     lend(
         &mut w,
@@ -324,8 +322,8 @@ fn a_war_hammer_goes_through_stone_whole() {
 #[test]
 fn a_war_hammer_can_take_a_petrified_creatures_last_point() {
     let mut w = combat_world(1);
-    let foe = spawn_monster_attacker(&mut w, 1, 14); // 15
-    let target = spawn_armored_target(&mut w, 1, 1, 9); // 10, five is lethal
+    let foe = spawn_monster_attacker(&mut w, 1, 14);
+    let target = spawn_armored_target(&mut w, 1, 1, 9);
     hold(&mut w, target, Grant::of::<Petrified>(), 5);
     lend(
         &mut w,
@@ -348,7 +346,7 @@ fn a_war_hammer_can_take_a_petrified_creatures_last_point() {
 #[test]
 fn a_garrote_finds_a_fleeing_monster_as_helpless_as_a_sleeping_one() {
     let mut w = combat_world(1);
-    let hero = spawn_attacker(&mut w, 1); // 1d1: a deterministic 1-point nick
+    let hero = spawn_attacker(&mut w, 1);
     lend(
         &mut w,
         hero,
@@ -374,7 +372,7 @@ fn a_garrote_finds_a_fleeing_monster_as_helpless_as_a_sleeping_one() {
 #[test]
 fn killing_the_biter_frees_the_victim_it_clamped() {
     let mut w = combat_world(1);
-    let hero = spawn_attacker(&mut w, 1); // 1d1: a deterministic 1-point kill
+    let hero = spawn_attacker(&mut w, 1);
     let biter = spawn_target(&mut w, 1, 0);
     w.entity_mut(biter).insert(Binds);
     snare(&mut w, hero, Grant::of::<Clamped>(), 5);

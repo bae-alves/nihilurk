@@ -1157,10 +1157,6 @@ pub fn maybe_split(world: &mut World, victim: Entity) {
         return;
     };
     let Some((x, y)) = crate::helpers::free_adjacent_tile(world, pos) else {
-        // Boxed in — nowhere for the copy to stand. It pops instead: a
-        // harmless, purely cosmetic burst, same palette as a shattering
-        // potion, so a slime cornered in a passage still reads as *doing*
-        // something rather than just eating the hit in silence.
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             let mut cells = Vec::new();
             for dy in -1i32..=1 {
@@ -1299,31 +1295,21 @@ pub fn wear_monster(world: &mut World, player: Entity, def: &'static MonsterDef)
     }
     grant_all(world, player, def.grants);
 
-    // The row's spells go in the spell bar, where the player can actually
-    // reach them — the dragon's breath is the same `Fireball` a hero coin
-    // teaches, paid for out of the player's own Ma.
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
         spellset.slots.extend(def.spells);
     }
 
-    // A spirit's boons, rolled once like any spirit's. Only a new run gets
-    // here: a load brings the ledger back from the save.
     if let Some(GameRng(mut rng)) = world.remove_resource::<GameRng>() {
         roll_random_grants(world, player, def, &mut rng);
         world.insert_resource(GameRng(rng));
     }
 
-    // A bee that walks into the dungeon on purpose is told what it is.
     if def.name == "apis"
         && let Some(mut log) = world.get_resource_mut::<GameLog>()
     {
         log.add(strings::you_monster());
     }
     feel_what_you_were_born_with(world, player);
-
-    // No gear roll and no mimic disguise: an `EquipRoll` is how a floor
-    // *stocks* a monster, and the player is not stocked. A body that can use
-    // gear can still pick some up — see `crate::equipment::toggle_equipped`.
 }
 
 /// One "you feel" line per grant `player` was born with, in the order they

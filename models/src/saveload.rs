@@ -145,8 +145,6 @@ impl SavedEffect {
             Lifetime::Floor => SavedLifetime::Floor,
             Lifetime::Turns(n) => SavedLifetime::Turns(n),
             Lifetime::NextAction => SavedLifetime::NextAction,
-            // `effects_of` filters these out before this is reached; mapping
-            // it to `Permanent` would quietly make a borrowed ring permanent.
             Lifetime::WhileEquipped(_) => SavedLifetime::Floor,
         };
         Self {
@@ -434,8 +432,6 @@ fn dug_tiles(world: &World) -> Vec<u32> {
 /// # std::fs::remove_file(path).unwrap();
 /// ```
 pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
-    // The save has no slot for a throw hanging in stopped time: it goes back
-    // in the pack rather than being lost.
     crate::items::thaw_into_pack(world);
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
@@ -570,11 +566,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(DungeonLord::default());
     world.insert_resource(SpiritsHostile(save.spirits_hostile));
 
-    // Rebuild the map from the seed rather than the save file, then restore the
-    // dark-room mask so wand-of-light progress survives the reload, and the
-    // cracked doorways with it.
-    // A bee run's layout differs floor by floor, and the body that says so
-    // is an entity restored below: read it off the save first.
     if let Some(def) = save
         .entities
         .iter()
@@ -635,10 +626,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         new_ents.push(world.spawn_empty().id());
     }
 
-    // Who ends up wearing something, so their gear's loaned effects can be
-    // re-lent once every entity exists.
-    // Effects the save named that this build has no row for; reported once at
-    // the end rather than per entity.
     let mut retired = 0usize;
     let mut bearers: Vec<Entity> = Vec::new();
 
@@ -713,8 +700,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             em.insert(Score { value: s });
         }
         if let Some(m) = es.mob {
-            // A save from before aggravation was a state carries it as a
-            // movement type; it comes back as a chaser that is aggravated.
             let movement_type = match m {
                 MovementType::Aggravated { tx, ty } => {
                     em.insert(Aggravated { tx, ty });
@@ -727,8 +712,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some((tx, ty)) = es.aggravated {
             em.insert(Aggravated { tx, ty });
         }
-        // Blood is not serialised: every creature (player and monsters) bleeds,
-        // so it is simply re-attached on load.
         if es.player || es.mob.is_some() {
             em.insert(Blood);
         }
@@ -755,9 +738,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         if let Some(effect) = es.ring {
             em.insert(Ring { effect });
-            // What a ring lends its wearer — and what it does the moment it goes
-            // on — is fixed by its catalog row, so both are read back from there
-            // rather than stored in every save file.
             let def = RingDef::of(effect);
             em.insert(Grants(def.grants));
             if let Some(on_wear) = def.on_wear {
@@ -779,9 +759,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(n) = es.power_die {
             em.insert(PowerDie(n));
         }
-        // What a thing does in flight, and what a bow lends the hand holding it,
-        // are fixed by their catalog rows — the same as what a ring lends its
-        // wearer. Read back from the table rather than stored in every save.
         if let Some(name) = entity_name.as_deref() {
             restore_from_catalog(&mut em, name);
         }
@@ -811,17 +788,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 bane: bane.into_owned(),
             });
         }
-        // A monster's innate grant list comes back from the bestiary; the
-        // effects it actually has right now come back from the save, so a
-        // cancelled dragon stays cancelled.
-        //
-        // A *player* whose name is a bestiary row is one wearing that body
-        // (`-am dragon`), which is why the body needs no field of its own
-        // in the save: the name is the species, and every other thing the
-        // costume changed — glyph, stats, tempo, the effects themselves — is
-        // already saved per entity. A player who typed their own name cannot
-        // collide with a row here: `PlayerName` is upper-cased and the
-        // bestiary is not.
         if let Some(def) = entity_name.as_deref().and_then(MonsterDef::lookup) {
             if !def.grants.is_empty() {
                 em.insert(Grants(def.grants));
@@ -837,11 +803,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
             }
         }
         let held: Vec<Held> = es.effects.iter().filter_map(SavedEffect::held).collect();
-        // Ids this build has no row for. `held` has already dropped them, so
-        // this is the count of what the save knew and we do not.
         retired += es.effects.len() - held.len();
         attach_effects(&mut em, &held);
-        // Every actor moves at some tempo; the energy pool starts fresh.
         if es.player || es.mob.is_some() {
             em.insert(Speed::new(es.speed.unwrap_or_default()));
         }
@@ -875,20 +838,10 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
     }
 
-    // What gear lends its bearer comes back with the gear: the saved effect
-    // sets leave loaned effects out, so they are re-attached here rather than
-    // waiting for the first turn. The wearer list, not a pack query, drives
-    // this — a monster that caught a thrown ring has no pack to be found by.
     for bearer in bearers {
         crate::equipment::sync_equipment_effects(world, bearer);
     }
 
-    // An id the save carried and this build has no row for: a retired effect,
-    // or one from a newer build. Dropping it loses one property rather than
-    // the run, which is the whole reason effects are saved by name — a
-    // positional format could not have told the difference, because every
-    // index would still have been a valid index. Say so rather than letting
-    // the player wonder why their ring went quiet.
     if retired > 0 {
         let line = match retired {
             1 => strings::retired_enchantment_singular().to_string(),
@@ -1000,7 +953,6 @@ mod tests {
 
     #[test]
     fn an_out_of_range_backpack_index_is_rejected_not_indexed() {
-        // One entity exists (index 0); this save claims index 1.
         let bytes = crafted_save_with_backpack_index(1);
         assert!(
             load_bytes("oob", &bytes).is_err(),
@@ -1010,7 +962,6 @@ mod tests {
 
     #[test]
     fn an_in_range_backpack_index_still_loads() {
-        // Same shape, but pointing at the one entity that actually exists.
         let bytes = crafted_save_with_backpack_index(0);
         assert!(load_bytes("ok", &bytes).is_ok());
     }

@@ -98,10 +98,8 @@ fn wearing_a_ring_toggles_it_like_any_other_gear() {
     use_item(&mut w, p, ring);
     assert_eq!(display_name(&w, ring), "ring of regeneration");
     assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
-    // Still in the pack, just worn.
     assert!(w.get::<Backpack>(p).unwrap().items.contains(&ring));
 
-    // Using it again takes it off.
     use_item(&mut w, p, ring);
     assert_eq!(w.get::<Equipped>(ring).unwrap().by, None);
 }
@@ -120,7 +118,7 @@ fn a_cursed_weapon_hides_its_curse_until_worn_or_identified() {
         "the plus and curse must not leak before quality is known"
     );
 
-    use_item(&mut w, p, dagger); // wielding it
+    use_item(&mut w, p, dagger);
     assert_eq!(display_name(&w, dagger), "-2 dagger (cursed)");
 }
 
@@ -144,7 +142,6 @@ fn scroll_of_identify_reveals_every_hidden_piece_of_gear_in_one_read() {
 
     use_item(&mut w, p, scroll);
 
-    // Both pieces of gear were revealed by the one read — not just one of them.
     assert_eq!(display_name(&w, dagger), "dagger (cursed)");
     assert_eq!(display_name(&w, armor), "+2 leather armor");
     assert!(

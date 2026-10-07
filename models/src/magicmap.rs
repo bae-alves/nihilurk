@@ -225,10 +225,6 @@ fn spiral_waves(hero: (u16, u16)) -> Vec<Vec<usize>> {
     let (mut x, mut y) = (hero.0 as i32, hero.1 as i32);
     visit(x, y, &mut order, &mut seen);
 
-    // right N, down N, left N+1, up N+1, right N+2, ... — the classic outward
-    // square spiral. The arm runs off-grid on the long sides once it grows past
-    // the map; `visit` just drops those. Capped so an off-centre hero can't loop
-    // forever.
     let dirs = [(1, 0), (0, 1), (-1, 0), (0, -1)];
     let mut dir = 0usize;
     let mut seg = 1i32;

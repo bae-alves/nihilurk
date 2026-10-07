@@ -46,8 +46,6 @@ use crate::constants::rings::STEALTH_RANGE;
 /// merely unprocessed yet — the disguise gate this loop reads for
 /// `MovementType::Ambush` depends on that being settled first.
 pub fn ai(world: &mut World) {
-    // THE WORLD: while the player holds time still, nothing else moves, ally
-    // or foe.
     if world
         .query_filtered::<(), (With<Player>, With<crate::effects::TimeStopped>)>()
         .iter(world)
@@ -56,10 +54,7 @@ pub fn ai(world: &mut World) {
     {
         return;
     }
-    // The whole turn is decided against one snapshot of the player, taken
-    // before any monster moves — so a mob that steps aside in pass 0 cannot
-    // change what the mob after it can see.
-    #[allow(clippy::type_complexity)] // one query for the whole player snapshot
+    #[allow(clippy::type_complexity)]
     let Some((player_entity, player_pos, visible_tiles, player_blind, player_faction)) = ({
         let mut q = world
             .query_filtered::<(Entity, &Position, &Viewshed, Option<&Blind>, &Faction), With<Player>>(
@@ -71,21 +66,13 @@ pub fn ai(world: &mut World) {
     }) else {
         return;
     };
-    // The tempo the player is *acting* at, gear and all — a ring of slow
-    // digestion is a slowing like any other, and buys the floor the same extra
-    // round a potion of paralysis would.
     let player_speed = crate::conditions::tempo(world, player_entity);
-    // A stealthy player is not there as far as the floor is concerned until
-    // they are within arm's reach (see [`notices`]).
     let player_stealthy = world.get::<Stealthy>(player_entity).is_some();
 
-    // How many monster rounds this one player turn is worth.
     let mut rounds = match player_speed {
         SpeedKind::Normal => 1,
         SpeedKind::Slow => 2,
         SpeedKind::Fast => {
-            // Two player turns per monster round: act on the turn the parity
-            // flips back off, skip the other.
             let act = world
                 .get_resource_mut::<PlayerTempo>()
                 .map(|mut t| {
@@ -95,8 +82,6 @@ pub fn ai(world: &mut World) {
                 .unwrap_or(true);
             if act { 1 } else { 0 }
         }
-        // Half again as fast: two monster rounds bought per three player
-        // turns, so every third turn is free. The lurk's tempo.
         SpeedKind::Quick => {
             let beat = world
                 .get_resource_mut::<PlayerTempo>()
@@ -108,10 +93,6 @@ pub fn ai(world: &mut World) {
             if beat == 0 { 0 } else { 1 }
         }
     };
-    // A greatclub's heavy swing (`crate::effects::HeavySwing`) costs its
-    // wielder a beat of their own the instant it lands — one more monster
-    // round, on top of whatever the player's own tempo already bought, spent
-    // the moment it's asked for.
     if world
         .get_resource_mut::<ExtraMonsterRound>()
         .is_some_and(|mut r| std::mem::take(&mut r.0))
@@ -122,11 +103,6 @@ pub fn ai(world: &mut World) {
     let warded = door_ward(world, player_entity, player_pos);
     let map = world.resource::<Map>().clone();
 
-    // Blindness is the player's problem, not the dungeon's. A blinded hero's
-    // viewshed is cut to the 3x3 they can feel around them, but the monsters in
-    // the lit room they are standing in can all still see them perfectly well —
-    // so the AI works off the view the player *would* have with their eyes open.
-    // Without this, drinking a potion of blindness would be a way to hide.
     let visible_tiles = match player_blind {
         true => crate::visibility::visible_from(&map, &player_pos, false),
         false => visible_tiles,
@@ -224,10 +200,6 @@ impl AiCtx<'_> {
 }
 
 fn monster_round(world: &mut World, ctx: &mut AiCtx) {
-    // Bank this round's energy for every actor with a tempo, at the tempo it is
-    // actually acting at — gear that weighs a creature down banks it less. The
-    // pool is capped so a monster left alone off-screen can't hoard a dozen free
-    // moves for when it finally reaches you.
     {
         let actors: Vec<Entity> = world
             .query_filtered::<Entity, With<Speed>>()
@@ -248,8 +220,6 @@ fn monster_round(world: &mut World, ctx: &mut AiCtx) {
             .iter(world)
             .collect();
 
-        // Rebuilt each pass so a mob that moved in pass 0 is seen in its new
-        // tile in pass 1.
         let mut spatial = actor_positions(world, ctx.player, ctx.player_pos, ctx.player_faction);
 
         let mut any_acted = false;
@@ -302,8 +272,6 @@ fn step_one_mob(
     if world.get_entity(mob).is_none() || world.get::<Fighter>(mob).is_some_and(|f| f.hp <= 0) {
         return false;
     }
-    // Asleep — or stone — forfeits the turn outright. Pinned or rooted means
-    // it cannot take a step, but a foe within reach still gets bitten.
     if world.get::<Asleep>(mob).is_some() || world.get::<Petrified>(mob).is_some() {
         return false;
     }
@@ -341,8 +309,6 @@ fn perceive<'a>(
     let at = *world.get::<Position>(mob).unwrap();
     let faction = *world.get::<Faction>(mob).unwrap();
     let noticed = ctx.noticed_by(at);
-    // ponytail: one pass over `spatial` per mob per pass; index by faction if
-    // floors ever hold hundreds of mobs.
     let mut foes: Vec<Sighting> = spatial
         .iter()
         .filter(|&(tile, &(who, their))| {
@@ -371,16 +337,12 @@ fn perceive<'a>(
         swims: world.get::<Swims>(mob).is_some(),
         phasing: world.get::<Phasing>(mob).is_some(),
         launcher: crate::equipment::wielded_launcher(world, mob).is_some(),
-        // Only what its Magic can pay for: a dry caster has nothing to cast.
         spellset: world
             .get::<Spellset>(mob)
             .into_iter()
             .flat_map(|s| s.slots.iter().copied())
             .filter(|&spell| crate::items::can_afford_spell(world, mob, spell))
             .collect(),
-        // The dungeon's own randomness, not the seed's: which spell a monster
-        // tries and which way a confused one lurches have never been part of
-        // what a seed replays.
         roll: getrandom::u32().unwrap_or(0),
         helper: world.get::<Helper>(mob).is_some(),
         ally: faction == Faction::Ally,
@@ -432,7 +394,6 @@ fn act(
     };
     let new_x = (at.x as i16 + dx) as u16;
     let new_y = (at.y as i16 + dy) as u16;
-    // A phasing mob is stopped only by the map's edge.
     let ghost = world.get::<Phasing>(mob).is_some();
     let on_map = new_x < MAP_WIDTH && new_y < MAP_HEIGHT;
     if !(on_map && (ghost || mob_can_enter(map, leashed, at, new_x, new_y, swims))) {
@@ -440,7 +401,6 @@ fn act(
     }
     let faction = *world.get::<Faction>(mob).unwrap();
 
-    // Someone in the way: a swing if it is a foe, otherwise stand.
     if let Some(&(target, their)) = spatial.get(&(new_x, new_y)) {
         if !hostile(world, faction, their) {
             return false;
@@ -456,7 +416,6 @@ fn act(
         return true;
     }
 
-    // Held where it stands: it may lash out (above) but not step.
     if pinned {
         return false;
     }
@@ -518,12 +477,6 @@ fn mob_can_enter(
     if !map.diagonal_step_ok(mob_pos.x, mob_pos.y, new_x, new_y) {
         return false;
     }
-    // The leash belongs to the tile a monster is standing on, not to the
-    // monster: from room floor a chaser won't step into a corridor or through
-    // a doorway, and from a corridor it is tethered to nothing and may cross a
-    // door freely. So a corridor monster that steps into a room is leashed
-    // from its very next step — which can be the second pass of the same
-    // player turn.
     let room_leashed = leashed
         && map.tile(mob_pos.x, mob_pos.y) == TileType::Room
         && matches!(map.tile(new_x, new_y), TileType::Passage | TileType::Door);

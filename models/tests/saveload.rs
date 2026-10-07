@@ -17,10 +17,6 @@ fn round_trip() {
         what: "TESTER".into(),
     });
     initialize_world(&mut w);
-    // Pretend we walked down to floor 4. A floor's layout is a pure function of
-    // (seed, depth), so moving the depth marker means rebuilding the map to
-    // match — otherwise this world is floor 1 wearing a floor-4 label, and the
-    // tile comparison at the end of the test is meaningless.
     w.resource_mut::<Depth>().what = 4;
     regenerate_map(&mut w, 1, 4);
     let n0 = w.iter_entities().count();
@@ -46,7 +42,6 @@ fn round_trip() {
     load_game(&mut w2, p).unwrap();
     assert_eq!(n0, w2.iter_entities().count());
     assert_eq!(w2.resource::<RngSeed>().0, 1);
-    // RNG state resumes: next draws match the original world's next draws.
     use rand::Rng;
     let a: u64 = w.resource_mut::<GameRng>().0.r#gen();
     let b: u64 = w2.resource_mut::<GameRng>().0.r#gen();
@@ -59,19 +54,15 @@ fn round_trip() {
     };
     assert_eq!(packed.len(), pack_len_before);
 
-    // The player's magic pool survives the round trip.
     let magic = w2.query_filtered::<&Magic, With<Player>>().single(&w2);
     assert_eq!((magic.points, magic.max_points), magic_before);
 
-    // Equipment / scroll / ring components survive the round trip.
     let mut w3 = World::new();
     w3.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
     w3.insert_resource(RngSeed(3));
     w3.init_resource::<GameLog>();
     w3.insert_resource(PlayerName { what: "Y".into() });
     initialize_world(&mut w3);
-    // Strip the floor's own spawned loot/monsters and the player's starting kit,
-    // so this round trip only sees the gear the test itself places below.
     {
         let hero = w3.query_filtered::<Entity, With<Player>>().single(&w3);
         let kit = std::mem::take(&mut w3.get_mut::<Backpack>(hero).unwrap().items);
@@ -79,8 +70,6 @@ fn round_trip() {
             w3.despawn(item);
         }
     }
-    // Gear a monster spawned wearing has no `Position` of its own, so it needs
-    // naming here as well or it outlives the monster and lands in the save.
     let strays: Vec<Entity> = w3
         .iter_entities()
         .filter(|e| {
@@ -111,9 +100,6 @@ fn round_trip() {
     w4.init_resource::<GameLog>();
     w4.insert_resource(PlayerName { what: "Z".into() });
     load_game(&mut w4, p3).unwrap();
-    // The dice come off the catalog rows, not off a number copied into this
-    // test: what is being checked is that the save carried them, not what the
-    // balance happens to be this week.
     let sword_die = WEAPONS
         .iter()
         .find(|d| d.name == "long sword")
@@ -153,9 +139,7 @@ fn round_trip() {
         vec![RingEffect::Regeneration],
     );
     assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);
-    // The curse tag rides along, so cursed gear stays cursed after a reload.
     assert_eq!(w4.query::<&Curse>().iter(&w4).count(), 1);
-    // A vorpalized weapon keeps its edge — and its bane — through a reload.
     assert_eq!(
         w4.query::<&Vorpal>()
             .iter(&w4)
@@ -164,10 +148,8 @@ fn round_trip() {
         vec!["dragon".to_string()],
     );
 
-    // An ordinary save is not clear data.
     assert!(clear_data(p).unwrap().is_none());
 
-    // Map regenerated from (seed, depth) matches the original tile-for-tile.
     assert_eq!(w.resource::<Map>().tiles, w2.resource::<Map>().tiles);
     assert!(w2.resource::<Map>().tiles.contains(&TileType::Wall));
 }
@@ -208,9 +190,6 @@ fn equipped_gear_stays_on_across_a_save() {
         what: "WEARER".into(),
     });
     initialize_world(&mut w);
-    // Strip the floor's spawned loot and monsters so this round trip sees only
-    // the gear the test itself places. The player's starting kit stays; it is
-    // equipped (ring mail, mace) and part of the claim under test.
     let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
     let strays: Vec<Entity> = w
         .iter_entities()
@@ -221,13 +200,9 @@ fn equipped_gear_stays_on_across_a_save() {
         w.despawn(e);
     }
     let here = *w.get::<Position>(hero).unwrap();
-    // A ring of perception, put on the proper way: its SeesInvisible is on
-    // loan from gear, which is exactly the effect a reload must re-lend.
     let ring = spawn_ring(&mut w, RingEffect::Perception, here);
     assert!(toggle_equipped(&mut w, hero, ring));
     assert!(w.get::<SeesInvisible>(hero).is_some());
-    // A monster holds gear of its own — the save must not strip it from the
-    // orc's hand any more than from the player's.
     let dagger = spawn_weapon(&mut w, "dagger", here);
     let orc = monster::monster(&mut w, "test monster", here);
     assert!(equip_silently(&mut w, orc, dagger));
@@ -249,7 +224,6 @@ fn equipped_gear_stays_on_across_a_save() {
 
     let hero2 = w2.query_filtered::<Entity, With<Player>>().single(&w2);
     let orc2 = w2.query_filtered::<Entity, With<Mob>>().single(&w2);
-    // The player's hand, body and finger all come back occupied.
     assert!(equipped_in(&w2, hero2, Slot::Hand).is_some());
     assert!(equipped_in(&w2, hero2, Slot::Body).is_some());
     let worn = equipped_in(&w2, hero2, Slot::Finger).expect("the ring stayed on");
@@ -257,15 +231,11 @@ fn equipped_gear_stays_on_across_a_save() {
         w2.get::<Ring>(worn).map(|r| r.effect),
         Some(RingEffect::Perception)
     );
-    // What the ring lent is re-lent: the wearer sees invisible again without
-    // touching the slot.
     assert!(
         w2.get::<SeesInvisible>(hero2).is_some(),
         "the ring's loaned effect did not come back with the ring"
     );
-    // The numbers the HUD reads are the numbers they were.
     assert_eq!(loadout(&w2, hero2), before);
-    // And the orc still holds what it caught.
     let held = equipped_in(&w2, orc2, Slot::Hand).expect("the orc kept its dagger");
     assert_eq!(
         w2.get::<Name>(held).map(|n| n.what.as_str()),
@@ -353,7 +323,6 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
     let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
     let here = *w.get::<Position>(hero).unwrap();
 
-    // Read the scroll the way the pack screen reads one.
     let scroll = spawn_scroll(&mut w, ScrollEffect::MonsterConfusion, here);
     w.entity_mut(scroll).remove::<Position>();
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
@@ -363,7 +332,6 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
         slot_idx: None,
     });
     item_system(&mut w);
-    // And cast Bide the way the spells menu casts one.
     w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user: hero,
         effect: SpellEffect::Bide,

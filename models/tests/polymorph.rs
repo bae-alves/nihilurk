@@ -378,8 +378,6 @@ fn a_polymorphed_ally_stays_polymorphed_down_the_stairs() {
         x: here.x + 1,
         y: here.y,
     };
-    // A dog: its grants make whatever it is polymorphed into still the
-    // player's to recruit.
     spawn_monster(&mut w, species("dog"), spot);
     let wand = spawn_wand(&mut w, WandEffect::Polymorph, here);
     w.entity_mut(wand).remove::<Position>();

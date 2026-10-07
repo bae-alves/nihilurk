@@ -210,10 +210,6 @@ fn announce_combo(world: &mut World) {
         true => (crate::hud::pride_line(), LogCategory::Pride),
         false => (strings::with_style(), LogCategory::Combo),
     };
-    // `GameLog` is required here, not optional: it is initialised before any
-    // schedule step runs (`engine/src/main.rs`), and every other logging call
-    // in the tree already assumes it. The `get_resource_mut` this replaced
-    // protected nothing reachable and hid that assumption instead of stating it.
     world
         .resource_mut::<GameLog>()
         .add_colored(line.to_string(), category);
@@ -232,13 +228,8 @@ pub fn award_stairs(world: &mut World, tier: u32) {
 /// The scorekeeper does not show a number for this one. Doubling is not an
 /// amount, it is an event, and it gets the word.
 pub fn double(world: &mut World) -> Option<i64> {
-    // Anything that died this turn is paid for first, so a run that ends on the
-    // same turn as a kill doubles a score that already counts it.
     settle_kills(world);
     let mut score = player_score(world)?;
-    // Saturating, because nothing caps how many rings of adornment a run can
-    // find and every one of them lands here. A wrapping double walks a score
-    // — always a multiple of a hundred — onto exactly zero.
     score.value = score.value.saturating_mul(2);
     let doubled = score.value;
     let stripes = crate::pride::stripes(world).to_vec();

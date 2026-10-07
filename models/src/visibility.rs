@@ -199,7 +199,7 @@ fn flood_fill_room(map: &Map, start: (u16, u16), visible: &mut HashSet<(u16, u16
         let past_a_door = (cx, cy) != start && map.tile(cx, cy) == TileType::Door;
         for (nx, ny) in neighbours(cx, cy) {
             if map.is_dark(nx, ny) {
-                continue; // never see into (or through) an unlit dark room
+                continue;
             }
             visible.insert((nx, ny));
             let spreads = matches!(
@@ -249,8 +249,6 @@ fn hide_and_announce(
     perception: bool,
     blind: bool,
 ) {
-    // What was first seen this pass, by name and gear, in the order it turned
-    // up: the same thing in several places reads as one counted line.
     let mut sightings: Vec<(String, String, u32)> = Vec::new();
     for (entity, pos, mob, invisible, name, stack, spotted, marks) in spot_query.iter() {
         let in_view = !blind && visible.contains(&(pos.x, pos.y));
@@ -263,20 +261,15 @@ fn hide_and_announce(
             commands.entity(entity).insert(Hidden);
         }
         if mob.is_none() && invisible.is_some() && perceptible {
-            // A perception ring turns up an invisibly-stashed item for good.
             commands.entity(entity).remove::<Hidden>();
             commands.entity(entity).remove::<Invisible>();
             commands.entity(entity).insert(Spotted);
             log.add(strings::hidden_item_found());
         }
 
-        // Never announce something still out of the player's senses, nor an
-        // item that hasn't been turned up yet (still `Invisible`), nor the
-        // player's own Helper coming back round a corner.
         let announce =
             perceptible && !(mob.is_none() && invisible.is_some()) && !helpers.contains(entity);
         if announce && spotted.is_none() {
-            // A chimeric form is what it is called, not the species under it.
             let what = match form_of_marks(marks) {
                 Some(form) => form.name.to_string(),
                 None => name.map_or("item", |n| n.what.as_str()).to_string(),

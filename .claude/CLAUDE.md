@@ -13,6 +13,7 @@ Conflicts: correctness > my goal > repo convention. Cite repo evidence to resolv
 - Arch/frameworks/major refactors: mine — ask if unclear. Multiple approaches→present options, never pick silently.
 - Plan Mode for major arch/multi-phase. Enforcement=hooks/permissions; docs=guidance.
 - Scripting: bash > ruby > lua. Only bash and lua get committed.
+- Comments: none inside fn bodies in engine/models/particle-core. OK: docs, signature notes, file headers, catalog how-to-add notes, an own-line note directly above a closure. Name it or split it.
 
 # Test/debug
 Reference code→match its patterns, not its description.
@@ -26,9 +27,6 @@ Journal insights in `.claude/journal.local.md` (git-ignored); search first on co
 Feedback mem. only on "remember"/"memorize".
 Post non-trivial work: weaknesses+severity+pre-ship fixes.
 Long output→file, read selectively, never dump raw. Q&A: one Q at a time, multiple-choice/boolean.
-
-# Contributing
-LLM-assisted code welcome everywhere. Player-facing text in `strings/` is the game's only art: LLM or machine-translated text is fine as a starter or placeholder in any language, English included. bae wrote most of the English; the TODO is the record of the human pass. Every `en.rs` item carries `// TODO: placeholder English; needs a human's pass.` until a human has read it and stands behind it, reworded or not, then they delete the tag. Pre-commit tags new items (`.githooks/tag_english_placeholders.lua`), so a new string stays unreviewed until a human clears it. bae trusts contributors. Final localization (pt/es/ht) is human work, because localization needs a human culture, which LLMs lack; whoever localizes puts heart in it. pt is native (bae); es/ht were started by machine translation and need native help. Scripts are bash or lua; pre-commit and CI refuse python. Details: CONTRIBUTING.md.
 
 # Prose
 Plain, active, short words, no filler. No passive, no "not X, it's Y," no stock metaphors. Voice consistent w/ base. Say it, don't announce it.

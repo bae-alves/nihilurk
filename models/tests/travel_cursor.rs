@@ -36,7 +36,6 @@ fn tile_is_revealed_follows_the_players_viewshed() {
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
     let ppos = *w.get::<Position>(player).unwrap();
 
-    // Some tile the player has not seen yet — a fresh floor is never fully lit.
     let (ux, uy) = {
         let vs = w.get::<Viewshed>(player).unwrap();
         let i = (0..MAP_TILE_COUNT)
@@ -109,7 +108,6 @@ fn nearest_reachable_returns_a_reachable_walkable_tile() {
         let (mut w, _player) = fresh_mapped_floor(seed);
         let map = w.resource::<Map>().clone();
 
-        // A walkable target hands itself straight back.
         let stairs = stair_location(&map, true).unwrap();
         assert_eq!(
             nearest_reachable(&mut w, stairs),
@@ -117,7 +115,6 @@ fn nearest_reachable_returns_a_reachable_walkable_tile() {
             "seed {seed}"
         );
 
-        // A wall target is redirected to a tile you can actually stand on.
         let wall = (0..MAP_TILE_COUNT)
             .map(|i| {
                 (

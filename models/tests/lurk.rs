@@ -63,14 +63,11 @@ fn the_lurk_is_its_own_creature() {
     assert_eq!(m.points, m.max_points);
     assert!(m.max_points > 0);
 
-    // It hunts on all fours: half again as fast as anything else on the floor.
     assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Quick);
 
-    // Claws and fangs, no kit.
     assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
     assert!(equipment::equipped_items(&w, p).is_empty());
 
-    // The three tricks it is born with, and the one spell it must pay for.
     assert!(w.get::<Lunges>(p).is_some(), "the wolf's closing lunge");
     assert!(w.get::<Fencer>(p).is_some(), "the second snap of the jaws");
     assert!(w.get::<BuildsMomentum>(p).is_some(), "a rhythm that builds");
@@ -86,8 +83,6 @@ fn the_lurk_is_its_own_creature() {
 
 #[test]
 fn quick_is_three_turns_for_every_two_monster_rounds() {
-    // Two rounds bought per three turns is what 1.5x means from the floor's
-    // side of the clock.
     let mut w = lurk_world(7);
     w.init_resource::<PlayerTempo>();
     let rounds: Vec<u8> = (0..6)
@@ -130,13 +125,11 @@ fn momentum_builds_on_the_lurk_itself() {
     w.get_mut::<Fighter>(prey).unwrap().max_hp = 99;
     w.get_mut::<Fighter>(prey).unwrap().hp = 99;
 
-    // Nothing in hand to build it on, so it builds on the creature.
     assert!(w.get::<Momentum>(p).is_none());
     melee_attack(&mut w, p, prey);
     let built = w.get::<Momentum>(p).map_or(0, |m| m.0);
     assert!(built > 0, "a landed blow winds the next one up");
 
-    // And letting go of the rhythm puts it back to nothing.
     equipment::reset_momentum(&mut w, p);
     assert_eq!(w.get::<Momentum>(p).map_or(0, |m| m.0), 0);
 }
@@ -176,8 +169,6 @@ fn eating_grows_the_lurk_at_the_stated_odds() {
 
 #[test]
 fn one_growth_is_one_point_of_one_stat() {
-    // Rolled per corpse, so feed until one lands rather than counting to a
-    // tenth: what is being checked is the size of a growth, not its odds.
     let mut w = lurk_world(7);
     let before = stat_total(&mut w);
     for _ in 0..100 {
@@ -256,8 +247,6 @@ fn a_staircase_cannot_take_the_lurk_s_legs() {
     w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
     assert!(change_level(&mut w, true));
     assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Quick);
-    // Nor its quiet, which a staircase does take from anyone who merely
-    // drank it.
     assert!(w.get::<Stealthy>(p).is_some());
     assert!(w.get::<Lunges>(p).is_some());
 }
@@ -268,17 +257,12 @@ fn cancellation_takes_the_magic_not_the_creature() {
     let p = player(&mut w);
     revoke_all(&mut w, p);
 
-    // A wand of cancellation unmakes what a creature *has*.
     assert!(w.get::<Stealthy>(p).is_none());
     assert!(w.get::<Lunges>(p).is_none());
-    // It cannot unmake what a creature *is*, or there would be something
-    // wearing plate armour on four legs.
     assert!(w.get::<Lurk>(p).is_some());
     let at = *w.get::<Position>(p).unwrap();
     let mail = spawn_named(&mut w, "ring mail", at).unwrap();
     assert!(!equipment::toggle_equipped(&mut w, p, mail));
-    // And it is still a lurk after a save, which means the ledger entry
-    // survived the sweep too.
     let save = common::SaveFile::new("cancelled-lurk");
     save_game(&mut w, save.path()).unwrap();
     let mut w2 = World::new();

@@ -401,7 +401,7 @@ fn free_tile_near(
         for dy in -radius..=radius {
             for dx in -radius..=radius {
                 if dx.abs() != radius && dy.abs() != radius {
-                    continue; // only the ring's edge; the inside was already tried
+                    continue;
                 }
                 let (x, y) = (origin.x as i32 + dx, origin.y as i32 + dy);
                 if x < 0 || y < 0 {

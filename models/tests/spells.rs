@@ -23,10 +23,6 @@ fn test_world(seed: u64) -> World {
         what: "TESTER".into(),
     });
     initialize_world(&mut w);
-    // Only what each test plants: the floor's own monsters and traps can
-    // otherwise land on the very tile a test means to control
-    // (`beside_player`), or a trap a blast detonates can add its own
-    // non-magical damage on top of the one hit a test means to measure.
     let strays: Vec<Entity> = w
         .query_filtered::<Entity, (Or<(With<Mob>, With<Trap>)>, Without<Player>)>()
         .iter(&w)
@@ -126,8 +122,6 @@ fn bide_is_lost_unfired_by_anything_that_is_not_an_attack() {
     lend(&mut w, p, Grant::of::<Bided>(), Lifetime::NextAction);
     assert!(w.get::<Bided>(p).is_some());
 
-    // The same reset a rapier's built-up momentum gets the moment its
-    // wielder does anything else with the turn.
     models::reset_momentum(&mut w, p);
     assert!(
         w.get::<Bided>(p).is_none(),
@@ -220,16 +214,12 @@ fn setup_plants_four_revealed_traps_and_trips_one_under_a_bystander() {
     w.get_mut::<Magic>(p).unwrap().points = 10;
     w.get_mut::<Magic>(p).unwrap().max_points = 10;
 
-    // Stand something on one of the four diagonals so Setup has a bystander
-    // to trip over.
     let diag = Position {
         x: here.x + 1,
         y: here.y + 1,
     };
     let bystander = dummy(&mut w, diag, 40);
 
-    // The floor's own population may already have laid traps elsewhere —
-    // Setup's own are the ones that appear after casting it.
     let before: std::collections::HashSet<Entity> =
         w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
 
@@ -270,15 +260,11 @@ fn hero_coin_teaches_a_spell_up_to_the_four_slot_cap() {
     }
     assert_eq!(w.get::<Spellset>(p).unwrap().slots.len(), SPELLSET_CAP);
 
-    // A fifth is left on the floor: `would_help` refuses a full spellset.
     let (_here, spot) = beside_player(&mut w);
     let coin = spawn_named(&mut w, "hero coin", spot).unwrap();
     assert!(!would_help(&w, p, PickupEffect::LearnRandomSpell));
     assert!(pick_up(&mut w, p, coin).is_none());
 
-    // And a fifth *shot* is refused too. `claim_from_afar` has no `would_help`
-    // gate — a coin you shoot is allowed to be a waste — so the cap has to
-    // hold in the one function that teaches, not in the gate above it.
     detonate_at(&mut w, spot, Some(p));
     assert_eq!(
         w.get::<Spellset>(p).unwrap().slots.len(),
@@ -299,8 +285,6 @@ fn amnesia_forgets_one_spell_and_every_tile_seen_this_floor() {
         .unwrap()
         .slots
         .push(SpellEffect::Cure);
-    // Seed a few "seen" tiles by hand — a fresh headless world never runs the
-    // visibility system that would normally fill these in.
     w.get_mut::<Viewshed>(p).unwrap().revealed_tiles.insert(0);
     w.get_mut::<Viewshed>(p).unwrap().revealed_tiles.insert(1);
     assert!(w.get::<Viewshed>(p).unwrap().revealed_tiles.count_ones(..) > 0);
@@ -339,8 +323,6 @@ fn a_mob_a_spell_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
     let victim = dummy(&mut w, spot, 1);
-    // Ambush lunges at anything that draws alongside it without needing to
-    // have noticed the player first, so this mob would certainly attack.
     w.entity_mut(victim).insert(Mob {
         movement_type: MovementType::Ambush,
     });
@@ -405,7 +387,6 @@ fn only_polymorph_other_opens_the_reticle() {
 
 #[test]
 fn a_staff_does_not_double_what_a_polymorph_costs() {
-    // Polymorph does no damage, so it is a skill: TurboMagic is for attacks.
     for e in [SpellEffect::PolymorphSelf, SpellEffect::PolymorphOther] {
         assert_eq!(SpellDef::of(e).kind, SpellKind::Skill);
     }

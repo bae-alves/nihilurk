@@ -86,7 +86,6 @@ pub fn fight_step(world: &mut World, target: Entity) -> Option<(i16, i16)> {
         return Some((dx.signum() as i16, dy.signum() as i16));
     }
 
-    // Other mobs are impassable: route around the pack rather than through it.
     let occupied: Vec<(u16, u16)> = {
         let mut q = world.query_filtered::<(Entity, &Position), With<Mob>>();
         q.iter(world)

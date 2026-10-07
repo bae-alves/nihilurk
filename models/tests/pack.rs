@@ -43,8 +43,6 @@ fn carrying_one_of_everything() -> World {
 #[test]
 fn each_menu_shows_exactly_what_its_verb_can_act_on() {
     let mut w = carrying_one_of_everything();
-    // Rows are pack positions: 0 potion, 1 scroll, 2 wand, 3 dagger,
-    // 4 ring mail, 5 ring.
     let all = vec![0, 1, 2, 3, 4, 5];
     assert_eq!(pack_rows(&mut w, PackMode::Browse), all);
     assert_eq!(pack_rows(&mut w, PackMode::Use), all);
@@ -60,9 +58,6 @@ fn each_menu_shows_exactly_what_its_verb_can_act_on() {
 
 #[test]
 fn a_row_keeps_its_pack_letter_in_every_menu() {
-    // The property the whole "rows are backpack indices" design exists for: the
-    // ring is `f` in the pack, so it is `f` in the put-on menu too, even though
-    // it is the only row there. (`f` is index 5 — a) through f).)
     let mut w = carrying_one_of_everything();
     let ring_row = pack_rows(&mut w, PackMode::Browse)[5];
     assert_eq!(pack_rows(&mut w, PackMode::PutOn), vec![ring_row]);
@@ -70,8 +65,6 @@ fn a_row_keeps_its_pack_letter_in_every_menu() {
 
 #[test]
 fn a_menu_with_nothing_in_it_comes_back_empty_rather_than_showing_the_wrong_thing() {
-    // What the engine turns into "You have nothing to read." instead of opening
-    // a box the player has to close again.
     let mut w = carrying_one_of_everything();
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
     let potion = w.get::<Backpack>(player).unwrap().items[0];

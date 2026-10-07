@@ -52,7 +52,6 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
     let mut w = test_world(7);
     let p = player(&mut w);
 
-    // Fresh floor: only the starting room is remembered.
     let known_before = w.get::<Viewshed>(p).unwrap().revealed_tiles.count_ones(..);
     assert!(
         known_before < MAP_TILE_COUNT,
@@ -63,8 +62,6 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    // The scroll is consumed, and the wipe is armed but hasn't committed
-    // anything yet — that is the engine's job, frame by frame.
     assert!(
         w.get::<Backpack>(p)
             .unwrap()
@@ -82,7 +79,6 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
         "no tiles revealed until the sweep runs"
     );
 
-    // Drive the sweep the way the engine does: one wave per frame.
     let mut frames = 0;
     while magic_map_reveal_step(&mut w) {
         frames += 1;
@@ -90,8 +86,6 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
     }
     assert!(frames > 3, "the reveal should animate over several frames");
 
-    // Every tile on the floor is now in the player's memory, and the resource
-    // has switched itself back off.
     assert!(!w.resource::<MagicMapReveal>().active);
     let vs = w.get::<Viewshed>(p).unwrap();
     for y in 0..MAP_HEIGHT {
@@ -134,14 +128,11 @@ fn every_style_animates_and_reveals_the_whole_floor() {
             assert!(frames < MAP_TILE_COUNT, "{style:?} must terminate");
         }
 
-        // It genuinely animates (more than a couple of frames)...
         assert!(frames > 3, "{style:?} took only {frames} frames");
-        // ...switches itself off...
         assert!(
             !w.resource::<MagicMapReveal>().active,
             "{style:?} left the reveal armed"
         );
-        // ...and leaves every tile on the floor in memory.
         let vs = w.get::<Viewshed>(p).unwrap();
         for y in 0..MAP_HEIGHT {
             for x in 0..MAP_WIDTH {

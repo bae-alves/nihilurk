@@ -55,10 +55,6 @@ struct Tally {
 
 #[test]
 fn rolled_loot_follows_the_rogue_drop_table() {
-    // Rolled straight off `roll_item` rather than read off built floors: a
-    // floor also carries finds the roller never saw — the guaranteed coins and
-    // the progression draw `map::population` places before the budget is spent
-    // — and counting those would be measuring the guarantee, not the table.
     let mut t = Tally::default();
     let mut w = World::new();
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(1)));
@@ -92,7 +88,6 @@ fn rolled_loot_follows_the_rogue_drop_table() {
         if deck.is_some() {
             t.decks += 1;
         } else if treat.is_some() {
-            // A treat stacks too, so it is asked before ammunition is.
             t.treats += 1;
         } else if scroll.is_some() {
             t.scrolls += 1;
@@ -106,7 +101,6 @@ fn rolled_loot_follows_the_rogue_drop_table() {
             t.weapons += 1;
             t.melee += 1;
         } else if let Some(stack) = stack {
-            // Ammunition: one drop, several arrows.
             t.weapons += 1;
             t.ammo += 1;
             t.arrows += stack.count as u32;
@@ -122,7 +116,6 @@ fn rolled_loot_follows_the_rogue_drop_table() {
         }
     }
 
-    // Every category shows up.
     assert!(t.scrolls > 0 && t.potions > 0 && t.coins > 0);
     assert!(t.armor > 0 && t.weapons > 0 && t.wands > 0 && t.rings > 0 && t.treats > 0);
     assert!(
@@ -159,8 +152,6 @@ fn rolled_loot_follows_the_rogue_drop_table() {
         share_of("weapon") + share_of("ammo") + share_of("launcher"),
     );
 
-    // And inside the armoury, the same test of the same property: three
-    // categories in the proportions the table asked for.
     let armoury = share_of("weapon") + share_of("ammo") + share_of("launcher");
     let arm_pct = |n: u32| 100.0 * n as f64 / t.weapons as f64;
     let near_arm = |got: f64, want: f64| {
@@ -173,7 +164,6 @@ fn rolled_loot_follows_the_rogue_drop_table() {
     near_arm(arm_pct(t.ammo), 100.0 * share_of("ammo") / armoury);
     near_arm(arm_pct(t.launchers), 100.0 * share_of("launcher") / armoury);
 
-    // A drop of ammunition is a bundle, never a lone arrow.
     let per_bundle = t.arrows as f64 / t.ammo as f64;
     let (min, max) = (AMMO_BUNDLE_MIN as f64, AMMO_BUNDLE_MAX as f64);
     assert!(
@@ -200,13 +190,6 @@ fn floor_item_count(w: &mut World) -> usize {
 
 #[test]
 fn the_item_budget_scales_with_depth() {
-    // Items are `3 + tier` attempts, so depth-13 floors (tier 4) run seven
-    // attempts to a surface floor's three. Sampled across seeds, the deep
-    // floors should carry noticeably more loot.
-    //
-    // The parity coin comes off both counts first: every floor gets one
-    // whatever its tier, so leaving it in would dilute the very scaling this is
-    // measuring. (Neither floor sampled here is a progression floor.)
     const GUARANTEED: usize = 1;
     let mut shallow = 0usize;
     let mut deep = 0usize;
@@ -228,12 +211,6 @@ fn the_item_budget_scales_with_depth() {
 
 #[test]
 fn a_stashed_item_is_invisible_and_hidden_together() {
-    // The rate the dungeon stashes at is `population::HIDDEN_ITEM_CHANCE` and
-    // belongs to whoever is balancing the game, not to a test. What must hold
-    // whatever it is set to: a stash is always *both* tags, because the two do
-    // different halves of the job — `Invisible` is why it cannot be seen and
-    // `Hidden` is why it is not drawn — and an item wearing one without the
-    // other is a bug in either direction.
     for seed in 0..40u64 {
         let mut w = test_world(seed);
         for _ in 0..5 {
@@ -271,11 +248,6 @@ fn floor_item_names(w: &mut World) -> Vec<String> {
 
 #[test]
 fn every_floor_is_stocked_with_its_guaranteed_finds() {
-    // The parity coin is every floor's; a progression item is the reward for
-    // finishing a difficulty tier, so only the last floor of each gets one.
-    // Only presence is asserted: a floor's own item budget may roll a red coin
-    // or a potion of healing of its own accord, so the absence of one proves
-    // nothing.
     for seed in 0..20u64 {
         let mut w = test_world(seed);
         while w.resource::<Depth>().what <= *DIFFICULTY_TIER_LAST_DEPTH.last().unwrap() {

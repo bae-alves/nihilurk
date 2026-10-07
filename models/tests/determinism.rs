@@ -102,9 +102,6 @@ fn a_floors_layout_depends_only_on_seed_and_depth() {
         for depth in 1..=FINAL_DEPTH {
             let mut a = World::new();
             regenerate_map(&mut a, seed, depth);
-            // The deepest floor has its down-stair carved back to plain floor to
-            // make room for the relic. Both level generation and the save loader
-            // do it; a bare `regenerate_map` does not, so do it here too.
             if depth >= FINAL_DEPTH {
                 let mut map = a.resource_mut::<Map>();
                 if let Some(i) = map.tiles.iter().position(|&t| t == TileType::Downstairs) {
@@ -112,8 +109,6 @@ fn a_floors_layout_depends_only_on_seed_and_depth() {
                 }
             }
 
-            // The same floor, reached the long way: a live run that has spent
-            // its shared RNG stream on several floors of loot and monsters.
             let mut b = new_run(seed);
             for _ in 1..depth {
                 descend(&mut b);
@@ -141,8 +136,6 @@ fn a_floors_contents_ignore_the_shared_rng_stream() {
     for seed in [1u64, 42, 7777] {
         let mut quiet = new_run(seed);
 
-        // The same run, after burning a great deal of the shared stream on
-        // floor 1 — the stand-in for a player who fought their way through it.
         let mut busy = new_run(seed);
         {
             use rand::Rng;
@@ -245,7 +238,6 @@ fn going_back_up_returns_you_to_the_same_floor() {
 
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
 
-    // The staircases only invert for someone carrying the relic.
     let relic = spawn_named(&mut w, ELEMENT_OF_YOORD, Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(relic).remove::<Position>();
     w.get_mut::<Backpack>(player).unwrap().items.push(relic);
@@ -289,7 +281,7 @@ fn a_repeat_visit_keeps_the_layout_but_rerolls_the_contents() {
     let layout_first = map_hash(&w);
     let stock_first = floor_stock(&mut w);
 
-    descend(&mut w); // 1 -> 2
+    descend(&mut w);
 
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
     let relic = spawn_named(&mut w, ELEMENT_OF_YOORD, Position { x: 0, y: 0 }).unwrap();
@@ -304,7 +296,7 @@ fn a_repeat_visit_keeps_the_layout_but_rerolls_the_contents() {
         .unwrap();
     w.get_mut::<Position>(player).unwrap().x = (up % MAP_WIDTH as usize) as u16;
     w.get_mut::<Position>(player).unwrap().y = (up / MAP_WIDTH as usize) as u16;
-    assert!(change_level(&mut w, false)); // 2 -> 1
+    assert!(change_level(&mut w, false));
 
     assert_eq!(w.resource::<Depth>().what, 1);
     assert_eq!(

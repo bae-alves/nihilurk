@@ -69,11 +69,6 @@ fn arena(seed: u64) -> World {
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     });
-    // The overlays a mechanic writes to as it resolves — smoke where something
-    // vanished, blood where something was hurt — plus the floor number the
-    // trap formulas scale against. `initialize_world` would supply these;
-    // reached through `resource_mut`, so they have to be here or a flourish
-    // panics mid-test.
     w.init_resource::<Smoke>();
     w.init_resource::<BloodStains>();
     w.init_resource::<Corpses>();
@@ -303,7 +298,7 @@ fn a_venomous_bite_announces_itself_whoever_it_bites() {
     let mut w = arena(1);
     let biter = dummy(&mut w, 10, 4);
     w.entity_mut(biter).insert(Venomous);
-    let victim = dummy(&mut w, 10, 8); // Name: "dummy", not the player
+    let victim = dummy(&mut w, 10, 8);
 
     fire_on_hit(&mut w, biter, victim, CLEAN);
 
@@ -376,7 +371,7 @@ fn a_draining_touch_announces_itself_whoever_it_drains() {
     let mut w = arena(1);
     let attacker = dummy(&mut w, 10, 4);
     w.entity_mut(attacker).insert(Vampiric);
-    let victim = dummy(&mut w, 20, 8); // Name: "dummy", not the player
+    let victim = dummy(&mut w, 20, 8);
 
     fire_on_hit(&mut w, attacker, victim, CLEAN);
 
@@ -711,7 +706,6 @@ fn a_momentum_weapon_builds_on_every_blow_that_lands() {
 /// that the armour turned the blow, and there is no point charming a corpse.
 #[test]
 fn the_row_gates_decide_which_blows_count() {
-    // Venom needs skin: a glancing scrape carries none of it.
     let mut w = arena(1);
     let biter = dummy(&mut w, 10, 4);
     w.entity_mut(biter).insert(Venomous);
@@ -724,7 +718,6 @@ fn the_row_gates_decide_which_blows_count() {
         "a glancing scrape carried venom through armour"
     );
 
-    // Rust does not care — it landed on the armour, which is the point.
     let mut w = arena(19);
     let wearer = hero(&mut w, at(10, 10), 20, 8);
     let armor = worn(&mut w, wearer, Slot::Body);
@@ -737,7 +730,6 @@ fn the_row_gates_decide_which_blows_count() {
         "a glancing blow spared the armour it landed on"
     );
 
-    // There is no point charming a corpse.
     let mut w = arena(1);
     let striker = hero(&mut w, at(10, 10), 20, 10);
     lend(
@@ -938,7 +930,6 @@ fn stone_lets_go_speaking_of_stone_and_never_of_sleep() {
     w.entity_mut(seen).insert(Gorgon);
     fire_on_targeted(&mut w, looker, seen);
 
-    // Long enough that any hold this could have applied has run out.
     for _ in 0..64 {
         tick_effects(&mut w);
     }
@@ -1009,8 +1000,6 @@ fn a_slain_splitter_leaves_nothing_behind() {
 
     resolve_attack(&mut w, attacker, splitter);
 
-    // `settle_the_dead` may already have taken it off the floor, so "dead"
-    // means gone *or* out of HP.
     let dead = w
         .get::<Fighter>(splitter)
         .is_none_or(|f: &Fighter| f.hp <= 0);
@@ -1173,8 +1162,6 @@ fn breath_round(seed: u64, breathes: bool) -> bool {
     let bystander = creature(&mut w, at(10, 11), 10_000, 8);
     let before = hp_of(&w, bystander);
 
-    // A mob only acts on what is in the player's viewshed (`ai::notices`), so
-    // the floor has to be looked at once after everything is placed.
     see(&mut w);
     ai(&mut w);
 
@@ -1211,9 +1198,6 @@ fn every_ability_marker_is_in_the_save_format() {
 /// sharing one `Grant` fire together forever, which is never what was meant.
 #[test]
 fn no_two_ability_rows_share_a_marker() {
-    // One marker may arm rows at *different* moments — that is the point of
-    // the `when` field. Two rows at the same moment fire together forever,
-    // which is never what was meant.
     let mut seen: Vec<(&str, Moment)> = Vec::new();
     for ability in ABILITIES {
         let id = ability
@@ -1317,7 +1301,6 @@ fn losing_one_source_leaves_what_another_still_lends() {
         "lending did not attach"
     );
 
-    // A staircase takes the floor-lent copy and nothing else.
     clear_floor_grants(&mut w, bearer);
 
     assert!(
@@ -1805,8 +1788,6 @@ fn dangers_are_read_off_the_creature_not_guessed() {
     let nasty = creature(&mut w, at(11, 10), 10, 4);
     lend(&mut w, nasty, Grant::of::<Venomous>(), Lifetime::Permanent);
     lend(&mut w, nasty, Grant::of::<Gorgon>(), Lifetime::Permanent);
-    // Not attacks, but the player wants them before picking a fight: fire
-    // will not work, it flies, it casts.
     lend(
         &mut w,
         nasty,
@@ -1830,7 +1811,6 @@ fn dangers_are_read_off_the_creature_not_guessed() {
         "reported something it does not carry: {warned:?}"
     );
 
-    // A creature that was born knowing nothing casts nothing.
     let mute = creature(&mut w, at(12, 10), 10, 4);
     w.entity_mut(mute).insert(Spellset::default());
     assert!(dangers_of(&w, mute).is_empty());
@@ -1972,7 +1952,6 @@ fn every_player_only_row_is_gated_by_the_table() {
 fn one_moment_never_fires_another_moments_rows() {
     let mut w = arena(1);
     let bearer = hero(&mut w, at(10, 10), 20, 8);
-    // An on-hit row and an each-turn row, on a creature about to be hurt.
     lend(&mut w, bearer, Grant::of::<Batty>(), Lifetime::Permanent);
     lend(
         &mut w,

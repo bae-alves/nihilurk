@@ -20,6 +20,18 @@ staged() { git diff --cached --name-only --diff-filter=ACM; }
 # cheapest check and the one with no way to be argued with.
 lua .githooks/no_python.lua || exit 1
 
+# 0b. No comments inside function bodies in engine, models or particle-core.
+# A note goes above the function, or on its own line above a closure.
+lua .githooks/no_body_comments.lua || exit 1
+
+# Its test builds scratch git repos, so it must not inherit this commit's index.
+if staged | grep -qE '^\.githooks/no_body_comments(_test)?\.lua$'; then
+    env -u GIT_INDEX_FILE -u GIT_DIR -u GIT_WORK_TREE lua .githooks/no_body_comments_test.lua >/dev/null || {
+        echo "pre-commit: no_body_comments_test.lua failed -- run: lua .githooks/no_body_comments_test.lua" >&2
+        exit 1
+    }
+fi
+
 # 1. The house documentation lint, whenever a page under docs/ is staged.
 if staged | grep -q '^docs/'; then
     ./docs_style.sh || {

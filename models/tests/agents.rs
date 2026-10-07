@@ -199,7 +199,6 @@ fn a_helper_is_not_room_leashed() {
 
 #[test]
 fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
-    // Far from the player: it breathes.
     let mut w = test_world(9);
     let dragon_at = east_of_player(&mut w, 1);
     let foe_at = east_of_player(&mut w, 5);
@@ -215,7 +214,6 @@ fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
         "the dragon held fire on a foe the blast could not carry to you"
     );
 
-    // Next to the player: it bites instead.
     let mut w = test_world(9);
     let dragon_at = east_of_player(&mut w, 1);
     let foe_at = east_of_player(&mut w, 2);
@@ -247,7 +245,6 @@ fn aggravation_survives_a_save_and_an_old_save_still_loads() {
     let at = east_of_player(&mut w, 2);
     let a = monster::plain_monster(&mut w, "rat", at);
     w.entity_mut(a).insert(Aggravated { tx: 3, ty: 4 });
-    // What a save written before aggravation was a state looks like.
     let at = east_of_player(&mut w, 3);
     let b = monster::plain_monster(&mut w, "bat", at);
     w.get_mut::<Mob>(b).unwrap().movement_type = MovementType::Aggravated { tx: 7, ty: 8 };
@@ -287,7 +284,6 @@ fn a_wild_dragon_pays_for_its_fireball_and_runs_dry() {
     let at = east_of_player(&mut w, 3);
     let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), at);
     let cost = SpellDef::of(SpellEffect::DragonBreath).cost;
-    // Exactly one fireball's worth.
     *w.get_mut::<Magic>(dragon)
         .expect("a dragon is born with a Magic pool") = Magic {
         points: cost,

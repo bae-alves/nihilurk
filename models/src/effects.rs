@@ -1278,9 +1278,6 @@ pub fn revoke_all(world: &mut World, entity: Entity) {
         .map(|l| l.0.iter().copied().filter(|h| h.is_identity()).collect())
         .unwrap_or_default();
     let mut e = world.entity_mut(entity);
-    // Belt and braces: an effect attached without going through `lend` has no
-    // ledger entry, so the sweep above would miss it. Cancellation is the one
-    // place that must leave nothing behind.
     for effect in EFFECTS {
         if IDENTITY_EFFECTS.contains(&effect.id) {
             continue;
@@ -1289,8 +1286,6 @@ pub fn revoke_all(world: &mut World, entity: Entity) {
     }
     e.remove::<Grants>();
     e.remove::<Effects>();
-    // What the creature *is* goes back on, with its ledger entry, so it is
-    // still there to be saved.
     if !kept.is_empty() {
         e.insert(Effects(kept));
     }
@@ -1430,8 +1425,6 @@ pub fn tick_effects(world: &mut World) {
 
         revoke_matching(world, entity, |h| h.lifetime == Lifetime::Turns(0));
 
-        // Only the player is told, because the lines are written to them. A
-        // row with nothing to say simply ends in silence.
         if world.get::<Player>(entity).is_none() {
             continue;
         }
@@ -1576,8 +1569,6 @@ pub fn dangers_of(world: &World, entity: Entity) -> Vec<&'static str> {
         .filter(|e| e.grant.probe(world, entity))
         .filter_map(|e| e.beware)
         .collect();
-    // Two thieves share one phrase on purpose; the player is being told what
-    // will happen to them, not which creature is doing it.
     seen.dedup();
     if crate::equipment::wielded_launcher(world, entity).is_some() {
         seen.push(strings::beware_ranged_shots());

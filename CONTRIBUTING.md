@@ -57,6 +57,21 @@ turns on the same check, and more, in the pre-commit hook, so a commit is
 refused before it leaves your machine.
 
 
+Comments
+--------
+
+In `engine`, `models` and `particle-core`, a comment goes above the thing it
+describes and never inside a function body. These stay: doc comments, a note
+over a signature, a file header, a note on its own line directly above a
+closure, and the notes over a catalog table (`BESTIARY` and its kin) that say
+how to add a row. Inside a body, name the thing better or split the function.
+
+The pre-commit hook refuses a staged body comment and names the file and line
+(`.githooks/no_body_comments.lua`). It reads Rust as `cargo fmt` writes it, so
+run that first; plain Rust needs nothing else from you. CI does not check this
+one, so a clone without the hook can break it, and review catches that.
+
+
 LLMs and this codebase
 ----------------------
 

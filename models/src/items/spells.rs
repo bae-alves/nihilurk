@@ -110,8 +110,6 @@ pub fn pay_for_spell(world: &mut World, user: Entity, effect: SpellEffect) -> bo
 pub fn spell_system(world: &mut World) {
     let queued = std::mem::take(&mut world.resource_mut::<SpellQueue>().spells);
     for wants in queued {
-        // Casting a spell is one of the things that lets go of a rapier's
-        // built-up momentum — see `crate::equipment::reset_momentum`.
         crate::equipment::reset_momentum(world, wants.user);
         let def = crate::catalog::SpellDef::of(wants.effect);
         let turbo = def.kind == SpellKind::Attack && wields_turbo_magic(world, wants.user);
@@ -243,8 +241,6 @@ fn thunderbolt(world: &mut World, user: Entity, target: Position, power_mult: i3
     };
     fly_arrow(world, user_pos, target, '⇈', Color::Yellow);
 
-    // Whoever stands there, the player included: an eel's lightning is this
-    // same spell cast the other way.
     let Some(victim) = actor_at(world, target, user) else {
         world
             .resource_mut::<GameLog>()
@@ -289,9 +285,6 @@ fn cure_self(world: &mut World, user: Entity) {
 /// [`Bided`], folded into the very next attack roll
 /// [`crate::combat::resolve_attack`] makes for its bearer.
 fn bide(world: &mut World, user: Entity) {
-    // Through the ledger, with the lifetime that says what ends it: nothing
-    // lends this one, so the ledger is the only record, and a run saved mid-coil
-    // is reopened still coiled.
     if !crate::effects::lend(world, user, Grant::of::<Bided>(), Lifetime::NextAction) {
         return;
     }
@@ -652,8 +645,6 @@ fn frost_nova(world: &mut World, user: Entity, power_mult: i32) {
     kick_shake(world, ShakeKind::Heavy);
 
     for victim in targets {
-        // The ward and the cold-immunity were written out here by hand, the
-        // second a copy of `damage_with_element`'s. `apply_hit` owns both.
         let dmg = roll_dice(world, FROST_NOVA_DAMAGE_DICE, FROST_NOVA_DAMAGE_SIDES) * power_mult;
         if apply_hit(world, victim, Hit::elemental(dmg, Element::Cold), None) == 0 {
             continue;

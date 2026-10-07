@@ -36,9 +36,6 @@ fn doc_drop_weights(md: &str) -> Vec<(String, u32)> {
                 return None;
             };
             let weight: u32 = weight.parse().ok()?;
-            // Skip the header's own numeric-looking cells (there are none) and
-            // anything that isn't a lowercase category name — cheap enough
-            // given the table is nine rows.
             name.chars()
                 .all(|c| c.is_ascii_lowercase())
                 .then(|| (name.to_string(), weight))

@@ -162,7 +162,6 @@ impl PackMode {
             PackMode::Browse | PackMode::Use | PackMode::Throw | PackMode::Drop => true,
             PackMode::Equip => world.get::<Equipped>(item).is_some(),
             PackMode::Quaff => world.get::<Potion>(item).is_some(),
-            // A deck is read the way a scroll is, one card at a time.
             PackMode::Read => {
                 world.get::<Scroll>(item).is_some()
                     || world.get::<crate::components::Deck>(item).is_some()
@@ -271,8 +270,6 @@ mod tests {
 
     #[test]
     fn the_browse_modal_offers_each_verb_exactly_once() {
-        // The `i` menu is the one place all three still appear together, and
-        // every one of them now has a key of its own as well.
         for action in [ItemAction::Use, ItemAction::Throw, ItemAction::Drop] {
             assert_eq!(
                 ItemAction::MENU.iter().filter(|&&a| a == action).count(),
@@ -298,8 +295,6 @@ mod tests {
 
     #[test]
     fn an_item_with_none_of_the_marks_is_admitted_only_by_the_unfiltered_modes() {
-        // A bare entity stands in for "something the pack holds that is neither
-        // potion, scroll, wand nor gear" — a lump of coins, a ration.
         let world = World::new();
         let nothing_in_particular = Entity::from_raw(0);
         let unfiltered = [

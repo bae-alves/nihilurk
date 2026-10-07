@@ -40,7 +40,6 @@ fn descend_generates_new_floor_and_heals() {
     let mut w = test_world(7);
     let p = player(&mut w);
 
-    // Wound the player, spend some magic, and confirm they start on the upstairs.
     w.get_mut::<Fighter>(p).unwrap().hp = 4;
     w.get_mut::<Magic>(p).unwrap().points = 1;
     let start = *w.get::<Position>(p).unwrap();
@@ -49,7 +48,6 @@ fn descend_generates_new_floor_and_heals() {
         TileType::Upstairs
     );
 
-    // Walk to the downstairs.
     let down = w
         .resource::<Map>()
         .tiles
@@ -79,13 +77,10 @@ fn descend_generates_new_floor_and_heals() {
     let fighter = w.get::<Fighter>(p).unwrap();
     let expected_hp = 4 + fighter.max_hp / constants::progression::DESCENT_HEAL_DIVISOR;
     assert_eq!(fighter.hp, expected_hp);
-    // Magic is fully restored on arrival.
     let magic = w.get::<Magic>(p).unwrap();
     assert_eq!(magic.points, magic.max_points);
-    // Player is back on an upstairs in the new floor's first room.
     let np = *w.get::<Position>(p).unwrap();
     assert_eq!(w.resource::<Map>().tile(np.x, np.y), TileType::Upstairs);
-    // No floor items or monsters carried over (the starting kit stays).
     assert!(
         old_floor_entities
             .iter()
@@ -150,10 +145,8 @@ fn deepest_floor_swaps_the_downstairs_for_the_element() {
     let mut w = test_world(7);
     descend_to(&mut w, 13);
 
-    // No way down remains on Depth 13.
     assert!(!w.resource::<Map>().tiles.contains(&TileType::Downstairs));
 
-    // The Element of Yoord is lying on the floor where the down-stair would be.
     let elements: Vec<Entity> = w
         .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
         .iter(&w)
@@ -164,7 +157,6 @@ fn deepest_floor_swaps_the_downstairs_for_the_element() {
         "exactly one Element spawned on the floor"
     );
 
-    // Standing on the down-stair spot: still can't descend (there is no stair).
     let epos = *w.get::<Position>(elements[0]).unwrap();
     let p = w.query_filtered::<Entity, With<Player>>().single(&w);
     *w.get_mut::<Position>(p).unwrap() = epos;
@@ -177,7 +169,6 @@ fn endless_mode_never_spawns_the_element_and_keeps_the_downstairs() {
     let mut w = endless_test_world(7);
     descend_to(&mut w, 13);
 
-    // Depth 13 still has its down-stair -- nothing swapped it out.
     assert!(w.resource::<Map>().tiles.contains(&TileType::Downstairs));
     assert_eq!(
         w.query_filtered::<Entity, With<Amulet>>().iter(&w).count(),
@@ -185,7 +176,6 @@ fn endless_mode_never_spawns_the_element_and_keeps_the_downstairs() {
         "the Element never spawns in endless mode"
     );
 
-    // The dungeon keeps going: Depth 14 exists and still has a down-stair.
     descend_to(&mut w, 14);
     assert_eq!(w.resource::<Depth>().what, 14);
     assert!(w.resource::<Map>().tiles.contains(&TileType::Downstairs));
@@ -201,14 +191,9 @@ fn carrying_the_element_flips_the_staircases() {
         .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
         .single(&w);
 
-    // Pick it up.
     w.entity_mut(element).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(element);
 
-    // Down is now refused, wherever you stand — here, on Depth 13's up-stair
-    // (there is no down-stair on this floor to begin with), so the message is
-    // the plain refusal, not the Element's flavor text (see
-    // `element_message_only_shows_on_the_actual_downstairs`).
     assert!(!change_level(&mut w, true));
     assert!(
         w.resource::<GameLog>()
@@ -218,7 +203,6 @@ fn carrying_the_element_flips_the_staircases() {
             .contains("cannot go down")
     );
 
-    // Standing on the up-stair, `<` carries you back toward the surface.
     let up = w
         .resource::<Map>()
         .tiles
@@ -229,7 +213,6 @@ fn carrying_the_element_flips_the_staircases() {
     w.get_mut::<Position>(p).unwrap().y = (up / MAP_WIDTH as usize) as u16;
     assert!(change_level(&mut w, false));
     assert_eq!(w.resource::<Depth>().what, 12);
-    // The Element rode along in the pack.
     assert!(
         w.query_filtered::<&Backpack, With<Player>>()
             .single(&w)
@@ -275,7 +258,6 @@ fn climbing_the_last_stair_with_the_element_wins_the_run() {
         "not won until the final stair"
     );
 
-    // Stand on the Depth-1 up-stair and take it.
     let up = w
         .resource::<Map>()
         .tiles
@@ -312,7 +294,6 @@ fn the_portal_never_wins_the_run() {
     ascend_to_surface(&mut w);
     assert_eq!(w.resource::<Depth>().what, 1);
 
-    // Sit off the stairs and let the Dungeon Lord's patience run out repeatedly.
     let plain = w
         .resource::<Map>()
         .tiles
@@ -343,7 +324,6 @@ fn dungeon_lord_portal_shunts_the_dawdler_onward() {
     });
     let p = w.query_filtered::<Entity, With<Player>>().single(&w);
 
-    // Sit on plain floor, nowhere near a staircase.
     let plain = w
         .resource::<Map>()
         .tiles
@@ -353,11 +333,9 @@ fn dungeon_lord_portal_shunts_the_dawdler_onward() {
     w.get_mut::<Position>(p).unwrap().x = (plain % MAP_WIDTH as usize) as u16;
     w.get_mut::<Position>(p).unwrap().y = (plain / MAP_WIDTH as usize) as u16;
 
-    // One turn short: nothing happens.
     dungeon_lord_system(&mut w);
     assert_eq!(w.resource::<Depth>().what, 1);
 
-    // Patience runs out: a portal drops the player to Depth 2.
     dungeon_lord_system(&mut w);
     assert_eq!(w.resource::<Depth>().what, 2);
     assert_eq!(w.resource::<DungeonLord>().idle_turns, 0);
@@ -448,7 +426,6 @@ fn the_elements_portal_up_never_costs_an_item() {
 fn cannot_descend_without_stairs() {
     let mut w = test_world(7);
     let p = player(&mut w);
-    // Move somewhere that is not a staircase.
     let plain = w
         .resource::<Map>()
         .tiles

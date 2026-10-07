@@ -67,20 +67,16 @@ fn using_gear_toggles_equipped_state() {
 
     use_item(&mut w, p, sword);
     assert!(is_equipped(&w, sword));
-    // Still in the pack, at its slot.
     assert!(w.get::<Backpack>(p).unwrap().items.contains(&sword));
 
-    // Equipping the dagger swaps the sword out — only one weapon at a time.
     use_item(&mut w, p, dagger);
     assert!(is_equipped(&w, dagger));
     assert!(!is_equipped(&w, sword));
 
-    // Armour is a separate slot, so it coexists with the wielded dagger.
     use_item(&mut w, p, mail);
     assert!(is_equipped(&w, mail));
     assert!(is_equipped(&w, dagger));
 
-    // Using an equipped item again unequips it.
     use_item(&mut w, p, dagger);
     assert!(!is_equipped(&w, dagger));
 }
@@ -99,18 +95,15 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
     }
 
-    // Put the cursed armour on — fine.
     use_item(&mut w, p, cursed_mail);
     assert!(is_equipped(&w, cursed_mail));
 
-    // Can't take it off.
     use_item(&mut w, p, cursed_mail);
     assert!(
         is_equipped(&w, cursed_mail),
         "cursed armour should not come off"
     );
 
-    // Can't swap to other armour while the cursed suit is stuck.
     use_item(&mut w, p, plain_mail);
     assert!(
         !is_equipped(&w, plain_mail),
@@ -118,8 +111,6 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
     );
     assert!(is_equipped(&w, cursed_mail));
 
-    // Read a scroll of remove curse: the equipped cursed suit is destroyed
-    // outright — unequipped, pulled from the pack and despawned.
     use_item(&mut w, p, scroll);
     assert!(
         !w.entities().contains(cursed_mail),
@@ -130,7 +121,6 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
         "the cursed armour is gone from the pack"
     );
 
-    // The plain armour was never cursed, so it's still there and now equippable.
     assert!(w.get::<Backpack>(p).unwrap().items.contains(&plain_mail));
     use_item(&mut w, p, plain_mail);
     assert!(
@@ -154,17 +144,14 @@ fn remove_curse_spares_unequipped_cursed_gear() {
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
     }
 
-    // Only the ring is equipped.
     use_item(&mut w, p, worn_ring);
 
     use_item(&mut w, p, scroll);
 
-    // Equipped cursed ring: destroyed.
     assert!(
         !w.entities().contains(worn_ring),
         "the equipped cursed ring is destroyed"
     );
-    // Cursed sword just sitting in the pack: untouched, curse and all.
     assert!(
         w.entities().contains(stashed_sword),
         "the stashed cursed sword survives"
@@ -178,23 +165,9 @@ fn remove_curse_spares_unequipped_cursed_gear() {
 
 #[test]
 fn equipping_gear_moves_the_folded_numbers_by_exactly_the_rows_values() {
-    // This used to swing 400 times bare-handed, 400 times with a two-handed
-    // sword, and assert the second total was more than twice the first. That
-    // measured the dice, not the rule: it was slow, it only held for one seed,
-    // and it would have gone red for any change that shifted how many draws a
-    // blow makes -- while still passing if a weapon's die had stopped being
-    // read at all, as long as the totals happened to stay far enough apart.
-    //
-    // The rule it was reaching for is exact and has no dice in it: what a piece
-    // of gear is worth in the fold is what its catalog row says it is worth.
-    // The expected numbers are read off the spawned item rather than written
-    // here, so the row stays the only place they live.
     let mut w = test_world(42);
     let p = player(&mut w);
 
-    // The hero starts in a +1 ring mail with a mace in hand. Strip both, so
-    // what is measured below is the gear going on rather than one row swapping
-    // for another -- the swap is `two_rings_can_be_worn_at_once`'s business.
     for item in equipped_items(&mut w, p) {
         force_unequip(&mut w, item);
     }
@@ -249,16 +222,12 @@ fn equipping_gear_moves_the_folded_numbers_by_exactly_the_rows_values() {
         "armour is worth nothing on the attack roll"
     );
 
-    // And taking it back off gives the numbers back. An `Equipped` slot that
-    // leaked would show up here and nowhere else in this file.
     use_item(&mut w, p, mail);
     assert_eq!(loadout(&w, p).armor_die, before.armor_die);
 }
 
 #[test]
 fn a_worn_ring_of_protection_soaks_hits() {
-    // Hits hard enough (1d20 + 50) that the armour roll never fully absorbs a
-    // blow, so the ring's effect shows up as an exact -2 per hit.
     fn attacker(w: &mut World) -> Entity {
         w.spawn((
             Name { what: "bag".into() },
@@ -304,14 +273,12 @@ fn a_worn_ring_of_protection_soaks_hits() {
     }
     let with_ring = 100_000 - w.get::<Fighter>(p).unwrap().hp;
 
-    // +2 to every armour roll over `hits` blows.
     assert_eq!(
         with_ring,
         without_ring - 2 * hits,
         "each blow is softened by exactly 2"
     );
 
-    // Taking the ring back off drops the protection.
     use_item(&mut w, p, ring);
     w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
     for _ in 0..hits {
@@ -323,8 +290,6 @@ fn a_worn_ring_of_protection_soaks_hits() {
 
 #[test]
 fn a_worn_ring_of_strength_adds_two_to_every_blow() {
-    // Zero armour on the bag, so no roll ever absorbs the blow and the ring's
-    // +2 flows straight through as an exact +2 per hit.
     fn bag(w: &mut World) -> Entity {
         w.spawn((
             Name { what: "bag".into() },
@@ -367,9 +332,6 @@ fn a_worn_ring_of_strength_adds_two_to_every_blow() {
     let ringed = 100_000 - w.get::<Fighter>(target).unwrap().hp;
 
     assert_eq!(ringed, bare + 2 * hits, "every blow lands exactly 2 harder");
-
-    // The same ring also sustains strength — covered by the dart-trap test in
-    // tests/traps.rs.
 }
 
 #[test]
@@ -386,7 +348,6 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
 
-    // Not worn yet: rolling the per-turn system does nothing.
     for _ in 0..200 {
         ability_system(&mut w);
     }
@@ -395,8 +356,6 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
         MovementType::Chase
     ));
 
-    // Put it on. Within a sane number of turns the ~10% roll fires and the whole
-    // floor is aggravated on the player.
     use_item(&mut w, p, ring);
     let mut fired_on = None;
     for turn in 0..300 {
@@ -492,8 +451,6 @@ fn a_vorpal_weapons_bane_only_shows_once_its_quality_is_known() {
 fn two_rings_can_be_worn_at_once_and_both_effects_stack() {
     let mut w = test_world(17);
     let p = player(&mut w);
-    // The starting mace carries its own +1; clear the whole kit so the totals
-    // below are the rings' contribution alone.
     for item in equipped_items(&w, p) {
         force_unequip(&mut w, item);
     }
@@ -518,7 +475,6 @@ fn two_rings_can_be_worn_at_once_and_both_effects_stack() {
     );
     assert!(is_equipped(&w, strength));
 
-    // Both rings' bonuses fold in together, not one replacing the other.
     assert_eq!(equipped_total::<ArmorBonus>(&w, p), 2);
     assert_eq!(equipped_total::<PowerBonus>(&w, p), 2);
 }
@@ -538,7 +494,6 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
     use_item(&mut w, p, first);
     use_item(&mut w, p, second);
 
-    // Both fingers full, neither cursed: the third bumps one of them off.
     use_item(&mut w, p, third);
     assert!(is_equipped(&w, third));
     let still_on = [first, second]
@@ -550,7 +505,6 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
         "putting on a third ring should evict exactly one"
     );
 
-    // Now curse both worn rings: nothing can budge them for a fourth.
     let worn: Vec<Entity> = [first, second, third]
         .into_iter()
         .filter(|&e| is_equipped(&w, e))

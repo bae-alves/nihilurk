@@ -122,7 +122,6 @@ fn teleportation_drops_the_reader_somewhere_else_on_the_floor() {
         w.get::<Viewshed>(p).unwrap().dirty,
         "the viewshed must be recomputed after a blink"
     );
-    // Landed on a real walkable tile, not inside a wall.
     assert!(!w.resource::<Map>().blocks(after.x, after.y));
 }
 
@@ -136,8 +135,6 @@ fn aggravate_turns_every_monster_into_a_hunter_that_closes_in_unseen() {
     let p = player(&mut w);
     let hero = *w.get::<Position>(p).unwrap();
 
-    // A monster that normally never moves, parked a few tiles down the same row
-    // and outside the hero's view.
     let mob_start = {
         let map = w.resource::<Map>();
         (2..8)
@@ -163,13 +160,11 @@ fn aggravate_turns_every_monster_into_a_hunter_that_closes_in_unseen() {
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    // Marked as aggravated, homing on the tile the hero read it from.
     let ag = w
         .get::<Aggravated>(mob)
         .expect("aggravate should mark the mob Aggravated");
     assert_eq!((ag.tx, ag.ty), (hero.x, hero.y));
 
-    // Even though it is a "Static" bundle and out of sight, it now advances.
     let dist_before = mob_start.0 - hero.x;
     for _ in 0..3 {
         run_ai(&mut w);
@@ -234,7 +229,6 @@ fn create_monster_conjures_a_fresh_creature_on_the_floor() {
     let after = w.query_filtered::<(), With<Mob>>().iter(&w).count();
     assert_eq!(after, before + 1, "exactly one monster is added");
 
-    // It stands on a real tile that isn't the player's.
     let hero = *w.get::<Position>(p).unwrap();
     let mut q = w.query_filtered::<(&Position, &Faction), With<Mob>>();
     let placed_ok = q
@@ -311,7 +305,6 @@ fn charming_tames_every_monster_in_view_and_leaves_the_rest_alone() {
 
 /// Give the player a wielded weapon and return its entity.
 fn wield_a_blade(w: &mut World, p: Entity) -> Entity {
-    // Put down the starting mace first — this blade is the only thing in hand.
     for item in equipped_items(w, p) {
         force_unequip(w, item);
     }
@@ -391,7 +384,6 @@ fn vorpalize_with_empty_hands_just_fizzles() {
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    // Nothing to brand — and no weapon quietly grew a Vorpal tag.
     assert_eq!(w.query::<&Vorpal>().iter(&w).count(), 0);
 }
 
@@ -414,8 +406,6 @@ fn vorpalize_with_a_bow_in_hand_also_just_fizzles() {
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
-    // A launcher has no edge to enchant — the scroll fizzles as if the hand
-    // were empty, and the bow stays a plain bow.
     assert_eq!(w.query::<&Vorpal>().iter(&w).count(), 0);
     assert!(
         w.resource::<GameLog>()
@@ -431,7 +421,6 @@ fn a_vorpal_blade_beheads_its_bane_in_one_blow() {
     let p = player(&mut w);
     let sword = wield_a_blade(&mut w, p);
     w.entity_mut(sword).insert(Vorpal { bane: "orc".into() });
-    // Big power, zero enemy armour: every hit deals damage and never glances.
     w.get_mut::<Fighter>(p).unwrap().power = 100;
 
     let hero = *w.get::<Position>(p).unwrap();
@@ -456,7 +445,7 @@ fn every_vorpal_blade_beheads_a_jabberwock_whatever_its_bane() {
     let mut w = test_world(1);
     let p = player(&mut w);
     let sword = wield_a_blade(&mut w, p);
-    w.entity_mut(sword).insert(Vorpal { bane: "orc".into() }); // bane is NOT the jabberwock
+    w.entity_mut(sword).insert(Vorpal { bane: "orc".into() });
     w.get_mut::<Fighter>(p).unwrap().power = 100;
 
     let hero = *w.get::<Position>(p).unwrap();
@@ -506,15 +495,8 @@ fn a_vorpal_blade_is_just_a_blade_against_anything_else() {
 
 #[test]
 fn a_glancing_blow_chips_a_foe_down_to_one_but_never_finishes_it() {
-    // Seed picked to roll no excellent hit across the 40 swings below. An
-    // excellent hit is not a glancing one — see
-    // `an_excellent_hit_can_finish_a_foe_a_glancing_blow_could_not` — so a
-    // seed that rolled one here would (correctly) kill the target partway
-    // through and this test would no longer be exercising a pure string of
-    // glancing blows.
     let mut w = test_world(151);
     let p = player(&mut w);
-    // Feeble hero, heavily armoured target: every hit is a chip-damage glance.
     for item in equipped_items(&w, p) {
         force_unequip(&mut w, item);
     }
@@ -679,7 +661,6 @@ fn monster_confusion_charges_the_hands_and_the_next_landed_blow_spends_them() {
         "the charm waits on the hands rather than going off now"
     );
 
-    // Big power against a fat, unarmoured target: the blow lands, and can't kill.
     w.get_mut::<Fighter>(p).unwrap().power = 20;
     let hero = *w.get::<Position>(p).unwrap();
     let orc = spawn_dummy(&mut w, "orc", hero.x + 1, hero.y, 999, MovementType::Chase);
@@ -701,8 +682,6 @@ fn monster_confusion_charges_the_hands_and_the_next_landed_blow_spends_them() {
 
 #[test]
 fn a_glancing_scrape_never_passes_the_charm_on() {
-    // The seed `a_glancing_blow_chips_a_foe...` uses: no excellent hit, so this
-    // single swing really is the glancing one the test is about.
     let mut w = test_world(564);
     let p = player(&mut w);
     for item in equipped_items(&w, p) {
@@ -765,7 +744,6 @@ fn a_held_monster_cannot_step_but_still_bites_what_comes_in_reach() {
     let p = player(&mut w);
     let hero = *w.get::<Position>(p).unwrap();
 
-    // One two tiles off (it would close), one already in reach (it would bite).
     let far = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
     let near = spawn_dummy(&mut w, "troll", hero.x, hero.y + 1, 4, MovementType::Chase);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
@@ -911,7 +889,6 @@ fn a_detection_that_skips_an_item_leaves_its_stash_alone() {
     let spot = Position { x: 1, y: 1 };
     let mut w = test_world(2);
     let p = player(&mut w);
-    // A plain dagger is beneath magic detection's notice.
     let plain = spawn_weapon(&mut w, "dagger", spot);
     w.entity_mut(plain).insert((Hidden, Invisible));
 

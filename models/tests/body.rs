@@ -41,11 +41,9 @@ fn the_body_replaces_stats_glyph_and_innate_magic() {
     assert_eq!((f.power, f.power_bonus), (dragon.power, dragon.power_bonus));
     assert_eq!((f.armor, f.armor_bonus), (dragon.armor, dragon.armor_bonus));
 
-    // The bestiary row's grants, on the player, as components.
     assert!(w.get::<FireImmune>(p).is_some());
     assert!(w.get::<Flies>(p).is_some());
 
-    // Still the player, still on the player's side.
     assert!(w.get::<Player>(p).is_some());
     assert_eq!(*w.get::<Faction>(p).unwrap(), Faction::Player);
     assert_eq!(w.get::<Name>(p).unwrap().what, dragon.name);
@@ -69,13 +67,11 @@ fn breath_is_a_spell_the_body_pays_for_like_any_other() {
             .slots
             .contains(&SpellEffect::DragonBreath)
     );
-    // Born with it, but it costs what its row says, out of the player's Ma.
     assert_eq!(
         spell_cost(&w, p, SpellEffect::DragonBreath),
         SpellDef::of(SpellEffect::DragonBreath).cost
     );
 
-    // Learned from a hero coin by nihil, the same spell costs its row.
     let mut nihil = test_world(7, Body::Nihil);
     let h = player(&mut nihil);
     nihil
@@ -126,7 +122,6 @@ fn a_dragon_npc_breathes_the_same_spell() {
 
 #[test]
 fn only_a_body_with_hands_can_equip() {
-    // A dragon has no ItemUser on its row: claws, no straps.
     let mut w = test_world(7, Body::Monster(MonsterDef::named("dragon")));
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
@@ -134,14 +129,12 @@ fn only_a_body_with_hands_can_equip() {
     assert!(!equipment::toggle_equipped(&mut w, p, sword));
     assert!(equipment::equipped_items(&w, p).is_empty());
 
-    // An orc uses items, and so does an orc-bodied player.
     let mut w = test_world(7, Body::Monster(MonsterDef::named("orc")));
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
     let sword = spawn_named(&mut w, "long sword", at).unwrap();
     assert!(equipment::toggle_equipped(&mut w, p, sword));
 
-    // And nihil's own hands still work.
     let mut w = test_world(7, Body::Nihil);
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
@@ -165,8 +158,6 @@ fn an_innate_tempo_survives_the_stairs() {
     w.get_mut::<Position>(p).unwrap().y = (down / MAP_WIDTH as usize) as u16;
     assert!(change_level(&mut w, true));
 
-    // A floor change lifts haste the *floor* lent. It cannot lift what the
-    // body was born with.
     assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Fast);
 }
 
@@ -175,8 +166,6 @@ fn the_body_comes_back_from_a_save() {
     let body = MonsterDef::named("wraith");
     let mut w = test_world(7, Body::Monster(body));
     let p = player(&mut w);
-    // Take a bite out of it, so what comes back is this wraith and not a
-    // freshly rolled one.
     w.get_mut::<Fighter>(p).unwrap().hp -= 1;
     let hp = w.get::<Fighter>(p).unwrap().hp;
 
@@ -198,8 +187,6 @@ fn the_body_comes_back_from_a_save() {
     assert_eq!(w2.get::<Fighter>(p2).unwrap().hp, hp);
     assert_eq!(w2.get::<Speed>(p2).unwrap().kind, SpeedKind::Fast);
     assert!(w2.get::<Undead>(p2).is_some(), "innate magic came back");
-    // And the costume itself, which is what the staircase and the equip gate
-    // ask for — it is rebuilt from the name, not stored.
     assert!(w2.get::<MonsterBody>(p2).is_some());
 }
 
@@ -280,8 +267,6 @@ fn an_apis_run_only_has_hives_for_special_rooms_about_a_tenth_of_the_time() {
         hives += (!kinds.is_empty()) as usize;
         rooms += 1;
     }
-    // A floor has ~4 rooms that can be a hive, so 10% each is about a third of
-    // floors: far above the 1.25% a normal run gets, far below every floor.
     assert!(
         hives * 10 > rooms * 2 && hives * 10 < rooms * 6,
         "{hives} of {rooms} floors had a hive"

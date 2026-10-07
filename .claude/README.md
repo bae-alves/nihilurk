@@ -17,7 +17,7 @@ How Claude Code is set up for nihilurk. Open the repo root in Claude Code and th
 
 ## The system prompt
 
-`CLAUDE.md` has six blocks: who bae is to Claude and how conflicts resolve, hard rules, test and debug habits, context and output habits, one paragraph on contributing, and prose style.
+`CLAUDE.md` has six blocks: who bae is to Claude and how conflicts resolve, hard rules, test and debug habits, context and output habits, and prose style.
 
 Why it reads the way it does:
 
@@ -29,10 +29,11 @@ Why it reads the way it does:
 Why it works for this codebase:
 
 - The repo checks itself. `cargo test` runs the whole suite, and some tests hold docs to the code (`models/tests/content_docs.rs`). `docs_style.sh` lints the pages, and the pre-commit hook runs it on staged docs once you enable `.githooks`. That makes "read `docs/` first" safe, and "failing test first" has somewhere to land.
+- The pre-commit hook also refuses a comment inside a function body in `engine`, `models` and `particle-core` (`.githooks/no_body_comments.lua`). `CLAUDE.md` states the rule in one line, so Claude writes the note above the function, or above a closure, and does not need the hook to tell it.
 - Rules the compiler cannot state live in tests, not prose (`models/tests/effects.rs`, `engine/tests/workspace.rs`). `CLAUDE.md` says "Enforcement=hooks/permissions; docs=guidance", and `settings.json` follows it: it denies `Task` and `Agent`, and runs `rustfmt --edition 2024` after every edit to a `.rs` file (`hooks/rustfmt.lua`). Scripts here are bash or Lua.
 - The cost of denying `Agent`: Claude explores in one context, so a wide audit takes more sequential reads.
 
-Four things name this repo or its maintainer: the `/docs` pointer, the content-table rule, the contributing paragraph, and bae's name. The rest says nothing about nihilurk. bae generalized the file for other Rust codebases, and it worked there too. Those codebases belong to bae's upcoming secret project. No benchmark backs that. It is bae's experience.
+Four things name this repo or its maintainer: the `/docs` pointer, the content-table rule, the contributing paragraph, and bae's name. The rest says nothing about nihilurk. bae generalized the file for other Rust codebases, and it worked there too. Those codebases belong to bae's upcoming secret project.
 
 ## The journal
 
@@ -46,4 +47,4 @@ Four things name this repo or its maintainer: the `/docs` pointer, the content-t
 | `/careful-review` | Re-reads the code Claude just wrote or changed, looks for bugs, and fixes them. |
 | `/codebase-architecture` | Runs `npx skills use` to fetch `improve-codebase-architecture` from mattpocock/skills on GitHub, then follows it. `npx` runs an npm package and needs the network. |
 
-This repo has no `skills/` directory. `settings.json` registers the `claude-skillz` marketplace and switches its `track-and-improve` plugin off.
+This repo has no `skills/` directory.

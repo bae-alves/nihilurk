@@ -18,7 +18,7 @@ end
 local dir = os.tmpname()
 os.remove(dir)
 assert(os.execute("mkdir -p '" .. dir .. "/.githooks'"))
-assert(os.execute("cp '" .. hooks .. "/pre-commit' '" .. hooks .. "/no_python.lua' '" .. dir .. "/.githooks/'"))
+assert(os.execute("cp '" .. hooks .. "/pre-commit' '" .. hooks .. "/no_python.lua' '" .. hooks .. "/no_body_comments.lua' '" .. dir .. "/.githooks/'"))
 sh("cd '" .. dir .. "' && git init -q && git config user.email t@t && git config user.name t")
 
 local function stage(name, text)

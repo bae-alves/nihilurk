@@ -295,8 +295,6 @@ fn budget_runs(level: Option<SpecialLevel>, tier: u32) -> (usize, usize) {
     match level {
         Some(SpecialLevel::Battlefield) => (BATTLEFIELD_MONSTER_RUNS, BATTLEFIELD_ITEM_RUNS),
         Some(SpecialLevel::Vault) => (VAULT_MONSTER_RUNS, VAULT_ITEM_RUNS),
-        // A bee world only rolls at tier 1 or deeper; the floor of one keeps a
-        // `NIHILURK_LEVEL` bee world on a shallower floor from standing empty.
         Some(SpecialLevel::BeeWorld) => (tier.max(1) as usize, BEE_WORLD_ITEM_RUNS),
         Some(SpecialLevel::Labyrinth | SpecialLevel::Castle | SpecialLevel::Island) | None => {
             (ORDINARY_BUDGET_RUNS, ORDINARY_BUDGET_RUNS)
@@ -386,17 +384,11 @@ pub(super) fn populate_level(
 
     let mut occupied = HashSet::new();
 
-    // The player's tile is already occupied.
     occupied.insert((player_x, player_y));
 
     // Rough danger tier: deeper floors unlock nastier letters.
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
 
-    // Once the Element of Yoord is in the pack, the climb out lifts every depth
-    // gate: each floor draws from the whole bestiary, so a dragon can be waiting
-    // on floor 1. A bee world is apis and nothing else, Element or no, and a
-    // tile of deep water only ever gets a swimmer. `pick_species` routes every
-    // spawn below through the right draw for the tile it is filling.
     let anything_goes = holding_element_of_yoord(world);
     let level = world.resource::<Map>().level;
     let tiles = world.resource::<Map>().tiles.clone();
@@ -411,29 +403,14 @@ pub(super) fn populate_level(
         }
     };
 
-    // Everything below draws from this floor's own stream, never the shared
-    // `GameRng` — see [`content_rng`]. The stream is keyed off the staircase
-    // count, so a repeat visit re-stocks the same layout; but nothing the
-    // player did *on* a floor (fighting, looting) can reach into how the next
-    // one is built.
     let seed = world.resource::<RngSeed>().0;
     let changes = world.get_resource::<FloorChanges>().map_or(0, |c| c.count);
     let mut rng = content_rng(seed, depth, changes);
 
-    // What the floor owes the player before it owes them anything else.
     place_guaranteed(world, rooms, &mut occupied, &mut rng, depth);
 
-    // Both the monster and trap budgets step up in depth bands drawn from
-    // `DIFFICULTY_TIER_LAST_DEPTH` (see `difficulty_tier`). Each tier grants
-    // one more spawn slot and widens the odds that a given slot actually
-    // fills, so the dungeon gets more crowded and more dangerous the deeper
-    // you go.
     let tier = difficulty_tier(depth);
 
-    // A special room fills itself completely before the ordinary budgets
-    // below get a turn at its tiles — every tile it claims goes into
-    // `occupied` first, so the loops that follow just see fewer free spots
-    // to draw from, the same as any other crowded floor.
     populate_special_rooms(
         world,
         rooms,
@@ -444,9 +421,6 @@ pub(super) fn populate_level(
         &pick_species,
     );
 
-    // A special level runs the ordinary budgets more than once over. On an
-    // island the monsters have the sea to spread into as well as the shore;
-    // everything else keeps to the land.
     let (monster_runs, item_runs) = budget_runs(level, tier);
     let monster_rooms = match level {
         Some(SpecialLevel::Island) => {
@@ -469,9 +443,6 @@ pub(super) fn populate_level(
         );
     }
 
-    // From `CORRIDOR_LURKER_MIN_DEPTH` on, every corridor also has a small
-    // chance (`CORRIDOR_LURKER_CHANCE`) of hiding a lurker dead centre — right
-    // where an unwary traveller runs into it.
     if depth >= CORRIDOR_LURKER_MIN_DEPTH {
         let centers = corridor_centers(&world.resource::<Map>().tiles);
         for (cx, cy) in centers {
@@ -492,11 +463,6 @@ pub(super) fn populate_level(
         populate_castle(world, &mut occupied, &mut rng, depth, tier, &pick_species);
     }
 
-    // A floor hides an extra item in plain sight at `HIDDEN_ITEM_CHANCE` —
-    // every floor, at the rate it currently sits at. It draws nothing and is
-    // never announced until a ring of perception turns it up, a detection
-    // finds it (`items::potions::detect_item`), or the player walks straight
-    // onto it ("Hey! There's something here!").
     if rng.gen_bool(HIDDEN_ITEM_CHANCE) {
         if let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) {
             let item = roll_item(world, &mut rng, depth, Position { x, y });
@@ -506,11 +472,6 @@ pub(super) fn populate_level(
 
     place_element_of_yoord(world, &mut occupied, depth);
 
-    // Traps: placed after the stairs, monsters and loot, before the hero drops
-    // in. Like the monster budget, the trap budget steps up a tier at a time —
-    // `TRAP_SLOTS_BASE` slots at the surface, one more per `tier` — and each
-    // slot's chance of producing a trap climbs the same way, so the deep
-    // floors bristle with them and the first floors rarely hold more than one.
     let max_traps = TRAP_SLOTS_BASE + tier as usize;
     let trap_chance =
         (TRAP_FILL_CHANCE_BASE + TRAP_FILL_CHANCE_PER_TIER * tier as f64).min(TRAP_FILL_CHANCE_CAP);
@@ -521,7 +482,6 @@ pub(super) fn populate_level(
         place_one_trap(world, rooms, &mut occupied, &mut rng, depth, player_start);
     }
 
-    // Last of all, whatever the content author asked for on the command line.
     spawn_requested(
         world,
         Position {
@@ -531,7 +491,5 @@ pub(super) fn populate_level(
         &mut occupied,
     );
 
-    // Anything the stocking left in deep water — a swimmer's gear, dropped at
-    // its feet — goes down before the player arrives to see it go.
     crate::items::sink_items(world);
 }

@@ -80,8 +80,6 @@ fn descending_through_a_death_depth_never_wakes_the_ghost() {
     let mut w = test_world(3, "HERO2");
     let p = player(&mut w);
     w.resource_mut::<Depth>().what = depth - 1;
-    // Stand on the down-stair `initialize_world` already carved, so an
-    // ordinary descent (no Element of Yoord) lands exactly on `depth`.
     let down = w
         .resource::<Map>()
         .tiles
@@ -99,7 +97,6 @@ fn descending_through_a_death_depth_never_wakes_the_ghost() {
         ghost_named(&mut w, "VICTIM2").is_none(),
         "descending must never trigger the encounter, only ascending"
     );
-    // The bones file must still be there for a real ascent to find later.
     assert!(
         bones::take(depth).is_some(),
         "descending must not consume the bones file"
@@ -128,9 +125,6 @@ fn the_ghost_carries_its_gear_back_cursed_and_worn() {
                 && w.get::<Curse>(e).is_some()),
         "the sword came back worn and cursed"
     );
-    // The ghost's own loot sits loose on its own tile — unlike the sword
-    // above, checking by name alone would just as happily match an unrelated
-    // "potion of healing" the floor's own population rolled elsewhere.
     let ghost_pos = *w.get::<Position>(ghost).unwrap();
     let potion_here = w
         .query::<(&Name, &Position)>()

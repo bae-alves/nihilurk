@@ -101,18 +101,13 @@ fn a_thrown_weapon_is_caught_and_wielded_by_a_creature_with_hands() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    // A troll rather than an orc or a hobgoblin on purpose: neither of those
-    // two ever rolls a piece of gear at spawn, so its hands are never already
-    // full when the mace arrives.
     let troll = monster::monster(&mut w, "test monster", spot);
-    // Enough HP that the mace can't kill it before it can catch it.
     w.get_mut::<Fighter>(troll).unwrap().hp = 20;
     let mace = stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
 
     throw(&mut w, p, mace, spot);
 
     assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(troll));
-    // Caught, not dropped: it is nobody's floor item now.
     assert!(w.get::<Position>(mace).is_none());
     assert!(logged(&w, "wields it"));
 }
@@ -151,7 +146,6 @@ fn a_thrown_wand_of_fire_goes_off_like_a_grenade() {
     let spot = east_of_player(&mut w, 1);
     let orc = monster(&mut w, "orc", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 40;
-    // Well out of the blast, so this measures the grenade and not a suicide.
     w.get_mut::<Fighter>(p).unwrap().hp = 99;
     let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
     w.get_mut::<Battery>(wand).unwrap().charges = 5;
@@ -168,14 +162,9 @@ fn a_thrown_wand_of_fire_goes_off_like_a_grenade() {
 
 #[test]
 fn the_grenade_is_wider_and_hotter_than_the_beam() {
-    // Line orcs up east of the player, one per tile, and compare who burns when
-    // the wand is zapped against who burns when it is thrown.
     fn burn(seed: u64, throw_it: bool) -> (usize, i32) {
         let mut w = test_world(seed);
         let p = player(&mut w);
-        // What this measures is the grenade's own roll, so clear the floor's
-        // traps first: one caught in the blast bursts and adds its own bite
-        // (see `traps::detonate_trap`).
         let traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
         for t in traps {
             w.entity_mut(t).despawn();
@@ -243,9 +232,6 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
         "the grenade should catch more than the beam ({thrown_count} vs {zapped_count})"
     );
 
-    // A thrown wand spends every charge at once, so its roll is one die per
-    // charge — inside the range those dice can produce, whatever the dice are
-    // today, and harder on average than the single zap it gave up.
     const CHARGES: i32 = 5;
     let rolls: Vec<i32> = (0..60).map(|seed| burn(seed, true).1).collect();
     let floor = CHARGES;
@@ -267,7 +253,6 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
 fn a_wand_lobbed_into_open_floor_lands_a_dud() {
     let mut w = test_world(3);
     let p = player(&mut w);
-    // Two tiles east, nothing in the way, well inside the throw leash.
     let spot = east_of_player(&mut w, 2);
     let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
     w.get_mut::<Battery>(wand).unwrap().charges = 7;
@@ -318,8 +303,6 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
         spawn_potion(w, PotionEffect::Poison, NOWHERE)
     });
 
-    // Lobbed at a rat one tile away — the wand bursts on it, and the blast disc
-    // washes back over the thrower.
     let spot = east_of_player(&mut w, 1);
     monster(&mut w, "bat", spot);
     let wand = stash(&mut w, p, |w| {
@@ -492,8 +475,6 @@ fn caught_gear_arms_the_monster_that_caught_it() {
 
     throw(&mut w, p, mail, spot);
 
-    // The armour die it just pulled on now counts towards its defence, exactly
-    // as it would for the player.
     assert_eq!(equipped_total::<ArmorDie>(&w, hobgoblin), mail_armor);
 }
 
@@ -547,7 +528,6 @@ fn a_potion_that_does_nothing_visible_still_lands_on_its_target() {
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
     let orc = monster::plain_monster(&mut w, "test monster", spot);
-    // Strength was never drained: restore strength has nothing to show for itself.
     let hp = w.get::<Fighter>(orc).unwrap().max_hp;
     w.get_mut::<Fighter>(orc).unwrap().hp = hp;
     let potion = stash(&mut w, p, |w| {
@@ -561,8 +541,6 @@ fn a_potion_that_does_nothing_visible_still_lands_on_its_target() {
 
 #[test]
 fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
-    // The orc reads it — anything with the wits to swing a sword can follow a
-    // page. The bat cannot.
     let mut w = test_world(9);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
@@ -574,7 +552,6 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
 
     throw(&mut w, p, scroll, spot);
 
-    // Bounced off and landed, unread.
     assert_eq!(pos_of(&w, scroll), (spot.x, spot.y));
 
     let scroll = stash(&mut w, p, |w| {
@@ -595,9 +572,6 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
 
 #[test]
 fn the_item_users_are_the_humanoids_with_wits() {
-    // Wielding and reading are one flag, so this roster is both lists at once —
-    // the mindless humanoids (zombie and phantom) are deliberately absent.
-    // Spirits are left out: theirs is a random boon, not the species'.
     let mut w = test_world(1);
     let users: Vec<&str> = BESTIARY
         .iter()
@@ -652,7 +626,6 @@ fn cursed_gear_you_are_wearing_cannot_be_thrown_or_dropped() {
     assert!(throw_refusal(&w, p, sword).is_some());
     assert!(drop_refusal(&w, p, sword).is_some());
 
-    // The same sword loose in the pack is throwable.
     force_unequip(&mut w, sword);
     assert!(throw_refusal(&w, p, sword).is_none());
 }
@@ -664,7 +637,6 @@ fn the_element_of_yoord_never_leaves_your_hand() {
     let element = stash(&mut w, p, |w| spawn_element_of_yoord(w, NOWHERE));
 
     assert!(throw_refusal(&w, p, element).is_some());
-    // Nor can it be set down: once in hand, it stays in hand.
     assert!(drop_refusal(&w, p, element).is_some());
 }
 
@@ -703,14 +675,12 @@ fn kill_an_armed_troll(seed: u64) -> bool {
     assert!(w.get_entity(troll).is_none());
 
     match w.get_entity(mace) {
-        // Survived: on the floor where it fell, owned by nobody, announced.
         Some(_) => {
             assert_eq!(pos_of(&w, mace), (spot.x, spot.y));
             assert!(w.get::<Equipped>(mace).unwrap().by.is_none());
             assert!(logged(&w, "clatters to the floor"));
             true
         }
-        // Destroyed with its owner, and never mentioned.
         None => {
             assert!(!logged(&w, "clatters to the floor"));
             false
@@ -721,16 +691,12 @@ fn kill_an_armed_troll(seed: u64) -> bool {
 #[test]
 fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
     let survivals = (0..40).filter(|&seed| kill_an_armed_troll(seed)).count();
-    // A coin flip per item: over forty deaths, both outcomes have to show up.
     assert!(survivals > 0, "no gear ever survived a death");
     assert!(survivals < 40, "gear always survived a death");
 }
 
 #[test]
 fn throw_is_the_middle_row_of_the_browse_modal_and_has_a_key_of_its_own() {
-    // The order is fixed now — `-dropthrow` swapped the last two rows back when
-    // this modal was the only way to reach any of the three verbs, and `t`, `a`
-    // and `d` are what replaced it.
     assert_eq!(
         ItemAction::MENU,
         [ItemAction::Use, ItemAction::Throw, ItemAction::Drop]
@@ -759,7 +725,6 @@ fn a_monster_keeps_what_it_is_holding_across_a_save() {
     let save = common::SaveFile::new("throw-save");
     save_game(&mut w, save.path()).unwrap();
 
-    // Saving is read-only: the mace never left the orc's hand to be written.
     assert_eq!(w.get::<Equipped>(mace).unwrap().by, Some(orc));
 
     let mut loaded = test_world(12);
@@ -775,8 +740,6 @@ fn a_monster_keeps_what_it_is_holding_across_a_save() {
 
 #[test]
 fn a_weapon_keeps_its_thrown_damage_across_a_save() {
-    // Like a ring's grants, what a weapon does when hurled is read back from the
-    // catalog rather than stored in every save file.
     let mut w = test_world(2);
     let p = player(&mut w);
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
@@ -809,7 +772,6 @@ fn a_shot_that_lands_on_a_trap_sets_it_off() {
     w.entity_mut(trap).remove::<Hidden>();
     let beside_it = east_of_player(&mut w, 3);
     let bystander = monster(&mut w, "orc", beside_it);
-    // Tough enough to survive the burst and be asked about it afterwards.
     w.get_mut::<Fighter>(bystander).unwrap().hp = 30;
     let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
 
@@ -975,7 +937,6 @@ fn acting_on_a_doorway_breaks_the_ward_and_greys_the_door() {
     assert!(w.resource::<Map>().is_inert_door(here.x, here.y));
     assert_ne!(pos_of(&w, chaser), (perch.x, perch.y), "it came for you");
 
-    // A cracked door stays cracked: stepping back onto it wards nothing.
     let p = player(&mut w);
     w.entity_mut(p).insert(EntityMoved);
     let before = pos_of(&w, chaser);
@@ -999,7 +960,6 @@ fn a_thrown_wand_of_digging_makes_a_crater() {
     w.get_mut::<Position>(p).unwrap().x = 20;
     w.get_mut::<Position>(p).unwrap().y = 10;
     let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Digging, NOWHERE));
-    // Thrown at the rock: it breaks on the wall, on the last open tile.
     throw(&mut w, p, wand, Position { x: 23, y: 10 });
 
     let r = GRENADE_RADIUS;

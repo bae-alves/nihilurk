@@ -105,8 +105,6 @@ pub(crate) fn flourish(world: &mut World) {
     kick_shake(world, ShakeKind::Heavy);
     let mut log = world.resource_mut::<GameLog>();
     for (i, line) in FANFARE.into_iter().enumerate() {
-        // Line 2, "And you do it with style!", is the same flourish a combo's
-        // magenta shout is (see `LogCategory::Combo`) — the rest are plain.
         let category = if i == 2 {
             LogCategory::Combo
         } else {
@@ -122,8 +120,6 @@ pub(crate) fn flourish(world: &mut World) {
 /// layers its star. The colour of each is drawn at random, so no two flourishes
 /// look alike.
 fn fireworks(world: &mut World, at: Position) {
-    // Off `FxRng`, the cosmetic stream: which colour each firework comes in is
-    // decoration, and decoration never moves the gameplay dice.
     let colors: Vec<Color> = {
         let Some(mut rng) = world.get_resource_mut::<FxRng>() else {
             return;
@@ -159,8 +155,6 @@ pub(crate) fn wear_adornment(world: &mut World, wearer: Entity, item: Entity) {
     world
         .resource_mut::<GameLog>()
         .add(strings::adornment_spent(&name));
-    // The pack is not this module's to reach into — tagging the ring is how
-    // anything in the game asks to be spent, and `crate::items` does the rest.
     world.entity_mut(item).insert(Consume);
 }
 

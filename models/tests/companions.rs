@@ -23,8 +23,6 @@ fn test_world(seed: u64) -> World {
         what: "TESTER".into(),
     });
     initialize_world(&mut w);
-    // Only what each test plants: the floor's own monsters would wander into
-    // the Helper's view and change what it chooses to do.
     let strays: Vec<Entity> = w
         .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
         .iter(&w)
@@ -181,13 +179,11 @@ fn a_helper_closes_on_a_monster_in_view_and_otherwise_on_you() {
     recruit(&mut w, pal);
     run_visibility(&mut w);
 
-    // Nothing to fight: it heels.
     ai(&mut w);
     let p = player_pos(&mut w);
     let at = *w.get::<Position>(pal).unwrap();
     assert_eq!(chebyshev(at, p), 2, "stepped toward the player");
 
-    // Something to fight, right next to it: it swings rather than heels.
     let foe_at = Position {
         x: at.x + 1,
         y: at.y,
@@ -210,7 +206,6 @@ fn a_monster_next_to_your_helper_but_not_you_fights_the_helper() {
     let at = east_of_player(&mut w, 3);
     let pal = monster::plain_monster(&mut w, "rat", at);
     recruit(&mut w, pal);
-    // Pinned down so it neither heels nor steps: the test is about the foe.
     w.get_mut::<Mob>(pal).unwrap().movement_type = MovementType::Static;
     w.entity_mut(pal).remove::<Speed>();
     let at = east_of_player(&mut w, 4);
@@ -361,7 +356,6 @@ fn a_cleave_and_a_whirl_spare_your_helper() {
     w.get_mut::<Backpack>(p).unwrap().items.push(sickle);
     assert!(toggle_equipped(&mut w, p, sickle));
     w.despawn(foe);
-    // A step east, with the helper alongside both tiles.
     let east = Position {
         x: here.x + 1,
         y: here.y,
@@ -380,7 +374,6 @@ fn a_helper_ignores_terrain_like_a_ghost() {
     let at = east_of_player(&mut w, 3);
     let pal = monster::plain_monster(&mut w, "rat", at);
     recruit(&mut w, pal);
-    // Walled in on every side, and the tile toward the player is deep water.
     {
         let mut map = w.resource_mut::<Map>();
         for dy in -1i32..=1 {
@@ -429,7 +422,6 @@ fn always_tamed_takes_any_treat_every_time() {
     for seed in 0..30 {
         let mut w = test_world(seed);
         let at = east_of_player(&mut w, 1);
-        // Hands, so a snack is the wrong treat for it: it takes it anyway.
         let mob = monster::monster(&mut w, "orc", at);
         lend_forever::<AlwaysTamed>(&mut w, mob);
         throw_treat(&mut w, "snack", at);

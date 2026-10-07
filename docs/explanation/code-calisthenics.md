@@ -114,11 +114,9 @@ The call site loses a branch and gains a name that says what the branch was for.
         ...
         return Ok(turn_taken);
     }
-    // Sub-branch: the main list. Not an `else` -- the branch above
-    // always returns, so this is the fall-through.
     else { ... }
 
-If the `if` block ends in `return` (or `continue`, or `break`), the `else` is noise. Drop the keyword, dedent the block, and leave a comment saying the branch above is terminal.
+If the `if` block ends in `return` (or `continue`, or `break`), the `else` is noise. Drop the keyword and dedent the block. The `return` already says the rest is the fall-through, and a comment would only say it again.
 
 
 The one `else` that stays: the expression ternary
@@ -230,6 +228,25 @@ Keep bestiary-backed tests only where the bestiary itself is the subject:
 content-table validation, playable-body definitions, spawn behavior, and
 roster-wide contracts. Those tests should say so in their names and comments.
 The shared neutral fixtures live under `models/tests/common/monster.rs`.
+
+
+One rule of nihilurk's own: no comments inside a function body
+---------------------------------------------------------------
+
+In `engine`, `models` and `particle-core`, a comment sits above the thing it describes. It never sits inside a function body, test functions included.
+
+A comment in a body is a name or a function that has not been written yet. "Skip the dead" becomes `if is_dead(mob) { return }`. "Then the second pass" becomes a function called `second_pass`. The code stays where it is and the sentence moves into an identifier, where a rename keeps it true and an edit to the code cannot leave it behind.
+
+These stay, because they sit outside a body:
+
+- Doc comments (`///`) and file headers (`//!`).
+- A note over a signature, or between its parameters.
+- A note on its own line directly above a closure, which describes the closure the way a signature note describes a function. A blank line between the note and the closure breaks it, and so does a note on the closure's own line or inside its body.
+- The notes over a catalog table (`BESTIARY` and its kin) that say how to add a row. They are about the table, not about a function.
+
+The pre-commit hook enforces this (`.githooks/no_body_comments.lua`), and `.githooks/no_body_comments_test.lua` is its test. It reads the staged file as `cargo fmt` writes it. CI does not run it, so a clone without the hook can break the rule and review is what catches that.
+
+To check every tracked file at once, run `lua .githooks/no_body_comments.lua --tree`. Every hit is a file, a line and the comment. It reads what git has staged, so `git add` your edits first.
 
 
 See also

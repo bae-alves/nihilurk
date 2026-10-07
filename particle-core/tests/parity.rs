@@ -25,9 +25,6 @@ fn the_portable_ceil_matches_the_intrinsic_over_a_blast_radius() {
 
 #[test]
 fn they_agree_on_the_exact_integers_too() {
-    // The branch most likely to be off by one: a value already whole. The
-    // hand-rolled version must not round it up to the next tile, or every
-    // secondary burst in the game lands 40 ms late.
     for i in 0..=40 {
         let x = i as f32;
         assert_eq!(particle_core::ceil_portable(x), x.ceil(), "ceil({x})");
@@ -36,7 +33,6 @@ fn they_agree_on_the_exact_integers_too() {
 
 #[test]
 fn whichever_branch_is_compiled_in_is_one_of_the_two() {
-    // Guards against a third implementation creeping in under the cfg.
     for i in 0..=160 {
         let x = i as f32 / 4.0;
         assert_eq!(particle_core::ceil(x), x.ceil(), "ceil({x})");

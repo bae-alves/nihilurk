@@ -166,7 +166,6 @@ fn a_wand_bolt_ignores_armour_entirely() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
-    // Absurd armour — a wand bolt should not care.
     let target = w
         .spawn((
             Name {
@@ -193,10 +192,6 @@ fn a_wand_bolt_ignores_armour_entirely() {
     let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
     zap(&mut w, p, wand, spot);
 
-    // The dice are `wands::DAMAGE_DICE d DAMAGE_SIDES` and belong to whoever is
-    // balancing wands. What this test is for is the *armour* clause: the target
-    // above is wearing the best armour the numbers allow and the bolt goes
-    // through all of it, so the loss has to be a bare roll of those dice.
     let lost = 40 - w.get::<Fighter>(target).unwrap().hp;
     let (floor, ceiling) = (DAMAGE_DICE, DAMAGE_DICE * DAMAGE_SIDES);
     assert!(
@@ -254,7 +249,6 @@ fn undead_are_immune_to_draining_and_grant_no_lifesteal() {
         5,
         "and the zapper heals nothing"
     );
-    // The wand's flavour noun for draining is "evil magic" (see `Element::noun`).
     assert!(
         w.resource::<GameLog>()
             .history
@@ -354,7 +348,6 @@ fn a_fast_monster_moves_twice_and_a_slow_one_every_other_turn() {
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
 
-    // A clear horizontal run of floor to the player's right.
     let row: Vec<u16> = {
         let map = w.resource::<Map>();
         (1..=6)
@@ -405,7 +398,6 @@ fn a_fast_monster_moves_twice_and_a_slow_one_every_other_turn() {
         "a fast chaser closes two tiles in one turn"
     );
 
-    // A slow creature: one step every second turn.
     w.entity_mut(fast).despawn();
     let slow = w
         .spawn((
@@ -476,7 +468,6 @@ fn teleport_to_drags_the_target_next_to_the_zapper() {
     let mut w = test_world(4);
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
-    // Somewhere else on the floor.
     let far = {
         let map = w.resource::<Map>();
         (0..MAP_HEIGHT)
@@ -509,7 +500,6 @@ fn teleport_to_is_not_blocked_by_loot_lying_on_the_floor() {
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
 
-    // Cover every open tile around the player in dropped scrolls.
     let ring: Vec<Position> = {
         let map = w.resource::<Map>();
         (-1i32..=1)
@@ -558,7 +548,6 @@ fn teleport_to_with_no_room_bursts_the_target() {
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
 
-    // Wall the player in with creatures: every open neighbour taken.
     let ring: Vec<Position> = {
         let map = w.resource::<Map>();
         (-1i32..=1)
@@ -612,7 +601,6 @@ fn teleport_away_with_nowhere_to_land_bursts_the_target() {
     let (_here, spot) = beside_player(&mut w);
     let mob = dummy(&mut w, "orc", spot, 5);
 
-    // Nowhere on the floor is open any more.
     {
         let mut map = w.resource_mut::<Map>();
         for tile in map.tiles.iter_mut() {
@@ -658,7 +646,6 @@ fn cancellation_strips_the_magic_but_leaves_the_creature() {
         "still a dragon by name"
     );
 
-    // With the immunity cancelled, fire now bites.
     let dhp = w.get::<Fighter>(dragon).unwrap().hp;
     let fire = give_wand(&mut w, p, WandEffect::Fire);
     zap(&mut w, p, fire, spot);
@@ -709,8 +696,6 @@ fn light_clears_a_dark_room_and_reveals_its_traps() {
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
 
-    // Darken the player's tile and its room-floor neighbours, and hide a trap
-    // on one of them.
     let mut room_tiles: Vec<Position> = Vec::new();
     {
         let map = w.resource::<Map>();
@@ -809,7 +794,6 @@ fn teleporting_a_pinned_monster_clears_the_ledger_not_just_the_component() {
     let (_here, spot) = beside_player(&mut w);
     let mob = dummy(&mut w, "orc", spot, 5);
 
-    // Pinned the way a bear trap pins: through the ledger, for six turns.
     assert!(models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 6));
 
     let wand = give_wand(&mut w, p, WandEffect::TeleportAway);
@@ -821,7 +805,6 @@ fn teleporting_a_pinned_monster_clears_the_ledger_not_just_the_component() {
         None,
         "and the ledger no longer thinks they are holding it"
     );
-    // The symptom the stale row causes: a shorter, fresh hold is refused.
     assert!(
         models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 3),
         "a bear trap on the far side of the floor can still pin it"
@@ -849,8 +832,6 @@ fn a_wand_of_digging_bores_a_tunnel_down_the_aim() {
     let here = Position { x: 10, y: 10 };
     buried(&mut w, p, here);
     let wand = give_wand(&mut w, p, WandEffect::Digging);
-    // Aimed at a wall two tiles off: the tunnel runs on past it, to the
-    // wand's reach.
     zap(&mut w, p, wand, Position { x: 12, y: 10 });
     for x in 11..=(10 + DIG_RANGE as u16) {
         assert!(open(&w, x, 10), "no tunnel at x={x}");

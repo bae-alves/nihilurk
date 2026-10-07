@@ -132,7 +132,6 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         return true;
     }
 
-    // Going up.
     if !has_element {
         world
             .resource_mut::<GameLog>()
@@ -148,15 +147,10 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
         return false;
     }
     if world.resource::<Depth>().what <= 1 {
-        // The surface at last — and only ever by the player's own hand on the
-        // stair. The run is won.
         award_stair_score(world);
         world
             .resource_mut::<GameLog>()
             .add(strings::climb_last_stair());
-        // Nobody walks out of that dungeon quietly: the last stair is always
-        // taken with style, fireworks and doubled score and all, and the engine
-        // plays it out before the WIN panel.
         win_with_style(world);
         return true;
     }
@@ -214,7 +208,6 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         .next()
         .unwrap();
 
-    // A throw hanging in stopped time was aimed at this floor.
     crate::items::thaw_into_pack(world);
     tear_down_the_floor(world);
     let depth = step_depth(world, going_down);
@@ -330,8 +323,6 @@ fn put_the_player_down(world: &mut World, player: Entity, going_down: bool) -> (
         pos.x = start.0;
         pos.y = start.1;
     }
-    // Fog of war is not carried between visits: walk back up through a floor
-    // you cleared and it is blank again, even though the walls are identical.
     if let Some(mut viewshed) = world.get_mut::<Viewshed>(player) {
         viewshed.visible_tiles.clear();
         viewshed.revealed_tiles.clear();
@@ -343,7 +334,6 @@ fn put_the_player_down(world: &mut World, player: Entity, going_down: bool) -> (
 /// What arriving does *to the player*, which is where the four causes stop
 /// being the same event: the rest, the promises, the conditions and the clock.
 fn settle_arrival(world: &mut World, player: Entity, cause: LevelChange) {
-    // A trapdoor plunge is a fall, not a rest: no arrival heal, no magic.
     if cause != LevelChange::Trapdoor {
         if let Some(mut fighter) = world.get_mut::<Fighter>(player) {
             let heal = fighter.max_hp / DESCENT_HEAL_DIVISOR;
@@ -354,17 +344,10 @@ fn settle_arrival(world: &mut World, player: Entity, cause: LevelChange) {
         }
     }
 
-    // A staircase reached unhurt is what the platinum and forge coins asked
-    // for, and this is where they pay. Only a staircase: a trapdoor is not
-    // arriving somewhere, it is falling, and neither is the Dungeon Lord's
-    // portal or a potion drunk to skip a floor.
     if cause == LevelChange::Stairs {
         crate::items::settle_promises(world, player);
     }
 
-    // Transient conditions (haste, slow, dazzle, blindness, paralysis, a
-    // potion's floor-long second sight) are treacherous but they do not survive
-    // a level change — this is one of only two things that clears them.
     crate::conditions::clear_player_conditions(world, player);
 
     if let Some(mut dl) = world.get_resource_mut::<DungeonLord>() {
@@ -417,8 +400,6 @@ fn lose_item_to_the_fall(world: &mut World, player: Entity, cause: LevelChange, 
 /// The one sentence the player reads about how they got here.
 fn arrival_line(cause: LevelChange, going_down: bool, depth: u8) -> String {
     match cause {
-        // Descending, it is the Dungeon Lord who wrenches you down; once you
-        // carry the Element it is the Element that tears the way open upward.
         LevelChange::Portal if going_down => strings::portal_down(depth),
         LevelChange::Portal => strings::portal_up(depth),
         LevelChange::Trapdoor => strings::trapdoor_arrival(depth),
@@ -576,14 +557,10 @@ pub fn initialize_world(world: &mut World) {
 
     let ((player_x, player_y), rooms) = create_map(world);
 
-    // What the player wakes up as: nihil, a lurk, or a bestiary row.
     let body = world
         .get_resource::<crate::body::StartingBody>()
         .map_or(crate::body::Body::default(), |b| b.0);
 
-    // The starting gear — *nihil's* starting gear. Nothing else here has the
-    // hands for a mace, and a monster is not stocked the way a floor stocks
-    // one.
     let kit = match body.brings_a_pack() {
         true => starting_kit(world),
         false => Vec::new(),
@@ -627,21 +604,13 @@ pub fn initialize_world(world: &mut World) {
             Score { value: 0 },
             Blood,
             Speed::new(SpeedKind::Normal),
-            // Empty at the start of a run: every spell is learned from a
-            // hero coin (see `crate::items::pickups::learn_spell`), up to four.
             Spellset::default(),
-            // Neutral until a spirit interaction nudges it. See `Faction::Spirits`.
             Alignment::default(),
         ))
         .id();
 
-    // The body goes on last: it overwrites the stats, glyph and tempo the
-    // spawn above just laid down with whatever this creature actually is.
     crate::body::wear(world, player, body);
     if body.brings_a_pack() {
-        // Wear the armour and wield the mace. The bow and arrows wait in the
-        // pack: both weapons want the same hand, and which one the player
-        // reaches for first is the first decision the game asks them to make.
         equip_silently(world, player, kit[KIT_ARMOR]);
         equip_silently(world, player, kit[KIT_WEAPON]);
     }

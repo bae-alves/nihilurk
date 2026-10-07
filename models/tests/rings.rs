@@ -296,8 +296,6 @@ fn adornment_doubles_the_score_and_burns_itself_out() {
     let ring = put_on(&mut w, p, RingEffect::Adornment);
 
     assert_eq!(score(&mut w), 2400, "worn once, worth everything twice");
-    // (1200 awarded above, doubled — the only number here is the one this test
-    // put in itself.)
     assert!(logged(&w, "And you do it with style!"));
     assert!(w.get_entity(ring).is_none(), "and the ring is gone");
     assert!(
@@ -316,8 +314,6 @@ fn adornment_throws_sixteen_fireworks_in_three_colours() {
 
     let fx = w.resource::<Particles>();
     assert!(fx.pending, "the flourish is the whole point of the ring");
-    // A firework is the one burst that stays one colour for all its keyframes;
-    // everything else in the batch (the Glam explosion under it) cycles.
     let fireworks: Vec<Color> = fx
         .live
         .iter()
@@ -375,9 +371,6 @@ fn paid_for(n: usize, max_hp: i32) -> i64 {
 
 #[test]
 fn a_corpse_is_worth_its_hit_points() {
-    // Per point of `max_hp`, which is `score::KILL_PER_MAX_HP` and not this
-    // test's business. What is: a tougher creature is worth proportionally
-    // more, and one corpse is worth its face value with no multiplier on it.
     assert_eq!(paid_for(1, 7), i64::from(7 * KILL_PER_MAX_HP));
     assert_eq!(paid_for(1, 2) * 3, paid_for(1, 6), "worth is linear in HP");
 }
@@ -498,9 +491,6 @@ fn a_staircase_pays_by_difficulty_tier() {
 fn a_run_cannot_be_doubled_into_nothing() {
     let mut w = test_world(1);
     award(&mut w, 100);
-    // One doubling per ring of adornment, and nothing caps how many a dungeon
-    // can hand out. Past 63 of them the score has to stop rather than wrap:
-    // wrapping lands a multiple of 100 on exactly zero.
     for _ in 0..80 {
         double(&mut w);
     }

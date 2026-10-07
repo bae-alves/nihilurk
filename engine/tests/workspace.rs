@@ -175,13 +175,9 @@ fn every_published_crate_has_what_crates_io_asks_for() {
         if !text.contains("repository.workspace = true") {
             missing.push(format!("{dir}/ does not inherit `repository`"));
         }
-        // Metadata is frozen per version: a crate that goes up without these
-        // has an empty page until the next number.
         if !text.contains("readme.workspace = true") {
             missing.push(format!("{dir}/ does not inherit `readme`"));
         }
-        // Not inherited: the crates do not share a floor. See the workspace
-        // manifest.
         if !text.contains("\nrust-version = \"") {
             missing.push(format!("{dir}/ has no `rust-version`"));
         }
@@ -189,7 +185,6 @@ fn every_published_crate_has_what_crates_io_asks_for() {
             missing.push(format!("{dir}/ has no `categories`"));
         }
         if text.contains("keywords = [") {
-            // crates.io refuses an upload over these limits.
             let keywords = array(&text, "keywords");
             if keywords.is_empty() || keywords.len() > 5 {
                 missing.push(format!("{dir}/ needs 1 to 5 keywords, has {keywords:?}"));
@@ -215,10 +210,6 @@ fn every_published_crate_has_what_crates_io_asks_for() {
                 ));
             }
         }
-        // An integration test that reads the workspace around its crate
-        // (`CARGO_MANIFEST_DIR` plus `..`) cannot pass once the crate is
-        // unpacked from crates.io, where there is no workspace. It has to be
-        // left out of the package, or `cargo test` on the download fails.
         let tests = root.join(&dir).join("tests");
         for entry in std::fs::read_dir(&tests).into_iter().flatten().flatten() {
             let file = entry.file_name().to_string_lossy().into_owned();

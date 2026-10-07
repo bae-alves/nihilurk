@@ -207,7 +207,6 @@ fn alignment_shift_clamps_and_flips_at_the_pole() {
     assert!(w.resource::<SpiritsHostile>().0);
     assert!(logged(&w, "challenge the balance"));
 
-    // Already at the pole: one more nudge does not go past it or panic.
     spirits::shift_alignment(&mut w, player, -1);
     assert_eq!(w.get::<Alignment>(player).unwrap().0, -3);
 }
@@ -697,7 +696,6 @@ fn the_sphynx_refuses_an_empty_spellset() {
 #[test]
 fn paying_the_red_demon_your_last_max_hp_kills_you() {
     let mut w = spirits_world(0);
-    // Dying leaves a corpse.
     w.init_resource::<BloodStains>();
     w.init_resource::<Corpses>();
     let player = spawn_player(&mut w, 6);
@@ -766,7 +764,6 @@ fn the_gnome_refuses_a_player_short_of_max_ma() {
     assert_eq!(w.get::<Magic>(player).unwrap().max_points, 1);
     assert!(w.get_entity(spirit).is_some());
     assert!(w.resource::<OfferMenu>().open);
-    // The scroll is still within reach.
     let scroll = offered(&w)[0];
     spirits::confirm_offer(&mut w, player, scroll);
     assert_eq!(w.get::<Magic>(player).unwrap().max_points, 0);
@@ -1098,7 +1095,6 @@ fn every_spirit_is_born_with_two_distinct_random_boons() {
         for seed in 0..8 {
             let mut w = spirits_world(seed);
             let e = spawn_monster(&mut w, def, Position { x: 5, y: 5 });
-            // Born with, not lent by gear the row happened to roll.
             let mut held: Vec<&str> = w
                 .get::<Effects>(e)
                 .unwrap()

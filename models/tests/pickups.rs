@@ -98,8 +98,6 @@ fn the_relic_pays_its_value_the_moment_it_is_in_hand() {
         "and it is carried, not spent — it is the run"
     );
 
-    // Once, though. The one thing in the game that can be paid for and then
-    // set down again must not be a drop-and-take-again money press.
     let paid = score(&mut w);
     w.get_mut::<Backpack>(p)
         .unwrap()
@@ -351,8 +349,6 @@ fn a_shot_coin_reaches_across_the_room_with_its_effect() {
 
     shoot(&mut w, "red coin");
 
-    // The coin's effect lands before its burst does, so the healing is not
-    // something the player's own blast can take back off them.
     assert!(
         w.get::<Fighter>(p).unwrap().hp > 1,
         "a red coin heals whoever shot it"
@@ -361,8 +357,6 @@ fn a_shot_coin_reaches_across_the_room_with_its_effect() {
 
 #[test]
 fn a_shot_coin_does_not_ask_whether_you_needed_it() {
-    // Stepping over a coin you cannot use leaves it for later; shooting one is
-    // a decision, and a decision is allowed to be a waste.
     let mut w = test_world(1);
     let p = player(&mut w);
     let full = w.get::<Fighter>(p).unwrap().hp;
@@ -406,9 +400,6 @@ fn a_blast_sets_off_the_coins_it_covers_and_pays_the_zapper() {
 
 #[test]
 fn a_shot_coin_reaches_further_than_a_shot_trap() {
-    // Both bursts are centred the same distance away; the wider one catches a
-    // creature the narrower one cannot. Which radius is which is
-    // `constants::traps`, and the point here is only that they differ this way.
     fn caught(what: &str, reach: u16) -> bool {
         let mut w = test_world(5);
         let p = player(&mut w);
@@ -421,7 +412,6 @@ fn a_shot_coin_reaches_further_than_a_shot_trap() {
             x: center.x + reach,
             y: center.y,
         };
-        // Clear the floor so nothing else is standing in the way.
         let mobs: Vec<Entity> = w.query_filtered::<Entity, With<Mob>>().iter(&w).collect();
         for m in mobs {
             if m != p {
@@ -431,7 +421,6 @@ fn a_shot_coin_reaches_further_than_a_shot_trap() {
         let victim = monster::monster(&mut w, "test monster", victim_at);
         w.get_mut::<Fighter>(victim).unwrap().hp = 500;
         let thing = spawn_named(&mut w, what, center).expect(what);
-        // A trap has to have been found before a shot can be aimed at it.
         w.entity_mut(thing).remove::<Hidden>();
         detonate_at(&mut w, center, Some(p));
         w.get::<Fighter>(victim).is_some_and(|f| f.hp < 500)
@@ -466,8 +455,6 @@ fn the_element_answers_a_shot_and_survives_it() {
 #[test]
 fn a_shot_hero_coin_gives_up_everything_it_knows() {
     let mut w = test_world(1);
-    // Somebody for the second burst to echo off — the shout only goes up once
-    // the first burst has caught a body to centre the next one on.
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
     let beside = Position {
@@ -521,10 +508,6 @@ fn a_chained_coin_still_pays_whoever_started_the_chain() {
 
 #[test]
 fn a_coin_whose_shooter_died_first_is_simply_spent() {
-    // A chain runs on past the blast that started it, and the author of a shot
-    // is as catchable as anyone else. A platinum coin reached by a chain whose
-    // shooter is already gone used to attach its promise to a despawned
-    // entity.
     let mut w = test_world(1);
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
@@ -577,8 +560,6 @@ fn claiming_one_item_in_a_red_room_destroys_the_rest() {
 
 #[test]
 fn a_dropped_item_ruins_a_red_room_just_the_same() {
-    // bae: "A picked up dropped/thrown item counts for the red room" — there
-    // is no native/foreign distinction, only whether the tile reads as one.
     let mut w = test_world(1);
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
@@ -614,8 +595,6 @@ fn a_second_pickup_in_an_already_ruined_red_room_is_silent() {
         "the second item was destroyed"
     );
 
-    // Nothing left to ruin a second time — a fresh item dropped/thrown in
-    // later and then picked up finds the room already empty.
     let later = spawn_named(&mut w, "dagger", at).expect("a dagger");
     let line = pick_up(&mut w, p, later).expect("taken");
     assert!(

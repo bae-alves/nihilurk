@@ -133,15 +133,6 @@ fn fire_bolt(
         }
     }
 
-    // A bolt of the player's that actually bit something in sight gets the
-    // same light thump a sword landing does: a wand is their weapon at range
-    // and should land like one. Two gates, and each is one this file already
-    // keeps elsewhere. Only *their* zap counts — a monster's reaches the map
-    // the way its claws do, through the low-HP crossing or not at all. And it
-    // has to have been seen, because unlike a melee blow or a thrown missile
-    // nothing logs a bolt's damage: a shake for a bolt landing on something
-    // down an unlit corridor would say there is a creature there, which is
-    // the same leak the blast's own sight gate exists to close.
     if world.get::<Player>(user).is_some() && bolt.bit_something_seen {
         kick_shake(world, ShakeKind::Hit);
     }
@@ -273,10 +264,6 @@ pub(super) fn elemental_blast(
         damage_with_element(world, entity, damage, element);
     }
 
-    // Anyone the blast just killed is finished off right here, rather than
-    // waiting for the reaper's next sweep — so their death burst knows the
-    // blast's own centre and flings the corpse radially outward, Mortal-
-    // Kombat-style, instead of picking a random direction.
     for &entity in &affected_entities {
         if world.get::<Fighter>(entity).is_some_and(|f| f.hp <= 0) {
             crate::combat::finish_indirect_kill(world, entity, Some(center));
@@ -285,18 +272,11 @@ pub(super) fn elemental_blast(
 
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         fx.explosion(&blast_cells, palette);
-        // Fire and cold both billow smoke a beat after the flames — purely
-        // cosmetic. Only fire's actually lingers on the tiles afterward,
-        // DCSS-style; cold's puff is just the one animation.
         if matches!(element, Some(Element::Fire) | Some(Element::Cold)) {
             fx.smoke_burst(&blast_cells);
         }
     }
 
-    // Every blast in the game comes through here — a zapped wand, a thrown one
-    // bursting on impact — so this is the one place the thump has to be armed.
-    // Gated on actually seeing it: a shake for a blast in a room you have never
-    // been in would hand you information the renderer is careful not to draw.
     if player_sees(world, center.x, center.y) {
         kick_shake(world, ShakeKind::Heavy);
     }
@@ -307,13 +287,6 @@ pub(super) fn elemental_blast(
         }
     }
 
-    // Anything in the blast that a shot could have set off goes off with it —
-    // the trick shot, worked by a wand instead of a bowstring. Traps first,
-    // then coins, then any potion caught underfoot, and a coin hands its
-    // effect to whoever let the blast off. Each of those bursts chains on its
-    // own (`traps::chain_react`, `potions::detonate_potion`) and none of them
-    // comes back through here, so a blast over a row of traps ends after it
-    // has spent every one of them.
     for trap in things_in::<Trap>(world, &cell_set) {
         crate::traps::detonate_trap(world, trap, shooter);
     }
@@ -428,8 +401,6 @@ pub(super) fn apply_wand_effect(
         None => return,
     };
 
-    // The wand of light takes no target: it floods the room (or passage) the
-    // zapper is standing in.
     if effect == WandEffect::Light {
         light_area(world, user, user_pos);
         return;
@@ -437,21 +408,13 @@ pub(super) fn apply_wand_effect(
 
     let target_pos = match target {
         Some(pos) => pos,
-        None => return, // Safety catch: every other wand requires a target.
+        None => return,
     };
 
-    // Aiming any wand's reticle at a medusa is a gaze like any other — see
-    // `crate::abilities::medusa_gaze`. Checked once here rather than in every
-    // arm below: it's the tile the player chose to zap, whatever the wand.
     if let Some(seen) = monster_at(world, target_pos) {
         crate::abilities::fire_on_targeted(world, user, seen);
     }
 
-    // Exhaustive over `WandEffect`, deliberately with no catch-all: a wand
-    // effect added to the enum and not given an arm here fails the build
-    // instead of discharging with a generic "nothing happens" — the same
-    // guarantee `crate::traps::apply_trap_effect` gives a new `TrapEffect`. See
-    // `docs/explanation/data-driven-content.md`.
     match effect {
         WandEffect::MagicMissile => fire_bolt(
             world,
@@ -522,9 +485,6 @@ pub(super) fn apply_wand_effect(
                 .resource_mut::<GameLog>()
                 .add(strings::wand_does_nothing());
         }
-        // Light has no target and returns above, before this match — it can
-        // never actually reach here, but the arm still has to exist for the
-        // match to stay exhaustive over the whole enum.
         WandEffect::Light => {}
     }
 }
@@ -543,7 +503,6 @@ fn dig_tunnel(world: &mut World, from: Position, aim: Position) {
             .add(strings::wand_does_nothing().to_string());
         return;
     }
-    // The aim, stretched until it is DIG_RANGE tiles long.
     let end = Position {
         x: (from.x as i32 + dx * DIG_RANGE / reach).clamp(0, MAP_WIDTH as i32 - 1) as u16,
         y: (from.y as i32 + dy * DIG_RANGE / reach).clamp(0, MAP_HEIGHT as i32 - 1) as u16,
@@ -660,7 +619,6 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
         }
     }
 
-    // Clear the dark flag and fold every lit tile into the player's memory.
     {
         let mut map_mut = world.resource_mut::<Map>();
         for &(x, y) in &area {
@@ -678,7 +636,6 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
         vs.dirty = true;
     }
 
-    // Bring any hidden trap in the lit area to light.
     let lit: HashSet<(u16, u16)> = area.iter().copied().collect();
     let sprung: Vec<(Entity, String)> = world
         .query_filtered::<(Entity, &Position, &Trap), With<Hidden>>()
@@ -797,12 +754,6 @@ pub(super) fn polymorph_entity_with(world: &mut World, victim: Entity, can_shock
     };
     let old_name = item_label(world, victim);
 
-    // One roll, not a re-roll until it differs. A loop that spins until the
-    // bestiary hands back something else is a hang waiting for the day the
-    // table is short enough — and the dungeon has a better answer anyway:
-    // the magic worked, the creature changed, it simply changed into another
-    // one of itself. A rat that is visibly not the rat you were fighting is
-    // funnier than a guarantee, and costs one branch instead of a loop.
     let idx = {
         let mut rng = world.resource_mut::<GameRng>();
         rng.0.gen_range(0..BESTIARY.len())
@@ -810,10 +761,6 @@ pub(super) fn polymorph_entity_with(world: &mut World, victim: Entity, can_shock
     let def = &BESTIARY[idx];
     let mut new_name = def.display_name().to_string();
     let new = reshape(world, victim, def);
-    // Permanent, unlike the player's loan: a monster's polymorph is not
-    // something a floor ends, and a Helper that follows the player down keeps
-    // it ([`crate::companion::follow_downstairs`] only lifts transient
-    // conditions).
     lend(world, new, Grant::of::<Polymorphed>(), Lifetime::Permanent);
     if again {
         new_name = assume_form(world, new).to_string();
@@ -943,11 +890,6 @@ pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
         p.x = x;
         p.y = y;
     }
-    // Through the ledger, not around it: removing the component alone leaves
-    // the hold's row still counting down, and `effects::hold` reads those rows
-    // to decide whether a fresh hold is worth applying — so the next trap to
-    // close on this creature would do nothing. Same jump, same rule, as the
-    // scroll of teleportation.
     crate::effects::revoke_any(world, victim, &crate::effects::HOLDS);
     if let Some(old_pos) = old_pos {
         leave_smoke(world, old_pos);
@@ -1152,11 +1094,6 @@ pub(super) fn cancel_entity(world: &mut World, victim: Entity) {
 /// mercy is that a curse counts as magic too, so it lifts without taking the
 /// item with it.
 fn cancel_player(world: &mut World, player: Entity) {
-    // Conditions first, and the order matters. The afflictions are effects
-    // now, so `revoke_all` would strip them along with everything else —
-    // correctly, but in silence, and the player would never be told the
-    // confusion had lifted. Lifting them here means each still announces
-    // itself before the blast takes the rest.
     clear_player_conditions(world, player);
     revoke_all(world, player);
 
@@ -1168,11 +1105,6 @@ fn cancel_player(world: &mut World, player: Entity) {
 
     for item in carried {
         let mut em = world.entity_mut(item);
-        // Which plus a piece of gear wears is read off the item, exactly as
-        // `catalog::enchant_equipment` reads it when the dungeon rolls one on:
-        // a `PowerDie` is a weapon, an `ArmorDie` is armour, a `Launcher` is a
-        // bow whose enchantment had no melee roll to land on. Miss the third
-        // and a +3 bow walks out of a grey wave still +3.
         if em.contains::<PowerDie>() && em.contains::<PowerBonus>() {
             em.insert(PowerBonus(0));
         }
@@ -1183,7 +1115,6 @@ fn cancel_player(world: &mut World, player: Entity) {
             em.insert(ThrowBonus(0));
         }
         em.remove::<Curse>();
-        // An item is only ever one of these, so the two blocks never both fire.
         if let Some(mut scroll) = em.get_mut::<Scroll>() {
             scroll.effect = ScrollEffect::BlankPaper;
             if let Some(mut name) = em.get_mut::<Name>() {
@@ -1198,7 +1129,6 @@ fn cancel_player(world: &mut World, player: Entity) {
         }
     }
 
-    // The gear's numbers just changed, so re-fold what it lends its wearer.
     sync_equipment_effects(world, player);
     world
         .resource_mut::<GameLog>()

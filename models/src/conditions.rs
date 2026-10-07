@@ -514,20 +514,10 @@ fn speed_shift_message(
 pub fn clear_player_conditions(world: &mut World, player: Entity) {
     let mut lifted: Vec<&str> = Vec::new();
 
-    // Tempo first, and by hand: it is a value on `Speed` rather than an effect
-    // something either has or has not.
-    //
-    // Back to the body's own tempo: `Normal` for nihil, `Quick` for a lurk,
-    // and whatever the bestiary row says for a player wearing a species
-    // (`-am wraith` is born fast). A staircase lifts what the *floor* lent;
-    // it has no business lifting what the player is made of.
     let innate = crate::body::innate_tempo(world, player);
     if let Some(mut speed) = world.get_mut::<Speed>(player) {
         let was = speed.kind;
         speed.kind = innate;
-        // Named against the body's own tempo rather than against `Normal`: a
-        // lurk walked up the stairs at `Normal` was *slowed*, even though a
-        // human at `Normal` is nothing of the kind.
         match was.rate().cmp(&innate.rate()) {
             std::cmp::Ordering::Greater => lifted.push("hasted"),
             std::cmp::Ordering::Less => lifted.push("slowed"),
@@ -535,9 +525,6 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
         }
     }
 
-    // What the floor lent, named before it goes so the difference can be read
-    // afterwards. Asked either side rather than simply listed, so a *ring* of
-    // perception still worn keeps the sight and prints nothing.
     let named: Vec<(Grant, &'static str)> = AFFLICTIONS
         .iter()
         .map(|a| (a.effect, a.lifted_adjective))
@@ -549,14 +536,6 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
         .collect();
     let before: Vec<bool> = named.iter().map(|(g, _)| g.probe(world, player)).collect();
 
-    // The afflictions and the ward are floor-scoped *by definition*, so lift
-    // them whether or not a `Lifetime::Floor` entry stands behind each one. A
-    // condition attached with a bare `insert` — by a mechanic that forgot
-    // `lend`, or by a test — has no ledger entry and therefore no lifetime,
-    // and would otherwise quietly become permanent.
-    //
-    // Never take one some *other* source is still lending, though: that is the
-    // whole reason the ledger records who lent what.
     {
         let lent_beyond_the_floor: Vec<&'static str> = world
             .get::<Effects>(player)
@@ -583,9 +562,6 @@ pub fn clear_player_conditions(world: &mut World, player: Entity) {
         }
     }
 
-    // Everything else the floor lent — a potion of see invisible — goes
-    // through the ledger, which is the only record of what was on loan. A ring
-    // of perception still worn is a `WhileEquipped` entry, so the sight stays.
     clear_floor_grants(world, player);
 
     for ((grant, adjective), had) in named.iter().zip(before) {

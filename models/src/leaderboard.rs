@@ -185,7 +185,6 @@ mod tests {
         let entries = all(&path);
         let _ = std::fs::remove_file(&path);
         assert_eq!(entries.len(), LEADERBOARD_STORE_LIMIT);
-        // The lowest scores are the ones dropped, not the most recent runs.
         assert_eq!(entries.last().unwrap().score, 5);
     }
 
@@ -197,9 +196,7 @@ mod tests {
     #[test]
     fn known_epoch_seconds_format_to_their_known_utc_date() {
         assert_eq!(format_timestamp(0), "1970-01-01 00:00");
-        // 2024-01-01 00:00:00 UTC, a leap year's first day.
         assert_eq!(format_timestamp(1_704_067_200), "2024-01-01 00:00");
-        // 2024-12-31 23:59:00 UTC, the same leap year's last minute.
         assert_eq!(format_timestamp(1_735_689_540), "2024-12-31 23:59");
     }
 }

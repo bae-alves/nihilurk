@@ -110,15 +110,10 @@ fn auto_explore_reveals_every_reachable_tile_then_stops() {
             resolve_visibility(&mut w);
 
             steps += 1;
-            // A bound of the test's own, not the game's. `travel::AUTO_EXPLORE_
-            // STEP_CAP` is a safety valve somebody tunes; what is being asserted
-            // here is that the walk *terminates*, and any number far above the
-            // tiles on a floor proves that.
             const NEVER: u32 = 20_000;
             assert!(steps < NEVER, "seed {seed}: auto-explore never terminated");
         }
 
-        // Nothing reachable is left unmapped.
         let reachable = reachable_walkable(&mut w, player);
         let revealed = w.get::<Viewshed>(player).unwrap().revealed_tiles.clone();
         for (x, y) in &reachable {
@@ -146,7 +141,6 @@ fn travel_walks_the_player_onto_a_known_staircase() {
     for seed in [1u64, 7, 42, 2112, 55555] {
         let (mut w, player) = fresh_floor(seed);
 
-        // Pretend the whole floor has been mapped so the staircase is "known".
         {
             let mut vs = w.get_mut::<Viewshed>(player).unwrap();
             for i in 0..MAP_TILE_COUNT {
@@ -198,7 +192,6 @@ fn travel_step_wont_walk_onto_a_known_trap() {
         let p = w.get::<Position>(player).unwrap();
         (p.x, p.y)
     };
-    // Any open tile next to the player will do as the target.
     let map = w.resource::<Map>().clone();
     let target = DIRS
         .iter()
@@ -250,13 +243,11 @@ fn explore_step_wont_walk_onto_a_known_trap() {
     });
     initialize_world(&mut w);
 
-    // Only the trap this test plants should be in play.
     let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
     for e in existing_traps {
         w.despawn(e);
     }
 
-    // A bare corridor, x 0..=6 at y = 5, walled everywhere else.
     {
         let mut map = w.resource_mut::<Map>();
         for t in map.tiles.iter_mut() {
@@ -273,10 +264,6 @@ fn explore_step_wont_walk_onto_a_known_trap() {
         p.x = 0;
         p.y = 5;
     }
-    // Reveal x = 0..=3 (passage row y=5, plus the walls hugging it at y=4/6,
-    // exactly as the real visibility system would have when the player stood
-    // there). x = 3 borders the unrevealed x = 4 and is the only tile with an
-    // unseen neighbour — the lone frontier auto-explore would head for.
     {
         let mut vs = w.get_mut::<Viewshed>(player).unwrap();
         for x in 0..=3u16 {
@@ -286,7 +273,6 @@ fn explore_step_wont_walk_onto_a_known_trap() {
         }
     }
 
-    // A known trap parked right on that frontier tile.
     w.spawn((
         Position { x: 3, y: 5 },
         Trap {
@@ -323,8 +309,6 @@ fn explore_step_keeps_walking_toward_its_committed_frontier() {
         w.despawn(e);
     }
 
-    // A T-junction: a one-tile west nook (an immediate, 1-hop frontier) and a
-    // four-tile east corridor (its frontier 4 hops away).
     {
         let mut map = w.resource_mut::<Map>();
         for t in map.tiles.iter_mut() {
@@ -350,7 +334,6 @@ fn explore_step_keeps_walking_toward_its_committed_frontier() {
         }
     }
 
-    // Already committed to the far end of the east corridor.
     w.resource_mut::<AutoExplore>().frontier = Some((14, 10));
 
     assert_eq!(
@@ -386,9 +369,6 @@ fn explore_step_picks_the_frontier_toward_unseen_downstairs_on_a_tie() {
         w.despawn(e);
     }
 
-    // A straight corridor, x 7..=13 at y = 10, hub at x = 10 — symmetric
-    // frontiers 3 hops away in each direction. The downstairs sit far to the
-    // west, still unseen.
     {
         let mut map = w.resource_mut::<Map>();
         for t in map.tiles.iter_mut() {
@@ -433,7 +413,6 @@ fn monster_in_sight_tracks_visible_mobs() {
     });
     initialize_world(&mut w);
 
-    // Clear the randomly-placed spawns so we control what is on screen.
     let mobs: Vec<Entity> = w.query_filtered::<Entity, With<Mob>>().iter(&w).collect();
     for e in mobs {
         w.despawn(e);
@@ -444,7 +423,6 @@ fn monster_in_sight_tracks_visible_mobs() {
         "no mobs left, nothing should be in sight"
     );
 
-    // Drop a visible monster right next to the player.
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
     let ppos = *w.get::<Position>(player).unwrap();
     w.spawn((
@@ -490,8 +468,6 @@ fn explore_step_beelines_for_a_known_item_over_the_committed_frontier() {
         w.despawn(e);
     }
 
-    // A corridor, x 7..=13 at y = 10, player at the hub (x = 10). Committed to
-    // a frontier three hops east; a spotted item sits two hops west.
     {
         let mut map = w.resource_mut::<Map>();
         for t in map.tiles.iter_mut() {

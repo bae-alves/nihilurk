@@ -18,7 +18,6 @@ fn test_world(seed: u64) -> World {
         what: "TESTER".into(),
     });
     initialize_world(&mut w);
-    // The level's own loot and monsters are swept off so only the test's can speak.
     let loot: Vec<Entity> = w
         .query_filtered::<Entity, Or<(With<Item>, With<Mob>)>>()
         .iter(&w)

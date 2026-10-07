@@ -210,7 +210,6 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     world
         .resource_mut::<GameLog>()
         .add(strings::mob_dies(&name));
-    // A Helper is mourned, not cashed in.
     match world.get::<Helper>(entity).is_some() {
         true => crate::companion::mourn(world, entity),
         false => pay_for_the_corpse(world, entity),
@@ -237,8 +236,6 @@ fn pay_for_the_corpse(world: &mut World, victim: Entity) {
         None => 1,
     };
     award_kill(world, max_hp * mult);
-    // And what a corpse is worth to a lurk, which is dinner. Same funnel, and
-    // deliberately the same indifference about whose kill it was.
     crate::body::feed(world);
 }
 
@@ -295,27 +292,19 @@ pub(crate) fn leave_gear_behind(world: &mut World, entity: Entity) {
 /// a crossbow — clamps the result. A launcher is worth nothing swung, which is
 /// what pays for how good it is drawn.
 pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
-    // Missing attacker or target: nothing to resolve.
     if world.get_entity(attacker).is_none() || world.get_entity(target).is_none() {
         return;
     }
 
-    // A peaceful spirit isn't fought — the player's blow opens its menu, or
-    // teaches its spell, or does whatever else that species' row says,
-    // instead of rolling any damage. See `crate::spirits`.
     if world.get::<Player>(attacker).is_some() && crate::spirits::is_peaceful_spirit(world, target)
     {
         crate::spirits::trigger_event(world, attacker, target);
         return;
     }
 
-    // Looking upon a medusa costs you before your blade ever lands — see
-    // `crate::abilities::medusa_gaze`.
     fire_on_targeted(world, attacker, target);
 
     let matchup = fold_matchup(world, attacker, target);
-    // Spent the instant it's folded in — hit, glance or miss — so a
-    // double-striking estoc or a cleave only ever sees it on the first swing.
     crate::effects::revoke(world, attacker, Grant::of::<Bided>());
     let swing = roll_swing(world, &matchup);
     let swing = clamp_swing(world, attacker, target, &matchup, swing);
@@ -323,17 +312,12 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let blow = Landed {
         attacker,
         target,
-        // Both roles, read once. `fold_matchup` has already asked about the
-        // attacker, so asking about the target here is what lets the three
-        // stages below never ask the world again.
         attacker_is_player: matchup.attacker_is_player,
         target_is_player: world.get::<Player>(target).is_some(),
         swing,
         outcome,
     };
 
-    // The aftermath, in the order it has to happen: the punctuation while the
-    // corpse still has a tile to be flung off, then the log, then the despawn.
     punctuate(world, &blow);
     report_blow(world, &blow);
     settle_the_dead(world, &blow);
@@ -348,8 +332,6 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
 /// know a ring exists.
 pub fn melee_attack(world: &mut World, attacker: Entity, target: Entity) {
     resolve_attack(world, attacker, target);
-    // The player's tricks alone — a monster that steals or catches one of
-    // these weapons still just fights the plain way.
     let is_player = world.get::<Player>(attacker).is_some();
     if is_player && world.get::<Fencer>(attacker).is_some() {
         resolve_attack(world, attacker, target);
@@ -446,17 +428,10 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
     let (armor, armor_bonus) = world
         .get::<Fighter>(target)
         .map_or((0, 0), |f| (f.armor, f.armor_bonus));
-    // One pass over each side's gear rather than one per number. `Fighter`
-    // carries the creature's own dice, and the `Loadout` carries what it is
-    // wearing; a monster's innate `PowerBonus` lands in the second, which is
-    // why the two are added rather than one of them chosen.
     let attackers = loadout(world, attacker);
     let targets = loadout(world, target);
     Matchup {
         power: power + attackers.power_die,
-        // A rapier's built-up momentum rides in on top of its own enchantment
-        // plus — see `crate::effects::Momentum`. A coiled Bide rides in with
-        // it, one blow's worth — see `crate::components::Bided`.
         power_bonus: power_bonus
             + attackers.power_bonus
             + attackers.momentum
@@ -471,8 +446,6 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
                 0
             },
         armor: armor + targets.armor_die,
-        // The Bole stands on the guard the way the Balance stands on the
-        // swing: a flat bonus for the floor (a deck card).
         armor_bonus: armor_bonus
             + targets.armor_bonus
             + if world.get::<crate::effects::Bole>(target).is_some() {
@@ -500,9 +473,6 @@ fn roll_swing(world: &mut World, matchup: &Matchup) -> Swing {
     let mut rng = world.resource_mut::<GameRng>();
     let excellent = matchup.always_excellent
         || (matchup.attacker_is_player && rng.0.gen_bool(EXCELLENT_HIT_CHANCE));
-    // A normal swing is bell-curved (see `roll_die_bell`); an excellent hit
-    // already sums `EXCELLENT_HIT_DICE` flat dice, which is its own crit and
-    // stays flat rather than getting curved on top of that.
     let attack_total: i32 = if excellent {
         (0..EXCELLENT_HIT_DICE)
             .map(|_| roll_die(&mut rng.0, matchup.power))
@@ -582,8 +552,6 @@ fn chip_on_stone(world: &World, attacker: Entity, target: Entity, swing: &mut Sw
     let Some(chip) = crate::effects::stone_chip(world, target, swing.damage) else {
         return false;
     };
-    // Only a blow that actually landed is a chip. One the armour turned aside
-    // is still a miss, and stone should not report it as a touch.
     let landed = swing.damage > 0;
     swing.damage = chip.through;
     if landed {
@@ -608,13 +576,7 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
         world.get::<VorpalTarget>(target).is_some()
             || world.get::<Name>(target).is_some_and(|n| n.what == bane)
     });
-    // The garrote's own trick: a target already helpless with a negative
-    // condition dies to any hit at all, whatever its weapon class — even a
-    // glancing one. A vorpalized blade still needs a real, non-glancing hit
-    // to draw the blood its bane dies to.
     let garrote = garrote_vorpal(world, attacker, target);
-    // Nothing takes a petrified creature's last point, and a vorpal shear is
-    // the one path that would otherwise go around the HP arithmetic entirely.
     let vorpal = swing.damage > 0
         && swing.chipped.is_none()
         && (garrote || (!swing.glancing && blade_vorpal));
@@ -631,11 +593,6 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
     }
 
     if swing.damage > 0 {
-        // Whatever the attacker's own magic does to something it just hit — a
-        // charmed pair of hands passing its confusion on, an aquator's touch
-        // eating the armour. One table (`abilities::ABILITIES`), and
-        // combat never learns what is in it: it only says what kind of blow
-        // this was.
         let blow = Blow {
             glancing: swing.glancing,
             lethal,
@@ -783,16 +740,12 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
     };
     punctuate(world, &blow);
 
-    // Stone says one thing and nothing else, here as everywhere — the lunge
-    // rings off a statue rather than skewering it.
     if let Some(line) = blow.swing.chipped.clone() {
         world.resource_mut::<GameLog>().add(line);
         settle_the_dead(world, &blow);
         return;
     }
     let target_name = entity_name(world, target);
-    // A lurk has no blade to flash — it lunges on four legs and finishes with
-    // its teeth, so it reads its own line rather than the estoc's.
     let line = if world.get::<Lurk>(attacker).is_some() {
         strings::lunge_hit_lurk(&target_name, damage)
     } else {
@@ -813,8 +766,6 @@ fn resolve_lunge(world: &mut World, attacker: Entity, target: Entity) {
 /// [`ReachPiercing`] weapon, every creature standing in it. A wall stops the
 /// line short the way it stops a thrown missile.
 pub fn resolve_reach_attack(world: &mut World, attacker: Entity, weapon: Entity, at: Position) {
-    // The player's own reticle alone — a monster in melee range of a wielded
-    // bardiche or whip just swings it the plain way.
     if world.get::<Player>(attacker).is_none() {
         return;
     }
@@ -919,8 +870,6 @@ impl Flourish {
                 _ => Spark::Hit,
             },
             strike: Self::strike_kick(blow),
-            // The player's own death arms no shake at all — see
-            // `settle_the_dead`.
             kill_kick: blow.outcome.lethal && !blow.target_is_player,
             burst: blow.outcome.lethal,
         }
@@ -928,16 +877,9 @@ impl Flourish {
 
     /// The kick for the swing itself, as opposed to the one for the death.
     fn strike_kick(blow: &Landed) -> Option<ShakeKind> {
-        // A thump through the whole map for the one swing in seven that lands
-        // clean...
         if blow.swing.excellent {
             return Some(ShakeKind::Heavy);
         }
-        // ...and the lightest kick in the set for every other swing of the
-        // player's that got through armour. Three exclusions, and each is
-        // somebody else's kick or nobody's: a crit took the heavy one above, a
-        // kill takes its own, and a glancing scrape is the game saying the
-        // armour ate the blow.
         let ordinary = blow.attacker_is_player
             && !blow.swing.glancing
             && !blow.outcome.lethal
@@ -964,7 +906,6 @@ fn punctuate(world: &mut World, blow: &Landed) {
     let attacker_pos = world.get::<Position>(blow.attacker).copied();
 
     if let Some(tpos) = world.get::<Position>(blow.target).copied() {
-        // The effect layer is optional (tests run without it).
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             match flourish.spark {
                 Spark::Nothing => fx.blip(tpos.x, tpos.y, '·', Color::DarkGrey),
@@ -976,20 +917,15 @@ fn punctuate(world: &mut World, blow: &Landed) {
     if let Some(kind) = flourish.strike {
         kick_shake(world, kind);
     }
-    // A faerie shapeshifter's reveal (see `reveal_faerie`) is no death: no
-    // kick and no gore.
     let faerie = world
         .get::<crate::effects::FaerieOnDeath>(blow.target)
         .is_some();
-    // Asked for while the corpse still has the Position the sight gate reads.
     if flourish.kill_kick && !faerie {
         kill_shake(world, blow.target);
     }
     if flourish.burst && !faerie {
         death_burst(world, blow.target, attacker_pos);
     }
-    // The garrote's own flourish: a helpless victim doesn't fall so much as
-    // pop — a wide, wet burst on top of the ordinary death fling.
     if blow.outcome.garrote {
         if let Some(tpos) = world.get::<Position>(blow.target).copied() {
             if let Some(mut fx) = world.get_resource_mut::<Particles>() {
@@ -1003,8 +939,6 @@ fn punctuate(world: &mut World, blow: &Landed) {
 /// The two or three lines the log gets, from whichever end of the blow the
 /// player was on.
 fn report_blow(world: &mut World, blow: &Landed) {
-    // A blow that landed on stone says one thing and nothing else: no damage
-    // number of its own, and no kill line, because stone cannot be killed.
     if let Some(line) = blow.swing.chipped.clone() {
         world.resource_mut::<GameLog>().add(line);
         return;
@@ -1012,8 +946,6 @@ fn report_blow(world: &mut World, blow: &Landed) {
     let attacker_name = entity_name(world, blow.attacker);
     let target_name = entity_name(world, blow.target);
     let target_is_player = blow.target_is_player;
-    // A reveal ([`reveal_faerie`]) stands in for the kill line, so the blow is
-    // reported as a wound and not as a kill.
     let revealed = blow.outcome.lethal
         && world
             .get::<crate::effects::FaerieOnDeath>(blow.target)
@@ -1026,17 +958,9 @@ fn report_blow(world: &mut World, blow: &Landed) {
         },
         false => &blow.outcome,
     };
-    // An attacker the player can't see — an invisible phantom, or a mob still
-    // off in the dark — is reported only as "Something".
     let attacker_unseen = target_is_player && world.get::<Hidden>(blow.attacker).is_some();
 
     if blow.attacker_is_player {
-        // A ghost sharing the player's own name is fought as "yourself," in
-        // the ghost's own log colour — see `crate::bones`. Dedicated
-        // `_self` strings, not a "yourself" label threaded through the
-        // ordinary ones: `pt`/`es` compute their own gendered article from
-        // the bare name for every other target, and a label would break
-        // that for all of them, not just this one.
         let target_is_own_ghost = world.get::<GhostOfPlayer>(blow.target).is_some();
         let mut log = world.resource_mut::<GameLog>();
         return report_player_hit(
@@ -1048,11 +972,6 @@ fn report_blow(world: &mut World, blow: &Landed) {
         );
     }
 
-    // The reverse direction has the same problem in the other grammatical
-    // slot — `mob_hits`/`mob_misses`/`mob_strikes_you_down` are written for
-    // a third-person subject ("The orc hits you"), which breaks the moment
-    // the subject is also "you." A ghost's own name never appears here at
-    // all.
     if target_is_player && world.get::<GhostOfPlayer>(blow.attacker).is_some() {
         let mut log = world.resource_mut::<GameLog>();
         return report_ghost_self_hit(&mut log, blow.swing.damage, blow.outcome.lethal);
@@ -1088,11 +1007,6 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         return;
     }
     if blow.target_is_player {
-        // The main loop notices the `Ending` resource, tears down the save and
-        // shows the death screen. Their `@` is blanked so the death burst's
-        // flung corpse reads as them exploding rather than detaching from a
-        // body still standing there. No shake: the burst that is them coming
-        // apart plays slow, and it plays over a map that holds still.
         let attacker_name = entity_name(world, blow.attacker);
         silence_shake(world);
         blank_player_glyph(world, blow.target);

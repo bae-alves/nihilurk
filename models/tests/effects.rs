@@ -70,13 +70,11 @@ fn a_ring_can_grant_what_a_monster_is_born_with() {
     let mut w = test_world(1);
     let p = player(&mut w);
 
-    // Innate immunity is a component, nothing more.
     let monster = monster::monster(&mut w, "test monster", Position { x: 10, y: 10 });
     grant_all(&mut w, monster, FIRE_RESISTANCE);
     assert!(w.get::<FireImmune>(monster).is_some());
     assert!(w.get::<FireImmune>(p).is_none());
 
-    // A "ring of fire resistance" is one catalog row: the same component, lent.
     let ring = custom_ring(&mut w, "ring of fire resistance", FIRE_RESISTANCE, ());
     wear(&mut w, p, ring);
 
@@ -109,7 +107,6 @@ fn a_removed_ring_never_strips_innate_magic() {
     w.entity_mut(monster).insert(Backpack { items: Vec::new() });
     grant_all(&mut w, monster, FIRE_RESISTANCE);
 
-    // Hand the dragon a ring of the immunity it already has, then take it away.
     let ring = custom_ring(&mut w, "ring of fire resistance", FIRE_RESISTANCE, ());
     wear(&mut w, monster, ring);
     toggle_equipped(&mut w, monster, ring);
@@ -125,7 +122,6 @@ fn a_rings_armor_bonus_folds_in_exactly_like_armour() {
     let mut w = test_world(4);
     let p = player(&mut w);
 
-    // The player starts in +1 ring mail, so measure the ring against that base.
     let base = equipped_total::<ArmorBonus>(&w, p);
 
     let plus_three = custom_ring(&mut w, "ring of protection", &[], ArmorBonus(3));
@@ -138,8 +134,6 @@ fn a_rings_armor_bonus_folds_in_exactly_like_armour() {
         "combat and the HUD both read this one number"
     );
 
-    // And a suit of armour lands in the very same fold. Wearing it swaps out the
-    // starting ring mail, so its +1 replaces the base rather than adding to it.
     let mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
     w.entity_mut(mail).insert(ArmorBonus(1));
     wear(&mut w, p, mail);
@@ -170,9 +164,6 @@ fn cancellation_strips_every_effect_in_the_registry() {
 
 #[test]
 fn every_ring_in_the_catalog_has_a_row() {
-    // Potions, scrolls, wands and rings are always shown by their true name —
-    // there's no second appearance list to drift out of step with the catalog
-    // any more, so all that's left to check is the catalog itself.
     let _w = test_world(6);
     for def in RINGS {
         assert_eq!(RingDef::of(def.effect).name, def.name);
@@ -293,14 +284,10 @@ fn the_ledger_audit_reads_every_row_and_knows_a_variant_from_an_effect() {
             .map(|o| o.line)
             .collect()
     };
-    // A variant imported by name is that variant in this file.
     assert!(lines("use MovementType::{Chase, Confused};\nfn f() { g(Confused); }\n").is_empty());
-    // A turbofish reads the effect, inside a macro or out.
     assert!(lines("fn f() { assert!(Grant::of::<Phasing>().probe(w, e)); }\n").is_empty());
-    // Still caught: a bare value, in code and inside a macro.
     assert_eq!(lines("fn f() {\n    e.insert(Asleep);\n}\n"), [2]);
     assert_eq!(lines("fn f() {\n    assert!(x == Phasing);\n}\n"), [2]);
-    // An import through a type shadows only what it imports.
     assert_eq!(
         lines("use MovementType::Confused;\nfn f() {\n    e.insert(Asleep);\n}\n"),
         [3]
@@ -474,11 +461,6 @@ impl LedgerAudit<'_> {
             match tree {
                 proc_macro2::TokenTree::Group(group) => self.scan_tokens(group.stream()),
                 proc_macro2::TokenTree::Ident(ident) => {
-                    // The same convention `effect_in` leans on, spelled out in
-                    // tokens: an identifier reached through `::` from a
-                    // capitalised one is a variant or an associated item.
-                    // `matches!(m.movement_type, MovementType::Confused)` is
-                    // the shape this has to let through.
                     if qualified_by_a_type(&trees, i) || in_turbofish(&trees, i) {
                         continue;
                     }
@@ -540,10 +522,6 @@ fn no_effect_is_attached_or_detached_behind_the_ledgers_back() {
     let effects_rs = std::fs::read_to_string(root.join("models/src/effects.rs"))
         .expect("effects.rs is readable");
     let types = registered_effects(&effects_rs);
-    // The parse is worth exactly as much as its agreement with the table it
-    // claims to have read. A scanner that silently found nothing would pass
-    // every check below, so it is held against `EFFECTS` — the compiled form
-    // of the same rows — rather than against a number somebody chose.
     assert_eq!(
         types.len(),
         EFFECTS.len(),
@@ -663,10 +641,7 @@ fn a_temporary_boon_is_not_a_condition() {
     lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor);
     lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
     lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
-    // A potion of see invisible: lent for the floor like the three above, and
-    // nothing the player is afflicted or blessed with in the badge sense.
     grant_for_floor(&mut w, p, Grant::of::<SeesInvisible>());
-    // The mark a potion of magic detection leaves, same lifetime again.
     lend(&mut w, p, Grant::of::<Detected>(), Lifetime::Floor);
 
     assert_eq!(conditions_held(&w, p), 3);

@@ -1222,9 +1222,6 @@ impl ItemDef for CoinDef {
                 amount: self.amount,
             },
         ));
-        // A treasure coin also carries the one component the score reads, the
-        // same one the relic carries. Everything else on this table is worth
-        // what it does to you, which the scoreboard never hears about.
         if self.effect == PickupEffect::Coin {
             e.insert(Value {
                 amount: self.amount,
@@ -1554,8 +1551,6 @@ pub fn apply_bonus(world: &mut World, item: Entity, bonus: i32) {
         let base = entity.get::<ArmorBonus>().map(|b| b.0).unwrap_or(0);
         entity.insert(ArmorBonus(base + bonus));
     }
-    // A bow rolls no die of its own — what it improves is the arrow — so its
-    // plus lands on the throw instead. A +3 bow is +3 on everything it looses.
     if entity.contains::<Launcher>() {
         let base = entity.get::<ThrowBonus>().map(|b| b.0).unwrap_or(0);
         entity.insert(ThrowBonus(base + bonus));

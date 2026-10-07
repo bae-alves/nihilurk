@@ -194,8 +194,6 @@ fn a_labyrinth_is_all_passage_and_loops_back_on_itself() {
             !map.tiles.contains(&TileType::Room),
             "seed {seed} depth {depth}: a labyrinth has room floor"
         );
-        // A maze with no loops is a tree, and a tree has one edge fewer than
-        // it has tiles. One more edge than that is a loop somewhere.
         let edges = open
             .iter()
             .filter(|&&(x, y)| open.contains(&(x + 1, y)))
@@ -299,7 +297,6 @@ fn a_vault_is_rooms_joined_by_single_doors() {
 fn a_vaults_stairs_sit_in_its_corner_rooms() {
     for (seed, depth, map) in samples(SpecialLevel::Vault) {
         let ids = room_ids(&map);
-        // The room floor nearest each corner of the map is in that corner's room.
         let corner_rooms: HashSet<usize> = [
             (0, 0),
             (MAP_WIDTH, 0),
@@ -385,7 +382,6 @@ fn a_castle_is_a_keep_with_four_towers_and_a_dragon_inside() {
         .find(|&id| size(id) == 7 * 7)
         .unwrap_or_else(|| panic!("seed {seed} depth {depth}: no dragon in a 7x7 keep"));
 
-    // Every door out of the keep, and what lies on its far side.
     let mut towers = Vec::new();
     let mut gates = 0;
     for (&(x, y), _) in ids.iter().filter(|&(_, &id)| id == keep) {
@@ -508,7 +504,6 @@ fn an_island_is_one_shore_in_deep_water() {
             map.tiles.contains(&TileType::Water),
             "seed {seed} depth {depth}: an island with no sea"
         );
-        // Every tile off the island is water, bar the map's own rim.
         for y in 1..MAP_HEIGHT - 1 {
             for x in 1..MAP_WIDTH - 1 {
                 assert_ne!(

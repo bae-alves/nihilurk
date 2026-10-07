@@ -200,7 +200,6 @@ fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
 
     trap_system(&mut w);
 
-    // Held, and the trap has snapped for good.
     assert!(w.get::<Pinned>(p).is_some(), "snared");
     let held_for = turns_left(&w, p, Grant::of::<Pinned>()).expect("held on a clock");
     assert_eq!(
@@ -214,7 +213,6 @@ fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
         "single activation"
     );
 
-    // The clock runs down one per turn, and the last turn is still spent held.
     for spent in 1..held_for {
         tick_effects(&mut w);
         assert_eq!(
@@ -310,14 +308,11 @@ fn a_bear_trap_blocks_your_feet_not_your_fists() {
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
-    // Held, but not "incapacitated" — the engine still reads a key, so a swing
-    // at an adjacent foe is possible.
     assert!(
         !models::player_incapacitated(&mut w),
         "a bear trap is not a sleep"
     );
 
-    // Thrashing toward open ground, though, wastes the turn and tears the leg.
     let hp_before = w.get::<Fighter>(p).unwrap().hp;
     models::bear_trap_thrash(&mut w, p);
     assert_eq!(
@@ -420,7 +415,6 @@ fn ai_skips_a_snared_monster() {
             Blood,
         ))
         .id();
-    // The AI only acts on monsters it can see from the player's eyes.
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
         vec![(spot.x, spot.y), (spot.x - 1, spot.y), (here.x, here.y)];
 
@@ -492,11 +486,6 @@ fn arrow_trap_hits_an_unarmoured_target() {
     trap_system(&mut w);
 
     assert!(w.get::<Fighter>(p).unwrap().hp < 12, "the arrow drew blood");
-    // A hit does not litter the trap's tile with a spent arrow. Counted on
-    // that tile alone, never floor-wide: the floor's own budget is free to
-    // drop a bundle of arrows in some room, and that is none of this test's
-    // business. (It can never drop one *here* — nothing is ever placed on the
-    // player's landing tile.)
     assert_eq!(
         arrows_on(&mut w, here),
         0,
@@ -509,7 +498,6 @@ fn a_missed_arrow_lands_on_the_floor_as_loot() {
     let mut w = test_world(2);
     clear_traps(&mut w);
     let p = player(&mut w);
-    // Armour plus of 20 guarantees the bolt cannot connect.
     w.get_mut::<Fighter>(p).unwrap().armor_bonus = 20;
     w.get_mut::<Fighter>(p).unwrap().hp = 12;
 
@@ -582,7 +570,6 @@ fn a_ring_of_strength_stops_the_dart_poison() {
 
 #[test]
 fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
-    // A huge armour die does nothing against a trap...
     let mut w = test_world(2);
     clear_traps(&mut w);
     let p = player(&mut w);
@@ -598,7 +585,6 @@ fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
         "the armour die is ignored"
     );
 
-    // ...but a big flat bonus shrugs it off entirely.
     let mut w = test_world(2);
     clear_traps(&mut w);
     let p = player(&mut w);
@@ -749,7 +735,6 @@ fn an_adjacent_trap_stays_hidden_until_you_are_next_to_it() {
     vis().run(&mut w);
     assert!(w.get::<Hidden>(trap).is_some(), "in view is not enough");
 
-    // Stand right next to it.
     {
         let mut pos = w.get_mut::<Position>(p).unwrap();
         pos.x = tx - 1;
@@ -768,7 +753,6 @@ fn a_triggered_trap_is_invisible_until_it_goes_off() {
     let trap = w.spawn(TrapBundle::dart(Position { x: tx, y: ty })).id();
     w.get_mut::<Trap>(trap).unwrap().reveal = TrapReveal::Triggered;
 
-    // Walk right up to it and stare: still nothing.
     {
         let mut pos = w.get_mut::<Position>(p).unwrap();
         pos.x = tx - 1;
@@ -778,7 +762,6 @@ fn a_triggered_trap_is_invisible_until_it_goes_off() {
     vis().run(&mut w);
     assert!(w.get::<Hidden>(trap).is_some(), "no warning at all");
 
-    // Step on it.
     step_player_onto(&mut w, tx, ty);
     trap_system(&mut w);
     assert!(w.get::<Hidden>(trap).is_none(), "known the hard way");
@@ -810,7 +793,6 @@ fn traps_scale_with_depth_and_never_exceed_ten_per_floor() {
             floors_with_a_trap += 1;
         }
 
-        // Dive to depth 10 and sample there.
         while w.resource::<Depth>().what < 10 {
             let down = w
                 .resource::<Map>()
@@ -880,8 +862,6 @@ fn traps_and_snares_survive_a_save_and_reload() {
         .unwrap();
     assert_eq!(revealed, (true, false), "the known arrow trap stays known");
 
-    // The hold and, crucially, what is left on its clock: a `Lifetime::Turns`
-    // has to survive the trip or a reload would quietly set the sleeper free.
     let reloaded = w2.query_filtered::<Entity, With<Player>>().single(&w2);
     assert!(w2.get::<Asleep>(reloaded).is_some(), "woke up on load");
     assert_eq!(
@@ -1127,7 +1107,6 @@ fn a_trick_shot_that_catches_you_asks_why() {
     w.get_mut::<Fighter>(p).unwrap().hp = 30;
     let (site, ring, _) = blast_site(&mut w);
 
-    // Standing right next to your own shot.
     *w.get_mut::<Position>(p).unwrap() = ring[0];
 
     let trap = w.spawn(TrapBundle::bear(site)).id();
@@ -1205,9 +1184,6 @@ fn a_monster_that_falls_through_a_trapdoor_leaves_smoke() {
 /// budget while doing it, rather than quietly spending its draws on refusals.
 #[test]
 fn no_trap_is_planted_in_a_doorway_or_the_tile_just_inside_one() {
-    // Enough floors that the share below is a measurement, not a coin toss:
-    // at 60 the bound sat one floor under what the seeds happened to roll,
-    // and any new drop category, which shifts the content stream, tipped it.
     const FLOORS: u64 = 200;
     let mut floors_with_traps = 0;
     for seed in 0..FLOORS {
@@ -1244,8 +1220,6 @@ fn no_trap_is_planted_in_a_doorway_or_the_tile_just_inside_one() {
             );
         }
     }
-    // Four slots at 40% leave about 87% of first floors with a trap; a door
-    // rule that starved placement would be far below this.
     assert!(
         floors_with_traps * 4 >= FLOORS as usize * 3,
         "only {floors_with_traps}/{FLOORS} floors got any trap at all — the door rule is starving placement"
@@ -1294,7 +1268,6 @@ fn a_shooting_trap_shakes_the_map_even_on_a_miss() {
         clear_traps(&mut w);
         w.init_resource::<Shake>();
         let p = player(&mut w);
-        // Armour plus of 20 guarantees nothing connects.
         w.get_mut::<Fighter>(p).unwrap().armor_bonus = 20;
 
         let here = player_pos(&mut w);
@@ -1355,9 +1328,6 @@ fn a_burst_sets_off_the_next_trap_along_even_a_hidden_one() {
     clear_traps(&mut w);
     clear_mobs(&mut w);
     let (site, _, two_off) = blast_site(&mut w);
-    // Three in a row, a tile apart: the shot reaches the first, the first's
-    // burst reaches the second, the second's reaches the third. Only the one
-    // actually aimed at has been found.
     let one_off = Position {
         x: site.x + 1,
         y: site.y,
@@ -1367,7 +1337,7 @@ fn a_burst_sets_off_the_next_trap_along_even_a_hidden_one() {
         y: site.y,
     };
     if w.resource::<Map>().blocks(three_off.x, three_off.y) {
-        return; // this floor has no room for the row; the other seeds do
+        return;
     }
     let first = w.spawn(TrapBundle::bear(site)).id();
     w.entity_mut(first).remove::<Hidden>();
@@ -1406,9 +1376,6 @@ fn each_link_of_a_chain_explodes_after_the_last_one_has() {
 
     detonate_at(&mut w, site, None);
 
-    // `one_off` is lit twice: once by the first burst sweeping over it, once
-    // by its own. The second opening has to sit past the whole of the first
-    // blast's life, or the chain reads as one indistinguishable flash.
     let latest = w
         .resource::<Particles>()
         .live

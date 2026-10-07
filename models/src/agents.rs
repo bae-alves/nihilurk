@@ -470,7 +470,6 @@ mod tests {
         let mut p = percept(&map, (6, 6), (7, 6));
         p.foes = vec![sighting(e[0], (7, 6), true)];
         assert_eq!(think(&p, &STILL), Action::Wait);
-        // Next to the player, the chaser strikes; hunting would also have fired.
         assert_eq!(think(&p, &CHASER), Action::Strike(e[0]));
     }
 
@@ -519,8 +518,6 @@ mod tests {
             at = ((at.0 as i16 + dx) as u16, (at.1 as i16 + dy) as u16);
             assert_ne!(at, (7, 6), "walked into the wall it was routing around");
         }
-        // Three steps round the wall, the same as the open distance, and the
-        // fourth turn is the blow.
         assert_eq!(think_at(at), Action::Strike(e[0]));
     }
 
@@ -548,7 +545,6 @@ mod tests {
             think(&p, &HELPER),
             Action::Cast(SpellEffect::DragonBreath, Position { x: 11, y: 6 })
         );
-        // The same foe, but now the player stands inside the blast.
         p.player_at = Position { x: 12, y: 6 };
         assert!(matches!(think(&p, &HELPER), Action::Step(1, 0)));
     }
@@ -570,12 +566,10 @@ mod tests {
     fn a_spell_it_cannot_fire_sends_it_to_melee() {
         let map = room();
         let e = entities(1);
-        // Out of the Fireball's range of 8: it closes in instead.
         let mut p = percept(&map, (5, 6), (15, 6));
         p.spellset = vec![SpellEffect::DragonBreath];
         p.foes = vec![sighting(e[0], (15, 6), true)];
         assert_eq!(think(&p, &CHASER), Action::Step(1, 0));
-        // A spell with nothing to aim at (a skill) is never fired this way.
         p.at = Position { x: 14, y: 6 };
         p.spellset = vec![SpellEffect::Bide];
         assert_eq!(think(&p, &CHASER), Action::Strike(e[0]));

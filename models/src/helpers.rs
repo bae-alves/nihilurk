@@ -44,7 +44,6 @@ use crate::{Blood, Faction, Fighter, GameLog, Mob, Name, Player, Position, Rende
 pub fn get_line(start: Position, end: Position) -> Vec<Position> {
     let mut points = Vec::new();
 
-    // Work in i32 so the deltas can go negative without underflowing.
     let mut x0 = start.x as i32;
     let mut y0 = start.y as i32;
     let x1 = end.x as i32;
@@ -57,7 +56,6 @@ pub fn get_line(start: Position, end: Position) -> Vec<Position> {
     let mut err = dx - dy;
 
     loop {
-        // Back to u16 on the way into a Position.
         points.push(Position {
             x: x0 as u16,
             y: y0 as u16,
@@ -271,8 +269,6 @@ pub fn free_adjacent_tile(world: &mut World, origin: Position) -> Option<(u16, u
                     continue;
                 }
                 let (nx, ny) = (nx as u16, ny as u16);
-                // Land only: nothing that lands here — a bat's hop, a slime's
-                // offspring, a creature teleported to someone's side — swims.
                 if map.walkable(nx, ny, false) && !occupied.contains(&(nx, ny)) {
                     v.push((nx, ny));
                 }
@@ -434,11 +430,6 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
     let Some(hp_before) = world.get::<Fighter>(entity).map(|f| f.hp) else {
         return 0;
     };
-    // Stone, before the HP comes off: a chip at most, never the last point,
-    // and the chip is what the blow is reported as — so the caller's own
-    // sentence, which is about a hit that never happened, is not said at all.
-    // See `crate::effects::stone_chip`; `crate::combat` obeys the same rule on
-    // its own damage.
     let chip = crate::effects::stone_chip(world, entity, hit.amount);
     let amount = chip.as_ref().map_or(hit.amount, |c| c.through);
     match (&chip, announce) {
@@ -472,9 +463,6 @@ pub(crate) fn took_damage(world: &mut World, entity: Entity, hp_before: Option<i
     crate::items::break_promises(world, entity);
     warn_if_newly_low(world, entity, hp_before);
     crate::spirits::on_wounded(world, entity);
-    // Everything a creature does *because* it was hurt. The slime's split used
-    // to be a third hardcoded line here, beside two things that are not
-    // abilities at all.
     crate::abilities::fire_on_damaged(world, entity);
 }
 
@@ -504,7 +492,7 @@ pub(crate) fn warn_if_newly_low(world: &mut World, entity: Entity, hp_before: Op
     };
     let (hp_after, max_hp) = (fighter.hp, fighter.max_hp);
     if hp_after <= 0 {
-        return; // dying, not "wounded" — the reaper handles this
+        return;
     }
     let threshold = (max_hp as f32 * crate::constants::player::LOW_HP_WARNING_FRACTION) as i32;
     if hp_before <= threshold || hp_after > threshold {
@@ -548,7 +536,6 @@ const DIRS: [(i32, i32); 8] = [
 /// A glancing blow never splatters; otherwise both the number of droplets and
 /// how far they can fly scale with the damage dealt.
 pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: bool) {
-    // A faerie shapeshifter underneath has no blood to spill.
     if world.get::<Blood>(entity).is_none()
         || world.get::<crate::effects::FaerieOnDeath>(entity).is_some()
     {
@@ -558,16 +545,12 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         return;
     };
 
-    // Bail before touching the animation RNG stream if blood is switched off.
     if !world.resource::<BloodStains>().enabled {
         return;
     }
 
     let green = world.get::<GreenBlood>(entity).is_some();
 
-    // Droplet count and reach both grow with the wound — a further 25% heavier
-    // than a bare damage/4 would give. A glancing blow only wets the tile
-    // underfoot.
     let (droplets, max_reach) = if glancing {
         (0, 0)
     } else {
@@ -577,10 +560,6 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         )
     };
 
-    // Where the droplets fly is animation, and animation rolls off `FxRng` —
-    // the cosmetic stream a bare world need not carry. No stream, no
-    // droplets; the tile underfoot is still stained below, because that part
-    // was never a roll.
     let splats: Vec<(i32, i32)> = match world.get_resource_mut::<FxRng>() {
         None => Vec::new(),
         Some(mut rng) => (0..droplets)
@@ -602,10 +581,6 @@ pub fn spill_blood(world: &mut World, entity: Entity, damage: i32, glancing: boo
         return;
     }
 
-    // Blood can't fly through a wall: each droplet streaks along its rolled
-    // line and splatters on the first wall it meets instead of wherever the
-    // roll aimed it — the streak animation and the hit flash both land there,
-    // whether that's open floor or a wall.
     let map = world.resource::<Map>().clone();
     for (dx, dy) in splats {
         let tx = pos.x as i32 + dx;
@@ -709,27 +684,17 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
         return;
     };
 
-    // Bail before touching the animation RNG stream if blood is switched off
-    // — the creature still leaves a corpse, just with no animation to get
-    // there.
     if !world.resource::<BloodStains>().enabled {
         world.resource_mut::<Corpses>().mark(pos.x, pos.y);
         return;
     }
 
-    // Every roll below comes off `FxRng`, the cosmetic stream, which a bare
-    // world is entitled not to carry — gameplay arms a flourish and forgets,
-    // it never requires one (`docs/explanation/ecs-in-nihilurk.md`). With no
-    // stream there is no animation to roll, and the creature becomes a corpse
-    // where it stood, exactly as it does with blood switched off.
     if world.get_resource::<FxRng>().is_none() {
         world.resource_mut::<Corpses>().mark(pos.x, pos.y);
         return;
     }
 
     let has_blood = world.get::<Blood>(entity).is_some();
-    // A Helper dies as slowly as the player does: it is the one other death
-    // in the game that is personal.
     let stretch = if world.get::<Player>(entity).is_some()
         || world.get::<crate::components::Helper>(entity).is_some()
     {
@@ -774,8 +739,6 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
         return;
     };
 
-    // The corpse itself always rests on open floor — if the flight ended on a
-    // wall, walk back along the path to the last passable tile.
     let corpse_tile = if hit_wall {
         path.iter()
             .rev()
@@ -804,8 +767,6 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
         }
     }
 
-    // Bone shrapnel: a handful of shards scattering outward from the death
-    // tile, each along its own random line and stopped at the first wall.
     let shard_dirs: Vec<(i32, i32)> = {
         let mut rng = world.resource_mut::<FxRng>();
         (0..BONE_SHARD_COUNT)

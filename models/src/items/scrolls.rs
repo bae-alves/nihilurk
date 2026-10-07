@@ -111,10 +111,6 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
                 .add_colored(msg.to_string(), category);
         }
         ScrollEffect::MagicMapping => {
-            // Roll the wipe's shape (or take the `NIHILURK_MAGICMAP` dev override),
-            // then arm it centred on the reader. The engine plays it out frame
-            // by frame after the turn (see [`crate::magicmap`]); headless
-            // callers with no reveal resource just skip the animation.
             let hero = world
                 .get::<Position>(user)
                 .map(|p| (p.x, p.y))
@@ -308,10 +304,6 @@ pub(super) fn create_monster(world: &mut World, user: Entity) {
             .add(strings::create_monster_nowhere());
         return;
     };
-    // Ordinary monsters only — a spirit conjured this way would either dodge
-    // `Faction::Spirits`'s whole peaceful-until-crossed point (tamed on the
-    // spot below) or wander off unaligned to anything, neither of which is
-    // what this scroll is for.
     let pool: Vec<&MonsterDef> = BESTIARY
         .iter()
         .filter(|m| m.spirit_kind.is_none())
@@ -326,9 +318,6 @@ pub(super) fn create_monster(world: &mut World, user: Entity) {
         .resource_mut::<GameLog>()
         .add(strings::create_monster_line(article_for(&name), &name));
 
-    // A small slice of summons arrive already tamed: mostly a plain ally,
-    // rarer still as the Helper outright. One roll decides which, so the two
-    // odds never both land on the same creature.
     use crate::constants::helpers::{CREATE_ALLY_CHANCE, CREATE_HELPER_CHANCE};
     let roll = world.resource_mut::<GameRng>().0.gen_range(0.0..1.0);
     let always_helper = world.get::<AlwaysHelper>(e).is_some();
@@ -538,10 +527,6 @@ pub(super) fn missing_gear_line(slot: Slot) -> &'static str {
 fn charm_hands(world: &mut World, user: Entity) {
     let already = world.get::<ConfusingTouch>(user).is_some();
     if !already {
-        // Through the ledger: nothing lends this one, so the ledger is the only
-        // record of it, and the save file is written from the ledger. A second
-        // scroll adds no second row for the same reason it adds no second
-        // charge.
         crate::effects::lend(
             world,
             user,

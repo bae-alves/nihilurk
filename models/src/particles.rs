@@ -392,8 +392,6 @@ impl Particles {
     /// size a bolt reads as a thing travelling, and the sun is legible in every
     /// terminal font at a glance where a rotating dash was not.
     pub fn beam(&mut self, pts: &[(u16, u16)], color: Color) -> f32 {
-        // Several frame periods (~33ms) per cell, so the head crawls visibly
-        // instead of the whole line lighting up inside a frame or two.
         const TRAVEL_MS_PER_CELL: f32 = 90.0;
         const GLYPH: char = '☼';
         for (i, &(x, y)) in pts.iter().enumerate() {
@@ -401,11 +399,8 @@ impl Particles {
                 x,
                 y,
                 delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
-                // Cells nearer the caster linger a touch longer, leaving a tail.
                 lifetime_ms: 300.0 + (pts.len() - i) as f32 * 20.0,
                 age_ms: 0.0,
-                // Flickers white/colour twice before settling into a dim dot —
-                // flashier than a single white-to-colour fade.
                 frames: vec![
                     (GLYPH, Color::White),
                     (GLYPH, color),
@@ -576,8 +571,6 @@ impl Particles {
     /// can watch a dagger travel. `pts` is the traced line, thrower's own tile
     /// excluded.
     pub fn hurl(&mut self, pts: &[(u16, u16)], glyph: char, color: Color) {
-        // Well above the ~33ms frame period, so every cell gets its own visible
-        // frame (or two) instead of the flight blurring past between samples.
         const TRAVEL_MS_PER_CELL: f32 = 70.0;
         const LIFETIME_MS: f32 = TRAVEL_MS_PER_CELL * 1.4;
         for (i, &(x, y)) in pts.iter().enumerate() {
@@ -921,10 +914,6 @@ mod tests {
 
     #[test]
     fn smoke_never_overlaps_the_flame_on_its_own_cell() {
-        // The renderer just overwrites a tile with whichever particle sits
-        // later in `live`, so smoke queued while the same cell's flame is
-        // still burning paints over its red/dark-red closing frames — the
-        // whole blast reads as grey from the start. Regression for that.
         let mut fx = Particles::new();
         let cells = [(5, 5, 0.0)];
         fx.explosion(&cells, BlastPalette::Fire);

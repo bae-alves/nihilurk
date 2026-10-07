@@ -75,7 +75,6 @@ fn a_name_the_tables_do_not_know_spawns_nothing() {
 fn a_row_spawned_by_name_carries_what_its_row_says() {
     let mut w = World::new();
 
-    // A bestiary row's numbers land on the Fighter it spawns.
     let dragon = spawn_named(&mut w, "dragon", at(1, 1)).unwrap();
     let def = MonsterDef::named("dragon");
     let fighter = w.get::<Fighter>(dragon).unwrap();
@@ -84,7 +83,6 @@ fn a_row_spawned_by_name_carries_what_its_row_says() {
         (def.hp, def.power, def.armor)
     );
 
-    // A catalog row's components land on the item it spawns.
     let sword = spawn_named(&mut w, "long sword", at(2, 2)).unwrap();
     let row = WEAPONS.iter().find(|d| d.name == "long sword").unwrap();
     assert_eq!(
@@ -96,7 +94,6 @@ fn a_row_spawned_by_name_carries_what_its_row_says() {
         "a named spawn is unenchanted"
     );
 
-    // And a ring's grant list comes from its row, not from ring-specific code.
     let ring = spawn_named(&mut w, "ring of perception", at(3, 3)).unwrap();
     assert!(w.get::<Grants>(ring).is_some());
 }
@@ -188,8 +185,6 @@ fn xeroc_only_turns_up_past_its_debut() {
 
 #[test]
 fn pick_any_ignores_the_depth_gate() {
-    // The climb out with the Element of Yoord: every floor draws from the whole
-    // bestiary, so the deepest letters can turn up regardless of depth.
     let shallowest = BESTIARY
         .iter()
         .min_by_key(|m| m.min_depth)
@@ -267,9 +262,6 @@ fn every_loot_category_can_be_drawn_and_has_rows_to_give() {
             "{} has no weight, so it can never be drawn",
             category.name
         );
-        // At the shallowest floor it claims, and at the deepest in the game:
-        // a category that empties out at depth is a category that stops
-        // existing without saying so.
         for depth in [category.min_depth, FINAL_DEPTH] {
             assert!(
                 !category.rows(depth).is_empty(),

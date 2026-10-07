@@ -189,9 +189,6 @@ pub fn worn_tag_from(names: impl Iterator<Item = String>) -> String {
     if names.is_empty() {
         return String::new();
     }
-    // ponytail: a plain comma list, no "and" before the last — four items is
-    // the ceiling (two hands' worth is one, armour, two rings) and the tag is
-    // a glance, not a sentence.
     strings::worn_tag(&names.join(", "))
 }
 
@@ -216,7 +213,6 @@ pub fn wielded_reach_weapon(world: &World, entity: Entity) -> Option<Entity> {
 /// no-ops when there is nothing to lose.
 pub fn reset_momentum(world: &mut World, wearer: Entity) {
     revoke(world, wearer, Grant::of::<Bided>());
-    // Wherever it was built — the weapon's, or the bare-handed fencer's own.
     let holder = equipped_in(world, wearer, Slot::Hand).unwrap_or(wearer);
     if world.get::<Momentum>(holder).is_some() {
         world.entity_mut(holder).insert(Momentum(0));
@@ -271,30 +267,17 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         force_unequip(world, item);
         world.resource_mut::<GameLog>().add(slot.doffed(&name));
         sync_equipment_effects(world, user);
-        // Anything that happens *because* it came off, once what it lent is
-        // already gone — the mirror of the `OnWear` call at the end of the
-        // wearing path below. Only this deliberate path fires it: being
-        // disarmed, dropping it and dying all go through `force_unequip`,
-        // and none of the three is a ceremony.
         if let Some(OnDoff(fire)) = world.get::<OnDoff>(item).copied() {
             fire(world, user, item);
         }
         return true;
     }
 
-    // Hands, claws or paws — whether this body can put anything on at all is
-    // [`crate::body::equip_refusal`]'s question, not this function's.
-    //
-    // Only asked on the way *on*. Taking something off is always allowed, or
-    // a wand of cancellation stripping what made a body able to wear gear
-    // would weld a hobgoblin's armour to them for good.
     if let Some(refusal) = equip_refusal(world, user, slot, &name) {
         world.resource_mut::<GameLog>().add(refusal);
         return false;
     }
 
-    // Full up: make room, evicting an uncursed occupant over a cursed one. A
-    // hand short one ring, say, has room to spare and skips this entirely.
     let occupants = equipped_in_slot(world, user, slot);
     if occupants.len() >= slot.capacity() {
         match occupants.iter().find(|&&e| world.get::<Curse>(e).is_none()) {
@@ -315,9 +298,6 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     world.resource_mut::<GameLog>().add(slot.donned(&name));
     sync_equipment_effects(world, user);
 
-    // Wearing something is how its plus and curse status come to light — the
-    // same moment a ring's effect does. Announce the curse only the first
-    // time; after that it's just what the name already says.
     let freshly_known = world.get::<KnownQuality>(item).is_none();
     world.entity_mut(item).insert(KnownQuality);
     if freshly_known && world.get::<Curse>(item).is_some() {
@@ -327,10 +307,6 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
             .add_colored(slot.cursed_reveal(&true_name), LogCategory::Curse);
     }
 
-    // Last of all, anything that happens *because* it went on, rather than
-    // while it is on: a ring of adornment spends itself here. It runs after the
-    // item is fully worn, named and known, because it is allowed to be the last
-    // thing that ever happens to the item.
     if let Some(OnWear(fire)) = world.get::<OnWear>(item).copied() {
         fire(world, user, item);
     }
@@ -353,18 +329,8 @@ pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
     if let Some(mut e) = world.get_mut::<Equipped>(item) {
         e.by = Some(wearer);
     }
-    // Worn is carried: gear on a creature has no `Position` of its own, or it
-    // stays lying on the tile it was spawned on — drawn as loot, announced as a
-    // second sighting, and pickable off the floor while its owner still wears
-    // it. [`drop_equipment`] puts a `Position` back when it comes off.
     world.entity_mut(item).remove::<Position>();
     sync_equipment_effects(world, wearer);
-    // Wearing it reveals its plus and curse status only when the *player* is
-    // the one wearing it — this is how the player's own starting gear (handed
-    // over already worn) ends up known from turn one. A monster spawning
-    // equipped, catching a thrown weapon or making off with a stolen one
-    // learns nothing the player didn't already know: identification is what
-    // the player has learned, not what the item has been through.
     if world.get::<Player>(wearer).is_some() {
         world.entity_mut(item).insert(KnownQuality);
     }
@@ -426,9 +392,6 @@ pub fn corrode_armor(world: &mut World, victim: Entity) -> bool {
 /// its gear actually grants right now: attaches what was just put on, strips
 /// what was just taken off, and never touches what the creature was born with.
 pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
-    // What the gear lends right now, as (item, grant) pairs. The item is part
-    // of the claim: two rings lending the same effect are two entries, and
-    // taking one off must not strip what the other still lends.
     let wanted: Vec<(Entity, Grant)> = equipped(world, bearer)
         .filter_map(|i| i.get::<Grants>().map(|g| (i.id(), g.0)))
         .flat_map(|(item, grants)| grants.iter().map(move |&g| (item, g)))
@@ -448,9 +411,6 @@ pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
         _ => false,
     });
 
-    // And anything newly worn is lent. `held` is the ledger as it was before
-    // the sweep, which is what makes this idempotent: an item already lending
-    // an effect is not asked to lend it twice every turn.
     for (item, grant) in wanted {
         let already = held.iter().any(|h| {
             h.lifetime == Lifetime::WhileEquipped(item) && Some(h.id) == grant.effect_id()

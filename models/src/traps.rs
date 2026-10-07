@@ -331,8 +331,6 @@ pub fn trap_system(world: &mut World) {
         .collect();
 
     for mover in movers {
-        // Airborne: a dragon, a griffin, a jabberwock, a kestral simply passes
-        // over whatever is on the tile underfoot.
         if world.get::<crate::effects::Flies>(mover).is_some() {
             continue;
         }
@@ -383,7 +381,6 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
     let is_player = world.get::<Player>(victim).is_some();
     let trap_pos = world.get::<Position>(trap).copied();
 
-    // The trap is now known, whether or not the player was the one to find it.
     world.entity_mut(trap).remove::<Hidden>();
     if let Some(mut t) = world.get_mut::<Trap>(trap) {
         t.revealed = true;
@@ -400,10 +397,6 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         ));
     }
 
-    // A bear trap only bites once, and it bites the moment it is stepped on.
-    // Everything else springs again and again until the mechanism gives out,
-    // which it does [`TRAP_BREAK_CHANCE`] of the time. Rolled before the effect
-    // runs: a trapdoor takes the floor away with it.
     let spent = effect == TrapEffect::Bear
         || world
             .resource_mut::<GameRng>()
@@ -437,13 +430,8 @@ fn apply_trap_effect(
     seen: bool,
     trap_pos: Option<Position>,
 ) {
-    // Snaring traps hold the victim for as many turns as their row says.
     let snare_turns = TrapDef::of(effect).snare_turns;
 
-    // A trap the player can see going off shows itself going off — but only
-    // under whoever is actually standing on the mechanism. A trick shot's
-    // other victims are a tile away and get the burst instead, so a blast that
-    // catches a crowd never plays the trap's own flourish once per creature.
     let on_the_mechanism = trap_pos.is_some() && trap_pos == world.get::<Position>(victim).copied();
     if (is_player || seen) && on_the_mechanism {
         trap_flourish(world, effect, trap_pos);
@@ -502,8 +490,6 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
         return false;
     };
 
-    // The trap is gone the instant it lets go, before anything below can put a
-    // second victim on its tile — nothing sets off the same trap twice.
     world.entity_mut(trap).despawn();
     let victims = burst(
         world,
@@ -519,9 +505,6 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
             finish_burst_casualty(world, victim, center, effect);
             continue;
         }
-        // An earlier victim's effect may have taken this one off the floor
-        // between the two loops — a trapdoor under the player empties the
-        // whole level behind them.
         if world.get::<Position>(victim).is_none() {
             continue;
         }
@@ -634,9 +617,6 @@ fn ultimate_burst(world: &mut World, center: Position, shooter: Option<Entity>) 
             shooter,
         );
     }
-    // And one more, on whoever the reading order reached first. Not the worst
-    // hurt, not the nearest — just one of them, because "any one hit" is what
-    // an ULTIMATE TRICK SHOT promises and it owes nobody fairness.
     if let Some(&unlucky) = echoes.first() {
         world
             .resource_mut::<GameLog>()
@@ -677,7 +657,6 @@ fn burst(
     let seen = caught_player || player_sees(world, center.x, center.y);
 
     if seen && announce {
-        // The player standing in their own blast has a different word for it.
         let shout = if caught_player {
             strings::trick_shot_shout_self()
         } else {
@@ -686,20 +665,13 @@ fn burst(
         world
             .resource_mut::<GameLog>()
             .add_colored(strings::trick_shot_line(shout), LogCategory::TrickShot);
-        // The lightest kick there is. A trick shot is a *chain* now, and a
-        // chain of heavy thumps is a map that never stops moving.
         kick_shake(world, ShakeKind::Hit);
     }
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
         let span = fx.explosion(&cells, palette);
-        // The one palette that smoulders afterwards. A trap's burst is over
-        // when it is over; the relic's leaves the room full of it.
         if palette == BlastPalette::Ultimate {
             fx.smoke_burst(&cells);
         }
-        // Everything queued after this — the next link of the chain, above
-        // all — opens once this ring has finished sweeping. A chain is a
-        // sequence of explosions or it is one indistinguishable flash.
         fx.hold(span);
     }
     if palette == BlastPalette::Ultimate {
@@ -709,8 +681,6 @@ fn burst(
         }
     }
 
-    // One roll, applied whole to everyone caught — this is a blast, not a
-    // volley of separate hits.
     let damage = roll_dice(world, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES);
     for &victim in &victims {
         apply_damage(world, victim, damage);
@@ -888,8 +858,6 @@ pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool
                 .resource_mut::<GameLog>()
                 .add(strings::drops_through_trapdoor(&who));
         }
-        // Dust where the floor used to be: a body falling through leaves the
-        // plain grey puff, against the magenta of one wrenched away by magic.
         if let Some(pos) = world.get::<Position>(victim).copied() {
             leave_smoke(world, pos);
         }
@@ -902,7 +870,6 @@ pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool
         world
             .resource_mut::<GameLog>()
             .add(strings::trapdoor_grinds_shut());
-        // Grit shaken loose from a floor that opened onto nothing.
         let here = world.get::<Position>(victim).copied();
         dust_puff(world, here);
         return;
@@ -911,8 +878,6 @@ pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool
         .resource_mut::<GameLog>()
         .add(strings::trapdoor_yawns_open());
     transition_level(world, true, LevelChange::Trapdoor);
-    // The fall cannot be animated where it happened — that floor is gone by
-    // the time the effect layer plays — so the dust goes up where they land.
     let landed = world.get::<Position>(victim).copied();
     dust_puff(world, landed);
 }
@@ -953,8 +918,6 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
             vs.dirty = true;
         }
     }
-    // A magenta puff where they stood — the wand of teleportation's calling
-    // card, and the trap works the same magic.
     if let Some(was) = was {
         leave_tinted_smoke(world, was, Color::Magenta);
     }
@@ -977,23 +940,16 @@ fn trap_flourish(world: &mut World, effect: TrapEffect, trap_pos: Option<Positio
         return;
     };
     match effect {
-        // The needle arrives from off in the dark, in the trap's own colour,
-        // and lands as a thwack whether or not it drew blood — the mechanism
-        // going off is the event, and a bolt that clatters off armour still
-        // came out of the wall.
         TrapEffect::Arrow | TrapEffect::Dart => {
             kick_shake(world, ShakeKind::Hit);
             missile_flourish(world, p, TrapDef::of(effect).color)
         }
-        // Steel jaws: a snap on the tile, then the held glyph over it.
         TrapEffect::Bear => {
             if let Some(mut fx) = world.get_resource_mut::<Particles>() {
                 fx.spark_burst(p.x, p.y, Color::DarkGreen);
                 fx.condition_mark(p.x, p.y, '#', Color::DarkGreen, BEAR_MARK_DELAY_MS);
             }
         }
-        // Gas billowing over the tile and the ring around it, then the same
-        // sleep mark a scroll of sleep leaves.
         TrapEffect::Sleep => {
             let cells = burst_cells(world, p, 1);
             if let Some(mut fx) = world.get_resource_mut::<Particles>() {
@@ -1001,8 +957,6 @@ fn trap_flourish(world: &mut World, effect: TrapEffect, trap_pos: Option<Positio
                 fx.condition_mark(p.x, p.y, 'z', Color::Blue, SLEEP_MARK_DELAY_MS);
             }
         }
-        // The teleport's magenta puff goes on the tile the victim left, the
-        // trapdoor's dust where they land — both in their own mechanic below.
         TrapEffect::Teleport | TrapEffect::Trapdoor => {}
     }
 }
@@ -1049,8 +1003,6 @@ fn arrow_effect(
 ) {
     let tier = trap_damage_tier(world.resource::<Depth>().what);
     let armor_plus = total_armor_plus(world, victim);
-    // `ARROW_DAMAGE_BONUS` at the surface, one more point of head start per
-    // depth tier.
     let roll = roll_dice(world, ARROW_DAMAGE_DICE, ARROW_DAMAGE_SIDES)
         + ARROW_DAMAGE_BONUS
         + tier * ARROW_DAMAGE_PER_TIER;
@@ -1063,7 +1015,6 @@ fn arrow_effect(
                 .resource_mut::<GameLog>()
                 .add(strings::arrow_whistles_past(&who));
         }
-        // A missed arrow becomes loot on the trap's tile.
         if let Some(p) = trap_pos {
             world.spawn((
                 Name {
@@ -1120,10 +1071,6 @@ fn dart_effect(
     trap_spark(world, trap_pos);
     apply_damage(world, victim, damage);
 
-    // The poison saps melee power permanently — a hit to the attack die itself,
-    // not a modifier — unless something sustains the victim's strength. A potion
-    // of restore strength puts `power` back up to `max_power`. The deeper the
-    // dart, the harder the bite: one point per depth tier.
     let drain = DART_POWER_DRAIN_BASE + tier * DART_POWER_DRAIN_PER_TIER;
     let line = match crate::conditions::drain_power(world, victim, drain, Some(1)) {
         crate::conditions::Drain::Resisted => strings::dart_poison_resisted(),

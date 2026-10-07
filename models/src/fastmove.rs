@@ -99,7 +99,6 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
         return FastMovePlan::Blocked;
     };
 
-    // The tiles the player can see this instant.
     let visible: Vec<(u16, u16)> = {
         let mut q = world.query_filtered::<&Viewshed, With<Player>>();
         match q.iter(world).next() {
@@ -108,14 +107,11 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
         }
     };
 
-    // Floor items currently in view.
     let item_tiles: HashSet<(u16, u16)> = {
         let mut q = world.query_filtered::<&Position, (With<Item>, Without<Hidden>)>();
         q.iter(world).map(|p| (p.x, p.y)).collect()
     };
 
-    // Best feature roughly in the pressed direction: lowest priority number wins
-    // (0 = stairs, 1 = door, 2 = item), ties broken by Chebyshev distance.
     let best: Option<(u8, i32, (u16, u16))> = {
         let map = world.resource::<Map>();
         let mut best: Option<(u8, i32, (u16, u16))> = None;
@@ -142,8 +138,6 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
         best
     };
 
-    // Take the beeline only if a known path actually reaches it; otherwise fall
-    // through to a straight run.
     match best {
         Some((_, _, tile)) if travel_step(world, tile).is_some() => {
             return FastMovePlan::Travel(tile);
@@ -151,7 +145,6 @@ pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
         _ => {}
     }
 
-    // No feature that way: a straight run, if the first step is clear.
     let nx = px as i32 + dx as i32;
     let ny = py as i32 + dy as i32;
     if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
@@ -214,7 +207,6 @@ pub fn straight_stop_here(world: &mut World) -> bool {
 
     match map.tile(px, py) {
         TileType::Door | TileType::Upstairs | TileType::Downstairs => return true,
-        // In a corridor, stop where a side passage opens up.
         TileType::Passage => {
             for &(qx, qy) in &[(-dy, dx), (dy, -dx)] {
                 let nx = px as i32 + qx as i32;

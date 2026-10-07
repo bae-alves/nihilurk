@@ -227,7 +227,6 @@ mod tests {
 
     #[test]
     fn a_mote_waits_out_its_delay_then_draws_then_dies() {
-        // 100 ms of delay, 200 ms of life, two keyframes.
         assert_eq!(keyframe(50.0, 100.0, 200.0, 2), None, "still waiting");
         assert_eq!(keyframe(100.0, 100.0, 200.0, 2), Some(0), "first frame");
         assert_eq!(keyframe(250.0, 100.0, 200.0, 2), Some(1), "second half");
@@ -245,7 +244,6 @@ mod tests {
 
     #[test]
     fn the_last_keyframe_is_reachable_and_the_index_never_runs_off() {
-        // The one off-by-one this function exists to prevent.
         for frames in 1..8 {
             let last = keyframe(199.9, 0.0, 200.0, frames);
             assert_eq!(last, Some(frames - 1), "{frames} keyframes");
@@ -278,8 +276,6 @@ mod tests {
 
     #[test]
     fn every_step_of_a_shake_actually_displaces_something() {
-        // The stutter this function exists to prevent: a decay that rounds down
-        // spends its last steps sitting at (0, 0) while still claiming to run.
         let duration = 460.0;
         let mut age = 0.0;
         while age < duration {
@@ -294,8 +290,7 @@ mod tests {
 
     #[test]
     fn consecutive_steps_throw_the_map_back_the_other_way() {
-        // What separates a shake from a drift: x never repeats its sign.
-        let duration = 1000.0; // long enough that amplitude never decays to 0
+        let duration = 1000.0;
         let signs: [i8; 6] = core::array::from_fn(|i| {
             shake_offset(i as f32 * SHAKE_STEP_MS, duration, 1)
                 .0
@@ -308,7 +303,6 @@ mod tests {
 
     #[test]
     fn the_throw_shrinks_as_the_shake_runs_out() {
-        // Amplitude 2 spends its first half at 2 cells and its second at 1.
         assert_eq!(shake_offset(0.0, 400.0, 2).0.abs(), 2);
         assert_eq!(shake_offset(210.0, 400.0, 2).0.abs(), 1);
         assert_eq!(shake_offset(399.0, 400.0, 2).0.abs(), 1);
@@ -316,8 +310,6 @@ mod tests {
 
     #[test]
     fn the_echo_lands_after_the_ripple_has_passed() {
-        // A creature 2.5 tiles out is swept at 100 ms; the echo must not be
-        // inside that.
         assert!(follow_delay(2.5, 120.0) > ripple_delay(2.5));
     }
 }

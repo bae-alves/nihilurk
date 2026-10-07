@@ -343,11 +343,6 @@ fn chaos_recoil(world: &mut World, attacker: Entity, _target: Option<Entity>) ->
 /// [`crate::equipment::reset_momentum`]). The player's trick alone — see
 /// [`is_player`].
 fn build_momentum(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bool {
-    // On the steel if there is steel, on the fencer otherwise. A rapier keeps
-    // its own build-up so that swapping blades mid-fight puts down what the
-    // first one had going; a lurk has nothing to put down, and
-    // [`crate::effects::loadout`] folds a modifier held by the creature
-    // itself the same way it folds one held by its gear.
     let holder = equipped_in(world, attacker, Slot::Hand).unwrap_or(attacker);
     let built = world.get::<Momentum>(holder).map_or(0, |m| m.0);
     world
@@ -415,8 +410,6 @@ fn venomous_bite(world: &mut World, _attacker: Entity, target: Option<Entity>) -
     let Some(target) = target else {
         return false;
     };
-    // No floor: a long enough fight with a rattlesnake drives a victim's
-    // power negative, which is the bite's whole reputation.
     let drained = crate::conditions::drain_power(world, target, RATTLESNAKE_POWER_DRAIN, None);
     let is_player = world.get::<Player>(target).is_some();
     let took = matches!(drained, crate::conditions::Drain::Took);
@@ -501,8 +494,6 @@ fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> b
 /// medusa's own kind is unmoved by each other, and nothing but a person's eyes
 /// can be turned to stone by this.
 fn medusa_gaze(world: &mut World, looker: Entity, _seen: Entity) -> bool {
-    // `seen` carrying `Gorgon` is what armed the row; the gaze only works on a
-    // person's eyes, which is the half the table cannot express.
     if world.get::<Player>(looker).is_none() {
         return false;
     }
@@ -579,15 +570,6 @@ pub(crate) fn steal_equipped_item(world: &mut World, victim: Entity) -> Option<E
 /// [`crate::combat::resolve_attack`] for every blow that drew blood, with the
 /// shape of the blow so each row can bow out of the ones it does not want.
 pub fn fire_on_hit(world: &mut World, attacker: Entity, target: Entity, blow: Blow) {
-    // The spell Magic Ward: nothing a blow carries with it — a rattlesnake's
-    // drain, a vampire's kiss, an aquator's rust — reaches whoever is
-    // wearing one, for the rest of the floor. The damage itself already
-    // landed; this is only the trick riding on top of it.
-    //
-    // The last ward check outside `helpers::apply_hit`, and deliberately so:
-    // that one decides whether *damage* lands, and this decides whether the
-    // rider does. They are the same word for two questions, and a blow that
-    // hurt a warded creature can still be forbidden from poisoning them.
     if world.get::<MagicWard>(target).is_some() {
         return;
     }

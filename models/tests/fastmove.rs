@@ -103,7 +103,7 @@ fn facing_a_wall_with_nothing_ahead_is_blocked() {
     let (mut w, player) = arena();
     {
         let mut p = w.get_mut::<Position>(player).unwrap();
-        p.x = 10; // hard against the west wall (x = 9)
+        p.x = 10;
     }
     w.get_mut::<Viewshed>(player).unwrap().dirty = true;
     resolve_visibility(&mut w);
@@ -117,7 +117,7 @@ fn facing_a_wall_with_nothing_ahead_is_blocked() {
 #[test]
 fn a_door_in_view_that_way_is_a_beeline() {
     let (mut w, player) = arena();
-    set_tile(&mut w, 22, 9, TileType::Door); // due east of the player
+    set_tile(&mut w, 22, 9, TileType::Door);
     w.get_mut::<Viewshed>(player).unwrap().dirty = true;
     resolve_visibility(&mut w);
 
@@ -128,7 +128,6 @@ fn a_door_in_view_that_way_is_a_beeline() {
             plan_name(&other)
         ),
     }
-    // ...but not when running the other way.
     assert!(matches!(
         fast_move_plan(&mut w, -1, 0),
         FastMovePlan::Straight
@@ -138,8 +137,8 @@ fn a_door_in_view_that_way_is_a_beeline() {
 #[test]
 fn stairs_beat_doors_beat_items() {
     let (mut w, player) = arena();
-    set_tile(&mut w, 23, 9, TileType::Door); // east
-    set_tile(&mut w, 21, 11, TileType::Downstairs); // east-ish (within the cone)
+    set_tile(&mut w, 23, 9, TileType::Door);
+    set_tile(&mut w, 21, 11, TileType::Downstairs);
     w.spawn((
         Name {
             what: "gold".into(),
@@ -155,14 +154,12 @@ fn stairs_beat_doors_beat_items() {
         other => panic!("expected the stairs, got {:?}", plan_name(&other)),
     }
 
-    // Drop the stairs back to plain floor: the door is now the pick.
     set_tile(&mut w, 21, 11, TileType::Room);
     match fast_move_plan(&mut w, 1, 0) {
         FastMovePlan::Travel(tile) => assert_eq!(tile, (23, 9), "door beats the item"),
         other => panic!("expected the door, got {:?}", plan_name(&other)),
     }
 
-    // Door gone too: fall back to the item.
     set_tile(&mut w, 23, 9, TileType::Room);
     match fast_move_plan(&mut w, 1, 0) {
         FastMovePlan::Travel(tile) => assert_eq!(tile, (19, 9), "item is all that's left"),
@@ -175,10 +172,8 @@ fn straight_step_stops_at_a_wall() {
     let (mut w, player) = arena();
     w.resource_mut::<FastMove>().start(1, 0, None);
 
-    // Mid-room: keeps going east.
     assert_eq!(straight_step(&mut w), Some((1, 0)));
 
-    // On the east edge (x = 24), the next tile east is wall.
     w.get_mut::<Position>(player).unwrap().x = 24;
     assert_eq!(straight_step(&mut w), None);
 }
@@ -189,7 +184,7 @@ fn straight_step_stops_at_a_wall() {
 fn straight_step_stops_before_a_known_trap() {
     let (mut w, _player) = arena();
     w.spawn((
-        Position { x: 18, y: 9 }, // one step east of the player
+        Position { x: 18, y: 9 },
         Trap {
             effect: TrapEffect::Dart,
             reveal: TrapReveal::Sight,
@@ -229,8 +224,6 @@ fn fast_move_plan_is_blocked_by_a_known_trap_dead_ahead() {
 fn straight_run_halts_on_a_door_and_at_a_corridor_branch() {
     let (mut w, player) = arena();
 
-    // Wipe to a bare horizontal corridor y = 9, x 10..=24, with one side
-    // passage at (17, 10) and a door at (20, 9).
     {
         let mut map = w.resource_mut::<Map>();
         for t in map.tiles.iter_mut() {
@@ -244,16 +237,13 @@ fn straight_run_halts_on_a_door_and_at_a_corridor_branch() {
     }
     w.resource_mut::<FastMove>().start(1, 0, None);
 
-    // Plain corridor tile: run on.
     w.get_mut::<Position>(player).unwrap().x = 15;
     w.get_mut::<Position>(player).unwrap().y = 9;
     assert!(!straight_stop_here(&mut w));
 
-    // The tile with a side passage: stop.
     w.get_mut::<Position>(player).unwrap().x = 17;
     assert!(straight_stop_here(&mut w));
 
-    // The door: stop.
     w.get_mut::<Position>(player).unwrap().x = 20;
     assert!(straight_stop_here(&mut w));
 }

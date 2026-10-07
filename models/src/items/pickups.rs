@@ -53,8 +53,6 @@ pub fn pick_up(world: &mut World, taker: Entity, item: Entity) -> Option<String>
 /// [`pick_up`] so the red-room consequence above can wrap it without
 /// touching this body.
 fn take_item(world: &mut World, taker: Entity, item: Entity) -> Option<String> {
-    // An invisibly-stashed item announces itself the instant you blunder onto
-    // its tile, and is then treated like anything else.
     if world.get::<Hidden>(item).is_some() {
         world.entity_mut(item).remove::<Hidden>();
         world.entity_mut(item).remove::<Invisible>();
@@ -67,8 +65,6 @@ fn take_item(world: &mut World, taker: Entity, item: Entity) -> Option<String> {
         return spend_pickup(world, taker, item);
     }
 
-    // Score first: the relic pays out the moment it is in hand, and a pack too
-    // full to take it is a different sentence, not a different payment.
     let taken = crate::items::stow(world, taker, item)?;
     pay_out_value(world, item);
     let line = match world.get::<Amulet>(item).is_some() {

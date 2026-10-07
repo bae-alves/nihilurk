@@ -132,16 +132,9 @@ fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
     let Some(item_entity) = item_entity_to_pickup else {
         return;
     };
-    // `models::pick_up` owns everything from here: the stash reveal, a
-    // coin spent where it lies, the score a treasure is worth, and the pack.
-    // `None` back means the item is still on the floor — either the pack is
-    // full, or it is a pickup that would have done nothing yet.
     let stowable = world.get::<Pickup>(item_entity).is_none();
     match models::pick_up(world, player_entity, item_entity) {
         Some(msg) => world.resource_mut::<GameLog>().add(msg),
-        // Anything that needs a pack slot and did not get one says so; a
-        // coin left where it lies says nothing, because a coin you cannot
-        // use yet being still there is not news.
         None if stowable => world.resource_mut::<GameLog>().add(strings::pack_full()),
         None => {}
     }
@@ -188,10 +181,6 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return false;
     };
 
-    // An estoc's lunge — self-checked and fully resolved by `models::try_lunge`,
-    // which reports back only whether it fired. It carries the player onto
-    // the tile just past the one it struck through, so that tile's item (if
-    // any) is picked up the same as any other arrival.
     if try_lunge(world, player_entity, dx, dy) {
         if let Some(pos) = world.get::<Position>(player_entity).copied() {
             announce_special_room_entry(world, (old_x, old_y), (pos.x, pos.y));
@@ -202,43 +191,27 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
 
     let swims = world.get::<Swims>(player_entity).is_some();
     if !world.resource::<Map>().walkable(new_x, new_y, swims) {
-        // A deliberate wall-bump is free; a confused lurch into it is not.
-        // Deep water is a wall to anyone who cannot swim.
         return stumbled;
     }
 
-    // A diagonal step only connects tiles of the same kind — no cutting across
-    // a doorway or squeezing between a room and a corridor.
     if !world
         .resource::<Map>()
         .diagonal_step_ok(old_x, old_y, new_x, new_y)
     {
-        return stumbled; // Can't cut this corner
+        return stumbled;
     }
 
-    // Walking into a creature is how you hit it; there is no attack key. The
-    // plain opposed-roll swing, plus every trick a wielded weapon lends on
-    // top of it, self-checked by `models::melee_attack` the way a ring's own
-    // effect is invisible to this file. Walking into your Helper is a step:
-    // the two of you trade places below.
     let mut swap_with = None;
     if let Some(target_entity) = models::mob_at(world, Position { x: new_x, y: new_y }) {
         if world.get::<Helper>(target_entity).is_none() {
             melee_attack(world, player_entity, target_entity);
-            return true; // Attacking consumes a turn
+            return true;
         }
         swap_with = Some(target_entity);
     }
 
-    // Not an attack — a rapier's built-up momentum is done the moment its
-    // wielder does anything else with it.
     reset_momentum(world, player_entity);
 
-    // Something has your leg. A swing at an adjacent foe (above) still
-    // lands either way, but the step you were about to take does not: against a
-    // bear trap or a living bite it becomes a bloody lurch at the jaws — one
-    // wasted turn, a scratch of damage, a lot of blood — and against a
-    // scroll's hold it is simply a turn spent straining at nothing.
     if player_held_by(world, Grant::of::<Pinned>()) {
         bear_trap_thrash(world, player_entity);
         return true;
@@ -254,7 +227,6 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
         return true;
     }
 
-    // The path is clear: take the step.
     if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
         pos.x = new_x;
         pos.y = new_y;
@@ -267,11 +239,9 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
     if let Some(mut viewshed) = world.get_mut::<Viewshed>(player_entity) {
         viewshed.dirty = true;
     }
-    // Tag the move so `trap_system` checks the new tile for a trap.
     world.entity_mut(player_entity).insert(EntityMoved);
     announce_special_room_entry(world, (old_x, old_y), (new_x, new_y));
 
-    // The chain-sickle's whirl — self-checked by `models::try_whirl_attack`.
     try_whirl_attack(
         world,
         player_entity,
@@ -281,7 +251,7 @@ fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
 
     pick_up_here(world, player_entity, new_x, new_y);
 
-    true // Successfully moved, consuming a turn
+    true
 }
 
 /// One Tab press: close on — or strike — the weakest foe in sight. Each of the
@@ -378,11 +348,6 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
 }
 
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
-    // A player asleep in sleeping gas forfeits the turn outright — no key is
-    // read — as long as there's no pending --MORE-- prompt to clear first.
-    // `tick_effects` ages the hold down as the turn resolves. A bear trap does
-    // *not* forfeit the turn: it only blocks movement (see `move_player`), so
-    // input is still read and the player can swing or thrash.
     let more_pending = {
         let width = world.resource::<CommandBar>().log_width();
         let log = world.resource::<GameLog>();
@@ -392,10 +357,6 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         return Ok(true);
     }
 
-    // Paralysis eats a share of the turns its slowing still leaves you. The coin
-    // is flipped here, once, before a key is read — so a lost turn is a turn the
-    // monsters get and the player doesn't, rather than a swallowed keystroke —
-    // and the pause is what makes it read as time passing instead of a freeze.
     if !more_pending && paralysis_forfeits_turn(world) {
         std::thread::sleep(Duration::from_millis(PARALYSIS_PAUSE_MS));
         return Ok(true);
@@ -419,21 +380,11 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 /// a person pressing keys is a state machine nobody tests. Everything above
 /// this line needs a real keyboard; nothing below it does.
 pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
-    // Ctrl+C is the terminal's own kill and outranks everything, including the
-    // --MORE-- gate below. It is checked here rather than down in
-    // `handle_movement_input` because every menu that selects a row by letter
-    // would otherwise claim it: `c` is a real row in both the pack and the
-    // spells list, and quitting would read as picking the third item.
     if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
         world.resource_mut::<GameState>().is_running = false;
         return Ok(false);
     }
 
-    // While a --MORE-- prompt is up, the only input accepted is the
-    // acknowledgement: it drops the messages already shown and lets the rest
-    // flow up on the next frame. A spirit's open offer or barter is the
-    // exception: the player's choice comes first, and Space and Enter are its
-    // keys too, so the prompt would otherwise eat them. It stays up and waits.
     let width = world.resource::<CommandBar>().log_width();
     let more = {
         let log = world.resource::<GameLog>();
@@ -447,28 +398,16 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
         return Ok(false);
     }
 
-    // 'x' is the universal escape hatch: from any modal (aiming, the pack, its
-    // action menu, the quit prompt) it drops straight back to plain movement,
-    // no turn spent. 'X' does the same, which is the whole reason it is checked
-    // here rather than alongside 'Q' in `handle_movement_input`: it is one
-    // shift away from the escape hatch, so with something open it must escape
-    // rather than ask about ending the run. Only with nothing open does it fall
-    // through to the quit prompt.
     let escape_hatch = matches!(key.code, KeyCode::Char('x') | KeyCode::Char('X'));
     if escape_hatch && close_all_modals(world) {
         return Ok(false);
     }
 
-    // The key list swallows exactly one key, whatever it is.
     if world.resource::<HelpMenu>().open {
         world.resource_mut::<HelpMenu>().open = false;
         return Ok(false);
     }
 
-    // Four input contexts, each with its own handler: answering "Really quit?",
-    // aiming a wand or a throw, navigating the pack, or walking the map. The
-    // quit prompt outranks the rest — it is only ever raised from the map, and
-    // while it is up the only question on the table is that one.
     if world.resource::<QuitPrompt>().open {
         return Ok(answer_quit_prompt(world, key));
     }
@@ -587,9 +526,8 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
         ts.spell_effect = None;
         ts.looking = false;
         ts.reach_attack = false;
-        return Ok(false); // cancelled aiming, no turn consumed
+        return Ok(false);
     }
-    // A cursor move can cost the turn: see `meet_its_eyes`.
     if cycle {
         return Ok(cycle_target(world));
     }
@@ -599,7 +537,7 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
     if confirm {
         return fire_at_target(world);
     }
-    Ok(false) // any other key: ignored while aiming
+    Ok(false)
 }
 
 /// `Tab`, while aiming: snap the reticle to the next monster or item in the
@@ -826,9 +764,6 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
     };
 
     if looking {
-        // Every cursor move has already read this tile out loud
-        // (`announce_look`) — `Enter` here just closes the reticle rather than
-        // saying it again.
         return Ok(false);
     }
 
@@ -843,8 +778,6 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
     }
 
     if reach_attack {
-        // The weapon never left the wielder's hand — nothing to pull from the
-        // pack, unlike a throw or a use.
         let Some(weapon) = item_entity else {
             return Ok(false);
         };
@@ -869,9 +802,6 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
     };
 
     if throwing {
-        // The item is gone from the pack; where it lands is `throw_system`'s
-        // business. (A quiver is the exception — `draw_one` splits one arrow off
-        // and puts the rest back in the slot.)
         let missile = models::draw_one(world, player, item, Some(slot));
         world
             .resource_mut::<ThrowQueue>()
@@ -897,8 +827,6 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
 fn begin_look(world: &mut World) -> std::io::Result<bool> {
     let player = player_entity(world);
     open_reticle_for(world, player, None, None, true, false, false);
-    // Announces the player's own tile right away, so `l` alone already says
-    // something and `Tab` from there walks the rest of what's in view.
     Ok(announce_look(world))
 }
 
@@ -942,9 +870,6 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
         &models::worn_tag(world, seen),
     )];
     if world.get::<Mob>(seen).is_some() {
-        // What a creature is dangerous for is `models`' business: the phrases
-        // live on the effect rows themselves, so this crate never learns which
-        // markers exist.
         let dangers = models::dangers_of(world, seen);
         if !dangers.is_empty() {
             lines.push(strings::beware(&dangers));
@@ -1039,7 +964,6 @@ fn use_or_aim(world: &mut World, player: Entity, item: Entity, item_idx: usize) 
         world.resource_mut::<GameLog>().add(refusal);
         return false;
     }
-    // The wand of light is ranged but self-targeted, so it skips the reticle.
     let needs_reticle = world.get::<Ranged>(item).is_some()
         && world
             .get::<Wand>(item)
@@ -1123,11 +1047,6 @@ fn open_reticle_for(
     reach_attack: bool,
 ) {
     let pos = *world.get::<Position>(player).unwrap();
-    // Open on the nearest thing worth shooting at, so the common case — one
-    // monster in view — needs no cursor keys at all. Look mode is the
-    // exception and opens on the player's own tile: its cursor *is* the
-    // player's attention (`meet_its_eyes`), and snapping it onto a medusa the
-    // moment `L` is pressed would petrify people for pressing a key.
     let snap = (!looking)
         .then(|| {
             let range = aim_range(
@@ -1229,8 +1148,6 @@ fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) -> b
     let Some(idx) = trigger else {
         return false;
     };
-    // Browsing asks which verb; the branch below is every mode that already
-    // knows, so it closes the menu and does the thing.
     let Some(action) = mode.action() else {
         let mut pack = world.resource_mut::<PackIsOpen>();
         pack.action_mode = Some(idx);
@@ -1256,47 +1173,27 @@ fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) -> b
 /// to get out of a menu, and the last thing that should do from the map is end
 /// the run.
 fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
-    // Shift + direction: NetHack-style running. Either zoom in a straight line,
-    // or make a beeline for the nearest feature (stairs > door > item) roughly
-    // that way. Refused with a creature in view; the main loop drives the run to
-    // completion and only then repaints.
     if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
         start_run(world, rdx, rdy);
         return Ok(false);
     }
 
     let step = match key.code {
-        // Ctrl+C never reaches here — `dispatch_key` takes it first, from every
-        // context. `Q` and `X` are the ones that ask.
-        //
-        // `X` only reaches this far with nothing open — see the escape hatch in
-        // `process_input_and_update`.
         KeyCode::Char('Q') | KeyCode::Char('X') => {
             world.resource_mut::<QuitPrompt>().open = true;
             return Ok(false);
         }
-        // `Z`: the spells menu, and the only way to an active spell. There is
-        // no direct-fire key for a slot: every candidate either collided with
-        // something (`Alt`+a letter shadowed the bare letter) or depended on
-        // the keyboard layout (`!` `@` `#` `$` are Shift + the digits only on
-        // a US one).
         KeyCode::Char('Z') => return begin_spells_menu(world),
-        // F1: the key list. Never a turn.
         KeyCode::F(1) => {
             world.resource_mut::<HelpMenu>().open = true;
             return Ok(false);
         }
-        // F2: show or hide the command bar. Never a turn.
         KeyCode::F(2) => {
             let mut bar = world.resource_mut::<CommandBar>();
             bar.hidden = !bar.hidden;
             return Ok(false);
         }
-        // `;`: look — read what's on a tile without acting on it. Not `L`:
-        // that is the shifted vi key for east, which `run_direction` above
-        // claims before this table is ever reached.
         KeyCode::Char(';') => return begin_look(world),
-        // The pack, one key per verb. `i` is the one that asks afterwards.
         KeyCode::Char('i') => return open_pack(world, PackMode::Browse),
         KeyCode::Char('a') => return open_pack(world, PackMode::Use),
         KeyCode::Char('t') => return open_pack(world, PackMode::Throw),
@@ -1314,12 +1211,7 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
             return Ok(false);
         }
         KeyCode::Char('f') => return begin_fire(world),
-        // `v`: a reach weapon's own strike — a bardiche, a whip — aimed with
-        // its own reticle rather than a walk into the target's tile.
         KeyCode::Char('v') => return begin_reach_attack(world),
-        // The one undocumented key in the game: with a ring of teleportation on
-        // and magic to spend, it jumps you. Without either it does nothing and
-        // says nothing — see `models::willed_teleport`.
         KeyCode::Char('T') => return Ok(models::willed_teleport(world)),
         KeyCode::Char('O') => {
             open_travel_cursor(world);
@@ -1416,9 +1308,6 @@ fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .add(strings::no_magic_for_that());
         return Ok(false);
     }
-    // A spell that works on the caster alone or on everything in view has
-    // nothing to aim at — it fires the instant its slot is pressed, the same
-    // courtesy the wand of light gets over every other wand.
     if !effect.needs_target() {
         let target = world
             .get::<Position>(player)
@@ -1462,9 +1351,6 @@ fn begin_spells_menu(world: &mut World) -> std::io::Result<bool> {
 fn handle_spells_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     let player = player_entity(world);
     let row_count = world.get::<Spellset>(player).map_or(0, |m| m.slots.len());
-    // Floored at 1 so the wrap-around arithmetic below has something to divide
-    // by; `row_count` is the honest one, and the only one a letter is checked
-    // against.
     let slot_count = row_count.max(1);
     let selected = world.resource::<SpellsMenu>().selected;
 
@@ -1540,7 +1426,6 @@ fn handle_offer_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool>
     let choice = world.resource::<OfferMenu>().options[idx];
     let player = player_entity(world);
     confirm_offer(world, player, choice);
-    // A refused purchase leaves the menu up, rows and all.
     let mut menu = world.resource_mut::<OfferMenu>();
     if !menu.open {
         menu.options.clear();
@@ -1564,8 +1449,6 @@ fn handle_barter_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool
             menu.demon_visible().len(),
         )
     };
-    // The player column carries one extra virtual row past its items: the
-    // "confirm the trade" button.
     let row_count = match column {
         BarterColumn::Player => player_rows + 1,
         BarterColumn::Demon => demon_rows.max(1),
@@ -1738,7 +1621,6 @@ fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
     };
     let Some(ppos) = ppos else { return false };
 
-    // Already on the right staircase: use it now.
     if world.resource::<Map>().tile(ppos.x, ppos.y) == want_tile {
         world.resource_mut::<GameLog>().unread.clear();
         return change_level(world, going_down);
@@ -1787,8 +1669,6 @@ fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
 pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
     let travelling = world.resource::<AutoExplore>().target.is_some();
 
-    // Any pending keypress cancels the walk. Swallow it so it doesn't also act
-    // as a move on the next frame.
     if poll(Duration::from_millis(0))? {
         let _ = read()?;
         world.resource_mut::<AutoExplore>().stop();
@@ -1800,7 +1680,6 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     }
 
-    // Travelling and arrived: stop cleanly on the staircase.
     if let Some(target) = world.resource::<AutoExplore>().target {
         let arrived = {
             let mut q = world.query_filtered::<&Position, With<Player>>();
@@ -1817,13 +1696,11 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         }
     }
 
-    // Something was logged last turn: stop and let the player read it.
     if !world.resource::<GameLog>().unread.is_empty() {
         world.resource_mut::<AutoExplore>().stop();
         return Ok(false);
     }
 
-    // A monster came into view (or was already there when we started).
     if monster_in_sight(world) {
         world.resource_mut::<AutoExplore>().stop();
         world
@@ -1832,7 +1709,6 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     }
 
-    // Runaway guard.
     {
         let mut auto = world.resource_mut::<AutoExplore>();
         auto.steps += 1;
@@ -1858,8 +1734,6 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
 
     let moved = move_player(world, dx, dy);
     if !moved {
-        // The pathfinder only ever steps onto open ground, so this shouldn't
-        // happen — but if it does, don't spin.
         world.resource_mut::<AutoExplore>().stop();
     }
     Ok(moved)
@@ -1889,9 +1763,6 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
 
     let (mut dx, mut dy) = (0i32, 0i32);
     match key.code {
-        // `x` / `X` close this the way they close every other modal. The cursor
-        // runs its own loop outside `process_input_and_update`, so the universal
-        // escape hatch there never sees these keys — this arm is that hatch.
         KeyCode::Esc | KeyCode::Char('O') | KeyCode::Char('x') | KeyCode::Char('X') => {
             world.resource_mut::<TravelCursor>().close();
             return Ok(());
@@ -1924,8 +1795,6 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
         let tc = world.resource::<TravelCursor>();
         (tc.x as i32, tc.y as i32)
     };
-    // Prefer the full move; fall back to a one-axis slide so the cursor can
-    // still hug a wall or room edge when the diagonal tile is unseen.
     for (nx, ny) in [(cx + dx, cy + dy), (cx + dx, cy), (cx, cy + dy)] {
         if nx < 0 || ny < 0 || (nx == cx && ny == cy) {
             continue;
@@ -1959,8 +1828,6 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
         return Ok(());
     }
 
-    // Route to the picked tile, or — when it is a wall or somewhere unreachable
-    // — to the nearest walkable tile the player can actually get to.
     let Some(goal) = nearest_reachable(world, (tx, ty)) else {
         world
             .resource_mut::<GameLog>()
@@ -1999,7 +1866,6 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
 /// step cap trips.
 pub fn fast_move_run(world: &mut World, schedule: &mut Schedule) -> std::io::Result<()> {
     loop {
-        // A keypress aborts the run. Swallow it so it isn't also read as a move.
         if poll(Duration::from_millis(0))? {
             let _ = read()?;
             break;
@@ -2013,7 +1879,6 @@ pub fn fast_move_run(world: &mut World, schedule: &mut Schedule) -> std::io::Res
             }
         }
 
-        // Never start a step with a creature in view.
         if monster_in_sight(world) {
             break;
         }
@@ -2028,13 +1893,11 @@ pub fn fast_move_run(world: &mut World, schedule: &mut Schedule) -> std::io::Res
             break;
         }
 
-        // One turn passes: monsters act, visibility is recomputed.
         schedule.run(world);
 
         if world.resource::<Ending>().player_dead {
             break;
         }
-        // Something entered view, or a message needs reading.
         if monster_in_sight(world) || !world.resource::<GameLog>().unread.is_empty() {
             break;
         }
@@ -2274,7 +2137,6 @@ mod tests {
             run_direction(KeyCode::Char('7'), KeyModifiers::SHIFT),
             Some((-1, -1))
         );
-        // Without Shift, a numpad digit is a plain step, not a run.
         assert_eq!(run_direction(KeyCode::Char('8'), KeyModifiers::NONE), None);
     }
 
@@ -2284,8 +2146,6 @@ mod tests {
 
     #[test]
     fn a_more_prompt_accepts_the_acknowledgement_and_swallows_everything_else() {
-        // The gate's whole job: while messages are waiting, no key does
-        // anything except the one that says "I have read them".
         for key in ['j', 'i', 'Q', 'a', '>'] {
             let mut w = modal_world(3);
             let queued = flood_the_log(&mut w);
@@ -2301,8 +2161,6 @@ mod tests {
 
     #[test]
     fn acknowledging_drops_exactly_the_messages_that_were_on_screen() {
-        // Not all of them, and not one: the ones the panel actually showed.
-        // Dropping more loses messages the player never saw.
         for ack in [KeyCode::Char(' '), KeyCode::Enter] {
             let mut w = modal_world(4);
             let queued = flood_the_log(&mut w);
@@ -2317,9 +2175,6 @@ mod tests {
 
     #[test]
     fn the_gate_outranks_the_escape_hatch() {
-        // `x` closes modals everywhere else. Behind a --MORE-- prompt it must
-        // not, or a player mashing it loses the line telling them why they are
-        // about to die.
         let mut w = modal_world(5);
         w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
         let queued = flood_the_log(&mut w);
@@ -2334,8 +2189,6 @@ mod tests {
 
     #[test]
     fn an_open_barter_takes_the_keys_ahead_of_a_pending_more() {
-        // A demon's greeting can leave `--MORE--` up under the barter it just
-        // opened. The trade is the player's action; the prompt waits for it.
         let mut w = modal_world(10);
         let player = player_entity(&mut w);
         let item = w.get::<Backpack>(player).unwrap().items[0];
@@ -2388,7 +2241,6 @@ mod tests {
     #[test]
     fn x_and_shift_x_close_whichever_modal_is_open() {
         for key in ['x', 'X'] {
-            // The pack.
             let mut w = modal_world(6);
             w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
             assert!(
@@ -2400,7 +2252,6 @@ mod tests {
                 "'{key}' left the pack open"
             );
 
-            // The aiming reticle.
             let mut w = modal_world(6);
             w.resource_mut::<TargetingState>().active = true;
             dispatch_key(&mut w, press(key)).unwrap();
@@ -2409,7 +2260,6 @@ mod tests {
                 "'{key}' left the reticle up"
             );
 
-            // And the quit prompt, which is a modal like any other.
             let mut w = modal_world(6);
             w.resource_mut::<QuitPrompt>().open = true;
             dispatch_key(&mut w, press(key)).unwrap();
@@ -2426,10 +2276,6 @@ mod tests {
 
     #[test]
     fn shift_x_escapes_a_modal_rather_than_asking_about_quitting() {
-        // The whole reason `X` is checked before `handle_movement_input`: it is
-        // one shift away from the escape hatch, so with something open it must
-        // escape. Asking "Really quit?" because a player overshot `x` is the
-        // bug this ordering exists to prevent.
         let mut w = modal_world(7);
         w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
         dispatch_key(&mut w, press('X')).unwrap();
@@ -2442,8 +2288,6 @@ mod tests {
 
     #[test]
     fn shift_x_falls_through_to_the_quit_prompt_with_nothing_open() {
-        // ...and only then. `close_all_modals` reporting "nothing was open" is
-        // what lets the key through.
         let mut w = modal_world(8);
         dispatch_key(&mut w, press('X')).unwrap();
         assert!(
@@ -2454,10 +2298,6 @@ mod tests {
 
     #[test]
     fn lowercase_x_on_the_bare_map_is_not_swallowed() {
-        // `close_all_modals` returns whether anything was actually shut, so a
-        // bare `x` falls through to the movement handler rather than being
-        // eaten. It is not a movement key, so nothing happens — but the
-        // distinction is what keeps the hatch from stealing keypresses.
         let mut w = modal_world(9);
         assert!(
             !close_all_modals(&mut w),
@@ -2506,8 +2346,6 @@ mod tests {
             );
             assert!(w.resource::<GameState>().is_running);
         }
-        // Every other key is ignored rather than guessed at — the prompt stays
-        // up, and the run stays alive.
         for other in ['j', 'q', 'i', ' '] {
             let mut w = modal_world(11);
             w.resource_mut::<QuitPrompt>().open = true;
@@ -2522,8 +2360,6 @@ mod tests {
 
     #[test]
     fn the_quit_prompt_outranks_every_other_context() {
-        // It is checked first because while it is up, that question is the only
-        // one on the table. A movement key must not walk out from under it.
         let mut w = modal_world(12);
         let before = *w.query_filtered::<&Position, With<Player>>().single(&w);
         w.resource_mut::<QuitPrompt>().open = true;
@@ -2535,8 +2371,6 @@ mod tests {
 
     #[test]
     fn escape_closes_the_quit_prompt_but_never_raises_one() {
-        // Esc is the key a player mashes to get out of a menu; from the map it
-        // must do nothing at all, and certainly not end the run.
         let mut w = modal_world(13);
         w.resource_mut::<QuitPrompt>().open = true;
         dispatch_key(&mut w, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)).unwrap();
@@ -2580,8 +2414,6 @@ mod tests {
 
     #[test]
     fn semicolon_looks_and_shift_l_still_runs() {
-        // `L` is the shifted vi key for east and is read as a run before the
-        // command table is consulted at all, so look lives on `;`.
         let mut w = modal_world(21);
         dispatch_key(&mut w, press(';')).unwrap();
         let ts = w.resource::<TargetingState>();
@@ -2597,7 +2429,6 @@ mod tests {
 
     #[test]
     fn the_moves_menu_picks_a_slot_by_letter() {
-        // Rows are lettered like the pack's, so the third row is `c`.
         let mut w = spells_world(22, &FOUR_SPELLS);
         dispatch_key(&mut w, press('Z')).unwrap();
         assert!(w.resource::<SpellsMenu>().open);
@@ -2625,8 +2456,6 @@ mod tests {
 
     #[test]
     fn digits_navigate_the_moves_menu_and_never_fire_a_slot() {
-        // `2` used to be two things at once — numpad-down and "slot 2" — and
-        // down won. Slots are letters now, so the digit is only ever a step.
         let mut w = spells_world(24, &FOUR_SPELLS);
         dispatch_key(&mut w, press('Z')).unwrap();
         dispatch_key(&mut w, press('2')).unwrap();
@@ -2644,9 +2473,6 @@ mod tests {
 
     #[test]
     fn alt_held_letters_do_what_the_bare_letter_does() {
-        // Alt+Q/W/E/R used to fire the spell slots. Nothing does now — `Z` is
-        // the only way in — and Alt is no longer special: Alt+`q` is `q`, the
-        // quaff pack.
         let mut w = spells_world(27, &FOUR_SPELLS);
         dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT)).unwrap();
         assert!(
@@ -2661,9 +2487,6 @@ mod tests {
 
     #[test]
     fn ctrl_c_quits_from_every_context_including_a_pending_more() {
-        // The terminal's own kill key. Nothing may intercept it — not a menu's
-        // letter row (`c` is a real row in both the pack and the spells list),
-        // not the --MORE-- gate, not the quit prompt it makes redundant.
         let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
         let mut w = spells_world(28, &FOUR_SPELLS);
@@ -2694,7 +2517,6 @@ mod tests {
             "the --MORE-- gate swallowed Ctrl+C"
         );
 
-        // And still from the bare map, where it always worked.
         let mut w = modal_world(28);
         dispatch_key(&mut w, ctrl_c).unwrap();
         assert!(!w.resource::<GameState>().is_running);
@@ -2757,8 +2579,6 @@ mod tests {
         let player = player_entity(&mut w);
         let here = *w.get::<Position>(player).unwrap();
 
-        // A clear run of floor beside the player, and a chaser along it that
-        // `ai` will definitely walk one step closer.
         let row: Vec<u16> = {
             let map = w.resource::<Map>();
             (1..=4)
@@ -2809,8 +2629,6 @@ mod tests {
 
         crate::turn_schedule().run(&mut w);
 
-        // With `ai` first, the orc walks off `aimed_at` before the wand is
-        // resolved and the zap reports finding nothing there.
         assert_eq!(
             w.get::<Speed>(mob).unwrap().kind,
             SpeedKind::Slow,
@@ -2991,8 +2809,6 @@ mod tests {
         };
         assert!(row.len() >= 3, "need open floor beside the player");
 
-        // The orc walks one tile a turn, so `row[1]` is where it is *about*
-        // to be — and where the dagger is aimed.
         let mob = w
             .spawn((
                 Name { what: "orc".into() },

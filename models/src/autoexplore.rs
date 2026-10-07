@@ -338,7 +338,7 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
     while prev[cur] != start {
         cur = prev[cur];
         if cur == usize::MAX {
-            return None; // unreachable in practice; the goal came off the search
+            return None;
         }
     }
     let tx = (cur % MAP_WIDTH as usize) as i16;
@@ -404,9 +404,6 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
 
     let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
 
-    // A spotted item outranks frontier exploration entirely: head straight for
-    // the nearest one. Once it's picked up it drops out of `items` and normal
-    // exploration takes back over.
     if !items.is_empty() {
         if let Some(hop) = first_step(px, py, &open, step_ok, |x, y| items.contains(&(x, y)), None)
         {
@@ -414,7 +411,6 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
         }
     }
 
-    // Still committed to a real frontier: keep walking there.
     if let Some(target) = cached_frontier {
         if is_frontier(target.0, target.1) {
             if let Some(hop) = first_step(
@@ -535,8 +531,6 @@ pub fn nearest_reachable(world: &mut World, target: (u16, u16)) -> Option<(u16, 
         dx * dx + dy * dy
     };
 
-    // Flood every open tile the player can reach, remembering the one that ends
-    // up nearest the target.
     let start = tile_index(px, py);
     let mut visited = vec![false; MAP_TILE_COUNT];
     visited[start] = true;

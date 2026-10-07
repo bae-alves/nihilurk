@@ -198,8 +198,6 @@ pub(crate) fn sink_items(world: &mut World) -> Vec<(Position, String)> {
 pub fn item_system(world: &mut World) {
     let uses = std::mem::take(&mut world.resource_mut::<UseQueue>().uses);
     for item_use in uses {
-        // A used item is one of the things that lets go of a rapier's
-        // built-up momentum — see `crate::equipment::reset_momentum`.
         crate::equipment::reset_momentum(world, item_use.user);
         resolve_use(world, item_use);
     }
@@ -230,8 +228,6 @@ fn plan_use(world: &mut World, item: Entity) -> UsePlan {
     plan.scroll = e.get::<Scroll>().map(|s| s.effect);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
     if let Some(mut battery) = e.get_mut::<Battery>() {
-        // A wand a reversed King of Clubs emptied has nothing left to give:
-        // it crumbles without going off.
         if battery.charges <= 0 {
             plan.wand = None;
         }
@@ -252,17 +248,10 @@ fn plan_use(world: &mut World, item: Entity) -> UsePlan {
 /// where it physically ends up, log the "you drink / read / zap it" beat, then
 /// apply the effect.
 fn resolve_use(world: &mut World, item_use: WantsToUse) {
-    // What the player sees it called now — captured before a despawn below
-    // could make the entity unqueryable.
     let seen_name = display_name(world, item_use.item);
 
     let mut plan = plan_use(world, item_use.item);
 
-    // Equipment toggles its equipped state and always goes back in the pack —
-    // unless wearing it is what spent it. A ring of adornment fires the moment
-    // it goes on and tags itself [`Consume`] on the way out, so the plan is
-    // asked again afterwards: it is the one item whose fate is decided *by*
-    // being equipped rather than before.
     if plan.is_equipment {
         toggle_equipped(world, item_use.user, item_use.item);
         plan.keep = true;
@@ -272,7 +261,6 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         }
     }
 
-    // Anything the game can't "use" is handed straight back, not lost.
     let inert = !plan.destroy
         && !plan.keep
         && plan.potion.is_none()
@@ -291,20 +279,17 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         return_used_item(world, &item_use);
     }
     if plan.destroy {
-        // A deck's last card says enough; the deck needs no line of its own.
         if plan.card.is_none() {
             log_destruction(world, item_use.item, &seen_name);
         }
         world.entity_mut(item_use.item).despawn();
     }
     if !plan.destroy && plan.wand.is_some() {
-        // A wand survives its zap, so its "you use it" beat lives here.
         world
             .resource_mut::<GameLog>()
             .add(strings::you_zap(&seen_name));
     }
 
-    // Dispatch to the right submodule.
     if let Some(eff) = plan.potion {
         apply_potion_effect(world, item_use.user, eff);
     }
@@ -349,8 +334,6 @@ fn log_destruction(world: &mut World, item: Entity, seen_name: &str) {
         (true, _, _, _) => log.add(strings::wand_crumbles(seen_name)),
         (_, true, _, _) => log.add(strings::you_drink(seen_name)),
         (_, _, true, _) => log.add(strings::you_read(seen_name)),
-        // Only one ring is ever spent this way, and it does not merely crumble:
-        // it goes out the way it came in.
         (_, _, _, true) => log.add(strings::ring_shivers_apart(seen_name)),
         _ => log.add(strings::item_turns_to_dust()),
     }

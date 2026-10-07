@@ -217,7 +217,7 @@ mod tests {
                 .any(|&(name, slot, ..)| name == "potion of healing" && slot.is_none()),
             "the loose potion came back unworn: {items:?}"
         );
-        let _ = sword; // kept alive only to be captured by deposit_to above
+        let _ = sword;
     }
 
     #[test]
@@ -265,10 +265,6 @@ mod tests {
 
     #[test]
     fn a_disabled_bones_flag_deposits_nothing() {
-        // `deposit`'s flag check is the one path that has to go through the
-        // real depth-keyed file (`path_for`), not `deposit_to`'s temp path —
-        // an out-of-range depth keeps it from colliding with an actual run's
-        // `bones-N.sav` in this directory.
         let depth = 255;
         let path = path_for(depth);
         let _ = std::fs::remove_file(&path);

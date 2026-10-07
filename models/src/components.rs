@@ -1765,8 +1765,6 @@ pub struct GameLog {
 impl Default for GameLog {
     fn default() -> Self {
         let mut unread = vec![LogEntry::plain(strings::welcome_new_run())];
-        // Only a binary whose translation isn't finished has one of these —
-        // see `strings::beta_notice`'s own doc comment.
         if let Some(notice) = strings::beta_notice() {
             unread.push(LogEntry::plain(notice));
         }

@@ -293,7 +293,7 @@ impl Map {
     #[inline]
     pub fn diagonal_step_ok(&self, fx: u16, fy: u16, tx: u16, ty: u16) -> bool {
         if fx == tx || fy == ty {
-            return true; // orthogonal (or no move)
+            return true;
         }
         tile_kind(self.tile(fx, fy)) == tile_kind(self.tile(tx, ty))
     }

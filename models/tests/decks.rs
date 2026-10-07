@@ -395,8 +395,6 @@ fn the_chariot_makes_every_blow_excellent_either_way_up() {
         let last = w.resource::<GameLog>().history.last().unwrap().clone();
         assert!(last.contains("excellent"), "{last}");
     }
-    // Reversed, it is on the creature taking the blow: a dummy holding `Oof`
-    // takes nothing but excellent hits.
     for seed in 0..10 {
         let mut w = test_world(seed);
         let p = player(&mut w);
@@ -559,13 +557,11 @@ fn hands_score_like_poker_with_the_fool_wild() {
     assert_eq!(rank(&[Bole, Bole, Bole, Eyes, Eyes]), Rank::FullHouse);
     assert_eq!(rank(&[Bole, Bole, Bole, Bole, Eyes]), Rank::FourOfAKind);
     assert_eq!(rank(&[Bole, Bole, Bole, Bole, Bole]), Rank::FiveFlush);
-    // The Fool joins the biggest group.
     assert_eq!(rank(&[Fool, Bole, Balance, Eyes, Child]), Rank::Pair);
     assert_eq!(rank(&[Fool, Bole, Bole, Eyes, Eyes]), Rank::FullHouse);
     assert_eq!(rank(&[Fool, Fool, Bole, Eyes, Child]), Rank::ThreeOfAKind);
     assert_eq!(rank(&[Fool, Fool, Fool, Fool, Fool]), Rank::FiveFlush);
     assert_eq!(rank(&[Fool, Fool, Fool, Fool, Eyes]), Rank::FiveFlush);
-    // Short hands, after some cards were read.
     assert_eq!(rank(&[Bole]), Rank::AntiFlush);
     assert_eq!(rank(&[Bole, Fool]), Rank::Pair);
     assert!(hand(&[]).is_none());
@@ -613,7 +609,6 @@ fn a_five_flush_puts_the_element_in_the_pack() {
     assert!(holding_element_of_yoord(&mut w));
     let p = player(&mut w);
     let kept = w.get::<Backpack>(p).unwrap().items.len();
-    // A second one adds nothing.
     throw_hand(&mut w, &[up(CardFace::Fool); 5]);
     assert_eq!(w.get::<Backpack>(p).unwrap().items.len(), kept);
 }
@@ -736,7 +731,6 @@ fn a_throw_in_stopped_time_flies_from_where_it_left_the_hand() {
     assert!(w.get::<Position>(dagger).is_none());
     assert_eq!(w.get::<Fighter>(foe).unwrap().hp, 100);
 
-    // Step out of the line; the dagger still comes from where it was thrown.
     *w.get_mut::<Position>(p).unwrap() = Position { x: 20, y: 14 };
     for _ in 0..=models::constants::decks::WORLD_TURNS {
         turn(&mut w);

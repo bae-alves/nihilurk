@@ -262,7 +262,6 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
         return Some(label);
     };
 
-    // Every quiver of the same thing that still has room, in pack order.
     let name = world.get::<Name>(item)?.what.clone();
     let quivers: Vec<Entity> = world
         .get::<Backpack>(carrier)?
@@ -290,13 +289,9 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
     }
 
     match left {
-        // Every last one went into a quiver: the pile has nothing left to be.
         0 => {
             world.entity_mut(item).despawn();
         }
-        // The overflow takes a slot of its own rather than being left behind —
-        // unless the pack has no slot left to give it, in which case what
-        // didn't fit into a quiver stays behind on the floor.
         _ => {
             if let Some(mut stack) = world.get_mut::<Stack>(item) {
                 stack.count = left;
@@ -357,16 +352,12 @@ fn resolve_wand_throw(
 
     let is_attack = is_attack_wand(effect);
     let is_light = effect == WandEffect::Light;
-    // The wand of light throws the same wide, hot grenade an attack wand does —
-    // it just blinds instead of burning through armour.
     let grenade = is_attack || is_light;
     let (radius, sides) = if grenade {
         (GRENADE_RADIUS, GRENADE_DIE_PER_CHARGE)
     } else {
         (BLAST_RADIUS, EFFECT_DIE_PER_CHARGE)
     };
-    // Attack wands and the light wand deal damage; the utility wands' blasts are
-    // pure delivery — the effect is the whole payload.
     let damage = if grenade {
         roll_dice(world, charges, sides)
     } else {
@@ -396,9 +387,6 @@ fn resolve_wand_throw(
         shuffle_places(world, &caught);
     }
     for entity in caught {
-        // Only creatures answer to a wand's effect — a scroll lying in the blast
-        // is not "confused". And an earlier victim may already have been
-        // teleported clear or replaced outright.
         let is_creature =
             world.get::<Mob>(entity).is_some() || world.get::<Player>(entity).is_some();
         let Some(pos) = world.get::<Position>(entity).copied() else {
@@ -411,8 +399,6 @@ fn resolve_wand_throw(
             true => dazzle(world, entity),
             false => apply_thrown_wand_effect(world, entity, effect),
         }
-        // A cosmetic-only echo confirming the effect actually landed on this
-        // creature — no gameplay rides on it, just the darker follow-up pop.
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.secondary_burst(pos.x, pos.y, radius, palette);
         }
@@ -441,12 +427,8 @@ fn apply_thrown_wand_effect(world: &mut World, entity: Entity, effect: WandEffec
 pub fn throw_system(world: &mut World) {
     let throws = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
     for throw in &throws {
-        // A thrown item is one of the things that lets go of a rapier's
-        // built-up momentum — see `crate::equipment::reset_momentum`.
         crate::equipment::reset_momentum(world, throw.thrower);
     }
-    // THE WORLD: while time stands still a throw leaves the hand and stops
-    // there, to fly from that tile the turn time runs again.
     if time_stopped(world) {
         for throw in throws {
             let Some(&from) = world.get::<Position>(throw.thrower) else {
@@ -517,8 +499,6 @@ pub fn thaw_into_pack(world: &mut World) {
 /// whole job — it happens whatever the item was, whether or not the shot hit
 /// anyone, and whether or not it was the shot the thrower had in mind.
 fn resolve_throw(world: &mut World, throw: WantsToThrow, from: Option<Position>) {
-    // Whether this was a shot or a lob has to be asked before the throw: a
-    // potion that shatters is not around afterwards to be asked anything.
     let by_hand = world.get::<LaunchedBy>(throw.item).is_none();
     let thrower_is_player = world.get::<Player>(throw.thrower).is_some();
 
@@ -528,9 +508,6 @@ fn resolve_throw(world: &mut World, throw: WantsToThrow, from: Option<Position>)
     let Some(_shot) = detonate_at(world, landing, Some(throw.thrower)) else {
         return;
     };
-    // Ammunition setting something off is what ammunition is for. A dagger, a
-    // potion, somebody's spare ring — that is a choice, and the dungeon
-    // notices.
     if by_hand && thrower_is_player {
         world.resource_mut::<GameLog>().add(strings::very_clever());
     }
@@ -564,13 +541,10 @@ fn deliver_throw(
         None => *world.get::<Position>(thrower)?,
     };
 
-    // Gear leaves the hand the moment it is thrown, taking its bonuses with it.
     force_unequip(world, item);
     sync_equipment_effects(world, thrower);
 
     let seen_name = display_name(world, item);
-    // Loosed from the launcher it's matched to (a bow's arrow, a crossbow's
-    // quarrel), this reads as firing it, not just chucking it by hand.
     let fired = is_fired(world, thrower, item);
     let is_player = world.get::<Player>(thrower).is_some();
     let announcement = match (is_player, fired) {
@@ -610,16 +584,11 @@ fn deliver_throw(
         }
     }
 
-    // A deck comes apart where it lands, and what was in it plays as a hand
-    // on whoever threw it.
     if world.get::<Deck>(item).is_some() {
         super::decks::throw_deck(world, thrower, item);
         return Some(landing);
     }
 
-    // A potion is glass: it breaks where it lands and spreads its effect over
-    // a small splash rather than dosing only whatever it struck first — see
-    // `potions::detonate_potion`.
     if world.get::<Potion>(item).is_some() {
         land_item(world, item, landing);
         super::potions::detonate_potion(world, item, Some(thrower));
@@ -643,8 +612,6 @@ fn deliver_throw(
         return Some(landing);
     }
 
-    // A treat is an offer. The right creature eats it, and may take you up on
-    // it; anything else it bounces off, and it can be picked up again.
     if let Some(treat) = world.get::<Treat>(item).copied() {
         match victim.filter(|&v| crate::companion::fits(world, thrower, v, treat)) {
             Some(v) => crate::companion::offer(world, v, item, &seen_name),
@@ -681,32 +648,22 @@ fn deliver_throw(
         return Some(landing);
     }
 
-    // Everything else flies as a missile. A dagger or a spear spends itself on
-    // everyone standing in the line; anything else has exactly one victim, or
-    // none.
     let Some(victim) = victim else {
         land_item(world, item, landing);
         return Some(landing);
     };
 
     for &hit in &victims {
-        // Aiming a shot at a medusa is a gaze like any other — see
-        // `crate::abilities::medusa_gaze`.
         crate::abilities::fire_on_targeted(world, thrower, hit);
         let msg = strike_victim(world, thrower, item, hit, landing, &seen_name);
         world.resource_mut::<GameLog>().add(msg);
     }
 
-    // A missile built for the flight is spent on what it found: an arrow snaps,
-    // a spear is left where it stuck. Nothing catches one, and there is nothing
-    // left on the floor to collect.
     if world.get::<Projectile>(item).is_some() {
         world.entity_mut(item).despawn();
         return Some(landing);
     }
 
-    // A creature the throw just killed keeps nothing; the reaper will lay the
-    // rest of its gear out beside this.
     let victim_name = item_label(world, victim);
     let slain = world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0);
     let takes_it =
@@ -835,15 +792,10 @@ fn strike_victim(
 ) -> String {
     let hit_name = item_label(world, hit);
     let Some(damage) = roll_throw_damage(world, thrower, item, hit) else {
-        // Not a thing that hurts anyone: it simply arrives.
         return strings::throw_bounces_off(seen_name, &hit_name);
     };
     let at = world.get::<Position>(hit).copied().unwrap_or(landing);
     if damage <= 0 {
-        // A weapon whose roll the armour ate — melee's glancing blow, at
-        // range, and it reads the same way: the cold clink and no shake.
-        // Harsher than melee, which has a chip-damage floor under it; a
-        // missile that can't beat armour does nothing at all.
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.clink_spark(at.x, at.y);
         }

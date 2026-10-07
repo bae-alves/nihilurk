@@ -146,7 +146,6 @@ fn damage_samples(
     setup(&mut w, p);
     let spot = open_run(&mut w, 1)[0];
     let bag = tough(&mut w, "bat", spot);
-    // The bat is a wall of meat, not a fighter: nothing it does matters here.
     w.get_mut::<Fighter>(bag).unwrap().hp = 100_000;
 
     (0..rounds)
@@ -218,8 +217,6 @@ fn a_crossbow_doubles_a_quarrel_and_a_bow_does_not() {
 
 #[test]
 fn a_launcher_is_a_grant_and_nothing_more() {
-    // No attack die, no armour die: a bow is worth exactly nothing swung, which
-    // is the price of what it does to an arrow.
     let mut w = test_world(3);
     let p = player(&mut w);
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
@@ -232,7 +229,6 @@ fn a_launcher_is_a_grant_and_nothing_more() {
     assert!(w.get::<FireArrow>(p).is_some());
     assert_eq!(equipped_total::<PowerDie>(&w, p), 0);
 
-    // Taking it off takes the effect back with it, exactly like a ring.
     toggle_equipped(&mut w, p, bow);
     assert!(w.get::<FireArrow>(p).is_none());
 }
@@ -272,13 +268,10 @@ fn first_matching_ammo_picks_pack_order_and_only_the_right_kind() {
         "an empty pack has nothing to fire"
     );
 
-    // A quarrel first in the pack, then arrows behind it: a drawn bow reaches
-    // past the quarrel for the first arrow, not just the first pack row.
     let quarrels = quiver(&mut w, p, "quarrel", 5);
     let arrows = quiver(&mut w, p, "arrow", 5);
     assert_eq!(first_matching_ammo(&w, p), Some(arrows));
 
-    // Swap to a crossbow: now the quarrel is the match.
     toggle_equipped(&mut w, p, bow);
     let crossbow = stash(&mut w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
     toggle_equipped(&mut w, p, crossbow);
@@ -429,8 +422,6 @@ fn a_daggers_plus_rides_along_on_the_dagger() {
 
 #[test]
 fn armour_blunts_a_thrown_projectile_the_same_as_an_improvised_one() {
-    /// Throw `weapon` at a bat wearing `plus` points of armour bonus, and report
-    /// the worst it ever managed.
     fn worst(weapon: &'static str, plus: i32) -> i32 {
         let mut w = test_world(8);
         let p = player(&mut w);
@@ -449,9 +440,6 @@ fn armour_blunts_a_thrown_projectile_the_same_as_an_improvised_one() {
             .unwrap()
     }
 
-    // A dagger (1d4, Projectile) still eats the armour bonus off the top, same
-    // as a mace (1d6) does — a point already in the air still lands on
-    // whatever the target is wearing.
     assert_eq!(worst("dagger", 0), 4);
     assert_eq!(worst("dagger", 3), 1);
     assert_eq!(worst("mace", 0), 6);
@@ -473,7 +461,6 @@ fn a_spear_runs_the_whole_line_and_an_arrow_stops_at_the_first_thing_it_hits() {
         (w, p, row, far)
     }
 
-    // The spear spends itself on all three, in the order it reached them.
     let (mut w, p, row, far) = line_of_three(9);
     let before: Vec<i32> = row.iter().map(|&e| hp(&w, e)).collect();
     let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
@@ -482,7 +469,6 @@ fn a_spear_runs_the_whole_line_and_an_arrow_stops_at_the_first_thing_it_hits() {
         assert!(hp(&w, bat) < before[i], "the spear missed bat {i}");
     }
 
-    // A dagger does the same — NecroDancer, not Rogue.
     let (mut w, p, row, far) = line_of_three(9);
     let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
     throw(&mut w, p, dagger, far);
@@ -491,8 +477,6 @@ fn a_spear_runs_the_whole_line_and_an_arrow_stops_at_the_first_thing_it_hits() {
         "the dagger stopped short"
     );
 
-    // An arrow aimed at the far bat never gets past the near one. This is the
-    // rule for everything that is not a dagger or a spear.
     let (mut w, p, row, far) = line_of_three(9);
     let arrow = quiver(&mut w, p, "arrow", 1);
     throw(&mut w, p, arrow, far);
@@ -514,7 +498,6 @@ fn an_improvised_missile_also_resolves_on_the_first_target() {
 
     assert!(hp(&w, near) < 500);
     assert_eq!(hp(&w, far), 500);
-    // And it stopped there, rather than carrying on to the aimed tile.
     let at = w.get::<Position>(mace).unwrap();
     assert_eq!((at.x, at.y), (run[0].x, run[0].y));
 }
@@ -558,8 +541,6 @@ fn a_projectile_that_hits_nothing_falls_where_it_landed() {
 
 #[test]
 fn nothing_catches_a_projectile_out_of_the_air() {
-    // An item-capable monster would happily field a thrown mace. A spear
-    // arrives point first, and there is nothing left to pick up either way.
     let mut w = test_world(13);
     let p = player(&mut w);
     let spot = open_run(&mut w, 1)[0];
@@ -587,7 +568,6 @@ fn the_dagger_in_your_hand_can_be_thrown_unless_it_is_cursed() {
     let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
     toggle_equipped(&mut w, p, dagger);
 
-    // Wielding it is no obstacle: it comes off on the way out of your hand.
     assert!(throw_refusal(&w, p, dagger).is_none());
     throw(&mut w, p, dagger, spot);
     assert_eq!(equipped_total::<PowerDie>(&w, p), 0);
@@ -699,7 +679,6 @@ fn a_quiver_tops_out_at_stack_limit_and_the_rest_takes_a_slot_of_its_own() {
     assert_eq!(w.get::<Backpack>(p).unwrap().items, vec![carried, pile]);
     assert!(w.get::<Position>(pile).is_none(), "it left the floor");
 
-    // A second pile fills the partial slot before opening a third.
     let more = spawn_ammo(&mut w, "arrow", NOWHERE);
     w.get_mut::<Stack>(more).unwrap().count = 4;
     stow(&mut w, p, more).unwrap();
@@ -743,7 +722,6 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
 
     let save = common::SaveFile::new("missiles");
     save_game(&mut w, save.path()).unwrap();
-    // A bare world: `load_game` builds the whole thing, player included.
     let mut loaded = World::new();
     loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(19)));
     loaded.insert_resource(RngSeed(19));
@@ -784,7 +762,6 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     assert!(loaded.get::<Piercing>(spear).is_some());
     assert!(loaded.get::<Projectile>(spear).is_some());
 
-    // And a loaded bow still arms a loaded arrow.
     let hero = player(&mut loaded);
     toggle_equipped(&mut loaded, hero, bow);
     assert!(loaded.get::<FireArrow>(hero).is_some());
@@ -825,7 +802,6 @@ fn swinging_a_bow_is_worth_a_bruise_and_no_more() {
         let target = punching_bag(&mut w, Position { x: 1, y: 1 });
 
         let weapon = stash(&mut w, p, |w| spawn_launcher(w, launcher, NOWHERE));
-        // A ruinously good one, to prove the cap is a ceiling and not a die.
         w.entity_mut(weapon).insert(ThrowBonus(5));
         w.entity_mut(weapon).insert(PowerBonus(5));
         toggle_equipped(&mut w, p, weapon);

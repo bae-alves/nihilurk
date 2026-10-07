@@ -20,7 +20,6 @@ fn test_world(seed: u64) -> World {
         what: "TESTER".into(),
     });
     initialize_world(&mut w);
-    // Start from a clean floor so a test only sees what it plants.
     let traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
     for t in traps {
         w.entity_mut(t).despawn();
@@ -81,7 +80,6 @@ fn the_phantom_is_born_invisible() {
     w.entity_mut(phantom).insert(Invisible);
     assert!(w.get::<Invisible>(phantom).is_some());
 
-    // A plain orc, right next to it, is not.
     let orc = monster::monster(&mut w, "orc", spot);
     assert!(w.get::<Invisible>(orc).is_none());
 }
@@ -123,7 +121,6 @@ fn a_ring_of_perception_turns_up_the_phantom() {
 fn an_unseen_attacker_is_only_ever_something() {
     let mut w = test_world(2);
     let p = player(&mut w);
-    // Strip the starting armour so every blow lands and logs a damage line.
     for item in equipped_items(&w, p) {
         force_unequip(&mut w, item);
     }
@@ -135,7 +132,6 @@ fn an_unseen_attacker_is_only_ever_something() {
     let phantom = monster::monster(&mut w, "phantom", spot);
     w.entity_mut(phantom).insert(Invisible);
 
-    // Visibility marks the in-view-but-invisible phantom Hidden.
     run_visibility(&mut w);
     assert!(w.get::<Hidden>(phantom).is_some());
 
@@ -146,7 +142,6 @@ fn an_unseen_attacker_is_only_ever_something() {
     );
     assert!(!log_has(&w, "phantom hits you"));
 
-    // Now perceive it: the same phantom attacks by name.
     wear_ring(&mut w, p, RingEffect::Perception);
     run_visibility(&mut w);
     assert!(w.get::<Hidden>(phantom).is_none());
@@ -159,7 +154,6 @@ fn perception_reveals_traps_in_view_only() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    // Two triggered traps: neither reveals itself by sight alone.
     let far = out_of_view(&mut w);
     let far_trap = w.spawn(TrapBundle::dart(far)).id();
     w.get_mut::<Trap>(far_trap).unwrap().reveal = TrapReveal::Triggered;

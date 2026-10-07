@@ -104,8 +104,6 @@ impl Grid {
     /// is bounded so the room's far wall stays inside the cell. Reordering
     /// them reorders every floor in the game.
     fn place_room(&self, rng: &mut ChaCha12Rng, sx: u16, sy: u16) -> Rect {
-        // `-1` because a `Rect` is inclusive on both edges, so its footprint is
-        // one wider and one taller than the numbers say.
         let max_w = self.section_w.saturating_sub(1).max(MIN_ROOM_W);
         let max_h = self.section_h.saturating_sub(1).max(MIN_ROOM_H);
         let w = MIN_ROOM_W + rng.gen_range(0..(max_w - MIN_ROOM_W) + 1);
@@ -360,8 +358,6 @@ pub(super) fn random_point_in_room(room: &Rect, rng: &mut ChaCha12Rng) -> (u16, 
     let width = (room.x2 - room.x1 + 1).max(1) as u32;
     let height = (room.y2 - room.y1 + 1).max(1) as u32;
 
-    // `gen_range`, not `gen() % width`: modulo would bias the low coordinates,
-    // and a biased draw here would bias every stair and every spawn on the floor.
     let rx = room.x1 as u32 + rng.gen_range(0..width);
     let ry = room.y1 as u32 + rng.gen_range(0..height);
 
@@ -405,7 +401,6 @@ pub(super) fn create_corridor(
     let mut y = from.1;
     let mut path = Vec::new();
 
-    // Horizontal leg first, then vertical: an L, never a diagonal.
     while x != to.0 {
         path.push((x, y));
         match x < to.0 {
@@ -422,9 +417,6 @@ pub(super) fn create_corridor(
     }
     path.push((x, y));
 
-    // Now walk it, watching for the two tiles that matter: where the path
-    // enters a room and where it leaves one. Those become doors; everything
-    // between them is passage.
     let mut prev_was_room = false;
     for i in 0..path.len() {
         let (px, py) = path[i];
@@ -437,18 +429,15 @@ pub(super) fn create_corridor(
         }
         match (is_room, prev_was_room) {
             (true, false) => {
-                // Stepped INTO a room. The previous tile becomes a door.
                 let prev_idx = (path[i - 1].1 * map_width + path[i - 1].0) as usize;
                 if tiles[prev_idx] != TileType::Room {
                     tiles[prev_idx] = TileType::Door;
                 }
             }
             (false, true) => {
-                // Stepped OUT of a room. The current tile becomes a door.
                 tiles[idx] = TileType::Door;
             }
             (false, false) => {
-                // Outside of a room, dig a regular passage.
                 if tiles[idx] != TileType::Door {
                     tiles[idx] = TileType::Passage;
                 }

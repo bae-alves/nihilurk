@@ -95,7 +95,6 @@ fn run_death_screens<W: std::io::Write>(
     screen: &mut view::Screen,
     save_name: &str,
 ) -> std::io::Result<()> {
-    // The save is destroyed before the player is even prompted.
     let _ = std::fs::remove_file(save_name);
 
     let offset = view::centering_offset(world);
@@ -205,64 +204,27 @@ fn turn_schedule() -> Schedule {
     schedule.add_systems((
         smoke_system.before(tick_effects),
         tick_effects,
-        // A xeroc's disguise falls away the instant the player is adjacent to
-        // it — before `ai` runs, so the very turn that happens it also gets
-        // to lash out as the `Ambush` mob it always was.
         reveal_mimics.after(tick_effects),
-        // An active spell resolves before the monsters act, just like the
-        // player's ordinary movement already resolved while the key was
-        // handled. `ai` skips anything a spell left at 0 HP; `reaper_system`
-        // still sweeps the bodies at the end of the turn.
         spell_system.after(reveal_mimics).before(ai),
-        // A used item resolves before the monsters act, for the same reason a
-        // spell does: the player aimed at the dungeon as it stood when they
-        // pressed the key. Zapping is the case that made this load-bearing —
-        // a wand that reads one exact tile (teleport, polymorph, haste, slow,
-        // cancellation) found the tile empty when `ai` had already walked the
-        // target off it, so a correctly aimed zap did nothing at all.
         item_system.after(reveal_mimics).before(ai),
-        // And a throw with it: the player let go of it at the floor they were
-        // looking at. Only the player ever fills `ThrowQueue`, so nothing of
-        // the dungeon's own is being hurried along by this.
         throw_system.after(item_system).before(ai),
         ai.after(spell_system),
         trap_system.after(ai),
-        // Gear changed by anything other than the pack screen — a loaded save, a
-        // curse-lifting scroll — has its lent effects reconciled here, before
-        // combat and visibility read them. After `trap_system` on purpose: a
-        // trapdoor despawns the whole floor, so it has to run before everything
-        // that queues commands on the floor's entities (an unordered one leaves
-        // those commands to land on the dead — bevy's B0003).
         equipment_effects_system
             .after(item_system)
             .after(trap_system),
         combat_system.after(equipment_effects_system),
         reaper_system.after(combat_system),
         dungeon_lord_system.after(reaper_system),
-        // Passives that act on their own (a ring of regeneration mending you, a
-        // ring of teleportation moving you) roll at the *tail* of the turn:
-        // late enough that a jump lands at the top of the player's next turn —
-        // they see where they are and act before anything else moves — and
-        // early enough that visibility still gets a pass over the new tile.
         ability_system.after(dungeon_lord_system),
-        // Deep water takes whatever this turn put in it — thrown, dropped,
-        // shaken off a corpse — before visibility could announce it lying
-        // there.
         sink_system.after(ability_system),
         visibility_system.after(sink_system),
-        // Dead last: everything that can pay the player has paid by now, so a
-        // flash armed anywhere in this turn is still lit for this turn's render
-        // and dark by the next one.
         score_turn_system.after(visibility_system),
     ));
     schedule
 }
 
 fn main() -> std::io::Result<()> {
-    // Sanitized once here so every arg the parser below stores and later
-    // echoes back in an error message (an unknown flag, monster, or pride
-    // name) is already clean, rather than trusting each `eprintln!` site to
-    // remember to strip it.
     let args: Vec<String> = std::env::args()
         .map(|a| models::strip_control_chars(&a))
         .collect();
@@ -284,40 +246,19 @@ fn main() -> std::io::Result<()> {
     let mut list_content = false;
     let mut show_leaderboard = false;
     let mut pride_off = false;
-    // The flag this run flies: the stripes the scorekeeper's DOUBLE and COMBO!
-    // and the log's proudest line are painted in. `-pride <name>`; an
-    // unrecognised name says so and flies the rainbow anyway.
     let mut pride = models::pride::PrideFlag::default_flag();
     let mut unknown_flag: Option<String> = None;
-    // What the player wakes up as. `-b <body>` picks one of the two written
-    // to be played, `-am <species>` wears a bestiary row instead, and the two
-    // are one value rather than two flags — which is what makes them
-    // mutually exclusive without a cross-check. An unrecognised name either
-    // side is a typo worth stopping for, unlike an unrecognised flag: it is
-    // the whole run, not a colour.
     let mut body: Option<(models::Body, &str)> = None;
     let mut unknown_body: Option<(String, &str)> = None;
-    // How the body was asked for, verbatim ("-b lurk"), and the second
-    // spelling if there was one. Named rather than resolved: one of them
-    // would have to win, and neither has a claim.
     let mut body_arg: Option<String> = None;
     let mut conflicting_bodies: Option<(String, String)> = None;
     let mut player_name = "null".to_string();
     let mut positional: Option<String> = None;
-    // Multiplier on every animation frame's on-screen hold time (particles,
-    // magic mapping's reveal wipe): the escape hatch for a terminal whose
-    // redraw can't keep up with the default pacing, or that renders too
-    // slowly for a fast one. `1.0` is the default pacing; clamped so a typo'd
-    // value can't freeze the loop or blur every animation into nothing.
     let mut anim_rate: f32 = 1.0;
-    // The name is the *first* argument or it is not a name. Anything
-    // unrecognised after that is a typo — `nihilurk -b lurk Bae` reads like
-    // it names the run and does not, and silently starting a run called
-    // "nihil" is the worst of the three things that could happen.
     let mut first = true;
     let mut stray_positional: Option<String> = None;
     let mut iter = args.iter();
-    iter.next(); // skip the executable path
+    iter.next();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "-s" => {
@@ -366,8 +307,6 @@ fn main() -> std::io::Result<()> {
                     anim_rate = rate.clamp(0.1, 5.0);
                 }
             }
-            // A name or a save file, and only ever the first argument: see
-            // `too_late_for_a_name` below.
             _ => match positional {
                 None if first => positional = Some(arg.clone()),
                 _ => stray_positional = Some(arg.clone()),
@@ -376,25 +315,16 @@ fn main() -> std::io::Result<()> {
         first = false;
     }
 
-    // `-content` is the content author's index: every name the tables know, which
-    // is exactly the set `NIHILURK_SPAWN` and `models::spawn_named` answer to. Prints
-    // and exits without ever touching the terminal's alternate screen, so it
-    // pipes into `grep` and `less` like any other listing.
     if list_content {
         print_content();
         return Ok(());
     }
 
-    // `-scores`: the internal leaderboard, read straight off disk. Same deal
-    // as `-content` — never touches the alternate screen, so it pipes.
     if show_leaderboard {
         print_leaderboard();
         return Ok(());
     }
 
-    // `-prideoff` is documented as swapping the stripes for plain red. It does
-    // not do that. See `models::pride::PRIDE_OFF_REFUSAL` — this is the whole
-    // implementation, and the terminal is never even set up for it.
     if pride_off {
         execute!(
             stdout(),
@@ -406,8 +336,6 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    // A `-pride` nobody has a row for: say so, name the ones that exist, and
-    // fly the rainbow rather than refusing to start over a cosmetic.
     if let Some(name) = unknown_flag {
         eprintln!(
             "{}",
@@ -415,17 +343,11 @@ fn main() -> std::io::Result<()> {
         );
     }
 
-    // Both flags at once. You are one creature; the command line has to name
-    // one, and picking the rightmost for the player would be guessing at the
-    // whole run.
     if let Some((first_flag, second)) = conflicting_bodies {
         eprintln!("{}", strings::conflicting_bodies(&first_flag, &second));
         return Ok(());
     }
 
-    // A `-b` or `-am` nobody has a row for. Unlike a flag name this is
-    // refused outright: the body is the entire run, and starting a run as
-    // nihil the player did not ask for is worse than not starting at all.
     if let Some((name, flag)) = unknown_body {
         match flag {
             "-b" => eprintln!("{}", strings::no_such_body(&name)),
@@ -434,15 +356,11 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    // A name that came too late to be one.
     if let Some(stray) = stray_positional {
         eprintln!("{}", strings::stray_positional(&stray));
         return Ok(());
     }
 
-    // A positional argument is a save file to load if it names an existing file
-    // (either verbatim or with a `.sav` suffix, matched case-insensitively);
-    // otherwise it is the player's name for a fresh game.
     let mut load_path: Option<String> = None;
     if let Some(arg) = positional {
         let suffixed = format!("{arg}.sav");
@@ -452,32 +370,20 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    // Yoko Taro-style clear data: a won save is kept, not deleted. Recognise it
-    // here — before the alternate screen — and make the player consent to
-    // spending it before a new journey overwrites it. Default is No.
     if let Some(path) = &load_path {
         if let Some(clear) = models::clear_data(path)? {
             println!("{}", strings::clear_data_prompt(&clear.player_name));
             let mut answer = String::new();
             std::io::stdin().read_line(&mut answer)?;
             if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
-                // Default No — the clear data is left untouched.
                 println!("{}", strings::world_keeps_its_light());
                 return Ok(());
             }
-            // Yes: begin anew under the winner's name. Drop the load so a fresh
-            // world is built; its exit-save overwrites the clear data, and the
-            // Element goes back to the Dungeon Lord.
             player_name = clear.player_name;
             load_path = None;
         }
     }
 
-    // Two argument shapes that would otherwise resolve to something nobody
-    // asked for. Both are refused here, before the terminal is touched, and
-    // together they are what keeps "the player's name is a species" meaning
-    // "the player is wearing that species" — the equivalence
-    // `models::load_game` reads a saved body back out of.
     if let Some((body, flag)) = body {
         if load_path.is_some() {
             eprintln!("{}", strings::body_conflicts_with_load(flag, body.name()));
@@ -493,16 +399,10 @@ fn main() -> std::io::Result<()> {
     }));
 
     let guard = TerminalGuard::new()?;
-    // Buffer all render output so a frame is one write(2), not thousands.
-    // render() flushes at the end of each frame.
     let mut stdout = BufWriter::with_capacity(32 * 1024, stdout());
     let mut screen = view::Screen::new();
     let mut world = World::new();
 
-    // Every resource the schedule and the renderer read has to exist before
-    // either runs. A loaded save replaces the run-state ones below; the
-    // presentation ones (`Particles`, `Shake`, `AnimRate`, `Pride`) are never
-    // saved and are set from the command line either way.
     let seed_value = seed.unwrap_or_else(rand::random);
     world.insert_resource(models::GameRng(ChaCha12Rng::seed_from_u64(seed_value)));
     world.insert_resource(models::RngSeed(seed_value));
@@ -537,9 +437,6 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<FastMove>();
     world.init_resource::<TravelCursor>();
     world.init_resource::<MagicMapReveal>();
-    // The scorekeeper's own two: what it is shouting, and what has died this
-    // turn. Initialised here as well as in `initialize_world`, because a loaded
-    // save skips that and still has a score to shout about.
     world.init_resource::<models::ScoreFlash>();
     world.init_resource::<models::Combo>();
     world.init_resource::<AttackQueue>();
@@ -553,23 +450,15 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(models::Shake::new());
     world.insert_resource(models::AnimRate(anim_rate));
 
-    // Which body a *new* player wakes up in. A loaded save brings its own —
-    // the body rides in the save file — so this only ever reaches
-    // `initialize_world`.
     world.insert_resource(models::StartingBody(
         body.map(|(b, _)| b).unwrap_or_default(),
     ));
 
-    // `-endless`: no Element of Yoord ever spawns, so there is no way up and no
-    // way to win — every stair down leads to another floor. Has to be in place
-    // before `initialize_world`/`load_game` build or restore the first floor.
     world.insert_resource(models::Endless { enabled: endless });
 
     match &load_path {
         Some(path) => {
             models::load_game(&mut world, path)?;
-            // `load_game` already left a fresh (unloaded-game) GameLog behind;
-            // swap its welcome line for the loaded-game version.
             let mut unread = vec![LogEntry::plain(strings::welcome_back())];
             if let Some(notice) = strings::beta_notice() {
                 unread.push(LogEntry::plain(notice));
@@ -582,30 +471,22 @@ fn main() -> std::io::Result<()> {
         None => models::initialize_world(&mut world),
     }
 
-    // `-nb`: disable bloodstains entirely for this run.
     if no_blood {
         world.resource_mut::<BloodStains>().enabled = false;
     }
 
-    // `-nshake`: nail the map down. Nothing arms a shake for the rest of the run.
     if no_shake {
         world.resource_mut::<Shake>().enabled = false;
     }
 
-    // `-nobones`: skip the bones mechanic entirely, saving and loading both.
     if no_bones {
         world.resource_mut::<models::bones::Bones>().enabled = false;
     }
 
-    // `-pride`: the flag this run flies. Not saved — it is a preference, so a
-    // reloaded save flies whatever flag the command line asks for this time.
     world.insert_resource(models::pride::Pride(pride));
 
-    // The turn, in order.
     let mut schedule = turn_schedule();
 
-    // One turn and one frame before the loop, so the player is looking at a
-    // dungeon rather than a black screen when the first `read()` blocks.
     schedule.run(&mut world);
     view::render(&mut world, &mut stdout, &mut screen)?;
 
@@ -614,14 +495,7 @@ fn main() -> std::io::Result<()> {
         world.resource::<PlayerName>().what.to_ascii_lowercase()
     );
 
-    // The main loop. Its steps are named A..D because
-    // `docs/reference/input-and-turn-loop.md` walks them in that order.
     while world.resource::<models::GameState>().is_running {
-        // Step A: Advance the game. A fast-move run resolves entirely here,
-        // taking its own turns without repainting; otherwise we take one
-        // auto-explore step, or block at event::read for the player's move.
-        // A fast-move run resolves entirely inside `fast_move_run`; capture the
-        // flag first so clearing it there doesn't also trigger a player step.
         let fast_moving = world.resource::<FastMove>().active;
         if fast_moving {
             update::fast_move_run(&mut world, &mut schedule)?;
@@ -629,55 +503,33 @@ fn main() -> std::io::Result<()> {
         if !fast_moving {
             let turn_taken = player_step(&mut world)?;
 
-            // Step B: Only let monsters act if the player took a valid action
             if turn_taken {
                 schedule.run(&mut world);
             }
         }
 
-        // Step B2: Play any hit / beam / blast animation this turn queued. A
-        // no-op unless a system asked for particles, so auto-explore and
-        // fast-move (which never fight) pass straight through.
         view::play_particles(&mut world, &mut stdout, &mut screen)?;
 
-        // Step B3: Sweep in a scroll of magic mapping, one row per frame. A
-        // no-op unless a scroll was just read.
         view::play_magic_map(&mut world, &mut stdout, &mut screen)?;
 
-        // Step C: Render the world to terminal
         view::render(&mut world, &mut stdout, &mut screen)?;
 
-        // Step C1: Let any screen shake this turn armed finish rocking. Unlike
-        // B2 and B3 this never blocks the player: it runs only while nothing is
-        // waiting to be read, and a keypress settles the map and is handed
-        // straight back to Step A unread. It also guarantees the map is home
-        // before the loop blocks again, so a shake can never be left frozen
-        // mid-lurch on screen.
         view::play_shake(&mut world, &mut stdout, &mut screen)?;
 
-        // Step C2: Pace the auto-explore walk so it reads as movement rather
-        // than a teleport, and stays interruptible.
         if world.resource::<AutoExplore>().active {
             std::thread::sleep(std::time::Duration::from_millis(35));
         }
 
-        // Pace the turns a sleeping player auto-forfeits, so a lungful of gas
-        // reads as time passing rather than a freeze. A bear trap is not paced
-        // here — the player is still pressing keys.
         if models::player_incapacitated(&mut world) {
             std::thread::sleep(std::time::Duration::from_millis(90));
         }
 
-        // Step D: The run may have just ended, in triumph or otherwise.
         if world.resource::<Ending>().player_dead || world.resource::<Ending>().player_won {
             break;
         }
     }
 
     if world.resource::<Ending>().player_won {
-        // A win is sticky — even a monster's parting blow the same turn can't rob
-        // a completed run. Show the WIN panel, then keep the save as clear data
-        // (it serialises with `cleared: true`) rather than deleting it.
         run_victory_screens(&mut world, &mut stdout, &mut screen)?;
         if no_save {
             drop(guard);
@@ -694,14 +546,11 @@ fn main() -> std::io::Result<()> {
     }
 
     if world.resource::<Ending>().player_dead {
-        // Death: the save is gone and there is nothing to write. Show the
-        // epitaph, then restore the terminal.
         run_death_screens(&mut world, &mut stdout, &mut screen, &save_name)?;
         drop(guard);
         return Ok(());
     }
 
-    // Save the game on exit, then restore the terminal so the message is visible.
     if no_save {
         drop(guard);
         println!("{}", strings::game_not_saved());

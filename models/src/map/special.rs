@@ -139,7 +139,6 @@ const LABYRINTH_LOOP_CHANCE: f64 = 0.1;
 /// walls left between cells are knocked through for loops. Passages only, so
 /// sight never reaches past the 3x3.
 fn labyrinth(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
-    // Cell (cx, cy) is tile (2cx + 1, 2cy + 1), which keeps the border solid.
     let (cols, rows) = ((MAP_WIDTH - 1) / 2, (MAP_HEIGHT - 1) / 2);
     let cell = |cx: u16, cy: u16| (cy * cols + cx) as usize;
 
@@ -168,9 +167,6 @@ fn labyrinth(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
         stack.push((nx, ny));
     }
 
-    // The walls between two cells are the tiles with exactly one odd
-    // coordinate. A pillar (both even) is never one: knocking it out would
-    // open a 2x2 hall in the middle of a maze.
     for y in 1..2 * rows {
         for x in 1..2 * cols {
             let idx = tile_index(x, y);
@@ -230,7 +226,6 @@ fn vault(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
         }
     }
 
-    // Which cell every interior tile belongs to; the border belongs to none.
     let mut cell = vec![usize::MAX; MAP_TILE_COUNT];
     for y in 1..=h {
         for x in 1..=w {
@@ -284,8 +279,6 @@ fn vault(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
         tiles[tile_index(x, y)] = TileType::Door;
     }
 
-    // Two different corners, and in each the floor tile of the corner's own
-    // cell that lies nearest it.
     let corners = [(1, 1), (w, 1), (1, h), (w, h)];
     let first = rng.gen_range(0..corners.len());
     let second = (first + rng.gen_range(1..corners.len())) % corners.len();
@@ -422,7 +415,7 @@ const TOWER_SIZE: i32 = 5;
 /// [`castle`] carves these and population stocks them, so this is the one
 /// place the castle's shape is written down.
 pub(super) fn castle_rooms() -> [Rect; 5] {
-    let side = TOWER_SIZE - 1; // `Rect::new` takes the far edge's offset
+    let side = TOWER_SIZE - 1;
     let (west, east) = (KEEP_X - 1 - TOWER_SIZE, KEEP_X + KEEP_SIZE + 1);
     let (north, south) = (KEEP_Y + 2 - TOWER_SIZE, KEEP_Y + KEEP_SIZE - 2);
     [
@@ -439,8 +432,6 @@ pub(super) fn castle_rooms() -> [Rect; 5] {
 /// into it, and a gate on either side of the keep with a corridor out to the
 /// middle room on that side. Only the side rooms can roll dark.
 fn castle(rng: &mut ChaCha12Rng, tiles: &mut [TileType], dark: &mut FixedBitSet) -> Rooms {
-    // The middle column is the castle's, and no side cell is ever left empty:
-    // the gate corridors below count on the middle rooms being there.
     let (cells, mut rooms) = carve_rooms(rng, &Grid::new(), &[1, 4, 7], tiles);
     let mut joined = HashSet::new();
     for col in [0, 2] {
@@ -499,8 +490,6 @@ fn island(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
     let (cx, cy) = (MAP_WIDTH as i32 / 2, MAP_HEIGHT as i32 / 2);
     let rx = rng.gen_range(ISLAND_HALF_WIDTH) as f64;
     let ry = rng.gen_range(ISLAND_HALF_HEIGHT);
-    // Strictly inside the ellipse: its top and bottom rows are a single tile
-    // wide, which reads as a spike rather than a shore.
     for y in cy - ry + 1..cy + ry {
         let dy = (y - cy) as f64 / ry as f64;
         let curve = (rx * (1.0 - dy * dy).sqrt()).round() as i32;

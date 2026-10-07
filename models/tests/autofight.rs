@@ -91,15 +91,15 @@ fn set_player_hp(w: &mut World, player: Entity, hp: i32) {
 #[test]
 fn player_too_injured_matches_the_quarter_hp_rule() {
     let (mut w, player) = fresh_floor(2112);
-    let max = w.get::<Fighter>(player).unwrap().max_hp; // 12
+    let max = w.get::<Fighter>(player).unwrap().max_hp;
 
     set_player_hp(&mut w, player, max);
     assert!(!player_too_injured(&mut w), "full HP is fine");
 
-    set_player_hp(&mut w, player, max / 4 + 1); // 4
+    set_player_hp(&mut w, player, max / 4 + 1);
     assert!(!player_too_injured(&mut w), "just above a quarter is fine");
 
-    set_player_hp(&mut w, player, max / 4); // 3, i.e. exactly 25%
+    set_player_hp(&mut w, player, max / 4);
     assert!(
         player_too_injured(&mut w),
         "exactly a quarter is too injured"
@@ -127,7 +127,7 @@ fn an_adjacent_foe_is_finished_before_chasing_a_weaker_distant_one() {
     let (px, py) = player_xy(&mut w, player);
 
     let adjacent = spawn_enemy(&mut w, px + 1, py, 8);
-    spawn_enemy(&mut w, px + 3, py, 1); // weaker, but two tiles further out
+    spawn_enemy(&mut w, px + 3, py, 1);
 
     assert_eq!(
         auto_fight_target(&mut w),
@@ -140,8 +140,6 @@ fn an_adjacent_foe_is_finished_before_chasing_a_weaker_distant_one() {
 fn hidden_foes_are_not_targeted() {
     let (mut w, player) = fresh_floor(2112);
 
-    // Far opposite corner from any starting room: out of view, so the
-    // visibility pass stamps it Hidden.
     spawn_enemy(&mut w, MAP_WIDTH - 2, MAP_HEIGHT - 2, 1);
     w.get_mut::<Viewshed>(player).unwrap().dirty = true;
     resolve_visibility(&mut w);
@@ -231,7 +229,6 @@ fn tab_closes_on_and_kills_a_distant_foe() {
     for seed in [1u64, 7, 42, 2112, 55555] {
         let (mut w, player) = fresh_floor(seed);
 
-        // Pretend the whole floor is mapped so the pathfinder can see a route.
         {
             let mut vs = w.get_mut::<Viewshed>(player).unwrap();
             for i in 0..MAP_TILE_COUNT {
@@ -239,11 +236,10 @@ fn tab_closes_on_and_kills_a_distant_foe() {
             }
         }
 
-        // A walkable tile several steps away from the player.
         let start = player_xy(&mut w, player);
         let spot = far_reachable_tile(&mut w, start, 5)
             .unwrap_or_else(|| panic!("seed {seed}: nowhere to put a foe"));
-        let foe = spawn_enemy(&mut w, spot.0, spot.1, 1); // 1 HP: one solid hit ends it
+        let foe = spawn_enemy(&mut w, spot.0, spot.1, 1);
         w.get_mut::<Viewshed>(player).unwrap().dirty = true;
         resolve_visibility(&mut w);
 
@@ -263,7 +259,7 @@ fn tab_closes_on_and_kills_a_distant_foe() {
             let foe_pos = *w.get::<Position>(foe).unwrap();
 
             if (nx, ny) == (foe_pos.x, foe_pos.y) {
-                resolve_attack(&mut w, player, foe); // a step onto the foe is a strike
+                resolve_attack(&mut w, player, foe);
             } else {
                 assert!(
                     !w.resource::<Map>().blocks(nx, ny),
