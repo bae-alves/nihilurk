@@ -1,10 +1,10 @@
 # nihilurk
 nihilurk is a classic roguelike about descending a dungeon, acquiring an item, and ascending it back again. Life is unfair and death is permanent. The game's humor is pessimistic, nihilistic and absurdist without being edgy. Rogue kind of had coherent a lore/plot blurb. This game is about thrill of the arcade!
 
-Game plays like any classic roguelike, but has simplified controls and a focus on movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). Crawl is built the same way, and I took its lead. The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
+Game plays like any classic roguelike, but has simplified controls and a focus on movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). Crawl is built the same way, Angband has plenty automation too, so I took their lead. The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
 
 ## Vibe
-Absurdist gorefest! The dungeon is only normal on the surface, getting madder and madder the more the player descends. The game is not really about anything. It's just fun and scoring, strategizing, and doing hallucinating combos!
+Absurdist gorefest! The game is not really about anything. It's just fun and scoring, strategizing, and doing hallucinating combos!
 
 ## Progression
 The game is a dungeon crawl with 13 levels, the last one has the Element of Yoord. Once the player character claims it, they must climb back out of the dungeon!
@@ -14,15 +14,15 @@ The game is a dungeon crawl with 13 levels, the last one has the Element of Yoor
 In this game, the player controls a nihilurk that can move on a grid; fight monsters by trying to move into their space; auto-explore; auto-fight and use many items (wearables, consumables, etc.) in pursuit of the Element of Yoord.
 
 ### What is different
-I studied six roguelikes while making this: Rogue, NetHack, Dungeon Crawl Stone Soup, Angband, Umoria and Brogue. This is where nihilurk parts from them, and where it does not.
+From a limited corpus of terminal roguelikes I've played, these are where nihilurk gets... Different.
 
-**Trick shots.** Rogue is a game about what you walk into. nihilurk is also a game about what you shoot, and the rest of the design leans on it.
+**Trick shots.** Rogue is a game about what you walk into. nihilurk is also a game about what you shoot and throw, and the rest of the design leans on it.
 
-Almost everything on the floor that can go off can be set off from across the room. Put a missile on it, or wash a blast over it, and it lets go:
+Almost everything on the floor that can go off can be set off from across the room. Put a missile on it and it goes kablooey:
 - A trap. A trap only bites whoever is standing on it. Shot, it has nobody to bite, so the whole mechanism goes at once over the tiles around it, armor-proof, and then works its own effect on everyone caught.
 - A coin. Coins are never carried, you step on them. Shoot one instead and it bursts wider than a trap, and its effect reaches you from wherever you are standing.
 - A potion lying on the floor. It shatters over the tiles around it.
-- Bursts chain. Anything a burst covers that a shot could have set off goes off with it, including traps nobody has found. Each link is spent before its own burst opens, so a chain always ends.
+- Bursts chain. Anything a burst covers that a shot could have set off goes off with it, including traps nobody has found.
 
 The shot is the skill, and the game works to keep it one:
 - Ranged only. A missile or a blast sets things off, a melee swing never does. Walking up and hitting a monster on a trap would make the read free.
@@ -30,30 +30,21 @@ The shot is the skill, and the game works to keep it one:
 - It spends what it goes off on. Trap and coin are gone the moment they let go. The Element of Yoord is the one exception, and it is the exception to everything: a missile that lands on it is not spent, it answers with a wide burst, then a burst on everyone that one caught, then another on one of them. It is the ULTIMATE TRICK SHOT.
 - It is nobody's friend. Stand a tile away from your own shot and it catches you too.
 
-A good trick shot shouts in magenta.
-
 **Also different.**
 - Wand grenades. Thrown, a wand spends every charge at once and bursts where it lands.
 - Coins are pickups. You never carry one: you step on it and it acts, or you shoot it.
 - Spirits are the shops, and there is no money. See Mechanics.
-- Boon companions. Throw the right treat at a monster and half the time it joins you as a Helper. You get one at a time, and it follows you down the stairs.
-- A thrown deck of cards plays as a poker hand. The decks themselves are Crawl's.
-- You can play as any monster (`-am dragon`).
+- A thrown deck of cards plays as a poker hand. The decks themselves work similarly to DCSS/Crawl's.
+- You can play as any monster just by adding an arg (`-am dragon`) or naming yourself its species.
 - The bodies are the classes: nihil, lurk, or any monster. There are no experience levels.
 - Stairs are the only recovery that is not magic. You cannot rest, search or pass a turn, and nothing heals you as you walk. The ring of regeneration does not heal either: each turn it has a chance to clear one condition, or else restore one drained power.
-- Everything but gear is known on sight: potions, scrolls, wands, runes, rings, coins and treats. Gear hides its plus and its curse until you wear it or identify it.
-- No hunger, rest or search.
-- Like Rogue, the game starts at once, with no menus. Your name and your body are arguments.
-- Where the classics ship a wizard mode, nihilurk has three environment variables: `NIHILURK_SPAWN`, `NIHILURK_LEVEL` and `NIHILURK_MAGICMAP`. They are in `docs/reference/cli-and-env.md`.
+- Everything but gear is known on sight: potions, scrolls, wands, rings, etc.. Gear hides its plus and its curse until you wear it or identify it.
+- No hunger, instead you are yanked into the next level if your time on it runs out.
+- Like older versions of Rogue, the game starts at once, with no menus. Your name and your body are arguments.
+- Where the classics ship a wizard mode, nihilurk has three environment variables: `NIHILURK_SPAWN`; `NIHILURK_LEVEL`; and `NIHILURK_MAGICMAP` for its spawn API. They are in `docs/reference/cli-and-env.md`.
 - The gorefest is opt-out by argument: `-nb` and `-nshake`.
 
-**Borrowed, and said so.**
-- Crawl: the automation focus, and decks of cards.
-- NetHack: shift to run.
-- Crypt of the NecroDancer: the patience timer.
-- Rogue: sight, the room generator and permadeath.
-
-**A flex, said lightly.** It is a human-friendly, moddable codebase, in Rust. `docs/` follows Diátaxis: a tutorial, how-tos, a reference and the reasoning behind it.
+**A small flex**: nihilurk is a human-friendly, moddable codebase, in Rust. `docs/` follows Diátaxis: a tutorial, how-tos, a reference and the reasoning behind it.
 
 ### User Skills
 - Strategizing
@@ -83,6 +74,12 @@ Monsters are entities assembled from the same components the player is. They wie
 Spirits are the shops. They are `&`-glyph creatures that you make a deal with by walking into them. Some give away a choice of items, others trade with you if you have something they want. The game has no currency, so this is the only trade there is. Dealing with them too much, or hurting them, upsets the balance, and that makes all of them hostile. A scroll of atonement restores it.
 
 Also, **you cannot pass your turn**.
+
+#### Mechanics references (hardly exhausting, please contribute)
+- Crawl/DCSS: the automation focus, and decks of cards.
+- NetHack: shift to go fast.
+- Crypt of the NecroDancer: the patience timer, being unable to pass your turn.
+- Rogue: most everything. It's a terminal roguelike after all.
 
 ### Items and power-ups
 Potions, scrolls, wands and rings tell you exactly what they are on sight — no cosmetic disguise, nothing to learn by drinking one and hoping. The one thing that stays hidden is the quality of a weapon, suit of armor, launcher or ring: its enchantment plus and whether it's cursed, settled by wearing it or by the right scroll.
@@ -146,7 +143,7 @@ This game is made for terminal screens and is styled like the original Rogue, wi
 ### Technical Description
 This is a game made to run on most shells and devices that run shells. It uses keyboard controls though, that might limit the hardware scope. It is made using bevy_ecs and crossterm on rust for unnecesarily peak performance.
 
-The particle arithmetic is portable and lives in a reusable effects crate, `particle-core`: `no_std`, no dependencies, and `compat/` builds it for RISC-V and ESP32.
+The particle arithmetic is portable and lives in a reusable effects crate, `particle-core`: `no_std`, no dependencies, and `compat/` builds it for RISC-V and ESP32, so it's likely to run on a potato if you try hard enough.
 
 Content is data. Every monster, item and trap is a row in a table, and the dungeon decides what turns up by drawing from those tables with a weight and a debut depth, so adding a thing is usually adding a line. `docs/` covers how: a tutorial, a recipe per kind of content, a reference for every field, and the reasoning behind the shape. This document is the design; `docs/` is the code.
 
@@ -159,12 +156,11 @@ Free and open source. It installs from crates.io, ships as prebuilt Linux tarbal
 ### Localization
 English, Portuguese, Spanish and Haitian Creole, one binary each. A classic roguelike in non-English is important to exist.
 
-### Other ideas/Expansion backlog
-- More player character options
-- Steam
+### APPENDIX N - Instruction and Inspiration
+This is a list of everything I took instruction and inspiration from when designing nihilurk and its codebase.
 
-### APPENDIX N - Games that Inspired This
-- Rogue
+#### The Videogames
+- Rogue. Duh.
 - NetHack
 - Dungeon Crawl Stone Soup
 - Angband
@@ -177,8 +173,8 @@ English, Portuguese, Spanish and Haitian Creole, one binary each. A classic rogu
 - Dwarf Fortress
 - XCOM
 - The Nier series
-- Dicing Knight.
-- Everything From Software
+- Dicing Knight. from Platinum Dispositif
+- The Souls games made by From Software
 - Darkest Dungeon
 - Nuclear Throne
 - The Binding of Isaac
@@ -195,3 +191,17 @@ English, Portuguese, Spanish and Haitian Creole, one binary each. A classic rogu
 - Knave 2e
 - Heroes of Cerulea
 - OSRIC and the retroclone ecosystem, which is what made me try to make videogame retroclones
+
+#### Fiction Books, where the absurdist gorefest part comes from
+- Roadside Picnic
+- Watership Down
+- The Cosmere books by Brandon Sanderson
+- Sword Art Online Aincrad, Alicization and Progressive; Danmachi; Dungeon Crawler Carl and sequels; other dungeon book series I haven't read but surely could be there
+
+#### Technical Literature if it is to be believed bae can read
+- Herbert Wolverson, *Roguelike Tutorial - In Rust*.
+    - Actually, nihilurk was the first thing I did after chewing through it.
+- Donna Haraway, *A Cyborg Manifesto*.
+- Sal Restivo, *Red, Black, and Objective*: Science, Sociology, and Anarchism.
+- Stuart Russell; Peter Norvig, *Artificial Intelligence*: A Modern Approach.
+- Daniele Procida, *Diátaxis*: A systematic approach to technical documentation authoring.

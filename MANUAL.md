@@ -3,19 +3,17 @@ nihilurk: instruction manual
 
 Descend thirteen floors, take the Element of Yoord, and carry it back to the surface. Monsters, traps, gear of unknown quality, and permanent death stand between you and the exit.
 
-What sets nihilurk apart is the trick shot: a missile that lands on a trap, a coin or a potion on the floor sets it off from across the room, over everything around it, and the burst can set off the next one. A creature standing on something you could set off is drawn on a magenta square. The rules are under "Trick shots" in the pack section below.
-
 If you have played other roguelikes, this table shows where nihilurk parts from them:
 
 | You may expect | Here |
 |----------------|------|
 | Resting and searching | You cannot rest, search or pass a turn. Stairs are the only recovery that is not magic. |
 | A food clock | No hunger. The Dungeon Lord's patience runs out floor by floor instead. |
-| Experience levels | None. Nihil gets stronger by finding things and the lurk by killing them. |
-| Unknown potions and scrolls | You know what each one is the moment you find it. Gear hides its quality. |
+| Experience levels | None. e.g. Nihil gets stronger by finding things and the lurk by killing them. |
+| Unidentified items | You know what each one is the moment you find it. *Only gear hides its quality*. |
 | Shops | Spirits give items away or trade them. There is no money. |
 | A start-up menu | None, as in Rogue. Your name and your body are arguments. |
-| Pets | Throw a treat at a monster and it may become your Helper. |
+| Pets | You can only have one Helper pet that follows you around, other charmed creatures won't carry through floors |
 | Wands | You can zap one, or throw it to spend every charge at once. |
 | Gold | A coin is spent the moment you step on it, or you can shoot it. |
 
@@ -23,7 +21,7 @@ If you have played other roguelikes, this table shows where nihilurk parts from 
 Starting the game
 -----------------
 
-Start a new expedition with:
+If you built the game using cargo, start a new expedition with:
 
     cargo run -p nihilurk                  # start a game
     cargo run -p nihilurk -- YourName       # name your nihilurk
@@ -37,9 +35,32 @@ The commands above run the game from a clone. After `cargo install nihilurk`, ty
 
 Your name, if you give one, comes first. Everything else comes after it.
 
+Other flags, in any order after the name:
+
+| Flag | Effect |
+|------|--------|
+| `-c` | Centre the map on you instead of using the fixed viewport. |
+| `-ns` | Write no save file. |
+| `-nb` | No bloodstains, no corpse-and-bones death animation. |
+| `-nshake` | No screen shake. |
+| `-nobones` | A death writes no bones file and an ascent reads none. |
+| `-endless` | No Element of Yoord spawns, so you cannot win. The dungeon keeps going down. |
+| `-anim-rate N` | Scale animation hold time, 0.1 to 5.0. Raise it if your terminal redraws slowly. |
+| `-content` | List every name `NIHILURK_SPAWN` accepts, and exit. |
+| `-scores` | Print the ten highest scores, and exit. |
+| `-h` | Print a short guide, and exit. |
+
+nihilurk speaks English and a bit of Portuguese (`pt`). Spanish (`es`) and Haitian Creole (`ht`) exist in the codebase but need help, so please contribute! The installed `nihilurk` command picks the language from `LC_ALL`, `LANG` or `LANGUAGE`, and falls back to English if none matches. To choose one yourself, put `--lang` first:
+
+    nihilurk --lang pt
+
+From a clone, a language is a build choice and there is no flag:
+
+    cargo run -p nihilurk --no-default-features --features lang-pt
+
 Other roguelikes keep a wizard mode for testing. nihilurk has three environment variables instead. `NIHILURK_SPAWN` drops the things you name around you on every floor, `NIHILURK_LEVEL` makes every floor one kind of special level, and `NIHILURK_MAGICMAP` picks the magic mapping animation. The list is in `docs/reference/cli-and-env.md`.
 
-You may quit and return to one expedition later. There is one save file. It is for stopping, not for undoing a death: when an expedition ends, the save is gone. A completed expedition is kept as clear data, so beginning another game after a victory is a choice to enter the dungeon again.
+You may quit and return to one expedition later. Saves are for stopping, not for undoing a death: when an expedition ends, the save is gone. A completed expedition is kept as clear data, so beginning another game after a victory is a choice to enter the dungeon again.
 
 
 Who goes down
@@ -117,10 +138,9 @@ The map uses these symbols:
 | `) ] }` | Weapon, armour, or launcher |
 | `"`    | The Element of Yoord |
 
-A monster that cannot fight at full strength sits on a coloured square. Dark blue is asleep. Cyan is paralysed: it is slowed, not frozen. Dark green is held fast by a bear trap or a scroll of hold monster. Yellow is confused or fleeing. Grey is slowed.
+A monster that cannot fight at full strength is highlighted with a different tint. Dark blue is asleep. Cyan is paralysed: it is slowed, not frozen. Dark green is held fast by a bear trap or a scroll of hold monster. Yellow is confused or fleeing. Grey is slowed.
 
 Grey tiles are places you have seen but cannot currently see. The dungeon remembers walls and corridors, but not the creatures hiding beyond your sight.
-
 
 Moving and fighting
 -------------------
@@ -140,11 +160,11 @@ Move one square at a time with the arrows, vi keys, or number pad:
 | Southwest |        | `b`     | `1`    |
 | Southeast |        | `n`     | `3`    |
 
-Walk into a monster to attack it. There is no separate attack command. You cannot walk diagonally through the corner of two walls, and you cannot attack a wall. Also, **you cannot rest, search or otherwise pass your turn**. Stairs are the only recovery that is not magic, and nothing heals you as you walk.
+Walk into a monster to attack it. There is no separate attack command. You cannot walk diagonally through the corner of two walls, and you cannot attack a wall. Nothing heals you as you walk.
 
 Health is scarce. Armour can turn a blow aside, but no weapon is guaranteed to save you. If a fight is going badly, leave it, use a potion, or find another way around.
 
-Spirits are the shops. They are `&` creatures, and you make a deal by walking into one. Some give away a choice of items. Others trade if you carry something they want. There is no money in the dungeon, so this is the only buying you get. Deal with them too much, or hurt them, and you upset the balance: every spirit turns hostile. A scroll of atonement makes them peaceful again.
+Spirits are the shops. They are `&` creatures, and you make a deal by walking into one. Some give away a choice of items. Others trade if you carry something they want. Deal with them too much, or hurt them, and you upset the balance: every spirit turns hostile. A scroll of atonement makes them peaceful again.
 
 Several commands let you spend less time walking:
 
@@ -206,7 +226,7 @@ A Helper fights the monsters you can see, comes back to your side when there is 
 Thrown wands
 ------------
 
-Zap a wand (`z`) and it spends one charge. Throw it (`t`) and it spends every charge at once and bursts where it lands.
+Zap a wand (`z`) and it spends one charge. Throw it (`t`) and it bursts where it lands.
 
 
 Coins

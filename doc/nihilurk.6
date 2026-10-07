@@ -44,9 +44,34 @@ no currency. Dealing with them too much, or hurting them, upsets the balance
 and turns every spirit hostile. A scroll of atonement makes them peaceful
 again.
 .PP
+If you have played other roguelikes, some things you expect are missing or
+different. You cannot rest, search or pass a turn; stairs are the only
+recovery that is not magic. There is no hunger; the Dungeon Lord's patience
+runs out floor by floor instead. There are no experience levels: nihil grows
+by finding things and the lurk by killing them. You know what every potion and
+scroll is the moment you find it; only the quality of gear is hidden. There is
+no start-up menu, as in Rogue; your name and your body are arguments. Throw a
+treat at a monster and it may become your Helper; you keep one at a time, and other charmed creatures do not follow you between floors. Throw a wand and it spends
+every charge at once. A coin is spent the moment you step on it, or you can
+shoot it.
+.PP
 The game needs a terminal of at least 80 columns by 25 rows. In a smaller one
 the message log draws garbled letters; that is a known limit and will not be
 fixed.
+.PP
+nihilurk speaks English and a bit of Portuguese (pt). Spanish (es) and Haitian
+Creole (ht) exist in the codebase but need help. The installed
+.B nihilurk
+command picks the language from
+.BR LC_ALL ,
+.B LANG
+or
+.BR LANGUAGE ,
+and falls back to English if none matches. To choose one yourself, put
+.B \-\-lang
+.I pt
+first. From a clone, a language is a build choice with no flag:
+.B cargo run \-p nihilurk \-\-no\-default\-features \-\-features lang\-pt
 .PP
 To get started you only need to know two things: the direction keys move you,
 and walking into a monster attacks it. The rest of the commands are listed
