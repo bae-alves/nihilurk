@@ -1089,6 +1089,139 @@ mod tests {
         assert!(err.to_string().contains("no such species"));
     }
 
+    /// Every saved field set to a value no empty default shares, the wide ones
+    /// past a one-byte varint, and each enum at its last variant: inserting a
+    /// variant anywhere before it moves its index and changes the bytes, while
+    /// appending one (which the module docs allow) does not. A new field is a
+    /// compile error here, which is the point.
+    fn full_entity<'a>() -> EntitySave<'a> {
+        EntitySave {
+            position: Some((700, 300)),
+            renderable: Some(('@', 14)),
+            player: true,
+            hidden: true,
+            invisible: true,
+            consume: true,
+            amulet: true,
+            name: Some(Cow::Borrowed("name")),
+            viewshed: Some((9, bits(&[3, 69]))),
+            fighter: Some((300, 301, -2, 5, 6, 7, 8)),
+            magic: Some(Magic {
+                points: 3,
+                max_points: 4,
+            }),
+            faction: Some(Faction::Spirits),
+            backpack: Some(vec![1, 300]),
+            score: Some(-5000),
+            mob: Some(MovementType::Ambush),
+            item: true,
+            value: Some(300),
+            potion: Some(PotionEffect::Polymorph),
+            battery: Some(-3),
+            wand: Some(WandEffect::Swapping),
+            ranged: Some(300),
+            scroll: Some(ScrollEffect::Atonement),
+            ring: Some(RingEffect::Polymorph),
+            equipped: Some(Slot::Finger),
+            power_die: Some(300),
+            power_bonus: Some(-300),
+            armor_die: Some(301),
+            armor_bonus: Some(-301),
+            throw_bonus: Some(302),
+            stack: Some(200),
+            curse: true,
+            known_quality: true,
+            vorpal: Some(Cow::Borrowed("bane")),
+            effects: vec![
+                SavedEffect {
+                    id: "first".into(),
+                    lifetime: SavedLifetime::Turns(300),
+                },
+                SavedEffect {
+                    id: "second".into(),
+                    lifetime: SavedLifetime::NextAction,
+                },
+            ],
+            speed: Some(SpeedKind::Quick),
+            trap: Some((TrapEffect::Dart, TrapReveal::Triggered, true)),
+            pickup: Some((PickupEffect::LearnRandomSpell, 300)),
+            plated: true,
+            forged: true,
+            spellset: Some(vec![SpellEffect::GateDown]),
+            equipped_by: Some(300),
+            helper: true,
+            aggravated: Some((700, 701)),
+            alignment: Some(-100),
+            deck: Some(vec![Card {
+                face: CardFace::GoldenWind,
+                reversed: true,
+            }]),
+            rune: Some((RuneEffect::Protection, true)),
+            content: Some(Cow::Borrowed("arrow")),
+        }
+    }
+
+    fn bits(set: &[usize]) -> FixedBitSet {
+        let mut bits = FixedBitSet::with_capacity(70);
+        bits.extend(set.iter().copied());
+        bits
+    }
+
+    fn full_save<'a>() -> SaveGame<'a> {
+        let mut save = blank_save(vec![full_entity(), blank_entity()]);
+        save.player_name = Cow::Borrowed("player");
+        save.depth = 200;
+        save.floor_changes = 70_000;
+        save.rng_seed = 0x0123_4567_89ab_cdef;
+        save.dark_tiles = bits(&[0, 64]);
+        save.inert_doors = bits(&[69]);
+        save.dug_tiles = vec![1, 70_000];
+        save.cleared = true;
+        save.spirits_hostile = true;
+        save.monster_body = Some(Cow::Borrowed("dragon"));
+        save
+    }
+
+    fn split_header(bytes: &[u8]) -> (u16, &[u8]) {
+        postcard::take_from_bytes::<u16>(bytes).expect("a version leads the file")
+    }
+
+    const GOLDEN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden/save.bin");
+
+    /// The bytes of [`full_save`] are checked in. A change to a saved struct,
+    /// or to a serialised dependency such as the RNG, changes them, and the
+    /// test then asks for two things in order: bump [`SAVE_VERSION`], then
+    /// regenerate the file. It will not regenerate under the old version, so a
+    /// format change cannot slip into a release as a patch.
+    #[test]
+    fn the_save_layout_only_changes_with_the_version() {
+        let now = encode(SAVE_VERSION, &full_save());
+        let (now_version, now_body) = split_header(&now);
+        let golden = std::fs::read(GOLDEN).unwrap_or_default();
+        let (golden_version, golden_body) = match golden.is_empty() {
+            true => (0, &golden[..]),
+            false => split_header(&golden),
+        };
+        if now_body != golden_body {
+            assert_ne!(
+                now_version, golden_version,
+                "the saved layout changed, but SAVE_VERSION is still {now_version}. Bump it in \
+                 saveload.rs: old saves no longer load, so this ships as a minor release."
+            );
+        }
+        if std::env::var_os("NIHILURK_REGEN_GOLDEN").is_some() {
+            std::fs::create_dir_all(std::path::Path::new(GOLDEN).parent().unwrap()).unwrap();
+            std::fs::write(GOLDEN, &now).unwrap();
+            return;
+        }
+        assert!(
+            now == golden,
+            "tests/golden/save.bin is out of date. Regenerate it with \
+             `NIHILURK_REGEN_GOLDEN=1 cargo test -p nihilurk-models --lib the_save_layout`"
+        );
+        decode(&golden).expect("the checked-in save still decodes");
+    }
+
     fn load_one(tag: &str, entity: EntitySave) -> World {
         load_bytes(tag, &encode(SAVE_VERSION, &blank_save(vec![entity])))
             .expect("a well-formed save loads")
