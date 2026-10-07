@@ -1534,8 +1534,8 @@ pub(crate) fn content_id_of(display: &str) -> Option<&'static str> {
 /// way a ring's grants come back from [`RingDef::of`] — the row is the
 /// definition, so a save that stored these would only be storing the table
 /// twice.
-pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: &str) {
-    if let Some(def) = WEAPONS.iter().find(|d| d.name == name) {
+pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &str) {
+    if let Some(def) = WEAPONS.iter().find(|d| d.name == id) {
         entity.insert(ThrownDamage(def.thrown_die));
         attach_flight(entity, def.projectile, def.piercing);
         if def.reach > 0 {
@@ -1554,7 +1554,7 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
             entity.insert(on_doff);
         }
     }
-    if let Some(def) = AMMO.iter().find(|d| d.name == name) {
+    if let Some(def) = AMMO.iter().find(|d| d.name == id) {
         entity.insert((
             ThrownDamage(def.die),
             LaunchedDamage(def.launched_die),
@@ -1562,10 +1562,10 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: 
             LaunchedBy(def.launched_by),
         ));
     }
-    if let Some(def) = LAUNCHERS.iter().find(|d| d.name == name) {
+    if let Some(def) = LAUNCHERS.iter().find(|d| d.name == id) {
         entity.insert((Launcher, Grants(def.grants), MeleeCap(def.melee_cap)));
     }
-    if let Some(def) = TREATS.iter().find(|d| d.name == name) {
+    if let Some(def) = TREATS.iter().find(|d| d.name == id) {
         entity.insert(Treat {
             for_item_users: def.for_item_users,
         });

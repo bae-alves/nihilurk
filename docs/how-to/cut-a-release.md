@@ -40,13 +40,13 @@ The number says what an upgrade costs a player:
 
 So a release that breaks saves is a minor bump, and a release that breaks everything the old version made is a major one.
 
-Nothing checks this. The save format is not versioned (`models/src/saveload.rs` says so), so no tool can tell that a change breaks saves. The call is yours, and you make it when you pick the word. The two usual causes are a changed field in the save, because postcard stores fields by position (`add-an-item-category.md`), and a renamed content row, because a save stores names (`add-a-monster.md`). If in doubt, read the diff since the last tag with those two in mind.
+The script checks one cause. If `SAVE_VERSION` in `models/src/saveload.rs` changed since the last tag, it refuses any new version that keeps the same major and minor, so a save break cannot ship as a patch. A changed save layout cannot reach that point without a new `SAVE_VERSION`: `the_save_layout_only_changes_with_the_version` fails until it has one (`add-an-item-category.md`). The other usual cause is a renamed content row, because a save stores row ids (`add-a-monster.md`). Nothing catches that, so read the diff since the last tag for renames.
 
 
 What the script does
 --------------------
 
-It refuses, and edits nothing, if the working tree has uncommitted changes, if you are not on `master`, if the tag already exists, or if the new version is not greater than the current one. Then it edits:
+It refuses, and edits nothing, if the working tree has uncommitted changes, if you are not on `master`, if the tag already exists, if the new version is not greater than the current one, or if `SAVE_VERSION` changed since the last tag and the new version keeps the same major and minor. Then it edits:
 
     the four published crates     `version`, and every `path` pin on
                                   a dependency line

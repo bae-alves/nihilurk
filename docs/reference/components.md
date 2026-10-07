@@ -21,7 +21,7 @@ Two shapes recur:
   * **Marker** — no fields. Presence is the fact (`Player`, `Blood`, `Curse`, `Confused`).
   * **Type key** — one enum naming which one it is (`Potion` → `PotionEffect`). The key is identity for `identify.rs` and the save file; it is never behaviour. The catalog row turns a key into the components that do something; the mechanic is a `match` on the key.
 
-"Saved?" below means the field survives `models/src/saveload.rs`. A **transient** field is rebuilt every frame or every load and deliberately left out of the save. A **catalog** component is re-attached by name on load (`restore_from_catalog`), so it is never written either.
+"Saved?" below means the field survives `models/src/saveload.rs`. A **transient** field is rebuilt every frame or every load and deliberately left out of the save. A **catalog** component is re-attached from the row's id on load (`restore_from_catalog`), so it is never written either.
 
 
 Components — identity, position, appearance
@@ -51,14 +51,14 @@ rather than three flags, because a player is exactly one of them.
 | Type | Data | On | Saved? |
 |------|------|----|--------|
 | `StartingBody` | `Resource`, `Body` | which body the *next* spawned player wakes up in; read once by `map::initialize_world` | not saved directly — see below |
-| `MonsterBody`  | `Component`, `&'static MonsterDef` | the player, only when wearing a species | **no** — read back from `Name`, which *is* the species name, on load |
+| `MonsterBody`  | `Component`, `&'static MonsterDef` | the player, only when wearing a species | yes, as the species id (`SaveGame::monster_body`), not read back from `Name` |
 | `Lurk`         | effect marker (`crate::effects`) | the player, only as a lurk | yes — an ordinary row in `EFFECTS`, held like anything else a creature was born with |
 
-Neither class nor species costs `saveload::EntitySave` a field: the save
-format isn't versioned, and every field it has ever gained has killed every
-save already in progress. So a body is never written down directly — it is
-reconstructed from something that was already being saved for another
-reason (`Name`, or the effect ledger).
+A monster body is the one body the save writes down: `SaveGame::monster_body`
+holds the species id, and `load_game` puts `MonsterBody` and `StartingBody`
+back from it. It is not read back from `Name`, which is whatever the player
+typed. A lurk is reconstructed from the effect ledger, and nihil is what is
+left.
 
 `Body::equip_refusal` is the one gate on whether a body can wear something,
 and `Body::innate_tempo` is the tempo it returns to when a staircase lifts
@@ -232,7 +232,7 @@ A missile and a launcher never name each other; they meet at an effect (`FireArr
 | `LaunchedBy`   | `Grant`                  | the effect a launcher must grant to switch this missile to its `LaunchedDamage` die | catalog |
 | `Launcher`     | marker                   | a bow / crossbow — no attack die, enchant lands on `ThrowBonus` | catalog |
 
-"catalog" = re-attached by item name on load (`restore_from_catalog`), never written to the save.
+"catalog" = re-attached by row id on load (`restore_from_catalog`), never written to the save.
 
 Reach weapons (`combat::resolve_reach_attack`, aimed with `v`) are the melee counterpart:
 

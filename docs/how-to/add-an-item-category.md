@@ -111,23 +111,28 @@ Everything so far is description. If your item needs behaviour, that lives where
 Step 6: teach the save file, if it needs teaching
 -------------------------------------------------
 
-An item is saved as its name plus a fixed set of component slots in `EntitySave` (`models/src/saveload.rs`). Your new `Food` component is not one of them, so by default a saved ration comes back as a nameless husk that does nothing.
+An item is saved as its row's id (`content`) plus a fixed set of component slots in `EntitySave` (`models/src/saveload.rs`). Your new `Food` component is not one of them, so by default a saved ration comes back as a nameless husk that does nothing.
 
 Two ways out, cheapest first:
 
   1. **Rebuild it from the row.** Extend `restore_from_catalog` in `catalog.rs`, which already does exactly this for weapons, ammo and launchers:
 
-         if let Some(def) = FOODS.iter().find(|d| d.name == name) {
+         if let Some(def) = FOODS.iter().find(|d| d.name == id) {
              entity.insert((Food { nutrition: def.nutrition }, Consume));
          }
 
-     The row is the definition, so looking it up by name is always
+     The row is the definition, so looking it up by id is always
      cheaper than storing what the row already says. Prefer this.
 
-  2. **Add a field to `EntitySave`.** Only when the value differs per entity -- a battery's remaining charges, a stack's count. Add the field at the end of the struct and read/write it in `save_game` and `load_game`.
+  2. **Add a field to `EntitySave`.** Only when the value differs per entity -- a battery's remaining charges, a stack's count. Add the field at the end of the struct, read/write it in `save_game` and `load_game`, and bump `SAVE_VERSION`.
 
 > **`EntitySave` field order is the save format.** Postcard encodes
-> fields positionally. Append; do not insert or reorder.
+> fields positionally. Append; do not insert or reorder. Any change to a
+> saved struct needs a new `SAVE_VERSION`: the test
+> `the_save_layout_only_changes_with_the_version` fails until it has one,
+> then until you regenerate `models/tests/golden/save.bin` (its message says
+> how). The release is then a minor one, and `release/bump.lua` refuses a
+> patch.
 
 
 Step 7: identification, if it is equipment
@@ -168,7 +173,7 @@ Appendix: quick check
 3. Write the table as a `pub const` with `#[rustfmt::skip]`.
 4. Add one `category!(..)` line to `DROPS` in `models/src/spawn.rs`.
 5. Behaviour: hook the component into `item_system` and a file under `models/src/items/`.
-6. Save: extend `restore_from_catalog`, or append a field to `EntitySave`; never insert one.
+6. Save: extend `restore_from_catalog`, or append a field to `EntitySave` and bump `SAVE_VERSION`; never insert one.
 7. Worn gear with a hidden quality: run `enchant_equipment` at spawn and let `KnownQuality` gate it.
 8. Run `cargo run -p nihilurk -- -content | grep -A3 '^<category>'` and `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
 9. Run `cargo test`, then `cargo test --test saveload`.

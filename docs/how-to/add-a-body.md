@@ -57,15 +57,14 @@ new shape.
 
        Body::Wraithkin => wear_wraithkin(world, player),
 
-4. **Give it a marker that survives a save.** Neither the enum nor a field
-   costs `saveload::EntitySave` anything — see the module doc comment on
-   *why*: the save format isn't versioned, so a field it never had is a
-   field an in-progress run can't come back from. A monster body is read
-   back from `Name` (the species name doubles as the marker); the lurk
-   is read back from its own `Lurk` effect marker, which rides the effect
-   ledger like anything else a creature was born with. Your body needs the
-   same: an effect (or existing marker) that (a) is already saved, and (b)
-   nothing else in the game would attach to the player by accident.
+4. **Give it a marker that survives a save.** A monster body is the one
+   body the save writes down (`SaveGame::monster_body`, the species id);
+   the lurk is read back from its own `Lurk` effect marker, which rides the
+   effect ledger like anything else a creature was born with. Your body
+   needs the same: an effect (or existing marker) that (a) is already
+   saved, and (b) nothing else in the game would attach to the player by
+   accident. A new saved field changes the save format: see the
+   `EntitySave` note in `add-an-item-category.md`.
 
 5. **Teach `innate_tempo`** if the body doesn't return to `SpeedKind::Normal`
    after a staircase lifts whatever the floor lent it (the lurk always

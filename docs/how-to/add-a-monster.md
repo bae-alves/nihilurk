@@ -128,8 +128,8 @@ Chains combine in any order:
 > 256-colour index -- draws correctly and reloads as White. The palette is
 > listed in `../reference/content-tables.md`.
 
-> **Renaming a row breaks old saves.** A saved monster stores its name and
-> looks its species back up on load. Rename `"basilisk"` and every
+> **Renaming a row breaks old saves.** A saved monster stores its row's id
+> (the `name`) and looks its species back up on load. Rename `"basilisk"` and every
 > basilisk in an existing save comes back without its innate magic. Adding
 > and removing rows is safe; renaming is not.
 
@@ -153,7 +153,7 @@ Appendix: quick check
 2. Give it a unique lowercase name, a stat band from "Choosing the numbers", and a `min_depth`.
 3. Chain extras only if you need them: `.grants(..)`, `.casts(..)`, `.invisible()`, `.weight(..)`.
 4. Pick a colour from the sixteen in the palette, and never write `Aggravated` as the movement.
-5. Never rename an existing row; saved monsters look their species up by name.
+5. Never rename an existing row; saved monsters look their species up by id (the `name`).
 6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk` and look at it.
 7. Run `cargo test --test content`.
 8. Fix the docs: nothing, unless the row brings a new mechanic (`update-the-docs.md`).

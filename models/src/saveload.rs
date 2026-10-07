@@ -42,7 +42,8 @@
 //!   nothing: postcard is not self-describing, so a field added or removed
 //!   changes every byte after it. Every field this file has ever gained has
 //!   cost exactly that. Bump the constant with the change, and ship it as a
-//!   minor release (`release/bump.lua` refuses a patch one); believe the
+//!   minor release (`the_save_layout_only_changes_with_the_version` fails
+//!   until you do, and `release/bump.lua` refuses a patch one); believe the
 //!   attribute instead, and the next one ships as a change that quietly kills
 //!   every run already in progress.
 

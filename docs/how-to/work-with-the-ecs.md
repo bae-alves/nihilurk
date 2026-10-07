@@ -139,7 +139,7 @@ What is left is a genuinely new *fact about an entity*, and it goes in `models/s
 Then, in order:
 
   1. **Derive no more than it needs.** `Component` always. `Clone, Copy` when it is small and gets read out by value. `Serialize, Deserialize` *only* if the save stores the type itself rather than its fields — most do not.
-  2. **Decide if it is saved**, and write the answer in the doc comment. If yes: a field on `saveload::EntitySave` with `#[serde(default)]`, plus the save line and the load line. If no, say *why* — rebuilt every frame (`Viewshed::visible_tiles`), reset on load (`Speed::energy`), or re-attached from a catalog row by name (`ThrownDamage`). A component that is silently neither is a bug waiting for somebody's save file.
+  2. **Decide if it is saved**, and write the answer in the doc comment. If yes: a field appended to `saveload::EntitySave`, plus the save line, the load line and a new `SAVE_VERSION`. If no, say *why* — rebuilt every frame (`Viewshed::visible_tiles`), reset on load (`Speed::energy`), or re-attached from a catalog row by id (`ThrownDamage`). A component that is silently neither is a bug waiting for somebody's save file.
   3. **Give it a row** in `../reference/components.md`, in the section it belongs to, with its "Saved?" column filled in.
 
 Rules that are not negotiable:
@@ -292,7 +292,7 @@ Every verb returns `bool`: whether it actually took hold. That answer is load-be
   2. A verb in `conditions.rs` that does the player/monster split once.
   3. An arm in `conditions::cure_one_condition` (a rosé coin and a ring of regeneration both lift "the worst thing wrong with you", worst first) and in `conditions::afflicted`.
   4. An arm in `conditions::clear_player_conditions`, unless it is meant to survive a staircase — `Plated` and `Forged` are the only two that do, and the staircase *settles* them instead.
-  5. A field in `saveload::EntitySave` with `#[serde(default)]`, plus the save and load lines. A condition a save forgets is a condition that silently lifts on reload.
+  5. A field appended to `saveload::EntitySave`, plus the save and load lines and a new `SAVE_VERSION`. A condition a save forgets is a condition that silently lifts on reload.
   6. A badge in the HUD's condition list (`engine/src/view.rs`).
 
 A condition that lives on a *monster* usually needs none of this: prefer a `MovementType` or a `Speed` shift, which the AI already reads.

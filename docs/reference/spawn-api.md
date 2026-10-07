@@ -169,9 +169,9 @@ Rolls quality for a freshly spawned piece of gear and stamps the result on. Read
 
 A fresh single unit of whatever `item` is a stack of, spawned nowhere in particular -- the one arrow that leaves a quiver when you shoot it. `None` if the item is not something the catalog can make more of.
 
-    pub fn restore_from_catalog(entity: &mut EntityWorldMut, name: &str)
+    pub fn restore_from_catalog(entity: &mut EntityWorldMut, id: &str)
 
-Re-attaches what a row gives an item that the save file does not store: how a weapon behaves in flight, what a bow lends its wielder, what a missile answers to. Keyed by name, because the row is the definition.
+Re-attaches what a row gives an item that the save file does not store: how a weapon behaves in flight, what a bow lends its wielder, what a missile answers to. Keyed by the row's id, because the row is the definition. The save stores the id (`content`), found at save time from the entity's display name.
 
 
 Effects
