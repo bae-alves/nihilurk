@@ -2395,15 +2395,11 @@ pub fn quit_answers() -> &'static str {
     "[s] sim    [n] não"
 }
 pub fn onboarding_keys() -> [&'static str; 3] {
-    [
-        "[hjklyubn] ANDAR",
-        "[o/TAB] EXPLORAR/LUTAR",
-        "[i] INVENTÁRIO",
-    ]
+    ["[hjklyubn] ANDAR", "[o/TAB] EXPLORAR/LUTAR", "[i] BAG"]
 }
 
 pub fn pack_slots(used: usize, total: usize) -> String {
-    format!("INVENTÁRIO: ({used}/{total})")
+    format!("BAG: ({used}/{total})")
 }
 
 pub fn help_title() -> &'static str {
@@ -2418,7 +2414,7 @@ pub fn help_rows() -> [&'static str; 13] {
         "Tab         atacar o inimigo mais fraco à vista",
         "O           viajar até um ponto",
         "> <         usar as escadas",
-        "i           itens",
+        "i           bag",
         "a t d       usar, arremessar, derrubar",
         "e w W P     equipar, empunhar, vestir, colocar",
         "q r z       beber, ler, usar varinha",
