@@ -9,17 +9,31 @@ use bevy_ecs::prelude::*;
 use models::*;
 
 fn test_world(seed: u64, body: Body) -> World {
+    named_world(seed, "TESTER", body)
+}
+
+fn named_world(seed: u64, name: &str, body: Body) -> World {
     let mut w = World::new();
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
     w.init_resource::<SpellQueue>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
+    w.insert_resource(PlayerName { what: name.into() });
     w.insert_resource(StartingBody(body));
     initialize_world(&mut w);
     w
+}
+
+fn reloaded(w: &mut World, tag: &str) -> World {
+    let save = common::SaveFile::new(tag);
+    save_game(w, save.path()).unwrap();
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(99)));
+    w2.insert_resource(RngSeed(99));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+    w2
 }
 
 fn player(w: &mut World) -> Entity {
@@ -188,6 +202,26 @@ fn the_body_comes_back_from_a_save() {
     assert_eq!(w2.get::<Speed>(p2).unwrap().kind, SpeedKind::Fast);
     assert!(w2.get::<Undead>(p2).is_some(), "innate magic came back");
     assert!(w2.get::<MonsterBody>(p2).is_some());
+}
+
+#[test]
+fn a_player_named_after_a_species_is_still_nihil_after_a_save() {
+    let mut w = named_world(7, "dragon", Body::Nihil);
+    let p = player(&mut w);
+    let hp = w.get::<Fighter>(p).unwrap().max_hp;
+
+    let mut w2 = reloaded(&mut w, "named-dragon");
+
+    let p2 = player(&mut w2);
+    assert!(w2.get::<MonsterBody>(p2).is_none(), "no costume was saved");
+    assert!(w2.get::<FireImmune>(p2).is_none(), "no dragon magic");
+    assert_eq!(w2.get::<Fighter>(p2).unwrap().max_hp, hp);
+    assert!(
+        w2.get_resource::<StartingBody>()
+            .is_none_or(|b| !matches!(b.0, Body::Monster(_))),
+        "the run did not start as a monster"
+    );
+    assert_eq!(w2.get::<Name>(p2).unwrap().what, "dragon");
 }
 
 fn logged(w: &World, line: &str) -> bool {

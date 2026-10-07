@@ -12,12 +12,9 @@
 //!
 //! ## How a form survives a save
 //!
-//! Neither class nor species costs the save file a field, which matters:
-//! `crate::saveload` is not versioned, and every field it has ever gained has
-//! killed every run already in progress.
-//!
-//! * A **monster body** is read back from the player's [`Name`], which *is*
-//!   the species (see [`crate::saveload`]), as the [`MonsterBody`] marker.
+//! * A **monster body** is saved as the species' id (`SaveGame::monster_body`
+//!   in [`crate::saveload`]) and put back as the [`MonsterBody`] marker. It is
+//!   not read back from the player's [`Name`]: a nihil may be called "dragon".
 //! * A **lurk** is read back from the [`Lurk`] marker, which rides the effect
 //!   ledger like any other thing a creature was born with.
 //! * **nihil** is what a player with neither is.

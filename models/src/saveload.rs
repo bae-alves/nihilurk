@@ -344,6 +344,12 @@ struct SaveGame<'a> {
     /// [`crate::components::SpiritsHostile`].
     #[serde(default)]
     spirits_hostile: bool,
+    /// The bestiary row the player wears (`-am <species>`), by [`MonsterDef::name`],
+    /// the id that survives a translation. Stored, not read back from the
+    /// player's [`Name`]: a nihil who typed "dragon" at the prompt has the same
+    /// name as a dragon.
+    #[serde(borrow)]
+    monster_body: Option<Cow<'a, str>>,
 }
 
 /// The winner's details, pulled from a won game's clear-data save file.
@@ -550,6 +556,16 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         });
     }
 
+    let monster_body = ents.iter().find_map(|&e| {
+        let er = world.entity(e);
+        er.contains::<Player>()
+            .then(|| {
+                er.get::<crate::body::MonsterBody>()
+                    .map(|b| Cow::Borrowed(b.0.name))
+            })
+            .flatten()
+    });
+
     let save = SaveGame {
         entities,
         player_name: Cow::Borrowed(world.resource::<PlayerName>().what.as_str()),
@@ -562,6 +578,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         dug_tiles: dug_tiles(world),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
         spirits_hostile: world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0),
+        monster_body,
     };
 
     let file = std::fs::File::create(path)?;
@@ -580,6 +597,15 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
 pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     let bytes = std::fs::read(path)?;
     let save = decode(&bytes)?;
+    let body_def = match save.monster_body.as_deref() {
+        None => None,
+        Some(id) => Some(MonsterDef::lookup(id).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("this save names a species, {id:?}, that this build does not know"),
+            )
+        })?),
+    };
 
     world.insert_resource(GameState::new());
     world.insert_resource(BloodStains::new());
@@ -600,13 +626,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     world.insert_resource(DungeonLord::default());
     world.insert_resource(SpiritsHostile(save.spirits_hostile));
 
-    if let Some(def) = save
-        .entities
-        .iter()
-        .find(|es| es.player)
-        .and_then(|es| es.name.as_deref())
-        .and_then(MonsterDef::lookup)
-    {
+    if let Some(def) = body_def {
         world.insert_resource(crate::body::StartingBody(crate::body::Body::Monster(def)));
     }
     regenerate_map(world, save.rng_seed, save.depth);
@@ -825,7 +845,11 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 bane: bane.into_owned(),
             });
         }
-        if let Some(def) = entity_name.as_deref().and_then(MonsterDef::lookup) {
+        let species = match es.player {
+            true => body_def,
+            false => entity_name.as_deref().and_then(MonsterDef::lookup),
+        };
+        if let Some(def) = species {
             if !def.grants.is_empty() {
                 em.insert(Grants(def.grants));
             }
@@ -962,6 +986,7 @@ mod tests {
             dug_tiles: Vec::new(),
             cleared: false,
             spirits_hostile: false,
+            monster_body: None,
         }
     }
 
@@ -1034,6 +1059,17 @@ mod tests {
         let clear = clear_data(path.to_str().unwrap()).unwrap();
         let _ = std::fs::remove_file(&path);
         assert!(clear.is_none());
+    }
+
+    #[test]
+    fn a_save_naming_a_species_this_build_lacks_is_refused() {
+        let mut save = blank_save(vec![blank_entity()]);
+        save.monster_body = Some(Cow::Borrowed("no such species"));
+        let err = load_bytes("species", &encode(SAVE_VERSION, &save))
+            .err()
+            .expect("an unknown species must not load as a plain nihil");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("no such species"));
     }
 
     #[test]
