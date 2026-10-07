@@ -1,7 +1,7 @@
 # nihilurk
 nihilurk is a classic roguelike about descending a dungeon, acquiring an item, and ascending it back again. Life is unfair and death is permanent. The game's humor is pessimistic, nihilistic and absurdist without being edgy. Rogue kind of had coherent a lore/plot blurb. This game is about thrill of the arcade!
 
-Game plays like any classic roguelike, but has simplified controls and movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
+Game plays like any classic roguelike, but has simplified controls and a focus on movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). Crawl is built the same way, and I took its lead. The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
 
 ## Vibe
 Absurdist gorefest! The dungeon is only normal on the surface, getting madder and madder the more the player descends. The game is not really about anything. It's just fun and scoring, strategizing, and doing hallucinating combos!
@@ -13,8 +13,10 @@ The game is a dungeon crawl with 13 levels, the last one has the Element of Yoor
 `o o o TAB TAB TAB TAB o o...`
 In this game, the player controls a nihilurk that can move on a grid; fight monsters by trying to move into their space; auto-explore; auto-fight and use many items (wearables, consumables, etc.) in pursuit of the Element of Yoord.
 
-### What is unique: trick shots
-Rogue is a game about what you walk into. nihilurk is also a game about what you shoot. The trick shot is the thing no other roguelike does, and the rest of the design leans on it.
+### What is different
+I studied six roguelikes while making this: Rogue, NetHack, Dungeon Crawl Stone Soup, Angband, Umoria and Brogue. This is where nihilurk parts from them, and where it does not.
+
+**Trick shots.** Rogue is a game about what you walk into. nihilurk is also a game about what you shoot, and the rest of the design leans on it.
 
 Almost everything on the floor that can go off can be set off from across the room. Put a missile on it, or wash a blast over it, and it lets go:
 - A trap. A trap only bites whoever is standing on it. Shot, it has nobody to bite, so the whole mechanism goes at once over the tiles around it, armor-proof, and then works its own effect on everyone caught.
@@ -29,6 +31,29 @@ The shot is the skill, and the game works to keep it one:
 - It is nobody's friend. Stand a tile away from your own shot and it catches you too.
 
 A good trick shot shouts in magenta.
+
+**Also different.**
+- Wand grenades. Thrown, a wand spends every charge at once and bursts where it lands.
+- Coins are pickups. You never carry one: you step on it and it acts, or you shoot it.
+- Spirits are the shops, and there is no money. See Mechanics.
+- Boon companions. Throw the right treat at a monster and half the time it joins you as a Helper. You get one at a time, and it follows you down the stairs.
+- A thrown deck of cards plays as a poker hand. The decks themselves are Crawl's.
+- You can play as any monster (`-am dragon`).
+- The bodies are the classes: nihil, lurk, or any monster. There are no experience levels.
+- Stairs are the only recovery that is not magic. You cannot rest, search or pass a turn, and nothing heals you as you walk. The ring of regeneration does not heal either: each turn it has a chance to clear one condition, or else restore one drained power.
+- Everything but gear is known on sight: potions, scrolls, wands, runes, rings, coins and treats. Gear hides its plus and its curse until you wear it or identify it.
+- No hunger, rest or search.
+- Like Rogue, the game starts at once, with no menus. Your name and your body are arguments.
+- Where the classics ship a wizard mode, nihilurk has three environment variables: `NIHILURK_SPAWN`, `NIHILURK_LEVEL` and `NIHILURK_MAGICMAP`. They are in `docs/reference/cli-and-env.md`.
+- The gorefest is opt-out by argument: `-nb` and `-nshake`.
+
+**Borrowed, and said so.**
+- Crawl: the automation focus, and decks of cards.
+- NetHack: shift to run.
+- Crypt of the NecroDancer: the patience timer.
+- Rogue: sight, the room generator and permadeath.
+
+**A flex, said lightly.** It is a human-friendly, moddable codebase, in Rust. `docs/` follows Diátaxis: a tutorial, how-tos, a reference and the reasoning behind it.
 
 ### User Skills
 - Strategizing
@@ -121,6 +146,8 @@ This game is made for terminal screens and is styled like the original Rogue, wi
 ### Technical Description
 This is a game made to run on most shells and devices that run shells. It uses keyboard controls though, that might limit the hardware scope. It is made using bevy_ecs and crossterm on rust for unnecesarily peak performance.
 
+The particle arithmetic is portable and lives in a reusable effects crate, `particle-core`: `no_std`, no dependencies, and `compat/` builds it for RISC-V and ESP32.
+
 Content is data. Every monster, item and trap is a row in a table, and the dungeon decides what turns up by drawing from those tables with a weight and a debut depth, so adding a thing is usually adding a line. `docs/` covers how: a tutorial, a recipe per kind of content, a reference for every field, and the reasoning behind the shape. This document is the design; `docs/` is the code.
 
 ### Demographics
@@ -135,3 +162,36 @@ English, Portuguese, Spanish and Haitian Creole, one binary each. A classic rogu
 ### Other ideas/Expansion backlog
 - More player character options
 - Steam
+
+### APPENDIX N - Games that Inspired This
+- Rogue
+- NetHack
+- Dungeon Crawl Stone Soup
+- Angband
+- Umoria
+- Brogue
+- Wildfrost
+- Crypt of the NecroDancer
+- Slay the Spire
+- Balatro
+- Dwarf Fortress
+- XCOM
+- The Nier series
+- Dicing Knight.
+- Everything From Software
+- Darkest Dungeon
+- Nuclear Throne
+- The Binding of Isaac
+- The Mystery Dungeon series
+- Super Auto Pets
+- One Way Heroics
+- Spelunky
+- WazHack
+- Caves of Qud
+
+#### Analog Games
+- Ironsworn
+- Tunnels and Trolls (1975 edition)
+- Knave 2e
+- Heroes of Cerulea
+- OSRIC and the retroclone ecosystem, which is what made me try to make videogame retroclones

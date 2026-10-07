@@ -1,9 +1,23 @@
 nihilurk: instruction manual
 ========================
 
-Descend thirteen floors, take the Element of Yoord, and carry it back to the surface. Monsters, traps, unidentified items, and permanent death stand between you and the exit.
+Descend thirteen floors, take the Element of Yoord, and carry it back to the surface. Monsters, traps, gear of unknown quality, and permanent death stand between you and the exit.
 
 What sets nihilurk apart is the trick shot: a missile that lands on a trap, a coin or a potion on the floor sets it off from across the room, over everything around it, and the burst can set off the next one. A creature standing on something you could set off is drawn on a magenta square. The rules are under "Trick shots" in the pack section below.
+
+If you have played other roguelikes, this table shows where nihilurk parts from them:
+
+| You may expect | Here |
+|----------------|------|
+| Resting and searching | You cannot rest, search or pass a turn. Stairs are the only recovery that is not magic. |
+| A food clock | No hunger. The Dungeon Lord's patience runs out floor by floor instead. |
+| Experience levels | None. Nihil gets stronger by finding things and the lurk by killing them. |
+| Unknown potions and scrolls | You know what each one is the moment you find it. Gear hides its quality. |
+| Shops | Spirits give items away or trade them. There is no money. |
+| A start-up menu | None, as in Rogue. Your name and your body are arguments. |
+| Pets | Throw a treat at a monster and it may become your Helper. |
+| Wands | You can zap one, or throw it to spend every charge at once. |
+| Gold | A coin is spent the moment you step on it, or you can shoot it. |
 
 
 Starting the game
@@ -15,12 +29,15 @@ Start a new expedition with:
     cargo run -p nihilurk -- YourName       # name your nihilurk
     cargo run -p nihilurk -- -s 1234        # play a particular seed
     cargo run -p nihilurk -- -b lurk        # descend as a lurk
+    cargo run -p nihilurk -- -am dragon     # descend as any monster in the dungeon
 
 nihilurk needs a terminal of at least 80 columns by 25 rows. In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
 
 The commands above run the game from a clone. After `cargo install nihilurk`, type `nihilurk` in their place. If your shell cannot find it, `~/.cargo/bin` is not on your `PATH`; the README's install steps shows how to add it.
 
 Your name, if you give one, comes first. Everything else comes after it.
+
+Other roguelikes keep a wizard mode for testing. nihilurk has three environment variables instead. `NIHILURK_SPAWN` drops the things you name around you on every floor, `NIHILURK_LEVEL` makes every floor one kind of special level, and `NIHILURK_MAGICMAP` picks the magic mapping animation. The list is in `docs/reference/cli-and-env.md`.
 
 You may quit and return to one expedition later. There is one save file. It is for stopping, not for undoing a death: when an expedition ends, the save is gone. A completed expedition is kept as clear data, so beginning another game after a victory is a choice to enter the dungeon again.
 
@@ -123,7 +140,7 @@ Move one square at a time with the arrows, vi keys, or number pad:
 | Southwest |        | `b`     | `1`    |
 | Southeast |        | `n`     | `3`    |
 
-Walk into a monster to attack it. There is no separate attack command. You cannot walk diagonally through the corner of two walls, and you cannot attack a wall. Also, **you cannot rest, search or otherwise pass your turn**.
+Walk into a monster to attack it. There is no separate attack command. You cannot walk diagonally through the corner of two walls, and you cannot attack a wall. Also, **you cannot rest, search or otherwise pass your turn**. Stairs are the only recovery that is not magic, and nothing heals you as you walk.
 
 Health is scarce. Armour can turn a blow aside, but no weapon is guaranteed to save you. If a fight is going badly, leave it, use a potion, or find another way around.
 
@@ -177,6 +194,31 @@ Decks of cards
 --------------
 
 A deck of cards is very rare. It holds five cards, stacked when the deck turns up, and one or two of them lie reversed. Read it (`r`) and you play the top card; a reversed card plays its darker side. Some cards play other cards. Throw the deck instead and all that is left plays at once as a poker hand, never reversed, on you: the better the hand, the more points, and a FOOL counts as any card. Five of a kind hands you the Element of Yoord.
+
+Helpers
+-------
+
+A treat is food for a creature that is not you. You cannot use one, so throw it. Throw the right treat at a monster and it eats the treat. Half the time it becomes your Helper.
+
+A Helper fights the monsters you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. It has its own background colour. Walk into it to trade places. You get one Helper at a time.
+
+
+Thrown wands
+------------
+
+Zap a wand (`z`) and it spends one charge. Throw it (`t`) and it spends every charge at once and bursts where it lands.
+
+
+Coins
+-----
+
+You do not carry coins. Stepping on one spends it on the spot, and a coin that would do nothing for you stays where it is until it would. Shoot one instead and its effect reaches you from where you stand.
+
+  * Some coins are treasure and add to your score.
+  * Some coins heal you, refill your magic, lift your afflictions, or restore drained strength, up to four points each.
+  * Two coins make you a promise. Reach a staircase unhurt and it pays: the first adds a point to your attack die or your armour die, the second adds a plus to your weapon or your armour. Any blow that lands on you before then takes the promise back.
+  * The hero coin teaches you a spell you do not know.
+
 
 Unknown things
 --------------

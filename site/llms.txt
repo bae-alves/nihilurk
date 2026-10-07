@@ -1,6 +1,6 @@
 # nihilurk
 
-> nihilurk is a free, open-source Rogue-like (roguelike) for the terminal, written in Rust. Descend thirteen floors, take the Element of Yoord off the Dungeon Lord, and carry it back up. Turn-based grid, unidentified items, traps, and permanent death. One binary, no assets.
+> nihilurk is a free, open-source Rogue-like (roguelike) for the terminal, written in Rust. Descend thirteen floors, take the Element of Yoord off the Dungeon Lord, and carry it back up. Turn-based grid, gear of unknown quality, traps, and permanent death. One binary, no assets.
 
 Facts:
 

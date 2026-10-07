@@ -7,7 +7,7 @@ If you're enjoying nihilurk, [buy me a coffee](https://ko-fi.com/baealves).
 
 What you get:
 
-  * A classic roguelike on a turn-based grid: thirteen floors, traps, unidentified items, and permanent death. There is one save, and it is deleted when an expedition ends.
+  * A classic roguelike on a turn-based grid: thirteen floors, traps, gear of unknown quality, and permanent death. There is one save, and it is deleted when an expedition ends.
   * Auto-explore (`o`) and auto-fight (`Tab`), so safe ground is quick and the fights are the game.
   * Trick shots, the thing nihilurk does that Rogue never did: shoot a trap, a coin or a potion on the floor from across the room and it goes off over everything around it. Bursts chain. Only ranged attacks do it, and it catches you too if you stand close.
   * Seeded floors (`-s 1234`), and two ways down: nihil, who carries gear, or the lurk (`-b lurk`), who has claws and fur.
