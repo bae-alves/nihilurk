@@ -36,12 +36,15 @@
 //!   a saved trapdoor comes back as something else. (Appended *variants* keep
 //!   their elders readable; appended *fields* do not — postcard is not
 //!   self-describing and does not fill in absent fields.)
-//! * **The format is not versioned.** `#[serde(default)]` marks the fields
-//!   that joined late, but it rescues nothing: postcard is not
-//!   self-describing, and a save written by an older build fails to parse.
-//!   Every field this file has ever gained has cost exactly that — believe
-//!   the attribute instead, and the next one ships as a change that quietly
-//!   kills every run already in progress.
+//! * **The format is versioned, and nothing migrates.** The file opens with
+//!   [`SAVE_VERSION`], and a save under any other version is refused by name.
+//!   `#[serde(default)]` marks the fields that joined late, but it rescues
+//!   nothing: postcard is not self-describing, so a field added or removed
+//!   changes every byte after it. Every field this file has ever gained has
+//!   cost exactly that. Bump the constant with the change, and ship it as a
+//!   minor release (`release/bump.lua` refuses a patch one); believe the
+//!   attribute instead, and the next one ships as a change that quietly kills
+//!   every run already in progress.
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
@@ -280,6 +283,34 @@ struct EntitySave<'a> {
     rune: Option<(RuneEffect, bool)>,
 }
 
+/// The version of the bytes [`save_game`] writes, stored as the file's first
+/// field. Bump it whenever a saved struct or enum changes shape: a field added,
+/// removed or reordered, a variant inserted anywhere but the end.
+///
+/// A file under any other version is refused by name instead of failing as a
+/// postcard parse error. `release/bump.lua` reads this line: it refuses a
+/// `patch` release when the value changed since the last tag, because a changed
+/// save format is a minor bump.
+pub const SAVE_VERSION: u16 = 1;
+
+/// Splits a save file into its version and the [`SaveGame`] behind it, and
+/// refuses any version but [`SAVE_VERSION`]. A file written before saves were
+/// versioned starts with a different number, so it is refused here too.
+fn decode(bytes: &[u8]) -> std::io::Result<SaveGame<'_>> {
+    let invalid = |e: postcard::Error| std::io::Error::new(std::io::ErrorKind::InvalidData, e);
+    let (version, rest) = postcard::take_from_bytes::<u16>(bytes).map_err(invalid)?;
+    if version != SAVE_VERSION {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "this save is version {version}, but this build reads version {SAVE_VERSION}: \
+                 it was written by another release, or before saves were versioned"
+            ),
+        ));
+    }
+    postcard::from_bytes(rest).map_err(invalid)
+}
+
 #[derive(Serialize, Deserialize)]
 struct SaveGame<'a> {
     #[serde(borrow)]
@@ -347,7 +378,7 @@ pub fn strip_control_chars(s: &str) -> String {
 /// the normal load path can report that instead.
 pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
     let bytes = std::fs::read(path)?;
-    let Ok(save) = postcard::from_bytes::<SaveGame>(&bytes) else {
+    let Ok(save) = decode(&bytes) else {
         return Ok(None);
     };
     Ok(save.cleared.then(|| ClearData {
@@ -535,7 +566,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
 
     let file = std::fs::File::create(path)?;
     let writer = std::io::BufWriter::new(file);
-    let mut writer = postcard::to_io(&save, writer)
+    let mut writer = postcard::to_io(&(SAVE_VERSION, &save), writer)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     writer.flush()
 }
@@ -548,8 +579,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
 /// fresh [`GameLog`] (just the welcome line), same as a brand new run.
 pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     let bytes = std::fs::read(path)?;
-    let save: SaveGame = postcard::from_bytes(&bytes)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let save = decode(&bytes)?;
 
     world.insert_resource(GameState::new());
     world.insert_resource(BloodStains::new());
@@ -918,17 +948,10 @@ mod tests {
         }
     }
 
-    /// A save is untrusted the moment it can come from anywhere but this
-    /// build's own [`save_game`] — a shared file, a bug report attachment.
-    /// `backpack` and `equipped_by` are raw indices into the saved entity
-    /// list with nothing upstream bounding them, so a crafted save naming an
-    /// index past the end of the list must fail to load rather than index
-    /// straight into `new_ents`.
-    fn crafted_save_with_backpack_index(index: u32) -> Vec<u8> {
-        let mut entity = blank_entity();
-        entity.backpack = Some(vec![index]);
-        let save = SaveGame {
-            entities: vec![entity],
+    /// A [`SaveGame`] with every field at its empty default.
+    fn blank_save<'a>(entities: Vec<EntitySave<'a>>) -> SaveGame<'a> {
+        SaveGame {
+            entities,
             player_name: Cow::Borrowed("X"),
             depth: 1,
             floor_changes: 0,
@@ -939,8 +962,24 @@ mod tests {
             dug_tiles: Vec::new(),
             cleared: false,
             spirits_hostile: false,
-        };
-        postcard::to_allocvec(&save).unwrap()
+        }
+    }
+
+    /// The bytes of `save` as `save_game` would write them, under `version`.
+    fn encode(version: u16, save: &SaveGame) -> Vec<u8> {
+        postcard::to_allocvec(&(version, save)).unwrap()
+    }
+
+    /// A save is untrusted the moment it can come from anywhere but this
+    /// build's own [`save_game`] — a shared file, a bug report attachment.
+    /// `backpack` and `equipped_by` are raw indices into the saved entity
+    /// list with nothing upstream bounding them, so a crafted save naming an
+    /// index past the end of the list must fail to load rather than index
+    /// straight into `new_ents`.
+    fn crafted_save_with_backpack_index(index: u32) -> Vec<u8> {
+        let mut entity = blank_entity();
+        entity.backpack = Some(vec![index]);
+        encode(SAVE_VERSION, &blank_save(vec![entity]))
     }
 
     fn load_bytes(tag: &str, bytes: &[u8]) -> std::io::Result<World> {
@@ -969,6 +1008,35 @@ mod tests {
     }
 
     #[test]
+    fn a_save_from_another_version_is_refused_and_says_which() {
+        let other = SAVE_VERSION + 1;
+        let bytes = encode(other, &blank_save(vec![blank_entity()]));
+        let err = load_bytes("version", &bytes)
+            .err()
+            .expect("a save under another version must not load");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        let said = err.to_string();
+        assert!(
+            said.contains(&other.to_string()) && said.contains(&SAVE_VERSION.to_string()),
+            "the refusal should name both versions: {said}"
+        );
+    }
+
+    #[test]
+    fn clear_data_leaves_a_save_from_another_version_to_the_loader() {
+        let mut save = blank_save(vec![blank_entity()]);
+        save.cleared = true;
+        let path = std::env::temp_dir().join(format!(
+            "nihilurk-saveload-unit-{}-clear-version.sav",
+            std::process::id()
+        ));
+        std::fs::write(&path, encode(SAVE_VERSION + 1, &save)).unwrap();
+        let clear = clear_data(path.to_str().unwrap()).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert!(clear.is_none());
+    }
+
+    #[test]
     fn an_in_range_backpack_index_still_loads() {
         let bytes = crafted_save_with_backpack_index(0);
         assert!(load_bytes("ok", &bytes).is_ok());
@@ -979,20 +1047,10 @@ mod tests {
     /// field reaches a real terminal verbatim (`clear_data_prompt`, the HUD)
     /// rather than an index bounds-check.
     fn crafted_save_with_player_name(name: &str, cleared: bool) -> Vec<u8> {
-        let save = SaveGame {
-            entities: vec![blank_entity()],
-            player_name: Cow::Borrowed(name),
-            depth: 1,
-            floor_changes: 0,
-            rng_seed: 1,
-            rng_state: ChaCha12Rng::seed_from_u64(1),
-            dark_tiles: FixedBitSet::with_capacity(1),
-            inert_doors: FixedBitSet::with_capacity(1),
-            dug_tiles: Vec::new(),
-            cleared,
-            spirits_hostile: false,
-        };
-        postcard::to_allocvec(&save).unwrap()
+        let mut save = blank_save(vec![blank_entity()]);
+        save.player_name = Cow::Borrowed(name);
+        save.cleared = cleared;
+        encode(SAVE_VERSION, &save)
     }
 
     #[test]
