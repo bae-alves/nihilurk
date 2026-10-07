@@ -419,7 +419,7 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 
 **The player's own death arms nothing.** Both player-death paths in `combat.rs` blank the `@` and set `Ending::player_dead` without kicking the map: a death is watched, not felt through the floor. What replaces the shake is time — `helpers::death_burst` runs the player's burst at `PLAYER_DEATH_STRETCH` (3x) the length of a monster's, which it can afford because nothing is waiting behind it: the run is over and the death screen is next.
 
-The durations are on `ShakeKind::shape()`, not in `constants.rs`. A kick only displaces an already-running shake if it is worth more than what is *left* of it, so a kill mid-blast cannot truncate the blast — and an ordinary hit landed during either cannot truncate anything. Amplitude 2 means the first half throws the map two cells and the rest one; a terminal has no half-cell to decay through.
+The durations and amplitudes are in `constants::shake`, read as one table by `ShakeKind::shape()`. A kick only displaces an already-running shake if it is worth more than what is *left* of it, so a kill mid-blast cannot truncate the blast — and an ordinary hit landed during either cannot truncate anything. Amplitude 2 means the first half throws the map two cells and the rest one; a terminal has no half-cell to decay through.
 
 No kind may be shorter than two of `play_shake`'s 33 ms frames: it ages the shake *before* it draws, so anything shorter would retire without ever displacing a frame the player saw. `Hit`'s 80 ms is that floor. Nothing asserts it, so the constraint lives in `ShakeKind::shape`'s doc comment, and a kind that breaks it shows up as a shake nobody can see.
 

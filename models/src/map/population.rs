@@ -24,20 +24,12 @@ use crate::constants::population::{
     BATTLEFIELD_ITEM_RUNS, BATTLEFIELD_MONSTER_RUNS, BEE_WORLD_ITEM_RUNS, CORRIDOR_LURKER_CHANCE,
     CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEM_SLOTS_BASE, MONSTER_FILL_CHANCE_BASE,
     MONSTER_FILL_CHANCE_CAP, MONSTER_FILL_CHANCE_PER_TIER, MONSTER_SLOTS_BASE,
-    ORDINARY_BUDGET_RUNS, START_CLEARING_RADIUS, TRAP_FILL_CHANCE_BASE, TRAP_FILL_CHANCE_CAP,
-    TRAP_FILL_CHANCE_PER_TIER, TRAP_SLOTS_BASE, VAULT_ITEM_RUNS, VAULT_MONSTER_RUNS,
+    ORDINARY_BUDGET_RUNS, PLACEMENT_TRIES, START_CLEARING_RADIUS, TRAP_FILL_CHANCE_BASE,
+    TRAP_FILL_CHANCE_CAP, TRAP_FILL_CHANCE_PER_TIER, TRAP_SLOTS_BASE, VAULT_ITEM_RUNS,
+    VAULT_MONSTER_RUNS,
 };
 use crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 
-/// How many times a placement will re-roll before giving the slot up.
-///
-/// Ten, not a hundred. A floor is a few hundred open tiles holding a dozen
-/// things, so the first draw nearly always lands somewhere free and the budget
-/// is never spent; the only floors that reach the end of it are ones so
-/// crowded that the eleventh try would not have helped either. Spending a
-/// hundred draws to find that out costs the same seeded RNG stream everything
-/// else on the floor draws from, for a slot the dungeon is happy to skip.
-const PLACEMENT_TRIES: usize = 10;
 use crate::monsters::{MonsterDef, spawn_monster_with_rng};
 use crate::spawn::{roll_item, roll_one, spawn_named, spawn_requested};
 

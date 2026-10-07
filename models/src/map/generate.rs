@@ -22,6 +22,9 @@ use std::collections::HashSet;
 use bevy_ecs::prelude::*;
 
 use crate::components::Depth;
+use crate::constants::layout::{
+    EMPTY_SECTION_CHOICES, GUTTER, MIN_ROOM_H, MIN_ROOM_W, PADDING, SECTIONS,
+};
 use crate::constants::map::{
     BEE_RUN_HIVE_CHANCE, DARK_ROOM_CHANCE, DRAGON_HOARD_CHANCE, MONSTER_ZOO_CHANCE,
     RED_ROOM_CHANCE, TREASURE_HIVE_CHANCE,
@@ -35,31 +38,6 @@ use super::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, Rooms, SpecialRoom, Tile
 // ---------------------------------------------------------------------------
 // The grid the floor is laid out on
 // ---------------------------------------------------------------------------
-
-/// Cells to a side. Three by three is Rogue's own: enough rooms for a floor to
-/// have a shape, few enough that every one of them is worth visiting.
-const SECTIONS: u16 = 3;
-
-/// Blank tiles between neighbouring cells. Three is what guarantees two rooms
-/// can never share a wall however they are placed inside their cells — which
-/// is what lets this file skip an overlap test entirely.
-const GUTTER: u16 = 3;
-
-/// Blank tiles around the whole playfield, so no room is flush with the edge.
-const PADDING: u16 = 1;
-
-/// The smallest room the generator will place. A room narrower than this reads
-/// as a wide corridor rather than a place.
-const MIN_ROOM_W: u16 = 4;
-
-/// The smallest room height. Three, not four: a 4-high room occupies five
-/// tiles once its walls are counted, which overflows a cell.
-const MIN_ROOM_H: u16 = 3;
-
-/// How many answers the "how many cells are left empty?" roll has: none, one,
-/// two or three. A floor with every cell filled is a floor with no shape, and
-/// one with four missing is barely a floor.
-const EMPTY_SECTION_CHOICES: usize = 4;
 
 /// Where each cell of the grid starts and how much room it has. Derived once
 /// from the constants above, so the arithmetic appears in one place rather

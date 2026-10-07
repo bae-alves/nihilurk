@@ -15,12 +15,13 @@
 //! * **Animation timing** (`particles.rs` — bolt/blast/ripple milliseconds) and
 //!   **magic-map wave counts** (`magicmap.rs`). These are presentation feel,
 //!   wound tightly around the algorithms that read them, and no one balances
-//!   the game by touching them.
+//!   the game by touching them. The shake table is the exception: [`shake`].
 //! * **Content-table numbers** — a monster's HP, a weapon's die, a potion's
 //!   colour. Those are data, one row per thing, and live in `catalog.rs` /
 //!   `monsters.rs` / `traps.rs`. See `docs/reference/content-tables.md`.
-//! * **Map-layout geometry** (room sizes, corridor carving), RNG salts, and the
-//!   neighbour-offset tables. Structural, not balance.
+//! * **RNG salts** and the neighbour-offset tables. Structural, not balance.
+//!   The grid and special-level dials are here ([`layout`], [`special_levels`]),
+//!   with the caveat that moving one moves every layout on every seed.
 //! * A couple of one-off rolls still inline where they fire. Called out in
 //!   `docs/reference/constants.md`.
 
@@ -346,6 +347,16 @@ pub mod population {
     /// A bee world runs the item budget this many times (its monster budget
     /// runs once per difficulty tier instead).
     pub const BEE_WORLD_ITEM_RUNS: usize = 3;
+
+    /// How many times a placement will re-roll before giving the slot up.
+    ///
+    /// Ten, not a hundred. A floor is a few hundred open tiles holding a dozen
+    /// things, so the first draw nearly always lands somewhere free and the budget
+    /// is never spent; the only floors that reach the end of it are ones so
+    /// crowded that the eleventh try would not have helped either. Spending a
+    /// hundred draws to find that out costs the same seeded RNG stream everything
+    /// else on the floor draws from, for a slot the dungeon is happy to skip.
+    pub const PLACEMENT_TRIES: usize = 10;
 }
 
 // ===========================================================================
@@ -1091,4 +1102,146 @@ pub mod speed {
 
     /// What one action costs, in the same units.
     pub const ACTION_COST: i32 = 2;
+}
+
+// ===========================================================================
+// How a floor is laid out
+// ===========================================================================
+
+/// The grid the ordinary floors are laid out on: how many cells, how much
+/// space between them, how small a room may be. Geometry the generator is
+/// built around, so a value here moves every layout on every seed, and
+/// `determinism.rs` will say so.
+pub mod layout {
+    /// Cells to a side. Three by three is Rogue's own: enough rooms for a floor to
+    /// have a shape, few enough that every one of them is worth visiting.
+    pub const SECTIONS: u16 = 3;
+
+    /// Blank tiles between neighbouring cells. Three is what guarantees two rooms
+    /// can never share a wall however they are placed inside their cells — which
+    /// is what lets this file skip an overlap test entirely.
+    pub const GUTTER: u16 = 3;
+
+    /// Blank tiles around the whole playfield, so no room is flush with the edge.
+    pub const PADDING: u16 = 1;
+
+    /// The smallest room the generator will place. A room narrower than this reads
+    /// as a wide corridor rather than a place.
+    pub const MIN_ROOM_W: u16 = 4;
+
+    /// The smallest room height. Three, not four: a 4-high room occupies five
+    /// tiles once its walls are counted, which overflows a cell.
+    pub const MIN_ROOM_H: u16 = 3;
+
+    /// How many answers the "how many cells are left empty?" roll has: none, one,
+    /// two or three. A floor with every cell filled is a floor with no shape, and
+    /// one with four missing is barely a floor.
+    pub const EMPTY_SECTION_CHOICES: usize = 4;
+}
+
+// ===========================================================================
+// How the special levels are carved
+// ===========================================================================
+
+/// The dials of each special level's carving: the labyrinth's loops, the
+/// vault's lattice, the bee world's caves, the castle's keep, the island's
+/// shore. Same caveat as [`layout`]: a value here moves that level's layout on
+/// every seed.
+pub mod special_levels {
+    /// Chance each wall still standing between two maze cells is knocked through
+    /// once the dig is done. A perfect maze has exactly one way anywhere; this is
+    /// what gives it a few more.
+    pub const LABYRINTH_LOOP_CHANCE: f64 = 0.1;
+
+    /// Rows of cells in a vault's honeycomb, and cells across each unshifted row.
+    /// Every other row sits half a cell over and carries one more, cut in half
+    /// by the wall at either end, which is what makes the rows interlock like a
+    /// hive's.
+    pub const VAULT_ROWS: i32 = 3;
+
+    /// Cells across each unshifted row: see [`VAULT_ROWS`].
+    pub const VAULT_COLS: i32 = 6;
+
+    /// How far a cell's centre may wander off the lattice, in tiles — sideways,
+    /// then up or down. Enough that no two vaults are the same hive.
+    pub const VAULT_JITTER_X: i32 = 2;
+
+    /// How far a cell's centre may wander up or down: see [`VAULT_JITTER_X`].
+    pub const VAULT_JITTER_Y: i32 = 1;
+
+    /// What a tile of vertical distance counts for against a tile of horizontal,
+    /// when deciding which cell a tile belongs to. A terminal cell is about twice
+    /// as tall as it is wide; two keeps the cells hex-shaped on screen rather
+    /// than tall slivers.
+    pub const VAULT_STRETCH: i32 = 2;
+
+    /// Share of a bee world's interior that starts out as rock, before smoothing
+    /// turns the noise into caves.
+    pub const BEE_ROCK_CHANCE: f64 = 0.43;
+
+    /// Smoothing passes: each one makes a tile rock when five or more of the nine
+    /// tiles around and including it are rock, and floor otherwise.
+    pub const BEE_SMOOTHING_PASSES: usize = 5;
+
+    /// The keep's top-left floor tile. The castle takes the middle column of
+    /// Rogue's grid, and this stands the keep in the middle of that column with
+    /// room above and below it for the towers.
+    pub const KEEP_X: i32 = 37;
+
+    /// The keep's top-left floor row: see [`KEEP_X`].
+    pub const KEEP_Y: i32 = 7;
+
+    /// The keep's floor, and each tower's, to a side. A tower that small still
+    /// has room for a whole floor's stock.
+    pub const KEEP_SIZE: i32 = 7;
+
+    /// Each tower's floor, to a side: see [`KEEP_SIZE`].
+    pub const TOWER_SIZE: i32 = 5;
+
+    /// The island's size: the half-width and half-height of its ellipse, each
+    /// rolled from its range, in tiles.
+    pub const ISLAND_HALF_WIDTH: std::ops::RangeInclusive<i32> = 14..=22;
+
+    /// The island's half-height range, in tiles: see [`ISLAND_HALF_WIDTH`].
+    pub const ISLAND_HALF_HEIGHT: std::ops::RangeInclusive<i32> = 5..=7;
+
+    /// How far each row of shore may reach past the true ellipse, or fall short
+    /// of it, so the coast never comes out as a clean curve.
+    pub const ISLAND_SHORE_JITTER: i32 = 2;
+}
+
+// ===========================================================================
+// Screen shake
+// ===========================================================================
+
+/// How long each kind of shake rocks the map, and how far its first frame
+/// throws it. See [`crate::shake::ShakeKind`] for what arms each one, and for
+/// why none may last less than two animation frames.
+pub mod shake {
+    /// How long the player's own landed blow shakes the map, in ms. The floor:
+    /// two shaken frames is the least a shake can be and still be one.
+    pub const HIT_MS: f32 = 80.0;
+
+    /// Cells the map is thrown on a hit's opening frame.
+    pub const HIT_AMPLITUDE: i8 = 1;
+
+    /// How long a death in sight shakes the map, in ms.
+    pub const KILL_MS: f32 = 120.0;
+
+    /// Cells the map is thrown on a kill's opening frame.
+    pub const KILL_AMPLITUDE: i8 = 1;
+
+    /// How long a blast in sight, or the player's own excellent hit, shakes
+    /// the map, in ms.
+    pub const HEAVY_MS: f32 = 260.0;
+
+    /// Cells the map is thrown on a heavy shake's opening frame.
+    pub const HEAVY_AMPLITUDE: i8 = 2;
+
+    /// How long the room reels when the player is knocked down through the
+    /// low-HP warning, in ms.
+    pub const WOUNDED_MS: f32 = 460.0;
+
+    /// Cells the map is thrown on a wounded shake's opening frame.
+    pub const WOUNDED_AMPLITUDE: i8 = 2;
 }

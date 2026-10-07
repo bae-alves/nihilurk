@@ -30,7 +30,7 @@ The modules
 | `lurk`        | Starting HP / magic (`-b lurk`), `GROWTH_CHANCE` and `GROWTH_STEP` for feeding off a kill | how the lurk starts and how fast it grows |
 | `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor, `DIFFICULTY_TIER_LAST_DEPTH` (the depth bands the crowding budgets step at) | how long a run is and how hard attrition bites |
 | `map`         | `WIDTH`, `HEIGHT`, dark-room chance | the playfield (see the determinism caveat below) |
-| `population`  | Monster / trap / item budgets per floor, how they scale with the difficulty tier, how many runs of the budgets a battlefield, vault or bee world gets, corridor lurkers, hidden items | how crowded and dangerous a floor is |
+| `population`  | Monster / trap / item budgets per floor, the placement retry budget (`PLACEMENT_TRIES`), how they scale with the difficulty tier, how many runs of the budgets a battlefield, vault or bee world gets, corridor lurkers, hidden items | how crowded and dangerous a floor is |
 | `potions`     | What a dose is worth: the max-HP a healing / extra healing potion adds, the power gain strength adds and poison takes (with its floor), the share of turns paralysis eats | how much a potion swings a run |
 | `scrolls`     | What one enchantment is worth (and that a minus is mended whole), how long sleep and hold last, how often sleep backfires on the reader | how strong the room-clearing scrolls are |
 | `decks`       | `DECK_SIZE`, `REVERSED_MIN` / `REVERSED_MAX`, `CARD_CHAIN_CAP`, `BALA_POWER`, `BOLE_ARMOR`, `WORLD_TURNS`, `CARD_CASTER_CASTS`, `GOLDEN_WIND_SUMMONS`, the score of each hand | how wild a deck of cards runs |
@@ -50,6 +50,9 @@ The modules
 | `abilities`   | The per-turn odds of the passive abilities (aggravate monster, regeneration, teleportitis, polymorphitis) and `MOMENTUM_PER_HIT` | how often a ring does its thing on its own |
 | `conditions`  | `CONFUSION_STUMBLE_CHANCE`, the share of a confused player's steps that go astray | how much confusion costs (paralysis's dial is in `potions`) |
 | `speed`       | `SLOW_RATE`, `NORMAL_RATE`, `QUICK_RATE`, `FAST_RATE` and the `ACTION_COST` they are read against | how often each tempo acts |
+| `layout`      | The grid ordinary floors are laid out on: `SECTIONS`, `GUTTER`, `PADDING`, the smallest room, `EMPTY_SECTION_CHOICES` | the shape of a floor (moves every layout on every seed) |
+| `special_levels` | The carving dials of the labyrinth, vault, bee world, castle and island | the shape of one special level (moves its layout on every seed) |
+| `shake`       | How long each kind of screen shake lasts and how far it throws the map | how hard a blow feels |
 
 
 Two caveats worth repeating
@@ -64,9 +67,8 @@ What is deliberately *not* in `constants.rs`
 -------------------------------------------
 
 * **Content-table numbers** — a monster's HP, a weapon's die, a potion's colour. Those are data, one row per thing, in `catalog.rs` / `monsters.rs` / `traps.rs`. See `content-tables.md`.
-* **Animation timing** — the millisecond figures in `particles.rs` (bolt speed, blast ripple) and the wave counts in `magicmap.rs`. Presentation feel, wound tightly around the code that reads them.
-* **Map-layout geometry**, RNG salts, and the neighbour-offset tables. Structural, not balance.
-* A couple of one-off rolls still inline where they fire, each named and doc-commented where it lives — the room-placement geometry in `map/generate.rs`, the placement retry budget in `map/population.rs`.
+* **Animation timing** — the millisecond figures in `particles.rs` (bolt speed, blast ripple) and the wave counts in `magicmap.rs`. Presentation feel, wound tightly around the code that reads them. The shake table is the exception, in `constants::shake`.
+* **RNG salts** and the neighbour-offset tables. Structural, not balance.
 
 
 See also

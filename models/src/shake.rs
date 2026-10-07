@@ -29,6 +29,11 @@ use bevy_ecs::prelude::*;
 
 use particle_core as core_math;
 
+use crate::constants::shake::{
+    HEAVY_AMPLITUDE, HEAVY_MS, HIT_AMPLITUDE, HIT_MS, KILL_AMPLITUDE, KILL_MS, WOUNDED_AMPLITUDE,
+    WOUNDED_MS,
+};
+
 /// What is doing the shaking. Each kind is one row of the table in
 /// [`ShakeKind::shape`]: how long it rocks for, and how far it throws the map
 /// on the first frame.
@@ -66,10 +71,10 @@ pub enum ShakeKind {
 }
 
 impl ShakeKind {
-    /// `(duration_ms, amplitude_in_cells)`. The per-kind dials, on the kind
-    /// itself rather than off in `constants.rs`: there are four of them, they
-    /// are only ever read here, and "tick / short / medium / long" is only
-    /// legible as a table if you can see all four pairs at once.
+    /// `(duration_ms, amplitude_in_cells)`. The per-kind dials, from
+    /// [`crate::constants::shake`]. They are matched here as one table because
+    /// "tick / short / medium / long" is only legible if you can see all four
+    /// pairs at once.
     ///
     /// Amplitude 2 means the first frames throw the map two cells and the rest
     /// one — a shake that decays in *reach*, since a terminal has no half-cell
@@ -81,10 +86,10 @@ impl ShakeKind {
     /// two shaken frames, which is the least a shake can be and still be one.
     const fn shape(self) -> (f32, i8) {
         match self {
-            ShakeKind::Hit => (80.0, 1),
-            ShakeKind::Kill => (120.0, 1),
-            ShakeKind::Heavy => (260.0, 2),
-            ShakeKind::Wounded => (460.0, 2),
+            ShakeKind::Hit => (HIT_MS, HIT_AMPLITUDE),
+            ShakeKind::Kill => (KILL_MS, KILL_AMPLITUDE),
+            ShakeKind::Heavy => (HEAVY_MS, HEAVY_AMPLITUDE),
+            ShakeKind::Wounded => (WOUNDED_MS, WOUNDED_AMPLITUDE),
         }
     }
 

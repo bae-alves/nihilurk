@@ -17,6 +17,11 @@ use crate::constants::map::{
     BATTLEFIELD_CHANCE, BEE_WORLD_CHANCE, CASTLE_CHANCE, ISLAND_CHANCE, LABYRINTH_CHANCE,
     SPECIAL_LEVEL_MIN_DEPTH, VAULT_CHANCE,
 };
+use crate::constants::special_levels::{
+    BEE_ROCK_CHANCE, BEE_SMOOTHING_PASSES, ISLAND_HALF_HEIGHT, ISLAND_HALF_WIDTH,
+    ISLAND_SHORE_JITTER, KEEP_SIZE, KEEP_X, KEEP_Y, LABYRINTH_LOOP_CHANCE, TOWER_SIZE, VAULT_COLS,
+    VAULT_JITTER_X, VAULT_JITTER_Y, VAULT_ROWS, VAULT_STRETCH,
+};
 use crate::rect::Rect;
 
 use super::generate::{
@@ -128,11 +133,6 @@ fn battlefield(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
 // Labyrinth
 // ---------------------------------------------------------------------------
 
-/// Chance each wall still standing between two maze cells is knocked through
-/// once the dig is done. A perfect maze has exactly one way anywhere; this is
-/// what gives it a few more.
-const LABYRINTH_LOOP_CHANCE: f64 = 0.1;
-
 /// A maze of passages. Every odd-numbered tile is a cell and the tile between
 /// two cells is the wall that can come down between them: a depth-first dig
 /// from a random cell visits every one, then [`LABYRINTH_LOOP_CHANCE`] of the
@@ -185,24 +185,6 @@ fn labyrinth(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
 // ---------------------------------------------------------------------------
 // Vault
 // ---------------------------------------------------------------------------
-
-/// Rows of cells in a vault's honeycomb, and cells across each unshifted row.
-/// Every other row sits half a cell over and carries one more, cut in half
-/// by the wall at either end, which is what makes the rows interlock like a
-/// hive's.
-const VAULT_ROWS: i32 = 3;
-const VAULT_COLS: i32 = 6;
-
-/// How far a cell's centre may wander off the lattice, in tiles — sideways,
-/// then up or down. Enough that no two vaults are the same hive.
-const VAULT_JITTER_X: i32 = 2;
-const VAULT_JITTER_Y: i32 = 1;
-
-/// What a tile of vertical distance counts for against a tile of horizontal,
-/// when deciding which cell a tile belongs to. A terminal cell is about twice
-/// as tall as it is wide; two keeps the cells hex-shaped on screen rather
-/// than tall slivers.
-const VAULT_STRETCH: i32 = 2;
 
 /// A honeycomb of rooms: a voronoi partition of the floor around a jittered
 /// hex lattice of cell centres, every pair of neighbouring cells joined by
@@ -317,14 +299,6 @@ fn vault(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
 // Bee World
 // ---------------------------------------------------------------------------
 
-/// Share of a bee world's interior that starts out as rock, before smoothing
-/// turns the noise into caves.
-const BEE_ROCK_CHANCE: f64 = 0.43;
-
-/// Smoothing passes: each one makes a tile rock when five or more of the nine
-/// tiles around and including it are rock, and floor otherwise.
-const BEE_SMOOTHING_PASSES: usize = 5;
-
 /// One cave: random rock smoothed into caverns by cellular automata, every
 /// cavern but the biggest filled back in, and the stairs anywhere in what is
 /// left.
@@ -398,17 +372,6 @@ fn biggest_cave(tiles: &[TileType]) -> Vec<(u16, u16)> {
 // Castle
 // ---------------------------------------------------------------------------
 
-/// The keep's top-left floor tile. The castle takes the middle column of
-/// Rogue's grid, and this stands the keep in the middle of that column with
-/// room above and below it for the towers.
-const KEEP_X: i32 = 37;
-const KEEP_Y: i32 = 7;
-
-/// The keep's floor, and each tower's, to a side. A tower that small still
-/// has room for a whole floor's stock.
-const KEEP_SIZE: i32 = 7;
-const TOWER_SIZE: i32 = 5;
-
 /// The castle's five rooms, keep first. Each tower shares the keep's side
 /// wall and overlaps two of its rows, which is where its one door goes; the
 /// row midway down the keep is left clear between the towers for the gates.
@@ -466,15 +429,6 @@ fn castle(rng: &mut ChaCha12Rng, tiles: &mut [TileType], dark: &mut FixedBitSet)
 // ---------------------------------------------------------------------------
 // Island
 // ---------------------------------------------------------------------------
-
-/// The island's size: the half-width and half-height of its ellipse, each
-/// rolled from its range, in tiles.
-const ISLAND_HALF_WIDTH: std::ops::RangeInclusive<i32> = 14..=22;
-const ISLAND_HALF_HEIGHT: std::ops::RangeInclusive<i32> = 5..=7;
-
-/// How far each row of shore may reach past the true ellipse, or fall short
-/// of it, so the coast never comes out as a clean curve.
-const ISLAND_SHORE_JITTER: i32 = 2;
 
 /// Land in the middle of deep water. Every row of the island is one unbroken
 /// run of floor around the map's centre column, so however ragged the shore
