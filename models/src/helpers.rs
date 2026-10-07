@@ -407,6 +407,15 @@ impl Hit {
 /// in the game is elemental *and* outside this funnel today, so the first
 /// elemental trap would simply have burned a dragon.
 pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&str>) -> i32 {
+    if world.get::<crate::effects::Protected>(entity).is_some() {
+        if world.get::<Name>(entity).is_some() {
+            let name = item_label(world, entity);
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::protection_turns_aside(&name));
+        }
+        return 0;
+    }
     if hit.magical && world.get::<crate::effects::MagicWard>(entity).is_some() {
         if world.get::<Name>(entity).is_some() {
             let name = item_label(world, entity);

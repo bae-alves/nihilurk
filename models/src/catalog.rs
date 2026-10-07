@@ -358,6 +358,60 @@ pub const DECKS: &[DeckDef] = &[DeckDef {
 }];
 
 // ---------------------------------------------------------------------------
+// Runes
+// ---------------------------------------------------------------------------
+
+/// A rune: a scroll that goes inert when read instead of crumbling, and wakes
+/// again on the stairs. Its mechanic lives in the `runes` submodule of
+/// `crate::items`, keyed by [`RuneDef::effect`]. There is no row for
+/// [`RuneEffect::Blank`]: only a wand of cancellation makes one.
+pub struct RuneDef {
+    /// The [`RuneEffect`] this row is the entry for.
+    pub effect: RuneEffect,
+    /// The row's identity: the save file stores it and
+    /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
+    /// [`ItemDef::display_name`] instead.
+    pub name: &'static str,
+}
+
+impl ItemDef for RuneDef {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn spawn(&self, world: &mut World, pos: Position) -> Entity {
+        world
+            .spawn((
+                Name {
+                    what: strings::content_name(self.name).to_string(),
+                },
+                Renderable {
+                    glyph: '\'',
+                    color: Color::White,
+                },
+                pos,
+                Item,
+                Rune {
+                    effect: self.effect,
+                    charged: true,
+                },
+            ))
+            .id()
+    }
+}
+
+/// Every rune the dungeon drops, one row each.
+#[rustfmt::skip]
+pub const RUNES: &[RuneDef] = &[
+    RuneDef { effect: RuneEffect::Recharging,   name: "rune of recharging" },
+    RuneDef { effect: RuneEffect::Displacement, name: "rune of displacement" },
+    RuneDef { effect: RuneEffect::Justice,      name: "rune of justice" },
+    RuneDef { effect: RuneEffect::Chaos,        name: "rune of chaos" },
+    RuneDef { effect: RuneEffect::Ice,          name: "rune of ice" },
+    RuneDef { effect: RuneEffect::Protection,   name: "rune of protection" },
+];
+
+// ---------------------------------------------------------------------------
 // Wands
 // ---------------------------------------------------------------------------
 
@@ -1375,6 +1429,16 @@ pub fn spawn_scroll(world: &mut World, effect: ScrollEffect, pos: Position) -> E
         .iter()
         .find(|d| d.effect == effect)
         .expect("scroll row")
+        .spawn(world, pos)
+}
+
+/// A rune of `effect` on the floor at `pos`. Panics if [`RUNES`] has no row for
+/// it: [`RuneEffect::Blank`] has none, since only cancellation makes one.
+pub fn spawn_rune(world: &mut World, effect: RuneEffect, pos: Position) -> Entity {
+    RUNES
+        .iter()
+        .find(|d| d.effect == effect)
+        .expect("rune row")
         .spawn(world, pos)
 }
 

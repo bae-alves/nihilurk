@@ -24,7 +24,7 @@ flowchart LR
   POP --> BEST["BESTIARY<br/>MonsterDef::pick"]:::peril
   POP --> DROPS["DROPS<br/>roll_item"]:::magic
   POP --> TRAPS["TRAPS<br/>TrapDef::pick"]:::peril
-  DROPS --> CAT["POTIONS · SCROLLS · WANDS<br/>WEAPONS · AMMO · LAUNCHERS<br/>ARMORS · RINGS · COINS"]:::magic
+  DROPS --> CAT["POTIONS · SCROLLS · RUNES · WANDS<br/>WEAPONS · AMMO · LAUNCHERS<br/>ARMORS · RINGS · COINS"]:::magic
   GEN --> FLOOR(["a floor"]):::hero
   BEST --> FLOOR
   CAT --> FLOOR
@@ -44,6 +44,7 @@ Where everything is
 | `BESTIARY`          | `models/src/monsters.rs`   | `MonsterDef`   |
 | `POTIONS`           | `models/src/catalog.rs`    | `PotionDef`    |
 | `SCROLLS`           | `models/src/catalog.rs`    | `ScrollDef`    |
+| `RUNES`             | `models/src/catalog.rs`    | `RuneDef`      |
 | `WANDS`             | `models/src/catalog.rs`    | `WandDef`      |
 | `WEAPONS`           | `models/src/catalog.rs`    | `WeaponDef`    |
 | `AMMO`              | `models/src/catalog.rs`    | `AmmoDef`      |
@@ -131,6 +132,17 @@ Draws `?`, always white — a scroll has no colour field. Attaches `Item`, `Scro
 Each scroll has a flourish of its own — which one, and why that one, is `../explanation/the-feel-layer.md`.
 
 The dials the arms read — what one enchantment is worth, how long sleep and hold last, how often sleep backfires — are `constants::scrolls`. Three arms go off across whatever the reader can see (scare monster, hold monster, sleep, via `helpers::hostiles_in_view`), two reach into the gear in a slot (the enchantments), one arms the reader's next blow (monster confusion, spent by the `ON_HIT_ABILITIES` row below), two tag things `Detected` — food detection takes precisely what a potion of magic detection rejects, so between them they find every item on the floor exactly once, with the Element of Yoord deliberately turning up for both.
+
+### RUNES — RuneDef
+
+| Field    | Type           | Notes                                    |
+|----------|----------------|------------------------------------------|
+| `effect` | `RuneEffect`   | Keys the mechanic; identity in saves.    |
+| `name`   | `&'static str` |                                          |
+
+Draws `'`, always white. Attaches `Item` and `Rune { effect, charged: true }`, and no `Consume`: reading a rune spends its charge (`item_system` clears `charged`), and it stays in its pack slot, shown as `(inert)`. A staircase wakes every spent rune in the pack (`items::recharge_runes`, called from `transition_level` for `LevelChange::Stairs` only: a trapdoor or a portal does not). `r` reads scrolls and runes. Mechanic: `apply_rune_effect` in `models/src/items/runes.rs`, exhaustive with no catch-all like `apply_scroll_effect`.
+
+There is no row for `RuneEffect::Blank`. A wand of cancellation makes one out of any rune the player carries, and a blank rune never wakes. Displacement is a scroll of teleportation; Chaos and Ice cast Haste Self and Frost Nova for free; Recharging adds `RECHARGE_STEP` to every wand's `Battery` up to `RECHARGE_CAP`; Justice lends `ExplodesOnDeath` to everything in view; Protection lends `Protected` for `PROTECTION_TURNS`. The dials are `constants::runes`. Runes drop from floor 3 (see DROPS). Only the player invokes one: a monster that catches a thrown rune does nothing with it.
 
 ### WANDS — WandDef
 
@@ -427,20 +439,21 @@ DROPS — DropCategory
 
 Three further fields are function pointers filled in by the `category!` macro from the table's name. Never write them by hand.
 
-Current weights, which total 1011:
+Current weights, which total 1041 from floor 3 down. Runes drop from floor 3, so floors 1 and 2 total 1011 and every share there is a little higher:
 
 | Category | Weight | Share |
 |----------|--------|-------|
-| scroll   | 300    | 29.7% |
-| potion   | 270    | 26.7% |
-| coin     | 130    | 12.9% |
-| armor    |  80    |  7.9% |
-| wand     |  50    |  4.9% |
-| ring     |  50    |  4.9% |
-| weapon   |  36    |  3.6% |
-| ammo     |  28    |  2.8% |
-| launcher |  16    |  1.6% |
-| treat    |  40    |  4.0% |
+| scroll   | 300    | 28.8% |
+| potion   | 270    | 25.9% |
+| coin     | 130    | 12.5% |
+| armor    |  80    |  7.7% |
+| wand     |  50    |  4.8% |
+| ring     |  50    |  4.8% |
+| rune     |  30    |  2.9% |
+| weapon   |  36    |  3.5% |
+| ammo     |  28    |  2.7% |
+| launcher |  16    |  1.5% |
+| treat    |  40    |  3.8% |
 | deck     |  11    |  1.1% |
 
 The share column is derived, not maintained.
@@ -524,6 +537,8 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 |60 | `Chimera`           | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
 |61 | `Typhon`            | The form drawn as `T`. |
 |62 | `Echidna`           | The form drawn as `E`. |
+|63 | `Protected`         | A rune of protection: no damage of any kind for `PROTECTION_TURNS` turns. Checked in `apply_hit` and in melee's `clamp_swing`, the two places HP comes off. |
+|64 | `ExplodesOnDeath`   | A rune of justice: dying, it bursts in one fire blast rolled off its own power die (`combat::burst_on_death`). |
 
 Cap components — ceilings the dice cannot beat. Folded with `min`, not `+`, because the strictest one wins. Not in `EFFECTS`, not bits:
 

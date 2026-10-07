@@ -119,11 +119,12 @@ fn is_fired(world: &World, thrower: Entity, item: Entity) -> bool {
         .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, thrower))
 }
 
-/// A potion, a scroll, a wand or a ring — the small stuff, which carries
+/// A potion, a scroll, a rune, a wand or a ring — the small stuff, which carries
 /// [`LIGHT_THROW_RANGE`] instead of the [`THROW_RANGE`] a spear gets.
 fn is_light(world: &World, item: Entity) -> bool {
     world.get::<Potion>(item).is_some()
         || world.get::<Scroll>(item).is_some()
+        || world.get::<Rune>(item).is_some()
         || world.get::<Wand>(item).is_some()
         || world.get::<Ring>(item).is_some()
 }

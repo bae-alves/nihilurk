@@ -834,6 +834,10 @@ pub const fn ends_rooted() -> &'static str {
 pub const fn ends_clamped() -> &'static str {
     "The jaws locked around your leg finally go slack."
 }
+// TODO: placeholder English; needs a human's pass.
+pub const fn ends_protected() -> &'static str {
+    "The hush lifts. You can bleed again."
+}
 
 // ---------------------------------------------------------------------------
 // models/src/conditions.rs
@@ -1130,6 +1134,11 @@ pub fn trap_spotted(article: &str, label: &str) -> String {
 
 pub fn ward_turns_aside(name: &str) -> String {
     format!("The {name}'s ward turns the magic aside.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn protection_turns_aside(name: &str) -> String {
+    format!("The hush swallows the harm meant for {name}.")
 }
 
 pub fn unharmed_by(name: &str, element_noun: &str) -> String {
@@ -1993,6 +2002,45 @@ pub fn ring_shivers_apart(seen_name: &str) -> String {
 }
 pub fn item_turns_to_dust() -> &'static str {
     "The item turns to dust!"
+}
+
+// Runes. The effects of Chaos and Ice speak through the spells they cast.
+
+// TODO: placeholder English; needs a human's pass.
+pub fn you_invoke(seen_name: &str) -> String {
+    format!("You invoke the {seen_name}.")
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn rune_inert_suffix() -> &'static str {
+    "inert"
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn rune_is_inert() -> &'static str {
+    "The rune is dark. It wakes when you take the stairs."
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn rune_blank_nothing() -> &'static str {
+    "The blank rune does nothing, and means it."
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn rune_recharged() -> &'static str {
+    "Your wands drink in the rune's light."
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn rune_recharge_nothing() -> &'static str {
+    "The rune hums. You carry no wand to charge."
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn rune_justice_marks() -> &'static str {
+    "The rune burns a verdict into everything that sees you. When they fall, they burst."
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn rune_justice_nobody() -> &'static str {
+    "The rune finds nobody to judge."
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn rune_protection_cast(turns: u32) -> String {
+    format!("A hush falls over you. Nothing can hurt you for {turns} turns.")
 }
 
 // ---------------------------------------------------------------------------

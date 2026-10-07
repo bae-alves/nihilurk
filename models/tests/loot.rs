@@ -42,6 +42,7 @@ struct Tally {
     weapons: u32,
     wands: u32,
     rings: u32,
+    runes: u32,
     treats: u32,
     decks: u32,
     total: u32,
@@ -71,6 +72,7 @@ fn rolled_loot_follows_the_rogue_drop_table() {
     let mut q = w.query_filtered::<(
         Option<&Potion>,
         Option<&Scroll>,
+        Option<&Rune>,
         Option<&Wand>,
         Option<&ArmorDie>,
         Option<&PowerDie>,
@@ -81,7 +83,7 @@ fn rolled_loot_follows_the_rogue_drop_table() {
         Option<&Treat>,
         Option<&Deck>,
     ), With<Item>>();
-    for (potion, scroll, wand, armor, weapon, ring, pickup, stack, launcher, treat, deck) in
+    for (potion, scroll, rune, wand, armor, weapon, ring, pickup, stack, launcher, treat, deck) in
         q.iter(&w)
     {
         t.total += 1;
@@ -91,6 +93,8 @@ fn rolled_loot_follows_the_rogue_drop_table() {
             t.treats += 1;
         } else if scroll.is_some() {
             t.scrolls += 1;
+        } else if rune.is_some() {
+            t.runes += 1;
         } else if potion.is_some() {
             t.potions += 1;
         } else if pickup.is_some() {
@@ -118,6 +122,7 @@ fn rolled_loot_follows_the_rogue_drop_table() {
 
     assert!(t.scrolls > 0 && t.potions > 0 && t.coins > 0);
     assert!(t.armor > 0 && t.weapons > 0 && t.wands > 0 && t.rings > 0 && t.treats > 0);
+    assert!(t.runes > 0, "runes never dropped: {t:?}");
     assert!(
         t.melee > 0 && t.ammo > 0 && t.launchers > 0,
         "armoury gap: {t:?}"
@@ -147,6 +152,9 @@ fn rolled_loot_follows_the_rogue_drop_table() {
     near(pct(t.rings), share_of("ring"));
     near(pct(t.treats), share_of("treat"));
     near(pct(t.decks), share_of("deck"));
+    let first_rune_floor = DROPS.iter().find(|c| c.name == "rune").unwrap().min_depth;
+    let rune_floors = (1..=4u8).filter(|&d| d >= first_rune_floor).count();
+    near(pct(t.runes), share_of("rune") * rune_floors as f64 / 4.0);
     near(
         pct(t.weapons),
         share_of("weapon") + share_of("ammo") + share_of("launcher"),

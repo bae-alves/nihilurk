@@ -8,16 +8,21 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::components::{Curse, KnownQuality, Name, Stack, Vorpal};
+use crate::components::{Curse, KnownQuality, Name, Rune, Stack, Vorpal};
 use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
 
 /// What the player actually sees for `item`: its true [`Name`], a [`Stack`]
 /// count if it holds more than one, and — once [`known_quality`] says either
 /// is actually known — a weapon, suit of armour or launcher additionally gets
-/// an enchantment plus in front and a `(cursed)` tag after.
+/// an enchantment plus in front and a `(cursed)` tag after. A rune with
+/// nothing left in it is tagged `(inert)`.
 pub fn display_name(world: &World, item: Entity) -> String {
     let base = named_display(world.get::<Name>(item), world.get::<Stack>(item));
-    annotate_quality(world, item, base)
+    let name = annotate_quality(world, item, base);
+    match world.get::<Rune>(item) {
+        Some(rune) if !rune.charged => format!("{name} ({})", strings::rune_inert_suffix()),
+        _ => name,
+    }
 }
 
 /// Whether `item`'s own enchantment plus and curse status are visible yet.

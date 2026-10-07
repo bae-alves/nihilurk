@@ -19,7 +19,7 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::components::{Backpack, Player, Potion, Scroll, Wand};
+use crate::components::{Backpack, Player, Potion, Rune, Scroll, Wand};
 use crate::equipment::{Equipped, Slot};
 
 /// What the pack screen can do with the item under the cursor. Nothing else in
@@ -78,7 +78,7 @@ pub enum PackMode {
     Equip,
     /// `q` — only potions.
     Quaff,
-    /// `r` — only scrolls.
+    /// `r` — scrolls and runes.
     Read,
     /// `z` — only wands.
     Zap,
@@ -165,6 +165,7 @@ impl PackMode {
             PackMode::Read => {
                 world.get::<Scroll>(item).is_some()
                     || world.get::<crate::components::Deck>(item).is_some()
+                    || world.get::<Rune>(item).is_some()
             }
             PackMode::Zap => world.get::<Wand>(item).is_some(),
             PackMode::Wield => goes_in(world, item, Slot::Hand),

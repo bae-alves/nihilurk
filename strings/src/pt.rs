@@ -831,6 +831,10 @@ pub const fn ends_rooted() -> &'static str {
 pub const fn ends_clamped() -> &'static str {
     "As mandíbulas presas na perna finalmente afrouxam."
 }
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn ends_protected() -> &'static str {
+    "O silêncio se desfaz. Você volta a sangrar."
+}
 
 // ---------------------------------------------------------------------------
 // models/src/conditions.rs
@@ -1174,6 +1178,11 @@ pub fn trap_spotted(_article: &str, label: &str) -> String {
 
 pub fn ward_turns_aside(name: &str) -> String {
     format!("A proteção {} {name} desvia a magia.", de_contraction(name))
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn protection_turns_aside(name: &str) -> String {
+    format!("O silêncio engole o dano destinado a {name}.")
 }
 
 pub fn unharmed_by(name: &str, element_noun: &str) -> String {
@@ -2139,6 +2148,45 @@ pub fn item_turns_to_dust() -> &'static str {
     "O item vira pó!"
 }
 
+// Runas. Os efeitos de Caos e Gelo falam pelos feitiços que lançam.
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn you_invoke(seen_name: &str) -> String {
+    format!("Você invoca {} {seen_name}.", article(seen_name))
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_inert_suffix() -> &'static str {
+    "inerte"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_is_inert() -> &'static str {
+    "A runa está apagada. Ela acorda quando você pega as escadas."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_blank_nothing() -> &'static str {
+    "A runa em branco não faz nada, e faz questão."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_recharged() -> &'static str {
+    "Suas varinhas bebem a luz da runa."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_recharge_nothing() -> &'static str {
+    "A runa zumbe. Você não carrega varinha nenhuma."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_justice_marks() -> &'static str {
+    "A runa grava um veredito em tudo que vê você. Quando caírem, vão explodir."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_justice_nobody() -> &'static str {
+    "A runa não encontra ninguém para julgar."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn rune_protection_cast(turns: u32) -> String {
+    format!("Um silêncio cai sobre você. Nada consegue te ferir por {turns} turnos.")
+}
+
 // ---------------------------------------------------------------------------
 // models/src/combat.rs
 // ---------------------------------------------------------------------------
@@ -2347,7 +2395,11 @@ pub fn quit_answers() -> &'static str {
     "[s] sim    [n] não"
 }
 pub fn onboarding_keys() -> [&'static str; 3] {
-    ["[hjklyubn] ANDAR", "[o/TAB] EXPLORAR/LUTAR", "[i] INVENTÁRIO"]
+    [
+        "[hjklyubn] ANDAR",
+        "[o/TAB] EXPLORAR/LUTAR",
+        "[i] INVENTÁRIO",
+    ]
 }
 
 pub fn pack_slots(used: usize, total: usize) -> String {

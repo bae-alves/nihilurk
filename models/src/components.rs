@@ -946,6 +946,40 @@ pub enum CardFace {
     GoldenWind,
 }
 
+/// Type-key for a rune: a scroll that goes inert when read instead of
+/// crumbling. Mechanic: the `runes` submodule of `crate::items`.
+#[derive(Component)]
+pub struct Rune {
+    /// Which rune this is.
+    pub effect: RuneEffect,
+    /// Whether it still holds a use. Reading spends it; a staircase restores
+    /// it ([`crate::items::recharge_runes`]).
+    pub charged: bool,
+}
+
+/// Which rune this is. Identity for saves — see [`crate::catalog::RUNES`].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RuneEffect {
+    /// Does nothing, and means it. What a wand of cancellation leaves of any
+    /// rune; never found on the floor.
+    Blank,
+    /// One more charge in every wand in the pack, up to
+    /// [`crate::constants::runes::RECHARGE_CAP`].
+    Recharging,
+    /// A scroll of teleportation.
+    Displacement,
+    /// Marks everything the reader can see to burst into flame when it dies
+    /// ([`crate::effects::ExplodesOnDeath`]).
+    Justice,
+    /// The spell Haste Self, free.
+    Chaos,
+    /// The spell Frost Nova, free.
+    Ice,
+    /// No damage at all for [`crate::constants::runes::PROTECTION_TURNS`]
+    /// turns ([`crate::effects::Protected`]).
+    Protection,
+}
+
 /// Type-key for a wand. Mechanic: the `wands` submodule of `crate::items`
 /// (zapped), and `throwing` (hurled).
 #[derive(Component)]

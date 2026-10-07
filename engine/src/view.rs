@@ -264,9 +264,10 @@ pub fn render<W: Write>(
             Option<&Forged>,
             Option<&MagicWard>,
             Option<&Bided>,
+            Option<&Protected>,
         ), With<Player>>();
         let mut v = Vec::new();
-        if let Some((confused, blind, paralyzed, charmed, plated, forged, warded, bided)) =
+        if let Some((confused, blind, paralyzed, charmed, plated, forged, warded, bided, hushed)) =
             q.iter(world).next()
         {
             match tempo {
@@ -305,6 +306,9 @@ pub fn render<W: Write>(
             }
             if bided.is_some() {
                 v.push(("BIDE", Color::DarkYellow));
+            }
+            if hushed.is_some() {
+                v.push(("PROT", Color::Cyan));
             }
         }
         v

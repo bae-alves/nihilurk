@@ -222,6 +222,9 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         crate::companion::follow_downstairs(world, helper, beside);
     }
     settle_arrival(world, player, cause);
+    if cause == LevelChange::Stairs {
+        crate::items::recharge_runes(world, player);
+    }
     lose_item_to_the_fall(world, player, cause, going_down);
     world
         .resource_mut::<GameLog>()

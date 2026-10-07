@@ -6,6 +6,8 @@
 //!
 //! * [`potions`] — quaffing a potion ([`potions::apply_potion_effect`])
 //! * [`scrolls`] — reading a scroll ([`scrolls::apply_scroll_effect`])
+//! * [`runes`] — invoking a rune ([`runes::apply_rune_effect`]), which goes
+//!   inert instead of crumbling and wakes on the stairs
 //! * [`wands`] — zapping a wand ([`wands::apply_wand_effect`]), plus the blast
 //!   and bolt machinery a thrown wand also borrows
 //! * [`throwing`] — hurling anything at anything, and what catches it
@@ -28,6 +30,7 @@ mod decks;
 mod pickups;
 mod potions;
 pub(crate) mod rings;
+mod runes;
 mod scrolls;
 mod spells;
 mod theft;
@@ -52,6 +55,13 @@ pub(crate) use theft::{leprechaun_theft, nymph_theft};
 pub(crate) use wands::blast_cells;
 
 pub use decks::{Hand, Rank, score_hand};
+
+/// One blast, resolved. A creature marked to burst when it dies
+/// ([`crate::effects::ExplodesOnDeath`]) lets one off through it.
+pub(crate) use wands::elemental_blast;
+
+/// What a staircase does to every spent rune in the pack.
+pub(crate) use runes::recharge_runes;
 
 pub use throwing::{
     FrozenThrows, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, thaw_into_pack,
@@ -118,6 +128,7 @@ use crate::helpers::item_label;
 use crate::identify::{display_name, with_the};
 
 use self::potions::apply_potion_effect;
+use self::runes::apply_rune_effect;
 use self::scrolls::apply_scroll_effect;
 use self::wands::apply_wand_effect;
 
@@ -212,6 +223,8 @@ struct UsePlan {
     scroll: Option<ScrollEffect>,
     /// The card just taken off the top of a deck.
     card: Option<Card>,
+    /// A rune's effect, and whether it held a charge going in.
+    rune: Option<(RuneEffect, bool)>,
     is_equipment: bool,
     destroy: bool,
     keep: bool,
@@ -227,6 +240,11 @@ fn plan_use(world: &mut World, item: Entity) -> UsePlan {
     plan.wand = e.get::<Wand>().map(|w| w.effect);
     plan.scroll = e.get::<Scroll>().map(|s| s.effect);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
+    if let Some(mut rune) = e.get_mut::<Rune>() {
+        plan.rune = Some((rune.effect, rune.charged));
+        rune.charged = false;
+        plan.keep = true;
+    }
     if let Some(mut battery) = e.get_mut::<Battery>() {
         if battery.charges <= 0 {
             plan.wand = None;
@@ -302,6 +320,18 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
     if let Some(card) = plan.card {
         let deck = (!plan.destroy).then_some(item_use.item);
         decks::draw(world, item_use.user, deck, card);
+    }
+    match plan.rune {
+        Some((eff, true)) => {
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::you_invoke(&seen_name));
+            apply_rune_effect(world, item_use.user, eff);
+        }
+        Some((_, false)) => world
+            .resource_mut::<GameLog>()
+            .add(strings::rune_is_inert().to_string()),
+        None => {}
     }
 }
 

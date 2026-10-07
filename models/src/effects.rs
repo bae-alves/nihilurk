@@ -324,6 +324,12 @@ pub struct PriorityHelper;
 #[derive(Component, Default, Clone, Copy)]
 pub struct FaerieOnDeath;
 
+/// Marked to burst on its death (a rune of justice): one fireball, centred on
+/// where it fell, rolled off its own power die. It hurts everyone the blast
+/// reaches, the reader included. See [`crate::combat`]'s `burst_on_death`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct ExplodesOnDeath;
+
 /// A kill by this creature sometimes turns it into another random monster
 /// (the dog). See [`crate::monsters::shapeshift`].
 #[derive(Component, Default, Clone, Copy)]
@@ -762,6 +768,12 @@ pub struct Paralyzed;
 /// ([`crate::conditions::clear_player_conditions`]).
 #[derive(Component, Default, Clone, Copy)]
 pub struct MagicWard;
+/// A rune of protection: no damage of any kind, however it comes. Held for
+/// [`crate::constants::runes::PROTECTION_TURNS`] turns. See
+/// [`crate::helpers::apply_hit`] and [`crate::combat::resolve_attack`], the two
+/// places HP comes off.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Protected;
 /// Turned up by a potion of detection: this thing draws on the map even where
 /// the player cannot see it, dimly, for as long as they stay on this floor.
 /// Nothing clears it — leaving the floor despawns everything that carries it.
@@ -996,6 +1008,9 @@ effects! {
     "crit" => Crit;
     "oof" => Oof;
     "time_stopped" => TimeStopped, ends strings::ends_time_stopped();
+    // The runes' two.
+    "protected" => Protected, ends strings::ends_protected();
+    "explodes_on_death" => ExplodesOnDeath;
 }
 
 /// The effects an entity hands out: innate magic on a monster, the effects a

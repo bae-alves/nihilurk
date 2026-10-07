@@ -275,6 +275,9 @@ struct EntitySave<'a> {
     /// A deck's remaining cards, bottom first. See [`Deck`].
     #[serde(default)]
     deck: Option<Vec<Card>>,
+    /// A rune's effect and whether it still holds a charge.
+    #[serde(default)]
+    rune: Option<(RuneEffect, bool)>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -486,6 +489,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             wand: er.get::<Wand>().map(|w| w.effect),
             ranged: er.get::<Ranged>().map(|r| r.range),
             scroll: er.get::<Scroll>().map(|s| s.effect),
+            rune: er.get::<Rune>().map(|r| (r.effect, r.charged)),
             ring: er.get::<Ring>().map(|r| r.effect),
             equipped: er.get::<Equipped>().map(|e| e.slot),
             power_die: er.get::<PowerDie>().map(|m| m.0),
@@ -736,6 +740,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(effect) = es.scroll {
             em.insert(Scroll { effect });
         }
+        if let Some((effect, charged)) = es.rune {
+            em.insert(Rune { effect, charged });
+        }
         if let Some(effect) = es.ring {
             em.insert(Ring { effect });
             let def = RingDef::of(effect);
@@ -884,6 +891,7 @@ mod tests {
             wand: None,
             ranged: None,
             scroll: None,
+            rune: None,
             ring: None,
             equipped: None,
             power_die: None,

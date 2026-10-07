@@ -560,6 +560,24 @@ pub mod decks {
 }
 
 // ===========================================================================
+// Runes
+// ===========================================================================
+
+/// The numbers a rune's effect reads. Which runes exist is data in
+/// `catalog.rs`; the mechanics are `crate::items`'s `runes` submodule.
+pub mod runes {
+    /// How many turns a rune of protection stops all damage.
+    pub const PROTECTION_TURNS: u32 = 6;
+
+    /// What a rune of recharging adds to each wand's battery.
+    pub const RECHARGE_STEP: i8 = 1;
+
+    /// The most charges a rune of recharging leaves in a wand: a fresh wand's
+    /// own.
+    pub const RECHARGE_CAP: i8 = super::wands::WAND_CHARGES;
+}
+
+// ===========================================================================
 // Wands and their blasts
 // ===========================================================================
 

@@ -25,13 +25,13 @@ const RAW_READS: &[(&str, usize, &str)] = &[
     ),
     (
         "helpers.rs",
-        3,
-        "`item_label` itself, and two `is_some` guards in front of it",
+        4,
+        "`item_label` itself, and three `is_some` guards in front of it",
     ),
     (
         "items/wands.rs",
-        2,
-        "renaming a spoiled scroll and potion: items, not creatures",
+        3,
+        "renaming a spoiled scroll, rune and potion: items, not creatures",
     ),
     (
         "items/throwing.rs",

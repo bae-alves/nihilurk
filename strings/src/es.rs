@@ -829,6 +829,10 @@ pub const fn ends_rooted() -> &'static str {
 pub const fn ends_clamped() -> &'static str {
     "Las fauces cerradas en la pierna por fin se aflojan."
 }
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn ends_protected() -> &'static str {
+    "El silencio se disipa. Vuelves a sangrar."
+}
 
 // ---------------------------------------------------------------------------
 // models/src/conditions.rs
@@ -1178,6 +1182,11 @@ pub fn ward_turns_aside(name: &str) -> String {
         "La protección {} {name} desvía la magia.",
         de_contraction(name)
     )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn protection_turns_aside(name: &str) -> String {
+    format!("El silencio se traga el daño destinado a {name}.")
 }
 
 pub fn unharmed_by(name: &str, element_noun: &str) -> String {
@@ -2137,6 +2146,45 @@ pub fn ring_shivers_apart(seen_name: &str) -> String {
 }
 pub fn item_turns_to_dust() -> &'static str {
     "¡El objeto se convierte en polvo!"
+}
+
+// Runas. Los efectos de Caos y Hielo hablan por los hechizos que lanzan.
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn you_invoke(seen_name: &str) -> String {
+    format!("Invocas {} {seen_name}.", article(seen_name))
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_inert_suffix() -> &'static str {
+    "inerte"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_is_inert() -> &'static str {
+    "La runa está apagada. Despierta cuando tomas las escaleras."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_blank_nothing() -> &'static str {
+    "La runa en blanco no hace nada, y lo dice en serio."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_recharged() -> &'static str {
+    "Tus varitas beben la luz de la runa."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_recharge_nothing() -> &'static str {
+    "La runa zumba. No llevas ninguna varita que cargar."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_justice_marks() -> &'static str {
+    "La runa graba un veredicto en todo lo que te ve. Cuando caigan, estallarán."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn rune_justice_nobody() -> &'static str {
+    "La runa no encuentra a nadie a quien juzgar."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn rune_protection_cast(turns: u32) -> String {
+    format!("Un silencio cae sobre ti. Nada puede dañarte durante {turns} turnos.")
 }
 
 // ---------------------------------------------------------------------------

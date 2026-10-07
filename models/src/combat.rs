@@ -122,6 +122,9 @@ pub fn reaper_system(world: &mut World) {
     };
 
     for entity in doomed {
+        if world.get_entity(entity).is_none() {
+            continue;
+        }
         finish_indirect_kill(world, entity, None);
     }
 }
@@ -217,6 +220,7 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
     kill_shake(world, entity);
     death_burst(world, entity, source);
     leave_gear_behind(world, entity);
+    burst_on_death(world, entity);
     crate::spirits::poof(world, entity);
 }
 
@@ -518,6 +522,14 @@ fn clamp_swing(
     matchup: &Matchup,
     mut swing: Swing,
 ) -> Swing {
+    if world.get::<crate::effects::Protected>(target).is_some() {
+        return Swing {
+            damage: 0,
+            excellent: false,
+            glancing: false,
+            chipped: None,
+        };
+    }
     if chip_on_stone(world, attacker, target, &mut swing) {
         return swing;
     }
@@ -1022,9 +1034,53 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
             false => pay_for_the_corpse(world, blow.target),
         }
         leave_gear_behind(world, blow.target);
+        burst_on_death(world, blow.target);
         crate::spirits::poof(world, blow.target);
     }
     crate::monsters::maybe_shapeshift(world, blow.attacker);
+}
+
+/// A creature marked [`ExplodesOnDeath`](crate::effects::ExplodesOnDeath) (a
+/// rune of justice) goes off as it falls: one fire blast of
+/// [`BLAST_RADIUS`](crate::constants::wands::BLAST_RADIUS) where it stood, for
+/// one roll of its own power die. It hurts whatever it reaches, the reader
+/// included, and a neighbour it kills may burst in turn.
+///
+/// Called from both ways a monster is finished, [`settle_the_dead`] (a blade)
+/// and [`finish_indirect_kill`] (everything else), after its gear is down and
+/// before it is gone.
+fn burst_on_death(world: &mut World, entity: Entity) {
+    if world
+        .get::<crate::effects::ExplodesOnDeath>(entity)
+        .is_none()
+    {
+        return;
+    }
+    crate::effects::revoke(
+        world,
+        entity,
+        Grant::of::<crate::effects::ExplodesOnDeath>(),
+    );
+    let Some(at) = world.get::<Position>(entity).copied() else {
+        return;
+    };
+    let Some(power) = world.get::<Fighter>(entity).map(|f| f.power) else {
+        return;
+    };
+    let damage = crate::helpers::roll_dice(world, 1, power.max(1));
+    let fighter = world.entity_mut(entity).take::<Fighter>();
+    crate::items::elemental_blast(
+        world,
+        None,
+        at,
+        crate::constants::wands::BLAST_RADIUS,
+        damage,
+        Some(crate::components::Element::Fire),
+        crate::particles::BlastPalette::Fire,
+    );
+    if let Some(fighter) = fighter {
+        world.entity_mut(entity).insert(fighter);
+    }
 }
 
 /// A creature that is a faerie shapeshifter underneath ([`FaerieOnDeath`], the

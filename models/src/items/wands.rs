@@ -240,7 +240,7 @@ pub(crate) fn blast_cells(map: &Map, center: Position, radius: f32) -> Vec<(u16,
 /// reaction at the end of it does — a coin caught in a blast pays its effect to
 /// whoever caused the blast, exactly as if they had shot the coin.
 #[allow(clippy::too_many_arguments)] // one blast, and everything one is made of
-pub(super) fn elemental_blast(
+pub(crate) fn elemental_blast(
     world: &mut World,
     shooter: Option<Entity>,
     center: Position,
@@ -1119,6 +1119,13 @@ fn cancel_player(world: &mut World, player: Entity) {
             scroll.effect = ScrollEffect::BlankPaper;
             if let Some(mut name) = em.get_mut::<Name>() {
                 name.what = strings::content_name("scroll of blank paper").to_string();
+            }
+        }
+        if let Some(mut rune) = em.get_mut::<Rune>() {
+            rune.effect = RuneEffect::Blank;
+            rune.charged = false;
+            if let Some(mut name) = em.get_mut::<Name>() {
+                name.what = strings::content_name("blank rune").to_string();
             }
         }
         if let Some(mut potion) = em.get_mut::<Potion>() {

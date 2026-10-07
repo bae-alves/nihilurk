@@ -90,6 +90,7 @@ The map uses these symbols:
 | `^`    | A discovered trap |
 | `$`    | A coin or other pickup |
 | `! ? / =` | Potion, scroll, wand, or ring |
+| `'`    | A rune: a scroll that goes dark instead of crumbling, and wakes when you take the stairs |
 | `) ] }` | Weapon, armour, or launcher |
 | `"`    | The Element of Yoord |
 
@@ -149,7 +150,7 @@ These commands go directly to the relevant kind of action:
 | `d` | Drop an item |
 | `e` | Equip something you can wear or wield |
 | `q` | Quaff a potion |
-| `r` | Read a scroll |
+| `r` | Read a scroll or a rune |
 | `z` | Zap a wand |
 | `w` | Wield a weapon or launcher |
 | `W` | Wear armour |
