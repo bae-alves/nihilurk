@@ -346,7 +346,9 @@ pub fn spawn_list(
 /// The optional dressing on a `NIHILURK_SPAWN` entry: `cursed`, a `+N`/`-N`
 /// enchantment and an `xN` stack size, in that order around the name --
 /// `cursed -2 long sword`, `arrow x13`. Each is ignored by a thing it does not
-/// fit (a stack on a dragon, a plus on a ring). A curse and a minus are
+/// fit (a stack on a dragon, a plus on a ring that is not a number). On a numeric
+/// ring the plus is the ring's own number, `+3 ring of protection` being a +3
+/// ring. A curse and a minus are
 /// separate dials, as they are in the dungeon.
 #[derive(Default)]
 struct SpawnMods {

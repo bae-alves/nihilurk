@@ -512,3 +512,76 @@ fn polymorphitis_eventually_polymorphs_its_bearer() {
 
     assert!(turned, "4000 turns of polymorphitis never changed anyone");
 }
+
+// ---------------------------------------------------------------------------
+// What a ring rolls when the dungeon makes one
+// ---------------------------------------------------------------------------
+
+/// The flat plus a ring carries, whichever roll its row feeds.
+fn plus(w: &World, ring: Entity) -> i32 {
+    w.get::<ArmorBonus>(ring).map_or(0, |b| b.0)
+        + w.get::<PowerBonus>(ring).map_or(0, |b| b.0)
+        + w.get::<ThrowBonus>(ring).map_or(0, |b| b.0)
+}
+
+/// `n` floor rolls of the ring `effect`, as `(plus, cursed)` pairs.
+fn rolled(effect: RingEffect, n: usize) -> Vec<(i32, bool)> {
+    let mut w = World::new();
+    let mut rng = ChaCha12Rng::seed_from_u64(7);
+    (0..n)
+        .map(|_| {
+            let ring = RingDef::of(effect).spawn_as_loot(&mut w, &mut rng, Position { x: 0, y: 0 });
+            (plus(&w, ring), w.get::<Curse>(ring).is_some())
+        })
+        .collect()
+}
+
+#[test]
+fn a_numeric_ring_is_plus_two_plain_plus_three_exceptional_and_cursed_from_minus_three_to_plus_two()
+{
+    for effect in [
+        RingEffect::Protection,
+        RingEffect::Strength,
+        RingEffect::IncreaseDamage,
+        RingEffect::Sharpshooting,
+    ] {
+        let rolls = rolled(effect, 3000);
+        for &(plus, cursed) in &rolls {
+            match (plus, cursed) {
+                (2, false) | (3, false) => {}
+                (-3..=2, true) => {}
+                other => panic!("{effect:?} rolled {other:?}"),
+            }
+        }
+        for want in [3, -3, 2] {
+            assert!(
+                rolls.iter().any(|&(p, _)| p == want),
+                "{effect:?} never rolled a {want:+} in 3000 tries"
+            );
+        }
+        assert!(
+            rolls.iter().any(|&(p, c)| p < 0 && c),
+            "{effect:?} never rolled a negative one"
+        );
+    }
+}
+
+#[test]
+fn a_ring_with_no_number_gets_no_number_however_it_rolls() {
+    for effect in [
+        RingEffect::Perception,
+        RingEffect::Stealth,
+        RingEffect::Regeneration,
+        RingEffect::Adornment,
+    ] {
+        let rolls = rolled(effect, 1000);
+        assert!(
+            rolls.iter().all(|&(p, _)| p == 0),
+            "{effect:?} picked up a plus"
+        );
+        assert!(
+            rolls.iter().any(|&(_, c)| c) && rolls.iter().any(|&(_, c)| !c),
+            "{effect:?} should still roll both cursed and clean"
+        );
+    }
+}

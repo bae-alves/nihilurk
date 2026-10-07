@@ -9,6 +9,8 @@ Reference: command line and environment
 
     cargo run -p nihilurk -- [flags] [name-or-save]
 
+After `cargo install nihilurk`, run `nihilurk [flags] [name-or-save]` instead. If the shell cannot find it, `~/.cargo/bin` is not on your `PATH`; the README's install steps shows how to add it.
+
 
 Flags
 -----
@@ -129,9 +131,11 @@ refused up front to keep that true, both before the terminal is touched:
 A monster's hit points are its own, so several rows are a one or two-hit death: that
 is intended, and `-s` is how you retry it.
 
-`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is installed as `nihilurk(6)`:
+`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is `nihilurk(6)`. The prebuilt tarball and the AUR package install it, so `man nihilurk` works there; `cargo install` installs the binary only, so from a clone read it with:
 
-    man nihilurk
+    man ./doc/nihilurk.6
+
+The game needs a terminal of at least 80 columns by 25 rows. In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
 
 `-content` never touches the alternate screen, so it pipes:
 
@@ -188,11 +192,11 @@ Details:
     | Piece    | Example             | Effect |
     |----------|---------------------|--------|
     | `cursed` | `cursed ring mail`  | Adds the `Curse` tag: once worn or wielded it will not come off until a scroll of remove curse. |
-    | `+N`/`-N`| `+3 long sword`     | Adds N to the item's flat bonus: a weapon's hit roll, armour's guard, or a launcher's throw (the arrows it looses). Same code as the dungeon's own enchantment roll (`catalog::apply_bonus`). |
+    | `+N`/`-N`| `+3 long sword`     | Adds N to the item's flat bonus: a weapon's hit roll, armour's guard, or a launcher's throw (the arrows it looses). On a numeric ring (protection, strength, increase damage, sharpshooting) N is the ring's whole number, so `+3 ring of protection` is a +3 ring. Same code as the dungeon's own enchantment roll (`catalog::apply_bonus`). |
     | `xN`     | `arrow x13`         | Sets the stack size, clamped to `1..=STACK_LIMIT`. `x0` gives 1, and anything over the limit gives the limit. |
 
     A curse and a minus are independent: `-2 long sword` is not cursed, and `cursed +2 long sword` is. The quality is hidden until worn or identified, as for any gear.
-  * A modifier the thing cannot use (a plus on a ring, a stack on a dragon) is ignored, and the entry still counts as recognised.
+  * A modifier the thing cannot use (a plus on a ring that is not a number, a stack on a dragon) is ignored, and the entry still counts as recognised.
   * A malformed modifier (`+x sword`) is not a modifier: it stays part of the name, so the entry is skipped like any unknown name.
   * A name the tables do not know is skipped **silently**. This is a debug knob, not a parser. Check your spelling against `-content`.
   * Things are placed on the nearest free walkable tiles, searching outward in rings from the player. Nothing lands in a wall or on top of anything else.

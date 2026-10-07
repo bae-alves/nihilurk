@@ -20,9 +20,9 @@ use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
 use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_roll};
-use crate::identify::{article_for, counted, display_name, phrase_for, with_article};
+use crate::identify::{article_for, counted, display_name, phrase_for, with_article, with_the};
 use crate::map::{GameRng, Map};
-use crate::particles::Particles;
+use crate::particles::{Particles, THROW_SPEEDUP};
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
 
@@ -45,14 +45,26 @@ pub fn throw_refusal(world: &World, user: Entity, item: Entity) -> Option<String
 }
 
 /// Why `item` can't be used from the pack, if it can't: a treat or a piece of
-/// ammunition is only ever thrown, and says so. Asked before the use is
-/// queued, so saying so costs no turn.
+/// ammunition is only ever thrown, and says so; an item that does nothing when
+/// used (the Element of Yoord) says that. Asked before the use is queued, so
+/// saying so costs no turn.
 ///
 /// Ammunition is whatever answers to a launcher ([`LaunchedBy`]), not whatever
 /// flies well ([`Projectile`]): a dagger flies well and is still wielded.
 pub fn use_refusal(world: &World, item: Entity) -> Option<String> {
     let thrown_only = world.get::<Treat>(item).is_some() || world.get::<LaunchedBy>(item).is_some();
-    thrown_only.then(|| strings::for_throwing(&display_name(world, item)))
+    if thrown_only {
+        return Some(strings::for_throwing(&display_name(world, item)));
+    }
+    let has_a_use = world.get::<Potion>(item).is_some()
+        || world.get::<Wand>(item).is_some()
+        || world.get::<Scroll>(item).is_some()
+        || world.get::<Rune>(item).is_some()
+        || world.get::<Battery>(item).is_some()
+        || world.get::<Deck>(item).is_some()
+        || world.get::<Equipped>(item).is_some()
+        || world.get::<Consume>(item).is_some();
+    (!has_a_use).then(|| strings::cant_use_right_now(&with_the(&item_label(world, item))))
 }
 
 /// Why `user` can't put `item` down, if they can't. Two things stay in the
@@ -579,7 +591,7 @@ fn deliver_throw(
             if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color))
             {
                 if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                    fx.hurl(&cells, glyph, color);
+                    fx.hurl_at(&cells, glyph, color, THROW_SPEEDUP);
                 }
             }
         }

@@ -9,6 +9,7 @@ What you get:
 
   * A classic roguelike on a turn-based grid: thirteen floors, traps, unidentified items, and permanent death. There is one save, and it is deleted when an expedition ends.
   * Auto-explore (`o`) and auto-fight (`Tab`), so safe ground is quick and the fights are the game.
+  * Trick shots, the thing nihilurk does that Rogue never did: shoot a trap, a coin or a potion on the floor from across the room and it goes off over everything around it. Bursts chain. Only ranged attacks do it, and it catches you too if you stand close.
   * Seeded floors (`-s 1234`), and two ways down: nihil, who carries gear, or the lurk (`-b lurk`), who has claws and fur.
   * Four languages, English, Portuguese, Spanish and Haitian Creole, one binary each, picked at build time.
 
@@ -18,12 +19,24 @@ Install from crates.io (needs Rust 1.91 or newer) and play:
     cargo install nihilurk --no-default-features --features lang-pt    # or another language
     nihilurk                                # play
 
+If the shell says `nihilurk: command not found`, the cargo bin directory is not on your `PATH`. `rustup` normally adds it, but a rebuilt dotfile or a distro Rust package may not. Add it, then open a new shell:
+
+    # bash: append to ~/.bashrc    zsh: append to ~/.zshrc
+    export PATH="$HOME/.cargo/bin:$PATH"
+
+    # PowerShell on Windows, once (it sticks for your user)
+    [Environment]::SetEnvironmentVariable("Path", "$env:USERPROFILE\.cargo\bin;" + [Environment]::GetEnvironmentVariable("Path", "User"), "User")
+
+Until then, `~/.cargo/bin/nihilurk` (on Windows `%USERPROFILE%\.cargo\bin\nihilurk.exe`) runs it.
+
 From a clone:
 
     cargo run -p nihilurk                  # play
     cargo run -p nihilurk -- -s 1234       # play a specific seed
     cargo test                           # everything
 
+
+The game needs a terminal of at least 80 columns by 25 rows. In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
 
 Prebuilt Linux tarballs (x86_64 and aarch64, static musl) are on the [releases page](https://github.com/bae-alves/nihilurk/releases). Unpack one and run `./nihilurk`.
 
@@ -35,7 +48,7 @@ Where things are
 
     MANUAL.md      how to play: controls, combat math, items, monsters.
     the site       https://bae-alves.github.io/nihilurk/, the manual and docs/, built from this repository.
-    doc/nihilurk.6     the installed `man nihilurk` command reference.
+    doc/nihilurk.6     the command reference. `man nihilurk` works from the prebuilt tarball (it ships `nihilurk.6`) and the AUR package; `cargo install` installs the binary only, so use `nihilurk -h` or `man ./doc/nihilurk.6` from a clone.
     docs/          how to add content to the game. Start at docs/README.md.
     CONTRIBUTING.md    reporting bugs, sending patches and translations, and the LLM rule.
     gdd.md         what nihilurk is trying to be. Design, not code.

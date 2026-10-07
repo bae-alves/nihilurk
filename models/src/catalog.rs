@@ -43,6 +43,10 @@ use crate::constants::loot::{
     AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN, CURSED_BONUS_MAX, CURSED_BONUS_MIN, EXCEPTIONAL_BONUS_MAX,
     EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, NORMAL_QUALITY_PCT,
 };
+use crate::constants::rings::{
+    CURSED_BONUS_MAX as RING_CURSED_BONUS_MAX, CURSED_BONUS_MIN as RING_CURSED_BONUS_MIN,
+    EXCEPTIONAL_BONUS as RING_EXCEPTIONAL_BONUS, PLAIN_BONUS,
+};
 use crate::constants::wands::WAND_CHARGES;
 
 // ---------------------------------------------------------------------------
@@ -1090,7 +1094,7 @@ impl ItemDef for RingDef {
 
     fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
         let e = self.spawn(world, pos);
-        enchant_equipment(world, rng, e);
+        enchant_ring(world, rng, e, self.is_numeric());
         e
     }
 }
@@ -1102,10 +1106,10 @@ impl ItemDef for RingDef {
 #[rustfmt::skip]
 pub const RINGS: &[RingDef] = &[
     RingDef::new(RingEffect::Protection, "ring of protection")
-        .armor_bonus(2),
+        .armor_bonus(PLAIN_BONUS),
     // Rogue's separate add-strength and sustain-strength rings, merged.
     RingDef::new(RingEffect::Strength, "ring of strength")
-        .power_bonus(2)
+        .power_bonus(PLAIN_BONUS)
         .grants(&[Grant::of::<SustainsStrength>()]),
     // Rogue's separate searching and see-invisible rings, merged.
     RingDef::new(RingEffect::Perception, "ring of perception")
@@ -1114,7 +1118,7 @@ pub const RINGS: &[RingDef] = &[
         .grants(&[Grant::of::<AggravatesMonsters>()]),
     // A steady hand: worth as much on a hurled dagger as on a loosed arrow.
     RingDef::new(RingEffect::Sharpshooting, "ring of sharpshooting")
-        .throw_bonus(2),
+        .throw_bonus(PLAIN_BONUS),
     // Rogue's useless ring, made the most valuable thing in the dungeon: worn
     // once, for one action, it doubles the run's score and is gone.
     RingDef::new(RingEffect::Adornment, "ring of adornment")
@@ -1122,7 +1126,7 @@ pub const RINGS: &[RingDef] = &[
     // The ring of strength's plain twin: the same two points on the damage
     // roll, without the arm behind it that a dart can't drain.
     RingDef::new(RingEffect::IncreaseDamage, "ring of increase damage")
-        .power_bonus(2),
+        .power_bonus(PLAIN_BONUS),
     RingDef::new(RingEffect::Regeneration, "ring of regeneration")
         .grants(&[Grant::of::<Regenerates>()]),
     // The joke it has always been, taken literally: it slows your digestion by
@@ -1576,7 +1580,7 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &s
 // Enchantment
 // ---------------------------------------------------------------------------
 
-/// The quality every weapon, armour and ring drop rolls when it spawns.
+/// The quality every weapon, armour, launcher and ring drop rolls when it spawns.
 ///
 /// | Quality     | Odds                       | Bonus (equal-probability integer)              |
 /// |-------------|----------------------------|-------------------------------------------------|
@@ -1584,7 +1588,8 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &s
 /// | Exceptional | [`EXCEPTIONAL_QUALITY_PCT`]| [`EXCEPTIONAL_BONUS_MIN`]..[`EXCEPTIONAL_BONUS_MAX`] |
 /// | Cursed      | whatever is left           | [`CURSED_BONUS_MIN`]..[`CURSED_BONUS_MAX`] (yes, a cursed item can roll positive) |
 ///
-/// The bonus lands on the flat modifier, never the die size.
+/// The bonus lands on the flat modifier, never the die size. A ring rolls the
+/// same three qualities but its own numbers: see [`enchant_ring`].
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Quality {
     Normal,
@@ -1611,8 +1616,8 @@ impl Quality {
 ///
 /// Which bonus applies is read off the item itself — a thing with a [`PowerDie`]
 /// is a weapon, a thing with an [`ArmorDie`] is armour, a [`Launcher`] is a bow —
-/// so a future item that is two of those gets both pluses, and a ring (which is
-/// none of them) gets only the tag.
+/// so a future item that is two of those gets both pluses. A ring is none of
+/// them and has its own roll, [`enchant_ring`].
 pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) {
     let quality = Quality::roll(rng);
     let bonus: i32 = match quality {
@@ -1627,11 +1632,58 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     }
 }
 
+/// Rolls quality for a freshly spawned ring.
+///
+/// | Quality     | Numeric ring (protection, strength, increase damage, sharpshooting) | Any other ring |
+/// |-------------|-----------------------------------|-------------------|
+/// | Normal      | [`PLAIN_BONUS`] (its row)         | nothing           |
+/// | Exceptional | [`RING_EXCEPTIONAL_BONUS`]        | nothing           |
+/// | Cursed      | [`RING_CURSED_BONUS_MIN`]..[`RING_CURSED_BONUS_MAX`], and a [`Curse`] | a [`Curse`] |
+///
+/// The odds are the gear odds ([`Quality::roll`]). The plus is an absolute
+/// number that replaces the row's, not a bonus on top of it.
+fn enchant_ring(world: &mut World, rng: &mut ChaCha12Rng, ring: Entity, numeric: bool) {
+    let quality = Quality::roll(rng);
+    let plus = match quality {
+        Quality::Normal => PLAIN_BONUS,
+        Quality::Exceptional => RING_EXCEPTIONAL_BONUS,
+        Quality::Cursed => rng.gen_range(RING_CURSED_BONUS_MIN..=RING_CURSED_BONUS_MAX),
+    };
+    let mut entity = world.entity_mut(ring);
+    if numeric {
+        set_ring_plus(&mut entity, plus);
+    }
+    if quality == Quality::Cursed {
+        entity.insert(Curse);
+    }
+}
+
+/// Makes `plus` the number a numeric ring carries, on whichever roll its row
+/// feeds. A ring with no number has none of the three components and is left
+/// alone.
+fn set_ring_plus(entity: &mut bevy_ecs::world::EntityWorldMut, plus: i32) {
+    if entity.contains::<PowerBonus>() {
+        entity.insert(PowerBonus(plus));
+    }
+    if entity.contains::<ArmorBonus>() {
+        entity.insert(ArmorBonus(plus));
+    }
+    if entity.contains::<ThrowBonus>() {
+        entity.insert(ThrowBonus(plus));
+    }
+}
+
 /// Adds `bonus` to whichever roll the item contributes to: the weapon's hit, the
-/// armour's guard, or a launcher's throw. A ring is none of those and is left
-/// alone. Shared by [`enchant_equipment`] and the `NIHILURK_SPAWN` `+N` prefix.
+/// armour's guard, or a launcher's throw. A ring is the exception: `bonus` *is*
+/// its number (see [`enchant_ring`]), so `+3` makes a +3 ring of protection and
+/// not a +5 one, and a ring with no number ignores it. Shared by
+/// [`enchant_equipment`] and the `NIHILURK_SPAWN` `+N` prefix.
 pub fn apply_bonus(world: &mut World, item: Entity, bonus: i32) {
     let mut entity = world.entity_mut(item);
+    if entity.contains::<Ring>() {
+        set_ring_plus(&mut entity, bonus);
+        return;
+    }
     if entity.get::<PowerDie>().is_some() {
         let base = entity.get::<PowerBonus>().map(|b| b.0).unwrap_or(0);
         entity.insert(PowerBonus(base + bonus));

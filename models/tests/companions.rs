@@ -172,6 +172,32 @@ fn a_second_helper_costs_you_the_first() {
 }
 
 #[test]
+fn an_exploded_helper_goes_at_normal_speed_unlike_one_that_is_killed() {
+    let mut w = test_world(5);
+    w.init_resource::<Particles>();
+    let at = east_of_player(&mut w, 1);
+    let a = monster::plain_monster(&mut w, "rat", at);
+    let at = east_of_player(&mut w, 2);
+    let b = monster::plain_monster(&mut w, "bat", at);
+
+    recruit(&mut w, a);
+    recruit(&mut w, b);
+
+    let longest_corpse = w
+        .resource::<Particles>()
+        .live
+        .iter()
+        .filter(|p| p.frames.iter().any(|&(g, _)| g == '%'))
+        .map(|p| p.lifetime_ms)
+        .fold(0.0_f32, f32::max);
+    assert!(longest_corpse > 0.0, "the explosion flung a corpse");
+    assert!(
+        longest_corpse < 500.0,
+        "the corpse lingers {longest_corpse} ms, stretched like a killed Helper's"
+    );
+}
+
+#[test]
 fn a_helper_closes_on_a_monster_in_view_and_otherwise_on_you() {
     let mut w = test_world(9);
     let at = east_of_player(&mut w, 3);

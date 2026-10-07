@@ -3,6 +3,7 @@
 //! [`Ending`] says the run is over. `screen`, `update` and `view` are its own submodules
 //! — everything else the turn touches lives in `models`.
 
+mod constants;
 mod screen;
 mod update;
 mod view;
@@ -526,11 +527,15 @@ fn main() -> std::io::Result<()> {
         view::play_shake(&mut world, &mut stdout, &mut screen)?;
 
         if world.resource::<AutoExplore>().active {
-            std::thread::sleep(std::time::Duration::from_millis(35));
+            std::thread::sleep(std::time::Duration::from_millis(
+                constants::timing::AUTOEXPLORE_STEP_MS,
+            ));
         }
 
         if models::player_incapacitated(&mut world) {
-            std::thread::sleep(std::time::Duration::from_millis(90));
+            std::thread::sleep(std::time::Duration::from_millis(
+                constants::timing::INCAPACITATED_PAUSE_MS,
+            ));
         }
 
         if world.resource::<Ending>().player_dead || world.resource::<Ending>().player_won {

@@ -66,7 +66,9 @@ and another language by naming its feature:
 
     cargo install nihilurk --no-default-features --features lang-pt
 
-That installs one binary, `nihilurk`, in one language. The forwarder that picks a language from `$LANG` (`nihilurk-dispatch`) is behind the `dispatch` feature and is not installed, because it execs a `nihilurk-<lang>` next to itself and an install from crates.io has none. `release/package.sh` and `aur/PKGBUILD` ask for it by name. `--no-default-features` is not optional for a second language: leaving it off builds English and the requested language together, and `strings` then fails to compile.
+That installs one binary, `nihilurk`, in one language, into `~/.cargo/bin`. A stranger whose shell lacks that directory on `PATH` gets "command not found", so the README's install steps carries the fix; keep it there when you edit the install lines.
+
+The forwarder that picks a language from `$LANG` (`nihilurk-dispatch`) is behind the `dispatch` feature and is not installed, because it execs a `nihilurk-<lang>` next to itself and an install from crates.io has none. `release/package.sh` and `aur/PKGBUILD` ask for it by name. `--no-default-features` is not optional for a second language: leaving it off builds English and the requested language together, and `strings` then fails to compile.
 
 Check the install once, in a scratch directory, before you announce anything:
 

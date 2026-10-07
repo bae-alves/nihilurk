@@ -14,6 +14,8 @@ use std::time::Duration;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, poll, read};
+
+use crate::constants::timing::{INCAPACITATED_PAUSE_MS, TRAVEL_BLINK_MS};
 use models::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use models::*;
 use models::{GameState, components::GameLog};
@@ -54,11 +56,6 @@ fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
         _ => None,
     }
 }
-
-/// How long a turn lost to paralysis holds the screen, so the monsters' free
-/// move is something the player watches happen rather than finds already done.
-/// The same pacing `main.rs` gives a player asleep in gas.
-const PARALYSIS_PAUSE_MS: u64 = 90;
 
 /// The eight steps a confused stumble can send you.
 const STUMBLE_DIRS: [(i16, i16); 8] = [
@@ -358,7 +355,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     }
 
     if !more_pending && paralysis_forfeits_turn(world) {
-        std::thread::sleep(Duration::from_millis(PARALYSIS_PAUSE_MS));
+        std::thread::sleep(Duration::from_millis(INCAPACITATED_PAUSE_MS));
         return Ok(true);
     }
 
@@ -1748,7 +1745,7 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
 /// auto-travel, and Esc or `O` cancels. A bare timeout just flips the
 /// highlight's blink phase and repaints.
 pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
-    if !poll(Duration::from_millis(400))? {
+    if !poll(Duration::from_millis(TRAVEL_BLINK_MS))? {
         let mut tc = world.resource_mut::<TravelCursor>();
         tc.blink_on = !tc.blink_on;
         return Ok(());
@@ -2934,6 +2931,30 @@ mod tests {
 
         assert_eq!(*w.get::<Position>(player).unwrap(), here);
         assert_eq!(*w.get::<Position>(pal).unwrap(), there);
+    }
+
+    #[test]
+    fn using_an_item_with_no_use_says_so_and_costs_nothing() {
+        let mut w = modal_world(3);
+        let player = player_entity(&mut w);
+        let element = models::spawn_element_of_yoord(&mut w, Position { x: 0, y: 0 });
+        w.entity_mut(element).remove::<Position>();
+        w.get_mut::<Backpack>(player)
+            .unwrap()
+            .items
+            .insert(0, element);
+
+        let turn = commit_item_action(&mut w, player, 0, ItemAction::Use);
+
+        assert!(!turn, "no turn spent on a refusal");
+        assert_eq!(w.get::<Backpack>(player).unwrap().items[0], element);
+        assert!(w.resource::<UseQueue>().uses.is_empty());
+        assert!(
+            w.resource::<GameLog>()
+                .history
+                .iter()
+                .any(|l| l.contains("right now"))
+        );
     }
 
     #[test]

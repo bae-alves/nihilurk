@@ -30,6 +30,24 @@ the only way out is up, and the creatures you meet may be drawn from anywhere
 in the dungeon. Few runs come back up. Death is permanent; there is no retry
 and no resurrection.
 .PP
+What sets the game apart is the trick shot. A missile or a blast that lands on
+a trap you can see, on a coin, or on a potion lying on the floor sets it off
+from a distance, over every tile around it, and the burst can set off the next
+one. A creature standing on something you could set off is drawn on a magenta
+cell. Only ranged attacks do it, and it catches you too if you stand close.
+.PP
+Spirits are the shops. They are
+.B &
+creatures, and you make a deal with one by walking into it. Some give away a
+choice of items; others trade if you carry something they want. The game has
+no currency. Dealing with them too much, or hurting them, upsets the balance
+and turns every spirit hostile. A scroll of atonement makes them peaceful
+again.
+.PP
+The game needs a terminal of at least 80 columns by 25 rows. In a smaller one
+the message log draws garbled letters; that is a known limit and will not be
+fixed.
+.PP
 To get started you only need to know two things: the direction keys move you,
 and walking into a monster attacks it. The rest of the commands are listed
 below.
@@ -204,7 +222,9 @@ ammunition accept dressing around the name, in this order:
 .B cursed
 adds a curse,
 .BR +N / \-N
-adds N to a weapon's hit, armour's guard or a launcher's throw, and
+adds N to a weapon's hit, armour's guard or a launcher's throw, or sets the
+whole number of a numeric ring (protection, strength, increase damage,
+sharpshooting), and
 .B xN
 sets a stack size, clamped to the stack limit of 13. A curse and a minus are
 independent. A modifier the item cannot use is ignored. Use
@@ -398,4 +418,7 @@ clear data.
 .PP
 bae.
 .SH BUGS
+A terminal under 80 columns by 25 rows garbles the message log. This is known
+and will not be fixed.
+.PP
 Life is unfair and death is permanent; bugs account for the remainder.

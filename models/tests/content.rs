@@ -471,6 +471,50 @@ fn a_spawn_list_can_curse_enchant_and_stack() {
     assert_eq!(counts, [5, models::STACK_LIMIT]);
 }
 
+/// A plus on a ring is the ring's own number, not an addition to the row's
+/// (`+3 ring of protection` is a +3 ring), and a ring that is not a number
+/// ignores it.
+#[test]
+fn a_spawn_list_plus_sets_a_numeric_rings_number() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(rng(32)));
+    w.insert_resource(RngSeed(32));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    initialize_world(&mut w);
+    let start = *w.query_filtered::<&Position, With<Player>>().single(&w);
+    let mut occupied: HashSet<(u16, u16)> = HashSet::from([(start.x, start.y)]);
+    let before: HashSet<Entity> = w.iter_entities().map(|e| e.id()).collect();
+
+    let n = models::spawn_list(
+        &mut w,
+        "+3 ring of protection, -2 ring of strength, +3 ring of perception, +1 ring of sharpshooting",
+        start,
+        &mut occupied,
+    );
+    assert_eq!(n, 4);
+
+    let find = |w: &World, name: &str| -> Entity {
+        w.iter_entities()
+            .filter(|e| !before.contains(&e.id()))
+            .find(|e| e.get::<Name>().is_some_and(|n| n.what == name))
+            .map(|e| e.id())
+            .unwrap()
+    };
+    let protection = find(&w, "ring of protection");
+    let strength = find(&w, "ring of strength");
+    let perception = find(&w, "ring of perception");
+    let aim = find(&w, "ring of sharpshooting");
+    assert_eq!(w.get::<ArmorBonus>(protection).map(|b| b.0), Some(3));
+    assert_eq!(w.get::<PowerBonus>(strength).map(|b| b.0), Some(-2));
+    assert_eq!(w.get::<ThrowBonus>(aim).map(|b| b.0), Some(1));
+    assert!(w.get::<ArmorBonus>(perception).is_none());
+    assert!(w.get::<PowerBonus>(perception).is_none());
+    assert!(w.get::<ThrowBonus>(perception).is_none());
+}
+
 // ---------------------------------------------------------------------------
 // Identification
 // ---------------------------------------------------------------------------

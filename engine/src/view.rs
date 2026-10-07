@@ -20,6 +20,7 @@ use crossterm::{
 
 use models::*;
 
+use crate::constants::timing::{ANIMATION_SLOWDOWN, BASE_FRAME_MS};
 pub use crate::screen::{MAP_TOP, SCREEN_H, SCREEN_W, Screen};
 
 /// A targeting beam's trajectory from `(x0, y0)` to `(x1, y1)`, in map
@@ -871,15 +872,6 @@ fn interrupted(frame: Duration) -> std::io::Result<bool> {
     Ok(matches!(read()?, Event::Key(k) if k.kind == KeyEventKind::Press))
 }
 
-/// Global slowdown on how long each animation frame holds on screen, layered
-/// independently of [`AnimRate`]: it stretches only the real time between
-/// redraws, leaving how far the simulated clock (and every particle's own
-/// keyframe timing) advances per frame untouched. So every blast, spark,
-/// flight, shake and magic-map wipe plays out the same sequence of frames it
-/// always did, just held a beat longer — one knob, not a retune of each
-/// effect's own duration constants.
-const ANIMATION_SLOWDOWN: f32 = 4.0 / 3.0;
-
 /// Stretches a frame's real on-screen hold time by [`ANIMATION_SLOWDOWN`].
 /// Never applied to the dt fed into `advance`/`age_shake`/a reveal step — only
 /// to how long the loop sleeps before the next one, which is what actually
@@ -907,7 +899,6 @@ pub fn play_particles<W: Write>(
     world.resource_mut::<Particles>().pending = false;
     drain_input()?;
 
-    const BASE_FRAME_MS: u64 = 33;
     let frame_ms = world.resource::<AnimRate>().scale(BASE_FRAME_MS);
     loop {
         age_shake(world, frame_ms);
@@ -997,7 +988,6 @@ pub fn play_shake<W: Write>(
         return Ok(());
     }
 
-    const BASE_FRAME_MS: u64 = 33;
     let frame_ms = world.resource::<AnimRate>().scale(BASE_FRAME_MS);
     loop {
         age_shake(world, frame_ms);

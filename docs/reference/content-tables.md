@@ -600,7 +600,7 @@ about save bits and cancellation.
 Enchantment
 -----------
 
-Rolled by `enchant_equipment` for every weapon, armour, launcher and ring that arrives as a floor drop. Never for a `spawn_named` spawn. The odds and the bonus ranges are `models/src/constants.rs` → `loot` (see `constants.md`).
+Rolled by `enchant_equipment` for every weapon, armour and launcher, and by `enchant_ring` for every ring, that arrives as a floor drop. Never for a `spawn_named` spawn. The odds and the bonus ranges are `models/src/constants.rs` → `loot` (see `constants.md`).
 
 | Quality     | Odds                        | Bonus                        |
 |-------------|-----------------------------|-------------------------------|
@@ -612,6 +612,18 @@ A cursed item can roll better than a clean one; it simply cannot be taken off on
 
 The bonus lands on whichever roll the item feeds, read off the item itself: a thing with a `PowerDie` gets `PowerBonus`, a thing with an `ArmorDie` gets `ArmorBonus`, a `Launcher` gets `ThrowBonus`. Something that is two of those would get both. Never on the die size.
 
+### Rings
+
+A ring rolls the same three qualities at the same odds, with its own numbers (`constants::rings`). Only a *numeric* ring (`RingDef::is_numeric`: protection, strength, increase damage, sharpshooting) has a plus to roll, and the plus is absolute: it replaces the row's, it is not added to it.
+
+| Quality     | Numeric ring                              | Any other ring |
+|-------------|-------------------------------------------|----------------|
+| Normal      | `PLAIN_BONUS` (+2, which is the row)      | nothing        |
+| Exceptional | `EXCEPTIONAL_BONUS` (+3)                  | nothing        |
+| Cursed      | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX` (-3 .. +2), plus a `Curse` tag | a `Curse` tag |
+
+A cursed ring never beats a plain one: its range stops at `PLAIN_BONUS`. The rows spell their number with `PLAIN_BONUS`, so the table and the roll cannot disagree.
+
 
 Identification
 --------------
@@ -620,7 +632,7 @@ Identification
 
 Potions, scrolls, wands and rings are always shown by their true name — no cosmetic appearance, no per-effect knowledge to track, nothing to keep in step with the catalog when a row is added.
 
-Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_equipment` can also curse (never a plus, since it rolls no die), hides that curse the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
+Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_ring` curses and, for a numeric ring, gives a plus, hides both the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
 
 A dud effect (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `WandEffect::Nothing`) is never a spawnable row; it only ever happens as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`). Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/content.rs`.
 

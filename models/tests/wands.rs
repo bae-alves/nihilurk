@@ -162,6 +162,42 @@ fn a_fresh_wand_always_spawns_fully_charged() {
 }
 
 #[test]
+fn zapping_the_last_charge_still_fires_and_destroys_the_wand() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let target = dummy(&mut w, "sack", spot, 40);
+    let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
+    w.get_mut::<Battery>(wand).unwrap().charges = 1;
+
+    zap(&mut w, p, wand, spot);
+
+    assert!(
+        w.get::<Fighter>(target).unwrap().hp < 40,
+        "the last charge fires"
+    );
+    assert!(w.get_entity(wand).is_none(), "the wand is gone");
+    assert!(!w.get::<Backpack>(p).unwrap().items.contains(&wand));
+    let said = w.resource::<GameLog>().history.join("\n");
+    assert!(said.contains("crumble"), "log was: {said}");
+}
+
+#[test]
+fn a_wand_with_charges_left_comes_back_to_the_pack() {
+    let mut w = test_world(2);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    dummy(&mut w, "sack", spot, 40);
+    let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
+    w.get_mut::<Battery>(wand).unwrap().charges = 2;
+
+    zap(&mut w, p, wand, spot);
+
+    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 1);
+    assert!(w.get::<Backpack>(p).unwrap().items.contains(&wand));
+}
+
+#[test]
 fn a_wand_bolt_ignores_armour_entirely() {
     let mut w = test_world(2);
     let p = player(&mut w);

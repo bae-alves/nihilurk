@@ -751,6 +751,22 @@ pub mod rings {
     /// Magic points one deliberate teleport costs a wearer of the ring of
     /// teleportation.
     pub const TELEPORT_MAGIC_COST: u8 = 2;
+
+    /// The plus a *numeric* ring — protection, strength, increase damage,
+    /// sharpshooting — carries when it rolls plain. An absolute number, not a
+    /// bonus on top of the row: the rows read it too, so the table and the
+    /// roll cannot disagree.
+    pub const PLAIN_BONUS: i32 = 2;
+
+    /// The plus a numeric ring carries when it rolls exceptional, always.
+    pub const EXCEPTIONAL_BONUS: i32 = 3;
+
+    /// A cursed numeric ring rolls its plus uniformly in this inclusive range.
+    /// It tops out at [`PLAIN_BONUS`], so a curse is never the better ring,
+    /// only the one that will not come off.
+    pub const CURSED_BONUS_MIN: i32 = -3;
+    /// See [`CURSED_BONUS_MIN`].
+    pub const CURSED_BONUS_MAX: i32 = PLAIN_BONUS;
 }
 
 // ===========================================================================

@@ -20,7 +20,7 @@ use crate::effects::{
     AlwaysHelper, AlwaysTamed, Asleep, Grant, ItemUser, Phasing, PriorityHelper, grant_all, revoke,
     revoke_matching,
 };
-use crate::helpers::{death_burst, free_adjacent_tile, item_label};
+use crate::helpers::{death_burst_at, free_adjacent_tile, item_label};
 use crate::map::{BloodStains, GameRng};
 use crate::particles::{BlastPalette, Particles, on_map};
 use crate::shake::{ShakeKind, kick_shake};
@@ -155,7 +155,7 @@ fn explode(world: &mut World, old: Entity) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
             fx.explosion(&cells, BlastPalette::Death);
         }
-        death_burst(world, old, None);
+        death_burst_at(world, old, None, 1.0);
         kick_shake(world, ShakeKind::Heavy);
     }
     let mut log = world.resource_mut::<GameLog>();

@@ -64,6 +64,8 @@ Why most gear is cursed
 
 Most weapon, armour and ring drops roll cursed: whatever `NORMAL_QUALITY_PCT` and `EXCEPTIONAL_QUALITY_PCT` leave over. That sounds punishing until you look at the bonus range: a cursed item rolls anywhere in `CURSED_BONUS_MIN..=CURSED_BONUS_MAX`, which reaches above zero, so it is often *better* than the plain ones. What you are gambling is not the number, it is the commitment -- a cursed item cannot be taken off again without a scroll of remove curse, which will destroy it, or the matching scroll of enchantment, which lifts the curse and mends the minus but has to be found and has to match the slot.
 
+A numeric ring is the exception to "better than the plain ones". Its curse rolls from -3 to +2 and the plain ring is +2, so a cursed ring is never the better ring, only the one that will not come off. An exceptional one is a flat +3.
+
 So the drop table is not "most of your loot is bad". It is "most of your loot is a decision". Picking up an unidentified sword and putting it on is the game asking whether you are sure.
 
 The bonus always lands on the flat modifier and never on the die size, so a +3 dagger is still a dagger. Weapon class is a property of the weapon; enchantment is a property of the copy you found.

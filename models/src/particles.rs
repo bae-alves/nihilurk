@@ -571,19 +571,25 @@ impl Particles {
     /// can watch a dagger travel. `pts` is the traced line, thrower's own tile
     /// excluded.
     pub fn hurl(&mut self, pts: &[(u16, u16)], glyph: char, color: Color) {
-        const TRAVEL_MS_PER_CELL: f32 = 70.0;
-        const LIFETIME_MS: f32 = TRAVEL_MS_PER_CELL * 1.4;
+        self.hurl_at(pts, glyph, color, 1.0);
+    }
+
+    /// [`Particles::hurl`] at `speed` times its pace: the player's throws fly at
+    /// [`THROW_SPEEDUP`], every other missile at `1.0`.
+    pub fn hurl_at(&mut self, pts: &[(u16, u16)], glyph: char, color: Color, speed: f32) {
+        let travel_ms_per_cell = 70.0 / speed;
+        let lifetime_ms = travel_ms_per_cell * 1.4;
         for (i, &(x, y)) in pts.iter().enumerate() {
             self.push(Particle {
                 x,
                 y,
-                delay_ms: i as f32 * TRAVEL_MS_PER_CELL,
-                lifetime_ms: LIFETIME_MS,
+                delay_ms: i as f32 * travel_ms_per_cell,
+                lifetime_ms,
                 age_ms: 0.0,
                 frames: vec![(glyph, color)],
             });
         }
-        self.hold_ms += flight_span(pts.len(), TRAVEL_MS_PER_CELL, LIFETIME_MS);
+        self.hold_ms += flight_span(pts.len(), travel_ms_per_cell, lifetime_ms);
     }
 
     /// A thrown wand in flight: a tumbling mystic grenade rather than the
@@ -813,6 +819,11 @@ fn flight_span(cells: usize, per_cell: f32, lifetime: f32) -> f32 {
     }
 }
 
+/// How much faster the player's own throws fly than every other missile: the
+/// pace of [`Particles::hurl_at`] when a thrown or fired item is in the air.
+/// A thrown wand's [`Particles::lob`] keeps its slow arc.
+pub const THROW_SPEEDUP: f32 = 1.5;
+
 /// How long a primary blast's own flame/frost/etc. frame cycle burns on one
 /// cell — [`Particles::explosion`] and [`Particles::smoke_burst`] both need
 /// it: the former to time its own fade, the latter to know when it's safe to
@@ -868,6 +879,18 @@ mod tests {
                 last_start(&fx)
             );
         }
+    }
+
+    #[test]
+    fn a_thrown_item_flies_faster_and_still_lands_before_what_it_causes() {
+        let mut slow = Particles::new();
+        slow.hurl(&path(5), '↑', Color::Grey);
+        let mut fast = Particles::new();
+        fast.hurl_at(&path(5), '↑', Color::Grey, THROW_SPEEDUP);
+        assert!(batch_end(&fast) < batch_end(&slow) / 1.4);
+        let landed = batch_end(&fast);
+        fast.hit_spark(5, 1);
+        assert!(last_start(&fast) >= landed);
     }
 
     #[test]

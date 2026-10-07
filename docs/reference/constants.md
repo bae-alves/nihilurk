@@ -39,7 +39,7 @@ The modules
 | `wands`       | `WAND_CHARGES`, zap damage dice, both blast radii, per-charge dice a thrown wand spends, `DIG_RANGE` (how deep a wand of digging bores) | how good a wand is |
 | `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the launcher die multiplier | how the drop table feels |
 | `items`       | `THROW_RANGE`, `LIGHT_THROW_RANGE`, `LAUNCHER_RANGE`, `STACK_LIMIT`, `PACK_CAPACITY` | reach and pack density |
-| `rings`       | `STEALTH_RANGE` (how close a stealthy player is noticed at), `TELEPORT_MAGIC_COST` | the two rings with a number that isn't on their row |
+| `rings`       | `STEALTH_RANGE` (how close a stealthy player is noticed at), `TELEPORT_MAGIC_COST`, and the numeric rings' quality: `PLAIN_BONUS`, `EXCEPTIONAL_BONUS`, `CURSED_BONUS_MIN`, `CURSED_BONUS_MAX` | the two rings with a number that isn't on their row, and what a numeric ring rolls |
 | `score`       | `KILL_PER_MAX_HP`, `COMBO_BONUS_PER_KILL`, `COMBO_PRIDE_CHANCE`, `STAIR_PER_TIER`, `SCORE_FLASH_TURNS` | what the run is scored on, and how loudly |
 | `monsters`    | `DEFAULT_SPAWN_WEIGHT` | the baseline rarity a bestiary row gets |
 | `spirits`     | `ALIGNMENT_POLE` (how far alignment drifts before spirits turn hostile for good), `SPAWN_WEIGHT`, `PINK_DEMON_ODDS_PER_PIECE` (each piece of gear the pink demon destroys adds this to the odds they join you), the red demon's `RED_DEMON_GEAR_PRICE` (Max HP) and the gnome's `GNOME_SCROLL_PRICE` / `GNOME_POTION_PRICE` / `GNOME_WAND_PRICE` (Max Ma), the barterer's `BARTER_STOCK_MIN` / `BARTER_STOCK_MAX`, the `ALIGNMENT_STEP` a poof moves alignment by, and the angel's test of faith (`TEST_OF_FAITH_HP_DIVISOR`, `TEST_OF_FAITH_GEAR_BONUS`, `TEST_OF_FAITH_DUD_BONUS`) | how common spirits are and how fast they turn on you |
@@ -75,5 +75,7 @@ See also
 --------
 
     constants.rs                         the file itself, fully commented
+    ../../engine/src/constants.rs        screen size and frame/pause timing in the binary
+    ../../particle-core/src/constants.rs ripple and shake clocks, the shake pattern
     ../explanation/combat-and-balance.md  why the numbers are what they are
     content-tables.md                     the per-row content numbers

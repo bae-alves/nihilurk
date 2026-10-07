@@ -2,9 +2,47 @@
 //! one only when it climbs back through that exact depth carrying the
 //! Element of Yoord — never on the way down, and never used twice.
 
+use std::path::PathBuf;
+use std::sync::Mutex;
+
 use bevy_ecs::prelude::*;
 use models::constants::player::{START_ARMOR, START_HP, START_POWER};
 use models::*;
+
+/// How many tests in this binary are inside a [`BonesDir`] right now.
+static IN_BONES_DIR: Mutex<usize> = Mutex::new(0);
+
+/// A working directory of the test binary's own. `bones::deposit` and
+/// `bones::take` name their file `bones-{depth}.sav` relative to the working
+/// directory, so two test runs at once (a second terminal, an IDE, a CI matrix
+/// on one checkout) would write and delete each other's files, and a ghost
+/// deposited a moment ago would not be there to take.
+///
+/// The first test in enters a directory named for the process id and the last
+/// one out removes it. The working directory is per process, not per test, so
+/// every test here shares the one directory: give each its own depth.
+struct BonesDir(PathBuf);
+
+impl BonesDir {
+    fn enter() -> Self {
+        let dir = std::env::temp_dir().join(format!("nihilurk-bones-{}", std::process::id()));
+        let mut inside = IN_BONES_DIR.lock().unwrap();
+        std::fs::create_dir_all(&dir).expect("the temp directory is writable");
+        std::env::set_current_dir(&dir).expect("the scratch directory exists");
+        *inside += 1;
+        Self(dir)
+    }
+}
+
+impl Drop for BonesDir {
+    fn drop(&mut self) {
+        let mut inside = IN_BONES_DIR.lock().unwrap();
+        *inside -= 1;
+        if *inside == 0 {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+}
 
 fn test_world(seed: u64, name: &str) -> World {
     let mut w = World::new();
@@ -58,6 +96,7 @@ fn climb_into(w: &mut World, depth: u8) {
 
 #[test]
 fn a_ghost_only_shows_up_climbing_back_through_its_death_depth() {
+    let _dir = BonesDir::enter();
     let depth = 201;
     let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
     die_and_leave_bones(depth, "VICTIM");
@@ -73,6 +112,7 @@ fn a_ghost_only_shows_up_climbing_back_through_its_death_depth() {
 
 #[test]
 fn descending_through_a_death_depth_never_wakes_the_ghost() {
+    let _dir = BonesDir::enter();
     let depth = 202;
     let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
     die_and_leave_bones(depth, "VICTIM2");
@@ -105,6 +145,7 @@ fn descending_through_a_death_depth_never_wakes_the_ghost() {
 
 #[test]
 fn the_ghost_carries_its_gear_back_cursed_and_worn() {
+    let _dir = BonesDir::enter();
     let depth = 203;
     let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
     die_and_leave_bones(depth, "VICTIM3");
@@ -138,6 +179,7 @@ fn the_ghost_carries_its_gear_back_cursed_and_worn() {
 
 #[test]
 fn a_ghost_sharing_the_climber_s_own_name_is_marked_as_them() {
+    let _dir = BonesDir::enter();
     let depth = 204;
     let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
     die_and_leave_bones(depth, "SAME");
@@ -151,6 +193,7 @@ fn a_ghost_sharing_the_climber_s_own_name_is_marked_as_them() {
 
 #[test]
 fn a_ghost_with_a_different_name_is_not_marked_as_the_player() {
+    let _dir = BonesDir::enter();
     let depth = 205;
     let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
     die_and_leave_bones(depth, "STRANGER");

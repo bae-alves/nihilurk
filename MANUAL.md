@@ -3,6 +3,8 @@ nihilurk: instruction manual
 
 Descend thirteen floors, take the Element of Yoord, and carry it back to the surface. Monsters, traps, unidentified items, and permanent death stand between you and the exit.
 
+What sets nihilurk apart is the trick shot: a missile that lands on a trap, a coin or a potion on the floor sets it off from across the room, over everything around it, and the burst can set off the next one. A creature standing on something you could set off is drawn on a magenta square. The rules are under "Trick shots" in the pack section below.
+
 
 Starting the game
 -----------------
@@ -13,6 +15,10 @@ Start a new expedition with:
     cargo run -p nihilurk -- YourName       # name your nihilurk
     cargo run -p nihilurk -- -s 1234        # play a particular seed
     cargo run -p nihilurk -- -b lurk        # descend as a lurk
+
+nihilurk needs a terminal of at least 80 columns by 25 rows. In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
+
+The commands above run the game from a clone. After `cargo install nihilurk`, type `nihilurk` in their place. If your shell cannot find it, `~/.cargo/bin` is not on your `PATH`; the README's install steps shows how to add it.
 
 Your name, if you give one, comes first. Everything else comes after it.
 
@@ -121,6 +127,8 @@ Walk into a monster to attack it. There is no separate attack command. You canno
 
 Health is scarce. Armour can turn a blow aside, but no weapon is guaranteed to save you. If a fight is going badly, leave it, use a potion, or find another way around.
 
+Spirits are the shops. They are `&` creatures, and you make a deal by walking into one. Some give away a choice of items. Others trade if you carry something they want. There is no money in the dungeon, so this is the only buying you get. Deal with them too much, or hurt them, and you upset the balance: every spirit turns hostile. A scroll of atonement makes them peaceful again.
+
 Several commands let you spend less time walking:
 
 | Key | Action |
@@ -175,7 +183,7 @@ Unknown things
 
 Potions, scrolls, and wands tell you exactly what they are the moment you find them.
 
-Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose.
+Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. A ring that is a number (protection, strength, increase damage, sharpshooting) is +2 when plain, +3 when unusually good, and anywhere from -3 to +2 when cursed; the other rings have no number to hide, only the curse. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose.
 
 Magic and spells
 ----------------

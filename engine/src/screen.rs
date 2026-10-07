@@ -29,16 +29,7 @@ use crossterm::{
 
 use models::MAP_HEIGHT;
 
-/// Screen dimensions. The classic 80x25: row 0 is the status line, rows 1..=22
-/// hold the map, and rows 22..25 hold the message log.
-pub const SCREEN_W: u16 = 80;
-pub const SCREEN_H: u16 = 25;
-
-/// The screen row map row 0 paints on — row 0 being the status line.
-///
-/// Every map-space painter folds this in, which is why `render`'s map layers
-/// pass a raw map coordinate instead of each carrying its own `y + 1`.
-pub const MAP_TOP: u16 = 1;
+pub use crate::constants::screen::{MAP_TOP, SCREEN_H, SCREEN_W};
 
 /// A screen cell: glyph, foreground colour, background colour.
 pub type Cell = (char, Color, Color);
