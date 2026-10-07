@@ -190,31 +190,6 @@ fn the_body_comes_back_from_a_save() {
     assert!(w2.get::<MonsterBody>(p2).is_some());
 }
 
-/// The rule the save file leans on: a player named after a species *is* one
-/// wearing that body, so no ordinary player name may be a species. The arg
-/// parser enforces it (`nihilurk Dragon` is refused); this is the predicate
-/// it enforces it with, and it has to catch every spelling a person would
-/// type, not just the bestiary's own.
-#[test]
-fn no_player_name_can_be_mistaken_for_a_species() {
-    for def in BESTIARY {
-        assert!(MonsterDef::is_species_name(def.name));
-        assert!(MonsterDef::is_species_name(&def.name.to_ascii_uppercase()));
-        assert!(MonsterDef::is_species_name(&capitalised(def.name)));
-    }
-    assert!(!MonsterDef::is_species_name("nihil"));
-    assert!(!MonsterDef::is_species_name("NIHIL"));
-    assert!(!MonsterDef::is_species_name("bae"));
-}
-
-fn capitalised(name: &str) -> String {
-    let mut c = name.chars();
-    match c.next() {
-        Some(first) => first.to_ascii_uppercase().to_string() + c.as_str(),
-        None => String::new(),
-    }
-}
-
 fn logged(w: &World, line: &str) -> bool {
     let log = w.resource::<GameLog>();
     log.unread.iter().any(|e| e == line) || log.history.iter().any(|h| h == line)

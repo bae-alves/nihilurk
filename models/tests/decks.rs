@@ -510,7 +510,6 @@ fn reversed_they_come_as_foes() {
 fn summons_never_roam_but_are_known_by_name() {
     for name in ["skull king", "black mage"] {
         assert!(MonsterDef::lookup(name).is_some());
-        assert!(MonsterDef::is_species_name(name));
         assert!(BESTIARY.iter().all(|m| m.name != name));
     }
 }

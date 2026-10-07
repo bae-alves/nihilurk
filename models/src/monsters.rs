@@ -266,21 +266,6 @@ impl MonsterDef {
         Self::lookup(name).unwrap_or_else(|| panic!("no monster named {name:?}"))
     }
 
-    /// Whether `name` is a species, however it was typed.
-    ///
-    /// Deliberately looser than [`lookup`](MonsterDef::lookup), and for one
-    /// reason: a player wearing a body *is* named after it (see [`Body`]),
-    /// which is how [`crate::saveload`] knows to put the costume back on.
-    /// That only stays unambiguous while no ordinary player name can be a
-    /// bestiary row, so the arg parser refuses one — case and all, because
-    /// "Dragon" is the spelling someone would actually try.
-    pub fn is_species_name(name: &str) -> bool {
-        BESTIARY
-            .iter()
-            .chain(SUMMONS)
-            .any(|m| m.name.eq_ignore_ascii_case(name))
-    }
-
     /// Look up a species by name, or `None` if the bestiary has no such row.
     pub fn lookup(name: &str) -> Option<&'static MonsterDef> {
         BESTIARY.iter().chain(SUMMONS).find(|m| m.name == name)
