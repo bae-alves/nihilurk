@@ -14,7 +14,7 @@ How to play the game from a script
 
 Tests say a rule holds. They cannot say how it looks, and nobody tests that on purpose (`../explanation/adr-0004-no-tests-of-presentation.md`). The way to check a look is to play. `.claude/skills/play-nihilurk/play.sh` plays for you: it starts the game in a pty, types the keys you list, waits, and prints the screen. It builds the game first. The game runs from a scratch directory with `-ns -nobones -nshake -nb`, so it writes no save, bones or leaderboard into the repo.
 
-    .claude/skills/play-nihilurk/play.sh -S "rune of ice,orc" ' ' @1 '?'
+    .claude/skills/play-nihilurk/play.sh -S "rune of ice,aquator" ' ' @1 '?'
 
 
 The keys
@@ -27,19 +27,19 @@ Each argument is one key, typed as it stands. `printf %b` runs on it, so `'\r'`,
     @SECS   wait that long before the next key
     #TEXT   print a note with the screens; sends nothing
 
-The screen prints once more when the keys run out. A key waits `-d` seconds (0.4 by default) before the next one goes in. The other options are `-s SEED`, `-S LIST` (that is `NIHILURK_SPAWN`), `-a "FLAGS"` for the game (`-a "-b lurk"`), `-w SECS` for the first frame, `-z RxC` for the terminal size, and `-k FILE` to keep the raw bytes.
+The screen prints once more when the keys run out. A key waits `-d` seconds (0.4 by default) before the next one goes in. The other options are `-s SEED`, `-S LIST` (that is `NIHILURK_SPAWN`), `-a "FLAGS"` for the game (`-a "-b lurk"`), `-w SECS` for the first frame, `-z RxC` for the terminal size (25x80 by default, the smallest the game draws cleanly), and `-k FILE` to keep the raw bytes.
 
 
-A walk-through: read a rune next to an orc
+A walk-through: read a rune next to an aquator
 ------------------------------------------
 
 A seed fixes the floor, so look first, plan the walk from what you see, then replay it.
 
-    play.sh -S "rune of ice,orc" ' ' @1 '?'
+    play.sh -S "rune of ice,aquator" ' ' @1 '?'
 
-The first frame has a `--MORE--` that needs a Space. The map shows the rune `'` up and to the left of you and the orc `o` right of it. Step onto the rune (items are picked up as you walk over them), read it with `r` and the pack letter, and look:
+The first frame has a `--MORE--` that needs a Space. The map shows the rune `'` up and to the left of you and the aquator `A` right of it. Step onto the rune (items are picked up as you walk over them), read it with `r` and the pack letter, and look:
 
-    play.sh -S "rune of ice,orc" ' ' @1 y @2 ' ' r f @4 '#after the nova' '?' '%'
+    play.sh -S "rune of ice,aquator" ' ' @1 y @2 ' ' r f @4 '#after the nova' '?' '%'
 
 `f` is the first spawned item because nihil starts with `a` to `e`. A lurk starts empty, so there it is `a`; press `i` to be sure.
 
@@ -58,10 +58,10 @@ That line is an ur-vile on a cyan square: paralysed. The tints and what each one
 What wastes a run
 -----------------
 
-* **`--MORE--` eats keys.** Send a Space after anything that logs several messages, and wait (`@2` to `@4`) after anything animated. The log paints letter by letter, so an early screen shows half a sentence and stale letters can linger in the log row. Read the effect off HP, the badge row, the pack, the map and `%`, and use the log as a hint.
+* **`--MORE--` eats keys.** Send a Space after anything that logs several messages, and wait (`@2` to `@4`) after anything animated. The log paints letter by letter, so an early screen shows half a sentence. Read the effect off HP, the badge row, the pack, the map and `%`, and use the log as a hint.
 * **`o` explores and picks things up, and any key pressed during it stops it.** Put `@2` after it. It refuses while a hostile is in view.
 * **You cannot pass a turn.** To give monsters time, walk away from them.
-* **The first step can kill.** A dragon one-shots nihil, and a lurk has 6 HP. Pick monsters that are awake, hostile and survivable: an orc, a troll, a quagga. A yeti is immune to cold, and a red demon is peaceful until the spirits turn, so a spell that needs a hostile target ignores both.
+* **The first step can kill.** A dragon one-shots nihil, and a lurk has 6 HP. An orc takes most of nihil's 12 HP. To test an effect on a monster, spawn an aquator: awake, hostile, 9 HP, weak hits. Use a troll or a quagga when the test needs more. A yeti is immune to cold, and a red demon and a gnome are peaceful, so a spell that needs a hostile target ignores them.
 * **Aiming:** `z`, the wand's letter, direction keys to move the cursor, `'\r'` to fire, `x` to cancel.
 
 

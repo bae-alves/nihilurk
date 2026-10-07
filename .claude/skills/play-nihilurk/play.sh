@@ -21,7 +21,7 @@
 #   -a ARGS    more game flags, one quoted string (e.g. "-b lurk")
 #   -d SECS    pause after every key (default 0.4)
 #   -w SECS    wait for the first frame (default 1.5)
-#   -z RxC     terminal size (default 24x80)
+#   -z RxC     terminal size (default 25x80)
 #   -c CMD     run CMD in the pty instead of the game: for testing this script
 #   -k FILE    keep the raw bytes the game wrote, for screen.lua
 #
@@ -35,7 +35,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/../../.." && pwd)"
 bin="$root/target/debug/nihilurk"
 
-seed=1 spawn="" extra="" pause=0.4 wait_first=1.5 size=24x80 custom="" keep=""
+seed=1 spawn="" extra="" pause=0.4 wait_first=1.5 size=25x80 custom="" keep=""
 while getopts "s:S:a:d:w:z:c:k:" opt; do
     case "$opt" in
         s) seed="$OPTARG" ;;

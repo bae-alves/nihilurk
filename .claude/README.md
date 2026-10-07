@@ -13,12 +13,13 @@ How Claude Code is set up for nihilurk. Open the repo root in Claude Code and th
 | `hooks/` | `rustfmt.lua` formats each `.rs` file Claude writes. `rustfmt_test.lua` checks it. | yes |
 | `journal.local.md` | Dated notes Claude keeps about this repo. | no |
 | `settings.local.json` | One person's own permissions. | no |
+| `tutorial-inventions.local.md` | Names the tutorials and how-tos use as worked examples. None may exist in the game. | no |
 
-`.gitignore` covers both `.local` files.
+`.gitignore` covers all three `.local` files.
 
 ## The system prompt
 
-`CLAUDE.md` has six blocks: who bae is to Claude and how conflicts resolve, hard rules, test and debug habits, context and output habits, and prose style.
+`CLAUDE.md` has five blocks: who bae is to Claude and how conflicts resolve, hard rules, test and debug habits, context and output habits, and prose style.
 
 Why it reads the way it does:
 
@@ -38,7 +39,7 @@ Four things name this repo or its maintainer: the `/docs` pointer, the content-t
 
 ## The journal
 
-`journal.local.md` records what was verified and what was not, with the reason for each decision. `CLAUDE.md` tells Claude to search it before complex tasks and to log bugs it finds outside its task. It is 28 KB, and bae prunes it by hand now and then. Even pruned, it is a lot of context for Claude to read, and it describes one person's sessions. So it stays out of git, and each contributor's Claude keeps a journal of its own. Git ignores that one too. Earlier versions are in the git history.
+`journal.local.md` records what was verified and what was not, with the reason for each decision. `CLAUDE.md` tells Claude to search it before complex tasks and to log bugs it finds outside its task. It is long, and bae prunes it by hand now and then. Even pruned, it is a lot of context for Claude to read, and it describes one person's sessions. So it stays out of git, and each contributor's Claude keeps a journal of its own. Git ignores that one too. Earlier versions are in the git history.
 
 ## Commands and skills
 

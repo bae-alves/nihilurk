@@ -3,7 +3,7 @@
 --   lua screen.lua FILE [END] [ROWS COLS] [--bg]
 --
 -- prints the screen after the first END bytes of FILE (all of it by default),
--- on a ROWS x COLS grid (24 x 80 by default). nihilurk paints with absolute
+-- on a ROWS x COLS grid (25 x 80 by default). nihilurk paints with absolute
 -- cursor moves, colour codes and a few mode switches, so this reads those and
 -- ignores what it does not know. No scrollback, no wrapping: whatever falls
 -- off the last column or row is dropped.
@@ -30,7 +30,7 @@ end
 --- What the terminal would hold after `raw`: the glyph grid and, per cell, the
 --- background colour name (nil for the default one).
 local function run(raw, rows, cols)
-    rows, cols = rows or 24, cols or 80
+    rows, cols = rows or 25, cols or 80
     local grid, bgs = {}, {}
     local bg = nil    local function clear_row(r, from, to)
         for c = from, to do
