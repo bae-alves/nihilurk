@@ -2346,39 +2346,36 @@ pub fn quit_question() -> &'static str {
 pub fn quit_answers() -> &'static str {
     "[s] sim    [n] não"
 }
-// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn onboarding_keys() -> [&'static str; 3] {
-    ["[hjklyubn] MOVER", "[o/TAB] EXPLORAR/LUTAR", "[i] ITENS"]
+    ["[hjklyubn] ANDAR", "[o/TAB] EXPLORAR/LUTAR", "[i] INVENTÁRIO"]
 }
 
-// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn pack_slots(used: usize, total: usize) -> String {
-    format!("MOCHILA: ({used}/{total})")
+    format!("INVENTÁRIO: ({used}/{total})")
 }
 
-// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn help_title() -> &'static str {
-    " TECLAS "
+    " COMANDOS "
 }
-// TODO: machine-translated placeholder; needs a native speaker's pass.
+
 pub fn help_rows() -> [&'static str; 13] {
     [
-        "hjklyubn    mover ou atacar (setas e teclado numérico também)",
+        "hjklyubn    andar ou atacar (setas e teclado numérico também)",
         "Shift+dir   correr",
         "o           explorar",
-        "Tab         lutar contra o inimigo mais fraco à vista",
+        "Tab         atacar o inimigo mais fraco à vista",
         "O           viajar até um ponto",
         "> <         usar as escadas",
         "i           itens",
-        "a t d       usar, jogar, largar",
+        "a t d       usar, arremessar, derrubar",
         "e w W P     equipar, empunhar, vestir, colocar",
         "q r z       beber, ler, usar varinha",
-        "f v         atirar, ataque de alcance",
+        "f v         atirar, ataque com arma de alcance",
         "Z ;         feitiços, olhar",
         "A x Q       coleta automática, fechar menu, sair",
     ]
 }
-// TODO: machine-translated placeholder; needs a native speaker's pass.
+
 pub fn help_close() -> &'static str {
     "[qualquer tecla] fechar"
 }
