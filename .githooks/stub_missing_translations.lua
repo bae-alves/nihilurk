@@ -50,13 +50,18 @@ end
 --- declares them, so stubs land in a stable, reviewable order.
 local function en_signatures(en_text)
     local sigs, order = {}, {}
+    local plain = en_text:gsub("pub%s+const%s+fn", "pub fn")
     for name, params, ret in
-        en_text:gmatch("pub fn%s+([%w_]+)%s*%(([^%)]*)%)%s*%-%>%s*([^{]*){")
+        plain:gmatch("pub fn%s+([%w_]+)%s*%(([^%)]*)%)%s*%-%>%s*([^{]*){")
     do
         if not sigs[name] then
             table.insert(order, name)
         end
-        sigs[name] = { params = trim(params), ret = trim(ret) }
+        sigs[name] = {
+            params = trim(params),
+            ret = trim(ret),
+            const = en_text:find("pub%s+const%s+fn%s+" .. name .. "%s*%(") ~= nil,
+        }
     end
     return sigs, order
 end
@@ -68,6 +73,7 @@ local function covered_names(locale_text)
     local covered = {}
     for line in locale_text:gmatch("[^\n]*") do
         local name = line:match("^pub fn%s+([%w_]+)")
+            or line:match("^pub const fn%s+([%w_]+)")
         if name then
             covered[name] = true
         end
@@ -108,10 +114,10 @@ local function empty_value_for(ret)
     )
 end
 
-local function stub_for(name, params, ret)
+local function stub_for(name, params, ret, const)
     return "\n// TODO: translate.\n"
         .. "#[allow(unused_variables)]\n"
-        .. "pub fn "
+        .. (const and "pub const fn " or "pub fn ")
         .. name
         .. "("
         .. params
@@ -141,7 +147,7 @@ local function sync_locale(locale, sigs, order)
     local addition = "\n// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---\n"
     for _, name in ipairs(missing) do
         local sig = sigs[name]
-        addition = addition .. stub_for(name, sig.params, sig.ret)
+        addition = addition .. stub_for(name, sig.params, sig.ret, sig.const)
     end
     write_file(path, (text:gsub("\n+$", "")) .. "\n" .. addition)
 
@@ -171,4 +177,12 @@ local function main()
     end
 end
 
-main()
+if arg and arg[0] and arg[0]:match("stub_missing_translations%.lua$") then
+    main()
+end
+
+return {
+    en_signatures = en_signatures,
+    covered_names = covered_names,
+    stub_for = stub_for,
+}

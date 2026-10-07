@@ -20,7 +20,7 @@ use crossterm::{
     style::{Color as CrosstermColor, Print, ResetColor, SetForegroundColor},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use std::io::{BufWriter, stdout};
+use std::io::{BufWriter, Write, stdout};
 
 use models::{ChaCha12Rng, SeedableRng};
 
@@ -144,43 +144,55 @@ fn run_victory_screens<W: std::io::Write>(
 
 /// Prints every name the content tables know, grouped by category. Reads the
 /// tables themselves, so a row added today shows up here today.
-fn print_content() {
+fn print_content(out: &mut impl Write) -> std::io::Result<()> {
     let names = models::content_names();
-    println!("{}", strings::content_header(names.len()));
-    println!("{}", strings::content_spawn_hint());
+    writeln!(out, "{}", strings::content_header(names.len()))?;
+    writeln!(out, "{}", strings::content_spawn_hint())?;
 
     let mut group = "";
     for (category, name) in &names {
         if *category != group {
             group = category;
             let count = names.iter().filter(|(c, _)| c == category).count();
-            println!("{}", strings::content_group_header(group, count));
+            writeln!(out, "{}", strings::content_group_header(group, count))?;
         }
-        println!("  {name}");
+        writeln!(out, "  {name}")?;
+    }
+    Ok(())
+}
+
+/// A reader that hangs up early (`nihilurk -content | head`) is done, not
+/// broken. Rust ignores SIGPIPE, so the write fails instead of ending the
+/// process; this turns that one error into success.
+fn finish_listing(result: std::io::Result<()>) -> std::io::Result<()> {
+    match result {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => Ok(()),
+        other => other,
     }
 }
 
 /// Prints the short command-line guide without entering the alternate screen.
 /// The full reference lives in the installed `nihilurk(6)` manual.
-fn print_help() {
-    println!("{}", strings::help_text());
+fn print_help(out: &mut impl Write) -> std::io::Result<()> {
+    writeln!(out, "{}", strings::help_text())
 }
 
 /// Prints the internal leaderboard, highest score first, without entering the
 /// alternate screen — the same way `-content` never touches the terminal.
-fn print_leaderboard() {
+fn print_leaderboard(out: &mut impl Write) -> std::io::Result<()> {
     let entries = models::leaderboard::top(models::leaderboard::LEADERBOARD_STORE_LIMIT);
     if entries.is_empty() {
-        println!("{}", strings::leaderboard_empty());
-        return;
+        return writeln!(out, "{}", strings::leaderboard_empty());
     }
-    println!("{}", strings::leaderboard_header(entries.len()));
+    writeln!(out, "{}", strings::leaderboard_header(entries.len()))?;
     for (rank, (name, outcome, score, when)) in entries.into_iter().enumerate() {
-        println!(
+        writeln!(
+            out,
             "{}",
             strings::leaderboard_entry(rank + 1, &name, &outcome.to_string(), score, &when)
-        );
+        )?;
     }
+    Ok(())
 }
 
 /// One player-side step of the main loop: an auto-explore tick, a travel-cursor
@@ -233,8 +245,7 @@ fn main() -> std::io::Result<()> {
         .skip(1)
         .any(|arg| matches!(arg.as_str(), "-h" | "-help" | "--help"))
     {
-        print_help();
-        return Ok(());
+        return finish_listing(print_help(&mut stdout().lock()));
     }
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
@@ -316,13 +327,11 @@ fn main() -> std::io::Result<()> {
     }
 
     if list_content {
-        print_content();
-        return Ok(());
+        return finish_listing(print_content(&mut stdout().lock()));
     }
 
     if show_leaderboard {
-        print_leaderboard();
-        return Ok(());
+        return finish_listing(print_leaderboard(&mut stdout().lock()));
     }
 
     if pride_off {

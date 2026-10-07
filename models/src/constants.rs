@@ -278,7 +278,7 @@ pub mod population {
     pub const MONSTER_FILL_CHANCE_BASE: f64 = 0.80;
 
     /// Added to the monster fill chance per tier.
-    pub const MONSTER_FILL_CHANCE_PER_TIER: f64 = 0.5;
+    pub const MONSTER_FILL_CHANCE_PER_TIER: f64 = 0.05;
 
     /// Ceiling on the monster fill chance, so a slot is never quite certain.
     pub const MONSTER_FILL_CHANCE_CAP: f64 = 0.95;
