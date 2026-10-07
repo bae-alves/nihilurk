@@ -182,11 +182,12 @@ Components — item type keys
 | `Scroll`  | `ScrollEffect`| `items/scrolls.rs`                    | key yes |
 | `Wand`    | `WandEffect`  | `items/wands.rs`; thrown, `items/throwing.rs` | key yes |
 | `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
+| `Rune`    | `RuneEffect`  | `items/runes.rs`; `charged: bool` says whether it still holds a use | key and `charged` yes |
 | `Curse`   | marker        | equipped-and-stuck until remove curse destroys it, or a scroll of enchantment burns it off | yes |
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
 | `KnownQuality` | marker   | this instance's enchantment plus/curse/vorpal bane are known — set by wearing it (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singling it out | yes |
 
-All four key enums are **saved by variant order** — append, never reorder. The catalog tables (`crate::catalog`) are the other thing keyed off these enums.
+All five key enums are **saved by variant order** — append, never reorder. The catalog tables (`crate::catalog`) are the other thing keyed off these enums.
 
 `KnownQuality` is per-*instance*: two rings of protection are two separate rolls of the curse dice, so each needs its own `KnownQuality`, set the moment it's worn (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singles it out. `identify::display_name` reads it to decide whether to print a weapon/armour/launcher's `+N` prefix, a `(cursed)` suffix, or a `(vorpal vs. X)` suffix — hidden for anything not yet known. Potions, scrolls, wands and rings carry no such hidden state of their own; they always show their true name.
 
@@ -199,6 +200,10 @@ All four key enums are **saved by variant order** — append, never reorder. The
 `WandEffect`: Light, Striking, Lightning, Fire, Cold, Polymorph, MagicMissile, HasteMonster, SlowMonster, DrainLife, Nothing, TeleportAway, TeleportTo, Cancellation, Charming, Digging, Swapping.
 
 `RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor, Polymorph.
+
+`RuneEffect` (every arm wired; `Blank` does nothing on purpose and has no `RUNES` row): Blank, Recharging, Displacement, Justice, Chaos, Ice, Protection.
+
+A `Rune` is a scroll that goes inert when read: reading spends `charged` instead of destroying the item, and `items::recharge_runes` wakes every non-blank rune in the pack on a staircase. A trapdoor does not. Only the player invokes one.
 
 
 `Element` — not a component
@@ -387,7 +392,7 @@ Also here: `SpellsMenu` (`open`, `selected`; the `Z` menu, the only way to an ac
 | `Drop`   | `d` | everything                | `ItemAction::Drop` |
 | `Equip`  | `e` | anything with `Equipped`  | `ItemAction::Use` |
 | `Quaff`  | `q` | anything with `Potion`    | `ItemAction::Use` |
-| `Read`   | `r` | anything with `Scroll`    | `ItemAction::Use` |
+| `Read`   | `r` | anything with `Scroll`, `Deck` or `Rune` | `ItemAction::Use` |
 | `Zap`    | `z` | anything with `Wand`      | `ItemAction::Use` |
 | `Wield`  | `w` | `Equipped { slot: Hand }` | `ItemAction::Use` |
 | `Wear`   | `W` | `Equipped { slot: Body }` | `ItemAction::Use` |

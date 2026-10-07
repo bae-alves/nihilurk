@@ -94,6 +94,8 @@ The map uses these symbols:
 | `) ] }` | Weapon, armour, or launcher |
 | `"`    | The Element of Yoord |
 
+A monster that cannot fight at full strength sits on a coloured square. Dark blue is asleep. Cyan is paralysed: it is slowed, not frozen. Dark green is held fast by a bear trap or a scroll of hold monster. Yellow is confused or fleeing. Grey is slowed.
+
 Grey tiles are places you have seen but cannot currently see. The dungeon remembers walls and corridors, but not the creatures hiding beyond your sight.
 
 

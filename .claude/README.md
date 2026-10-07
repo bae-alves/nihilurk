@@ -9,6 +9,7 @@ How Claude Code is set up for nihilurk. Open the repo root in Claude Code and th
 | `CLAUDE.md` | The project instructions. Claude Code reads them at the start of every session, so they work as the system prompt. | yes |
 | `settings.json` | Permissions and hooks. | yes |
 | `commands/` | Slash commands. | yes |
+| `skills/` | `play-nihilurk`: plays the game through a pty and prints the screen, so Claude can see a change working in the real game. | yes |
 | `hooks/` | `rustfmt.lua` formats each `.rs` file Claude writes. `rustfmt_test.lua` checks it. | yes |
 | `journal.local.md` | Dated notes Claude keeps about this repo. | no |
 | `settings.local.json` | One person's own permissions. | no |
@@ -47,4 +48,4 @@ Four things name this repo or its maintainer: the `/docs` pointer, the content-t
 | `/careful-review` | Re-reads the code Claude just wrote or changed, looks for bugs, and fixes them. |
 | `/codebase-architecture` | Runs `npx skills use` to fetch `improve-codebase-architecture` from mattpocock/skills on GitHub, then follows it. `npx` runs an npm package and needs the network. |
 
-This repo has no `skills/` directory.
+`skills/play-nihilurk` is the one skill the repo carries. It is a bash driver (`play.sh`) over `script`, and a Lua screen reader (`screen.lua`), each with a test next to it. `SKILL.md` says how to spawn a thing with `NIHILURK_SPAWN`, press keys and read the screen back, and what wastes a run.

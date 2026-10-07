@@ -28,6 +28,8 @@ No code. `NIHILURK_SPAWN` drops names on free tiles around the player on every f
 
 Gear and ammunition take dressing: `cursed`, `+N`/`-N` and `xN`.
 
+To press keys in the game it starts and read the screen back as text, with no terminal of your own, use `play-through-a-pty.md`.
+
     NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p nihilurk
 
 Names are comma-separated and trimmed; a name the tables do not know is skipped **silently**, so check it against `-content` rather than trusting an empty floor. Full rules: `../reference/cli-and-env.md`.
@@ -223,3 +225,4 @@ See also
   add-a-monster.md                adding the row you want to spawn
   add-an-item.md                  the same, for items
   work-with-the-ecs.md            spawning from inside a system
+  play-through-a-pty.md           look at it in the real game, from a script

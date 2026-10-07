@@ -9,7 +9,7 @@ How to add an item
                    enchantment plus and curse until worn or identified;
                    every other kind is always shown by its true name.
 
-Eleven categories. Six of them are a single row; the deck has one row and twenty cards. Four also need a name to be identified by, and three of those also need somebody to say what the thing *does*. Find your category below and follow that recipe only.
+Twelve categories. Six of them are a single row; the deck has one row and twenty cards. Four also need a name to be identified by, and three of those also need somebody to say what the thing *does*. Find your category below and follow that recipe only.
 
 
 At a glance
@@ -28,6 +28,7 @@ At a glance
 | Scroll    | `SCROLLS`   | no         | a `ScrollEffect` variant + a mechanic |
 | Wand      | `WANDS`     | no         | a `WandEffect` variant + a mechanic |
 | Deck      | `DECKS`     | yes        | a new card: a `CardFace` variant, a `CARDS` row + an arm in `items/decks.rs` |
+| Rune      | `RUNES`     | no         | a `RuneEffect` variant + an arm in `apply_rune_effect` |
 
 Every table is in `models/src/catalog.rs`. Every effect enum is in `models/src/components.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `throwing.rs` (`models/src/items.rs` itself is just the `item_system` dispatcher).
 
@@ -174,6 +175,12 @@ These three are consumables with a mechanic, so they take three edits. The patte
 > The guarantee is only that you *chose* nothing, not that you *forgot*
 > to write something.
 
+Runes take the same three edits, with `RuneEffect`, `RUNES` and `apply_rune_effect(world, user, effect)` in `models/src/items/runes.rs`:
+
+    RuneDef { effect: RuneEffect::Ice, name: "rune of ice" },
+
+A rune draws as `'`, always white. It is a scroll that goes inert when read instead of crumbling, and a staircase wakes it, so the mechanic is "what happens on each invocation" and never "what is left afterwards". `RuneEffect::Blank` is the one variant with no row: a wand of cancellation makes it. Only the player invokes a rune.
+
 Wands only: if your wand should *not* open the aiming reticle -- it acts on the zapper or the room, like the wand of light -- add it to `WandEffect::needs_target` in `models/src/components.rs`.
 
 
@@ -200,6 +207,8 @@ Verify, whichever you added
 
 The tests check that names are unique, that every row can be built by name, that what spawns keeps its name, and that every drop category can still produce something.
 
+To use the item and see what it does without a terminal of your own, `play-through-a-pty.md` types the keys for you and prints the screen.
+
 
 You do not have to register the item, update the loot table, teach the save file about it, or teach combat about it. Why none of that is needed is `../explanation/data-driven-content.md`.
 
@@ -210,7 +219,7 @@ Appendix: quick check
 1. Find your category in "At a glance".
 2. Weapon, armour, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
 3. Ring: append a `RingEffect` variant at the end, then add the `RingDef::new` row.
-4. Potion, scroll, wand: append the effect variant at the end, add the row, write the arm in `apply_potion_effect`, `apply_scroll_effect` or `apply_wand_effect`.
+4. Potion, scroll, wand, rune: append the effect variant at the end, add the row, write the arm in `apply_potion_effect`, `apply_scroll_effect`, `apply_wand_effect` or `apply_rune_effect`.
 5. A wand with no reticle (it acts on the room or the zapper): add it to `WandEffect::needs_target`.
 6. Never insert or reorder an enum variant; a save stores its position.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.

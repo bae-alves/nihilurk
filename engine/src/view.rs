@@ -111,7 +111,7 @@ fn status_tint(
 ) -> Option<Color> {
     match (asleep, paralyzed, held_down, staggering, slowed) {
         (true, _, _, _, _) => Some(Color::DarkBlue),
-        (_, true, _, _, _) => Some(Color::DarkYellow),
+        (_, true, _, _, _) => Some(Color::Cyan),
         (_, _, true, _, _) => Some(Color::DarkGreen),
         (_, _, _, true, _) => Some(Color::Yellow),
         (_, _, _, _, true) => Some(Color::Grey),
@@ -1693,10 +1693,21 @@ mod tests {
 
     #[test]
     fn status_tint_gives_paralysis_its_own_colour() {
+        let paralysed = status_tint(false, true, true, true, true);
         assert_eq!(
-            status_tint(false, true, true, true, true),
-            Some(Color::DarkYellow),
-            "paralysed outranks held-down, staggering, slowed, and reads as its own colour, not asleep's"
+            paralysed,
+            Some(Color::Cyan),
+            "paralysed outranks held-down, staggering, slowed"
+        );
+        let others = [
+            status_tint(true, false, false, false, false),
+            status_tint(false, false, true, false, false),
+            status_tint(false, false, false, true, false),
+            status_tint(false, false, false, false, true),
+        ];
+        assert!(
+            others.iter().all(|tint| *tint != paralysed),
+            "no other condition may share paralysis's tint: {others:?}"
         );
     }
 

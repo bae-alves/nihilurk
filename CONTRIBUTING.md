@@ -33,6 +33,7 @@ Only for some jobs:
   `docs/how-to/run-the-compat-pipeline.md`.
 - Changing a workflow under `.github/`: `actionlint`.
 - Claude Code users: `npx`, for the `/codebase-architecture` command only.
+- Playing the game from a script (`.claude/skills/play-nihilurk`): `script`, from util-linux, which Linux has. See `docs/how-to/play-through-a-pty.md`.
 - Cutting a release, which is the maintainer's job: `gh` to watch CI. Lua
   runs `release/bump.lua`, and CI publishes, so no crates.io token lives on
   your machine. The local checks need a little more: the musl targets for
