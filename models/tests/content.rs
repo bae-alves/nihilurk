@@ -28,6 +28,20 @@ fn every_content_name_is_unique() {
     }
 }
 
+/// A save finds a row again by the id it stored for a display name, so two
+/// rows may not show the same name in any language this build is made for.
+#[test]
+fn every_content_name_is_shown_under_its_own_display_name() {
+    let mut seen: HashSet<&str> = HashSet::new();
+    for (category, id) in content_names() {
+        let shown = strings::content_name(id);
+        assert!(
+            seen.insert(shown),
+            "two rows show as {shown:?} ({category}, id {id:?})"
+        );
+    }
+}
+
 #[test]
 fn every_content_name_spawns_and_keeps_its_name() {
     for (category, name) in content_names() {

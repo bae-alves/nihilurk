@@ -54,7 +54,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::catalog::{RingDef, restore_from_catalog};
+use crate::catalog::{RingDef, content_id_of, restore_from_catalog};
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
 use crate::effects::{
@@ -281,6 +281,13 @@ struct EntitySave<'a> {
     /// A rune's effect and whether it still holds a charge.
     #[serde(default)]
     rune: Option<(RuneEffect, bool)>,
+    /// The id of the catalog row this entity was made from (see
+    /// [`content_id_of`]). The loader reads the row back by it, and rebuilds
+    /// [`Name`] from it, so nothing depends on what a row is called in the
+    /// language that wrote the save. `None` for the player, whose name is
+    /// whatever they typed, and for anything with no such row.
+    #[serde(borrow)]
+    content: Option<Cow<'a, str>>,
 }
 
 /// The version of the bytes [`save_game`] writes, stored as the file's first
@@ -484,6 +491,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
     let mut entities = Vec::with_capacity(ents.len());
     for &e in &ents {
         let er = world.entity(e);
+        let name = er.get::<Name>().map(|n| n.what.as_str());
         entities.push(EntitySave {
             position: er.get::<Position>().map(|p| (p.x, p.y)),
             renderable: er
@@ -494,7 +502,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             invisible: er.contains::<Invisible>(),
             consume: er.contains::<Consume>(),
             amulet: er.contains::<Amulet>(),
-            name: er.get::<Name>().map(|n| Cow::Borrowed(n.what.as_str())),
+            name: name.map(Cow::Borrowed),
             viewshed: er
                 .get::<Viewshed>()
                 .map(|v| (v.range, v.revealed_tiles.clone())),
@@ -553,6 +561,10 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
             alignment: er.get::<Alignment>().map(|a| a.0),
             deck: er.get::<Deck>().map(|d| d.cards.clone()),
+            content: match er.contains::<Player>() {
+                true => None,
+                false => name.and_then(content_id_of).map(Cow::Borrowed),
+            },
         });
     }
 
@@ -710,7 +722,11 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.amulet {
             em.insert(Amulet);
         }
-        let entity_name = es.name.map(|n| n.into_owned());
+        let content = es.content.as_deref();
+        let entity_name = match content {
+            Some(id) => Some(strings::content_name(id).to_string()),
+            None => es.name.map(|n| n.into_owned()),
+        };
         if let Some(n) = &entity_name {
             em.insert(Name { what: n.clone() });
         }
@@ -816,8 +832,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(n) = es.power_die {
             em.insert(PowerDie(n));
         }
-        if let Some(name) = entity_name.as_deref() {
-            restore_from_catalog(&mut em, name);
+        if let Some(id) = content {
+            restore_from_catalog(&mut em, id);
         }
         if let Some(n) = es.power_bonus {
             em.insert(PowerBonus(n));
@@ -847,7 +863,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         let species = match es.player {
             true => body_def,
-            false => entity_name.as_deref().and_then(MonsterDef::lookup),
+            false => content.and_then(MonsterDef::lookup),
         };
         if let Some(def) = species {
             if !def.grants.is_empty() {
@@ -969,6 +985,7 @@ mod tests {
             aggravated: None,
             alignment: None,
             deck: None,
+            content: None,
         }
     }
 
@@ -1070,6 +1087,34 @@ mod tests {
             .expect("an unknown species must not load as a plain nihil");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
         assert!(err.to_string().contains("no such species"));
+    }
+
+    fn load_one(tag: &str, entity: EntitySave) -> World {
+        load_bytes(tag, &encode(SAVE_VERSION, &blank_save(vec![entity])))
+            .expect("a well-formed save loads")
+    }
+
+    #[test]
+    fn a_saved_content_id_wins_over_the_saved_name() {
+        let mut entity = blank_entity();
+        entity.name = Some(Cow::Borrowed("a name no row has"));
+        entity.content = Some(Cow::Borrowed("arrow"));
+        let mut w = load_one("id-wins", entity);
+        let arrow = w.query_filtered::<Entity, With<Projectile>>().single(&w);
+        assert_eq!(
+            crate::helpers::item_label(&w, arrow),
+            strings::content_name("arrow")
+        );
+    }
+
+    #[test]
+    fn a_saved_name_alone_restores_nothing_from_the_catalog() {
+        let mut entity = blank_entity();
+        entity.name = Some(Cow::Borrowed("arrow"));
+        let mut w = load_one("name-alone", entity);
+        assert_eq!(w.query::<&Projectile>().iter(&w).count(), 0);
+        let only = w.query::<Entity>().single(&w);
+        assert_eq!(crate::helpers::item_label(&w, only), "arrow");
     }
 
     #[test]

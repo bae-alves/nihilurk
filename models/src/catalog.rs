@@ -33,6 +33,7 @@ use rand_chacha::ChaCha12Rng;
 use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
+use crate::monsters::{BESTIARY, SUMMONS};
 
 // --- Tuning constants -----------------------------------------------------
 // The numbers a *drop* rolls that are not part of any one row: wand battery
@@ -1493,22 +1494,46 @@ pub fn spawn_launcher(world: &mut World, name: &str, pos: Position) -> Entity {
 /// one up by name than to remember what it said.
 pub fn split_one(world: &mut World, item: Entity) -> Option<Entity> {
     let name = world.get::<Name>(item)?.what.clone();
-    let one = match AMMO.iter().find(|d| d.name == name) {
+    let one = match AMMO.iter().find(|d| d.display_name() == name) {
         Some(def) => def.spawn(world, Position { x: 0, y: 0 }),
         None => TREATS
             .iter()
-            .find(|d| d.name == name)?
+            .find(|d| d.display_name() == name)?
             .spawn(world, Position { x: 0, y: 0 }),
     };
     world.entity_mut(one).remove::<Position>();
     Some(one)
 }
 
+/// The id of the row whose display name is `display` — the name a save stores
+/// next to an entity, so a load can find the row again whatever language it is
+/// read in. Covers the rows [`restore_from_catalog`] and the loader read back:
+/// weapons, ammunition, launchers, treats and species. `None` for anything
+/// else, and for a name no row shows.
+pub(crate) fn content_id_of(display: &str) -> Option<&'static str> {
+    let ids = WEAPONS
+        .iter()
+        .map(|d| (d.display_name(), d.name))
+        .chain(AMMO.iter().map(|d| (d.display_name(), d.name)))
+        .chain(LAUNCHERS.iter().map(|d| (d.display_name(), d.name)))
+        .chain(TREATS.iter().map(|d| (d.display_name(), d.name)))
+        .chain(
+            BESTIARY
+                .iter()
+                .chain(SUMMONS)
+                .map(|m| (m.display_name(), m.name)),
+        );
+    ids.into_iter()
+        .find(|(shown, _)| *shown == display)
+        .map(|(_, id)| id)
+}
+
 /// Re-attaches what a catalog row gives an item that the save file does not
 /// store: how a weapon behaves in flight, what a bow lends its wielder, what a
-/// missile answers to. Keyed by name, the same way a ring's grants come back
-/// from [`RingDef::of`] — the row is the definition, so a save that stored these
-/// would only be storing the table twice.
+/// missile answers to. Keyed by the row's id (see [`content_id_of`]), the same
+/// way a ring's grants come back from [`RingDef::of`] — the row is the
+/// definition, so a save that stored these would only be storing the table
+/// twice.
 pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, name: &str) {
     if let Some(def) = WEAPONS.iter().find(|d| d.name == name) {
         entity.insert(ThrownDamage(def.thrown_die));
