@@ -154,5 +154,55 @@ refuses("same version", "0.1.2 --no-cargo", "greater")
 refuses("older version", "0.0.9 --no-cargo", "greater")
 refuses("not a version", "banana --no-cargo", "usage")
 
+-- 7. A changed `SAVE_VERSION` since the last tag means old saves stop loading:
+--    that is a minor bump at least. No tag, no constant, or no change means no
+--    opinion. A tag from before the constant existed counts as version 0.
+local function save_file(n)
+  return "pub const SAVE_VERSION: u16 = " .. n .. ";\n"
+end
+local function tagged_with(n, then_n)
+  reset()
+  if n then
+    write("models/src/saveload.rs", save_file(n))
+    in_repo("git add -A && git commit -qm save")
+  end
+  in_repo("git tag v0.1.2")
+  if then_n then
+    write("models/src/saveload.rs", save_file(then_n))
+    in_repo("git add -A && git commit -qm bump-save")
+  end
+end
+local function refuses_save(args)
+  local o, c = bump_cmd(args)
+  assert(c == 1, args .. ": should exit 1, got " .. tostring(c) .. "\n" .. o)
+  assert(has(o, "SAVE_VERSION"), args .. ": should name SAVE_VERSION, got: " .. o)
+  assert(has(read("engine/Cargo.toml"), '\nversion = "0.1.2"\n'), "must not edit files")
+end
+
+tagged_with(1, 2)
+refuses_save("patch --no-cargo")
+refuses_save("0.1.9 --no-cargo")
+out, code = bump_cmd("minor --no-cargo")
+assert(code == 0, "minor passes a save change: " .. out)
+tagged_with(1, 2)
+out, code = bump_cmd("major --no-cargo")
+assert(code == 0, "major passes a save change: " .. out)
+tagged_with(1, 2)
+out, code = bump_cmd("0.2.0 --no-cargo")
+assert(code == 0, "an explicit minor passes a save change: " .. out)
+
+tagged_with(1, 1)
+out, code = bump_cmd("patch --no-cargo")
+assert(code == 0, "an unchanged constant lets patch through: " .. out)
+
+tagged_with(nil, 1)
+refuses_save("patch --no-cargo")
+
+reset()
+write("models/src/saveload.rs", save_file(3))
+in_repo("git add -A && git commit -qm save")
+out, code = bump_cmd("patch --no-cargo")
+assert(code == 0, "no tag, no opinion: " .. out)
+
 os.execute("rm -rf '" .. dir .. "'")
 print("ok  bump.lua")

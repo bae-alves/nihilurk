@@ -118,6 +118,27 @@ if not newer(new, highest) then
   die(version .. " is not greater than the current " .. table.concat(highest, "."))
 end
 
+-- A changed SAVE_VERSION since the last tag means old saves stop loading, which
+-- is a minor bump at least. No tag, or no constant in the working tree, means no
+-- opinion; a tag from before the constant existed counts as version 0.
+local function save_version(text)
+  return tonumber((text or ""):match("SAVE_VERSION:%s*u%d+%s*=%s*(%d+)"))
+end
+local SAVE_FILE = "models/src/saveload.rs"
+local last_tag, has_tag = git("describe --tags --abbrev=0")
+local f = io.open(path(SAVE_FILE))
+local now = f and save_version(f:read("a"))
+if f then f:close() end
+if has_tag and now then
+  last_tag = trim(last_tag)
+  local old, had_file = git("show " .. last_tag .. ":" .. SAVE_FILE)
+  local was = had_file and save_version(old) or 0
+  if was ~= now and new[1] == highest[1] and new[2] == highest[2] then
+    die(string.format("SAVE_VERSION went from %d to %d since %s: old saves stop loading, " ..
+      "so this is a minor bump at least. Nothing was edited.", was, now, last_tag))
+  end
+end
+
 -- the edits, as text in, text out
 local function count_one(s, n)
   assert(n == 1, "expected to change exactly one place, changed " .. n)
