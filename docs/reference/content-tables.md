@@ -210,15 +210,16 @@ Constructor: `WeaponDef::new(name, color, power_die)`, then chains.
 | `thrown_die` | `i32`          | `power_die`  | Die rolled on impact.     |
 | `projectile` | `bool`         | `false`      | Built to be thrown.       |
 | `piercing`   | `bool`         | `false`      | Throw runs the whole line.|
+| `returns`    | `bool`         | `false`      | The throw ends back with the thrower. |
 | `reach`      | `i32`          | `0`          | Aimed rather than walked into: a bardiche (2), a whip (5). |
 | `reach_piercing` | `bool`     | `false`      | The reach strike runs the whole line. |
 | `grants`     | `&[Grant]`     | `&[]`        | Marker effects the wielder holds while it is in hand. |
 | `on_wear`    | `Option<OnWear>` | `None`     | A one-shot fired the instant it is wielded. |
 | `on_doff`    | `Option<OnDoff>` | `None`     | A one-shot fired the instant it is deliberately put away again. |
 
-Chains: `.missile(die)` sets `thrown_die` and `projectile`; `.piercing()`, `.reach(tiles)`, `.reach_piercing()`, `.grants(&[...])`, `.on_wear(...)`, `.on_doff(...)` each set the field they name.
+Chains: `.missile(die)` sets `thrown_die` and `projectile`; `.piercing()`, `.returning()`, `.reach(tiles)`, `.reach_piercing()`, `.grants(&[...])`, `.on_wear(...)`, `.on_doff(...)` each set the field they name.
 
-Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDamage`, and `Projectile` / `Piercing` / `Reach` / `ReachPiercing` / `Grants` / `OnWear` / `OnDoff` when asked. A floor drop is enchanted (see below). `grants`, `on_wear` and `on_doff` are all re-read from the row on load (`catalog::restore_from_catalog`), never stored in the save.
+Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDamage`, and `Projectile` / `Piercing` / `Returns` / `Reach` / `ReachPiercing` / `Grants` / `OnWear` / `OnDoff` when asked. A floor drop is enchanted (see below). `grants`, `on_wear` and `on_doff` are all re-read from the row on load (`catalog::restore_from_catalog`), never stored in the save.
 
 The staff is the only row with an `on_doff`, and the reason is worth repeating: it multiplies what every attacking spell costs and what it does (`constants::spells::TURBO_MAGIC_COST_MULT` and `TURBO_MAGIC_POWER_MULT`), and neither multiplier shows anywhere on the HUD. The two log lines are the whole of the player's notice, which is why the taking-off needs one as much as the putting-on. `OnDoff` fires only on the deliberate path (`equipment::toggle_equipped`), never from `force_unequip` — dropping, being disarmed and dying are not ceremonies, the same asymmetry `OnWear` already has against `equip_silently`.
 
@@ -258,8 +259,9 @@ Draws `}`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `Launcher`, `ThrowBon
 | `name`      | `&'static str` |                                        |
 | `color`     | `Color`        |                                        |
 | `armor_die` | `i32`          | Defence roll adds `1d[n]`. In use 2-9. |
+| `grants`    | `&[Grant]`     | Marker effects lent while worn. `&[]` for plain mail; spikemail's is `Spiked`. |
 
-Draws `]`. Attaches `Item`, `Equipped::loose(Slot::Body)`, `ArmorDie`.
+Draws `]`. Attaches `Item`, `Equipped::loose(Slot::Body)`, `ArmorDie`, and `Grants` when the row has any.
 
 ### RINGS — RingDef
 
@@ -295,6 +297,9 @@ Every ring is live, and all but adornment are pure table — a modifier combat a
 | polymorph | grants `Polymorphitis` |
 | stealth | grants `Stealthy` |
 | maintain armor | grants `SustainsArmor` |
+| sustain form | grants `SustainsForm` |
+| dualzap | grants `DualZap` |
+| health | `.max_hp_bonus(2)`; the wearer gains the plus in max and current hp on the way on, and only the max comes off, so swapping washes hp and a negative one can kill |
 | adornment | `.on_wear(items::rings::ADORNMENT)` |
 
 The only ring behaviour code in the tree is `models/src/items/rings.rs`, and it holds four verbs, not a `match` on `RingEffect`: the adornment flourish (which the victory climb also calls), the regeneration tick, the teleportitis jump and the polymorphitis roll. Nothing outside that file asks which ring it has.
@@ -356,7 +361,7 @@ Treats share the coins' old slice of the drop table (Rogue's food slot). The coi
 
 **Use** on a treat, or on ammunition (anything with `LaunchedBy`), logs that it is for throwing and costs no turn (`items::use_refusal`).
 
-**Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one *ordinary* Helper at a time: recruiting a second explodes the first, cosmetically. A creature with `PriorityHelper` (the dog) is never that first one and any number can stand beside you; recruiting one explodes the ordinary Helper. `AlwaysTamed` makes every treat take, `AlwaysHelper` makes a charm or a conjuring the Helper outright, and `ShapeshiftOnKill` rolls `constants::helpers::SHAPESHIFT_CHANCE` on each melee kill to turn the dog into another monster (`monsters::shapeshift`, which keeps whichever of the five grants it held, and its side). `FaerieOnDeath` is the reveal: when the dog dies it is revealed as a faerie shapeshifter and is gone, the way a spirit poofs: no corpse, no gore, no score, no blood even from the wounds before (`combat::reveal_faerie`). The faerie has no body: it is a log line only, in pink (`LogCategory::Faerie`), "It was never a dog, but a faerie shapeshifter!", and it stands in for the kill line. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels it, why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog. Each is its own grant, and each is an identity effect that no cancellation strips; the dog row is just all five (`monsters::DOG_GRANTS`). A Helper:
+**Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one *ordinary* Helper at a time: recruiting a second explodes the first, cosmetically. A creature with `PriorityHelper` (the dog) is never that first one and any number can stand beside you; recruiting one explodes the ordinary Helper. `AlwaysTamed` makes every treat take, `AlwaysHelper` makes a charm or a conjuring the Helper outright, and `ShapeshiftOnKill` rolls `constants::helpers::SHAPESHIFT_CHANCE` on each melee kill to turn the dog into another monster (`monsters::shapeshift`, which keeps whichever of the five grants it held, and its side). `FaerieOnDeath` is the reveal: when the dog dies it is revealed as a faerie shapeshifter and is gone, the way a spirit poofs: no corpse, no gore, no score, no blood even from the wounds before (`combat::reveal_faerie`). The faerie has no body: it is a log line only, in pink (`LogCategory::Faerie`), "It was never a dog, but a faerie shapeshifter!", and it stands in for the kill line. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels what makes it a dog, why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog. Each is its own grant. All but `ShapeshiftOnKill` are identity effects that no cancellation strips; the dog row is just all five (`monsters::DOG_GRANTS`). The mirror hound (`monsters::MIRROR_HOUND_GRANTS`) swaps `ShapeshiftOnKill` for `MirrorOnKill`: each melee kill rolls `SHAPESHIFT_CHANCE` (25%) to turn it into exactly the species it killed (`monsters::mirror`), keeping its side and its other grants. Either shapeshift happens once: the changed creature has lost `ShapeshiftOnKill` or `MirrorOnKill`. Cancel either first and it never changes shape. A Helper:
 
 * goes for the nearest monster on a tile the player can see, shooting if it holds a launcher, and otherwise comes back to the player's side (the `HELPER` rule set in `agents.rs`);
 * is hit back by a monster next to it that is not next to the player;
@@ -470,7 +475,7 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 
     "asleep" => Asleep ["You shake off the drowsiness and come to."],
 
-**Identity effects: parts nothing can cancel.** A wand of cancellation strips every effect a creature holds, except the ones whose id is listed in `IDENTITY_EFFECTS` in `effects.rs`. `revoke_all` removes the rest, then puts the identity ones back with their ledger entry, so they are still saved. Today that is `lurk` (the lurk's body) and the five that make a dog: `always_tamed`, `always_helper`, `priority_helper`, `shapeshift_on_kill` and `faerie_on_death`. The rule of thumb: an identity effect is what a creature *is*, not magic it merely has. A dragon's `FireImmune` stays cancellable on purpose. To make a part of a monster uncancellable, write the effect as usual (`../how-to/add-an-effect.md`), list its id in `IDENTITY_EFFECTS`, and grant it from the bestiary row (`../how-to/add-a-monster.md`).
+**Identity effects: parts nothing can cancel.** A wand of cancellation strips every effect a creature holds, except the ones whose id is listed in `IDENTITY_EFFECTS` in `effects.rs`. `revoke_all` removes the rest, then puts the identity ones back with their ledger entry, so they are still saved. Today that is `lurk` (the lurk's body) and the four that make a dog: `always_tamed`, `always_helper`, `priority_helper` and `faerie_on_death`. The dog's shapeshifting (`shapeshift_on_kill`, and the mirror hound's `mirror_on_kill`) is magic, not identity: a wand of cancellation stops it. The rule of thumb: an identity effect is what a creature *is*, not magic it merely has. A dragon's `FireImmune` stays cancellable on purpose. To make a part of a monster uncancellable, write the effect as usual (`../how-to/add-an-effect.md`), list its id in `IDENTITY_EFFECTS`, and grant it from the bestiary row (`../how-to/add-a-monster.md`).
 
 | # | Effect              | Meaning                                        |
 |---|---------------------|------------------------------------------------|
@@ -505,40 +510,44 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 |28 | `AlwaysTamed`       | Any treat takes, every time (the dog). |
 |29 | `AlwaysHelper`      | Charmed or conjured, it is the Helper, not a plain ally (the dog). |
 |30 | `PriorityHelper`    | A Helper that never explodes to make room, and explodes the ordinary one (the dog). |
-|31 | `ShapeshiftOnKill`  | A melee kill sometimes turns it into another random monster (the dog). |
-|32 | `FaerieOnDeath`     | Dying, it is revealed as a faerie shapeshifter and is gone, with no gore (the dog). |
-|33 | `Swims`             | Deep water is floor. |
-|34 | `Phasing`           | Walks through walls and water; no diagonal rule, no room leash. |
-|35 | `Cleaves`           | A connecting swing also lands on every other enemy next to the wielder. |
-|36 | `HeavySwing`        | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
-|37 | `Fencer`            | Every attack is thrown twice. |
-|38 | `Lunges`            | Closing the last stride of a run lands a lunge instead of a step. |
-|39 | `Lurk`              | The lurk's body. An identity effect: `revoke_all` leaves it. |
-|40 | `WhirlOnMove`       | Stepping between two tiles beside the same enemy lands a free attack. |
-|41 | `VorpalOnCondition` | A hit on a target with a negative condition slays it outright. |
-|42 | `TurboMagic`        | Damaging spells cost `TURBO_MAGIC_COST_MULT` times the Magic and deal `TURBO_MAGIC_POWER_MULT` times the damage. |
-|43 | `SelfDamageOnHit`   | Every connecting hit costs the wielder a point of HP. |
-|44 | `BuildsMomentum`    | Every hit builds `Momentum` on the weapon. |
-|45 | `ShattersStone`     | Lands whole on a `Petrified` target, past `stone_chip`. |
-|46 | `ConfusingTouch`    | Charged by a scroll: the next blow it lands confuses the target, then the charge is spent. |
-|47 | `Bided`             | The spell Bide: the next attack gets `BIDE_ATTACK_BONUS`, then it is spent or lost. |
-|48 | `Asleep`            | Hold: out cold, no action of any kind. |
-|49 | `Petrified`         | Hold, but not in `HOLDS`: stone is the body, so it travels with its owner. |
-|50 | `Pinned`            | Hold: cannot step, can still strike. Straining costs a turn and blood. |
-|51 | `Rooted`            | Hold: cannot step, can still strike. Straining costs only the turn. |
-|52 | `Clamped`           | Hold: a biter's grip. Killing the biter frees the victim. |
-|53 | `Confused`          | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
-|54 | `Blind`             | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
-|55 | `Paralyzed`         | Affliction: slowed, and the player loses a share of their turns. |
-|56 | `MagicWard`         | The spell: magical hits and a blow's riders bounce off, for the floor. |
-|57 | `Detected`          | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
-|58 | `Polymorphed`       | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |
-|59 | `Polymorphitis`     | Turns the bearer into something else on a roll (`POLYMORPHITIS_CHANCE`): the polymorph a wand casts, without the system shock (`polymorph_entity_with(.., false)`), so a bearer already `Polymorphed` settles into a form instead. Passive. |
-|60 | `Chimera`           | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
-|61 | `Typhon`            | The form drawn as `T`. |
-|62 | `Echidna`           | The form drawn as `E`. |
-|63 | `Protected`         | A rune of protection: no damage of any kind for `PROTECTION_TURNS` turns. Checked in `apply_hit` and in melee's `clamp_swing`, the two places HP comes off. |
-|64 | `ExplodesOnDeath`   | A rune of justice: dying, it bursts in one fire blast rolled off its own power die (`combat::burst_on_death`). |
+|31 | `ShapeshiftOnKill`  | A melee kill sometimes turns it into another random monster, once (the dog). |
+|32 | `MirrorOnKill`      | A melee kill sometimes turns it into exactly what it killed, once (the mirror hound). |
+|33 | `FaerieOnDeath`     | Dying, it is revealed as a faerie shapeshifter and is gone, with no gore (the dog). |
+|34 | `Swims`             | Deep water is floor. |
+|35 | `Phasing`           | Walks through walls and water; no diagonal rule, no room leash. |
+|36 | `Cleaves`           | A connecting swing also lands on every other enemy next to the wielder. |
+|37 | `HeavySwing`        | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
+|38 | `Fencer`            | Every attack is thrown twice. |
+|39 | `Lunges`            | Closing the last stride of a run lands a lunge instead of a step. |
+|40 | `Lurk`              | The lurk's body. An identity effect: `revoke_all` leaves it. |
+|41 | `WhirlOnMove`       | Stepping between two tiles beside the same enemy lands a free attack. |
+|42 | `VorpalOnCondition` | A hit on a target with a negative condition slays it outright. |
+|43 | `TurboMagic`        | Damaging spells cost `TURBO_MAGIC_COST_MULT` times the Magic and deal `TURBO_MAGIC_POWER_MULT` times the damage. |
+|44 | `SelfDamageOnHit`   | Every connecting hit costs the wielder a point of HP. |
+|45 | `BuildsMomentum`    | Every hit builds `Momentum` on the weapon. |
+|46 | `ShattersStone`     | Lands whole on a `Petrified` target, past `stone_chip`. |
+|47 | `ConfusingTouch`    | Charged by a scroll: the next blow it lands confuses the target, then the charge is spent. |
+|48 | `Bided`             | The spell Bide: the next attack gets `BIDE_ATTACK_BONUS`, then it is spent or lost. |
+|49 | `Asleep`            | Hold: out cold, no action of any kind. |
+|50 | `Petrified`         | Hold, but not in `HOLDS`: stone is the body, so it travels with its owner. |
+|51 | `Pinned`            | Hold: cannot step, can still strike. Straining costs a turn and blood. |
+|52 | `Rooted`            | Hold: cannot step, can still strike. Straining costs only the turn. |
+|53 | `Clamped`           | Hold: a biter's grip. Killing the biter frees the victim. |
+|54 | `Confused`          | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
+|55 | `Blind`             | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
+|56 | `Paralyzed`         | Affliction: slowed, and the player loses a share of their turns. |
+|57 | `MagicWard`         | The spell: magical hits and a blow's riders bounce off, for the floor. |
+|58 | `Detected`          | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
+|59 | `Polymorphed`       | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |
+|60 | `Polymorphitis`     | Turns the bearer into something else on a roll (`POLYMORPHITIS_CHANCE`): the polymorph a wand casts, without the system shock (`polymorph_entity_with(.., false)`), so a bearer already `Polymorphed` settles into a form instead. Passive. |
+|61 | `Chimera`           | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
+|62 | `Typhon`            | The form drawn as `T`. |
+|63 | `Echidna`           | The form drawn as `E`. |
+|64 | `Protected`         | A rune of protection: no damage of any kind for `PROTECTION_TURNS` turns. Checked in `apply_hit` and in melee's `clamp_swing`, the two places HP comes off. |
+|65 | `ExplodesOnDeath`   | A rune of justice: dying, it bursts in one fire blast rolled off its own power die (`combat::burst_on_death`). |
+|66 | `SustainsForm`      | No polymorph takes hold, and no system shock: the wand, potion, spells and the ring of polymorph all turn aside. |
+|67 | `DualZap`           | An attack wand zaps twice for two charges (`items::plan_use`); utility wands, and a wand down to its last charge, zap once. |
+|68 | `Spiked`            | Spikemail: a blow that draws blood from the wearer pricks the attacker for 1d2 straight off their HP (`abilities::spike_prick`, at `Moment::OnStruck`). |
 
 Cap components — ceilings the dice cannot beat. Folded with `min`, not `+`, because the strictest one wins. Not in `EFFECTS`, not bits:
 

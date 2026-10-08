@@ -311,7 +311,12 @@ fn a_worn_body_feels_every_grant_it_was_born_with() {
         let log = said(&w);
         let born: Vec<&str> = w
             .get::<Effects>(p)
-            .map(|e| e.0.iter().map(|h| h.id).collect())
+            .map(|e| {
+                e.0.iter()
+                    .filter(|h| !matches!(h.lifetime, Lifetime::WhileEquipped(_)))
+                    .map(|h| h.id)
+                    .collect()
+            })
             .unwrap_or_default();
         for id in &born {
             let feel = Effect::by_id(id)
@@ -340,4 +345,33 @@ fn nihil_feels_nothing_at_the_start() {
     let w = test_world(3, Body::Nihil);
     let feels: Vec<&str> = EFFECTS.iter().filter_map(|e| e.feel).collect();
     assert!(!said(&w).iter().any(|l| feels.contains(&l.as_str())));
+}
+
+#[test]
+fn a_species_with_gear_chances_starts_wearing_all_of_it() {
+    let mut w = test_world(7, Body::Monster(MonsterDef::named("hobgoblin")));
+    let p = player(&mut w);
+    assert_eq!(equipment::equipped_items(&w, p).len(), 3);
+    assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
+}
+
+#[test]
+fn a_launcher_species_starts_with_the_bow_on_and_a_full_stack_of_arrows() {
+    let mut w = test_world(7, Body::Monster(MonsterDef::named("centaur")));
+    let p = player(&mut w);
+    let worn = equipment::equipped_items(&w, p);
+    assert_eq!(worn.len(), 1);
+    assert!(w.get::<Launcher>(worn[0]).is_some());
+
+    let pack = w.get::<Backpack>(p).unwrap().items.clone();
+    assert_eq!(pack.len(), 1);
+    assert_eq!(w.get::<Stack>(pack[0]).unwrap().count, STACK_LIMIT);
+}
+
+#[test]
+fn a_species_without_gear_chances_starts_bare() {
+    let mut w = test_world(7, Body::Monster(MonsterDef::named("dragon")));
+    let p = player(&mut w);
+    assert!(equipment::equipped_items(&w, p).is_empty());
+    assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
 }

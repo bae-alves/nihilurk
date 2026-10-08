@@ -152,6 +152,16 @@ pub fn polymorph_drops_gear() -> &'static str {
     "Your gear slips off you."
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn form_holds_player() -> &'static str {
+    "The bolt of change finds nothing in you to bend."
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn form_holds_mob(name: &str) -> String {
+    format!("The bolt of change slides off the {name}.")
+}
+
 pub fn polymorph_same_looking(old_name: &str, new_name: &str) -> String {
     format!("The {old_name} twists and warps into a different-looking {new_name}!")
 }
@@ -490,6 +500,11 @@ pub const fn feel_priority_helper() -> &'static str {
 
 pub const fn feel_shapeshift_on_kill() -> &'static str {
     "You feel restless in your own skin."
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub const fn feel_mirror_on_kill() -> &'static str {
+    "You feel like whatever you see."
 }
 
 pub const fn feel_faerie_on_death() -> &'static str {
@@ -994,6 +1009,14 @@ pub fn slow_player_line() -> &'static str {
 pub fn haste_mob_line(name: &str) -> String {
     format!("The {name} blurs into sudden speed!")
 }
+// TODO: placeholder English; needs a human's pass.
+pub fn haste_overflow_player_line() -> &'static str {
+    "Your speed overflows, no longer hasted!"
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn haste_overflow_mob_line(name: &str) -> String {
+    format!("The {name}'s speed overflows, no longer hasted!")
+}
 pub fn slow_mob_line(name: &str) -> String {
     format!("The {name} lurches into slow motion.")
 }
@@ -1045,6 +1068,11 @@ pub fn blocked_finger(name: &str) -> String {
     format!("You can't - the {name} won't leave your finger.")
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn curses_merge(recipient: &str, donor: &str, result: &str) -> String {
+    format!("The curses fuse! The {recipient} and the {donor} become the {result}.")
+}
+
 pub fn armor_shrugs_off_corrosion() -> &'static str {
     "Your armour drinks the corrosion and shrugs it off."
 }
@@ -1081,6 +1109,15 @@ pub fn heavy_stagger_mob(name: &str) -> String {
 
 pub fn chaos_recoil() -> &'static str {
     "The edge of chaos bites you!"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn spike_prick_player() -> &'static str {
+    "Spikes prick you as you strike!"
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn spike_prick_mob(name: &str) -> String {
+    format!("The {name} is pricked by spikes for striking!")
 }
 
 pub fn venom_resisted_player() -> &'static str {
@@ -1528,6 +1565,11 @@ pub fn scroll_read_aloud(who: &str, seen_name: &str) -> String {
 
 pub fn wand_clatters_unspent(seen_name: &str) -> String {
     format!("The {seen_name} clatters to the floor, its magic still bottled up.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn boomerang_returns(seen_name: &str) -> String {
+    format!("The {seen_name} returns to you.")
 }
 
 pub fn picked_up_thrown_verb_hand() -> &'static str {

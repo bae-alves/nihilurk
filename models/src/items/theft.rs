@@ -115,6 +115,6 @@ fn use_stolen_item(world: &mut World, thief: Entity, item: Entity) {
         return;
     }
     if world.get::<crate::equipment::Equipped>(item).is_some() {
-        crate::equipment::equip_silently(world, thief, item);
+        crate::equipment::equip_merging(world, thief, item);
     }
 }

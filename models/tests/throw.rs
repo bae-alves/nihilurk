@@ -286,6 +286,30 @@ fn a_thrown_effect_wand_works_its_effect_on_everyone_in_the_blast() {
 }
 
 #[test]
+fn a_helper_lost_to_system_shock_is_minus_two_alignment() {
+    let mut shocked = 0;
+    for seed in 0..64 {
+        let mut w = test_world(seed);
+        let p = player(&mut w);
+        let spot = east_of_player(&mut w, 1);
+        let pal = monster(&mut w, "pal", spot);
+        recruit(&mut w, pal);
+        lend(&mut w, pal, Grant::of::<Polymorphed>(), Lifetime::Floor);
+        assert_eq!(w.get::<Alignment>(p).unwrap().0, 1, "recruiting: +1");
+        let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Polymorph, NOWHERE));
+        w.get_mut::<Battery>(wand).unwrap().charges = 6;
+
+        throw(&mut w, p, wand, spot);
+
+        let helper_left = w.query::<&Helper>().iter(&w).count() > 0;
+        shocked += usize::from(!helper_left);
+        let want = if helper_left { 1 } else { -1 };
+        assert_eq!(w.get::<Alignment>(p).unwrap().0, want, "seed {seed}");
+    }
+    assert!(shocked > 0, "no seed shocked");
+}
+
+#[test]
 fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
     let mut w = test_world(4);
     let p = player(&mut w);

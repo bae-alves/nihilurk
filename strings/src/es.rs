@@ -250,6 +250,14 @@ pub fn polymorph_drops_gear() -> &'static str {
     "Tu equipo se te resbala."
 }
 
+pub fn form_holds_player() -> &'static str {
+    "El rayo de cambio no encuentra nada en ti que doblar."
+}
+
+pub fn form_holds_mob(name: &str) -> String {
+    format!("El rayo de cambio resbala sobre {} {name}.", article(name))
+}
+
 pub fn polymorph_same_looking(old_name: &str, new_name: &str) -> String {
     format!(
         "¡{} {old_name} se retuerce y muta en {} {new_name} de aspecto distinto!",
@@ -618,6 +626,10 @@ pub const fn feel_priority_helper() -> &'static str {
 // TODO: machine-translated placeholder; needs a native speaker's pass.
 pub const fn feel_shapeshift_on_kill() -> &'static str {
     "Te sientes inquieto en tu propia piel."
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub const fn feel_mirror_on_kill() -> &'static str {
+    "Te sientes como todo lo que ves."
 }
 // TODO: machine-translated placeholder; needs a native speaker's pass.
 pub const fn feel_faerie_on_death() -> &'static str {
@@ -998,6 +1010,17 @@ pub fn haste_mob_line(name: &str) -> String {
         cap_article(name)
     )
 }
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn haste_overflow_player_line() -> &'static str {
+    "Tu velocidad se desborda, ¡ya no estás acelerado!"
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn haste_overflow_mob_line(name: &str) -> String {
+    format!(
+        "¡{} {name} desborda su velocidad y ya no está acelerado!",
+        cap_article(name)
+    )
+}
 pub fn slow_mob_line(name: &str) -> String {
     format!("{} {name} cae en cámara lenta.", cap_article(name))
 }
@@ -1112,6 +1135,13 @@ pub fn heavy_stagger_mob(name: &str) -> String {
 
 pub fn chaos_recoil() -> &'static str {
     "¡El filo del caos muerde de vuelta!"
+}
+
+pub fn spike_prick_player() -> &'static str {
+    "¡Las púas te pinchan al golpear!"
+}
+pub fn spike_prick_mob(name: &str) -> String {
+    format!("¡{name} se pincha con las púas al golpear!")
 }
 
 pub fn venom_resisted_player() -> &'static str {
@@ -1591,6 +1621,10 @@ pub fn wand_clatters_unspent(seen_name: &str) -> String {
         "{} {seen_name} cae al suelo con estrépito, con la magia todavía intacta.",
         cap_article(seen_name)
     )
+}
+
+pub fn boomerang_returns(seen_name: &str) -> String {
+    format!("{} {seen_name} vuelve a ti.", cap_article(seen_name))
 }
 
 pub fn picked_up_thrown_verb_hand() -> &'static str {
@@ -2800,4 +2834,12 @@ pub fn throw_hangs_in_the_air(name: &str) -> String {
 // TODO: translate.
 pub const fn ends_time_stopped() -> &'static str {
     ""
+}
+
+// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn curses_merge(recipient: &str, donor: &str, result: &str) -> String {
+    String::new()
 }

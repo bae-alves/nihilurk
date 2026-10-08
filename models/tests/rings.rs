@@ -253,6 +253,19 @@ fn maintain_armor_shrugs_the_corrosion_off() {
     assert_eq!(warded, plain + 1, "the ring is worth exactly the point");
 }
 
+#[test]
+fn sustain_form_lends_its_marker_while_worn() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    assert!(w.get::<SustainsForm>(p).is_none());
+
+    let ring = put_on(&mut w, p, RingEffect::SustainForm);
+    assert!(w.get::<SustainsForm>(p).is_some());
+
+    use_item(&mut w, p, ring);
+    assert!(w.get::<SustainsForm>(p).is_none());
+}
+
 // ---------------------------------------------------------------------------
 // Regeneration
 // ---------------------------------------------------------------------------
@@ -584,4 +597,191 @@ fn a_ring_with_no_number_gets_no_number_however_it_rolls() {
             "{effect:?} should still roll both cursed and clean"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// The ring of dualzap
+// ---------------------------------------------------------------------------
+
+/// A well-charged `effect` wand in `user`'s pack, zapped at `at`.
+fn zap_with(w: &mut World, user: Entity, effect: WandEffect, charges: i8, at: Position) -> Entity {
+    let wand = spawn_wand(w, effect, Position { x: 0, y: 0 });
+    w.entity_mut(wand).remove::<Position>();
+    w.get_mut::<Battery>(wand).unwrap().charges = charges;
+    w.get_mut::<Backpack>(user).unwrap().items.push(wand);
+    w.resource_mut::<UseQueue>().uses.push(WantsToUse {
+        user,
+        item: wand,
+        target: Some(at),
+        slot_idx: Some(0),
+    });
+    item_system(w);
+    wand
+}
+
+fn bolts_logged(w: &World) -> usize {
+    w.resource::<GameLog>()
+        .history
+        .iter()
+        .filter(|l| l.contains(strings::bolt_magic_missile()))
+        .count()
+}
+
+fn aim_at_open_tile(w: &World, p: Entity) -> Position {
+    let here = *w.get::<Position>(p).unwrap();
+    let map = w.resource::<Map>();
+    [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)]
+        .into_iter()
+        .map(|(dx, dy)| (here.x as i32 + dx, here.y as i32 + dy))
+        .find(|&(x, y)| x >= 0 && y >= 0 && !map.blocks(x as u16, y as u16))
+        .map(|(x, y)| Position {
+            x: x as u16,
+            y: y as u16,
+        })
+        .expect("an open tile beside the player")
+}
+
+#[test]
+fn dualzap_spends_two_charges_for_two_casts() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    put_on(&mut w, p, RingEffect::DualZap);
+    let at = aim_at_open_tile(&w, p);
+
+    let wand = zap_with(&mut w, p, WandEffect::MagicMissile, 5, at);
+
+    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 3);
+    assert_eq!(bolts_logged(&w), 2);
+}
+
+#[test]
+fn dualzap_on_a_last_charge_casts_once() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    put_on(&mut w, p, RingEffect::DualZap);
+    let at = aim_at_open_tile(&w, p);
+
+    let wand = zap_with(&mut w, p, WandEffect::MagicMissile, 1, at);
+
+    assert!(w.get_entity(wand).is_none(), "the wand crumbles");
+    assert_eq!(bolts_logged(&w), 1, "one charge buys one cast");
+}
+
+#[test]
+fn dualzap_leaves_utility_wands_alone() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    put_on(&mut w, p, RingEffect::DualZap);
+    let at = aim_at_open_tile(&w, p);
+
+    let wand = zap_with(&mut w, p, WandEffect::SlowMonster, 5, at);
+
+    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 4);
+}
+
+#[test]
+fn a_bare_hand_zaps_one_charge_one_cast() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = aim_at_open_tile(&w, p);
+
+    let wand = zap_with(&mut w, p, WandEffect::MagicMissile, 5, at);
+
+    assert_eq!(w.get::<Battery>(wand).unwrap().charges, 4);
+    assert_eq!(bolts_logged(&w), 1);
+}
+
+// ---------------------------------------------------------------------------
+// The ring of health
+// ---------------------------------------------------------------------------
+
+fn hp(w: &World, e: Entity) -> (i32, i32) {
+    let f = w.get::<Fighter>(e).unwrap();
+    (f.hp, f.max_hp)
+}
+
+fn set_hp(w: &mut World, e: Entity, hp: i32) {
+    w.get_mut::<Fighter>(e).unwrap().hp = hp;
+}
+
+#[test]
+fn health_adds_two_to_max_and_current() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (cur, max) = hp(&w, p);
+
+    put_on(&mut w, p, RingEffect::Health);
+
+    assert_eq!(hp(&w, p), (cur + 2, max + 2));
+}
+
+#[test]
+fn health_washes_hp_on_every_swap() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (_, max) = hp(&w, p);
+    set_hp(&mut w, p, 1);
+
+    let ring = put_on(&mut w, p, RingEffect::Health);
+    assert_eq!(hp(&w, p), (3, max + 2));
+    use_item(&mut w, p, ring);
+    assert_eq!(hp(&w, p), (3, max), "taking it off keeps the hit points");
+    use_item(&mut w, p, ring);
+    assert_eq!(hp(&w, p), (5, max + 2), "and putting it back on pays again");
+}
+
+#[test]
+fn health_taken_off_at_full_clamps_to_the_old_max() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (_, max) = hp(&w, p);
+
+    let ring = put_on(&mut w, p, RingEffect::Health);
+    use_item(&mut w, p, ring);
+
+    assert_eq!(hp(&w, p), (max, max));
+}
+
+#[test]
+fn health_leaves_with_a_ring_that_was_dropped() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (_, max) = hp(&w, p);
+
+    let ring = put_on(&mut w, p, RingEffect::Health);
+    force_unequip(&mut w, ring);
+    equipment_effects_system(&mut w);
+
+    assert_eq!(hp(&w, p), (max, max));
+}
+
+#[test]
+fn health_changes_nothing_twice() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (cur, max) = hp(&w, p);
+
+    put_on(&mut w, p, RingEffect::Health);
+    equipment_effects_system(&mut w);
+    equipment_effects_system(&mut w);
+
+    assert_eq!(hp(&w, p), (cur + 2, max + 2));
+}
+
+#[test]
+fn a_cursed_ring_of_health_can_kill() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (_, base_max) = hp(&w, p);
+    set_hp(&mut w, p, 2);
+    let ring = spawn_ring(&mut w, RingEffect::Health, Position { x: 0, y: 0 });
+    w.entity_mut(ring).remove::<Position>();
+    set_plus(&mut w, ring, -3);
+    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+
+    use_item(&mut w, p, ring);
+
+    let (cur, max) = hp(&w, p);
+    assert!(cur <= 0, "2 hp and a -3 ring leaves {cur}");
+    assert_eq!(max, base_max - 3);
 }

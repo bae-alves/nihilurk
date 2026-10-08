@@ -124,7 +124,11 @@ pub enum Faction {
 /// is fully cacodaemon-aligned, plus that fully eudaemon-aligned, `0` neutral.
 /// Interacting with a cacodaemon spirit moves this toward its pole by
 /// [`ALIGNMENT_STEP`](crate::constants::spirits::ALIGNMENT_STEP), a eudaemon
-/// spirit toward the other. Reaching either pole flips
+/// spirit toward the other. Gaining a Helper moves it
+/// [`HELPER_GAINED_ALIGNMENT`](crate::constants::spirits::HELPER_GAINED_ALIGNMENT),
+/// blowing one up (explosion or system shock)
+/// [`HELPER_BLOWN_UP_ALIGNMENT`](crate::constants::spirits::HELPER_BLOWN_UP_ALIGNMENT).
+/// Reaching either pole flips
 /// [`SpiritsHostile`] for good. A player-only stat, so it lives on the
 /// player entity the same way [`Fighter`]/[`Spellset`] do rather than as a
 /// bare resource.
@@ -491,7 +495,9 @@ impl SpeedKind {
         }
     }
 
-    /// One notch quicker (wand of haste monster). `Fast` is the ceiling.
+    /// One step round the haste cycle (wand of haste monster):
+    /// `Normal` -> `Fast` -> `Slow` -> `Normal`. Hasting what is already
+    /// `Fast` wraps it to `Slow`.
     ///
     /// `Normal` steps straight to `Fast`, skipping `Quick`: a wand of haste
     /// has always been worth a doubling, and quietly halving what it buys to
@@ -506,11 +512,13 @@ impl SpeedKind {
     /// assert_eq!(SpeedKind::Normal.faster(), SpeedKind::Fast);
     /// // `Quick` is a place a creature is born, so a wand takes it to `Fast`.
     /// assert_eq!(SpeedKind::Quick.faster(), SpeedKind::Fast);
+    /// assert_eq!(SpeedKind::Fast.faster(), SpeedKind::Slow);
     /// ```
     pub fn faster(self) -> Self {
         match self {
             SpeedKind::Slow => SpeedKind::Normal,
-            SpeedKind::Normal | SpeedKind::Quick | SpeedKind::Fast => SpeedKind::Fast,
+            SpeedKind::Normal | SpeedKind::Quick => SpeedKind::Fast,
+            SpeedKind::Fast => SpeedKind::Slow,
         }
     }
 
@@ -1211,6 +1219,15 @@ pub enum RingEffect {
     MaintainArmor,
     /// Appended: a save encodes a variant as its position.
     Polymorph,
+    /// No polymorph takes hold of the wearer, system shock included
+    /// ([`crate::effects::SustainsForm`]).
+    SustainForm,
+    /// Attack wands zap twice for two charges ([`crate::effects::DualZap`]).
+    DualZap,
+    /// A bonus to the wearer's maximum and current hit points, paid once on
+    /// the way on ([`crate::effects::MaxHpBonus`]). Taking it off only lowers
+    /// the ceiling, so a swap washes hit points; a negative one can kill.
+    Health,
 }
 
 /// Tag for a cursed piece of equipment. Rolled on at spawn for the majority of
@@ -1333,6 +1350,20 @@ pub struct Projectile;
 /// aiming past a monster does not work.
 #[derive(Component, Clone, Copy)]
 pub struct Piercing;
+
+/// Thrown, this comes back to whoever threw it: a hit or a miss, it flies home
+/// afterwards, into the hand it left if that hand was wielding it and into the
+/// pack if not. It strikes the first creature in its way like any
+/// non-[`Piercing`] throw, and nothing catches it.
+#[derive(Component, Clone, Copy)]
+pub struct Returns;
+
+/// How many creatures one throw strikes in all, each for full damage: the first
+/// in its way, then each time the nearest other living hostile in its thrower's
+/// view. Pairs with [`Returns`]: it flies home after the last. A thrower with no
+/// sight of its own (a monster) leaves the finding to the blade.
+#[derive(Component, Clone, Copy)]
+pub struct ChainHits(pub u8);
 
 /// The effect that turns a lobbed missile into a loosed one. An arrow answers
 /// to [`crate::effects::FireArrow`], a quarrel to

@@ -376,6 +376,24 @@ fn haste_and_slow_step_the_target_along_the_speed_scale() {
         SpeedKind::Normal,
         "slow undoes a haste"
     );
+
+    zap(&mut w, p, haste, spot);
+    assert_eq!(w.get::<Speed>(mob).unwrap().kind, SpeedKind::Fast);
+    zap(&mut w, p, haste, spot);
+    assert_eq!(
+        w.get::<Speed>(mob).unwrap().kind,
+        SpeedKind::Slow,
+        "haste on a fast target wraps to slow"
+    );
+    assert!(
+        w.resource::<GameLog>()
+            .history
+            .iter()
+            .any(|l| l == "The orc's speed overflows, no longer hasted!"),
+        "the wrap says why"
+    );
+    zap(&mut w, p, haste, spot);
+    assert_eq!(w.get::<Speed>(mob).unwrap().kind, SpeedKind::Normal);
 }
 
 #[test]
@@ -905,6 +923,27 @@ fn a_wand_of_polymorph_zapped_at_yourself_polymorphs_you() {
     assert!(w.get::<Polymorphed>(p).is_some());
 }
 
+#[test]
+fn sustain_form_turns_the_polymorph_bolt_aside_shock_included() {
+    for (seed, already) in (0..32).flat_map(|s| [(s, false), (s, true)]) {
+        let mut w = test_world(seed);
+        let p = player(&mut w);
+        let here = *w.get::<Position>(p).unwrap();
+        let hp = w.get::<Fighter>(p).unwrap().hp;
+        lend(&mut w, p, Grant::of::<SustainsForm>(), Lifetime::Permanent);
+        if already {
+            lend(&mut w, p, Grant::of::<Polymorphed>(), Lifetime::Floor);
+        }
+        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+
+        zap(&mut w, p, wand, here);
+
+        assert_eq!(w.get::<Polymorphed>(p).is_some(), already, "seed {seed}");
+        assert!(chimeric_form(&w, p).is_none(), "seed {seed}");
+        assert_eq!(w.get::<Fighter>(p).unwrap().hp, hp, "seed {seed}");
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Polymorph on something already polymorphed: system shock, or a chimeric form
 // ---------------------------------------------------------------------------
@@ -989,6 +1028,34 @@ fn polymorphing_the_polymorphed_monster_bursts_it_or_makes_a_chimeric_form() {
         }
     }
     assert!(burst > 0 && shaped > 0, "{burst} bursts, {shaped} forms");
+}
+
+#[test]
+fn polymorph_and_haste_reach_an_ally() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let pal = dummy(&mut w, "pal", spot, 5);
+    w.entity_mut(pal).insert(Faction::Ally);
+
+    let haste = give_wand(&mut w, p, WandEffect::HasteMonster);
+    zap(&mut w, p, haste, spot);
+    assert_eq!(w.get::<Speed>(pal).unwrap().kind, SpeedKind::Fast);
+
+    let poly = give_wand(&mut w, p, WandEffect::Polymorph);
+    zap(&mut w, p, poly, spot);
+    let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
+    let e = q
+        .iter(&w)
+        .find(|(_, pos)| **pos == spot)
+        .map(|(e, _)| e)
+        .unwrap();
+    assert!(w.get::<Polymorphed>(e).is_some());
+    assert_eq!(
+        w.get::<Faction>(e),
+        Some(&Faction::Ally),
+        "still on your side"
+    );
 }
 
 #[test]

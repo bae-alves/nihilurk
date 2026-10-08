@@ -171,6 +171,29 @@ fn a_second_helper_costs_you_the_first() {
     assert_eq!(score_before, score_after, "an exploded helper pays nothing");
 }
 
+fn alignment(w: &mut World) -> i8 {
+    let p = player(w);
+    w.get::<Alignment>(p).unwrap().0
+}
+
+#[test]
+fn gaining_a_helper_is_plus_one_alignment_and_blowing_one_up_is_minus_two() {
+    let mut w = test_world(5);
+    let at = east_of_player(&mut w, 1);
+    let a = monster::plain_monster(&mut w, "rat", at);
+    let at = east_of_player(&mut w, 2);
+    let b = monster::plain_monster(&mut w, "bat", at);
+
+    recruit(&mut w, a);
+    assert_eq!(alignment(&mut w), 1, "a Helper gained");
+
+    recruit(&mut w, a);
+    assert_eq!(alignment(&mut w), 1, "the same Helper again gains nothing");
+
+    recruit(&mut w, b);
+    assert_eq!(alignment(&mut w), 0, "a explodes (-2), b joins (+1)");
+}
+
 #[test]
 fn an_exploded_helper_goes_at_normal_speed_unlike_one_that_is_killed() {
     let mut w = test_world(5);
@@ -540,11 +563,14 @@ fn a_shapeshifted_dog_keeps_its_traits_its_loyalty_and_says_so() {
     assert_eq!(*w.get::<Position>(grown).unwrap(), at);
     assert!(is_helper(&w, grown), "still your helper");
     assert!(
-        w.get::<ShapeshiftOnKill>(grown).is_some()
-            && w.get::<AlwaysTamed>(grown).is_some()
+        w.get::<AlwaysTamed>(grown).is_some()
             && w.get::<AlwaysHelper>(grown).is_some()
             && w.get::<PriorityHelper>(grown).is_some(),
         "the grants came through the change"
+    );
+    assert!(
+        w.get::<ShapeshiftOnKill>(grown).is_none(),
+        "the shapeshift is spent"
     );
     let now = w.get::<Name>(grown).unwrap().what.clone();
     assert_ne!(now, "dog", "it became another monster");
@@ -623,26 +649,29 @@ fn a_shapeshifted_dog_is_still_a_dog_after_a_save() {
     let back = helpers(&mut w2);
     assert_eq!(back.len(), 1);
     assert_eq!(w2.get::<Name>(back[0]).unwrap().what, name);
-    for (grant, id) in DOG_GRANTS.iter().zip([
-        "always_tamed",
-        "always_helper",
-        "priority_helper",
-        "shapeshift_on_kill",
-    ]) {
+    for (grant, id) in DOG_GRANTS
+        .iter()
+        .zip(["always_tamed", "always_helper", "priority_helper"])
+    {
         assert!(grant.probe(&w2, back[0]), "{id} was lost in the save");
     }
 }
 
 #[test]
-fn nothing_cancels_a_dog() {
+fn cancelling_a_dog_stops_its_shapeshifting_and_nothing_else() {
     let mut w = test_world(15);
     let at = east_of_player(&mut w, 1);
     let pup = spawn_monster(&mut w, MonsterDef::named("dog"), at);
     recruit(&mut w, pup);
     revoke_all(&mut w, pup);
-    for grant in DOG_GRANTS {
-        assert!(grant.probe(&w, pup), "cancellation stripped a dog grant");
-    }
+    assert!(w.get::<ShapeshiftOnKill>(pup).is_none(), "still restless");
+    assert!(
+        DOG_GRANTS
+            .iter()
+            .filter(|g| g.effect_id() != Some("shapeshift_on_kill"))
+            .all(|g| g.probe(&w, pup)),
+        "cancellation stripped a dog grant"
+    );
     assert!(is_helper(&w, pup));
 }
 
@@ -719,4 +748,69 @@ fn an_ordinary_death_still_leaves_gore() {
     w.get_mut::<Fighter>(pal).unwrap().hp = 0;
     reaper_system(&mut w);
     assert!(logged(&w, "dies"));
+}
+
+#[test]
+fn a_mirror_hound_becomes_exactly_what_it_kills_once() {
+    let mut w = test_world(40);
+    let at = east_of_player(&mut w, 1);
+    let hound = spawn_monster(&mut w, MonsterDef::named("mirror hound"), at);
+    recruit(&mut w, hound);
+
+    let copy = mirror(&mut w, hound, MonsterDef::named("orc")).unwrap();
+
+    assert!(w.get_entity(hound).is_none(), "the old body is gone");
+    assert_eq!(*w.get::<Position>(copy).unwrap(), at);
+    let orc = MonsterDef::named("orc");
+    assert_eq!(w.get::<Fighter>(copy).unwrap().max_hp, orc.hp);
+    assert_eq!(w.get::<Renderable>(copy).unwrap().glyph, orc.glyph);
+    assert!(is_helper(&w, copy), "still on your side");
+    assert!(w.get::<MirrorOnKill>(copy).is_none(), "the copy is spent");
+}
+
+#[test]
+fn a_kill_mirrors_at_the_shapeshift_chance() {
+    let n = 200;
+    let mut w = test_world(42);
+    let mut copied = 0;
+    for _ in 0..n {
+        let hound_at = east_of_player(&mut w, 1);
+        let hound = spawn_monster(&mut w, MonsterDef::named("mirror hound"), hound_at);
+        recruit(&mut w, hound);
+        let at = east_of_player(&mut w, 2);
+        let victim = monster::plain_monster(&mut w, "orc", at);
+        kill(&mut w, hound, victim);
+        if w.get_entity(hound).is_none() {
+            copied += 1;
+        }
+        let stray: Vec<Entity> = w
+            .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
+            .iter(&w)
+            .collect();
+        for e in stray {
+            w.despawn(e);
+        }
+    }
+    let expected = n as f64 * SHAPESHIFT_CHANCE;
+    assert!(
+        (copied as f64) > expected * 0.4 && (copied as f64) < expected * 1.8,
+        "{copied} copies in {n} kills, about {expected} expected"
+    );
+}
+
+#[test]
+fn a_cancelled_mirror_hound_stays_a_hound() {
+    let mut w = test_world(41);
+    let at = east_of_player(&mut w, 1);
+    let hound = spawn_monster(&mut w, MonsterDef::named("mirror hound"), at);
+    recruit(&mut w, hound);
+    revoke_all(&mut w, hound);
+    assert!(w.get::<MirrorOnKill>(hound).is_none());
+    assert!(w.get::<AlwaysTamed>(hound).is_some(), "still a dog");
+
+    let victim_at = east_of_player(&mut w, 2);
+    let victim = monster::plain_monster(&mut w, "orc", victim_at);
+    kill(&mut w, hound, victim);
+
+    assert!(w.get_entity(hound).is_some(), "no change of shape");
 }

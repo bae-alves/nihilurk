@@ -47,6 +47,46 @@ impl LogCategory {
     }
 }
 
+/// The BALANCE thermometer: the word, one coloured letter per character, for
+/// the player's `alignment`. Hidden at `0` while the spirits are at peace.
+///
+/// Each of the seven letters is one level, `-ALIGNMENT_POLE` on the left to
+/// `+ALIGNMENT_POLE` on the right. Only the letter for the current level is
+/// tinted: red for the demons' side, green for the middle, cyan for the
+/// angels'. Once the spirits are `hostile` the word is BROKEN, in the colour of
+/// the side the player leans to (white when a wound broke it at `0`).
+pub fn balance_gauge(alignment: i8, hostile: bool) -> Option<Vec<(char, Color)>> {
+    const WORD: &str = "BALANCE";
+    let side = |a: i8| match a.signum() {
+        -1 => Color::Red,
+        1 => Color::Cyan,
+        _ => Color::White,
+    };
+    if hostile {
+        return Some("BROKEN".chars().map(|c| (c, side(alignment))).collect());
+    }
+    if alignment == 0 {
+        return None;
+    }
+    let pole = crate::constants::spirits::ALIGNMENT_POLE;
+    let lit = (alignment.clamp(-pole, pole) + pole) as usize;
+    Some(
+        WORD.chars()
+            .enumerate()
+            .map(|(i, c)| {
+                (
+                    c,
+                    if i == lit {
+                        side(alignment)
+                    } else {
+                        Color::White
+                    },
+                )
+            })
+            .collect(),
+    )
+}
+
 /// How one log message is painted.
 ///
 /// Nearly everything is one colour for the whole message. `Striped` is the

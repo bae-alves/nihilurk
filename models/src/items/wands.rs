@@ -18,7 +18,7 @@ use crate::effects::*;
 use crate::equipment::{equipped_items, sync_equipment_effects};
 use crate::helpers::{
     Hit, apply_hit, get_entities_at_position, get_line, item_label, leave_smoke, monster_at,
-    player_sees, roll_dice, spill_blood,
+    monster_or_ally_at, player_sees, roll_dice, spill_blood,
 };
 use crate::identify::article_for;
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index};
@@ -28,6 +28,7 @@ use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::{random_open_tile, things_in};
 
 use super::scrolls::teleport_reader;
+use crate::constants::spirits::HELPER_BLOWN_UP_ALIGNMENT;
 use crate::constants::wands::{
     BLAST_RADIUS, DAMAGE_DICE, DAMAGE_SIDES, DIG_RANGE, SHOCK_GORE_DAMAGE, SHOCK_SPLASHES,
     SMOKE_LINGER_TURNS, SYSTEM_SHOCK_CHANCE,
@@ -675,7 +676,7 @@ pub(super) fn polymorph_target(world: &mut World, pos: Position) {
         .iter(world)
         .find(|(_, p)| **p == pos)
         .map(|(e, _)| e);
-    let Some(victim) = player.or_else(|| monster_at(world, pos)) else {
+    let Some(victim) = player.or_else(|| monster_or_ally_at(world, pos)) else {
         world
             .resource_mut::<GameLog>()
             .add(strings::polymorph_fizzles());
@@ -726,6 +727,14 @@ pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
 pub(super) fn polymorph_entity_with(world: &mut World, victim: Entity, can_shock: bool) {
     let is_player = world.get::<Player>(victim).is_some();
     if !is_player && world.get::<Mob>(victim).is_none() {
+        return;
+    }
+    if world.get::<SustainsForm>(victim).is_some() {
+        let line = match is_player {
+            true => strings::form_holds_player().to_string(),
+            false => strings::form_holds_mob(&item_label(world, victim)),
+        };
+        world.resource_mut::<GameLog>().add(line);
         return;
     }
     let again = world.get::<Polymorphed>(victim).is_some();
@@ -836,6 +845,9 @@ fn system_shock(world: &mut World, victim: Entity) {
             .add(strings::system_shock_player());
         return;
     }
+    if world.get::<Helper>(victim).is_some() {
+        crate::spirits::shift_player_alignment(world, HELPER_BLOWN_UP_ALIGNMENT);
+    }
     let name = item_label(world, victim);
     world
         .resource_mut::<GameLog>()
@@ -847,7 +859,7 @@ fn system_shock(world: &mut World, victim: Entity) {
 /// (permanently — but a hasted or slowed *player* loses the change on the next
 /// floor, see [`crate::map::transition_level`]).
 fn shift_target_speed(world: &mut World, pos: Position, faster: bool) {
-    let Some(victim) = monster_at(world, pos) else {
+    let Some(victim) = monster_or_ally_at(world, pos) else {
         world
             .resource_mut::<GameLog>()
             .add(strings::nothing_to_enchant());

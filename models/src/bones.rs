@@ -19,7 +19,7 @@ use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{Backpack, Depth, Name, Player, PlayerName, Stack};
-use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
+use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
 use crate::equipment::{Equipped, Slot, equipped_items};
 
 /// Whether bones are saved and loaded at all this run — `false` under
@@ -51,6 +51,7 @@ struct BonesItem {
     power_bonus: i32,
     armor_bonus: i32,
     throw_bonus: i32,
+    max_hp_bonus: i32,
     stack: Option<u8>,
 }
 
@@ -67,9 +68,11 @@ pub struct BonesFile {
 
 impl BonesFile {
     /// The saved items, as `(catalog name, worn slot, power+, armor+, throw+,
-    /// stack)` — everything `crate::map::levels::spawn_bones_ghost` needs and
+    /// max hp+, stack)` — everything `crate::map::levels::spawn_bones_ghost` needs and
     /// nothing it has to reach back into this module's private struct for.
-    pub fn items(&self) -> impl Iterator<Item = (&str, Option<Slot>, i32, i32, i32, Option<u8>)> {
+    pub fn items(
+        &self,
+    ) -> impl Iterator<Item = (&str, Option<Slot>, i32, i32, i32, i32, Option<u8>)> {
         self.items.iter().map(|i| {
             (
                 i.name.as_str(),
@@ -77,6 +80,7 @@ impl BonesFile {
                 i.power_bonus,
                 i.armor_bonus,
                 i.throw_bonus,
+                i.max_hp_bonus,
                 i.stack,
             )
         })
@@ -124,6 +128,7 @@ fn deposit_to(world: &mut World, path: &str) -> std::io::Result<()> {
                 power_bonus: world.get::<PowerBonus>(item).map_or(0, |m| m.0),
                 armor_bonus: world.get::<ArmorBonus>(item).map_or(0, |m| m.0),
                 throw_bonus: world.get::<ThrowBonus>(item).map_or(0, |m| m.0),
+                max_hp_bonus: world.get::<MaxHpBonus>(item).map_or(0, |m| m.0),
                 stack: world.get::<Stack>(item).map(|s| s.count),
             })
         })
@@ -206,7 +211,7 @@ mod tests {
         assert!(
             items
                 .iter()
-                .any(|&(name, slot, power, _, _, _)| name == "long sword"
+                .any(|&(name, slot, power, ..)| name == "long sword"
                     && slot == Some(Slot::Hand)
                     && power == 3),
             "the worn sword and its enchantment came back: {items:?}"
@@ -218,6 +223,29 @@ mod tests {
             "the loose potion came back unworn: {items:?}"
         );
         let _ = sword;
+    }
+
+    #[test]
+    fn a_ring_of_healths_plus_survives_the_bones_file() {
+        let path = temp_path("ring-hp");
+        let _ = std::fs::remove_file(&path);
+        let (mut w, player) = world_with_player();
+        let ring = w
+            .spawn((
+                Name {
+                    what: "ring of health".into(),
+                },
+                MaxHpBonus(-3),
+            ))
+            .id();
+        w.get_mut::<Backpack>(player).unwrap().items.push(ring);
+
+        deposit_to(&mut w, &path).unwrap();
+        let bones = take_from(&path).expect("a bones file was written");
+        let _ = std::fs::remove_file(&path);
+
+        let hp: Vec<i32> = bones.items().map(|(.., hp, _)| hp).collect();
+        assert_eq!(hp, vec![-3]);
     }
 
     #[test]

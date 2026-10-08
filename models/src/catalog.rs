@@ -497,7 +497,8 @@ pub const WANDS: &[WandDef] = &[
 /// lump — worth its own class, blunted by the target's armour, and liable to be
 /// plucked out of the air by anything with hands and used on you. A dagger or a
 /// spear is balanced for the flight ([`Projectile`]) and, being balanced, does
-/// not stop at the first body it finds ([`Piercing`]).
+/// not stop at the first body it finds ([`Piercing`]). A boomerang is neither:
+/// it strikes the first creature in its way and flies home ([`Returns`]).
 pub struct WeaponDef {
     /// The row's identity: the save file stores it and
     /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
@@ -516,6 +517,11 @@ pub struct WeaponDef {
     /// Whether the throw carries on through everything on its line (see
     /// [`Piercing`]).
     piercing: bool,
+    /// The throw ends back with the thrower (see [`Returns`]).
+    returns: bool,
+    /// How many creatures one throw strikes in all before it flies home (see
+    /// [`ChainHits`]); 0 or 1 for a plain throw.
+    hits: u8,
     /// How far this weapon strikes in melee: 0 for a plain weapon (a walk into
     /// the target's tile is the whole of it), 2 or more for a reach weapon
     /// aimed with its own reticle (see [`Reach`]).
@@ -544,6 +550,8 @@ impl WeaponDef {
             thrown_die: power_die,
             projectile: false,
             piercing: false,
+            returns: false,
+            hits: 0,
             reach: 0,
             reach_piercing: false,
             grants: &[],
@@ -563,6 +571,19 @@ impl WeaponDef {
     /// The throw does not stop at the first creature: it runs the whole line.
     const fn piercing(mut self) -> Self {
         self.piercing = true;
+        self
+    }
+
+    /// The throw comes back to the thrower, hit or miss.
+    const fn returning(mut self) -> Self {
+        self.returns = true;
+        self
+    }
+
+    /// One throw strikes `n` creatures in all: the first in its way, then the
+    /// nearest other one the thrower can see, and so on (see [`ChainHits`]).
+    const fn hits(mut self, n: u8) -> Self {
+        self.hits = n;
         self
     }
 
@@ -619,7 +640,13 @@ impl ItemDef for WeaponDef {
             PowerDie(self.power_die),
             ThrownDamage(self.thrown_die),
         ));
-        attach_flight(&mut e, self.projectile, self.piercing);
+        attach_flight(
+            &mut e,
+            self.projectile,
+            self.piercing,
+            self.returns,
+            self.hits,
+        );
         if self.reach > 0 {
             e.insert(Reach(self.reach));
         }
@@ -679,6 +706,11 @@ fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
 pub const WEAPONS: &[WeaponDef] = &[
     WeaponDef::new("dagger",           Color::Grey,       4).missile(4).piercing(),
     WeaponDef::new("spear",            Color::DarkGrey,   6).missile(8).piercing(),
+    // A dagger's die and two more, thrown: strikes one creature, then flies home.
+    WeaponDef::new("boomerang",        Color::DarkYellow, 5).returning(),
+    // Thrown, it strikes three times, each after the first at the nearest other creature in view,
+    // then flies home. Swung, it is only a blade.
+    WeaponDef::new("moon blade",       Color::Cyan,       3).returning().hits(3),
     WeaponDef::new("mace",             Color::DarkGrey,   6),
     WeaponDef::new("long sword",       Color::White,      8),
     WeaponDef::new("two-handed sword", Color::Cyan,       10),
@@ -896,14 +928,26 @@ pub const LAUNCHERS: &[LauncherDef] = &[
     LauncherDef { name: "crossbow", color: Color::DarkGrey,   grants: &[Grant::of::<FireQuarrel>()], melee_cap: 1 },
 ];
 
-/// Attaches the two markers that describe how a thing behaves in flight, and
-/// only when they say something — a mace carries neither.
-fn attach_flight(entity: &mut bevy_ecs::world::EntityWorldMut, projectile: bool, piercing: bool) {
+/// Attaches the markers that describe how a thing behaves in flight, and
+/// only when they say something — a mace carries none.
+fn attach_flight(
+    entity: &mut bevy_ecs::world::EntityWorldMut,
+    projectile: bool,
+    piercing: bool,
+    returns: bool,
+    hits: u8,
+) {
+    if hits > 1 {
+        entity.insert(ChainHits(hits));
+    }
     if projectile {
         entity.insert(Projectile);
     }
     if piercing {
         entity.insert(Piercing);
+    }
+    if returns {
+        entity.insert(Returns);
     }
 }
 
@@ -917,6 +961,8 @@ pub struct ArmorDef {
     pub color: Color,
     /// What wearing it adds to the defence die.
     pub armor_die: i32,
+    /// Marker effects the wearer gains while it's on.
+    pub grants: &'static [Grant],
 }
 
 impl ItemDef for ArmorDef {
@@ -925,21 +971,23 @@ impl ItemDef for ArmorDef {
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
-        world
-            .spawn((
-                Name {
-                    what: strings::content_name(self.name).to_string(),
-                },
-                Renderable {
-                    glyph: ']',
-                    color: self.color,
-                },
-                pos,
-                Item,
-                Equipped::loose(Slot::Body),
-                ArmorDie(self.armor_die),
-            ))
-            .id()
+        let mut e = world.spawn((
+            Name {
+                what: strings::content_name(self.name).to_string(),
+            },
+            Renderable {
+                glyph: ']',
+                color: self.color,
+            },
+            pos,
+            Item,
+            Equipped::loose(Slot::Body),
+            ArmorDie(self.armor_die),
+        ));
+        if !self.grants.is_empty() {
+            e.insert(Grants(self.grants));
+        }
+        e.id()
     }
 
     fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
@@ -952,14 +1000,17 @@ impl ItemDef for ArmorDef {
 /// Every suit of armour in the game, one row each.
 #[rustfmt::skip]
 pub const ARMORS: &[ArmorDef] = &[
-    ArmorDef { name: "leather armor",          color: Color::DarkYellow, armor_die: 2 },
-    ArmorDef { name: "ring mail",              color: Color::Grey,       armor_die: 3 },
-    ArmorDef { name: "studded leather armor",  color: Color::DarkYellow, armor_die: 4 },
-    ArmorDef { name: "scale mail",             color: Color::Grey,       armor_die: 5 },
-    ArmorDef { name: "chain mail",             color: Color::Grey,       armor_die: 6 },
-    ArmorDef { name: "splint mail",            color: Color::White,      armor_die: 7 },
-    ArmorDef { name: "banded mail",            color: Color::White,      armor_die: 8 },
-    ArmorDef { name: "plate mail",             color: Color::Cyan,       armor_die: 9 },
+    ArmorDef { name: "leather armor",          color: Color::DarkYellow, armor_die: 2, grants: &[] },
+    ArmorDef { name: "ring mail",              color: Color::Grey,       armor_die: 3, grants: &[] },
+    ArmorDef { name: "studded leather armor",  color: Color::DarkYellow, armor_die: 4, grants: &[] },
+    ArmorDef { name: "scale mail",             color: Color::Grey,       armor_die: 5, grants: &[] },
+    ArmorDef { name: "chain mail",             color: Color::Grey,       armor_die: 6, grants: &[] },
+    ArmorDef { name: "splint mail",            color: Color::White,      armor_die: 7, grants: &[] },
+    ArmorDef { name: "banded mail",            color: Color::White,      armor_die: 8, grants: &[] },
+    ArmorDef { name: "plate mail",             color: Color::Cyan,       armor_die: 9, grants: &[] },
+    // Barbed all over: whoever lands a blow on the wearer is pricked for it.
+    ArmorDef { name: "spikemail",              color: Color::DarkGrey,   armor_die: 4,
+               grants: &[Grant::of::<Spiked>()] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -982,6 +1033,7 @@ pub struct RingDef {
     armor_die: i32,
     armor_bonus: i32,
     throw_bonus: i32,
+    max_hp_bonus: i32,
     /// The marker effects this ring lends its wearer. Read back on load, so a
     /// saved ring never has to store what its row already says.
     pub grants: &'static [Grant],
@@ -1001,6 +1053,7 @@ impl RingDef {
             armor_die: 0,
             armor_bonus: 0,
             throw_bonus: 0,
+            max_hp_bonus: 0,
             grants: &[],
             on_wear: None,
         }
@@ -1021,6 +1074,12 @@ impl RingDef {
     /// Flat modifier on everything the wearer throws.
     const fn throw_bonus(mut self, n: i32) -> Self {
         self.throw_bonus = n;
+        self
+    }
+
+    /// Flat modifier on the wearer's maximum hit points.
+    const fn max_hp_bonus(mut self, n: i32) -> Self {
+        self.max_hp_bonus = n;
         self
     }
 
@@ -1045,15 +1104,20 @@ impl RingDef {
             .unwrap_or_else(|| panic!("no ring row for {effect:?}"))
     }
 
-    /// The row's flat modifiers: `(power, armor, throw)`.
-    pub fn bonuses(&self) -> (i32, i32, i32) {
-        (self.power_bonus, self.armor_bonus, self.throw_bonus)
+    /// The row's flat modifiers: `(power, armor, throw, max hp)`.
+    pub fn bonuses(&self) -> (i32, i32, i32, i32) {
+        (
+            self.power_bonus,
+            self.armor_bonus,
+            self.throw_bonus,
+            self.max_hp_bonus,
+        )
     }
 
     /// Whether this ring is a number at all: protection, strength, increase
-    /// damage, sharpshooting. The Princess of Diamonds only enchants these.
+    /// damage, sharpshooting, health. The Princess of Diamonds only enchants these.
     pub fn is_numeric(&self) -> bool {
-        self.bonuses() != (0, 0, 0)
+        self.bonuses() != (0, 0, 0, 0)
     }
 }
 
@@ -1083,6 +1147,7 @@ impl ItemDef for RingDef {
         insert_modifier(&mut e, ArmorDie(self.armor_die));
         insert_modifier(&mut e, ArmorBonus(self.armor_bonus));
         insert_modifier(&mut e, ThrowBonus(self.throw_bonus));
+        insert_modifier(&mut e, MaxHpBonus(self.max_hp_bonus));
         if !self.grants.is_empty() {
             e.insert(Grants(self.grants));
         }
@@ -1143,6 +1208,15 @@ pub const RINGS: &[RingDef] = &[
         .grants(&[Grant::of::<SustainsArmor>()]),
     RingDef::new(RingEffect::Polymorph, "ring of polymorph")
         .grants(&[Grant::of::<Polymorphitis>()]),
+    RingDef::new(RingEffect::SustainForm, "ring of sustain form")
+        .grants(&[Grant::of::<SustainsForm>()]),
+    // The staff's bargain, for wands: two charges, two casts, one turn.
+    RingDef::new(RingEffect::DualZap, "ring of dualzap")
+        .grants(&[Grant::of::<DualZap>()]),
+    // Hit points on the way on, none taken back on the way off: swapping it
+    // washes health, and a cursed one can kill.
+    RingDef::new(RingEffect::Health, "ring of health")
+        .max_hp_bonus(PLAIN_BONUS),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1541,7 +1615,7 @@ pub(crate) fn content_id_of(display: &str) -> Option<&'static str> {
 pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &str) {
     if let Some(def) = WEAPONS.iter().find(|d| d.name == id) {
         entity.insert(ThrownDamage(def.thrown_die));
-        attach_flight(entity, def.projectile, def.piercing);
+        attach_flight(entity, def.projectile, def.piercing, def.returns, def.hits);
         if def.reach > 0 {
             entity.insert(Reach(def.reach));
         }
@@ -1669,6 +1743,29 @@ fn set_ring_plus(entity: &mut bevy_ecs::world::EntityWorldMut, plus: i32) {
         entity.insert(ArmorBonus(plus));
     }
     if entity.contains::<ThrowBonus>() {
+        entity.insert(ThrowBonus(plus));
+    }
+    if entity.contains::<MaxHpBonus>() {
+        entity.insert(MaxHpBonus(plus));
+    }
+}
+
+/// Makes `plus` the item's whole enchantment, replacing what it had, on
+/// whichever roll it contributes to (see [`apply_bonus`] for the additive
+/// version). A ring with no number ignores it.
+pub fn set_plus(world: &mut World, item: Entity, plus: i32) {
+    let mut entity = world.entity_mut(item);
+    if entity.contains::<Ring>() {
+        set_ring_plus(&mut entity, plus);
+        return;
+    }
+    if entity.contains::<PowerDie>() {
+        entity.insert(PowerBonus(plus));
+    }
+    if entity.contains::<ArmorDie>() {
+        entity.insert(ArmorBonus(plus));
+    }
+    if entity.contains::<Launcher>() {
         entity.insert(ThrowBonus(plus));
     }
 }

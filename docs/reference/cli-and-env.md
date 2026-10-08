@@ -75,6 +75,11 @@ your hit points, which is working as intended. None of that is a special case
 for the player: the bestiary row is the same one a dragon on floor 10 is built
 from, and the on-hit abilities are the same table.
 
+A row with gear chances (`.equip(...)`) starts you with all of it, every roll
+hit, worn if the body may wear it (`ItemUser`) and in the pack if not. A bow
+comes with a full stack of arrows. Only the start of a run does this; a
+polymorph hands out nothing.
+
 What it does not change is who you are. You keep the `@`'s side of the fight,
 your viewshed, your pack, your score and your magic points; `ai` never gets
 hold of you.

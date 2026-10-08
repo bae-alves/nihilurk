@@ -16,6 +16,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::helpers::ACCEPT_CHANCE;
+use crate::constants::spirits::{HELPER_BLOWN_UP_ALIGNMENT, HELPER_GAINED_ALIGNMENT};
 use crate::effects::{
     AlwaysHelper, AlwaysTamed, Asleep, Grant, ItemUser, Phasing, PriorityHelper, grant_all, revoke,
     revoke_matching,
@@ -110,7 +111,11 @@ pub fn recruit(world: &mut World, mob: Entity) {
     if let Some(old) = the_helper(world).filter(|&old| old != mob) {
         explode(world, old);
     }
+    let already = world.get::<Helper>(mob).is_some();
     stand_with_the_player(world, mob, true);
+    if !already {
+        crate::spirits::shift_player_alignment(world, HELPER_GAINED_ALIGNMENT);
+    }
     let name = item_label(world, mob);
     world
         .resource_mut::<GameLog>()
@@ -136,6 +141,7 @@ pub(crate) fn stand_with_the_player(world: &mut World, mob: Entity, helper: bool
 /// The old Helper's send-off when a new one is taken: all gore, no harm. It
 /// hurts nobody, pays no score, and drops what it wore the way any corpse does.
 fn explode(world: &mut World, old: Entity) {
+    crate::spirits::shift_player_alignment(world, HELPER_BLOWN_UP_ALIGNMENT);
     let name = item_label(world, old);
     if let Some(pos) = world.get::<Position>(old).copied() {
         let mut cells = Vec::new();

@@ -503,6 +503,93 @@ fn an_improvised_missile_also_resolves_on_the_first_target() {
 }
 
 // ---------------------------------------------------------------------------
+// Coming home
+// ---------------------------------------------------------------------------
+
+fn pack_count(w: &World, p: Entity, item: Entity) -> usize {
+    w.get::<Backpack>(p)
+        .unwrap()
+        .items
+        .iter()
+        .filter(|&&e| e == item)
+        .count()
+}
+
+#[test]
+fn a_boomerang_hits_the_first_creature_only_and_comes_back_to_the_pack() {
+    let mut w = test_world(40);
+    let p = player(&mut w);
+    let run = open_run(&mut w, 3);
+    let row: Vec<Entity> = run.iter().map(|&at| tough(&mut w, "bat", at)).collect();
+    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
+
+    throw(&mut w, p, boomerang, run[2]);
+
+    assert!(hp(&w, row[0]) < 500, "the near bat took it");
+    assert_eq!(hp(&w, row[1]), 500);
+    assert_eq!(hp(&w, row[2]), 500);
+    assert_eq!(pack_count(&w, p, boomerang), 1, "back in the pack, once");
+    assert!(
+        w.get::<Position>(boomerang).is_none(),
+        "and not on the floor"
+    );
+    assert_ne!(
+        equipped_in(&w, p, Slot::Hand),
+        Some(boomerang),
+        "but not in hand"
+    );
+    assert!(logged(&w, "boomerang returns"));
+}
+
+#[test]
+fn a_boomerang_that_hits_nothing_still_comes_back() {
+    let mut w = test_world(41);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 2)[1];
+    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
+
+    throw(&mut w, p, boomerang, spot);
+
+    assert_eq!(pack_count(&w, p, boomerang), 1);
+    assert!(w.get::<Position>(boomerang).is_none());
+}
+
+#[test]
+fn a_wielded_boomerang_is_wielded_again_when_it_comes_back() {
+    let mut w = test_world(42);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+    let bat = tough(&mut w, "bat", spot);
+    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
+    toggle_equipped(&mut w, p, boomerang);
+    assert_eq!(equipped_in(&w, p, Slot::Hand), Some(boomerang));
+
+    throw(&mut w, p, boomerang, spot);
+
+    assert!(hp(&w, bat) < 500);
+    assert_eq!(equipped_in(&w, p, Slot::Hand), Some(boomerang));
+    assert_eq!(pack_count(&w, p, boomerang), 1);
+}
+
+#[test]
+fn nothing_catches_a_boomerang() {
+    let mut w = test_world(43);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+    let orc = monster::monster(&mut w, "test monster", spot);
+    assert!(w.get::<ItemUser>(orc).is_some());
+    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
+
+    throw(&mut w, p, boomerang, spot);
+
+    assert!(
+        equipped_in(&w, orc, Slot::Hand).is_none(),
+        "an orc with hands catches nothing out of a boomerang's flight"
+    );
+    assert_eq!(pack_count(&w, p, boomerang), 1);
+}
+
+// ---------------------------------------------------------------------------
 // Spent, or not
 // ---------------------------------------------------------------------------
 
@@ -971,4 +1058,79 @@ fn the_small_stuff_carries_further_out_of_a_bare_hand() {
         );
     }
     assert!(LIGHT_THROW_RANGE > THROW_RANGE);
+}
+
+// ---------------------------------------------------------------------------
+// The moon blade
+// ---------------------------------------------------------------------------
+
+fn strikes_logged(w: &World) -> usize {
+    w.resource::<GameLog>()
+        .history
+        .iter()
+        .filter(|l| l.starts_with("The moon blade") && l.contains("the bat"))
+        .count()
+}
+
+fn can_see(w: &mut World, p: Entity, tiles: &[Position]) {
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = tiles.iter().map(|t| (t.x, t.y)).collect();
+}
+
+#[test]
+fn a_moon_blade_chains_three_hits_between_what_the_thrower_sees_then_comes_home() {
+    let mut w = test_world(60);
+    let p = player(&mut w);
+    let run = open_run(&mut w, 2);
+    let near = tough(&mut w, "bat", run[0]);
+    let far = tough(&mut w, "bat", run[1]);
+    can_see(&mut w, p, &run);
+    let blade = stash(&mut w, p, |w| spawn_weapon(w, "moon blade", NOWHERE));
+
+    throw(&mut w, p, blade, run[1]);
+
+    assert_eq!(strikes_logged(&w), 3, "the throw and two bounces");
+    assert!(hp(&w, near) < 500 && hp(&w, far) < 500);
+    assert_eq!(pack_count(&w, p, blade), 1);
+    assert!(w.get::<Position>(blade).is_none());
+}
+
+#[test]
+fn a_moon_blade_ignores_what_the_thrower_cannot_see() {
+    let mut w = test_world(61);
+    let p = player(&mut w);
+    let run = open_run(&mut w, 2);
+    tough(&mut w, "bat", run[0]);
+    let unseen = tough(&mut w, "bat", run[1]);
+    can_see(&mut w, p, &run[..1]);
+    let blade = stash(&mut w, p, |w| spawn_weapon(w, "moon blade", NOWHERE));
+
+    throw(&mut w, p, blade, run[1]);
+
+    assert_eq!(strikes_logged(&w), 1);
+    assert_eq!(hp(&w, unseen), 500);
+    assert_eq!(pack_count(&w, p, blade), 1);
+}
+
+#[test]
+fn a_monsters_moon_blade_finds_its_own_enemies() {
+    let mut w = test_world(62);
+    let run = open_run(&mut w, 3);
+    let thrower = tough(&mut w, "bat", run[2]);
+    w.entity_mut(thrower).insert(Backpack { items: vec![] });
+    for at in [run[0], run[1]] {
+        let ally = tough(&mut w, "bat", at);
+        w.entity_mut(ally).insert(Faction::Ally);
+    }
+    let blade = stash(&mut w, thrower, |w| spawn_weapon(w, "moon blade", NOWHERE));
+
+    throw(&mut w, thrower, blade, run[1]);
+
+    let strikes = w
+        .resource::<GameLog>()
+        .history
+        .iter()
+        .filter(|l| l.starts_with("The moon blade") && !l.contains("flies"))
+        .count();
+    assert_eq!(strikes, 3, "an ally, an ally, then the player");
+    assert_eq!(pack_count(&w, thrower, blade), 1);
 }

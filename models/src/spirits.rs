@@ -112,8 +112,8 @@ pub fn trigger_event(world: &mut World, player: Entity, spirit: Entity) {
 
 /// Nudges the player's [`Alignment`] the way `spirit`'s [`SpiritKind`]
 /// pulls: [`ALIGNMENT_STEP`] toward each pole, nothing for anyone
-/// else. Only two things move it: a spirit's [`poof`], and the pink demon
-/// joining. A spirit that joined the player is no spirit any more: it keeps
+/// else. A spirit's [`poof`] and the pink demon joining move it, and so
+/// does any Helper gained or blown up (see [`crate::companion`]). A spirit that joined the player is no spirit any more: it keeps
 /// its kind but not its faction, and pulls nothing when it goes.
 fn pull_alignment(world: &mut World, spirit: Entity) {
     if world.get::<Faction>(spirit) != Some(&Faction::Spirits) {
@@ -124,6 +124,11 @@ fn pull_alignment(world: &mut World, spirit: Entity) {
         Some(SpiritKind::Eudaemon) => ALIGNMENT_STEP,
         None => return,
     };
+    shift_player_alignment(world, delta);
+}
+
+/// [`shift_alignment`] on the player, whoever that is.
+pub(crate) fn shift_player_alignment(world: &mut World, delta: i8) {
     let player = world
         .query_filtered::<Entity, With<Player>>()
         .iter(world)

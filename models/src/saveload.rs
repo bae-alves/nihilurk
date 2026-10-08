@@ -59,8 +59,8 @@ use crate::catalog::{RingDef, content_id_of, restore_from_catalog};
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
 use crate::effects::{
-    ArmorBonus, ArmorDie, Grants, Held, Lifetime, PowerBonus, PowerDie, ThrowBonus, attach_effects,
-    effects_of,
+    ArmorBonus, ArmorDie, Grants, Held, Lifetime, MaxHpBonus, PowerBonus, PowerDie, ThrowBonus,
+    attach_effects, effects_of,
 };
 use crate::equipment::{Equipped, Slot};
 use crate::map::{
@@ -222,6 +222,7 @@ struct EntitySave<'a> {
     /// A bow's plus. Every other modifier a launcher might carry is zero, so
     /// this is the only one worth a byte.
     throw_bonus: Option<i32>,
+    max_hp_bonus: Option<i32>,
     /// How many of a stacking item this slot holds — a quiver of arrows.
     stack: Option<u8>,
     /// Marker: this equipment is cursed and can't be taken off once equipped.
@@ -299,7 +300,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 1;
+pub const SAVE_VERSION: u16 = 2;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -543,6 +544,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             armor_die: er.get::<ArmorDie>().map(|m| m.0),
             armor_bonus: er.get::<ArmorBonus>().map(|m| m.0),
             throw_bonus: er.get::<ThrowBonus>().map(|m| m.0),
+            max_hp_bonus: er.get::<MaxHpBonus>().map(|m| m.0),
             stack: er.get::<Stack>().map(|s| s.count),
             curse: er.contains::<Curse>(),
             known_quality: er.contains::<KnownQuality>(),
@@ -848,6 +850,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if let Some(n) = es.throw_bonus {
             em.insert(ThrowBonus(n));
         }
+        if let Some(n) = es.max_hp_bonus {
+            em.insert(MaxHpBonus(n));
+        }
         if let Some(count) = es.stack {
             em.insert(Stack { count });
         }
@@ -917,6 +922,7 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     }
 
     for bearer in bearers {
+        crate::equipment::seed_max_hp_ledger(world, bearer);
         crate::equipment::sync_equipment_effects(world, bearer);
     }
 
@@ -970,6 +976,7 @@ mod tests {
             armor_die: None,
             armor_bonus: None,
             throw_bonus: None,
+            max_hp_bonus: None,
             stack: None,
             curse: false,
             known_quality: false,
@@ -1129,6 +1136,7 @@ mod tests {
             armor_die: Some(301),
             armor_bonus: Some(-301),
             throw_bonus: Some(302),
+            max_hp_bonus: None,
             stack: Some(200),
             curse: true,
             known_quality: true,

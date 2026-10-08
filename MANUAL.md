@@ -166,6 +166,8 @@ Health is scarce. Armour can turn a blow aside, but no weapon is guaranteed to s
 
 Spirits are the shops. They are `&` creatures, and you make a deal by walking into one. Some give away a choice of items. Others trade if you carry something they want. Deal with them too much, or hurt them, and you upset the balance: every spirit turns hostile. A scroll of atonement makes them peaceful again.
 
+You also carry a hidden alignment, from -3 to +3, between two camps of spirit. The yellow, red, blue and pink demons pull you down. The angel, the sphynx, sylphids, salamanders, undyne and gnomes pull you up. Each time a spirit leaves the floor (a deal done, a kill, a polymorph, anything that removes it) your alignment moves one step toward its camp. Gaining a Helper moves you up one, so a pink demon who joins you pulls you down one and up one. Blowing one up moves you down two, whether a new Helper replaces it or system shock bursts it. Reach +3 or -3 and you upset the balance. Off centre, the word BALANCE shows under the status line, left of the map, as a thermometer: one of its seven letters is tinted for your level, red for the demons' side and cyan for the angels', the rest white. When the spirits turn, it reads BROKEN instead, in the colour of the side you leaned to (white if a wound broke it while you were centred). A scroll of atonement and a potion of adjustment both bring it back to 0.
+
 Several commands let you spend less time walking:
 
 | Key | Action |
@@ -203,7 +205,7 @@ These commands go directly to the relevant kind of action:
 | `W` | Wear armour |
 | `P` | Put on a ring |
 
-Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows and quarrels are stronger, and carry twice as far, with the matching bow or crossbow in your hand. Small things — potions, scrolls, wands, rings — fly further out of a bare hand than a spear or a sack of arrows does. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit.
+Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows and quarrels are stronger, and carry twice as far, with the matching bow or crossbow in your hand. Small things — potions, scrolls, wands, rings — fly further out of a bare hand than a spear or a sack of arrows does. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit. A thrown boomerang hits the first creature in its way and flies back to you, into your hand if you were wielding it.
 
 Your pack has limited space. Ammunition shares a slot with matching ammunition, but other items take their own place. Coins are not carried: stepping on one spends it immediately. If a coin cannot help you yet, the dungeon leaves it where it is.
 
@@ -220,7 +222,7 @@ Helpers
 
 A treat is food for a creature that is not you. You cannot use one, so throw it. Throw the right treat at a monster and it eats the treat. Half the time it becomes your Helper.
 
-A Helper fights the monsters you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. It has its own background colour. Walk into it to trade places. You get one Helper at a time.
+A Helper fights the monsters you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. It has its own background colour. Walk into it to trade places. You get one Helper at a time. A second one blows up the first in a shower of gore, and that costs you alignment (see Spirits above). Wands of polymorph, haste and slow reach your Helper and other allies, not only enemies. Polymorph a Helper that is already polymorphed and it can burst from system shock, which costs you alignment too.
 
 
 Thrown wands
@@ -245,7 +247,7 @@ Unknown things
 
 Potions, scrolls, and wands tell you exactly what they are the moment you find them.
 
-Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. A ring that is a number (protection, strength, increase damage, sharpshooting) is +2 when plain, +3 when unusually good, and anywhere from -3 to +2 when cursed; the other rings have no number to hide, only the curse. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose.
+Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. A ring that is a number (protection, strength, increase damage, sharpshooting) is +2 when plain, +3 when unusually good, and anywhere from -3 to +2 when cursed; the other rings have no number to hide, only the curse. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose. Put on a cursed item you already know about when its slot is full and holds a cursed item, and the two merge (a free finger just takes the ring). Monsters that catch or steal cursed gear merge it too: 45% of the time the worn item survives, 45% the new one does, and 10% you get a plain dagger, leather armor or ring of stealth. Whatever survives takes the new item's plus and vorpal bane, replacing its own. With two cursed rings on, the first in your pack is the one that merges.
 
 Magic and spells
 ----------------
@@ -256,7 +258,7 @@ A hero coin teaches a new spell when you step on it. You can know only a few spe
 
 A staff in your hand changes what your attacking spells are worth: each one costs more magic than usual and hits harder than usual, and it hits harder than it costs. The spells that heal, ward, reveal or steady you are untouched. Nothing on the screen shows this, so the staff says so itself -- when you take it up, and again when you put it away.
 
-Polymorph lends you a creature's powers until the next staircase. A potion, a wand, a ring (which rolls on its own) and two spells, Polymorph Self and Polymorph Other, all do it. You keep your own face and numbers. A shape with no hands cannot hold gear: yours comes off and stays off. `POLY` on the status line shows it. Polymorph something that is already polymorphed and it is a coin flip: system shock, where a monster bursts and you are left on 1 HP, or a chimera, a typhon or an echidna. The ring never shocks.
+Polymorph lends you a creature's powers until the next staircase. A potion, a wand, a ring (which rolls on its own) and two spells, Polymorph Self and Polymorph Other, all do it. You keep your own face and numbers. A shape with no hands cannot hold gear: yours comes off and stays off. `POLY` on the status line shows it. Polymorph something that is already polymorphed and it is a coin flip: system shock, where a monster bursts and you are left on 1 HP, or a chimera, a typhon or an echidna. The ring never shocks. A ring of sustain form turns every polymorph aside, shock included.
 
 Some effects change how you act. Confusion makes movement unreliable. Blindness limits what you can see. Paralysis and sleep steal time. A medusa's gaze steals them too, by turning you to stone -- but stone is hard: while it lasts nothing gets more than a chip through you and nothing can take your last point of health, unless what is standing over you is swinging a war hammer. Haste makes you quicker; slow makes you slower. A staircase clears these effects.
 

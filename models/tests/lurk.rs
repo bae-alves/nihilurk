@@ -276,3 +276,15 @@ fn cancellation_takes_the_magic_not_the_creature() {
     let p2 = player(&mut w2);
     assert!(w2.get::<Lurk>(p2).is_some());
 }
+
+#[test]
+fn hasting_a_lurk_never_slows_it() {
+    let mut w = lurk_world(7);
+    let p = player(&mut w);
+    assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Quick);
+
+    for _ in 0..3 {
+        shift_entity_speed(&mut w, p, true);
+        assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Fast);
+    }
+}

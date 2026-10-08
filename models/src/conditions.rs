@@ -434,23 +434,26 @@ pub fn tempo(world: &World, entity: Entity) -> SpeedKind {
 }
 
 /// Wand of haste / slow monster: step one creature — monster or player — one
-/// notch along the speed scale. Permanent for a monster; a hasted or slowed
+/// step along the speed scale (haste wraps `Fast` to `Slow`, except for a creature born `Quick`). Permanent for a monster; a hasted or slowed
 /// *player* loses it on the next staircase ([`clear_player_conditions`]).
-pub fn shift_entity_speed(world: &mut World, victim: Entity, faster: bool) {
+pub fn shift_entity_speed(world: &mut World, victim: Entity, faster: bool) -> bool {
     let Some(speed) = world.get::<Speed>(victim) else {
-        return;
+        return false;
     };
-    let target = match faster {
-        true => speed.kind.faster(),
-        false => speed.kind.slower(),
+    let born_quick = crate::body::innate_tempo(world, victim) == SpeedKind::Quick;
+    let target = match (faster, speed.kind) {
+        (true, SpeedKind::Fast) if born_quick => SpeedKind::Fast,
+        (true, kind) => kind.faster(),
+        (false, kind) => kind.slower(),
     };
-    set_speed(world, victim, target, faster);
+    set_speed(world, victim, target, faster)
 }
 
-/// Straight to [`SpeedKind::Fast`], skipping the notches — a potion of haste
-/// self. Returns whether the tempo actually moved.
+/// A potion of haste or the haste self spell: the same step as the wand
+/// ([`shift_entity_speed`]), so every haste overflows or saturates alike.
+/// Returns whether the tempo actually moved.
 pub fn hasten(world: &mut World, victim: Entity) -> bool {
-    set_speed(world, victim, SpeedKind::Fast, true)
+    shift_entity_speed(world, victim, true)
 }
 
 /// Puts `victim` at `kind` and logs it. `faster` is the *intent*, not the
@@ -465,7 +468,8 @@ fn set_speed(world: &mut World, victim: Entity, kind: SpeedKind, faster: bool) -
     let before = speed.kind;
     speed.kind = kind;
     let changed = kind != before;
-    let (line, category) = speed_shift_message(&name, faster, is_player, changed);
+    let wrapped = faster && kind.rate() < before.rate();
+    let (line, category) = speed_shift_message(&name, faster, is_player, changed, wrapped);
     world.resource_mut::<GameLog>().add_colored(line, category);
     changed
 }
@@ -481,17 +485,20 @@ fn speed_shift_message(
     faster: bool,
     is_player: bool,
     changed: bool,
+    wrapped: bool,
 ) -> (String, LogCategory) {
     let extreme = match faster {
         true => strings::extreme_quick(),
         false => strings::extreme_sluggish(),
     };
     let category = match is_player {
-        true if faster => LogCategory::Haste,
+        true if faster && !wrapped => LogCategory::Haste,
         true => LogCategory::Slowed,
         false => LogCategory::Plain,
     };
     let text = match (changed, is_player, faster) {
+        _ if wrapped && is_player => strings::haste_overflow_player_line().to_string(),
+        _ if wrapped => strings::haste_overflow_mob_line(name),
         (false, true, _) => strings::already_as_extreme_player(extreme),
         (false, false, _) => strings::already_as_extreme_mob(name, extreme),
         (true, true, true) => strings::haste_player_line().to_string(),

@@ -120,7 +120,7 @@ The player is the clock. Monsters bank energy on each player turn and spend it i
 | Method     | Returns                                            |
 |------------|---------------------------------------------------|
 | `rate()`   | energy banked per player turn, against `Speed::COST`. |
-| `faster()` | one notch up, `Fast` the ceiling (haste monster). |
+| `faster()` | one step round the haste cycle: `Normal` → `Fast` → `Slow` → `Normal` (haste monster). |
 | `slower()` | one notch down, `Slow` the floor (slow monster).  |
 
 `Speed::COST` — the energy one action costs.
@@ -199,7 +199,7 @@ All five key enums are **saved by variant order** — append, never reorder. The
 
 `WandEffect`: Light, Striking, Lightning, Fire, Cold, Polymorph, MagicMissile, HasteMonster, SlowMonster, DrainLife, Nothing, TeleportAway, TeleportTo, Cancellation, Charming, Digging, Swapping.
 
-`RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor, Polymorph.
+`RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor, Polymorph, SustainForm, DualZap, Health.
 
 `RuneEffect` (every arm wired; `Blank` does nothing on purpose and has no `RUNES` row): Blank, Recharging, Displacement, Justice, Chaos, Ice, Protection.
 
@@ -229,6 +229,8 @@ A missile and a launcher never name each other; they meet at an effect (`FireArr
 | `LaunchedDamage` | `i32`                  | die rolled instead, once `LaunchedBy` fires | catalog |
 | `Projectile`   | marker                   | ignores armour die, spent on what it hits, never caught | catalog |
 | `Piercing`     | marker                   | runs the whole aimed line, hitting everyone in it | catalog |
+| `Returns`      | marker                   | thrown, flies home after the strike: into the pack, and back in hand if it was wielded | catalog |
+| `ChainHits`    | `u8`                     | thrown by the player, strikes this many creatures in all, each for full damage: the first in its way, then the nearest other living enemy each time (the thrower's sight for the player, the blade's own for a monster), before flying home | catalog |
 | `LaunchedBy`   | `Grant`                  | the effect a launcher must grant to switch this missile to its `LaunchedDamage` die | catalog |
 | `Launcher`     | marker                   | a bow / crossbow — no attack die, enchant lands on `ThrowBonus` | catalog |
 
@@ -367,7 +369,7 @@ Peaceful `Faction::Spirits` mobs (`spirits.rs`): melee on one triggers an event 
 
 | Type | Kind | Data | Saved? |
 |------|------|------|--------|
-| `Alignment` | component, hero | `i8`, `-3` (cacodaemon pole) to `3` (eudaemon pole); a spirit poofing (a deal done, a kill, a polymorph) or the pink demon joining moves it `∓1` | yes |
+| `Alignment` | component, hero | `i8`, `-3` (cacodaemon pole) to `3` (eudaemon pole); a spirit poofing (a deal done, a kill, a polymorph) or the pink demon joining moves it `∓1`; gaining a Helper moves it `+1`, and losing one to an explosion (a new Helper replacing it) or a system shock moves it `-2`; the HUD shows it as `hud::balance_gauge` (BALANCE, one letter lit; BROKEN once `SpiritsHostile`) | yes |
 | `SpiritsHostile` | resource | `bool`; set for good when `Alignment` hits a pole or the player lands a direct hit on a peaceful spirit | yes |
 | `SpiritKind` | component | `Cacodaemon` / `Eudaemon`; which way the spirit pulls `Alignment` | **transient** (from `MonsterDef::spirit_kind`) |
 | `SpiritEvent` | component | `fn(&mut World, Entity, Entity)`; what melee does to it | **transient** (from `MonsterDef::spirit_event`) |

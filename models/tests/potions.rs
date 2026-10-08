@@ -179,16 +179,18 @@ fn poison_can_leave_you_feeble_but_never_weaponless() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn haste_goes_straight_to_fast_and_the_stairs_wash_it_out() {
+fn haste_overflows_and_the_stairs_wash_it_out() {
     let mut w = test_world(3);
     let p = player(&mut w);
-    w.get_mut::<Speed>(p).unwrap().kind = SpeedKind::Slow;
+
+    quaff(&mut w, p, PotionEffect::Haste);
+    assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Fast);
 
     quaff(&mut w, p, PotionEffect::Haste);
     assert_eq!(
         w.get::<Speed>(p).unwrap().kind,
-        SpeedKind::Fast,
-        "a potion skips the notches a wand steps through"
+        SpeedKind::Slow,
+        "a second dose overflows"
     );
 
     descend(&mut w, p);

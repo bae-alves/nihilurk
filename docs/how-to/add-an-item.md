@@ -46,6 +46,14 @@ Chain `.missile(die)` if it is built to be thrown -- it then rolls that die on i
 
     WeaponDef::new("javelin", Color::DarkYellow, 5).missile(7).piercing(),
 
+Chain `.returning()` if the throw should strike the first creature and fly home: into the pack, and back into the hand if the weapon was wielded. Leave off `.missile()` -- a projectile is spent on what it hits.
+
+    WeaponDef::new("boomerang", Color::DarkYellow, 6).returning(),
+
+Chain `.hits(n)` after `.returning()` and one throw strikes `n` creatures in all, each for full damage: the first in its way, then the nearest other enemy -- one the player can see, or for a monster thrower, any in throwing range with a clear line. The moon blade's 3: hit, hit, hit, home.
+
+    WeaponDef::new("moon blade", Color::Cyan, 3).returning().hits(3),
+
 Any weapon can be thrown. `.missile()` is the difference between a purpose-built missile and a hurled lump of metal.
 
 Chain `.reach(n)` for a weapon aimed with its own reticle (`v`) instead of a walk into the target's tile -- a bardiche's 2, a whip's 5. Add `.reach_piercing()` if the strike should run the whole line rather than stopping at the first body, the melee twin of `.piercing()`.
@@ -59,9 +67,11 @@ Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded 
 
 ### Armour
 
-    ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6 },
+    ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6, grants: &[] },
 
-`armor_die` is what wearing it adds to the defence roll: `1d[armor_die]`. Draws as `]`, worn on the body. The existing eight run 2 (leather) to 9 (plate).
+`armor_die` is what wearing it adds to the defence roll: `1d[armor_die]`. Draws as `]`, worn on the body. The existing nine run 2 (leather) to 9 (plate).
+
+`grants` lends marker effects while it is worn, the same as a weapon's `.grants()`. Spikemail's `&[Grant::of::<Spiked>()]` is read by an `ABILITIES` row at `Moment::OnStruck`, the moment a blow lands on the bearer.
 
 ### Coin
 

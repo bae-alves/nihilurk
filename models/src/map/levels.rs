@@ -64,7 +64,7 @@ use crate::equipment::{Equipped, equip_silently};
 
 // A bones ghost, on the way back out: whoever died on this depth before,
 // come to make the player pay for it.
-use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
+use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
 use crate::monsters::{GHOST, spawn_monster};
 use crate::spawn::spawn_named;
 use rand::Rng;
@@ -450,7 +450,7 @@ fn spawn_bones_ghost(world: &mut World, depth: u8, rooms: &Rooms) {
         world.entity_mut(ghost).insert(GhostOfPlayer);
     }
 
-    for (name, slot, power_bonus, armor_bonus, throw_bonus, stack) in bones.items() {
+    for (name, slot, power_bonus, armor_bonus, throw_bonus, max_hp_bonus, stack) in bones.items() {
         let Some(item) = spawn_named(world, name, pos) else {
             continue;
         };
@@ -459,6 +459,7 @@ fn spawn_bones_ghost(world: &mut World, depth: u8, rooms: &Rooms) {
             e.insert(PowerBonus(power_bonus));
             e.insert(ArmorBonus(armor_bonus));
             e.insert(ThrowBonus(throw_bonus));
+            e.insert(MaxHpBonus(max_hp_bonus));
             if let Some(count) = stack {
                 e.insert(Stack { count });
             }

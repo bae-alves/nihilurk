@@ -20,16 +20,22 @@ use bevy_ecs::prelude::*;
 use bevy_ecs::world::EntityRef;
 use serde::{Deserialize, Serialize};
 
+use rand::Rng;
+
 use crate::body::equip_refusal;
+use crate::catalog::{set_plus, spawn_armor, spawn_ring, spawn_weapon};
 use crate::components::{
-    Backpack, Curse, GameLog, KnownQuality, Launcher, LogCategory, Player, Position, Reach,
+    Backpack, Curse, Fighter, GameLog, KnownQuality, Launcher, LogCategory, Player, Position,
+    Reach, RingEffect, Vorpal,
 };
+use crate::constants::loot::{MERGE_DONOR_PCT, MERGE_RECIPIENT_PCT};
 use crate::effects::{
-    ArmorBonus, Bided, Effects, Grant, Grants, Held, Lifetime, Momentum, OnDoff, OnWear,
-    SustainsArmor, lend, revoke, revoke_matching,
+    ArmorBonus, Bided, Effects, Grant, Grants, Held, Lifetime, MaxHpBonus, Momentum, OnDoff,
+    OnWear, SustainsArmor, lend, revoke, revoke_matching,
 };
 use crate::helpers::item_label;
-use crate::identify::display_name;
+use crate::identify::{display_name, enchantment_plus};
+use crate::map::GameRng;
 
 /// Where a piece of gear goes. One item per slot at a time, except
 /// [`Slot::Finger`] — a hand has room for two rings.
@@ -278,6 +284,11 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         return false;
     }
 
+    if let Some(recipient) = merge_recipient(world, user, slot, item) {
+        merge_curses(world, user, slot, item, recipient);
+        return true;
+    }
+
     let occupants = equipped_in_slot(world, user, slot);
     if occupants.len() >= slot.capacity() {
         match occupants.iter().find(|&&e| world.get::<Curse>(e).is_none()) {
@@ -313,6 +324,95 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     true
 }
 
+/// The worn cursed item `item` would merge with, if it merges at all: `item`
+/// is cursed (and, for the player, known to be), `slot` is full, and one of the
+/// occupants is cursed. With several, the one first in `user`'s pack wins;
+/// gear outside a pack (a monster's) ranks last.
+fn merge_recipient(world: &World, user: Entity, slot: Slot, item: Entity) -> Option<Entity> {
+    let known = world.get::<Player>(user).is_none() || world.get::<KnownQuality>(item).is_some();
+    if world.get::<Curse>(item).is_none() || !known {
+        return None;
+    }
+    let worn = equipped_in_slot(world, user, slot);
+    if worn.len() < slot.capacity() {
+        return None;
+    }
+    let pack = world.get::<Backpack>(user).map(|b| b.items.as_slice());
+    worn.into_iter()
+        .filter(|&e| world.get::<Curse>(e).is_some())
+        .min_by_key(|e| {
+            pack.and_then(|p| p.iter().position(|i| i == e))
+                .unwrap_or(usize::MAX)
+        })
+}
+
+/// Curse merging, for the player and monsters alike: `donor`, a cursed item
+/// being put on over a full slot, fuses with the
+/// cursed `recipient` already in its slot. [`MERGE_RECIPIENT_PCT`] of the time
+/// the recipient's form survives, [`MERGE_DONOR_PCT`] the donor's, and the
+/// rest a fresh dagger, leather armor or ring of stealth. Whatever
+/// survives is cursed and takes the donor's plus and [`Vorpal`] bane outright
+/// (no summing); the other item is gone.
+fn merge_curses(world: &mut World, user: Entity, slot: Slot, donor: Entity, recipient: Entity) {
+    let roll = world.resource_mut::<GameRng>().0.gen_range(0..100);
+    let plus = enchantment_plus(world, donor);
+    let bane = world.get::<Vorpal>(donor).map(|v| v.bane.clone());
+    let donor_name = item_label(world, donor);
+    let recipient_name = item_label(world, recipient);
+
+    let survivor = if roll < MERGE_RECIPIENT_PCT {
+        destroy_worn(world, user, &[donor]);
+        recipient
+    } else if roll < MERGE_RECIPIENT_PCT + MERGE_DONOR_PCT {
+        destroy_worn(world, user, &[recipient]);
+        donor
+    } else {
+        let at = Position { x: 0, y: 0 };
+        let fresh = match slot {
+            Slot::Hand => spawn_weapon(world, "dagger", at),
+            Slot::Body => spawn_armor(world, "leather armor", at),
+            Slot::Finger => spawn_ring(world, RingEffect::Stealth, at),
+        };
+        let idx = world
+            .get::<Backpack>(user)
+            .and_then(|bp| bp.items.iter().position(|&e| e == recipient));
+        destroy_worn(world, user, &[recipient, donor]);
+        if let Some(mut bp) = world.get_mut::<Backpack>(user) {
+            let at = idx.unwrap_or(0).min(bp.items.len());
+            bp.items.insert(at, fresh);
+        }
+        world.entity_mut(fresh).remove::<Position>();
+        fresh
+    };
+
+    set_plus(world, survivor, plus);
+    if world.get::<crate::effects::PowerDie>(survivor).is_some() {
+        match bane {
+            Some(bane) => world.entity_mut(survivor).insert(Vorpal { bane }),
+            None => world.entity_mut(survivor).remove::<Vorpal>(),
+        };
+    }
+    world.entity_mut(survivor).insert((Curse, KnownQuality));
+    if let Some(mut e) = world.get_mut::<Equipped>(survivor) {
+        e.by = Some(user);
+    }
+    sync_equipment_effects(world, user);
+
+    world.entity_mut(survivor).remove::<Position>();
+    if world.get::<Player>(user).is_some() {
+        let result_name = item_label(world, survivor);
+        world.resource_mut::<GameLog>().add_colored(
+            strings::curses_merge(&recipient_name, &donor_name, &result_name),
+            LogCategory::Curse,
+        );
+    }
+    if survivor != recipient
+        && let Some(OnWear(fire)) = world.get::<OnWear>(survivor).copied()
+    {
+        fire(world, user, survivor);
+    }
+}
+
 /// Puts `item` on `wearer` with none of the player-facing ceremony: no curse
 /// check, no log line, and it refuses rather than swapping if the slot is
 /// already taken. This is how a creature that is not the player comes by gear —
@@ -335,6 +435,24 @@ pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
         world.entity_mut(item).insert(KnownQuality);
     }
     true
+}
+
+/// [`equip_silently`] for gear that changes hands mid-game — a caught dagger, a
+/// stolen ring — which also merges curses ([`merge_curses`]) when it is cursed
+/// and the wearer's slot is full of at least one cursed item. Gear rolled at
+/// spawn, or restored from bones, never merges. Afterwards `item` may no longer
+/// exist.
+pub fn equip_merging(world: &mut World, wearer: Entity, item: Entity) -> bool {
+    let Some(slot) = world.get::<Equipped>(item).map(|e| e.slot) else {
+        return false;
+    };
+    match merge_recipient(world, wearer, slot, item) {
+        Some(recipient) => {
+            merge_curses(world, wearer, slot, item, recipient);
+            true
+        }
+        None => equip_silently(world, wearer, item),
+    }
 }
 
 /// Strips everything `wearer` has equipped and lays it out on `at` — the gear a
@@ -420,6 +538,68 @@ pub fn sync_equipment_effects(world: &mut World, bearer: Entity) {
         }
         lend(world, bearer, grant, Lifetime::WhileEquipped(item));
     }
+    sync_max_hp(world, bearer);
+}
+
+/// What a bearer's gear has already added to [`Fighter::max_hp`], item by item.
+/// Not saved: a save's `max_hp` already holds it, and
+/// [`seed_max_hp_ledger`] rebuilds this from what is worn.
+#[derive(Component, Default)]
+struct MaxHpLedger(Vec<(Entity, i32)>);
+
+/// The [`MaxHpBonus`] each worn item of `bearer` carries right now.
+fn worn_max_hp(world: &World, bearer: Entity) -> Vec<(Entity, i32)> {
+    equipped(world, bearer)
+        .filter_map(|i| i.get::<MaxHpBonus>().map(|b| (i.id(), b.0)))
+        .filter(|&(_, n)| n != 0)
+        .collect()
+}
+
+/// Settles `bearer`'s maximum hit points with the gear on it. Hit points move
+/// only on the way in: a new or enchanted-up item adds its plus to `hp` as
+/// well as `max_hp` (a negative one takes it, and can kill), while one that
+/// leaves — taken off, dropped, stolen, destroyed — only lowers the ceiling
+/// and trims `hp` to fit. That asymmetry is the ring of health's whole point.
+fn sync_max_hp(world: &mut World, bearer: Entity) {
+    let wanted = worn_max_hp(world, bearer);
+    let lent = world
+        .get::<MaxHpLedger>(bearer)
+        .map(|l| l.0.clone())
+        .unwrap_or_default();
+    if wanted == lent {
+        return;
+    }
+    let mut max_delta = 0;
+    let mut hp_delta = 0;
+    for &(item, n) in &wanted {
+        match lent.iter().find(|(i, _)| *i == item) {
+            None => {
+                max_delta += n;
+                hp_delta += n;
+            }
+            Some(&(_, was)) => {
+                max_delta += n - was;
+                hp_delta += (n - was).max(0);
+            }
+        }
+    }
+    for &(item, was) in &lent {
+        if !wanted.iter().any(|(i, _)| *i == item) {
+            max_delta -= was;
+        }
+    }
+    if let Some(mut f) = world.get_mut::<Fighter>(bearer) {
+        f.max_hp += max_delta;
+        f.hp = (f.hp + hp_delta).min(f.max_hp);
+    }
+    world.entity_mut(bearer).insert(MaxHpLedger(wanted));
+}
+
+/// Records the gear `bearer` wears as already counted in its `max_hp`, which is
+/// true of a freshly loaded save. Call before [`sync_equipment_effects`].
+pub(crate) fn seed_max_hp_ledger(world: &mut World, bearer: Entity) {
+    let worn = worn_max_hp(world, bearer);
+    world.entity_mut(bearer).insert(MaxHpLedger(worn));
 }
 
 /// Reconciles every pack-carrying creature. [`toggle_equipped`] already keeps

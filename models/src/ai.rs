@@ -443,7 +443,7 @@ fn can_afford_step(world: &mut World, mob: Entity, pass: usize) -> bool {
 /// Whether these two factions come to blows. `Spirits` hinges on
 /// [`SpiritsHostile`]: a peaceful spirit fights nobody and nobody fights it;
 /// once it flips, spirits fight everyone but each other.
-fn hostile(world: &World, a: Faction, b: Faction) -> bool {
+pub(crate) fn hostile(world: &World, a: Faction, b: Faction) -> bool {
     match (a, b) {
         (Faction::Monster, Faction::Player)
         | (Faction::Monster, Faction::Ally)

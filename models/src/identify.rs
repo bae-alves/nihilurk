@@ -9,7 +9,7 @@
 use bevy_ecs::prelude::*;
 
 use crate::components::{Curse, KnownQuality, Name, Rune, Stack, Vorpal};
-use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
+use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
 
 /// What the player actually sees for `item`: its true [`Name`], a [`Stack`]
 /// count if it holds more than one, and — once [`known_quality`] says either
@@ -38,10 +38,11 @@ pub fn known_quality(world: &World, item: Entity) -> bool {
 /// [`ThrowBonus`]) — or `0` for anything [`crate::catalog::enchant_equipment`]
 /// never touched. Never more than one of the three is actually nonzero; adding
 /// them saves asking which kind of gear this is.
-fn enchantment_plus(world: &World, item: Entity) -> i32 {
+pub(crate) fn enchantment_plus(world: &World, item: Entity) -> i32 {
     world.get::<PowerBonus>(item).map(|b| b.0).unwrap_or(0)
         + world.get::<ArmorBonus>(item).map(|b| b.0).unwrap_or(0)
         + world.get::<ThrowBonus>(item).map(|b| b.0).unwrap_or(0)
+        + world.get::<MaxHpBonus>(item).map(|b| b.0).unwrap_or(0)
 }
 
 /// Adds `item`'s enchantment plus, curse status and vorpal bane to `base`,

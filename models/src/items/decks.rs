@@ -240,19 +240,20 @@ fn ring_is_numeric(world: &World, ring: Entity) -> bool {
 
 /// The number a worn ring adds, whichever roll it lands on.
 fn ring_plus(world: &World, ring: Entity) -> i32 {
-    use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
+    use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
     world.get::<PowerBonus>(ring).map_or(0, |b| b.0)
         + world.get::<ArmorBonus>(ring).map_or(0, |b| b.0)
         + world.get::<ThrowBonus>(ring).map_or(0, |b| b.0)
+        + world.get::<MaxHpBonus>(ring).map_or(0, |b| b.0)
 }
 
 /// Moves a numeric ring's number by `by`, on whichever roll its row puts it.
 fn shift_ring(world: &mut World, ring: Entity, by: i32) {
-    use crate::effects::{ArmorBonus, PowerBonus, ThrowBonus};
+    use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
     let Some(def) = world.get::<Ring>(ring).map(|r| RingDef::of(r.effect)) else {
         return;
     };
-    let (power, armor, throw) = def.bonuses();
+    let (power, armor, throw, hp) = def.bonuses();
     let mut e = world.entity_mut(ring);
     if power != 0 {
         let base = e.get::<PowerBonus>().map_or(0, |b| b.0);
@@ -265,6 +266,10 @@ fn shift_ring(world: &mut World, ring: Entity, by: i32) {
     if throw != 0 {
         let base = e.get::<ThrowBonus>().map_or(0, |b| b.0);
         e.insert(ThrowBonus(base + by));
+    }
+    if hp != 0 {
+        let base = e.get::<MaxHpBonus>().map_or(0, |b| b.0);
+        e.insert(MaxHpBonus(base + by));
     }
 }
 

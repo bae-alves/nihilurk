@@ -889,7 +889,11 @@ fn four_pieces_destroyed_always_win_the_pink_demon_over() {
         }
         let spirit = talk_to(&mut w, player, "pink demon");
         assert!(w.get::<Helper>(spirit).is_some(), "seed {seed}");
-        assert_eq!(alignment(&w, player), -1, "joining pulls alignment");
+        assert_eq!(
+            alignment(&w, player),
+            0,
+            "the demon pulls -1, the Helper gained +1"
+        );
     }
 }
 
@@ -1077,13 +1081,17 @@ fn wounding_a_pink_demon_ally_angers_nobody() {
 }
 
 #[test]
-fn a_pink_demon_ally_exploding_for_a_new_helper_leaves_alignment_be() {
+fn a_pink_demon_ally_exploding_for_a_new_helper_costs_one_net_alignment() {
     let (mut w, player) = game_world(0);
     let pink = pink_ally(&mut w, player);
     let orc = monster::plain_monster(&mut w, "orc", Position { x: 3, y: 3 });
     recruit(&mut w, orc);
     assert!(w.get_entity(pink).is_none(), "the old Helper exploded");
-    assert_eq!(alignment(&w, player), 0);
+    assert_eq!(
+        alignment(&w, player),
+        -1,
+        "-2 for the blast, +1 for the orc"
+    );
     assert!(!w.resource::<SpiritsHostile>().0);
 }
 

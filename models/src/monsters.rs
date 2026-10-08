@@ -20,8 +20,8 @@ use crate::constants::decks::CARD_CASTER_CASTS;
 use crate::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
 use crate::effects::{
     AlwaysHelper, AlwaysTamed, Batty, Binds, ColdImmune, FaerieOnDeath, FireImmune, Flies,
-    Freezing, Gorgon, Grant, Grants, GreenBlood, ItemUser, Lifetime, Phasing, PriorityHelper,
-    Regenerates, RustsArmor, ScoreBounty, ShapeshiftOnKill, Splits, StealsAndFlees,
+    Freezing, Gorgon, Grant, Grants, GreenBlood, ItemUser, Lifetime, MirrorOnKill, Phasing,
+    PriorityHelper, Regenerates, RustsArmor, ScoreBounty, ShapeshiftOnKill, Splits, StealsAndFlees,
     StealsAndVanishes, Swims, Undead, Vampiric, Venomous, VorpalTarget, grant_all, lend,
 };
 use crate::equipment::equip_silently;
@@ -399,6 +399,17 @@ pub const DOG_GRANTS: &[Grant] = &[
     Grant::of::<FaerieOnDeath>(),
 ];
 
+/// The mirror hound's grants: the dog's, with the copying in place of the
+/// random shapeshift. Like the dog's, they survive a change of shape; only
+/// [`MirrorOnKill`] is cancellable.
+pub const MIRROR_HOUND_GRANTS: &[Grant] = &[
+    Grant::of::<AlwaysTamed>(),
+    Grant::of::<AlwaysHelper>(),
+    Grant::of::<PriorityHelper>(),
+    Grant::of::<MirrorOnKill>(),
+    Grant::of::<FaerieOnDeath>(),
+];
+
 /// The whole bestiary: Rogue's 26 lettered creatures and the few nihilurk
 /// added, in one table. Effects that pick a
 /// creature at random (scrolls of create monster and vorpalize weapon) index
@@ -460,6 +471,10 @@ pub const BESTIARY: &[MonsterDef] = &[
     MonsterDef::row("dog", 'd', Color::DarkYellow, Chase, 8, 6, 0, 7, 0, 3)
         .grants(DOG_GRANTS)
         .weight(2),
+    // The dog's numbers; it copies what it kills (`MIRROR_HOUND_GRANTS`).
+    MonsterDef::row("mirror hound", 'd', Color::Grey, Chase, 8, 6, 0, 7, 0, 6)
+        .grants(MIRROR_HOUND_GRANTS)
+        .weight(1),
     MonsterDef::row("dragon", 'D', Color::Red, Chase, 13, 12, 2, 10, 2, 10)
         .grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>()])
         .casts(2, &[SpellEffect::DragonBreath]),
@@ -946,7 +961,10 @@ fn roll_spawn_gear(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut C
     }
 }
 
-/// One [`EquipRoll`] that hit.
+/// One [`EquipRoll`] that hit, put on a monster: the gear is worn in silence
+/// and announced, and a bow's ammunition is left at the wearer's feet —
+/// nothing here gives a monster a pack to carry it in, so the bundle is loot
+/// from the moment it drops, exactly as if it had died on the spot.
 fn equip_one(
     world: &mut World,
     mob: Entity,
@@ -954,49 +972,76 @@ fn equip_one(
     pos: Position,
     rng: &mut ChaCha12Rng,
 ) {
-    use crate::catalog::{ARMORS, LAUNCHERS, RINGS, WEAPONS};
+    let (gear, _ammo) = roll_gear(world, kind, pos, rng);
+    equip_and_announce(world, mob, gear);
+}
+
+/// The item a hit [`EquipRoll`] reaches for, rolled as a floor drop
+/// (enchantment and all) at `pos`, plus the bundle of ammunition a launcher
+/// comes with.
+fn roll_gear(
+    world: &mut World,
+    kind: EquipKind,
+    pos: Position,
+    rng: &mut ChaCha12Rng,
+) -> (Entity, Option<Entity>) {
+    use crate::catalog::{AMMO, ARMORS, LAUNCHERS, RINGS, WEAPONS};
     match kind {
-        EquipKind::Weapon => equip_random(world, mob, WEAPONS, pos, rng),
-        EquipKind::Armor => equip_random(world, mob, ARMORS, pos, rng),
-        EquipKind::Ring => equip_random(world, mob, RINGS, pos, rng),
-        EquipKind::Bow => equip_launcher(world, mob, &LAUNCHERS[0], pos, rng),
+        EquipKind::Weapon => (random_row(world, WEAPONS, pos, rng), None),
+        EquipKind::Armor => (random_row(world, ARMORS, pos, rng), None),
+        EquipKind::Ring => (random_row(world, RINGS, pos, rng), None),
+        EquipKind::Bow => {
+            let def = &LAUNCHERS[0];
+            let launcher = def.spawn_as_loot(world, rng, pos);
+            let ammo_name = if def.name == "crossbow" {
+                "quarrel"
+            } else {
+                "arrow"
+            };
+            let ammo = AMMO
+                .iter()
+                .find(|a| a.name == ammo_name)
+                .map(|a| a.spawn_as_loot(world, rng, pos));
+            (launcher, ammo)
+        }
     }
 }
 
-/// A uniformly random row of `table`, rolled as a floor drop (enchantment and
-/// all) and put on `mob` in silence.
-fn equip_random<D: crate::catalog::ItemDef>(
+/// A uniformly random row of `table`, rolled as a floor drop.
+fn random_row<D: crate::catalog::ItemDef>(
     world: &mut World,
-    mob: Entity,
     table: &'static [D],
     pos: Position,
     rng: &mut ChaCha12Rng,
-) {
+) -> Entity {
     let idx = rng.gen_range(0..table.len());
-    let item = table[idx].spawn_as_loot(world, rng, pos);
-    equip_and_announce(world, mob, item);
+    table[idx].spawn_as_loot(world, rng, pos)
 }
 
-/// A bow or crossbow, put on `mob`, with a bundle of the ammunition it fires
-/// left at its feet — nothing here gives a monster a pack to carry it in, so
-/// the bundle is loot from the moment it drops, exactly as if it had died on
-/// the spot.
-fn equip_launcher(
-    world: &mut World,
-    mob: Entity,
-    def: &crate::catalog::LauncherDef,
-    pos: Position,
-    rng: &mut ChaCha12Rng,
-) {
-    let launcher = def.spawn_as_loot(world, rng, pos);
-    equip_and_announce(world, mob, launcher);
-    let ammo_name = if def.name == "crossbow" {
-        "quarrel"
-    } else {
-        "arrow"
+/// What a played species starts the run with: every [`EquipRoll`] on its row
+/// hits, whatever its chance. The gear goes on if the body may wear it
+/// ([`crate::body::equip_refusal`]) and into the pack if not; a launcher
+/// brings a full [`STACK_LIMIT`] of its ammunition. Only the start of a run
+/// does this — a polymorph hands out nothing.
+fn give_starting_gear(world: &mut World, player: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {
+    let Some(pos) = world.get::<Position>(player).copied() else {
+        return;
     };
-    if let Some(ammo_def) = crate::catalog::AMMO.iter().find(|a| a.name == ammo_name) {
-        ammo_def.spawn_as_loot(world, rng, pos);
+    for roll in def.equip_rolls {
+        let (gear, ammo) = roll_gear(world, roll.kind, pos, rng);
+        let may_wear = world
+            .get::<crate::equipment::Equipped>(gear)
+            .is_some_and(|e| crate::body::equip_refusal(world, player, e.slot, "").is_none());
+        if !(may_wear && equip_silently(world, player, gear)) {
+            world.entity_mut(gear).insert(KnownQuality);
+            crate::items::stow(world, player, gear);
+        }
+        if let Some(ammo) = ammo {
+            if let Some(mut stack) = world.get_mut::<Stack>(ammo) {
+                stack.count = STACK_LIMIT;
+            }
+            crate::items::stow(world, player, ammo);
+        }
     }
 }
 
@@ -1179,6 +1224,7 @@ pub(crate) fn reshape(world: &mut World, victim: Entity, def: &MonsterDef) -> En
     let kept: Vec<Grant> = DOG_GRANTS
         .iter()
         .copied()
+        .chain([Grant::of::<MirrorOnKill>()])
         .filter(|g| g.probe(world, victim))
         .collect();
     let helper = world.get::<Helper>(victim).is_some();
@@ -1210,6 +1256,7 @@ pub fn shapeshift(world: &mut World, who: Entity) -> Option<Entity> {
     let def = pool[idx];
     let new = def.display_name().to_string();
     let grown = reshape(world, who, def);
+    spend_the_shapeshift(world, grown);
     world
         .resource_mut::<GameLog>()
         .add(strings::shapeshift_reveal(
@@ -1222,16 +1269,72 @@ pub fn shapeshift(world: &mut World, who: Entity) -> Option<Entity> {
     Some(grown)
 }
 
+/// `who` becomes `def` and says so, like [`shapeshift`] with no dice.
+pub fn mirror(world: &mut World, who: Entity, def: &MonsterDef) -> Option<Entity> {
+    world.get::<Mob>(who)?;
+    let pos = world.get::<Position>(who).copied()?;
+    let old = crate::helpers::item_label(world, who);
+    let new = def.display_name().to_string();
+    let grown = reshape(world, who, def);
+    spend_the_shapeshift(world, grown);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::shapeshift_reveal(
+            crate::identify::article_for(&old),
+            &old,
+            crate::identify::article_for(&new),
+            &new,
+        ));
+    crate::items::leave_smoke_ring(world, pos);
+    Some(grown)
+}
+
+/// A creature that has changed shape on a kill can not do it again.
+fn spend_the_shapeshift(world: &mut World, who: Entity) {
+    crate::effects::revoke_any(
+        world,
+        who,
+        &[Grant::of::<ShapeshiftOnKill>(), Grant::of::<MirrorOnKill>()],
+    );
+}
+
+/// The species of `who`, read off its name, if it is a monster the bestiary
+/// knows and not a spirit. Read before the kill despawns it.
+pub(crate) fn species_of(world: &World, who: Entity) -> Option<&'static MonsterDef> {
+    let name = &world.get::<Name>(who)?.what;
+    BESTIARY
+        .iter()
+        .chain(SUMMONS)
+        .find(|m| m.spirit_kind.is_none() && m.display_name() == name)
+}
+
 /// What `killer` just did, if it can shapeshift: a [`SHAPESHIFT_CHANCE`] roll
-/// on [`ShapeshiftOnKill`]. Called by the melee kill funnel in `crate::combat`.
-pub(crate) fn maybe_shapeshift(world: &mut World, killer: Entity) {
-    if world.get::<ShapeshiftOnKill>(killer).is_some()
-        && world
-            .resource_mut::<GameRng>()
-            .0
-            .gen_bool(crate::constants::helpers::SHAPESHIFT_CHANCE)
-    {
-        shapeshift(world, killer);
+/// on [`ShapeshiftOnKill`] or [`MirrorOnKill`] (the latter copies `victim`).
+/// Either way the ability is spent. Called by the melee kill funnel in `crate::combat`.
+pub(crate) fn maybe_shapeshift(
+    world: &mut World,
+    killer: Entity,
+    victim: Option<&'static MonsterDef>,
+) {
+    let mirrors = world.get::<MirrorOnKill>(killer).is_some();
+    if !mirrors && world.get::<ShapeshiftOnKill>(killer).is_none() {
+        return;
+    }
+    let lucky = world
+        .resource_mut::<GameRng>()
+        .0
+        .gen_bool(crate::constants::helpers::SHAPESHIFT_CHANCE);
+    if !lucky {
+        return;
+    }
+    match victim.filter(|_| mirrors) {
+        Some(def) if def.display_name() != crate::helpers::item_label(world, killer) => {
+            mirror(world, killer, def);
+        }
+        Some(_) => {}
+        None => {
+            shapeshift(world, killer);
+        }
     }
 }
 
@@ -1286,6 +1389,7 @@ pub fn wear_monster(world: &mut World, player: Entity, def: &'static MonsterDef)
 
     if let Some(GameRng(mut rng)) = world.remove_resource::<GameRng>() {
         roll_random_grants(world, player, def, &mut rng);
+        give_starting_gear(world, player, def, &mut rng);
         world.insert_resource(GameRng(rng));
     }
 

@@ -739,6 +739,15 @@ pub fn render<W: Write>(
         }
     }
 
+    let alignment = player_entity
+        .and_then(|pe| world.get::<Alignment>(pe))
+        .map_or(0, |a| a.0);
+    if let Some(gauge) = balance_gauge(alignment, world.resource::<SpiritsHostile>().0) {
+        for (i, (ch, color)) in gauge.into_iter().enumerate() {
+            screen.put(1 + i as u16, MAP_TOP, ch, color);
+        }
+    }
+
     if let Some((text, colors)) = world
         .get_resource::<ScoreFlash>()
         .filter(|f| f.lit())

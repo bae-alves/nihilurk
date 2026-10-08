@@ -182,7 +182,7 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 
 **Armour.** `ARMORS` in `catalog.rs`. One number: what wearing it adds to your defence die.
 
-    ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6 },
+    ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6, grants: &[] },
 
 **A weapon.** `WEAPONS`, as above.
 

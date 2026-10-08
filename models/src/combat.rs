@@ -14,7 +14,7 @@ use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::abilities::{Blow, cleave_attack, fire_on_hit, fire_on_targeted};
+use crate::abilities::{Blow, cleave_attack, fire_on_hit, fire_on_struck, fire_on_targeted};
 use crate::components::*;
 use crate::conditions::afflicted;
 use crate::constants::score::BOUNTY_SCORE_MULTIPLIER;
@@ -610,6 +610,7 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
             lethal,
         };
         fire_on_hit(world, attacker, target, blow);
+        fire_on_struck(world, target, attacker);
         spill_blood(world, target, swing.damage, swing.glancing);
         took_damage(world, target, hp_before);
     }
@@ -1028,6 +1029,7 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         return;
     }
     release_biters_grip(world, blow.target, blow.attacker);
+    let species = crate::monsters::species_of(world, blow.target);
     if !reveal_faerie(world, blow.target) {
         match world.get::<Helper>(blow.target).is_some() {
             true => crate::companion::mourn(world, blow.target),
@@ -1037,7 +1039,7 @@ fn settle_the_dead(world: &mut World, blow: &Landed) {
         burst_on_death(world, blow.target);
         crate::spirits::poof(world, blow.target);
     }
-    crate::monsters::maybe_shapeshift(world, blow.attacker);
+    crate::monsters::maybe_shapeshift(world, blow.attacker, species);
 }
 
 /// A creature marked [`ExplodesOnDeath`](crate::effects::ExplodesOnDeath) (a

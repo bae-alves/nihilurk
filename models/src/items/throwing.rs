@@ -12,14 +12,24 @@
 //! [`throw_refusal`] / [`drop_refusal`] are the "you can't" checks the engine
 //! runs before it ever queues a throw.
 
-use bevy_ecs::{entity::Entity, world::World};
+use std::collections::HashSet;
+
+use bevy_ecs::{
+    entity::Entity,
+    query::{Or, With},
+    world::World,
+};
 use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::*;
 use crate::effects::*;
-use crate::equipment::{Equipped, Slot, equip_silently, force_unequip, sync_equipment_effects};
-use crate::helpers::{actor_at, apply_damage, get_line, item_label, roll_dice, total_armor_roll};
+use crate::equipment::{
+    Equipped, Slot, equip_merging, equip_silently, force_unequip, sync_equipment_effects,
+};
+use crate::helpers::{
+    actor_at, apply_damage, chebyshev, get_line, item_label, roll_dice, total_armor_roll,
+};
 use crate::identify::{article_for, counted, display_name, phrase_for, with_article, with_the};
 use crate::map::{GameRng, Map};
 use crate::particles::{Particles, THROW_SPEEDUP};
@@ -423,8 +433,12 @@ fn resolve_wand_throw(
 fn apply_thrown_wand_effect(world: &mut World, entity: Entity, effect: WandEffect) {
     match effect {
         WandEffect::Polymorph => polymorph_entity(world, entity),
-        WandEffect::HasteMonster => shift_entity_speed(world, entity, true),
-        WandEffect::SlowMonster => shift_entity_speed(world, entity, false),
+        WandEffect::HasteMonster => {
+            shift_entity_speed(world, entity, true);
+        }
+        WandEffect::SlowMonster => {
+            shift_entity_speed(world, entity, false);
+        }
         WandEffect::TeleportAway => teleport_entity_away(world, entity),
         WandEffect::TeleportTo => teleport_entity_to_self(world, entity),
         WandEffect::Cancellation => cancel_entity(world, entity),
@@ -554,6 +568,9 @@ fn deliver_throw(
         None => *world.get::<Position>(thrower)?,
     };
 
+    let wielded = world
+        .get::<Equipped>(item)
+        .is_some_and(|e| e.by == Some(thrower));
     force_unequip(world, item);
     sync_equipment_effects(world, thrower);
 
@@ -575,7 +592,7 @@ fn deliver_throw(
         .resource_mut::<GameLog>()
         .add_colored(announcement, category);
 
-    let (cells, landing, victims) = flight_path(world, thrower, item, origin, target);
+    let (mut cells, mut landing, victims) = flight_path(world, thrower, item, origin, target);
     let victim = victims.first().copied();
     // A thrown wand flies as a tumbling mystic grenade, tinted with the
     // element it's about to burst in — not its own catalog glyph, which is
@@ -661,16 +678,50 @@ fn deliver_throw(
         return Some(landing);
     }
 
-    let Some(victim) = victim else {
-        land_item(world, item, landing);
-        return Some(landing);
-    };
-
     for &hit in &victims {
         crate::abilities::fire_on_targeted(world, thrower, hit);
         let msg = strike_victim(world, thrower, item, hit, landing, &seen_name);
         world.resource_mut::<GameLog>().add(msg);
     }
+
+    if let (Some(&ChainHits(hits)), Some(&first)) = (world.get::<ChainHits>(item), victims.first())
+    {
+        let mut struck = first;
+        for _ in 1..hits {
+            let Some((next, hop)) = chain_target(world, thrower, struck) else {
+                break;
+            };
+            if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color))
+            {
+                if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                    fx.hurl_at(&hop, glyph, color, THROW_SPEEDUP);
+                }
+            }
+            cells.extend(&hop);
+            landing = *world.get::<Position>(next).unwrap_or(&landing);
+            crate::abilities::fire_on_targeted(world, thrower, next);
+            let msg = strike_victim(world, thrower, item, next, landing, &seen_name);
+            world.resource_mut::<GameLog>().add(msg);
+            struck = next;
+        }
+    }
+
+    if world.get::<Returns>(item).is_some() {
+        let back: Vec<(u16, u16)> = cells
+            .iter()
+            .rev()
+            .skip(1)
+            .copied()
+            .chain([(origin.x, origin.y)])
+            .collect();
+        fly_home(world, thrower, item, wielded, (landing, &back), &seen_name);
+        return Some(landing);
+    }
+
+    let Some(victim) = victim else {
+        land_item(world, item, landing);
+        return Some(landing);
+    };
 
     if world.get::<Projectile>(item).is_some() {
         world.entity_mut(item).despawn();
@@ -681,8 +732,8 @@ fn deliver_throw(
     let slain = world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0);
     let takes_it =
         !slain && world.get::<ItemUser>(victim).is_some() && world.get::<Equipped>(item).is_some();
-    if takes_it && equip_silently(world, victim, item) {
-        let slot = world.get::<Equipped>(item).map(|e| e.slot);
+    let slot = world.get::<Equipped>(item).map(|e| e.slot);
+    if takes_it && equip_merging(world, victim, item) {
         let verb = match slot {
             Some(Slot::Hand) => strings::picked_up_thrown_verb_hand(),
             Some(Slot::Body) => strings::picked_up_thrown_verb_body(),
@@ -695,6 +746,97 @@ fn deliver_throw(
     }
     land_item(world, item, landing);
     Some(landing)
+}
+
+/// Where a [`ChainHits`] weapon jumps from `struck`: the nearest *other* living
+/// enemy of `thrower` with a clear line to it, and the tiles that line crosses.
+///
+/// A thrower with a [`Viewshed`] (the player) chains only to what it sees. One
+/// without (a monster) has no eyes to ask, so the blade perceives for itself:
+/// anything hostile within a throw's reach that it has a line to.
+fn chain_target(
+    world: &mut World,
+    thrower: Entity,
+    struck: Entity,
+) -> Option<(Entity, Vec<(u16, u16)>)> {
+    let from = *world.get::<Position>(struck)?;
+    let side = |f: Faction| {
+        if f == Faction::Player {
+            Faction::Ally
+        } else {
+            f
+        }
+    };
+    let mine = side(*world.get::<Faction>(thrower)?);
+    let seen: Option<HashSet<(u16, u16)>> = world
+        .get::<Viewshed>(thrower)
+        .map(|v| v.visible_tiles.iter().copied().collect());
+    let map = world.resource::<Map>().clone();
+    let mut near: Vec<(i32, Entity, Position)> = world
+        .query_filtered::<(Entity, &Position, &Faction, &Fighter), Or<(With<Mob>, With<Player>)>>()
+        .iter(world)
+        .filter(|&(e, p, _, f)| {
+            e != struck
+                && e != thrower
+                && f.hp > 0
+                && seen
+                    .as_ref()
+                    .map_or(chebyshev(from, *p) <= THROW_RANGE, |s| {
+                        s.contains(&(p.x, p.y))
+                    })
+        })
+        .map(|(e, p, f, _)| (e, *p, *f))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .filter(|&(_, _, f)| crate::ai::hostile(world, mine, side(f)))
+        .map(|(e, p, _)| (chebyshev(from, p), e, p))
+        .collect();
+    near.sort_by_key(|&(d, ..)| d);
+    near.into_iter().find_map(|(_, e, to)| {
+        let hop: Vec<(u16, u16)> = get_line(from, to)
+            .into_iter()
+            .skip(1)
+            .map(|p| (p.x, p.y))
+            .collect();
+        (!hop.iter().any(|&(x, y)| map.blocks(x, y))).then_some((e, hop))
+    })
+}
+
+/// A [`Returns`] item's flight home: into `thrower`'s pack, the slot the throw
+/// emptied, and back into their hand as well if they were wielding it when it
+/// left. A thrower with no pack and no free hand leaves it where it landed.
+///
+/// `(landing, back)` is where it stopped and the tiles it crosses on the way
+/// home, ending on the thrower's own: queued after the outbound flight and the
+/// strike, so the eye sees it go, hit, and return.
+fn fly_home(
+    world: &mut World,
+    thrower: Entity,
+    item: Entity,
+    wielded: bool,
+    (landing, back): (Position, &[(u16, u16)]),
+    seen_name: &str,
+) {
+    let packed = world
+        .get_mut::<Backpack>(thrower)
+        .map(|mut bp| bp.items.push(item))
+        .is_some();
+    let in_hand = wielded && equip_silently(world, thrower, item);
+    if !packed && !in_hand {
+        land_item(world, item, landing);
+        return;
+    }
+    world.entity_mut(item).remove::<Position>();
+    if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color)) {
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.hurl_at(back, glyph, color, THROW_SPEEDUP);
+        }
+    }
+    if world.get::<Player>(thrower).is_some() {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::boomerang_returns(seen_name));
+    }
 }
 
 /// A ring of alternating magenta / cyan sparks around `center` — the wand of

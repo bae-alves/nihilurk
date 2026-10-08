@@ -71,6 +71,11 @@ pub struct SustainsStrength;
 #[derive(Component, Default, Clone, Copy)]
 pub struct SustainsArmor;
 
+/// No polymorph takes hold of this creature, and so no system shock either (a
+/// ring of sustain form). See [`crate::items::wands::polymorph_entity_with`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct SustainsForm;
+
 /// This creature's touch eats armour: every blow it lands takes a point off the
 /// plus of whatever its victim is wearing (the aquator). See
 /// [`crate::equipment::corrode_armor`].
@@ -335,6 +340,11 @@ pub struct ExplodesOnDeath;
 #[derive(Component, Default, Clone, Copy)]
 pub struct ShapeshiftOnKill;
 
+/// A melee kill by this creature turns its body into exactly what it killed
+/// (the mirror hound). See [`crate::monsters::mirror`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct MirrorOnKill;
+
 /// Swims: deep water ([`crate::map::TileType::Water`]) is floor to this
 /// creature and a wall to everything else (the eel, the ichthyocentaur). A
 /// swimmer is only ever drawn for a water tile; see
@@ -482,6 +492,16 @@ pub struct VorpalOnCondition;
 #[derive(Component, Default, Clone, Copy)]
 pub struct TurboMagic;
 
+/// The ring's bargain: a zap of an attack wand spends two charges and casts
+/// twice, and a lone last charge casts once. See [`crate::items::item_system`].
+#[derive(Component, Default, Clone, Copy)]
+pub struct DualZap;
+
+/// Spikemail's barbs: every blow that lands on the wearer pricks whoever
+/// struck it for 1d2, past their armour. See `crate::abilities::spike_prick`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Spiked;
+
 /// The chaos blade's price: every hit that connects bites its wielder for a
 /// point of their own HP. See `crate::abilities::chaos_recoil`.
 #[derive(Component, Default, Clone, Copy)]
@@ -603,6 +623,10 @@ modifiers! {
     /// equipped source the same way the melee bonus is, so it never matters
     /// which piece of gear supplied it.
     ThrowBonus => throw_bonus,
+    /// Flat modifier to the bearer's maximum hit points — a ring of health.
+    /// Not read per blow: `crate::equipment` reconciles it into
+    /// [`Fighter::max_hp`](crate::components::Fighter) when gear changes.
+    MaxHpBonus => max_hp_bonus,
     /// A rapier's built-up momentum: [`MOMENTUM_PER_HIT`](crate::constants::abilities::MOMENTUM_PER_HIT) for every consecutive hit it lands,
     /// reset the moment its wielder stops swinging it (see
     /// [`crate::equipment::force_unequip`] and `crate::abilities::build_momentum`).
@@ -964,6 +988,7 @@ effects! {
     "always_helper" => AlwaysHelper, feel strings::feel_always_helper();
     "priority_helper" => PriorityHelper, feel strings::feel_priority_helper();
     "shapeshift_on_kill" => ShapeshiftOnKill, feel strings::feel_shapeshift_on_kill();
+    "mirror_on_kill" => MirrorOnKill, feel strings::feel_mirror_on_kill();
     "faerie_on_death" => FaerieOnDeath, feel strings::feel_faerie_on_death();
     "swims" => Swims, feel strings::feel_swims();
     "phasing" => Phasing, beware strings::beware_phasing();
@@ -1011,6 +1036,9 @@ effects! {
     // The runes' two.
     "protected" => Protected, ends strings::ends_protected();
     "explodes_on_death" => ExplodesOnDeath;
+    "sustains_form" => SustainsForm;
+    "dual_zap" => DualZap;
+    "spiked" => Spiked;
 }
 
 /// The effects an entity hands out: innate magic on a monster, the effects a
@@ -1323,13 +1351,14 @@ pub fn revoke_all(world: &mut World, entity: Entity) {
 ///   the wits to work a buckle. That is the bargain of wearing something
 ///   else's magic: it can be taken off you.
 /// * A dog is its grants, and nothing cancels them: they are what the dog
-///   is, through any change of shape ([`crate::monsters::DOG_GRANTS`]).
+///   is, through any change of shape ([`crate::monsters::DOG_GRANTS`]). The
+///   one exception is the shapeshifting itself ([`ShapeshiftOnKill`],
+///   [`MirrorOnKill`]): a wand of cancellation stops a dog changing shape.
 const IDENTITY_EFFECTS: &[&str] = &[
     "lurk",
     "always_tamed",
     "always_helper",
     "priority_helper",
-    "shapeshift_on_kill",
     "faerie_on_death",
 ];
 

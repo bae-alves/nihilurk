@@ -35,7 +35,7 @@ use crate::conditions::snare;
 use crate::effects::{
     AggravatesMonsters, Asleep, Batty, Binds, BuildsMomentum, Clamped, ClampedBy, Cleaves,
     ConfusingTouch, Freezing, Gorgon, Grant, HeavySwing, MagicWard, Momentum, Petrified,
-    Polymorphitis, Regenerates, RustsArmor, SelfDamageOnHit, Splits, StealsAndFlees,
+    Polymorphitis, Regenerates, RustsArmor, SelfDamageOnHit, Spiked, Splits, StealsAndFlees,
     StealsAndVanishes, Teleportitis, Vampiric, Venomous,
 };
 use crate::equipment::{Slot, equipped_in};
@@ -83,6 +83,9 @@ pub enum Moment {
     /// threw something at them. Fires before the blow itself, and whether or
     /// not it lands: looking upon a medusa is the danger.
     OnTargeted,
+    /// A blow landed on the bearer and drew blood. `other` is whoever struck
+    /// it. Fires from `combat::land_swing`, the one place melee damage lands.
+    OnStruck,
 }
 
 /// One ability: what arms it, when it fires, and what it does.
@@ -227,6 +230,8 @@ pub const ABILITIES: &[Ability] = &[
         crate::monsters::maybe_split(w, e);
         true
     }),
+    // --- struck ----------------------------------------------------------
+    row(Grant::of::<Spiked>(), Moment::OnStruck, spike_prick),
     // --- looked upon -----------------------------------------------------
     // The medusa's gaze. It used to be hand-called from four sites, and a
     // fifth attack path would silently have missed it.
@@ -332,6 +337,22 @@ fn heavy_stagger(world: &mut World, attacker: Entity, target: Option<Entity>) ->
 fn chaos_recoil(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bool {
     apply_damage(world, attacker, 1);
     world.resource_mut::<GameLog>().add(strings::chaos_recoil());
+    true
+}
+
+/// Spikemail's barbs: 1d2 to whoever struck the wearer, straight to their
+/// HP -- their armour never gets a roll against it.
+fn spike_prick(world: &mut World, _wearer: Entity, attacker: Option<Entity>) -> bool {
+    let Some(attacker) = attacker else {
+        return false;
+    };
+    let pricked = world.resource_mut::<GameRng>().0.gen_range(1..=2);
+    let line = match world.get::<Player>(attacker).is_some() {
+        true => strings::spike_prick_player().to_string(),
+        false => strings::spike_prick_mob(&item_label(world, attacker)),
+    };
+    world.resource_mut::<GameLog>().add(line);
+    apply_damage(world, attacker, pricked);
     true
 }
 
@@ -644,6 +665,12 @@ fn actors(world: &mut World) -> Vec<Entity> {
 /// which every damage path in the game already runs through.
 pub fn fire_on_damaged(world: &mut World, victim: Entity) {
     fire(world, Moment::OnDamaged, victim, None);
+}
+
+/// A blow from `attacker` just drew blood from `victim`. Called from
+/// [`crate::combat::resolve_attack`]'s landing, beside [`fire_on_hit`].
+pub fn fire_on_struck(world: &mut World, victim: Entity, attacker: Entity) {
+    fire(world, Moment::OnStruck, victim, Some(attacker));
 }
 
 /// Whether `seen` carries anything that answers being looked at. Asked by the

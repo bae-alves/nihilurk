@@ -689,6 +689,14 @@ pub mod loot {
     /// See [`CURSED_BONUS_MIN`].
     pub const CURSED_BONUS_MAX: i32 = 5;
 
+    /// Percent chance a curse merge (equipping a known cursed item over a worn
+    /// cursed one in the same slot) leaves the worn item's form.
+    pub const MERGE_RECIPIENT_PCT: i32 = 45;
+    /// Percent chance a curse merge leaves the newly equipped item's form. The
+    /// remainder after this and [`MERGE_RECIPIENT_PCT`] is a plain dagger,
+    /// leather armor or ring of stealth.
+    pub const MERGE_DONOR_PCT: i32 = 45;
+
     /// A dropped ammunition bundle holds this many, uniformly — never a lone
     /// arrow, because finding one arrow is not finding ammunition. Capped by
     /// [`crate::constants::items::STACK_LIMIT`] once it lands in a pack slot.
@@ -893,6 +901,13 @@ pub mod spirits {
     /// or kin.
     pub const ALIGNMENT_STEP: i8 = 1;
 
+    /// What gaining a Helper does to [`crate::components::Alignment`].
+    pub const HELPER_GAINED_ALIGNMENT: i8 = 1;
+
+    /// What losing a Helper to an explosion or a system shock does to
+    /// [`crate::components::Alignment`].
+    pub const HELPER_BLOWN_UP_ALIGNMENT: i8 = -2;
+
     /// The angel's test of faith takes the player's current HP down by this
     /// divisor (never below one point), on top of cancelling every effect.
     pub const TEST_OF_FAITH_HP_DIVISOR: i32 = 2;
@@ -917,8 +932,9 @@ pub mod helpers {
     pub const ACCEPT_CHANCE: f64 = 0.5;
 
     /// The odds a kill turns a [`crate::effects::ShapeshiftOnKill`] creature
-    /// into another monster.
-    pub const SHAPESHIFT_CHANCE: f64 = 0.10;
+    /// into another monster, or a [`crate::effects::MirrorOnKill`] one into
+    /// what it killed. Either way it happens once.
+    pub const SHAPESHIFT_CHANCE: f64 = 0.25;
 
     /// Scroll of create monster: the odds the creature conjured arrives
     /// already charmed, as a plain ally. Rolled against the same draw as
