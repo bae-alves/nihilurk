@@ -223,7 +223,7 @@ Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDa
 
 The staff is the only row with an `on_doff`, and the reason is worth repeating: it multiplies what every attacking spell costs and what it does (`constants::spells::TURBO_MAGIC_COST_MULT` and `TURBO_MAGIC_POWER_MULT`), and neither multiplier shows anywhere on the HUD. The two log lines are the whole of the player's notice, which is why the taking-off needs one as much as the putting-on. `OnDoff` fires only on the deliberate path (`equipment::toggle_equipped`), never from `force_unequip` — dropping, being disarmed and dying are not ceremonies, the same asymmetry `OnWear` already has against `equip_silently`.
 
-`Projectile` means three things at once: the throw ignores the target's armour die, the missile is spent on what it hits, and nothing can catch it. A non-projectile throw is blunted by armour and can be caught and used against you.
+Every throw ignores the target's armour die, but the armour *plus* is always subtracted. A thing not made for throwing rolls `IMPROVISED_THROW_DIE` (1d3) plus its own plus, and so does ammunition lobbed by hand; armour thrown does no damage. `Projectile` means two things at once: the missile is spent on what it hits, and nothing can catch it. A non-projectile throw can be caught and used against you.
 
 ### AMMO — AmmoDef
 
@@ -232,10 +232,11 @@ The staff is the only row with an `on_doff`, and the reason is worth repeating: 
 | `name`         | `&'static str` |                                         |
 | `color`        | `Color`        |                                         |
 | `die`          | `i32`          | Rolled when hurled by hand.             |
-| `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`. A quarrel's is the plain double; an arrow's is short of that, a deliberate nerf on the bow. |
+| `venom`        | `bool`         | A hit that draws blood saps the victim's power (`Envenomed`). The blowdart. |
+| `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`: an arrow 1d4, a quarrel 1d6, a blowdart 1d2. |
 | `launched_by`  | `Grant`        | The effect that switches to `launched_die`. |
 
-Draws `)`. Attaches `Item`, `ThrownDamage`, `LaunchedDamage`, `Projectile`, `LaunchedBy`, `Stack { count: 1 }`. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
+Draws `)`. Attaches `Item`, `ThrownDamage`, `LaunchedDamage`, `Projectile`, `LaunchedBy`, `Stack { count: 1 }`, and `Envenomed` when `venom` is set. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
 
 Stacks to `STACK_LIMIT` per pack slot. A floor drop arrives as a bundle of `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX` (`constants::loot`) — never a lone arrow, because finding one arrow is not finding ammunition.
 
@@ -418,7 +419,7 @@ A shot that sets *anything* off with something other than ammunition — a dagge
 
 **The ULTIMATE TRICK SHOT** (`traps::ultimate_burst`) is what the relic does when a missile comes down on it (`traps::ultimate_trick_shot`), and what a **hero coin** does when one comes down on *it* — the one pickup worth shooting for the shot rather than the payout. The coin, unlike the relic, does not survive saying it: it teaches the shooter its spell, logs "The hero coin gives up everything it knows at once.", and is gone. The shape is one wide burst where it lies, then a second burst centred on *every* creature that one caught, then a third on one of them (the first in reading order). Each can catch somebody the last one missed. All three burn in `BlastPalette::Ultimate` — white through magenta to dark magenta, the only blast no wand can produce — and the primary leaves a `Smoke` puff over every tile it covered. Only the first burst shouts — `BAM!`, or `WHY!` when the player is standing in their own blast; one shot is one trick shot however many times it goes off.
 
-**Chain reactions.** Every burst ends by setting off everything in its own footprint that a shot could have set off (`traps::chain_react`, called from `traps::burst` — the one place every trick-shot burst is queued). Traps first, then coins, and the author is carried through: a coin your chain reaches still pays you. A trap nobody has found *is* a valid link — the `Hidden` rule is about aiming, and a blast rolling over a tile does not have to know what is buried in it. The chain always ends, because every link is despawned before its own burst opens, so nothing is ever a link twice. The Element of Yoord is deliberately not a link: it is never spent, and a burst that reached it would answer itself forever.
+**Chain reactions.** Everything that blows up, flies or zaps ends by setting off everything in its own footprint that a shot could have set off (`traps::chain_react`), whatever the footprint's size: a blast's disc (`traps::burst`, `wands::elemental_blast`), a bolt's line (the bolt wands, Force Lance), the one tile of a Sting or Thunderbolt, the victims' tiles under Frost Nova and Circle of Death. Traps first, then coins, then potions, then ice cubes (a fire blast scorches them), and the author is carried through: a coin your chain reaches still pays you. A trap nobody has found *is* a valid link — the `Hidden` rule is about aiming, and a blast rolling over a tile does not have to know what is buried in it. The chain always ends, because every link is despawned before its own burst opens, so nothing is ever a link twice. The Element of Yoord is deliberately not a link: it is never spent, and a burst that reached it would answer itself forever.
 
 Each link's explosion is queued *behind* the last one (`Particles::explosion` returns its span, `Particles::hold` pushes the rest of the batch back by it), so a chain reads as a run of explosions rather than one indistinguishable flash.
 
@@ -426,7 +427,7 @@ A wand's blast sets off everything it covers, traps first and then coins (`wands
 
 A coin set off with no author at all is simply spent: `detonate_pickup` takes an `Option<Entity>` and pays nobody when there is nobody to pay.
 
-Damage traps ignore the defender's armour *die* but still subtract the armour *plus* (`total_armor_plus`). Their bite also scales with depth in three bands (floors 1-4, 5-8, 9-13): each band adds a point to the arrow trap's roll and a point to the dart trap's permanent power drain. Dial: `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier steps).
+Damage traps are missiles: they ignore the defender's armour *die* but still subtract the armour *plus* (`total_armor_plus`). Their bite also scales with depth in three bands (floors 1-4, 5-8, 9-13): each band adds a point to the arrow trap's roll and a point to the dart trap's permanent power drain. Dial: `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier steps).
 
 The `Trap`, `TrapEffect` and `TrapReveal` types are defined in `components.rs`, not `traps.rs` — see `components.md`. The holds a trap applies (`Asleep`, `Pinned`, `Rooted`) are effects, in `effects.rs`.
 
@@ -444,22 +445,22 @@ DROPS — DropCategory
 
 Three further fields are function pointers filled in by the `category!` macro from the table's name. Never write them by hand.
 
-Current weights, which total 1041 from floor 3 down. Runes drop from floor 3, so floors 1 and 2 total 1011 and every share there is a little higher:
+Current weights, which total 1110 from floor 3 down. Runes drop from floor 3, so floors 1 and 2 total 1060 and every share there is a little higher:
 
 | Category | Weight | Share |
 |----------|--------|-------|
-| scroll   | 300    | 28.8% |
-| potion   | 270    | 25.9% |
-| coin     | 130    | 12.5% |
-| armor    |  80    |  7.7% |
-| wand     |  50    |  4.8% |
-| ring     |  50    |  4.8% |
-| rune     |  30    |  2.9% |
-| weapon   |  36    |  3.5% |
-| ammo     |  28    |  2.7% |
-| launcher |  16    |  1.5% |
-| treat    |  40    |  3.8% |
-| deck     |  11    |  1.1% |
+| scroll   | 300    | 27.0% |
+| potion   | 270    | 24.3% |
+| coin     | 130    | 11.7% |
+| armor    |  80    |  7.2% |
+| wand     |  50    |  4.5% |
+| ring     |  50    |  4.5% |
+| rune     |  50    |  4.5% |
+| weapon   |  36    |  3.2% |
+| ammo     |  28    |  2.5% |
+| launcher |  16    |  1.4% |
+| treat    |  50    |  4.5% |
+| deck     |  50    |  4.5% |
 
 The share column is derived, not maintained.
 
@@ -487,67 +488,70 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 | 5 | `SustainsStrength`  | Immune to dart-trap strength drain.            |
 | 6 | `AggravatesMonsters`| Periodically wakes the floor. Passive.         |
 | 7 | `ItemUser`          | Catches and wears thrown gear; reads scrolls.  |
-| 8 | `FireArrow`         | Looses arrows properly (ups their die, short of doubling it). |
+| 8 | `FireArrow`         | Looses arrows properly (they roll their `launched_die`). |
 | 9 | `FireQuarrel`       | The crossbow's half of the same bargain.       |
-|10 | `SustainsArmor`     | Worn armour cannot be corroded.                |
-|11 | `RustsArmor`        | Every blow it lands eats a point of the victim's armour plus (the aquator). |
-|12 | `Sluggish`          | Acts one notch below its own tempo. Folded in by `conditions::tempo`, never written to `Speed`. |
-|13 | `Stealthy`          | Unnoticed until `rings::STEALTH_RANGE` tiles away. |
-|14 | `Regenerates`       | Mends one condition, or a point of drained power, on a roll. Passive. |
-|15 | `Teleportitis`      | Jumps somewhere else on a roll. Passive. Also arms the `T` key. |
-|16 | `Flies`             | Never springs a floor trap. |
-|17 | `Batty`             | After a landed blow, hops to a random open adjacent tile. |
-|18 | `Binds`             | Every hit clamps the victim in a bear trap's jaws. |
-|19 | `Gorgon`            | Petrifies whoever targets, shoots or zaps it. |
-|20 | `Vampiric`          | Every hit drinks a point of the victim's maximum HP. |
-|21 | `Venomous`          | Its bite saps the victim's base power, with no floor. |
-|22 | `ScoreBounty`       | Its corpse pays a multiple of the usual score. |
-|23 | `Splits`            | Cut down short of the last point, it buds a copy of itself. |
-|24 | `GreenBlood`        | Wounds well up green. Cosmetic. |
-|25 | `Freezing`          | A chance on every hit to paralyse the victim. |
-|26 | `StealsAndFlees`    | Lifts something loose from the victim's pack, uses it, and vanishes (the leprechaun). |
-|27 | `StealsAndVanishes` | Strips one equipped item and vanishes with it (the nymph). |
-|28 | `AlwaysTamed`       | Any treat takes, every time (the dog). |
-|29 | `AlwaysHelper`      | Charmed or conjured, it is the Helper, not a plain ally (the dog). |
-|30 | `PriorityHelper`    | A Helper that never explodes to make room, and explodes the ordinary one (the dog). |
-|31 | `ShapeshiftOnKill`  | A melee kill sometimes turns it into another random monster, once (the dog). |
-|32 | `MirrorOnKill`      | A melee kill sometimes turns it into exactly what it killed, once (the mirror hound). |
-|33 | `FaerieOnDeath`     | Dying, it is revealed as a faerie shapeshifter and is gone, with no gore (the dog). |
-|34 | `Swims`             | Deep water is floor. |
-|35 | `Phasing`           | Walks through walls and water; no diagonal rule, no room leash. |
-|36 | `Cleaves`           | A connecting swing also lands on every other enemy next to the wielder. |
-|37 | `HeavySwing`        | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
-|38 | `Fencer`            | Every attack is thrown twice. |
-|39 | `Lunges`            | Closing the last stride of a run lands a lunge instead of a step. |
-|40 | `Lurk`              | The lurk's body. An identity effect: `revoke_all` leaves it. |
-|41 | `WhirlOnMove`       | Stepping between two tiles beside the same enemy lands a free attack. |
-|42 | `VorpalOnCondition` | A hit on a target with a negative condition slays it outright. |
-|43 | `TurboMagic`        | Damaging spells cost `TURBO_MAGIC_COST_MULT` times the Magic and deal `TURBO_MAGIC_POWER_MULT` times the damage. |
-|44 | `SelfDamageOnHit`   | Every connecting hit costs the wielder a point of HP. |
-|45 | `BuildsMomentum`    | Every hit builds `Momentum` on the weapon. |
-|46 | `ShattersStone`     | Lands whole on a `Petrified` target, past `stone_chip`. |
-|47 | `ConfusingTouch`    | Charged by a scroll: the next blow it lands confuses the target, then the charge is spent. |
-|48 | `Bided`             | The spell Bide: the next attack gets `BIDE_ATTACK_BONUS`, then it is spent or lost. |
-|49 | `Asleep`            | Hold: out cold, no action of any kind. |
-|50 | `Petrified`         | Hold, but not in `HOLDS`: stone is the body, so it travels with its owner. |
-|51 | `Pinned`            | Hold: cannot step, can still strike. Straining costs a turn and blood. |
-|52 | `Rooted`            | Hold: cannot step, can still strike. Straining costs only the turn. |
-|53 | `Clamped`           | Hold: a biter's grip. Killing the biter frees the victim. |
-|54 | `Confused`          | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
-|55 | `Blind`             | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
-|56 | `Paralyzed`         | Affliction: slowed, and the player loses a share of their turns. |
-|57 | `MagicWard`         | The spell: magical hits and a blow's riders bounce off, for the floor. |
-|58 | `Detected`          | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
-|59 | `Polymorphed`       | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |
-|60 | `Polymorphitis`     | Turns the bearer into something else on a roll (`POLYMORPHITIS_CHANCE`): the polymorph a wand casts, without the system shock (`polymorph_entity_with(.., false)`), so a bearer already `Polymorphed` settles into a form instead. Passive. |
-|61 | `Chimera`           | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
-|62 | `Typhon`            | The form drawn as `T`. |
-|63 | `Echidna`           | The form drawn as `E`. |
-|64 | `Protected`         | A rune of protection: no damage of any kind for `PROTECTION_TURNS` turns. Checked in `apply_hit` and in melee's `clamp_swing`, the two places HP comes off. |
-|65 | `ExplodesOnDeath`   | A rune of justice: dying, it bursts in one fire blast rolled off its own power die (`combat::burst_on_death`). |
-|66 | `SustainsForm`      | No polymorph takes hold, and no system shock: the wand, potion, spells and the ring of polymorph all turn aside. |
-|67 | `DualZap`           | An attack wand zaps twice for two charges (`items::plan_use`); utility wands, and a wand down to its last charge, zap once. |
-|68 | `Spiked`            | Spikemail: a blow that draws blood from the wearer pricks the attacker for 1d2 straight off their HP (`abilities::spike_prick`, at `Moment::OnStruck`). |
+|10 | `FireDart`          | The blowgun's half of the same bargain.        |
+|11 | `SustainsArmor`     | Worn armour cannot be corroded.                |
+|12 | `RustsArmor`        | Every blow it lands eats a point of the victim's armour plus (the aquator). |
+|13 | `Sluggish`          | Acts one notch below its own tempo. Folded in by `conditions::tempo`, never written to `Speed`. |
+|14 | `Stealthy`          | Unnoticed until `rings::STEALTH_RANGE` tiles away. |
+|15 | `Regenerates`       | Mends one condition, or a point of drained power, on a roll. Passive. |
+|16 | `Teleportitis`      | Jumps somewhere else on a roll. Passive. Also arms the `T` key. |
+|17 | `Flies`             | Never springs a floor trap. |
+|18 | `Batty`             | After a landed blow, hops to a random open adjacent tile. |
+|19 | `Binds`             | Every hit clamps the victim in a bear trap's jaws. |
+|20 | `Gorgon`            | Petrifies whoever targets, shoots or zaps it. |
+|21 | `Vampiric`          | Every hit drinks a point of the victim's maximum HP. |
+|22 | `Venomous`          | Its bite saps the victim's base power, with no floor. |
+|23 | `ScoreBounty`       | Its corpse pays a multiple of the usual score. |
+|24 | `Splits`            | Cut down short of the last point, it buds a copy of itself. |
+|25 | `GreenBlood`        | Wounds well up green. Cosmetic. |
+|26 | `Freezing`          | A chance on every hit to paralyse the victim. |
+|27 | `StealsAndFlees`    | Lifts something loose from the victim's pack, uses it, and vanishes (the leprechaun). |
+|28 | `StealsAndVanishes` | Strips one equipped item and vanishes with it (the nymph). |
+|29 | `AlwaysTamed`       | Any treat takes, every time (the dog). |
+|30 | `AlwaysHelper`      | Charmed or conjured, it is the Helper, not a plain ally (the dog). |
+|31 | `PriorityHelper`    | A Helper that never explodes to make room, and explodes the ordinary one (the dog). |
+|32 | `ShapeshiftOnKill`  | A melee kill sometimes turns it into another random monster, once (the dog). |
+|33 | `MirrorOnKill`      | A melee kill sometimes turns it into exactly what it killed, once (the mirror hound). |
+|34 | `FaerieOnDeath`     | Dying, it is revealed as a faerie shapeshifter and is gone, with no gore (the dog). |
+|35 | `Swims`             | Deep water is floor. |
+|36 | `Phasing`           | Walks through walls and water; no diagonal rule, no room leash. |
+|37 | `Cleaves`           | A connecting swing also lands on every other enemy next to the wielder. |
+|38 | `HeavySwing`        | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
+|39 | `Fencer`            | Every attack is thrown twice. |
+|40 | `Lunges`            | Closing the last stride of a run lands a lunge instead of a step. |
+|41 | `Lurk`              | The lurk's body. An identity effect: `revoke_all` leaves it. |
+|42 | `WhirlOnMove`       | Stepping between two tiles beside the same enemy lands a free attack. |
+|43 | `VorpalOnCondition` | A hit on a target with a negative condition slays it outright. |
+|44 | `TurboMagic`        | Damaging spells cost `TURBO_MAGIC_COST_MULT` times the Magic and deal `TURBO_MAGIC_POWER_MULT` times the damage. |
+|45 | `SelfDamageOnHit`   | Every connecting hit costs the wielder a point of HP. |
+|46 | `BuildsMomentum`    | Every hit builds `Momentum` on the weapon. |
+|47 | `ShattersStone`     | Lands whole on a `Petrified` target, past `stone_chip`. |
+|48 | `ConfusingTouch`    | Charged by a scroll: the next blow it lands confuses the target, then the charge is spent. |
+|49 | `Bided`             | The spell Bide: the next attack gets `BIDE_ATTACK_BONUS`, then it is spent or lost. |
+|50 | `Asleep`            | Hold: out cold, no action of any kind. |
+|51 | `Petrified`         | Hold, but not in `HOLDS`: stone is the body, so it travels with its owner. |
+|52 | `Pinned`            | Hold: cannot step, can still strike. Straining costs a turn and blood. |
+|53 | `Rooted`            | Hold: cannot step, can still strike. Straining costs only the turn. |
+|54 | `Clamped`           | Hold: a biter's grip. Killing the biter frees the victim. |
+|55 | `Confused`          | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
+|56 | `Blind`             | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
+|57 | `Paralyzed`         | Affliction: slowed, and the player loses a share of their turns. |
+|58 | `MagicWard`         | The spell: magical hits and a blow's riders bounce off, for the floor. |
+|59 | `Detected`          | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
+|60 | `Polymorphed`       | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |
+|61 | `Polymorphitis`     | Turns the bearer into something else on a roll (`POLYMORPHITIS_CHANCE`): the polymorph a wand casts, without the system shock (`polymorph_entity_with(.., false)`), so a bearer already `Polymorphed` settles into a form instead. Passive. |
+|62 | `Chimera`           | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
+|63 | `Typhon`            | The form drawn as `T`. |
+|64 | `Echidna`           | The form drawn as `E`. |
+|65 | `Protected`         | A rune of protection: no damage of any kind for `PROTECTION_TURNS` turns. Checked in `apply_hit` and in melee's `clamp_swing`, the two places HP comes off. |
+|66 | `ExplodesOnDeath`   | A rune of justice: dying, it bursts in one fire blast rolled off its own power die (`combat::burst_on_death`). |
+|67 | `SustainsForm`      | No polymorph takes hold, and no system shock: the wand, potion, spells and the ring of polymorph all turn aside. |
+|68 | `DualZap`           | An attack wand zaps twice for two charges (`items::plan_use`); utility wands, and a wand down to its last charge, zap once. |
+|69 | `Spiked`            | Spikemail: a blow that draws blood from the wearer pricks the attacker for 1d2 straight off their HP (`abilities::spike_prick`, at `Moment::OnStruck`). |
+|70 | `Charges`           | Shift + direction with a creature in view (2 to 6 tiles off) charges it. Nihil is born with it. |
+|71 | `Vuln`              | Monster melee blows land 25% harder. A charge lends it for one monster phase. |
 
 Cap components — ceilings the dice cannot beat. Folded with `min`, not `+`, because the strictest one wins. Not in `EFFECTS`, not bits:
 
@@ -560,6 +564,7 @@ Modifier components — numbers that stack across equipped gear, folded by `equi
     ArmorDie     adds to the defence die size
     ArmorBonus   flat, added once to the armour roll
     ThrowBonus   flat, added once to anything thrown
+    MaxHpBonus   max hp lent while worn, not folded: put on, the plus joins max and current hp; taken off, only the max drops (ring of health)
 
 
 ABILITIES — Ability

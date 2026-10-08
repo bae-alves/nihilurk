@@ -76,6 +76,7 @@ fn running_is_refused_while_a_creature_is_in_view() {
         Position { x: 19, y: 9 },
         Faction::Monster,
     ));
+    revoke(&mut w, player, Grant::of::<Charges>());
     w.get_mut::<Viewshed>(player).unwrap().dirty = true;
     resolve_visibility(&mut w);
 
@@ -252,6 +253,7 @@ fn straight_run_halts_on_a_door_and_at_a_corridor_branch() {
 fn plan_name(p: &FastMovePlan) -> &'static str {
     match p {
         FastMovePlan::MonsterInSight => "MonsterInSight",
+        FastMovePlan::Charge(_) => "Charge",
         FastMovePlan::Blocked => "Blocked",
         FastMovePlan::Straight => "Straight",
         FastMovePlan::Travel(_) => "Travel",

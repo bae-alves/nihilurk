@@ -43,6 +43,11 @@ choice of items; others trade if you carry something they want. The game has
 no currency. Dealing with them too much, or hurting them, upsets the balance
 and turns every spirit hostile. A scroll of atonement makes them peaceful
 again.
+You carry a hidden alignment from \-3 to +3 between two camps of spirit; each
+spirit that leaves the floor moves it one step toward that spirit's camp, and
+the word BALANCE under the status line shows it. Gaining a Helper moves it up
+one, and blowing one up moves it down two. Reach either end and the spirits
+turn.
 .PP
 If you have played other roguelikes, some things you expect are missing or
 different. You cannot rest, search or pass a turn; stairs are the only
@@ -90,7 +95,9 @@ The game uses one save file,
 .IR name .sav ,
 in the directory nihilurk was started from. Quitting saves the current run unless
 .B \-ns
-is used, and starting the game again with the same name continues it. A run
+is used, and starting the game again with the same name continues it. While
+time is stopped nothing is saved: the game saves as time stops and again as it
+starts, and quitting in between asks twice and loses those turns. A run
 that ends in death is deleted. A completed run is retained as clear data:
 beginning another journey on it asks first, because the Element returns to
 the Dungeon Lord, and declining leaves the world its light.
@@ -147,7 +154,7 @@ Which creature descends:
 .BR lurk .
 The lurk is quadruped, fanged, clawed and furred, and draws as a magenta
 .BR @ .
-It has eight hit points to nihil's twelve and two magic to nihil's four, it
+It has seven hit points to nihil's twelve and two magic to nihil's four, it
 carries nothing, and the only thing it can ever put on is a ring \(em its
 claws are its weapon and its fur is its armour. In exchange it is
 .BR quick ,
@@ -373,13 +380,13 @@ Choose a destination and travel to it.
 Look at a tile: read what is there without acting on it.
 .TP
 .B Tab
-Auto-fight the nearest visible threat.
+Auto-fight the nearest visible threat, or throw a boomerang or moon blade in hand at it.
 .TP
 .B f
-Fire a matching arrow or quarrel with the launcher in hand.
+Fire a matching arrow or quarrel with the launcher in hand, or throw a boomerang or moon blade in hand.
 .TP
 .B v
-Make a reach attack with a suitable weapon.
+Make a reach attack with a suitable weapon, or throw a boomerang or moon blade in hand.
 .SS ITEMS AND MENUS
 .TP
 .B i

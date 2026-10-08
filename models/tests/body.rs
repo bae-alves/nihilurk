@@ -351,8 +351,13 @@ fn nihil_feels_nothing_at_the_start() {
 fn a_species_with_gear_chances_starts_wearing_all_of_it() {
     let mut w = test_world(7, Body::Monster(MonsterDef::named("hobgoblin")));
     let p = player(&mut w);
-    assert_eq!(equipment::equipped_items(&w, p).len(), 3);
-    assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
+    let worn = equipment::equipped_items(&w, p);
+    assert_eq!(worn.len(), 3);
+    let pack = &w.get::<Backpack>(p).unwrap().items;
+    assert!(
+        worn.iter().all(|e| pack.contains(e)),
+        "worn gear sits in the pack, where the player can reach it"
+    );
 }
 
 #[test]
@@ -364,8 +369,8 @@ fn a_launcher_species_starts_with_the_bow_on_and_a_full_stack_of_arrows() {
     assert!(w.get::<Launcher>(worn[0]).is_some());
 
     let pack = w.get::<Backpack>(p).unwrap().items.clone();
-    assert_eq!(pack.len(), 1);
-    assert_eq!(w.get::<Stack>(pack[0]).unwrap().count, STACK_LIMIT);
+    assert_eq!(pack, vec![worn[0], pack[1]], "the bow, then its arrows");
+    assert_eq!(w.get::<Stack>(pack[1]).unwrap().count, STACK_LIMIT);
 }
 
 #[test]

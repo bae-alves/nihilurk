@@ -63,6 +63,7 @@ fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Enti
         thrower,
         item: missile,
         target,
+        slot_idx: slot,
     });
     throw_system(w);
     missile
@@ -129,8 +130,6 @@ fn only_an_item_with_thrown_damage_hurts_what_it_hits() {
         20,
         "armour is not a weapon"
     );
-    assert_eq!(pos_of(&w, mail), (spot.x, spot.y));
-    assert!(logged(&w, "bounces off"));
 
     // A dagger does carry one.
     let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
@@ -522,6 +521,22 @@ fn caught_gear_arms_the_monster_that_caught_it() {
 }
 
 #[test]
+fn armor_thrown_at_a_monster_that_cannot_wear_it_binds_it() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let bat = monster(&mut w, "bat", spot);
+    let mail = stash(&mut w, p, |w| spawn_armor(w, "leather armor", NOWHERE));
+
+    throw(&mut w, p, mail, spot);
+
+    assert!(w.get::<Rooted>(bat).is_some(), "the bat is held");
+    assert!(w.get_entity(mail).is_none(), "the armor is spent");
+    assert!(logged(&w, "is somehow bound by the"));
+    assert!(logged(&w, "But they can still attack!"));
+}
+
+#[test]
 fn a_thrown_weapon_hurts_what_it_hits() {
     let mut w = test_world(11);
     let p = player(&mut w);
@@ -786,7 +801,7 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    assert_eq!(w.get::<ThrownDamage>(sword), Some(&ThrownDamage(8)));
+    assert_eq!(w.get::<ThrownDamage>(sword), Some(&ThrownDamage(3)));
 
     let save = common::SaveFile::new("thrown-damage");
     save_game(&mut w, save.path()).unwrap();
@@ -798,7 +813,7 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
         .filter(|e| e.get::<Name>().is_some_and(|n| n.what == "long sword"))
         .filter_map(|e| e.get::<ThrownDamage>().map(|t| t.0))
         .collect();
-    assert_eq!(dice, vec![8]);
+    assert_eq!(dice, vec![3]);
 }
 
 /// A shot that comes down on a trap the player has found sets it off — and a

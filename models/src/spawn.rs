@@ -192,13 +192,12 @@ pub const DROPS: &[DropCategory] = &[
     category!("armor",        80,      1,     ARMORS),
     category!("wand",         50,      1,     WANDS),
     category!("ring",         50,      1,     RINGS),
-    category!("rune",         30,      3,     RUNES),
+    category!("rune",         50,      3,     RUNES),
     category!("weapon",       36,      1,     WEAPONS),
     category!("ammo",         28,      1,     AMMO),
     category!("launcher",     16,      1,     LAUNCHERS),
-    category!("treat",        40,      1,     TREATS),
-    // Rare, but at least one drop in a hundred.
-    category!("deck",         11,      1,     DECKS),
+    category!("treat",        50,      1,     TREATS),
+    category!("deck",         50,      1,     DECKS),
 ];
 
 /// Rolls one floor drop for a floor at `depth` and spawns it at `pos`: a

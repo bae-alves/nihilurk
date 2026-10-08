@@ -25,7 +25,7 @@ The modules
 
 | `constants::` | Holds | Read when you want to change |
 |---------------|-------|-----------------------------|
-| `combat`      | Excellent-hit odds and dice, the chip-damage floor, the odds a corpse keeps each piece of gear | how swingy a fight is |
+| `combat`      | Excellent-hit odds and dice, the chip-damage floor, the odds a corpse keeps each piece of gear, a shattered cursed suit's splinters | how swingy a fight is |
 | `player`      | Starting HP / armour / power / magic, sight radius | the hero's opening position (new games only) |
 | `lurk`        | Starting HP / magic (`-b lurk`), `GROWTH_CHANCE` and `GROWTH_STEP` for feeding off a kill | how the lurk starts and how fast it grows |
 | `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor, `DIFFICULTY_TIER_LAST_DEPTH` (the depth bands the crowding budgets step at) | how long a run is and how hard attrition bites |
@@ -33,17 +33,17 @@ The modules
 | `population`  | Monster / trap / item budgets per floor, the placement retry budget (`PLACEMENT_TRIES`), how they scale with the difficulty tier, how many runs of the budgets a battlefield, vault or bee world gets, corridor lurkers, hidden items | how crowded and dangerous a floor is |
 | `potions`     | What a dose is worth: the max-HP a healing / extra healing potion adds, the power gain strength adds and poison takes (with its floor), the share of turns paralysis eats | how much a potion swings a run |
 | `scrolls`     | What one enchantment is worth (and that a minus is mended whole), how long sleep and hold last, how often sleep backfires on the reader | how strong the room-clearing scrolls are |
-| `decks`       | `DECK_SIZE`, `REVERSED_MIN` / `REVERSED_MAX`, `CARD_CHAIN_CAP`, `BALA_POWER`, `BOLE_ARMOR`, `WORLD_TURNS`, `CARD_CASTER_CASTS`, `GOLDEN_WIND_SUMMONS`, the score of each hand | how wild a deck of cards runs |
+| `decks`       | `DECK_SIZE`, `REVERSED_MIN` / `REVERSED_MAX`, `CARD_CHAIN_CAP`, `BALA_POWER`, `BOLE_ARMOR`, `WORLD_TURNS`, `CARD_CASTER_CASTS`, `GOLDEN_WIND_SUMMONS`, `CARD_POINTS` (what each card in a thrown hand pays) | how wild a deck of cards runs |
 | `runes`       | `PROTECTION_TURNS`, `RECHARGE_STEP`, `RECHARGE_CAP` | how long a rune of protection holds and how much one of recharging gives |
 | `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash, the trick-shot burst (`TRICK_SHOT_RADIUS`, `PICKUP_TRICK_SHOT_RADIUS` and the shared dice), `TRAP_BREAK_CHANCE` | how much a trap hurts and how fast it scales |
 | `wands`       | `WAND_CHARGES`, zap damage dice, both blast radii, per-charge dice a thrown wand spends, `DIG_RANGE` (how deep a wand of digging bores) | how good a wand is |
-| `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the launcher die multiplier | how the drop table feels |
+| `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the improvised-throw die | how the drop table feels |
 | `items`       | `THROW_RANGE`, `LIGHT_THROW_RANGE`, `LAUNCHER_RANGE`, `STACK_LIMIT`, `PACK_CAPACITY` | reach and pack density |
 | `rings`       | `STEALTH_RANGE` (how close a stealthy player is noticed at), `TELEPORT_MAGIC_COST`, and the numeric rings' quality: `PLAIN_BONUS`, `EXCEPTIONAL_BONUS`, `CURSED_BONUS_MIN`, `CURSED_BONUS_MAX` | the two rings with a number that isn't on their row, and what a numeric ring rolls |
 | `score`       | `KILL_PER_MAX_HP`, `COMBO_BONUS_PER_KILL`, `COMBO_PRIDE_CHANCE`, `STAIR_PER_TIER`, `SCORE_FLASH_TURNS` | what the run is scored on, and how loudly |
 | `monsters`    | `DEFAULT_SPAWN_WEIGHT` | the baseline rarity a bestiary row gets |
 | `spirits`     | `ALIGNMENT_POLE` (how far alignment drifts before spirits turn hostile for good), `SPAWN_WEIGHT`, `PINK_DEMON_ODDS_PER_PIECE` (each piece of gear the pink demon destroys adds this to the odds they join you), the red demon's `RED_DEMON_GEAR_PRICE` (Max HP) and the gnome's `GNOME_SCROLL_PRICE` / `GNOME_POTION_PRICE` / `GNOME_WAND_PRICE` (Max Ma), the barterer's `BARTER_STOCK_MIN` / `BARTER_STOCK_MAX`, the `ALIGNMENT_STEP` a poof moves alignment by, the `HELPER_GAINED_ALIGNMENT` / `HELPER_BLOWN_UP_ALIGNMENT` a Helper gained or blown up moves it by, and the angel's test of faith (`TEST_OF_FAITH_HP_DIVISOR`, `TEST_OF_FAITH_GEAR_BONUS`, `TEST_OF_FAITH_DUD_BONUS`) | how common spirits are and how fast they turn on you |
-| `helpers`     | `ACCEPT_CHANCE`, `SHAPESHIFT_CHANCE` | how often a thrown treat wins a Helper, how often a dog's kill changes its shape |
+| `helpers`     | `ACCEPT_CHANCE`, `SHAPESHIFT_CHANCE` | how often a thrown treat wins a Helper, how often a dog's or mirror hound's kill changes its shape, once |
 | `spells`      | `SPELLSET_CAP`, the dice behind the spells that roll their own (Thunderbolt, Force Lance, Circle of Death, Frost Nova), the stand-in batteries (`LUX_CHARGES`, `METEOR_STRIKE_CHARGES`), and a staff's `TURBO_MAGIC_COST_MULT` / `TURBO_MAGIC_POWER_MULT` | how much a spell costs and how hard it lands |
 | `travel`      | Step caps on autoexplore / fast-move, the HP divisor below which auto-fight refuses | only if a walk loops, or auto-fight is too brave or too timid |
 | `hud`         | Message-log rows shown at once, the two wrap widths (normal and `--MORE--`), and how much scrollback `LOG_HISTORY_CAP` keeps | the log's footprint on screen |
@@ -52,6 +52,7 @@ The modules
 | `speed`       | `SLOW_RATE`, `NORMAL_RATE`, `QUICK_RATE`, `FAST_RATE` and the `ACTION_COST` they are read against | how often each tempo acts |
 | `layout`      | The grid ordinary floors are laid out on: `SECTIONS`, `GUTTER`, `PADDING`, the smallest room, `EMPTY_SECTION_CHOICES` | the shape of a floor (moves every layout on every seed) |
 | `special_levels` | The carving dials of the labyrinth, vault, bee world, castle and island | the shape of one special level (moves its layout on every seed) |
+| `ice`         | A kicked ice cube's cold dice and flight range, and how much bone and vapor it shatters into | how hard the cube hits, how showy it ends |
 | `shake`       | How long each kind of screen shake lasts and how far it throws the map | how hard a blow feels |
 
 

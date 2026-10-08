@@ -33,7 +33,7 @@ Components — identity, position, appearance
 | `Player`     | marker                                  | the hero      | yes    |
 | `Position`   | `x, y: u16`                             | anything on the floor; removed while in a `Backpack` | yes |
 | `Renderable` | `glyph: char`, `color: Color`           | anything drawn | yes (colour packs to one byte against a 16-entry palette) |
-| `Faction`    | enum `Player` / `Monster` / `Ally` / `Spirits` | every actor   | yes    |
+| `Faction`    | enum `Player` / `Monster` / `Ally` / `Spirits` / `Inert` | every actor   | yes    |
 
 `Name::article()` returns `"a"` / `"an"` for the name.
 
@@ -78,6 +78,8 @@ Components — creatures and combat
 | `Fighter` | `hp, max_hp, armor, power, max_power, armor_bonus, power_bonus: i32` | every actor | yes |
 | `Blood`   | marker | creatures that bleed | **transient** — re-attached to the player and every mob on load |
 | `Magic`   | `points, max_points: u8` | the hero | yes |
+| `IceCube` | marker — a frozen corpse (`ice.rs`): a `Mob` with no `Fighter`, `Faction::Inert`, glyph `#` in cyan, so it blocks like a creature and nothing can hurt it; the player walking into it calls `kick_ice_cube`; a missile or blast that stops on it sets off `detonate_ice_cube`, a standard trick shot of `Element::Cold`; so does any blast over it, and a fire blast (`scorch_ice_cube`) doubles the radius and damage; a player killed by one is recorded as "Killed by an ice cube" | one per cold kill | yes (`ice_cube` field) |
+| `ColdSlain` | marker — set by `apply_hit` when a `Cold` hit leaves a creature at 0 HP; `finish_indirect_kill` then freezes it into an `IceCube` instead of a corpse (not a `Helper`) | transient | no |
 | `Helper`  | marker — the player's boon companion, a `Faction::Ally` that follows them between floors | at most one ordinary one, plus any number with `PriorityHelper` | yes (its own field, not an effect row) |
 
 | `Mimic`   | marker — a xeroc still in disguise: it reads as an item and every "monster nearby" check skips it. `reveal_mimics` strips it when the player stands adjacent | xerocs | no |
@@ -227,12 +229,12 @@ A missile and a launcher never name each other; they meet at an effect (`FireArr
 |----------------|--------------------------|----------------------------------|--------|
 | `ThrownDamage` | `i32`                    | die rolled on impact; no component ⇒ bounces off harmlessly | catalog |
 | `LaunchedDamage` | `i32`                  | die rolled instead, once `LaunchedBy` fires | catalog |
-| `Projectile`   | marker                   | ignores armour die, spent on what it hits, never caught | catalog |
+| `Projectile`   | marker                   | spent on what it hits, never caught | catalog |
 | `Piercing`     | marker                   | runs the whole aimed line, hitting everyone in it | catalog |
-| `Returns`      | marker                   | thrown, flies home after the strike: into the pack, and back in hand if it was wielded | catalog |
+| `Returns`      | marker                   | thrown, flies home after the strike: into the pack row it left (`WantsToThrow.slot_idx`), and back in hand if it was wielded; `f`, `v` and `Tab` throw a wielded one | catalog |
 | `ChainHits`    | `u8`                     | thrown by the player, strikes this many creatures in all, each for full damage: the first in its way, then the nearest other living enemy each time (the thrower's sight for the player, the blade's own for a monster), before flying home | catalog |
 | `LaunchedBy`   | `Grant`                  | the effect a launcher must grant to switch this missile to its `LaunchedDamage` die | catalog |
-| `Launcher`     | marker                   | a bow / crossbow — no attack die, enchant lands on `ThrowBonus` | catalog |
+| `Launcher`     | marker                   | a bow / crossbow / blowgun — no attack die, enchant lands on `ThrowBonus` | catalog |
 
 "catalog" = re-attached by row id on load (`restore_from_catalog`), never written to the save.
 
@@ -338,10 +340,11 @@ An input handler or the AI pushes an intent onto a queue resource; the matching 
 |-------------------------------------|------------------------------------------|-----------------------|
 | `WantsToAttack` → `AttackQueue`     | `attacker`, `target`                     | `combat_system`       |
 | `WantsToUse` → `UseQueue`           | `user`, `item`, `target: Option<Position>`, `slot_idx: Option<usize>` | `item_system` |
-| `WantsToThrow` → `ThrowQueue`       | `thrower`, `item`, `target: Position`    | `throw_system`        |
+| `WantsToThrow` → `ThrowQueue`       | `thrower`, `item`, `target: Position`, `slot_idx: Option<usize>` | `throw_system` |
 | `WantsToCast` → `SpellQueue`         | `user`, `effect: SpellEffect`, `target: Position` | `spell_system`   |
+| `PlayerAction` → `PlayerActionQueue` | `Step(StepPlan)` (a step, blow, lunge, kick or struggle), `Stairs`, `Drop`, `WilledTeleport`, `Charge`, `Reach`, each decided at the key | `player_action_system` |
 
-All four queues are transient (empty at save time).
+All five queues are transient (empty at save time).
 
 
 Resources
@@ -354,7 +357,7 @@ Resources
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
 | `HelpMenu`      | `open: bool`                                              | the F1 key list. Any key closes it and does nothing else. |
 | `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar; the log and player line move left into its columns. |
-| `QuitPrompt`    | `open: bool`                                              | the "Really quit?" modal, raised by `Q` / `X` **with nothing else open** and answered `y` / `n`. Ctrl+C bypasses it; `Esc` never raises it. |
+| `QuitPrompt`    | `open: bool`, `warned: bool`                              | the "Really quit?" modal, raised by `Q` / `X` **with nothing else open** and answered `y` (or `strings::quit_yes_key`) / `n`. With `models::time_stopped`, the first yes sets `warned` (red "did not save" rows, "REALLY sure?") and a second yes quits. Ctrl+C bypasses it; `Esc` never raises it. |
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
 | `PackMode`      | enum: `Browse` `Use` `Throw` `Drop` `Equip` `Quaff` `Read` `Zap` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
 | `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |

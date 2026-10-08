@@ -76,7 +76,7 @@ pub struct MonsterDef {
     pub armor_bonus: i32,
     /// The shallowest floor this species appears on. A floor rolls from every
     /// row it has unlocked so far, so shallow letters keep turning up as fodder
-    /// while deeper ones mix in. The bat is a baseline from the first floor; the
+    /// while deeper ones mix in. The kestral is a baseline from the first floor; the
     /// mid tier holds off and the dragon waits much deeper.
     pub min_depth: u8,
     /// How often this species turns up relative to the rest of the eligible
@@ -1019,8 +1019,8 @@ fn random_row<D: crate::catalog::ItemDef>(
 }
 
 /// What a played species starts the run with: every [`EquipRoll`] on its row
-/// hits, whatever its chance. The gear goes on if the body may wear it
-/// ([`crate::body::equip_refusal`]) and into the pack if not; a launcher
+/// hits, whatever its chance. All of it goes into the pack, and on as well if
+/// the body may wear it ([`crate::body::equip_refusal`]); a launcher
 /// brings a full [`STACK_LIMIT`] of its ammunition. Only the start of a run
 /// does this — a polymorph hands out nothing.
 fn give_starting_gear(world: &mut World, player: Entity, def: &MonsterDef, rng: &mut ChaCha12Rng) {
@@ -1029,12 +1029,13 @@ fn give_starting_gear(world: &mut World, player: Entity, def: &MonsterDef, rng: 
     };
     for roll in def.equip_rolls {
         let (gear, ammo) = roll_gear(world, roll.kind, pos, rng);
+        world.entity_mut(gear).insert(KnownQuality);
+        crate::items::stow(world, player, gear);
         let may_wear = world
             .get::<crate::equipment::Equipped>(gear)
             .is_some_and(|e| crate::body::equip_refusal(world, player, e.slot, "").is_none());
-        if !(may_wear && equip_silently(world, player, gear)) {
-            world.entity_mut(gear).insert(KnownQuality);
-            crate::items::stow(world, player, gear);
+        if may_wear {
+            equip_silently(world, player, gear);
         }
         if let Some(ammo) = ammo {
             if let Some(mut stack) = world.get_mut::<Stack>(ammo) {
@@ -1309,8 +1310,9 @@ pub(crate) fn species_of(world: &World, who: Entity) -> Option<&'static MonsterD
 }
 
 /// What `killer` just did, if it can shapeshift: a [`SHAPESHIFT_CHANCE`] roll
-/// on [`ShapeshiftOnKill`] or [`MirrorOnKill`] (the latter copies `victim`).
-/// Either way the ability is spent. Called by the melee kill funnel in `crate::combat`.
+/// on [`ShapeshiftOnKill`] or [`MirrorOnKill`] (the latter copies `victim`,
+/// and does nothing when `victim` is no species or its own). A change of shape
+/// spends the ability. Called by the melee kill funnel in `crate::combat`.
 pub(crate) fn maybe_shapeshift(
     world: &mut World,
     killer: Entity,
@@ -1327,12 +1329,12 @@ pub(crate) fn maybe_shapeshift(
     if !lucky {
         return;
     }
-    match victim.filter(|_| mirrors) {
-        Some(def) if def.display_name() != crate::helpers::item_label(world, killer) => {
+    match (mirrors, victim) {
+        (true, Some(def)) if def.display_name() != crate::helpers::item_label(world, killer) => {
             mirror(world, killer, def);
         }
-        Some(_) => {}
-        None => {
+        (true, _) => {}
+        (false, _) => {
             shapeshift(world, killer);
         }
     }

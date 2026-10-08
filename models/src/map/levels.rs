@@ -100,52 +100,23 @@ pub fn holding_element_of_yoord(world: &mut World) -> bool {
 /// turn passes); otherwise a log line is added and `false` returned so no turn
 /// is consumed.
 pub fn change_level(world: &mut World, going_down: bool) -> bool {
+    if let Some(refusal) = level_change_refusal(world, going_down) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
     let player_entity = world
         .query_filtered::<Entity, With<Player>>()
         .iter(world)
         .next()
         .unwrap();
-    let player_pos = *world.get::<Position>(player_entity).unwrap();
-    let tile = world.resource::<Map>().tile(player_pos.x, player_pos.y);
-    let has_element = holding_element_of_yoord(world);
 
     if going_down {
-        if has_element {
-            world
-                .resource_mut::<GameLog>()
-                .add(if tile == TileType::Downstairs {
-                    strings::element_seeks_the_sun()
-                } else {
-                    strings::cannot_go_down()
-                });
-            return false;
-        }
-        if tile != TileType::Downstairs {
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::cannot_go_down());
-            return false;
-        }
         crate::spirits::apply_test_of_faith(world, player_entity);
         award_stair_score(world);
         transition_level(world, true, LevelChange::Stairs);
         return true;
     }
 
-    if !has_element {
-        world
-            .resource_mut::<GameLog>()
-            .add(if tile == TileType::Upstairs {
-                strings::dungeon_lord_prevents_up()
-            } else {
-                strings::cannot_go_up()
-            });
-        return false;
-    }
-    if tile != TileType::Upstairs {
-        world.resource_mut::<GameLog>().add(strings::cannot_go_up());
-        return false;
-    }
     if world.resource::<Depth>().what <= 1 {
         award_stair_score(world);
         world
@@ -158,6 +129,38 @@ pub fn change_level(world: &mut World, going_down: bool) -> bool {
     award_stair_score(world);
     transition_level(world, false, LevelChange::Stairs);
     true
+}
+
+/// Why the player cannot take the stairs they are standing on, in the words the
+/// log uses, or `None` when they can. Reads the world and changes nothing.
+pub fn level_change_refusal(world: &mut World, going_down: bool) -> Option<&'static str> {
+    let player_entity = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()?;
+    let player_pos = *world.get::<Position>(player_entity)?;
+    let tile = world.resource::<Map>().tile(player_pos.x, player_pos.y);
+    let has_element = holding_element_of_yoord(world);
+
+    if going_down {
+        if has_element {
+            return Some(if tile == TileType::Downstairs {
+                strings::element_seeks_the_sun()
+            } else {
+                strings::cannot_go_down()
+            });
+        }
+        return (tile != TileType::Downstairs).then(strings::cannot_go_down);
+    }
+
+    if !has_element {
+        return Some(if tile == TileType::Upstairs {
+            strings::dungeon_lord_prevents_up()
+        } else {
+            strings::cannot_go_up()
+        });
+    }
+    (tile != TileType::Upstairs).then(strings::cannot_go_up)
 }
 
 /// Pays for a flight of stairs: [`crate::constants::score::STAIR_PER_TIER`] per

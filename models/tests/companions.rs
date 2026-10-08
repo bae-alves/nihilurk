@@ -85,6 +85,7 @@ fn throw_treat(w: &mut World, name: &str, target: Position) -> Entity {
         thrower: p,
         item: missile,
         target,
+        slot_idx: None,
     });
     throw_system(w);
     missile
@@ -796,6 +797,24 @@ fn a_kill_mirrors_at_the_shapeshift_chance() {
         (copied as f64) > expected * 0.4 && (copied as f64) < expected * 1.8,
         "{copied} copies in {n} kills, about {expected} expected"
     );
+}
+
+#[test]
+fn a_mirror_hound_that_kills_what_the_bestiary_lacks_stays_a_hound() {
+    let mut w = test_world(42);
+    for _ in 0..40 {
+        let hound_at = east_of_player(&mut w, 1);
+        let hound = spawn_monster(&mut w, MonsterDef::named("mirror hound"), hound_at);
+        recruit(&mut w, hound);
+        let at = east_of_player(&mut w, 2);
+        let victim = monster::plain_monster(&mut w, "dummy", at);
+        kill(&mut w, hound, victim);
+        assert!(
+            w.get_entity(hound).is_some(),
+            "nothing to copy, so no change"
+        );
+        w.despawn(hound);
+    }
 }
 
 #[test]

@@ -35,8 +35,8 @@ const RAW_READS: &[(&str, usize, &str)] = &[
     ),
     (
         "items/throwing.rs",
-        2,
-        "the name of a thing being thrown: an item",
+        4,
+        "the name of a thing being thrown: an item; `put_back` matching a thawed arrow to its quiver",
     ),
     ("identify.rs", 2, "an item's display name"),
     (

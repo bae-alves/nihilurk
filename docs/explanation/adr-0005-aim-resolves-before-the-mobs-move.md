@@ -29,7 +29,7 @@ Decision
 
   1. A shot that comes down on a trap sets the trap off through `detonate_at`, inside the throw's own resolution, so it never waits for the trap step.
   2. The two orderings are pinned by `a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left` and `a_throw_lands_where_the_floor_was_when_the_player_let_go` in `update.rs`.
-  3. The schedule is built by `turn_schedule()` rather than inline in `main`, so those tests can run it.
+  3. The schedule is built by `turn_schedule()` in `models/src/schedule.rs` rather than inline in `main`, so those tests can run it.
 
 
 Consequences

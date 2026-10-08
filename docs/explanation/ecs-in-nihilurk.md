@@ -6,12 +6,12 @@ The ECS in nihilurk
     Prerequisites  You know what bevy_ecs is for. You do not need to
                    have used it.
     This is        Understanding: what nihilurk asks of components,
-                   resources and systems, and why fifteen of its
-                   sixteen schedule steps take `&mut World` instead of
+                   resources and systems, and why sixteen of its
+                   seventeen schedule steps take `&mut World` instead of
                    a `Query`. The recipes are
                    `../how-to/work-with-the-ecs.md`.
 
-nihilurk uses `bevy_ecs` as a **world**, not as a framework. There is no `App`, no plugin, no `SystemSet`, no change detection, no events in the bevy sense. There is one `World`, one `Schedule` of sixteen steps run once per player turn, and a main loop that owns the terminal.
+nihilurk uses `bevy_ecs` as a **world**, not as a framework. There is no `App`, no plugin, no `SystemSet`, no change detection, no events in the bevy sense. There is one `World`, one `Schedule` of seventeen steps run once per player turn, and a main loop that owns the terminal.
 
 That is a smaller slice of bevy than most projects take, and the parts left on the shelf were left there on purpose.
 
@@ -32,7 +32,7 @@ The counterpart is that behaviour lives in tables of *data about behaviour* rath
 
 ### Resources are the run's global objects
 
-Everything singular about a run: the `Map`, the `GameRng`, the `Depth`, the `GameLog`, the four intent queues, the UI's modal flags. If there is exactly one of a thing and it is not attached to an entity, it is a resource.
+Everything singular about a run: the `Map`, the `GameRng`, the `Depth`, the `GameLog`, the five intent queues, the UI's modal flags. If there is exactly one of a thing and it is not attached to an entity, it is a resource.
 
 Two habits keep them from becoming a junk drawer:
 
@@ -41,7 +41,7 @@ Two habits keep them from becoming a junk drawer:
 
 ### Systems own behaviour in one domain
 
-The schedule is fifteen steps, and each has one job. This diagram is a summary, not the list — two steps (`reveal_mimics`, `spell_system`) are left out because they add nothing to the point this diagram is making about tail position; the full fifteen, in order, are `../reference/input-and-turn-loop.md`:
+The schedule is seventeen steps, and each has one job. This diagram draws all seventeen with their real `.after()` edges; what each step does is `../reference/input-and-turn-loop.md`:
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{
@@ -50,11 +50,13 @@ The schedule is fifteen steps, and each has one job. This diagram is a summary, 
   'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
   'fontSize':'13px'}}}%%
 flowchart LR
-  SM["smoke"]:::magic --> SN["snare"]:::peril --> AI["ai"]:::peril
-  AI --> TR["trap"]:::peril --> TH["throw"]:::magic --> IT["item"]:::magic
-  IT --> EQ["equipment<br/>effects"]:::magic --> CO["combat"]:::peril
-  CO --> RE["reaper"]:::peril --> DL["dungeon<br/>lord"]:::peril
-  DL --> PA["passive<br/>abilities"]:::magic --> VI["visibility"]:::cold
+  PA0["player<br/>action"]:::hero --> SM["smoke"]:::magic --> TE["tick<br/>effects"]:::peril --> RM["reveal<br/>mimics"]:::peril
+  RM --> SP["spell"]:::magic --> AI["ai"]:::peril
+  RM --> IT["item"]:::magic --> TH["throw"]:::magic --> AI
+  AI --> TR["trap"]:::peril --> EQ["equipment<br/>effects"]:::magic
+  IT --> EQ
+  EQ --> CO["combat"]:::peril --> RE["reaper"]:::peril --> DL["dungeon<br/>lord"]:::peril
+  DL --> PA["ability"]:::magic --> SK["sink"]:::peril --> VI["visibility"]:::cold
   VI --> SC["score"]:::hero
   classDef hero fill:#3a3418,stroke:#d7ba4a,color:#e8dfa8
   classDef peril fill:#3a1f1f,stroke:#c05050,color:#f0c8c8
@@ -72,7 +74,7 @@ Behaviour that does *not* belong to a schedule step belongs to a module verb cal
 Why almost everything is an exclusive system
 --------------------------------------------
 
-Fifteen of the sixteen take `&mut World`. Exactly one — `visibility_system` — is written the bevy way, with `Query`, `Res` and `Commands`.
+Sixteen of the seventeen take `&mut World`. Exactly one — `visibility_system` — is written the bevy way, with `Query`, `Res` and `Commands`.
 
 That split is not laziness, and it is not a migration half-finished. It falls out of what roguelike mechanics actually do.
 

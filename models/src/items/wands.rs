@@ -134,6 +134,9 @@ fn fire_bolt(
         }
     }
 
+    let line: HashSet<(u16, u16)> = bolt.cells.iter().copied().collect();
+    crate::traps::chain_react(world, &line, Some(user), false);
+
     if world.get::<Player>(user).is_some() && bolt.bit_something_seen {
         kick_shake(world, ShakeKind::Hit);
     }
@@ -261,6 +264,7 @@ pub(crate) fn elemental_blast(
             affected_entities.push(entity);
         }
     }
+    let cubes = things_in::<crate::ice::IceCube>(world, &cell_set);
     for &entity in &affected_entities {
         damage_with_element(world, entity, damage, element);
     }
@@ -288,15 +292,8 @@ pub(crate) fn elemental_blast(
         }
     }
 
-    for trap in things_in::<Trap>(world, &cell_set) {
-        crate::traps::detonate_trap(world, trap, shooter);
-    }
-    for coin in things_in::<Pickup>(world, &cell_set) {
-        crate::traps::detonate_pickup(world, coin, shooter);
-    }
-    for potion in things_in::<Potion>(world, &cell_set) {
-        super::potions::detonate_potion(world, potion, shooter);
-    }
+    let fire = element == Some(Element::Fire);
+    crate::traps::chain_react_with(world, &cell_set, shooter, fire, cubes);
 
     affected_entities
 }

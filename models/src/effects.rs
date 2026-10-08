@@ -204,9 +204,17 @@ pub struct Crit;
 #[derive(Component, Default, Clone, Copy)]
 pub struct Oof;
 
+/// A charge's price: every melee blow this creature takes lands
+/// [`VULN_DAMAGE_PERCENT`](crate::constants::combat::VULN_DAMAGE_PERCENT) harder,
+/// until the creatures have had their turn. Shown in the HUD as `VULN`.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Vuln;
+
 /// XXII THE WORLD (a deck card): while the player holds this, nothing else on
 /// the floor moves (`crate::ai::ai` stands down) and whatever the player throws
-/// hangs in the air until it ends. Shown in the HUD as `WRLD`.
+/// hangs in the air until it ends, save a returning weapon
+/// ([`crate::components::Returns`]), which flies as ever. Shown in the HUD as
+/// `WRLD`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct TimeStopped;
 
@@ -300,6 +308,10 @@ pub struct FireArrow;
 /// The crossbow's half of the same bargain, for quarrels.
 #[derive(Component, Default, Clone, Copy)]
 pub struct FireQuarrel;
+
+/// The blowgun's half of the same bargain, for blowdarts.
+#[derive(Component, Default, Clone, Copy)]
+pub struct FireDart;
 
 /// Airborne: this creature never sets off a floor trap it steps on (a dragon,
 /// a griffin, a jabberwock, a kestral). See [`crate::traps::trap_system`].
@@ -469,6 +481,12 @@ pub struct Lurk;
 /// entry could grant one without the other.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Lunges;
+
+/// CHARGE!: Shift + a direction with a creature in view closes the gap and
+/// strikes at the price of being [`Vuln`] for the creatures' turn — see
+/// `crate::fastmove::charge`. Nihil is born with it.
+#[derive(Component, Default, Clone, Copy)]
+pub struct Charges;
 
 /// The chain-sickle's whirl: stepping between two tiles both adjacent to the
 /// same enemy lands a free attack on it, no swing spent. See
@@ -966,6 +984,7 @@ effects! {
     "item_user" => ItemUser, feel strings::feel_item_user();
     "fire_arrow" => FireArrow;
     "fire_quarrel" => FireQuarrel;
+    "fire_dart" => FireDart;
     "sustains_armor" => SustainsArmor;
     "rusts_armor" => RustsArmor, beware strings::beware_corrosive_touch(), feel strings::feel_rusts_armor();
     "sluggish" => Sluggish;
@@ -996,6 +1015,7 @@ effects! {
     "heavy_swing" => HeavySwing;
     "fencer" => Fencer;
     "lunges" => Lunges;
+    "charges" => Charges;
     "lurk" => Lurk;
     "whirl_on_move" => WhirlOnMove;
     "vorpal_on_condition" => VorpalOnCondition;
@@ -1032,6 +1052,7 @@ effects! {
     "bole" => Bole;
     "crit" => Crit;
     "oof" => Oof;
+    "vuln" => Vuln;
     "time_stopped" => TimeStopped, ends strings::ends_time_stopped();
     // The runes' two.
     "protected" => Protected, ends strings::ends_protected();
@@ -1435,6 +1456,10 @@ pub fn equipped_total<C: Modifier>(world: &World, entity: Entity) -> i32 {
 ///
 /// Runs at the very top of the turn, in the slot `snare_system` held, so a
 /// creature's last turn of being held is spent held.
+///
+/// Assumes nothing: `smoke_system`, the only step before it, ages puffs and
+/// touches no effect. It returns early once `Ending::player_dead` is set, so a
+/// finished run stops ageing its ledgers.
 pub fn tick_effects(world: &mut World) {
     if world
         .get_resource::<crate::state::Ending>()

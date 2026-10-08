@@ -117,6 +117,9 @@ pub enum Faction {
     Ally,
     /// Peaceful toward everyone until [`SpiritsHostile`] is set.
     Spirits,
+    /// Part of the scenery that happens to block a tile, like an
+    /// [`IceCube`](crate::ice::IceCube): hostile to no one.
+    Inert,
 }
 
 /// The hidden pull between the demons (cacodaemons) and the angels/sphynx/
@@ -405,8 +408,8 @@ pub struct Aggravated {
 
 /// Everything needed to resolve a fight. Combat is a pair of opposed rolls with
 /// no to-hit step: `damage = (1d[power] + power_bonus) - (1d[armor] +
-/// armor_bonus)`, each side rolled independently, nothing ever missing. See
-/// `crate::combat`.
+/// armor_bonus)`, each side rolled independently, nothing ever missing. Each
+/// `1d` is two dice of that size averaged. See `crate::combat`.
 #[derive(Component)]
 pub struct Fighter {
     /// Current hit points. Zero or below is dead.
@@ -1325,15 +1328,12 @@ impl Element {
 /// they land carry it — a dagger does, a wand does not, and an item without one
 /// simply bounces off and falls at the target's feet.
 ///
-/// An improvised missile — a mace, a suit of plate mail — is still measured
-/// against the target's armour plus. A purpose-built one ([`Projectile`]) is not.
+/// No throw is measured against the target's armour.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ThrownDamage(pub i32);
 
-/// Made to be thrown: an arrow, a quarrel, a dagger, a spear. Three things
-/// follow from it, and they are the same three for all four — the roll goes
-/// straight around the target's armour (a point already in flight does not care
-/// what you are wearing), the missile is spent on the creature it strikes rather
+/// Made to be thrown: an arrow, a quarrel, a dagger, a spear. Two things
+/// follow from it, the same two for all four — the missile is spent on the creature it strikes rather
 /// than clattering to the floor, and nothing ever catches one out of the air.
 ///
 /// A projectile that finds no target is not spent: it lands where it fell and
@@ -1367,7 +1367,8 @@ pub struct ChainHits(pub u8);
 
 /// The effect that turns a lobbed missile into a loosed one. An arrow answers
 /// to [`crate::effects::FireArrow`], a quarrel to
-/// [`crate::effects::FireQuarrel`]; the bow and crossbow are simply things that
+/// [`crate::effects::FireQuarrel`], a blowdart to [`crate::effects::FireDart`];
+/// the bow, crossbow and blowgun are simply things that
 /// grant those. Neither missile knows a launcher exists, and no launcher knows
 /// what ammunition is — they meet at the effect, like everything else here.
 /// What the missile rolls once loosed is [`LaunchedDamage`], not this.
@@ -1375,12 +1376,17 @@ pub struct ChainHits(pub u8);
 pub struct LaunchedBy(pub crate::effects::Grant);
 
 /// What this item rolls once [`LaunchedBy`] says it has been loosed rather
-/// than lobbed, in place of doubling [`ThrownDamage`]. A quarrel still gets
-/// the full double (a crossbow's whole point); an arrow gets less than that —
-/// a deliberate nerf on the bow, the most efficient weapon in the game by a
-/// wide margin — so the two dials live apart instead of one shared multiplier.
+/// than lobbed, in place of [`ThrownDamage`]. Ammunition lobbed by hand is a
+/// poor thing ([`IMPROVISED_THROW_DIE`](crate::constants::loot::IMPROVISED_THROW_DIE));
+/// this is what the launcher earns, one dial per row.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LaunchedDamage(pub i32);
+
+/// Whatever this missile wounds is poisoned: it saps the victim's power the
+/// way a rattlesnake's bite does ([`crate::abilities::venomous_bite`]), on
+/// every hit that draws blood. The blowdart carries it.
+#[derive(Component, Clone, Copy)]
+pub struct Envenomed;
 
 /// A bow or a crossbow: gear that is worth nothing swung and everything drawn.
 /// It contributes no attack die, so its enchantment has no melee roll to land
@@ -1566,6 +1572,10 @@ pub struct WantsToThrow {
     pub item: Entity,
     /// The tile it is thrown at.
     pub target: Position,
+    /// The pack row the item came from, where a [`Returns`] item lands again,
+    /// and so does a throw time stopped that a save or a floor change thaws.
+    /// `None` when it did not come from one.
+    pub slot_idx: Option<usize>,
 }
 
 /// The turn's pending attacks. Filled by input / AI, drained by
@@ -1592,6 +1602,47 @@ pub struct ThrowQueue {
     /// Taken whole when the throw system runs; a throw pushed meanwhile waits
     /// for the next run.
     pub throws: Vec<WantsToThrow>,
+}
+
+/// One thing the player chose to do with the turn, decided when the key was
+/// pressed and applied by [`player_action_system`](crate::player::player_action_system),
+/// the schedule's first step.
+pub enum PlayerAction {
+    /// A step, a blow, a lunge or a struggle: see [`StepPlan`](crate::player::StepPlan).
+    Step(crate::player::StepPlan),
+    /// Take the stairs under the player.
+    Stairs {
+        /// Down when true, up when false.
+        going_down: bool,
+    },
+    /// Put a carried item on the floor.
+    Drop {
+        /// The item let go.
+        item: Entity,
+    },
+    /// The ring of teleportation's jump, on command.
+    WilledTeleport,
+    /// Run at `target` and strike it.
+    Charge {
+        /// The creature charged.
+        target: Entity,
+    },
+    /// A reach weapon's strike at a tile.
+    Reach {
+        /// The weapon swung.
+        weapon: Entity,
+        /// The tile aimed at.
+        at: Position,
+    },
+}
+
+/// The turn's pending player action. Drained by
+/// [`player_action_system`](crate::player::player_action_system).
+#[derive(Resource, Default)]
+pub struct PlayerActionQueue {
+    /// Taken whole when the system runs; an action pushed meanwhile waits for
+    /// the next run.
+    pub actions: Vec<PlayerAction>,
 }
 
 /// Intent: `user` triggers active spell `effect` at `target` — a spell's twin of
@@ -1663,6 +1714,9 @@ pub struct SpellsMenu {
 pub struct QuitPrompt {
     /// Whether the prompt is up.
     pub open: bool,
+    /// Whether the first yes came with time stopped, so the prompt now warns
+    /// that nothing was saved since THE WORLD began and wants a second yes.
+    pub warned: bool,
 }
 
 /// The F1 key list: whether it is up. Any key closes it and does nothing else,

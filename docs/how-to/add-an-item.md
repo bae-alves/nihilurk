@@ -42,7 +42,7 @@ Row-only categories
 
 `new(name, colour, power_die)`. The die is what the weapon is worth in a swing: damage rolls `1d[power_die]`. Draws as `)`, worn in the hand slot.
 
-Chain `.missile(die)` if it is built to be thrown -- it then rolls that die on impact, goes around the target's armour die, is spent on what it hits, and can never be caught out of the air. Chain `.piercing()` if a throw should run the whole line instead of stopping at the first body.
+Chain `.missile(die)` if it is built to be thrown -- it then rolls that die on impact, is spent on what it hits, and can never be caught out of the air. Chain `.piercing()` if a throw should run the whole line instead of stopping at the first body.
 
     WeaponDef::new("javelin", Color::DarkYellow, 5).missile(7).piercing(),
 
@@ -82,10 +82,10 @@ Coins are the pickup category: never carried, spent where they lie. A row is `na
 
 ### Ammunition
 
-    AmmoDef { name: "bolt", color: Color::Grey, die: 5,
-              launched_by: Grant::of::<FireQuarrel>() },
+    AmmoDef { name: "bolt", color: Color::Grey, die: IMPROVISED_THROW_DIE, venom: false,
+              launched_die: 5, launched_by: Grant::of::<FireQuarrel>() },
 
-`die` is what one rolls hurled by hand; a wielder carrying the `launched_by` effect doubles it. Stacks up to `constants::items::STACK_LIMIT` per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
+`die` is what one rolls hurled by hand (ammunition is no better thrown than a mace is: `IMPROVISED_THROW_DIE`); a wielder carrying the `launched_by` effect rolls `launched_die` instead. `venom: true` saps the victim's power on every hit that draws blood, as the blowdart does. Stacks up to `constants::items::STACK_LIMIT` per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
 
 If your ammunition answers to a launcher that does not exist yet, you need a new effect for the pair to meet at -- see `add-an-effect.md`.
 

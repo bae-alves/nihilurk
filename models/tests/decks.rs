@@ -11,7 +11,9 @@ mod monster;
 
 use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
-use models::constants::decks::{CARD_CHAIN_CAP, DECK_SIZE, REVERSED_MAX, REVERSED_MIN};
+use models::constants::decks::{
+    CARD_CHAIN_CAP, CARD_POINTS, DECK_SIZE, REVERSED_MAX, REVERSED_MIN,
+};
 use models::*;
 
 const UP: (u16, u16) = (11, 6);
@@ -129,6 +131,7 @@ fn throw(w: &mut World, item: Entity, target: Position) {
         thrower: p,
         item,
         target,
+        slot_idx: None,
     });
     throw_system(w);
 }
@@ -448,6 +451,22 @@ fn the_princess_enchants_a_numeric_ring() {
 }
 
 #[test]
+fn the_princess_moves_a_worn_ring_of_healths_hit_points_at_once() {
+    let mut w = test_world(1);
+    worn_ring(&mut w, "ring of health");
+    let p = player(&mut w);
+    let hp = |w: &World| {
+        let f = w.get::<Fighter>(p).unwrap();
+        (f.hp, f.max_hp)
+    };
+    let (cur, max) = hp(&w);
+    read(&mut w, up(CardFace::PrincessOfDiamonds));
+    assert_eq!(hp(&w), (cur + 1, max + 1));
+    read(&mut w, down(CardFace::PrincessOfDiamonds));
+    assert_eq!(hp(&w).1, max);
+}
+
+#[test]
 fn the_princess_passes_over_a_ring_with_no_number() {
     let mut w = test_world(1);
     let ring = worn_ring(&mut w, "ring of stealth");
@@ -586,7 +605,23 @@ fn a_thrown_pair_plays_its_card_twice_and_never_reversed() {
         ],
     );
     assert!(plus(&w, mace) >= before + 2);
-    assert!(log_has(&w, "A Pair (1000 points)"));
+    assert!(log_has(&w, &format!("A Pair ({} points)", 2 * CARD_POINTS)));
+}
+
+#[test]
+fn a_hand_pays_for_each_card_that_took_part_in_it() {
+    use CardFace::*;
+    let cards_paid = |faces: &[CardFace]| hand(faces).unwrap().points() / CARD_POINTS;
+    assert_eq!(cards_paid(&[Joker, Bole, Balance, Eyes, Child]), 1);
+    assert_eq!(cards_paid(&[Bole, Bole, Balance, Eyes, Child]), 2);
+    assert_eq!(cards_paid(&[Bole, Bole, Eyes, Eyes, Child]), 4);
+    assert_eq!(cards_paid(&[Bole, Bole, Bole, Eyes, Child]), 3);
+    assert_eq!(cards_paid(&[Bole, Bole, Bole, Eyes, Eyes]), 5);
+    assert_eq!(cards_paid(&[Bole, Bole, Bole, Bole, Eyes]), 4);
+    assert_eq!(cards_paid(&[Bole, Bole, Bole, Bole, Bole]), 5);
+    assert_eq!(cards_paid(&[Fool, Bole, Balance, Eyes, Child]), 2);
+    assert_eq!(cards_paid(&[Fool, Fool, Fool, Fool, Eyes]), 5);
+    assert_eq!(cards_paid(&[Bole]), 1);
 }
 
 #[test]
@@ -597,8 +632,25 @@ fn a_hand_pays_its_points_and_never_doubles_the_score() {
     throw_hand(&mut w, &[up(CardFace::Fool); 5]);
     assert_eq!(
         w.get::<Score>(p).unwrap().value,
-        1000 + Rank::FiveFlush.points() as i64
+        1000 + 5 * CARD_POINTS as i64
     );
+}
+
+#[test]
+fn cards_a_chain_plays_do_not_pay() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    throw_hand(
+        &mut w,
+        &[
+            up(CardFace::Joker),
+            up(CardFace::Joker),
+            up(CardFace::Child),
+            up(CardFace::Crone),
+            up(CardFace::Excuse),
+        ],
+    );
+    assert_eq!(w.get::<Score>(p).unwrap().value, 2 * CARD_POINTS as i64);
 }
 
 #[test]
@@ -640,7 +692,10 @@ fn a_jester_in_a_hand_finds_nothing_to_play() {
             up(CardFace::Child),
         ],
     );
-    assert!(log_has(&w, "Three of a Kind (100000 points)"));
+    assert!(log_has(
+        &w,
+        &format!("Three of a Kind ({} points)", 3 * CARD_POINTS)
+    ));
 }
 
 #[test]
@@ -652,7 +707,7 @@ fn a_read_jester_plays_the_rest_of_the_deck_as_a_hand() {
     );
     use_item(&mut w, deck);
     assert!(w.get_entity(deck).is_none());
-    assert!(log_has(&w, "A Pair (1000 points)"));
+    assert!(log_has(&w, &format!("A Pair ({} points)", 2 * CARD_POINTS)));
 }
 
 #[test]

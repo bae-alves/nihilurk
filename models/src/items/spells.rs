@@ -26,7 +26,7 @@ use crate::conditions::{cure_one_condition, hasten, paralyse};
 use crate::effects::{Bided, Grant, Lifetime, MagicWard, TurboMagic, loadout};
 use crate::helpers::{
     Hit, actor_at, apply_hit, get_entities_at_position, get_line, hostiles_in_view, item_label,
-    monster_at, roll_dice, spark_burst_at, tile_of, total_armor_plus,
+    monster_at, roll_dice, spark_burst_at, tile_of,
 };
 use crate::map::{GameRng, Map};
 use crate::particles::{BlastPalette, Particles};
@@ -142,8 +142,14 @@ pub(crate) fn apply_spell_effect(
 ) {
     match effect {
         SpellEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
-        SpellEffect::Sting => sting(world, user, target, power_mult),
-        SpellEffect::Thunderbolt => thunderbolt(world, user, target, power_mult),
+        SpellEffect::Sting => {
+            sting(world, user, target, power_mult);
+            chain_at(world, user, [(target.x, target.y)]);
+        }
+        SpellEffect::Thunderbolt => {
+            thunderbolt(world, user, target, power_mult);
+            chain_at(world, user, [(target.x, target.y)]);
+        }
         SpellEffect::Cure => cure_self(world, user),
         SpellEffect::Bide => bide(world, user),
         SpellEffect::ForceLance => force_lance(world, user, target, power_mult),
@@ -173,6 +179,13 @@ pub(crate) fn apply_spell_effect(
 // Shared flourishes
 // ---------------------------------------------------------------------------
 
+/// The chain reaction of a spell that landed on `tiles`: whatever lay there that
+/// a shot could set off, set off ([`crate::traps::chain_react`]).
+fn chain_at(world: &mut World, user: Entity, tiles: impl IntoIterator<Item = (u16, u16)>) {
+    let area: std::collections::HashSet<(u16, u16)> = tiles.into_iter().collect();
+    crate::traps::chain_react(world, &area, Some(user), false);
+}
+
 /// A cosmetic arrow (or bolt) flight from `from` to `to`, `from`'s own tile
 /// excluded — shared by every spell whose flavour is "something flies in on a
 /// line": Sting's green dart, Thunderbolt's double bolt.
@@ -192,8 +205,8 @@ fn fly_arrow(world: &mut World, from: Position, to: Position, glyph: char, color
 // ---------------------------------------------------------------------------
 
 /// Sting: the dart trap's own venomed bite, lanced at range instead of laid
-/// on the floor — the same [`DART_DAMAGE_DICE`] roll against the target's
-/// armour plus, the same depth-scaled poison drain
+/// on the floor — the same [`DART_DAMAGE_DICE`] roll, but magic, so no armour
+/// of any kind is subtracted, and the same depth-scaled poison drain
 /// ([`crate::traps::trap_damage_tier`]). A green dart, because the trap's own
 /// needle is cyan and this one means it personally.
 fn sting(world: &mut World, user: Entity, target: Position, power_mult: i32) {
@@ -207,9 +220,7 @@ fn sting(world: &mut World, user: Entity, target: Position, power_mult: i32) {
         return;
     };
     let tier = trap_damage_tier(world.resource::<Depth>().what);
-    let armor_plus = total_armor_plus(world, victim);
-    let roll = roll_dice(world, DART_DAMAGE_DICE, DART_DAMAGE_SIDES);
-    let damage = (roll - armor_plus).max(0) * power_mult;
+    let damage = roll_dice(world, DART_DAMAGE_DICE, DART_DAMAGE_SIDES) * power_mult;
     let name = item_label(world, victim);
 
     if damage <= 0 {
@@ -392,6 +403,7 @@ fn force_lance(world: &mut World, user: Entity, target: Position, power_mult: i3
             }
         }
     }
+    chain_at(world, user, cells);
 }
 
 /// Setup: plants a revealed arrow trap on each of the caster's four
@@ -495,6 +507,7 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
     }
     kick_shake(world, ShakeKind::Heavy);
 
+    let tiles: Vec<(u16, u16)> = targets.iter().filter_map(|&e| tile_of(world, e)).collect();
     let mut drained = 0;
     for victim in targets {
         let dmg = roll_dice(
@@ -504,6 +517,7 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
         ) * power_mult;
         drained += apply_hit(world, victim, Hit::magic(dmg), None);
     }
+    chain_at(world, user, tiles);
     if drained <= 0 {
         return;
     }
@@ -644,6 +658,7 @@ fn frost_nova(world: &mut World, user: Entity, power_mult: i32) {
     }
     kick_shake(world, ShakeKind::Heavy);
 
+    let tiles: Vec<(u16, u16)> = targets.iter().filter_map(|&e| tile_of(world, e)).collect();
     for victim in targets {
         let dmg = roll_dice(world, FROST_NOVA_DAMAGE_DICE, FROST_NOVA_DAMAGE_SIDES) * power_mult;
         if apply_hit(world, victim, Hit::elemental(dmg, Element::Cold), None) == 0 {
@@ -653,6 +668,7 @@ fn frost_nova(world: &mut World, user: Entity, power_mult: i32) {
             paralyse(world, victim);
         }
     }
+    chain_at(world, user, tiles);
 }
 
 /// Haste Self: not merely quick. Not merely fast. THE FAST — a rainbow of

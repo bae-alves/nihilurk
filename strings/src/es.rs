@@ -250,10 +250,12 @@ pub fn polymorph_drops_gear() -> &'static str {
     "Tu equipo se te resbala."
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn form_holds_player() -> &'static str {
     "El rayo de cambio no encuentra nada en ti que doblar."
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn form_holds_mob(name: &str) -> String {
     format!("El rayo de cambio resbala sobre {} {name}.", article(name))
 }
@@ -1104,6 +1106,27 @@ pub fn armor_corrodes(name: &str) -> String {
     format!("¡La {name} se corroe! Ahora es más débil.")
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn armor_shatters(target_name: &str) -> String {
+    format!(
+        "¡La armadura {} {target_name} se hace añicos!",
+        de_contraction(target_name)
+    )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn cursed_armor_splinters() -> &'static str {
+    "¡Astillas de magia maligna salen disparadas!"
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn splinter_hits(target_name: &str, damage: i32) -> String {
+    format!(
+        "Una astilla atraviesa {} {target_name} por {damage} de daño.",
+        a_contraction(target_name)
+    )
+}
+
 // ---------------------------------------------------------------------------
 // models/src/abilities.rs
 // ---------------------------------------------------------------------------
@@ -1137,11 +1160,16 @@ pub fn chaos_recoil() -> &'static str {
     "¡El filo del caos muerde de vuelta!"
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn spike_prick_player() -> &'static str {
     "¡Las púas te pinchan al golpear!"
 }
+// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn spike_prick_mob(name: &str) -> String {
-    format!("¡{name} se pincha con las púas al golpear!")
+    format!(
+        "¡{} {name} se pincha con las púas al golpear!",
+        cap_article(name)
+    )
 }
 
 pub fn venom_resisted_player() -> &'static str {
@@ -1224,6 +1252,11 @@ pub fn unharmed_by(name: &str, element_noun: &str) -> String {
         "{} {name} no sufre daño por {element_noun}.",
         cap_article(name)
     )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn armor_takes_the_blow(name: &str) -> String {
+    format!("¡{name} se astilla y se parte, y recibe el golpe que era para ti!")
 }
 
 pub fn badly_wounded() -> &'static str {
@@ -1623,6 +1656,7 @@ pub fn wand_clatters_unspent(seen_name: &str) -> String {
     )
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn boomerang_returns(seen_name: &str) -> String {
     format!("{} {seen_name} vuelve a ti.", cap_article(seen_name))
 }
@@ -1636,11 +1670,20 @@ pub fn picked_up_thrown_verb_body() -> &'static str {
 pub fn picked_up_thrown_verb_other() -> &'static str {
     "se lo desliza puesto"
 }
+// TODO: placeholder translation; needs a human's pass.
+pub fn armor_binds_thrown(victim_name: &str, armor: &str) -> String {
+    format!(
+        "¡{} {victim_name} queda atrapado por {} {armor}! ¡Pero aún puede atacar!",
+        cap_article(victim_name),
+        article(armor)
+    )
+}
+
 pub fn picks_up_thrown(victim_name: &str, verb: &str) -> String {
     format!("¡{} {victim_name} {verb}!", cap_article(victim_name))
 }
 
-/// "arrow"/"arrows"/"quarrel"/"quarrels" are the only ammo-noun ids the
+/// "arrow"/"quarrel"/"blowdart" (and plurals) are the only ammo-noun ids the
 /// engine ever passes here, so unlike other content ids (left untranslated,
 /// see `content_name`), these read naturally enough as ordinary Spanish
 /// words that there's no reason not to translate them.
@@ -1650,6 +1693,8 @@ fn ammo_word(noun: &str) -> &str {
         "arrows" => "flechas",
         "quarrel" => "virote",
         "quarrels" => "virotes",
+        "blowdart" => "dardo",
+        "blowdarts" => "dardos",
         _ => noun,
     }
 }
@@ -2425,6 +2470,20 @@ pub fn quit_question() -> &'static str {
 pub fn quit_answers() -> &'static str {
     "[s] sí    [n] no"
 }
+pub fn quit_yes_key() -> char {
+    's'
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn time_stopped_not_saved() -> [&'static str; 2] {
+    [
+        "El tiempo está detenido, así que el juego no guardó",
+        "desde que activaste THE WORLD.",
+    ]
+}
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn quit_really_sure() -> &'static str {
+    "¿DE VERDAD seguro?"
+}
 // TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn onboarding_keys() -> [&'static str; 3] {
     ["[hjklyubn] MOVER", "[o/TAB] EXPLORAR/LUCHAR", "[i] OBJETOS"]
@@ -2838,8 +2897,54 @@ pub const fn ends_time_stopped() -> &'static str {
 
 // --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn curses_merge(recipient: &str, donor: &str, result: &str) -> String {
+    format!(
+        "¡Las maldiciones se funden! {} {recipient} y {} {donor} se vuelven {} {result}.",
+        cap_article(recipient),
+        article(donor),
+        article(result)
+    )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn ice_cube_name() -> &'static str {
+    "cubo de hielo"
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn mob_freezes_solid(name: &str) -> String {
+    format!("{} {name} se congela por completo.", cap_article(name))
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn ice_cube_slams(name: &str) -> String {
+    format!(
+        "El cubo de hielo se estrella contra {} {name}.",
+        if is_feminine_name(name) { "la" } else { "el" }
+    )
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn ice_cube_shatters() -> &'static str {
+    "¡El cubo de hielo se hace añicos!"
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn killed_by_ice_cube() -> &'static str {
+    "Muerto por un cubo de hielo"
+}
+
+// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
+
 // TODO: translate.
 #[allow(unused_variables)]
-pub fn curses_merge(recipient: &str, donor: &str, result: &str) -> String {
+pub fn curses_merge_break(recipient: &str, donor: &str) -> String {
     String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn charge() -> &'static str {
+    ""
 }

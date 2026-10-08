@@ -434,8 +434,10 @@ pub fn tempo(world: &World, entity: Entity) -> SpeedKind {
 }
 
 /// Wand of haste / slow monster: step one creature — monster or player — one
-/// step along the speed scale (haste wraps `Fast` to `Slow`, except for a creature born `Quick`). Permanent for a monster; a hasted or slowed
+/// step along the speed scale (haste wraps `Fast` to `Slow`, except for a
+/// creature born `Quick`). Permanent for a monster; a hasted or slowed
 /// *player* loses it on the next staircase ([`clear_player_conditions`]).
+/// Returns whether the tempo actually moved.
 pub fn shift_entity_speed(world: &mut World, victim: Entity, faster: bool) -> bool {
     let Some(speed) = world.get::<Speed>(victim) else {
         return false;

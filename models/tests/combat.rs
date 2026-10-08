@@ -393,3 +393,160 @@ fn killing_the_biter_frees_the_victim_it_clamped() {
         "the victim was still clamped after its biter died"
     );
 }
+
+// ---------------------------------------------------------------------------
+// An excellent hit shatters worn armour
+// ---------------------------------------------------------------------------
+
+#[path = "common/monster.rs"]
+mod monster;
+
+/// The hero at (5,5) with every blow excellent, an orc at (6,5) in a suit of
+/// armour (cursed when asked), and three bystanders inside the splinters'
+/// reach: another monster, an ally, and the hero.
+struct Armoured {
+    hero: Entity,
+    orc: Entity,
+    armour: Entity,
+    bystander: Entity,
+    ally: Entity,
+}
+
+fn armoured_orc(w: &mut World, cursed: bool) -> Armoured {
+    let hero = spawn_attacker(w, 1);
+    w.entity_mut(hero)
+        .insert((Crit, Position { x: 5, y: 5 }, Faction::Player));
+    let orc = monster::monster(w, "orc", Position { x: 6, y: 5 });
+    let armour = w
+        .spawn((
+            Name {
+                what: "ring mail".into(),
+            },
+            Equipped {
+                by: Some(orc),
+                slot: Slot::Body,
+            },
+        ))
+        .id();
+    if cursed {
+        w.entity_mut(armour).insert(Curse);
+    }
+    let bystander = monster::monster(w, "kobold", Position { x: 7, y: 5 });
+    let ally = monster::monster(w, "dog", Position { x: 6, y: 6 });
+    w.entity_mut(ally).insert(Faction::Ally);
+    for e in [orc, bystander, ally] {
+        w.entity_mut(e).remove::<Blood>();
+    }
+    Armoured {
+        hero,
+        orc,
+        armour,
+        bystander,
+        ally,
+    }
+}
+
+fn hp(w: &World, e: Entity) -> i32 {
+    w.get::<Fighter>(e).map_or(0, |f| f.hp)
+}
+
+#[test]
+fn an_excellent_hit_shatters_the_armour_a_foe_wears() {
+    let mut w = combat_world(1);
+    let a = armoured_orc(&mut w, false);
+
+    resolve_attack(&mut w, a.hero, a.orc);
+
+    assert!(
+        !w.entities().contains(a.armour),
+        "the orc's armour survived an excellent hit"
+    );
+    assert_eq!(hp(&w, a.bystander), 100, "plain armour hurt a bystander");
+}
+
+#[test]
+fn shattered_cursed_armour_splinters_into_monsters_but_spares_the_hero_and_allies() {
+    let mut w = combat_world(1);
+    let a = armoured_orc(&mut w, true);
+
+    resolve_attack(&mut w, a.hero, a.orc);
+
+    assert!(!w.entities().contains(a.armour), "cursed armour survived");
+    assert!(hp(&w, a.bystander) < 100, "the splinters missed the kobold");
+    let taken = 100 - hp(&w, a.bystander);
+    let line = format!("kobold for {taken} damage");
+    assert!(
+        w.resource::<GameLog>()
+            .unread
+            .iter()
+            .any(|l| l.contains(&line)),
+        "no splinter line for the kobold's {taken} damage"
+    );
+    assert_eq!(hp(&w, a.ally), 100, "the splinters hurt an ally");
+    assert_eq!(hp(&w, a.hero), 20, "the splinters hurt the hero");
+}
+
+#[test]
+fn a_monsters_excellent_hit_leaves_the_heros_armour_whole() {
+    let mut w = combat_world(1);
+    let a = armoured_orc(&mut w, false);
+    w.entity_mut(a.armour).insert(Equipped {
+        by: Some(a.hero),
+        slot: Slot::Body,
+    });
+    w.entity_mut(a.orc).insert(Crit);
+
+    resolve_attack(&mut w, a.orc, a.hero);
+
+    assert!(
+        w.entities().contains(a.armour),
+        "the hero's armour shattered"
+    );
+}
+
+#[test]
+fn a_splinter_into_an_unseen_monster_hurts_it_without_a_log_line() {
+    let mut w = combat_world(1);
+    let a = armoured_orc(&mut w, true);
+    let goblin = monster::monster(&mut w, "goblin", Position { x: 7, y: 4 });
+    w.entity_mut(goblin).remove::<Blood>().insert(Hidden);
+
+    resolve_attack(&mut w, a.hero, a.orc);
+
+    assert!(hp(&w, goblin) < 100, "the splinters missed the goblin");
+    assert!(
+        !w.resource::<GameLog>()
+            .unread
+            .iter()
+            .any(|l| l.contains("goblin")),
+        "the log named a goblin the hero cannot see"
+    );
+}
+
+/// Harm to a creature the hero cannot see is never news, whoever caused it:
+/// `apply_hit` drops its ward and protection lines for a [`Hidden`] creature,
+/// and the line the caller asked it to announce as well.
+#[test]
+fn apply_hit_logs_nothing_about_a_creature_the_hero_cannot_see() {
+    let mut w = combat_world(1);
+    let warded = spawn_armored_target(&mut w, 40, 0, 0);
+    w.entity_mut(warded).insert((MagicWard, Hidden));
+    let protected = spawn_armored_target(&mut w, 40, 0, 0);
+    w.entity_mut(protected).insert((Protected, Hidden));
+    let bare = spawn_armored_target(&mut w, 40, 0, 0);
+    w.entity_mut(bare).insert(Hidden);
+
+    apply_hit(&mut w, warded, Hit::magic(5), Some("the dummy is hit"));
+    apply_hit(&mut w, protected, Hit::magic(5), Some("the dummy is hit"));
+    let dealt = apply_hit(&mut w, bare, Hit::magic(5), Some("the dummy is hit"));
+
+    assert_eq!(dealt, 5, "an unseen creature was spared the harm itself");
+    assert!(
+        !w.resource::<GameLog>()
+            .unread
+            .iter()
+            .any(|l| l.contains("dummy")),
+        "the log reported on unseen creatures: {:?}",
+        w.resource::<GameLog>().unread
+    );
+}

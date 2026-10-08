@@ -66,11 +66,23 @@ pub mod combat {
     /// blow its caster lands — see [`crate::effects::Bided`].
     pub const BIDE_ATTACK_BONUS: i32 = 4;
 
+    /// How much harder a monster's melee blow lands on a creature that is
+    /// [`crate::effects::Vuln`], in percent of the damage the dice settled on.
+    pub const VULN_DAMAGE_PERCENT: i32 = 25;
+
     /// How many dice a normal attack or armour roll averages together —
     /// see [`crate::combat::roll_die_bell`]. At 1 it is a flat `1d[sides]`
     /// like an excellent hit; raising it narrows the spread further without
     /// moving the mean or the min/max off the plain die's.
     pub const BELL_CURVE_DICE: i32 = 2;
+
+    /// How far the splinters of a cursed suit fly when an excellent hit
+    /// shatters it, in tiles (Chebyshev). See [`crate::combat::resolve_attack`].
+    pub const CURSED_SPLINTER_RADIUS: i32 = 2;
+
+    /// The die each splinter rolls against every foe of the hero it reaches:
+    /// `1d[this]`, as magic, so a ward turns it aside.
+    pub const CURSED_SPLINTER_DIE: i32 = 6;
 }
 
 // ===========================================================================
@@ -89,10 +101,10 @@ pub mod player {
 
     /// Starting armour die (`1d[armor]` on the defence roll), before the +1 ring
     /// mail the hero spawns wearing. Matches an unarmoured townsperson.
-    pub const START_ARMOR: i32 = 2;
+    pub const START_ARMOR: i32 = 3;
 
     /// Starting power die (`1d[power]` on the attack roll), before the +1 mace.
-    pub const START_POWER: i32 = 2;
+    pub const START_POWER: i32 = 3;
 
     /// Starting (and maximum) magic points — the pool abilities draw on, shown
     /// as `Ma X/Y` on the HUD. Refilled in full by every staircase, alongside
@@ -123,10 +135,10 @@ pub mod player {
 /// born with (see `crate::body::wear_lurk`).
 pub mod lurk {
     /// Starting (and maximum) hit points. Well under [`super::player::START_HP`].
-    pub const START_HP: i32 = 6;
+    pub const START_HP: i32 = 7;
 
     /// Starting (and maximum) magic points. Little to spend until it grows.
-    pub const START_MAGIC: u8 = 1;
+    pub const START_MAGIC: u8 = 2;
 
     /// Starting attack die (`1d[power]`) — its claws, and no weapon will ever
     /// add to them.
@@ -554,20 +566,11 @@ pub mod decks {
     /// How many monsters a reversed GOLDEN WIND conjures.
     pub const GOLDEN_WIND_SUMMONS: usize = 8;
 
-    /// Score for a thrown hand of five different cards.
-    pub const ANTI_FLUSH_POINTS: i32 = 100;
-    /// Score for a pair.
-    pub const PAIR_POINTS: i32 = 1_000;
-    /// Score for two pairs.
-    pub const TWO_PAIR_POINTS: i32 = 10_000;
-    /// Score for three of a kind.
-    pub const THREE_OF_A_KIND_POINTS: i32 = 100_000;
-    /// Score for a full house.
-    pub const FULL_HOUSE_POINTS: i32 = 500_000;
-    /// Score for four of a kind.
-    pub const FOUR_OF_A_KIND_POINTS: i32 = 1_000_000;
-    /// Score for five of a kind: the Element.
-    pub const FIVE_FLUSH_POINTS: i32 = 5_000_000;
+    /// Score a hand pays for each card that took part in it: both of a pair,
+    /// all five of a full house, the one card an anti-flush plays. Cards a
+    /// chain plays (the Joker, Pot of Sin, The +4) were never in the hand and
+    /// pay nothing.
+    pub const CARD_POINTS: i32 = 5_000;
 }
 
 // ===========================================================================
@@ -640,7 +643,8 @@ pub mod wands {
     pub const GRENADE_RADIUS: f32 = 3.0;
 
     /// A thrown wand spends *every* remaining charge at once. An attack-wand
-    /// grenade rolls this many sides per charge...
+    /// grenade rolls one die of this many sides per charge — at 1, a flat
+    /// point a charge...
     pub const GRENADE_DIE_PER_CHARGE: i32 = 1;
     /// ...and a thrown utility wand's blast rolls this many (it deals no damage,
     /// but the roll still drives the animation's reach). See
@@ -693,9 +697,13 @@ pub mod loot {
     /// cursed one in the same slot) leaves the worn item's form.
     pub const MERGE_RECIPIENT_PCT: i32 = 45;
     /// Percent chance a curse merge leaves the newly equipped item's form. The
-    /// remainder after this and [`MERGE_RECIPIENT_PCT`] is a plain dagger,
-    /// leather armor or ring of stealth.
+    /// remainder after this and [`MERGE_RECIPIENT_PCT`] is both items breaking.
     pub const MERGE_DONOR_PCT: i32 = 45;
+
+    /// The die a thrown thing rolls when it was not made for throwing: a mace,
+    /// or an arrow lobbed by hand. Only a purpose-built missile
+    /// ([`crate::components::Projectile`]) or a launcher does better.
+    pub const IMPROVISED_THROW_DIE: i32 = 3;
 
     /// A dropped ammunition bundle holds this many, uniformly — never a lone
     /// arrow, because finding one arrow is not finding ammunition. Capped by
@@ -784,7 +792,7 @@ pub mod rings {
 /// What the number on the HUD is made of. The verbs are in `score.rs`, which
 /// documents the whole table in one place.
 pub mod score {
-    /// Score paid per point of a slain creature's `max_hp`. A bat is a
+    /// Score paid per point of a slain creature's `max_hp`. A kestral is a
     /// rounding error next to a griffin, which is the intent: the scoreboard
     /// rewards fighting things that could have killed you.
     pub const KILL_PER_MAX_HP: i32 = 100;
@@ -1026,6 +1034,9 @@ pub mod travel {
 
     /// Hard stop on a single fast-move (travel-to-cursor / run) invocation.
     pub const FAST_MOVE_STEP_CAP: u32 = 260;
+
+    /// How far off, in tiles, a creature can be and still be charged.
+    pub const CHARGE_RANGE: i32 = 6;
 
     /// Auto-fight refuses once the player's HP is at or below `max_hp` divided
     /// by this. Kept as a divisor so the check stays in integer maths.
@@ -1276,4 +1287,21 @@ pub mod shake {
 
     /// Cells the map is thrown on a wounded shake's opening frame.
     pub const WOUNDED_AMPLITUDE: i8 = 2;
+}
+
+/// The ice cube a cold kill leaves behind, and the kick that sends it flying.
+pub mod ice {
+    /// A kicked cube's cold damage: `DICE d SIDES`, armour-ignoring magic.
+    pub const DAMAGE_DICE: i32 = 2;
+    /// See [`DAMAGE_DICE`].
+    pub const DAMAGE_SIDES: i32 = 2;
+
+    /// How far, in tiles, a kicked cube with no foe to home on flies before it
+    /// gives up and shatters in open air.
+    pub const FLIGHT_RANGE: i32 = 40;
+
+    /// How far, in tiles, the vapor of a shattering cube reaches.
+    pub const VAPOR_RADIUS: i32 = 2;
+    /// Bone shards a shattering cube throws.
+    pub const BONE_SHARDS: usize = 16;
 }

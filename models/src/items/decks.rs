@@ -222,6 +222,7 @@ fn princess(world: &mut World, user: Entity, reversed: bool) {
         return;
     }
     shift_ring(world, ring, if reversed { -1 } else { 1 });
+    sync_equipment_effects(world, user);
     world.entity_mut(ring).insert(KnownQuality);
     let name = display_name(world, ring);
     crate::helpers::spark_burst_at(world, user, Color::DarkYellow);
@@ -467,21 +468,6 @@ pub enum Rank {
     FiveFlush,
 }
 
-impl Rank {
-    /// The score this hand pays.
-    pub fn points(self) -> i32 {
-        match self {
-            Rank::AntiFlush => ANTI_FLUSH_POINTS,
-            Rank::Pair => PAIR_POINTS,
-            Rank::TwoPair => TWO_PAIR_POINTS,
-            Rank::ThreeOfAKind => THREE_OF_A_KIND_POINTS,
-            Rank::FullHouse => FULL_HOUSE_POINTS,
-            Rank::FourOfAKind => FOUR_OF_A_KIND_POINTS,
-            Rank::FiveFlush => FIVE_FLUSH_POINTS,
-        }
-    }
-}
-
 /// A scored hand: its rank, and which cards play how many times. An
 /// [`Rank::AntiFlush`] and a [`Rank::FiveFlush`] list no plays: the first
 /// picks its card at random, the second plays none.
@@ -491,6 +477,16 @@ pub struct Hand {
     pub rank: Rank,
     /// Each grouped face and how many times it plays.
     pub plays: Vec<(CardFace, usize)>,
+    /// How many cards took part: the grouped ones, FOOLs included, or the one
+    /// card an anti-flush plays.
+    pub cards: usize,
+}
+
+impl Hand {
+    /// The score this hand pays: [`CARD_POINTS`] a card that took part.
+    pub fn points(&self) -> i32 {
+        self.cards as i32 * CARD_POINTS
+    }
 }
 
 /// Scores `cards` as a poker hand. FOOL is wild: every FOOL joins the biggest
@@ -533,7 +529,12 @@ pub fn score_hand(cards: &[Card]) -> Option<Hand> {
         (2, _) => (Rank::Pair, vec![first]),
         _ => (Rank::AntiFlush, vec![]),
     };
-    Some(Hand { rank, plays })
+    let cards = match rank {
+        Rank::AntiFlush => 1,
+        Rank::FiveFlush => first.1,
+        _ => plays.iter().map(|&(_, n)| n).sum(),
+    };
+    Some(Hand { rank, plays, cards })
 }
 
 /// Plays `cards` as a hand on `deal.user`: the score, then each group's card
@@ -543,9 +544,9 @@ fn play_hand(world: &mut World, deal: &mut Deal, cards: &[Card]) {
         say(world, strings::card_jester_nothing());
         return;
     };
-    crate::score::award(world, hand.rank.points());
+    crate::score::award(world, hand.points());
     world.resource_mut::<GameLog>().add_colored(
-        strings::card_hand(hand_name(hand.rank), hand.rank.points()),
+        strings::card_hand(hand_name(hand.rank), hand.points()),
         LogCategory::Combo,
     );
     let plays = match hand.rank {

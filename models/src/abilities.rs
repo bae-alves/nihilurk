@@ -28,8 +28,7 @@ use rand::Rng;
 
 use crate::combat::resolve_attack;
 use crate::components::{
-    Backpack, Curse, EntityMoved, ExtraMonsterRound, Fighter, GameLog, Mob, Player, Position,
-    TrapEffect,
+    Backpack, Curse, ExtraMonsterRound, Fighter, GameLog, Mob, Player, Position, TrapEffect,
 };
 use crate::conditions::snare;
 use crate::effects::{
@@ -382,7 +381,7 @@ fn corrode(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool
 /// "Batty": every blow it lands, the attacker itself tries to hop to a random
 /// adjacent tile right afterward — the bat's (and the phantom's) erratic
 /// flitting. A no-op when nothing open is free to land on, and tags the
-/// landing tile [`EntityMoved`] so a bat that hops onto a trap still springs
+/// landing tile [`EntityMoved`](crate::components::EntityMoved) so a bat that hops onto a trap still springs
 /// it.
 fn batty_hop(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bool {
     let Some(pos) = world.get::<Position>(attacker).copied() else {
@@ -395,7 +394,7 @@ fn batty_hop(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bo
         p.x = x;
         p.y = y;
     }
-    world.entity_mut(attacker).insert(EntityMoved);
+    crate::helpers::mark_moved(world, attacker);
     true
 }
 
@@ -427,7 +426,7 @@ fn freezing_touch(world: &mut World, _attacker: Entity, target: Option<Entity>) 
 /// the third. A bite the *player* lands (`-am rattlesnake`, or a hand-written
 /// body that borrows the marker) used to drain in total silence — nothing
 /// else in the ability table stays quiet just because the victim isn't you.
-fn venomous_bite(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool {
+pub(crate) fn venomous_bite(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool {
     let Some(target) = target else {
         return false;
     };

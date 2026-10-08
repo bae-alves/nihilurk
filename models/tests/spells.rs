@@ -207,6 +207,21 @@ fn sting_bites_like_the_dart_trap_it_borrows_from() {
 }
 
 #[test]
+fn sting_is_magic_and_armour_does_not_blunt_it() {
+    let mut w = test_world(6);
+    let p = player(&mut w);
+    let (_here, spot) = beside_player(&mut w);
+    let target = dummy(&mut w, spot, 40);
+    w.get_mut::<Fighter>(target).unwrap().armor_bonus = 9;
+    w.get_mut::<Magic>(p).unwrap().points = 10;
+    w.get_mut::<Magic>(p).unwrap().max_points = 10;
+
+    cast(&mut w, p, SpellEffect::Sting, spot);
+
+    assert!(w.get::<Fighter>(target).unwrap().hp < 40);
+}
+
+#[test]
 fn setup_plants_four_revealed_traps_and_trips_one_under_a_bystander() {
     let mut w = test_world(7);
     let p = player(&mut w);

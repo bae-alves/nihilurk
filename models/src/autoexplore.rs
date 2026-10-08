@@ -97,7 +97,12 @@ const DIRS: [(i32, i32); 8] = [
 /// screen). Auto-walk refuses to start, and halts, while this is true. The
 /// player's [`Helper`] is drawn too, and is no reason to stop.
 pub fn monster_in_sight(world: &mut World) -> bool {
-    let mut query = world.query_filtered::<(), (With<Mob>, Without<Hidden>, Without<Helper>)>();
+    let mut query = world.query_filtered::<(), (
+        With<Mob>,
+        Without<Hidden>,
+        Without<Helper>,
+        Without<crate::ice::IceCube>,
+    )>();
     query.iter(world).next().is_some()
 }
 

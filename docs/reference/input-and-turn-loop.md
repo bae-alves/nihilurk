@@ -34,7 +34,7 @@ The main loop
   'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
   'fontSize':'13px'}}}%%
 flowchart LR
-  A["A. player step<br/><i>blocks for a key</i>"]:::hero
+  A["A. player step<br/><i>blocks for a key,<br/>queues the action</i>"]:::hero
   B{"turn<br/>spent?"}:::hero
   S["schedule.run<br/><i>the whole turn</i>"]:::cold
   B2["B2. particles<br/><i>blocks</i>"]:::magic
@@ -59,7 +59,8 @@ flowchart LR
 
 One `Schedule`, run once per turn, in this fixed order:
 
-    smoke_system -> tick_effects -> reveal_mimics -> spell_system
+    player_action_system -> smoke_system -> tick_effects
+      -> reveal_mimics -> spell_system
       -> item_system -> throw_system -> ai -> trap_system
       -> equipment_effects_system -> combat_system -> reaper_system
       -> dungeon_lord_system -> ability_system -> sink_system
@@ -67,11 +68,11 @@ One `Schedule`, run once per turn, in this fixed order:
 
 `ai` keeps the clock, the gates and the hands; what each mob decides to do is its rule set's (`agents.md`). A mob off the player's view does nothing, unless it is aggravated or a Helper.
 
-`reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `spell_system` runs before `ai`: an active spell (`Z`, the only way to one) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which is applied while handling the key before the schedule runs. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
+`reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `spell_system` runs before `ai`: an active spell (`Z`, the only way to one) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which `player_action_system` applies as the schedule's first step. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
 
-**Everything the player does resolves before `ai` does.** Movement and melee never reach the schedule at all — both are applied while the key is handled (`handle_movement_input` → `models::melee_attack`). The three that do queue — a spell (`SpellQueue`), a used item (`UseQueue`), a throw (`ThrowQueue`) — are drained by `spell_system`, `item_system` and `throw_system`, all of them ahead of `ai`. None of those three queues is ever filled by anything but the player, so nothing of the dungeon's own is hurried along by the order. Monster attacks are the other side of it: `ai` fills `AttackQueue` and `combat_system` drains it *after*, which is why that one stays where it is.
+**Everything the player does resolves before `ai` does.** A step, a blow, a lunge or a struggle is planned when the key is handled (`handle_movement_input` → `models::queue_step`) and applied by `player_action_system`, the first step of the schedule (`PlayerActionQueue`). A spell (`SpellQueue`), a used item (`UseQueue`) and a throw (`ThrowQueue`) are drained by `spell_system`, `item_system` and `throw_system`, all of them ahead of `ai`. Taking the stairs (`queue_stairs`), dropping an item (`queue_drop`), a willed teleport (`queue_willed_teleport`), a charge (`queue_charge`) and a reach attack (`queue_reach_attack`) are queued the same way, and wearing or wielding goes through the use queue. A refusal (not on the stairs, cursed gear, a blocked charge) is logged at the key and spends nothing. None of those queues is ever filled by anything but the player, so nothing of the dungeon's own is hurried along by the order. Monster attacks are the other side of it: `ai` fills `AttackQueue` and `combat_system` drains it *after*, which is why that one stays where it is.
 
-`item_system` runs before `ai` for the same reason. A zapped wand is aimed at the dungeon as it stood when the key was pressed; resolved after `ai`, it would read a tile the target had already walked off. The bolt wands would hide it (a bolt sweeps a line, a blast a disc, so they still catch somebody), but every wand that reads one exact tile — teleport away, teleport to, polymorph, haste, slow, cancellation — would report finding nothing there while the reticle sat on the monster. `throw_system` runs before `ai` for the same reason: aimed at the empty tile in front of an approaching orc, the dagger would arrive after the orc had stepped onto it and hit one it was never thrown at. Pinned by `a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left` and `a_throw_lands_where_the_floor_was_when_the_player_let_go` in `update.rs` — which is also why the schedule is built by `turn_schedule()` rather than inline in `main`: a turn order with load-bearing edges needs something able to run it.
+`item_system` runs before `ai` for the same reason. It also runs after `spell_system`: the two drain different queues and a turn fills at most one, so the edge changes no outcome, but it leaves the schedule with one order instead of two the executor may choose between. A zapped wand is aimed at the dungeon as it stood when the key was pressed; resolved after `ai`, it would read a tile the target had already walked off. The bolt wands would hide it (a bolt sweeps a line, a blast a disc, so they still catch somebody), but every wand that reads one exact tile — teleport away, teleport to, polymorph, haste, slow, cancellation — would report finding nothing there while the reticle sat on the monster. `throw_system` runs before `ai` for the same reason: aimed at the empty tile in front of an approaching orc, the dagger would arrive after the orc had stepped onto it and hit one it was never thrown at. Pinned by `a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left` and `a_throw_lands_where_the_floor_was_when_the_player_let_go` in `update.rs` — which is also why the schedule is built by `turn_schedule()` rather than inline in `main`: a turn order with load-bearing edges needs something able to run it.
 
 One edge is absent on purpose: `throw_system` is not ordered after `trap_system`. A shot that comes down on a trap sets the trap off through `detonate_at`, inside the throw's own resolution, not by waiting for the trap step.
 
@@ -206,28 +207,28 @@ flowchart LR
 ```
 
 ```
-fn move_player(world: &mut World, dx: i16, dy: i16) -> bool
+fn queue_step(world: &mut World, dx: i16, dy: i16) -> bool
 ```
 
-The single path every step and every melee attack goes through (auto-explore, fast-move and the plain arrow keys all call this). Checked in order, each one able to end the attempt:
+The single path every step and every melee attack goes through (auto-explore, fast-move and the plain arrow keys all call this). It calls `models::plan_step`, which decides what the step will do and changes nothing but the confusion roll, and queues the result as a `PlayerAction::Step`. It returns whether the turn is spent, the caller's cue to run the schedule; `player_action_system` then does the stepping. Checked in order, each one able to end the attempt:
 
-  0. **Paralysis** — not checked here at all: a potion of paralysis eats its turns upstream, in `process_input_and_update`, and drops the player's `Speed` to `Slow` for the ones it leaves. By the time a step reaches `move_player` the turn is the player's to spend.
+  0. **Paralysis** — not checked here at all: a potion of paralysis eats its turns upstream, in `process_input_and_update`, and drops the player's `Speed` to `Slow` for the ones it leaves. By the time a step reaches `queue_step` the turn is the player's to spend.
   1. **Confusion stumble** (`maybe_stumble`) — while `Confused`, a coin flip hijacks the step into one of the eight `STUMBLE_DIRS` at random, logging "You stumble foolishly." A stumble into a wall still burns the turn; a deliberate wall-bump does not.
-  1.5. **An estoc's lunge** (`models::try_lunge`) — checked before the wall/diagonal gates below, since it targets the tile *past* the one those gates would otherwise judge. Self-checks `Fencer` (lent to the wielder while an estoc is in hand) and the geometry: the near tile (`new_x, new_y`) open and unoccupied, a `Mob` on the tile past it in the same direction. If both hold, it resolves a guaranteed triple-damage strike (`combat::resolve_lunge`) and carries the player into the near tile itself, tagging `EntityMoved` — a full alternate ending to the function, never falling through to steps 2+. A no-op, returning `false`, for anyone not wielding one.
+  1.5. **An estoc's lunge** (`models::try_lunge`) — checked before the wall/diagonal gates below, since it targets the tile *past* the one those gates would otherwise judge. Self-checks `Lunges` (lent to the wielder while an estoc is in hand) and the geometry: the near tile (`new_x, new_y`) open and unoccupied, a `Mob` on the tile past it in the same direction. If both hold, it resolves a guaranteed triple-damage strike (`combat::resolve_lunge`) and carries the player into the near tile itself, tagging `EntityMoved` — a full alternate ending to the function, never falling through to steps 2+. A no-op, returning `false`, for anyone not wielding one.
   2. **Wall.** `Map::blocks`.
   3. **Diagonal cut.** `Map::diagonal_step_ok` — a diagonal step must connect two tiles of the same kind, so you can't cut a doorway corner or squeeze from a corridor into a room diagonally.
-  4. **A `Mob` on the target tile** — attacks instead of moving (`models::melee_attack`, which resolves the plain opposed-roll swing via `resolve_attack` plus whatever a wielded weapon lends on top of it — an estoc's second strike, a battle axe's cleave onto every other adjacent monster — each self-checked against the weapon's own marker, so this call site never has to know either trick exists). The player's `Helper` is the exception: walking into it is a step, and the two trade places at step 6.
+  4. **A `Mob` on the target tile** — attacks instead of moving (`models::melee_attack`, which resolves the plain opposed-roll swing via `resolve_attack` plus whatever a wielded weapon lends on top of it — an estoc's second strike, a battle axe's cleave onto every other adjacent monster — each self-checked against the weapon's own marker, so this call site never has to know either trick exists). An `IceCube` is the other exception: the player kicks it (`models::kick_ice_cube`) — it homes on the `auto_fight_target` for cold damage, or flies off the way it was kicked, and shatters either way, spending the turn. The player's `Helper` is the exception: walking into it is a step, and the two trade places at step 6.
   4.5. **Momentum resets** (`models::reset_momentum`) — reached only when step 4 did *not* fire: a rapier's built-up `Momentum` is done the moment its wielder does anything but keep swinging it.
   5. **Something holding the player** (`Pinned`, `Rooted`) — an adjacent swing above still lands as an attack (step 4), but a plain step does not. A bear trap makes it `bear_trap_thrash`: a wasted turn, a scratch of damage, blood. A scroll's hold costs the turn and nothing else. See `docs/*traps*` for the trap itself. (Nothing in the dungeon holds the *player* today — no monster has a viewshed to read a scroll of hold monster by — the branch is there so that stays true if one ever does.)
   6. **The move.** Position updates, the player's `Viewshed` is marked dirty, and `EntityMoved` is tagged on the player so `trap_system` checks the new tile. A `Helper` the player walked into takes the tile they left, tagged `EntityMoved` too.
   6.5. **A chain-sickle's whirl** (`models::try_whirl_attack`) — self-checks `WhirlOnMove` and looks for a monster adjacent to *both* the tile just left and the tile just reached (a step taken alongside an enemy), landing a free `melee_attack` on it if one qualifies.
   7. **Pickup.** An `Item` on the landed tile is stowed (`models::stow`) — which can merge into an existing quiver stack, leave part of a pile behind if the pack is full, or refuse outright ("Your pack is full."). A `Hidden` (invisibly stashed) item announces itself the instant it's stepped on.
 
-Every one of steps 1.5–5 can return early; only reaching the move at step 6 (or a hijacked stumble into a wall) consumes a turn. Every weapon trick above lives in `models::combat`/`models::abilities`, self-checking the marker it answers to — `move_player` never mentions `Fencer`, `Cleaves` or `WhirlOnMove` by name, the same way it never mentions a ring.
+Every one of steps 1.5–5 can return early; only reaching the move at step 6 (or a hijacked stumble into a wall) consumes a turn. Every weapon trick above lives in `models::combat`/`models::abilities`, self-checking the marker it answers to — `plan_step` never mentions `Fencer`, `Cleaves` or `WhirlOnMove` by name, the same way it never mentions a ring.
 
 A greatclub's own trick (`HeavySwing`) doesn't live here at all: it fires as an on-hit ability inside `resolve_attack` itself (staggering the victim one turn, `Asleep`), and sets `ExtraMonsterRound`, a resource `models::ai::ai` checks on its next run to hand the floor one extra monster round on top of whatever the player's own tempo already bought.
 
-A reach weapon's own strike (a bardiche, a whip) does not go through `move_player` at all — `v` opens the aiming reticle instead (see "The aiming reticle" below) and resolves through `models::resolve_reach_attack`.
+A reach weapon's own strike (a bardiche, a whip) does not go through `queue_step` at all — `v` opens the aiming reticle instead (see "The aiming reticle" below) and queues the strike (`models::queue_reach_attack`) for `player_action_system` to resolve through `models::resolve_reach_attack`.
 
 
 The keyboard on the map
@@ -242,15 +243,15 @@ Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to 
 | `i` `a` `t` `d` `e` `q` `r` `z` `w` `W` `P` | `open_pack(world, PackMode::…)` — see below |
 | `o` / `O` | auto-explore / travel cursor |
 | `A` | `toggle_auto_pickup` — flips `AutoPickup::enabled`, logs which way it landed, spends no turn |
-| `f` / `Tab` | fire the wielded launcher / auto-fight |
-| `v` | `begin_reach_attack` — gated on `models::wielded_reach_weapon`, opens the aiming reticle out to the weapon's own `Reach` (`TargetingState.reach_attack`) |
-| `T` | **undocumented on purpose.** `models::willed_teleport`: with `Teleportitis` on the player (a worn ring of teleportation) and at least `rings::TELEPORT_MAGIC_COST` magic points, it spends them and jumps. Every other path returns `false` and **logs nothing at all** — no refusal, no hint the key exists. Keep it out of `MANUAL.md`. |
+| `f` / `Tab` | fire the wielded launcher / auto-fight; with a `Returns` weapon in hand (`models::wielded_returner`), both throw it instead (`aim_returner` / `ranged_auto_fight`) |
+| `v` | `begin_reach_attack` — gated on `models::wielded_reach_weapon`, opens the aiming reticle out to the weapon's own `Reach` (`TargetingState.reach_attack`); a wielded `Returns` weapon opens a throw reticle instead (`aim_returner`) |
+| `T` | **undocumented on purpose.** `models::queue_willed_teleport`, applied by `models::willed_teleport`: with `Teleportitis` on the player (a worn ring of teleportation) and at least `rings::TELEPORT_MAGIC_COST` magic points, it spends them and jumps. Every other path returns `false` and **logs nothing at all** — no refusal, no hint the key exists. Keep it out of `MANUAL.md`. |
 | `;` | `begin_look` — opens the reticle in look mode (see below). Not `L`: that is the shifted vi key for east and `run_direction` claims it first |
 | `Z` | `begin_spells_menu` — the spells list, rows lettered `a`-`d`. The only way to an active spell: there is **no** direct-fire key for a slot, and adding one means finding a key that neither `run_direction` nor a menu's letter arm already claims and that is not layout-dependent |
 | `>` `.` / `<` `,` | stairs, or travel to them |
 | `F1` | open `HelpMenu`, the key list. No turn |
 | `F2` | toggle `CommandBar.hidden`, the yellow bar. No turn |
-| `Q` / `X` | raise `QuitPrompt` — the "Really quit?" modal. `X` only reaches here with nothing open; otherwise it is the escape hatch above |
+| `Q` / `X` | raise `QuitPrompt` — the "Really quit?" modal. `X` only reaches here with nothing open; otherwise it is the escape hatch above. With time stopped it takes two yeses; the main loop saves only on `save_on_time_edge`, never while time is stopped, and skips the exit save then too |
 | Ctrl+C | **never reaches this table.** `dispatch_key` claims it first, above the `--MORE--` gate, so it quits from every context — a menu that selects rows by letter would otherwise read it as picking row `c` |
 
 Adding a command key is a row in that `match` and (if it opens the pack) a row in `PackMode`. Two things claim keys before that `match` ever runs, and both have silently eaten a command before:
@@ -275,7 +276,7 @@ The action modal (`run_action_modal`, `PackMode::Browse` only) is a fixed three-
 |--------------|--------------|-----------------|
 | `Use`        | `use_or_aim`: a plain item queues onto `UseQueue` immediately; a ranged one (has `Ranged`, and isn't a self-targeted wand like light) instead reopens the aiming reticle; a treat or ammunition goes back in the pack with a "for throwing" line (`models::use_refusal`). | Only the immediate case |
 | `Throw`      | `aim_throw`: opens the aiming reticle, unless `throw_refusal` objects (the Element of Yoord, cursed worn gear). | Never here — the throw itself is queued from the reticle |
-| `Drop`       | `drop_from_pack`: refused by `drop_refusal` (cursed and equipped) with the item returned to the pack; otherwise unequipped and placed on the floor. | Yes, on success |
+| `Drop`       | `queue_drop`: refused by `drop_refusal` (cursed and equipped) with the item left in the pack; otherwise queued, and `player_action_system` unequips it and places it on the floor. | Yes, on success |
 
 `take_pack_item` / `return_to_pack` move an item out of the `Backpack` and back by index — used so an item earmarked for aiming can sit "in flight" without being in either the pack or on the floor while the reticle is up.
 
@@ -308,7 +309,7 @@ Three engine-owned loops replace a single `process_input_and_update` call while 
 
 Fast move (`fast_move_run`) is the odd one out: it runs its entire walk **inside one call**, stepping `schedule.run` itself between moves and never repainting until it returns, so a run reads as a single jump rather than an animated walk. Auto-explore and travel instead take one step per `player_step` call (`auto_explore_step`), returning to the main loop's normal render-and-pace cycle after each — which is why auto-explore visibly walks while a run visibly jumps.
 
-All three refuse to *start* while confused or with a monster in sight, and both `auto_explore_step` and `fast_move_run` poll for a pending keypress before every step and swallow it (`let _ = read()?`) if the walk needs to abort — otherwise that keypress would also be read as a move on the next frame.
+All three refuse to *start* while confused or with a monster in sight — except that a Shift run from a body with `Charges` (nihil) toward a creature in the pressed direction's wedge becomes a charge (`models::queue_charge`, applied by `models::charge`): one turn, the player lands beside the creature, strikes, and is `Vuln` for the monster phase that follows — and both `auto_explore_step` and `fast_move_run` poll for a pending keypress before every step and swallow it (`let _ = read()?`) if the walk needs to abort — otherwise that keypress would also be read as a move on the next frame.
 
 `travel_cursor_step` is different again: it isn't a walk at all, just a blinking highlight the player steers with arrow/vi/numpad keys over already-`revealed` ground (sliding along one axis when the diagonal neighbour is still unseen), gated to 400ms polls so the blink phase flips on a timeout. It runs its own loop outside `process_input_and_update`, so the universal escape hatch never sees its keys — `x` / `X` are handled in its own cancel arm instead, which is the only reason closing it works at all. Enter commits the tile to a travel `AutoExplore` via `nearest_reachable` if the chosen tile isn't itself walkable.
 

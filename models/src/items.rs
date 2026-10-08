@@ -65,7 +65,7 @@ pub(crate) use runes::recharge_runes;
 
 pub use throwing::{
     FrozenThrows, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, thaw_into_pack,
-    throw_reach, throw_refusal, throw_system, use_refusal,
+    throw_reach, throw_refusal, throw_system, time_stopped, use_refusal,
 };
 
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
@@ -77,7 +77,7 @@ pub(crate) use wands::ward_ricochet;
 /// The `T` key's whole implementation — the deliberate teleport a ring of
 /// teleportation makes possible. Public because the input loop calls it; silent
 /// on every path that isn't a jump, because the key is a secret.
-pub use rings::willed_teleport;
+pub use rings::{can_teleport_at_will, willed_teleport};
 
 /// Taking something off the floor, in one verb — the pack, the score, and the
 /// coins that are spent where they lie. The input handler calls this and knows
@@ -142,6 +142,10 @@ use self::wands::{apply_wand_effect, is_attack_wand};
 /// can land — thrown, dropped, shaken off a corpse, carried in on a
 /// swimmer's back — so a new way to put something down cannot forget the
 /// water.
+///
+/// Assumes nothing upstream. It reads the player's [`Viewshed`] as the last
+/// turn left it, because `visibility_system` runs after this step, so a splash
+/// is reported against the view the player had when the turn began.
 pub fn sink_system(world: &mut World) {
     let seen: Vec<(u16, u16)> = world
         .query_filtered::<&Viewshed, With<Player>>()

@@ -127,9 +127,8 @@ The voice
 
 The house habit, everywhere, is to answer "why would I care" in the same breath as "what is it":
 
-> `Projectile` means three things at once: the throw ignores the target's
-> armour die, the missile is spent on what it hits, and nothing can catch
-> it.
+> `Projectile` means two things at once: the missile is spent on what it
+> hits, and nothing can catch it.
 
 not "a marker component indicating projectile status".
 

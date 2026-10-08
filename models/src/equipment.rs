@@ -23,10 +23,10 @@ use serde::{Deserialize, Serialize};
 use rand::Rng;
 
 use crate::body::equip_refusal;
-use crate::catalog::{set_plus, spawn_armor, spawn_ring, spawn_weapon};
+use crate::catalog::set_plus;
 use crate::components::{
     Backpack, Curse, Fighter, GameLog, KnownQuality, Launcher, LogCategory, Player, Position,
-    Reach, RingEffect, Vorpal,
+    Reach, Returns, Vorpal,
 };
 use crate::constants::loot::{MERGE_DONOR_PCT, MERGE_RECIPIENT_PCT};
 use crate::effects::{
@@ -211,6 +211,12 @@ pub fn wielded_reach_weapon(world: &World, entity: Entity) -> Option<Entity> {
     equipped_in(world, entity, Slot::Hand).filter(|&w| world.get::<Reach>(w).is_some())
 }
 
+/// The [`Returns`] weapon (a boomerang, a moon blade) `entity` currently has in
+/// `Slot::Hand`, if any. `f`, `v` and Tab throw it.
+pub fn wielded_returner(world: &World, entity: Entity) -> Option<Entity> {
+    equipped_in(world, entity, Slot::Hand).filter(|&w| world.get::<Returns>(w).is_some())
+}
+
 /// Zeroes whatever [`Momentum`] `wearer`'s wielded weapon has built up — the
 /// rapier's technique, lost the moment its wielder does anything but keep
 /// swinging it (a plain step, a used item) — and, on the same logic, spends
@@ -285,7 +291,7 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     }
 
     if let Some(recipient) = merge_recipient(world, user, slot, item) {
-        merge_curses(world, user, slot, item, recipient);
+        merge_curses(world, user, item, recipient);
         return true;
     }
 
@@ -350,10 +356,10 @@ fn merge_recipient(world: &World, user: Entity, slot: Slot, item: Entity) -> Opt
 /// being put on over a full slot, fuses with the
 /// cursed `recipient` already in its slot. [`MERGE_RECIPIENT_PCT`] of the time
 /// the recipient's form survives, [`MERGE_DONOR_PCT`] the donor's, and the
-/// rest a fresh dagger, leather armor or ring of stealth. Whatever
-/// survives is cursed and takes the donor's plus and [`Vorpal`] bane outright
-/// (no summing); the other item is gone.
-fn merge_curses(world: &mut World, user: Entity, slot: Slot, donor: Entity, recipient: Entity) {
+/// rest both break and nothing survives. Whatever survives is cursed and
+/// takes the donor's plus and [`Vorpal`] bane outright (no summing); the other
+/// item is gone.
+fn merge_curses(world: &mut World, user: Entity, donor: Entity, recipient: Entity) {
     let roll = world.resource_mut::<GameRng>().0.gen_range(0..100);
     let plus = enchantment_plus(world, donor);
     let bane = world.get::<Vorpal>(donor).map(|v| v.bane.clone());
@@ -367,22 +373,14 @@ fn merge_curses(world: &mut World, user: Entity, slot: Slot, donor: Entity, reci
         destroy_worn(world, user, &[recipient]);
         donor
     } else {
-        let at = Position { x: 0, y: 0 };
-        let fresh = match slot {
-            Slot::Hand => spawn_weapon(world, "dagger", at),
-            Slot::Body => spawn_armor(world, "leather armor", at),
-            Slot::Finger => spawn_ring(world, RingEffect::Stealth, at),
-        };
-        let idx = world
-            .get::<Backpack>(user)
-            .and_then(|bp| bp.items.iter().position(|&e| e == recipient));
         destroy_worn(world, user, &[recipient, donor]);
-        if let Some(mut bp) = world.get_mut::<Backpack>(user) {
-            let at = idx.unwrap_or(0).min(bp.items.len());
-            bp.items.insert(at, fresh);
+        if world.get::<Player>(user).is_some() {
+            world.resource_mut::<GameLog>().add_colored(
+                strings::curses_merge_break(&recipient_name, &donor_name),
+                LogCategory::Curse,
+            );
         }
-        world.entity_mut(fresh).remove::<Position>();
-        fresh
+        return;
     };
 
     set_plus(world, survivor, plus);
@@ -448,7 +446,7 @@ pub fn equip_merging(world: &mut World, wearer: Entity, item: Entity) -> bool {
     };
     match merge_recipient(world, wearer, slot, item) {
         Some(recipient) => {
-            merge_curses(world, wearer, slot, item, recipient);
+            merge_curses(world, wearer, item, recipient);
             true
         }
         None => equip_silently(world, wearer, item),

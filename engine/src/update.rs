@@ -16,10 +16,8 @@ use bevy_ecs::schedule::Schedule;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, poll, read};
 
 use crate::constants::timing::{INCAPACITATED_PAUSE_MS, TRAVEL_BLINK_MS};
-use models::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use models::*;
 use models::{GameState, components::GameLog};
-use rand::Rng;
 
 /// The direction of a Shift + movement-key press, for NetHack-style running.
 /// Accepts the shifted vi keys (`H J K L Y U B N`), Shift + arrow keys, and
@@ -57,18 +55,6 @@ fn run_direction(code: KeyCode, mods: KeyModifiers) -> Option<(i16, i16)> {
     }
 }
 
-/// The eight steps a confused stumble can send you.
-const STUMBLE_DIRS: [(i16, i16); 8] = [
-    (1, 0),
-    (-1, 0),
-    (0, 1),
-    (0, -1),
-    (1, 1),
-    (-1, -1),
-    (1, -1),
-    (-1, 1),
-];
-
 /// Whether the player currently carries the [`Confused`] condition.
 fn player_confused(world: &mut World) -> bool {
     world
@@ -90,165 +76,6 @@ fn player_entity_opt(world: &mut World) -> Option<Entity> {
 /// there always is one.
 fn player_entity(world: &mut World) -> Entity {
     player_entity_opt(world).expect("player entity exists during input handling")
-}
-
-/// Confusion tax: some share ([`CONFUSION_STUMBLE_CHANCE`]) of intended steps go
-/// off in a random direction instead. Returns the step to actually attempt and whether it was hijacked (a
-/// hijacked lurch into a wall still burns the turn).
-fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
-    if !player_confused(world) {
-        return (dx, dy, false);
-    }
-    let mut rng = world.resource_mut::<models::GameRng>();
-    if !rng.0.gen_bool(CONFUSION_STUMBLE_CHANCE) {
-        return (dx, dy, false);
-    }
-    let (sx, sy) = STUMBLE_DIRS[rng.0.gen_range(0..STUMBLE_DIRS.len())];
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::stumble_foolishly());
-    (sx, sy, true)
-}
-
-/// Picks up whatever [`Item`] sits at `(x, y)` for `player_entity`, the way
-/// arriving on a tile always does — walking onto it or, just the same,
-/// lunging onto it with an estoc. There is no `,` key: nihilurk has nine pack
-/// slots and a floor full of coins that are spent where they lie, so landing
-/// on a thing is decision enough.
-fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
-    let mut item_entity_to_pickup = None;
-    {
-        let mut query = world.query_filtered::<(Entity, &Position), With<Item>>();
-        for (entity, pos) in query.iter(world) {
-            if pos.x == x && pos.y == y {
-                item_entity_to_pickup = Some(entity);
-                break;
-            }
-        }
-    }
-    let Some(item_entity) = item_entity_to_pickup else {
-        return;
-    };
-    let stowable = world.get::<Pickup>(item_entity).is_none();
-    match models::pick_up(world, player_entity, item_entity) {
-        Some(msg) => world.resource_mut::<GameLog>().add(msg),
-        None if stowable => world.resource_mut::<GameLog>().add(strings::pack_full()),
-        None => {}
-    }
-}
-
-/// Logs a special room's one-line flavor the instant the player's step
-/// crosses into it from anywhere else. A no-op off a special room, past its
-/// threshold, or for the one kind ([`SpecialRoom::MonsterZoo`]) that was
-/// never given a line.
-fn announce_special_room_entry(world: &mut World, old: (u16, u16), new: (u16, u16)) {
-    let message = {
-        let map = world.resource::<Map>();
-        special_room_entry_message(map, old, new)
-    };
-    if let Some(msg) = message {
-        world.resource_mut::<GameLog>().add(msg);
-    }
-}
-
-/// The one path every step and every melee attack goes through — the arrow
-/// keys, auto-explore, fast-move and auto-fight all end up here.
-///
-/// The checks below run in a fixed order and each can end the attempt; only
-/// reaching the move itself (or a confused lurch into a wall) spends the turn.
-/// `docs/reference/input-and-turn-loop.md` walks that order, so keep the two in
-/// step if you add a check.
-fn move_player(world: &mut World, dx: i16, dy: i16) -> bool {
-    let (dx, dy, stumbled) = maybe_stumble(world, dx, dy);
-
-    let mut player_data = None;
-    {
-        let mut query = world.query_filtered::<(Entity, &Position), With<Player>>();
-        if let Some((entity, pos)) = query.iter(world).next() {
-            player_data = Some((
-                entity,
-                pos.x,
-                pos.y,
-                pos.x.saturating_add_signed(dx),
-                pos.y.saturating_add_signed(dy),
-            ));
-        }
-    }
-    let Some((player_entity, old_x, old_y, new_x, new_y)) = player_data else {
-        return false;
-    };
-
-    if try_lunge(world, player_entity, dx, dy) {
-        if let Some(pos) = world.get::<Position>(player_entity).copied() {
-            announce_special_room_entry(world, (old_x, old_y), (pos.x, pos.y));
-            pick_up_here(world, player_entity, pos.x, pos.y);
-        }
-        return true;
-    }
-
-    let swims = world.get::<Swims>(player_entity).is_some();
-    if !world.resource::<Map>().walkable(new_x, new_y, swims) {
-        return stumbled;
-    }
-
-    if !world
-        .resource::<Map>()
-        .diagonal_step_ok(old_x, old_y, new_x, new_y)
-    {
-        return stumbled;
-    }
-
-    let mut swap_with = None;
-    if let Some(target_entity) = models::mob_at(world, Position { x: new_x, y: new_y }) {
-        if world.get::<Helper>(target_entity).is_none() {
-            melee_attack(world, player_entity, target_entity);
-            return true;
-        }
-        swap_with = Some(target_entity);
-    }
-
-    reset_momentum(world, player_entity);
-
-    if player_held_by(world, Grant::of::<Pinned>()) {
-        bear_trap_thrash(world, player_entity);
-        return true;
-    }
-    if player_held_by(world, Grant::of::<Clamped>()) {
-        clamped_thrash(world, player_entity);
-        return true;
-    }
-    if player_held_by(world, Grant::of::<Rooted>()) {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::strain_against_rooted());
-        return true;
-    }
-
-    if let Some(mut pos) = world.get_mut::<Position>(player_entity) {
-        pos.x = new_x;
-        pos.y = new_y;
-    }
-    if let Some(helper) = swap_with {
-        world
-            .entity_mut(helper)
-            .insert((Position { x: old_x, y: old_y }, EntityMoved));
-    }
-    if let Some(mut viewshed) = world.get_mut::<Viewshed>(player_entity) {
-        viewshed.dirty = true;
-    }
-    world.entity_mut(player_entity).insert(EntityMoved);
-    announce_special_room_entry(world, (old_x, old_y), (new_x, new_y));
-
-    try_whirl_attack(
-        world,
-        player_entity,
-        Position { x: old_x, y: old_y },
-        Position { x: new_x, y: new_y },
-    );
-
-    pick_up_here(world, player_entity, new_x, new_y);
-
-    true
 }
 
 /// One Tab press: close on — or strike — the weakest foe in sight. Each of the
@@ -273,7 +100,7 @@ fn auto_fight_turn(world: &mut World) -> bool {
         return false;
     }
     let player = player_entity(world);
-    if wielded_launcher(world, player).is_some() {
+    if wielded_launcher(world, player).is_some() || wielded_returner(world, player).is_some() {
         return ranged_auto_fight(world, player);
     }
     let Some(target) = auto_fight_target(world) else {
@@ -285,7 +112,7 @@ fn auto_fight_turn(world: &mut World) -> bool {
     match fight_step(world, target) {
         Some((dx, dy)) => {
             world.resource_mut::<GameLog>().unread.clear();
-            move_player(world, dx, dy)
+            models::queue_step(world, dx, dy)
         }
         None => {
             world
@@ -297,10 +124,10 @@ fn auto_fight_turn(world: &mut World) -> bool {
 }
 
 /// Tab, with a launcher wielded: fire the first matching projectile at the
-/// auto-fight target instead of walking toward it. Refuses — no turn spent —
-/// when there's nothing to shoot at, nothing left to shoot with, or the shot
-/// to the target isn't clear; it never falls back to closing the distance by
-/// hand.
+/// auto-fight target instead of walking toward it; with a [`Returns`] weapon
+/// wielded, throw the weapon itself. Refuses — no turn spent — when there's
+/// nothing to shoot at, nothing left to shoot with, or the shot to the target
+/// isn't clear; it never falls back to closing the distance by hand.
 fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
     let Some(target) = auto_fight_target(world) else {
         world
@@ -308,10 +135,15 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
             .add(strings::nothing_to_fight());
         return false;
     };
-    let Some(item) = first_matching_ammo(world, player) else {
+    let Some(item) = wielded_returner(world, player).or_else(|| first_matching_ammo(world, player))
+    else {
         world.resource_mut::<GameLog>().add(strings::out_of_ammo());
         return false;
     };
+    if let Some(refusal) = throw_refusal(world, player, item) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
     let target_pos = *world.get::<Position>(target).unwrap();
     let player_pos = *world.get::<Position>(player).unwrap();
     if chebyshev(player_pos, target_pos) > throw_reach(world, player, item) {
@@ -340,6 +172,7 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
             thrower: player,
             item: missile,
             target: target_pos,
+            slot_idx: Some(slot),
         });
     true
 }
@@ -366,6 +199,23 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     }
     dispatch_key(world, key)
+}
+
+/// Saves the run to `path` the moment time stops or starts again, and only
+/// then: `stopped` is whether it was stopped last time this was asked. No save
+/// is written while THE WORLD holds, so quitting inside it loses those turns
+/// (see [`answer_quit_prompt`]). A failed save says so in the log.
+pub(crate) fn save_on_time_edge(world: &mut World, stopped: &mut bool, path: &str) {
+    let now = models::time_stopped(world);
+    if now == *stopped {
+        return;
+    }
+    *stopped = now;
+    if let Err(e) = models::save_game(world, path) {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::failed_to_save_game(&e.to_string()));
+    }
 }
 
 /// Everything [`process_input_and_update`] does once it is holding a key:
@@ -464,6 +314,7 @@ fn close_all_modals(world: &mut World) -> bool {
     let mut quit = world.resource_mut::<QuitPrompt>();
     if quit.open {
         quit.open = false;
+        quit.warned = false;
         closed = true;
     }
     let mut help = world.resource_mut::<HelpMenu>();
@@ -474,18 +325,28 @@ fn close_all_modals(world: &mut World) -> bool {
     closed
 }
 
-/// A keypress while "Really quit?" is up: `y` ends the run, `n` or `Esc` goes
+/// A keypress while "Really quit?" is up: `y` (or the language's own yes key,
+/// [`strings::quit_yes_key`]) ends the run, `n` or `Esc` goes
 /// back to the dungeon, and anything else is ignored rather than guessed at.
 /// Never spends a turn. (`x` and `X` also cancel, via `close_all_modals`
 /// upstream — the prompt is a modal like any other.)
+///
+/// With time stopped the first `y` only warns: nothing has been saved since
+/// THE WORLD began ([`save_on_time_edge`]), and quitting now loses those
+/// turns. A second `y` quits.
 fn answer_quit_prompt(world: &mut World, key: KeyEvent) -> bool {
     match key.code {
-        KeyCode::Char('y') | KeyCode::Char('Y') => {
-            world.resource_mut::<QuitPrompt>().open = false;
-            world.resource_mut::<GameState>().is_running = false;
+        KeyCode::Char(c) if [strings::quit_yes_key(), 'y'].contains(&c.to_ascii_lowercase()) => {
+            let warn = !world.resource::<QuitPrompt>().warned && models::time_stopped(world);
+            let mut quit = world.resource_mut::<QuitPrompt>();
+            quit.warned = warn;
+            quit.open = warn;
+            world.resource_mut::<GameState>().is_running = warn;
         }
         KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-            world.resource_mut::<QuitPrompt>().open = false;
+            let mut quit = world.resource_mut::<QuitPrompt>();
+            quit.open = false;
+            quit.warned = false;
         }
         _ => {}
     }
@@ -778,7 +639,7 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
         let Some(weapon) = item_entity else {
             return Ok(false);
         };
-        models::resolve_reach_attack(world, player, weapon, target);
+        models::queue_reach_attack(world, weapon, target);
         return Ok(true);
     }
 
@@ -807,6 +668,7 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
                 thrower: player,
                 item: missile,
                 target,
+                slot_idx: Some(slot),
             });
         return Ok(true);
     }
@@ -939,16 +801,29 @@ fn commit_item_action(
     item_idx: usize,
     action: ItemAction,
 ) -> bool {
-    let Some(item) = take_pack_item(world, player, item_idx) else {
-        return true;
-    };
     match action {
-        ItemAction::Use => use_or_aim(world, player, item, item_idx),
+        ItemAction::Use => {
+            let Some(item) = take_pack_item(world, player, item_idx) else {
+                return true;
+            };
+            use_or_aim(world, player, item, item_idx)
+        }
         ItemAction::Throw => {
+            let Some(item) = take_pack_item(world, player, item_idx) else {
+                return true;
+            };
             aim_throw(world, player, item, item_idx);
             false
         }
-        ItemAction::Drop => drop_from_pack(world, player, item, item_idx),
+        ItemAction::Drop => {
+            let Some(item) = world
+                .get::<Backpack>(player)
+                .and_then(|pack| pack.items.get(item_idx).copied())
+            else {
+                return true;
+            };
+            models::queue_drop(world, player, item)
+        }
     }
 }
 
@@ -988,28 +863,6 @@ fn aim_throw(world: &mut World, player: Entity, item: Entity, item_idx: usize) {
         return;
     }
     open_reticle(world, player, item, true);
-}
-
-/// Drop: cursed gear won't come off and so can't be put down (it goes back in
-/// the pack); anything else is un-equipped on the way to the floor. Returns
-/// whether the drop actually happened.
-fn drop_from_pack(world: &mut World, player: Entity, item: Entity, item_idx: usize) -> bool {
-    if let Some(refusal) = drop_refusal(world, player, item) {
-        return_to_pack(world, player, item, item_idx);
-        world.resource_mut::<GameLog>().add(refusal);
-        return false;
-    }
-    let Some(pos) = world.get::<Position>(player).cloned() else {
-        return true;
-    };
-    force_unequip(world, item);
-    sync_equipment_effects(world, player);
-    world.entity_mut(item).insert(pos);
-    let name = models::display_name(world, item);
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::you_drop(&name));
-    true
 }
 
 /// Removes pack row `idx` and hands back the item, or `None` if the row is out
@@ -1079,7 +932,12 @@ fn open_reticle_for(
 fn nearest_mob(world: &mut World, player: Entity, max_range: i32) -> Option<(u16, u16)> {
     let player_pos = *world.get::<Position>(player)?;
     let visible = world.get::<Viewshed>(player)?.visible_tiles.clone();
-    let mut q = world.query_filtered::<&Position, (With<Mob>, Without<Hidden>, Without<Helper>)>();
+    let mut q = world.query_filtered::<&Position, (
+        With<Mob>,
+        Without<Hidden>,
+        Without<Helper>,
+        Without<models::IceCube>,
+    )>();
     q.iter(world)
         .filter(|p| {
             (p.x, p.y) != (player_pos.x, player_pos.y)
@@ -1171,8 +1029,7 @@ fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) -> b
 /// the run.
 fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
-        start_run(world, rdx, rdy);
-        return Ok(false);
+        return Ok(start_run(world, rdx, rdy));
     }
 
     let step = match key.code {
@@ -1209,7 +1066,7 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         }
         KeyCode::Char('f') => return begin_fire(world),
         KeyCode::Char('v') => return begin_reach_attack(world),
-        KeyCode::Char('T') => return Ok(models::willed_teleport(world)),
+        KeyCode::Char('T') => return Ok(models::queue_willed_teleport(world)),
         KeyCode::Char('O') => {
             open_travel_cursor(world);
             return Ok(false);
@@ -1232,22 +1089,28 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         return Ok(false);
     };
     world.resource_mut::<GameLog>().unread.clear();
-    Ok(move_player(world, dx, dy))
+    Ok(models::queue_step(world, dx, dy))
 }
 
-/// Shift + direction: kick off a NetHack-style run, or say why it can't start.
-fn start_run(world: &mut World, rdx: i16, rdy: i16) {
+/// Shift + direction: kick off a NetHack-style run, charge a creature in view,
+/// or say why neither can happen. Returns whether a turn was spent, which only
+/// a charge does.
+fn start_run(world: &mut World, rdx: i16, rdy: i16) -> bool {
     if player_confused(world) {
         world
             .resource_mut::<GameLog>()
             .add(strings::too_confused_right_now());
-        return;
+        return false;
     }
     match fast_move_plan(world, rdx, rdy) {
         FastMovePlan::MonsterInSight => {
             world
                 .resource_mut::<GameLog>()
                 .add(strings::not_while_monster_in_sight());
+        }
+        FastMovePlan::Charge(target) => {
+            world.resource_mut::<GameLog>().unread.clear();
+            return models::queue_charge(world, target);
         }
         FastMovePlan::Blocked => {
             world
@@ -1263,6 +1126,7 @@ fn start_run(world: &mut World, rdx: i16, rdy: i16) {
             world.resource_mut::<FastMove>().start(rdx, rdy, Some(tile));
         }
     }
+    false
 }
 
 /// Any of the eleven pack keys — `i` `a` `t` `d` `e` `q` `r` `z` `w` `W` `P`:
@@ -1517,9 +1381,13 @@ fn toggle_auto_pickup(world: &mut World) {
 /// the pack's `i` → item → Throw path when what's in hand is a bow or
 /// crossbow. Opens the aiming reticle exactly as that path does, pre-loaded
 /// with the first arrow (or quarrel) in the pack; Enter/Space looses it via
-/// the ordinary [`fire_at_target`].
+/// the ordinary [`fire_at_target`]. A [`Returns`] weapon in hand is thrown
+/// instead ([`aim_returner`]).
 fn begin_fire(world: &mut World) -> std::io::Result<bool> {
     let player = player_entity(world);
+    if let Some(weapon) = wielded_returner(world, player) {
+        return aim_returner(world, player, weapon);
+    }
     if wielded_launcher(world, player).is_none() {
         world
             .resource_mut::<GameLog>()
@@ -1541,12 +1409,28 @@ fn begin_fire(world: &mut World) -> std::io::Result<bool> {
     Ok(false)
 }
 
+/// `f` or `v` with a [`Returns`] weapon (a boomerang, a moon blade) in hand:
+/// the reticle the pack's Throw opens, loaded with the weapon itself. Refuses,
+/// no turn spent, when it can't leave the hand ([`throw_refusal`]).
+fn aim_returner(world: &mut World, player: Entity, weapon: Entity) -> std::io::Result<bool> {
+    if let Some(refusal) = throw_refusal(world, player, weapon) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return Ok(false);
+    }
+    open_reticle(world, player, weapon, true);
+    Ok(false)
+}
+
 /// `v`: a reach weapon's own strike — a bardiche, a whip. Opens the aiming
 /// reticle out to the wielded weapon's own [`Reach`], pre-loaded with the
 /// weapon itself so [`fire_at_target`] knows to resolve a strike in place
-/// rather than a throw or a use.
+/// rather than a throw or a use. A [`Returns`] weapon in hand is thrown
+/// instead ([`aim_returner`]).
 fn begin_reach_attack(world: &mut World) -> std::io::Result<bool> {
     let player = player_entity(world);
+    if let Some(weapon) = wielded_returner(world, player) {
+        return aim_returner(world, player, weapon);
+    }
     let Some(weapon) = wielded_reach_weapon(world, player) else {
         world
             .resource_mut::<GameLog>()
@@ -1620,7 +1504,7 @@ fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
 
     if world.resource::<Map>().tile(ppos.x, ppos.y) == want_tile {
         world.resource_mut::<GameLog>().unread.clear();
-        return change_level(world, going_down);
+        return models::queue_stairs(world, going_down);
     }
 
     // Otherwise, offer to walk there — but only if we know where it is.
@@ -1729,7 +1613,7 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     };
 
-    let moved = move_player(world, dx, dy);
+    let moved = models::queue_step(world, dx, dy);
     if !moved {
         world.resource_mut::<AutoExplore>().stop();
     }
@@ -1886,7 +1770,7 @@ pub fn fast_move_run(world: &mut World, schedule: &mut Schedule) -> std::io::Res
         };
         let Some((dx, dy)) = next else { break };
 
-        if !move_player(world, dx, dy) {
+        if !models::queue_step(world, dx, dy) {
             break;
         }
 
@@ -1921,6 +1805,15 @@ fn fast_move_done(world: &mut World, target: Option<(u16, u16)>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// Plans a step, then lets the schedule's first step apply it, the way
+    /// a real turn does.
+    fn step(w: &mut World, dx: i16, dy: i16) -> bool {
+        w.init_resource::<PlayerActionQueue>();
+        let spent = models::queue_step(w, dx, dy);
+        models::player_action_system(w);
+        spent
+    }
+
     use super::*;
     use crossterm::event::KeyEvent;
 
@@ -1933,6 +1826,7 @@ mod tests {
             what: "TESTER".into(),
         });
         initialize_world(&mut w);
+        w.init_resource::<PlayerActionQueue>();
         w
     }
 
@@ -2010,7 +1904,7 @@ mod tests {
             if swims {
                 lend(&mut w, player, Grant::of::<Swims>(), Lifetime::Permanent);
             }
-            move_player(&mut w, 1, 0);
+            step(&mut w, 1, 0);
             assert_eq!(
                 player_pos(&mut w) == east,
                 swims,
@@ -2088,6 +1982,76 @@ mod tests {
         );
     }
 
+    /// A wielded boomerang, with nothing else on the floor to fight.
+    fn wield_a_boomerang(w: &mut World) -> (Entity, Entity) {
+        let player = player_entity(w);
+        let boomerang = spawn_weapon(w, "boomerang", Position { x: 0, y: 0 });
+        w.entity_mut(boomerang).remove::<Position>();
+        w.get_mut::<Backpack>(player).unwrap().items.push(boomerang);
+        toggle_equipped(w, player, boomerang);
+        let floor_mobs: Vec<Entity> = w
+            .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
+            .iter(w)
+            .collect();
+        for mob in floor_mobs {
+            w.despawn(mob);
+        }
+        (player, boomerang)
+    }
+
+    #[test]
+    fn f_and_v_aim_a_wielded_returning_weapon_as_a_throw() {
+        for begin in [begin_fire, begin_reach_attack] {
+            let mut w = modal_world(2101);
+            let (_, boomerang) = wield_a_boomerang(&mut w);
+            begin(&mut w).unwrap();
+            let t = w.resource::<TargetingState>();
+            assert!(t.active, "no reticle opened");
+            assert_eq!(t.item, Some(boomerang));
+            assert!(t.throwing && !t.reach_attack, "aimed as a throw");
+        }
+    }
+
+    #[test]
+    fn tab_throws_a_wielded_returning_weapon_at_the_target() {
+        let mut w = modal_world(2102);
+        let (_, boomerang) = wield_a_boomerang(&mut w);
+        let start = player_pos(&mut w);
+        for dx in 1..=2 {
+            w.resource_mut::<Map>().tiles[tile_index(start.x + dx, start.y)] = TileType::Room;
+        }
+        let at = Position {
+            x: start.x + 2,
+            y: start.y,
+        };
+        w.spawn((
+            Name {
+                what: "dummy".into(),
+            },
+            Mob {
+                movement_type: MovementType::Static,
+            },
+            at,
+            Fighter {
+                hp: 5,
+                max_hp: 5,
+                armor: 0,
+                power: 1,
+                max_power: 1,
+                armor_bonus: 0,
+                power_bonus: 0,
+            },
+            Faction::Monster,
+            Blood,
+        ));
+
+        assert!(auto_fight_turn(&mut w), "the throw spends the turn");
+        let throws = &w.resource::<ThrowQueue>().throws;
+        assert_eq!(throws.len(), 1, "Tab threw rather than walked");
+        assert_eq!(throws[0].item, boomerang);
+        assert_eq!(throws[0].target, at);
+    }
+
     #[test]
     fn numpad_digits_move_the_same_as_their_vi_key_equivalents() {
         for (digit, letter) in [
@@ -2106,6 +2070,7 @@ mod tests {
                 KeyEvent::new(KeyCode::Char(digit), KeyModifiers::NONE),
             )
             .unwrap();
+            models::player_action_system(&mut w);
             let after_digit = player_pos(&mut w);
 
             let mut w2 = test_world(2112);
@@ -2114,6 +2079,7 @@ mod tests {
                 KeyEvent::new(KeyCode::Char(letter), KeyModifiers::NONE),
             )
             .unwrap();
+            models::player_action_system(&mut w2);
             let after_letter = player_pos(&mut w2);
 
             assert_eq!(
@@ -2269,6 +2235,64 @@ mod tests {
                 "'{key}' answered the prompt instead of closing it"
             );
         }
+    }
+
+    fn stop_time(w: &mut World) {
+        let player = player_entity(w);
+        lend(w, player, Grant::of::<TimeStopped>(), Lifetime::Floor);
+    }
+
+    #[test]
+    fn quitting_with_time_stopped_takes_a_second_yes() {
+        let mut w = modal_world(10);
+        stop_time(&mut w);
+        dispatch_key(&mut w, press('Q')).unwrap();
+        dispatch_key(&mut w, press('y')).unwrap();
+        assert!(w.resource::<GameState>().is_running, "one yes quit");
+        assert!(w.resource::<QuitPrompt>().warned, "no warning shown");
+        dispatch_key(&mut w, press('y')).unwrap();
+        assert!(!w.resource::<GameState>().is_running);
+    }
+
+    #[test]
+    fn a_no_to_the_time_stopped_warning_starts_the_ask_over() {
+        let mut w = modal_world(11);
+        stop_time(&mut w);
+        for key in ['Q', 'y', 'n', 'Q', 'y'] {
+            dispatch_key(&mut w, press(key)).unwrap();
+        }
+        assert!(w.resource::<GameState>().is_running);
+        assert!(w.resource::<QuitPrompt>().warned);
+    }
+
+    #[test]
+    fn quitting_with_time_running_takes_one_yes() {
+        let mut w = modal_world(12);
+        dispatch_key(&mut w, press('Q')).unwrap();
+        dispatch_key(&mut w, press('y')).unwrap();
+        assert!(!w.resource::<GameState>().is_running);
+    }
+
+    #[test]
+    fn the_run_saves_as_time_stops_and_as_it_starts_again_and_never_between() {
+        let mut w = modal_world(13);
+        let path = std::env::temp_dir().join(format!("nihilurk-wrld-{}.sav", std::process::id()));
+        let path = path.to_str().unwrap().to_string();
+        let mut stopped = false;
+        let saved = |w: &mut World, stopped: &mut bool| {
+            let _ = std::fs::remove_file(&path);
+            save_on_time_edge(w, stopped, &path);
+            std::fs::remove_file(&path).is_ok()
+        };
+
+        assert!(!saved(&mut w, &mut stopped), "time running: no save");
+        stop_time(&mut w);
+        assert!(saved(&mut w, &mut stopped), "THE WORLD drawn: save");
+        assert!(!saved(&mut w, &mut stopped), "time stopped: no save");
+        let player = player_entity(&mut w);
+        revoke(&mut w, player, Grant::of::<TimeStopped>());
+        assert!(saved(&mut w, &mut stopped), "THE WORLD over: save");
+        assert!(!saved(&mut w, &mut stopped));
     }
 
     #[test]
@@ -2646,7 +2670,7 @@ mod tests {
             let player = player_entity(&mut w);
             let here = *w.get::<Position>(player).unwrap();
             w.spawn(models::TrapBundle::trapdoor(here));
-            w.entity_mut(player).insert(EntityMoved);
+            models::mark_moved(&mut w, player);
             w.get_mut::<Viewshed>(player).unwrap().dirty = true;
 
             crate::turn_schedule().run(&mut w);
@@ -2846,6 +2870,7 @@ mod tests {
             thrower: player,
             item: dagger,
             target: empty_tile,
+            slot_idx: None,
         });
 
         crate::turn_schedule().run(&mut w);
@@ -2911,7 +2936,7 @@ mod tests {
         let there = *w.get::<Position>(pal).unwrap();
 
         assert!(
-            move_player(&mut w, 1, 0),
+            step(&mut w, 1, 0),
             "the swap is a step, and a step is a turn"
         );
 
@@ -2927,7 +2952,7 @@ mod tests {
         let there = *w.get::<Position>(pal).unwrap();
         w.resource_mut::<Map>().tiles[models::tile_index(there.x, there.y)] = TileType::Wall;
 
-        move_player(&mut w, 1, 0);
+        step(&mut w, 1, 0);
 
         assert_eq!(*w.get::<Position>(player).unwrap(), here);
         assert_eq!(*w.get::<Position>(pal).unwrap(), there);

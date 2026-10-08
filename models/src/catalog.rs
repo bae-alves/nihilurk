@@ -41,7 +41,7 @@ use crate::monsters::{BESTIARY, SUMMONS};
 // All defined and documented in `constants.rs`.
 use crate::constants::loot::{
     AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN, CURSED_BONUS_MAX, CURSED_BONUS_MIN, EXCEPTIONAL_BONUS_MAX,
-    EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, NORMAL_QUALITY_PCT,
+    EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, IMPROVISED_THROW_DIE, NORMAL_QUALITY_PCT,
 };
 use crate::constants::rings::{
     CURSED_BONUS_MAX as RING_CURSED_BONUS_MAX, CURSED_BONUS_MIN as RING_CURSED_BONUS_MIN,
@@ -547,7 +547,7 @@ impl WeaponDef {
             name,
             color,
             power_die,
-            thrown_die: power_die,
+            thrown_die: IMPROVISED_THROW_DIE,
             projectile: false,
             piercing: false,
             returns: false,
@@ -783,6 +783,8 @@ pub struct AmmoDef {
     pub color: Color,
     /// The die one of these rolls, lobbed by hand.
     pub die: i32,
+    /// Whether a hit saps the victim's power ([`Envenomed`]).
+    pub venom: bool,
     /// The die one of these rolls loosed from its launcher instead. A quarrel's
     /// is the full step up a crossbow earns; an arrow's is short of that — the
     /// bow is the best thing in the dungeon drawn, and this keeps it from also
@@ -806,7 +808,7 @@ impl ItemDef for AmmoDef {
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
-        world
+        let e = world
             .spawn((
                 Name {
                     what: strings::content_name(self.name).to_string(),
@@ -823,7 +825,11 @@ impl ItemDef for AmmoDef {
                 LaunchedBy(self.launched_by),
                 Stack { count: 1 },
             ))
-            .id()
+            .id();
+        if self.venom {
+            world.entity_mut(e).insert(Envenomed);
+        }
+        e
     }
 
     fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
@@ -839,21 +845,19 @@ impl ItemDef for AmmoDef {
 /// Every kind of ammunition in the game, one row each.
 #[rustfmt::skip]
 pub const AMMO: &[AmmoDef] = &[
-    AmmoDef { name: "arrow",   color: Color::DarkYellow, die: 4, launched_die: 6,  launched_by: Grant::of::<FireArrow>()   },
-    AmmoDef { name: "quarrel", color: Color::Grey,       die: 6, launched_die: 12, launched_by: Grant::of::<FireQuarrel>() },
+    AmmoDef { name: "arrow",    color: Color::DarkYellow, die: IMPROVISED_THROW_DIE, venom: false, launched_die: 4, launched_by: Grant::of::<FireArrow>()   },
+    AmmoDef { name: "quarrel",  color: Color::Grey,       die: IMPROVISED_THROW_DIE, venom: false, launched_die: 6, launched_by: Grant::of::<FireQuarrel>() },
+    AmmoDef { name: "blowdart", color: Color::Green,      die: IMPROVISED_THROW_DIE, venom: true,  launched_die: 2, launched_by: Grant::of::<FireDart>()    },
 ];
 
-/// The die and name a monster's shot rolls once loosed — `AMMO`'s own
-/// `launched_die`, so a monster's shot and the player's agree on the same
-/// dial. Monsters keep no quiver to check `LaunchedBy` against, so
-/// [`crate::items::monster_ranged_attack`] picks the row by name instead.
-pub fn ammo_launched_die(fires_quarrel: bool) -> (i32, &'static str) {
-    let name = if fires_quarrel { "quarrel" } else { "arrow" };
-    let def = AMMO
-        .iter()
-        .find(|def| def.name == name)
-        .expect("arrow and quarrel are both rows in AMMO");
-    (def.launched_die, def.display_name())
+/// The row a monster's shot is loosed from: the ammunition answering to the
+/// effect its launcher lends, so a monster's shot and the player's agree on
+/// the same dial. Monsters keep no quiver to check `LaunchedBy` against, so
+/// [`crate::items::monster_ranged_attack`] picks the row by effect instead.
+/// `None` for a shooter with no launcher effect at all.
+pub fn ammo_for(world: &World, shooter: Entity) -> Option<&'static AmmoDef> {
+    AMMO.iter()
+        .find(|def| def.launched_by.probe(world, shooter))
 }
 
 /// A bow or a crossbow. Like a ring, and unlike every other thing you hold, it
@@ -926,6 +930,7 @@ impl ItemDef for LauncherDef {
 pub const LAUNCHERS: &[LauncherDef] = &[
     LauncherDef { name: "short bow", color: Color::DarkYellow, grants: &[Grant::of::<FireArrow>()],   melee_cap: 1 },
     LauncherDef { name: "crossbow", color: Color::DarkGrey,   grants: &[Grant::of::<FireQuarrel>()], melee_cap: 1 },
+    LauncherDef { name: "blowgun",  color: Color::DarkGreen, grants: &[Grant::of::<FireDart>()],    melee_cap: 1 },
 ];
 
 /// Attaches the markers that describe how a thing behaves in flight, and
@@ -1639,6 +1644,9 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &s
             Projectile,
             LaunchedBy(def.launched_by),
         ));
+        if def.venom {
+            entity.insert(Envenomed);
+        }
     }
     if let Some(def) = LAUNCHERS.iter().find(|d| d.name == id) {
         entity.insert((Launcher, Grants(def.grants), MeleeCap(def.melee_cap)));

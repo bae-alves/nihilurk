@@ -1,13 +1,12 @@
 //! Missiles: the things in the pack that are *for* throwing.
 //!
 //! Four of them, and one idea. An arrow, a quarrel, a dagger and a spear all
-//! carry `Projectile` — they go around armour, they are spent on what they hit,
+//! carry `Projectile` — they are spent on what they hit,
 //! and nothing ever catches one out of the air. What separates them is two more
 //! components: a dagger and a spear are `Piercing` and run the whole line, while
 //! an arrow and a quarrel carry `LaunchedBy` and roll `LaunchedDamage` instead
 //! of their hand-thrown die for anyone holding the bow or crossbow that answers
-//! to it — a quarrel's is the plain double, an arrow's a deliberate nerf short
-//! of that.
+//! to it: 1d4 for an arrow, 1d6 for a quarrel, 1d2 (and venom) for a blowdart.
 //!
 //! Ammunition is also the only thing in the game that stacks, so half of this
 //! file is about one pack slot holding thirteen arrows and giving them up one at a
@@ -88,6 +87,7 @@ fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Enti
         thrower,
         item: missile,
         target,
+        slot_idx: slot,
     });
     throw_system(w);
     missile
@@ -421,12 +421,13 @@ fn a_daggers_plus_rides_along_on_the_dagger() {
 }
 
 #[test]
-fn armour_blunts_a_thrown_projectile_the_same_as_an_improvised_one() {
+fn only_armour_plus_blunts_a_throw_and_the_armour_die_never_does() {
     fn worst(weapon: &'static str, plus: i32) -> i32 {
         let mut w = test_world(8);
         let p = player(&mut w);
         let spot = open_run(&mut w, 1)[0];
         let bag = tough(&mut w, "bat", spot);
+        w.get_mut::<Fighter>(bag).unwrap().armor = 20;
         w.get_mut::<Fighter>(bag).unwrap().armor_bonus = plus;
         w.get_mut::<Fighter>(bag).unwrap().hp = 100_000;
         (0..300)
@@ -442,8 +443,102 @@ fn armour_blunts_a_thrown_projectile_the_same_as_an_improvised_one() {
 
     assert_eq!(worst("dagger", 0), 4);
     assert_eq!(worst("dagger", 3), 1);
-    assert_eq!(worst("mace", 0), 6);
-    assert_eq!(worst("mace", 3), 3);
+    assert_eq!(worst("mace", 0), 3);
+    assert_eq!(worst("mace", 3), 0);
+}
+
+#[test]
+fn a_thing_not_made_for_throwing_does_one_d_three_plus_its_plus() {
+    let mut w = test_world(9);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+    let bag = tough(&mut w, "bat", spot);
+    w.get_mut::<Fighter>(bag).unwrap().hp = 100_000;
+    let seen: Vec<i32> = (0..300)
+        .map(|_| {
+            let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
+            w.entity_mut(sword).insert(PowerBonus(2));
+            let before = hp(&w, bag);
+            throw(&mut w, p, sword, spot);
+            before - hp(&w, bag)
+        })
+        .collect();
+    assert!(
+        seen.iter().all(|&d| (3..=5).contains(&d)),
+        "1d3+2: {seen:?}"
+    );
+    assert!(seen.contains(&3) && seen.contains(&5), "{seen:?}");
+}
+
+#[test]
+fn thrown_armour_does_no_damage() {
+    let mut w = test_world(10);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+    let bag = tough(&mut w, "bat", spot);
+    let mail = stash(&mut w, p, |w| spawn_armor(w, "plate mail", NOWHERE));
+    let before = hp(&w, bag);
+    throw(&mut w, p, mail, spot);
+    assert_eq!(hp(&w, bag), before);
+}
+
+#[test]
+fn ammunition_lobbed_by_hand_does_one_d_three() {
+    for ammo in ["arrow", "quarrel", "blowdart"] {
+        let seen = damage_samples(11, ammo, 200, |_, _| {});
+        assert!(
+            seen.iter().all(|&d| (1..=3).contains(&d)),
+            "{ammo}: {seen:?}"
+        );
+        assert!(seen.contains(&3), "{ammo}: {seen:?}");
+    }
+}
+
+#[test]
+fn launchers_loose_a_d4_arrow_a_d6_quarrel_and_a_d2_blowdart() {
+    for (ammo, launcher, die) in [
+        ("arrow", "short bow", 4),
+        ("quarrel", "crossbow", 6),
+        ("blowdart", "blowgun", 2),
+    ] {
+        let seen = damage_samples(12, ammo, 300, |w, p| {
+            let gun = stash(w, p, |w| spawn_launcher(w, launcher, NOWHERE));
+            toggle_equipped(w, p, gun);
+        });
+        assert_eq!(seen.iter().max(), Some(&die), "{ammo}: {seen:?}");
+        assert_eq!(seen.iter().min(), Some(&1), "{ammo}: {seen:?}");
+    }
+}
+
+#[test]
+fn a_blowdart_that_draws_blood_saps_the_victims_power() {
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let gun = stash(&mut w, p, |w| spawn_launcher(w, "blowgun", NOWHERE));
+    toggle_equipped(&mut w, p, gun);
+    let spot = open_run(&mut w, 1)[0];
+    let bag = tough(&mut w, "bat", spot);
+    let power = w.get::<Fighter>(bag).unwrap().power;
+    let dart = quiver(&mut w, p, "blowdart", 1);
+
+    throw(&mut w, p, dart, spot);
+
+    assert_eq!(w.get::<Fighter>(bag).unwrap().power, power - 1);
+    assert!(logged(&w, "Venom courses through"));
+}
+
+#[test]
+fn an_arrow_leaves_the_victims_power_alone() {
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+    let bag = tough(&mut w, "bat", spot);
+    let power = w.get::<Fighter>(bag).unwrap().power;
+    let arrow = quiver(&mut w, p, "arrow", 1);
+
+    throw(&mut w, p, arrow, spot);
+
+    assert_eq!(w.get::<Fighter>(bag).unwrap().power, power);
 }
 
 // ---------------------------------------------------------------------------
@@ -539,6 +634,120 @@ fn a_boomerang_hits_the_first_creature_only_and_comes_back_to_the_pack() {
         "but not in hand"
     );
     assert!(logged(&w, "boomerang returns"));
+}
+
+#[test]
+fn a_boomerang_comes_back_to_the_pack_row_it_left() {
+    let mut w = test_world(44);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 2)[1];
+    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
+    stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    let row = |w: &World| {
+        w.get::<Backpack>(p)
+            .unwrap()
+            .items
+            .iter()
+            .position(|&e| e == boomerang)
+    };
+    let before = row(&w);
+
+    throw(&mut w, p, boomerang, spot);
+
+    assert_eq!(row(&w), before, "same letter as before the throw");
+}
+
+/// The player's pack, as it stands.
+fn pack(w: &World, p: Entity) -> Vec<Entity> {
+    w.get::<Backpack>(p).unwrap().items.clone()
+}
+
+/// Throws `items` one after another with time stopped, then thaws them back the
+/// way a save or a floor change does.
+fn throw_frozen_and_thaw(w: &mut World, p: Entity, items: &[Entity]) {
+    let spot = open_run(w, 2)[1];
+    lend(w, p, Grant::of::<TimeStopped>(), Lifetime::Floor);
+    for &item in items {
+        throw(w, p, item, spot);
+    }
+    thaw_into_pack(w);
+    revoke(w, p, Grant::of::<TimeStopped>());
+}
+
+#[test]
+fn the_world_does_not_hold_a_returning_weapon() {
+    let mut w = test_world(49);
+    let p = player(&mut w);
+    let spot = open_run(&mut w, 1)[0];
+    let bat = tough(&mut w, "bat", spot);
+    let boomerang = stash(&mut w, p, |w| spawn_weapon(w, "boomerang", NOWHERE));
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    lend(&mut w, p, Grant::of::<TimeStopped>(), Lifetime::Floor);
+
+    throw(&mut w, p, boomerang, spot);
+
+    assert!(hp(&w, bat) < 500, "it struck with time stopped");
+    assert_eq!(pack_count(&w, p, boomerang), 1, "and came home");
+    assert!(!logged(&w, "stops in the air"));
+
+    let before = hp(&w, bat);
+    throw(&mut w, p, dagger, spot);
+    assert_eq!(hp(&w, bat), before, "a dagger still hangs");
+}
+
+#[test]
+fn a_frozen_throw_thaws_back_into_the_row_it_left() {
+    let mut w = test_world(45);
+    let p = player(&mut w);
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
+    let before = pack(&w, p);
+
+    throw_frozen_and_thaw(&mut w, p, &[dagger]);
+
+    assert_eq!(pack(&w, p), before);
+}
+
+#[test]
+fn several_frozen_throws_all_thaw_back_into_their_rows() {
+    let mut w = test_world(46);
+    let p = player(&mut w);
+    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
+    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
+    let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
+    stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
+    let before = pack(&w, p);
+
+    throw_frozen_and_thaw(&mut w, p, &[spear, dagger]);
+
+    assert_eq!(pack(&w, p), before);
+}
+
+#[test]
+fn a_frozen_arrow_thaws_back_into_its_quiver() {
+    let mut w = test_world(47);
+    let p = player(&mut w);
+    let arrows = quiver(&mut w, p, "arrow", 5);
+    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
+    let before = pack(&w, p);
+
+    throw_frozen_and_thaw(&mut w, p, &[arrows]);
+
+    assert_eq!(pack(&w, p), before, "no new row for the one arrow");
+    assert_eq!(w.get::<Stack>(arrows).unwrap().count, 5);
+}
+
+#[test]
+fn a_frozen_last_arrow_thaws_back_into_its_row() {
+    let mut w = test_world(48);
+    let p = player(&mut w);
+    let arrow = quiver(&mut w, p, "arrow", 1);
+    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
+    let before = pack(&w, p);
+
+    throw_frozen_and_thaw(&mut w, p, &[arrow]);
+
+    assert_eq!(pack(&w, p), before);
 }
 
 #[test]

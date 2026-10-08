@@ -77,7 +77,7 @@ be lost.
 **The lurk** (`-b lurk`) is quadruped, fanged, clawed and furred, and shows on
 the map as a magenta `@`. It is the other way of playing:
 
-  * Eight hit points and two magic. It is thinner than nihil in every way that
+  * Seven hit points and two magic. It is thinner than nihil in every way that
     can be measured at the start.
   * It carries nothing and can put nothing on but rings. The claws are the
     weapon and the fur is the armour, so no sword and no breastplate will ever
@@ -162,7 +162,7 @@ Move one square at a time with the arrows, vi keys, or number pad:
 
 Walk into a monster to attack it. There is no separate attack command. You cannot walk diagonally through the corner of two walls, and you cannot attack a wall. Nothing heals you as you walk.
 
-Health is scarce. Armour can turn a blow aside, but no weapon is guaranteed to save you. If a fight is going badly, leave it, use a potion, or find another way around.
+Health is scarce. Armour can turn a blow aside, but no weapon is guaranteed to save you. Now and then you land an excellent hit, and it shatters whatever armour your foe has on. Cursed armour bursts into splinters of evil magic that hurt the monsters around it and spare you and your allies. If a fight is going badly, leave it, use a potion, or find another way around.
 
 Spirits are the shops. They are `&` creatures, and you make a deal by walking into one. Some give away a choice of items. Others trade if you carry something they want. Deal with them too much, or hurt them, and you upset the balance: every spirit turns hostile. A scroll of atonement makes them peaceful again.
 
@@ -172,13 +172,13 @@ Several commands let you spend less time walking:
 
 | Key | Action |
 |-----|--------|
-| Shift + direction | Run until you meet an obstacle or something worth noticing |
+| Shift + direction | Run until you meet an obstacle or something worth noticing. With a creature in view that way: CHARGE! Close the gap and strike, but take 25% more from melee until they have moved |
 | `o` | Explore the floor automatically |
 | `A` | Toggle picking up useful items during auto-explore |
 | `O` | Choose a destination and travel there |
-| `Tab` | Fight the nearest visible threat automatically |
-| `f` | Fire the launcher in your hand |
-| `v` | Make a reach attack with a suitable weapon |
+| `Tab` | Fight the nearest visible threat automatically; throws a boomerang or moon blade in your hand |
+| `f` | Fire the launcher in your hand, or throw the boomerang or moon blade in it |
+| `v` | Make a reach attack with a suitable weapon, or throw the boomerang or moon blade in your hand |
 | `F1` | Show the key list |
 | `F2` | Hide or show the yellow key hints at the bottom left |
 
@@ -205,7 +205,7 @@ These commands go directly to the relevant kind of action:
 | `W` | Wear armour |
 | `P` | Put on a ring |
 
-Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows and quarrels are stronger, and carry twice as far, with the matching bow or crossbow in your hand. Small things — potions, scrolls, wands, rings — fly further out of a bare hand than a spear or a sack of arrows does. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit. A thrown boomerang hits the first creature in its way and flies back to you, into your hand if you were wielding it.
+Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows, quarrels and blowdarts are stronger, and carry twice as far, with the matching bow, crossbow or blowgun in your hand; a blowdart saps the power of whatever it wounds. Anything thrown that was not made for throwing does 1d3, and armour a creature wears (its plus) always takes some of the damage off. Small things — potions, scrolls, wands, rings — fly further out of a bare hand than a spear or a sack of arrows does. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit. A thrown boomerang hits the first creature in its way and flies back to you: to its old place in your pack, and into your hand if you were wielding it. With one in hand, `f`, `v` and `Tab` throw it.
 
 Your pack has limited space. Ammunition shares a slot with matching ammunition, but other items take their own place. Coins are not carried: stepping on one spends it immediately. If a coin cannot help you yet, the dungeon leaves it where it is.
 
@@ -215,7 +215,7 @@ Your pack has limited space. Ammunition shares a slot with matching ammunition, 
 Decks of cards
 --------------
 
-A deck of cards is very rare. It holds five cards, stacked when the deck turns up, and one or two of them lie reversed. Read it (`r`) and you play the top card; a reversed card plays its darker side. Some cards play other cards. Throw the deck instead and all that is left plays at once as a poker hand, never reversed, on you: the better the hand, the more points, and a FOOL counts as any card. Five of a kind hands you the Element of Yoord.
+A deck of cards is as rare as a ring. It holds five cards, stacked when the deck turns up, and one or two of them lie reversed. Read it (`r`) and you play the top card; a reversed card plays its darker side. Some cards play other cards. Throw the deck instead and all that is left plays at once as a poker hand, never reversed, on you. Every card that makes up the hand pays 5,000 points, and a FOOL counts as any card. Five of a kind hands you the Element of Yoord.
 
 Helpers
 -------
@@ -247,7 +247,7 @@ Unknown things
 
 Potions, scrolls, and wands tell you exactly what they are the moment you find them.
 
-Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. A ring that is a number (protection, strength, increase damage, sharpshooting) is +2 when plain, +3 when unusually good, and anywhere from -3 to +2 when cursed; the other rings have no number to hide, only the curse. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose. Put on a cursed item you already know about when its slot is full and holds a cursed item, and the two merge (a free finger just takes the ring). Monsters that catch or steal cursed gear merge it too: 45% of the time the worn item survives, 45% the new one does, and 10% you get a plain dagger, leather armor or ring of stealth. Whatever survives takes the new item's plus and vorpal bane, replacing its own. With two cursed rings on, the first in your pack is the one that merges.
+Weapons, armour, and rings hold back one thing: their own quality. An item may be plain, unusually good, or cursed, and you cannot tell which just by picking it up — though a ring always tells you what it does. A ring that is a number (protection, strength, increase damage, sharpshooting) is +2 when plain, +3 when unusually good, and anywhere from -3 to +2 when cursed; the other rings have no number to hide, only the curse. Wearing it settles the question; so does a scroll of identify, read before you commit. A cursed item may be powerful, but once you put it on, it may refuse to come off. Keep a way to remove a curse before testing something you cannot afford to lose. Put on a cursed item you already know about when its slot is full and holds a cursed item, and the two merge (a free finger just takes the ring). Monsters that catch or steal cursed gear merge it too: 45% of the time the worn item survives, 45% the new one does, and 10% both break. Whatever survives takes the new item's plus and vorpal bane, replacing its own. With two cursed rings on, the first in your pack is the one that merges.
 
 Magic and spells
 ----------------
@@ -303,7 +303,7 @@ Useful commands
 | `Q` | Quit after confirmation |
 | `Ctrl+C` | Quit immediately |
 
-`Esc` backs out of menus. It is not a quit key. Quitting saves the current expedition unless saving has been disabled.
+`Esc` backs out of menus. It is not a quit key. Quitting saves the current expedition unless saving has been disabled. While time is stopped nothing is saved: the game saves as time stops and again as it starts. Quitting in between warns you in red and asks a second time, and those turns are lost.
 
 The map can be centred, screen shake can be disabled, and blood can be hidden with command-line options. For the complete list, see `docs/reference/cli-and-env.md`.
 
@@ -317,7 +317,7 @@ Quick reference
     Explore       o        A toggles pickups
     Travel        O, steer, Enter
     Auto-fight    Tab
-    Fire          f        with a bow or crossbow drawn
+    Fire          f        with a bow, crossbow or blowgun drawn
     Reach         v        with a reach weapon
     Look          ;        steer the cursor, no turn spent
     Stairs        > down, < up (or . and ,)

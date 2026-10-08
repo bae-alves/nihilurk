@@ -8,7 +8,7 @@ Why monsters are so fragile
                    themselves see `../reference/content-tables.md`; for
                    the act of adding a row, `../how-to/add-a-monster.md`.
 
-A bat has one hit point. That is not a placeholder.
+A kestral has three hit points. That is not a placeholder.
 
 
 One exchange, two dice
@@ -20,6 +20,16 @@ nihilurk resolves a fight as two independent rolls, subtracted:
 
 Both sides roll every time. There is no to-hit roll and nothing ever misses -- a swing that fails is not a miss, it is a hit the armour ate.
 
+Each `1d` there is really two dice of that size averaged, rounding down (`BELL_CURVE_DICE`). The range is the plain die's; the spread is narrower, and the rounding shades the mean down by about a quarter point. An excellent hit, below, rolls its dice flat.
+
+That is the melee formula. Damage comes in three kinds, and armour answers each differently:
+
+    Melee    armour die + armour plus   (the formula above)
+    Missile  armour plus only           (every throw, every shot)
+    Magic    nothing                    (wands, spells, blasts)
+
+Missiles go around the armour die because a point already in flight does not care what you are wearing, but an enchantment still turns it. Magic goes around everything. There are no exceptions: an arrow or dart trap fires a missile, so it takes the plus; every other damage source -- a spell, a wand, a blast, a trick shot's burst -- is magic and takes nothing.
+
 Everything a creature wears or holds folds into those four numbers before they are rolled, and combat never learns what supplied them. A long sword, a suit of plate mail and a ring of protection all arrive as the same kind of modifier.
 
 
@@ -28,11 +38,11 @@ Micro-HP: the pool is not the defence
 
 The instinct when making something dangerous is to give it more hit points. In nihilurk that makes it *slower*, not scarier, and the difference matters.
 
-A creature's survival comes from winning the armour roll, not from absorbing many losses. A troll with `armor: 6, armor_bonus: 1` shrugs off most of what a dagger can produce; it does not need thirty hit points to feel dangerous, and if it had them the fight would just take longer while being no more frightening. The whole bestiary lives between 1 and 12 hit points on purpose.
+A creature's survival comes from winning the armour roll, not from absorbing many losses. A troll with `armor: 6, armor_bonus: 1` shrugs off most of what a dagger can produce; it does not need thirty hit points to feel dangerous, and if it had them the fight would just take longer while being no more frightening. The whole bestiary lives between 3 and 13 hit points on purpose.
 
 The practical rule: **raise `armor` and `armor_bonus` to make a thing hard to kill; raise `power` and `power_bonus` to make it frightening to stand next to; raise `hp` only to buy a creature one more exchange.**
 
-The tension this buys is Rogue's: every fight is short, every fight can go wrong, and a bat with a lucky roll can end a run that had a plan. Fragility cuts both ways -- the player has twelve hit points.
+The tension this buys is Rogue's: every fight is short, every fight can go wrong, and once your armour falls behind, an orc with a lucky roll can end a run that had a plan. Fragility cuts both ways -- the player has twelve hit points.
 
 
 The two rules that apply only to the player
@@ -40,7 +50,7 @@ The two rules that apply only to the player
 
 Both exist to stop the maths above producing a *stalemate*, which is the one outcome a turn-based fight cannot survive.
 
-  * **Excellent hit.** A share of the player's swings (`EXCELLENT_HIT_CHANCE`) roll `EXCELLENT_HIT_DICE` dice of `[power]` instead of one, before armour is subtracted. Without it, a player in poor gear facing good armour has no path at all.
+  * **Excellent hit.** A share of the player's swings (`EXCELLENT_HIT_CHANCE`) roll `EXCELLENT_HIT_DICE` dice of `[power]` instead of one, before armour is subtracted. Without it, a player in poor gear facing good armour has no path at all. It also shatters the suit a foe has on, and a cursed suit throws splinters (`CURSED_SPLINTER_DIE`) into every other foe within `CURSED_SPLINTER_RADIUS`.
 
   * **Chip damage.** The player's worst swing still takes `CHIP_DAMAGE` off -- but a blow that weak can never be the killing one. It leaves things alive on the last point of HP. Without it, an unlucky player against a well-armoured monster can swing forever and never move the number.
 
@@ -54,7 +64,7 @@ The price of a hand
 
 One slot holds one thing, and nihilurk has no wait action -- you cannot spend a turn swapping and then act. So the hand you commit is committed until you spend a real turn getting out of it, with whatever is next to you getting a free swing.
 
-That is the whole design of the bow. Drawn, it is the best thing in the dungeon: it ups an arrow's die (short of doubling it -- a deliberate nerf so the bow does not also eclipse a crossbow), its enchantment rides along on every shot, and a corridor is a killing lane. Swung, it carries `MeleeCap(1)` and is worth a bruise -- less than your bare fists, which is the point. Three hundred swings with a +5 bow deal 300 damage; three hundred with a long sword deal about 2,400; bare-handed, about 1,000.
+That is the whole design of the bow. Drawn, it is the best thing in the dungeon: it looses an arrow on 1d4 where a hand-thrown one rolls 1d3 (a crossbow's quarrel rolls 1d6, a blowgun's venomed dart 1d2), its enchantment rides along on every shot, and a corridor is a killing lane. Swung, it carries `MeleeCap(1)` and is worth a bruise -- less than your bare fists, which is the point. Three hundred swings with a +5 bow deal 300 damage; three hundred with a long sword deal about 2,400; bare-handed, about 1,000.
 
 So an archer is not a melee character with a ranged option. An archer is someone who has decided that nothing will reach them, and has to be right. Letting the bow also be a decent club would collapse that decision into a free upgrade, and the cheapest way to keep a decision honest is to price the thing you did not choose.
 
@@ -85,9 +95,9 @@ Reading the existing table
 
 Rough shape of the bestiary, if you want a new creature to sit in it without standing out:
 
-    fodder      hp 1-2    power 4-8     armor 4-8       depth 1
-    mid         hp 3-6    power 6-10    armor 6-10      depth 5
-    deep        hp 8-12   power 8-12    armor 6-10      depth 10, with bonuses
+    fodder      hp 3-6    power 4-6     armor 4-6       depth 1
+    mid         hp 3-10   power 4-10    armor 4-12      depth 5
+    deep        hp 13     power 8-12    armor 6-10      depth 10, with bonuses
 
 Each row also keeps its original Rogue level and armour class in a comment table at the top of `models/src/monsters.rs`, as a design anchor. nihilurk does not model either, but they say what the creature was *for*.
 

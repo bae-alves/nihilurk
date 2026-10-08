@@ -32,7 +32,7 @@ use std::collections::HashSet;
 use crossterm::style::Color;
 
 use crate::components::{Element, LogCategory};
-use crate::effects::{ArmorBonus, GreenBlood, equipped_total, loadout};
+use crate::effects::{ArmorBonus, GreenBlood, equipped_total};
 use crate::map::{BloodStains, Corpses, FxRng, GameRng, Map, Smoke};
 use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
@@ -88,19 +88,6 @@ pub fn total_armor_plus(world: &World, entity: Entity) -> i32 {
         .map(|f| f.armor_bonus)
         .unwrap_or(0);
     base + equipped_total::<ArmorBonus>(world, entity)
-}
-
-/// The defender's full armour roll: `1d[armor]` (bell-curved, same as a
-/// melee swing's) plus [`total_armor_plus`]. This is what an arrow or a
-/// hurled weapon's damage is measured against — the same soak a blade would
-/// have to get through, since a point already flying is still just landing
-/// on the same armour.
-pub fn total_armor_roll(world: &mut World, entity: Entity) -> i32 {
-    let armor_die =
-        world.get::<Fighter>(entity).map_or(0, |f| f.armor) + loadout(world, entity).armor_die;
-    let plus = total_armor_plus(world, entity);
-    let mut rng = world.resource_mut::<GameRng>();
-    crate::combat::roll_die_bell(&mut rng.0, armor_die) + plus
 }
 
 /// Every entity — creature, item, feature — standing on `pos`.
@@ -411,14 +398,18 @@ impl Hit {
 /// Returns how much HP actually came off — 0 for a ward, an immunity, or
 /// anything with no [`Fighter`] to hurt.
 ///
+/// A [`Hidden`](crate::Hidden) creature, one the hero cannot see, takes the
+/// harm in silence: no ward line, no chip line, no `announce`.
+///
 /// **This is the only place mitigation is decided.** A new immunity is a
 /// branch here and nowhere else; before, it would have been thirteen separate
 /// edits, and the ones that were forgotten would have been silent — nothing
 /// in the game is elemental *and* outside this funnel today, so the first
 /// elemental trap would simply have burned a dragon.
 pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&str>) -> i32 {
+    let seen = world.get::<crate::Hidden>(entity).is_none();
     if world.get::<crate::effects::Protected>(entity).is_some() {
-        if world.get::<Name>(entity).is_some() {
+        if seen && world.get::<Name>(entity).is_some() {
             let name = item_label(world, entity);
             world
                 .resource_mut::<GameLog>()
@@ -427,7 +418,7 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
         return 0;
     }
     if hit.magical && world.get::<crate::effects::MagicWard>(entity).is_some() {
-        if world.get::<Name>(entity).is_some() {
+        if seen && world.get::<Name>(entity).is_some() {
             let name = item_label(world, entity);
             world
                 .resource_mut::<GameLog>()
@@ -437,7 +428,7 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
         return 0;
     }
     if let Some(el) = hit.element.filter(|el| el.immunity().probe(world, entity)) {
-        if world.get::<Name>(entity).is_some() {
+        if seen && world.get::<Name>(entity).is_some() {
             let name = item_label(world, entity);
             world
                 .resource_mut::<GameLog>()
@@ -452,6 +443,7 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
     let chip = crate::effects::stone_chip(world, entity, hit.amount);
     let amount = chip.as_ref().map_or(hit.amount, |c| c.through);
     match (&chip, announce) {
+        _ if !seen => {}
         (Some(chip), _) if hit.amount > 0 => {
             let line = chip.line.clone();
             world.resource_mut::<GameLog>().add(line);
@@ -462,11 +454,49 @@ pub fn apply_hit(world: &mut World, entity: Entity, hit: Hit, announce: Option<&
     if let Some(mut fighter) = world.get_mut::<Fighter>(entity) {
         fighter.hp -= amount;
     }
+    if armor_takes_last_hit(world, entity) {
+        spill_blood(world, entity, hp_before - 1, false);
+        took_damage(world, entity, Some(hp_before));
+        return hp_before - 1;
+    }
+    crate::ice::note_cold_kill(world, entity, hit);
     if amount > 0 {
         spill_blood(world, entity, amount, false);
         took_damage(world, entity, Some(hp_before));
     }
     amount.min(hp_before.max(0))
+}
+
+/// If the blow just applied killed the player and they have a cursed or
+/// exceptional (plus-bearing) suit on, the suit takes it: destroyed, and the
+/// player left on 1 HP. Plain armour does not. Returns whether it did.
+///
+/// Called from [`apply_hit`] and [`crate::combat::resolve_attack`]'s landing,
+/// the two places HP comes off; a third copy of this rule would be a third
+/// answer to "can armour save you". Only the player is spared: a monster's
+/// gear is loot, not a second life.
+pub(crate) fn armor_takes_last_hit(world: &mut World, entity: Entity) -> bool {
+    if world.get::<Player>(entity).is_none()
+        || world.get::<Fighter>(entity).is_none_or(|f| f.hp > 0)
+    {
+        return false;
+    }
+    let Some(suit) = crate::equipment::equipped_in(world, entity, crate::Slot::Body) else {
+        return false;
+    };
+    let plus = world.get::<ArmorBonus>(suit).map_or(0, |b| b.0);
+    if world.get::<crate::Curse>(suit).is_none() && plus <= 0 {
+        return false;
+    }
+    let name = crate::identify::display_name(world, suit);
+    crate::equipment::destroy_worn(world, entity, &[suit]);
+    if let Some(mut fighter) = world.get_mut::<Fighter>(entity) {
+        fighter.hp = 1;
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add_colored(strings::armor_takes_the_blow(&name), LogCategory::Wounded);
+    true
 }
 
 /// Everything that happens to a creature *because it was hurt*, whatever hurt
@@ -829,4 +859,17 @@ pub(crate) fn death_burst_at(
             fx.bone_shard(&spts, glyph, stretch);
         }
     }
+}
+
+/// Tells the schedule `entity` changed tile this turn: tags it with
+/// [`EntityMoved`](crate::components::EntityMoved) so `trap_system` springs what it stepped on, and marks its
+/// [`Viewshed`](crate::components::Viewshed) dirty so what it can see is recomputed. Every move, the
+/// player's and a monster's, ends here.
+pub fn mark_moved(world: &mut World, entity: Entity) {
+    if let Some(mut viewshed) = world.get_mut::<crate::components::Viewshed>(entity) {
+        viewshed.dirty = true;
+    }
+    world
+        .entity_mut(entity)
+        .insert(crate::components::EntityMoved);
 }

@@ -62,6 +62,7 @@ And architecture decision records. They keep the history the other pages leave o
     explanation/adr-0005-aim-resolves-before-the-mobs-move.md  a zap and a throw resolve before the mobs move
     explanation/adr-0006-effects-saved-by-id.md              effects are saved by string id
     explanation/adr-0007-aggravation-is-a-component.md       aggravation sits on top of the tactic
+    explanation/adr-0008-player-actions-are-queued-intents.md  the player's step is a queued intent
 
 
 How this is organised

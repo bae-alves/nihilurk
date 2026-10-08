@@ -11,7 +11,7 @@
 //!
 //! ## What is *not* here
 //!
-//! * `STUMBLE_DIRS` in `update.rs` and `SUPPORTED` in `bin/dispatch.rs`.
+//! * `STUMBLE_DIRS` in `models/src/player.rs` and `SUPPORTED` in `bin/dispatch.rs`.
 //!   Structural tables, not knobs. The dispatcher is also its own crate root and
 //!   shares no module with this binary.
 //! * `BLANK_CELL` in `screen.rs`. It is a value of a type that module owns.

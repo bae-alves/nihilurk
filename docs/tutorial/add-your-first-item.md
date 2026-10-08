@@ -142,7 +142,7 @@ Rebuild, and throw it at something:
 
     NIHILURK_SPAWN="quarterstaff,emu" cargo run -p nihilurk
 
-It now flies properly: it goes around the target's armour die instead of being blunted by it, it is spent on what it hits, and nothing can pluck it out of the air. You did not implement any of that. Those three behaviours belong to `.missile(...)`, and every row that asks for them gets all three.
+It now flies properly: it is spent on what it hits, and nothing can pluck it out of the air. You did not implement any of that. Those behaviours belong to `.missile(...)`, and every row that asks for them gets both.
 
 Nothing in the throwing code knows a quarterstaff exists. It asks "is this a `Projectile`?", and your row answered.
 
@@ -209,7 +209,7 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
     pub struct FireStone;
 
     // in AMMO
-    AmmoDef { name: "sling stone", color: Color::Grey, die: 3, launched_die: 6,
+    AmmoDef { name: "sling stone", color: Color::Grey, die: 3, venom: false, launched_die: 6,
               launched_by: Grant::of::<FireStone>() },
 
     // in LAUNCHERS

@@ -426,7 +426,7 @@ fn act(
         pos.y = new_y;
     }
     spatial.insert((new_x, new_y), (mob, faction));
-    world.entity_mut(mob).insert(EntityMoved);
+    crate::helpers::mark_moved(world, mob);
     spend_energy(world, mob);
     true
 }

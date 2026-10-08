@@ -15,6 +15,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::abilities::{Blow, cleave_attack, fire_on_hit, fire_on_struck, fire_on_targeted};
+use crate::ai::hostile;
 use crate::components::*;
 use crate::conditions::afflicted;
 use crate::constants::score::BOUNTY_SCORE_MULTIPLIER;
@@ -22,9 +23,10 @@ use crate::effects::{
     Asleep, Bided, Binds, Clamped, ClampedBy, Fencer, Grant, Lunges, Lurk, Pinned, Rooted,
     ScoreBounty, ShattersStone, VorpalOnCondition, VorpalTarget, WhirlOnMove, loadout, revoke,
 };
-use crate::equipment::{equipped_items, force_unequip};
+use crate::equipment::{Slot, destroy_worn, equipped_in, equipped_items, force_unequip};
 use crate::helpers::{
-    chebyshev, death_burst, get_line, mob_at, monster_at, player_sees, spill_blood, took_damage,
+    Hit, apply_hit, chebyshev, death_burst, get_line, mob_at, monster_at, player_sees, roll_dice,
+    spill_blood, took_damage,
 };
 use crate::identify::display_name;
 use crate::map::{GameRng, Map};
@@ -40,8 +42,8 @@ use crate::state::Ending;
 //   CHIP_DAMAGE                                the player's guaranteed-1 floor
 //   GEAR_SURVIVES_DEATH                        per-item odds a corpse keeps its gear
 use crate::constants::combat::{
-    BELL_CURVE_DICE, BIDE_ATTACK_BONUS, CHIP_DAMAGE, EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE,
-    GEAR_SURVIVES_DEATH,
+    BELL_CURVE_DICE, BIDE_ATTACK_BONUS, CHIP_DAMAGE, CURSED_SPLINTER_DIE, CURSED_SPLINTER_RADIUS,
+    EXCELLENT_HIT_CHANCE, EXCELLENT_HIT_DICE, GEAR_SURVIVES_DEATH, VULN_DAMAGE_PERCENT,
 };
 use crate::constants::decks::{BALA_POWER, BOLE_ARMOR};
 
@@ -55,9 +57,10 @@ fn roll_die(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
 }
 
 /// Rolls `1dN` [`BELL_CURVE_DICE`] times and averages, rounding down. Same
-/// range and mean as a plain [`roll_die`], just a narrower distribution
-/// around that mean — the bell curve that takes the swing out of a normal
-/// exchange without touching any weapon or armour's tuned die size.
+/// range as a plain [`roll_die`], just a narrower distribution — the bell
+/// curve that takes the swing out of a normal exchange without touching any
+/// weapon or armour's tuned die size. Rounding down shades the mean about a
+/// quarter point under the plain die's.
 pub(crate) fn roll_die_bell(rng: &mut ChaCha12Rng, sides: i32) -> i32 {
     (0..BELL_CURVE_DICE)
         .map(|_| roll_die(rng, sides))
@@ -113,6 +116,12 @@ pub fn combat_system(world: &mut World) {
 /// 0` found here is this turn's business to finish, never a casualty left
 /// over from one that already swept.
 pub fn reaper_system(world: &mut World) {
+    debug_assert!(
+        world
+            .get_resource::<AttackQueue>()
+            .is_none_or(|q| q.attacks.is_empty()),
+        "reaper_system ran with attacks still queued: combat_system did not drain them"
+    );
     let doomed: Vec<Entity> = {
         let mut q = world.query::<(Entity, &Fighter)>();
         q.iter(world)
@@ -210,6 +219,15 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         return;
     }
     let name = entity_name(world, entity);
+    if crate::ice::freezes(world, entity) {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::mob_freezes_solid(&name));
+        pay_for_the_corpse(world, entity);
+        leave_gear_behind(world, entity);
+        crate::ice::encase(world, entity);
+        return;
+    }
     world
         .resource_mut::<GameLog>()
         .add(strings::mob_dies(&name));
@@ -277,7 +295,8 @@ pub(crate) fn leave_gear_behind(world: &mut World, entity: Entity) {
 ///
 /// Damage is `(1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus)`: the
 /// attacker's and defender's roll totals are computed independently and then
-/// subtracted. Every equipped source of a [`crate::effects::Modifier`] folds
+/// subtracted. Each `1d` is two dice averaged (`roll_die_bell`), excellent hits
+/// excepted. Every equipped source of a [`crate::effects::Modifier`] folds
 /// into those four numbers — a weapon's die, an enchantment's flat bonus, a
 /// ring of protection's — and this function never learns which kind of item any
 /// of them came from. When the *player* is the attacker two extra rules apply:
@@ -311,7 +330,10 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
     let matchup = fold_matchup(world, attacker, target);
     crate::effects::revoke(world, attacker, Grant::of::<Bided>());
     let swing = roll_swing(world, &matchup);
-    let swing = clamp_swing(world, attacker, target, &matchup, swing);
+    let mut swing = clamp_swing(world, attacker, target, &matchup, swing);
+    if !matchup.attacker_is_player && world.get::<crate::effects::Vuln>(target).is_some() {
+        swing.damage += (swing.damage * VULN_DAMAGE_PERCENT + 50) / 100;
+    }
     let outcome = land_swing(world, attacker, target, &swing);
     let blow = Landed {
         attacker,
@@ -324,7 +346,71 @@ pub fn resolve_attack(world: &mut World, attacker: Entity, target: Entity) {
 
     punctuate(world, &blow);
     report_blow(world, &blow);
+    shatter_armor(world, &blow);
     settle_the_dead(world, &blow);
+}
+
+/// The hero's excellent hit breaks the suit a foe has on, with a clink of
+/// sparks. A cursed suit goes out harder: splinters of evil magic fly into
+/// every creature within [`CURSED_SPLINTER_RADIUS`] that fights the hero, for
+/// `1d`[`CURSED_SPLINTER_DIE`] each. The hero, an ally and the wearer, whom
+/// the blow already found, are spared.
+///
+/// Runs before [`settle_the_dead`], so a killing blow breaks the suit instead
+/// of leaving it on the corpse.
+fn shatter_armor(world: &mut World, blow: &Landed) {
+    let enemy = world
+        .get::<Faction>(blow.target)
+        .is_some_and(|&f| hostile(world, f, Faction::Player));
+    if !blow.swing.excellent || !blow.attacker_is_player || !enemy {
+        return;
+    }
+    let Some(armor) = equipped_in(world, blow.target, Slot::Body) else {
+        return;
+    };
+    let cursed = world.get::<Curse>(armor).is_some();
+    let target_name = entity_name(world, blow.target);
+    destroy_worn(world, blow.target, &[armor]);
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::armor_shatters(&target_name));
+    let Some(at) = world.get::<Position>(blow.target).copied() else {
+        return;
+    };
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.impact_sparks(at.x, at.y, Color::Grey, 0.0);
+    }
+    if cursed {
+        splinter(world, blow.target, at);
+    }
+}
+
+/// The curse let out of a shattered suit at `at`: every foe of the hero in
+/// reach but the `wearer` takes a splinter.
+fn splinter(world: &mut World, wearer: Entity, at: Position) {
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::cursed_armor_splinters().to_string());
+    let victims: Vec<(Entity, Position)> = {
+        let mut q = world.query::<(Entity, &Position, &Faction)>();
+        q.iter(world)
+            .filter(|&(e, &p, &f)| {
+                e != wearer
+                    && chebyshev(p, at) <= CURSED_SPLINTER_RADIUS
+                    && hostile(world, f, Faction::Player)
+            })
+            .map(|(e, &p, _)| (e, p))
+            .collect()
+    };
+    for (victim, p) in victims {
+        let cells: Vec<(u16, u16)> = get_line(at, p).iter().map(|c| (c.x, c.y)).collect();
+        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+            fx.hurl(&cells, '\'', Color::DarkMagenta);
+        }
+        let damage = roll_dice(world, 1, CURSED_SPLINTER_DIE);
+        let line = strings::splinter_hits(&entity_name(world, victim), damage);
+        apply_hit(world, victim, Hit::magic(damage), Some(&line));
+    }
 }
 
 /// One player melee attack, tricks and all: the plain opposed-roll swing,
@@ -603,6 +689,9 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
         }
         lethal = fighter.hp <= 0;
     }
+    if lethal && !vorpal && crate::helpers::armor_takes_last_hit(world, target) {
+        lethal = false;
+    }
 
     if swing.damage > 0 {
         let blow = Blow {
@@ -658,12 +747,31 @@ fn garrote_vorpal(world: &World, attacker: Entity, target: Entity) -> bool {
 /// moving — `(dx, dy)` is the step already decided upstream, one tile in any
 /// of the eight directions.
 pub fn try_lunge(world: &mut World, attacker: Entity, dx: i16, dy: i16) -> bool {
-    if world.get::<Player>(attacker).is_none() || world.get::<Lunges>(attacker).is_none() {
-        return false;
-    }
-    let Some(origin) = world.get::<Position>(attacker).copied() else {
+    let Some((near, target)) = lunge_target(world, attacker, dx, dy) else {
         return false;
     };
+    resolve_lunge(world, attacker, target);
+    if let Some(mut pos) = world.get_mut::<Position>(attacker) {
+        *pos = near;
+    }
+    crate::helpers::mark_moved(world, attacker);
+    true
+}
+
+/// Where a lunge from `attacker` toward `(dx, dy)` would land, and whom it
+/// would strike: `None` unless `attacker` is a player with [`Lunges`], the tile
+/// dead ahead is open and empty, and an enemy stands past it. Reads the world
+/// and changes nothing.
+pub fn lunge_target(
+    world: &mut World,
+    attacker: Entity,
+    dx: i16,
+    dy: i16,
+) -> Option<(Position, Entity)> {
+    if world.get::<Player>(attacker).is_none() || world.get::<Lunges>(attacker).is_none() {
+        return None;
+    }
+    let origin = world.get::<Position>(attacker).copied()?;
     let near = Position {
         x: origin.x.saturating_add_signed(dx),
         y: origin.y.saturating_add_signed(dy),
@@ -678,19 +786,8 @@ pub fn try_lunge(world: &mut World, attacker: Entity, dx: i16, dy: i16) -> bool 
         map.walkable(near.x, near.y, swims)
             && map.diagonal_step_ok(origin.x, origin.y, near.x, near.y)
     } && mob_at(world, near).is_none();
-    let Some(target) = near_clear.then(|| monster_at(world, far)).flatten() else {
-        return false;
-    };
-
-    resolve_lunge(world, attacker, target);
-    if let Some(mut pos) = world.get_mut::<Position>(attacker) {
-        *pos = near;
-    }
-    if let Some(mut viewshed) = world.get_mut::<Viewshed>(attacker) {
-        viewshed.dirty = true;
-    }
-    world.entity_mut(attacker).insert(EntityMoved);
-    true
+    let target = near_clear.then(|| monster_at(world, far)).flatten()?;
+    Some((near, target))
 }
 
 /// The chain-sickle's whirl: self-checks [`WhirlOnMove`] and finds a monster

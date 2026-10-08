@@ -1073,12 +1073,32 @@ pub fn curses_merge(recipient: &str, donor: &str, result: &str) -> String {
     format!("The curses fuse! The {recipient} and the {donor} become the {result}.")
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn curses_merge_break(recipient: &str, donor: &str) -> String {
+    format!("The curses clash! The {recipient} and the {donor} shatter.")
+}
+
 pub fn armor_shrugs_off_corrosion() -> &'static str {
     "Your armour drinks the corrosion and shrugs it off."
 }
 
 pub fn armor_corrodes(name: &str) -> String {
     format!("Your {name} corrodes! It is weaker.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn armor_shatters(target_name: &str) -> String {
+    format!("The {target_name}'s armour shatters!")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn cursed_armor_splinters() -> &'static str {
+    "Splinters of evil magic fly out of it!"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn splinter_hits(target_name: &str, damage: i32) -> String {
+    format!("A splinter pierces the {target_name} for {damage} damage.")
 }
 
 // ---------------------------------------------------------------------------
@@ -1180,6 +1200,11 @@ pub fn protection_turns_aside(name: &str) -> String {
 
 pub fn unharmed_by(name: &str, element_noun: &str) -> String {
     format!("The {name} is unharmed by the {element_noun}.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn armor_takes_the_blow(name: &str) -> String {
+    format!("Your {name} is splintered and cracked, and takes the blow meant for you!")
 }
 
 pub fn badly_wounded() -> &'static str {
@@ -1581,6 +1606,11 @@ pub fn picked_up_thrown_verb_body() -> &'static str {
 pub fn picked_up_thrown_verb_other() -> &'static str {
     "slips it on"
 }
+// TODO: placeholder English; needs a human's pass.
+pub fn armor_binds_thrown(victim_name: &str, armor: &str) -> String {
+    format!("The {victim_name} is somehow bound by the {armor}! But they can still attack!")
+}
+
 pub fn picks_up_thrown(victim_name: &str, verb: &str) -> String {
     format!("The {victim_name} {verb}!")
 }
@@ -1936,6 +1966,11 @@ pub fn not_while_monster_in_sight() -> &'static str {
     "Not while a creature is in sight."
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn charge() -> &'static str {
+    "CHARGE!"
+}
+
 pub fn cant_run_that_way() -> &'static str {
     "You can't run that way."
 }
@@ -2279,6 +2314,22 @@ pub fn quit_question() -> &'static str {
 pub fn quit_answers() -> &'static str {
     "[y] yes    [n] no"
 }
+// TODO: placeholder English; needs a human's pass.
+/// The key [`quit_answers`] labels yes.
+pub fn quit_yes_key() -> char {
+    'y'
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn time_stopped_not_saved() -> [&'static str; 2] {
+    [
+        "Time is stopped, so the game did not save",
+        "since you activated THE WORLD.",
+    ]
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn quit_really_sure() -> &'static str {
+    "REALLY sure?"
+}
 
 pub fn onboarding_keys() -> [&'static str; 3] {
     ["[hjklyubn] MOVE", "[o/TAB] EXPLORE/FIGHT", "[i] ITEMS"]
@@ -2604,4 +2655,29 @@ pub fn card_element_wipes_pack() -> &'static str {
 
 pub fn throw_hangs_in_the_air(name: &str) -> String {
     format!("The {name} leaves your hand and stops in the air.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn ice_cube_name() -> &'static str {
+    "ice cube"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn mob_freezes_solid(name: &str) -> String {
+    format!("The {name} freezes solid.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn ice_cube_slams(name: &str) -> String {
+    format!("The ice cube slams into the {name}.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn ice_cube_shatters() -> &'static str {
+    "The ice cube shatters!"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn killed_by_ice_cube() -> &'static str {
+    "Killed by an ice cube"
 }

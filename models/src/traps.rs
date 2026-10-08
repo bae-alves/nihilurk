@@ -62,9 +62,10 @@
 //!
 //! ## Armour rule
 //!
-//! The damage traps (arrow, dart) *ignore the defender's armour die* but still
-//! subtract its flat bonus — "armour plus", i.e. `armor_bonus` plus any equipped
-//! suit's `arm_bonus` (see [`crate::helpers::total_armor_plus`]).
+//! The damage traps (arrow, dart) deal missile-type damage, so they subtract
+//! only the defender's flat bonus — "armour plus", i.e. `armor_bonus` plus any
+//! equipped suit's `arm_bonus` (see [`crate::helpers::total_armor_plus`]) — and
+//! never the armour die.
 //!
 //! Their bite also scales with depth, in tiers that end at
 //! [`TRAP_DAMAGE_TIER_LAST_DEPTH`]:
@@ -87,8 +88,8 @@ use crate::constants::traps::{
 };
 use crate::effects::{Asleep, Grant, Petrified, Pinned};
 use crate::helpers::{
-    apply_damage, leave_smoke, leave_tinted_smoke, player_sees, roll_dice, spill_blood,
-    total_armor_plus,
+    Hit, apply_damage, apply_hit, leave_smoke, leave_tinted_smoke, player_sees, roll_dice,
+    spill_blood, total_armor_plus,
 };
 use crate::identify::article_for;
 use crate::map::{
@@ -324,6 +325,10 @@ impl TrapBundle {
 /// [`EntityMoved`] markers. Placed just after [`crate::ai`] in the schedule so
 /// it sees both the player's move and the monsters' — the last reader of
 /// [`EntityMoved`] before it clears the tag.
+///
+/// Assumes every mover this turn already carries [`EntityMoved`]: the player's
+/// step tags itself before the schedule runs, and `ai` tags each monster it
+/// moves. A mover that skips the tag springs nothing.
 pub fn trap_system(world: &mut World) {
     let movers: Vec<Entity> = world
         .query_filtered::<Entity, (With<EntityMoved>, With<Position>)>()
@@ -651,6 +656,20 @@ fn burst(
     announce: bool,
     shooter: Option<Entity>,
 ) -> Vec<Entity> {
+    burst_of(world, center, radius, palette, announce, shooter, (None, 1))
+}
+
+/// [`burst`] with an element on its damage, which an immunity can turn aside,
+/// and a multiplier on the one roll: `(element, damage_mult)`.
+fn burst_of(
+    world: &mut World,
+    center: Position,
+    radius: i32,
+    palette: BlastPalette,
+    announce: bool,
+    shooter: Option<Entity>,
+    (element, damage_mult): (Option<Element>, i32),
+) -> Vec<Entity> {
     let cells = burst_cells(world, center, radius);
     let victims = creatures_in(world, &cells);
     let caught_player = victims.iter().any(|&v| world.get::<Player>(v).is_some());
@@ -681,11 +700,17 @@ fn burst(
         }
     }
 
-    let damage = roll_dice(world, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES);
+    let damage = roll_dice(world, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES) * damage_mult;
     for &victim in &victims {
-        apply_damage(world, victim, damage);
+        match element {
+            Some(el) => {
+                apply_hit(world, victim, Hit::elemental(damage, el), None);
+            }
+            None => apply_damage(world, victim, damage),
+        }
     }
-    chain_react(world, &cells, shooter);
+    let area = cells.iter().map(|&(x, y, _)| (x, y)).collect();
+    chain_react(world, &area, shooter, false);
     victims
 }
 
@@ -700,18 +725,105 @@ fn burst(
 /// burst goes off, so nothing is ever a link twice and a floor holds finitely
 /// many of them. The Element of Yoord is deliberately not in the chain: it is
 /// never spent, and a burst that reached it would answer itself forever.
-fn chain_react(world: &mut World, cells: &[(u16, u16, f32)], shooter: Option<Entity>) {
-    let area: std::collections::HashSet<(u16, u16)> =
-        cells.iter().map(|&(x, y, _)| (x, y)).collect();
-    for trap in things_in::<Trap>(world, &area) {
+///
+/// Anything that blows up, flies or zaps ends here with the tiles it covered,
+/// whatever their number: a blast's disc, a bolt's line, a dart's one tile.
+/// `fire` says the thing was a fire blast, which scorches the ice cubes in its
+/// way ([`scorch_ice_cube`]).
+pub(crate) fn chain_react(
+    world: &mut World,
+    area: &std::collections::HashSet<(u16, u16)>,
+    shooter: Option<Entity>,
+    fire: bool,
+) {
+    let cubes = things_in::<crate::ice::IceCube>(world, area);
+    chain_react_with(world, area, shooter, fire, cubes);
+}
+
+/// [`chain_react`] with the cubes chosen by the caller. A cold blast that
+/// kills something freezes it inside its own footprint, and that cube is
+/// the blast's work, not a link in it: the caller names the cubes that stood
+/// there *before* it hurt anyone.
+pub(crate) fn chain_react_with(
+    world: &mut World,
+    area: &std::collections::HashSet<(u16, u16)>,
+    shooter: Option<Entity>,
+    fire: bool,
+    cubes: Vec<Entity>,
+) {
+    for trap in things_in::<Trap>(world, area) {
         detonate_trap(world, trap, shooter);
     }
-    for coin in things_in::<Pickup>(world, &area) {
+    for coin in things_in::<Pickup>(world, area) {
         detonate_pickup(world, coin, shooter);
     }
-    for potion in things_in::<Potion>(world, &area) {
+    for potion in things_in::<Potion>(world, area) {
         crate::items::detonate_potion(world, potion, shooter);
     }
+    for cube in cubes {
+        match fire {
+            true => scorch_ice_cube(world, cube, shooter),
+            false => detonate_ice_cube(world, cube, shooter),
+        };
+    }
+}
+
+/// An ice cube something shot: it shatters ([`crate::ice`]) and the cold it was
+/// holding goes off as a standard trick shot, `TRICK_SHOT_DAMAGE_DICE d
+/// TRICK_SHOT_DAMAGE_SIDES` of [`Element::Cold`] over [`TRICK_SHOT_RADIUS`].
+/// What the cold kills freezes in its turn.
+///
+/// Returns whether there was a cube here to set off.
+pub fn detonate_ice_cube(world: &mut World, cube: Entity, shooter: Option<Entity>) -> bool {
+    set_off_ice_cube(world, cube, shooter, false)
+}
+
+/// [`detonate_ice_cube`] for a cube that fire reached: the sudden thaw doubles
+/// the radius and the damage, and the burst is still cold. That is
+/// intentional.
+pub fn scorch_ice_cube(world: &mut World, cube: Entity, shooter: Option<Entity>) -> bool {
+    set_off_ice_cube(world, cube, shooter, true)
+}
+
+fn set_off_ice_cube(
+    world: &mut World,
+    cube: Entity,
+    shooter: Option<Entity>,
+    scorched: bool,
+) -> bool {
+    if world.get::<crate::ice::IceCube>(cube).is_none() {
+        return false;
+    }
+    let Some(center) = world.get::<Position>(cube).copied() else {
+        return false;
+    };
+    world.entity_mut(cube).despawn();
+    crate::ice::shatter(world, center);
+    let (radius, mult, palette) = match scorched {
+        true => (TRICK_SHOT_RADIUS * 2, 2, BlastPalette::Fire),
+        false => (TRICK_SHOT_RADIUS, 1, BlastPalette::Frost),
+    };
+    let victims = burst_of(
+        world,
+        center,
+        radius,
+        palette,
+        true,
+        shooter,
+        (Some(Element::Cold), mult),
+    );
+    for victim in victims {
+        if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
+            let player_was_alive = world.get::<Player>(victim).is_some()
+                && !world.resource::<crate::state::Ending>().player_dead;
+            crate::combat::finish_indirect_kill(world, victim, Some(center));
+            if player_was_alive {
+                world.resource_mut::<crate::state::Ending>().cause =
+                    strings::killed_by_ice_cube().to_string();
+            }
+        }
+    }
+    true
 }
 
 /// Everything carrying `C` standing on one of `cells`. Collected up front
@@ -755,6 +867,10 @@ pub fn detonate_at(world: &mut World, pos: Position, shooter: Option<Entity>) ->
         crate::items::detonate_potion(world, potion, shooter);
         return Some(TrickShot::Potion);
     }
+    if let Some(cube) = thing_at::<crate::ice::IceCube>(world, pos) {
+        detonate_ice_cube(world, cube, shooter);
+        return Some(TrickShot::IceCube);
+    }
     if let Some(relic) = thing_at::<Amulet>(world, pos) {
         ultimate_trick_shot(world, relic, shooter);
         return Some(TrickShot::Ultimate);
@@ -772,6 +888,8 @@ pub enum TrickShot {
     Pickup,
     /// A potion on the floor shattered over the area around it.
     Potion,
+    /// An ice cube shattered into a burst of cold.
+    IceCube,
     /// The Element of Yoord answered with its burst. It survives.
     Ultimate,
 }

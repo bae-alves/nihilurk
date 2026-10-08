@@ -245,6 +245,7 @@ pub fn render<W: Write>(
             "OOF!",
             Color::DarkRed,
         ),
+        (holds(|w, e| w.get::<Vuln>(e).is_some()), "VULN", Color::Red),
         (
             holds(|w, e| w.get::<TimeStopped>(e).is_some()),
             "WRLD",
@@ -827,7 +828,7 @@ pub fn render<W: Write>(
     }
 
     if world.resource::<QuitPrompt>().open {
-        draw_quit_prompt(screen);
+        draw_quit_prompt(screen, world.resource::<QuitPrompt>().warned);
     }
 
     screen.flush(stdout, offset)?;
@@ -1167,23 +1168,34 @@ fn row_text(letter: char, name: &str, equipped: bool) -> String {
 /// game that exists to *slow the player down* — every other one is a menu — so
 /// it sits in the centre rather than off in a corner where a key could be
 /// answered by reflex, and it spells out both answers instead of leaning on
-/// "any key".
-fn draw_quit_prompt(screen: &mut Screen) {
-    let question: &str = strings::quit_question();
-    let answers: &str = strings::quit_answers();
+/// "any key". `warned` swaps the question for the red time-stopped warning
+/// and a second "Really sure?".
+fn draw_quit_prompt(screen: &mut Screen, warned: bool) {
+    let mut rows = vec![(strings::quit_question(), Color::Yellow)];
+    if warned {
+        rows = strings::time_stopped_not_saved()
+            .iter()
+            .map(|&line| (line, Color::Red))
+            .chain([(strings::quit_really_sure(), Color::Yellow)])
+            .collect();
+    }
+    rows.push((strings::quit_answers(), Color::White));
 
-    let inner = answers.chars().count() as u16 + 4;
-    let x = (SCREEN_W - inner) / 2 - 1;
+    let inner = rows
+        .iter()
+        .map(|(t, _)| t.chars().count() as u16)
+        .max()
+        .unwrap_or(0)
+        + 4;
+    let x = (SCREEN_W.saturating_sub(inner) / 2).saturating_sub(1);
     let y = MAP_TOP + MAP_HEIGHT / 2 - 2;
+    let bottom = y + 1 + rows.len() as u16;
     let grey = Color::DarkGrey;
 
     screen.put(x, y, '┌', grey);
     screen.hline(x + 1, y, '─', inner, grey);
     screen.put(x + 1 + inner, y, '┐', grey);
-    for (row, (text, color)) in [(question, Color::Yellow), (answers, Color::White)]
-        .into_iter()
-        .enumerate()
-    {
+    for (row, (text, color)) in rows.into_iter().enumerate() {
         let ty = y + 1 + row as u16;
         screen.put(x, ty, '│', grey);
         screen.hline(x + 1, ty, ' ', inner, grey);
@@ -1191,9 +1203,9 @@ fn draw_quit_prompt(screen: &mut Screen) {
         screen.puts(tx, ty, text, color);
         screen.put(x + 1 + inner, ty, '│', grey);
     }
-    screen.put(x, y + 3, '└', grey);
-    screen.hline(x + 1, y + 3, '─', inner, grey);
-    screen.put(x + 1 + inner, y + 3, '┘', grey);
+    screen.put(x, bottom, '└', grey);
+    screen.hline(x + 1, bottom, '─', inner, grey);
+    screen.put(x + 1 + inner, bottom, '┘', grey);
 }
 
 /// The F1 key list: a bordered box, centred, one row per `strings::help_rows`.

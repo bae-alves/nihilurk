@@ -1,5 +1,5 @@
 //! The binary: parses the command line into a starting world, builds the turn
-//! schedule ([`turn_schedule`]), then runs the read-act-render loop until
+//! schedule ([`models::turn_schedule`]), then runs the read-act-render loop until
 //! [`Ending`] says the run is over. `screen`, `update` and `view` are its own submodules
 //! — everything else the turn touches lives in `models`.
 
@@ -9,11 +9,7 @@ mod update;
 mod view;
 use models::*;
 
-use bevy_ecs::{
-    prelude::{With, World},
-    schedule::IntoSystemConfigs,
-    schedule::Schedule,
-};
+use bevy_ecs::prelude::{With, World};
 use crossterm::{
     cursor::{Hide, Show},
     event::{Event, KeyCode, KeyEventKind, read},
@@ -24,10 +20,6 @@ use crossterm::{
 use std::io::{BufWriter, Write, stdout};
 
 use models::{ChaCha12Rng, SeedableRng};
-
-use crate::ai::ai;
-use crate::visibility::visibility_system;
-use models::combat_system;
 
 /// Puts the terminal into raw, alternate-screen mode for the run and takes it
 /// back out on drop, panic included — the [`std::panic::set_hook`] below
@@ -208,33 +200,6 @@ fn player_step(world: &mut World) -> std::io::Result<bool> {
         return Ok(false);
     }
     update::process_input_and_update(world)
-}
-
-/// The turn, in order. Every `.after()`/`.before()` here is load-bearing; the
-/// order is documented in `docs/reference/input-and-turn-loop.md`.
-fn turn_schedule() -> Schedule {
-    let mut schedule = Schedule::default();
-    schedule.add_systems((
-        smoke_system.before(tick_effects),
-        tick_effects,
-        reveal_mimics.after(tick_effects),
-        spell_system.after(reveal_mimics).before(ai),
-        item_system.after(reveal_mimics).before(ai),
-        throw_system.after(item_system).before(ai),
-        ai.after(spell_system),
-        trap_system.after(ai),
-        equipment_effects_system
-            .after(item_system)
-            .after(trap_system),
-        combat_system.after(equipment_effects_system),
-        reaper_system.after(combat_system),
-        dungeon_lord_system.after(reaper_system),
-        ability_system.after(dungeon_lord_system),
-        sink_system.after(ability_system),
-        visibility_system.after(sink_system),
-        score_turn_system.after(visibility_system),
-    ));
-    schedule
 }
 
 fn main() -> std::io::Result<()> {
@@ -453,6 +418,8 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<UseQueue>();
     world.init_resource::<ThrowQueue>();
     world.init_resource::<SpellQueue>();
+    world.init_resource::<PlayerActionQueue>();
+    world.init_resource::<PlayerActionQueue>();
     world.init_resource::<PlayerTempo>();
     world.init_resource::<ExtraMonsterRound>();
     world.init_resource::<GameLog>();
@@ -505,6 +472,7 @@ fn main() -> std::io::Result<()> {
         world.resource::<PlayerName>().what.to_ascii_lowercase()
     );
 
+    let mut time_stopped = models::time_stopped(&mut world);
     while world.resource::<models::GameState>().is_running {
         let fast_moving = world.resource::<FastMove>().active;
         if fast_moving {
@@ -516,6 +484,10 @@ fn main() -> std::io::Result<()> {
             if turn_taken {
                 schedule.run(&mut world);
             }
+        }
+
+        if !no_save {
+            update::save_on_time_edge(&mut world, &mut time_stopped, &save_name);
         }
 
         view::play_particles(&mut world, &mut stdout, &mut screen)?;
@@ -568,6 +540,11 @@ fn main() -> std::io::Result<()> {
     if no_save {
         drop(guard);
         println!("{}", strings::game_not_saved());
+        return Ok(());
+    }
+    if models::time_stopped(&mut world) {
+        drop(guard);
+        println!("{}", strings::time_stopped_not_saved().join(" "));
         return Ok(());
     }
     let save_result = models::save_game(&mut world, &save_name);

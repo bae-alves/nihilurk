@@ -6,7 +6,7 @@ Conflicts: correctness > my goal > repo convention. Cite repo evidence to resolv
 
 # Hard rules
 - Irreversible or unsure→ask first, always. Never bypass hooks.
-- Smallest fitting change; in-scope restructuring ok. One source of truth: no dupe state for display bugs.
+- Smallest fitting change; in-scope restructuring ok.
 - Root-cause only: no symptom patch, no dodging. State cause+fix.
 - TDD: criteria upfront, failing test first. Pre-"done": typecheck/lint/tests.
 - Bugs you caused: fix. Pre-existing in-path: fix+report. Out-of-path: journal.
@@ -15,6 +15,7 @@ Conflicts: correctness > my goal > repo convention. Cite repo evidence to resolv
 - Scripting: Only bash and lua ever get committed.
 - Diffs you didn't cause: be quiet, it was bae or a peer.
 - Comments: none inside fn bodies in engine/models/particle-core. OK: docs, signature notes, file headers, catalog how-to-add notes, an own-line note directly above a closure. Name it or split it.
+- Dwarven Council ideas: read, investigate, Q/A
 
 # Test/debug
 Reference code→match its patterns, not its description.
@@ -26,8 +27,8 @@ No mock modes in app code.
 Plan doc→read it, skip tree explore. Else /docs+grep specifics; no free exploring.
 Journal insights in `.claude/journal.local.md` (git-ignored); search first on complex tasks.
 Feedback mem. only on "remember"/"memorize".
-Post non-trivial work: weaknesses+severity+pre-ship fixes.
-Long output→file, read selectively, never dump raw. Q&A: one Q at a time, multiple-choice/boolean.
+Post non-trivial work: risks+severity+pre-ship fixes. Don't invent these.
+Long output→file, never dump raw. Q&A: one Q at a time, multiple-choice/boolean.
 
 # Prose
 Plain, active, short words, no filler. No passive, no "not X, it's Y," no stock metaphors. Voice consistent w/ base. Say it, don't announce it.

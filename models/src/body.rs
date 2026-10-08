@@ -25,7 +25,7 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::lurk;
-use crate::effects::{BuildsMomentum, Fencer, Grant, Lunges, Lurk, Stealthy, grant_all};
+use crate::effects::{BuildsMomentum, Charges, Fencer, Grant, Lunges, Lurk, Stealthy, grant_all};
 use crate::equipment::Slot;
 use crate::map::GameRng;
 use crate::monsters::MonsterDef;
@@ -88,11 +88,14 @@ pub fn bee_run(world: &World) -> bool {
         .is_some_and(|b| b.0.is_bee())
 }
 
-/// Puts `body` on the freshly spawned `player`. A no-op for nihil, who is
-/// what the spawn already built.
+/// What nihil is born knowing: to throw themself at a creature in view.
+const NIHIL_GRANTS: &[Grant] = &[Grant::of::<Charges>()];
+
+/// Puts `body` on the freshly spawned `player`. Nihil is what the spawn
+/// already built, plus the one trick they were born with.
 pub fn wear(world: &mut World, player: Entity, body: Body) {
     match body {
-        Body::Nihil => {}
+        Body::Nihil => grant_all(world, player, NIHIL_GRANTS),
         Body::Lurk => wear_lurk(world, player),
         Body::Monster(def) => crate::monsters::wear_monster(world, player, def),
     }

@@ -221,23 +221,29 @@ pub(crate) fn polymorphitis(world: &mut World, bearer: Entity) -> bool {
 /// empty pool has already been told what an empty pool means. It is the one
 /// secret in the game, and a refusal that talks is not a secret.
 pub fn willed_teleport(world: &mut World) -> bool {
+    if !can_teleport_at_will(world) {
+        return false;
+    }
     let Some(player) = player_entity(world) else {
         return false;
     };
-    if world.get::<Teleportitis>(player).is_none() {
-        return false;
-    }
-    let Some(magic) = world.get::<Magic>(player).copied() else {
-        return false;
-    };
-    if magic.points < TELEPORT_MAGIC_COST {
-        return false;
-    }
     if let Some(mut magic) = world.get_mut::<Magic>(player) {
         magic.points -= TELEPORT_MAGIC_COST;
     }
     super::wands::teleport_entity_away(world, player);
     true
+}
+
+/// Whether [`willed_teleport`] would fire: the player has the gift and the
+/// magic to pay for it. Reads the world and changes nothing.
+pub fn can_teleport_at_will(world: &mut World) -> bool {
+    let Some(player) = player_entity(world) else {
+        return false;
+    };
+    world.get::<Teleportitis>(player).is_some()
+        && world
+            .get::<Magic>(player)
+            .is_some_and(|m| m.points >= TELEPORT_MAGIC_COST)
 }
 
 // ---------------------------------------------------------------------------

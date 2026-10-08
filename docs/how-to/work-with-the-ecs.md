@@ -12,7 +12,7 @@ The snippets are written from inside `models`, so they say `crate::conditions::.
 
 Recipes: copy the shape, change the nouns. *Why* the code is arranged this way is `../explanation/ecs-in-nihilurk.md`.
 
-Fifteen of nihilurk's sixteen schedule steps take `&mut World` and nothing else. That one fact decides everything below: you are not writing `Query<&mut Fighter>` and letting bevy sort out the aliasing, you are holding the whole world and borrowing bits of it by hand. The borrow checker is stricter here than it is in a `Query`-based codebase, and the five patterns in the first section are how every mechanic in the tree gets past it.
+Sixteen of nihilurk's seventeen schedule steps take `&mut World` and nothing else. That one fact decides everything below: you are not writing `Query<&mut Fighter>` and letting bevy sort out the aliasing, you are holding the whole world and borrowing bits of it by hand. The borrow checker is stricter here than it is in a `Query`-based codebase, and the five patterns in the first section are how every mechanic in the tree gets past it.
 
     Contents
 
@@ -89,7 +89,7 @@ A system that drains a queue resource cannot hold that resource while it resolve
         }
     }
 
-All four queues (`AttackQueue`, `UseQueue`, `ThrowQueue`, `SpellQueue`) are drained exactly like this. It also gives you the right semantics for free: an attack queued *while* the queue is draining lands next turn, not in the middle of this one.
+All five queues (`AttackQueue`, `UseQueue`, `ThrowQueue`, `SpellQueue`, `PlayerActionQueue`) are drained exactly like this. It also gives you the right semantics for free: an attack queued *while* the queue is draining lands next turn, not in the middle of this one.
 
 ### 4. `entity_mut` for a burst of writes
 
@@ -260,7 +260,7 @@ That subtracts the HP, spills blood, breaks any promise the victim was holding a
 
 Three rules that are easy to get wrong:
 
-  * **Armour.** `resolve_attack` rolls the defender's armour *die*. Everything else — traps, thrown weapons — subtracts only the armour *plus*, via `helpers::total_armor_plus`, and a `Projectile` subtracts nothing at all. A blast subtracts nothing either.
+  * **Armour.** Melee, missile, magic: `resolve_attack` rolls the defender's armour *die* and *plus*; a throw or a shot subtracts only the armour *plus* (`helpers::total_armor_plus`); a spell or wand subtracts nothing. An arrow or dart trap is a missile; every other damage source is magic. No exceptions. See `../explanation/combat-and-balance.md`.
   * **Elements.** If the damage has a flavour, go through `items::wands`'s `damage_with_element`, which checks the target's immunity (`Element::immunity()`) and logs the shrug. Never match on a species.
   * **`took_damage`.** Melee applies its own HP change and so has to call `helpers::took_damage` by hand. If you ever add a third damage path, call it too — it is the one place "what happens because a creature was hurt" lives.
 
@@ -372,7 +372,7 @@ Input handlers do not resolve anything. They push an intent and return whether a
 Recipe: add a system to the turn
 --------------------------------
 
-Register it in `engine/src/main.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in nihilurk — the schedule is one flat list of sixteen steps, and every edge is deliberate:
+Register it in `models/src/schedule.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in nihilurk — the schedule is one flat list of seventeen steps, and every edge is deliberate:
 
     schedule.add_systems((
         // …
@@ -456,7 +456,7 @@ Appendix: quick check
 6. Gear stat: `equipped_total::<C>`, or `loadout` for several; probe the marker to ask a yes or no.
 7. Spawn: `spawn_named` for a row, `roll_item` for a drop; remove an item from the pack before you despawn it.
 8. Input: push an intent onto its queue and return; the matching system drains it.
-9. System: register it in `engine/src/main.rs` with an explicit `.after()`, and explain the edge in `../reference/input-and-turn-loop.md`.
+9. System: register it in `models/src/schedule.rs` with an explicit `.after()`, and explain the edge in `../reference/input-and-turn-loop.md`.
 10. Cosmetics: use `get_resource_mut`, roll from `FxRng`, and gate anything that leaks on `player_sees`.
 11. Run `cargo test --workspace`, `cargo clippy --all-targets`, `cargo fmt --all`, and `cargo test --test determinism`.
 

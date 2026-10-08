@@ -777,7 +777,6 @@ fn merge_names(
     make: impl Fn(&mut World, &str) -> Entity,
     recv_name: &str,
     donor_name: &str,
-    fresh_name: &str,
 ) -> Vec<String> {
     (0..300)
         .map(|seed| {
@@ -807,23 +806,19 @@ fn merge_names(
             items.sort();
             on.sort();
             assert_eq!(items, on, "seed {seed}: pack holds only what is worn");
-            assert_eq!(on.len(), 1 + filler.iter().count(), "seed {seed}");
-            let s = on.into_iter().find(|&e| Some(e) != filler).unwrap();
+            let Some(s) = on.into_iter().find(|&e| Some(e) != filler) else {
+                assert!(w.get_entity(recv).is_none() && w.get_entity(donor).is_none());
+                return String::new();
+            };
             assert!(w.get::<Curse>(s).is_some(), "seed {seed}: still cursed");
             assert!(w.get::<KnownQuality>(s).is_some());
-            let numberless = fresh_name == "ring of stealth" && label(&w, s) == fresh_name;
-            let want = if numberless { 0 } else { 3 };
-            assert_eq!(
-                plus_of(&w, s),
-                want,
-                "seed {seed}: donor's plus, not summed"
-            );
+            assert_eq!(plus_of(&w, s), 3, "seed {seed}: donor's plus, not summed");
             if recv_name == "long sword" {
                 assert_eq!(w.get::<Vorpal>(s).unwrap().bane, "orc");
             }
             let name = label(&w, s);
             assert!(
-                [recv_name, donor_name, fresh_name].contains(&name.as_str()),
+                [recv_name, donor_name].contains(&name.as_str()),
                 "seed {seed}: {name}"
             );
             name
@@ -831,7 +826,7 @@ fn merge_names(
         .collect()
 }
 
-fn assert_split(names: &[String], recv: &str, donor: &str, fresh: &str) {
+fn assert_split(names: &[String], recv: &str, donor: &str) {
     let n = |s: &str| names.iter().filter(|x| x.as_str() == s).count();
     assert!(
         (100..=170).contains(&n(recv)),
@@ -839,7 +834,7 @@ fn assert_split(names: &[String], recv: &str, donor: &str, fresh: &str) {
         n(recv)
     );
     assert!((100..=170).contains(&n(donor)), "donor form: {}", n(donor));
-    assert!((10..=60).contains(&n(fresh)), "fresh form: {}", n(fresh));
+    assert!((10..=60).contains(&n("")), "both broke: {}", n(""));
 }
 
 #[test]
@@ -848,9 +843,8 @@ fn cursed_weapons_merge() {
         |w, n| spawn_weapon(w, n, Position { x: 0, y: 0 }),
         "long sword",
         "mace",
-        "dagger",
     );
-    assert_split(&names, "long sword", "mace", "dagger");
+    assert_split(&names, "long sword", "mace");
 }
 
 #[test]
@@ -859,9 +853,8 @@ fn cursed_armor_merges() {
         |w, n| spawn_armor(w, n, Position { x: 0, y: 0 }),
         "plate mail",
         "ring mail",
-        "leather armor",
     );
-    assert_split(&names, "plate mail", "ring mail", "leather armor");
+    assert_split(&names, "plate mail", "ring mail");
 }
 
 #[test]
@@ -873,18 +866,8 @@ fn cursed_rings_merge() {
         };
         spawn_ring(w, effect, Position { x: 0, y: 0 })
     };
-    let names = merge_names(
-        make,
-        "ring of strength",
-        "ring of sharpshooting",
-        "ring of stealth",
-    );
-    assert_split(
-        &names,
-        "ring of strength",
-        "ring of sharpshooting",
-        "ring of stealth",
-    );
+    let names = merge_names(make, "ring of strength", "ring of sharpshooting");
+    assert_split(&names, "ring of strength", "ring of sharpshooting");
 }
 
 #[test]
@@ -949,7 +932,7 @@ fn cursed_ring_fills_a_free_finger_instead_of_merging() {
 
 #[test]
 fn monsters_merge_cursed_weapons() {
-    let (mut recipient, mut donor, mut fresh) = (0, 0, 0);
+    let (mut recipient, mut donor, mut broke) = (0, 0, 0);
     for seed in 0..300 {
         let mut w = test_world(seed);
         let at = Position { x: 0, y: 0 };
@@ -963,6 +946,10 @@ fn monsters_merge_cursed_weapons() {
         w.entity_mut(new).remove::<KnownQuality>();
         assert!(equip_merging(&mut w, orc, new));
         let on = equipped_items(&w, orc);
+        if on.is_empty() {
+            broke += 1;
+            continue;
+        }
         assert_eq!(on.len(), 1, "seed {seed}");
         let s = on[0];
         assert!(w.get::<Curse>(s).is_some());
@@ -971,10 +958,9 @@ fn monsters_merge_cursed_weapons() {
         match label(&w, s).as_str() {
             "long sword" => recipient += 1,
             "mace" => donor += 1,
-            "dagger" => fresh += 1,
             other => panic!("{other}"),
         }
     }
     assert!((100..=170).contains(&recipient) && (100..=170).contains(&donor));
-    assert!((10..=60).contains(&fresh));
+    assert!((10..=60).contains(&broke));
 }

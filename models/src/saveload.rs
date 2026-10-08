@@ -270,6 +270,9 @@ struct EntitySave<'a> {
     /// [`EntitySave::faction`].
     #[serde(default)]
     helper: bool,
+    /// Marker: a frozen corpse ([`crate::ice::IceCube`]).
+    #[serde(default)]
+    ice_cube: bool,
     /// Where an aggravated monster is heading, `(tx, ty)`. See [`Aggravated`].
     #[serde(default)]
     aggravated: Option<(u16, u16)>,
@@ -300,7 +303,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 2;
+pub const SAVE_VERSION: u16 = 3;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -561,6 +564,7 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
                 .and_then(|e| e.by)
                 .and_then(|w| index_map.get(&w).copied()),
             helper: er.contains::<Helper>(),
+            ice_cube: er.contains::<crate::ice::IceCube>(),
             aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
             alignment: er.get::<Alignment>().map(|a| a.0),
             deck: er.get::<Deck>().map(|d| d.cards.clone()),
@@ -910,6 +914,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.helper {
             em.insert(Helper);
         }
+        if es.ice_cube {
+            em.insert(crate::ice::IceCube);
+        }
         if let Some(slots) = es.spellset {
             em.insert(Spellset { slots });
         }
@@ -990,6 +997,7 @@ mod tests {
             spellset: None,
             equipped_by: None,
             helper: false,
+            ice_cube: false,
             aggravated: None,
             alignment: None,
             deck: None,
@@ -1159,6 +1167,7 @@ mod tests {
             spellset: Some(vec![SpellEffect::GateDown]),
             equipped_by: Some(300),
             helper: true,
+            ice_cube: true,
             aggravated: Some((700, 701)),
             alignment: Some(-100),
             deck: Some(vec![Card {

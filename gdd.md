@@ -55,10 +55,10 @@ The shot is the skill, and the game works to keep it one:
 ### Mechanics
 Turn based on an 80x22 grid, in a terminal at least 80x25. The player is the clock, nothing else in the game acts until the player spends a turn. Every player turn each monster banks energy at its own rate, 1 if it's slow, 2 if it's normal, 3 if it's quick, 4 if it's fast, and an action costs 2, so fast things act twice for every step the player takes and slow things act every other step. Effects can shift a creature along that scale and it stays shifted.
 
-Attacking is walking into something. Damage is (1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus), the two sides rolled independently and subtracted. Every piece of equipment folds into those four numbers and the combat code never learns what kind of item any of them came from, a weapon, a suit of armor and a ring all arrive as the same sort of modifier.
+Attacking is walking into something. Damage is (1d[Power] + PowerBonus) - (1d[Armor] + ArmorBonus), the two sides rolled independently and subtracted. Each 1d is two dice of that size averaged, rounding down, so a normal exchange swings less than the die suggests. Every piece of equipment folds into those four numbers and the combat code never learns what kind of item any of them came from, a weapon, a suit of armor and a ring all arrive as the same sort of modifier.
 
 Two rules apply to the player and nothing else:
-- Excellent hit. 15% of swings roll 3d[Power] instead of 1d[Power], before armor is subtracted.
+- Excellent hit. 15% of swings roll 3d[Power] instead of the usual two-dice average, before armor is subtracted.
 - Chip damage. The worst possible swing still takes a point off, but a swing that weak can never be the last one: it leaves things alive on 1 HP.
 
 Anything that dies wearing gear rolls a separate coin flip per piece, heads it clatters onto the corpse's tile and gets announced so the player knows to come back for it, tails it's destroyed along with its owner.
@@ -88,22 +88,22 @@ You start the run already equipped: armor worn, a weapon in hand, and in the pac
 
 Drops follow Rogue's own category odds, with coins and treats standing in for food. The shares below are rounded, `docs/reference/content-tables.md` carries the exact weights:
 
-- Scrolls, about 29%.
-- Runes, about 3%, from depth 3. Not used up when read, and they wake each time you take the stairs.
-- Potions, about 26%, and some of them are punishments.
+- Scrolls, about 27%.
+- Runes, about 5%, from depth 3. Not used up when read, and they wake each time you take the stairs.
+- Potions, about 24%, and some of them are punishments.
 - Coins, about 12%. They buy nothing and they are never carried: a coin is a pickup, spent the instant you step on it. A coin that would do nothing for you is not picked up at all; it keeps until it would. A coin can also be shot instead of stepped on, which is the second reason to look at every `$`.
-- Armor, about 8%. Each suit has its own armor die.
-- Weapons, about 8%. Within that, 45% a melee weapon, 35% a bundle of 4 to 13 missiles, 20% a launcher. Launchers are deliberately the rarest, one bow is a build and two are clutter. A launcher is worth at most 1 damage swung, however good it is, because it takes the hand a sword would have had and you can never pass a turn to swap back.
+- Armor, about 7%. Each suit has its own armor die.
+- Weapons, about 7%. Within that, 45% a melee weapon, 35% a bundle of 4 to 13 missiles, 20% a launcher. Launchers are deliberately the rarest, one bow is a build and two are clutter. A launcher is worth at most 1 damage swung, however good it is, because it takes the hand a sword would have had and you can never pass a turn to swap back.
 - Wands, about 5%. Wands have many different effects. Attack wands deal 2d4. Every wand has 6 charges, and the range is per wand, 6 or 8. Thrown, a wand spends every charge at once and bursts where it lands.
 - Rings, about 5%. Worn, always on.
-- Treats, about 4%, the rest of Rogue's food slot. Thrown, never used: Use just tells you so. Throw the right treat at a monster and it eats it; half the time it becomes your boon companion, your Helper. A Helper chases and fights whatever monster you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. Walk into it and you trade places; it can't do that to you. It has its own background colour. You only get one.
-- Decks of cards, about 1%. A deck comes with 5 cards, decided and stacked when the deck is rolled, and a few of them reversed. Reading the deck plays the top card, and every card plays on whoever drew it. A thrown deck plays everything left in it as a poker hand, on the thrower. Better hands score far more, and the best one does something surprising. Points go to the score.
+- Treats, about 5%, the rest of Rogue's food slot. Thrown, never used: Use just tells you so. Throw the right treat at a monster and it eats it; half the time it becomes your boon companion, your Helper. A Helper chases and fights whatever monster you can see, comes back to your side when there is nothing to fight, and turns up next to you on every new floor, healed. Walk into it and you trade places; it can't do that to you. It has its own background colour. You only get one.
+- Decks of cards, about 5%, as common as rings. A deck comes with 5 cards, decided and stacked when the deck is rolled, and a few of them reversed. Reading the deck plays the top card, and every card plays on whoever drew it. A thrown deck plays everything left in it as a poker hand, on the thrower. Every card that took part in the hand pays 5,000 points; cards that other cards play along the way pay nothing. Five of a kind does something surprising.
 
 The item system is one table per kind and a row per item, and a row is nothing but a name, a glyph and the components the thing carries into the world. A ring that guards you is not a special case anywhere, it is an item holding ArmorBonus(2), which combat already folds in for a suit of armor. A bow does not know arrows exist, it grants FireArrow, and an arrow is a thing that answers to FireArrow. Adding an item is one row and no other edit. This is the part I am smug about.
 
 Gear rolls a quality when it spawns: 25% plain, 10% exceptional at +1 to +3, 65% cursed at anywhere from -5 to +5. A cursed item can roll better than a clean one, it simply won't come off once it's equipped, and it takes the right scroll to get out of it. The bonus lands on whichever roll the item feeds, never on the die itself, so a +3 weapon still rolls the die it came with. Rings roll the same odds with their own numbers: a ring that is a number is +2 plain, +3 exceptional and -3 to +2 cursed, so a cursed one is never the better ring, and every other ring has only the curse to hide.
 
-Everything in the pack offers use, throw and drop, and the pack holds 9 things. Throws are aimed. Balanced weapons pierce the whole line instead of stopping at the first body, an improvised throw gets blunted by armor and can be caught out of the air and used back. Missiles stack up to 13 per slot, and loosed from the matching launcher they roll a bigger die and carry twice as far.
+Everything in the pack offers use, throw and drop, and the pack holds 9 things. Throws are aimed. Balanced weapons pierce the whole line instead of stopping at the first body, armor never blunts a throw, and an improvised one can be caught out of the air and used back. Missiles stack up to 13 per slot, and loosed from the matching launcher they roll a bigger die and carry twice as far.
 
 Magic is the second pool in the status line, 4 points at the start of a run. It does not regenerate. Stairs refill it. Spells spend it, you cast them from a menu with Z, and you can know only a few at a time.
 

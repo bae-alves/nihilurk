@@ -40,21 +40,21 @@ if staged | grep -q '^docs/'; then
     }
 fi
 
-# 2. The schedule (engine/src/main.rs) and the intent queues
+# 2. The schedule (models/src/schedule.rs) and the intent queues
 # (models/src/components.rs) are exactly the two seams that drifted -- three
 # files stale on the step count, one wrong on the queue count. Matching on
-# the whole file would fire on every unrelated edit to either one (main.rs is
-# 400+ lines, components.rs over 1000), so this greps the staged *diff* for
+# the whole file would fire on every unrelated edit to either one (components.rs is
+# over 1000 lines), so this greps the staged *diff* for
 # the actual markers: a step gaining, losing or reordering an `.after()` edge,
 # or a queue struct being added or removed.
-schedule_diff() { git diff --cached -U0 -- engine/src/main.rs; }
+schedule_diff() { git diff --cached -U0 -- models/src/schedule.rs; }
 queue_diff()    { git diff --cached -U0 -- models/src/components.rs; }
 
 touched_schedule=false
 schedule_diff | grep -qE '^[+-].*\.after\(' && touched_schedule=true
 
 touched_queues=false
-queue_diff | grep -qE '^[+-]pub struct (AttackQueue|UseQueue|ThrowQueue|MoveQueue)\b' && touched_queues=true
+queue_diff | grep -qE '^[+-]pub struct (AttackQueue|UseQueue|ThrowQueue|SpellQueue)\b' && touched_queues=true
 
 if ( $touched_schedule || $touched_queues ) && ! staged | grep -q '^docs/'; then
     echo "pre-commit: this commit changes the turn schedule or an intent queue," >&2
