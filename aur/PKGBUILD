@@ -1,6 +1,6 @@
 # Maintainer: bae <bervillarinho@gmail.com>
 pkgname=nihilurk
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="Terminal roguelike about descending thirteen floors to reclaim the Element of Yoord"
 arch=('x86_64')

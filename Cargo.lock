@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "nihilurk"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bevy_ecs",
  "crossterm",
@@ -619,7 +619,7 @@ version = "0.1.0"
 
 [[package]]
 name = "nihilurk-models"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bevy_ecs",
  "crossterm",
@@ -637,11 +637,11 @@ dependencies = [
 
 [[package]]
 name = "nihilurk-particle-core"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "nihilurk-strings"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "nonmax"
