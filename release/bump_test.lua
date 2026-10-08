@@ -68,6 +68,14 @@ syn = { version = "2", features = ["full"] }
   write("particle-core/Cargo.toml", '[package]\nname = "nihilurk-particle-core"\nversion = "0.1.0"\nrust-version = "1.85"\nstd = "x"')
   write("doc/nihilurk.6", '.TH NIHILURK 6 "October 2026" "nihilurk 0.1.0" "Games"\n.SH NAME\nnihilurk 0.1.2 is not a header\n')
   write("aur/PKGBUILD", "pkgname=nihilurk\npkgver=0.1.2\npkgrel=3\nsha256sums=('abc')\n")
+  write("README.md", [[
+Download a prebuilt game (v0.1.2), no Rust needed:
+
+  * [Windows](https://github.com/o/r/releases/download/v0.1.2/nihilurk-0.1.2-x86_64-pc-windows-msvc.zip)
+  * [Linux](https://github.com/o/r/releases/download/v0.1.2/nihilurk-0.1.2-x86_64-unknown-linux-musl.tar.gz)
+
+Older versions are on the [releases page](https://github.com/o/r/releases). Saves from v0.1.2 do not load.
+]])
   in_repo("git init -q -b master && git config user.email t@t && git config user.name t && git add -A && git commit -qm init")
 end
 
@@ -107,6 +115,16 @@ assert(has(man, "nihilurk 0.1.2 is not a header"), "only the .TH line changes")
 local pkg = read("aur/PKGBUILD")
 assert(has(pkg, "pkgver=0.1.3\n") and has(pkg, "pkgrel=1\n"), "pkgver bumped, pkgrel reset")
 assert(has(pkg, "sha256sums=('abc')"), "the sha is not this script's job")
+
+-- 2b. The README download links move to the new tag and file names, and the
+--    version in the heading line follows. A plain mention of the old version
+--    elsewhere in the README is not a link and stays.
+local readme = read("README.md")
+assert(has(readme, "prebuilt game (v0.1.3), no Rust"), "readme heading: " .. readme)
+assert(has(readme, "/releases/download/v0.1.3/nihilurk-0.1.3-x86_64-pc-windows-msvc.zip)"), "windows link: " .. readme)
+assert(has(readme, "/releases/download/v0.1.3/nihilurk-0.1.3-x86_64-unknown-linux-musl.tar.gz)"), "linux link: " .. readme)
+assert(not has(readme, "download/v0.1.2/"), "no link may keep the old tag: " .. readme)
+assert(has(readme, "Saves from v0.1.2 do not load."), "a plain mention of the old version stays")
 
 -- 3. It commits and tags, leaves a clean tree, and says what to push. It does
 --    not push.

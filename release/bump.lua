@@ -3,8 +3,8 @@
 --   lua release/bump.lua <X.Y.Z | patch | minor | major> [--no-cargo] [--dry-run]
 --
 -- All four published crates move to one version (lockstep), and every `path`
--- dependency pin moves with them. The man page header and the PKGBUILD's
--- pkgver follow. Then, unless --no-cargo: Cargo.lock is refreshed, the tests
+-- dependency pin moves with them. The man page header, the PKGBUILD's
+-- pkgver and the README's download links follow. Then, unless --no-cargo: Cargo.lock is refreshed, the tests
 -- run, and a publish dry run proves the packages build. Then it commits
 -- `Release vX.Y.Z` and tags it.
 --
@@ -170,12 +170,25 @@ local function pkgbuild(text)
   return count_one(out, n)
 end
 
+-- The download links and the "(vX.Y.Z)" in the line above them. A link that
+-- stays behind would send a reader to the old release, so a README with
+-- neither is an error and not a quiet no-op.
+local function readme(text)
+  local out, links = text:gsub("(/releases/download/)v%d+%.%d+%.%d+(/nihilurk%-)%d+%.%d+%.%d+(%-)",
+    "%1" .. tag .. "%2" .. version .. "%3")
+  assert(links > 0, "README.md has no download links to move")
+  local n
+  out, n = out:gsub("(prebuilt game %()v%d+%.%d+%.%d+(%))", "%1" .. tag .. "%2")
+  return count_one(out, n)
+end
+
 local edits = {}
 for _, dir in ipairs(crates) do
   edits[#edits + 1] = { dir .. "/Cargo.toml", crate_manifest }
 end
 edits[#edits + 1] = { "doc/nihilurk.6", man_page }
 edits[#edits + 1] = { "aur/PKGBUILD", pkgbuild }
+edits[#edits + 1] = { "README.md", readme }
 
 local changed = {}
 for _, e in ipairs(edits) do
