@@ -52,6 +52,8 @@ It refuses, and edits nothing, if the working tree has uncommitted changes, if y
                                   a dependency line
     doc/nihilurk.6                the version and date in the `.TH` line
     aur/PKGBUILD                  `pkgver`, and `pkgrel` back to 1
+    README.md                     the four download links and the
+                                  version in the line above them
 
 All four crates move to the same number, so there is one version to think about. `engine/tests/workspace.rs` fails if one crate or one pin falls behind. `compat/` is a test rig and is left alone.
 
