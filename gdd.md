@@ -153,7 +153,7 @@ Content is data. Every monster, item and trap is a row in a table, and the dunge
 The developer. Seriously. I made this game because I want to play it.
 
 ### Platforms and Monetization
-Free and open source. It installs from crates.io, ships as prebuilt Linux tarballs and has an AUR package. Linux is where it is played, Windows has been built and played by a tester, and macOS builds and passes its tests. There is a Ko-Fi link for anyone who wants to buy me a coffee.
+Free and open source. It installs from crates.io, ships as prebuilt tarballs and a Windows zip and has an AUR package. Linux is where it is played, Windows has been built and played by a tester, and macOS builds and passes its tests. There is a Ko-Fi link for anyone who wants to buy me a coffee.
 
 ### Localization
 English, Portuguese, Spanish and Haitian Creole, one binary each. A classic roguelike in non-English is important to exist.

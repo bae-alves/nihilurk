@@ -38,9 +38,9 @@ From a clone:
 
 The game needs a terminal of at least 80 columns by 25 rows. In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
 
-Prebuilt Linux tarballs (x86_64 and aarch64, static musl) are on the [releases page](https://github.com/bae-alves/nihilurk/releases). Unpack one and run `./nihilurk`.
+Prebuilt downloads are on the [releases page](https://github.com/bae-alves/nihilurk/releases): Linux tarballs (x86_64 and aarch64, static musl), a Windows `.zip` (x86_64) and a macOS tarball (Apple Silicon). Unpack one and run `./nihilurk` (`nihilurk.exe` on Windows). Keep the files together: the dispatcher starts the `nihilurk-<lang>` binary next to it. The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it.
 
-It runs on Windows: a tester built it there and played it. There are no prebuilt Windows binaries yet, so build with `cargo install nihilurk`. On macOS it builds and passes its tests in CI (Apple Silicon), but nobody has played it there yet. If you try Windows or macOS, [open an issue](https://github.com/bae-alves/nihilurk/issues) and say what happened, good or bad.
+It runs on Windows: a tester built it there and played it. On macOS the prebuilt binary is built and started by CI (Apple Silicon), but nobody has played it there yet. If you try Windows or macOS, [open an issue](https://github.com/bae-alves/nihilurk/issues) and say what happened, good or bad.
 
 
 Where things are
