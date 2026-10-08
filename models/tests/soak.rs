@@ -98,7 +98,9 @@ fn step_or_fight(w: &mut World, player: Entity) -> bool {
         .copied();
     if let Some(foe) = neighbour {
         let (dx, dy) = toward(here, foe);
-        return queue_step(w, dx, dy);
+        if queue_step(w, dx, dy) {
+            return true;
+        }
     }
     match explore_step(w) {
         Some((dx, dy)) => queue_step(w, dx, dy),

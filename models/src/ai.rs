@@ -2,9 +2,9 @@
 //!
 //! [`ai`] is the whole entry point: it snapshots the player once, works out
 //! how many monster rounds this player turn buys, then hands both to
-//! [`monster_round`], which banks tempo energy and steps every mob in up to
+//! `monster_round`, which banks tempo energy and steps every mob in up to
 //! two passes so a `Fast` monster can act twice. A single mob's turn is
-//! [`step_one_mob`]: the gates (dead, asleep, stone, out of energy), then a
+//! `step_one_mob`: the gates (dead, asleep, stone, out of energy), then a
 //! percept, a decision and an action. The decision is not made here: it is
 //! the mob's rule set's, in [`crate::agents`]. This file keeps the clock, the
 //! gates and the hands.

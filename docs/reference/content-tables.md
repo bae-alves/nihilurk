@@ -519,7 +519,7 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 |36 | `Phasing`           | Walks through walls and water; no diagonal rule, no room leash. |
 |37 | `Cleaves`           | A connecting swing also lands on every other enemy next to the wielder. |
 |38 | `HeavySwing`        | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
-|39 | `Fencer`            | Every attack is thrown twice. |
+|39 | `Fencer`            | Every attack is thrown as many times as the grant says (`Grant::counted::<Fencer>(n)`; estoc: `ESTOC_NUMBER_OF_ATTACKS`). |
 |40 | `Lunges`            | Closing the last stride of a run lands a lunge instead of a step. |
 |41 | `Lurk`              | The lurk's body. An identity effect: `revoke_all` leaves it. |
 |42 | `WhirlOnMove`       | Stepping between two tiles beside the same enemy lands a free attack. |

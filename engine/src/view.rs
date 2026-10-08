@@ -120,6 +120,8 @@ fn status_tint(
     }
 }
 
+/// Paints the whole frame (map, actors, status line, message log and any open
+/// menu) into `screen`, then flushes it to `stdout`.
 pub fn render<W: Write>(
     world: &mut World,
     stdout: &mut W,
@@ -1245,6 +1247,8 @@ fn draw_help(screen: &mut Screen) {
     screen.put(x + 1 + inner, y + height + 1, '┘', grey);
 }
 
+/// Draws the pack overlay for the current [`PackIsOpen`] mode: the item list,
+/// or the action menu over a selected item.
 fn draw_inventory(world: &mut World, screen: &mut Screen) {
     let (mode, selected_idx, action_mode, action_selected) = {
         let p = world.resource::<PackIsOpen>();

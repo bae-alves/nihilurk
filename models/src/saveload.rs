@@ -67,7 +67,7 @@ use crate::map::{
     BloodStains, Corpses, Endless, FINAL_DEPTH, FxRng, GameRng, Map, RngSeed, Smoke, TileType,
     regenerate_map,
 };
-use crate::monsters::MonsterDef;
+use crate::monsters::{BESTIARY, MonsterDef};
 use crate::state::{Ending, GameState};
 use rand_chacha::ChaCha12Rng;
 
@@ -133,12 +133,13 @@ enum SavedLifetime {
     NextAction,
 }
 
-/// One held effect, as it goes to disk: the stable id off its [`EFFECTS`] row
-/// and how long it had left.
+/// One held effect, as it goes to disk: the stable id off its [`EFFECTS`](crate::EFFECTS) row,
+/// how long it had left, and the number it was lent with.
 #[derive(Serialize, Deserialize)]
 struct SavedEffect {
     id: String,
     lifetime: SavedLifetime,
+    count: u8,
 }
 
 impl SavedEffect {
@@ -154,11 +155,12 @@ impl SavedEffect {
         Self {
             id: held.id.to_string(),
             lifetime,
+            count: held.count,
         }
     }
 
     /// Back to a runtime entry, resolving the id against this build's
-    /// [`EFFECTS`]. `None` when the id is not one this build knows — a retired
+    /// [`EFFECTS`](crate::EFFECTS). `None` when the id is not one this build knows — a retired
     /// row, or a save from a newer build.
     fn held(&self) -> Option<Held> {
         let effect = crate::effects::Effect::by_id(&self.id)?;
@@ -171,6 +173,7 @@ impl SavedEffect {
         Some(Held {
             id: effect.id,
             lifetime,
+            count: self.count,
         })
     }
 }
@@ -293,6 +296,11 @@ struct EntitySave<'a> {
     /// whatever they typed, and for anything with no such row.
     #[serde(borrow)]
     content: Option<Cow<'a, str>>,
+    /// A xeroc still in disguise. Its saved name is the look-alike's, so
+    /// [`content`](Self::content) holds the species row instead and the loader
+    /// keeps the saved name. See [`Mimic`].
+    #[serde(default)]
+    mimic: bool,
 }
 
 /// The version of the bytes [`save_game`] writes, stored as the file's first
@@ -303,7 +311,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 3;
+pub const SAVE_VERSION: u16 = 4;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -568,9 +576,14 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
             aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
             alignment: er.get::<Alignment>().map(|a| a.0),
             deck: er.get::<Deck>().map(|d| d.cards.clone()),
-            content: match er.contains::<Player>() {
-                true => None,
-                false => name.and_then(content_id_of).map(Cow::Borrowed),
+            mimic: er.contains::<Mimic>(),
+            content: match (er.contains::<Player>(), er.contains::<Mimic>()) {
+                (true, _) => None,
+                (_, true) => BESTIARY
+                    .iter()
+                    .find(|m| m.mimics)
+                    .map(|m| Cow::Borrowed(m.name)),
+                _ => name.and_then(content_id_of).map(Cow::Borrowed),
             },
         });
     }
@@ -731,8 +744,8 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         }
         let content = es.content.as_deref();
         let entity_name = match content {
-            Some(id) => Some(strings::content_name(id).to_string()),
-            None => es.name.map(|n| n.into_owned()),
+            Some(id) if !es.mimic => Some(strings::content_name(id).to_string()),
+            _ => es.name.map(|n| n.into_owned()),
         };
         if let Some(n) = &entity_name {
             em.insert(Name { what: n.clone() });
@@ -911,6 +924,9 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
         if es.forged {
             em.insert(Forged);
         }
+        if es.mimic {
+            em.insert(Mimic);
+        }
         if es.helper {
             em.insert(Helper);
         }
@@ -997,6 +1013,7 @@ mod tests {
             spellset: None,
             equipped_by: None,
             helper: false,
+            mimic: false,
             ice_cube: false,
             aggravated: None,
             alignment: None,
@@ -1153,10 +1170,12 @@ mod tests {
                 SavedEffect {
                     id: "first".into(),
                     lifetime: SavedLifetime::Turns(300),
+                    count: 0,
                 },
                 SavedEffect {
                     id: "second".into(),
                     lifetime: SavedLifetime::NextAction,
+                    count: 0,
                 },
             ],
             speed: Some(SpeedKind::Quick),
@@ -1167,6 +1186,7 @@ mod tests {
             spellset: Some(vec![SpellEffect::GateDown]),
             equipped_by: Some(300),
             helper: true,
+            mimic: true,
             ice_cube: true,
             aggravated: Some((700, 701)),
             alignment: Some(-100),

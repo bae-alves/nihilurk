@@ -4,7 +4,7 @@
 //! one with them, is eaten either way, and at
 //! [`ACCEPT_CHANCE`] odds the creature becomes
 //! your [`Helper`]. A Helper is an [`Faction::Ally`] that chases whatever the
-//! player can see ([`crate::ai`]), follows the player to every new floor
+//! player can see ([`crate::ai`](mod@crate::ai)), follows the player to every new floor
 //! ([`crate::map`]'s level change), and trades places with them when they walk
 //! into it. There is only ever one ordinary one: taking a second makes the
 //! first explode. A [`PriorityHelper`] (the dog) is exempt from that, and
@@ -92,7 +92,7 @@ pub(crate) fn offer(world: &mut World, victim: Entity, item: Entity, treat_name:
 /// chases whatever the player can see, same as a Helper — but it is not *the*
 /// Helper. Unlike [`recruit`], there is no limit of one (nothing explodes to
 /// make room) and it does not follow the player downstairs
-/// ([`crate::map::levels`] only carries the [`Helper`] along).
+/// (`crate::map::levels` only carries the [`Helper`] along).
 pub fn charm(world: &mut World, mob: Entity) {
     if world.get::<AlwaysHelper>(mob).is_some() {
         recruit(world, mob);
@@ -173,7 +173,7 @@ fn explode(world: &mut World, old: Entity) {
 
 /// What a Helper's death adds to an ordinary one: the line, a heavy shake, and
 /// a heart over the body. The death burst itself already runs in slow motion
-/// for a Helper ([`death_burst`]). Called by both death funnels in
+/// for a Helper (`death_burst`). Called by both death funnels in
 /// `crate::combat`, which also skip paying for the corpse.
 pub(crate) fn mourn(world: &mut World, helper: Entity) {
     let name = item_label(world, helper);

@@ -13,7 +13,7 @@
 //! ## How a form survives a save
 //!
 //! * A **monster body** is saved as the species' id (`SaveGame::monster_body`
-//!   in [`crate::saveload`]) and put back as the [`MonsterBody`] marker. It is
+//!   in `crate::saveload`) and put back as the [`MonsterBody`] marker. It is
 //!   not read back from the player's [`Name`]: a nihil may be called "dragon".
 //! * A **lurk** is read back from the [`Lurk`] marker, which rides the effect
 //!   ledger like any other thing a creature was born with.
@@ -37,7 +37,7 @@ pub enum Body {
     #[default]
     Nihil,
     /// Quadruped, fanged, clawed, furred: its own species, and the only one
-    /// besides nihil that was written to be played. See [`wear_lurk`].
+    /// besides nihil that was written to be played. See `wear_lurk`.
     Lurk,
     /// Any bestiary row, worn as a costume — `-am dragon`. See
     /// [`crate::monsters::wear_monster`].
@@ -107,7 +107,7 @@ pub fn wear(world: &mut World, player: Entity, body: Body) {
 const LURK_GRANTS: &[Grant] = &[
     Grant::of::<Lurk>(),
     Grant::of::<Lunges>(),
-    Grant::of::<Fencer>(),
+    Grant::counted::<Fencer>(lurk::NUMBER_OF_ATTACKS),
     Grant::of::<BuildsMomentum>(),
     Grant::of::<Stealthy>(),
 ];
@@ -170,7 +170,7 @@ pub fn innate_tempo(world: &World, player: Entity) -> SpeedKind {
 /// answer to "can this species use equipment", and a player wearing the
 /// species answers to it too. A lurk answers to its own shape: a ring goes on
 /// a claw, and nothing else goes anywhere. A polymorphed creature answers to
-/// the same marker, lent for the floor: a shape without [`ItemUser`] has no
+/// the same marker, lent for the floor: a shape without [`ItemUser`](crate::ItemUser) has no
 /// hands.
 pub fn equip_refusal(world: &World, user: Entity, slot: Slot, item_name: &str) -> Option<String> {
     if world.get::<Lurk>(user).is_some() {

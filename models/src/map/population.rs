@@ -3,7 +3,7 @@
 //! [`super::generate`] decides the shape of a floor; this file decides how
 //! crowded it is. Nothing here picks *which* creature, item or trap — those are
 //! weighted draws over the content tables themselves ([`MonsterDef::pick`],
-//! [`crate::spawn::roll_item`], [`TrapDef::pick`]). This is only how many, and
+//! [`crate::spawn::roll_item`], `TrapDef::pick`). This is only how many, and
 //! where.
 //!
 //! Every roll comes off the floor's own [`content_rng`] stream, never the
@@ -31,7 +31,7 @@ use crate::constants::population::{
 use crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 
 use crate::monsters::{MonsterDef, spawn_monster_with_rng};
-use crate::spawn::{roll_item, roll_one, spawn_named, spawn_requested};
+use crate::spawn::{roll_exceptional_equipment, roll_item, roll_one, spawn_named, spawn_requested};
 
 use super::generate::{corridor_centers, find_tile, room_floor_tiles, tiles_of};
 use super::levels::holding_element_of_yoord;
@@ -49,13 +49,34 @@ fn claim_random_spot(
     occupied: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
 ) -> Option<(u16, u16)> {
+    claim_spot(rooms, rng, |spot| occupied.insert(spot))
+}
+
+/// [`claim_random_spot`] for an item: it keeps off every tile in `occupied`
+/// but only marks `items`, so a monster placed later may still stand on it.
+fn claim_item_spot(
+    rooms: &[Vec<(u16, u16)>],
+    occupied: &HashSet<(u16, u16)>,
+    items: &mut HashSet<(u16, u16)>,
+    rng: &mut ChaCha12Rng,
+) -> Option<(u16, u16)> {
+    claim_spot(rooms, rng, |spot| {
+        !occupied.contains(&spot) && items.insert(spot)
+    })
+}
+
+fn claim_spot(
+    rooms: &[Vec<(u16, u16)>],
+    rng: &mut ChaCha12Rng,
+    mut claim: impl FnMut((u16, u16)) -> bool,
+) -> Option<(u16, u16)> {
     for _ in 0..PLACEMENT_TRIES {
         let room = match rooms.len() {
             1 => &rooms[0],
             n => &rooms[rng.gen_range(1..n)],
         };
         let spot = random_tile(room, rng);
-        if occupied.insert(spot) {
+        if claim(spot) {
             return Some(spot);
         }
     }
@@ -117,6 +138,7 @@ fn place_one_trap(
     world: &mut World,
     rooms: &[Vec<(u16, u16)>],
     occupied: &mut HashSet<(u16, u16)>,
+    items: &HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
     depth: u8,
     player_start: (u16, u16),
@@ -139,7 +161,7 @@ fn place_one_trap(
         {
             continue;
         }
-        if occupied.insert((x, y)) {
+        if !items.contains(&(x, y)) && occupied.insert((x, y)) {
             world.spawn(crate::TrapBundle::random(rng, depth, Position { x, y }));
             return;
         }
@@ -162,7 +184,8 @@ fn place_one_trap(
 fn place_guaranteed(
     world: &mut World,
     rooms: &[Vec<(u16, u16)>],
-    occupied: &mut HashSet<(u16, u16)>,
+    occupied: &HashSet<(u16, u16)>,
+    items: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
     depth: u8,
 ) {
@@ -174,7 +197,7 @@ fn place_guaranteed(
         .contains(&depth)
         .then(|| PROGRESSION_ITEMS[rng.gen_range(0..PROGRESSION_ITEMS.len())]);
     for name in [Some(parity), progression].into_iter().flatten() {
-        let Some((x, y)) = claim_random_spot(rooms, occupied, rng) else {
+        let Some((x, y)) = claim_item_spot(rooms, occupied, items, rng) else {
             continue;
         };
         spawn_named(world, name, Position { x, y }).expect("a guaranteed find is a catalog row");
@@ -187,36 +210,40 @@ fn spawn_from_free(
     free: &mut Vec<(u16, u16)>,
     occupied: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
-) {
+) -> (u16, u16) {
     let i = rng.gen_range(0..free.len());
     let (x, y) = free.remove(i);
     occupied.insert((x, y));
     spawn_monster_with_rng(world, MonsterDef::named(species), Position { x, y }, rng);
+    (x, y)
 }
 
 /// Coins on every still-unclaimed tile of a hoard.
 fn scatter_coins(
     world: &mut World,
     free: Vec<(u16, u16)>,
-    occupied: &mut HashSet<(u16, u16)>,
+    occupied: &HashSet<(u16, u16)>,
+    items: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
     depth: u8,
 ) {
     for (x, y) in free {
-        if occupied.insert((x, y)) {
+        if !occupied.contains(&(x, y)) && items.insert((x, y)) {
             roll_one(world, rng, depth, Position { x, y }, COINS);
         }
     }
 }
 
-/// Fills every room [`build_tiles`] rolled a [`SpecialRoom`] kind for,
+/// Fills every room `build_tiles` rolled a [`SpecialRoom`] kind for,
 /// reading the kind straight off the [`Map`] resource at the room's first
 /// floor tile. Every tile claimed here goes into `occupied` first, so the
 /// ordinary monster/trap/item budgets below just see fewer free spots.
+#[allow(clippy::too_many_arguments)] // occupied + items are one claim ledger in two halves
 fn populate_special_rooms(
     world: &mut World,
     rooms: &[Vec<(u16, u16)>],
     occupied: &mut HashSet<(u16, u16)>,
+    items: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
     depth: u8,
     tier: u32,
@@ -233,11 +260,24 @@ fn populate_special_rooms(
             SpecialRoom::DragonHoard => {
                 let slots = (tier as usize + 1).min(free.len());
                 for _ in 0..slots {
-                    spawn_from_free(world, "dragon", &mut free, occupied, rng);
+                    let (x, y) = spawn_from_free(world, "dragon", &mut free, occupied, rng);
+                    if items.insert((x, y)) {
+                        roll_exceptional_equipment(world, rng, depth, Position { x, y });
+                    }
                 }
-                scatter_coins(world, free, occupied, rng, depth);
+                scatter_coins(world, free, occupied, items, rng, depth);
             }
             SpecialRoom::MonsterZoo => {
+                let mut shelf = free.clone();
+                for _ in 0..ITEM_SLOTS_BASE + tier as usize {
+                    if shelf.is_empty() {
+                        break;
+                    }
+                    let (x, y) = shelf.remove(rng.gen_range(0..shelf.len()));
+                    if !occupied.contains(&(x, y)) && items.insert((x, y)) {
+                        roll_item(world, rng, depth, Position { x, y });
+                    }
+                }
                 for (x, y) in free {
                     if occupied.insert((x, y)) {
                         let def = pick_species(rng, (x, y));
@@ -246,10 +286,10 @@ fn populate_special_rooms(
                 }
             }
             SpecialRoom::TreasureHive => {
-                if !free.is_empty() {
+                scatter_coins(world, free.clone(), occupied, items, rng, depth);
+                while !free.is_empty() {
                     spawn_from_free(world, "apis", &mut free, occupied, rng);
                 }
-                scatter_coins(world, free, occupied, rng, depth);
             }
             SpecialRoom::RedRoom => {
                 let max_items = ITEM_SLOTS_BASE + tier as usize;
@@ -259,7 +299,7 @@ fn populate_special_rooms(
                     }
                     let i = rng.gen_range(0..free.len());
                     let (x, y) = free.remove(i);
-                    if occupied.insert((x, y)) {
+                    if !occupied.contains(&(x, y)) && items.insert((x, y)) {
                         roll_item(world, rng, depth, Position { x, y });
                     }
                 }
@@ -327,13 +367,14 @@ fn spawn_monster_budget(
 fn spawn_item_budget(
     world: &mut World,
     rooms: &[Vec<(u16, u16)>],
-    occupied: &mut HashSet<(u16, u16)>,
+    occupied: &HashSet<(u16, u16)>,
+    items: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
     depth: u8,
     tier: u32,
 ) {
     for _ in 0..ITEM_SLOTS_BASE + tier as usize {
-        let Some((x, y)) = claim_random_spot(rooms, occupied, rng) else {
+        let Some((x, y)) = claim_item_spot(rooms, occupied, items, rng) else {
             continue;
         };
         roll_item(world, rng, depth, Position { x, y });
@@ -345,6 +386,7 @@ fn spawn_item_budget(
 fn populate_castle(
     world: &mut World,
     occupied: &mut HashSet<(u16, u16)>,
+    items: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
     depth: u8,
     tier: u32,
@@ -360,12 +402,12 @@ fn populate_castle(
     for room in &rooms {
         let room = std::slice::from_ref(room);
         spawn_monster_budget(world, room, occupied, rng, tier, pick_species);
-        spawn_item_budget(world, room, occupied, rng, depth, tier);
+        spawn_item_budget(world, room, occupied, items, rng, depth, tier);
     }
 }
 
 /// Spawns the monsters and items for a freshly built floor. The staircases are
-/// carved by [`build_tiles`]. Shared by [`initialize_world`] and [`change_level`].
+/// carved by `build_tiles`. Shared by [`initialize_world`](crate::initialize_world) and [`change_level`](crate::change_level).
 pub(super) fn populate_level(
     world: &mut World,
     rooms: &[Vec<(u16, u16)>],
@@ -375,6 +417,7 @@ pub(super) fn populate_level(
     let rooms = &clear_the_landing(rooms, player_start);
 
     let mut occupied = HashSet::new();
+    let mut items = HashSet::new();
 
     occupied.insert((player_x, player_y));
 
@@ -399,7 +442,7 @@ pub(super) fn populate_level(
     let changes = world.get_resource::<FloorChanges>().map_or(0, |c| c.count);
     let mut rng = content_rng(seed, depth, changes);
 
-    place_guaranteed(world, rooms, &mut occupied, &mut rng, depth);
+    place_guaranteed(world, rooms, &occupied, &mut items, &mut rng, depth);
 
     let tier = difficulty_tier(depth);
 
@@ -407,6 +450,7 @@ pub(super) fn populate_level(
         world,
         rooms,
         &mut occupied,
+        &mut items,
         &mut rng,
         depth,
         tier,
@@ -449,14 +493,22 @@ pub(super) fn populate_level(
     }
 
     for _ in 0..item_runs {
-        spawn_item_budget(world, rooms, &mut occupied, &mut rng, depth, tier);
+        spawn_item_budget(world, rooms, &occupied, &mut items, &mut rng, depth, tier);
     }
     if level == Some(SpecialLevel::Castle) {
-        populate_castle(world, &mut occupied, &mut rng, depth, tier, &pick_species);
+        populate_castle(
+            world,
+            &mut occupied,
+            &mut items,
+            &mut rng,
+            depth,
+            tier,
+            &pick_species,
+        );
     }
 
     if rng.gen_bool(HIDDEN_ITEM_CHANCE) {
-        if let Some((x, y)) = claim_random_spot(rooms, &mut occupied, &mut rng) {
+        if let Some((x, y)) = claim_item_spot(rooms, &occupied, &mut items, &mut rng) {
             let item = roll_item(world, &mut rng, depth, Position { x, y });
             world.entity_mut(item).insert((Hidden, Invisible));
         }
@@ -471,7 +523,15 @@ pub(super) fn populate_level(
         if !rng.gen_bool(trap_chance) {
             continue;
         }
-        place_one_trap(world, rooms, &mut occupied, &mut rng, depth, player_start);
+        place_one_trap(
+            world,
+            rooms,
+            &mut occupied,
+            &items,
+            &mut rng,
+            depth,
+            player_start,
+        );
     }
 
     spawn_requested(

@@ -30,7 +30,7 @@ pub const RIPPLE_MS_PER_TILE: f32 = 40.0;
 /// Under it, but only just. Drop much below the frame period and the sampling
 /// starts *skipping* steps instead of repeating them, and a skipped step lands
 /// twice in a row on the same side of the axis — the alternation
-/// [`SHAKE_PATTERN`] exists for, quietly lost. At 32 ms against a 33 ms frame
+/// `SHAKE_PATTERN` exists for, quietly lost. At 32 ms against a 33 ms frame
 /// the two stay in lockstep for 32 frames, which is longer than any shake nihilurk
 /// has.
 ///

@@ -1,6 +1,6 @@
 //! What an effect does *on its own* — one table, one row per ability.
 //!
-//! Some effects are answers to a question another system asks — [`FireImmune`]
+//! Some effects are answers to a question another system asks — [`FireImmune`](crate::FireImmune)
 //! only matters when a wand of fire goes off. Others act by themselves, and
 //! [`ABILITIES`] is all of those: each row names the effect that arms it, the
 //! [`Moment`] it fires at, and what it does.
@@ -14,7 +14,7 @@
 //! hardcoded line in `took_damage`, and adding a fifth path meant remembering
 //! to call it again.
 //!
-//! Adding a moment is a [`Moment`] variant, one arm in [`fires_at`], and an
+//! Adding a moment is a [`Moment`] variant, one arm in `fires_at`, and an
 //! entry point that says who the bearer is. Adding an ability at a moment that
 //! already exists is one row.
 //!
@@ -278,7 +278,7 @@ const fn hit(glancing: bool, lethal: bool) -> Moment {
 
 /// The battle axe's cleave: every other monster standing next to the wielder
 /// when their swing lands takes the same swing, right along with the target
-/// already struck — the player's [`Helper`] ducks it. A no-op for anything not
+/// already struck — the player's [`Helper`](crate::Helper) ducks it. A no-op for anything not
 /// wielding one — the engine calls this after every player attack rather than
 /// checking first.
 pub fn cleave_attack(world: &mut World, attacker: Entity, already_hit: Entity) {
@@ -419,7 +419,7 @@ fn freezing_touch(world: &mut World, _attacker: Entity, target: Option<Entity>) 
 /// The rattlesnake's bite: [`RATTLESNAKE_POWER_DRAIN`] points of base power,
 /// permanently — like the dart trap's poison, but with no floor, so a
 /// long enough fight can drive a victim's power negative. A ring of strength
-/// ([`SustainsStrength`]) shrugs it off exactly as it does the trap.
+/// ([`SustainsStrength`](crate::SustainsStrength)) shrugs it off exactly as it does the trap.
 ///
 /// Announced either way, the same split `stagger`/`blind` already use: the
 /// player reads it in the second person, anything else gets its own name in
@@ -475,7 +475,7 @@ fn vampiric_drain(world: &mut World, _attacker: Entity, target: Option<Entity>) 
 /// The venus flytrap's (and a revealed xeroc's) bite: clamps the victim in its
 /// jaws — [`crate::effects::Clamped`], for up to the same number of turns a
 /// bear trap holds for, but let go the instant the biter dies
-/// ([`crate::combat::settle_the_dead`]) rather than only when the turns run
+/// (`crate::combat::settle_the_dead`) rather than only when the turns run
 /// out, the way a bear trap's [`crate::effects::Pinned`] does.
 fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> bool {
     let Some(target) = target else {
@@ -660,7 +660,7 @@ fn actors(world: &mut World) -> Vec<Entity> {
         .collect()
 }
 
-/// The bearer was hurt and lived. Called from [`crate::helpers::took_damage`],
+/// The bearer was hurt and lived. Called from `crate::helpers::took_damage`,
 /// which every damage path in the game already runs through.
 pub fn fire_on_damaged(world: &mut World, victim: Entity) {
     fire(world, Moment::OnDamaged, victim, None);

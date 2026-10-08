@@ -21,7 +21,8 @@ use crate::conditions::afflicted;
 use crate::constants::score::BOUNTY_SCORE_MULTIPLIER;
 use crate::effects::{
     Asleep, Bided, Binds, Clamped, ClampedBy, Fencer, Grant, Lunges, Lurk, Pinned, Rooted,
-    ScoreBounty, ShattersStone, VorpalOnCondition, VorpalTarget, WhirlOnMove, loadout, revoke,
+    ScoreBounty, ShattersStone, VorpalOnCondition, VorpalTarget, WhirlOnMove, count_of, loadout,
+    revoke,
 };
 use crate::equipment::{Slot, destroy_worn, equipped_in, equipped_items, force_unequip};
 use crate::helpers::{
@@ -106,7 +107,7 @@ pub fn combat_system(world: &mut World) {
 
 /// Sweeps up anything that has been reduced to 0 HP by a source that doesn't
 /// resolve its own lethality — a wand bolt, and any blast casualty
-/// [`crate::items::wands::elemental_blast`] didn't already finish off itself
+/// `crate::items::wands::elemental_blast` didn't already finish off itself
 /// (it does, when it has a blast centre to fling a corpse away from; this is
 /// the catch-all for the rest). Melee kills are still finalised inline by
 /// [`resolve_attack`], so by the time this runs the only casualties left are
@@ -185,7 +186,7 @@ fn blank_player_glyph(world: &mut World, entity: Entity) {
 
 /// Finalises one creature that dropped to lethal HP through a source with no
 /// attacker entity to report — a wand bolt, or a blast casualty
-/// [`crate::items::wands::elemental_blast`] hands off directly rather than
+/// `crate::items::wands::elemental_blast` hands off directly rather than
 /// waiting for [`reaper_system`]'s next sweep. Plays the death burst, then
 /// either despawns a monster (gear settled first, a plain "dies" line
 /// logged) or, for the player, blanks their glyph and flags [`Ending`] —
@@ -421,9 +422,12 @@ fn splinter(world: &mut World, wearer: Entity, at: Position) {
 /// nothing else, exactly the way nothing outside `crate::equipment` has to
 /// know a ring exists.
 pub fn melee_attack(world: &mut World, attacker: Entity, target: Entity) {
-    resolve_attack(world, attacker, target);
     let is_player = world.get::<Player>(attacker).is_some();
-    if is_player && world.get::<Fencer>(attacker).is_some() {
+    let attacks = match count_of(world, attacker, Grant::of::<Fencer>()) {
+        Some(n) if is_player => n.max(1),
+        _ => 1,
+    };
+    for _ in 0..attacks {
         resolve_attack(world, attacker, target);
     }
     if is_player {
@@ -500,7 +504,7 @@ struct Swing {
 struct Outcome {
     lethal: bool,
     /// A vorpalized weapon found its bane, or a garrote found a helpless
-    /// throat ([`garrote`]). Either way, skips the HP arithmetic entirely.
+    /// throat (`garrote`). Either way, skips the HP arithmetic entirely.
     vorpal: bool,
     /// The vorpal kill above was specifically the garrote's trick — the log
     /// line and the death flourish read differently from a blade's.
@@ -1182,7 +1186,7 @@ fn burst_on_death(world: &mut World, entity: Entity) {
     }
 }
 
-/// A creature that is a faerie shapeshifter underneath ([`FaerieOnDeath`], the
+/// A creature that is a faerie shapeshifter underneath ([`FaerieOnDeath`](crate::FaerieOnDeath), the
 /// dog) does not die: it is revealed as one, and gone. It leaves no corpse,
 /// no gore and no score, and says so in pink: "It was never a dog, but a
 /// faerie shapeshifter!" That line stands in for the kill line. It drops what it wore, as anything does.

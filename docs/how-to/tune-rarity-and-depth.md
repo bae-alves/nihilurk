@@ -20,7 +20,7 @@ How weights work
 
 An entry's chance is its weight over the sum of the weights it competes against, and it competes only inside one draw: a monster's weight against other monsters, a `DROPS` weight against other categories.
 
-**The default weight is the baseline** (`constants::monsters::DEFAULT_SPAWN_WEIGHT` for the bestiary). A row at half of it is half as common as its neighbours; one at double it is twice. Nothing has to total anything, so you can add a row without editing another number.
+**The default weight is the baseline** (`constants::monsters::DEFAULT_SPAWN_WEIGHT` for the bestiary). A row at half of it is half as common as its neighbours; one at double it is twice. Nothing has to total anything, so you can add a row without editing another number. Weights are whole numbers, so 1 is the floor: to make a row rarer than 1 you raise the baseline and every explicit weight with it (spirits did exactly this).
 
 Dial 1: how many things per floor
 ---------------------------------
@@ -147,7 +147,7 @@ Appendix: quick check
 1. Decide which question you are asking: how many per floor, which category, which row, or allowed here at all.
 2. Per floor: edit `populate_level` in `models/src/map/population.rs`; this moves every row at once.
 3. Category: change its weight in `DROPS` (`models/src/spawn.rs`).
-4. Row: `.weight(n)` on a monster, or `weight` on a trap; ten is the baseline and items have no per-row weight.
+4. Row: `.weight(n)` on a monster, or `weight` on a trap; twenty is the baseline (monsters and traps; spirits sit at 1, the floor) and items have no per-row weight.
 5. Gate: raise `min_depth`; it is a hard gate, and nothing makes a row stop appearing deeper.
 6. Run `cargo test --test content`.
 7. Count what a draw gives you with a throwaway loop over `roll_item` or `MonsterDef::pick`.

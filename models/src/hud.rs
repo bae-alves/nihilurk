@@ -43,6 +43,7 @@ impl LogCategory {
             LogCategory::Pride => Color::White,
             LogCategory::Ghost => Color::DarkGrey,
             LogCategory::Faerie => Color::Magenta,
+            LogCategory::Room(color) => color,
         }
     }
 }

@@ -618,7 +618,7 @@ impl Particles {
     }
 
     /// A dying creature's corpse (`%`), flung away from the blow that killed
-    /// it — see [`crate::helpers::death_burst`]. Heavier and a touch slower
+    /// it — see `crate::helpers::death_burst`. Heavier and a touch slower
     /// than a thrown item's [`Particles::hurl`] (this is a body, not a
     /// dagger), and unlike a thrown item it doesn't just wink out on landing:
     /// its final cell lingers much longer, flashing white on impact before
@@ -628,7 +628,7 @@ impl Particles {
     ///
     /// `stretch` multiplies every duration in the flight: `1.0` for a monster,
     /// and the player's own death drags it out (see
-    /// [`crate::helpers::death_burst`]) — the last thing a run does is worth
+    /// `crate::helpers::death_burst`) — the last thing a run does is worth
     /// watching, and it is the one death nobody has to be kept waiting *from*.
     pub fn death_fling(&mut self, pts: &[(u16, u16)], color: Color, stretch: f32) -> f32 {
         const TRAVEL_MS_PER_CELL: f32 = 65.0;
@@ -737,7 +737,7 @@ impl Particles {
     /// is the same distance-tagged set [`Particles::explosion`] used for the
     /// primary blast, so the smoke follows the same ring pattern outward.
     ///
-    /// Waits out [`BLAST_LIFETIME_MS`] before starting on each cell: the
+    /// Waits out `BLAST_LIFETIME_MS` before starting on each cell: the
     /// renderer just overwrites a tile with whichever particle is later in
     /// [`Particles::live`], so smoke queued while the flame on the same cell
     /// is still burning painted over its red/dark-red closing frames,

@@ -63,3 +63,32 @@ fn the_turn_schedule_holds_exactly_these_orderings() {
 fn the_turn_schedule_has_seventeen_steps() {
     assert_eq!(turn_schedule().graph().systems().count(), 17);
 }
+
+#[test]
+fn no_two_steps_are_left_unordered() {
+    let schedule = turn_schedule();
+    let edges = edges_of(&schedule);
+    let steps: BTreeSet<&String> = edges.iter().flat_map(|(a, b)| [a, b]).collect();
+    assert_eq!(steps.len(), 17);
+
+    let reaches = |from: &String, to: &String| {
+        let mut seen = BTreeSet::new();
+        let mut open = vec![from];
+        while let Some(at) = open.pop() {
+            for (a, b) in &edges {
+                if a == at && seen.insert(b) {
+                    open.push(b);
+                }
+            }
+        }
+        seen.contains(to)
+    };
+
+    let unordered: Vec<String> = steps
+        .iter()
+        .flat_map(|a| steps.iter().map(move |b| (*a, *b)))
+        .filter(|(a, b)| a < b && !reaches(a, b) && !reaches(b, a))
+        .map(|(a, b)| format!("{a} / {b}"))
+        .collect();
+    assert!(unordered.is_empty(), "unordered pairs: {unordered:?}");
+}

@@ -129,7 +129,7 @@ pub fn fight_step(world: &mut World, target: Entity) -> Option<(i16, i16)> {
 /// Whether a shot loosed from the player's own tile would actually reach
 /// `target` — a straight line to it broken by neither a wall nor another
 /// creature standing in the way first. Mirrors the wall/first-body rule
-/// [`crate::items::throwing`]'s own flight path resolves a throw with, so
+/// `crate::items::throwing`'s own flight path resolves a throw with, so
 /// ranged auto-fight only ever takes a shot a manual aimed throw would also
 /// land.
 pub fn has_clear_shot(world: &mut World, target: Entity) -> bool {

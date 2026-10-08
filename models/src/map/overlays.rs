@@ -10,7 +10,7 @@ use fixedbitset::FixedBitSet;
 
 use super::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, tile_index};
 
-/// Per-tile record of where a bleeding creature (anything with [`Blood`]) has
+/// Per-tile record of where a bleeding creature (anything with [`Blood`](crate::Blood)) has
 /// been hurt. Purely cosmetic: the renderer paints these tiles with a red
 /// background while they are in the player's viewshed. Rebuilt per floor and not
 /// saved, like the map itself.
@@ -88,7 +88,7 @@ impl Default for BloodStains {
 
 /// Where a dead creature's corpse has come to rest: a decorative `%` with
 /// nothing behind it — not lootable, not steppable-on-specially, just a mark
-/// left by [`crate::helpers::death_burst`]. Rebuilt per floor and never saved,
+/// left by `crate::helpers::death_burst`. Rebuilt per floor and never saved,
 /// like [`BloodStains`]; with blood switched off (`-nb`) this is the *entire*
 /// death effect, since the animation that would otherwise fling a corpse here
 /// is skipped along with the RNG it would spend.

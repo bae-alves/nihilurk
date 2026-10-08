@@ -7,7 +7,7 @@
 //! the components the rows attached ([`crate::effects`]). Potions, scrolls,
 //! wands and rings are always shown by their true name — there is no cosmetic
 //! appearance or per-effect identification to keep in step with this table.
-//! Only equipment ([`crate::identify::KnownQuality`]) hides anything: whether
+//! Only equipment (`crate::identify::KnownQuality`) hides anything: whether
 //! its enchantment bonus and curse are known yet.
 //!
 //! Bows are the newest case of it. A bow is not a weapon with a special "fires
@@ -39,6 +39,7 @@ use crate::monsters::{BESTIARY, SUMMONS};
 // The numbers a *drop* rolls that are not part of any one row: wand battery
 // size, ammunition bundle size, and the enchantment odds / bonus ranges.
 // All defined and documented in `constants.rs`.
+use crate::constants::items::ESTOC_NUMBER_OF_ATTACKS;
 use crate::constants::loot::{
     AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN, CURSED_BONUS_MAX, CURSED_BONUS_MIN, EXCEPTIONAL_BONUS_MAX,
     EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, IMPROVISED_THROW_DIE, NORMAL_QUALITY_PCT,
@@ -77,7 +78,7 @@ pub trait ItemDef {
     /// nihilurk picks evenly, on purpose. Overriding it is how a category earns
     /// per-row rarity: give the struct a `weight: u32` field and return it here.
     fn weight(&self) -> u32 {
-        10
+        crate::constants::monsters::DEFAULT_SPAWN_WEIGHT
     }
 
     /// The shallowest floor this row may drop on. The default lets it appear
@@ -706,10 +707,7 @@ fn announce_not_wizard(world: &mut World, wearer: Entity, _item: Entity) {
 pub const WEAPONS: &[WeaponDef] = &[
     WeaponDef::new("dagger",           Color::Grey,       4).missile(4).piercing(),
     WeaponDef::new("spear",            Color::DarkGrey,   6).missile(8).piercing(),
-    // A dagger's die and two more, thrown: strikes one creature, then flies home.
     WeaponDef::new("boomerang",        Color::DarkYellow, 5).returning(),
-    // Thrown, it strikes three times, each after the first at the nearest other creature in view,
-    // then flies home. Swung, it is only a blade.
     WeaponDef::new("moon blade",       Color::Cyan,       3).returning().hits(3),
     WeaponDef::new("mace",             Color::DarkGrey,   6),
     WeaponDef::new("long sword",       Color::White,      8),
@@ -728,10 +726,11 @@ pub const WEAPONS: &[WeaponDef] = &[
     // The longest reach in the dungeon, and the least behind it.
     WeaponDef::new("whip",             Color::DarkMagenta, 3)
         .reach(5),
-    // Thin, fast steel: every attack goes out twice as quick, and closing the
-    // last stride of a run lands a lunge.
+    // Thin, fast steel: every attack goes out ESTOC_NUMBER_OF_ATTACKS times in
+    // the time a plainer blade manages once, and closing the last stride of a
+    // run lands a lunge.
     WeaponDef::new("estoc",            Color::White,      5)
-        .grants(&[Grant::of::<Fencer>(), Grant::of::<Lunges>()]),
+        .grants(&[Grant::counted::<Fencer>(ESTOC_NUMBER_OF_ATTACKS), Grant::of::<Lunges>()]),
     // Whirled at the end of its chain in step with your feet: moving between
     // two tiles both next to the same enemy lands a free cut on it.
     WeaponDef::new("chain-sickle",     Color::DarkGreen,  5)
@@ -853,7 +852,7 @@ pub const AMMO: &[AmmoDef] = &[
 /// The row a monster's shot is loosed from: the ammunition answering to the
 /// effect its launcher lends, so a monster's shot and the player's agree on
 /// the same dial. Monsters keep no quiver to check `LaunchedBy` against, so
-/// [`crate::items::monster_ranged_attack`] picks the row by effect instead.
+/// `crate::items::monster_ranged_attack` picks the row by effect instead.
 /// `None` for a shooter with no launcher effect at all.
 pub fn ammo_for(world: &World, shooter: Entity) -> Option<&'static AmmoDef> {
     AMMO.iter()
@@ -1044,7 +1043,7 @@ pub struct RingDef {
     pub grants: &'static [Grant],
     /// What happens the *moment* it goes on, for the one ring whose effect is
     /// an event rather than a property. Restored from the row on load, exactly
-    /// like [`RingDef::grants`].
+    /// like `RingDef::grants`.
     pub on_wear: Option<OnWear>,
 }
 
@@ -1172,7 +1171,7 @@ impl ItemDef for RingDef {
 /// The rings, all twelve live. Eleven of them are pure table: a number that
 /// combat already folds, or a marker some system already asks about. Only
 /// adornment needed a verb written for it, and it is named here the same way
-/// everything else is — see [`crate::items::rings`].
+/// everything else is — see `crate::items::rings`.
 #[rustfmt::skip]
 pub const RINGS: &[RingDef] = &[
     RingDef::new(RingEffect::Protection, "ring of protection")
@@ -1275,7 +1274,7 @@ impl SpellDef {
 /// Every active spell in the game: tiers priced by [`Magic`]
 /// cost, the same way a floor's danger is priced by depth. A
 /// monster pays the same price out of its own
-/// [`Magic`] ([`crate::monsters::MonsterDef::magic`]).
+/// [`Magic`] (`crate::monsters::MonsterDef::magic`).
 ///
 /// `range` is meaningless for a spell whose [`SpellEffect::needs_target`] is
 /// `false` — it fires on its slot press with no reticle at all — and is left
@@ -1613,7 +1612,7 @@ pub(crate) fn content_id_of(display: &str) -> Option<&'static str> {
 
 /// Re-attaches what a catalog row gives an item that the save file does not
 /// store: how a weapon behaves in flight, what a bow lends its wielder, what a
-/// missile answers to. Keyed by the row's id (see [`content_id_of`]), the same
+/// missile answers to. Keyed by the row's id (see `content_id_of`), the same
 /// way a ring's grants come back from [`RingDef::of`] — the row is the
 /// definition, so a save that stored these would only be storing the table
 /// twice.
@@ -1699,7 +1698,7 @@ impl Quality {
 /// Which bonus applies is read off the item itself — a thing with a [`PowerDie`]
 /// is a weapon, a thing with an [`ArmorDie`] is armour, a [`Launcher`] is a bow —
 /// so a future item that is two of those gets both pluses. A ring is none of
-/// them and has its own roll, [`enchant_ring`].
+/// them and has its own roll, `enchant_ring`.
 pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) {
     let quality = Quality::roll(rng);
     let bonus: i32 = match quality {
@@ -1712,6 +1711,17 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     if quality == Quality::Cursed {
         world.entity_mut(item).insert(Curse);
     }
+}
+
+/// [`enchant_equipment`], or [`enchant_ring`] for a ring, with the quality
+/// fixed at [`Quality::Exceptional`]. A ring with no number stays as it was.
+pub fn make_exceptional(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) {
+    if world.entity(item).contains::<Ring>() {
+        set_ring_plus(&mut world.entity_mut(item), RING_EXCEPTIONAL_BONUS);
+        return;
+    }
+    let bonus = rng.gen_range(EXCEPTIONAL_BONUS_MIN..=EXCEPTIONAL_BONUS_MAX);
+    apply_bonus(world, item, bonus);
 }
 
 /// Rolls quality for a freshly spawned ring.
@@ -1780,7 +1790,7 @@ pub fn set_plus(world: &mut World, item: Entity, plus: i32) {
 
 /// Adds `bonus` to whichever roll the item contributes to: the weapon's hit, the
 /// armour's guard, or a launcher's throw. A ring is the exception: `bonus` *is*
-/// its number (see [`enchant_ring`]), so `+3` makes a +3 ring of protection and
+/// its number (see `enchant_ring`), so `+3` makes a +3 ring of protection and
 /// not a +5 one, and a ring with no number ignores it. Shared by
 /// [`enchant_equipment`] and the `NIHILURK_SPAWN` `+N` prefix.
 pub fn apply_bonus(world: &mut World, item: Entity, bonus: i32) {

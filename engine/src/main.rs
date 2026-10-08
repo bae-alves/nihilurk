@@ -28,6 +28,8 @@ use models::{ChaCha12Rng, SeedableRng};
 pub struct TerminalGuard;
 
 impl TerminalGuard {
+    /// Enters raw mode and the alternate screen with the cursor hidden. Fails
+    /// if the terminal refuses either; nothing is left half-set.
     pub fn new() -> std::io::Result<Self> {
         enable_raw_mode()?;
         execute!(stdout(), EnterAlternateScreen, Hide)?;
@@ -164,6 +166,16 @@ fn finish_listing(result: std::io::Result<()>) -> std::io::Result<()> {
     }
 }
 
+/// Turns an unreadable save into the player-facing refusal and exits; any
+/// other I/O error passes through untouched.
+fn refuse_save(e: std::io::Error) -> std::io::Error {
+    if e.kind() == std::io::ErrorKind::InvalidData {
+        eprintln!("{}", strings::invalid_save());
+        std::process::exit(1);
+    }
+    e
+}
+
 /// Prints the short command-line guide without entering the alternate screen.
 /// The full reference lives in the installed `nihilurk(6)` manual.
 fn print_help(out: &mut impl Write) -> std::io::Result<()> {
@@ -202,6 +214,9 @@ fn player_step(world: &mut World) -> std::io::Result<bool> {
     update::process_input_and_update(world)
 }
 
+/// Parses the command line, builds the world, then runs the read-act-render
+/// loop until the run ends. Prints the ending screens and writes the save or
+/// leaderboard entry on the way out.
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = std::env::args()
         .map(|a| models::strip_control_chars(&a))
@@ -346,7 +361,7 @@ fn main() -> std::io::Result<()> {
     }
 
     if let Some(path) = &load_path {
-        if let Some(clear) = models::clear_data(path)? {
+        if let Some(clear) = models::clear_data(path).map_err(refuse_save)? {
             println!("{}", strings::clear_data_prompt(&clear.player_name));
             let mut answer = String::new();
             std::io::stdin().read_line(&mut answer)?;
@@ -435,7 +450,10 @@ fn main() -> std::io::Result<()> {
 
     match &load_path {
         Some(path) => {
-            models::load_game(&mut world, path)?;
+            if let Err(e) = models::load_game(&mut world, path) {
+                drop(guard);
+                return Err(refuse_save(e));
+            }
             let mut unread = vec![LogEntry::plain(strings::welcome_back())];
             if let Some(notice) = strings::beta_notice() {
                 unread.push(LogEntry::plain(notice));

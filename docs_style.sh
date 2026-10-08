@@ -7,7 +7,7 @@
 # of that page; if the two ever disagree, the page is the specification and
 # this script is the bug.
 #
-# Nine checks, in the order a page is read:
+# Ten checks, in the order a page is read:
 #
 #   1. header block        the title underline, Audience, Prerequisites
 #   2. the third key       Status for reference/, This is for explanation/
@@ -21,6 +21,8 @@
 #   8. broken links        a page-to-page link that lands nowhere, and a
 #                          `models/src/...` path that names a file that is gone
 #   9. the index           a page that docs/README.md does not list
+#  10. named identifiers   a backticked snake_case or CamelCase name that no
+#                          source file or Cargo.toml has (advisory)
 #
 # Line width is deliberately *not* checked. These pages are read rendered as
 # often as they are `cat`ed, and a rendered paragraph reflows to the reader's
@@ -382,6 +384,39 @@ if [ -n "$UNLISTED" ]; then
   note "add a row to the index table, or a line to the ADR list"
 else
   pass "every page is in the index"
+fi
+
+# ---------------------------------------------------------------------------
+# 10. Identifiers that name nothing
+# ---------------------------------------------------------------------------
+
+stage "Named identifiers"
+
+# Check 8 sees paths, not names, so a renamed function drifts silently. A
+# backticked snake_case or CamelCase word must be a word somewhere in the
+# source or a Cargo.toml. It warns and never fails. The leftovers below are
+# names from outside the repo, the tutorial inventions (which exist only in the
+# docs, on purpose; the list of record is .claude/tutorial-inventions.md, which
+# no script reads), and two illustrative names that only prose uses.
+EXTERNAL=' binfmt_misc LC_ALL CARGO_TARGET_DIR x86_64 nihilurk_models QueryState SystemSet RawMaster check_has_shell FireStone ice_bolt wear_ninja wear_wraithkin SightBonus second_pass spawn_named_entity '
+KNOWN=$(mktemp)
+trap 'rm -f "$KNOWN"' EXIT
+{ find models engine strings particle-core compat -name '*.rs' -not -path '*/target/*' -print0 | xargs -0 cat
+  cat Cargo.toml ./*/Cargo.toml
+} | grep -oP '[A-Za-z_][A-Za-z0-9_]*' | sort -u > "$KNOWN"
+
+UNKNOWN=""
+for name in $(cat $PAGES | grep -oP '`\K[A-Za-z_][A-Za-z0-9_]*(?=`)' | grep -P '_|^[A-Z][a-z0-9]+[A-Z]' | sort -u); do
+  case "$EXTERNAL" in *" $name "*) continue ;; esac
+  grep -qxF "$name" "$KNOWN" && continue
+  UNKNOWN="$UNKNOWN$name: $(grep -lF "\`$name\`" $PAGES | head -3 | tr '\n' ' ')"$'\n'
+done
+
+if [ -n "$UNKNOWN" ]; then
+  while IFS= read -r u; do [ -n "$u" ] && warn "no source names it -- $u"; done <<< "$UNKNOWN"
+  note "renamed in code? fix the page. Invented for a tutorial? add it to EXTERNAL here and to .claude/tutorial-inventions.md"
+else
+  pass "every backticked identifier is in the source"
 fi
 
 # ---------------------------------------------------------------------------

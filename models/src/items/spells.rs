@@ -101,7 +101,7 @@ pub fn pay_for_spell(world: &mut World, user: Entity, effect: SpellEffect) -> bo
 /// The schedule step that resolves every spell triggered this turn. Spends the
 /// [`Magic`] cost first — a stray drain between opening the reticle and
 /// confirming it (a wand of cancellation, say) is the one way this can still
-/// refuse — then hands off to [`apply_spell_effect`].
+/// refuse — then hands off to `apply_spell_effect`.
 ///
 /// Assumes nothing upstream but a filled [`SpellQueue`]: affordability was
 /// already checked once at the reticle, which is why this re-checks it
@@ -457,7 +457,7 @@ fn setup(world: &mut World, user: Entity) {
 
 /// Lux: a wand of light hurled rather than zapped — the same wide, hot
 /// grenade a thrown attack wand bursts as (see
-/// [`super::throwing::resolve_wand_throw`]), except this one blinds too. No
+/// `super::throwing::resolve_wand_throw`), except this one blinds too. No
 /// battery to read a charge count off, so [`LUX_CHARGES`] stands in for one.
 fn lux(world: &mut World, user: Entity, target: Position, power_mult: i32) {
     world.resource_mut::<GameLog>().add(strings::lux_cast());
@@ -531,7 +531,7 @@ fn circle_of_death(world: &mut World, user: Entity, power_mult: i32) {
 
 /// Magic Ward: for the rest of this floor, nothing that isn't the caster's
 /// own magic can touch them — every wand-shaped source of harm bounces off
-/// outright ([`crate::items::wands::damage_with_element`]), and nothing a
+/// outright (`crate::items::wands::damage_with_element`), and nothing a
 /// monster's blow carries with it takes hold either
 /// ([`crate::abilities::fire_on_hit`]). Lifted at the next staircase like any
 /// other floor-scoped condition.

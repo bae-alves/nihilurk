@@ -136,7 +136,7 @@ use self::wands::{apply_wand_effect, is_attack_wand};
 /// [`TileType::Water`](crate::map::TileType::Water) tile sinks, with a splash
 /// the log reports if the player saw it go. The Element of Yoord will not
 /// sink: it comes up into the player's hands instead (see
-/// [`pickups::element_surfaces`]).
+/// `pickups::element_surfaces`).
 ///
 /// One step for the whole floor, rather than a check at every place an item
 /// can land — thrown, dropped, shaken off a corpse, carried in on a

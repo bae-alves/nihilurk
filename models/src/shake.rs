@@ -35,7 +35,7 @@ use crate::constants::shake::{
 };
 
 /// What is doing the shaking. Each kind is one row of the table in
-/// [`ShakeKind::shape`]: how long it rocks for, and how far it throws the map
+/// `ShakeKind::shape`: how long it rocks for, and how far it throws the map
 /// on the first frame.
 ///
 /// Four kinds is the whole set, and the spread between them is the point — a

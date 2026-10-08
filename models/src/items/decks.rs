@@ -23,7 +23,8 @@ use crate::map::{GameRng, Map, TileType};
 use crate::monsters::{MonsterDef, SUMMONS, spawn_monster};
 
 use super::scrolls::{
-    create_monster, enchant_gear, lower_equipped, missing_gear_line, move_reader_to, summon_spot,
+    create_monster, enchant_gear, lower_equipped, missing_gear_line, move_reader_to, shift_plus,
+    summon_spot,
 };
 
 /// One draw in progress: who plays, the deck they hold (`None` once it is gone
@@ -221,7 +222,7 @@ fn princess(world: &mut World, user: Entity, reversed: bool) {
             .add(strings::ring_shivers_apart(&name));
         return;
     }
-    shift_ring(world, ring, if reversed { -1 } else { 1 });
+    shift_ring(world, ring, if reversed { |b| b - 1 } else { |b| b + 1 });
     sync_equipment_effects(world, user);
     world.entity_mut(ring).insert(KnownQuality);
     let name = display_name(world, ring);
@@ -248,8 +249,9 @@ fn ring_plus(world: &World, ring: Entity) -> i32 {
         + world.get::<MaxHpBonus>(ring).map_or(0, |b| b.0)
 }
 
-/// Moves a numeric ring's number by `by`, on whichever roll its row puts it.
-fn shift_ring(world: &mut World, ring: Entity, by: i32) {
+/// Moves a numeric ring's number, on whichever roll its row puts it: `to` maps
+/// the old number to the new.
+fn shift_ring(world: &mut World, ring: Entity, to: fn(i32) -> i32) {
     use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
     let Some(def) = world.get::<Ring>(ring).map(|r| RingDef::of(r.effect)) else {
         return;
@@ -258,19 +260,19 @@ fn shift_ring(world: &mut World, ring: Entity, by: i32) {
     let mut e = world.entity_mut(ring);
     if power != 0 {
         let base = e.get::<PowerBonus>().map_or(0, |b| b.0);
-        e.insert(PowerBonus(base + by));
+        e.insert(PowerBonus(to(base)));
     }
     if armor != 0 {
         let base = e.get::<ArmorBonus>().map_or(0, |b| b.0);
-        e.insert(ArmorBonus(base + by));
+        e.insert(ArmorBonus(to(base)));
     }
     if throw != 0 {
         let base = e.get::<ThrowBonus>().map_or(0, |b| b.0);
-        e.insert(ThrowBonus(base + by));
+        e.insert(ThrowBonus(to(base)));
     }
     if hp != 0 {
         let base = e.get::<MaxHpBonus>().map_or(0, |b| b.0);
-        e.insert(MaxHpBonus(base + by));
+        e.insert(MaxHpBonus(to(base)));
     }
 }
 
@@ -464,13 +466,13 @@ pub enum Rank {
     FullHouse,
     /// Four alike: that card plays four times.
     FourOfAKind,
-    /// Five alike: the Element of Yoord.
+    /// Five alike: that card plays five times, then every piece of worn gear
+    /// goes to `+5`.
     FiveFlush,
 }
 
 /// A scored hand: its rank, and which cards play how many times. An
-/// [`Rank::AntiFlush`] and a [`Rank::FiveFlush`] list no plays: the first
-/// picks its card at random, the second plays none.
+/// [`Rank::AntiFlush`] lists no plays: it picks its card at random.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Hand {
     /// What the hand is.
@@ -521,7 +523,7 @@ pub fn score_hand(cards: &[Card]) -> Option<Hand> {
     let first = groups[0];
     let second = groups.get(1).map_or(0, |g| g.1);
     let (rank, plays) = match (first.1, second) {
-        (5.., _) => (Rank::FiveFlush, vec![]),
+        (5.., _) => (Rank::FiveFlush, vec![first]),
         (4, _) => (Rank::FourOfAKind, vec![first]),
         (3, 2) => (Rank::FullHouse, vec![first, groups[1]]),
         (3, _) => (Rank::ThreeOfAKind, vec![first]),
@@ -531,29 +533,19 @@ pub fn score_hand(cards: &[Card]) -> Option<Hand> {
     };
     let cards = match rank {
         Rank::AntiFlush => 1,
-        Rank::FiveFlush => first.1,
         _ => plays.iter().map(|&(_, n)| n).sum(),
     };
     Some(Hand { rank, plays, cards })
 }
 
-/// Plays `cards` as a hand on `deal.user`: the score, then each group's card
-/// upright, as many times as the hand says.
+/// Plays `cards` as a hand on `deal.user`: each group's card upright, as many
+/// times as the hand says, then a Five Flush's `+5`, then the score.
 fn play_hand(world: &mut World, deal: &mut Deal, cards: &[Card]) {
     let Some(hand) = score_hand(cards) else {
         say(world, strings::card_jester_nothing());
         return;
     };
-    crate::score::award(world, hand.points());
-    world.resource_mut::<GameLog>().add_colored(
-        strings::card_hand(hand_name(hand.rank), hand.points()),
-        LogCategory::Combo,
-    );
     let plays = match hand.rank {
-        Rank::FiveFlush => {
-            five_flush(world, deal.user);
-            return;
-        }
         Rank::AntiFlush => {
             let faces: Vec<CardFace> = cards
                 .iter()
@@ -565,7 +557,7 @@ fn play_hand(world: &mut World, deal: &mut Deal, cards: &[Card]) {
                 .expect("an anti-flush holds a card that is not FOOL");
             vec![(face, 1)]
         }
-        _ => hand.plays,
+        _ => hand.plays.clone(),
     };
     for (face, times) in plays {
         for _ in 0..times {
@@ -579,6 +571,14 @@ fn play_hand(world: &mut World, deal: &mut Deal, cards: &[Card]) {
             );
         }
     }
+    if hand.rank == Rank::FiveFlush {
+        five_flush(world, deal.user);
+    }
+    crate::score::award(world, hand.points());
+    world.resource_mut::<GameLog>().add_colored(
+        strings::card_hand(hand_name(hand.rank), hand.points()),
+        LogCategory::Combo,
+    );
 }
 
 fn hand_name(rank: Rank) -> &'static str {
@@ -593,38 +593,31 @@ fn hand_name(rank: Rank) -> &'static str {
     }
 }
 
-/// Five Flush!: the Element of Yoord, into the pack. A full pack is wiped to
-/// make room. Already holding it, or in an endless run with no Element to win,
-/// the hand pays its score and nothing more. The ring of adornment's flourish
-/// goes off either way, without its doubling.
+/// Five Flush!: every piece of worn gear with a plus to it — weapon, armour,
+/// launcher, a ring with a number — goes to [`FIVE_FLUSH_PLUS`], its curse
+/// burnt off and its quality known. A ring with no number keeps what it has.
+/// Unworn gear in the pack is untouched. The ring of adornment's flourish goes
+/// off, without its doubling.
 fn five_flush(world: &mut World, user: Entity) {
-    let endless = world
-        .get_resource::<crate::map::Endless>()
-        .is_some_and(|e| e.enabled);
-    if !endless && !crate::map::holding_element_of_yoord(world) {
-        give_element(world, user);
+    for item in crate::equipment::equipped_items(world, user) {
+        if set_to_five(world, item) {
+            world.entity_mut(item).remove::<Curse>();
+            world.entity_mut(item).insert(KnownQuality);
+        }
     }
+    sync_equipment_effects(world, user);
+    say(world, strings::card_five_flush_gear());
     super::rings::flourish(world);
 }
 
-fn give_element(world: &mut World, user: Entity) {
-    let pack = world
-        .get::<Backpack>(user)
-        .map(|b| b.items.clone())
-        .unwrap_or_default();
-    if pack.len() >= crate::constants::items::PACK_CAPACITY {
-        destroy_worn(world, user, &pack);
-        say(world, strings::card_element_wipes_pack());
+/// Sets `item`'s plus to [`FIVE_FLUSH_PLUS`]. Returns whether it had one.
+fn set_to_five(world: &mut World, item: Entity) -> bool {
+    if shift_plus(world, item, |_| FIVE_FLUSH_PLUS) {
+        return true;
     }
-    let at = world
-        .get::<Position>(user)
-        .copied()
-        .unwrap_or(Position { x: 0, y: 0 });
-    let element = crate::catalog::spawn_element_of_yoord(world, at);
-    world.entity_mut(element).remove::<Position>();
-    if let Some(mut bp) = world.get_mut::<Backpack>(user) {
-        bp.items.push(element);
+    if !ring_is_numeric(world, item) {
+        return false;
     }
-    sync_equipment_effects(world, user);
-    say(world, strings::card_element());
+    shift_ring(world, item, |_| FIVE_FLUSH_PLUS);
+    true
 }

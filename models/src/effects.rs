@@ -72,7 +72,7 @@ pub struct SustainsStrength;
 pub struct SustainsArmor;
 
 /// No polymorph takes hold of this creature, and so no system shock either (a
-/// ring of sustain form). See [`crate::items::wands::polymorph_entity_with`].
+/// ring of sustain form). See `crate::items::wands::polymorph_entity_with`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct SustainsForm;
 
@@ -108,7 +108,7 @@ pub struct ConfusingTouch;
 
 /// The spell Bide: coiled for one blow. Adds
 /// [`crate::constants::combat::BIDE_ATTACK_BONUS`] to the very next attack
-/// [`crate::combat::fold_matchup`] folds for its bearer, then is spent —
+/// `crate::combat::fold_matchup` folds for its bearer, then is spent —
 /// whether that swing hits, glances or misses. A double-striking estoc or a
 /// cleave only ever sees it on the first swing of the turn. Do anything else
 /// with the turn instead — walk without attacking, use or throw something,
@@ -123,7 +123,7 @@ pub struct Bided;
 /// stealth). Monsters that already know where it is because somebody
 /// shrieked ([`crate::components::MovementType::Aggravated`]) come anyway: the
 /// ring hides you, it does not unsay what the floor already heard. See
-/// [`crate::ai`].
+/// [`crate::ai`](mod@crate::ai).
 #[derive(Component, Default, Clone, Copy)]
 pub struct Stealthy;
 
@@ -168,7 +168,7 @@ pub struct Polymorphitis;
 /// loan under it — so a staircase, a save and a wand of cancellation end it
 /// without anything having been stashed. It changes only what the creature
 /// is *called* and *drawn as*, read at the point of use ([`chimeric_form`]);
-/// [`Name`] and [`crate::components::Renderable`] are never rewritten.
+/// [`Name`](crate::Name) and [`crate::components::Renderable`] are never rewritten.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Chimera;
 
@@ -272,7 +272,7 @@ pub fn form_of_marks(
 }
 
 /// The form `entity` has settled into, if it has. The one place a name or a
-/// glyph is overridden: [`crate::helpers::item_label`] and the map draw ask
+/// glyph is overridden: `crate::helpers::item_label` and the map draw ask
 /// here, and nothing stored on the creature changes.
 pub fn chimeric_form(world: &World, entity: Entity) -> Option<&'static FormDef> {
     FORMS.iter().find(|f| f.grant.probe(world, entity))
@@ -319,7 +319,7 @@ pub struct FireDart;
 pub struct Flies;
 
 /// Any treat thrown at this creature takes, every time, whichever kind it is
-/// (the dog). See [`crate::companion::offer`].
+/// (the dog). See `crate::companion::offer`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct AlwaysTamed;
 
@@ -337,13 +337,13 @@ pub struct PriorityHelper;
 
 /// Underneath, this creature is a faerie shapeshifter. When it dies it is
 /// revealed as one and is gone, with no corpse, no gore and no score, the way
-/// a spirit poofs (the dog). See [`crate::combat`]'s `reveal_faerie`.
+/// a spirit poofs (the dog). See `crate::combat`'s `reveal_faerie`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct FaerieOnDeath;
 
 /// Marked to burst on its death (a rune of justice): one fireball, centred on
 /// where it fell, rolled off its own power die. It hurts everyone the blast
-/// reaches, the reader included. See [`crate::combat`]'s `burst_on_death`.
+/// reaches, the reader included. See `crate::combat`'s `burst_on_death`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct ExplodesOnDeath;
 
@@ -403,7 +403,7 @@ pub struct Venomous;
 /// This creature's kill pays out extra score — a flat multiplier over the
 /// usual max-HP payout (the apis guarding a treasure hive). See
 /// [`crate::constants::score::BOUNTY_SCORE_MULTIPLIER`] and
-/// [`crate::combat::pay_for_the_corpse`].
+/// `crate::combat::pay_for_the_corpse`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct ScoreBounty;
 
@@ -414,13 +414,13 @@ pub struct Freezing;
 
 /// Every hit from this creature lifts something loose from its victim's pack,
 /// uses it on the spot, and vanishes — the leprechaun's whole (dangerous)
-/// routine. See [`crate::abilities::leprechaun_theft`].
+/// routine. See `crate::abilities::leprechaun_theft`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct StealsAndFlees;
 
 /// Every hit from this creature strips one thing its victim has *equipped*
 /// and disappears the instant it does — the nymph. See
-/// [`crate::abilities::nymph_theft`].
+/// `crate::abilities::nymph_theft`.
 #[derive(Component, Default, Clone, Copy)]
 pub struct StealsAndVanishes;
 
@@ -431,7 +431,7 @@ pub struct StealsAndVanishes;
 pub struct Splits;
 
 /// This creature's wounds well up green rather than red (a slime). Purely
-/// cosmetic — read by [`crate::helpers::spill_blood`] to colour the stain it
+/// cosmetic — read by `crate::helpers::spill_blood` to colour the stain it
 /// leaves.
 #[derive(Component, Default, Clone, Copy)]
 pub struct GreenBlood;
@@ -456,8 +456,12 @@ pub struct Cleaves;
 #[derive(Component, Default, Clone, Copy)]
 pub struct HeavySwing;
 
-/// The estoc's speed: every attack is thrown twice in the time a plainer
-/// blade manages once (`crate::combat::resolve_attack` fired back to back).
+/// The estoc's speed: every attack is thrown this many times in the time a
+/// plainer blade manages once (`crate::combat::resolve_attack` fired back to
+/// back). The number is the total, not the extra, and it is not on the marker:
+/// the grant that lends it says how many — `Grant::counted::<Fencer>(n)` — the
+/// ledger row keeps it through a save, and [`count_of`] reads it back, the
+/// highest of the rows lending it.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Fencer;
 
@@ -717,12 +721,15 @@ fn probe_of<C: Component>(world: &World, entity: Entity) -> bool {
     world.get::<C>(entity).is_some()
 }
 
-/// A const handle to one marker effect: how to put it on an entity, take it off
+/// A const handle to one effect: how to put it on an entity, take it off
 /// again, and ask whether it's there. Lets a `const` table name a component it
-/// can't store — `Grant::of::<FireImmune>()`.
+/// can't store — `Grant::of::<FireImmune>()`. An effect with a number in it
+/// ([`Fencer`]) is named with `Grant::counted::<Fencer>(2)`: the grant says
+/// what the number is, the ledger row keeps it, and [`count_of`] reads it.
 #[derive(Clone, Copy)]
 pub struct Grant {
     id: TypeId,
+    count: u8,
     attach: fn(&mut EntityWorldMut),
     detach: fn(&mut EntityWorldMut),
     probe: fn(&World, Entity) -> bool,
@@ -733,10 +740,27 @@ impl Grant {
     pub const fn of<C: Component + Default>() -> Self {
         Self {
             id: TypeId::of::<C>(),
+            count: 0,
             attach: attach_of::<C>,
             detach: detach_of::<C>,
             probe: probe_of::<C>,
         }
+    }
+
+    /// The handle for marker `C` lending `count` with it.
+    pub const fn counted<C: Component + Default>(count: u8) -> Self {
+        Self {
+            id: TypeId::of::<C>(),
+            count,
+            attach: attach_of::<C>,
+            detach: detach_of::<C>,
+            probe: probe_of::<C>,
+        }
+    }
+
+    /// The number this grant lends; `0` for an effect that has none.
+    pub fn count(&self) -> u8 {
+        self.count
     }
 
     /// Puts the marker on `entity` and does nothing else. No ledger row says
@@ -765,7 +789,7 @@ impl Grant {
 }
 
 /// A transient affliction on the **player** (a monster is confused through
-/// [`MovementType::Confused`] instead). Half of every walk or swing while it
+/// `MovementType::Confused` instead). Half of every walk or swing while it
 /// lasts goes off in a random direction ("You stumble foolishly"), and fast
 /// movement, auto-explore and auto-fight all refuse to run. It is treacherous:
 /// it does not wear off with time — only using a staircase or being caught by a
@@ -779,21 +803,21 @@ pub struct Confused;
 /// * Their viewshed is cut to the 3x3 they could reach out and touch — no room
 ///   floods in however well lit ([`crate::visibility`]).
 /// * Nothing in it has colour: every glyph they can make out is painted white.
-/// * No creature is perceptible at all, adjacent or not — every mob is [`Hidden`]
+/// * No creature is perceptible at all, adjacent or not — every mob is [`Hidden`](crate::Hidden)
 ///   while it lasts, so auto-explore and auto-fight have nothing to work with
 ///   either.
-/// * The monsters are not blinded in return: [`crate::ai`] keeps using the view
+/// * The monsters are not blinded in return: [`crate::ai`](mod@crate::ai) keeps using the view
 ///   the player *would* have, so this is never a way to hide.
 ///
 /// Everything already explored stays on screen as fog-grey memory. Lifted the
 /// same two ways [`Confused`] is. Shown in the HUD as `BLND`.
 ///
-/// A blinded *monster* carries [`MovementType::Confused`] instead — it has no
+/// A blinded *monster* carries `MovementType::Confused` instead — it has no
 /// viewshed to put out, so all blindness can do to it is make it grope.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Blind;
 /// Limbs locked up (a potion of paralysis). Whoever carries it has had their
-/// [`Speed`] dropped to [`SpeedKind::Slow`]; on the **player** it costs a share
+/// [`Speed`](crate::Speed) dropped to `SpeedKind::Slow`; on the **player** it costs a share
 /// of the turns that still leaves them
 /// ([`crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE`]) outright — no key
 /// read, the monsters move anyway. Lifted the same two ways [`Confused`] is, and
@@ -854,7 +878,7 @@ pub struct Rooted;
 /// Kept apart from [`Pinned`] because the two end differently. A bear trap's
 /// hold is the floor's business and only turns lift it; a bite is the
 /// biter's, so killing whatever is holding you frees you outright
-/// ([`crate::combat::settle_the_dead`]) whether or not its turns have run
+/// (`crate::combat::settle_the_dead`) whether or not its turns have run
 /// out.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Clamped;
@@ -863,7 +887,7 @@ pub struct Clamped;
 /// can both be alive in the same room, and only the one that actually bit you
 /// should free you by dying — without this, killing an unrelated flytrap
 /// would release a bite that flytrap never landed
-/// ([`crate::combat::release_biters_grip`]).
+/// (`crate::combat::release_biters_grip`).
 #[derive(Component, Clone, Copy)]
 pub struct ClampedBy(pub Entity);
 
@@ -1139,6 +1163,8 @@ pub struct Held {
     /// What ends it. Only the saved kinds survive a reload; see
     /// [`Lifetime::is_saved`].
     pub lifetime: Lifetime,
+    /// The number the grant lent ([`Grant::count`]); `0` for a plain marker.
+    pub count: u8,
 }
 
 impl Held {
@@ -1158,7 +1184,7 @@ impl Held {
     }
 
     /// Whether this entry says what the creature *is* rather than what it can
-    /// do — see [`IDENTITY_EFFECTS`]. The one thing [`revoke_all`] leaves.
+    /// do — see `IDENTITY_EFFECTS`. The one thing [`revoke_all`] leaves.
     pub fn is_identity(&self) -> bool {
         IDENTITY_EFFECTS.contains(&self.id)
     }
@@ -1237,7 +1263,11 @@ pub fn lend(world: &mut World, entity: Entity, grant: Grant, lifetime: Lifetime)
     let Some(id) = grant.effect_id() else {
         return false;
     };
-    let held = Held { id, lifetime };
+    let held = Held {
+        id,
+        lifetime,
+        count: grant.count(),
+    };
     if held.is_condition() && conditions_held(world, entity) >= CONDITION_CAP {
         if world.get::<Player>(entity).is_some() {
             world
@@ -1392,6 +1422,20 @@ pub fn effects_of(world: &World, entity: Entity) -> Vec<Held> {
         .unwrap_or_default()
 }
 
+/// The number `grant` lends `entity`: the highest of the ledger rows lending it,
+/// so a second source can raise it and never lower it. `None` when nothing
+/// holds the effect.
+pub fn count_of(world: &World, entity: Entity, grant: Grant) -> Option<u8> {
+    let id = grant.effect_id()?;
+    world
+        .get::<Effects>(entity)?
+        .0
+        .iter()
+        .filter(|h| h.id == id)
+        .map(|h| h.count)
+        .max()
+}
+
 /// Puts back what a save recorded.
 ///
 /// An id this build does not have is dropped with a note rather than refused:
@@ -1410,6 +1454,7 @@ pub fn attach_effects(entity: &mut EntityWorldMut, held: &[Held]) -> Vec<&'stati
         ledger.0.push(Held {
             id: effect.id,
             lifetime: h.lifetime,
+            count: h.count,
         });
     }
     entity.insert(ledger);
@@ -1527,7 +1572,7 @@ pub struct Chip {
 /// resolve and report the hit its own way.
 ///
 /// The one thing stone does not stop is a war hammer — see
-/// [`crate::combat`], which asks whether the attacker carries
+/// `crate::combat`, which asks whether the attacker carries
 /// [`ShattersStone`] before it asks this at all. A hit with no attacker behind
 /// it (a ray, a flame, a falling dart) has nothing to ask.
 ///

@@ -120,7 +120,7 @@ pub fn monster_or_ally_at(world: &mut World, pos: Position) -> Option<Entity> {
         .map(|(e, _, _)| e)
 }
 
-/// The [`Mob`] standing on `pos`, if any — unlike [`monster_at`], not
+/// The [`Mob`] standing on `pos`, if any — unlike `monster_at`, not
 /// filtered to [`Faction::Monster`]. The plain tile lookup for anything that
 /// only cares whether *something* with a `Mob` is there: [`try_lunge`](crate::combat::try_lunge)'s
 /// geometry, [`try_whirl_attack`](crate::combat::try_whirl_attack)'s target, a plain step's attack check.

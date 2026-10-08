@@ -12,7 +12,7 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    GameLog, Helper, Item, Pickup, Player, PlayerAction, PlayerActionQueue, Position,
+    GameLog, Helper, Item, LogCategory, Pickup, Player, PlayerAction, PlayerActionQueue, Position,
 };
 use crate::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use crate::effects::{Clamped, Confused, Pinned, Rooted, Swims};
@@ -84,12 +84,14 @@ pub fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
 }
 
 /// Logs a special room's one-line flavor the instant the player's step
-/// crosses into it from anywhere else. A no-op off a special room, past its
-/// threshold, or for the one kind that was never given a line.
+/// crosses into it from anywhere else. A no-op off a special room or dark room, past its
+/// threshold. The line is painted in the room's wall colour.
 pub fn announce_special_room_entry(world: &mut World, old: (u16, u16), new: (u16, u16)) {
     let message = special_room_entry_message(world.resource::<Map>(), old, new);
-    if let Some(msg) = message {
-        world.resource_mut::<GameLog>().add(msg);
+    if let Some((msg, color)) = message {
+        world
+            .resource_mut::<GameLog>()
+            .add_colored(msg, LogCategory::Room(color));
     }
 }
 

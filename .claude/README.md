@@ -13,9 +13,9 @@ How Claude Code is set up for nihilurk. Open the repo root in Claude Code and th
 | `hooks/` | `rustfmt.lua` formats each `.rs` file Claude writes. `rustfmt_test.lua` checks it. | yes |
 | `journal.local.md` | Dated notes Claude keeps about this repo. | no |
 | `settings.local.json` | One person's own permissions. | no |
-| `tutorial-inventions.local.md` | Names the tutorials and how-tos use as worked examples. None may exist in the game. | no |
+| `tutorial-inventions.md` | Names the tutorials and how-tos use as worked examples. None may exist in the game. | yes |
 
-`.gitignore` covers all three `.local` files.
+`.gitignore` covers both `.local` files.
 
 ## The system prompt
 

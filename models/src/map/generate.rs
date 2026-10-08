@@ -471,7 +471,7 @@ pub(super) fn build_floor(seed: u64, depth: u8, bees: bool) -> (Map, Rooms) {
 
 /// Builds the current floor's layout into the [`Map`] resource and returns the
 /// player's starting tile — the up-stair — and the floor's rooms. Reads
-/// [`Depth`] and [`RngSeed`]; leaves [`GameRng`] untouched.
+/// [`Depth`] and [`RngSeed`]; leaves [`GameRng`](crate::GameRng) untouched.
 pub fn create_map(world: &mut World) -> ((u16, u16), Rooms) {
     let seed = world.resource::<RngSeed>().0;
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
@@ -490,7 +490,7 @@ pub(crate) fn pristine_tiles(world: &World, seed: u64, depth: u8) -> Vec<TileTyp
 }
 
 /// Rebuilds the [`Map`] resource for one floor, without touching the live
-/// [`GameRng`] resource or spawning any actors. Used on load, where the map is
+/// [`GameRng`](crate::GameRng) resource or spawning any actors. Used on load, where the map is
 /// reconstructed from `(seed, depth)` rather than read out of the save file.
 pub fn regenerate_map(world: &mut World, seed: u64, depth: u8) {
     let bees = crate::body::bee_run(world);

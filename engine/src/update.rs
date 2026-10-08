@@ -177,6 +177,9 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
     true
 }
 
+/// Handles one tick of player input: forfeits the turn if the player is
+/// incapacitated, otherwise blocks on a key and applies it. Returns whether a
+/// turn was spent, so the caller knows to let the monsters act.
 pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
     let more_pending = {
         let width = world.resource::<CommandBar>().log_width();

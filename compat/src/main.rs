@@ -1,8 +1,10 @@
 //! nihilurk-compat -- the reporting half of the compatibility pipeline.
 //!
+//! ```text
 //!     nihilurk-compat                 the report (same as `report`)
 //!     nihilurk-compat report          the matrix, as text
 //!     nihilurk-compat gate            exit non-zero if a machine cannot run nihilurk
+//! ```
 //!
 //! It measures nothing itself. `compat/cross_build.sh` builds the game for
 //! every machine in the matrix and `compat/run_check.sh` checks that each

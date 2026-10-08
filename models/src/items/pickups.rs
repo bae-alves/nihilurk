@@ -228,7 +228,7 @@ fn apply(world: &mut World, taker: Entity, effect: PickupEffect, amount: i32) ->
 /// a coin you have not spent, and it keeps until you can. Treasure and the two
 /// promises always help — there is no such thing as too much score, and a
 /// promise you already hold is one the staircase has not settled yet, so
-/// [`Promise::already_held`] answers for those.
+/// `Promise::already_held` answers for those.
 pub fn would_help(world: &World, taker: Entity, effect: PickupEffect) -> bool {
     match effect {
         PickupEffect::Coin => true,

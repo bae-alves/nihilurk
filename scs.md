@@ -30,10 +30,8 @@ Everything below defends these five rows, or records where a project drifted fro
   'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
   'fontSize':'13px'}}}%%
 flowchart LR
-  IN["player input"]:::hero --> Q["intent queues<br/>step · use · throw · spell"]:::magic
-  IN -->|"stairs, drop, equip"| W
+  IN["player input<br/>plans an action"]:::hero --> Q["intent queues<br/>player: step · stairs · drop · use · throw · cast<br/>monsters: attack"]:::magic
   Q --> SCH["the schedule<br/>fixed order"]:::peril
-  SCH -->|"ai queues attacks"| SCH
   SCH <--> W[("World<br/>components + resources")]:::cold
   T[("data rows<br/>BESTIARY · TRAPS · catalog")]:::cold --> SCH
   W --> R["render<br/>draws the world"]:::hero
@@ -64,7 +62,8 @@ The shape of a turn:
   'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
   'fontSize':'13px'}}}%%
 flowchart LR
-  A["timers<br/>and reveals"]:::cold --> B["queued intent<br/>use · throw · cast"]:::magic
+  P["the player<br/>acts"]:::hero --> A["timers<br/>and reveals"]:::cold
+  A --> B["queued intent<br/>cast · use · throw"]:::magic
   B --> C["the others act"]:::peril
   C --> D["hazards"]:::peril
   D --> E["gear and<br/>combat"]:::peril
@@ -111,23 +110,26 @@ Rust's borrow friction stays. SCS absorbs it into written convention, in phases 
 ### Strong
 
 - **One grammar.** Five questions, one answer each. A reader never has to ask where a thing lives.
-- **Order is data.** The schedule is one flat list with every dependency written. A reordering is a visible diff, and a test can fail on it.
+- **Order is data, and it is checked.** The schedule is one flat list with every dependency written, and a test compares the real graph to the intended edges. No two steps are left unordered, so the executor has no order to choose. A reordering is a visible diff and a failing test.
+- **Everything is a queued intent.** The player's actions and the monsters' attacks both enter as intent, and the schedule resolves them in its fixed order. The player acts first in the turn, so what they do resolves before the others move.
+- **Invariants are checked on a running game.** A seeded bot plays the real schedule and, after every turn, the world must hold what each step assumed of the one before: queues drained, no stale markers, no fighter left at zero, no pack pointing at nothing.
 - **Properties, not kinds.** Rules ask whether something has a component, never what kind of thing it is. A fire-resist ring and a fire-immune monster answer the same question, so rules compose without knowing each other.
 - **Data where the verb already exists.** A new instance of a known verb is a row. Nothing else has to hear about it.
 - **Small runtime.** No scheduler machinery, no plugin layer, no parallelism to reason about. nihilurk ships as a roughly 3 MB binary and idles in single-digit megabytes.
 
 ### Weak
 
-- **Data-driven stops at the verb.** A new kind of effect costs code in three places: a variant, a row, and a handler. "Add content" is a row only while the vocabulary is enough.
-- **Order is enforced; assumptions are not.** A system's preconditions are prose beside its definition. Nothing fails if one stops holding.
-- **Direct mutation gives up conflict detection.** No scheduler checks that two systems fight over the same data. The schedule and the convention carry that.
-- **Prose drifts.** A number or a diagram in a document is a second copy of the code, and nothing compares them.
+- **Data-driven stops at the verb.** A new kind of effect costs code in three places: a variant, a row, and a handler. "Add content" is a row only while the vocabulary is enough. Moving the handler onto the row saves one line and gives up the compiler's missing-handler error, so the question is open, not solved.
+- **Assumptions are checked late.** Each step's preconditions are prose beside its definition. The soak checks their consequences at the end of a turn, and a single `debug_assert!` checks one at the step. A step that stops assuming something fails a turn later, in a different place.
+- **Direct mutation gives up conflict detection.** No scheduler checks that two systems fight over the same data. A total order and the soak carry that.
+- **Prose drifts.** The step count and the queue count in the docs are tested against the code. Every other number or diagram in a document is a second copy of the code, and nothing compares them.
 
 ### Ugly
 
-- **The input edge.** The player's own actions run as handlers before the schedule, not as systems inside it. The schedule models the world's reply. Two layers then share state by convention, such as a marker set in one and cleared in the other.
-- **Spawn and despawn authority is everywhere.** Any system may create or destroy an entity. The discipline is that each does so at the rule that decided it. That holds by audit, not by type.
-- **A stated invariant is only a sentence.** Written down is not guarded. Every seam closed so far was closed by someone reading the file end to end.
+- **The key still touches the world.** Choosing what to do is separate from doing it, with one exception: preparing a throw splits a stack at the key, before the intent is queued. Menus, targeting and looking also change state at the key, but none of them spends a turn.
+- **Two descriptions of one decision.** Each queued action is planned at the key and applied by the schedule, so the planner and the applier both name the same cases. They must agree, and only tests make them.
+- **Spawn and despawn authority is everywhere.** Any system may create or destroy an entity. The discipline is that each does so at the rule that decided it. The soak catches the damage a bad despawn leaves (a dangling reference). Nothing catches a despawn at the wrong rule.
+- **A stated invariant is only a sentence, unless something runs it.** Where the soak covers it, it is guarded. Where it does not, it is prose.
 
 ---
 
@@ -140,11 +142,13 @@ The target was never direct mutation. It was conventions nobody wrote down or ch
 | Rows that encode behavior (a row grants a component) | **kept** | The point of the design. Behavior is reached through a grant, not a branch. |
 | Effects spread across tables and systems | **kept** | One vocabulary, read by systems that never learn where an effect came from. |
 | Row legality | **tested** | Impossible rows fail the suite before a system sees them. |
-| System preconditions | **written, unenforced** | Prose at each system. |
-| Mutation sites | **audited by hand** | Nothing reruns the audit. |
-| Command and effect queues | **intent queued, log synchronous** | Queued intent decouples input from resolution. The message log is read back within the turn, so queueing it would break it. |
+| Schedule order | **tested** | The graph is compared to the intended edges, and no pair of steps is left unordered. |
+| System preconditions | **soaked, mostly** | Prose at each system, with their consequences checked after every turn of a seeded run. One is asserted. |
+| Mutation sites | **soaked for damage** | The soak finds dangling references. Nothing checks that a spawn or despawn sits at its deciding rule. |
+| Command and effect queues | **intent queued, log synchronous** | The player and the monsters queue intent. The message log is read back within the turn, so queueing it would break it. |
 | Relationship indexes | **declined, with a trigger** | A world-wide scan is cheap at small scale. Add an index when the world holds thousands. |
-| Docs at the seam | **hook plus tests** | A hook forces a docs page into any commit that changes the schedule or a queue. It cannot check the page. |
+| Docs at the seam | **hook plus tests** | A hook forces a docs page into any commit that changes the schedule or a queue, and a test checks the two counts the pages state. Other prose is unchecked. |
+| Item verbs | **open** | See the first Weak point. |
 
 ---
 

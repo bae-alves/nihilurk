@@ -1,7 +1,7 @@
 //! How every mob makes up its mind: a percept in, one action out, and nothing
 //! remembered in between.
 //!
-//! Each turn [`crate::ai`] builds a [`Percept`] for a mob — what is true of it
+//! Each turn [`crate::ai`](mod@crate::ai) builds a [`Percept`] for a mob — what is true of it
 //! and around it *right now* — and hands it to [`think`] along with the mob's
 //! [`RuleSet`]. A rule set is an ordered list of [`Rule`]s. The first rule that
 //! fires decides the turn; if none does, the mob waits. No rule reads anything
@@ -13,7 +13,7 @@
 //! [`Aggravated`](crate::components::Aggravated) monster makes a beeline for
 //! the noise, and the player's [`Helper`](crate::components::Helper) heels. Both go back to their rule set the moment they are in view.
 //!
-//! [`ai`](crate::ai) keeps the clock (energy, rounds), the gates (asleep,
+//! [`ai`](mod@crate::ai) keeps the clock (energy, rounds), the gates (asleep,
 //! stone) and the hands ([`Action`] into the world). This module never touches
 //! the world: every rule is a plain function of the percept, which is what
 //! lets each set be tested on a percept built by hand.
@@ -42,7 +42,7 @@ pub struct Sighting {
     pub is_player: bool,
 }
 
-/// Everything a mob knows this turn. Built fresh by [`crate::ai`] every time
+/// Everything a mob knows this turn. Built fresh by [`crate::ai`](mod@crate::ai) every time
 /// the mob gets to act, and thrown away after.
 pub struct Percept<'a> {
     /// Where the mob stands.

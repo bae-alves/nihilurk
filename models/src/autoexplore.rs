@@ -152,7 +152,7 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
 ///   ([`crate::items::would_help`]). It stays visible and stays skipped until
 ///   the day it would help, and then the walk goes and gets it.
 /// * Everything that needs a pack slot, once the pack is full
-///   ([`stowable_room`]). A coin needs no slot, which is why the pack no longer
+///   (`stowable_room`). A coin needs no slot, which is why the pack no longer
 ///   calls the whole detour off.
 pub fn known_item_tiles(world: &mut World) -> Vec<(u16, u16)> {
     let Some(player) = world
@@ -357,7 +357,7 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
 /// A known item still sitting on the floor (see [`known_item_tiles`]) always
 /// wins over frontier exploration: the walk beelines straight for it, `move_player`
 /// picks it up on arrival, and only once it's gone does frontier picking resume.
-/// [`detours_for_loot`] is what can call that rule off, and it is the `A`
+/// `detours_for_loot` is what can call that rule off, and it is the `A`
 /// toggle and nothing else — whether a *particular* item is worth the walk is
 /// [`known_item_tiles`]'s question, item by item.
 ///

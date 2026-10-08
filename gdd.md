@@ -73,6 +73,8 @@ Monsters are entities assembled from the same components the player is. They wie
 
 Spirits are the shops. They are `&`-glyph creatures that you make a deal with by walking into them. Some give away a choice of items, others trade with you if you have something they want. The game has no currency, so this is the only trade there is. Dealing with them too much, or hurting them, upsets the balance, and that makes all of them hostile. A scroll of atonement restores it.
 
+Alignment is the hidden meter behind that balance, from -3 to +3 between two camps of spirit: the demons pull you down, the angels and their kin pull you up. Each time a spirit leaves the floor (a deal, a kill, a polymorph, anything that removes it) you move one step toward its camp. Gaining a Helper moves you up one, and blowing one up moves you down two. Reach either end and the balance breaks. A thermometer of the word BALANCE under the status line shows where you stand, and reads BROKEN once the spirits turn. A scroll of atonement or a potion of adjustment resets it to 0.
+
 Also, **you cannot pass your turn**.
 
 #### Mechanics references (hardly exhausting, please contribute)

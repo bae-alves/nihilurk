@@ -415,7 +415,7 @@ fn raise_plus(world: &mut World, item: Entity) -> bool {
 
 /// [`raise_plus`] with any rule for the new plus: `to` maps the old one to it.
 /// Returns whether there was anything on `item` to change.
-fn shift_plus(world: &mut World, item: Entity, to: fn(i32) -> i32) -> bool {
+pub(super) fn shift_plus(world: &mut World, item: Entity, to: fn(i32) -> i32) -> bool {
     let mut e = world.entity_mut(item);
     let mut shifted = false;
     if e.contains::<PowerDie>() {

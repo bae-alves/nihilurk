@@ -496,3 +496,43 @@ fn a_dug_tunnel_survives_a_save() {
 
     assert_eq!(w2.resource::<Map>().tile(x, y), TileType::Passage);
 }
+
+#[test]
+fn a_disguised_xeroc_keeps_its_disguise_and_species_across_a_save() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
+    w.insert_resource(RngSeed(7));
+    w.init_resource::<GameLog>();
+    w.insert_resource(PlayerName { what: "X".into() });
+    initialize_world(&mut w);
+    let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
+    let here = *w.get::<Position>(hero).unwrap();
+    let xeroc = spawn_monster(
+        &mut w,
+        MonsterDef::named("xeroc"),
+        Position {
+            x: here.x + 5,
+            y: here.y,
+        },
+    );
+    assert!(w.get::<Mimic>(xeroc).is_some());
+    let name = w.get::<Name>(xeroc).unwrap().what.clone();
+    let grants = w.get::<Grants>(xeroc).unwrap().0.len();
+    assert!(grants > 0);
+
+    let save = common::SaveFile::new("xeroc_disguise");
+    save_game(&mut w, save.path()).unwrap();
+
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(8)));
+    w2.insert_resource(RngSeed(8));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+
+    let (n, g) = w2
+        .query_filtered::<(&Name, &Grants), With<Mimic>>()
+        .single(&w2);
+    assert_eq!(n.what, name);
+    assert_eq!(g.0.len(), grants);
+}

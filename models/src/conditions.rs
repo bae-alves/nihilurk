@@ -1,10 +1,9 @@
 //! What a creature is *afflicted with* — and the one place an affliction is
 //! lifted again.
 //!
-//! A condition is a component ([`Confused`], [`Blind`], [`Paralyzed`], a
-//! [`Snare`], a shifted
-//! [`Speed`]); this module is the verbs that put one on, take one off, and print
-//! the line the player reads when either happens. It exists because the same
+//! A condition is a component ([`Confused`], [`Blind`], [`Paralyzed`], a hold
+//! such as [`Pinned`], a shifted [`Speed`]); this module is the verbs that put one
+//! on, take one off, and print the line the player reads when either happens. It exists because the same
 //! affliction arrives from several directions — a wand of light dazzles, a
 //! potion of confusion confuses, a potion of paralysis locks your limbs the way
 //! a wand of slow monster does — and none of those mechanics should each own
@@ -20,9 +19,10 @@
 //! * **Nothing wears off with time.** A player condition rides along until a
 //!   staircase or a wand of cancellation clears it
 //!   ([`clear_player_conditions`]) — that is the bargain that makes drinking an
-//!   unidentified potion frightening. The one exception is a [`Snare`], which is
-//!   counted in turns from the moment it lands (`crate::effects::tick_effects`
-//!   ages it): being pinned is a stretch of time, not a state of the body.
+//!   unidentified potion frightening. The one exception is a hold a trap lays
+//!   ([`Pinned`], [`Asleep`]), which is counted in turns from the moment it
+//!   lands (`crate::effects::tick_effects` ages it): being pinned is a stretch
+//!   of time, not a state of the body.
 //! * **Every verb reports whether it took hold.** A potion thrown at a monster
 //!   only gives away what it was when something plainly happened (see
 //!   `crate::items::throwing`), and that `bool` is the answer.
@@ -140,8 +140,8 @@ pub fn blind(world: &mut World, entity: Entity) -> bool {
 /// as something that can't fight back properly.
 ///
 /// A monster the player can actually see also earns a line of its own, on top
-/// of the generic slow-down [`set_speed`] already prints for it — the same
-/// "visible only" rule [`report_cure`] holds a mending monster to.
+/// of the generic slow-down `set_speed` already prints for it — the same
+/// "visible only" rule `report_cure` holds a mending monster to.
 pub fn paralyse(world: &mut World, entity: Entity) -> bool {
     if world.get::<Paralyzed>(entity).is_some() {
         return false;
@@ -641,7 +641,7 @@ const HOLD_ADJECTIVES: &[(Grant, &str)] = &[
 /// Whether the effect `id` is something the creature is *under* — the set the
 /// HUD puts a badge on, and the set [`crate::effects::CONDITION_CAP`] counts.
 ///
-/// The default is the safe way round: an effect [`conditions`] does not name
+/// The default is the safe way round: an effect `conditions` does not name
 /// is not a condition, so a ring's lent boon or the mark a potion of magic
 /// detection leaves on a monster can never crowd out a real condition.
 pub fn is_condition(id: &str) -> bool {

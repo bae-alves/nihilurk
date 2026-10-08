@@ -34,8 +34,8 @@ pub use super::en::{
     body_conflicts_with_load, clear_data_not_saved, clear_data_prompt, clear_data_saved,
     conflicting_bodies, content_group_header, content_header, content_spawn_hint,
     failed_to_save_clear_data, failed_to_save_game, game_not_saved, game_saved, help_text,
-    leaderboard_empty, leaderboard_entry, leaderboard_header, no_such_body, no_such_monster,
-    no_such_pride_flag, stray_positional, world_keeps_its_light,
+    invalid_save, leaderboard_empty, leaderboard_entry, leaderboard_header, no_such_body,
+    no_such_monster, no_such_pride_flag, stray_positional, world_keeps_its_light,
 };
 
 /// Content ids stay untranslated (see `content_name` above), so one can
@@ -1374,6 +1374,16 @@ pub fn treasure_hive_enter() -> &'static str {
 
 pub fn red_room_enter() -> &'static str {
     "Los tesoros relucen, pero solo se puede llevar uno."
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn monster_zoo_enter() -> &'static str {
+    "Cada casilla de aquí te está mirando."
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn dark_room_enter() -> &'static str {
+    "Aquí hay mucha oscuridad."
 }
 
 pub fn labyrinth_arrival() -> &'static str {
@@ -2874,13 +2884,7 @@ pub fn hand_five_flush() -> &'static str {
 
 // TODO: translate.
 #[allow(unused_variables)]
-pub fn card_element() -> &'static str {
-    ""
-}
-
-// TODO: translate.
-#[allow(unused_variables)]
-pub fn card_element_wipes_pack() -> &'static str {
+pub fn card_five_flush_gear() -> &'static str {
     ""
 }
 

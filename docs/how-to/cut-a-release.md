@@ -55,7 +55,7 @@ It refuses, and edits nothing, if the working tree has uncommitted changes, if y
 
 All four crates move to the same number, so there is one version to think about. `engine/tests/workspace.rs` fails if one crate or one pin falls behind. `compat/` is a test rig and is left alone.
 
-Then, unless `--no-cargo`: `cargo update --workspace` refreshes `Cargo.lock`, `cargo test --locked` runs the suite, and `cargo publish --workspace --dry-run` proves all four packages build. If a step fails, the edits stay in the working tree and `git checkout .` puts them back. When they pass, it commits `Release vX.Y.Z` and tags it.
+Then, unless `--no-cargo`: `cargo update --workspace` refreshes `Cargo.lock` (it touches only the four workspace lines, no dependency moves), `cargo test --locked` runs the suite, and `cargo publish --workspace --dry-run` proves all four packages build. If a step fails, the edits stay in the working tree and `git checkout .` puts them back. When they pass, it commits `Release vX.Y.Z` and tags it.
 
 `release/bump_test.lua` runs the script in a throwaway repository. Run it with `lua release/bump_test.lua` after you change the script.
 

@@ -3,7 +3,8 @@ Contributing
 
 Bug reports and code changes go through GitHub: open an issue, or send a pull
 request. A pull request to `master` needs bae's approval; bae is the
-maintainer.
+maintainer. GitHub holds a first-time contributor's workflow run until the
+maintainer approves it, so CI starts a little late on your first pull request.
 
 
 What you need
@@ -15,7 +16,8 @@ To build the game, run the tests and send a patch:
 - Rust 1.91 or newer, installed with rustup. `rust-toolchain.toml` asks for
   stable, which rustup fetches on its own. The default rustup profile includes
   `rustfmt` and `clippy`; if yours does not, run
-  `rustup component add rustfmt clippy`. The floor is the `rust-version` in
+  `rustup component add rustfmt clippy`. Rust from a distro package, without
+  rustup, is not supported. The floor is the `rust-version` in
   `engine/Cargo.toml`.
 - bash, and Lua 5.4 or newer with `lua` on your PATH. The scripts and hooks are
   bash and Lua.
@@ -37,7 +39,7 @@ Only for some jobs:
 - Cutting a release, which is the maintainer's job: `gh` to watch CI. Lua
   runs `release/bump.lua`, and CI publishes, so no crates.io token lives on
   your machine. The local checks need a little more: the musl targets for
-  `release/test_package.sh`, and `curl` and `sha256sum` for `aur_check.sh`.
+  `release/test_package.sh`, and `cargo`, `git`, `curl` and `sha256sum` for `aur_check.sh` (not `makepkg`).
   See `docs/how-to/cut-a-release.md`.
 
 In Claude Code, `/prepare-for-nihilurk` checks your machine against this list

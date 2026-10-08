@@ -131,16 +131,39 @@ fn tiles_of(map: &Map, kind: SpecialRoom) -> Vec<(u16, u16)> {
         .collect()
 }
 
-/// The name standing on `(x, y)`, if anything is.
-fn name_at(w: &mut World, x: u16, y: u16) -> Option<String> {
-    w.query::<(&Name, &Position)>()
+/// How many `Mob`s, `Item`s and `Pickup`s (coins) stand on `(x, y)`.
+fn count_at(w: &mut World, x: u16, y: u16) -> (usize, usize, usize) {
+    let mobs = w
+        .query_filtered::<&Position, With<Mob>>()
+        .iter(w)
+        .filter(|p| p.x == x && p.y == y)
+        .count();
+    let items = w
+        .query_filtered::<&Position, With<Item>>()
+        .iter(w)
+        .filter(|p| p.x == x && p.y == y)
+        .count();
+    let coins = w
+        .query_filtered::<&Position, With<Pickup>>()
+        .iter(w)
+        .filter(|p| p.x == x && p.y == y)
+        .count();
+    (mobs, items, coins)
+}
+
+fn is_dragon(w: &mut World, x: u16, y: u16) -> bool {
+    name_at_mob(w, x, y).as_deref() == Some("dragon")
+}
+
+fn name_at_mob(w: &mut World, x: u16, y: u16) -> Option<String> {
+    w.query_filtered::<(&Name, &Position), With<Mob>>()
         .iter(w)
         .find(|(_, p)| p.x == x && p.y == y)
         .map(|(n, _)| n.what.clone())
 }
 
 #[test]
-fn a_dragon_hoard_is_completely_full_with_the_right_dragon_count() {
+fn a_dragon_hoard_has_the_right_dragon_count_and_exceptional_gear_under_each() {
     let (seed, depth) = first_with(SpecialRoom::DragonHoard);
     let mut w = world_at(seed, depth);
     let tiles = tiles_of(w.resource::<Map>(), SpecialRoom::DragonHoard);
@@ -149,10 +172,31 @@ fn a_dragon_hoard_is_completely_full_with_the_right_dragon_count() {
     let expected_dragons = (difficulty_tier(depth) as usize + 1).min(tiles.len());
     let mut dragons = 0;
     for (x, y) in tiles {
-        let name = name_at(&mut w, x, y);
-        assert!(name.is_some(), "tile ({x},{y}) in the hoard is empty");
-        if name.as_deref() == Some("dragon") {
+        let (mobs, items, _) = count_at(&mut w, x, y);
+        assert_eq!(items, 1, "tile ({x},{y}) in the hoard should hold one item");
+        if is_dragon(&mut w, x, y) {
             dragons += 1;
+            assert_eq!(mobs, 1);
+            let bonus = w
+                .query_filtered::<(
+                    &Position,
+                    Option<&PowerBonus>,
+                    Option<&ArmorBonus>,
+                    Option<&ThrowBonus>,
+                    Option<&MaxHpBonus>,
+                ), With<Item>>()
+                .iter(&w)
+                .find(|(p, ..)| p.x == x && p.y == y)
+                .map(|(_, p, a, t, h)| {
+                    p.map_or(0, |b| b.0)
+                        + a.map_or(0, |b| b.0)
+                        + t.map_or(0, |b| b.0)
+                        + h.map_or(0, |b| b.0)
+                })
+                .unwrap();
+            assert!(bonus >= 1, "dragon at ({x},{y}) stands on a plain item");
+        } else {
+            assert_eq!(mobs, 0);
         }
     }
     assert_eq!(
@@ -162,39 +206,41 @@ fn a_dragon_hoard_is_completely_full_with_the_right_dragon_count() {
 }
 
 #[test]
-fn a_monster_zoo_has_no_empty_tile() {
+fn a_monster_zoo_holds_a_monster_on_every_tile_and_a_floors_item_budget() {
     let (seed, depth) = first_with(SpecialRoom::MonsterZoo);
     let mut w = world_at(seed, depth);
     let tiles = tiles_of(w.resource::<Map>(), SpecialRoom::MonsterZoo);
     assert!(!tiles.is_empty());
 
-    for (x, y) in tiles {
-        assert!(
-            name_at(&mut w, x, y).is_some(),
-            "seed {seed} depth {depth}: tile ({x},{y}) in the zoo is empty"
-        );
+    let mut items = 0;
+    for &(x, y) in &tiles {
+        let (m, i, _) = count_at(&mut w, x, y);
+        assert_eq!(m, 1, "seed {seed} depth {depth}: zoo tile ({x},{y})");
+        items += i;
     }
+    let budget = models::constants::population::ITEM_SLOTS_BASE + difficulty_tier(depth) as usize;
+    assert_eq!(items, budget.min(tiles.len()));
 }
 
 #[test]
-fn a_treasure_hive_holds_exactly_one_apis() {
+fn a_treasure_hive_is_all_bees_on_coins() {
     let (seed, depth) = first_with(SpecialRoom::TreasureHive);
     let mut w = world_at(seed, depth);
     let tiles = tiles_of(w.resource::<Map>(), SpecialRoom::TreasureHive);
     assert!(!tiles.is_empty());
 
-    let mut apis_count = 0;
     for (x, y) in tiles {
-        let name = name_at(&mut w, x, y);
-        assert!(name.is_some(), "tile ({x},{y}) in the hive is empty");
-        if name.as_deref() == Some("apis") {
-            apis_count += 1;
-        }
+        assert_eq!(
+            name_at_mob(&mut w, x, y).as_deref(),
+            Some("apis"),
+            "seed {seed} depth {depth}: hive tile ({x},{y}) has no bee"
+        );
+        assert_eq!(
+            count_at(&mut w, x, y).2,
+            1,
+            "hive tile ({x},{y}) has no coin"
+        );
     }
-    assert_eq!(
-        apis_count, 1,
-        "seed {seed} depth {depth}: a treasure hive should hold exactly one apis"
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -232,21 +278,36 @@ fn special_tint_covers_the_floor_and_its_bounding_wall_only() {
 }
 
 #[test]
-fn the_entry_line_fires_once_on_the_threshold_and_never_for_a_zoo() {
+fn the_entry_line_fires_once_on_the_threshold_in_the_wall_colour() {
     let mut map = blank_map();
-    map.tiles[tile_index(5, 5)] = TileType::Room;
-    map.tiles[tile_index(6, 5)] = TileType::Room;
+    for x in 5..=7 {
+        map.tiles[tile_index(x, 5)] = TileType::Room;
+    }
     map.special[tile_index(5, 5)] = Some(SpecialRoom::RedRoom);
     map.special[tile_index(6, 5)] = Some(SpecialRoom::MonsterZoo);
+    map.dark.insert(tile_index(7, 5));
 
-    assert!(special_room_entry_message(&map, (0, 0), (5, 5)).is_some());
+    let (_, red) = special_room_entry_message(&map, (0, 0), (5, 5)).unwrap();
+    assert_eq!(
+        Some(red),
+        map.special_tint(5, 4),
+        "red room line wears its wall"
+    );
     assert!(
         special_room_entry_message(&map, (5, 5), (5, 5)).is_none(),
         "standing still on the same tile is not a fresh entry"
     );
+    let (_, zoo) = special_room_entry_message(&map, (0, 0), (6, 5)).unwrap();
+    assert_eq!(Some(zoo), map.special_tint(6, 5), "the zoo has a line too");
+    let (_, dark) = special_room_entry_message(&map, (0, 0), (7, 5)).unwrap();
+    assert_eq!(
+        dark,
+        tile_appearance(TileType::Wall).1,
+        "dark room wears the plain wall"
+    );
     assert!(
-        special_room_entry_message(&map, (0, 0), (6, 5)).is_none(),
-        "the monster zoo was never given a line"
+        special_room_entry_message(&map, (7, 5), (7, 5)).is_none(),
+        "a step inside the dark room stays silent"
     );
 }
 
@@ -305,4 +366,24 @@ fn a_wand_of_digging_leaves_a_red_rooms_walls_alone() {
         TileType::Wall,
         "the red room's wall holds"
     );
+}
+
+#[test]
+fn a_monster_can_spawn_standing_on_an_item() {
+    for seed in 0..200u64 {
+        let mut w = world_at(seed, 1);
+        let items: Vec<(u16, u16)> = w
+            .query_filtered::<&Position, With<Item>>()
+            .iter(&w)
+            .map(|p| (p.x, p.y))
+            .collect();
+        let shared = w
+            .query_filtered::<&Position, With<Mob>>()
+            .iter(&w)
+            .any(|p| items.contains(&(p.x, p.y)));
+        if shared {
+            return;
+        }
+    }
+    panic!("no monster ever spawned on an item across the sweep");
 }

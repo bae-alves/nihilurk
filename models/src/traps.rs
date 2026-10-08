@@ -1,6 +1,6 @@
 //! Dungeon traps, in the spirit of the six classic Rogue traps.
 //!
-//! A trap is an ordinary ECS entity — never a [`TileType`](crate::map::TileType)
+//! A trap is an ordinary ECS entity — never a [`TileType`]
 //! and never an [`Item`] — that sits on the floor as a `^` glyph, springs the
 //! instant anything with a [`Position`] steps onto its tile, and cannot be
 //! picked up. Each trap rolls one of three discovery styles at spawn (equal
@@ -22,11 +22,11 @@
 //!
 //! ## Turn wiring
 //!
-//! Movement code (the player in `move_player`, monsters in [`crate::ai`]) tags
+//! Movement code (the player in `move_player`, monsters in [`crate::ai`](mod@crate::ai)) tags
 //! the mover with [`EntityMoved`]. [`trap_system`] runs just after the AI, walks
 //! that list, and springs any trap sharing a tile with a mover. [`crate::effects::tick_effects`]
-//! runs at the very top of the turn and ages [`Snare`] (bear trap / sleep gas)
-//! down, so the turn a snare is applied is never the turn it is decremented.
+//! runs at the very top of the turn and ages the holds traps lay (bear trap / sleep gas)
+//! down, so the turn a hold is applied is never the turn it is decremented.
 //!
 //! ## Trick shots
 //!
@@ -49,7 +49,7 @@
 //!   instant they let go. The Element of Yoord is the one exception, and it is
 //!   the exception to everything.
 //! * **Bursts chain.** Anything in a burst that a shot could have set off goes
-//!   off with it ([`chain_react`]) — *including* a trap nobody had found, since
+//!   off with it (`chain_react`) — *including* a trap nobody had found, since
 //!   the blast does not have to know a mechanism is there to roll over it. Each
 //!   link is spent before its own burst opens, so a chain always ends.
 //!
@@ -64,7 +64,7 @@
 //!
 //! The damage traps (arrow, dart) deal missile-type damage, so they subtract
 //! only the defender's flat bonus — "armour plus", i.e. `armor_bonus` plus any
-//! equipped suit's `arm_bonus` (see [`crate::helpers::total_armor_plus`]) — and
+//! equipped suit's `arm_bonus` (see `crate::helpers::total_armor_plus`) — and
 //! never the armour die.
 //!
 //! Their bite also scales with depth, in tiers that end at
@@ -79,6 +79,7 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
+use crate::constants::monsters::DEFAULT_SPAWN_WEIGHT;
 use crate::constants::traps::{
     ARROW_DAMAGE_BONUS, ARROW_DAMAGE_DICE, ARROW_DAMAGE_PER_TIER, ARROW_DAMAGE_SIDES,
     BEAR_TRAP_THRASH_DAMAGE, BEAR_TRAP_THRASH_GORE, DART_DAMAGE_DICE, DART_DAMAGE_SIDES,
@@ -118,11 +119,11 @@ impl TrapEffect {
 /// One kind of trap, one row: what it is called, how it draws, how often the
 /// dungeon lays one, the shallowest floor it lays one on, and — for the two
 /// snaring traps — how many turns it holds the victim. The mechanic itself
-/// lives in [`apply_trap_effect`], keyed by [`TrapDef::effect`] — a row is
+/// lives in `apply_trap_effect`, keyed by [`TrapDef::effect`] — a row is
 /// description and the numbers its mechanic needs, never behaviour.
 ///
 /// Adding a trap is a row here, a [`TrapEffect`] variant, and an arm in each
-/// of [`apply_trap_effect`] and [`trap_flourish`]. See
+/// of `apply_trap_effect` and `trap_flourish`. See
 /// `docs/how-to/add-a-trap.md`.
 pub struct TrapDef {
     /// The [`TrapEffect`] this row is the entry for.
@@ -134,12 +135,12 @@ pub struct TrapDef {
     /// The colour it draws in.
     pub color: Color,
     /// How often the dungeon lays this one relative to the others it could lay.
-    /// Ten is the baseline (see [`crate::spawn::pick_weighted`]).
+    /// [`DEFAULT_SPAWN_WEIGHT`] is the baseline (see [`crate::spawn::pick_weighted`]).
     pub weight: u32,
     /// The shallowest floor it appears on.
     pub min_depth: u8,
-    /// Turns the victim is [`Snare`]d for — bear trap, sleeping gas. `0` for
-    /// every trap that does not snare. Kept on the row (not in
+    /// Turns the victim is held for ([`Pinned`] by a bear trap, [`Asleep`] by sleeping
+    /// gas). `0` for every trap that does not hold. Kept on the row (not in
     /// `constants.rs`) so a snaring trap is still one file to add.
     pub snare_turns: u32,
 }
@@ -182,12 +183,12 @@ impl TrapDef {
 #[rustfmt::skip]
 pub const TRAPS: &[TrapDef] = &[
     //        effect                       name                 glyph  colour                  wt  dep  snare
-    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Green,       weight: 10, min_depth: 1, snare_turns: 0 },
-    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: 10, min_depth: 1, snare_turns: 3 },
-    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Blue,        weight: 10, min_depth: 1, snare_turns: 5 },
-    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: 10, min_depth: 1, snare_turns: 0 },
-    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: 10, min_depth: 1, snare_turns: 0 },
-    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Cyan,        weight: 10, min_depth: 1, snare_turns: 0 },
+    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Green,       weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
+    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 3 },
+    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Blue,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 5 },
+    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
+    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
+    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Cyan,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
 ];
 
 impl TrapReveal {
@@ -322,7 +323,7 @@ impl TrapBundle {
 }
 
 /// Springs any trap whose tile an actor entered this turn, then clears the
-/// [`EntityMoved`] markers. Placed just after [`crate::ai`] in the schedule so
+/// [`EntityMoved`] markers. Placed just after [`crate::ai`](mod@crate::ai) in the schedule so
 /// it sees both the player's move and the monsters' — the last reader of
 /// [`EntityMoved`] before it clears the tag.
 ///
@@ -537,7 +538,7 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
 ///
 /// **The hero coin is the loud one.** Everything it knows comes out at once —
 /// the same triple burst the Element of Yoord answers a missile with (see
-/// [`ultimate_burst`]), except the coin does not survive saying it. It is the
+/// `ultimate_burst`), except the coin does not survive saying it. It is the
 /// one pickup in the game worth shooting for the shot rather than the payout.
 ///
 /// Returns whether there was a pickup here to set off.
@@ -850,7 +851,7 @@ pub(crate) fn things_in<C: Component>(
 /// A trap still [`Hidden`] is passed straight over. This is the *aimed* shot,
 /// and you cannot aim at a mechanism nobody has found — the shot would be the
 /// dungeon setting off its own trap on the player's behalf. Blasts and chain
-/// reactions are under no such rule ([`chain_react`]).
+/// reactions are under no such rule (`chain_react`).
 ///
 /// Returns what went off, or `None` for a tile with nothing on it worth
 /// hitting.

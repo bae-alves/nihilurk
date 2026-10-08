@@ -203,7 +203,7 @@ pub(crate) fn teleportitis(world: &mut World, bearer: Entity) -> bool {
 ///
 /// The polymorph a wand casts, minus the system shock: the ring comes due on
 /// its own schedule, and nothing that does that may kill or maim its bearer.
-/// A bearer already [`Polymorphed`] settles into a chimeric form instead.
+/// A bearer already [`Polymorphed`](crate::Polymorphed) settles into a chimeric form instead.
 pub(crate) fn polymorphitis(world: &mut World, bearer: Entity) -> bool {
     super::wands::polymorph_entity_with(world, bearer, false);
     true

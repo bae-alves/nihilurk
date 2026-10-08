@@ -10,12 +10,12 @@
 //! Everything a floor *does* lives in a submodule, the same way `crate::items`
 //! is split by what the player is doing to an item:
 //!
-//! * [`streams`] — the three RNGs, and the per-floor ones derived from a seed.
-//! * [`generate`] — carving a floor: rooms, corridors, stairs, the dark.
-//! * [`special`] — carving the floors that are not rooms and corridors at all.
-//! * [`population`] — what stands on one once it is carved.
-//! * [`levels`] — moving between floors, and starting a run.
-//! * [`overlays`] — the cosmetic mess a floor accumulates.
+//! * `streams` — the three RNGs, and the per-floor ones derived from a seed.
+//! * `generate` — carving a floor: rooms, corridors, stairs, the dark.
+//! * `special` — carving the floors that are not rooms and corridors at all.
+//! * `population` — what stands on one once it is carved.
+//! * `levels` — moving between floors, and starting a run.
+//! * `overlays` — the cosmetic mess a floor accumulates.
 //!
 //! All but `special`, which only `generate` calls, are re-exported here, so
 //! `models::change_level` and
@@ -215,7 +215,7 @@ pub struct Map {
     /// One bit per tile: set on the floor of a "dark" room. Visibility inside a
     /// dark room is cut to the always-on 3x3 (as if it were a passage) until a
     /// wand of light is zapped there, which clears the bits for the whole room.
-    /// Rolled deterministically from the seed in [`build_tiles`]; the cleared
+    /// Rolled deterministically from the seed in `build_tiles`; the cleared
     /// state is persisted in the save file.
     pub dark: FixedBitSet,
     /// One bit per tile: set on a doorway whose ward the player broke (see
@@ -224,7 +224,7 @@ pub struct Map {
     /// every floor; persisted in the save file like `dark`.
     pub inert_doors: FixedBitSet,
     /// One [`SpecialRoom`] per tile, `Some` only on that room's own floor
-    /// tiles. Rolled deterministically from the seed in [`build_tiles`] the
+    /// tiles. Rolled deterministically from the seed in `build_tiles` the
     /// same way `dark` is, and — unlike `dark` — never mutated after, so it
     /// never needs a line in the save file: `regenerate_map` rebuilds it
     /// exactly on load, same as it rebuilds `tiles` itself.
@@ -409,24 +409,33 @@ impl Map {
 }
 
 /// The one-line flavor a special room announces the instant the player steps
-/// onto its floor from anywhere else — `None` past the threshold (repeat
-/// steps inside the same room stay silent) and `None` for [`SpecialRoom::MonsterZoo`],
-/// which was never given one: getting swarmed says enough on its own.
+/// onto its floor from anywhere else, with the room's wall colour — `None`
+/// past the threshold (repeat steps inside the same room stay silent). A
+/// still-unlit dark room counts and wears the plain wall colour.
 pub fn special_room_entry_message(
     map: &Map,
     old: (u16, u16),
     new: (u16, u16),
-) -> Option<&'static str> {
-    let kind = map.special_kind(new.0, new.1)?;
+) -> Option<(&'static str, Color)> {
+    let Some(kind) = map.special_kind(new.0, new.1) else {
+        let fresh = map.is_dark(new.0, new.1) && !map.is_dark(old.0, old.1);
+        return fresh.then(|| {
+            (
+                strings::dark_room_enter(),
+                tile_appearance(TileType::Wall).1,
+            )
+        });
+    };
     if map.special_kind(old.0, old.1) == Some(kind) {
         return None;
     }
-    match kind {
-        SpecialRoom::DragonHoard => Some(strings::dragon_hoard_enter()),
-        SpecialRoom::MonsterZoo => None,
-        SpecialRoom::TreasureHive => Some(strings::treasure_hive_enter()),
-        SpecialRoom::RedRoom => Some(strings::red_room_enter()),
-    }
+    let line = match kind {
+        SpecialRoom::DragonHoard => strings::dragon_hoard_enter(),
+        SpecialRoom::MonsterZoo => strings::monster_zoo_enter(),
+        SpecialRoom::TreasureHive => strings::treasure_hive_enter(),
+        SpecialRoom::RedRoom => strings::red_room_enter(),
+    };
+    Some((line, special_room_color(kind)))
 }
 
 /// Coarse grouping of tiles for the diagonal-movement rule: room floor, the

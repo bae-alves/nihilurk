@@ -130,7 +130,7 @@ grants a slice of effects through `grant_all`:
     const LURK_GRANTS: &[Grant] = &[
         Grant::of::<Lurk>(),
         Grant::of::<Lunges>(),
-        Grant::of::<Fencer>(),
+        Grant::counted::<Fencer>(lurk::NUMBER_OF_ATTACKS),
         Grant::of::<BuildsMomentum>(),
         Grant::of::<Stealthy>(),
     ];

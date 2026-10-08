@@ -287,7 +287,7 @@ fn tear_down_the_floor(world: &mut World) {
 ///
 /// Both have to happen before anything is built. The layout is a pure function
 /// of `(seed, depth)` ([`super::streams::layout_rng`]) and the contents are a
-/// function of that plus the staircase count ([`content_rng`]), so building
+/// function of that plus the staircase count ([`content_rng`](crate::content_rng)), so building
 /// first would build the floor you just left.
 fn step_depth(world: &mut World, going_down: bool) -> u8 {
     if let Some(mut fc) = world.get_resource_mut::<FloorChanges>() {

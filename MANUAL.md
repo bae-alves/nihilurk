@@ -215,7 +215,7 @@ Your pack has limited space. Ammunition shares a slot with matching ammunition, 
 Decks of cards
 --------------
 
-A deck of cards is as rare as a ring. It holds five cards, stacked when the deck turns up, and one or two of them lie reversed. Read it (`r`) and you play the top card; a reversed card plays its darker side. Some cards play other cards. Throw the deck instead and all that is left plays at once as a poker hand, never reversed, on you. Every card that makes up the hand pays 5,000 points, and a FOOL counts as any card. Five of a kind hands you the Element of Yoord.
+A deck of cards is as rare as a ring. It holds five cards, stacked when the deck turns up, and one or two of them lie reversed. Read it (`r`) and you play the top card; a reversed card plays its darker side. Some cards play other cards. Throw the deck instead and all that is left plays at once as a poker hand, never reversed, on you. Every card that makes up the hand pays 5,000 points, and a FOOL counts as any card. Five of a kind plays its card five times, then sets everything you wear to +5 and burns off its curses.
 
 Helpers
 -------

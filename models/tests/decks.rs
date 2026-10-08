@@ -12,7 +12,7 @@ mod monster;
 use bevy_ecs::prelude::*;
 use fixedbitset::FixedBitSet;
 use models::constants::decks::{
-    CARD_CHAIN_CAP, CARD_POINTS, DECK_SIZE, REVERSED_MAX, REVERSED_MIN,
+    CARD_CHAIN_CAP, CARD_POINTS, DECK_SIZE, FIVE_FLUSH_PLUS, REVERSED_MAX, REVERSED_MIN,
 };
 use models::*;
 
@@ -653,30 +653,71 @@ fn cards_a_chain_plays_do_not_pay() {
     assert_eq!(w.get::<Score>(p).unwrap().value, 2 * CARD_POINTS as i64);
 }
 
-#[test]
-fn a_five_flush_puts_the_element_in_the_pack() {
-    let mut w = test_world(1);
-    throw_hand(&mut w, &[up(CardFace::Fool); 5]);
-    assert!(holding_element_of_yoord(&mut w));
-    let p = player(&mut w);
-    let kept = w.get::<Backpack>(p).unwrap().items.len();
-    throw_hand(&mut w, &[up(CardFace::Fool); 5]);
-    assert_eq!(w.get::<Backpack>(p).unwrap().items.len(), kept);
+fn worn_in(w: &mut World, slot: Slot) -> Entity {
+    let p = player(w);
+    w.get::<Backpack>(p)
+        .unwrap()
+        .items
+        .iter()
+        .copied()
+        .find(|&e| {
+            w.get::<Equipped>(e)
+                .is_some_and(|q| q.slot == slot && q.by == Some(p))
+        })
+        .unwrap()
+}
+
+fn unworn_launcher(w: &mut World) -> Entity {
+    let p = player(w);
+    w.get::<Backpack>(p)
+        .unwrap()
+        .items
+        .iter()
+        .copied()
+        .find(|&e| w.get::<Launcher>(e).is_some())
+        .unwrap()
 }
 
 #[test]
-fn a_five_flush_into_a_full_pack_leaves_only_the_element() {
+fn a_five_flush_sets_worn_gear_to_plus_five_and_lifts_its_curse() {
     let mut w = test_world(1);
-    let p = player(&mut w);
-    while w.get::<Backpack>(p).unwrap().items.len() < models::constants::items::PACK_CAPACITY {
-        let potion = spawn_named(&mut w, "potion of healing", HERE).unwrap();
-        w.entity_mut(potion).remove::<Position>();
-        w.get_mut::<Backpack>(p).unwrap().items.push(potion);
-    }
+    let mace = wielded(&mut w);
+    w.entity_mut(mace).insert((PowerBonus(-3), Curse));
+    let armor = worn_in(&mut w, Slot::Body);
+    let ring = worn_ring(&mut w, "ring of protection");
+    let bow = unworn_launcher(&mut w);
+    let bow_before = plus(&w, bow);
+
     throw_hand(&mut w, &[up(CardFace::Fool); 5]);
-    let pack = w.get::<Backpack>(p).unwrap().items.clone();
-    assert_eq!(pack.len(), 1);
-    assert!(w.get::<Amulet>(pack[0]).is_some());
+
+    for item in [mace, armor, ring] {
+        assert_eq!(plus(&w, item), FIVE_FLUSH_PLUS);
+        assert!(w.get::<Curse>(item).is_none());
+    }
+    assert_eq!(plus(&w, bow), bow_before);
+    assert!(!holding_element_of_yoord(&mut w));
+}
+
+#[test]
+fn a_five_flush_plays_its_five_cards_upright_before_the_plus_five() {
+    let mut w = test_world(1);
+    let mace = wielded(&mut w);
+    throw_hand(&mut w, &[down(CardFace::PrinceOfSwords); 5]);
+    assert_eq!(draws(&w), 5);
+    assert_eq!(plus(&w, mace), FIVE_FLUSH_PLUS);
+}
+
+#[test]
+fn a_hand_pays_its_score_after_its_cards_play() {
+    let mut w = test_world(1);
+    throw_hand(&mut w, &[up(CardFace::Bole), up(CardFace::Bole)]);
+    let log = &w.resource::<GameLog>().history;
+    let drawn = log
+        .iter()
+        .rposition(|l| l.starts_with("You draw "))
+        .unwrap();
+    let paid = log.iter().position(|l| l.starts_with("A Pair")).unwrap();
+    assert!(drawn < paid);
 }
 
 #[test]

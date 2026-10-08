@@ -45,7 +45,7 @@ pub enum Slot {
     Hand,
     /// Armour.
     Body,
-    /// Rings. Holds up to [`Slot::capacity`], not just one.
+    /// Rings. Holds up to `Slot::capacity`, not just one.
     Finger,
 }
 
@@ -160,7 +160,7 @@ fn equipped_in_slot(world: &World, entity: Entity, slot: Slot) -> Vec<Entity> {
 
 /// What `entity` has equipped in `slot`, if anything. For [`Slot::Finger`],
 /// which can hold two, this is only the first one found — callers that care
-/// about both rings want [`equipped_in_slot`] instead.
+/// about both rings want `equipped_in_slot` instead.
 pub fn equipped_in(world: &World, entity: Entity, slot: Slot) -> Option<Entity> {
     equipped_in_slot(world, entity, slot).into_iter().next()
 }
@@ -436,7 +436,7 @@ pub fn equip_silently(world: &mut World, wearer: Entity, item: Entity) -> bool {
 }
 
 /// [`equip_silently`] for gear that changes hands mid-game — a caught dagger, a
-/// stolen ring — which also merges curses ([`merge_curses`]) when it is cursed
+/// stolen ring — which also merges curses (`merge_curses`) when it is cursed
 /// and the wearer's slot is full of at least one cursed item. Gear rolled at
 /// spawn, or restored from bones, never merges. Afterwards `item` may no longer
 /// exist.
@@ -472,7 +472,7 @@ pub fn drop_equipment(world: &mut World, wearer: Entity, at: Position) {
 /// touch ([`crate::effects::RustsArmor`]), which is the only thing in the
 /// dungeon that damages gear rather than its owner.
 ///
-/// It bites into the armour's [`ArmorBonus`] and never its [`ArmorDie`]: plate
+/// It bites into the armour's [`ArmorBonus`] and never its [`ArmorDie`](crate::ArmorDie): plate
 /// mail corroded to nothing is still plate mail, just ruined plate mail, and a
 /// suit can be driven well below zero. A scroll of enchant armour is the cure.
 ///

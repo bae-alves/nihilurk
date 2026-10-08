@@ -1,6 +1,6 @@
 //! The bones file: what a dead run leaves behind for the next one to find.
 //!
-//! One flat postcard file per depth ([`path_for`]), sitting next to
+//! One flat postcard file per depth (`path_for`), sitting next to
 //! `leaderboard.sav` — global across seeds, and a plain file a player can
 //! `rm` by hand if they'd rather not meet it. [`deposit`] writes one the
 //! moment a character dies; [`take`] reads and deletes it the moment a later

@@ -71,7 +71,7 @@ pub mod combat {
     pub const VULN_DAMAGE_PERCENT: i32 = 25;
 
     /// How many dice a normal attack or armour roll averages together —
-    /// see [`crate::combat::roll_die_bell`]. At 1 it is a flat `1d[sides]`
+    /// see `crate::combat::roll_die_bell`. At 1 it is a flat `1d[sides]`
     /// like an excellent hit; raising it narrows the spread further without
     /// moving the mean or the min/max off the plain die's.
     pub const BELL_CURVE_DICE: i32 = 2;
@@ -120,7 +120,7 @@ pub mod player {
 
     /// Fraction of max HP at or below which the player gets a one-time "badly
     /// wounded" warning as they cross down into it. See
-    /// [`crate::helpers::apply_damage`].
+    /// `crate::helpers::apply_damage`.
     pub const LOW_HP_WARNING_FRACTION: f32 = 0.3;
 }
 
@@ -155,6 +155,10 @@ pub mod lurk {
 
     /// What one growth is worth, on whichever of the four numbers it lands.
     pub const GROWTH_STEP: i32 = 1;
+
+    /// How many times the lurk throws each attack: the bite and the second
+    /// snap of the jaws.
+    pub const NUMBER_OF_ATTACKS: u8 = 2;
 }
 
 // ===========================================================================
@@ -571,6 +575,9 @@ pub mod decks {
     /// chain plays (the Joker, Pot of Sin, The +4) were never in the hand and
     /// pay nothing.
     pub const CARD_POINTS: i32 = 5_000;
+
+    /// The plus a Five Flush sets every piece of worn gear to, curse burnt off.
+    pub const FIVE_FLUSH_PLUS: i32 = 5;
 }
 
 // ===========================================================================
@@ -648,7 +655,7 @@ pub mod wands {
     pub const GRENADE_DIE_PER_CHARGE: i32 = 1;
     /// ...and a thrown utility wand's blast rolls this many (it deals no damage,
     /// but the roll still drives the animation's reach). See
-    /// [`crate::items`]`::resolve_wand_throw`.
+    /// `crate::items``::resolve_wand_throw`.
     pub const EFFECT_DIE_PER_CHARGE: i32 = 3;
 
     /// How many turns a fire blast's smoke lingers on the tiles it covered,
@@ -719,6 +726,10 @@ pub mod loot {
 
 /// Throw range and stack size.
 pub mod items {
+    /// How many times an estoc throws each attack: the total, so `2` is the
+    /// blow and one more.
+    pub const ESTOC_NUMBER_OF_ATTACKS: u8 = 2;
+
     /// How far a heavy thing can be hurled, in tiles — the throw reticle's
     /// default leash. A wand overrides this with its own `range` when zapped,
     /// but a *thrown* wand obeys a leash like anything else.
@@ -835,13 +846,13 @@ pub mod monsters {
     /// itself. Every default-weight creature is equally likely; a row asking
     /// for less is rarer, more is more common. Relative only — the absolute
     /// value just sets the granularity.
-    pub const DEFAULT_SPAWN_WEIGHT: u32 = 10;
+    pub const DEFAULT_SPAWN_WEIGHT: u32 = 20;
 
     /// How many turns a medusa's gaze leaves the player standing as stone.
     /// Long enough to be the fight's whole shape and short enough to live
     /// through — nothing can kill a petrified player but a war hammer, so this
     /// is a toll in turns rather than in HP. See
-    /// [`crate::abilities::medusa_gaze`].
+    /// `crate::abilities::medusa_gaze`.
     pub const PETRIFY_TURNS: u32 = 5;
 
     /// The ice monster's odds, on a blow that lands, of paralysing what it hit.
@@ -894,9 +905,11 @@ pub mod spirits {
     /// What the gnome charges for a wand, in Max Ma.
     pub const GNOME_WAND_PRICE: u8 = 2;
 
-    /// The spawn weight every spirit row gets: an eighth of an ordinary
-    /// monster's default ([`crate::constants::monsters::DEFAULT_SPAWN_WEIGHT`]).
-    pub const SPAWN_WEIGHT: u32 = crate::constants::monsters::DEFAULT_SPAWN_WEIGHT / 8;
+    /// The spawn weight every spirit row gets: a twentieth of an ordinary
+    /// monster's default, and the smallest weight there is. Rarer means
+    /// raising [`crate::constants::monsters::DEFAULT_SPAWN_WEIGHT`] and every
+    /// explicit `.weight(n)` with it.
+    pub const SPAWN_WEIGHT: u32 = 1;
 
     /// How many things a barterer lays on the table: the yellow demon's
     /// pack, the sphynx's spells. Inclusive on both ends.
@@ -1116,7 +1129,7 @@ pub mod abilities {
 // ===========================================================================
 
 /// What the afflictions cost. Paralysis has its own dial in
-/// [`potions`](super::potions); confusion's lives here.
+/// `potions`; confusion's lives here.
 pub mod conditions {
     /// While the player is confused, the odds that any one step goes off in a
     /// random direction instead of the intended one.

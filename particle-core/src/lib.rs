@@ -9,7 +9,7 @@
 //! `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf`.
 //!
 //! The proof is only worth something because the game runs this code and not a
-//! copy of it. [`models::particles`] owns the `Vec` of keyframes, the colour
+//! copy of it. `models::particles` owns the `Vec` of keyframes, the colour
 //! type and the ECS resource; every decision it makes about *time* is one of
 //! the functions below. If this crate is wrong, the game is wrong, and
 //! `models/src/particles.rs`'s own `#[cfg(test)] mod tests` fails.
@@ -122,7 +122,7 @@ pub fn follow_delay(radius: f32, follow_ms: f32) -> f32 {
 ///
 /// A terminal cannot displace by half a cell, so the decay is in the
 /// *amplitude*, not in a smooth position: the shake steps through
-/// [`SHAKE_PATTERN`] at a fixed rate while the radius it throws the map to
+/// `SHAKE_PATTERN` at a fixed rate while the radius it throws the map to
 /// shrinks from `amplitude` to 1, then stops dead. Rounded *up* (like
 /// [`follow_delay`], and for a kindred reason): the last few steps of a decay
 /// that rounded down would be displacements of zero -- a shake that is still
@@ -166,11 +166,7 @@ pub fn ceil(x: f32) -> f32 {
     }
     #[cfg(not(feature = "std"))]
     {
-        let truncated = x as i32 as f32;
-        if truncated < x {
-            return truncated + 1.0;
-        }
-        truncated
+        ceil_portable(x)
     }
 }
 

@@ -11,7 +11,7 @@
 //! Two recurring shapes are worth knowing before you read:
 //!
 //! * **Marker components** carry no data — [`Player`], [`Blood`], [`Curse`],
-//!   [`Confused`]. Their presence *is* the fact. A system asks
+//!   [`Confused`](crate::Confused). Their presence *is* the fact. A system asks
 //!   `world.get::<Blood>(e).is_some()` and that is the whole check.
 //!
 //! * **Type-key components** — [`Potion`], [`Scroll`], [`Wand`], [`Ring`] — hold
@@ -103,7 +103,7 @@ pub struct Renderable {
 /// `Spirits` is its own side: peaceful toward everyone until
 /// [`SpiritsHostile`] flips, at which point it reads hostile toward the
 /// player and their allies exactly like `Monster` does. See
-/// [`crate::ai::hostile`].
+/// `crate::ai::hostile`.
 ///
 /// Appended, not filed under M: a save encodes a variant by its position
 /// (`postcard`), so new variants only ever go at the end.
@@ -397,7 +397,7 @@ pub enum MovementType {
 /// Set on every monster on the floor by a scroll of aggravate monsters (or a
 /// ring's shriek): out of the player's view, the creature makes a beeline for
 /// `(tx, ty)`, the tile the noise came from. In view it thinks with its own
-/// rule set again. See [`crate::ai`].
+/// rule set again. See [`crate::ai`](mod@crate::ai).
 #[derive(Component, Clone, Copy)]
 pub struct Aggravated {
     /// Column of the tile the noise came from.
@@ -462,7 +462,7 @@ pub struct Magic {
 /// The tempos an actor can move at. How often each acts is its
 /// [`rate`](SpeedKind::rate) against the [`Speed::COST`] of an action. The
 /// player is the clock: monsters bank [`Speed::energy`] each of the player's
-/// turns and spend it in [`crate::ai`], while the player's own tempo is
+/// turns and spend it in [`crate::ai`](mod@crate::ai), while the player's own tempo is
 /// handled by the engine loop (see [`PlayerTempo`]). Wands of haste/slow
 /// monster step a creature one notch along this scale, permanently.
 ///
@@ -558,18 +558,19 @@ impl Speed {
 }
 
 /// Drives the player's half of the speed system (see [`Speed`]). The engine loop
-/// consults the player's [`SpeedKind`] after every turn: a `Fast` player takes
-/// two inputs before the monsters get a move, a `Quick` one takes three for
-/// every two, a `Slow` player's single move is followed by two monster rounds,
-/// and `Normal` is one-for-one. Transient, never serialised.
+/// consults the player's [`SpeedKind`] after every turn: each kind banks its
+/// rate (see [`crate::constants::speed`]) per player turn against
+/// [`ACTION_COST`] per action, and monsters act on the normal rate. A faster
+/// player gets extra inputs per monster round, a slower one gives monsters
+/// extra rounds. Transient, never serialised.
 #[derive(Resource, Default)]
 pub struct PlayerTempo {
     /// Flips on each `Fast`-tempo turn; monsters move only when it flips back to
     /// `false`, so the pattern reads skip / run / skip / run.
     pub fast_parity: bool,
     /// How many turns the player has taken at a tempo that doesn't divide
-    /// evenly into monster rounds. `Quick` is the only one: two rounds bought
-    /// per three turns, so the third turn of every three is free. Counts on
+    /// evenly into monster rounds. `Quick` is the only one: its rate buys
+    /// fewer monster rounds than turns, so some turns are free. Counts on
     /// its own rather than reusing `fast_parity` because the two patterns are
     /// different lengths and a creature can be moved from one to the other
     /// mid-floor by a wand.
@@ -623,10 +624,10 @@ pub struct Invisible;
 /// A xeroc still wearing its disguise: its [`Name`] and [`Renderable`] read as
 /// an ordinary item, and it is excluded from every "a monster is nearby"
 /// check ([`crate::autoexplore::monster_in_sight`],
-/// [`crate::autofight::visible_enemies`]) so auto-explore and auto-fight are
+/// `crate::autofight::visible_enemies`) so auto-explore and auto-fight are
 /// fooled right along with the player. [`crate::monsters::reveal_mimics`]
 /// strips this — and the disguise with it — the instant the player is
-/// standing next to it. See [`crate::monsters::MonsterDef::mimics`].
+/// standing next to it. See `crate::monsters::MonsterDef::mimics`.
 #[derive(Component)]
 pub struct Mimic;
 
@@ -647,7 +648,7 @@ pub struct Item;
 
 /// What an item is worth in score, paid the moment it is picked up. Coins and
 /// the relic carry it; see [`crate::score::award`] and
-/// [`crate::items::pickups::pick_up`].
+/// `crate::items::pickups::pick_up`.
 #[derive(Component)]
 pub struct Value {
     /// The score paid on pickup.
@@ -663,7 +664,7 @@ pub struct Value {
 /// * **A full pack is no obstacle.** There is nothing to find room for.
 /// * **It is left alone when it would do nothing.** Walk over a red coin at
 ///   full health and it stays on the floor waiting for the day you need it
-///   ([`crate::items::pickups::would_help`]), and auto-explore does not detour
+///   (`crate::items::pickups::would_help`), and auto-explore does not detour
 ///   for one it cannot use either.
 /// * **It can be shot.** A missile that comes down on one sets it off like a
 ///   trap, in a wider burst
@@ -680,7 +681,7 @@ pub struct Pickup {
 }
 
 /// What stepping on a pickup does. The mechanic is an exhaustive match in
-/// [`crate::items::pickups`]; the amount it works with is the `amount` on the
+/// `crate::items::pickups`; the amount it works with is the `amount` on the
 /// [`crate::catalog::CoinDef`] row, so "how much" is data and "what kind" is
 /// this.
 ///
@@ -888,7 +889,7 @@ pub enum ScrollEffect {
     /// Opens a trapdoor under the reader: the same plunge as [`TrapEffect::Trapdoor`].
     /// Appended for the save-order reason above.
     Pitfall,
-    /// Makes the spirits neutral again: [`crate::spirits::atone`].
+    /// Makes the spirits neutral again: `crate::spirits::atone`.
     Atonement,
 }
 
@@ -964,7 +965,7 @@ pub struct Rune {
     /// Which rune this is.
     pub effect: RuneEffect,
     /// Whether it still holds a use. Reading spends it; a staircase restores
-    /// it ([`crate::items::recharge_runes`]).
+    /// it (`crate::items::recharge_runes`).
     pub charged: bool,
 }
 
@@ -1044,13 +1045,13 @@ pub enum WandEffect {
     Charming,
     /// Bores a tunnel through rock along the aim, [`DIG_RANGE`] tiles deep
     /// (never through the map's outer wall). See
-    /// [`crate::items::wands`]'s `dig_tunnel`.
+    /// `crate::items::wands`'s `dig_tunnel`.
     ///
     /// [`DIG_RANGE`]: crate::constants::wands::DIG_RANGE
     Digging,
     /// The zapper and what stands on the aimed tile trade places; thrown, the
     /// blast's creatures trade among themselves. See
-    /// [`crate::items::wands`]'s `swap_with_target`.
+    /// `crate::items::wands`'s `swap_with_target`.
     Swapping,
 }
 
@@ -1109,7 +1110,7 @@ pub enum SpellEffect {
     /// Hastes the caster ([`crate::conditions::hasten`]).
     HasteSelf,
     /// Appended, not filed under P: a save encodes a variant as its
-    /// position. See [`crate::items::wands::polymorph_entity`].
+    /// position. See `crate::items::wands::polymorph_entity`.
     PolymorphSelf,
     /// Polymorphs the creature on the aimed tile, as [`WandEffect::Polymorph`]
     /// does.
@@ -1144,7 +1145,7 @@ impl SpellEffect {
 }
 
 /// The two shapes an active spell comes in — an attack wand's own split
-/// ([`crate::items::wands::is_attack_wand`]), drawn again here because a spell
+/// (`crate::items::wands::is_attack_wand`), drawn again here because a spell
 /// answers to it too: a staff's [`crate::effects::TurboMagic`] multiplies the
 /// cost ([`TURBO_MAGIC_COST_MULT`](crate::constants::spells::TURBO_MAGIC_COST_MULT))
 /// and the damage ([`TURBO_MAGIC_POWER_MULT`](crate::constants::spells::TURBO_MAGIC_POWER_MULT))
@@ -1164,7 +1165,7 @@ pub enum SpellKind {
 ///
 /// A spell is coded the way a potion, scroll or wand is — one identity enum,
 /// one catalog row ([`crate::catalog::SpellDef`]), one mechanic keyed off it
-/// ([`crate::items::spells`]) — because it is exactly as *active* as any of
+/// (`crate::items::spells`) — because it is exactly as *active* as any of
 /// those. It differs from every item in the game in what it is not: it
 /// carries no [`Item`] marker, is never spawned with a [`Position`], holds no
 /// pack slot, and cannot be dropped or thrown. It lives here, permanently, and
@@ -1250,9 +1251,9 @@ pub struct GhostOfPlayer;
 /// A weapon, suit of armour or launcher whose enchantment plus and curse status
 /// the player has actually learned — by wearing it or by a scroll of identify
 /// singling it out (see [`crate::equipment::toggle_equipped`] and
-/// [`crate::items::scrolls`]). Until then [`crate::identify::display_name`]
+/// `crate::items::scrolls`). Until then [`crate::identify::display_name`]
 /// keeps both hidden, the same way a potion hides its effect. A potion, scroll,
-/// wand or ring never needs this — their own [`crate::identify::Identified`]
+/// wand or ring never needs this — their own `crate::identify::Identified`
 /// registry already answers the question.
 #[derive(Component)]
 pub struct KnownQuality;
@@ -1279,7 +1280,7 @@ pub enum Element {
     Fire,
     /// Resisted by [`ColdImmune`].
     Cold,
-    /// Life drain. Resisted by [`Undead`](crate::effects::Undead), which has no
+    /// Life drain. Resisted by [`Undead`], which has no
     /// life to take.
     Drain,
 }
@@ -1383,7 +1384,7 @@ pub struct LaunchedBy(pub crate::effects::Grant);
 pub struct LaunchedDamage(pub i32);
 
 /// Whatever this missile wounds is poisoned: it saps the victim's power the
-/// way a rattlesnake's bite does ([`crate::abilities::venomous_bite`]), on
+/// way a rattlesnake's bite does (`crate::abilities::venomous_bite`), on
 /// every hit that draws blood. The blowdart carries it.
 #[derive(Component, Clone, Copy)]
 pub struct Envenomed;
@@ -1432,7 +1433,7 @@ pub struct ReachPiercing;
 /// on the player, shown on the HUD (`PLAT`, `FORG`), and lost to something that
 /// happens *to* you. Unlike every other condition they are not lifted by the
 /// staircase — the staircase is what cashes them
-/// ([`crate::items::pickups::settle_promises`]).
+/// (`crate::items::pickups::settle_promises`).
 #[derive(Component)]
 pub struct Plated;
 
@@ -1455,7 +1456,7 @@ pub struct Forged;
 pub enum TrapEffect {
     /// Drops the victim straight to the next floor down. No escape.
     Trapdoor,
-    /// Clamps shut: the victim is [`Snare`]d and cannot move — though it may
+    /// Clamps shut: the victim is [`Pinned`](crate::effects::Pinned) and cannot move — though it may
     /// still strike an adjacent foe — until it works free.
     Bear,
     /// A hiss of gas: the victim sleeps through its next few turns.
@@ -1810,6 +1811,8 @@ pub enum LogCategory {
     /// A faerie shapeshifter's reveal, the dog's death (see
     /// `crate::combat`'s `reveal_faerie`). Pink.
     Faerie,
+    /// A special or dark room's entry line, painted in that room's wall colour.
+    Room(Color),
 }
 
 /// One line for the message log: its text, and the [`LogCategory`] it was

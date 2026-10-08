@@ -1,0 +1,16 @@
+components.rs::CardFace = Joker,KingOfClubs,PrinceOfSwords,QueenOfCups,PrincessOfDiamonds,Balance,Bole,PlusFour,SkullKing,PotOfSin,BlackMage,Child,Crone,Eyes,Fool,Excuse,Jester,Chariot,World,GoldenWind
+components.rs::Faction = Player,Monster,Ally,Spirits,Inert
+components.rs::MovementType = Static,Chase,Flee,Confused,Aggravated,Ambush
+components.rs::PickupEffect = Coin,Health,Power,Cleanse,Strength,Platinum,Forge,LearnRandomSpell
+components.rs::PotionEffect = Blindness,Confusion,ExtraHealing,FruitJuice,GainStrength,Haste,Healing,MagicDetection,MonsterDetection,Paralysis,Poison,RaiseLevel,RestoreStrength,SeeInvisible,Water,Magic,Adjustment,Polymorph
+components.rs::RingEffect = Protection,Strength,Perception,Adornment,AggravateMonster,Sharpshooting,IncreaseDamage,Regeneration,SlowDigestion,Teleportation,Stealth,MaintainArmor,Polymorph,SustainForm,DualZap,Health
+components.rs::RuneEffect = Blank,Recharging,Displacement,Justice,Chaos,Ice,Protection
+components.rs::ScrollEffect = MonsterConfusion,MagicMapping,HoldMonster,Sleep,EnchantArmor,Identify,ScareMonster,FoodDetection,Teleportation,EnchantWeapon,CreateMonster,RemoveCurse,AggravateMonsters,BlankPaper,VorpalizeWeapon,Amnesia,Charming,Pitfall,Atonement
+components.rs::SpeedKind = Slow,Normal,Fast,Quick
+components.rs::SpellEffect = DragonBreath,Sting,Thunderbolt,Cure,Bide,ForceLance,Identify,Setup,Lux,CircleOfDeath,MagicWard,Heal,MeteorStrike,FrostNova,MagicMapping,HasteSelf,PolymorphSelf,PolymorphOther,GateDown
+components.rs::TrapEffect = Trapdoor,Bear,Sleep,Teleport,Arrow,Dart
+components.rs::TrapReveal = Sight,Adjacent,Triggered
+components.rs::WandEffect = Light,Striking,Lightning,Fire,Cold,Polymorph,MagicMissile,HasteMonster,SlowMonster,DrainLife,Nothing,TeleportAway,TeleportTo,Cancellation,Charming,Digging,Swapping
+equipment.rs::Slot = Hand,Body,Finger
+leaderboard.rs::Outcome = Win,LoseAscent,LoseDescent
+saveload.rs::SavedLifetime = Permanent,Floor,Turns,NextAction

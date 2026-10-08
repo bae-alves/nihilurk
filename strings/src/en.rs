@@ -625,6 +625,11 @@ pub fn body_conflicts_with_load(flag: &str, name: &str) -> String {
     format!("nihilurk: a save already knows what body it is in; drop {flag} {name} to load it.")
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn invalid_save() -> &'static str {
+    "Invalid save file for this version, or it is corrupted."
+}
+
 pub fn clear_data_not_saved() -> &'static str {
     "Clear data not saved (-ns)."
 }
@@ -1322,6 +1327,18 @@ pub fn treasure_hive_enter() -> &'static str {
 
 pub fn red_room_enter() -> &'static str {
     "Treasure gleams, but you can only pick one."
+}
+
+// TODO: placeholder line; needs real wording.
+// TODO: placeholder English; needs a human's pass.
+pub fn monster_zoo_enter() -> &'static str {
+    "Every tile in here is looking at you."
+}
+
+// TODO: placeholder line; needs real wording.
+// TODO: placeholder English; needs a human's pass.
+pub fn dark_room_enter() -> &'static str {
+    "It is very dark in here."
 }
 
 pub fn labyrinth_arrival() -> &'static str {
@@ -2645,12 +2662,9 @@ pub fn hand_five_flush() -> &'static str {
     "Five Flush!"
 }
 
-pub fn card_element() -> &'static str {
-    "The Element of Yoord is in your pack. Just get out of here."
-}
-
-pub fn card_element_wipes_pack() -> &'static str {
-    "The Element needs room. Everything you carried is gone."
+// TODO: placeholder English; needs a human's pass.
+pub fn card_five_flush_gear() -> &'static str {
+    "Everything you wear burns white: +5, and no curse holds."
 }
 
 pub fn throw_hangs_in_the_air(name: &str) -> String {

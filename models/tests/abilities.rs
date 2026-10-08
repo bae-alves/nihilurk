@@ -1373,10 +1373,12 @@ fn a_save_naming_an_effect_this_build_lacks_loses_only_that_one() {
         Held {
             id: "fire_immune",
             lifetime: Lifetime::Permanent,
+            count: 0,
         },
         Held {
             id: "a_row_this_build_does_not_have",
             lifetime: Lifetime::Permanent,
+            count: 0,
         },
     ];
     let unknown = attach_effects(&mut w.entity_mut(bearer), &held);

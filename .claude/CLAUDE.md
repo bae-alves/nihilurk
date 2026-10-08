@@ -12,7 +12,8 @@ Conflicts: correctness > my goal > repo convention. Cite repo evidence to resolv
 - Bugs you caused: fix. Pre-existing in-path: fix+report. Out-of-path: journal.
 - Arch/frameworks/major refactors: mine — ask if unclear. Multiple approaches→present options, never pick silently.
 - Plan Mode for major arch/multi-phase. Enforcement=hooks/permissions; docs=guidance.
-- Scripting: Only bash and lua ever get committed.
+- Scripting in codebase: Only bash and lua ever get committed.
+- Temp Scripts/Scratchpad: ruby.
 - Diffs you didn't cause: be quiet, it was bae or a peer.
 - Comments: none inside fn bodies in engine/models/particle-core. OK: docs, signature notes, file headers, catalog how-to-add notes, an own-line note directly above a closure. Name it or split it.
 - Dwarven Council ideas: read, investigate, Q/A
@@ -25,7 +26,6 @@ No mock modes in app code.
 
 # Context/output
 Plan doc→read it, skip tree explore. Else /docs+grep specifics; no free exploring.
-Journal insights in `.claude/journal.local.md` (git-ignored); search first on complex tasks.
 Feedback mem. only on "remember"/"memorize".
 Post non-trivial work: risks+severity+pre-ship fixes. Don't invent these.
 Long output→file, never dump raw. Q&A: one Q at a time, multiple-choice/boolean.

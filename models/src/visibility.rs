@@ -2,10 +2,10 @@
 //! items and traps that view turns up.
 //!
 //! [`visibility_system`] only runs a viewshed when it is marked dirty (moving,
-//! a wand of light, a door opening), recomputes [`visible_from`], then hands
-//! the result to [`hide_and_announce`] and [`reveal_traps`] to decide what
+//! a wand of light, a door opening), recomputes `visible_from`, then hands
+//! the result to `hide_and_announce` and `reveal_traps` to decide what
 //! gets a `Hidden`/`Spotted` flip and a line in the log. It never touches what
-//! a monster can see — that question belongs to [`crate::ai`].
+//! a monster can see — that question belongs to [`crate::ai`](mod@crate::ai).
 
 use crate::components::*;
 use crate::effects::{Blind, FormMarks, SeesInvisible, form_of_marks};
@@ -224,7 +224,7 @@ fn flood_fill_room(map: &Map, start: (u16, u16), visible: &mut HashSet<(u16, u16
 /// *nothing*, not even the monster in the next square. Every mob goes [`Hidden`]
 /// (so it is not drawn, and auto-walk and auto-fight refuse to run — they have
 /// nothing to look at), and nothing is ever announced as spotted. It does not
-/// touch what the monsters know; see [`crate::ai`].
+/// touch what the monsters know; see [`crate::ai`](mod@crate::ai).
 #[allow(clippy::type_complexity)]
 #[allow(clippy::too_many_arguments)] // the whole per-entity spotting decision
 fn hide_and_announce(

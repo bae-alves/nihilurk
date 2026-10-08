@@ -15,7 +15,7 @@
 //!
 //! The two doublings are the same verb ([`double`]) because they are the same
 //! idea: the run is not scored on what you killed, it is scored on getting out
-//! with style. See [`crate::items::rings::do_it_with_style`].
+//! with style. See `crate::items::rings::do_it_with_style`.
 //!
 //! Nothing here is ever silent. Every payment sets a [`ScoreFlash`], and the HUD
 //! spends the scorekeeper's own space on it for a beat: `+700` in a colour

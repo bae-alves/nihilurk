@@ -4,7 +4,8 @@ How to publish nihilurk to crates.io
     Audience       The maintainer, cutting a release.
     Prerequisites  A crates.io account and an API token
                    (`cargo login`). A clean working tree, and the
-                   release committed and tagged.
+                   release committed and tagged. A verified email on
+                   the account: crates.io refuses an upload without one.
     Result         Four crates on crates.io, and `cargo install
                    nihilurk` gives a stranger the game.
 
@@ -21,6 +22,8 @@ Quick commands
     cargo publish --workspace                    the real upload, in order
 
 `--workspace` sends the crates in dependency order. `compat` is skipped on its own, because it is `publish = false`.
+
+crates.io limits how fast a new crate can appear: a burst of about five, then one every ten minutes. A first upload of all four fits in the burst. A fifth new crate would wait.
 
 
 What goes out
@@ -48,7 +51,7 @@ Before the first upload
 
     `engine/tests/workspace.rs` fails if a `path` dependency has no version at all. It cannot tell you the version is stale, and cargo cannot either until the upload has half happened.
 
-2. Check the page crates.io will show. Description, keywords, categories, `readme` and `rust-version` are frozen into each version, so a wrong one costs a new number. `engine/tests/workspace.rs` holds the limits crates.io enforces (five keywords, twenty characters each), and fails on an integration test that reads outside its crate without an `exclude` line, because that test cannot pass from an unpacked download. The floors differ by crate: `nihilurk-particle-core` and `nihilurk-strings` build on 1.85, `nihilurk-models` and `nihilurk` need 1.91. Raise one if you add code that needs a newer compiler, and build it on that compiler first (`cargo +1.85.0 check -p nihilurk-strings`).
+2. Check the page crates.io will show. Description, keywords, categories, `readme` and `rust-version` are frozen into each version, so a wrong one costs a new number. `engine/tests/workspace.rs` holds the limits crates.io enforces (five keywords, twenty characters each), and fails on an integration test that reads outside its crate without an `exclude` line, because that test cannot pass from an unpacked download. The floors differ by crate: `nihilurk-particle-core` and `nihilurk-strings` build on 1.85, `nihilurk-models` and `nihilurk` need 1.91 (let chains and a const `TypeId::of`; 1.90 fails). The two small crates stay on 1.85 because the ESP32 check in `compat/` builds them, and a shared 1.91 would break it. Raise one if you add code that needs a newer compiler, and build it on that compiler first (`cargo +1.85.0 check -p nihilurk-strings`).
 
 3. Commit, then tag: `git tag v<version>`. The GitHub release and the AUR package both build from that tag. Pushing the tag starts the release workflow, so see `publish-a-github-release.md` first.
 

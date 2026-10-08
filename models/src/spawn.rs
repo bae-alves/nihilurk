@@ -30,11 +30,11 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
-use crate::catalog::apply_bonus;
 use crate::catalog::{
     AMMO, ARMORS, COINS, DECKS, ItemDef, LAUNCHERS, POTIONS, RINGS, RUNES, SCROLLS, TREATS, WANDS,
     WEAPONS, spawn_element_of_yoord,
 };
+use crate::catalog::{apply_bonus, make_exceptional};
 use crate::components::{Curse, Position, STACK_LIMIT, Stack, TrapReveal};
 use crate::map::Map;
 use crate::monsters::{MonsterDef, spawn_monster};
@@ -126,7 +126,7 @@ fn names_of<D: ItemDef>(table: &'static [D], depth: u8) -> Vec<&'static str> {
 ///
 /// The three function pointers are the category's table with its element type
 /// erased — a `const` can hold `fn`s but not a `&dyn ItemDef`. Nobody writes
-/// them by hand; [`category!`] fills all three in from the table's name.
+/// them by hand; `category!` fills all three in from the table's name.
 pub struct DropCategory {
     /// What this category is called, for the `--content` listing and for
     /// error messages. Not a row name — no item is called "scroll".
@@ -227,6 +227,51 @@ pub fn roll_item_except(
     (pool[idx].roll)(world, rng, depth, pos)
 }
 
+/// One weapon, armour, launcher or ring for a floor at `depth`, drawn by the loot
+/// table's own category weights and always rolled exceptional ([`make_exceptional`]).
+pub(crate) fn roll_exceptional_equipment(
+    world: &mut World,
+    rng: &mut ChaCha12Rng,
+    depth: u8,
+    pos: Position,
+) -> Entity {
+    let pool: Vec<&DropCategory> = DROPS
+        .iter()
+        .filter(|c| {
+            matches!(c.name, "armor" | "weapon" | "launcher" | "ring") && c.available(depth)
+        })
+        .collect();
+    let weights: Vec<u32> = pool.iter().map(|c| c.weight).collect();
+    let idx = pick_weighted(&weights, rng).expect("armor is available at every depth");
+    let item = match pool[idx].name {
+        "armor" => roll_plain(world, rng, depth, pos, ARMORS, |_| true),
+        "weapon" => roll_plain(world, rng, depth, pos, WEAPONS, |_| true),
+        "launcher" => roll_plain(world, rng, depth, pos, LAUNCHERS, |_| true),
+        _ => roll_plain(world, rng, depth, pos, RINGS, |r| r.is_numeric()),
+    };
+    make_exceptional(world, rng, item);
+    item
+}
+
+/// [`roll_one`] without the floor's quality roll — the row as written — over
+/// the rows `keep` allows.
+fn roll_plain<D: ItemDef>(
+    world: &mut World,
+    rng: &mut ChaCha12Rng,
+    depth: u8,
+    pos: Position,
+    table: &'static [D],
+    keep: impl Fn(&D) -> bool,
+) -> Entity {
+    let pool: Vec<&D> = eligible(table, depth)
+        .into_iter()
+        .filter(|d| keep(d))
+        .collect();
+    let weights: Vec<u32> = pool.iter().map(|d| d.weight()).collect();
+    let idx = pick_weighted(&weights, rng).expect("a category's table has a row at its min_depth");
+    pool[idx].spawn(world, pos)
+}
+
 // ---------------------------------------------------------------------------
 // Spawning anything by name
 // ---------------------------------------------------------------------------
@@ -306,7 +351,7 @@ pub fn content_names() -> Vec<(&'static str, &'static str)> {
 /// NIHILURK_SPAWN="cursed -2 long sword,+3 ring mail,arrow x13" cargo run -p nihilurk
 /// ```
 ///
-/// `cursed`, `+N`/`-N` and `xN` dress gear and ammunition; see [`SpawnMods`].
+/// `cursed`, `+N`/`-N` and `xN` dress gear and ammunition; see `SpawnMods`.
 ///
 /// A name the tables do not know is skipped in silence — this is a debug knob,
 /// not a parser. Placement walks outward from `near` and takes the first free

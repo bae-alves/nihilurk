@@ -72,7 +72,7 @@ fn annotate_quality(world: &World, item: Entity, base: String) -> String {
 
 /// The [`display_name`] logic, decoupled from `&World` so a `Query`-based
 /// system (which never holds a whole-`World` reference) can render the same
-/// label — see [`crate::visibility::spotted_line`].
+/// label — see `crate::visibility::spotted_line`.
 pub fn named_display(name: Option<&Name>, stack: Option<&Stack>) -> String {
     let name = name
         .map(|n| n.what.clone())

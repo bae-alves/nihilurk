@@ -178,8 +178,8 @@ pub fn throw_reach(world: &World, thrower: Entity, item: Entity) -> i32 {
 /// * **A launcher switches the die.** A missile carrying [`LaunchedBy`] asks
 ///   whether its thrower has the effect it answers to; if so it rolls its
 ///   [`LaunchedDamage`] instead of [`ThrownDamage`] — an arrow lobbed by hand
-///   rolls its [`AmmoDef::die`], the same arrow loosed from a bow its
-///   [`AmmoDef::launched_die`]. The bow is not consulted — only the effect is, so a
+///   rolls its `AmmoDef::die`, the same arrow loosed from a bow its
+///   `AmmoDef::launched_die`. The bow is not consulted — only the effect is, so a
 ///   monster that picked one up shoots just as well as you do.
 /// * **Only armour's plus blunts it.** The target's armour die never enters
 ///   into it — a point already in flight does not care what you are wearing —
@@ -567,7 +567,7 @@ fn put_back(world: &mut World, carrier: Entity, item: Entity, slot_idx: Option<u
 /// then whatever is waiting on the tile it landed on.
 ///
 /// A shot that comes down on a trap sets it off, and a trap with nobody
-/// standing on it does not bite one victim: it bursts (see [`detonate_trap`]).
+/// standing on it does not bite one victim: it bursts (see [`detonate_trap`](crate::detonate_trap)).
 /// That is the trick shot, and it is why this is a wrapper rather than the
 /// whole job — it happens whatever the item was, whether or not the shot hit
 /// anyone, and whether or not it was the shot the thrower had in mind.
@@ -936,7 +936,7 @@ fn confetti_burst(fx: &mut Particles, center: Position) {
 /// a fired missile always resolves — the ammunition's [`LaunchedDamage`] die,
 /// the roll ignoring armour outright, plus whatever [`ThrowBonus`] the
 /// launcher's own enchantment lends. A monster keeps no quiver to draw from,
-/// so unlike the player's own shot this one never runs dry: [`crate::ai`]
+/// so unlike the player's own shot this one never runs dry: [`crate::ai`](mod@crate::ai)
 /// calls it in place of a melee attack for as long as a launcher stays in its
 /// hand.
 ///

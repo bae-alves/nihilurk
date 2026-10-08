@@ -332,7 +332,7 @@ fn detect_magic(world: &mut World, user: Entity) -> bool {
 ///
 /// Also the *dividing line* between the two detections: a scroll of food
 /// detection turns up precisely what this rejects (see
-/// [`super::scrolls::detect_mundane_items`]), so between them they find
+/// `super::scrolls::detect_mundane_items`), so between them they find
 /// everything on the floor exactly once.
 pub(super) fn worth_detecting(world: &World, item: Entity) -> bool {
     let keyed = world.get::<Potion>(item).is_some()

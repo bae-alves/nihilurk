@@ -33,6 +33,7 @@ pub use crate::constants::screen::{MAP_TOP, SCREEN_H, SCREEN_W};
 
 /// A screen cell: glyph, foreground colour, background colour.
 pub type Cell = (char, Color, Color);
+/// An empty cell: a space in the terminal's default colours.
 pub const BLANK_CELL: Cell = (' ', Color::Reset, Color::Reset);
 
 /// Double-buffered character grid. `render` paints the whole frame into `cur`;
@@ -40,11 +41,14 @@ pub const BLANK_CELL: Cell = (' ', Color::Reset, Color::Reset);
 /// previously displayed frame, so a typical turn writes a few dozen cells
 /// instead of repainting all 2000.
 pub struct Screen {
+    /// The frame being built, row-major, `SCREEN_W` cells per row.
     cur: Vec<Cell>,
+    /// The frame the terminal is showing, for diffing against `cur`.
     prev: Vec<Cell>,
     /// Force a full repaint on the next flush (first frame, or the centering
     /// offset changed and stale cells would otherwise be left behind).
     pub dirty_all: bool,
+    /// The centering offset the last flush drew at.
     last_offset: (u16, u16),
     /// Where the screen shake has thrown the map this frame, in whole cells
     /// right and down. Read only by the map-space painters below, so the
@@ -60,6 +64,8 @@ pub struct Screen {
 }
 
 impl Screen {
+    /// A blank grid of `SCREEN_W` x `SCREEN_H` cells, due a full repaint on
+    /// the first flush.
     pub fn new() -> Self {
         let len = (SCREEN_W * SCREEN_H) as usize;
         Self {
@@ -71,12 +77,15 @@ impl Screen {
         }
     }
 
+    /// Blanks every cell of the frame being built. The displayed frame is untouched.
     pub fn clear(&mut self) {
         for c in &mut self.cur {
             *c = BLANK_CELL;
         }
     }
 
+    /// Writes `ch` at `(x, y)` in `color` over a default background. A cell off
+    /// the grid is ignored.
     #[inline]
     pub fn put(&mut self, x: u16, y: u16, ch: char, color: Color) {
         if x < SCREEN_W && y < SCREEN_H {
@@ -102,6 +111,7 @@ impl Screen {
         }
     }
 
+    /// The cell at `(x, y)` in the frame being built, or [`BLANK_CELL`] off the grid.
     #[inline]
     pub fn get(&self, x: u16, y: u16) -> Cell {
         if x >= SCREEN_W || y >= SCREEN_H {
@@ -169,18 +179,24 @@ impl Screen {
         }
     }
 
+    /// Writes `s` left to right from `(x, y)`, one cell per char. Anything past
+    /// the right edge is dropped.
     pub fn puts(&mut self, x: u16, y: u16, s: &str, color: Color) {
         for (i, ch) in s.chars().enumerate() {
             self.put(x + i as u16, y, ch, color);
         }
     }
 
+    /// Writes `ch` in `n` cells running right from `(x, y)`.
     pub fn hline(&mut self, x: u16, y: u16, ch: char, n: u16, color: Color) {
         for i in 0..n {
             self.put(x + i, y, ch, color);
         }
     }
 
+    /// Emits terminal commands for the cells that changed since the last flush
+    /// (all of them when `dirty_all` is set or `offset` moved), drawing the grid
+    /// shifted by `offset`. Returns how many cells it wrote.
     pub fn flush<W: Write>(&mut self, out: &mut W, offset: (u16, u16)) -> std::io::Result<usize> {
         if offset != self.last_offset {
             self.dirty_all = true;

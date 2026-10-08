@@ -1,12 +1,12 @@
 //! `Faction::Spirits`: neutral until crossed. A spirit fights nobody on its
-//! own — see [`crate::ai::hostile`] and the `MovementType::Confused` wiring
+//! own — see `crate::ai::hostile` and the `MovementType::Confused` wiring
 //! on its bestiary row — but two things turn every spirit on the player for
 //! good, permanently, for the rest of the run:
 //!
 //! 1. [`crate::components::Alignment`] reaching a pole (±[`ALIGNMENT_POLE`]): every spirit
 //!    that poofs pulls it one step toward its own kind.
 //! 2. Any wound on a spirit, whoever dealt it: a blast, a trap, a trick
-//!    shot, a monster's claws. Spirits are fickle. See [`on_wounded`].
+//!    shot, a monster's claws. Spirits are fickle. See `on_wounded`.
 //!
 //! A scroll of atonement makes them neutral again.
 
@@ -172,7 +172,7 @@ pub fn shift_alignment(world: &mut World, player: Entity, delta: i8) {
 /// uses one.
 const OFFER_COUNT: usize = 3;
 
-/// [`sample`], but over a `'static` catalog table too big to copy —
+/// `sample`, but over a `'static` catalog table too big to copy —
 /// [`WEAPONS`]/[`ARMORS`]/[`RINGS`] rows are borrowed, never cloned.
 fn sample_refs<T>(
     pool: &'static [T],
@@ -197,8 +197,8 @@ fn roll_with_shared_rng(
     picked
 }
 
-/// Three spells the player doesn't already know, off [`SPELLS`] — the same
-/// pool [`crate::items::pickups::learn_spell`] draws its one random pick
+/// Three spells the player doesn't already know, off [`SPELLS`](crate::SPELLS) — the same
+/// pool `crate::items::pickups::learn_spell` draws its one random pick
 /// from. Fewer than three (down to none) if that many aren't left to learn.
 pub fn roll_spell_offer(world: &mut World, player: Entity) -> Vec<OfferOption> {
     roll_spells(world, player, OFFER_COUNT)

@@ -89,7 +89,7 @@ pub struct MonsterDef {
     /// component, so the wand of fire has one case to handle, not two.
     pub grants: &'static [Grant],
     /// The spells this species is born knowing: its [`Spellset`], the same
-    /// [`SpellEffect`]s a player learns, at the same [`SpellDef::cost`]. A
+    /// [`SpellEffect`]s a player learns, at the same `SpellDef::cost`. A
     /// player wearing the row gets them in the spell bar.
     pub spells: &'static [SpellEffect],
     /// How many times a monster of this row can cast its dearest spell: two
@@ -104,10 +104,10 @@ pub struct MonsterDef {
     pub speed: SpeedKind,
     /// Odds, rolled independently, of turning up already carrying a piece of
     /// gear — a centaur's bow, a hobgoblin's chance at a weapon, an armour and
-    /// a ring all at once. See [`roll_spawn_gear`].
+    /// a ring all at once. See `roll_spawn_gear`.
     pub equip_rolls: &'static [EquipRoll],
     /// Born disguised as an item until the player is adjacent — the xeroc. See
-    /// [`disguise_as_item`].
+    /// `disguise_as_item`.
     pub mimics: bool,
     /// `Some` makes this a [`Faction::Spirits`] row instead of an ordinary
     /// [`Faction::Monster`] one, and says which way it pulls [`Alignment`]
@@ -119,12 +119,12 @@ pub struct MonsterDef {
     pub spirit_event: Option<SpiritEvent>,
     /// A pool to draw `n` distinct random [`Grant`]s from at spawn time, on
     /// top of the fixed `grants` list — every spirit's two boons (see
-    /// [`MonsterDef::spirit`]). `None` for every ordinary row: a species'
+    /// `MonsterDef::spirit`). `None` for every ordinary row: a species'
     /// magic is the same magic every time.
     pub random_grants: Option<(&'static [Grant], u8)>,
     /// Born with a pack of floor loot to trade away — the yellow demon's
     /// stock, [`BARTER_STOCK_MIN`] to [`BARTER_STOCK_MAX`] drops. See
-    /// [`roll_barter_stock`].
+    /// `roll_barter_stock`.
     pub stocks_barter: bool,
 }
 
@@ -363,7 +363,7 @@ const SPIRIT_BOONS: &[Grant] = &[
 
 /// How often a bestiary row that carries [`EquipRoll`]s rolls each one, and what
 /// it reaches for when it hits. Rolled independently at spawn by
-/// [`roll_spawn_gear`] — a hobgoblin's three rolls (weapon, armour, ring) can
+/// `roll_spawn_gear` — a hobgoblin's three rolls (weapon, armour, ring) can
 /// land none, one, two or all three.
 #[derive(Clone, Copy)]
 pub struct EquipRoll {
@@ -390,7 +390,7 @@ pub enum EquipKind {
 /// conjuring makes it the Helper, it outranks the ordinary Helper, a kill
 /// sometimes turns it into something else, and its death reveals a faerie
 /// shapeshifter. Nothing cancels them. A creature that holds any of them
-/// keeps them through a change of shape ([`reshape`]).
+/// keeps them through a change of shape (`reshape`).
 pub const DOG_GRANTS: &[Grant] = &[
     Grant::of::<AlwaysTamed>(),
     Grant::of::<AlwaysHelper>(),
@@ -470,11 +470,11 @@ pub const BESTIARY: &[MonsterDef] = &[
     // makes it a dog is `DOG_GRANTS`, four separate behaviours.
     MonsterDef::row("dog", 'd', Color::DarkYellow, Chase, 8, 6, 0, 7, 0, 3)
         .grants(DOG_GRANTS)
-        .weight(2),
+        .weight(4),
     // The dog's numbers; it copies what it kills (`MIRROR_HOUND_GRANTS`).
     MonsterDef::row("mirror hound", 'd', Color::Grey, Chase, 8, 6, 0, 7, 0, 6)
         .grants(MIRROR_HOUND_GRANTS)
-        .weight(1),
+        .weight(2),
     MonsterDef::row("dragon", 'D', Color::Red, Chase, 13, 12, 2, 10, 2, 10)
         .grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>()])
         .casts(2, &[SpellEffect::DragonBreath]),
@@ -857,15 +857,15 @@ fn base_spawn(world: &mut World, def: &MonsterDef, pos: Position) -> Entity {
     e
 }
 
-/// [`base_spawn`] plus whatever `def` rolls dice for: its [`EquipRoll`]s
-/// ([`roll_spawn_gear`]) and its mimic disguise ([`disguise_as_item`]), off
+/// `base_spawn` plus whatever `def` rolls dice for: its [`EquipRoll`]s
+/// (`roll_spawn_gear`) and its mimic disguise (`disguise_as_item`), off
 /// the shared [`GameRng`] — the ordinary way to spawn a monster at runtime (a
 /// scroll of create monster, a wand of polymorph), where borrowing a few
 /// rolls from the shared stream is exactly what the rest of that effect
 /// already does.
 ///
 /// A world with no [`GameRng`] resource (a bare test fixture) falls back to
-/// [`base_spawn`] alone — no gear, no disguise — rather than panicking.
+/// `base_spawn` alone — no gear, no disguise — rather than panicking.
 pub fn spawn_monster(world: &mut World, def: &MonsterDef, pos: Position) -> Entity {
     let e = base_spawn(world, def, pos);
     let Some(GameRng(mut rng)) = world.remove_resource::<GameRng>() else {
@@ -883,7 +883,7 @@ pub fn spawn_monster(world: &mut World, def: &MonsterDef, pos: Position) -> Enti
 
 /// [`spawn_monster`], but drawing its dice from `rng` instead of the shared
 /// [`GameRng`] resource. This is what floor population
-/// ([`crate::map::population::populate_level`]) calls: a floor's *contents*
+/// (`crate::map::population::populate_level`) calls: a floor's *contents*
 /// are a pure function of `(seed, depth, staircases taken)`, rolled off their
 /// own dedicated stream, and reaching into the shared one here — even for
 /// something as small as a hobgoblin's chance at a sword — would let whatever
@@ -1095,7 +1095,7 @@ const MIMIC_LOOKS: &[(&str, char, Color)] = &[
 /// [`Renderable`] are swapped for a look-alike's and [`Mimic`] goes on, which
 /// is what excludes it from every "a monster is nearby" check —
 /// [`crate::autoexplore::monster_in_sight`] and
-/// [`crate::autofight::visible_enemies`] — so auto-explore and auto-fight are
+/// `crate::autofight::visible_enemies` — so auto-explore and auto-fight are
 /// fooled right along with the player, and the sighting line in the log reads
 /// as spotting the fake item rather than the monster underneath it.
 ///
@@ -1122,7 +1122,7 @@ fn disguise_as_item(world: &mut World, mob: Entity, rng: &mut ChaCha12Rng) {
 
 /// Strips a xeroc's disguise the instant the player is standing next to it:
 /// restores its true name and glyph and removes [`Mimic`]. Scheduled just
-/// before [`crate::ai`], so the very turn the player draws alongside one it
+/// before [`crate::ai`](mod@crate::ai), so the very turn the player draws alongside one it
 /// also gets to lash out — see [`MovementType::Ambush`].
 ///
 /// Assumes the player's [`Position`] already reflects this turn's move — true
@@ -1171,7 +1171,7 @@ pub fn reveal_mimics(world: &mut World) {
 
 /// A slime that survived a wound buds a fresh copy of itself at its current
 /// HP, if there is somewhere for the copy to stand. Called from
-/// [`crate::helpers::took_damage`], which every damage path in the game —
+/// `crate::helpers::took_damage`, which every damage path in the game —
 /// melee included — already runs through.
 pub fn maybe_split(world: &mut World, victim: Entity) {
     if world.get::<crate::effects::Splits>(victim).is_none() {
@@ -1309,7 +1309,7 @@ pub(crate) fn species_of(world: &World, who: Entity) -> Option<&'static MonsterD
         .find(|m| m.spirit_kind.is_none() && m.display_name() == name)
 }
 
-/// What `killer` just did, if it can shapeshift: a [`SHAPESHIFT_CHANCE`] roll
+/// What `killer` just did, if it can shapeshift: a `SHAPESHIFT_CHANCE` roll
 /// on [`ShapeshiftOnKill`] or [`MirrorOnKill`] (the latter copies `victim`,
 /// and does nothing when `victim` is no species or its own). A change of shape
 /// spends the ability. Called by the melee kill funnel in `crate::combat`.
@@ -1350,7 +1350,7 @@ pub(crate) fn maybe_shapeshift(
 /// The player *entity* survives — [`Player`], [`Faction::Player`],
 /// [`Viewshed`], [`Backpack`], [`Score`], [`Magic`] and [`Spellset`] are what
 /// make them the one the game is about, and none of them are things a species
-/// has an opinion on. What changes is everything [`MonsterBundle::from_def`]
+/// has an opinion on. What changes is everything `MonsterBundle::from_def`
 /// would have set, minus the two fields that would hand the player to the
 /// enemy: [`Mob`] (which is what `ai` steers) and [`Faction::Monster`].
 ///

@@ -30,7 +30,7 @@ pub struct RngSeed(pub u64);
 /// A second RNG stream for animation and particle cosmetics only — a death
 /// burst's fling direction, a blood splatter's spray — seeded from the same
 /// run seed but salted apart from [`GameRng`], the same way
-/// [`crate::identify::ItemAppearances`] gets its own stream. Nothing that
+/// `crate::identify::ItemAppearances` gets its own stream. Nothing that
 /// reads this ever feeds back into gameplay, so cosmetic rolls (or a feature
 /// like `-nb` skipping them entirely) can never perturb the shared gameplay
 /// stream everything else depends on for determinism.
@@ -73,13 +73,13 @@ fn floor_stream(seed: u64, depth: u8, salt: u64, generation: u64) -> ChaCha12Rng
 const LAYOUT_SALT: u64 = 0xF100_0BED_5EED;
 const LEVEL_SALT: u64 = 0x5_BEC1_A11E_7E1;
 const CONTENT_SALT: u64 = 0x0C0F_FEE0_D00D;
-/// Odd multiplier that scatters [`FloorChanges`] across the seed space, so
+/// Odd multiplier that scatters [`FloorChanges`](crate::FloorChanges) across the seed space, so
 /// consecutive visits to a floor are as unlike each other as two random seeds.
 const GENERATION_SALT: u64 = 0x9E37_79B9_7F4A_7C15;
 
 /// The RNG a floor's **layout** is built from — rooms, corridors, doors, stairs.
 ///
-/// This is the same trick [`initialize_world`] plays for item appearances, and
+/// This is the same trick [`initialize_world`](crate::initialize_world) plays for item appearances, and
 /// for the same reason. A floor's shape is a pure function of `(seed, depth)`,
 /// so nothing else can move it: not the loot rolls, not a new row in a content
 /// table, not how long the player spent fighting on the way down. Two
