@@ -13,7 +13,16 @@ What you get:
   * Seeded floors (`-s 1234`), and two ways down: nihil, who carries gear, or the lurk (`-b lurk`), who has claws and fur.
   * Four languages, English, Portuguese, Spanish and Haitian Creole, one binary each, picked at build time.
 
-Install from crates.io (needs Rust 1.91 or newer) and play:
+Download a prebuilt game (v0.3.0), no Rust needed:
+
+  * [Windows, x86_64 (.zip)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-x86_64-pc-windows-msvc.zip)
+  * [macOS, Apple Silicon (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-aarch64-apple-darwin.tar.gz)
+  * [Linux, x86_64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-x86_64-unknown-linux-musl.tar.gz)
+  * [Linux, aarch64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-aarch64-unknown-linux-musl.tar.gz)
+
+Unpack it and run `./nihilurk` (`nihilurk.exe` on Windows). Keep the files together: the dispatcher starts the `nihilurk-<lang>` binary next to it. The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it. Every file has a checksum at the same address plus `.sha256`, and older versions are on the [releases page](https://github.com/bae-alves/nihilurk/releases).
+
+Or install from crates.io (needs Rust 1.91 or newer) and play:
 
     cargo install nihilurk                  # install the English game
     cargo install nihilurk --no-default-features --features lang-pt    # or another language
@@ -37,8 +46,6 @@ From a clone:
 
 
 The game needs a terminal of at least 80 columns by 25 rows. In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
-
-Prebuilt downloads are on the [releases page](https://github.com/bae-alves/nihilurk/releases): Linux tarballs (x86_64 and aarch64, static musl), a Windows `.zip` (x86_64) and a macOS tarball (Apple Silicon). Unpack one and run `./nihilurk` (`nihilurk.exe` on Windows). Keep the files together: the dispatcher starts the `nihilurk-<lang>` binary next to it. The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it.
 
 It runs on Windows: a tester built it there and played it. On macOS the prebuilt binary is built and started by CI (Apple Silicon), but nobody has played it there yet. If you try Windows or macOS, [open an issue](https://github.com/bae-alves/nihilurk/issues) and say what happened, good or bad.
 
