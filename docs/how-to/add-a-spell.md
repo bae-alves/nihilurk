@@ -121,7 +121,7 @@ There is no `NIHILURK_SPAWN` for a spell. In play the only way to learn one is a
         slots: vec![SpellEffect::IceBolt],
     },
 
-Build, run, and press `Z` to see it listed, then its row letter to aim it. `Tab` while aiming snaps the reticle to the next thing in view.
+Build, run, and press `Z` to see it listed, then its row letter to aim it, or `Alt`+`Q`/`W`/`E`/`R` for slots one to four. `Tab` while aiming snaps the reticle to the next thing in view.
 
 If this was a dry run, `git checkout models/src/map/levels.rs` along with `catalog.rs`, `components.rs` and `items/spells.rs`.
 

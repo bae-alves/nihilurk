@@ -68,7 +68,7 @@ One `Schedule`, run once per turn, in this fixed order:
 
 `ai` keeps the clock, the gates and the hands; what each mob decides to do is its rule set's (`agents.md`). A mob off the player's view does nothing, unless it is aggravated or a Helper.
 
-`reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `spell_system` runs before `ai`: an active spell (`Z`, the only way to one) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which `player_action_system` applies as the schedule's first step. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
+`reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `spell_system` runs before `ai`: an active spell (`Z`, or `Alt`+`Q`/`W`/`E`/`R`) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which `player_action_system` applies as the schedule's first step. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
 
 **Everything the player does resolves before `ai` does.** A step, a blow, a lunge or a struggle is planned when the key is handled (`handle_movement_input` → `models::queue_step`) and applied by `player_action_system`, the first step of the schedule (`PlayerActionQueue`). A spell (`SpellQueue`), a used item (`UseQueue`) and a throw (`ThrowQueue`) are drained by `spell_system`, `item_system` and `throw_system`, all of them ahead of `ai`. Taking the stairs (`queue_stairs`), dropping an item (`queue_drop`), a willed teleport (`queue_willed_teleport`), a charge (`queue_charge`) and a reach attack (`queue_reach_attack`) are queued the same way, and wearing or wielding goes through the use queue. A refusal (not on the stairs, cursed gear, a blocked charge) is logged at the key and spends nothing. None of those queues is ever filled by anything but the player, so nothing of the dungeon's own is hurried along by the order. Monster attacks are the other side of it: `ai` fills `AttackQueue` and `combat_system` drains it *after*, which is why that one stays where it is.
 
@@ -247,7 +247,8 @@ Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to 
 | `v` | `begin_reach_attack` — gated on `models::wielded_reach_weapon`, opens the aiming reticle out to the weapon's own `Reach` (`TargetingState.reach_attack`); a wielded `Returns` weapon opens a throw reticle instead (`aim_returner`) |
 | `T` | **undocumented on purpose.** `models::queue_willed_teleport`, applied by `models::willed_teleport`: with `Teleportitis` on the player (a worn ring of teleportation) and at least `rings::TELEPORT_MAGIC_COST` magic points, it spends them and jumps. Every other path returns `false` and **logs nothing at all** — no refusal, no hint the key exists. Keep it out of `MANUAL.md`. |
 | `;` | `begin_look` — opens the reticle in look mode (see below). Not `L`: that is the shifted vi key for east and `run_direction` claims it first |
-| `Z` | `begin_spells_menu` — the spells list, rows lettered `a`-`d`. The only way to an active spell: there is **no** direct-fire key for a slot, and adding one means finding a key that neither `run_direction` nor a menu's letter arm already claims and that is not layout-dependent |
+| `Z` | `begin_spells_menu` — the spells list, rows lettered `a`-`d`. The slower way to an active spell. |
+| `Alt`+`Q` `W` `E` `R` | `fire_spell(world, slot)` for slots one to four, checked before the bare letters so `Alt`+`q` casts while `q` still quaffs. Any other `Alt`-held key does what it does bare. `Shift`+digit was rejected for these: it is layout-dependent |
 | `>` `.` / `<` `,` | stairs, or travel to them |
 | `F1` | open `HelpMenu`, the key list. No turn |
 | `F2` | toggle `CommandBar.hidden`, the yellow bar. No turn |
@@ -258,7 +259,8 @@ Adding a command key is a row in that `match` and (if it opens the pack) a row i
 
   * **`run_direction`**, called at the top of `handle_movement_input`, owns `H J K L Y U B N` outright. A command on any of those eight is dead code — this is what happened to `L` for look.
   * **the `x`/`X` escape hatch** in `dispatch_key`, which fires from every context including the map.
-  * **Ctrl+C**, taken at the very top of `dispatch_key`, above everything.
+  * **Ctrl+C**, taken at the very top of `dispatch_key`, above everything. Right after it, any other key held with Ctrl and without Alt is dropped, so no command can be bound to a Ctrl chord by accident (Windows reports AltGr as Ctrl+Alt, which is why Alt exempts a key).
+  * **Alt+`q` `w` `e` `r`**, in `handle_movement_input` before the bare letters, so those four keys mean two things depending on Alt. Terminals deliver Alt as Esc plus the letter, and crossterm calls it Alt only when both bytes arrive in one read.
 
 Check a new key against the menus' own letters too: pack rows run from `a` for `PACK_CAPACITY` rows and spells rows from `a` for `SPELLSET_CAP`, and both menus' letter arms claim every lowercase key that isn't already navigation. In a menu, navigation is read before the letter, so `j` and `k` can never select a row.
 

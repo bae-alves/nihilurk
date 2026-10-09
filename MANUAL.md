@@ -198,7 +198,7 @@ Several commands let you spend less time walking:
 | `o` | Explore the floor automatically |
 | `A` | Toggle picking up useful items during auto-explore |
 | `O` | Choose a destination and travel there |
-| `Tab` | Fight the nearest visible threat automatically; throws a boomerang or moon blade in your hand |
+| `Tab` | Fight the weakest visible foe automatically (one already beside you comes first); throws a boomerang or moon blade in your hand |
 | `f` | Fire the launcher in your hand, or throw the boomerang or moon blade in it |
 | `v` | Make a reach attack with a suitable weapon, or throw the boomerang or moon blade in your hand |
 | `F1` | Show the key list |
@@ -274,7 +274,9 @@ Weapons, armour, and rings hold back one thing: their own quality. An item may b
 Magic and spells
 ----------------
 
-The `Ma` pool powers your spells. Stairs refill it; it does not return merely because you wait. Press `Z` to open the spells menu and pick a spell by its row letter.
+The `Ma` pool powers your spells. Stairs refill it; it does not return merely because you wait. Press `Z` to open the spells menu and pick a spell by its row letter, or press `Alt`+`Q`, `Alt`+`W`, `Alt`+`E` or `Alt`+`R` to cast spell one to four directly.
+
+The Alt shortcuts need your terminal to send Alt as a key modifier. Linux and Windows terminals do by default. On macOS, turn on "Use Option as Meta key" in Terminal (Settings, Profiles, Keyboard), or set "Left Option key" to "Esc+" in iTerm2 (Profiles, Keys). Without that, Option types a symbol and the shortcut never reaches the game. `Z` always works.
 
 A hero coin teaches a new spell when you step on it. You can know only a few spells at once. A spell that needs a target uses the same aiming cursor as a wand.
 
@@ -320,10 +322,11 @@ Useful commands
 | `<` or `,` | Go up or walk to the up stairs |
 | `;` | Look around: move the cursor over any tile in view to have it described, including what a monster is dangerous for |
 | `Z` | Open the spells menu |
+| `Alt`+`Q` `W` `E` `R` | Cast spell one to four directly |
 | `x` | Close the current menu or cursor |
 | `X` | Close the current menu; with nothing open, quit |
 | `Q` | Quit after confirmation |
-| `Ctrl+C` | Quit immediately |
+| `Ctrl+C` | Quit immediately. No other Ctrl key does anything |
 
 `Esc` backs out of menus. It is not a quit key. Quitting saves the current expedition unless saving has been disabled. While time is stopped nothing is saved: the game saves as time stops and again as it starts. Quitting in between warns you in red and asks a second time, and those turns are lost.
 
@@ -348,5 +351,6 @@ Quick reference
     Quaff         q        read r          zap z
     Equip         e        wield w         wear W        ring P
     Spells        Z        pick a slot by its row letter
+                  Alt + Q/W/E/R for slots one to four
     Cancel        x or X   never spends a turn
     Quit          Q or X   with nothing open; Ctrl+C skips confirmation

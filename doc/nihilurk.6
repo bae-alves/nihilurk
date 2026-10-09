@@ -393,11 +393,11 @@ Toggle picking up useful items during auto-explore.
 .B O
 Choose a destination and travel to it.
 .TP
-.B L
+.B ;
 Look at a tile: read what is there without acting on it.
 .TP
 .B Tab
-Auto-fight the nearest visible threat, or throw a boomerang or moon blade in hand at it.
+Auto-fight the weakest visible foe, finishing any beside you first, or throw a boomerang or moon blade in hand at it.
 .TP
 .B f
 Fire a matching arrow or quarrel with the launcher in hand, or throw a boomerang or moon blade in hand.
@@ -422,9 +422,9 @@ Quaff a potion, read a scroll, or zap a wand.
 Wield a weapon, wear armour, or put on a ring.
 .TP
 .B Z
-Open the moves menu. The
+Open the spells menu, then pick a slot by its row letter. The
 .B "Alt-Q, Alt-W, Alt-E, and Alt-R"
-keys fire the four move slots directly.
+keys cast the four spell slots directly.
 .SS STAIRS AND EXIT
 .TP
 .BR "> , ."
@@ -446,7 +446,13 @@ Quit after confirmation.
 Close the current interface; with nothing open, quit after confirmation.
 .TP
 .B Ctrl-C
-Quit immediately.
+Quit immediately. No other Ctrl key does anything.
+.PP
+The Alt keys need a terminal that sends Alt as a modifier. On macOS, turn on
+"Use Option as Meta key" in Terminal, or set "Left Option key" to "Esc+" in
+iTerm2. The
+.B Z
+menu works without it.
 .SH FILES
 .TP
 .IR name .sav
