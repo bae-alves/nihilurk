@@ -3,6 +3,9 @@ nihilurk is a classic roguelike about descending a dungeon, acquiring an item, a
 
 Game plays like any classic roguelike, but has simplified controls and a focus on movement automation (o to auto-explore; shift movement to go fast; tab to auto-fight). Crawl is built the same way, Angband has plenty automation too, so I took their lead. The focus of the gameplay is part surviving the attrition of multiple encounters, part being badass blowing up monsters. Hackin'n slashing but also managing limited hacking'n slashing ability, It's a hot mess.
 
+## What 1.0 means
+1.0 is the English build playable start to finish on Linux, Windows and macOS, with the save format versioned and pinned and the shipped docs true. Everything else is post-1.0: the pt/es/ht translations (beta), the `TODO: placeholder English` pass, article and plural design, new content, new doc pages. Anything found during release goes on the post-1.0 list, not into the release.
+
 ## Vibe
 Absurdist gorefest! The game is not really about anything. It's just fun and scoring, strategizing, and doing hallucinating combos!
 
