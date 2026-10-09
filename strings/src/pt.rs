@@ -2962,8 +2962,7 @@ pub fn cannot_charge_in_the_thick_of_it() -> &'static str {
 
 // --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
 
-// TODO: translate.
-#[allow(unused_variables)]
+// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn invalid_argument(arg: &str) -> String {
-    String::new()
+    format!("argumento inválido {arg}. Veja -help para mais informações")
 }
