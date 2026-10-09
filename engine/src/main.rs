@@ -46,29 +46,33 @@ impl Drop for TerminalGuard {
 
 /// Finds a file in `name`'s directory whose name matches `name`'s
 /// case-insensitively, returning its actual on-disk path. This makes save
-/// files loadable regardless of the case typed on the command line, since
-/// the filesystem itself may be case-sensitive (Linux/macOS).
+/// files loadable regardless of the case typed on the command line. It always
+/// reads the directory, because on a case-insensitive filesystem (macOS,
+/// Windows) the typed name "exists" and would come back as typed. An exact
+/// match wins over a different-case one.
 fn find_case_insensitive(name: &Path) -> Option<PathBuf> {
-    if name.is_file() {
-        return Some(name.to_path_buf());
-    }
     let dir = name
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
     let file_name = name.file_name()?.to_str()?;
-    for entry in std::fs::read_dir(dir).ok()? {
-        let entry = entry.ok()?;
-        if entry
-            .file_name()
-            .to_str()
-            .is_some_and(|f| f.eq_ignore_ascii_case(file_name))
-            && entry.path().is_file()
-        {
-            return Some(entry.path());
-        }
-    }
-    None
+    let mut matches: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|f| f.eq_ignore_ascii_case(file_name))
+                && entry.path().is_file()
+        })
+        .map(|entry| entry.path())
+        .collect();
+    matches.sort();
+    let exact = matches
+        .iter()
+        .position(|p| p.file_name() == name.file_name());
+    matches.into_iter().nth(exact.unwrap_or(0))
 }
 
 /// The save a positional argument names: a file at `arg` as typed, or else
