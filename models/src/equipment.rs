@@ -259,6 +259,27 @@ pub fn destroy_worn(world: &mut World, wearer: Entity, doomed: &[Entity]) {
     sync_equipment_effects(world, wearer);
 }
 
+/// Why `user` can't put `item` on or take it off, if they can't: cursed gear
+/// that is welded on, a body without the hands, a full slot of cursed
+/// occupants. Asked before the use is queued, so saying so costs no turn.
+pub fn toggle_refusal(world: &World, user: Entity, item: Entity) -> Option<String> {
+    let slot = world.get::<Equipped>(item)?.slot;
+    let name = display_name(world, item);
+    if world.get::<Equipped>(item).and_then(|e| e.by) == Some(user) {
+        return world.get::<Curse>(item).map(|_| slot.stuck(&name));
+    }
+    if let Some(refusal) = equip_refusal(world, user, slot, &name) {
+        return Some(refusal);
+    }
+    if merge_recipient(world, user, slot, item).is_some() {
+        return None;
+    }
+    let occupants = equipped_in_slot(world, user, slot);
+    let jammed = occupants.len() >= slot.capacity()
+        && occupants.iter().all(|&e| world.get::<Curse>(e).is_some());
+    jammed.then(|| slot.blocked(&display_name(world, occupants[0])))
+}
+
 /// Puts `item` on, or takes it off if it's already on — the one path for every
 /// slot. Returns `true` if the equipped state actually changed.
 ///
@@ -270,12 +291,12 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
     };
     let name = display_name(world, item);
 
-    // Already on: take it off, unless it's cursed.
+    if let Some(refusal) = toggle_refusal(world, user, item) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
+
     if world.get::<Equipped>(item).and_then(|e| e.by) == Some(user) {
-        if world.get::<Curse>(item).is_some() {
-            world.resource_mut::<GameLog>().add(slot.stuck(&name));
-            return false;
-        }
         force_unequip(world, item);
         world.resource_mut::<GameLog>().add(slot.doffed(&name));
         sync_equipment_effects(world, user);
@@ -285,11 +306,6 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         return true;
     }
 
-    if let Some(refusal) = equip_refusal(world, user, slot, &name) {
-        world.resource_mut::<GameLog>().add(refusal);
-        return false;
-    }
-
     if let Some(recipient) = merge_recipient(world, user, slot, item) {
         merge_curses(world, user, item, recipient);
         return true;
@@ -297,15 +313,8 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
 
     let occupants = equipped_in_slot(world, user, slot);
     if occupants.len() >= slot.capacity() {
-        match occupants.iter().find(|&&e| world.get::<Curse>(e).is_none()) {
-            Some(&evictable) => force_unequip(world, evictable),
-            None => {
-                let stuck_name = display_name(world, occupants[0]);
-                world
-                    .resource_mut::<GameLog>()
-                    .add(slot.blocked(&stuck_name));
-                return false;
-            }
+        if let Some(&evictable) = occupants.iter().find(|&&e| world.get::<Curse>(e).is_none()) {
+            force_unequip(world, evictable);
         }
     }
 

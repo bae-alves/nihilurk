@@ -67,6 +67,8 @@ pub enum FastMovePlan {
     /// A creature stands in the pressed direction with open ground between:
     /// close the gap and strike, see [`charge`].
     Charge(Entity),
+    /// A charge was possible but a foe stands adjacent — refused.
+    ThickOfIt,
     /// Nothing to run toward and the first step that way is blocked.
     Blocked,
     /// Bolt in a straight line in the pressed direction.
@@ -105,6 +107,23 @@ fn charge_target(world: &mut World, dx: i16, dy: i16) -> Option<Entity> {
         .iter(world)
         .find(|(e, _)| world.get::<Player>(*e).is_some())
         .map(|(_, p)| *p)?;
+    let mut foes: Vec<(i32, Entity)> = foes(world)
+        .into_iter()
+        .filter(|&(_, p)| {
+            (2..=CHARGE_RANGE).contains(&chebyshev(me, p))
+                && in_cone(p.x as i32 - me.x as i32, p.y as i32 - me.y as i32, dx, dy)
+        })
+        .map(|(e, p)| (chebyshev(me, p), e))
+        .collect();
+    foes.sort_by_key(|&(d, _)| d);
+    foes.into_iter()
+        .map(|(_, e)| e)
+        .find(|&e| charge_landing(world, me, e).is_some())
+}
+
+/// Every creature the player counts as a foe: monsters, and spirits once they
+/// turn hostile.
+fn foes(world: &mut World) -> Vec<(Entity, Position)> {
     let mut q = world.query_filtered::<(Entity, &Position, &Faction), (
         With<Mob>,
         Without<Hidden>,
@@ -112,19 +131,18 @@ fn charge_target(world: &mut World, dx: i16, dy: i16) -> Option<Entity> {
         Without<crate::ice::IceCube>,
     )>();
     let spirits_at_peace = !world.resource::<crate::components::SpiritsHostile>().0;
-    let mut foes: Vec<(i32, Entity)> = q
-        .iter(world)
+    q.iter(world)
         .filter(|&(_, _, &f)| f == Faction::Monster || (f == Faction::Spirits && !spirits_at_peace))
-        .filter(|&(_, &p, _)| {
-            (2..=CHARGE_RANGE).contains(&chebyshev(me, p))
-                && in_cone(p.x as i32 - me.x as i32, p.y as i32 - me.y as i32, dx, dy)
-        })
-        .map(|(e, &p, _)| (chebyshev(me, p), e))
-        .collect();
-    foes.sort_by_key(|&(d, _)| d);
-    foes.into_iter()
-        .map(|(_, e)| e)
-        .find(|&e| charge_landing(world, me, e).is_some())
+        .map(|(e, &p, _)| (e, p))
+        .collect()
+}
+
+fn foe_adjacent(world: &mut World) -> bool {
+    let Some((px, py)) = player_pos(world) else {
+        return false;
+    };
+    let me = Position { x: px, y: py };
+    foes(world).into_iter().any(|(_, p)| chebyshev(me, p) == 1)
 }
 
 /// The tile a charge from `from` ends on to strike `target`: the one before it
@@ -199,6 +217,7 @@ pub fn charge(world: &mut World, target: Entity) -> bool {
 pub fn fast_move_plan(world: &mut World, dx: i16, dy: i16) -> FastMovePlan {
     if monster_in_sight(world) {
         return match charge_target(world, dx, dy) {
+            Some(_) if foe_adjacent(world) => FastMovePlan::ThickOfIt,
             Some(target) => FastMovePlan::Charge(target),
             None => FastMovePlan::MonsterInSight,
         };

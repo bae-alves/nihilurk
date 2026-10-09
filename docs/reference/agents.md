@@ -20,7 +20,7 @@ The turn, in order
 
   1. **Gates.** Dead (0 HP), `Asleep`, `Petrified` or out of energy: no turn.
   2. **Percept.** `perceive` builds it (below).
-  3. **Rule set.** `rule_set_for(movement_type, helper)`.
+  3. **Rule set.** `rule_set_for(movement_type, helper, ally)`.
   4. **Decision.** `think(&percept, set)`:
        * off the player's view: the off-view rule (below), and the rule set is never asked;
        * in view: the first rule that returns `Some`, or `Action::Wait`.
@@ -53,7 +53,7 @@ Both switch to their rule set the moment they stand in view. "The player's view"
 | `swims` | `bool` | Deep water is floor to it. |
 | `launcher` | `bool` | A launcher is drawn in its hand. |
 | `spellset` | `Vec<SpellEffect>` | Each spell in its `Spellset` that its `Magic` can pay for. |
-| `roll` | `u32` | A die rolled for this turn (`getrandom`, not the seed's `GameRng`). |
+| `roll` | `u32` | A die rolled for this turn off the seed's `GameRng`, so a seeded run replays it. |
 | `helper` | `bool` | It is the player's `Helper`. |
 | `ally` | `bool` | Its `Faction` is `Ally`: its spells never go where they would catch the player. |
 | `aggravated` | `Option<Position>` | Where an `Aggravated` mob is heading. |
@@ -82,18 +82,17 @@ Each is a `const Rule` wrapping a plain function of the percept.
 
 | Rule | Fires when | Action |
 |---|---|---|
-| `CAST` | The spellset is not empty. It picks `spellset[roll % len]` and fires it at the nearest foe in the spell's `SpellDef::range` with a clear line. An ally passes over any foe whose footprint reaches the player. Only an `Attack` spell with a range above 0 is ever fired. | `Cast` |
+| `CAST` | The spellset is not empty. It picks `spellset[roll % len]` and fires it at the nearest foe in the spell's `SpellDef::range`. Only `Force Lance` needs a clear line; the rest are aimed at the foe's tile. An ally passes over any foe whose footprint (`agents::reaches`) holds the player: a blast radius, the lance's line, or the target tile itself for Sting and Thunderbolt. Only an `Attack` spell with a range above 0 is ever fired. | `Cast` |
 | `SHOOT` | A launcher is drawn, not pinned, a foe within `MONSTER_SHOT_RANGE` with a clear line. | `Shoot` the nearest such foe |
 | `STRIKE` | A foe on one of the eight tiles around it. | `Strike` it, the player before anyone else |
-| `HUNT` | The player is among the foes (noticed). | `Step` along the shortest walk to them |
-| `CLOSE_IN` | Any foe. | `Step` along the shortest walk to the nearest |
+| `CLOSE_IN` | Any foe: the player once noticed, or an ally of theirs. | `Step` along the shortest walk to the nearest |
 | `HEEL` | More than one tile from the player. | `Step` along the shortest walk to a tile next to them |
 | `FLEE` | The player is among the foes. | `Step` straight away from them |
 | `STAGGER` | Always. | `Step` north, south, east or west by `roll` |
 
 A clear line (`agents::clear_line`) is one no wall breaks; bodies in it do not count.
 
-A spell's footprint (`agents::reaches`): a Fireball covers `items::blast_cells` around its target (`BLAST_RADIUS`, line of sight from the centre); a Thunderbolt covers its target tile. A spell whose footprint is not listed there is assumed to reach everyone, so an ally never casts it.
+A spell's footprint (`agents::reaches`): Dragon Breath covers `items::blast_cells` around its target (`BLAST_RADIUS`, line of sight from the centre), Lux the same at `GRENADE_RADIUS`, Meteor Strike at `GRENADE_RADIUS` plus `METEOR_STRIKE_CHAIN_SPREAD` (the first chain only, roughly); Sting and Thunderbolt cover their target tile; Force Lance covers its line up to the target, stopping at the first wall. A spell whose footprint is not listed there is assumed to reach everyone, so an ally never casts it.
 
 The shortest walk is `autoexplore::first_step` over tiles the mob can stand on, biased toward the goal. A mob knows the floor it stands on, so it is not limited to tiles the player has seen.
 
@@ -104,7 +103,8 @@ The sets
 | Set | Picked when | `leashed` | Rules, in order |
 |---|---|---|---|
 | `STILL` | `MovementType::Static` | no | (none) |
-| `CHASER` | `MovementType::Chase` (and the retired `Aggravated`) | yes | `CAST`, `SHOOT`, `STRIKE`, `HUNT` |
+| `CHASER` | `MovementType::Chase` (and the retired `Aggravated`) | yes | `CAST`, `SHOOT`, `STRIKE`, `CLOSE_IN` |
+| `ALLY` | `Chase` on a `Faction::Ally` that is not a `Helper` (a charmed monster) | no | `CAST`, `SHOOT`, `STRIKE`, `CLOSE_IN` |
 | `AMBUSHER` | `MovementType::Ambush` | no | `STRIKE` |
 | `FLEER` | `MovementType::Flee` | no | `FLEE` |
 | `STAGGERER` | `MovementType::Confused` | no | `STAGGER` |
@@ -112,7 +112,7 @@ The sets
 
 The room leash: from a `Room` tile, a leashed mob will not step onto a `Passage` or a `Door`. The leash belongs to the tile it stands on, so from a corridor it crosses a door freely.
 
-A `CHASER`'s turn reads as: pick a spell at random, fire it if it can, else shoot if it can, else go to melee. A wild monster does not care whom its spell catches. The `HELPER`'s is the same turn aimed at the monsters, with the player never in the blast, and a walk back to the player when there is nothing to fight.
+A `CHASER`'s turn reads as: pick a spell at random, fire it if it can, else shoot if it can, else go to melee. A wild monster does not care whom its spell catches. A `CHASER` closes in on the nearest foe, so an ally of the player standing nearer than the player draws it away from them; `STRIKE` still hits the player first when both are alongside. A charmed monster's `ALLY` set is the same turn aimed at the monsters, and it does nothing when none is in view. The `HELPER`'s is the same turn aimed at the monsters, with the player never in the blast, and a walk back to the player when there is nothing to fight.
 
 
 Where the pieces live

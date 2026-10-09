@@ -219,12 +219,11 @@ pub fn render<W: Write>(
     // condition, BLND/PARL from the two potions that take your eyes and your
     // limbs, GLOW from a scroll of monster confusion still waiting on the next
     // blow to land, PLAT/FORG from the two coins whose reward the next
-    // staircase pays. A paralysed player shows both SLOW and PARL, which is
-    // honest: paralysis slows you *and* eats turns.
+    // staircase pays.
     //
     // The tempo is read through `models::tempo` rather than off the component,
     // so gear that weighs the player down — a ring of slow digestion — reads
-    // SLOW exactly like a potion of paralysis does. It *is* the same slowing.
+    // SLOW exactly like a wand of slow monster does. It *is* the same slowing.
     let tempo = player_entity.map(|pe| models::tempo(world, pe));
     let stealthy = player_entity.is_some_and(|pe| world.get::<Stealthy>(pe).is_some());
     let polymorphed = player_entity.is_some_and(|pe| world.get::<Polymorphed>(pe).is_some());
@@ -356,6 +355,11 @@ pub fn render<W: Write>(
     } else {
         HashSet::new()
     };
+    let blast_preview: Vec<(u16, u16)> = if is_targeting {
+        models::aim_footprint(world)
+    } else {
+        Vec::new()
+    };
 
     let occupied_by_actor: HashSet<(u16, u16)> = {
         let mut query = world.query_filtered::<&Position, Or<(With<Player>, With<Mob>)>>();
@@ -450,10 +454,7 @@ pub fn render<W: Write>(
             if tile == TileType::Wall && !map.is_room_wall(x, y) {
                 continue;
             }
-            let (glyph, mut lit) = tile_appearance(tile);
-            if map.is_inert_door(x, y) {
-                lit = Color::Grey;
-            }
+            let (glyph, lit) = tile_appearance(tile);
             let visible_here = visible.contains(&coord);
             if !visible_here && !revealed.contains(tile_index(x, y)) {
                 continue;
@@ -670,6 +671,11 @@ pub fn render<W: Write>(
             if (tx, ty) == targeting_tip {
                 screen.bg_map(tx, ty, Color::DarkBlue);
             }
+        }
+    }
+    for &(bx, by) in &blast_preview {
+        if visible.contains(&(bx, by)) && (bx, by) != targeting_tip {
+            screen.bg_map(bx, by, Color::DarkYellow);
         }
     }
 

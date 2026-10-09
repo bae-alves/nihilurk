@@ -163,7 +163,6 @@ fn room_and_corridor(w: &mut World) {
     let mut map = Map {
         tiles: vec![TileType::Wall; MAP_TILE_COUNT],
         dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-        inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     };
@@ -214,9 +213,10 @@ fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
         "the dragon held fire on a foe the blast could not carry to you"
     );
 
+    let edge = constants::wands::BLAST_RADIUS as u16;
     let mut w = test_world(9);
-    let dragon_at = east_of_player(&mut w, 1);
-    let foe_at = east_of_player(&mut w, 2);
+    let dragon_at = east_of_player(&mut w, edge + 1);
+    let foe_at = east_of_player(&mut w, edge);
     let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), dragon_at);
     recruit(&mut w, dragon);
     let foe = monster::plain_monster(&mut w, "kobold", foe_at);
@@ -237,6 +237,32 @@ fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
                 .any(|a| a.attacker == dragon && a.target == foe)
         );
     }
+}
+
+#[test]
+fn a_charmed_monster_walks_up_to_a_monster_and_fights_it() {
+    let mut w = test_world(9);
+    let pal_at = east_of_player(&mut w, 1);
+    let foe_at = east_of_player(&mut w, 5);
+    let pal = monster::plain_monster(&mut w, "rat", pal_at);
+    charm(&mut w, pal);
+    let foe = monster::plain_monster(&mut w, "kobold", foe_at);
+    w.get_mut::<Mob>(foe).unwrap().movement_type = MovementType::Static;
+    run_visibility(&mut w);
+    let mut struck = false;
+    for _ in 0..8 {
+        w.resource_mut::<AttackQueue>().attacks.clear();
+        ai(&mut w);
+        struck |= w
+            .resource::<AttackQueue>()
+            .attacks
+            .iter()
+            .any(|a| a.attacker == pal && a.target == foe);
+    }
+    assert!(
+        struck,
+        "a charmed monster stood by while a monster was in view"
+    );
 }
 
 #[test]

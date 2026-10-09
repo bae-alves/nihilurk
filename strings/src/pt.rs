@@ -1654,9 +1654,6 @@ pub fn mob_throws(thrower: &str, seen_name: &str) -> String {
         article(seen_name)
     )
 }
-pub fn doorway_goes_inert() -> &'static str {
-    "O batente da porta racha e fica cinza e inerte."
-}
 
 pub fn scroll_read_aloud(who: &str, seen_name: &str) -> String {
     format!(
@@ -2955,4 +2952,18 @@ pub fn curses_merge_break(recipient: &str, donor: &str) -> String {
 #[allow(unused_variables)]
 pub fn charge() -> &'static str {
     ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn cannot_charge_in_the_thick_of_it() -> &'static str {
+    ""
+}
+
+// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn invalid_argument(arg: &str) -> String {
+    String::new()
 }

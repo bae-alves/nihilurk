@@ -32,7 +32,7 @@ That is also why aggravation is a component. As a `MovementType` it would overwr
 First match wins
 ----------------
 
-A rule set is an ordered list, and the first rule that fires takes the turn. Order is the whole design: `CAST` before `SHOOT` before `STRIKE` before `HUNT` says "magic if you can, a bow if you can, otherwise go to melee", and that sentence is the set. There are no weights to tune and no scores to compare, so reading a set tells you exactly what the creature does, and moving one line changes it.
+A rule set is an ordered list, and the first rule that fires takes the turn. Order is the whole design: `CAST` before `SHOOT` before `STRIKE` before `CLOSE_IN` says "magic if you can, a bow if you can, otherwise go to melee", and that sentence is the set. There are no weights to tune and no scores to compare, so reading a set tells you exactly what the creature does, and moving one line changes it.
 
 The chaser's loop is deliberately dumb about its spells: it picks one at random and fires it if it can, and if it cannot it does not try another. A dragon with one spell breathes every time it has a line. A creature with three spells is unpredictable in the way a player can plan around, rather than always casting its best one.
 

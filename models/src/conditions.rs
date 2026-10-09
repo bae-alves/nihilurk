@@ -133,14 +133,12 @@ pub fn blind(world: &mut World, entity: Entity) -> bool {
 // Paralysis
 // ---------------------------------------------------------------------------
 
-/// Locks a creature's limbs: [`Paralyzed`] and slowed, both. The player then
-/// forfeits a share of the turns the slowing still grants them
-/// ([`paralysis_forfeits_turn`]); a monster keeps the slowing alone — the same
-/// bargain without the coin flip — and wears the tag so the renderer can tint it
-/// as something that can't fight back properly.
+/// Locks a creature's limbs: [`Paralyzed`], and nothing else. Whoever wears it
+/// forfeits a share of their turns at an otherwise normal tempo — the player
+/// through [`paralysis_forfeits_turn`], a monster through the monster round —
+/// and the renderer tints a monster as something that can't fight back properly.
 ///
-/// A monster the player can actually see also earns a line of its own, on top
-/// of the generic slow-down `set_speed` already prints for it — the same
+/// A monster the player can actually see also earns a line of its own, the same
 /// "visible only" rule `report_cure` holds a mending monster to.
 pub fn paralyse(world: &mut World, entity: Entity) -> bool {
     if world.get::<Paralyzed>(entity).is_some() {
@@ -149,7 +147,6 @@ pub fn paralyse(world: &mut World, entity: Entity) -> bool {
     if !crate::effects::lend(world, entity, Grant::of::<Paralyzed>(), Lifetime::Floor) {
         return false;
     }
-    let slowed = set_speed(world, entity, SpeedKind::Slow, false);
     if world.get::<Player>(entity).is_none() {
         let pos = world.get::<Position>(entity).copied();
         if pos.is_some_and(|p| crate::helpers::player_sees(world, p.x, p.y)) {
@@ -158,7 +155,7 @@ pub fn paralyse(world: &mut World, entity: Entity) -> bool {
                 .resource_mut::<GameLog>()
                 .add(strings::mob_verb_line(&name, strings::paralyzed_mob_verb()));
         }
-        return slowed;
+        return true;
     }
     world
         .resource_mut::<GameLog>()
@@ -225,8 +222,8 @@ pub struct Affliction {
     pub cured_noun: &'static str,
     /// Completes "You are no longer ___." when a staircase takes it.
     pub lifted_adjective: &'static str,
-    /// What else has to happen when it goes — a viewshed to recompute, a
-    /// tempo to put back. Most conditions need nothing.
+    /// What else has to happen when it goes — a viewshed to recompute. Most
+    /// conditions need nothing.
     pub after: Option<fn(&mut World, Entity)>,
 }
 
@@ -250,7 +247,7 @@ pub const AFFLICTIONS: &[Affliction] = &[
         cured_line: strings::paralyzed_cured_line(),
         cured_noun: strings::paralyzed_cured_noun(),
         lifted_adjective: strings::paralyzed_lifted_adjective(),
-        after: Some(restore_tempo),
+        after: None,
     },
     Affliction {
         effect: Grant::of::<Confused>(),

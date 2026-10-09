@@ -106,7 +106,7 @@ Every row implements `ItemDef`, which supplies:
     fn min_depth(&self) -> u8                  default 1
     fn spawn_as_loot(&self, world, rng, pos)   default: calls spawn
 
-No item row overrides `weight` or `min_depth` — within a category nihilurk picks evenly on purpose.
+Only the scroll of identify and the scroll of remove curse override `weight` (twice the baseline); no item row overrides `min_depth`. Every other row picks evenly on purpose.
 
 ### POTIONS — PotionDef
 
@@ -223,7 +223,7 @@ Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDa
 
 The staff is the only row with an `on_doff`, and the reason is worth repeating: it multiplies what every attacking spell costs and what it does (`constants::spells::TURBO_MAGIC_COST_MULT` and `TURBO_MAGIC_POWER_MULT`), and neither multiplier shows anywhere on the HUD. The two log lines are the whole of the player's notice, which is why the taking-off needs one as much as the putting-on. `OnDoff` fires only on the deliberate path (`equipment::toggle_equipped`), never from `force_unequip` — dropping, being disarmed and dying are not ceremonies, the same asymmetry `OnWear` already has against `equip_silently`.
 
-Every throw ignores the target's armour die, but the armour *plus* is always subtracted. A thing not made for throwing rolls `IMPROVISED_THROW_DIE` (1d3) plus its own plus, and so does ammunition lobbed by hand; armour thrown does no damage. `Projectile` means two things at once: the missile is spent on what it hits, and nothing can catch it. A non-projectile throw can be caught and used against you.
+Every throw ignores the target's armour die, but the armour *plus* is always subtracted. A thing not made for throwing rolls `IMPROVISED_THROW_DIE` (1d2) plus its own plus, and so does ammunition lobbed by hand; armour thrown does no damage. `Projectile` means two things at once: the missile is spent on what it hits, and nothing can catch it. A non-projectile throw can be caught and used against you.
 
 ### AMMO — AmmoDef
 
@@ -233,7 +233,7 @@ Every throw ignores the target's armour die, but the armour *plus* is always sub
 | `color`        | `Color`        |                                         |
 | `die`          | `i32`          | Rolled when hurled by hand.             |
 | `venom`        | `bool`         | A hit that draws blood saps the victim's power (`Envenomed`). The blowdart. |
-| `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`: an arrow 1d4, a quarrel 1d6, a blowdart 1d2. |
+| `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`: an arrow 1d3, a quarrel 1d5, a blowdart 1d2. |
 | `launched_by`  | `Grant`        | The effect that switches to `launched_die`. |
 
 Draws `)`. Attaches `Item`, `ThrownDamage`, `LaunchedDamage`, `Projectile`, `LaunchedBy`, `Stack { count: 1 }`, and `Envenomed` when `venom` is set. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
@@ -411,7 +411,7 @@ A missile stops on the first creature in its way, so the tile handed to `detonat
 | On the tile | Reach | Damage | Follow-up |
 |---|---|---|---|
 | a `Trap` | `TRICK_SHOT_RADIUS` | the trick-shot dice | the trap's own effect, per survivor |
-| a `Pickup` (a coin) | `PICKUP_TRICK_SHOT_RADIUS` (double) | the same dice | **the coin's effect, paid to the shooter** (`pickups::claim_from_afar`) — a red coin heals them, a gold one pays them, a platinum one makes them its promise. Worked *before* the burst, so the shooter's own blast cannot take the healing back off them. No `would_help` gate: stepping over a coin is leaving it for later, shooting one is a decision, and a decision is allowed to be a waste |
+| a `Pickup` (a coin) | `PICKUP_TRICK_SHOT_RADIUS` | the same dice | **the coin's effect, paid to the shooter** (`pickups::claim_from_afar`) — a red coin heals them, a gold one pays them, a platinum one makes them its promise. Worked *before* the burst, so the shooter's own blast cannot take the healing back off them. No `would_help` gate: stepping over a coin is leaving it for later, shooting one is a decision, and a decision is allowed to be a waste |
 | a hero coin (`PickupEffect::LearnRandomSpell`) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | the spell, taught to the shooter, and then the ULTIMATE TRICK SHOT below. Spent like any other coin |
 | the `Amulet` (the Element of Yoord) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | see below. The relic is never destroyed, moved or spent |
 
@@ -537,7 +537,7 @@ A row may also carry the line the player reads when it runs out of turns, in bra
 |54 | `Clamped`           | Hold: a biter's grip. Killing the biter frees the victim. |
 |55 | `Confused`          | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
 |56 | `Blind`             | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
-|57 | `Paralyzed`         | Affliction: slowed, and the player loses a share of their turns. |
+|57 | `Paralyzed`         | Affliction: whoever wears it loses a share of their turns. |
 |58 | `MagicWard`         | The spell: magical hits and a blow's riders bounce off, for the floor. |
 |59 | `Detected`          | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
 |60 | `Polymorphed`       | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |

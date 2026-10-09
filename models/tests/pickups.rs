@@ -15,7 +15,14 @@ use models::constants::score::{BOUNTY_SCORE_MULTIPLIER, KILL_PER_MAX_HP};
 use models::*;
 
 fn test_world(seed: u64) -> World {
+    world_as(seed, None)
+}
+
+fn world_as(seed: u64, body: Option<Body>) -> World {
     let mut w = World::new();
+    if let Some(body) = body {
+        w.insert_resource(StartingBody(body));
+    }
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(seed)));
     w.insert_resource(RngSeed(seed));
     w.init_resource::<GameLog>();
@@ -271,6 +278,42 @@ fn a_forge_coin_pays_a_point_of_plus_at_the_stairs() {
 }
 
 #[test]
+fn a_forge_coin_pays_a_lurk_onto_its_ring() {
+    let mut w = world_as(1, Some(Body::Lurk));
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let ring = spawn_named(&mut w, "ring of protection", at).expect("a ring");
+    w.entity_mut(ring).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+    assert!(toggle_equipped(&mut w, p, ring));
+    let plus = w.get::<ArmorBonus>(ring).unwrap().0;
+    assert!(step_on(&mut w, "forge coin"));
+
+    descend(&mut w);
+
+    assert_eq!(w.get::<ArmorBonus>(ring).unwrap().0, plus + 1);
+}
+
+#[test]
+fn a_forge_coin_may_land_on_a_ring_without_preferring_it() {
+    let mut on_ring = 0;
+    for seed in 0..40 {
+        let mut w = test_world(seed);
+        let p = player(&mut w);
+        let at = *w.get::<Position>(p).unwrap();
+        let ring = spawn_named(&mut w, "ring of protection", at).expect("a ring");
+        w.entity_mut(ring).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+        assert!(toggle_equipped(&mut w, p, ring));
+        let plus = w.get::<ArmorBonus>(ring).unwrap().0;
+        assert!(step_on(&mut w, "forge coin"));
+        descend(&mut w);
+        on_ring += (w.get::<ArmorBonus>(ring).unwrap().0 > plus) as u32;
+    }
+    assert!((5..35).contains(&on_ring), "{on_ring} of 40");
+}
+
+#[test]
 fn being_hurt_breaks_the_promise() {
     let mut w = test_world(1);
     let p = player(&mut w);
@@ -399,7 +442,7 @@ fn a_blast_sets_off_the_coins_it_covers_and_pays_the_zapper() {
 }
 
 #[test]
-fn a_shot_coin_reaches_further_than_a_shot_trap() {
+fn a_shot_coin_and_a_shot_trap_each_burst_to_their_own_radius() {
     fn caught(what: &str, reach: u16) -> bool {
         let mut w = test_world(5);
         let p = player(&mut w);
@@ -426,8 +469,25 @@ fn a_shot_coin_reaches_further_than_a_shot_trap() {
         w.get::<Fighter>(victim).is_some_and(|f| f.hp < 500)
     }
 
-    assert!(caught("gold coin", 2), "a coin's burst reaches two tiles");
-    assert!(!caught("bear trap", 2), "a trap's does not");
+    use models::constants::traps::{PICKUP_TRICK_SHOT_RADIUS, TRICK_SHOT_RADIUS};
+    let coin = PICKUP_TRICK_SHOT_RADIUS as u16;
+    let trap = TRICK_SHOT_RADIUS as u16;
+    assert!(
+        caught("gold coin", coin),
+        "a coin's burst falls short of its radius"
+    );
+    assert!(
+        !caught("gold coin", coin + 1),
+        "a coin's burst overshoots its radius"
+    );
+    assert!(
+        caught("bear trap", trap),
+        "a trap's burst falls short of its radius"
+    );
+    assert!(
+        !caught("bear trap", trap + 1),
+        "a trap's burst overshoots its radius"
+    );
 }
 
 #[test]
@@ -702,4 +762,47 @@ fn a_plain_monster_pays_the_unmultiplied_kill_score() {
         i64::from(max_hp * KILL_PER_MAX_HP),
         "an ordinary kill pays the plain rate, no bounty"
     );
+}
+
+#[test]
+fn arriving_on_a_pile_takes_every_item_in_one_go() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let sword = spawn_named(&mut w, "long sword", at).expect("a sword");
+    let dagger = spawn_named(&mut w, "dagger", at).expect("a dagger");
+
+    pick_up_here(&mut w, p, at.x, at.y);
+
+    let pack = &w.get::<Backpack>(p).unwrap().items;
+    assert!(pack.contains(&sword) && pack.contains(&dagger));
+}
+
+#[test]
+fn a_full_pack_says_so_once_for_the_whole_pile() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let at = *w.get::<Position>(p).unwrap();
+    let off = Position {
+        x: at.x + 1,
+        y: at.y,
+    };
+    for _ in 0..30 {
+        let filler = spawn_named(&mut w, "dagger", off).expect("a dagger");
+        pick_up(&mut w, p, filler);
+    }
+    spawn_named(&mut w, "long sword", at).expect("a sword");
+    spawn_named(&mut w, "dagger", at).expect("a dagger");
+    spawn_named(&mut w, "mace", at).expect("a mace");
+    w.resource_mut::<GameLog>().history.clear();
+
+    pick_up_here(&mut w, p, at.x, at.y);
+
+    let full = w
+        .resource::<GameLog>()
+        .history
+        .iter()
+        .filter(|l| l.as_str() == strings::pack_full())
+        .count();
+    assert_eq!(full, 1);
 }

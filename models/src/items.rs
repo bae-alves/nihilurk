@@ -64,9 +64,12 @@ pub(crate) use wands::elemental_blast;
 pub(crate) use runes::recharge_runes;
 
 pub use throwing::{
-    FrozenThrows, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow, thaw_into_pack,
-    throw_reach, throw_refusal, throw_system, time_stopped, use_refusal,
+    FrozenThrows, aim_footprint, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow,
+    thaw_into_pack, throw_reach, throw_refusal, throw_system, time_stopped, use_refusal,
 };
+
+/// The disc each blast spell bursts in, for an ally weighing who it would catch.
+pub(crate) use spells::spell_blast_radius;
 
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
 /// melee attack for as long as it has one drawn.

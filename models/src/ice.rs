@@ -106,7 +106,7 @@ pub fn kick_ice_cube(world: &mut World, player: Entity, cube: Entity) -> bool {
         .map(|p| (p.x, p.y))
         .collect();
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        fx.hurl_at(&pts, '#', Color::Cyan, crate::particles::THROW_SPEEDUP);
+        fx.hurl(&pts, '#', Color::Cyan);
     }
 
     if let Some(foe) = target {

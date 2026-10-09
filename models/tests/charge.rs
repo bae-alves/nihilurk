@@ -241,3 +241,14 @@ fn landing_on_a_trap_springs_it_and_jumping_over_one_does_not() {
     trap_system(&mut w);
     assert_eq!(w.resource::<Depth>().what, 2, "the trap was landed on");
 }
+
+#[test]
+fn an_adjacent_foe_refuses_the_charge() {
+    let (mut w, _) = arena(1);
+    put_monster(&mut w, 18, 9);
+    put_monster(&mut w, 13, 10);
+    assert!(matches!(
+        fast_move_plan(&mut w, 1, 0),
+        FastMovePlan::ThickOfIt
+    ));
+}

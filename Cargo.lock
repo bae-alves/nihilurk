@@ -624,7 +624,6 @@ dependencies = [
  "bevy_ecs",
  "crossterm",
  "fixedbitset 0.5.7",
- "getrandom 0.4.3",
  "nihilurk-particle-core",
  "nihilurk-strings",
  "postcard",

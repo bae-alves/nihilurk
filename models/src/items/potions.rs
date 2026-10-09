@@ -27,7 +27,7 @@ use crate::constants::potions::*;
 use crate::effects::{
     ArmorBonus, Detected, Grant, Lifetime, PowerBonus, SeesInvisible, ThrowBonus, grant_for_floor,
 };
-use crate::helpers::actor_line;
+use crate::helpers::{actor_line, player_sees};
 use crate::identify::display_name;
 use crate::map::{LevelChange, holding_element_of_yoord, transition_level};
 use crate::particles::BlastPalette;
@@ -263,13 +263,20 @@ fn see_invisible(world: &mut World, user: Entity) -> bool {
     if let Some(mut vs) = world.get_mut::<Viewshed>(user) {
         vs.dirty = true;
     }
-    let msg = actor_line(
-        world,
-        user,
-        strings::potion_see_invisible_player(),
-        strings::potion_see_invisible_mob(),
-    );
-    world.resource_mut::<GameLog>().add(msg);
+    let unseen = world.get::<Player>(user).is_none()
+        && world
+            .get::<Position>(user)
+            .copied()
+            .is_some_and(|at| !player_sees(world, at.x, at.y));
+    if !unseen {
+        let msg = actor_line(
+            world,
+            user,
+            strings::potion_see_invisible_player(),
+            strings::potion_see_invisible_mob(),
+        );
+        world.resource_mut::<GameLog>().add(msg);
+    }
     !already
 }
 

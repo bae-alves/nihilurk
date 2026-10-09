@@ -51,7 +51,6 @@ fn bare_room(w: &mut World) {
     let mut map = Map {
         tiles: vec![TileType::Wall; MAP_TILE_COUNT],
         dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-        inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     };

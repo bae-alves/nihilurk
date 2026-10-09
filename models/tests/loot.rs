@@ -281,3 +281,30 @@ fn every_floor_is_stocked_with_its_guaranteed_finds() {
         }
     }
 }
+
+#[test]
+fn identify_and_remove_curse_drop_twice_as_often_as_other_scrolls() {
+    let mut w = World::new();
+    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
+    w.insert_resource(RngSeed(7));
+    w.init_resource::<GameLog>();
+    let mut rng = ChaCha12Rng::seed_from_u64(7);
+    for _ in 0..60_000 {
+        roll_item(&mut w, &mut rng, 1, Position { x: 0, y: 0 });
+    }
+
+    let (mut favoured, mut rest) = (0u32, 0u32);
+    for s in w.query::<&Scroll>().iter(&w) {
+        match s.effect {
+            ScrollEffect::Identify | ScrollEffect::RemoveCurse => favoured += 1,
+            _ => rest += 1,
+        }
+    }
+    let per_favoured = favoured as f64 / 2.0;
+    let per_other = rest as f64 / 16.0;
+    let ratio = per_favoured / per_other;
+    assert!(
+        (1.8..2.2).contains(&ratio),
+        "identify/remove curse should be ~2x any other scroll, got {ratio:.2}x"
+    );
+}

@@ -20,7 +20,7 @@ From a limited corpus of terminal roguelikes I've played, these are where nihilu
 
 Almost everything on the floor that can go off can be set off from across the room. Put a missile on it and it goes kablooey:
 - A trap. A trap only bites whoever is standing on it. Shot, it has nobody to bite, so the whole mechanism goes at once over the tiles around it, armor-proof, and then works its own effect on everyone caught.
-- A coin. Coins are never carried, you step on them. Shoot one instead and it bursts wider than a trap, and its effect reaches you from wherever you are standing.
+- A coin. Coins are never carried, you step on them. Shoot one instead and it bursts like a trap, and its effect reaches you from wherever you are standing.
 - A potion lying on the floor. It shatters over the tiles around it.
 - Bursts chain. Anything a burst covers that a shot could have set off goes off with it, including traps nobody has found.
 

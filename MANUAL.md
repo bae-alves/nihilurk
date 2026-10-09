@@ -33,22 +33,22 @@ nihilurk needs a terminal of at least 80 columns by 25 rows. In a smaller one th
 
 The commands above run the game from a clone. After `cargo install nihilurk`, type `nihilurk` in their place. If your shell cannot find it, `~/.cargo/bin` is not on your `PATH`; the README's install steps shows how to add it.
 
-Your name, if you give one, comes first. Everything else comes after it.
+Your name, if you give one, comes first. A name cannot start with `-`; an argument that does and is not a flag is refused. Everything else comes after it.
 
 Other flags, in any order after the name:
 
 | Flag | Effect |
 |------|--------|
-| `-c` | Centre the map on you instead of using the fixed viewport. |
-| `-ns` | Write no save file. |
-| `-nb` | No bloodstains, no corpse-and-bones death animation. |
-| `-nshake` | No screen shake. |
-| `-nobones` | A death writes no bones file and an ascent reads none. |
-| `-endless` | No Element of Yoord spawns, so you cannot win. The dungeon keeps going down. |
-| `-anim-rate N` | Scale animation hold time, 0.1 to 5.0. Raise it if your terminal redraws slowly. |
-| `-content` | List every name `NIHILURK_SPAWN` accepts, and exit. |
-| `-scores` | Print the ten highest scores, and exit. |
-| `-h` | Print a short guide, and exit. |
+| `-c`, `--centered` | Centre the map on you instead of using the fixed viewport. |
+| `-ns`, `--no-save` | Write no save file. |
+| `-nb`, `--no-blood` | No bloodstains, no corpse-and-bones death animation. |
+| `-nshake`, `--no-shake` | No screen shake. |
+| `-nobones`, `--no-bones` | A death writes no bones file and an ascent reads none. |
+| `-endless`, `--endless` | No Element of Yoord spawns, so you cannot win. The dungeon keeps going down. |
+| `-anim-rate N`, `--anim-rate N` | Scale animation hold time, 0.1 to 5.0. Raise it if your terminal redraws slowly. |
+| `-content`, `--content` | List every name `NIHILURK_SPAWN` accepts, and exit. |
+| `-scores`, `--leaderboard` | Print the ten highest scores, and exit. |
+| `-h`, `-help`, `--help` | Print a short guide, and exit. |
 
 nihilurk speaks English and a bit of Portuguese (`pt`). Spanish (`es`) and Haitian Creole (`ht`) exist in the codebase but need help, so please contribute! The installed `nihilurk` command picks the language from `LC_ALL`, `LANG` or `LANGUAGE`, and falls back to English if none matches. To choose one yourself, put `--lang` first:
 
@@ -138,7 +138,7 @@ The map uses these symbols:
 | `) ] }` | Weapon, armour, or launcher |
 | `"`    | The Element of Yoord |
 
-A monster that cannot fight at full strength is highlighted with a different tint. Dark blue is asleep. Cyan is paralysed: it is slowed, not frozen. Dark green is held fast by a bear trap or a scroll of hold monster. Yellow is confused or fleeing. Grey is slowed.
+A monster that cannot fight at full strength is highlighted with a different tint. Dark blue is asleep. Cyan is paralysed: it loses half its turns. Dark green is held fast by a bear trap or a scroll of hold monster. Yellow is confused or fleeing. Grey is slowed.
 
 Grey tiles are places you have seen but cannot currently see. The dungeon remembers walls and corridors, but not the creatures hiding beyond your sight.
 
@@ -205,11 +205,11 @@ These commands go directly to the relevant kind of action:
 | `W` | Wear armour |
 | `P` | Put on a ring |
 
-Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows, quarrels and blowdarts are stronger, and carry twice as far, with the matching bow, crossbow or blowgun in your hand; a blowdart saps the power of whatever it wounds. Anything thrown that was not made for throwing does 1d3, and armour a creature wears (its plus) always takes some of the damage off. Small things — potions, scrolls, wands, rings — fly further out of a bare hand than a spear or a sack of arrows does. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit. A thrown boomerang hits the first creature in its way and flies back to you: to its old place in your pack, and into your hand if you were wielding it. With one in hand, `f`, `v` and `Tab` throw it.
+Throwing, firing, and most wands open an aiming cursor. Move it with the direction keys, press Enter to act, or press `x` to cancel. Arrows, quarrels and blowdarts are stronger, and carry twice as far, with the matching bow, crossbow or blowgun in your hand; a blowdart saps the power of whatever it wounds. Anything thrown that was not made for throwing does 1d2, and armour a creature wears (its plus) always takes some of the damage off. Small things — potions, scrolls, wands, rings — fly further out of a bare hand than a spear or a sack of arrows does. A thrown dagger or spear can pass through more than one target; other things may stop at the first creature they hit. A thrown boomerang hits the first creature in its way and flies back to you: to its old place in your pack, and into your hand if you were wielding it. With one in hand, `f`, `v` and `Tab` throw it.
 
 Your pack has limited space. Ammunition shares a slot with matching ammunition, but other items take their own place. Coins are not carried: stepping on one spends it immediately. If a coin cannot help you yet, the dungeon leaves it where it is.
 
-**Trick shots.** A trap has nobody to bite when nobody is standing on it, so a missile that lands on one sets the whole mechanism off at once, over every square around it. A coin shot the same way bursts wider still and gives its effect to you from across the room. You can only do this to a trap you have already found. A creature standing on a trap you know about, on a coin, or on the Element of Yoord is drawn on a magenta square: hit it and you set off what it is standing on. One burst sets off anything it covers, including traps nobody has found, so a good shot can run a long way. None of this is on your side. Stand too close to your own trick shot and it will catch you as readily as anything else.
+**Trick shots.** A trap has nobody to bite when nobody is standing on it, so a missile that lands on one sets the whole mechanism off at once, over every square around it. A coin shot the same way bursts just as far and gives its effect to you from across the room. You can only do this to a trap you have already found. A creature standing on a trap you know about, on a coin, or on the Element of Yoord is drawn on a magenta square: hit it and you set off what it is standing on. One burst sets off anything it covers, including traps nobody has found, so a good shot can run a long way. None of this is on your side. Stand too close to your own trick shot and it will catch you as readily as anything else.
 
 
 Decks of cards

@@ -392,7 +392,7 @@ impl Particles {
     /// size a bolt reads as a thing travelling, and the sun is legible in every
     /// terminal font at a glance where a rotating dash was not.
     pub fn beam(&mut self, pts: &[(u16, u16)], color: Color) -> f32 {
-        const TRAVEL_MS_PER_CELL: f32 = 90.0;
+        const TRAVEL_MS_PER_CELL: f32 = MS_PER_CELL;
         const GLYPH: char = '☼';
         for (i, &(x, y)) in pts.iter().enumerate() {
             self.push(Particle {
@@ -567,17 +567,10 @@ impl Particles {
     }
 
     /// A thrown object in flight: the item's own glyph hopping cell by cell from
-    /// the thrower's hand to wherever it stops. Slower than a wand bolt — you
-    /// can watch a dagger travel. `pts` is the traced line, thrower's own tile
-    /// excluded.
+    /// the thrower's hand to wherever it stops. Same pace as a wand
+    /// [`Particles::beam`]. `pts` is the traced line, thrower's own tile excluded.
     pub fn hurl(&mut self, pts: &[(u16, u16)], glyph: char, color: Color) {
-        self.hurl_at(pts, glyph, color, 1.0);
-    }
-
-    /// [`Particles::hurl`] at `speed` times its pace: the player's throws fly at
-    /// [`THROW_SPEEDUP`], every other missile at `1.0`.
-    pub fn hurl_at(&mut self, pts: &[(u16, u16)], glyph: char, color: Color, speed: f32) {
-        let travel_ms_per_cell = 70.0 / speed;
+        let travel_ms_per_cell = MS_PER_CELL;
         let lifetime_ms = travel_ms_per_cell * 1.4;
         for (i, &(x, y)) in pts.iter().enumerate() {
             self.push(Particle {
@@ -601,7 +594,7 @@ impl Particles {
     /// fast as any other blast. `pts` is the traced line, thrower's own tile
     /// excluded.
     pub fn lob(&mut self, pts: &[(u16, u16)], color: Color) {
-        const TRAVEL_MS_PER_CELL: f32 = 130.0;
+        const TRAVEL_MS_PER_CELL: f32 = MS_PER_CELL;
         const LIFETIME_MS: f32 = TRAVEL_MS_PER_CELL * 1.4;
         const TUMBLE: [char; 4] = ['o', 'O', '0', 'O'];
         for (i, &(x, y)) in pts.iter().enumerate() {
@@ -819,10 +812,9 @@ fn flight_span(cells: usize, per_cell: f32, lifetime: f32) -> f32 {
     }
 }
 
-/// How much faster the player's own throws fly than every other missile: the
-/// pace of [`Particles::hurl_at`] when a thrown or fired item is in the air.
-/// A thrown wand's [`Particles::lob`] keeps its slow arc.
-pub const THROW_SPEEDUP: f32 = 1.5;
+/// The one pace every projectile flies at: a wand [`Particles::beam`], a
+/// [`Particles::hurl`] and a [`Particles::lob`].
+const MS_PER_CELL: f32 = 90.0;
 
 /// How long a primary blast's own flame/frost/etc. frame cycle burns on one
 /// cell — [`Particles::explosion`] and [`Particles::smoke_burst`] both need
@@ -882,33 +874,16 @@ mod tests {
     }
 
     #[test]
-    fn a_thrown_item_flies_faster_and_still_lands_before_what_it_causes() {
-        let mut slow = Particles::new();
-        slow.hurl(&path(5), '↑', Color::Grey);
-        let mut fast = Particles::new();
-        fast.hurl_at(&path(5), '↑', Color::Grey, THROW_SPEEDUP);
-        assert!(batch_end(&fast) < batch_end(&slow) / 1.4);
-        let landed = batch_end(&fast);
-        fast.hit_spark(5, 1);
-        assert!(last_start(&fast) >= landed);
-    }
-
-    #[test]
-    fn a_lob_holds_the_screen_longer_than_a_hurl_does() {
+    fn a_hurl_and_a_lob_fly_at_the_same_pace() {
         let mut hurled = Particles::new();
         hurled.hurl(&path(5), '↑', Color::Grey);
-        hurled.hit_spark(5, 1);
-
         let mut lobbed = Particles::new();
         lobbed.lob(&path(5), Color::Green);
-        lobbed.hit_spark(5, 1);
-
-        assert!(
-            last_start(&lobbed) > last_start(&hurled),
-            "a lob is the slow half of the beat: {}ms vs a hurl's {}ms",
-            last_start(&lobbed),
-            last_start(&hurled)
-        );
+        let step = |fx: &Particles| fx.live[1].delay_ms - fx.live[0].delay_ms;
+        assert!((step(&hurled) - step(&lobbed)).abs() < 0.01);
+        let landed = batch_end(&hurled);
+        hurled.hit_spark(5, 1);
+        assert!(last_start(&hurled) >= landed);
     }
 
     #[test]

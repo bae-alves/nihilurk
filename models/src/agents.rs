@@ -26,7 +26,7 @@ use bevy_ecs::entity::Entity;
 use crate::catalog::SpellDef;
 use crate::components::{MovementType, Position, SpellEffect, SpellKind};
 use crate::constants::monsters::MONSTER_SHOT_RANGE;
-use crate::constants::wands::BLAST_RADIUS;
+use crate::constants::spells::METEOR_STRIKE_CHAIN_SPREAD;
 use crate::helpers::{chebyshev, get_line};
 use crate::map::Map;
 
@@ -155,14 +155,15 @@ fn off_view(p: &Percept) -> Action {
     Action::Wait
 }
 
-/// The rule set a mob thinks with: a Helper's own, otherwise the one its
-/// tactic names.
-pub fn rule_set_for(movement: MovementType, helper: bool) -> &'static RuleSet {
+/// The rule set a mob thinks with: a Helper's own, a charmed ally's if it is
+/// on the player's side and hunts, otherwise the one its tactic names.
+pub fn rule_set_for(movement: MovementType, helper: bool, ally: bool) -> &'static RuleSet {
     if helper {
         return &HELPER;
     }
     match movement {
         MovementType::Static => &STILL,
+        MovementType::Chase | MovementType::Aggravated { .. } if ally => &ALLY,
         MovementType::Chase | MovementType::Aggravated { .. } => &CHASER,
         MovementType::Flee => &FLEER,
         MovementType::Confused => &STAGGERER,
@@ -183,12 +184,22 @@ pub static STILL: RuleSet = RuleSet {
 
 /// The basic hunter. Picks a spell from its spellset at random and fires it if
 /// it can; otherwise shoots if it can, and otherwise goes to melee — strikes
-/// what is next to it, or hunts the player (only a player it has noticed, and
-/// never out of its room). It does not care who else its spell catches.
+/// what is next to it, or closes in on the nearest foe: the player once it has
+/// noticed them, or an ally of theirs that stands nearer (never out of its
+/// room). It does not care who else its spell catches.
 pub static CHASER: RuleSet = RuleSet {
     name: "chaser",
     leashed: true,
-    rules: &[CAST, SHOOT, STRIKE, HUNT],
+    rules: &[CAST, SHOOT, STRIKE, CLOSE_IN],
+};
+
+/// A charmed monster: the chaser's loop pointed at the monsters, with its
+/// spell held back from the player. It goes for the nearest monster in view
+/// and does nothing when there is none. Not the Helper, so it does not heel.
+pub static ALLY: RuleSet = RuleSet {
+    name: "ally",
+    leashed: false,
+    rules: &[CAST, SHOOT, STRIKE, CLOSE_IN],
 };
 
 /// Lies in wait and strikes only what comes alongside.
@@ -234,10 +245,11 @@ pub const SHOOT: Rule = Rule {
 };
 
 /// One spell picked at random from the spellset, fired at the nearest foe it
-/// can reach: in its range, with a clear line. An ally also passes over any
-/// foe whose blast would catch the player — every time, whatever the spell; a
-/// monster does not care who else it catches. Only attack spells with a range
-/// are fired this way.
+/// can reach: in its range, and with a clear line only for a spell that
+/// travels one ([`needs_line`]) — a sting or a bolt is aimed at the foe, not
+/// flown to it. An ally also passes over any foe whose spell would catch the
+/// player ([`reaches`]); a monster does not care who else it catches. Only
+/// attack spells with a range are fired this way.
 pub const CAST: Rule = Rule {
     name: "cast",
     fire: cast,
@@ -247,12 +259,6 @@ pub const CAST: Rule = Rule {
 pub const STRIKE: Rule = Rule {
     name: "strike",
     fire: strike,
-};
-
-/// A noticed player: take the first step of the shortest walk to them.
-pub const HUNT: Rule = Rule {
-    name: "hunt",
-    fire: hunt,
 };
 
 /// Any foe in view: take the first step of the shortest walk to the nearest.
@@ -303,8 +309,8 @@ fn cast(p: &Percept) -> Option<Action> {
         .iter()
         .find(|f| {
             chebyshev(p.at, f.at) <= def.range
-                && clear_line(p.map, p.at, f.at)
-                && !(p.ally && reaches(p.map, spell, f.at, p.player_at))
+                && (!needs_line(spell) || clear_line(p.map, p.at, f.at))
+                && !(p.ally && reaches(p.map, spell, p.at, f.at, p.player_at))
         })
         .map(|f| Action::Cast(spell, f.at))
 }
@@ -317,11 +323,6 @@ fn strike(p: &Percept) -> Option<Action> {
         .find(|f| f.is_player)
         .or_else(|| p.foes.iter().find(alongside))
         .map(|f| Action::Strike(f.who))
-}
-
-fn hunt(p: &Percept) -> Option<Action> {
-    let player = p.foes.iter().find(|f| f.is_player)?;
-    route(p, |x, y| (x, y) == (player.at.x, player.at.y), player.at)
 }
 
 fn close_in(p: &Percept) -> Option<Action> {
@@ -390,15 +391,36 @@ pub fn clear_line(map: &Map, from: Position, to: Position) -> bool {
         .all(|t| !map.blocks(t.x, t.y))
 }
 
-/// Whether `spell`, cast at `target`, would reach `who`. A spell whose
-/// footprint this does not know is assumed to reach everyone, so nothing casts
-/// it blind.
-fn reaches(map: &Map, spell: SpellEffect, target: Position, who: Position) -> bool {
-    match spell {
-        SpellEffect::DragonBreath => crate::items::blast_cells(map, target, BLAST_RADIUS)
+/// Whether `spell` flies along the line to its target and stops at the first
+/// wall, as a lance does. Every other attack spell lands on the target tile
+/// itself.
+fn needs_line(spell: SpellEffect) -> bool {
+    matches!(spell, SpellEffect::ForceLance)
+}
+
+/// Whether `spell`, cast from `from` at `target`, would reach `who`. A spell
+/// whose footprint this does not know is assumed to reach everyone, so nothing
+/// casts it blind.
+fn reaches(map: &Map, spell: SpellEffect, from: Position, target: Position, who: Position) -> bool {
+    let blast = |radius: f32| {
+        crate::items::blast_cells(map, target, radius)
             .iter()
-            .any(|&(x, y, _)| (x, y) == (who.x, who.y)),
-        SpellEffect::Thunderbolt => target == who,
+            .any(|&(x, y, _)| (x, y) == (who.x, who.y))
+    };
+    let chain = match spell {
+        SpellEffect::MeteorStrike => METEOR_STRIKE_CHAIN_SPREAD as f32,
+        _ => 0.0,
+    };
+    if let Some(radius) = crate::items::spell_blast_radius(spell) {
+        return blast(radius + chain);
+    }
+    match spell {
+        SpellEffect::Sting | SpellEffect::Thunderbolt => target == who,
+        SpellEffect::ForceLance => get_line(from, target)
+            .into_iter()
+            .skip(1)
+            .take_while(|t| !map.blocks(t.x, t.y))
+            .any(|t| t == who),
         _ => true,
     }
 }
@@ -415,7 +437,6 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -501,6 +522,48 @@ mod tests {
     }
 
     #[test]
+    fn a_chaser_goes_for_the_nearer_ally_over_a_farther_player() {
+        let map = room();
+        let e = entities(2);
+        let mut p = percept(&map, (10, 6), (14, 6));
+        p.foes = vec![
+            sighting(e[0], (10, 4), false),
+            sighting(e[1], (14, 6), true),
+        ];
+        assert_eq!(think(&p, &CHASER), Action::Step(0, -1));
+    }
+
+    #[test]
+    fn a_charmed_ally_closes_in_on_the_nearest_monster() {
+        let map = room();
+        let e = entities(1);
+        let mut p = percept(&map, (6, 6), (6, 5));
+        p.ally = true;
+        p.foes = vec![sighting(e[0], (12, 6), false)];
+        let set = rule_set_for(MovementType::Chase, false, p.ally);
+        assert_eq!(think(&p, set), Action::Step(1, 0));
+        p.at = Position { x: 11, y: 6 };
+        assert_eq!(think(&p, set), Action::Strike(e[0]));
+    }
+
+    #[test]
+    fn a_charmed_ally_with_nothing_to_fight_stays_put() {
+        let map = room();
+        let mut p = percept(&map, (6, 6), (14, 6));
+        p.ally = true;
+        let set = rule_set_for(MovementType::Chase, false, p.ally);
+        assert_eq!(think(&p, set), Action::Wait);
+    }
+
+    #[test]
+    fn a_helper_keeps_its_own_set_over_the_ally_one() {
+        assert!(std::ptr::eq(
+            rule_set_for(MovementType::Chase, true, true),
+            &HELPER
+        ));
+    }
+
+    #[test]
     fn a_chaser_steps_around_a_wall_instead_of_into_it() {
         let mut map = room();
         map.tiles[tile_index(7, 6)] = TileType::Wall;
@@ -547,6 +610,71 @@ mod tests {
         );
         p.player_at = Position { x: 12, y: 6 };
         assert!(matches!(think(&p, &HELPER), Action::Step(1, 0)));
+    }
+
+    #[test]
+    fn a_targeted_spell_needs_no_clear_line() {
+        let mut map = room();
+        map.tiles[tile_index(9, 6)] = TileType::Wall;
+        let e = entities(1);
+        for spell in [SpellEffect::Sting, SpellEffect::Thunderbolt] {
+            let mut p = percept(&map, (6, 6), (11, 6));
+            p.spellset = vec![spell];
+            p.foes = vec![sighting(e[0], (11, 6), true)];
+            assert_eq!(
+                think(&p, &CHASER),
+                Action::Cast(spell, Position { x: 11, y: 6 })
+            );
+        }
+    }
+
+    #[test]
+    fn a_line_spell_needs_a_clear_line() {
+        let mut map = room();
+        map.tiles[tile_index(9, 6)] = TileType::Wall;
+        let e = entities(1);
+        let mut p = percept(&map, (6, 6), (11, 6));
+        p.spellset = vec![SpellEffect::ForceLance];
+        p.foes = vec![sighting(e[0], (11, 6), true)];
+        assert!(!matches!(think(&p, &CHASER), Action::Cast(..)));
+    }
+
+    #[test]
+    fn a_helper_casts_every_attack_spell_that_spares_the_player() {
+        let map = room();
+        let e = entities(1);
+        let foe = Position { x: 11, y: 6 };
+        for spell in [
+            SpellEffect::Sting,
+            SpellEffect::Thunderbolt,
+            SpellEffect::ForceLance,
+            SpellEffect::Lux,
+            SpellEffect::MeteorStrike,
+        ] {
+            let mut p = percept(&map, (6, 6), (5, 8));
+            p.helper = true;
+            p.ally = true;
+            p.spellset = vec![spell];
+            p.foes = vec![sighting(e[0], (11, 6), false)];
+            assert_eq!(think(&p, &HELPER), Action::Cast(spell, foe), "{spell:?}");
+        }
+    }
+
+    #[test]
+    fn a_helper_holds_a_lance_through_the_player_but_not_a_bolt_beside_them() {
+        let map = room();
+        let e = entities(1);
+        let mut p = percept(&map, (6, 6), (8, 6));
+        p.helper = true;
+        p.ally = true;
+        p.foes = vec![sighting(e[0], (11, 6), false)];
+        p.spellset = vec![SpellEffect::ForceLance];
+        assert!(!matches!(think(&p, &HELPER), Action::Cast(..)));
+        p.spellset = vec![SpellEffect::Thunderbolt];
+        assert_eq!(
+            think(&p, &HELPER),
+            Action::Cast(SpellEffect::Thunderbolt, Position { x: 11, y: 6 })
+        );
     }
 
     #[test]

@@ -99,7 +99,7 @@ Each variant picks the rule set the monster thinks with; `agents.md` has what ea
 | `Aggravated { tx, ty }`  | Retired, kept for its position. A save that carries it loads as `Chase` plus the `Aggravated` component. **Never set it.** |
 | `Ambush`                 | `AMBUSHER`  |
 
-A `Helper` thinks with `HELPER` whatever its variant.
+A `Helper` thinks with `HELPER` whatever its variant. A charmed `Chase` monster (a `Faction::Ally` without `Helper`) thinks with `ALLY`.
 
 | Component    | Data | On | Saved? |
 |--------------|------|-----|--------|
@@ -253,10 +253,10 @@ Components — player conditions
 |-------------|--------|---------|--------|
 | `Confused`  | marker | player-only stumble (a monster uses `MovementType::Confused`); blocks fast-move / auto-explore / auto-fight; HUD `CONF` | yes |
 | `Blind`     | marker | player-only: viewshed cut to the 3x3, every glyph in it painted white, every mob `Hidden` (so auto-walk and auto-fight stall too). The AI is unaffected — see below. HUD `BLND` | yes |
-| `Paralyzed` | marker | `Speed` dropped to `Slow`, and for the player a `PARALYSIS_LOST_TURN_CHANCE` share of turns forfeited outright before a key is read. A monster carries it for the renderer's tint too, plus a log line of its own if the player can actually see it land (`conditions::paralyse`). HUD `PARL` | yes |
+| `Paralyzed` | marker | for the player a `PARALYSIS_LOST_TURN_CHANCE` share of turns forfeited outright before a key is read (never over an open menu), tempo untouched. A monster has `Speed` dropped to `Slow` instead, and carries it for the renderer's tint too, plus a log line of its own if the player can actually see it land (`conditions::paralyse`). HUD `PARL` | yes |
 | `ConfusingTouch` | marker | hands charged by a scroll of monster confusion: the next blow the bearer *lands* confuses what it hits and is spent doing it (an `ABILITIES` row keyed on `Moment::OnHit` — see `content-tables.md`). Not an impairment, and it survives a staircase. HUD `GLOW` | yes |
 | `Plated` | marker | the platinum coin's promise: reach the next **staircase** unhurt and it pays a permanent point of attack or defence *die*, the dungeon's coin flip. HUD `PLAT` | yes |
-| `Forged` | marker | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon or worn armour, exactly as the matching scroll would. HUD `FORG` | yes |
+| `Forged` | marker | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon, worn armour or a worn ring with a number to it (the Princess of Diamonds' pool), one of the three at random. HUD `FORG` | yes |
 | `MagicWard` | marker | the spell Magic Ward: for the rest of the floor, checked in `helpers::apply_hit` (every `Hit` with `magical` set -- zapped, thrown, breathed or cast -- bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted like `Confused`/`Blind`/`Paralyzed` above. HUD `WARD` | yes |
 | `Bided` | marker | the spell Bide: `combat::fold_matchup` folds `constants::combat::BIDE_ATTACK_BONUS` into the bearer's very next attack roll, and `combat::resolve_attack` removes the marker the instant that roll is folded — hit, glancing or miss. Anything else done with a turn instead (a step, a used/thrown item, another spell) spends it unfired, via `equipment::reset_momentum`. HUD `BIDE` | yes |
 
@@ -266,7 +266,7 @@ Components — player conditions
 
 The first three are **effects**, not components of their own: rows in `crate::effects`'s `EFFECTS`, held for `Lifetime::Floor`, and listed once in `conditions::AFFLICTIONS` with the words for lifting each. That one table is what `afflicted`, `cure_one_condition` and `clear_player_conditions` all read. The table's order is worst-first, because a cure takes the first row it finds. `Speed` haste/slow is not a row and cannot be: a tempo is a value, not a marker something either has or has not.
 
-The verbs that put them on — `confuse`, `blind`, `paralyse`, `hasten`, `shift_entity_speed`, `snare` — live in `crate::conditions`, one per affliction, and each one already knows the difference between the player and a monster. `snare` is the exception to the "never wears off" rule above: it is counted in turns from the moment it lands, and it logs nothing, because the sentence belongs to whatever pinned you. A blinded monster has no viewshed to put out, so it gets `MovementType::Confused`; a paralysed one gets the slowing and no coin flip.
+The verbs that put them on — `confuse`, `blind`, `paralyse`, `hasten`, `shift_entity_speed`, `snare` — live in `crate::conditions`, one per affliction, and each one already knows the difference between the player and a monster. `snare` is the exception to the "never wears off" rule above: it is counted in turns from the moment it lands, and it logs nothing, because the sentence belongs to whatever pinned you. A blinded monster has no viewshed to put out, so it gets `MovementType::Confused`; a paralysed one loses a share of its turns, the same coin flip the player makes.
 
 **A creature carries at most three conditions.** A fourth is refused, in `effects::lend` — the one gate every transient effect already passes through, so a trap, a potion and a monster's touch are all capped by the same line. `lend` returns `false` and attaches nothing; the verbs that print a success line (`blind`, `confuse`, `paralyse`, `bide`, magic ward) check it and stop. What the creature already holds stays, so nothing has to be undone.
 

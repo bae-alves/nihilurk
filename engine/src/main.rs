@@ -214,6 +214,50 @@ fn player_step(world: &mut World) -> std::io::Result<bool> {
     update::process_input_and_update(world)
 }
 
+/// Maps a double-dash longhand to the short flag the parser matches on.
+/// Anything else comes back unchanged.
+fn canonical_flag(arg: &str) -> &str {
+    match arg {
+        "--seed" => "-s",
+        "--centered" => "-c",
+        "--no-save" => "-ns",
+        "--no-blood" => "-nb",
+        "--no-shake" => "-nshake",
+        "--no-bones" => "-nobones",
+        "--body" => "-b",
+        "--as-monster" => "-am",
+        "--leaderboard" => "-scores",
+        "--endless" => "-endless",
+        "--anim-rate" => "-anim-rate",
+        "--content" => "-content",
+        "--pride" => "-pride",
+        "--prideoff" => "-prideoff",
+        _ => arg,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::canonical_flag;
+
+    #[test]
+    fn longhands_map_to_their_short_flags() {
+        assert_eq!(canonical_flag("--leaderboard"), "-scores");
+        assert_eq!(canonical_flag("--no-save"), "-ns");
+        assert_eq!(canonical_flag("--as-monster"), "-am");
+        assert_eq!(canonical_flag("--anim-rate"), "-anim-rate");
+        assert_eq!(canonical_flag("bae"), "bae");
+    }
+}
+
+/// The text `invalid argument` quotes for a flag whose value is missing or bad.
+fn flag_with_value(flag: &str, value: Option<&String>) -> String {
+    match value {
+        Some(v) => format!("{flag} {v}"),
+        None => flag.to_string(),
+    }
+}
+
 /// Parses the command line, builds the world, then runs the read-act-render
 /// loop until the run ends. Prints the ending screens and writes the save or
 /// leaderboard entry on the way out.
@@ -249,13 +293,18 @@ fn main() -> std::io::Result<()> {
     let mut anim_rate: f32 = 1.0;
     let mut first = true;
     let mut stray_positional: Option<String> = None;
+    let mut invalid_argument: Option<String> = None;
     let mut iter = args.iter();
     iter.next();
     while let Some(arg) = iter.next() {
-        match arg.as_str() {
+        match canonical_flag(arg) {
             "-s" => {
-                if let Some(seed_str) = iter.next() {
-                    seed = seed_str.parse::<u64>().ok();
+                let value = iter.next();
+                match value.and_then(|v| v.parse::<u64>().ok()) {
+                    Some(n) => seed = Some(n),
+                    None => {
+                        invalid_argument.get_or_insert(flag_with_value("-s", value));
+                    }
                 }
             }
             "-c" => centered_mode = true,
@@ -266,21 +315,23 @@ fn main() -> std::io::Result<()> {
             "-endless" => endless = true,
             "-content" => list_content = true,
             "-scores" => show_leaderboard = true,
-            "-pride" => {
-                if let Some(name) = iter.next() {
-                    match models::pride::PrideFlag::named(name) {
-                        Some(flag) => pride = flag,
-                        None => unknown_flag = Some(name.clone()),
-                    }
+            "-pride" => match iter.next().filter(|v| !v.starts_with('-')) {
+                Some(name) => match models::pride::PrideFlag::named(name) {
+                    Some(flag) => pride = flag,
+                    None => unknown_flag = Some(name.clone()),
+                },
+                None => {
+                    invalid_argument.get_or_insert("-pride".to_string());
                 }
-            }
+            },
             "-prideoff" => pride_off = true,
             "-b" | "-am" => {
-                let flag = match arg.as_str() {
+                let flag = match canonical_flag(arg) {
                     "-b" => "-b",
                     _ => "-am",
                 };
-                if let Some(name) = iter.next() {
+                let value = iter.next();
+                if let Some(name) = value.filter(|v| !v.starts_with('-')) {
                     let spelling = format!("{flag} {name}");
                     if let Some(first) = body_arg.replace(spelling.clone()) {
                         conflicting_bodies = Some((first, spelling));
@@ -292,12 +343,24 @@ fn main() -> std::io::Result<()> {
                         (_, _, Some(def)) => body = Some((models::Body::Monster(def), "-am")),
                         (_, _, None) => unknown_body = Some((name.clone(), "-am")),
                     }
+                } else {
+                    invalid_argument.get_or_insert(flag_with_value(flag, value));
                 }
             }
             "-anim-rate" => {
-                if let Some(rate) = iter.next().and_then(|s| s.parse::<f32>().ok()) {
-                    anim_rate = rate.clamp(0.1, 5.0);
+                let value = iter.next();
+                match value
+                    .and_then(|s| s.parse::<f32>().ok())
+                    .filter(|r| r.is_finite())
+                {
+                    Some(rate) => anim_rate = rate.clamp(0.1, 5.0),
+                    None => {
+                        invalid_argument.get_or_insert(flag_with_value("-anim-rate", value));
+                    }
                 }
+            }
+            _ if arg.starts_with('-') => {
+                invalid_argument.get_or_insert_with(|| arg.clone());
             }
             _ => match positional {
                 None if first => positional = Some(arg.clone()),
@@ -305,6 +368,11 @@ fn main() -> std::io::Result<()> {
             },
         }
         first = false;
+    }
+
+    if let Some(arg) = invalid_argument {
+        eprintln!("{}", strings::invalid_argument(&arg));
+        return Ok(());
     }
 
     if list_content {

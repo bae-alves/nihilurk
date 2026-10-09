@@ -4,16 +4,18 @@ nihilurk \- terminal roguelike
 .SH SYNOPSIS
 .B nihilurk
 .RI [ name | save ]
-[\fB\-s\fR \fIseed\fR] [\fB\-c\fR] [\fB\-ns\fR] [\fB\-nb\fR]
-[\fB\-nshake\fR] [\fB\-nobones\fR] [\fB\-endless\fR]
-[\fB\-anim\-rate\fR \fImultiplier\fR]
-[\fB\-b\fR \fIbody\fR | \fB\-am\fR \fIspecies\fR]
+[\fB\-s\fR|\fB\-\-seed\fR \fIseed\fR] [\fB\-c\fR|\fB\-\-centered\fR]
+[\fB\-ns\fR|\fB\-\-no\-save\fR] [\fB\-nb\fR|\fB\-\-no\-blood\fR]
+[\fB\-nshake\fR|\fB\-\-no\-shake\fR] [\fB\-nobones\fR|\fB\-\-no\-bones\fR]
+[\fB\-endless\fR|\fB\-\-endless\fR]
+[\fB\-anim\-rate\fR|\fB\-\-anim\-rate\fR \fImultiplier\fR]
+[\fB\-b\fR|\fB\-\-body\fR \fIbody\fR | \fB\-am\fR|\fB\-\-as\-monster\fR \fIspecies\fR]
 .PP
 .B nihilurk
-\fB\-content\fR
+\fB\-content\fR | \fB\-\-content\fR
 .PP
 .B nihilurk
-\fB\-scores\fR
+\fB\-scores\fR | \fB\-\-leaderboard\fR
 .PP
 .B nihilurk
 \fB\-h\fR | \fB\-help\fR | \fB\-\-help\fR
@@ -107,7 +109,7 @@ the Dungeon Lord, and declining leaves the world its light.
 Print a short command-line guide and exit without entering the alternate
 screen. This page is the full reference.
 .TP
-.BI \-s " seed"
+.BI "\-s, \-\-seed" " seed"
 Use
 .I seed
 as the run's unsigned 64-bit seed. The seed fixes the dungeon's maps: the
@@ -115,39 +117,39 @@ walls of a floor are the same every time that floor of that seed is entered,
 today, tomorrow, and after a reload. Monsters, items, and traps are rolled
 afresh on each entry, so a familiar corridor may hold unfamiliar company, and
 two runs on one seed that take the same staircases see the same everything.
-An unparseable or missing value is ignored and the seed is drawn at random.
+An unparseable or missing value is refused as an invalid argument.
 .TP
-.B \-c
+.BR \-c ", " \-\-centered
 Centre the map on the player instead of using the fixed viewport.
 .TP
-.B \-ns
+.BR \-ns ", " \-\-no\-save
 Do not write a save file. The run leaves nothing behind, on quit or on
 victory.
 .TP
-.B \-nb
+.BR \-nb ", " \-\-no\-blood
 Disable bloodstains and the corpse-and-bones death animation.
 .TP
-.B \-nshake
+.BR \-nshake ", " \-\-no\-shake
 Disable screen shake. The map never leaves its moorings;
 .B \-anim\-rate
 can only slow a shake, not still one.
 .TP
-.B \-nobones
+.BR \-nobones ", " \-\-no\-bones
 Skip the bones mechanic: a death never writes a
 .BR bones\-N.sav ,
 and an ascent never reads one.
 .TP
-.B \-endless
+.BR \-endless ", " \-\-endless
 No Element of Yoord ever spawns, so there is no way to win. The dungeon keeps
 going down past the thirteenth floor.
 .TP
-.BI \-anim\-rate " multiplier"
+.BI "\-anim\-rate, \-\-anim\-rate" " multiplier"
 Set the on-screen hold time for particle, mapping, and shake animation
 frames. The default is 1.0; raise it for a terminal whose redraw cannot keep
 up, lower it for snappier animations. The value is clamped to 0.1 through 5.0;
-an invalid or missing value uses the default.
+an unparseable or missing value is refused as an invalid argument.
 .TP
-.BI \-b " body"
+.BI "\-b, \-\-body" " body"
 Which creature descends:
 .B nihil
 (the default) or
@@ -170,7 +172,7 @@ and
 .B \-am
 are the same choice asked two ways and may not be given together.
 .TP
-.BI \-am " species"
+.BI "\-am, \-\-as\-monster" " species"
 Play as a monster. The run starts in that species' body: its glyph, hit
 points, attack and armour dice, tempo, and the magic it was born with, taken
 from the same bestiary row the dungeon builds its own monsters from. The name
@@ -192,7 +194,7 @@ instead), and
 .B \-am
 given together with a save to load, which already knows what body it is in.
 .TP
-.B \-content
+.BR \-content ", " \-\-content
 Print every content name accepted by
 .BR NIHILURK_SPAWN ,
 grouped by category, and exit without entering the alternate screen, so the
@@ -202,7 +204,7 @@ and
 .BR less (1)
 like any other listing.
 .TP
-.B \-scores
+.BR \-scores ", " \-\-leaderboard
 Print the leaderboard \(em the ten highest scores ever recorded, one per line
 as
 .BR "RANK. NAME - OUTCOME - SCORE (WHEN)" ,
@@ -236,8 +238,10 @@ Load a save file if the argument names an existing file, or if appending
 names one. Matching is case-insensitive. If the save is clear data, a won
 run, the game asks before spending it.
 .PP
-An unrecognised argument is treated as the player name, so a typo becomes a
-nihilurk rather than an error. Options may appear in any order; a later positional
+An unrecognised argument that starts with a dash, and a flag whose value is
+missing or bad, are refused with
+.BR "invalid argument ARG. Please see -help for more information" ,
+and a player name cannot start with a dash. Options may appear in any order; a later positional
 argument replaces an earlier one.
 .SH ENVIRONMENT
 .TP

@@ -15,22 +15,22 @@ After `cargo install nihilurk`, run `nihilurk [flags] [name-or-save]` instead. I
 Flags
 -----
 
-Single dash, in any order. Unrecognised arguments are treated as the positional argument, so a typo becomes a player name rather than an error.
+In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`, `-ns`, `-nb`, `-nshake`, `-nobones`, `-b`, `-am`, `-scores`) also have a double-dash longhand (`--seed`, `--centered`, `--no-save`, `--no-blood`, `--no-shake`, `--no-bones`, `--body`, `--as-monster`, `--leaderboard`), and `-endless`, `-anim-rate`, `-content`, `-pride` and `-prideoff` also take `--`. Any other argument that starts with `-` is refused, and so is a flag whose value is missing or bad (`-s -5`, `-s abc`, `-anim-rate fast`, `-b` with nothing after it); the message quotes the flag and its value: `invalid argument ARG. Please see -help for more information`. A player name therefore cannot start with `-`.
 
 | Flag         | Effect                                                    |
 |--------------|-----------------------------------------------------------|
-| `-s <seed>`  | Start the run from a specific `u64` seed. Reproducible.   |
-| `-c`         | Centre the map on the terminal instead of on top left. |
-| `-ns`        | No save. The run is never written to disk.                |
-| `-nb`        | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
-| `-nshake`    | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
-| `-nobones`   | Skip the bones mechanic entirely: a death never writes a `bones-N.sav`, and an ascent never reads one. Not the corpse-fling animation `-nb` mentions above — this is the NetHack-style "a past run's ghost, guarding its own cursed gear" (`models::bones`). |
-| `-endless`   | No Element of Yoord ever spawns, so there is no way to win: the dungeon keeps going down past `FINAL_DEPTH`. Sets the `Endless` resource (`models/src/map.rs`); the depth-`FINAL_DEPTH` checks in `traps.rs`, `monsters.rs` and `saveload.rs` read it. |
-| `-content`   | Print every name the content tables know, then exit.      |
-| `-scores`    | Print the leaderboard (top 10 scores ever recorded), then exit. |
-| `-anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad or missing value falls back to `1.0`. |
-| `-b <body>` | Play as `nihil` (the default) or `lurk`. See below. |
-| `-am <species>` | Play *as* a monster: any bestiary name (`-am dragon`). See below. |
+| `-s <seed>`, `--seed` | Start the run from a specific `u64` seed. Reproducible.   |
+| `-c`, `--centered` | Centre the map on the terminal instead of on top left. |
+| `-ns`, `--no-save` | No save. The run is never written to disk.                |
+| `-nb`, `--no-blood` | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
+| `-nshake`, `--no-shake` | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
+| `-nobones`, `--no-bones` | Skip the bones mechanic entirely: a death never writes a `bones-N.sav`, and an ascent never reads one. Not the corpse-fling animation `-nb` mentions above — this is the NetHack-style "a past run's ghost, guarding its own cursed gear" (`models::bones`). |
+| `-endless`, `--endless` | No Element of Yoord ever spawns, so there is no way to win: the dungeon keeps going down past `FINAL_DEPTH`. Sets the `Endless` resource (`models/src/map.rs`); the depth-`FINAL_DEPTH` checks in `traps.rs`, `monsters.rs` and `saveload.rs` read it. |
+| `-content`, `--content` | Print every name the content tables know, then exit.      |
+| `-scores`, `--leaderboard` | Print the leaderboard (top 10 scores ever recorded), then exit. |
+| `-anim-rate <n>`, `--anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad, non-finite or missing value is refused as an invalid argument. |
+| `-b <body>`, `--body` | Play as `nihil` (the default) or `lurk`. See below. |
+| `-am <species>`, `--as-monster` | Play *as* a monster: any bestiary name (`-am dragon`). See below. |
 
 ### `-b <body>`
 

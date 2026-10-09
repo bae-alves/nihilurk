@@ -65,7 +65,6 @@ fn arena(seed: u64) -> World {
     w.insert_resource(Map {
         tiles: vec![TileType::Room; MAP_TILE_COUNT],
         dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-        inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     });
@@ -428,13 +427,9 @@ fn a_freezing_touch_can_paralyse_and_nothing_else_does() {
     );
 }
 
-/// A monster's `Paralyzed` marker is tint-only in the HUD, but the log should
-/// not stay just as silent: `conditions::set_speed` already prints a generic
-/// slow-down line for *any* monster regardless of what caused it (that part is
-/// unconditional, on purpose — a wand of slow monster wants exactly that
-/// line). Paralysis earns a second, dedicated line on top of it — but only
-/// when the player could actually watch it happen, the same rule
-/// `conditions::report_cure` already holds a mending monster to.
+/// A monster's paralysis earns a log line of its own, but only when the player
+/// could actually watch it happen, the same rule `conditions::report_cure`
+/// already holds a mending monster to.
 #[test]
 fn a_visible_monsters_paralysis_gets_a_line_of_its_own() {
     let mut w = arena(1);
@@ -453,19 +448,16 @@ fn a_visible_monsters_paralysis_gets_a_line_of_its_own() {
         .count();
     assert_eq!(
         mentions,
-        2,
-        "a paralysis landing in plain sight should say so, on top of the \
-         generic slow-down: {:?}",
+        1,
+        "a paralysis landing in plain sight should say so: {:?}",
         w.resource::<GameLog>().history
     );
 }
 
-/// The other half: nothing new is said about a monster paralysed out of
-/// sight — it still gets the generic slow-down line `set_speed` always
-/// prints, but not the dedicated paralysis line, which would leak that
-/// something happened in a room the player has never seen.
+/// The other half: nothing is said about a monster paralysed out of sight, which
+/// would leak that something happened in a room the player has never seen.
 #[test]
-fn an_unseen_monsters_paralysis_only_gets_the_generic_slow_line() {
+fn an_unseen_monsters_paralysis_says_nothing() {
     let mut w = arena(1);
     let p = hero(&mut w, at(5, 5), 20, 4);
     let victim = creature(&mut w, at(50, 50), 10, 3);
@@ -482,9 +474,8 @@ fn an_unseen_monsters_paralysis_only_gets_the_generic_slow_line() {
         .count();
     assert_eq!(
         mentions,
-        1,
-        "a paralysis nobody could see should stay as quiet as it already \
-         was: {:?}",
+        0,
+        "a paralysis nobody could see should stay silent: {:?}",
         w.resource::<GameLog>().history
     );
 }
@@ -1608,6 +1599,21 @@ fn a_cure_lifts_the_worst_affliction_first() {
         w.get::<Confused>(victim).is_some(),
         "one cure lifted two afflictions"
     );
+}
+
+/// Paralysis leaves the tempo alone, so lifting it must too: a hasted hero
+/// cured of paralysis is still hasted.
+#[test]
+fn curing_paralysis_keeps_the_tempo() {
+    let mut w = arena(1);
+    let victim = hero(&mut w, at(10, 10), 20, 8);
+    w.get_mut::<Speed>(victim).unwrap().kind = SpeedKind::Fast;
+    paralyse(&mut w, victim);
+
+    assert!(cure_one_condition(&mut w, victim), "nothing was lifted");
+
+    assert!(w.get::<Paralyzed>(victim).is_none(), "the paralysis stayed");
+    assert_eq!(w.get::<Speed>(victim).unwrap().kind, SpeedKind::Fast);
 }
 
 /// `afflicted` and `cure_one_condition` used to be two hand-written lists that

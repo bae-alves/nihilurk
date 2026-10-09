@@ -801,7 +801,7 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    assert_eq!(w.get::<ThrownDamage>(sword), Some(&ThrownDamage(3)));
+    assert_eq!(w.get::<ThrownDamage>(sword), Some(&ThrownDamage(2)));
 
     let save = common::SaveFile::new("thrown-damage");
     save_game(&mut w, save.path()).unwrap();
@@ -813,7 +813,7 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
         .filter(|e| e.get::<Name>().is_some_and(|n| n.what == "long sword"))
         .filter_map(|e| e.get::<ThrownDamage>().map(|t| t.0))
         .collect();
-    assert_eq!(dice, vec![3]);
+    assert_eq!(dice, vec![2]);
 }
 
 /// A shot that comes down on a trap the player has found sets it off — and a
@@ -984,22 +984,49 @@ fn a_creature_that_sees_you_step_onto_a_doorway_does_nothing() {
     assert_eq!(pos_of(&w, chaser), (perch.x, perch.y), "it held its ground");
 }
 
-/// Do anything but move while you stand there and the ward breaks for good.
+/// The ward is one turn long: do anything but move while you stand there and
+/// they come for you. The door itself is untouched, so the next step onto it
+/// wards again.
 #[test]
-fn acting_on_a_doorway_breaks_the_ward_and_greys_the_door() {
+fn the_ward_lasts_only_the_turn_you_step_onto_the_doorway() {
     let mut w = test_world(11);
-    let (chaser, here, perch) = doorway_standoff(&mut w, false);
+    let (chaser, _, perch) = doorway_standoff(&mut w, false);
 
     ai(&mut w);
 
-    assert!(w.resource::<Map>().is_inert_door(here.x, here.y));
     assert_ne!(pos_of(&w, chaser), (perch.x, perch.y), "it came for you");
 
     let p = player(&mut w);
     w.entity_mut(p).insert(EntityMoved);
     let before = pos_of(&w, chaser);
     ai(&mut w);
-    assert_ne!(pos_of(&w, chaser), before, "an inert doorway is no ward");
+    assert_eq!(
+        pos_of(&w, chaser),
+        before,
+        "stepping onto the doorway wards again"
+    );
+}
+
+/// The room leash stops a chaser walking out into a doorway, not striking
+/// someone who stands in one: past the first turn, a creature next to you
+/// hits you.
+#[test]
+fn a_room_chaser_strikes_a_player_standing_in_the_doorway() {
+    let mut w = test_world(11);
+    let (chaser, _, _) = doorway_standoff(&mut w, false);
+    let next_to_the_door = east_of_player(&mut w, 1);
+    w.entity_mut(chaser).insert(next_to_the_door);
+    let mut s = Schedule::default();
+    s.add_systems(visibility_system);
+    s.run(&mut w);
+
+    ai(&mut w);
+
+    assert_eq!(
+        w.resource::<AttackQueue>().attacks.len(),
+        1,
+        "it swung at you"
+    );
 }
 
 /// A wand of digging that bursts on impact leaves a crater: every wall inside
@@ -1041,4 +1068,153 @@ fn a_thrown_wand_of_digging_makes_a_crater() {
             }
         }
     }
+}
+
+#[test]
+fn a_centaur_spawns_with_a_bow_and_no_arrows_underfoot() {
+    let mut w = test_world(1);
+    let def = MonsterDef::named("centaur");
+    let mut rng = ChaCha12Rng::seed_from_u64(3);
+    let at = Position { x: 1, y: 1 };
+    let mobs: Vec<_> = (0..20)
+        .map(|_| spawn_monster_with_rng(&mut w, def, at, &mut rng))
+        .collect();
+    let strapped = mobs
+        .iter()
+        .filter(|&&m| wielded_launcher(&w, m).is_some())
+        .count();
+    assert!(strapped > 0);
+    let arrows = w
+        .query::<(&Name, &Position)>()
+        .iter(&w)
+        .filter(|(n, _)| n.what.contains("arrow"))
+        .count();
+    assert_eq!(arrows, 0);
+}
+
+/// The reticle's preview of the blast a confirm would set off, as a set.
+fn preview(
+    w: &mut World,
+    item: Option<Entity>,
+    throwing: bool,
+    spell_effect: Option<SpellEffect>,
+    at: Position,
+) -> std::collections::HashSet<(u16, u16)> {
+    w.insert_resource(TargetingState {
+        active: true,
+        item,
+        throwing,
+        spell_effect,
+        cursor_x: at.x as i16,
+        cursor_y: at.y as i16,
+        ..Default::default()
+    });
+    aim_footprint(w).into_iter().collect()
+}
+
+/// Whether `cells` is a disc of `radius` around `center`: the centre in it and
+/// nothing further out.
+fn centred_on(
+    cells: &std::collections::HashSet<(u16, u16)>,
+    center: Position,
+    radius: f32,
+) -> bool {
+    cells.contains(&(center.x, center.y))
+        && cells.iter().all(|&(x, y)| {
+            let (dx, dy) = (x as f32 - center.x as f32, y as f32 - center.y as f32);
+            (dx * dx + dy * dy).sqrt() <= radius
+        })
+}
+
+#[test]
+fn a_thrown_wand_previews_its_burst_on_the_first_creature_in_the_way() {
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let near = east_of_player(&mut w, 1);
+    monster(&mut w, "orc", near);
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let cursor = east_of_player(&mut w, 4);
+
+    let cells = preview(&mut w, Some(wand), true, None, cursor);
+
+    assert!(centred_on(&cells, near, GRENADE_RADIUS), "{cells:?}");
+    assert!(!cells.contains(&(cursor.x, cursor.y)));
+}
+
+#[test]
+fn a_wand_lobbed_onto_open_floor_previews_nothing() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let cursor = east_of_player(&mut w, 2);
+
+    assert!(preview(&mut w, Some(wand), true, None, cursor).is_empty());
+}
+
+#[test]
+fn a_creature_the_player_cannot_see_does_not_move_the_preview() {
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let near = east_of_player(&mut w, 1);
+    let unseen = monster(&mut w, "orc", near);
+    w.entity_mut(unseen).insert(Hidden);
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let cursor = east_of_player(&mut w, 2);
+
+    assert!(preview(&mut w, Some(wand), true, None, cursor).is_empty());
+}
+
+#[test]
+fn a_zapped_blast_previews_on_the_cursor_past_a_creature() {
+    use models::constants::wands::BLAST_RADIUS;
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let near = east_of_player(&mut w, 1);
+    monster(&mut w, "orc", near);
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Cold, NOWHERE));
+    let cursor = east_of_player(&mut w, 4);
+
+    let cells = preview(&mut w, Some(wand), false, None, cursor);
+
+    assert!(centred_on(&cells, cursor, BLAST_RADIUS), "{cells:?}");
+}
+
+#[test]
+fn a_blast_spell_previews_on_the_cursor() {
+    let mut w = test_world(13);
+    let cursor = east_of_player(&mut w, 3);
+
+    let cells = preview(&mut w, None, false, Some(SpellEffect::Lux), cursor);
+
+    assert!(centred_on(&cells, cursor, GRENADE_RADIUS), "{cells:?}");
+}
+
+#[test]
+fn a_thrown_potion_previews_its_splash_where_it_lands() {
+    use models::constants::potions::POTION_SPLASH_RADIUS;
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let near = east_of_player(&mut w, 1);
+    monster(&mut w, "orc", near);
+    let potion = stash(&mut w, p, |w| {
+        spawn_potion(w, PotionEffect::Healing, NOWHERE)
+    });
+    let cursor = east_of_player(&mut w, 3);
+
+    let cells = preview(&mut w, Some(potion), true, None, cursor);
+
+    assert!(centred_on(&cells, near, POTION_SPLASH_RADIUS), "{cells:?}");
+}
+
+#[test]
+fn a_bolt_a_line_spell_and_a_look_preview_nothing() {
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Striking, NOWHERE));
+    let cursor = east_of_player(&mut w, 3);
+
+    assert!(preview(&mut w, Some(wand), false, None, cursor).is_empty());
+    assert!(preview(&mut w, None, false, Some(SpellEffect::ForceLance), cursor).is_empty());
+    w.resource_mut::<TargetingState>().looking = true;
+    assert!(aim_footprint(&mut w).is_empty());
 }

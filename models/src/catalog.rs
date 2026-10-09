@@ -74,9 +74,9 @@ pub trait ItemDef {
     /// the baseline, so a row at half of it is half as common and one at double
     /// it twice.
     ///
-    /// Every row in the game currently sits at the default — within a category
-    /// nihilurk picks evenly, on purpose. Overriding it is how a category earns
-    /// per-row rarity: give the struct a `weight: u32` field and return it here.
+    /// Most rows sit at the default — within a category nihilurk picks evenly,
+    /// on purpose. Overriding it is how a category earns per-row rarity: coins
+    /// carry a `weight` field, scrolls match on their effect.
     fn weight(&self) -> u32 {
         crate::constants::monsters::DEFAULT_SPAWN_WEIGHT
     }
@@ -191,6 +191,16 @@ pub struct ScrollDef {
 impl ItemDef for ScrollDef {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    /// Identify and remove curse are the two scrolls every run needs, so they
+    /// drop twice as often as the rest.
+    fn weight(&self) -> u32 {
+        let base = crate::constants::monsters::DEFAULT_SPAWN_WEIGHT;
+        match self.effect {
+            ScrollEffect::Identify | ScrollEffect::RemoveCurse => base * 2,
+            _ => base,
+        }
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
@@ -844,8 +854,8 @@ impl ItemDef for AmmoDef {
 /// Every kind of ammunition in the game, one row each.
 #[rustfmt::skip]
 pub const AMMO: &[AmmoDef] = &[
-    AmmoDef { name: "arrow",    color: Color::DarkYellow, die: IMPROVISED_THROW_DIE, venom: false, launched_die: 4, launched_by: Grant::of::<FireArrow>()   },
-    AmmoDef { name: "quarrel",  color: Color::Grey,       die: IMPROVISED_THROW_DIE, venom: false, launched_die: 6, launched_by: Grant::of::<FireQuarrel>() },
+    AmmoDef { name: "arrow",    color: Color::DarkYellow, die: IMPROVISED_THROW_DIE, venom: false, launched_die: 3, launched_by: Grant::of::<FireArrow>()   },
+    AmmoDef { name: "quarrel",  color: Color::Grey,       die: IMPROVISED_THROW_DIE, venom: false, launched_die: 5, launched_by: Grant::of::<FireQuarrel>() },
     AmmoDef { name: "blowdart", color: Color::Green,      die: IMPROVISED_THROW_DIE, venom: true,  launched_die: 2, launched_by: Grant::of::<FireDart>()    },
 ];
 

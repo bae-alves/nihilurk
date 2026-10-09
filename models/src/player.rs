@@ -61,25 +61,33 @@ pub fn maybe_stumble(world: &mut World, dx: i16, dy: i16) -> (i16, i16, bool) {
     (sx, sy, true)
 }
 
-/// Picks up whatever [`Item`] sits at `(x, y)` for `player_entity`, the way
+/// Picks up every [`Item`] that sits at `(x, y)` for `player_entity`, the way
 /// arriving on a tile always does: walking onto it or, just the same, lunging
 /// onto it with an estoc. There is no pick-up key. nihilurk has nine pack
 /// slots and a floor full of coins that are spent where they lie, so landing
-/// on a thing is decision enough.
+/// on a thing is decision enough. A pile is taken in the one turn; a full pack
+/// says so once and leaves the rest where they lie.
 pub fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
-    let item_entity = world
+    let items: Vec<Entity> = world
         .query_filtered::<(Entity, &Position), With<Item>>()
         .iter(world)
-        .find(|(_, pos)| pos.x == x && pos.y == y)
-        .map(|(entity, _)| entity);
-    let Some(item_entity) = item_entity else {
-        return;
-    };
-    let stowable = world.get::<Pickup>(item_entity).is_none();
-    match crate::pick_up(world, player_entity, item_entity) {
-        Some(msg) => world.resource_mut::<GameLog>().add(msg),
-        None if stowable => world.resource_mut::<GameLog>().add(strings::pack_full()),
-        None => {}
+        .filter(|(_, pos)| pos.x == x && pos.y == y)
+        .map(|(entity, _)| entity)
+        .collect();
+    let mut full = false;
+    for item_entity in items {
+        if world.get::<Item>(item_entity).is_none() {
+            continue;
+        }
+        let stowable = world.get::<Pickup>(item_entity).is_none();
+        match crate::pick_up(world, player_entity, item_entity) {
+            Some(msg) => world.resource_mut::<GameLog>().add(msg),
+            None if stowable && !full => {
+                full = true;
+                world.resource_mut::<GameLog>().add(strings::pack_full());
+            }
+            None => {}
+        }
     }
 }
 

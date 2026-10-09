@@ -190,7 +190,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         return Ok(true);
     }
 
-    if !more_pending && paralysis_forfeits_turn(world) {
+    if !more_pending && !modal_open(world) && paralysis_forfeits_turn(world) {
         std::thread::sleep(Duration::from_millis(INCAPACITATED_PAUSE_MS));
         return Ok(true);
     }
@@ -277,6 +277,18 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
         return handle_barter_input(world, key);
     }
     handle_movement_input(world, key)
+}
+
+/// Whether any menu, prompt or aiming reticle has the keyboard. A paralysed
+/// player's lost turn is not rolled over one: browsing a menu spends no time.
+fn modal_open(world: &World) -> bool {
+    world.resource::<TargetingState>().active
+        || world.resource::<PackIsOpen>().open
+        || world.resource::<SpellsMenu>().open
+        || world.resource::<OfferMenu>().open
+        || world.resource::<BarterMenu>().open
+        || world.resource::<QuitPrompt>().open
+        || world.resource::<HelpMenu>().open
 }
 
 /// Slams every modal shut and returns to plain movement. Returns whether
@@ -834,7 +846,9 @@ fn commit_item_action(
 /// goes back in the pack and opens the aiming reticle instead (no turn); a
 /// thing that is only ever thrown goes back in the pack and says so (no turn).
 fn use_or_aim(world: &mut World, player: Entity, item: Entity, item_idx: usize) -> bool {
-    if let Some(refusal) = use_refusal(world, item) {
+    if let Some(refusal) =
+        use_refusal(world, item).or_else(|| models::toggle_refusal(world, player, item))
+    {
         return_to_pack(world, player, item, item_idx);
         world.resource_mut::<GameLog>().add(refusal);
         return false;
@@ -1110,6 +1124,11 @@ fn start_run(world: &mut World, rdx: i16, rdy: i16) -> bool {
             world
                 .resource_mut::<GameLog>()
                 .add(strings::not_while_monster_in_sight());
+        }
+        FastMovePlan::ThickOfIt => {
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::cannot_charge_in_the_thick_of_it());
         }
         FastMovePlan::Charge(target) => {
             world.resource_mut::<GameLog>().unread.clear();
@@ -3007,5 +3026,72 @@ mod tests {
                 .iter()
                 .any(|l| l.contains("for throwing"))
         );
+    }
+
+    #[test]
+    fn using_an_inert_rune_says_so_and_costs_nothing() {
+        let mut w = modal_world(3);
+        let player = player_entity(&mut w);
+        let rune = models::spawn_rune(
+            &mut w,
+            models::RuneEffect::Displacement,
+            Position { x: 0, y: 0 },
+        );
+        w.entity_mut(rune).remove::<Position>();
+        w.get_mut::<models::Rune>(rune).unwrap().charged = false;
+        w.get_mut::<Backpack>(player).unwrap().items.insert(0, rune);
+
+        let turn = commit_item_action(&mut w, player, 0, ItemAction::Use);
+
+        assert!(!turn, "no turn spent on a dark rune");
+        assert_eq!(w.get::<Backpack>(player).unwrap().items[0], rune);
+        assert!(w.resource::<UseQueue>().uses.is_empty());
+        assert!(
+            w.resource::<GameLog>()
+                .history
+                .iter()
+                .any(|l| l.contains("rune is dark"))
+        );
+    }
+
+    #[test]
+    fn taking_off_cursed_gear_says_it_is_stuck_and_costs_nothing() {
+        let mut w = modal_world(3);
+        let player = player_entity(&mut w);
+        let ring = models::spawn_ring(
+            &mut w,
+            models::RingEffect::Protection,
+            Position { x: 0, y: 0 },
+        );
+        w.entity_mut(ring)
+            .remove::<Position>()
+            .insert(models::Curse);
+        w.get_mut::<Backpack>(player).unwrap().items.insert(0, ring);
+        models::toggle_equipped(&mut w, player, ring);
+        w.resource_mut::<GameLog>().history.clear();
+
+        let turn = commit_item_action(&mut w, player, 0, ItemAction::Use);
+
+        assert!(!turn, "no turn spent on welded gear");
+        assert!(w.resource::<UseQueue>().uses.is_empty());
+        assert_eq!(w.get::<Backpack>(player).unwrap().items[0], ring);
+        assert!(!w.resource::<GameLog>().history.is_empty());
+    }
+
+    #[test]
+    fn modal_open_sees_every_menu() {
+        let mut w = modal_world(1);
+        assert!(!modal_open(&w));
+        w.resource_mut::<PackIsOpen>().open = true;
+        assert!(modal_open(&w));
+        w.resource_mut::<PackIsOpen>().open = false;
+        w.resource_mut::<SpellsMenu>().open = true;
+        assert!(modal_open(&w));
+        w.resource_mut::<SpellsMenu>().open = false;
+        w.resource_mut::<HelpMenu>().open = true;
+        assert!(modal_open(&w));
+        w.resource_mut::<HelpMenu>().open = false;
+        w.resource_mut::<TargetingState>().active = true;
+        assert!(modal_open(&w));
     }
 }

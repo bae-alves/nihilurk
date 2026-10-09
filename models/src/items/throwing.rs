@@ -32,18 +32,21 @@ use crate::helpers::{
 };
 use crate::identify::{article_for, counted, display_name, phrase_for, with_article, with_the};
 use crate::map::{GameRng, Map};
-use crate::particles::{Particles, THROW_SPEEDUP};
+use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
 
 use super::scrolls::apply_scroll_effect;
+use super::spells::spell_blast_radius;
 use super::wands::{
-    blast_palette, cancel_entity, crater, dazzle, elemental_blast, is_attack_wand,
+    blast_cells, blast_palette, cancel_entity, crater, dazzle, elemental_blast, is_attack_wand,
     polymorph_entity, shuffle_places, teleport_entity_away, teleport_entity_to_self,
+    zap_blast_radius,
 };
 use crate::conditions::{shift_entity_speed, snare};
 
 use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE, PACK_CAPACITY, THROW_RANGE};
+use crate::constants::potions::POTION_SPLASH_RADIUS;
 use crate::constants::scrolls::HOLD_TURNS;
 use crate::constants::wands::{
     BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
@@ -66,6 +69,9 @@ pub fn use_refusal(world: &World, item: Entity) -> Option<String> {
     let thrown_only = world.get::<Treat>(item).is_some() || world.get::<LaunchedBy>(item).is_some();
     if thrown_only {
         return Some(strings::for_throwing(&display_name(world, item)));
+    }
+    if world.get::<Rune>(item).is_some_and(|r| !r.charged) {
+        return Some(strings::rune_is_inert().to_string());
     }
     let has_a_use = world.get::<Potion>(item).is_some()
         || world.get::<Wand>(item).is_some()
@@ -101,12 +107,16 @@ pub fn drop_refusal(world: &World, user: Entity, item: Entity) -> Option<String>
 /// flight is [`Piercing`], in which case it runs the line to its end and the
 /// list comes back with everyone standing in it.
 ///
+/// `seen_only` traces the throw as the player would guess it: a [`Hidden`]
+/// creature is not there to stop it. The reticle's preview wants that; a real
+/// throw never does.
 fn flight_path(
     world: &mut World,
     thrower: Entity,
     item: Entity,
     from: Position,
     to: Position,
+    seen_only: bool,
 ) -> (Vec<(u16, u16)>, Position, Vec<Entity>) {
     let map = world.resource::<Map>().clone();
     let piercing = world.get::<Piercing>(item).is_some();
@@ -122,7 +132,9 @@ fn flight_path(
         }
         cells.push((pos.x, pos.y));
         landing = pos;
-        if let Some(victim) = actor_at(world, pos, thrower) {
+        let victim = actor_at(world, pos, thrower)
+            .filter(|&v| !seen_only || world.get::<Hidden>(v).is_none());
+        if let Some(victim) = victim {
             victims.push(victim);
             if !piercing {
                 break;
@@ -130,6 +142,96 @@ fn flight_path(
         }
     }
     (cells, landing, victims)
+}
+
+/// Whether a thrown wand that came down on `landing` breaks: it hit a creature,
+/// a wall stopped it short of `target`, or it flew its whole `reach`. Lobbed
+/// gently onto open floor, it does none of those and lands whole.
+fn wand_breaks(
+    hit_creature: bool,
+    origin: Position,
+    landing: Position,
+    target: Position,
+    reach: i32,
+) -> bool {
+    hit_creature || landing != target || chebyshev(origin, landing) >= reach
+}
+
+/// The disc a hurled wand bursts in, as [`resolve_wand_throw`] sets it off:
+/// the grenade for an attack wand or light, the small blast for a utility
+/// wand. Nothing for the wand of nothing, which only makes confetti, or for
+/// digging, whose crater ignores line of sight.
+fn thrown_wand_radius(effect: WandEffect) -> Option<f32> {
+    match effect {
+        WandEffect::Nothing | WandEffect::Digging => None,
+        e if is_attack_wand(e) || e == WandEffect::Light => Some(GRENADE_RADIUS),
+        _ => Some(BLAST_RADIUS),
+    }
+}
+
+/// The tiles the blast a confirmed reticle would set off covers, for the
+/// renderer to paint under it. A spell or a zap bursts on the cursor; a throw
+/// bursts where it comes down, traced past every creature the player cannot
+/// see so the preview gives none of them away. Empty for a look, a reach
+/// strike, a bolt, a line spell, or a wand lobbed onto open floor.
+///
+/// Paint only the cells the player can see: the disc stops at walls, so its
+/// shape out of view would trace rooms they never saw.
+pub fn aim_footprint(world: &mut World) -> Vec<(u16, u16)> {
+    let ts = world.resource::<TargetingState>();
+    if !ts.active || ts.looking || ts.reach_attack {
+        return Vec::new();
+    }
+    let (item, throwing, spell) = (ts.item, ts.throwing, ts.spell_effect);
+    let cursor = Position {
+        x: ts.cursor_x as u16,
+        y: ts.cursor_y as u16,
+    };
+    let Some(player) = world
+        .query_filtered::<Entity, With<Player>>()
+        .iter(world)
+        .next()
+    else {
+        return Vec::new();
+    };
+    let disc = match (spell, item) {
+        (Some(spell), _) => spell_blast_radius(spell).map(|r| (cursor, r)),
+        (None, Some(item)) if throwing => thrown_blast(world, player, item, cursor),
+        (None, Some(item)) => world
+            .get::<Wand>(item)
+            .and_then(|w| zap_blast_radius(w.effect))
+            .map(|r| (cursor, r)),
+        (None, None) => None,
+    };
+    disc.map(|(center, radius)| {
+        blast_cells(world.resource::<Map>(), center, radius)
+            .into_iter()
+            .map(|(x, y, _)| (x, y))
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
+/// Where a throw of `item` at `target` would burst and how wide, as far as the
+/// player can tell: a potion always splashes where it lands, a wand only if it
+/// breaks ([`wand_breaks`]), anything else does not burst.
+fn thrown_blast(
+    world: &mut World,
+    player: Entity,
+    item: Entity,
+    target: Position,
+) -> Option<(Position, f32)> {
+    let origin = *world.get::<Position>(player)?;
+    let (_, landing, victims) = flight_path(world, player, item, origin, target, true);
+    if world.get::<Potion>(item).is_some() {
+        return Some((landing, POTION_SPLASH_RADIUS));
+    }
+    let effect = world.get::<Wand>(item)?.effect;
+    let reach = throw_reach(world, player, item);
+    if !wand_breaks(!victims.is_empty(), origin, landing, target, reach) {
+        return None;
+    }
+    thrown_wand_radius(effect).map(|r| (landing, r))
 }
 
 /// Whether `item` is ammunition being *loosed* — it carries [`LaunchedBy`] and
@@ -639,7 +741,8 @@ fn deliver_throw(
         .resource_mut::<GameLog>()
         .add_colored(announcement, category);
 
-    let (mut cells, mut landing, victims) = flight_path(world, thrower, item, origin, target);
+    let (mut cells, mut landing, victims) =
+        flight_path(world, thrower, item, origin, target, false);
     let victim = victims.first().copied();
     // A thrown wand flies as a tumbling mystic grenade, tinted with the
     // element it's about to burst in — not its own catalog glyph, which is
@@ -655,7 +758,7 @@ fn deliver_throw(
             if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color))
             {
                 if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                    fx.hurl_at(&cells, glyph, color, THROW_SPEEDUP);
+                    fx.hurl(&cells, glyph, color);
                 }
             }
         }
@@ -706,14 +809,8 @@ fn deliver_throw(
     // wall, or fly its full leash, before it goes off. Lobbed gently into open
     // floor, it just clatters down with its charges intact.
     if let Some(effect) = world.get::<Wand>(item).map(|w| w.effect) {
-        let hit_creature = victim.is_some();
-        let hit_wall = landing != target;
-        let range_flown = (landing.x as i32 - origin.x as i32)
-            .abs()
-            .max((landing.y as i32 - origin.y as i32).abs());
-        let spent_its_leash = range_flown >= throw_reach(world, thrower, item);
-
-        if hit_creature || hit_wall || spent_its_leash {
+        let reach = throw_reach(world, thrower, item);
+        if wand_breaks(victim.is_some(), origin, landing, target, reach) {
             resolve_wand_throw(world, thrower, item, landing, effect, &seen_name);
             world.entity_mut(item).despawn();
             return Some(landing);
@@ -742,7 +839,7 @@ fn deliver_throw(
             if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color))
             {
                 if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                    fx.hurl_at(&hop, glyph, color, THROW_SPEEDUP);
+                    fx.hurl(&hop, glyph, color);
                 }
             }
             cells.extend(&hop);
@@ -894,7 +991,7 @@ fn fly_home(
     world.entity_mut(item).remove::<Position>();
     if let Some((glyph, color)) = world.get::<Renderable>(item).map(|r| (r.glyph, r.color)) {
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            fx.hurl_at(back, glyph, color, THROW_SPEEDUP);
+            fx.hurl(back, glyph, color);
         }
     }
     if world.get::<Player>(thrower).is_some() {

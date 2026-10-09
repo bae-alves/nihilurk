@@ -78,7 +78,7 @@ pub mod combat {
 
     /// How far the splinters of a cursed suit fly when an excellent hit
     /// shatters it, in tiles (Chebyshev). See [`crate::combat::resolve_attack`].
-    pub const CURSED_SPLINTER_RADIUS: i32 = 2;
+    pub const CURSED_SPLINTER_RADIUS: i32 = 1;
 
     /// The die each splinter rolls against every foe of the hero it reaches:
     /// `1d[this]`, as magic, so a ward turns it aside.
@@ -438,10 +438,9 @@ pub mod traps {
     pub const TRICK_SHOT_RADIUS: i32 = 1;
 
     /// The reach of a trick shot set off on something that is not a trap — a
-    /// coin, or the Element of Yoord itself. Wider than a trap's on purpose:
-    /// a trap has a mechanism to let go and this has only the shot, so the
-    /// spectacle is all there is to it. `2` is the 5x5 around the tile.
-    pub const PICKUP_TRICK_SHOT_RADIUS: i32 = 2;
+    /// coin, or the Element of Yoord itself. `1` is the 3x3 around the tile,
+    /// the same reach as a trap's.
+    pub const PICKUP_TRICK_SHOT_RADIUS: i32 = 1;
 
     /// A trick shot's burst deals `TRICK_SHOT_DAMAGE_DICE d
     /// TRICK_SHOT_DAMAGE_SIDES`, rolled once and applied whole to everything
@@ -487,8 +486,8 @@ pub mod potions {
     /// weaponless.
     pub const POISON_POWER_FLOOR: i32 = 1;
 
-    /// The chance a paralysed player's turn is forfeited outright, on top of the
-    /// slowing paralysis already imposes. Rolled once per turn — see
+    /// The chance a paralysed creature's turn is forfeited outright, the player's
+    /// and a monster's alike. Rolled once per turn — see
     /// [`crate::conditions::paralysis_forfeits_turn`].
     pub const PARALYSIS_LOST_TURN_CHANCE: f64 = 0.5;
 
@@ -641,13 +640,13 @@ pub mod wands {
     /// defined as exactly twice this. It no longer is — [`GRENADE_RADIUS`] is
     /// set independently — but the two are still meant to read as
     /// "small blast" vs. "room-clearing blast". Keep grenade > blast.
-    pub const BLAST_RADIUS: f32 = 2.0;
+    pub const BLAST_RADIUS: f32 = 1.0;
 
     /// Radius, in tiles, of the blast a *thrown* attack wand (or the wand of
     /// light) makes when it bursts on impact — the grenade. Wider and hotter
     /// than a zap, and it does not care who set it off: lob one too close and
     /// it burns you too.
-    pub const GRENADE_RADIUS: f32 = 3.0;
+    pub const GRENADE_RADIUS: f32 = 2.0;
 
     /// A thrown wand spends *every* remaining charge at once. An attack-wand
     /// grenade rolls one die of this many sides per charge — at 1, a flat
@@ -710,7 +709,7 @@ pub mod loot {
     /// The die a thrown thing rolls when it was not made for throwing: a mace,
     /// or an arrow lobbed by hand. Only a purpose-built missile
     /// ([`crate::components::Projectile`]) or a launcher does better.
-    pub const IMPROVISED_THROW_DIE: i32 = 3;
+    pub const IMPROVISED_THROW_DIE: i32 = 2;
 
     /// A dropped ammunition bundle holds this many, uniformly — never a lone
     /// arrow, because finding one arrow is not finding ammunition. Capped by
@@ -1314,7 +1313,7 @@ pub mod ice {
     pub const FLIGHT_RANGE: i32 = 40;
 
     /// How far, in tiles, the vapor of a shattering cube reaches.
-    pub const VAPOR_RADIUS: i32 = 2;
+    pub const VAPOR_RADIUS: i32 = 1;
     /// Bone shards a shattering cube throws.
     pub const BONE_SHARDS: usize = 16;
 }

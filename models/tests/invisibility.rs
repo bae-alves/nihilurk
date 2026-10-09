@@ -227,3 +227,24 @@ fn out_of_view(w: &mut World) -> Position {
 fn spawn_random_item_for_test(w: &mut World, pos: Position) -> Entity {
     spawn_scroll(w, ScrollEffect::Identify, pos)
 }
+
+#[test]
+fn perception_announces_nothing_outside_the_viewshed() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    run_visibility(&mut w);
+    let seen = w.get::<Viewshed>(p).unwrap().visible_tiles.clone();
+    w.resource_mut::<GameLog>().history.clear();
+    let far = (0..MAP_WIDTH)
+        .flat_map(|x| (0..MAP_HEIGHT).map(move |y| (x, y)))
+        .find(|&(x, y)| !w.resource::<Map>().blocks(x, y) && !seen.contains(&(x, y)))
+        .expect("an open tile out of view");
+    let phantom = monster::monster(&mut w, "phantom", Position { x: far.0, y: far.1 });
+    w.entity_mut(phantom).insert(Invisible);
+    wear_ring(&mut w, p, RingEffect::Perception);
+
+    run_visibility(&mut w);
+
+    assert!(w.get::<Spotted>(phantom).is_none());
+    assert!(!log_has(&w, "phantom"), "announced out of view");
+}

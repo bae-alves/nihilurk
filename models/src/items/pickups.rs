@@ -22,6 +22,7 @@
 
 use bevy_ecs::prelude::*;
 use rand::Rng;
+use rand::seq::SliceRandom;
 
 use crate::components::*;
 use crate::constants::spells::SPELLSET_CAP;
@@ -344,7 +345,8 @@ fn restore_strength(world: &mut World, taker: Entity, amount: i32) -> String {
 enum Promise {
     /// A permanent point of attack or defence die.
     Platinum,
-    /// A point of plus on the weapon in hand or the armour on your back.
+    /// A point of plus on the weapon in hand, the armour on your back or a worn
+    /// numeric ring.
     Forge,
 }
 
@@ -452,20 +454,22 @@ fn pay_platinum(world: &mut World, player: Entity) {
     world.resource_mut::<GameLog>().add(line.to_string());
 }
 
-/// A point of plus on the weapon in hand or the armour on the back, whichever
-/// the flip picks — falling back to the other when there is only one of them,
-/// because a promise kept is a promise kept.
+/// A point of plus on the weapon in hand, the armour on the back or a worn
+/// ring with a number to it — one of the three, in an order the shuffle picks,
+/// falling back to the others when one is missing, because a promise kept is a
+/// promise kept.
 fn pay_forge(world: &mut World, player: Entity) {
-    let weapon_first = world.resource_mut::<GameRng>().0.r#gen::<bool>();
-    let order = match weapon_first {
-        true => [Slot::Hand, Slot::Body],
-        false => [Slot::Body, Slot::Hand],
-    };
+    let mut order = [Some(Slot::Hand), Some(Slot::Body), None];
+    order.shuffle(&mut world.resource_mut::<GameRng>().0);
     world
         .resource_mut::<GameLog>()
         .add(strings::pay_forge_collects());
     for slot in order {
-        if crate::items::enchant_equipped(world, player, slot) {
+        let landed = match slot {
+            Some(slot) => crate::items::enchant_equipped(world, player, slot),
+            None => crate::items::decks::enchant_worn_ring(world, player),
+        };
+        if landed {
             return;
         }
     }

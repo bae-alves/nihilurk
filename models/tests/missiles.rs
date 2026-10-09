@@ -443,12 +443,12 @@ fn only_armour_plus_blunts_a_throw_and_the_armour_die_never_does() {
 
     assert_eq!(worst("dagger", 0), 4);
     assert_eq!(worst("dagger", 3), 1);
-    assert_eq!(worst("mace", 0), 3);
+    assert_eq!(worst("mace", 0), 2);
     assert_eq!(worst("mace", 3), 0);
 }
 
 #[test]
-fn a_thing_not_made_for_throwing_does_one_d_three_plus_its_plus() {
+fn a_thing_not_made_for_throwing_does_one_d_two_plus_its_plus() {
     let mut w = test_world(9);
     let p = player(&mut w);
     let spot = open_run(&mut w, 1)[0];
@@ -464,10 +464,10 @@ fn a_thing_not_made_for_throwing_does_one_d_three_plus_its_plus() {
         })
         .collect();
     assert!(
-        seen.iter().all(|&d| (3..=5).contains(&d)),
-        "1d3+2: {seen:?}"
+        seen.iter().all(|&d| (3..=4).contains(&d)),
+        "1d2+2: {seen:?}"
     );
-    assert!(seen.contains(&3) && seen.contains(&5), "{seen:?}");
+    assert!(seen.contains(&3) && seen.contains(&4), "{seen:?}");
 }
 
 #[test]
@@ -483,22 +483,22 @@ fn thrown_armour_does_no_damage() {
 }
 
 #[test]
-fn ammunition_lobbed_by_hand_does_one_d_three() {
+fn ammunition_lobbed_by_hand_does_one_d_two() {
     for ammo in ["arrow", "quarrel", "blowdart"] {
         let seen = damage_samples(11, ammo, 200, |_, _| {});
         assert!(
-            seen.iter().all(|&d| (1..=3).contains(&d)),
+            seen.iter().all(|&d| (1..=2).contains(&d)),
             "{ammo}: {seen:?}"
         );
-        assert!(seen.contains(&3), "{ammo}: {seen:?}");
+        assert!(seen.contains(&2), "{ammo}: {seen:?}");
     }
 }
 
 #[test]
-fn launchers_loose_a_d4_arrow_a_d6_quarrel_and_a_d2_blowdart() {
+fn launchers_loose_a_d3_arrow_a_d5_quarrel_and_a_d2_blowdart() {
     for (ammo, launcher, die) in [
-        ("arrow", "short bow", 4),
-        ("quarrel", "crossbow", 6),
+        ("arrow", "short bow", 3),
+        ("quarrel", "crossbow", 5),
         ("blowdart", "blowgun", 2),
     ] {
         let seen = damage_samples(12, ammo, 300, |w, p| {

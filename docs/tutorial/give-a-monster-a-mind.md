@@ -27,10 +27,10 @@ Open `models/src/agents.rs` and find `CHASER`:
     pub static CHASER: RuleSet = RuleSet {
         name: "chaser",
         leashed: true,
-        rules: &[CAST, SHOOT, STRIKE, HUNT],
+        rules: &[CAST, SHOOT, STRIKE, CLOSE_IN],
     };
 
-Read it as a sentence: cast a spell if it can, else shoot if it can, else strike what is next to it, else walk at the player. Every emu on the floor thinks exactly that today.
+Read it as a sentence: cast a spell if it can, else shoot if it can, else strike what is next to it, else walk at the nearest foe, which is the player unless one of their allies stands nearer. Every emu on the floor thinks exactly that today.
 
 
 Step 2: write the rule

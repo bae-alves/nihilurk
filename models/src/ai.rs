@@ -13,18 +13,23 @@
 //! player still stands in whatever light the monsters around them can see by,
 //! so blindness never doubles as a way to hide.
 
+use crate::GameRng;
 use crate::agents::{Action, Percept, Sighting, leashed, rule_set_for, think};
 use crate::components::*;
-use crate::effects::{Asleep, Blind, Clamped, Petrified, Phasing, Pinned, Rooted, Stealthy, Swims};
+use crate::effects::{
+    Asleep, Blind, Clamped, Paralyzed, Petrified, Phasing, Pinned, Rooted, Stealthy, Swims,
+};
 use crate::helpers::chebyshev;
-use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType, tile_index};
+use crate::map::{MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use bevy_ecs::prelude::*;
+use rand::Rng;
 use std::collections::{HashMap, HashSet};
 
 // --- Tuning constants ------------------------------------------------------
 // Defined and documented in `constants.rs`.
 //
 //   STEALTH_RANGE         how close a stealthy player must be to be noticed
+use crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE;
 use crate::constants::rings::STEALTH_RANGE;
 
 /// Monster turn. Exclusive so it can move each mob more than once: the player is
@@ -123,26 +128,12 @@ pub fn ai(world: &mut World) {
     }
 }
 
-/// A doorway is a ward while the player's last turn was a step onto it: every
-/// hostile that can see them does nothing. Any other turn spent there — a
-/// swing, a throw, a spell, an item — cracks the frame for good (the map's
-/// inert doorways, drawn grey) and the ward with it.
-fn door_ward(world: &mut World, player: Entity, at: Position) -> bool {
-    let map = world.resource::<Map>();
-    if map.tile(at.x, at.y) != TileType::Door || map.is_inert_door(at.x, at.y) {
-        return false;
-    }
-    if world.get::<EntityMoved>(player).is_some() {
-        return true;
-    }
-    world
-        .resource_mut::<Map>()
-        .inert_doors
-        .insert(tile_index(at.x, at.y));
-    world
-        .resource_mut::<GameLog>()
-        .add(strings::doorway_goes_inert());
-    false
+/// A doorway is a ward for one turn: while the player's last turn was a step
+/// onto it, every hostile that can see them does nothing. Stay a second turn,
+/// whatever you do with it, and they act.
+fn door_ward(world: &World, player: Entity, at: Position) -> bool {
+    world.resource::<Map>().tile(at.x, at.y) == TileType::Door
+        && world.get::<EntityMoved>(player).is_some()
 }
 
 /// Whether a mob standing on `mob_pos` knows where the player is this turn.
@@ -278,6 +269,15 @@ fn step_one_mob(
     if !can_afford_step(world, mob, ctx.pass) {
         return false;
     }
+    if world.get::<Paralyzed>(mob).is_some()
+        && world
+            .resource_mut::<GameRng>()
+            .0
+            .gen_bool(PARALYSIS_LOST_TURN_CHANCE)
+    {
+        spend_energy(world, mob);
+        return false;
+    }
     if ctx.warded
         && world.get::<Faction>(mob) == Some(&Faction::Monster)
         && ctx.noticed_by(*world.get::<Position>(mob).unwrap())
@@ -285,9 +285,10 @@ fn step_one_mob(
         return false;
     }
 
-    let percept = perceive(world, mob, ctx, spatial);
+    let roll = world.resource_mut::<GameRng>().0.r#gen();
+    let percept = perceive(world, mob, ctx, spatial, roll);
     let movement = world.get::<Mob>(mob).unwrap().movement_type;
-    let set = rule_set_for(movement, percept.helper);
+    let set = rule_set_for(movement, percept.helper, percept.ally);
     let action = think(&percept, set);
     let leash = leashed(&percept, set);
     let (at, pinned, swims) = (percept.at, percept.pinned, percept.swims);
@@ -305,6 +306,7 @@ fn perceive<'a>(
     mob: Entity,
     ctx: &AiCtx<'a>,
     spatial: &HashMap<(u16, u16), (Entity, Faction)>,
+    roll: u32,
 ) -> Percept<'a> {
     let at = *world.get::<Position>(mob).unwrap();
     let faction = *world.get::<Faction>(mob).unwrap();
@@ -343,7 +345,7 @@ fn perceive<'a>(
             .flat_map(|s| s.slots.iter().copied())
             .filter(|&spell| crate::items::can_afford_spell(world, mob, spell))
             .collect(),
-        roll: getrandom::u32().unwrap_or(0),
+        roll,
         helper: world.get::<Helper>(mob).is_some(),
         ally: faction == Faction::Ally,
         aggravated: world
@@ -392,14 +394,38 @@ fn act(
             (there.x as i16 - at.x as i16, there.y as i16 - at.y as i16)
         }
     };
-    let new_x = (at.x as i16 + dx) as u16;
-    let new_y = (at.y as i16 + dy) as u16;
+    let roll: u32 = world.resource_mut::<GameRng>().0.r#gen();
     let ghost = world.get::<Phasing>(mob).is_some();
-    let on_map = new_x < MAP_WIDTH && new_y < MAP_HEIGHT;
-    if !(on_map && (ghost || mob_can_enter(map, leashed, at, new_x, new_y, swims))) {
+    let faction = *world.get::<Faction>(mob).unwrap();
+    let can_go_leashed = |dx: i16, dy: i16, leashed: bool| {
+        let (x, y) = (at.x as i16 + dx, at.y as i16 + dy);
+        let on_map = (0..MAP_WIDTH as i16).contains(&x) && (0..MAP_HEIGHT as i16).contains(&y);
+        on_map && (ghost || mob_can_enter(map, leashed, at, x as u16, y as u16, swims))
+    };
+    let can_go = |dx: i16, dy: i16| can_go_leashed(dx, dy, leashed);
+    let bystander = |dx: i16, dy: i16| {
+        let tile = ((at.x as i16 + dx) as u16, (at.y as i16 + dy) as u16);
+        spatial
+            .get(&tile)
+            .is_some_and(|&(_, their)| !hostile(world, faction, their))
+    };
+    let (dx, dy) = match action {
+        Action::Step(..) if can_go(dx, dy) && bystander(dx, dy) => {
+            slide_past((dx, dy), roll, |dx, dy| {
+                can_go(dx, dy) && !bystander(dx, dy)
+            })
+            .unwrap_or((dx, dy))
+        }
+        _ => (dx, dy),
+    };
+    let striking = spatial
+        .get(&((at.x as i16 + dx) as u16, (at.y as i16 + dy) as u16))
+        .is_some_and(|&(_, their)| hostile(world, faction, their));
+    if !can_go_leashed(dx, dy, leashed && !striking) {
         return false;
     }
-    let faction = *world.get::<Faction>(mob).unwrap();
+    let new_x = (at.x as i16 + dx) as u16;
+    let new_y = (at.y as i16 + dy) as u16;
 
     if let Some(&(target, their)) = spatial.get(&(new_x, new_y)) {
         if !hostile(world, faction, their) {
@@ -438,6 +464,32 @@ fn can_afford_step(world: &mut World, mob: Entity, pass: usize) -> bool {
         Some(energy) => energy >= Speed::COST,
         None => pass == 0,
     }
+}
+
+/// The eight steps in compass order, so a neighbour in the ring is 45° off.
+const RING: [(i16, i16); 8] = [
+    (1, 0),
+    (1, 1),
+    (0, 1),
+    (-1, 1),
+    (-1, 0),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+];
+
+/// A step held up by a creature it would not fight: the first of the two
+/// diagonals beside it that `open` accepts, the side picked by `roll`. Nothing
+/// when neither is open, or `step` is not a step.
+fn slide_past(step: (i16, i16), roll: u32, open: impl Fn(i16, i16) -> bool) -> Option<(i16, i16)> {
+    let i = RING.iter().position(|&d| d == step)?;
+    let (a, b) = (RING[(i + 1) % 8], RING[(i + 7) % 8]);
+    let sides = if roll.is_multiple_of(2) {
+        [a, b]
+    } else {
+        [b, a]
+    };
+    sides.into_iter().find(|&(dx, dy)| open(dx, dy))
 }
 
 /// Whether these two factions come to blows. `Spirits` hinges on
@@ -486,7 +538,7 @@ fn mob_can_enter(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map::MAP_TILE_COUNT;
+    use crate::map::{MAP_TILE_COUNT, tile_index};
     use fixedbitset::FixedBitSet;
 
     const OTHERS: [Faction; 3] = [Faction::Player, Faction::Ally, Faction::Monster];
@@ -506,7 +558,6 @@ mod tests {
         let map = Map {
             tiles: vec![TileType::Room; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -522,6 +573,94 @@ mod tests {
             map: &map,
         };
         assert!(!step_one_mob(&mut world, mob, &ctx, &mut HashMap::new()));
+    }
+
+    #[test]
+    fn a_paralysed_mob_loses_about_half_its_turns_at_full_tempo() {
+        let mut world = World::new();
+        world.insert_resource(GameRng(rand::SeedableRng::seed_from_u64(7)));
+        let player = world.spawn((Player, Position { x: 20, y: 5 })).id();
+        let mob = world
+            .spawn((
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                Position { x: 5, y: 5 },
+                Faction::Monster,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        crate::conditions::paralyse(&mut world, mob);
+        let map = Map {
+            tiles: vec![TileType::Room; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
+        };
+        let visible: HashSet<(u16, u16)> = (0..40).map(|x| (x, 5)).collect();
+        let ctx = AiCtx {
+            pass: 0,
+            player,
+            player_pos: Position { x: 20, y: 5 },
+            player_faction: Faction::Player,
+            visible: &visible,
+            stealthy: false,
+            warded: false,
+            map: &map,
+        };
+        let mut lost = 0;
+        for _ in 0..200 {
+            world.get_mut::<Speed>(mob).unwrap().energy = Speed::COST;
+            world.get_mut::<Position>(mob).unwrap().x = 5;
+            let mut spatial = HashMap::from([((20, 5), (player, Faction::Player))]);
+            lost += !step_one_mob(&mut world, mob, &ctx, &mut spatial) as i32;
+        }
+        assert!(
+            (60..140).contains(&lost),
+            "about half should go (got {lost})"
+        );
+    }
+
+    fn stagger_once(seed: u64) -> (u16, u16) {
+        let mut world = World::new();
+        world.insert_resource(GameRng(rand::SeedableRng::seed_from_u64(seed)));
+        let player = world.spawn((Player, Position { x: 20, y: 5 })).id();
+        let mob = world
+            .spawn((
+                Mob {
+                    movement_type: MovementType::Confused,
+                },
+                Position { x: 5, y: 5 },
+                Faction::Monster,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        world.get_mut::<Speed>(mob).unwrap().energy = Speed::COST;
+        let map = open_floor();
+        let visible: HashSet<(u16, u16)> = (0..40).map(|x| (x, 5)).collect();
+        let ctx = AiCtx {
+            pass: 0,
+            player,
+            player_pos: Position { x: 20, y: 5 },
+            player_faction: Faction::Player,
+            visible: &visible,
+            stealthy: false,
+            warded: false,
+            map: &map,
+        };
+        let mut spatial = HashMap::from([((20, 5), (player, Faction::Player))]);
+        step_one_mob(&mut world, mob, &ctx, &mut spatial);
+        let now = *world.get::<Position>(mob).unwrap();
+        (now.x, now.y)
+    }
+
+    #[test]
+    fn where_a_staggering_mob_lurches_follows_the_seed() {
+        for seed in 0..32 {
+            assert_eq!(stagger_once(seed), stagger_once(seed), "seed {seed}");
+        }
+        let seen: HashSet<(u16, u16)> = (0..32).map(stagger_once).collect();
+        assert!(seen.len() > 1, "every seed lurched the same way");
     }
 
     #[test]
@@ -550,7 +689,6 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -572,7 +710,6 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -594,7 +731,6 @@ mod tests {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };
@@ -611,12 +747,97 @@ mod tests {
         ));
     }
 
+    fn open_floor() -> Map {
+        Map {
+            tiles: vec![TileType::Room; MAP_TILE_COUNT],
+            dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+            special: vec![None; MAP_TILE_COUNT],
+            level: None,
+        }
+    }
+
+    fn slide_once(seed: u64) -> (u16, u16) {
+        let map = open_floor();
+        let mut world = World::new();
+        world.insert_resource(GameRng(rand::SeedableRng::seed_from_u64(seed)));
+        let at = Position { x: 5, y: 5 };
+        let mob = world.spawn((at, Faction::Monster)).id();
+        let other = world
+            .spawn((Position { x: 6, y: 5 }, Faction::Monster))
+            .id();
+        let mut spatial = HashMap::from([
+            ((5, 5), (mob, Faction::Monster)),
+            ((6, 5), (other, Faction::Monster)),
+        ]);
+        let moved = act(
+            &mut world,
+            mob,
+            Action::Step(1, 0),
+            at,
+            false,
+            false,
+            false,
+            &map,
+            &mut spatial,
+        );
+        assert!(moved, "a bystander in the way costs it no turn");
+        let now = *world.get::<Position>(mob).unwrap();
+        (now.x, now.y)
+    }
+
+    #[test]
+    fn a_step_blocked_by_a_bystander_slides_to_a_diagonal_toward_the_goal() {
+        let seen: HashSet<(u16, u16)> = (0..64).map(slide_once).collect();
+        assert_eq!(
+            seen,
+            HashSet::from([(6, 4), (6, 6)]),
+            "either side, both used"
+        );
+    }
+
+    #[test]
+    fn the_side_a_blocked_step_slides_to_follows_the_seed() {
+        for seed in 0..32 {
+            assert_eq!(slide_once(seed), slide_once(seed), "seed {seed}");
+        }
+    }
+
+    #[test]
+    fn a_blocked_step_with_no_open_diagonal_stays_put() {
+        let mut map = open_floor();
+        map.tiles[tile_index(6, 4)] = TileType::Wall;
+        map.tiles[tile_index(6, 6)] = TileType::Wall;
+        let mut world = World::new();
+        world.insert_resource(GameRng(rand::SeedableRng::seed_from_u64(1)));
+        let at = Position { x: 5, y: 5 };
+        let mob = world.spawn((at, Faction::Monster)).id();
+        let other = world
+            .spawn((Position { x: 6, y: 5 }, Faction::Monster))
+            .id();
+        let mut spatial = HashMap::from([
+            ((5, 5), (mob, Faction::Monster)),
+            ((6, 5), (other, Faction::Monster)),
+        ]);
+        let moved = act(
+            &mut world,
+            mob,
+            Action::Step(1, 0),
+            at,
+            false,
+            false,
+            false,
+            &map,
+            &mut spatial,
+        );
+        assert!(!moved);
+        assert_eq!(*world.get::<Position>(mob).unwrap(), at);
+    }
+
     #[test]
     fn only_a_swimmer_takes_to_the_water() {
         let mut map = Map {
             tiles: vec![TileType::Wall; MAP_TILE_COUNT],
             dark: FixedBitSet::with_capacity(MAP_TILE_COUNT),
-            inert_doors: FixedBitSet::with_capacity(MAP_TILE_COUNT),
             special: vec![None; MAP_TILE_COUNT],
             level: None,
         };

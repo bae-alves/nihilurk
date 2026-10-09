@@ -962,9 +962,8 @@ fn roll_spawn_gear(world: &mut World, mob: Entity, def: &MonsterDef, rng: &mut C
 }
 
 /// One [`EquipRoll`] that hit, put on a monster: the gear is worn in silence
-/// and announced, and a bow's ammunition is left at the wearer's feet —
-/// nothing here gives a monster a pack to carry it in, so the bundle is loot
-/// from the moment it drops, exactly as if it had died on the spot.
+/// and announced. A bow comes without ammunition: only the player starts a
+/// run with arrows.
 fn equip_one(
     world: &mut World,
     mob: Entity,
@@ -972,18 +971,19 @@ fn equip_one(
     pos: Position,
     rng: &mut ChaCha12Rng,
 ) {
-    let (gear, _ammo) = roll_gear(world, kind, pos, rng);
+    let (gear, _) = roll_gear(world, kind, pos, rng, false);
     equip_and_announce(world, mob, gear);
 }
 
 /// The item a hit [`EquipRoll`] reaches for, rolled as a floor drop
 /// (enchantment and all) at `pos`, plus the bundle of ammunition a launcher
-/// comes with.
+/// comes with when `with_ammo` is set.
 fn roll_gear(
     world: &mut World,
     kind: EquipKind,
     pos: Position,
     rng: &mut ChaCha12Rng,
+    with_ammo: bool,
 ) -> (Entity, Option<Entity>) {
     use crate::catalog::{AMMO, ARMORS, LAUNCHERS, RINGS, WEAPONS};
     match kind {
@@ -998,9 +998,9 @@ fn roll_gear(
             } else {
                 "arrow"
             };
-            let ammo = AMMO
-                .iter()
-                .find(|a| a.name == ammo_name)
+            let ammo = with_ammo
+                .then(|| AMMO.iter().find(|a| a.name == ammo_name))
+                .flatten()
                 .map(|a| a.spawn_as_loot(world, rng, pos));
             (launcher, ammo)
         }
@@ -1028,7 +1028,7 @@ fn give_starting_gear(world: &mut World, player: Entity, def: &MonsterDef, rng: 
         return;
     };
     for roll in def.equip_rolls {
-        let (gear, ammo) = roll_gear(world, roll.kind, pos, rng);
+        let (gear, ammo) = roll_gear(world, roll.kind, pos, rng, true);
         world.entity_mut(gear).insert(KnownQuality);
         crate::items::stow(world, player, gear);
         let may_wear = world

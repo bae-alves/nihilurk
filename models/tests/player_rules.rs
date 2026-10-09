@@ -11,7 +11,6 @@ fn world_with_player(seed: u64) -> (World, Entity) {
     w.insert_resource(Map {
         tiles: vec![TileType::Room; MAP_TILE_COUNT],
         dark: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
-        inert_doors: fixedbitset::FixedBitSet::with_capacity(MAP_TILE_COUNT),
         special: vec![None; MAP_TILE_COUNT],
         level: None,
     });

@@ -374,6 +374,12 @@ pub(super) fn dazzle(world: &mut World, entity: Entity) {
     );
 }
 
+/// The disc a zapped wand bursts in on the aimed tile: fire and cold do, at
+/// [`BLAST_RADIUS`]; every bolt, touch and line does not.
+pub(super) fn zap_blast_radius(effect: WandEffect) -> Option<f32> {
+    matches!(effect, WandEffect::Fire | WandEffect::Cold).then_some(BLAST_RADIUS)
+}
+
 /// The wands that deal damage when zapped. Thrown, these go off wider and hotter
 /// than the utility ("effect") wands.
 pub(super) fn is_attack_wand(effect: WandEffect) -> bool {

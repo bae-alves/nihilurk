@@ -254,6 +254,7 @@ fn plan_name(p: &FastMovePlan) -> &'static str {
     match p {
         FastMovePlan::MonsterInSight => "MonsterInSight",
         FastMovePlan::Charge(_) => "Charge",
+        FastMovePlan::ThickOfIt => "ThickOfIt",
         FastMovePlan::Blocked => "Blocked",
         FastMovePlan::Straight => "Straight",
         FastMovePlan::Travel(_) => "Travel",

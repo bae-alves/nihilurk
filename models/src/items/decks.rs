@@ -199,22 +199,21 @@ fn enchant_or_dull(world: &mut World, user: Entity, slot: Slot, reversed: bool) 
 /// ring of protection, strength, increase damage, sharpshooting). Reversed: a
 /// worn ring loses a point, and one at `+0` or with no number at all breaks.
 fn princess(world: &mut World, user: Entity, reversed: bool) {
+    if !reversed {
+        if !enchant_worn_ring(world, user) {
+            say(world, strings::card_no_ring());
+        }
+        return;
+    }
     let worn: Vec<Entity> = crate::equipment::equipped_items(world, user)
         .into_iter()
         .filter(|&e| world.get::<Ring>(e).is_some())
         .collect();
-    let numeric: Vec<Entity> = worn
-        .iter()
-        .copied()
-        .filter(|&e| ring_is_numeric(world, e))
-        .collect();
-    let pool = if reversed { &worn } else { &numeric };
-    let Some(&ring) = pool.choose(&mut world.resource_mut::<GameRng>().0) else {
+    let Some(&ring) = worn.choose(&mut world.resource_mut::<GameRng>().0) else {
         say(world, strings::card_no_ring());
         return;
     };
-    let plus = ring_plus(world, ring);
-    if reversed && (plus <= 0 || !ring_is_numeric(world, ring)) {
+    if ring_plus(world, ring) <= 0 || !ring_is_numeric(world, ring) {
         let name = display_name(world, ring);
         destroy_worn(world, user, &[ring]);
         world
@@ -222,15 +221,37 @@ fn princess(world: &mut World, user: Entity, reversed: bool) {
             .add(strings::ring_shivers_apart(&name));
         return;
     }
-    shift_ring(world, ring, if reversed { |b| b - 1 } else { |b| b + 1 });
+    shift_worn_ring(world, user, ring, |b| b - 1, strings::card_dulls);
+}
+
+/// A point onto a random worn ring that has a number to it. Returns whether
+/// there was one; the forge coin ([`crate::items::pickups`]) and the Princess
+/// of Diamonds both land here.
+pub(crate) fn enchant_worn_ring(world: &mut World, user: Entity) -> bool {
+    let numeric: Vec<Entity> = crate::equipment::equipped_items(world, user)
+        .into_iter()
+        .filter(|&e| ring_is_numeric(world, e))
+        .collect();
+    let Some(&ring) = numeric.choose(&mut world.resource_mut::<GameRng>().0) else {
+        return false;
+    };
+    shift_worn_ring(world, user, ring, |b| b + 1, strings::enchant_sparks);
+    true
+}
+
+fn shift_worn_ring(
+    world: &mut World,
+    user: Entity,
+    ring: Entity,
+    to: fn(i32) -> i32,
+    line: fn(&str) -> String,
+) {
+    shift_ring(world, ring, to);
     sync_equipment_effects(world, user);
     world.entity_mut(ring).insert(KnownQuality);
     let name = display_name(world, ring);
     crate::helpers::spark_burst_at(world, user, Color::DarkYellow);
-    world.resource_mut::<GameLog>().add(match reversed {
-        false => strings::enchant_sparks(&name),
-        true => strings::card_dulls(&name),
-    });
+    world.resource_mut::<GameLog>().add(line(&name));
 }
 
 /// Whether `ring`'s row has a number on it at all.

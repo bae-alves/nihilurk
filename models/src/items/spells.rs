@@ -129,6 +129,17 @@ pub fn spell_system(world: &mut World) {
     }
 }
 
+/// The disc a blast spell bursts in on its target tile, as its own function
+/// below sets it off; nothing for a spell that does not burst. Meteor Strike's
+/// first impact only: where its chains come down is a roll.
+pub(crate) fn spell_blast_radius(spell: SpellEffect) -> Option<f32> {
+    match spell {
+        SpellEffect::DragonBreath => Some(BLAST_RADIUS),
+        SpellEffect::Lux | SpellEffect::MeteorStrike => Some(GRENADE_RADIUS),
+        _ => None,
+    }
+}
+
 /// Exhaustive over [`SpellEffect`], deliberately with no catch-all: a spell
 /// added to the enum and not given an arm here fails the build instead of
 /// spending its cost for nothing — the same guarantee every other effect

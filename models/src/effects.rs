@@ -816,16 +816,13 @@ pub struct Confused;
 /// viewshed to put out, so all blindness can do to it is make it grope.
 #[derive(Component, Default, Clone, Copy)]
 pub struct Blind;
-/// Limbs locked up (a potion of paralysis). Whoever carries it has had their
-/// [`Speed`](crate::Speed) dropped to `SpeedKind::Slow`; on the **player** it costs a share
-/// of the turns that still leaves them
-/// ([`crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE`]) outright — no key
-/// read, the monsters move anyway. Lifted the same two ways [`Confused`] is, and
-/// shown in the HUD as `PARL` alongside the `SLOW` the slowing earns.
-///
-/// A paralysed *monster* keeps only the slowing — nothing rolls dice on its
-/// behalf — and wears this so the renderer can tint it. See
-/// [`crate::conditions::paralyse`].
+/// Limbs locked up (a potion of paralysis). Whoever wears it loses a share of
+/// their turns ([`crate::constants::potions::PARALYSIS_LOST_TURN_CHANCE`])
+/// outright, and their tempo stays as it was. The player's lost turn reads no
+/// key and the monsters move anyway; a monster's is spent in the monster
+/// round. Lifted the same two ways [`Confused`] is, shown in the HUD as
+/// `PARL`, and tinted on a monster so the player can see it can't fight back
+/// properly. See [`crate::conditions::paralyse`].
 #[derive(Component, Default, Clone, Copy)]
 pub struct Paralyzed;
 /// The spell Magic Ward: immunity to elemental/magic damage for the rest of

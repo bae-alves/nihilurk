@@ -311,7 +311,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 4;
+pub const SAVE_VERSION: u16 = 5;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -350,9 +350,6 @@ struct SaveGame<'a> {
     /// seed on load, then overwritten with this so any room a wand of light lit
     /// stays lit.
     dark_tiles: FixedBitSet,
-    /// The current floor's cracked doorways (see [`Map::inert_doors`]),
-    /// restored over the seed-built map the same way as `dark_tiles`.
-    inert_doors: FixedBitSet,
     /// Tiles a wand of digging turned from rock to passage: the one thing the
     /// seed cannot rebuild about the map.
     #[serde(default)]
@@ -449,7 +446,7 @@ fn dug_tiles(world: &World) -> Vec<u32> {
 /// between them (a pack's items, who wears what).
 ///
 /// Three things are left out on purpose. The map is rebuilt from the seed and
-/// the depth, with only the tiles that changed (dark, inert doors, dug walls)
+/// the depth, with only the tiles that changed (dark rooms, dug walls)
 /// saved on top. The message log starts fresh on load. And [`FxRng`] and
 /// [`Speed::energy`] reset: one only draws decoration, the other is a transient
 /// that zero is a fair restart for.
@@ -606,7 +603,6 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         rng_seed: world.resource::<RngSeed>().0,
         rng_state: world.resource::<GameRng>().0.clone(),
         dark_tiles: world.resource::<Map>().dark.clone(),
-        inert_doors: world.resource::<Map>().inert_doors.clone(),
         dug_tiles: dug_tiles(world),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
         spirits_hostile: world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0),
@@ -663,7 +659,6 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
     }
     regenerate_map(world, save.rng_seed, save.depth);
     world.resource_mut::<Map>().dark = save.dark_tiles;
-    world.resource_mut::<Map>().inert_doors = save.inert_doors;
     {
         let mut map = world.resource_mut::<Map>();
         for i in save.dug_tiles {
@@ -1032,7 +1027,6 @@ mod tests {
             rng_seed: 1,
             rng_state: ChaCha12Rng::seed_from_u64(1),
             dark_tiles: FixedBitSet::with_capacity(1),
-            inert_doors: FixedBitSet::with_capacity(1),
             dug_tiles: Vec::new(),
             cleared: false,
             spirits_hostile: false,
@@ -1212,7 +1206,6 @@ mod tests {
         save.floor_changes = 70_000;
         save.rng_seed = 0x0123_4567_89ab_cdef;
         save.dark_tiles = bits(&[0, 64]);
-        save.inert_doors = bits(&[69]);
         save.dug_tiles = vec![1, 70_000];
         save.cleared = true;
         save.spirits_hostile = true;

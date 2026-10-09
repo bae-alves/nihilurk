@@ -198,13 +198,13 @@ fn haste_overflows_and_the_stairs_wash_it_out() {
 }
 
 #[test]
-fn paralysis_slows_you_and_costs_you_turns_until_a_staircase() {
+fn paralysis_costs_you_turns_but_not_tempo_until_a_staircase() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
     quaff(&mut w, p, PotionEffect::Paralysis);
     assert!(w.get::<Paralyzed>(p).is_some());
-    assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Slow);
+    assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Normal);
 
     // Over many turns the coin flip eats some of them but not all.
     let lost = (0..200).filter(|_| paralysis_forfeits_turn(&mut w)).count();
@@ -522,4 +522,18 @@ fn a_potion_of_polymorph_polymorphs_the_drinker_for_the_floor() {
     descend(&mut w, p);
     assert!(w.get::<Polymorphed>(p).is_none());
     assert!(logged(&w, "You are no longer polymorphed."));
+}
+
+#[test]
+fn an_unseen_monsters_second_sight_says_nothing() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let orc = spawn_named(&mut w, "orc", Position { x: 50, y: 15 }).unwrap();
+    w.entity_mut(orc).insert(Backpack { items: vec![] });
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(1, 1)];
+
+    quaff(&mut w, orc, PotionEffect::SeeInvisible);
+
+    assert!(w.get::<SeesInvisible>(orc).is_some());
+    assert!(!logged(&w, "orc"), "{:?}", w.resource::<GameLog>().history);
 }

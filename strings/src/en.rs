@@ -553,19 +553,19 @@ USAGE
     nihilurk [NAME|SAVE] [OPTIONS]
 
 OPTIONS
-    -s SEED          use a reproducible u64 seed
-    -c               centre the map on the player
-    -ns              do not write a save file
-    -nb              disable blood and corpse animation
-    -nshake          disable screen shake
-    -nobones         skip the bones mechanic (saving and loading a run's own)
-    -endless         no Element of Yoord, no way up, no way to win: just floors
-    -anim-rate N     set animation pacing multiplier (0.1..=5.0)
-    -b BODY          play as nihil (default) or lurk
-    -am SPECIES      play as a monster: any bestiary name, e.g. -am dragon
-    -content         list names accepted by NIHILURK_SPAWN
-    -scores          show the leaderboard and exit, without playing
-    -h, -help, --help show this help and exit
+    -s, --seed SEED            use a reproducible u64 seed
+    -c, --centered             centre the map on the player
+    -ns, --no-save             do not write a save file
+    -nb, --no-blood            disable blood and corpse animation
+    -nshake, --no-shake        disable screen shake
+    -nobones, --no-bones       skip the bones mechanic (saving and loading a run's own)
+    -endless, --endless        no Element of Yoord, no way up, no way to win: just floors
+    -anim-rate, --anim-rate N  set animation pacing multiplier (0.1..=5.0)
+    -b, --body BODY            play as nihil (default) or lurk
+    -am, --as-monster SPECIES  play as a monster: any bestiary name, e.g. -am dragon
+    -content, --content        list names accepted by NIHILURK_SPAWN
+    -scores, --leaderboard     show the leaderboard and exit, without playing
+    -h, -help, --help          show this help and exit
 
 POSITIONAL ARGUMENT (first argument only)
     NAME             start a new run with this player name
@@ -608,6 +608,11 @@ pub fn no_such_monster(name: &str) -> String {
 
 pub fn stray_positional(stray: &str) -> String {
     format!("nihilurk: '{stray}' is not a flag, and a name has to come first: nihilurk {stray} ...")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn invalid_argument(arg: &str) -> String {
+    format!("invalid argument {arg}. Please see -help for more information")
 }
 
 pub fn clear_data_prompt(player_name: &str) -> String {
@@ -1597,9 +1602,6 @@ pub fn mob_fires(thrower: &str, phrase: &str) -> String {
 pub fn mob_throws(thrower: &str, seen_name: &str) -> String {
     format!("The {thrower} throws the {seen_name}.")
 }
-pub fn doorway_goes_inert() -> &'static str {
-    "The doorway cracks and goes grey and inert."
-}
 
 pub fn scroll_read_aloud(who: &str, seen_name: &str) -> String {
     format!("The {who} unrolls the {seen_name} and reads it aloud!")
@@ -1986,6 +1988,11 @@ pub fn not_while_monster_in_sight() -> &'static str {
 // TODO: placeholder English; needs a human's pass.
 pub fn charge() -> &'static str {
     "CHARGE!"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn cannot_charge_in_the_thick_of_it() -> &'static str {
+    "You cannot charge while in the thick of it."
 }
 
 pub fn cant_run_that_way() -> &'static str {
