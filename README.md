@@ -13,12 +13,12 @@ What you get:
   * Seeded floors (`-s 1234`), and two ways down: nihil, who carries gear, or the lurk (`-b lurk`), who has claws and fur.
   * Four languages, English, Portuguese, Spanish and Haitian Creole, one binary each, picked at build time.
 
-Download a prebuilt game (v0.3.0), no Rust needed:
+Download a prebuilt game (v0.4.0), no Rust needed:
 
-  * [Windows, x86_64 (.zip)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-x86_64-pc-windows-msvc.zip)
-  * [macOS, Apple Silicon (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-aarch64-apple-darwin.tar.gz)
-  * [Linux, x86_64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-x86_64-unknown-linux-musl.tar.gz)
-  * [Linux, aarch64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.3.0/nihilurk-0.3.0-aarch64-unknown-linux-musl.tar.gz)
+  * [Windows, x86_64 (.zip)](https://github.com/bae-alves/nihilurk/releases/download/v0.4.0/nihilurk-0.4.0-x86_64-pc-windows-msvc.zip)
+  * [macOS, Apple Silicon (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.4.0/nihilurk-0.4.0-aarch64-apple-darwin.tar.gz)
+  * [Linux, x86_64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.4.0/nihilurk-0.4.0-x86_64-unknown-linux-musl.tar.gz)
+  * [Linux, aarch64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.4.0/nihilurk-0.4.0-aarch64-unknown-linux-musl.tar.gz)
 
 Unpack it and run `./nihilurk` (`nihilurk.exe` on Windows). Keep the files together: the dispatcher starts the `nihilurk-<lang>` binary next to it. The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it. Every file has a checksum at the same address plus `.sha256`, and older versions are on the [releases page](https://github.com/bae-alves/nihilurk/releases).
 
