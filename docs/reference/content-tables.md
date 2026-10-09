@@ -223,7 +223,7 @@ Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDa
 
 The staff is the only row with an `on_doff`, and the reason is worth repeating: it multiplies what every attacking spell costs and what it does (`constants::spells::TURBO_MAGIC_COST_MULT` and `TURBO_MAGIC_POWER_MULT`), and neither multiplier shows anywhere on the HUD. The two log lines are the whole of the player's notice, which is why the taking-off needs one as much as the putting-on. `OnDoff` fires only on the deliberate path (`equipment::toggle_equipped`), never from `force_unequip` — dropping, being disarmed and dying are not ceremonies, the same asymmetry `OnWear` already has against `equip_silently`.
 
-Every throw ignores the target's armour die, but the armour *plus* is always subtracted. A thing not made for throwing rolls `IMPROVISED_THROW_DIE` (1d2) plus its own plus, and so does ammunition lobbed by hand; armour thrown does no damage. `Projectile` means two things at once: the missile is spent on what it hits, and nothing can catch it. A non-projectile throw can be caught and used against you.
+Every throw ignores the target's armour die, but the armour *plus* is always subtracted. A thing not made for throwing rolls `IMPROVISED_THROW_DIE` plus its own plus, and so does ammunition lobbed by hand; armour thrown does no damage. `Projectile` means two things at once: the missile is spent on what it hits, and nothing can catch it. A non-projectile throw can be caught and used against you.
 
 ### AMMO — AmmoDef
 

@@ -74,6 +74,20 @@ ring mail to start with. Everything nihil is worth in a fight is something
 nihil is carrying, which means everything can be improved, and everything can
 be lost.
 
+Nihil plays forward. Every sword, suit and ring you find goes on and makes you
+better at the one thing nihil does well, which is walk up to trouble and hit
+it. That makes nihil the body to start with: the choices are few and plain,
+and a bad one costs you a fight, not the run.
+
+Nihil is born knowing one trick, the **charge**. Hold Shift and press a
+direction with a creature two to six tiles off that way, and nihil crosses the
+gap in one turn and strikes. The way there has to be straight and clear: open
+floor, no creature in between. The price is that until the creatures have had
+their turn, every blow they land on you is 25% harder (`VULN` on the status
+line). You cannot charge with a foe already next to you; you are in the thick
+of it, and nihil knows better. A trap on the tile you land on goes off; a trap
+you jump over does not.
+
 **The lurk** (`-b lurk`) is quadruped, fanged, clawed and furred, and shows on
 the map as a magenta `@`. It is the other way of playing:
 
@@ -87,8 +101,10 @@ the map as a magenta `@`. It is the other way of playing:
     gets.
   * It moves quietly, the way a ring of stealth does: nothing notices it until
     it is within reach.
-  * It fights like a fencer without a blade. Closing the last stride of a
-    charge lands a lunge, and every blow that lands winds the next one up.
+  * It fights like a fencer without a blade. Step toward a creature with one
+    empty tile between you and the lurk lunges across it: a sure hit at triple
+    the roll, armour ignored. Every blow that lands winds the next one up.
+    Shift still runs, but it cannot charge; that is nihil's.
   * It knows Bide, and pays magic for it like anybody else.
   * **It eats and grows.** Any creature that dies on the floor may feed it:
     roughly one in seven does, and the lurk gains a point of health, magic,
@@ -98,6 +114,12 @@ the map as a magenta `@`. It is the other way of playing:
 
 Where nihil gets stronger by finding things, the lurk gets stronger by killing
 things. A lurk that avoids fights stays a lurk that can be killed by a bat.
+
+The lurk plays slower than nihil, though it moves faster. With seven hit points
+it cannot trade blows, so every fight is a question: lunge or wait, bide or
+step away, drink the potion now or keep it. Nothing it finds can be worn but a
+ring, so the potions, scrolls, wands and coins carry the run, and each one is
+spent once. Pick the lurk once nihil's dungeon feels familiar.
 
 The dungeon screen
 ------------------
@@ -172,7 +194,7 @@ Several commands let you spend less time walking:
 
 | Key | Action |
 |-----|--------|
-| Shift + direction | Run until you meet an obstacle or something worth noticing. With a creature in view that way: CHARGE! Close the gap and strike, but take 25% more from melee until they have moved |
+| Shift + direction | Run until you meet an obstacle or something worth noticing; any body can run. As nihil, with a creature in view that way: CHARGE! Close the gap and strike, but take 25% more from melee until they have moved |
 | `o` | Explore the floor automatically |
 | `A` | Toggle picking up useful items during auto-explore |
 | `O` | Choose a destination and travel there |

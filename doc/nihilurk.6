@@ -154,6 +154,11 @@ Which creature descends:
 .B nihil
 (the default) or
 .BR lurk .
+Nihil carries gear and gets stronger by wearing what turns up. Nihil plays
+forward, with few choices and plain ones: the body to start with. Nihil is
+born knowing the charge (see
+.B Shift + direction
+below).
 The lurk is quadruped, fanged, clawed and furred, and draws as a magenta
 .BR @ .
 It has seven hit points to nihil's twelve and two magic to nihil's four, it
@@ -161,11 +166,15 @@ carries nothing, and the only thing it can ever put on is a ring \(em its
 claws are its weapon and its fur is its armour. In exchange it is
 .BR quick ,
 half again as fast as anything else in the dungeon; it moves unnoticed until
-it is within reach; it lunges when it closes the last stride of a charge and
-each landed blow winds up the next; it knows Bide and pays for it; and one
+it is within reach; a step toward a creature across one empty tile lunges for
+a sure hit at triple the roll, and each landed blow winds up the next; it knows Bide and pays for it; and one
 creature in seven that dies on the floor makes it stronger in one of its four
 numbers, at random. A wand of cancellation takes what a lurk has and not what
-it is: the shape, the tempo and the rule about rings survive it.
+it is: the shape, the tempo and the rule about rings survive it. The lurk
+plays slower than nihil: too thin to trade blows, it asks for a decision every
+fight, and since it wears nothing but rings its run rides on potions,
+scrolls, wands and coins, each spent once. Shift still runs, but it cannot
+charge.
 .IP
 .B \-b
 and
@@ -369,7 +378,11 @@ number-pad directions are:
 Walk into a monster to attack it. Other useful movement commands are:
 .TP
 .B Shift + direction
-Run in that direction until something requires attention.
+Run in that direction until something requires attention. As nihil, with a
+creature two to six tiles off that way and clear floor between, charge it
+instead: one turn to close the gap and strike, and every blow that lands on
+you is 25% harder until the creatures have moved. Refused with a foe already
+beside you. A trap on the landing tile goes off; one jumped over does not.
 .TP
 .B o
 Auto-explore the current floor.

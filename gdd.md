@@ -123,8 +123,8 @@ A seed fixes the maps, not the mob. Every floor's walls are a pure function of t
 The Dungeon Lord allows 260 turns a floor. Past that a portal opens under the player and drops them one level deeper whether or not they were ready, which is most of the reason the automation exists. On the climb out the same impatience works the other way and the portal throws them up instead. The final stair out of depth 1 has to be climbed on foot, a portal can never be the thing that wins the game.
 
 ### Ways to play
-- nihil, the default, who carries gear.
-- The lurk (`-b lurk`), who has claws and fur, wears nothing but rings, is quick, starts knowing only Bide, and grows by killing.
+- nihil, the default, who carries gear and charges (Shift + direction: close the gap and strike, at the price of taking harder blows for a turn). Aggressive and built on equipment, nihil is the place to start.
+- The lurk (`-b lurk`), who has claws and fur, wears nothing but rings, is quick, starts knowing only Bide, and grows by killing. It plays slower than nihil: every fight is a decision, and with no gear to grow into, the run rides on consumables.
 - Any monster (`-am dragon`), with its own body, its own spells and an empty pack.
 - Endless (`-endless`): there is no Element and no way to win, the dungeon just keeps going down.
 
