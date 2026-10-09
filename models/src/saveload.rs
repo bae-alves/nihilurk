@@ -53,7 +53,6 @@ use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::Write;
 
 use crate::catalog::{RingDef, content_id_of, restore_from_catalog};
 use crate::components::*;
@@ -609,11 +608,34 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
         monster_body,
     };
 
-    let file = std::fs::File::create(path)?;
-    let writer = std::io::BufWriter::new(file);
-    let mut writer = postcard::to_io(&(SAVE_VERSION, &save), writer)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    writer.flush()
+    write_atomically(path, |writer| {
+        postcard::to_io(&(SAVE_VERSION, &save), writer)
+            .map(|_| ())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    })
+}
+
+/// Writes `path` by way of a sibling `<path>.tmp` that is synced and then
+/// renamed over it, so a crash or an error mid-write leaves the old file
+/// whole. Every file the game writes goes through here: the save, the
+/// leaderboard, the bones. The directory is not synced after the rename, so a
+/// power cut right then can come back with the old file, but never a torn one.
+pub(crate) fn write_atomically(
+    path: &str,
+    write: impl FnOnce(&mut std::io::BufWriter<std::fs::File>) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    let tmp = format!("{path}.tmp");
+    let result = std::fs::File::create(&tmp)
+        .and_then(|file| {
+            let mut writer = std::io::BufWriter::new(file);
+            write(&mut writer)?;
+            writer.into_inner().map_err(|e| e.into_error())?.sync_all()
+        })
+        .and_then(|()| std::fs::rename(&tmp, path));
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result
 }
 
 /// Rebuilds the world from a postcard save file. Inserts GameState, GameLog,
@@ -959,6 +981,47 @@ pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
 mod tests {
     use super::*;
     use rand::SeedableRng;
+    use std::io::Write;
+
+    fn atomic_path(tag: &str) -> String {
+        std::env::temp_dir()
+            .join(format!(
+                "nihilurk-atomic-unit-{}-{tag}.sav",
+                std::process::id()
+            ))
+            .to_str()
+            .unwrap()
+            .to_string()
+    }
+
+    #[test]
+    fn a_write_that_fails_halfway_leaves_the_old_file_whole() {
+        let path = atomic_path("fails");
+        std::fs::write(&path, b"the old run").unwrap();
+
+        let result = write_atomically(&path, |w| {
+            w.write_all(b"half a")?;
+            w.flush()?;
+            Err(std::io::Error::other("killed mid-write"))
+        });
+
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"the old run");
+        assert!(!std::path::Path::new(&format!("{path}.tmp")).exists());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_write_that_succeeds_replaces_the_file_and_leaves_no_temp() {
+        let path = atomic_path("succeeds");
+        std::fs::write(&path, b"the old run").unwrap();
+
+        write_atomically(&path, |w| w.write_all(b"the new run")).unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"the new run");
+        assert!(!std::path::Path::new(&format!("{path}.tmp")).exists());
+        let _ = std::fs::remove_file(&path);
+    }
 
     /// An [`EntitySave`] with every field at its empty default, so a test only
     /// has to name the field it actually cares about.

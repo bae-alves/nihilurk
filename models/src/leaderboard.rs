@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// How a run ended. Distinguishes the two ways a run can be lost by whether
@@ -84,7 +85,7 @@ fn record_to(
 
     let bytes = postcard::to_allocvec(&entries)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    std::fs::write(path, bytes)
+    crate::saveload::write_atomically(path, |w| w.write_all(&bytes))
 }
 
 /// Every entry the file holds, already in score order. Empty if nothing has

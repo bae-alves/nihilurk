@@ -17,6 +17,7 @@
 
 use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 
 use crate::components::{Backpack, Depth, Name, Player, PlayerName, Stack};
 use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
@@ -140,7 +141,7 @@ fn deposit_to(world: &mut World, path: &str) -> std::io::Result<()> {
     };
     let bytes = postcard::to_allocvec(&bones)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    std::fs::write(path, bytes)
+    crate::saveload::write_atomically(path, |w| w.write_all(&bytes))
 }
 
 /// The bones file for `depth`, if one is waiting there — and gone from disk
