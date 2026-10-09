@@ -80,39 +80,25 @@ if staged | grep -qE '^(models/src/spawn\.rs|docs/reference/content-tables\.md)$
     }
 fi
 
-# 4. Every language still builds. `pt.rs` and `es.rs` don't glob-import `en`,
-# so a new `strings::` call with no pt/es line breaks those two binaries --
-# and a bare `cargo check` only ever builds `lang-en`, so nothing else would
-# say so. 24 strings went missing that way before this check existed. Any
-# staged Rust in a crate that calls into `strings` can add such a call.
+# 4. Keep pt/es from missing a `strings::` call. `pt.rs` and `es.rs` do not
+# glob-import `en`, so a new call with no pt/es line breaks those two
+# binaries -- and a bare `cargo check` only builds `lang-en`. 24 strings went
+# missing that way before this check existed.
 #
-# Translating is not this commit's job, though, and was never meant to be --
-# a contributor adding an English line shouldn't have to also write Portuguese
-# and Spanish before git will take the commit. `stub_missing_translations.lua`
-# runs first and auto-fills anything `pt.rs`/`es.rs` hasn't caught up with as
-# an empty, `// TODO: translate.`-marked stub, and stages whatever it touched
-# -- so translating stays something people pick up on their own time, in its
-# own commit, rather than a tax on every unrelated change. The `cargo check`
-# loop below still runs after: it's the safety net for a stub that doesn't
-# actually compile (a return type this script doesn't know an empty value
-# for) or a hand-written translation with a real mistake in it.
+# Translating is not this commit's job. `stub_missing_translations.lua` fills
+# anything `pt.rs`/`es.rs` hasn't caught up with as an empty,
+# `// TODO: translate.`-marked stub and stages what it touched, so translating
+# stays something people pick up in their own commit. The build of every
+# language runs in CI ("every language still builds" in ci.yml), not here: a
+# stub that does not compile, or a hand-written translation with a mistake,
+# shows up there. To check locally:
+#   cargo check -p nihilurk --no-default-features --features lang-pt
 if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
     stub_output="$(lua .githooks/stub_missing_translations.lua)"
     if [[ -n "$stub_output" ]]; then
         echo "$stub_output"
-        # Only the last lines (one per touched file) are paths; re-stage
-        # exactly those rather than trusting the whole strings/ tree.
         echo "$stub_output" | grep -E '^strings/src/(pt|es)\.rs$' | xargs -r git add
     fi
-
-    for lang in pt es ht; do
-        cargo check -p nihilurk --no-default-features --features "lang-$lang" --quiet || {
-            echo "pre-commit: the lang-$lang build failed -- see above. If this" >&2
-            echo "  wasn't stubbed away above, it's a real mistake, not a missing" >&2
-            echo "  translation -- stub_missing_translations.lua already covers that." >&2
-            exit 1
-        }
-    done
 fi
 
 # 4b. English is placeholder text until a human replaces it. Any `pub fn` or

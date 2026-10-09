@@ -14,7 +14,7 @@ The person running this wants to contribute to nihilurk. Set up their machine an
 
 5. For each gap, give the install command for their OS and ask before you run it. Do not use `sudo` without asking. If they decline, say what will not work without it and move on.
 
-6. Offer to turn on the pre-commit hook with `git config core.hooksPath .githooks`. It is local to this clone. Say in one line what it does: it refuses Python, lints `docs/`, and checks that every language still builds.
+6. Offer to turn on the pre-commit hook with `git config core.hooksPath .githooks`. It is local to this clone. Say in one line what it does: it refuses Python, lints `docs/`, and stubs missing translations (CI builds every language).
 
 7. Offer a smoke test, and say first that the first build downloads crates and takes a few minutes. Run `cargo test --locked --workspace --exclude nihilurk-compat` for most jobs. For a translator, `cargo check -p nihilurk --no-default-features --features lang-pt` (swap in their language) is enough. If it fails, report the first failure and stop. Do not fix their setup by editing repo files.
 
