@@ -147,7 +147,7 @@ The game needs a terminal of at least 80 columns by 25 rows. In a smaller one th
     cargo run -p nihilurk -- -content | grep ring
     cargo run -p nihilurk -- -content | less
 
-`-scores` reads the same way, straight off `leaderboard.sav` in the current directory -- a small postcard file, same shape as a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)`, where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended.
+`-scores` reads the same way, straight off `leaderboard.sav` in the data directory (see `NIHILURK_DATA` below) -- a small versioned postcard file, like a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)`, where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended. A leaderboard it can't read, damaged or from another version, is named on stderr and never overwritten: no score is recorded until it is moved away. Two runs ending at once take turns at the file through `leaderboard.sav.lock`.
 
 `-s` fixes the dungeon's *maps*. Every floor's walls are a pure function of `(seed, depth)`, so floor 7 of seed 1234 is the same maze today, tomorrow, after you reload a save, and after somebody adds a monster to the bestiary. Its *contents* -- monsters, loot, traps -- are re-rolled each time you enter the floor (they key off the staircase count as well), so walking back up through floor 7 finds the same corridors freshly stocked. How you play still does not reach into generation: two runs on one seed that take the same staircases see the same everything.
 
@@ -157,10 +157,11 @@ The positional argument
 
 One bare argument, meaning one of two things:
 
-  * **A save file**, if it names a file that exists -- verbatim or with `.sav` appended, matched case-insensitively. The run is loaded.
-  * **A player name**, otherwise. A fresh run starts under that name.
+  * **A save file**, if it is the path of a file as typed, or names one in the data directory -- as is or with `.sav` appended, matched case-insensitively. The run is loaded, and saves back to that same file.
+  * **A player name**, otherwise. A fresh run starts under that name, saved as `<name>.sav` in the data directory.
 
-        cargo run -p nihilurk -- nihilurk          # loads nihilurk.sav if it exists
+        cargo run -p nihilurk -- nihilurk          # loads nihilurk.sav from the data directory if it is there
+        cargo run -p nihilurk -- ./old.sav         # loads that file, wherever it is
         cargo run -p nihilurk -- bae           # otherwise: a new run as bae
 
 If the save is *clear data* -- a won run, which is kept rather than deleted -- the game asks before spending it.
@@ -240,6 +241,22 @@ Forces the animation a scroll of magic mapping plays, instead of rolling one. Us
 | `explode`, `explosion`, `blast`, `burst`      | Explode    |
 
 Anything unrecognised falls back to a random roll.
+
+### NIHILURK_DATA
+
+The directory nihilurk keeps its files in: saves, `bones-N.sav` and `leaderboard.sav`. Set, it wins. Unset or empty, the OS convention decides (`models::data_dir`):
+
+| OS              | Data directory                                              |
+|-----------------|-------------------------------------------------------------|
+| Linux, the BSDs | `$XDG_DATA_HOME/nihilurk`, or `~/.local/share/nihilurk`     |
+| macOS           | `~/Library/Application Support/nihilurk`                    |
+| Windows         | `%APPDATA%\nihilurk`                                        |
+
+  * A relative `XDG_DATA_HOME` is ignored, as the XDG spec says.
+  * With no home to go on at all, it is the current directory.
+  * The directory is made on the first write, not before.
+
+    NIHILURK_DATA=. cargo run -p nihilurk        # keep everything in the checkout, the old way
 
 
 Recipes

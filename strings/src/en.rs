@@ -541,6 +541,14 @@ pub fn leaderboard_empty() -> &'static str {
     "No runs recorded yet."
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn leaderboard_unreadable(path: &str) -> String {
+    format!(
+        "Can't read the leaderboard at '{path}': it is damaged or from another version. \
+         It was left as it is; no new scores are recorded until it is moved away."
+    )
+}
+
 pub fn leaderboard_entry(rank: usize, name: &str, outcome: &str, score: i64, when: &str) -> String {
     format!("{rank}. {name} - {outcome} - {score} ({when})")
 }
@@ -651,8 +659,8 @@ pub fn game_not_saved() -> &'static str {
     "Game not saved (-ns)."
 }
 
-pub fn game_saved(save_name: &str) -> String {
-    format!("Game saved to '{save_name}'. Resume with: nihilurk {save_name}")
+pub fn game_saved(save_path: &str, resume_as: &str) -> String {
+    format!("Game saved to '{save_path}'. Resume with: nihilurk {resume_as}")
 }
 
 pub fn failed_to_save_game(err: &str) -> String {

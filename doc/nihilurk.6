@@ -95,7 +95,9 @@ and a portal carries you to another depth whether you are ready or not.
 .PP
 The game uses one save file,
 .IR name .sav ,
-in the directory nihilurk was started from. Quitting saves the current run unless
+in the data directory (see
+.BR NIHILURK_DATA ).
+Quitting saves the current run unless
 .B \-ns
 is used, and starting the game again with the same name continues it. While
 time is stopped nothing is saved: the game saves as time stops and again as it
@@ -219,8 +221,10 @@ as
 .BR "RANK. NAME - OUTCOME - SCORE (WHEN)" ,
 highest first \(em and exit without entering the alternate screen. Read from
 .B leaderboard.sav
-in the current directory, a small file in the same format as a save. Updated
-whenever a run ends in a win or a death;
+in the data directory, a small versioned file like a save. Updated
+whenever a run ends in a win or a death. A leaderboard that is damaged or from
+another version is named and left alone, and no score is recorded until it is
+moved away;
 .B OUTCOME
 is
 .BR WIN ,
@@ -239,12 +243,14 @@ name.
 .TP
 .I name
 Start a new run under this player name. The name is uppercased in the game,
-and the save file is lowercased from it.
+and the save file, in the data directory, is lowercased from it.
 .TP
 .I save
-Load a save file if the argument names an existing file, or if appending
+Load a save file if the argument is the path of an existing file, or names one
+in the data directory as is or with
 .B .sav
-names one. Matching is case-insensitive. If the save is clear data, a won
+appended. Matching in the data directory is case-insensitive. The run saves
+back to the file it was loaded from. If the save is clear data, a won
 run, the game asks before spending it.
 .PP
 An unrecognised argument that starts with a dash, and a flag whose value is
@@ -316,6 +322,20 @@ explode:
 and
 .BR burst .
 An unrecognised value selects a style at random.
+.TP
+.B NIHILURK_DATA
+The directory for saves, bones files and the leaderboard. Unset or empty, it is
+.I $XDG_DATA_HOME/nihilurk
+or
+.I ~/.local/share/nihilurk
+on Linux and the BSDs,
+.I ~/Library/Application Support/nihilurk
+on macOS, and
+.I %APPDATA%\(rsnihilurk
+on Windows. A relative
+.B XDG_DATA_HOME
+is ignored. With no home directory known, it is the current directory. The
+directory is made on the first write.
 .SH EXAMPLES
 .EX
 nihilurk
@@ -458,8 +478,15 @@ menu works without it.
 .IR name .sav
 The single save file for a run named
 .IR name ,
-in the directory nihilurk was started from. A won run keeps the same file as
-clear data.
+in the data directory. A won run keeps the same file as clear data.
+.TP
+.B leaderboard.sav
+The ten best scores, in the data directory.
+.B leaderboard.sav.lock
+beside it lets two runs ending at once take turns.
+.TP
+.BR bones\-N.sav
+What a dead run left on floor N, in the data directory.
 .SH SEE ALSO
 .BR grep (1),
 .BR less (1)

@@ -18,6 +18,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use std::io::{BufWriter, Write, stdout};
+use std::path::{Path, PathBuf};
 
 use models::{ChaCha12Rng, SeedableRng};
 
@@ -43,19 +44,19 @@ impl Drop for TerminalGuard {
     }
 }
 
-/// Finds a file in the current directory whose name matches `name`
-/// case-insensitively, returning its actual on-disk name. This makes save
+/// Finds a file in `name`'s directory whose name matches `name`'s
+/// case-insensitively, returning its actual on-disk path. This makes save
 /// files loadable regardless of the case typed on the command line, since
 /// the filesystem itself may be case-sensitive (Linux/macOS).
-fn find_case_insensitive(name: &str) -> Option<String> {
-    if std::path::Path::new(name).is_file() {
-        return Some(name.to_string());
+fn find_case_insensitive(name: &Path) -> Option<PathBuf> {
+    if name.is_file() {
+        return Some(name.to_path_buf());
     }
-    let dir = std::path::Path::new(name)
+    let dir = name
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or_else(|| std::path::Path::new("."));
-    let file_name = std::path::Path::new(name).file_name()?.to_str()?;
+        .unwrap_or_else(|| Path::new("."));
+    let file_name = name.file_name()?.to_str()?;
     for entry in std::fs::read_dir(dir).ok()? {
         let entry = entry.ok()?;
         if entry
@@ -64,10 +65,21 @@ fn find_case_insensitive(name: &str) -> Option<String> {
             .is_some_and(|f| f.eq_ignore_ascii_case(file_name))
             && entry.path().is_file()
         {
-            return entry.path().to_str().map(|s| s.to_string());
+            return Some(entry.path());
         }
     }
     None
+}
+
+/// The save a positional argument names: a file at `arg` as typed, or else
+/// `<arg>` or `<arg>.sav` in `data`, any case.
+fn find_save(arg: &str, data: &Path) -> Option<PathBuf> {
+    let typed = Path::new(arg);
+    if typed.is_file() {
+        return Some(typed.to_path_buf());
+    }
+    find_case_insensitive(&data.join(arg))
+        .or_else(|| find_case_insensitive(&data.join(format!("{arg}.sav"))))
 }
 
 /// Blocks until the player presses a key (any key, or a specific one). Ignores
@@ -88,9 +100,9 @@ fn run_death_screens<W: std::io::Write>(
     world: &mut World,
     stdout: &mut W,
     screen: &mut view::Screen,
-    save_name: &str,
+    save_path: &Path,
 ) -> std::io::Result<()> {
-    let _ = std::fs::remove_file(save_name);
+    let _ = std::fs::remove_file(save_path);
 
     let offset = view::centering_offset(world);
     let (name, cause, score) = {
@@ -183,9 +195,17 @@ fn print_help(out: &mut impl Write) -> std::io::Result<()> {
 }
 
 /// Prints the internal leaderboard, highest score first, without entering the
-/// alternate screen — the same way `-content` never touches the terminal.
+/// alternate screen — the same way `-content` never touches the terminal. A
+/// leaderboard file it can't read is named on stderr and left as it is.
 fn print_leaderboard(out: &mut impl Write) -> std::io::Result<()> {
-    let entries = models::leaderboard::top(models::leaderboard::LEADERBOARD_STORE_LIMIT);
+    let Ok(entries) = models::leaderboard::top(models::leaderboard::LEADERBOARD_STORE_LIMIT) else {
+        let path = models::leaderboard::path();
+        eprintln!(
+            "{}",
+            strings::leaderboard_unreadable(&path.display().to_string())
+        );
+        return Ok(());
+    };
     if entries.is_empty() {
         return writeln!(out, "{}", strings::leaderboard_empty());
     }
@@ -238,7 +258,38 @@ fn canonical_flag(arg: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::canonical_flag;
+    use super::{canonical_flag, find_save};
+
+    fn data_dir(tag: &str) -> std::path::PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("nihilurk-main-unit-{}-{tag}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_bare_name_loads_from_the_data_dir_in_any_case() {
+        let data = data_dir("name");
+        std::fs::write(data.join("lurk.sav"), b"").unwrap();
+
+        assert_eq!(find_save("LURK", &data), Some(data.join("lurk.sav")));
+        assert_eq!(find_save("Lurk.sav", &data), Some(data.join("lurk.sav")));
+        assert_eq!(find_save("nobody", &data), None);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn a_typed_path_loads_as_typed() {
+        let data = data_dir("typed");
+        let elsewhere = data_dir("elsewhere").join("old.sav");
+        std::fs::write(&elsewhere, b"").unwrap();
+
+        let typed = elsewhere.to_str().unwrap();
+        assert_eq!(find_save(typed, &data), Some(elsewhere.clone()));
+        let _ = std::fs::remove_dir_all(&data);
+        let _ = std::fs::remove_dir_all(elsewhere.parent().unwrap());
+    }
 
     #[test]
     fn longhands_map_to_their_short_flags() {
@@ -419,16 +470,16 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    let mut load_path: Option<String> = None;
+    let data_dir = models::data_dir();
+    let mut load_path: Option<(PathBuf, String)> = None;
     if let Some(arg) = positional {
-        let suffixed = format!("{arg}.sav");
-        match find_case_insensitive(&arg).or_else(|| find_case_insensitive(&suffixed)) {
-            Some(found) => load_path = Some(found),
+        match find_save(&arg, &data_dir) {
+            Some(found) => load_path = Some((found, arg)),
             None => player_name = arg,
         }
     }
 
-    if let Some(path) = &load_path {
+    if let Some((path, _)) = &load_path {
         if let Some(clear) = models::clear_data(path).map_err(refuse_save)? {
             println!("{}", strings::clear_data_prompt(&clear.player_name));
             let mut answer = String::new();
@@ -517,7 +568,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(models::Endless { enabled: endless });
 
     match &load_path {
-        Some(path) => {
+        Some((path, _)) => {
             if let Err(e) = models::load_game(&mut world, path) {
                 drop(guard);
                 return Err(refuse_save(e));
@@ -553,10 +604,10 @@ fn main() -> std::io::Result<()> {
     schedule.run(&mut world);
     view::render(&mut world, &mut stdout, &mut screen)?;
 
-    let save_name = format!(
-        "{}.sav",
-        world.resource::<PlayerName>().what.to_ascii_lowercase()
-    );
+    let name = world.resource::<PlayerName>().what.to_ascii_lowercase();
+    let (save_path, resume_as) =
+        load_path.unwrap_or_else(|| (data_dir.join(format!("{name}.sav")), name));
+    let shown_path = save_path.display().to_string();
 
     let mut time_stopped = models::time_stopped(&mut world);
     while world.resource::<models::GameState>().is_running {
@@ -573,7 +624,7 @@ fn main() -> std::io::Result<()> {
         }
 
         if !no_save {
-            update::save_on_time_edge(&mut world, &mut time_stopped, &save_name);
+            update::save_on_time_edge(&mut world, &mut time_stopped, &save_path);
         }
 
         view::play_particles(&mut world, &mut stdout, &mut screen)?;
@@ -608,17 +659,17 @@ fn main() -> std::io::Result<()> {
             println!("{}", strings::clear_data_not_saved());
             return Ok(());
         }
-        let save_result = models::save_game(&mut world, &save_name);
+        let save_result = models::save_game(&mut world, &save_path);
         drop(guard);
         match save_result {
-            Ok(()) => println!("{}", strings::clear_data_saved(&save_name)),
+            Ok(()) => println!("{}", strings::clear_data_saved(&shown_path)),
             Err(e) => eprintln!("{}", strings::failed_to_save_clear_data(&e.to_string())),
         }
         return Ok(());
     }
 
     if world.resource::<Ending>().player_dead {
-        run_death_screens(&mut world, &mut stdout, &mut screen, &save_name)?;
+        run_death_screens(&mut world, &mut stdout, &mut screen, &save_path)?;
         drop(guard);
         return Ok(());
     }
@@ -633,10 +684,10 @@ fn main() -> std::io::Result<()> {
         println!("{}", strings::time_stopped_not_saved().join(" "));
         return Ok(());
     }
-    let save_result = models::save_game(&mut world, &save_name);
+    let save_result = models::save_game(&mut world, &save_path);
     drop(guard);
     match save_result {
-        Ok(()) => println!("{}", strings::game_saved(&save_name)),
+        Ok(()) => println!("{}", strings::game_saved(&shown_path, &resume_as)),
         Err(e) => eprintln!("{}", strings::failed_to_save_game(&e.to_string())),
     }
 

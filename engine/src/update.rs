@@ -208,7 +208,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 /// then: `stopped` is whether it was stopped last time this was asked. No save
 /// is written while THE WORLD holds, so quitting inside it loses those turns
 /// (see [`answer_quit_prompt`]). A failed save says so in the log.
-pub(crate) fn save_on_time_edge(world: &mut World, stopped: &mut bool, path: &str) {
+pub(crate) fn save_on_time_edge(world: &mut World, stopped: &mut bool, path: &std::path::Path) {
     let now = models::time_stopped(world);
     if now == *stopped {
         return;
@@ -2318,7 +2318,6 @@ mod tests {
     fn the_run_saves_as_time_stops_and_as_it_starts_again_and_never_between() {
         let mut w = modal_world(13);
         let path = std::env::temp_dir().join(format!("nihilurk-wrld-{}.sav", std::process::id()));
-        let path = path.to_str().unwrap().to_string();
         let mut stopped = false;
         let saved = |w: &mut World, stopped: &mut bool| {
             let _ = std::fs::remove_file(&path);

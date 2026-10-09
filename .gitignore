@@ -4,8 +4,11 @@
 /perf.data*
 /flamegraph.svg
 
-# nihilurk saves as <player name>.sav next to wherever it was started.
+# nihilurk keeps its files in the data directory, which is the checkout under
+# NIHILURK_DATA=. -- saves, bones, the leaderboard, its lock and a write's temp.
 *.sav
+*.sav.lock
+*.sav.tmp
 
 # Working notes on the architecture (SCS): drafts, not documentation. `docs/`
 # is what ships.

@@ -53,6 +53,8 @@ use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 use crate::catalog::{RingDef, content_id_of, restore_from_catalog};
 use crate::components::*;
@@ -398,7 +400,7 @@ pub fn strip_control_chars(s: &str) -> String {
 /// If `path` holds the clear data of a won run, returns the winner's name.
 /// `Ok(None)` for an ordinary save — or one this build can no longer parse, so
 /// the normal load path can report that instead.
-pub fn clear_data(path: &str) -> std::io::Result<Option<ClearData>> {
+pub fn clear_data(path: impl AsRef<Path>) -> std::io::Result<Option<ClearData>> {
     let bytes = std::fs::read(path)?;
     let Ok(save) = decode(&bytes) else {
         return Ok(None);
@@ -487,7 +489,7 @@ fn dug_tiles(world: &World) -> Vec<u32> {
 /// assert_eq!(reloaded.resource::<PlayerName>().what, "NIHIL");
 /// # std::fs::remove_file(path).unwrap();
 /// ```
-pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
+pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<()> {
     crate::items::thaw_into_pack(world);
     let mut ents: Vec<Entity> = world.iter_entities().map(|e| e.id()).collect();
     ents.sort_by_key(|e| e.index());
@@ -615,16 +617,63 @@ pub fn save_game(world: &mut World, path: &str) -> std::io::Result<()> {
     })
 }
 
+/// Where nihilurk keeps its files: saves, bones and the leaderboard.
+/// `NIHILURK_DATA` wins when it is set. Otherwise the OS convention:
+/// `$XDG_DATA_HOME/nihilurk` (or `~/.local/share/nihilurk`) on Linux and the
+/// BSDs, `~/Library/Application Support/nihilurk` on macOS,
+/// `%APPDATA%\nihilurk` on Windows. With none of those set, the current
+/// directory. Nothing is created until the first write.
+pub fn data_dir() -> PathBuf {
+    data_dir_from(std::env::consts::OS, |key| std::env::var_os(key))
+}
+
+/// [`data_dir`] with the OS and the environment passed in. An empty variable
+/// counts as unset, and so does a relative `XDG_DATA_HOME`, which the XDG
+/// spec says to ignore.
+fn data_dir_from(os: &str, var: impl Fn(&str) -> Option<OsString>) -> PathBuf {
+    let set = |key: &str| var(key).filter(|v| !v.is_empty()).map(PathBuf::from);
+    if let Some(dir) = set("NIHILURK_DATA") {
+        return dir;
+    }
+    let base = match os {
+        "windows" => set("APPDATA"),
+        "macos" => set("HOME").map(|home| home.join("Library/Application Support")),
+        _ => set("XDG_DATA_HOME")
+            .filter(|dir| dir.is_absolute())
+            .or_else(|| set("HOME").map(|home| home.join(".local/share"))),
+    };
+    base.map_or_else(|| PathBuf::from("."), |dir| dir.join("nihilurk"))
+}
+
+/// `path` with `suffix` stuck on the end of its file name: `lurk.sav` and
+/// `.tmp` make `lurk.sav.tmp`.
+pub(crate) fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+/// Makes the directory `path` sits in, if it has one and it is missing.
+pub(crate) fn make_parent_dir(path: &Path) -> std::io::Result<()> {
+    match path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+        Some(dir) => std::fs::create_dir_all(dir),
+        None => Ok(()),
+    }
+}
+
 /// Writes `path` by way of a sibling `<path>.tmp` that is synced and then
 /// renamed over it, so a crash or an error mid-write leaves the old file
 /// whole. Every file the game writes goes through here: the save, the
-/// leaderboard, the bones. The directory is not synced after the rename, so a
-/// power cut right then can come back with the old file, but never a torn one.
+/// leaderboard, the bones. Makes the directory first if it is missing. The
+/// directory is not synced after the rename, so a power cut right then can
+/// come back with the old file, but never a torn one.
 pub(crate) fn write_atomically(
-    path: &str,
+    path: impl AsRef<Path>,
     write: impl FnOnce(&mut std::io::BufWriter<std::fs::File>) -> std::io::Result<()>,
 ) -> std::io::Result<()> {
-    let tmp = format!("{path}.tmp");
+    let path = path.as_ref();
+    make_parent_dir(path)?;
+    let tmp = with_suffix(path, ".tmp");
     let result = std::fs::File::create(&tmp)
         .and_then(|file| {
             let mut writer = std::io::BufWriter::new(file);
@@ -644,7 +693,7 @@ pub(crate) fn write_atomically(
 ///
 /// The message log is not part of the save — a reload always starts with a
 /// fresh [`GameLog`] (just the welcome line), same as a brand new run.
-pub fn load_game(world: &mut World, path: &str) -> std::io::Result<()> {
+pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<()> {
     let bytes = std::fs::read(path)?;
     let save = decode(&bytes)?;
     let body_def = match save.monster_body.as_deref() {
@@ -1009,6 +1058,79 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"the old run");
         assert!(!std::path::Path::new(&format!("{path}.tmp")).exists());
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_first_write_makes_the_directory_it_lands_in() {
+        let dir =
+            std::env::temp_dir().join(format!("nihilurk-atomic-unit-{}-dir", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("nested").join("lurk.sav");
+
+        write_atomically(&path, |w| w.write_all(b"a run")).unwrap();
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"a run");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn resolve(os: &str, vars: &[(&str, &str)]) -> std::path::PathBuf {
+        data_dir_from(os, |key| {
+            vars.iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, v)| std::ffi::OsString::from(v))
+        })
+    }
+
+    #[test]
+    fn the_data_dir_follows_each_os_convention() {
+        use std::path::PathBuf;
+        assert_eq!(
+            resolve("linux", &[("XDG_DATA_HOME", "/xdg"), ("HOME", "/home/b")]),
+            PathBuf::from("/xdg/nihilurk")
+        );
+        assert_eq!(
+            resolve("freebsd", &[("HOME", "/home/b")]),
+            PathBuf::from("/home/b/.local/share/nihilurk")
+        );
+        assert_eq!(
+            resolve("macos", &[("HOME", "/Users/b"), ("XDG_DATA_HOME", "/xdg")]),
+            PathBuf::from("/Users/b/Library/Application Support/nihilurk")
+        );
+        assert_eq!(
+            resolve("windows", &[("APPDATA", "C:\\Users\\b\\AppData\\Roaming")]),
+            PathBuf::from("C:\\Users\\b\\AppData\\Roaming").join("nihilurk")
+        );
+    }
+
+    #[test]
+    fn nihilurk_data_overrides_the_os_convention() {
+        assert_eq!(
+            resolve(
+                "linux",
+                &[("NIHILURK_DATA", "/srv/lurk"), ("HOME", "/home/b")]
+            ),
+            std::path::PathBuf::from("/srv/lurk")
+        );
+    }
+
+    #[test]
+    fn a_relative_or_empty_variable_is_ignored() {
+        assert_eq!(
+            resolve(
+                "linux",
+                &[
+                    ("NIHILURK_DATA", ""),
+                    ("XDG_DATA_HOME", "rel"),
+                    ("HOME", "/home/b")
+                ]
+            ),
+            std::path::PathBuf::from("/home/b/.local/share/nihilurk")
+        );
+    }
+
+    #[test]
+    fn with_no_home_at_all_the_data_dir_is_the_current_one() {
+        assert_eq!(resolve("linux", &[]), std::path::PathBuf::from("."));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! The bones file: what a dead run leaves behind for the next one to find.
 //!
-//! One flat postcard file per depth (`path_for`), sitting next to
+//! One flat postcard file per depth (`path_for`), in [`Bones::dir`] next to
 //! `leaderboard.sav` — global across seeds, and a plain file a player can
 //! `rm` by hand if they'd rather not meet it. [`deposit`] writes one the
 //! moment a character dies; [`take`] reads and deletes it the moment a later
@@ -18,6 +18,7 @@
 use bevy_ecs::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use crate::components::{Backpack, Depth, Name, Player, PlayerName, Stack};
 use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
@@ -31,11 +32,17 @@ use crate::equipment::{Equipped, Slot, equipped_items};
 pub struct Bones {
     /// `true` unless the run started with `-nobones`.
     pub enabled: bool,
+    /// Where the bones files live: [`crate::data_dir`], unless a test points
+    /// it somewhere of its own.
+    pub dir: PathBuf,
 }
 
 impl Default for Bones {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            dir: crate::data_dir(),
+        }
     }
 }
 
@@ -88,8 +95,8 @@ impl BonesFile {
     }
 }
 
-fn path_for(depth: u8) -> String {
-    format!("bones-{depth}.sav")
+fn path_for(dir: &Path, depth: u8) -> PathBuf {
+    dir.join(format!("bones-{depth}.sav"))
 }
 
 /// Writes the current floor's bones file from the player's own gear —
@@ -98,14 +105,18 @@ fn path_for(depth: u8) -> String {
 /// [`crate::leaderboard::record`]: a run ending on a read-only directory
 /// still gets its death screen.
 pub fn deposit(world: &mut World) -> std::io::Result<()> {
-    if !world.get_resource::<Bones>().is_some_and(|b| b.enabled) {
+    let Some(dir) = world
+        .get_resource::<Bones>()
+        .filter(|b| b.enabled)
+        .map(|b| b.dir.clone())
+    else {
         return Ok(());
-    }
+    };
     let depth = world.resource::<Depth>().what;
-    deposit_to(world, &path_for(depth))
+    deposit_to(world, path_for(&dir, depth))
 }
 
-fn deposit_to(world: &mut World, path: &str) -> std::io::Result<()> {
+fn deposit_to(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<()> {
     let Some(player) = world
         .query_filtered::<Entity, With<Player>>()
         .iter(world)
@@ -144,15 +155,15 @@ fn deposit_to(world: &mut World, path: &str) -> std::io::Result<()> {
     crate::saveload::write_atomically(path, |w| w.write_all(&bytes))
 }
 
-/// The bones file for `depth`, if one is waiting there — and gone from disk
-/// the instant this returns, one encounter per death.
-pub fn take(depth: u8) -> Option<BonesFile> {
-    take_from(&path_for(depth))
+/// The bones file for `depth` in `dir`, if one is waiting there — and gone
+/// from disk the instant this returns, one encounter per death.
+pub fn take(dir: &Path, depth: u8) -> Option<BonesFile> {
+    take_from(path_for(dir, depth))
 }
 
-fn take_from(path: &str) -> Option<BonesFile> {
-    let bytes = std::fs::read(path).ok()?;
-    let _ = std::fs::remove_file(path);
+fn take_from(path: impl AsRef<Path>) -> Option<BonesFile> {
+    let bytes = std::fs::read(&path).ok()?;
+    let _ = std::fs::remove_file(&path);
     postcard::from_bytes(&bytes).ok()
 }
 
@@ -295,10 +306,15 @@ mod tests {
     #[test]
     fn a_disabled_bones_flag_deposits_nothing() {
         let depth = 255;
-        let path = path_for(depth);
+        let dir =
+            std::env::temp_dir().join(format!("nihilurk-bones-unit-{}-off", std::process::id()));
+        let path = path_for(&dir, depth);
         let _ = std::fs::remove_file(&path);
         let (mut w, player) = world_with_player();
-        w.insert_resource(Bones { enabled: false });
+        w.insert_resource(Bones {
+            enabled: false,
+            dir: dir.clone(),
+        });
         w.insert_resource(Depth { what: depth });
 
         let item = w
@@ -310,7 +326,7 @@ mod tests {
 
         deposit(&mut w).unwrap();
 
-        let result = take(depth);
+        let result = take(&dir, depth);
         let _ = std::fs::remove_file(&path);
         assert!(
             result.is_none(),

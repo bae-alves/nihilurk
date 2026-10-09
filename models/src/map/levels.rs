@@ -421,7 +421,8 @@ fn arrival_line(cause: LevelChange, going_down: bool, depth: u8) -> String {
 /// there (`crate::bones::take`, which also deletes it: one encounter per
 /// death). A no-op otherwise.
 fn spawn_bones_ghost(world: &mut World, depth: u8, rooms: &Rooms) {
-    let Some(bones) = crate::bones::take(depth) else {
+    let dir = world.resource::<crate::bones::Bones>().dir.clone();
+    let Some(bones) = crate::bones::take(&dir, depth) else {
         return;
     };
 

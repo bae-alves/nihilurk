@@ -12,23 +12,25 @@ use models::*;
 /// How many tests in this binary are inside a [`BonesDir`] right now.
 static IN_BONES_DIR: Mutex<usize> = Mutex::new(0);
 
-/// A working directory of the test binary's own. `bones::deposit` and
-/// `bones::take` name their file `bones-{depth}.sav` relative to the working
-/// directory, so two test runs at once (a second terminal, an IDE, a CI matrix
-/// on one checkout) would write and delete each other's files, and a ghost
-/// deposited a moment ago would not be there to take.
-///
-/// The first test in enters a directory named for the process id and the last
-/// one out removes it. The working directory is per process, not per test, so
-/// every test here shares the one directory: give each its own depth.
+/// The bones directory every world in this binary uses, named for the process
+/// id. [`test_world`] points `Bones::dir` here, so a test never touches the
+/// player's real data directory, and two test runs at once (a second terminal,
+/// an IDE, a CI matrix on one checkout) never write and delete each other's
+/// files.
+fn scratch_dir() -> PathBuf {
+    std::env::temp_dir().join(format!("nihilurk-bones-{}", std::process::id()))
+}
+
+/// Holds [`scratch_dir`] open for one test. The first test in makes the
+/// directory and the last one out removes it. Every test here shares it, so
+/// give each its own depth.
 struct BonesDir(PathBuf);
 
 impl BonesDir {
     fn enter() -> Self {
-        let dir = std::env::temp_dir().join(format!("nihilurk-bones-{}", std::process::id()));
+        let dir = scratch_dir();
         let mut inside = IN_BONES_DIR.lock().unwrap();
         std::fs::create_dir_all(&dir).expect("the temp directory is writable");
-        std::env::set_current_dir(&dir).expect("the scratch directory exists");
         *inside += 1;
         Self(dir)
     }
@@ -51,6 +53,7 @@ fn test_world(seed: u64, name: &str) -> World {
     w.init_resource::<GameLog>();
     w.insert_resource(PlayerName { what: name.into() });
     initialize_world(&mut w);
+    w.resource_mut::<bones::Bones>().dir = scratch_dir();
     w
 }
 
@@ -98,7 +101,7 @@ fn climb_into(w: &mut World, depth: u8) {
 fn a_ghost_only_shows_up_climbing_back_through_its_death_depth() {
     let _dir = BonesDir::enter();
     let depth = 201;
-    let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
+    let _ = std::fs::remove_file(scratch_dir().join(format!("bones-{depth}.sav")));
     die_and_leave_bones(depth, "VICTIM");
 
     let mut w = test_world(2, "HERO");
@@ -114,7 +117,7 @@ fn a_ghost_only_shows_up_climbing_back_through_its_death_depth() {
 fn descending_through_a_death_depth_never_wakes_the_ghost() {
     let _dir = BonesDir::enter();
     let depth = 202;
-    let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
+    let _ = std::fs::remove_file(scratch_dir().join(format!("bones-{depth}.sav")));
     die_and_leave_bones(depth, "VICTIM2");
 
     let mut w = test_world(3, "HERO2");
@@ -138,7 +141,7 @@ fn descending_through_a_death_depth_never_wakes_the_ghost() {
         "descending must never trigger the encounter, only ascending"
     );
     assert!(
-        bones::take(depth).is_some(),
+        bones::take(&scratch_dir(), depth).is_some(),
         "descending must not consume the bones file"
     );
 }
@@ -147,7 +150,7 @@ fn descending_through_a_death_depth_never_wakes_the_ghost() {
 fn the_ghost_carries_its_gear_back_cursed_and_worn() {
     let _dir = BonesDir::enter();
     let depth = 203;
-    let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
+    let _ = std::fs::remove_file(scratch_dir().join(format!("bones-{depth}.sav")));
     die_and_leave_bones(depth, "VICTIM3");
 
     let mut w = test_world(4, "HERO3");
@@ -181,7 +184,7 @@ fn the_ghost_carries_its_gear_back_cursed_and_worn() {
 fn a_ghost_sharing_the_climber_s_own_name_is_marked_as_them() {
     let _dir = BonesDir::enter();
     let depth = 204;
-    let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
+    let _ = std::fs::remove_file(scratch_dir().join(format!("bones-{depth}.sav")));
     die_and_leave_bones(depth, "SAME");
 
     let mut w = test_world(5, "SAME");
@@ -195,7 +198,7 @@ fn a_ghost_sharing_the_climber_s_own_name_is_marked_as_them() {
 fn a_ghost_with_a_different_name_is_not_marked_as_the_player() {
     let _dir = BonesDir::enter();
     let depth = 205;
-    let _ = std::fs::remove_file(format!("bones-{depth}.sav"));
+    let _ = std::fs::remove_file(scratch_dir().join(format!("bones-{depth}.sav")));
     die_and_leave_bones(depth, "STRANGER");
 
     let mut w = test_world(6, "HERO5");

@@ -1,5 +1,5 @@
-//! The internal leaderboard: a postcard blob at [`LEADERBOARD_PATH`], same
-//! shape of file as a save, updated the moment a run ends and read back by
+//! The internal leaderboard: a postcard blob at [`path`], in [`crate::data_dir`],
+//! versioned like a save, updated the moment a run ends and read back by
 //! `-scores` without starting a game.
 //!
 //! Capped at [`LEADERBOARD_STORE_LIMIT`] entries so the file stays exactly
@@ -9,6 +9,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// How a run ended. Distinguishes the two ways a run can be lost by whether
@@ -45,9 +46,16 @@ struct Entry {
     epoch_secs: u64,
 }
 
-/// Where the leaderboard lives, next to the save files in the directory
-/// nihilurk was started from.
-pub const LEADERBOARD_PATH: &str = "leaderboard.sav";
+/// Where the leaderboard lives: `leaderboard.sav` in [`crate::data_dir`], next
+/// to the saves.
+pub fn path() -> PathBuf {
+    crate::data_dir().join("leaderboard.sav")
+}
+
+/// The leaderboard file's format version, written ahead of the entries. A file
+/// under any other version is refused, never overwritten, so a format change
+/// can't wipe the board.
+const LEADERBOARD_VERSION: u16 = 1;
 
 /// How many rows the file keeps, and `-scores` prints. A run that doesn't
 /// beat the lowest of these is dropped on write rather than kept and hidden,
@@ -63,17 +71,19 @@ pub fn record(name: &str, outcome: Outcome, score: i64) -> std::io::Result<()> {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    record_to(LEADERBOARD_PATH, name, outcome, score, epoch_secs)
+    record_to(path(), name, outcome, score, epoch_secs)
 }
 
 fn record_to(
-    path: &str,
+    path: impl AsRef<Path>,
     name: &str,
     outcome: Outcome,
     score: i64,
     epoch_secs: u64,
 ) -> std::io::Result<()> {
-    let mut entries = all(path);
+    let path = path.as_ref();
+    let _lock = lock_beside(path)?;
+    let mut entries = all(path)?;
     entries.push(Entry {
         name: name.to_string(),
         outcome,
@@ -83,29 +93,50 @@ fn record_to(
     entries.sort_by_key(|e| std::cmp::Reverse(e.score));
     entries.truncate(LEADERBOARD_STORE_LIMIT);
 
-    let bytes = postcard::to_allocvec(&entries)
+    let bytes = postcard::to_allocvec(&(LEADERBOARD_VERSION, &entries))
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     crate::saveload::write_atomically(path, |w| w.write_all(&bytes))
 }
 
+/// Takes the leaderboard's lock, `<path>.lock`, and holds it until the file
+/// handed back is dropped. Two runs ending at once in the same data dir take
+/// turns at the read-modify-write in [`record_to`] instead of one dropping
+/// the other's score. Readers don't need it: a write lands by rename, whole.
+fn lock_beside(path: &Path) -> std::io::Result<std::fs::File> {
+    crate::saveload::make_parent_dir(path)?;
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(crate::saveload::with_suffix(path, ".lock"))?;
+    lock.lock()?;
+    Ok(lock)
+}
+
 /// Every entry the file holds, already in score order. Empty if nothing has
-/// been recorded yet, or the file can't be read or parsed — a corrupt or
-/// foreign-format leaderboard is a reason to start a fresh one, not to crash.
-fn all(path: &str) -> Vec<Entry> {
-    let Ok(bytes) = std::fs::read(path) else {
-        return Vec::new();
+/// been recorded yet. A file that won't parse, or carries another
+/// [`LEADERBOARD_VERSION`], is an `InvalidData` error: the scores in it are
+/// still someone's, so nothing here starts a fresh board over them.
+fn all(path: impl AsRef<Path>) -> std::io::Result<Vec<Entry>> {
+    let bytes = match std::fs::read(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        read => read?,
     };
-    postcard::from_bytes(&bytes).unwrap_or_default()
+    match postcard::from_bytes::<(u16, Vec<Entry>)>(&bytes) {
+        Ok((LEADERBOARD_VERSION, entries)) => Ok(entries),
+        _ => Err(std::io::ErrorKind::InvalidData.into()),
+    }
 }
 
 /// The `limit` highest scores ever recorded, highest first, each with a
-/// "YYYY-MM-DD HH:MM" UTC rendering of when the run ended.
-pub fn top(limit: usize) -> Vec<(String, Outcome, i64, String)> {
-    all(LEADERBOARD_PATH)
+/// "YYYY-MM-DD HH:MM" UTC rendering of when the run ended. Errs the way
+/// [`all`] does.
+pub fn top(limit: usize) -> std::io::Result<Vec<(String, Outcome, i64, String)>> {
+    Ok(all(path())?
         .into_iter()
         .take(limit)
         .map(|e| (e.name, e.outcome, e.score, format_timestamp(e.epoch_secs)))
-        .collect()
+        .collect())
 }
 
 /// Hand-rolled rather than pulling in a date crate for one stamp: this is
@@ -159,6 +190,7 @@ mod tests {
         record_to(&path, "AL-OK", Outcome::LoseAscent, 900, 3).unwrap();
 
         let entries: Vec<_> = all(&path)
+            .unwrap()
             .into_iter()
             .map(|e| (e.name, e.outcome, e.score))
             .collect();
@@ -183,15 +215,71 @@ mod tests {
             record_to(&path, "P", Outcome::Win, i as i64, 0).unwrap();
         }
 
-        let entries = all(&path);
+        let entries = all(&path).unwrap();
         let _ = std::fs::remove_file(&path);
         assert_eq!(entries.len(), LEADERBOARD_STORE_LIMIT);
         assert_eq!(entries.last().unwrap().score, 5);
     }
 
     #[test]
-    fn an_unreadable_leaderboard_is_an_empty_one() {
-        assert!(all(&temp_path("missing")).is_empty());
+    fn a_missing_leaderboard_is_an_empty_one() {
+        assert!(all(temp_path("missing")).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_corrupt_leaderboard_is_refused_and_left_alone() {
+        let path = temp_path("corrupt");
+        std::fs::write(&path, b"\xff\xff\xff not a leaderboard").unwrap();
+
+        assert!(all(&path).is_err());
+        assert!(record_to(&path, "BAE", Outcome::Win, 1, 0).is_err());
+
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"\xff\xff\xff not a leaderboard"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_leaderboard_from_another_version_is_refused_and_left_alone() {
+        let path = temp_path("version");
+        let theirs: Vec<Entry> = Vec::new();
+        let bytes = postcard::to_allocvec(&(LEADERBOARD_VERSION + 1, theirs)).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+
+        assert!(record_to(&path, "BAE", Outcome::Win, 1, 0).is_err());
+
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn runs_ending_at_once_all_make_the_board() {
+        for round in 0..5 {
+            let path = temp_path(&format!("race-{round}"));
+            let _ = std::fs::remove_file(&path);
+            let start = std::sync::Barrier::new(LEADERBOARD_STORE_LIMIT);
+
+            std::thread::scope(|s| {
+                for score in 0..LEADERBOARD_STORE_LIMIT as i64 {
+                    let (path, start) = (&path, &start);
+                    s.spawn(move || {
+                        start.wait();
+                        record_to(path, "P", Outcome::Win, score, 0).unwrap();
+                    });
+                }
+            });
+
+            let entries = all(&path).unwrap();
+            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::remove_file(format!("{path}.lock"));
+            assert_eq!(
+                entries.len(),
+                LEADERBOARD_STORE_LIMIT,
+                "round {round} lost a score"
+            );
+        }
     }
 
     #[test]
