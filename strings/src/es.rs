@@ -2506,7 +2506,7 @@ pub fn help_title() -> &'static str {
     " TECLAS "
 }
 // TODO: machine-translated placeholder; needs a native speaker's pass.
-pub fn help_rows() -> [&'static str; 13] {
+pub fn help_rows() -> [&'static str; 14] {
     [
         "hjklyubn    mover o atacar (flechas y teclado numérico también)",
         "Shift+dir   correr",
@@ -2520,6 +2520,7 @@ pub fn help_rows() -> [&'static str; 13] {
         "q r z       beber, leer, usar varita",
         "f v         disparar, ataque de alcance",
         "Z ;         hechizos, mirar",
+        "Alt+QWER    lanzar los hechizos 1 a 4",
         "A x Q       recogida automática, cerrar menú, salir",
     ]
 }

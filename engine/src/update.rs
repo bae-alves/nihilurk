@@ -222,8 +222,9 @@ pub(crate) fn save_on_time_edge(world: &mut World, stopped: &mut bool, path: &st
 }
 
 /// Everything [`process_input_and_update`] does once it is holding a key:
-/// Ctrl+C, the `--MORE--` gate, the universal escape hatch, and the four input
-/// contexts.
+/// Ctrl+C, the rule that no other Ctrl key does anything (Ctrl+Alt is how
+/// Windows reports AltGr, so it passes), the `--MORE--` gate, the universal
+/// escape hatch, and the four input contexts.
 ///
 /// Split out from the read so the whole modal stack can be exercised without a
 /// terminal — `read()` blocks, and a state machine that can only be tested by
@@ -232,6 +233,9 @@ pub(crate) fn save_on_time_edge(world: &mut World, stopped: &mut bool, path: &st
 pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
         world.resource_mut::<GameState>().is_running = false;
+        return Ok(false);
+    }
+    if key.modifiers.contains(KeyModifiers::CONTROL) && !key.modifiers.contains(KeyModifiers::ALT) {
         return Ok(false);
     }
 
@@ -1033,6 +1037,11 @@ fn navigate_pack(world: &mut World, key: KeyEvent, current_selected: usize) -> b
     commit_item_action(world, player, idx, action)
 }
 
+/// The four `Alt`+letter shortcuts into spell slots one to four. They are
+/// checked before the bare letters, so `Alt`+`q` casts and `q` still quaffs;
+/// any other `Alt`-held key does what it would do bare.
+const SPELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
+
 /// A keypress while walking the map: a run, a command, or a single step.
 ///
 /// Movement is vi keys, arrows and the numpad. WASD used to be a fourth scheme
@@ -1053,6 +1062,16 @@ fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bo
         KeyCode::Char('Q') | KeyCode::Char('X') => {
             world.resource_mut::<QuitPrompt>().open = true;
             return Ok(false);
+        }
+        KeyCode::Char(c)
+            if key.modifiers.contains(KeyModifiers::ALT)
+                && SPELL_KEYS.contains(&c.to_ascii_lowercase()) =>
+        {
+            let slot = SPELL_KEYS
+                .iter()
+                .position(|&k| k == c.to_ascii_lowercase())
+                .unwrap();
+            return fire_spell(world, slot);
         }
         KeyCode::Char('Z') => return begin_spells_menu(world),
         KeyCode::F(1) => {
@@ -1167,8 +1186,8 @@ fn open_pack(world: &mut World, mode: PackMode) -> std::io::Result<bool> {
 }
 
 /// Fires (opens the aiming reticle for) spell slot `slot` of the player's
-/// [`Spellset`] — always a row picked from the `Z` menu, which is the only way
-/// in. Refuses, no turn spent, if the slot is empty or the pool can't
+/// [`Spellset`] — `Alt`+`Q`/`W`/`E`/`R` on the map, or a row picked from the
+/// `Z` menu. Refuses, no turn spent, if the slot is empty or the pool can't
 /// cover it; the check here is a courtesy so the reticle never opens on a
 /// spell that can only fizzle — [`models::spell_system`] checks again before it
 /// actually spends the cost.
@@ -2515,17 +2534,67 @@ mod tests {
     }
 
     #[test]
-    fn alt_held_letters_do_what_the_bare_letter_does() {
-        let mut w = spells_world(27, &FOUR_SPELLS);
-        dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('q'), KeyModifiers::ALT)).unwrap();
+    fn alt_q_w_e_r_fire_spell_slots_one_to_four() {
+        for (slot, letter) in ['q', 'w', 'e', 'r'].into_iter().enumerate() {
+            let mut w = spells_world(27, &FOUR_SPELLS);
+            dispatch_key(
+                &mut w,
+                KeyEvent::new(KeyCode::Char(letter), KeyModifiers::ALT),
+            )
+            .unwrap();
+            assert_eq!(
+                w.resource::<TargetingState>().spell_effect,
+                Some(FOUR_SPELLS[slot]),
+                "Alt+{letter} did not aim slot {slot}"
+            );
+            assert!(
+                !w.resource::<PackIsOpen>().open,
+                "Alt+{letter} also opened a pack"
+            );
+        }
+    }
+
+    #[test]
+    fn alt_on_an_empty_slot_says_so_and_does_not_fall_through_to_the_bare_letter() {
+        let mut w = spells_world(27, &FOUR_SPELLS[..1]);
+        dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('w'), KeyModifiers::ALT)).unwrap();
+        assert!(w.resource::<TargetingState>().spell_effect.is_none());
         assert!(
-            w.resource::<TargetingState>().spell_effect.is_none(),
-            "Alt+q still fires a spell"
+            !w.resource::<PackIsOpen>().open,
+            "Alt+w fell through to wield"
         );
+    }
+
+    #[test]
+    fn alt_with_any_other_letter_still_does_what_the_bare_letter_does() {
+        let mut w = spells_world(27, &FOUR_SPELLS);
+        dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT)).unwrap();
         assert!(
             w.resource::<PackIsOpen>().open,
-            "Alt+q did not fall through to the quaff pack"
+            "Alt+a did not fall through to use"
         );
+    }
+
+    #[test]
+    fn ctrl_held_letters_do_nothing_but_ctrl_c_quits() {
+        for letter in ['z', 'j', 'l', 'q', 'a', 'o'] {
+            let mut w = spells_world(29, &FOUR_SPELLS);
+            let player = player_entity(&mut w);
+            let before = w.get::<Position>(player).copied();
+            let key = KeyEvent::new(KeyCode::Char(letter), KeyModifiers::CONTROL);
+            let spent = dispatch_key(&mut w, key).unwrap();
+            assert!(!spent, "Ctrl+{letter} spent a turn");
+            assert!(
+                !w.resource::<PackIsOpen>().open,
+                "Ctrl+{letter} opened a pack"
+            );
+            assert!(w.resource::<GameState>().is_running, "Ctrl+{letter} quit");
+            assert_eq!(
+                w.get::<Position>(player).copied(),
+                before,
+                "Ctrl+{letter} moved"
+            );
+        }
     }
 
     #[test]

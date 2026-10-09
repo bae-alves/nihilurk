@@ -2367,7 +2367,7 @@ pub fn help_title() -> &'static str {
     " KEYS "
 }
 
-pub fn help_rows() -> [&'static str; 13] {
+pub fn help_rows() -> [&'static str; 14] {
     [
         "hjklyubn    move or attack (arrows and numpad too)",
         "Shift+dir   run",
@@ -2381,6 +2381,7 @@ pub fn help_rows() -> [&'static str; 13] {
         "q r z       quaff, read, zap",
         "f v         fire, reach attack",
         "Z ;         spells, look",
+        "Alt+QWER    cast spell slots 1-4",
         "A x Q       auto-pickup, close a menu, quit",
     ]
 }

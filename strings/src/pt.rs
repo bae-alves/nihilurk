@@ -2509,7 +2509,7 @@ pub fn help_title() -> &'static str {
     " COMANDOS "
 }
 
-pub fn help_rows() -> [&'static str; 13] {
+pub fn help_rows() -> [&'static str; 14] {
     [
         "hjklyubn    andar ou atacar (setas e teclado numérico também)",
         "Shift+dir   correr",
@@ -2523,6 +2523,7 @@ pub fn help_rows() -> [&'static str; 13] {
         "q r z       beber, ler, usar varinha",
         "f v         atirar, ataque com arma de alcance",
         "Z ;         feitiços, olhar",
+        "Alt+QWER    lançar os feitiços 1 a 4",
         "A x Q       coleta automática, fechar menu, sair",
     ]
 }
