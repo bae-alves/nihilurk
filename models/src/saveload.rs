@@ -1084,17 +1084,28 @@ mod tests {
     #[test]
     fn the_data_dir_follows_each_os_convention() {
         use std::path::PathBuf;
+        let xdg = std::env::temp_dir();
         assert_eq!(
-            resolve("linux", &[("XDG_DATA_HOME", "/xdg"), ("HOME", "/home/b")]),
-            PathBuf::from("/xdg/nihilurk")
+            resolve(
+                "linux",
+                &[
+                    ("XDG_DATA_HOME", xdg.to_str().unwrap()),
+                    ("HOME", "/home/b")
+                ]
+            ),
+            xdg.join("nihilurk")
         );
         assert_eq!(
             resolve("freebsd", &[("HOME", "/home/b")]),
-            PathBuf::from("/home/b/.local/share/nihilurk")
+            PathBuf::from("/home/b")
+                .join(".local/share")
+                .join("nihilurk")
         );
         assert_eq!(
             resolve("macos", &[("HOME", "/Users/b"), ("XDG_DATA_HOME", "/xdg")]),
-            PathBuf::from("/Users/b/Library/Application Support/nihilurk")
+            PathBuf::from("/Users/b")
+                .join("Library/Application Support")
+                .join("nihilurk")
         );
         assert_eq!(
             resolve("windows", &[("APPDATA", "C:\\Users\\b\\AppData\\Roaming")]),
@@ -1124,7 +1135,9 @@ mod tests {
                     ("HOME", "/home/b")
                 ]
             ),
-            std::path::PathBuf::from("/home/b/.local/share/nihilurk")
+            std::path::PathBuf::from("/home/b")
+                .join(".local/share")
+                .join("nihilurk")
         );
     }
 
