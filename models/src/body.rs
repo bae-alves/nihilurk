@@ -25,9 +25,10 @@ use rand::Rng;
 
 use crate::components::*;
 use crate::constants::lurk;
+use crate::constants::rings::STEALTH_RANGE;
 use crate::effects::{BuildsMomentum, Charges, Fencer, Grant, Lunges, Lurk, Stealthy, grant_all};
 use crate::equipment::Slot;
-use crate::map::GameRng;
+use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use crate::monsters::MonsterDef;
 
 /// What a player is. One of these, never two.
@@ -149,6 +150,32 @@ fn wear_lurk(world: &mut World, player: Entity) {
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
         spellset.slots.push(SpellEffect::Bide);
     }
+}
+
+/// The floor tiles within [`STEALTH_RANGE`] of `player`, where a stealthy
+/// body is noticed: the lurk's own sense of how far its quiet reaches, and
+/// nobody else's. Doors, stairs, water and rock are not floor. Empty for any
+/// body but the lurk, ring of stealth or no.
+pub fn stealth_range_tiles(world: &World, player: Entity) -> Vec<(u16, u16)> {
+    let (Some(_), Some(here)) = (world.get::<Lurk>(player), world.get::<Position>(player)) else {
+        return Vec::new();
+    };
+    let map = world.resource::<Map>();
+    let r = STEALTH_RANGE;
+    let mut tiles = Vec::new();
+    for dy in -r..=r {
+        for dx in -r..=r {
+            let (x, y) = (here.x as i32 + dx, here.y as i32 + dy);
+            if x < 0 || y < 0 || x >= MAP_WIDTH as i32 || y >= MAP_HEIGHT as i32 {
+                continue;
+            }
+            let (x, y) = (x as u16, y as u16);
+            if matches!(map.tile(x, y), TileType::Room | TileType::Passage) {
+                tiles.push((x, y));
+            }
+        }
+    }
+    tiles
 }
 
 /// The tempo `player` returns to when a staircase lifts whatever the floor

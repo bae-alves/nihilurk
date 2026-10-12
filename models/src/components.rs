@@ -1621,6 +1621,11 @@ pub enum PlayerAction {
         /// The item let go.
         item: Entity,
     },
+    /// Wield another weapon in place of the current one.
+    SwapWeapon {
+        /// The weapon taken up.
+        item: Entity,
+    },
     /// The ring of teleportation's jump, on command.
     WilledTeleport,
     /// Run at `target` and strike it.

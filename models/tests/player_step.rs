@@ -85,12 +85,24 @@ fn stepping_into_a_helper_swaps_places_with_it() {
     let (mut w, player, here) = quiet_room(1);
     let target = at(here.x as i32 + 1, here.y as i32);
     let pet = spawn_monster(&mut w, &BESTIARY[0], target);
-    w.entity_mut(pet).insert(Helper);
+    w.entity_mut(pet).insert((Helper, Faction::Ally));
     assert!(queue_step(&mut w, 1, 0));
     resolve(&mut w);
     assert_eq!(*w.get::<Position>(player).unwrap(), target);
     assert_eq!(*w.get::<Position>(pet).unwrap(), here);
     assert!(w.get::<EntityMoved>(pet).is_some());
+}
+
+#[test]
+fn stepping_into_a_charmed_ally_swaps_places_with_it() {
+    let (mut w, player, here) = quiet_room(1);
+    let target = at(here.x as i32 + 1, here.y as i32);
+    let pal = spawn_monster(&mut w, &BESTIARY[0], target);
+    w.entity_mut(pal).insert(Faction::Ally);
+    assert!(queue_step(&mut w, 1, 0));
+    resolve(&mut w);
+    assert_eq!(*w.get::<Position>(player).unwrap(), target);
+    assert_eq!(*w.get::<Position>(pal).unwrap(), here);
 }
 
 #[test]

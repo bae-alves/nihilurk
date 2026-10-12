@@ -501,12 +501,12 @@ fn summoned(w: &mut World, name: &str) -> Entity {
 }
 
 #[test]
-fn the_skull_king_comes_as_an_ally_and_the_black_mage_as_the_helper() {
+fn the_skull_king_and_the_black_mage_come_as_the_helper() {
     let mut w = test_world(1);
     read(&mut w, up(CardFace::SkullKing));
     let king = summoned(&mut w, "skull king");
     assert_eq!(*w.get::<Faction>(king).unwrap(), Faction::Ally);
-    assert!(w.get::<Helper>(king).is_none());
+    assert!(w.get::<Helper>(king).is_some());
 
     read(&mut w, up(CardFace::BlackMage));
     let mage = summoned(&mut w, "black mage");

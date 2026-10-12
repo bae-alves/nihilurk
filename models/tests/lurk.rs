@@ -288,3 +288,33 @@ fn hasting_a_lurk_never_slows_it() {
         assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Fast);
     }
 }
+
+#[test]
+fn the_lurk_sees_its_stealth_range_on_floor_tiles_only() {
+    use models::constants::rings::STEALTH_RANGE;
+    let mut w = lurk_world(1);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+    let door = Position {
+        x: here.x + 1,
+        y: here.y,
+    };
+    w.resource_mut::<Map>().tiles[tile_index(door.x, door.y)] = TileType::Door;
+    let tiles = stealth_range_tiles(&w, p);
+    assert!(!tiles.is_empty());
+    assert!(!tiles.contains(&(door.x, door.y)), "a doorway is not floor");
+    let map = w.resource::<Map>();
+    for &(x, y) in &tiles {
+        assert!(matches!(map.tile(x, y), TileType::Room | TileType::Passage));
+        let reach = (x as i32 - here.x as i32)
+            .abs()
+            .max((y as i32 - here.y as i32).abs());
+        assert!(reach <= STEALTH_RANGE);
+    }
+}
+
+#[test]
+fn nihil_has_no_stealth_range_to_see() {
+    let (w, p) = common::fresh_run(1);
+    assert!(stealth_range_tiles(&w, p).is_empty());
+}

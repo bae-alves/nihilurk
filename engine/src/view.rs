@@ -468,6 +468,14 @@ pub fn render<W: Write>(
         }
     }
 
+    if let Some(pe) = player_entity {
+        for (x, y) in models::stealth_range_tiles(world, pe) {
+            if visible.contains(&(x, y)) {
+                screen.bg_map(x, y, Color::DarkBlue);
+            }
+        }
+    }
+
     if !blind {
         for &(x, y) in &visible {
             if let Some(color) = map.special_tint(x, y) {
@@ -581,6 +589,11 @@ pub fn render<W: Write>(
             }
             if helper.is_some() {
                 screen.bg_map(pos.x, pos.y, Color::DarkCyan);
+                screen.fg_map(pos.x, pos.y, Color::Black);
+                continue;
+            }
+            if faction == Some(&Faction::Ally) {
+                screen.bg_map(pos.x, pos.y, Color::Green);
                 screen.fg_map(pos.x, pos.y, Color::Black);
                 continue;
             }

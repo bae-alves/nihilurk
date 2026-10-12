@@ -168,3 +168,98 @@ fn a_reach_attack_strikes_when_the_schedule_runs() {
     assert!(log_len(&w) > before || w.get::<Fighter>(foe).is_none_or(|f| f.hp < hp));
     let _ = player;
 }
+
+/// Puts a named weapon in the pack, wielded when `wield` is set.
+fn carry_weapon(w: &mut World, player: Entity, here: Position, name: &str, wield: bool) -> Entity {
+    let item = spawn_named(w, name, here).unwrap();
+    w.entity_mut(item).remove::<Position>();
+    w.entity_mut(item).insert(KnownQuality);
+    w.get_mut::<Backpack>(player).unwrap().items.push(item);
+    if wield {
+        assert!(toggle_equipped(w, player, item));
+    }
+    item
+}
+
+#[test]
+fn swapping_wields_the_next_weapon_and_wraps() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", true);
+    let bow = carry_weapon(&mut w, player, here, "short bow", false);
+
+    assert!(queue_swap_weapon(&mut w, player));
+    resolve(&mut w);
+    assert_eq!(equipped_in(&w, player, Slot::Hand), Some(bow));
+
+    assert!(queue_swap_weapon(&mut w, player));
+    resolve(&mut w);
+    assert_eq!(equipped_in(&w, player, Slot::Hand), Some(dagger));
+}
+
+#[test]
+fn swapping_with_empty_hands_wields_the_first_weapon() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", false);
+    carry_weapon(&mut w, player, here, "short bow", false);
+    assert!(queue_swap_weapon(&mut w, player));
+    resolve(&mut w);
+    assert_eq!(equipped_in(&w, player, Slot::Hand), Some(dagger));
+}
+
+#[test]
+fn swapping_with_no_other_weapon_says_so_and_spends_nothing() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", true);
+    let before = log_len(&w);
+    assert!(!queue_swap_weapon(&mut w, player));
+    assert!(log_len(&w) > before);
+    assert!(w.resource::<PlayerActionQueue>().actions.is_empty());
+    assert_eq!(equipped_in(&w, player, Slot::Hand), Some(dagger));
+}
+
+#[test]
+fn a_cursed_weapon_blocks_the_swap() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", true);
+    w.entity_mut(dagger).insert(Curse);
+    carry_weapon(&mut w, player, here, "short bow", false);
+    let before = log_len(&w);
+    assert!(!queue_swap_weapon(&mut w, player));
+    assert!(log_len(&w) > before);
+    assert!(w.resource::<PlayerActionQueue>().actions.is_empty());
+}
+
+#[test]
+fn swapping_skips_weapons_not_yet_identified() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", true);
+    let mystery = carry_weapon(&mut w, player, here, "short bow", false);
+    w.entity_mut(mystery).remove::<KnownQuality>();
+    let before = log_len(&w);
+    assert!(!queue_swap_weapon(&mut w, player));
+    assert!(log_len(&w) > before);
+    assert_eq!(equipped_in(&w, player, Slot::Hand), Some(dagger));
+}
+
+#[test]
+fn swapping_never_trades_a_melee_weapon_for_another() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", true);
+    let before = log_len(&w);
+    let spare = spawn_named(&mut w, "dagger", here).unwrap();
+    w.entity_mut(spare).remove::<Position>();
+    w.entity_mut(spare).insert(KnownQuality);
+    w.get_mut::<Backpack>(player).unwrap().items.push(spare);
+    assert!(!queue_swap_weapon(&mut w, player));
+    assert!(log_len(&w) > before);
+    assert_eq!(equipped_in(&w, player, Slot::Hand), Some(dagger));
+}
+
+#[test]
+fn the_starting_mace_swaps_to_the_starting_bow() {
+    let (mut w, player) = common::fresh_run(1);
+    assert!(queue_swap_weapon(&mut w, player));
+    resolve(&mut w);
+    let held = equipped_in(&w, player, Slot::Hand).unwrap();
+    assert!(w.get::<Launcher>(held).is_some());
+}

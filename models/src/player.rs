@@ -12,7 +12,7 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    GameLog, Helper, Item, LogCategory, Pickup, Player, PlayerAction, PlayerActionQueue, Position,
+    Faction, GameLog, Item, LogCategory, Pickup, Player, PlayerAction, PlayerActionQueue, Position,
 };
 use crate::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use crate::effects::{Clamped, Confused, Pinned, Rooted, Swims};
@@ -22,9 +22,10 @@ use crate::ice::{IceCube, kick_ice_cube};
 use crate::map::{Map, special_room_entry_message};
 use crate::traps::{bear_trap_thrash, clamped_thrash, player_held_by};
 use crate::{
-    Backpack, Grant, can_charge, can_teleport_at_will, change_level, charge, display_name,
-    drop_refusal, force_unequip, level_change_refusal, melee_attack, resolve_reach_attack,
-    sync_equipment_effects, try_lunge, try_whirl_attack, willed_teleport,
+    Backpack, Equipped, Grant, Launcher, Slot, can_charge, can_teleport_at_will, change_level,
+    charge, display_name, drop_refusal, equipped_in, force_unequip, known_quality,
+    level_change_refusal, melee_attack, resolve_reach_attack, sync_equipment_effects,
+    toggle_equipped, toggle_refusal, try_lunge, try_whirl_attack, willed_teleport,
 };
 
 const STUMBLE_DIRS: [(i16, i16); 8] = [
@@ -197,7 +198,7 @@ pub fn plan_step(world: &mut World, dx: i16, dy: i16) -> StepPlan {
         if world.get::<IceCube>(other).is_some() {
             return StepPlan::Kick { cube: other };
         }
-        if world.get::<Helper>(other).is_none() {
+        if world.get::<Faction>(other) != Some(&Faction::Ally) {
             return StepPlan::Melee { target: other };
         }
         swap = Some(other);
@@ -293,6 +294,11 @@ pub fn player_action_system(world: &mut World) {
                 change_level(world, going_down);
             }
             PlayerAction::Drop { item } => apply_drop(world, item),
+            PlayerAction::SwapWeapon { item } => {
+                if let Some((player, _)) = player_position(world) {
+                    toggle_equipped(world, player, item);
+                }
+            }
             PlayerAction::WilledTeleport => {
                 willed_teleport(world);
             }
@@ -346,6 +352,47 @@ pub fn queue_drop(world: &mut World, player: Entity, item: Entity) -> bool {
         return false;
     }
     queue(world, PlayerAction::Drop { item });
+    true
+}
+
+/// Queues wielding the next weapon in pack order after the one in hand,
+/// wrapping round, but only across the melee/launcher divide: a melee weapon
+/// gives way to a launcher and a launcher to a melee weapon. Weapons whose
+/// quality is still unknown are skipped. With nothing to switch to, or a cursed weapon stuck in the hand, it says so and
+/// spends nothing.
+pub fn queue_swap_weapon(world: &mut World, player: Entity) -> bool {
+    let held = equipped_in(world, player, Slot::Hand);
+    let pack = world
+        .get::<Backpack>(player)
+        .map(|p| p.items.clone())
+        .unwrap_or_default();
+    let holds_launcher = held.is_some_and(|h| world.get::<Launcher>(h).is_some());
+    let start = held
+        .and_then(|h| pack.iter().position(|&i| i == h))
+        .map_or(0, |i| i + 1);
+    let next = (0..pack.len())
+        .map(|k| pack[(start + k) % pack.len()])
+        .find(|&i| {
+            Some(i) != held
+                && world
+                    .get::<Equipped>(i)
+                    .is_some_and(|e| e.slot == Slot::Hand)
+                && known_quality(world, i)
+                && (held.is_none() || world.get::<Launcher>(i).is_some() != holds_launcher)
+        });
+    let Some(item) = next else {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::no_other_weapon().to_string());
+        return false;
+    };
+    if let Some(refusal) = toggle_refusal(world, player, item)
+        .or_else(|| held.and_then(|h| toggle_refusal(world, player, h)))
+    {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
+    queue(world, PlayerAction::SwapWeapon { item });
     true
 }
 

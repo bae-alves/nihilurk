@@ -151,7 +151,7 @@ The split between the two is the line between "needs a keyboard" and "does not".
 
 Before reading a key at all, three things can consume the frame without one: a pending `--MORE--` prompt (only Space/Enter clears it; every other key is swallowed), `player_incapacitated` (asleep — in gas, or in a scroll of sleep that turned in your own mouth: the turn is forfeited outright with no key read; a bear trap or a scroll's hold does *not* forfeit the turn, since either only blocks movement, not the whole turn — see "Movement and attack" below), and `paralysis_forfeits_turn` (a potion of paralysis: the coin is flipped **once per turn**, here, before any key is read and never while a menu, prompt or reticle is open, so a lost turn is a turn the monsters get and the player does not, rather than a swallowed keystroke; a forfeited one holds the screen `INCAPACITATED_PAUSE_MS` so it reads as time passing).
 
-Once a key is read, `x` and `X` are checked first, everywhere: they are the universal escape hatch, closing whichever modal is open (`close_all_modals`, the quit prompt included) and returning to plain movement with no turn spent. `X` is checked *here*, rather than next to `Q` in `handle_movement_input`, precisely so that it escapes rather than asks about ending the run — it is one shift away from `x`, and only falls through to the quit prompt when `close_all_modals` reports there was nothing to close. After that, exactly one of four contexts owns the keypress:
+Once a key is read, `x` and `X` are checked first, everywhere: they are the universal escape hatch, closing whichever modal is open (`close_all_modals`, the quit prompt included) and returning to plain movement with no turn spent. On the bare map `close_all_modals` reports nothing to close, so `x` falls through to the weapon swap and `X` does nothing. After that, exactly one of four contexts owns the keypress:
 
 | Context (checked in this order) | Resource      | Handler                    |
 |----------------------------------|---------------|-----------------------------|
@@ -236,7 +236,7 @@ The keyboard on the map
 
 Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to run (`run_direction`). **WASD is not a movement scheme any more**, shifted or otherwise: those letters are commands.
 
-**`Esc` does not quit.** It is the key a player mashes to get out of a menu; from the map it does nothing at all. Quitting is `Q` or `X` through the prompt, or Ctrl+C without one.
+**`Esc` quits, from the bare map only.** Every modal takes `Esc` first, so mashing it out of a menu never reaches the prompt. Quitting is `Esc` through the prompt, or Ctrl+C without one. `Q` and `X` no longer quit.
 
 | Key | `handle_movement_input` does |
 |-----|------------------------------|
@@ -252,7 +252,8 @@ Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to 
 | `>` `.` / `<` `,` | stairs, or travel to them |
 | `F1` | open `HelpMenu`, the key list. No turn |
 | `F2` | toggle `CommandBar.hidden`, the yellow bar. No turn |
-| `Q` / `X` | raise `QuitPrompt` — the "Really quit?" modal. `X` only reaches here with nothing open; otherwise it is the escape hatch above. With time stopped it takes two yeses; the main loop saves only on `save_on_time_edge`, never while time is stopped, and skips the exit save then too |
+| `x` | `models::queue_swap_weapon` — wields the next known `Slot::Hand` item in pack order across the melee/`Launcher` divide, as `PlayerAction::SwapWeapon` (one turn). Refuses, with a log line and no turn, when there is no such item or a cursed weapon is in hand. Reached only with nothing open; otherwise it is the escape hatch above |
+| `Esc` | raise `QuitPrompt` — the "Really quit?" modal. With time stopped it takes two yeses; the main loop saves only on `save_on_time_edge`, never while time is stopped, and skips the exit save then too |
 | Ctrl+C | **never reaches this table.** `dispatch_key` claims it first, above the `--MORE--` gate, so it quits from every context — a menu that selects rows by letter would otherwise read it as picking row `c` |
 
 Adding a command key is a row in that `match` and (if it opens the pack) a row in `PackMode`. Two things claim keys before that `match` ever runs, and both have silently eaten a command before:
@@ -303,7 +304,7 @@ Three engine-owned loops replace a single `process_input_and_update` call while 
 | Fast move ("run") | Shift+direction | `FastMove` | `fast_move_plan`, then `travel_step`/`straight_step` each step | keypress, a monster in view, a message logged, junction/target reached, `FAST_MOVE_STEP_CAP` |
 | Auto-explore | `o` | `AutoExplore` (`target: None`) | `explore_step` | same, plus "nowhere left to explore" |
 | Travel | `>`/`<` to a known but distant staircase, or the `O` cursor | `AutoExplore` (`target: Some(tile)`) | `travel_step` | same, plus arrival |
-| Travel cursor | `O` | `TravelCursor` | (none — it's just a cursor) | Esc/`O`/`x`/`X`, or Enter to commit into a travel `AutoExplore` |
+| Travel cursor | `O` | `TravelCursor` | (none — it's just a cursor; `<` `>` `m`/`M` `i`/`I` jump) | Esc/`O`/`x`/`X`, or Enter to commit into a travel `AutoExplore` |
 
 `explore_step` gives a spotted item (see `known_item_tiles`) priority over frontier exploration outright: while any item it judges worth the walk remains on the floor, it beelines for the nearest one via `first_step` rather than consulting `AutoExplore::frontier` at all. `move_player`'s own pickup-on-arrival logic (see above) does the actual stowing; once the item is gone from the floor, frontier exploration resumes as before.
 
@@ -312,6 +313,8 @@ Three engine-owned loops replace a single `process_input_and_update` call while 
 Fast move (`fast_move_run`) is the odd one out: it runs its entire walk **inside one call**, stepping `schedule.run` itself between moves and never repainting until it returns, so a run reads as a single jump rather than an animated walk. Auto-explore and travel instead take one step per `player_step` call (`auto_explore_step`), returning to the main loop's normal render-and-pace cycle after each — which is why auto-explore visibly walks while a run visibly jumps.
 
 All three refuse to *start* while confused or with a monster in sight — except that a Shift run from a body with `Charges` (nihil) toward a creature in the pressed direction's wedge becomes a charge (`models::queue_charge`, applied by `models::charge`): one turn, the player lands beside the creature, strikes, and is `Vuln` for the monster phase that follows — and both `auto_explore_step` and `fast_move_run` poll for a pending keypress before every step and swallow it (`let _ = read()?`) if the walk needs to abort — otherwise that keypress would also be read as a move on the next frame.
+
+**Mouse** (`-mouse` only; capture is off otherwise). `process_input_and_update` and `travel_cursor_step` both pass an `Event::Mouse` to `dispatch_mouse`, which maps the cell to a tile with `tile_under` (frame offset and `MAP_TOP` removed). Left = look (`describe_target` + `meet_its_eyes`, no turn), or move the reticle / `O` cursor. Right = travel (`O` cursor's commit via `confirm_travel_cursor`), or on the reticle move then `fire_at_target`. Unseen tiles, menus and `--MORE--` ignore it. Tests: `update.rs`, "The mouse".
 
 `travel_cursor_step` is different again: it isn't a walk at all, just a blinking highlight the player steers with arrow/vi/numpad keys over already-`revealed` ground (sliding along one axis when the diagonal neighbour is still unseen), gated to 400ms polls so the blink phase flips on a timeout. It runs its own loop outside `process_input_and_update`, so the universal escape hatch never sees its keys — `x` / `X` are handled in its own cancel arm instead, which is the only reason closing it works at all. Enter commits the tile to a travel `AutoExplore` via `nearest_reachable` if the chosen tile isn't itself walkable.
 
@@ -322,8 +325,8 @@ Testing
 `engine/src/update.rs` carries a `#[cfg(test)] mod tests`, and what it covers is everything `dispatch_key` decides — none of which needs a terminal, because none of it is downstream of `read()`:
 
   * **The `--MORE--` gate.** No key but Space/Enter does anything while messages are waiting; acknowledging drops *exactly* the messages the panel showed, not all of them and not one; and the gate outranks the escape hatch, so a player mashing `x` cannot lose the line telling them why they are about to die.
-  * **The `x` / `X` escape hatch.** Either closes whichever modal is open. `X` escapes rather than raising the quit prompt when something *is* open, and falls through to the prompt only when nothing is. A bare `x` on the map is not swallowed.
-  * **The quit prompt.** `y` / `n`; every other key ignored rather than guessed at; it outranks a movement key; `Esc` closes one but never raises one.
+  * **The `x` / `X` escape hatch.** Either closes whichever modal is open. A bare `x` on the map is not swallowed: it swaps weapons.
+  * **The quit prompt.** `y` / `n`; every other key ignored rather than guessed at; it outranks a movement key; `Esc` closes one, and raises one from the bare map.
   * **The keyboard.** A numpad digit moves identically to its vi-key equivalent, and Shift+numpad reads as a run direction like Shift+arrow.
 
 `view.rs` has no tests of what a frame looks like, on purpose — see `rendering.md`. It pins only the log gate and the status tints. What is exercised only by playing the game: everything the renderer draws, and the run / travel / auto-explore loops (they poll and sleep). The reticle's opening target and the tile a zap or throw lands on are tested in `update.rs`; its cursor loop is not. What *can* be tested is also tested one level down, in `models/`: `tests/pack.rs` pins what each menu shows, and `tests/autoexplore.rs` pins when the loot beeline is called off.

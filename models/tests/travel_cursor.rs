@@ -141,3 +141,70 @@ fn nearest_reachable_returns_a_reachable_walkable_tile() {
         );
     }
 }
+
+#[test]
+fn jump_stairs_lands_on_the_staircase_only_once_revealed() {
+    let (mut w, player) = fresh_mapped_floor(42);
+    let stairs = stair_location(w.resource::<Map>(), true).unwrap();
+    assert_eq!(
+        cursor_jump(&mut w, (0, 0), CursorJump::DownStairs, true),
+        Some(stairs)
+    );
+
+    let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+    vs.revealed_tiles.clear();
+    drop(vs);
+    assert_eq!(
+        cursor_jump(&mut w, (0, 0), CursorJump::DownStairs, true),
+        None
+    );
+}
+
+#[test]
+fn jump_items_cycles_nearest_first_both_ways() {
+    let (mut w, player) = fresh_mapped_floor(42);
+    let p = *w.get::<Position>(player).unwrap();
+    for dx in [3u16, 1, 2] {
+        w.spawn((
+            Item,
+            Position {
+                x: p.x + dx,
+                y: p.y,
+            },
+        ));
+    }
+    let mut at = (p.x, p.y);
+    let mut seen = vec![];
+    for _ in 0..4 {
+        at = cursor_jump(&mut w, at, CursorJump::Items, true).unwrap();
+        seen.push(at.0 - p.x);
+    }
+    assert_eq!(seen, [1, 2, 3, 1]);
+
+    let back = cursor_jump(&mut w, at, CursorJump::Items, false).unwrap();
+    assert_eq!(back.0 - p.x, 3);
+}
+
+#[test]
+fn jump_monsters_skips_unseen_and_hidden() {
+    const MOB: Mob = Mob {
+        movement_type: MovementType::Static,
+    };
+    let (mut w, player) = fresh_mapped_floor(42);
+    let p = *w.get::<Position>(player).unwrap();
+    let at = |dx| Position {
+        x: p.x + dx,
+        y: p.y,
+    };
+    w.spawn((MOB, at(2)));
+    w.spawn((MOB, at(4)));
+    w.spawn((MOB, Hidden, at(1)));
+    w.get_mut::<Viewshed>(player).unwrap().visible_tiles = vec![(p.x + 1, p.y), (p.x + 2, p.y)];
+
+    let first = cursor_jump(&mut w, (p.x, p.y), CursorJump::Monsters, true).unwrap();
+    assert_eq!(first, (p.x + 2, p.y));
+    assert_eq!(
+        cursor_jump(&mut w, first, CursorJump::Monsters, true),
+        Some(first)
+    );
+}

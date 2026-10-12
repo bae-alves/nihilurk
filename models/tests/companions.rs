@@ -377,6 +377,16 @@ fn a_helper_in_view_neither_halts_the_walk_nor_gets_announced() {
 }
 
 #[test]
+fn a_charmed_ally_in_view_does_not_halt_the_walk() {
+    let mut w = test_world(9);
+    let at = east_of_player(&mut w, 2);
+    let pal = monster::plain_monster(&mut w, "rat", at);
+    charm(&mut w, pal);
+    run_visibility(&mut w);
+    assert!(!monster_in_sight(&mut w));
+}
+
+#[test]
 fn a_cleave_and_a_whirl_spare_your_helper() {
     let mut w = test_world(9);
     let p = player(&mut w);

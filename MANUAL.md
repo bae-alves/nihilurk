@@ -43,6 +43,7 @@ Other flags, in any order after the name:
 | `-ns`, `--no-save` | Write no save file. |
 | `-nb`, `--no-blood` | No bloodstains, no corpse-and-bones death animation. |
 | `-nshake`, `--no-shake` | No screen shake. |
+| `-mouse`, `--mouse` | Mouse on. Left click looks at a tile, right click travels there. On an aiming reticle left moves, right moves and fires. |
 | `-nobones`, `--no-bones` | A death writes no bones file and an ascent reads none. |
 | `-endless`, `--endless` | No Element of Yoord spawns, so you cannot win. The dungeon keeps going down. |
 | `-anim-rate N`, `--anim-rate N` | Scale animation hold time, 0.1 to 5.0. Raise it if your terminal redraws slowly. |
@@ -325,12 +326,12 @@ Useful commands
 | `;` | Look around: move the cursor over any tile in view to have it described, including what a monster is dangerous for |
 | `Z` | Open the spells menu |
 | `Alt`+`Q` `W` `E` `R` | Cast spell one to four directly |
-| `x` | Close the current menu or cursor |
-| `X` | Close the current menu; with nothing open, quit |
-| `Q` | Quit after confirmation |
+| `x` | Swap between a melee weapon and a launcher (one turn). With a menu or cursor open, close it instead |
+| `X` | Close the current menu |
+| `Esc` | Back out of a menu; on the bare map, quit after confirmation |
 | `Ctrl+C` | Quit immediately. No other Ctrl key does anything |
 
-`Esc` backs out of menus. It is not a quit key. Quitting saves the current expedition unless saving has been disabled. While time is stopped nothing is saved: the game saves as time stops and again as it starts. Quitting in between warns you in red and asks a second time, and those turns are lost.
+`x` takes the next weapon in your pack, wrapping round, but only across the divide: a melee weapon gives way to a launcher and a launcher to a melee weapon. It skips weapons whose quality you have not learned yet, and a cursed weapon in hand blocks it. Quitting saves the current expedition unless saving has been disabled. While time is stopped nothing is saved: the game saves as time stops and again as it starts. Quitting in between warns you in red and asks a second time, and those turns are lost.
 
 The map can be centred, screen shake can be disabled, and blood can be hidden with command-line options. For the complete list, see `docs/reference/cli-and-env.md`.
 

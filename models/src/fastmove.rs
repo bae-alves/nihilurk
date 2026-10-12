@@ -127,7 +127,6 @@ fn foes(world: &mut World) -> Vec<(Entity, Position)> {
     let mut q = world.query_filtered::<(Entity, &Position, &Faction), (
         With<Mob>,
         Without<Hidden>,
-        Without<Helper>,
         Without<crate::ice::IceCube>,
     )>();
     let spirits_at_peace = !world.resource::<crate::components::SpiritsHostile>().0;

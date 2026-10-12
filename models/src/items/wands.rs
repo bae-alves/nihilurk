@@ -380,6 +380,31 @@ pub(super) fn zap_blast_radius(effect: WandEffect) -> Option<f32> {
     matches!(effect, WandEffect::Fire | WandEffect::Cold).then_some(BLAST_RADIUS)
 }
 
+/// Whether zapping `effect` at `target` would change nothing: the aiming
+/// reticle passes such a creature over. Only what is plain from the creature
+/// itself counts — a fire blast on something fireproof, a slowing of the
+/// already slow, a charm on an ally, a wand of nothing at anyone.
+pub fn wand_wasted_on(world: &World, effect: WandEffect, target: Entity) -> bool {
+    match effect {
+        WandEffect::Nothing => true,
+        WandEffect::Fire => world.get::<FireImmune>(target).is_some(),
+        WandEffect::Cold => world.get::<ColdImmune>(target).is_some(),
+        WandEffect::SlowMonster => world
+            .get::<Speed>(target)
+            .is_some_and(|s| s.kind == SpeedKind::Slow),
+        WandEffect::Charming => world.get::<Faction>(target) == Some(&Faction::Ally),
+        _ => false,
+    }
+}
+
+/// [`wand_wasted_on`] for a spell: the fire spells on something fireproof.
+pub fn spell_wasted_on(world: &World, effect: SpellEffect, target: Entity) -> bool {
+    matches!(
+        effect,
+        SpellEffect::DragonBreath | SpellEffect::MeteorStrike
+    ) && world.get::<FireImmune>(target).is_some()
+}
+
 /// The wands that deal damage when zapped. Thrown, these go off wider and hotter
 /// than the utility ("effect") wands.
 pub(super) fn is_attack_wand(effect: WandEffect) -> bool {

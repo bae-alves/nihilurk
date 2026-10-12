@@ -13,7 +13,7 @@ use models::*;
 use bevy_ecs::prelude::{With, World};
 use crossterm::{
     cursor::{Hide, Show},
-    event::{Event, KeyCode, KeyEventKind, read},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, read},
     execute,
     style::{Color as CrosstermColor, Print, ResetColor, SetForegroundColor},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -30,17 +30,21 @@ use models::{ChaCha12Rng, SeedableRng};
 pub struct TerminalGuard;
 
 impl TerminalGuard {
-    /// Enters raw mode and the alternate screen with the cursor hidden. Fails
+    /// Enters raw mode and the alternate screen with the cursor hidden, and
+    /// mouse capture too when `mouse` is set. Fails
     /// if the terminal refuses either; nothing is left half-set.
-    pub fn new() -> std::io::Result<Self> {
+    pub fn new(mouse: bool) -> std::io::Result<Self> {
         enable_raw_mode()?;
         execute!(stdout(), EnterAlternateScreen, Hide)?;
+        if mouse {
+            execute!(stdout(), EnableMouseCapture)?;
+        }
         Ok(Self)
     }
 }
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
-        let _ = execute!(stdout(), Show, LeaveAlternateScreen);
+        let _ = execute!(stdout(), DisableMouseCapture, Show, LeaveAlternateScreen);
         let _ = disable_raw_mode();
     }
 }
@@ -266,6 +270,7 @@ fn canonical_flag(arg: &str) -> &str {
         "--no-save" => "-ns",
         "--no-blood" => "-nb",
         "--no-shake" => "-nshake",
+        "--mouse" => "-mouse",
         "--no-bones" => "-nobones",
         "--body" => "-b",
         "--as-monster" => "-am",
@@ -351,6 +356,7 @@ fn main() -> std::io::Result<()> {
     let mut no_save = false;
     let mut no_blood = false;
     let mut no_shake = false;
+    let mut mouse = false;
     let mut no_bones = false;
     let mut endless = false;
     let mut list_content = false;
@@ -385,6 +391,7 @@ fn main() -> std::io::Result<()> {
             "-ns" => no_save = true,
             "-nb" => no_blood = true,
             "-nshake" => no_shake = true,
+            "-mouse" => mouse = true,
             "-nobones" => no_bones = true,
             "-endless" => endless = true,
             "-content" => list_content = true,
@@ -525,12 +532,17 @@ fn main() -> std::io::Result<()> {
 
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        let _ = execute!(std::io::stderr(), LeaveAlternateScreen, Show);
+        let _ = execute!(
+            std::io::stderr(),
+            DisableMouseCapture,
+            LeaveAlternateScreen,
+            Show
+        );
         let _ = disable_raw_mode();
         original_hook(panic_info);
     }));
 
-    let guard = TerminalGuard::new()?;
+    let guard = TerminalGuard::new(mouse)?;
     let mut stdout = BufWriter::with_capacity(32 * 1024, stdout());
     let mut screen = view::Screen::new();
     let mut world = World::new();

@@ -380,3 +380,24 @@ fn a_species_without_gear_chances_starts_bare() {
     assert!(equipment::equipped_items(&w, p).is_empty());
     assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
 }
+
+#[test]
+fn gear_a_monster_spawns_wearing_comes_identified() {
+    let mut w = test_world(41, Body::default());
+    let at = Position { x: 1, y: 1 };
+    let mut worn = Vec::new();
+    for _ in 0..200 {
+        let hob = spawn_monster(&mut w, MonsterDef::named("hobgoblin"), at);
+        worn.extend(equipment::equipped_items(&w, hob));
+        if worn.len() >= 3 {
+            break;
+        }
+    }
+    assert!(!worn.is_empty(), "no hobgoblin rolled any gear");
+    for gear in worn {
+        assert!(
+            w.get::<KnownQuality>(gear).is_some(),
+            "spawn gear came unidentified"
+        );
+    }
+}

@@ -95,15 +95,12 @@ const DIRS: [(i32, i32); 8] = [
 
 /// Whether any monster is currently inside the player's viewshed (i.e. drawn on
 /// screen). Auto-walk refuses to start, and halts, while this is true. The
-/// player's [`Helper`] is drawn too, and is no reason to stop.
+/// player's [`Helper`] and any other ally are drawn too, and are no reason to
+/// stop.
 pub fn monster_in_sight(world: &mut World) -> bool {
-    let mut query = world.query_filtered::<(), (
-        With<Mob>,
-        Without<Hidden>,
-        Without<Helper>,
-        Without<crate::ice::IceCube>,
-    )>();
-    query.iter(world).next().is_some()
+    let mut query = world
+        .query_filtered::<&Faction, (With<Mob>, Without<Hidden>, Without<crate::ice::IceCube>)>();
+    query.iter(world).any(|&f| f != Faction::Ally)
 }
 
 /// The map coordinate of the floor's staircase, up or down. Every floor carries
@@ -568,4 +565,73 @@ pub fn nearest_reachable(world: &mut World, target: (u16, u16)) -> Option<(u16, 
     }
 
     Some(best)
+}
+
+/// What a travel-cursor jump key snaps to.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CursorJump {
+    /// The up staircase.
+    UpStairs,
+    /// The down staircase.
+    DownStairs,
+    /// Monsters in view.
+    Monsters,
+    /// Items on revealed floor.
+    Items,
+}
+
+/// The next (or previous) known target of `kind`, nearest the
+/// player first and wrapping at the ends. A cursor that isn't on a target
+/// starts at the nearest (or farthest). Returns the new cursor tile, or `None`
+/// when there is none. Monsters count only while in view; items and stairs only on
+/// revealed tiles.
+pub fn cursor_jump(
+    world: &mut World,
+    from: (u16, u16),
+    kind: CursorJump,
+    forward: bool,
+) -> Option<(u16, u16)> {
+    let (px, py, _) = player_view(world)?;
+    let mut targets: Vec<(u16, u16)> = match kind {
+        CursorJump::UpStairs | CursorJump::DownStairs => {
+            stair_location(world.resource::<Map>(), kind == CursorJump::DownStairs)
+                .into_iter()
+                .collect()
+        }
+        CursorJump::Items => world
+            .query_filtered::<&Position, With<Item>>()
+            .iter(world)
+            .map(|p| (p.x, p.y))
+            .collect(),
+        CursorJump::Monsters => {
+            let seen: HashSet<(u16, u16)> = world
+                .query_filtered::<&Viewshed, With<Player>>()
+                .iter(world)
+                .flat_map(|v| v.visible_tiles.iter().copied())
+                .collect();
+            world
+                .query_filtered::<&Position, (With<Mob>, Without<Hidden>, Without<Player>)>()
+                .iter(world)
+                .map(|p| (p.x, p.y))
+                .filter(|t| seen.contains(t))
+                .collect()
+        }
+    };
+    targets.retain(|&(x, y)| tile_is_revealed(world, x, y));
+    targets.sort_by_key(|&(x, y)| {
+        let (dx, dy) = (x as i32 - px as i32, y as i32 - py as i32);
+        (dx * dx + dy * dy, y, x)
+    });
+    targets.dedup();
+    if targets.is_empty() {
+        return None;
+    }
+    let n = targets.len();
+    let i = match targets.iter().position(|&t| t == from) {
+        Some(i) if forward => (i + 1) % n,
+        Some(i) => (i + n - 1) % n,
+        None if forward => 0,
+        None => n - 1,
+    };
+    Some(targets[i])
 }

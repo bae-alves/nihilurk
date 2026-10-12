@@ -301,6 +301,7 @@ fn step_one_mob(
 /// What `mob` knows this turn — see [`Percept`]. Its foes are everything it
 /// would come to blows with standing on a tile the player can see (and not
 /// hidden from them), nearest first; the player only once it has noticed them.
+/// A charmed ally that is not the Helper sees every foe on the floor.
 fn perceive<'a>(
     world: &World,
     mob: Entity,
@@ -311,11 +312,12 @@ fn perceive<'a>(
     let at = *world.get::<Position>(mob).unwrap();
     let faction = *world.get::<Faction>(mob).unwrap();
     let noticed = ctx.noticed_by(at);
+    let omniscient = faction == Faction::Ally && world.get::<Helper>(mob).is_none();
     let mut foes: Vec<Sighting> = spatial
         .iter()
         .filter(|&(tile, &(who, their))| {
             hostile(world, faction, their)
-                && ctx.visible.contains(tile)
+                && (omniscient || ctx.visible.contains(tile))
                 && world.get::<Hidden>(who).is_none()
                 && (who != ctx.player || noticed)
         })
@@ -330,7 +332,7 @@ fn perceive<'a>(
     foes.sort_by_key(|f| (chebyshev(at, f.at), f.at.y, f.at.x));
     Percept {
         at,
-        in_view: ctx.visible.contains(&(at.x, at.y)),
+        in_view: omniscient || ctx.visible.contains(&(at.x, at.y)),
         player_at: ctx.player_pos,
         noticed,
         pinned: world.get::<Pinned>(mob).is_some()

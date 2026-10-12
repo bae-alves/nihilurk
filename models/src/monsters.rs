@@ -972,6 +972,7 @@ fn equip_one(
     rng: &mut ChaCha12Rng,
 ) {
     let (gear, _) = roll_gear(world, kind, pos, rng, false);
+    world.entity_mut(gear).insert(KnownQuality);
     equip_and_announce(world, mob, gear);
 }
 

@@ -38,7 +38,7 @@ mod throwing;
 mod wands;
 
 pub use spells::{can_afford_spell, pay_for_spell, spell_cost, spell_system};
-pub use wands::polymorph_player_into;
+pub use wands::{polymorph_player_into, spell_wasted_on, wand_wasted_on};
 
 /// One spell resolved on the spot, cost already settled.
 /// [`spell_system`] is the way in for a spell the player triggered; this is

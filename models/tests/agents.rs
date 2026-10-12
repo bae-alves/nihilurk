@@ -266,6 +266,24 @@ fn a_charmed_monster_walks_up_to_a_monster_and_fights_it() {
 }
 
 #[test]
+fn a_charmed_monster_hunts_a_monster_it_cannot_see() {
+    let mut w = test_world(9);
+    let pal_at = east_of_player(&mut w, 1);
+    let foe_at = out_of_view(&mut w);
+    let pal = monster::plain_monster(&mut w, "rat", pal_at);
+    charm(&mut w, pal);
+    let foe = monster::plain_monster(&mut w, "kobold", foe_at);
+    w.get_mut::<Mob>(foe).unwrap().movement_type = MovementType::Static;
+    run_visibility(&mut w);
+    let before = chebyshev(pos(&w, pal), foe_at);
+    ai(&mut w);
+    assert!(
+        chebyshev(pos(&w, pal), foe_at) < before,
+        "a charmed monster ignored a monster out of the player's view"
+    );
+}
+
+#[test]
 fn aggravation_survives_a_save_and_an_old_save_still_loads() {
     let mut w = test_world(11);
     let at = east_of_player(&mut w, 2);

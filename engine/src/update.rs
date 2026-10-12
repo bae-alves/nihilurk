@@ -13,9 +13,13 @@ use std::time::Duration;
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, poll, read};
+use crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    poll, read,
+};
 
 use crate::constants::timing::{INCAPACITATED_PAUSE_MS, TRAVEL_BLINK_MS};
+use crate::screen::MAP_TOP;
 use models::*;
 use models::{GameState, components::GameLog};
 
@@ -195,13 +199,11 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         return Ok(true);
     }
 
-    let Event::Key(key) = read()? else {
-        return Ok(false);
-    };
-    if key.kind != KeyEventKind::Press {
-        return Ok(false);
+    match read()? {
+        Event::Key(key) if key.kind == KeyEventKind::Press => dispatch_key(world, key),
+        Event::Mouse(m) => dispatch_mouse(world, m, crate::view::centering_offset(world)),
+        _ => Ok(false),
     }
-    dispatch_key(world, key)
 }
 
 /// Saves the run to `path` the moment time stops or starts again, and only
@@ -448,16 +450,24 @@ fn cycle_target(world: &mut World) -> bool {
     );
 
     let mut candidates: Vec<(u16, u16)> = {
-        let mut q =
-            world.query_filtered::<(&Position, Option<&Mob>, Option<&Item>), Without<Hidden>>();
-        q.iter(world)
-            .filter(|(pos, mob, item)| {
-                (mob.is_some() || item.is_some())
+        let mut q = world
+            .query_filtered::<(Entity, &Position, Option<&Mob>, Option<&Item>), Without<Hidden>>();
+        let in_reach: Vec<(Entity, u16, u16, bool)> = q
+            .iter(world)
+            .filter(|(_, pos, mob, thing)| {
+                (mob.is_some() || thing.is_some())
                     && (pos.x, pos.y) != (player_pos.x, player_pos.y)
                     && visible.contains(&(pos.x, pos.y))
                     && chebyshev(player_pos, **pos) <= max_range
             })
-            .map(|(pos, ..)| (pos.x, pos.y))
+            .map(|(e, pos, mob, _)| (e, pos.x, pos.y, mob.is_some()))
+            .collect();
+        in_reach
+            .into_iter()
+            .filter(|&(e, .., is_mob)| {
+                !(is_mob && wasted_on(world, item, spell_effect, throwing, e))
+            })
+            .map(|(_, x, y, _)| (x, y))
             .collect()
     };
     if candidates.is_empty() {
@@ -483,20 +493,26 @@ fn cycle_target(world: &mut World) -> bool {
 /// A directional key while aiming: nudge the reticle one tile, but only onto a
 /// tile that is both in view and inside the reticle's reach.
 fn spell_target_cursor(world: &mut World, dx: i16, dy: i16) -> bool {
-    let (item, spell_effect, looking, cursor_x, cursor_y, throwing, reach_attack) = {
+    let (cx, cy) = {
+        let ts = world.resource::<TargetingState>();
+        (ts.cursor_x, ts.cursor_y)
+    };
+    aim_cursor_to(world, cx.saturating_add(dx), cy.saturating_add(dy))
+}
+
+/// Moves the reticle onto `(new_x, new_y)` if that tile is in view and inside
+/// the reticle's reach; keys and mouse clicks both come through here.
+fn aim_cursor_to(world: &mut World, new_x: i16, new_y: i16) -> bool {
+    let (item, spell_effect, looking, throwing, reach_attack) = {
         let ts = world.resource::<TargetingState>();
         (
             ts.item,
             ts.spell_effect,
             ts.looking,
-            ts.cursor_x,
-            ts.cursor_y,
             ts.throwing,
             ts.reach_attack,
         )
     };
-    let new_x = cursor_x.saturating_add(dx);
-    let new_y = cursor_y.saturating_add(dy);
 
     let player = player_entity(world);
     let player_pos = *world.get::<Position>(player).unwrap();
@@ -929,7 +945,7 @@ fn open_reticle_for(
                 throwing,
                 reach_attack,
             );
-            nearest_mob(world, player, range)
+            nearest_mob(world, player, range, item, spell_effect, throwing)
         })
         .flatten();
     let (cx, cy) = snap.unwrap_or((pos.x, pos.y));
@@ -949,24 +965,55 @@ fn open_reticle_for(
 /// [`open_reticle_for`] starts on; `Tab` ([`cycle_target`]) walks the rest.
 /// A [`Hidden`] thing is passed over, exactly as it is everywhere else — a
 /// reticle that snapped to a disguised mimic would be a way to spot one for
-/// free. So is the player's [`Helper`], which `Tab` can still reach.
-fn nearest_mob(world: &mut World, player: Entity, max_range: i32) -> Option<(u16, u16)> {
+/// free. So is any ally, the [`Helper`] included, which `Tab` can still reach.
+fn nearest_mob(
+    world: &mut World,
+    player: Entity,
+    max_range: i32,
+    item: Option<Entity>,
+    spell_effect: Option<SpellEffect>,
+    throwing: bool,
+) -> Option<(u16, u16)> {
     let player_pos = *world.get::<Position>(player)?;
     let visible = world.get::<Viewshed>(player)?.visible_tiles.clone();
-    let mut q = world.query_filtered::<&Position, (
+    let mut q = world.query_filtered::<(Entity, &Position, &Faction), (
         With<Mob>,
         Without<Hidden>,
-        Without<Helper>,
         Without<models::IceCube>,
     )>();
-    q.iter(world)
-        .filter(|p| {
+    let foes: Vec<(Entity, Position)> = q
+        .iter(world)
+        .filter(|(.., f)| **f != Faction::Ally)
+        .map(|(e, p, _)| (e, *p))
+        .collect();
+    foes.into_iter()
+        .filter(|&(e, p)| {
             (p.x, p.y) != (player_pos.x, player_pos.y)
                 && visible.contains(&(p.x, p.y))
-                && chebyshev(player_pos, **p) <= max_range
+                && chebyshev(player_pos, p) <= max_range
+                && !wasted_on(world, item, spell_effect, throwing, e)
         })
-        .min_by_key(|p| (chebyshev(player_pos, **p), p.y, p.x))
-        .map(|p| (p.x, p.y))
+        .min_by_key(|&(_, p)| (chebyshev(player_pos, p), p.y, p.x))
+        .map(|(_, p)| (p.x, p.y))
+}
+
+/// Whether the wand or spell under the reticle would do nothing to `target`
+/// ([`models::wand_wasted_on`], [`models::spell_wasted_on`]). A throw sends the
+/// item as a missile, so it never counts.
+fn wasted_on(
+    world: &World,
+    item: Option<Entity>,
+    spell_effect: Option<SpellEffect>,
+    throwing: bool,
+    target: Entity,
+) -> bool {
+    if let Some(effect) = spell_effect {
+        return models::spell_wasted_on(world, effect, target);
+    }
+    !throwing
+        && item
+            .and_then(|i| world.get::<Wand>(i))
+            .is_some_and(|w| models::wand_wasted_on(world, w.effect, target))
 }
 
 /// The row `dir` steps around the ring from `from`. `rows` are backpack
@@ -1049,19 +1096,22 @@ const SPELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 /// `w` wield, plus `W` wear), which is the whole reason they had to stop being
 /// directions. Nothing else changed about how you move.
 ///
-/// Quitting is `Q` or `X`, both of which raise the "Really quit?" prompt, or
-/// Ctrl+C, which doesn't. `Esc` does *not* quit: it is the key a player mashes
-/// to get out of a menu, and the last thing that should do from the map is end
-/// the run.
+/// Quitting is `Esc`, which raises the "Really quit?" prompt, or Ctrl+C, which
+/// doesn't. `Esc` only gets here with no menu open, so mashing it out of a menu
+/// never reaches the prompt. `x` swaps between a melee weapon and a launcher.
 fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
         return Ok(start_run(world, rdx, rdy));
     }
 
     let step = match key.code {
-        KeyCode::Char('Q') | KeyCode::Char('X') => {
+        KeyCode::Esc => {
             world.resource_mut::<QuitPrompt>().open = true;
             return Ok(false);
+        }
+        KeyCode::Char('x') => {
+            let player = player_entity(world);
+            return Ok(models::queue_swap_weapon(world, player));
         }
         KeyCode::Char(c)
             if key.modifiers.contains(KeyModifiers::ALT)
@@ -1508,6 +1558,80 @@ fn begin_auto_explore(world: &mut World) -> std::io::Result<bool> {
     Ok(false)
 }
 
+/// The map tile under terminal cell `(col, row)` when the frame sits at
+/// `offset`; `None` off the map rows or past either edge.
+pub(crate) fn tile_under(col: u16, row: u16, offset: (u16, u16)) -> Option<(u16, u16)> {
+    let x = col.checked_sub(offset.0)?;
+    let y = row.checked_sub(offset.1)?.checked_sub(MAP_TOP)?;
+    (x < MAP_WIDTH && y < MAP_HEIGHT).then_some((x, y))
+}
+
+/// A mouse press, only ever seen when `-mouse` turned capture on. Left reads
+/// a tile (look), moves the reticle or the `O` cursor; right travels there
+/// (the `O` cursor's commit) or, on the reticle, moves and fires. Menus, the
+/// `--MORE--` prompt and unseen tiles ignore it. Returns whether a turn went.
+pub(crate) fn dispatch_mouse(
+    world: &mut World,
+    m: MouseEvent,
+    offset: (u16, u16),
+) -> std::io::Result<bool> {
+    let MouseEventKind::Down(button @ (MouseButton::Left | MouseButton::Right)) = m.kind else {
+        return Ok(false);
+    };
+    let Some((x, y)) = tile_under(m.column, m.row, offset) else {
+        return Ok(false);
+    };
+    let width = world.resource::<CommandBar>().log_width();
+    if log_view(&world.resource::<GameLog>().unread, width).2 {
+        return Ok(false);
+    }
+    let right = button == MouseButton::Right;
+
+    if world.resource::<TravelCursor>().active {
+        if !tile_is_revealed(world, x, y) {
+            return Ok(false);
+        }
+        world.resource_mut::<TravelCursor>().open(x, y);
+        if right {
+            confirm_travel_cursor(world)?;
+        }
+        return Ok(false);
+    }
+    if world.resource::<TargetingState>().active {
+        if aim_cursor_to(world, x as i16, y as i16) {
+            return Ok(true);
+        }
+        let ts = world.resource::<TargetingState>();
+        let landed = ts.active && (ts.cursor_x, ts.cursor_y) == (x as i16, y as i16);
+        return if right && landed {
+            fire_at_target(world)
+        } else {
+            Ok(false)
+        };
+    }
+    if modal_open(world) || !tile_is_revealed(world, x, y) {
+        return Ok(false);
+    }
+    if right {
+        world.resource_mut::<TravelCursor>().open(x, y);
+        confirm_travel_cursor(world)?;
+        return Ok(false);
+    }
+    let player = player_entity(world);
+    if !world
+        .get::<Viewshed>(player)
+        .unwrap()
+        .visible_tiles
+        .contains(&(x, y))
+    {
+        return Ok(false);
+    }
+    for line in describe_target(world, Position { x, y }) {
+        world.resource_mut::<GameLog>().add(line);
+    }
+    Ok(meet_its_eyes(world, Position { x, y }))
+}
+
 /// `O`: drop the blinking travel cursor on the player's own tile to steer it.
 fn open_travel_cursor(world: &mut World) {
     let pos = {
@@ -1666,7 +1790,8 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
 ///
 /// Blocks up to one blink interval for a keypress. Arrow / vi / numpad keys walk
 /// the cursor over revealed ground — sliding along a single axis when the
-/// diagonal tile is still unseen — Enter or Space commits the destination to an
+/// diagonal tile is still unseen. `<` `>` jump to a staircase, `m`/`M` and `i`/`I`
+/// cycle monsters in view and items (next/previous, nearest first). Enter or Space commits the destination to an
 /// auto-travel, and Esc or `O` cancels. A bare timeout just flips the
 /// highlight's blink phase and repaints.
 pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
@@ -1676,12 +1801,15 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
         return Ok(());
     }
 
-    let Event::Key(key) = read()? else {
-        return Ok(());
+    let key = match read()? {
+        Event::Key(key) if key.kind == KeyEventKind::Press => key,
+        Event::Mouse(m) => {
+            let offset = crate::view::centering_offset(world);
+            dispatch_mouse(world, m, offset)?;
+            return Ok(());
+        }
+        _ => return Ok(()),
     };
-    if key.kind != KeyEventKind::Press {
-        return Ok(());
-    }
 
     let (mut dx, mut dy) = (0i32, 0i32);
     match key.code {
@@ -1709,6 +1837,26 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
         KeyCode::Char('n') | KeyCode::Char('3') => {
             dx = 1;
             dy = 1;
+        }
+        KeyCode::Char(c @ ('<' | '>' | 'm' | 'M' | 'i' | 'I')) => {
+            let kind = match c {
+                '<' => CursorJump::UpStairs,
+                '>' => CursorJump::DownStairs,
+                'm' | 'M' => CursorJump::Monsters,
+                _ => CursorJump::Items,
+            };
+            let from = {
+                let tc = world.resource::<TravelCursor>();
+                (tc.x, tc.y)
+            };
+            let forward = c.is_ascii_lowercase() || !c.is_alphabetic();
+            if let Some((x, y)) = cursor_jump(world, from, kind, forward) {
+                let mut tc = world.resource_mut::<TravelCursor>();
+                tc.x = x;
+                tc.y = y;
+                tc.blink_on = true;
+            }
+            return Ok(());
         }
         _ => return Ok(()),
     }
@@ -2278,6 +2426,10 @@ mod tests {
         }
     }
 
+    fn esc() -> KeyEvent {
+        KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)
+    }
+
     fn stop_time(w: &mut World) {
         let player = player_entity(w);
         lend(w, player, Grant::of::<TimeStopped>(), Lifetime::Floor);
@@ -2287,7 +2439,7 @@ mod tests {
     fn quitting_with_time_stopped_takes_a_second_yes() {
         let mut w = modal_world(10);
         stop_time(&mut w);
-        dispatch_key(&mut w, press('Q')).unwrap();
+        dispatch_key(&mut w, esc()).unwrap();
         dispatch_key(&mut w, press('y')).unwrap();
         assert!(w.resource::<GameState>().is_running, "one yes quit");
         assert!(w.resource::<QuitPrompt>().warned, "no warning shown");
@@ -2299,8 +2451,8 @@ mod tests {
     fn a_no_to_the_time_stopped_warning_starts_the_ask_over() {
         let mut w = modal_world(11);
         stop_time(&mut w);
-        for key in ['Q', 'y', 'n', 'Q', 'y'] {
-            dispatch_key(&mut w, press(key)).unwrap();
+        for key in [esc(), press('y'), press('n'), esc(), press('y')] {
+            dispatch_key(&mut w, key).unwrap();
         }
         assert!(w.resource::<GameState>().is_running);
         assert!(w.resource::<QuitPrompt>().warned);
@@ -2309,7 +2461,7 @@ mod tests {
     #[test]
     fn quitting_with_time_running_takes_one_yes() {
         let mut w = modal_world(12);
-        dispatch_key(&mut w, press('Q')).unwrap();
+        dispatch_key(&mut w, esc()).unwrap();
         dispatch_key(&mut w, press('y')).unwrap();
         assert!(!w.resource::<GameState>().is_running);
     }
@@ -2336,7 +2488,7 @@ mod tests {
     }
 
     #[test]
-    fn shift_x_escapes_a_modal_rather_than_asking_about_quitting() {
+    fn shift_x_escapes_a_modal() {
         let mut w = modal_world(7);
         w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
         dispatch_key(&mut w, press('X')).unwrap();
@@ -2348,24 +2500,21 @@ mod tests {
     }
 
     #[test]
-    fn shift_x_falls_through_to_the_quit_prompt_with_nothing_open() {
+    fn shift_x_on_the_bare_map_does_not_quit() {
         let mut w = modal_world(8);
         dispatch_key(&mut w, press('X')).unwrap();
-        assert!(
-            w.resource::<QuitPrompt>().open,
-            "X on the bare map did nothing"
-        );
+        assert!(!w.resource::<QuitPrompt>().open, "X raised the quit prompt");
     }
 
     #[test]
-    fn lowercase_x_on_the_bare_map_is_not_swallowed() {
+    fn lowercase_x_on_the_bare_map_reaches_the_swap() {
         let mut w = modal_world(9);
         assert!(
             !close_all_modals(&mut w),
             "nothing was open, so nothing closed"
         );
         let turn = dispatch_key(&mut w, press('x')).unwrap();
-        assert!(!turn);
+        assert!(turn, "x on the bare map did not swap the weapon");
     }
 
     #[test]
@@ -2431,7 +2580,7 @@ mod tests {
     }
 
     #[test]
-    fn escape_closes_the_quit_prompt_but_never_raises_one() {
+    fn escape_closes_the_quit_prompt_and_raises_one_from_the_bare_map() {
         let mut w = modal_world(13);
         w.resource_mut::<QuitPrompt>().open = true;
         dispatch_key(&mut w, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)).unwrap();
@@ -2439,10 +2588,7 @@ mod tests {
 
         let mut w = modal_world(13);
         dispatch_key(&mut w, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)).unwrap();
-        assert!(
-            !w.resource::<QuitPrompt>().open,
-            "Esc raised the quit prompt"
-        );
+        assert!(w.resource::<QuitPrompt>().open, "Esc did not ask to quit");
         assert!(w.resource::<GameState>().is_running);
     }
 
@@ -2818,6 +2964,85 @@ mod tests {
         );
     }
 
+    /// Two orcs in view, the nearer one beyond the wand's help: the reticle
+    /// opens on the one it can change, and `Tab` never lands on the other.
+    fn aim_wand_past_a_useless_target(
+        effect: WandEffect,
+        near_grant: Option<Grant>,
+    ) -> (World, Position, Position) {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let row: Vec<u16> = {
+            let map = w.resource::<Map>();
+            (1..=4)
+                .map(|d| here.x + d)
+                .take_while(|&x| !map.blocks(x, here.y))
+                .collect()
+        };
+        assert!(row.len() >= 3, "need open floor beside the player");
+        let near = Position {
+            x: row[1],
+            y: here.y,
+        };
+        let far = Position {
+            x: row[2],
+            y: here.y,
+        };
+        for at in [far, near] {
+            let orc = w
+                .spawn((
+                    Name { what: "orc".into() },
+                    Mob {
+                        movement_type: MovementType::Static,
+                    },
+                    at,
+                    Faction::Monster,
+                    Speed::new(SpeedKind::Normal),
+                ))
+                .id();
+            if at == near {
+                match near_grant {
+                    Some(g) => {
+                        lend(&mut w, orc, g, Lifetime::Permanent);
+                    }
+                    None => w.get_mut::<Speed>(orc).unwrap().kind = SpeedKind::Slow,
+                }
+            }
+        }
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
+            row.iter().map(|&x| (x, here.y)).collect();
+        let wand = models::spawn_wand(&mut w, effect, Position { x: 0, y: 0 });
+        w.entity_mut(wand).remove::<Position>();
+        open_reticle(&mut w, player, wand, false);
+        (w, near, far)
+    }
+
+    #[test]
+    fn the_reticle_skips_targets_the_wand_cannot_change() {
+        let cases = [
+            (WandEffect::Fire, Some(Grant::of::<FireImmune>())),
+            (WandEffect::Cold, Some(Grant::of::<ColdImmune>())),
+            (WandEffect::SlowMonster, None),
+        ];
+        for (effect, grant) in cases {
+            let (mut w, near, far) = aim_wand_past_a_useless_target(effect, grant);
+            let ts = w.resource::<TargetingState>();
+            assert_eq!(
+                (ts.cursor_x, ts.cursor_y),
+                (far.x as i16, far.y as i16),
+                "{effect:?}: opened on the target it cannot change"
+            );
+            assert!(
+                !cycle_target(&mut w) || {
+                    let ts = w.resource::<TargetingState>();
+                    (ts.cursor_x, ts.cursor_y) == (far.x as i16, far.y as i16)
+                },
+                "{effect:?}: Tab landed on {near:?}"
+            );
+        }
+    }
+
     /// Looking at bare floor says nothing: the reticle already shows there is
     /// nothing there, and every cursor step would otherwise log it again.
     #[test]
@@ -3161,5 +3386,141 @@ mod tests {
         w.resource_mut::<HelpMenu>().open = false;
         w.resource_mut::<TargetingState>().active = true;
         assert!(modal_open(&w));
+    }
+
+    // -----------------------------------------------------------------------
+    // The mouse
+    // -----------------------------------------------------------------------
+
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+    fn click(button: MouseButton, (x, y): (u16, u16)) -> MouseEvent {
+        MouseEvent {
+            kind: MouseEventKind::Down(button),
+            column: x,
+            row: y + MAP_TOP,
+            modifiers: KeyModifiers::NONE,
+        }
+    }
+
+    /// A seen floor tile that is not the player's own, with every other
+    /// creature cleared off the level so nothing is in sight.
+    fn seen_floor(w: &mut World) -> (u16, u16) {
+        let others: Vec<Entity> = w
+            .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
+            .iter(w)
+            .collect();
+        for e in others {
+            w.despawn(e);
+        }
+        let mut schedule = Schedule::default();
+        schedule.add_systems(visibility_system);
+        schedule.run(w);
+        let here = player_pos(w);
+        let player = player_entity(w);
+        let seen = w.get::<Viewshed>(player).unwrap().visible_tiles.clone();
+        *seen
+            .iter()
+            .find(|&&(x, y)| {
+                (x, y) != (here.x, here.y)
+                    && w.resource::<Map>().tiles[tile_index(x, y)] == TileType::Room
+            })
+            .expect("the first room has floor in view")
+    }
+
+    #[test]
+    fn a_terminal_cell_maps_to_the_map_tile_under_it() {
+        assert_eq!(tile_under(5, MAP_TOP + 3, (0, 0)), Some((5, 3)));
+        assert_eq!(tile_under(15, MAP_TOP + 5, (10, 2)), Some((5, 3)));
+        assert_eq!(tile_under(9, MAP_TOP + 5, (10, 2)), None);
+        assert_eq!(tile_under(5, 0, (0, 0)), None, "the status row is not map");
+        assert_eq!(tile_under(5, MAP_TOP + MAP_HEIGHT, (0, 0)), None);
+        assert_eq!(tile_under(MAP_WIDTH, MAP_TOP, (0, 0)), None);
+    }
+
+    #[test]
+    fn right_click_travels_to_the_tile() {
+        let mut w = modal_world(11);
+        let goal = seen_floor(&mut w);
+        let spent = dispatch_mouse(&mut w, click(MouseButton::Right, goal), (0, 0)).unwrap();
+        assert!(!spent, "setting off is not a turn");
+        let ae = w.resource::<AutoExplore>();
+        assert!(ae.active && ae.target == Some(goal));
+    }
+
+    #[test]
+    fn left_click_looks_and_spends_no_turn() {
+        let mut w = modal_world(11);
+        seen_floor(&mut w);
+        let here = player_pos(&mut w);
+        let at = (here.x, here.y);
+        w.resource_mut::<GameLog>().history.clear();
+        let spent = dispatch_mouse(&mut w, click(MouseButton::Left, at), (0, 0)).unwrap();
+        assert!(!spent);
+        assert!(
+            !w.resource::<GameLog>().history.is_empty(),
+            "nothing was read out"
+        );
+        assert!(!w.resource::<AutoExplore>().active, "a look must not walk");
+    }
+
+    #[test]
+    fn a_click_on_a_tile_never_seen_does_nothing() {
+        let mut w = modal_world(11);
+        seen_floor(&mut w);
+        let unseen = (0..MAP_TILE_COUNT)
+            .map(|i| {
+                (
+                    (i % MAP_WIDTH as usize) as u16,
+                    (i / MAP_WIDTH as usize) as u16,
+                )
+            })
+            .find(|&(x, y)| !tile_is_revealed(&mut w, x, y))
+            .unwrap();
+        dispatch_mouse(&mut w, click(MouseButton::Right, unseen), (0, 0)).unwrap();
+        assert!(!w.resource::<AutoExplore>().active);
+    }
+
+    #[test]
+    fn on_the_reticle_left_moves_and_right_moves_and_fires() {
+        let mut w = modal_world(11);
+        let at = seen_floor(&mut w);
+        {
+            let mut ts = w.resource_mut::<TargetingState>();
+            ts.active = true;
+            ts.looking = true;
+        }
+        dispatch_mouse(&mut w, click(MouseButton::Left, at), (0, 0)).unwrap();
+        let ts = w.resource::<TargetingState>();
+        assert!(ts.active, "left only moves the cursor");
+        assert_eq!((ts.cursor_x as u16, ts.cursor_y as u16), at);
+
+        dispatch_mouse(&mut w, click(MouseButton::Right, at), (0, 0)).unwrap();
+        assert!(!w.resource::<TargetingState>().active, "right fires");
+    }
+
+    #[test]
+    fn on_the_travel_cursor_left_moves_and_right_goes() {
+        let mut w = modal_world(11);
+        let at = seen_floor(&mut w);
+        let here = player_pos(&mut w);
+        w.resource_mut::<TravelCursor>().open(here.x, here.y);
+        dispatch_mouse(&mut w, click(MouseButton::Left, at), (0, 0)).unwrap();
+        let tc = w.resource::<TravelCursor>();
+        assert!(tc.active && (tc.x, tc.y) == at);
+        assert!(!w.resource::<AutoExplore>().active);
+
+        dispatch_mouse(&mut w, click(MouseButton::Right, at), (0, 0)).unwrap();
+        assert!(!w.resource::<TravelCursor>().active);
+        assert_eq!(w.resource::<AutoExplore>().target, Some(at));
+    }
+
+    #[test]
+    fn a_click_under_a_menu_is_ignored() {
+        let mut w = modal_world(11);
+        let goal = seen_floor(&mut w);
+        w.resource_mut::<PackIsOpen>().open = true;
+        dispatch_mouse(&mut w, click(MouseButton::Right, goal), (0, 0)).unwrap();
+        assert!(!w.resource::<AutoExplore>().active);
     }
 }

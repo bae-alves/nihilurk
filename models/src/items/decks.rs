@@ -94,8 +94,8 @@ fn play(world: &mut World, deal: &mut Deal, card: Card) {
             false => ledger(world, user, Grant::of::<Crit>(), strings::card_crit()),
             true => ledger(world, user, Grant::of::<Oof>(), strings::card_oof()),
         },
-        CardFace::SkullKing => summon(world, user, &SUMMONS[0], r, false),
-        CardFace::BlackMage => summon(world, user, &SUMMONS[1], r, true),
+        CardFace::SkullKing => summon(world, user, &SUMMONS[0], r),
+        CardFace::BlackMage => summon(world, user, &SUMMONS[1], r),
         CardFace::Child => to_stair(world, user, !r),
         CardFace::Crone => to_stair(world, user, r),
         CardFace::Eyes => eyes(world, deal, r),
@@ -303,9 +303,9 @@ fn ledger(world: &mut World, user: Entity, grant: Grant, line: &str) {
     say(world, line);
 }
 
-/// THE SKULL KING! and THE BLACK MAGE: they arrive beside the reader, as an
-/// ally (the Skull King) or the Helper (the Black Mage). Reversed, as a foe.
-fn summon(world: &mut World, user: Entity, def: &MonsterDef, reversed: bool, helper: bool) {
+/// THE SKULL KING! and THE BLACK MAGE: they arrive beside the reader, as the
+/// Helper. Reversed, as a foe.
+fn summon(world: &mut World, user: Entity, def: &MonsterDef, reversed: bool) {
     let Some((x, y)) = summon_spot(world, user) else {
         say(world, strings::create_monster_nowhere());
         return;
@@ -315,15 +315,9 @@ fn summon(world: &mut World, user: Entity, def: &MonsterDef, reversed: bool, hel
     world
         .resource_mut::<GameLog>()
         .add(strings::create_monster_line(article_for(&name), &name));
-    match (reversed, helper) {
-        (true, _) => crate::effects::revoke(world, e, Grant::of::<crate::effects::Asleep>()),
-        (false, true) => crate::companion::recruit(world, e),
-        (false, false) => {
-            crate::companion::charm(world, e);
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::charm_target_line(&name));
-        }
+    match reversed {
+        true => crate::effects::revoke(world, e, Grant::of::<crate::effects::Asleep>()),
+        false => crate::companion::recruit(world, e),
     }
 }
 

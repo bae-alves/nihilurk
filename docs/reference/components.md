@@ -357,7 +357,7 @@ Resources
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
 | `HelpMenu`      | `open: bool`                                              | the F1 key list. Any key closes it and does nothing else. |
 | `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar; the log and player line move left into its columns. |
-| `QuitPrompt`    | `open: bool`, `warned: bool`                              | the "Really quit?" modal, raised by `Q` / `X` **with nothing else open** and answered `y` (or `strings::quit_yes_key`) / `n`. With `models::time_stopped`, the first yes sets `warned` (red "did not save" rows, "REALLY sure?") and a second yes quits. Ctrl+C bypasses it; `Esc` never raises it. |
+| `QuitPrompt`    | `open: bool`, `warned: bool`                              | the "Really quit?" modal, raised by `Esc` **with nothing else open** and answered `y` (or `strings::quit_yes_key`) / `n`. With `models::time_stopped`, the first yes sets `warned` (red "did not save" rows, "REALLY sure?") and a second yes quits. Ctrl+C bypasses it. |
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
 | `PackMode`      | enum: `Browse` `Use` `Throw` `Drop` `Equip` `Quaff` `Read` `Zap` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
 | `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |
