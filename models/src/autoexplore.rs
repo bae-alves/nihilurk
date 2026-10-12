@@ -576,15 +576,15 @@ pub enum CursorJump {
     DownStairs,
     /// Monsters in view.
     Monsters,
-    /// Items on revealed floor.
+    /// Items in view.
     Items,
 }
 
 /// The next (or previous) known target of `kind`, nearest the
 /// player first and wrapping at the ends. A cursor that isn't on a target
 /// starts at the nearest (or farthest). Returns the new cursor tile, or `None`
-/// when there is none. Monsters count only while in view; items and stairs only on
-/// revealed tiles.
+/// when there is none. Monsters and items count only while in view, as the
+/// map draws them; stairs count on any revealed tile.
 pub fn cursor_jump(
     world: &mut World,
     from: (u16, u16),
@@ -592,6 +592,11 @@ pub fn cursor_jump(
     forward: bool,
 ) -> Option<(u16, u16)> {
     let (px, py, _) = player_view(world)?;
+    let seen: HashSet<(u16, u16)> = world
+        .query_filtered::<&Viewshed, With<Player>>()
+        .iter(world)
+        .flat_map(|v| v.visible_tiles.iter().copied())
+        .collect();
     let mut targets: Vec<(u16, u16)> = match kind {
         CursorJump::UpStairs | CursorJump::DownStairs => {
             stair_location(world.resource::<Map>(), kind == CursorJump::DownStairs)
@@ -599,23 +604,17 @@ pub fn cursor_jump(
                 .collect()
         }
         CursorJump::Items => world
-            .query_filtered::<&Position, With<Item>>()
+            .query_filtered::<&Position, (With<Item>, Without<Hidden>)>()
             .iter(world)
             .map(|p| (p.x, p.y))
+            .filter(|t| seen.contains(t))
             .collect(),
-        CursorJump::Monsters => {
-            let seen: HashSet<(u16, u16)> = world
-                .query_filtered::<&Viewshed, With<Player>>()
-                .iter(world)
-                .flat_map(|v| v.visible_tiles.iter().copied())
-                .collect();
-            world
-                .query_filtered::<&Position, (With<Mob>, Without<Hidden>, Without<Player>)>()
-                .iter(world)
-                .map(|p| (p.x, p.y))
-                .filter(|t| seen.contains(t))
-                .collect()
-        }
+        CursorJump::Monsters => world
+            .query_filtered::<&Position, (With<Mob>, Without<Hidden>, Without<Player>)>()
+            .iter(world)
+            .map(|p| (p.x, p.y))
+            .filter(|t| seen.contains(t))
+            .collect(),
     };
     targets.retain(|&(x, y)| tile_is_revealed(world, x, y));
     targets.sort_by_key(|&(x, y)| {

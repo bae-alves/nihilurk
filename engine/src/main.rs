@@ -35,11 +35,12 @@ impl TerminalGuard {
     /// if the terminal refuses either; nothing is left half-set.
     pub fn new(mouse: bool) -> std::io::Result<Self> {
         enable_raw_mode()?;
+        let guard = Self;
         execute!(stdout(), EnterAlternateScreen, Hide)?;
         if mouse {
             execute!(stdout(), EnableMouseCapture)?;
         }
-        Ok(Self)
+        Ok(guard)
     }
 }
 impl Drop for TerminalGuard {

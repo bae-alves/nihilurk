@@ -12,7 +12,8 @@ use bevy_ecs::prelude::*;
 use rand::Rng;
 
 use crate::components::{
-    Faction, GameLog, Item, LogCategory, Pickup, Player, PlayerAction, PlayerActionQueue, Position,
+    Curse, Faction, GameLog, Item, LogCategory, Pickup, Player, PlayerAction, PlayerActionQueue,
+    Position,
 };
 use crate::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use crate::effects::{Clamped, Confused, Pinned, Rooted, Swims};
@@ -358,8 +359,9 @@ pub fn queue_drop(world: &mut World, player: Entity, item: Entity) -> bool {
 /// Queues wielding the next weapon in pack order after the one in hand,
 /// wrapping round, but only across the melee/launcher divide: a melee weapon
 /// gives way to a launcher and a launcher to a melee weapon. Weapons whose
-/// quality is still unknown are skipped. With nothing to switch to, or a cursed weapon stuck in the hand, it says so and
-/// spends nothing.
+/// quality is still unknown, or known to be cursed, are skipped. With nothing
+/// to switch to, or a cursed weapon stuck in the hand, it says so and spends
+/// nothing.
 pub fn queue_swap_weapon(world: &mut World, player: Entity) -> bool {
     let held = equipped_in(world, player, Slot::Hand);
     let pack = world
@@ -378,6 +380,7 @@ pub fn queue_swap_weapon(world: &mut World, player: Entity) -> bool {
                     .get::<Equipped>(i)
                     .is_some_and(|e| e.slot == Slot::Hand)
                 && known_quality(world, i)
+                && world.get::<Curse>(i).is_none()
                 && (held.is_none() || world.get::<Launcher>(i).is_some() != holds_launcher)
         });
     let Some(item) = next else {

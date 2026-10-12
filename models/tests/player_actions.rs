@@ -242,6 +242,19 @@ fn swapping_skips_weapons_not_yet_identified() {
 }
 
 #[test]
+fn swapping_skips_weapons_known_to_be_cursed() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", true);
+    let doomed = carry_weapon(&mut w, player, here, "short bow", false);
+    w.entity_mut(doomed).insert(Curse);
+    let before = log_len(&w);
+    assert!(!queue_swap_weapon(&mut w, player));
+    assert!(log_len(&w) > before);
+    assert!(w.resource::<PlayerActionQueue>().actions.is_empty());
+    assert_eq!(equipped_in(&w, player, Slot::Hand), Some(dagger));
+}
+
+#[test]
 fn swapping_never_trades_a_melee_weapon_for_another() {
     let (mut w, player, here) = quiet_room(1);
     let dagger = carry_weapon(&mut w, player, here, "dagger", true);

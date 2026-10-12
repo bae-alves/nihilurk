@@ -151,9 +151,10 @@ fn jump_stairs_lands_on_the_staircase_only_once_revealed() {
         Some(stairs)
     );
 
-    let mut vs = w.get_mut::<Viewshed>(player).unwrap();
-    vs.revealed_tiles.clear();
-    drop(vs);
+    w.get_mut::<Viewshed>(player)
+        .unwrap()
+        .revealed_tiles
+        .clear();
     assert_eq!(
         cursor_jump(&mut w, (0, 0), CursorJump::DownStairs, true),
         None
@@ -173,6 +174,8 @@ fn jump_items_cycles_nearest_first_both_ways() {
             },
         ));
     }
+    w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
+        (1..=3).map(|dx| (p.x + dx, p.y)).collect();
     let mut at = (p.x, p.y);
     let mut seen = vec![];
     for _ in 0..4 {
@@ -205,6 +208,29 @@ fn jump_monsters_skips_unseen_and_hidden() {
     assert_eq!(first, (p.x + 2, p.y));
     assert_eq!(
         cursor_jump(&mut w, first, CursorJump::Monsters, true),
+        Some(first)
+    );
+}
+
+/// An item the map does not draw, hidden or out of view, is no target.
+#[test]
+fn jump_items_skips_what_the_map_does_not_draw() {
+    let (mut w, player) = fresh_mapped_floor(42);
+    let p = *w.get::<Position>(player).unwrap();
+    let at = |dx| Position {
+        x: p.x + dx,
+        y: p.y,
+    };
+    w.spawn((Item, at(1)));
+    w.spawn((Item, Hidden, at(2)));
+    w.spawn((Item, at(3)));
+    w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
+        (1..=2).map(|dx| (p.x + dx, p.y)).collect();
+
+    let first = cursor_jump(&mut w, (p.x, p.y), CursorJump::Items, true).unwrap();
+    assert_eq!(first, (p.x + 1, p.y));
+    assert_eq!(
+        cursor_jump(&mut w, first, CursorJump::Items, true),
         Some(first)
     );
 }

@@ -331,7 +331,7 @@ Useful commands
 | `Esc` | Back out of a menu; on the bare map, quit after confirmation |
 | `Ctrl+C` | Quit immediately. No other Ctrl key does anything |
 
-`x` takes the next weapon in your pack, wrapping round, but only across the divide: a melee weapon gives way to a launcher and a launcher to a melee weapon. It skips weapons whose quality you have not learned yet, and a cursed weapon in hand blocks it. Quitting saves the current expedition unless saving has been disabled. While time is stopped nothing is saved: the game saves as time stops and again as it starts. Quitting in between warns you in red and asks a second time, and those turns are lost.
+`x` takes the next weapon in your pack, wrapping round, but only across the divide: a melee weapon gives way to a launcher and a launcher to a melee weapon. It skips weapons whose quality you have not learned yet and weapons you know are cursed, and a cursed weapon in hand blocks it. Quitting saves the current expedition unless saving has been disabled. While time is stopped nothing is saved: the game saves as time stops and again as it starts. Quitting in between warns you in red and asks a second time, and those turns are lost.
 
 The map can be centred, screen shake can be disabled, and blood can be hidden with command-line options. For the complete list, see `docs/reference/cli-and-env.md`.
 

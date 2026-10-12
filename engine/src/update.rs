@@ -1704,19 +1704,43 @@ fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
     false
 }
 
+/// Whether `event` is the player asking a walk to stop: a key press or a mouse
+/// click. Under `-mouse` the terminal also reports every release and every
+/// twitch of the pointer, and a right click's own release must not cut short
+/// the travel it just started.
+fn stops_a_walk(event: &Event) -> bool {
+    match event {
+        Event::Key(k) => k.kind == KeyEventKind::Press,
+        Event::Mouse(m) => matches!(m.kind, MouseEventKind::Down(_)),
+        _ => false,
+    }
+}
+
+/// Reads pending input until something [`stops_a_walk`] or the queue runs
+/// dry; whether it found one. The stopping event is swallowed, so it is not
+/// also read as a move on the next frame.
+fn walk_interrupted() -> std::io::Result<bool> {
+    while poll(Duration::from_millis(0))? {
+        if stops_a_walk(&read()?) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// One tick of an auto-walk, called by the main loop in place of
 /// [`process_input_and_update`] while [`AutoExplore::active`] is set. Returns
 /// whether a turn was consumed.
 ///
 /// The walk is halted — the flag cleared — the instant anything worth the
-/// player's attention happens: a key is pressed, a message was logged on the
-/// previous turn (a monster spotted, a hit taken, an item picked up), a monster
-/// is in plain sight, or there is nowhere left to go.
+/// player's attention happens: a key is pressed or the mouse clicked, a
+/// message was logged on the previous turn (a monster spotted, a hit taken, an
+/// item picked up), a monster is in plain sight, or there is nowhere left to
+/// go.
 pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
     let travelling = world.resource::<AutoExplore>().target.is_some();
 
-    if poll(Duration::from_millis(0))? {
-        let _ = read()?;
+    if walk_interrupted()? {
         world.resource_mut::<AutoExplore>().stop();
         world.resource_mut::<GameLog>().add(if travelling {
             strings::travel_interrupted()
@@ -1790,9 +1814,10 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
 ///
 /// Blocks up to one blink interval for a keypress. Arrow / vi / numpad keys walk
 /// the cursor over revealed ground — sliding along a single axis when the
-/// diagonal tile is still unseen. `<` `>` jump to a staircase, `m`/`M` and `i`/`I`
-/// cycle monsters in view and items (next/previous, nearest first). Enter or Space commits the destination to an
-/// auto-travel, and Esc or `O` cancels. A bare timeout just flips the
+/// diagonal tile is still unseen. `<` `>` jump to a staircase, and `m`/`M` and
+/// `i`/`I` cycle the monsters and items in view (next/previous, nearest
+/// first). Enter or Space commits the destination to an auto-travel, and Esc
+/// or `O` cancels. A bare timeout just flips the
 /// highlight's blink phase and repaints.
 pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
     if !poll(Duration::from_millis(TRAVEL_BLINK_MS))? {
@@ -1930,14 +1955,14 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
 /// (`schedule.run`), so running costs exactly as many turns as walking.
 ///
 /// The run halts the instant anything wants the player's attention: a key is
-/// pressed, a creature is (or comes) in view, a message is logged (something
+/// pressed or the mouse clicked ([`stops_a_walk`]), a creature is (or comes)
+/// in view, a message is logged (something
 /// spotted, an item picked up, a hit taken), the beeline reaches its target, a
 /// straight run meets a door / staircase / corridor branch or a wall, or the
 /// step cap trips.
 pub fn fast_move_run(world: &mut World, schedule: &mut Schedule) -> std::io::Result<()> {
     loop {
-        if poll(Duration::from_millis(0))? {
-            let _ = read()?;
+        if walk_interrupted()? {
             break;
         }
 
@@ -3033,11 +3058,11 @@ mod tests {
                 (far.x as i16, far.y as i16),
                 "{effect:?}: opened on the target it cannot change"
             );
-            assert!(
-                !cycle_target(&mut w) || {
-                    let ts = w.resource::<TargetingState>();
-                    (ts.cursor_x, ts.cursor_y) == (far.x as i16, far.y as i16)
-                },
+            cycle_target(&mut w);
+            let ts = w.resource::<TargetingState>();
+            assert_eq!(
+                (ts.cursor_x, ts.cursor_y),
+                (far.x as i16, far.y as i16),
                 "{effect:?}: Tab landed on {near:?}"
             );
         }
@@ -3426,6 +3451,28 @@ mod tests {
                     && w.resource::<Map>().tiles[tile_index(x, y)] == TileType::Room
             })
             .expect("the first room has floor in view")
+    }
+
+    #[test]
+    fn only_a_press_or_a_click_stops_a_walk() {
+        let mouse = |kind| {
+            Event::Mouse(MouseEvent {
+                kind,
+                column: 0,
+                row: 0,
+                modifiers: KeyModifiers::NONE,
+            })
+        };
+        assert!(stops_a_walk(&Event::Key(press('o'))));
+        assert!(stops_a_walk(&mouse(MouseEventKind::Down(
+            MouseButton::Right
+        ))));
+        assert!(
+            !stops_a_walk(&mouse(MouseEventKind::Up(MouseButton::Right))),
+            "a right click's release cut the travel it started"
+        );
+        assert!(!stops_a_walk(&mouse(MouseEventKind::Moved)));
+        assert!(!stops_a_walk(&Event::Resize(80, 24)));
     }
 
     #[test]
