@@ -553,6 +553,49 @@ pub fn leaderboard_entry(rank: usize, name: &str, outcome: &str, score: i64, whe
     format!("{rank}. {name} - {outcome} - {score} ({when})")
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_header(name: &str, version: &str) -> String {
+    format!("nihilurk {version} - {name}")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_summary(outcome: &str, cause: &str, depth: u8, score: i64) -> String {
+    match cause.is_empty() {
+        true => format!("{outcome} - Depth {depth} - Score {score}"),
+        false => format!("{outcome} - {cause} - Depth {depth} - Score {score}"),
+    }
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_ended(when: &str) -> String {
+    format!("Ended {when} UTC")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_screen_title() -> &'static str {
+    "-- Final screen --"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_pack_title() -> &'static str {
+    "-- Pack --"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_kills_title(total: u32) -> String {
+    format!("-- Kills ({total}) --")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_messages_title() -> &'static str {
+    "-- Messages --"
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn morgue_written(path: &str) -> String {
+    format!("Run dump written to '{path}'.")
+}
+
 pub fn help_text() -> &'static str {
     "\
 nihilurk - terminal roguelike

@@ -231,10 +231,44 @@ impl Screen {
         self.dirty_all = false;
         Ok(drawn)
     }
+
+    /// The frame the terminal is showing, as plain text: one line per row,
+    /// trailing blanks trimmed, colours dropped. Reads `prev`, since `flush`
+    /// swaps the shown frame there.
+    pub fn shown_text(&self) -> String {
+        self.prev
+            .chunks(SCREEN_W as usize)
+            .map(|row| {
+                let line: String = row.iter().map(|c| c.0).collect();
+                line.trim_end().to_string() + "\n"
+            })
+            .collect()
+    }
 }
 
 impl Default for Screen {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shown_text_is_the_flushed_frame_one_line_per_row() {
+        let mut screen = Screen::new();
+        screen.puts(0, 0, "hello", Color::White);
+        screen.puts(3, 2, "@", Color::White);
+        screen.flush(&mut Vec::new(), (0, 0)).unwrap();
+        screen.puts(0, 0, "unflushed", Color::White);
+
+        let text = screen.shown_text();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), SCREEN_H as usize);
+        assert_eq!(lines[0], "hello");
+        assert_eq!(lines[1], "");
+        assert_eq!(lines[2], "   @");
     }
 }

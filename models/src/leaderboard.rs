@@ -67,11 +67,15 @@ pub const LEADERBOARD_STORE_LIMIT: usize = 10;
 /// read-only directory) shouldn't stop the player's run from ending, so a
 /// caller that cares can log the `Err` rather than propagate it.
 pub fn record(name: &str, outcome: Outcome, score: i64) -> std::io::Result<()> {
-    let epoch_secs = SystemTime::now()
+    record_to(path(), name, outcome, score, now_epoch_secs())
+}
+
+/// Seconds since the Unix epoch, UTC; 0 on a clock set before it.
+pub fn now_epoch_secs() -> u64 {
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
-        .unwrap_or(0);
-    record_to(path(), name, outcome, score, epoch_secs)
+        .unwrap_or(0)
 }
 
 fn record_to(
@@ -143,12 +147,29 @@ pub fn top(limit: usize) -> std::io::Result<Vec<(String, Outcome, i64, String)>>
 /// Howard Hinnant's `civil_from_days`, the standard proleptic-Gregorian
 /// algorithm, fed only ever-increasing `SystemTime::now()` values (always
 /// well past the epoch, never before it).
-fn format_timestamp(epoch_secs: u64) -> String {
-    let days_since_epoch = (epoch_secs / 86_400) as i64;
-    let secs_of_day = epoch_secs % 86_400;
-    let (year, month, day) = civil_from_days(days_since_epoch);
-    let (hour, minute) = (secs_of_day / 3600, (secs_of_day % 3600) / 60);
+pub fn format_timestamp(epoch_secs: u64) -> String {
+    let (year, month, day, hour, minute, _) = utc(epoch_secs);
     format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}")
+}
+
+/// `YYYYMMDD-HHMMSS`, UTC: [`format_timestamp`] with the seconds kept and
+/// nothing a file name can trip on, for the run dump's file name.
+pub fn file_stamp(epoch_secs: u64) -> String {
+    let (year, month, day, hour, minute, second) = utc(epoch_secs);
+    format!("{year:04}{month:02}{day:02}-{hour:02}{minute:02}{second:02}")
+}
+
+fn utc(epoch_secs: u64) -> (i64, u32, u32, u64, u64, u64) {
+    let secs_of_day = epoch_secs % 86_400;
+    let (year, month, day) = civil_from_days((epoch_secs / 86_400) as i64);
+    (
+        year,
+        month,
+        day,
+        secs_of_day / 3600,
+        (secs_of_day % 3600) / 60,
+        secs_of_day % 60,
+    )
 }
 
 fn civil_from_days(days_since_epoch: i64) -> (i64, u32, u32) {
@@ -287,5 +308,11 @@ mod tests {
         assert_eq!(format_timestamp(0), "1970-01-01 00:00");
         assert_eq!(format_timestamp(1_704_067_200), "2024-01-01 00:00");
         assert_eq!(format_timestamp(1_735_689_540), "2024-12-31 23:59");
+    }
+
+    #[test]
+    fn a_file_stamp_sorts_by_time_and_keeps_the_seconds() {
+        assert_eq!(file_stamp(0), "19700101-000000");
+        assert_eq!(file_stamp(1_735_689_599), "20241231-235959");
     }
 }

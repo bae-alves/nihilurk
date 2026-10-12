@@ -312,7 +312,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 5;
+pub const SAVE_VERSION: u16 = 6;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -368,6 +368,9 @@ struct SaveGame<'a> {
     /// name as a dragon.
     #[serde(borrow)]
     monster_body: Option<Cow<'a, str>>,
+    /// [`Kills`]: each name a corpse died under, and how many.
+    #[serde(borrow)]
+    kills: Vec<(Cow<'a, str>, u32)>,
 }
 
 /// The winner's details, pulled from a won game's clear-data save file.
@@ -608,6 +611,12 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
         spirits_hostile: world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0),
         monster_body,
+        kills: world.get_resource::<Kills>().map_or_else(Vec::new, |k| {
+            k.by_name
+                .iter()
+                .map(|(name, count)| (Cow::Borrowed(name.as_str()), *count))
+                .collect()
+        }),
     };
 
     write_atomically(path, |writer| {
@@ -688,7 +697,7 @@ pub(crate) fn write_atomically(
 }
 
 /// Rebuilds the world from a postcard save file. Inserts GameState, GameLog,
-/// PlayerName, Depth and FloorChanges resources; all other resources must
+/// PlayerName, Depth, FloorChanges and Kills resources; all other resources must
 /// already be present.
 ///
 /// The message log is not part of the save — a reload always starts with a
@@ -718,6 +727,13 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     world.insert_resource(Depth { what: save.depth });
     world.insert_resource(FloorChanges {
         count: save.floor_changes,
+    });
+    world.insert_resource(Kills {
+        by_name: save
+            .kills
+            .iter()
+            .map(|(name, count)| (strip_control_chars(name), *count))
+            .collect(),
     });
     world.insert_resource(RngSeed(save.rng_seed));
     world.insert_resource(GameRng(save.rng_state));
@@ -1229,6 +1245,7 @@ mod tests {
             cleared: false,
             spirits_hostile: false,
             monster_body: None,
+            kills: Vec::new(),
         }
     }
 
@@ -1408,6 +1425,7 @@ mod tests {
         save.cleared = true;
         save.spirits_hostile = true;
         save.monster_body = Some(Cow::Borrowed("dragon"));
+        save.kills = vec![(Cow::Borrowed("rat"), 70_000)];
         save
     }
 

@@ -4,6 +4,7 @@
 //! — everything else the turn touches lives in `models`.
 
 mod constants;
+mod morgue;
 mod screen;
 mod update;
 mod view;
@@ -98,14 +99,16 @@ fn wait_for_key(accept: impl Fn(KeyCode) -> bool) -> std::io::Result<()> {
     }
 }
 
-/// The death sequence: destroy the save, show the "You die..." `--MORE--` panel,
-/// then the LOSE panel. Runs while the terminal guard is still active.
+/// The death sequence: destroy the save, write the run dump, show the
+/// "You die..." `--MORE--` panel, then the LOSE panel. Runs while the terminal
+/// guard is still active; returns where the dump went, for the caller to say
+/// once the terminal is back.
 fn run_death_screens<W: std::io::Write>(
     world: &mut World,
     stdout: &mut W,
     screen: &mut view::Screen,
     save_path: &Path,
-) -> std::io::Result<()> {
+) -> std::io::Result<Option<PathBuf>> {
     let _ = std::fs::remove_file(save_path);
 
     let offset = view::centering_offset(world);
@@ -123,6 +126,7 @@ fn run_death_screens<W: std::io::Write>(
         false => models::leaderboard::Outcome::LoseDescent,
     };
     let _ = models::leaderboard::record(&name, outcome, score);
+    let dump = morgue::write(world, &screen.shown_text(), outcome).ok();
     let _ = models::bones::deposit(world);
 
     view::render_you_died(stdout, screen, offset)?;
@@ -130,16 +134,17 @@ fn run_death_screens<W: std::io::Write>(
 
     view::render_lose(stdout, screen, offset, &name, &cause, score)?;
     wait_for_key(|_| true)?;
-    Ok(())
+    Ok(dump)
 }
 
-/// The victory sequence: show the WIN panel. Unlike death, the save is *not*
-/// destroyed — the caller keeps it as "clear data" (see [`models::clear_data`]).
+/// The victory sequence: write the run dump, show the WIN panel, and return
+/// where the dump went. Unlike death, the save is *not* destroyed — the caller
+/// keeps it as "clear data" (see [`models::clear_data`]).
 fn run_victory_screens<W: std::io::Write>(
     world: &mut World,
     stdout: &mut W,
     screen: &mut view::Screen,
-) -> std::io::Result<()> {
+) -> std::io::Result<Option<PathBuf>> {
     let offset = view::centering_offset(world);
     let (name, score) = {
         let mut q = world.query_filtered::<&Score, With<Player>>();
@@ -147,10 +152,24 @@ fn run_victory_screens<W: std::io::Write>(
         (world.resource::<PlayerName>().what.clone(), score)
     };
     let _ = models::leaderboard::record(&name, models::leaderboard::Outcome::Win, score);
+    let dump = morgue::write(
+        world,
+        &screen.shown_text(),
+        models::leaderboard::Outcome::Win,
+    )
+    .ok();
 
     view::render_win(stdout, screen, offset, &name, score)?;
     wait_for_key(|_| true)?;
-    Ok(())
+    Ok(dump)
+}
+
+/// Says where the run dump went, once the terminal is back to normal so the
+/// line stays in the scrollback. Nothing when no dump was written.
+fn print_dump_path(dump: Option<PathBuf>) {
+    if let Some(path) = dump {
+        println!("{}", strings::morgue_written(&path.display().to_string()));
+    }
 }
 
 /// Prints every name the content tables know, grouped by category. Reads the
@@ -657,14 +676,16 @@ fn main() -> std::io::Result<()> {
     }
 
     if world.resource::<Ending>().player_won {
-        run_victory_screens(&mut world, &mut stdout, &mut screen)?;
+        let dump = run_victory_screens(&mut world, &mut stdout, &mut screen)?;
         if no_save {
             drop(guard);
+            print_dump_path(dump);
             println!("{}", strings::clear_data_not_saved());
             return Ok(());
         }
         let save_result = models::save_game(&mut world, &save_path);
         drop(guard);
+        print_dump_path(dump);
         match save_result {
             Ok(()) => println!("{}", strings::clear_data_saved(&shown_path)),
             Err(e) => eprintln!("{}", strings::failed_to_save_clear_data(&e.to_string())),
@@ -673,8 +694,9 @@ fn main() -> std::io::Result<()> {
     }
 
     if world.resource::<Ending>().player_dead {
-        run_death_screens(&mut world, &mut stdout, &mut screen, &save_path)?;
+        let dump = run_death_screens(&mut world, &mut stdout, &mut screen, &save_path)?;
         drop(guard);
+        print_dump_path(dump);
         return Ok(());
     }
 

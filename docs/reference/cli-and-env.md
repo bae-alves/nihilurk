@@ -149,6 +149,8 @@ The game needs a terminal of at least 80 columns by 25 rows. In a smaller one th
 
 `-scores` reads the same way, straight off `leaderboard.sav` in the data directory (see `NIHILURK_DATA` below) -- a small versioned postcard file, like a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)`, where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended. A leaderboard it can't read, damaged or from another version, is named on stderr and never overwritten: no score is recorded until it is moved away. Two runs ending at once take turns at the file through `leaderboard.sav.lock`.
 
+A run that ends in a win or a death also leaves a run dump, `morgue/NAME-YYYYMMDD-HHMMSS.txt` in the data directory (UTC; any character of `NAME` that is not a letter, a digit, `-` or `_` becomes `_`). It is plain text for sharing: the outcome, cause, depth and score, the final screen, the pack, every kill by name (most first) and the message log. The path is printed once the terminal is back. `-ns` does not stop it -- a dump is a record of the run, like the leaderboard, not a save. A dump never overwrites another, and one that can't be written is skipped without a word.
+
 `-s` fixes the dungeon's *maps*. Every floor's walls are a pure function of `(seed, depth)`, so floor 7 of seed 1234 is the same maze today, tomorrow, after you reload a save, and after somebody adds a monster to the bestiary. Its *contents* -- monsters, loot, traps -- are re-rolled each time you enter the floor (they key off the staircase count as well), so walking back up through floor 7 finds the same corridors freshly stocked. How you play still does not reach into generation: two runs on one seed that take the same staircases see the same everything.
 
 
@@ -244,7 +246,7 @@ Anything unrecognised falls back to a random roll.
 
 ### NIHILURK_DATA
 
-The directory nihilurk keeps its files in: saves, `bones-N.sav` and `leaderboard.sav`. Set, it wins. Unset or empty, the OS convention decides (`models::data_dir`):
+The directory nihilurk keeps its files in: saves, `bones-N.sav`, `leaderboard.sav` and the run dumps in `morgue/`. Set, it wins. Unset or empty, the OS convention decides (`models::data_dir`):
 
 | OS              | Data directory                                              |
 |-----------------|-------------------------------------------------------------|

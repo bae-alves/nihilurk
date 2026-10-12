@@ -259,6 +259,10 @@ fn pay_for_the_corpse(world: &mut World, victim: Entity) {
         None => 1,
     };
     award_kill(world, max_hp * mult);
+    let name = entity_name(world, victim);
+    if let Some(mut kills) = world.get_resource_mut::<Kills>() {
+        *kills.by_name.entry(name).or_default() += 1;
+    }
     crate::body::feed(world);
 }
 

@@ -1936,6 +1936,16 @@ pub struct FloorChanges {
     pub count: u32,
 }
 
+/// Every corpse this run has produced, counted under the name it died with —
+/// the same words the log used, so a disguise or a bones ghost is tallied as
+/// what the player saw. Bumped wherever the score pays for a corpse, so a
+/// helper's death is no kill. Saved, and read by the run dump.
+#[derive(Resource, Default)]
+pub struct Kills {
+    /// How many of each, by name.
+    pub by_name: std::collections::BTreeMap<String, u32>,
+}
+
 /// Tracks how long the player has lingered on one dungeon level. Every turn adds
 /// one; every level change resets it to zero. When it reaches
 /// [`crate::map::DUNGEON_LORD_PATIENCE`] the Dungeon Lord opens a portal under

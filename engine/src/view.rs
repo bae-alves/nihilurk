@@ -1158,9 +1158,26 @@ pub fn render_win<W: Write>(
     Ok(())
 }
 
+/// What a pack row calls `item`: its name as the player knows it, and a
+/// wand's charges.
+pub(crate) fn pack_name(world: &World, item: Entity) -> String {
+    match world.get::<Battery>(item) {
+        Some(b) => format!("{} ({})", models::display_name(world, item), b.charges),
+        None => models::display_name(world, item),
+    }
+}
+
+/// Whether `item` is on somebody, for a pack row's equipped mark.
+pub(crate) fn is_worn(world: &World, item: Entity) -> bool {
+    world
+        .get::<Equipped>(item)
+        .is_some_and(|eq| eq.by.is_some())
+}
+
 /// One inventory row's full text: `" a) +1 ring mail (E) "`. The one place
-/// this shape lives, so sizing the box and drawing a row can never disagree.
-fn row_text(letter: char, name: &str, equipped: bool) -> String {
+/// this shape lives, so sizing the box, drawing a row and the run dump can
+/// never disagree.
+pub(crate) fn row_text(letter: char, name: &str, equipped: bool) -> String {
     let suffix = if equipped {
         strings::equipped_suffix()
     } else {
@@ -1273,11 +1290,8 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
             .into_iter()
             .filter_map(|i| entities.get(i).map(|&e| (i, e)))
             .map(|(i, e)| {
-                let name = match world.get::<Battery>(e) {
-                    Some(b) => format!("{} ({})", models::display_name(world, e), b.charges),
-                    None => models::display_name(world, e),
-                };
-                let equipped = world.get::<Equipped>(e).is_some_and(|eq| eq.by.is_some());
+                let name = pack_name(world, e);
+                let equipped = is_worn(world, e);
                 let cursed_known =
                     models::known_quality(world, e) && world.get::<Curse>(e).is_some();
                 (i, name, equipped, cursed_known)

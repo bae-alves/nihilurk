@@ -446,6 +446,7 @@ Unlike every other animation in the game the shake **never blocks input** — se
 | `Depth`        | `what: u8` — current floor, 1-based | yes    |
 | `FloorChanges` | `count: u32` — staircase/portal/trapdoor traversals this run; salts `content_rng` so a repeat visit re-stocks the same layout | yes |
 | `PlayerName`   | `what: String`                      | yes    |
+| `Kills`        | `by_name: BTreeMap<String, u32>` — every corpse the score paid for, under the name it died with; read by the run dump | yes |
 | `DungeonLord`  | `idle_turns: u32` — turns lingered on this floor; at `DUNGEON_LORD_PATIENCE` a portal opens | **transient** (resets to 0) |
 
 `GameLog::add()` pushes plain text to both `history` and `unread`. `GameLog::add_colored(message, category)` is the same, except the copy that lands in `unread` — a `LogEntry` — also carries a `LogCategory`. `history` never gets painted, so it stays bare `String`.

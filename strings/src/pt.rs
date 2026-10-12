@@ -31,7 +31,9 @@ pub use super::en::{
     conflicting_bodies, content_group_header, content_header, content_spawn_hint,
     failed_to_save_clear_data, failed_to_save_game, game_not_saved, game_saved, help_text,
     invalid_save, leaderboard_empty, leaderboard_entry, leaderboard_header, leaderboard_unreadable,
-    no_such_body, no_such_monster, no_such_pride_flag, stray_positional, world_keeps_its_light,
+    morgue_ended, morgue_header, morgue_kills_title, morgue_messages_title, morgue_pack_title,
+    morgue_screen_title, morgue_summary, morgue_written, no_such_body, no_such_monster,
+    no_such_pride_flag, stray_positional, world_keeps_its_light,
 };
 
 /// Content ids stay untranslated (see `content_name` above), so one can
