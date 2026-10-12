@@ -20,3 +20,4 @@
 # sessions, so a contributor's Claude should not read it. See .claude/README.md.
 /.claude/*.local.md
 /.claude/settings.local.json
+/.claude/plans/
