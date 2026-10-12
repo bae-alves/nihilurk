@@ -41,7 +41,7 @@ pub(crate) use generate::pristine_tiles;
 pub use generate::{create_map, regenerate_map};
 pub use levels::*;
 pub use overlays::*;
-pub use population::difficulty_tier;
+pub use population::{Danger, LevelFeeling, Riches, difficulty_tier, level_feeling};
 pub use streams::*;
 
 pub(crate) use levels::{LevelChange, transition_level, win_with_style};
@@ -145,7 +145,7 @@ pub enum SpecialLevel {
     /// An ordinary floor with a castle in the middle of it: a keep (`KEEP_SIZE`
     /// square in `map::special`) with a dragon inside and a walled tower
     /// (`TOWER_SIZE`) on each corner, every one of them stocked like a whole floor
-    /// of its own. It arrives without a word.
+    /// of its own. It arrives without a special-level line (the level feeling still speaks).
     Castle,
 }
 

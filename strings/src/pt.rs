@@ -1392,6 +1392,26 @@ pub fn dark_room_enter() -> &'static str {
     "Está muito escuro aqui."
 }
 
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn feeling_safe() -> &'static str {
+    "Este andar parece seguro."
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn feeling_dangerous() -> &'static str {
+    "Este andar parece perigoso."
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn feeling_poor() -> &'static str {
+    "Você sente pouco valor aqui."
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn feeling_rich() -> &'static str {
+    "Você sente riquezas aqui."
+}
+
 pub fn labyrinth_arrival() -> &'static str {
     "Boas-vindas a um mundo de trevas."
 }
@@ -2968,4 +2988,12 @@ pub fn cannot_charge_in_the_thick_of_it() -> &'static str {
 // TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn invalid_argument(arg: &str) -> String {
     format!("argumento inválido {arg}. Veja -help para mais informações")
+}
+
+// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn no_other_weapon() -> &'static str {
+    ""
 }

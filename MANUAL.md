@@ -306,6 +306,8 @@ The descent and the return
 
 Take the down stairs to reach deeper floors. On the thirteenth floor there is no staircase down. The Element of Yoord waits there instead.
 
+Taking a staircase tells you how the new floor looks against the usual for its depth. A magenta line says it is dangerous, a dark magenta one says it is safe. A yellow line says it is rich, a dark yellow one says it is poor. An ordinary floor says nothing. The count covers every monster and every item, hidden ones included. Trapdoors and portals give no feeling.
+
 When you take the Element, you must climb instead of descend. The creatures you meet may be drawn from anywhere in the dungeon.
 
 To win, carry the Element up and walk out of the dungeon from the first floor. A portal can move you between floors, but it cannot win the expedition for you.

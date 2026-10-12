@@ -609,6 +609,7 @@ OPTIONS
     -ns, --no-save             do not write a save file
     -nb, --no-blood            disable blood and corpse animation
     -nshake, --no-shake        disable screen shake
+    -mouse, --mouse            left click looks, right click travels
     -nobones, --no-bones       skip the bones mechanic (saving and loading a run's own)
     -endless, --endless        no Element of Yoord, no way up, no way to win: just floors
     -anim-rate, --anim-rate N  set animation pacing multiplier (0.1..=5.0)
@@ -810,6 +811,10 @@ pub fn pack_nothing_zap() -> &'static str {
 }
 pub fn pack_nothing_wield() -> &'static str {
     "You have nothing to wield."
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn no_other_weapon() -> &'static str {
+    "You have no other weapon you know well enough to switch to."
 }
 pub fn pack_nothing_wear() -> &'static str {
     "You have nothing to wear."
@@ -1395,6 +1400,26 @@ pub fn monster_zoo_enter() -> &'static str {
 // TODO: placeholder English; needs a human's pass.
 pub fn dark_room_enter() -> &'static str {
     "It is very dark in here."
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn feeling_safe() -> &'static str {
+    "This floor feels safe."
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn feeling_dangerous() -> &'static str {
+    "This floor feels dangerous."
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn feeling_poor() -> &'static str {
+    "You sense little of value here."
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn feeling_rich() -> &'static str {
+    "You sense riches here."
 }
 
 pub fn labyrinth_arrival() -> &'static str {
@@ -2433,7 +2458,7 @@ pub fn help_rows() -> [&'static str; 14] {
         "f v         fire, reach attack",
         "Z ;         spells, look",
         "Alt+QWER    cast spell slots 1-4",
-        "A x Q       auto-pickup, close a menu, quit",
+        "A x Esc     auto-pickup, swap weapon/launcher, quit",
     ]
 }
 

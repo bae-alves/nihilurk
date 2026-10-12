@@ -91,6 +91,32 @@ fn trapdoor_drops_the_player_a_floor_with_no_heal() {
 }
 
 #[test]
+fn a_fall_gives_no_level_feeling() {
+    let mut felt = 0;
+    for seed in 1..=40 {
+        let mut w = test_world(seed);
+        clear_traps(&mut w);
+        let here = player_pos(&mut w);
+        w.spawn(TrapBundle::trapdoor(here));
+        step_player_onto(&mut w, here.x, here.y);
+        trap_system(&mut w);
+        assert_eq!(w.resource::<Depth>().what, 2);
+
+        let f = level_feeling(&mut w);
+        felt += (f.danger.is_some() || f.riches.is_some()) as u32;
+        for line in [
+            strings::feeling_safe(),
+            strings::feeling_dangerous(),
+            strings::feeling_poor(),
+            strings::feeling_rich(),
+        ] {
+            assert!(!log_contains(&w, line), "seed {seed}: a fall said {line}");
+        }
+    }
+    assert!(felt > 0, "no floor in forty had a feeling to leave out");
+}
+
+#[test]
 fn trapdoor_on_the_deepest_floor_only_fizzles() {
     let mut w = test_world(7);
     w.resource_mut::<Depth>().what = models::FINAL_DEPTH;

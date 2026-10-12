@@ -232,6 +232,9 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
     world
         .resource_mut::<GameLog>()
         .add(arrival_line(cause, going_down, depth));
+    if cause == LevelChange::Stairs {
+        log_level_feeling(world);
+    }
     if world.resource::<crate::bones::Bones>().enabled && holding_element_of_yoord(world) {
         spawn_bones_ghost(world, depth, &rooms);
     }
@@ -241,6 +244,28 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         for line in lines {
             log.add(line);
         }
+    }
+}
+
+/// Says how dangerous and how rich the floor just built is, each in its own
+/// colour, and only where it is off what its depth promises.
+fn log_level_feeling(world: &mut World) {
+    use super::population::{Danger, Riches, level_feeling};
+
+    let feeling = level_feeling(world);
+    let lines = [
+        feeling.danger.map(|d| match d {
+            Danger::Safe => (strings::feeling_safe(), Color::DarkMagenta),
+            Danger::Dangerous => (strings::feeling_dangerous(), Color::Magenta),
+        }),
+        feeling.riches.map(|r| match r {
+            Riches::Poor => (strings::feeling_poor(), Color::DarkYellow),
+            Riches::Rich => (strings::feeling_rich(), Color::Yellow),
+        }),
+    ];
+    let mut log = world.resource_mut::<GameLog>();
+    for (text, color) in lines.into_iter().flatten() {
+        log.add_colored(text, LogCategory::Room(color));
     }
 }
 
@@ -636,7 +661,9 @@ const KIT_WEAPON: usize = 1;
 /// potion of healing. Every piece is spawned at the origin like a drop, then
 /// lifted straight into the pack (Position stripped, the way a picked-up item
 /// loses it) so it never shows up as floor loot. The armour, mace and bow are
-/// handed over enchanted to +1 rather than rolled.
+/// handed over enchanted to +1 rather than rolled; the bow is also marked
+/// known, since nothing but wielding it would ever reveal it and the weapon
+/// swap skips unknown gear.
 fn starting_kit(world: &mut World) -> Vec<Entity> {
     let origin = Position { x: 0, y: 0 };
     let pack_up = |world: &mut World, item: Entity| {
@@ -656,7 +683,7 @@ fn starting_kit(world: &mut World) -> Vec<Entity> {
     let shortbow = spawn_launcher(world, "short bow", origin);
     world
         .entity_mut(shortbow)
-        .insert(crate::effects::ThrowBonus(1));
+        .insert((crate::effects::ThrowBonus(1), crate::KnownQuality));
     pack_up(world, shortbow);
 
     let arrows = spawn_ammo(world, "arrow", origin);

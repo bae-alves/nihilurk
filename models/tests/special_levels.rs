@@ -418,10 +418,22 @@ fn a_castle_is_a_keep_with_four_towers_and_a_dragon_inside() {
     );
     assert_eq!(gates, 2, "seed {seed} depth {depth}: a gate on each side");
 
-    assert_eq!(
-        w.resource::<GameLog>().history.last().map(String::as_str),
-        Some(strings::descend_stairs(depth).as_str()),
-        "seed {seed} depth {depth}: a castle arrives without a word"
+    let feelings = [
+        strings::feeling_safe(),
+        strings::feeling_dangerous(),
+        strings::feeling_poor(),
+        strings::feeling_rich(),
+    ];
+    let history = &w.resource::<GameLog>().history;
+    let descended = history
+        .iter()
+        .rposition(|l| *l == strings::descend_stairs(depth))
+        .expect("the stairs were logged");
+    assert!(
+        history[descended + 1..]
+            .iter()
+            .all(|l| feelings.contains(&l.as_str())),
+        "seed {seed} depth {depth}: a castle arrives without a word beyond the feeling"
     );
 }
 

@@ -364,6 +364,20 @@ pub mod population {
     /// runs once per difficulty tier instead).
     pub const BEE_WORLD_ITEM_RUNS: usize = 3;
 
+    /// Where the level feeling draws its lines, per difficulty tier: a floor
+    /// with at most `.0` monsters feels safe, one with more than `.1` feels
+    /// dangerous. Cut from the counts 300 seeds of floors actually held, so
+    /// about one floor in ten reads safe and one in seven reads dangerous.
+    ///
+    /// **If you change a budget above:** the shape of these counts moves with
+    /// it. `models/tests/level_feeling.rs` fails when a line stops firing or
+    /// starts firing on most floors; re-cut the numbers then.
+    pub const FEELING_MONSTERS: [(usize, usize); 5] = [(2, 4), (3, 7), (5, 11), (6, 14), (7, 14)];
+
+    /// [`FEELING_MONSTERS`] for items on the floor: at most `.0` feels poor,
+    /// more than `.1` feels rich.
+    pub const FEELING_ITEMS: [(usize, usize); 5] = [(5, 11), (6, 13), (7, 15), (8, 17), (10, 19)];
+
     /// How many times a placement will re-roll before giving the slot up.
     ///
     /// Ten, not a hundred. A floor is a few hundred open tiles holding a dozen

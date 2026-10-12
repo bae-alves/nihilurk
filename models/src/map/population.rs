@@ -22,11 +22,11 @@ use crate::catalog::{COINS, PROGRESSION_ITEMS, spawn_element_of_yoord};
 use crate::components::*;
 use crate::constants::population::{
     BATTLEFIELD_ITEM_RUNS, BATTLEFIELD_MONSTER_RUNS, BEE_WORLD_ITEM_RUNS, CORRIDOR_LURKER_CHANCE,
-    CORRIDOR_LURKER_MIN_DEPTH, HIDDEN_ITEM_CHANCE, ITEM_SLOTS_BASE, MONSTER_FILL_CHANCE_BASE,
-    MONSTER_FILL_CHANCE_CAP, MONSTER_FILL_CHANCE_PER_TIER, MONSTER_SLOTS_BASE,
-    ORDINARY_BUDGET_RUNS, PLACEMENT_TRIES, START_CLEARING_RADIUS, TRAP_FILL_CHANCE_BASE,
-    TRAP_FILL_CHANCE_CAP, TRAP_FILL_CHANCE_PER_TIER, TRAP_SLOTS_BASE, VAULT_ITEM_RUNS,
-    VAULT_MONSTER_RUNS,
+    CORRIDOR_LURKER_MIN_DEPTH, FEELING_ITEMS, FEELING_MONSTERS, HIDDEN_ITEM_CHANCE,
+    ITEM_SLOTS_BASE, MONSTER_FILL_CHANCE_BASE, MONSTER_FILL_CHANCE_CAP,
+    MONSTER_FILL_CHANCE_PER_TIER, MONSTER_SLOTS_BASE, ORDINARY_BUDGET_RUNS, PLACEMENT_TRIES,
+    START_CLEARING_RADIUS, TRAP_FILL_CHANCE_BASE, TRAP_FILL_CHANCE_CAP, TRAP_FILL_CHANCE_PER_TIER,
+    TRAP_SLOTS_BASE, VAULT_ITEM_RUNS, VAULT_MONSTER_RUNS,
 };
 use crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 
@@ -403,6 +403,72 @@ fn populate_castle(
         let room = std::slice::from_ref(room);
         spawn_monster_budget(world, room, occupied, rng, tier, pick_species);
         spawn_item_budget(world, room, occupied, items, rng, depth, tier);
+    }
+}
+
+/// How crowded a floor is against what its depth usually holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Danger {
+    /// Far fewer monsters than the depth promises.
+    Safe,
+    /// Far more.
+    Dangerous,
+}
+
+/// How much loot a floor holds against what its depth usually holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Riches {
+    /// Far fewer items than the depth promises.
+    Poor,
+    /// Far more.
+    Rich,
+}
+
+/// What the player senses on arriving: `None` on an axis means the floor is
+/// about what its depth promises.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LevelFeeling {
+    /// The monster axis.
+    pub danger: Option<Danger>,
+    /// The item axis.
+    pub riches: Option<Riches>,
+}
+
+/// Scores the floor the world holds now. Counts every [`Mob`] but the player
+/// and [`Helper`]s, and every [`Item`] lying on the floor (hidden ones and the
+/// Element of Yoord included), and sets each against the cutoffs for the
+/// floor's difficulty tier ([`FEELING_MONSTERS`], [`FEELING_ITEMS`]). A vault
+/// or a castle reads rich and dangerous because it is.
+pub fn level_feeling(world: &mut World) -> LevelFeeling {
+    let depth = world.get_resource::<Depth>().map_or(1, |d| d.what);
+    let tier = difficulty_tier(depth) as usize;
+    let (safe_max, dangerous_min) = FEELING_MONSTERS[tier.min(FEELING_MONSTERS.len() - 1)];
+    let (poor_max, rich_min) = FEELING_ITEMS[tier.min(FEELING_ITEMS.len() - 1)];
+
+    let monsters = world
+        .query_filtered::<(), (With<Mob>, Without<Player>, Without<Helper>, With<Position>)>()
+        .iter(world)
+        .count();
+    let items = world
+        .query_filtered::<(), (With<Item>, With<Position>)>()
+        .iter(world)
+        .count();
+
+    LevelFeeling {
+        danger: if monsters <= safe_max {
+            Some(Danger::Safe)
+        } else if monsters > dangerous_min {
+            Some(Danger::Dangerous)
+        } else {
+            None
+        },
+        riches: if items <= poor_max {
+            Some(Riches::Poor)
+        } else if items > rich_min {
+            Some(Riches::Rich)
+        } else {
+            None
+        },
     }
 }
 
