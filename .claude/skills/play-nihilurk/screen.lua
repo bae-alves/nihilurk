@@ -10,11 +10,18 @@
 
 local M = {}
 
-local function utf8_len(lead)
-    if lead >= 0xF0 then return 4 end
-    if lead >= 0xE0 then return 3 end
-    if lead >= 0xC0 then return 2 end
-    return 1
+--- How many bytes the UTF-8 glyph at `i` takes, or nil when the bytes there
+--- are not one: a stray tail byte, or a lead whose tail is cut short. A nil
+--- glyph is dropped, so it can never carry a control byte onto the screen.
+local function glyph_len(raw, i)
+    local lead = raw:byte(i)
+    local len = lead < 0x80 and 1 or lead >= 0xF8 and 0 or lead >= 0xF0 and 4
+        or lead >= 0xE0 and 3 or lead >= 0xC0 and 2 or 0
+    for k = i + 1, i + len - 1 do
+        local b = raw:byte(k)
+        if not b or b < 0x80 or b > 0xBF then return nil end
+    end
+    return len > 0 and len or nil
 end
 
 -- crossterm's names for the sixteen ANSI colours, by index.
@@ -111,10 +118,10 @@ local function run(raw, rows, cols)
             row, i = math.min(row + 1, rows), i + 1
         elseif b == 8 then
             col, i = math.max(col - 1, 1), i + 1
-        elseif b < 32 or b == 127 then
+        elseif b < 32 or b == 127 or not glyph_len(raw, i) then
             i = i + 1
         else
-            local len = utf8_len(b)
+            local len = glyph_len(raw, i)
             if col <= cols then
                 grid[row][col] = raw:sub(i, i + len - 1)
                 bgs[row][col] = bg

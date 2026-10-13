@@ -28,8 +28,9 @@
 #   -c CMD     run CMD in the pty instead of the game: for testing this script
 #   -k FILE    keep the raw bytes the game wrote, for screen.lua
 #
-# The game runs from a scratch directory with -ns -nobones -nshake -nb, so it
-# writes no save, bones or leaderboard into the repo, and it is killed when the
+# The game runs from a scratch directory, which is also its data directory,
+# with -ns -nobones -nshake -nb, so it writes no save or bones, never reads your
+# keymap or writes to your leaderboard and morgue, and it is killed when the
 # keys run out. Linux: `script` is util-linux's.
 
 set -euo pipefail
@@ -84,7 +85,7 @@ trap cleanup EXIT
 
 mkfifo "$work/in"
 cd "$work"
-NIHILURK_SPAWN="$spawn" NIHILURK_LEVEL="$level" script -qefc "echo \$\$ > '$work/pid'; stty rows $rows cols $cols; $command" /dev/null \
+NIHILURK_SPAWN="$spawn" NIHILURK_LEVEL="$level" NIHILURK_DATA="$work" SHELL=/bin/sh script -qefc "echo \$\$ > '$work/pid'; stty rows $rows cols $cols; $command" /dev/null \
     < "$work/in" > "$work/raw" 2>&1 &
 exec 3> "$work/in"
 sleep "$wait_first"

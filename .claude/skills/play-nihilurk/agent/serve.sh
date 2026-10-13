@@ -3,32 +3,52 @@
 # Serves one nihilurk run over a socket: a line in is a key, a percept out is
 # what the screen shows once the game has settled.
 #
-#   serve.sh listen [GAME FLAGS...]       start a run, serve it on :7777, one client at a time
-#   serve.sh start DIR [-c CMD | FLAGS]   start a run in DIR (fifo, raw bytes, pid);
+#   serve.sh listen [GAME FLAGS...]       start a run, serve it on :7777, one client at a time,
+#                                         bound to $NIHILURK_BIND (default 127.0.0.1)
+#   serve.sh start DIR [-c CMD | FLAGS]   start a run in DIR (fifo, raw bytes, pid, born), which
+#                                         you own and others cannot write to;
 #                                         the binary is $NIHILURK_BIN, else `nihilurk`
 #   serve.sh session DIR                  serve the run in DIR over stdin/stdout
 #
 # The game is the unchanged binary in a 25x80 pty, run with
 # -ns -nobones -nshake -nb -anim-rate 0.1, so nothing is saved and the feel
-# layer has finished before a percept is taken. `-c CMD` swaps the game for
-# a stand-in, for testing this script.
+# layer has finished before a percept is taken. Its data directory is DIR, so
+# it never reads your keymap or writes to your leaderboard and morgue. `-c CMD`
+# swaps the game for a stand-in, for testing this script.
 #
 # A line is typed through `printf %b`, as play.sh does (`\r`, `\e`, `\eq` for
-# Alt+q). An empty line types nothing and gets the percept again. A percept is
-# the 25 screen rows, then one `ROW COL GLYPH COLOUR` line per cell on a
-# coloured background, then `end`, or `over` once the game has exited. A
-# session gets a percept on connect and one per line after that. The run
-# outlives the session, so a client can hang up and come back; once it is
-# over, every session gets the last percept and `over`. Sessions take turns:
-# one that arrives mid-session waits for the other to hang up. A run no
-# session touches for $NIHILURK_IDLE seconds (default 1800, 0 never) is killed.
+# Alt+q); a line over 4096 bytes is cut into keys of that size. An empty line
+# types nothing and gets the percept again. A percept is the 25 screen rows,
+# then one `ROW COL GLYPH COLOUR` line per cell on a coloured background, then
+# `end`, or `over` once the game has exited. A session gets a percept on
+# connect and one per line after that. The run outlives the session, so a
+# client can hang up and come back; once it is over, every session gets the
+# last percept and `over`. Sessions take turns: one that arrives mid-session
+# waits for the other to hang up. A run no session touches for $NIHILURK_IDLE
+# seconds (set on start; default 1800, 0 never) is killed, and a session that
+# sends no line for that long is hung up on.
 
 set -euo pipefail
+umask 077
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 screen="$here/../screen.lua"
 
-alive() { kill -0 "$(cat "$dir/pid")" 2>/dev/null; }
+# When process $1 started, in clock ticks since boot (field 22 of its stat), or
+# nothing once it is gone. A pid can be reused; a pid and its start time cannot.
+born() {
+    local stat fields
+    [[ "$1" =~ ^[0-9]+$ ]] || return 0
+    stat="$(cat "/proc/$1/stat" 2>/dev/null)" || return 0
+    read -ra fields <<< "${stat##*) }"
+    echo "${fields[19]}"
+}
+
+alive() {
+    local now
+    now="$(born "$(cat "$dir/pid" 2>/dev/null)")"
+    [[ -n "$now" && "$now" == "$(cat "$dir/born")" ]]
+}
 
 # ponytail: quiet bytes stand in for "the game waits on a key". Every busy
 # loop repaints well inside 250 ms; an engine-side ready signal is the upgrade
@@ -55,28 +75,35 @@ percept() {
 # (default 1800; 0 never), so a forgotten run does not hold its pty forever.
 reap_when_idle() {
     local idle="${NIHILURK_IDLE:-1800}"
+    echo "$idle" > "$dir/idle"
     (( idle > 0 )) || return 0
     touch "$dir/seen"
     while alive; do
         sleep 1
-        (( $(date +%s) - $(stat -c %Y "$dir/seen") < idle )) || kill "$(cat "$dir/pid")" 2> /dev/null || true
+        (( $(date +%s) - $(stat -c %Y "$dir/seen") < idle )) || ! alive || kill "$(cat "$dir/pid")" 2> /dev/null || true
     done < /dev/null > /dev/null 2>&1 &
 }
 
 start() {
     dir="$1"
     shift
-    local cmd
+    if [[ ! -d "$dir" || ! -O "$dir" || "$(stat -c %A "$dir")" =~ ^.{8}w ]]; then
+        echo "serve.sh: $dir must be a directory you own that others cannot write to" >&2
+        exit 2
+    fi
+    local cmd pid
     if [[ "${1:-}" == -c ]]; then
         cmd="$2"
     else
-        cmd="${NIHILURK_BIN:-nihilurk} -ns -nobones -nshake -nb -anim-rate 0.1 $(printf '%q ' "$@")"
+        cmd="$(printf '%q' "${NIHILURK_BIN:-nihilurk}") -ns -nobones -nshake -nb -anim-rate 0.1 $(printf '%q ' "$@")"
     fi
+    printf -v pid '%q' "$dir/pid"
     mkfifo "$dir/in"
-    (cd "$dir" && exec script -qefc "echo \$\$ > '$dir/pid'; stty rows 25 cols 80; exec $cmd" /dev/null \
+    (cd "$dir" && NIHILURK_DATA="$dir" SHELL=/bin/sh exec script -qefc "echo \$\$ > $pid; stty rows 25 cols 80; exec $cmd" /dev/null \
         0<> "$dir/in" > "$dir/raw" 2>&1) &
     local tries=0
     until [[ -s "$dir/pid" ]] || (( tries++ > 100 )); do sleep 0.05; done
+    born "$(cat "$dir/pid" 2>/dev/null)" > "$dir/born"
     reap_when_idle
 }
 
@@ -88,8 +115,10 @@ session() {
     touch "$dir/seen"
     settle
     percept || return 0
-    local line
-    while IFS= read -r line; do
+    local line secs idle=()
+    secs="$(< "$dir/idle")"
+    (( secs > 0 )) && idle=(-t "$secs")
+    while IFS= read -r -n 4096 "${idle[@]}" line; do
         touch "$dir/seen"
         printf '%b' "${line%$'\r'}" >&4
         settle
@@ -100,7 +129,7 @@ session() {
 listen() {
     dir="$(mktemp -d)"
     start "$dir" "$@"
-    exec socat TCP-LISTEN:7777,reuseaddr,fork,max-children=1 EXEC:"$here/serve.sh session $dir"
+    exec socat TCP-LISTEN:7777,bind="${NIHILURK_BIND:-127.0.0.1}",reuseaddr,fork,max-children=1 EXEC:"$here/serve.sh session $dir"
 }
 
 case "${1:-}" in

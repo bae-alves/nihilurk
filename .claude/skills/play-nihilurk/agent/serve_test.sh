@@ -6,6 +6,7 @@
 # talks over the socket.
 
 set -euo pipefail
+unset NIHILURK_BIN NIHILURK_BIND NIHILURK_DATA NIHILURK_IDLE
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 serve="$here/serve.sh"
 
@@ -84,5 +85,107 @@ NIHILURK_IDLE=1 game cat
 sleep 2.5
 out="$("$serve" session "$dir" < /dev/null)"
 [[ "$(tail -n 1 <<< "$out")" == over ]] || fail "idle run still alive: $out"
+
+# 11. The game keeps its data in the run directory, never the player's own
+#     leaderboard, morgue or keymap.
+NIHILURK_DATA=/elsewhere game "printenv NIHILURK_DATA"
+out="$("$serve" session "$dir" < /dev/null)"
+grep -qxF "$dir" <<< "$out" || fail "NIHILURK_DATA is not the run dir: $out"
+
+# 12. A session that sends nothing for NIHILURK_IDLE seconds hangs up, so a
+#     silent client cannot hold the run's turn forever.
+NIHILURK_IDLE=1 game cat
+sleep 10 | "$serve" session "$dir" > /dev/null &
+quiet=$!
+sleep 0.3
+timeout 5 "$serve" session "$dir" < /dev/null > /dev/null || fail "a silent session kept its turn"
+kill -0 "$quiet" 2>/dev/null && fail "the silent session is still open"
+wait "$quiet" || true
+
+# 13. A line is cut at 4096 bytes, so a client cannot fill memory with one.
+game cat
+out="$({ head -c 9000 /dev/zero | tr '\0' a; echo; } | "$serve" session "$dir")"
+[[ "$(grep -cx end <<< "$out")" == 4 ]] || fail "want 4 percepts for a 9000-byte line: $(grep -cx end <<< "$out")"
+
+# 14. start refuses a directory other users can write into, and keeps what it
+#     makes private.
+dir="$(mktemp -d)"
+dirs+=("$dir")
+chmod 777 "$dir"
+"$serve" start "$dir" -c cat 2> /dev/null && fail "started in a world-writable dir"
+[[ ! -e "$dir/in" ]] || fail "touched a world-writable dir"
+game cat
+[[ "$(stat -c %a "$dir/raw")" == 600 ]] || fail "raw is not private: $(stat -c %a "$dir/raw")"
+
+# 15. A run directory with a quote in its name still works.
+dir="$(mktemp -d "${TMPDIR:-/tmp}/it's.XXXXXX")"
+dirs+=("$dir")
+"$serve" start "$dir" -c cat
+[[ -s "$dir/pid" ]] || fail "a quote in the dir broke start"
+
+# 16. listen binds 127.0.0.1 unless NIHILURK_BIND says otherwise. A stand-in
+#     socat prints how it was called.
+stub="$(mktemp -d)"
+dirs+=("$stub")
+printf '#!/bin/sh\necho "$@"\n' > "$stub/socat"
+chmod +x "$stub/socat"
+# Sets `args`; no subshell, so the run it starts reaches the cleanup.
+listened() {
+    args="$(PATH="$stub:$PATH" "$serve" listen -c cat)"
+    dirs+=("${args##* }")
+}
+listened
+grep -q 'TCP-LISTEN:7777,bind=127.0.0.1,' <<< "$args" || fail "listen is not on 127.0.0.1: $args"
+NIHILURK_BIND=0.0.0.0 listened
+grep -q 'TCP-LISTEN:7777,bind=0.0.0.0,' <<< "$args" || fail "NIHILURK_BIND ignored: $args"
+
+# 17. Once the game is gone, a process that takes its pid is not the game: the
+#     run answers `over` and the reaper leaves that process alone.
+NIHILURK_IDLE=1 game cat
+sleep 30 &
+other=$!
+real="$(cat "$dir/pid")"
+echo "$other" > "$dir/pid"
+kill "$real"
+sleep 2.5
+out="$("$serve" session "$dir" < /dev/null)"
+kill -0 "$other" 2>/dev/null || fail "the reaper killed a process that took the game's pid"
+kill "$other"
+[[ "$(tail -n 1 <<< "$out")" == over ]] || fail "a reused pid counts as the game: $out"
+
+# 18. The run starts whatever your shell is: `script` runs its command through
+#     $SHELL, and a fish or nologin shell cannot read that command.
+SHELL=/bin/false game cat
+[[ -s "$dir/pid" ]] || fail "\$SHELL ran the game: $(cat "$dir/raw")"
+
+# 19. A game that never starts leaves a run that is over, and `start` still
+#     returns: with no pid, `/proc//stat` is the kernel's stat file, not a game.
+#     A stand-in `script` that fails plays the game that never starts.
+broken="$(mktemp -d)"
+dirs+=("$broken")
+printf '#!/bin/sh\nexit 1\n' > "$broken/script"
+chmod +x "$broken/script"
+dir="$(mktemp -d)"
+dirs+=("$dir")
+PATH="$broken:$PATH" "$serve" start "$dir" -c cat 2> "$dir/err" || fail "start died with no pid: $(cat "$dir/err")"
+out="$("$serve" session "$dir" < /dev/null)"
+[[ "$(tail -n 1 <<< "$out")" == over ]] || fail "a run with no game is not over: $out"
+
+# 20. act.sh drops control bytes from what a server sends, C1 ones included,
+#     so a server it does not trust cannot drive the terminal it prints to.
+#     A stand-in serve.sh beside a copy of act.sh plays that server.
+fake="$(mktemp -d)"
+dirs+=("$fake")
+cp "$here/act.sh" "$fake/"
+cat > "$fake/serve.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '\033[2Jboom\a \302\23331mred\n'
+for ((i = 1; i < 25; i++)); do echo; done
+echo end
+EOF
+chmod +x "$fake/serve.sh"
+out="$("$fake/act.sh" -d "$fake")"
+grep -q 'boom' <<< "$out" || fail "act.sh lost the text: $out"
+LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f\x7f]\|\xc2[\x80-\x9f]' <<< "$out" && fail "act.sh passed control bytes: $(head -1 <<< "$out" | od -c | head -2)"
 
 echo "serve_test: ok"

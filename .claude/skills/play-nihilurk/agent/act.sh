@@ -8,7 +8,8 @@
 # Each KEY goes over as one line and waits for its percept; `?` prints the
 # percept at that point. The last percept always prints. With no KEY it prints
 # the percept on connect. Keys use play.sh's notation: `'\r'`, `'\e'`, `'\eq'`.
-# Bash's /dev/tcp does the connecting, so the host needs nothing else.
+# Bash's /dev/tcp does the connecting, so the host needs nothing else. Control
+# bytes from the server are dropped before anything prints.
 
 set -euo pipefail
 
@@ -30,15 +31,25 @@ else
     exec 3<> "/dev/tcp/$host/$port" 4>&3
 fi
 
+# Drops C0 and C1 control bytes (C1 as UTF-8) from `line`, so a server cannot
+# drive the terminal a percept is printed to.
+clean() {
+    local LC_ALL=C c1=$'\xc2[\x80-\x9f]'
+    line="${line//[[:cntrl:]]/}"
+    line="${line//$c1/}"
+}
+
 last=""
 take() {
     local line i
     last=""
     for ((i = 0; i < 25; i++)); do
         IFS= read -r line <&3 || { echo "act.sh: the server hung up" >&2; exit 1; }
+        clean
         last+="$line"$'\n'
     done
     while IFS= read -r line <&3; do
+        clean
         last+="$line"$'\n'
         [[ "$line" == end || "$line" == over ]] && return
     done

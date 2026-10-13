@@ -15,7 +15,7 @@ description: Play nihilurk to see a change working in the real game: start a run
     $a/act.sh -d "$d" ' ' y        # a key at a time; the last percept prints
     kill "$(cat "$d/pid")"; rm -rf "$d"
 
-`start` takes game flags after the directory (`-s 7`, `-b lurk`, `-am dragon`) and runs the game from that directory with `-ns -nobones -nshake -nb -anim-rate 0.1`, so it writes no save, bones or leaderboard, and the feel layer is gone. `NIHILURK_BIN` must be an absolute path. Without it, `start` runs the `nihilurk` on `PATH`, which is not your change. `NIHILURK_SPAWN` and `NIHILURK_LEVEL` (battlefield, labyrinth, vault, bee, castle, island) pass through.
+`start` takes game flags after the directory (`-s 7`, `-b lurk`, `-am dragon`) and runs the game from that directory with `-ns -nobones -nshake -nb -anim-rate 0.1`, so it writes no save or bones, and the feel layer is gone. The directory is also the game's data directory: your own keymap is not read (pass `-keymap FILE` to test one), and a run that ends leaves its `leaderboard.sav` and `morgue/` there, not in yours. It must be yours and closed to other users, as `mktemp -d` makes it; `start` refuses one that others can write into. `NIHILURK_BIN` must be an absolute path. Without it, `start` runs the `nihilurk` on `PATH`, which is not your change. `NIHILURK_SPAWN` and `NIHILURK_LEVEL` (battlefield, labyrinth, vault, bee, castle, island) pass through.
 
 A KEY is typed with `printf %b` escapes (`'\r'`, `'\e'`, `'\t'`, `'\eq'` for Alt+q). `?` prints the percept at that point in the list. An empty KEY (`''`) types nothing and gets the screen again. A percept is the 25 screen rows, then a `ROW COL GLYPH COLOUR` line for each cell on a coloured background (a status tint: paralysed Cyan, asleep DarkBlue, held DarkGreen), then `end`, or `over` once the game has exited.
 
@@ -49,7 +49,7 @@ Spawn order is placement order, nearest first, so list the thing under test firs
 - **You cannot pass a turn.** To let monsters act, walk away from them.
 - **The first step can kill.** A dragon one-shots nihil, an orc takes most of 12 HP, and a lurk has 6. To test an effect on a monster, spawn an **aquator**: awake, hostile, 9 HP, weak hits. Use a troll or quagga only when the test needs more. A yeti and an ice monster are immune to cold, a red demon is peaceful until the spirits turn, and a gnome is a peaceful spirit, so a spell that needs a hostile target skips them.
 - **Kill the run when done** with `kill "$(cat "$d/pid")"`. A forgotten run dies on its own after `NIHILURK_IDLE` seconds without a call (default 1800, `0` never; set it on `start`), and then answers `over`.
-- **Calls take turns.** Two `act.sh` calls on one run never interleave: the second waits for the first to finish. That also means a stuck call blocks the next one.
+- **Calls take turns.** Two `act.sh` calls on one run never interleave: the second waits for the first to finish. A call that goes quiet is hung up on after `NIHILURK_IDLE` seconds, so it cannot hold the run forever.
 
 ## Hand a run to another player
 
@@ -58,11 +58,14 @@ The same server runs in a container and listens on TCP port 7777, for a player t
     cargo build -q -p nihilurk --target x86_64-unknown-linux-musl
     docker build -t nihilurk-agent -f $a/Dockerfile .claude/skills/play-nihilurk
     docker run --rm -d -p 127.0.0.1:7777:7777 -e NIHILURK_SPAWN=aquator \
+        --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 \
         -v "$PWD/target/x86_64-unknown-linux-musl/debug/nihilurk:/usr/local/bin/nihilurk:ro" \
         nihilurk-agent -s 1
     $a/act.sh ' ' l                # no -d: talks to 127.0.0.1:7777 (-H, -p to change)
 
 The protocol is one key per line in, one percept out, plus one percept on connect. The run outlives a connection. Once it is over, every connection gets the last percept and `over` until `docker stop`. The image holds no game: it is the server, socat and lua, about 10 MiB running. The game is a static musl build from the host, mounted in at `docker run`, so a change needs a `cargo build` and a new container, not a new image. Rebuild the image only when `serve.sh` or `screen.lua` changes.
+
+The protocol has no login: whoever reaches the port plays the run. Publish it on `127.0.0.1` as above, and on another address only for a player on a network you trust. The flags on the second line run it read-only, with no capabilities and a cap on processes, and the server inside runs as an unprivileged user. `serve.sh listen` on the host binds `127.0.0.1` too; `NIHILURK_BIND` changes that (the image sets `0.0.0.0`, for Docker's port mapping).
 
 ## One-shot replay: play.sh
 

@@ -3,7 +3,8 @@
 #
 # play.sh against stand-ins for the game, so it needs no build: `cat` echoes
 # what is typed, `printf` paints a fixed cell, `sleep` proves the child is
-# killed when the keys run out.
+# killed when the keys run out. The last test asks the real game for -content,
+# so it builds the game.
 
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,9 +44,20 @@ out="$("$play" -w 0.5 -c "sh -c 'printf \"\\033[48;5;14mX\\033[49m\"; sleep 5'" 
 grep -q '^== backgrounds ==$' <<< "$out" || fail "no backgrounds header: $out"
 grep -q '^1 1 X Cyan$' <<< "$out" || fail "background cell not listed: $out"
 
-echo "play_test: ok"
+# 7. The game keeps its data in the scratch directory, never the player's own
+#    leaderboard, morgue or keymap.
+out="$(NIHILURK_DATA=/elsewhere "$play" -w 0.3 -c 'sh -c "printenv NIHILURK_DATA; pwd"')"
+data="$(sed -n 2p <<< "$out")"
+[[ -n "$data" && "$data" == "$(sed -n 3p <<< "$out")" ]] || fail "NIHILURK_DATA is not the scratch dir: $out"
 
-# 6. A spawn name -content does not list is warned about; dressing is not part of the name.
+# 8. The run starts whatever your shell is: `script` runs its command through
+#    $SHELL, and a fish or nologin shell cannot read that command.
+out="$(SHELL=/bin/false "$play" -w 0.3 -d 0.2 -c cat hi)"
+grep -q "^hi" <<< "$out" || fail "\$SHELL ran the game: $out"
+
+# 9. A spawn name -content does not list is warned about; dressing is not part of the name.
 err="$("$play" -w 0.3 -S "cursed -2 long sword,arrow x13,+3 ring mail,drgon" 2>&1 >/dev/null)"
 grep -q "'drgon' is not in -content" <<< "$err" || fail "no warning for a misspelt name: $err"
 [[ "$(grep -c warning <<< "$err")" == 1 ]] || fail "dressed names warned about: $err"
+
+echo "play_test: ok"
