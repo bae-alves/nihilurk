@@ -394,8 +394,8 @@ stage "Named identifiers"
 
 # Check 8 sees paths, not names, so a renamed function drifts silently. A
 # backticked snake_case or CamelCase word must be a word somewhere in the
-# source or a Cargo.toml. It warns and never fails. The leftovers below are
-# names from outside the repo, the tutorial inventions (which exist only in the
+# source, a Cargo.toml or a skill script. It warns and never fails. The
+# leftovers below are names from outside the repo, the tutorial inventions (which exist only in the
 # docs, on purpose; the list of record is .claude/tutorial-inventions.md, which
 # no script reads), and two illustrative names that only prose uses.
 EXTERNAL=' binfmt_misc LC_ALL CARGO_TARGET_DIR x86_64 nihilurk_models QueryState SystemSet RawMaster check_has_shell FireStone ice_bolt wear_ninja wear_wraithkin SightBonus second_pass spawn_named_entity '
@@ -403,6 +403,7 @@ KNOWN=$(mktemp)
 trap 'rm -f "$KNOWN"' EXIT
 { find models engine strings particle-core compat -name '*.rs' -not -path '*/target/*' -print0 | xargs -0 cat
   cat Cargo.toml ./*/Cargo.toml
+  find .claude/skills -name '*.sh' -o -name '*.lua' | xargs cat
 } | grep -oP '[A-Za-z_][A-Za-z0-9_]*' | sort -u > "$KNOWN"
 
 UNKNOWN=""
