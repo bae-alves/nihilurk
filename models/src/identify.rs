@@ -8,8 +8,10 @@
 
 use bevy_ecs::prelude::*;
 
-use crate::components::{Curse, KnownQuality, Name, Rune, Stack, Vorpal};
-use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
+use crate::components::{
+    Curse, KnownQuality, LaunchedDamage, Name, Reach, Rune, Stack, ThrownDamage, Vorpal,
+};
+use crate::effects::{ArmorBonus, ArmorDie, MaxHpBonus, PowerBonus, PowerDie, ThrowBonus};
 
 /// What the player actually sees for `item`: its true [`Name`], a [`Stack`]
 /// count if it holds more than one, and — once [`known_quality`] says either
@@ -68,6 +70,43 @@ fn annotate_quality(world: &World, item: Entity, base: String) -> String {
         Some(v) => format!("{name} (vorpal vs. {})", v.bane),
         None => name,
     }
+}
+
+/// The lines the pack's Info row shows for `item`: its name, the numbers its
+/// components carry, one authored line for the row if it has one, and — only
+/// once [`known_quality`] says so — its enchantment plus and what a curse
+/// means. Everything but the last two is always visible, so nothing here can
+/// give away what [`known_quality`] is still hiding.
+pub fn item_info(world: &World, item: Entity) -> Vec<String> {
+    let mut lines = vec![display_name(world, item)];
+    if let Some(d) = world.get::<PowerDie>(item) {
+        lines.push(strings::info_melee(d.0));
+    }
+    if let Some(d) = world.get::<ArmorDie>(item) {
+        lines.push(strings::info_armor(d.0));
+    }
+    if let Some(d) = world.get::<ThrownDamage>(item) {
+        lines.push(strings::info_thrown(d.0));
+    }
+    if let Some(d) = world.get::<LaunchedDamage>(item) {
+        lines.push(strings::info_launched(d.0));
+    }
+    if let Some(r) = world.get::<Reach>(item) {
+        lines.push(strings::info_reach(r.0));
+    }
+    if let Some(blurb) = strings::item_blurb(&crate::helpers::item_label(world, item)) {
+        lines.push(blurb.to_string());
+    }
+    if known_quality(world, item) {
+        let plus = enchantment_plus(world, item);
+        if plus != 0 {
+            lines.push(strings::info_enchantment(plus));
+        }
+        if world.get::<Curse>(item).is_some() {
+            lines.push(strings::cursed_explained().to_string());
+        }
+    }
+    lines
 }
 
 /// The [`display_name`] logic, decoupled from `&World` so a `Query`-based

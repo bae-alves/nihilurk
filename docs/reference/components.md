@@ -356,6 +356,7 @@ Resources
 |-----------------|----------------------------------------------------------|-------|
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
 | `HelpMenu`      | `open: bool`                                              | the F1 key list. Any key closes it and does nothing else. |
+| `ItemInfo`      | `open: bool`, `lines: Vec<String>`                        | the Info popup: the pack's Info row. Any key closes it and does nothing else. |
 | `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar; the log and player line move left into its columns. |
 | `QuitPrompt`    | `open: bool`, `warned: bool`                              | the "Really quit?" modal, raised by `Esc` **with nothing else open** and answered `y` (or `strings::quit_yes_key`) / `n`. With `models::time_stopped`, the first yes sets `warned` (red "did not save" rows, "REALLY sure?") and a second yes quits. Ctrl+C bypasses it. |
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |

@@ -1329,6 +1329,50 @@ fn draw_help(world: &World, screen: &mut Screen) {
     screen.put(x + 1 + inner, y + height + 1, '┘', grey);
 }
 
+/// The Info popup: the item's lines word-wrapped into a box, closed by any key.
+fn draw_item_info(world: &World, screen: &mut Screen) {
+    const WIDTH: usize = 54;
+    let mut rows: Vec<String> = Vec::new();
+    for line in &world.resource::<ItemInfo>().lines {
+        let mut row = String::new();
+        for word in line.split_whitespace() {
+            if !row.is_empty() && row.chars().count() + 1 + word.chars().count() > WIDTH {
+                rows.push(std::mem::take(&mut row));
+            }
+            if !row.is_empty() {
+                row.push(' ');
+            }
+            row.push_str(word);
+        }
+        rows.push(row);
+    }
+    let close = strings::info_close_hint();
+    let inner = WIDTH as u16 + 2;
+    let x = SCREEN_W.saturating_sub(inner + 2) / 2;
+    let y = MAP_TOP + 1;
+    let grey = Color::DarkGrey;
+    let height = rows.len() as u16 + 2;
+
+    screen.put(x, y, '┌', grey);
+    screen.hline(x + 1, y, '─', inner, grey);
+    screen.put(x + 1 + inner, y, '┐', grey);
+    for row in 0..height {
+        let ty = y + 1 + row;
+        screen.put(x, ty, '│', grey);
+        screen.hline(x + 1, ty, ' ', inner, grey);
+        screen.put(x + 1 + inner, ty, '│', grey);
+        match rows.get(row as usize) {
+            Some(text) if row == 0 => screen.puts(x + 2, ty, text, Color::Yellow),
+            Some(text) => screen.puts(x + 2, ty, text, Color::White),
+            None if row == height - 1 => screen.puts(x + 2, ty, close, Color::DarkGrey),
+            None => {}
+        }
+    }
+    screen.put(x, y + height + 1, '└', grey);
+    screen.hline(x + 1, y + height + 1, '─', inner, grey);
+    screen.put(x + 1 + inner, y + height + 1, '┘', grey);
+}
+
 /// Draws the pack overlay for the current [`PackIsOpen`] mode: the item list,
 /// or the action menu over a selected item.
 fn draw_inventory(world: &mut World, screen: &mut Screen) {

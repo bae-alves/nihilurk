@@ -1733,6 +1733,16 @@ pub struct HelpMenu {
     pub open: bool,
 }
 
+/// The pack's Info popup: whether it is up and the lines it shows. Any key
+/// closes it and does nothing else, so it can never cost a turn.
+#[derive(Resource, Default)]
+pub struct ItemInfo {
+    /// Whether the popup is up.
+    pub open: bool,
+    /// What it shows, the item's name first.
+    pub lines: Vec<String>,
+}
+
 /// The yellow command bar at the bottom left: whether the player has opted out
 /// of it with F2. Hiding it hands its columns to the log and the player line
 /// (see `CommandBar::log_x` and `log_width` in `hud`).

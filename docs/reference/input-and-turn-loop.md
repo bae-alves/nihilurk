@@ -151,11 +151,12 @@ The split between the two is the line between "needs a keyboard" and "does not".
 
 Before reading a key at all, three things can consume the frame without one: a pending `--MORE--` prompt (only Space/Enter clears it; every other key is swallowed), `player_incapacitated` (asleep — in gas, or in a scroll of sleep that turned in your own mouth: the turn is forfeited outright with no key read; a bear trap or a scroll's hold does *not* forfeit the turn, since either only blocks movement, not the whole turn — see "Movement and attack" below), and `paralysis_forfeits_turn` (a potion of paralysis: the coin is flipped **once per turn**, here, before any key is read and never while a menu, prompt or reticle is open, so a lost turn is a turn the monsters get and the player does not, rather than a swallowed keystroke; a forfeited one holds the screen `INCAPACITATED_PAUSE_MS` so it reads as time passing).
 
-Once a key is read, `x` and `X` are checked first, everywhere: they are the universal escape hatch, closing whichever modal is open (`close_all_modals`, the quit prompt included) and returning to plain movement with no turn spent. On the bare map `close_all_modals` reports nothing to close, so `x` falls through to the weapon swap and `X` does nothing. After that, exactly one of four contexts owns the keypress:
+Once a key is read, `x` and `X` are checked first, everywhere: they are the universal escape hatch, closing whichever modal is open (`close_all_modals`, the quit prompt included) and returning to plain movement with no turn spent. On the bare map `close_all_modals` reports nothing to close, so `x` falls through to the weapon swap and `X` does nothing. After that, exactly one of these contexts owns the keypress:
 
 | Context (checked in this order) | Resource      | Handler                    |
 |----------------------------------|---------------|-----------------------------|
 | Key list (F1)                    | `HelpMenu.open` | `dispatch_key` itself: any key closes it, nothing else runs |
+| Item Info popup                  | `ItemInfo.open` | `dispatch_key` itself: any key closes it, nothing else runs |
 | "Really quit?"                   | `QuitPrompt.open` | `answer_quit_prompt`   |
 | Aiming (a throw or a ranged use)| `TargetingState.active` | `handle_targeting_input` |
 | Pack open                        | `PackIsOpen.open` | `handle_inventory_input` |
@@ -275,13 +276,14 @@ Eleven keys open the pack, each in a `PackMode` (`models/src/pack.rs`) that deci
 
 Rows are **backpack indices**, not row numbers, everywhere — `PackIsOpen::selected`, `pack_rows`, `commit_item_action`'s `item_idx`, and the letter `draw_inventory` paints. That is what keeps an item's letter the same in every menu; `step_row` walks the cursor between the admitted indices, skipping the rest.
 
-The action modal (`run_action_modal`, `PackMode::Browse` only) is a fixed three-row menu — `ItemAction::MENU` — that dispatches to `commit_item_action`:
+The action modal (`run_action_modal`, `PackMode::Browse` only) is a fixed four-row menu — `ItemAction::MENU` — that dispatches to `commit_item_action`:
 
 | `ItemAction` | What happens | Spends a turn? |
 |--------------|--------------|-----------------|
 | `Use`        | `use_or_aim`: a plain item queues onto `UseQueue` immediately; a ranged one (has `Ranged`, and isn't a self-targeted wand like light) instead reopens the aiming reticle; a treat or ammunition goes back in the pack with a "for throwing" line (`models::use_refusal`). | Only the immediate case |
 | `Throw`      | `aim_throw`: opens the aiming reticle, unless `throw_refusal` objects (the Element of Yoord, cursed worn gear). | Never here — the throw itself is queued from the reticle |
 | `Drop`       | `queue_drop`: refused by `drop_refusal` (cursed and equipped) with the item left in the pack; otherwise queued, and `player_action_system` unequips it and places it on the floor. | Yes, on success |
+| `Info`       | Fills `ItemInfo` from `models::item_info` and opens its popup (`draw_item_info`); any key closes it. The text is the name, the dice and reach its components carry, `strings::item_blurb(id)` if the row has an authored line, and — only when `known_quality` — the enchantment plus and `strings::cursed_explained`. Add a blurb as an arm in `item_blurb`. | Never |
 
 `take_pack_item` / `return_to_pack` move an item out of the `Backpack` and back by index — used so an item earmarked for aiming can sit "in flight" without being in either the pack or on the floor while the reticle is up.
 
