@@ -44,3 +44,8 @@ grep -q '^== backgrounds ==$' <<< "$out" || fail "no backgrounds header: $out"
 grep -q '^1 1 X Cyan$' <<< "$out" || fail "background cell not listed: $out"
 
 echo "play_test: ok"
+
+# 6. A spawn name -content does not list is warned about; dressing is not part of the name.
+err="$("$play" -w 0.3 -S "cursed -2 long sword,arrow x13,+3 ring mail,drgon" 2>&1 >/dev/null)"
+grep -q "'drgon' is not in -content" <<< "$err" || fail "no warning for a misspelt name: $err"
+[[ "$(grep -c warning <<< "$err")" == 1 ]] || fail "dressed names warned about: $err"

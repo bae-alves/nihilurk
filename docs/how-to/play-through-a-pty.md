@@ -65,13 +65,41 @@ What wastes a run
 * **Aiming:** `z`, the wand's letter, direction keys to move the cursor, `'\r'` to fire, `x` to cancel.
 
 
+Hold a game open
+----------------
+
+`play.sh` replays its keys from the start every time. To play one run a key at a time, start it once with `agent/serve.sh` and send keys with `agent/act.sh`:
+
+    a=.claude/skills/play-nihilurk/agent
+    d=$(mktemp -d)
+    NIHILURK_BIN="$PWD/target/debug/nihilurk" NIHILURK_SPAWN=aquator $a/serve.sh start "$d" -s 1
+    $a/act.sh -d "$d" ' ' l     # one call per step; the run waits in between
+    kill "$(cat "$d/pid")"
+
+`NIHILURK_BIN` is the binary to run, as an absolute path. Without it, `start` runs the `nihilurk` on `PATH`. Game flags go after the directory.
+
+To hand the run to a player outside the machine, serve it from a container on a TCP port instead:
+
+    cargo build -p nihilurk --target x86_64-unknown-linux-musl
+    docker build -t nihilurk-agent -f $a/Dockerfile .claude/skills/play-nihilurk
+    docker run --rm -d -p 127.0.0.1:7777:7777 \
+        -v "$PWD/target/x86_64-unknown-linux-musl/debug/nihilurk:/usr/local/bin/nihilurk:ro" \
+        nihilurk-agent -s 1
+    .claude/skills/play-nihilurk/agent/act.sh ' ' l l
+
+The image holds only the server. The game is a static binary built on the host and mounted in, so it never compiles inside Docker. Arguments after the image name are game flags, and `-e NIHILURK_SPAWN=...` passes through. `act.sh` without `-d` connects to `127.0.0.1:7777`. Either way, the server, `serve.sh`, runs the game in a pty with `-ns -nobones -nshake -nb -anim-rate 0.1`. Each line a client sends is one key, in the notation above. Once the screen has gone 250 ms without output, the server answers with a percept: the 25 screen rows, a `ROW COL GLYPH COLOUR` line for each tinted cell, then `end`. Once the game has exited it answers `over`, and keeps answering every new connection with the last percept and `over`, until `docker stop` in the container. Sessions take turns, in the container and on the host: one that arrives mid-session waits for the other to hang up. A run that no session has touched for `NIHILURK_IDLE` seconds (default 1800, `0` never) is killed and answers `over` from then on. A client gets a percept on connect and one per line after that, so it acts only on what it has seen. It can hang up at any point, and the run waits for the next connection. `act.sh` connects through bash's `/dev/tcp`, so any line-based client works, `nc` included.
+
+The 250 ms rule means "the game is waiting on a key". Auto-explore, a paralysed turn and particles all repaint faster than that, so their output reaches a percept only after they have finished. The game itself is unchanged, so a seed and the same keys give the same percepts.
+
+
 Its own tests
 -------------
 
     bash .claude/skills/play-nihilurk/play_test.sh
     lua .claude/skills/play-nihilurk/screen_test.lua
+    bash .claude/skills/play-nihilurk/agent/serve_test.sh
 
-`play_test.sh` runs the driver against `cat`, `printf` and `sleep`, so it needs no build. `screen_test.lua` checks the screen reader. Neither runs in CI or in the pre-commit hook.
+`play_test.sh` runs the driver against `cat`, `printf` and `sleep`, so it needs no build. `screen_test.lua` checks the screen reader. `agent/serve_test.sh` runs the socket server over stdio against stand-ins, so it needs no Docker and no socat. None of them runs in CI or in the pre-commit hook.
 
 
 See also
