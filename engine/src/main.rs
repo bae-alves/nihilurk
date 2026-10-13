@@ -5,6 +5,7 @@
 
 mod constants;
 mod morgue;
+mod ready;
 mod screen;
 mod update;
 mod view;
@@ -96,6 +97,7 @@ fn find_save(arg: &str, data: &Path) -> Option<PathBuf> {
 /// key-release events so a single physical press doesn't skip two screens.
 fn wait_for_key(accept: impl Fn(KeyCode) -> bool) -> std::io::Result<()> {
     loop {
+        ready::signal_ready()?;
         if let Event::Key(key) = read()? {
             if key.kind == KeyEventKind::Press && accept(key.code) {
                 return Ok(());

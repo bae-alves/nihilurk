@@ -13,8 +13,10 @@
 # The game is the unchanged binary in a 25x80 pty, run with
 # -ns -nobones -nshake -nb -anim-rate 0.1, so nothing is saved and the feel
 # layer has finished before a percept is taken. Its data directory is DIR, so
-# it never reads your keymap or writes to your leaderboard and morgue. `-c CMD`
-# swaps the game for a stand-in, for testing this script.
+# it never reads your keymap or writes to your leaderboard and morgue. With
+# NIHILURK_READY=1 it signals each time it waits on a key, and a percept
+# follows that signal; a game that never signals gets one after 250 ms without
+# output. `-c CMD` swaps the game for a stand-in, for testing this script.
 #
 # A line is typed through `printf %b`, as play.sh does (`\r`, `\e`, `\eq` for
 # Alt+q); a line over 4096 bytes is cut into keys of that size. An empty line
@@ -50,28 +52,54 @@ alive() {
     [[ -n "$now" && "$now" == "$(cat "$dir/born")" ]]
 }
 
+# What the game writes when it waits on a key, with NIHILURK_READY set.
+ready=$'\e]nihilurk;ready\a'
+
 # True when the open capture fd 6 had bytes the last percept did not see; it
-# reads them, so the next call sees only what comes after.
+# reads them, so the next call sees only what comes after. Keeps the last 64
+# bytes read in `tail`, and sets `signalled` when the new bytes hold the ready
+# signal, even split across two reads; one already seen never counts again,
+# since only the bytes too few to hold it whole carry over.
 wrote() {
-    local LC_ALL=C chunk got=1
+    local LC_ALL=C chunk carry got=1
     while IFS= read -r -d '' -N 65536 -u 6 chunk || [[ -n "$chunk" ]]; do
         [[ -n "$chunk" ]] || break
         got=0
+        carry="$tail"
+        (( ${#carry} < ${#ready} )) || carry="${carry: -$(( ${#ready} - 1 ))}"
+        [[ "$carry$chunk" != *"$ready"* ]] || signalled=1
+        tail="$tail$chunk"
+        (( ${#tail} <= 64 )) || tail="${tail: -64}"
         (( ${#chunk} == 65536 )) || break
     done
     return "$got"
 }
 
-# ponytail: quiet bytes stand in for "the game waits on a key". Every busy
-# loop repaints well inside 250 ms; an engine-side ready signal is the upgrade
-# if a stall ever outlasts it. Waits on fd 7, a pipe nobody writes to, so a
-# 10 ms tick costs no process; gives up after 30 s.
+# True when the game's last bytes are its ready signal: it is waiting on a key.
+waiting() {
+    local LC_ALL=C
+    [[ -e "$dir/ready" && "$tail" == *"$ready" ]]
+}
+
+# Waits for the game to finish what a key set off, 30 s at most. A game that
+# has signalled ready once (`$dir/ready`) is done when it signals again, however
+# long it is quiet first, or when it has exited. Any other game is done after
+# 250 ms without output: every busy loop repaints well inside that. Ticks on
+# fd 7, a pipe nobody writes to, so a 10 ms tick costs no process.
 settle() {
-    local start last
-    start="${EPOCHREALTIME/[.,]/}" last="$start"
-    while (( ${EPOCHREALTIME/[.,]/} - last < 250000 && ${EPOCHREALTIME/[.,]/} - start < 30000000 )); do
+    local start last now
+    start="${EPOCHREALTIME/[.,]/}" last="$start" signalled=0
+    while now="${EPOCHREALTIME/[.,]/}"; (( now - start < 30000000 )); do
+        if [[ -e "$dir/ready" ]]; then
+            (( signalled == 0 )) || ! waiting || return 0
+            (( now - last < 250000 )) || alive || return 0
+        else
+            (( now - last < 250000 )) || return 0
+        fi
         read -r -t 0.01 -u 7 || true
-        ! wrote || last="${EPOCHREALTIME/[.,]/}"
+        wrote || continue
+        last="${EPOCHREALTIME/[.,]/}"
+        (( signalled == 0 )) || touch "$dir/ready"
     done
 }
 
@@ -113,7 +141,7 @@ start() {
     fi
     printf -v pid '%q' "$dir/pid"
     mkfifo "$dir/in"
-    (cd "$dir" && NIHILURK_DATA="$dir" SHELL=/bin/sh exec script -qefc "echo \$\$ > $pid; stty rows 25 cols 80; exec $cmd" /dev/null \
+    (cd "$dir" && NIHILURK_DATA="$dir" NIHILURK_READY=1 SHELL=/bin/sh exec script -qefc "echo \$\$ > $pid; stty rows 25 cols 80; exec $cmd" /dev/null \
         0<> "$dir/in" > "$dir/raw" 2>&1) &
     local tries=0
     until [[ -s "$dir/pid" ]] || (( tries++ > 100 )); do sleep 0.05; done
@@ -127,8 +155,10 @@ session() {
     flock 5
     exec 4<> "$dir/in" 6< "$dir/raw" 7<> <(:)
     touch "$dir/seen"
+    local tail="" signalled=0
     wrote || true
-    [[ "$(stat -c %s "$dir/raw")" == "$(cat "$dir/shown" 2>/dev/null)" ]] || settle
+    (( signalled == 0 )) || touch "$dir/ready"
+    waiting || [[ "$(stat -c %s "$dir/raw")" == "$(cat "$dir/shown" 2>/dev/null)" ]] || settle
     percept || return 0
     local line secs idle=()
     secs="$(< "$dir/idle")"

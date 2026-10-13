@@ -19,7 +19,7 @@ description: Play nihilurk to see a change working in the real game: start a run
 
 A KEY is typed with `printf %b` escapes (`'\r'`, `'\e'`, `'\t'`, `'\eq'` for Alt+q). `?` prints the percept at that point in the list. An empty KEY (`''`) types nothing and gets the screen again. A percept is the 25 screen rows, then a `ROW COL GLYPH COLOUR` line for each cell on a coloured background (a status tint: paralysed Cyan, asleep DarkBlue, held DarkGreen), then `end`, or `over` once the game has exited.
 
-A percept is sent once the game has written nothing for 250 ms. Animations, auto-explore and a paralysed turn all repaint faster than that, so a percept never catches them half done: no `@` waits. A seed and the same keys give the same percepts.
+A percept is sent the moment the game signals that it waits on a key (`NIHILURK_READY`, which `start` sets), however long an animation, auto-explore or a paralysed turn takes first: no `@` waits. A binary too old to signal gets one after 250 ms without output instead. A seed and the same keys give the same percepts.
 
 Tests: `bash .claude/skills/play-nihilurk/agent/serve_test.sh`.
 
