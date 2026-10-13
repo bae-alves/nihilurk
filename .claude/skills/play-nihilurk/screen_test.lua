@@ -70,4 +70,7 @@ eq(bgs("\27[48;5;14m \27[49mY"), "1 1   Cyan", "a blank cell on a background sti
 eq(screen.percept("\27[48;5;14mX\27[49mY", 4, 10), "XY\n\n\n\n1 1 X Cyan", "screen then tints")
 eq(screen.percept("plain", 4, 10), "plain\n\n\n", "no tints, no extra line")
 
+-- 13. The game's ready signal (NIHILURK_READY) leaves no trace on the screen.
+eq(show("ab\27]nihilurk;ready\7c"), "abc\n\n\n", "ready signal")
+
 print("screen_test: ok")
