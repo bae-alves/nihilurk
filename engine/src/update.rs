@@ -264,6 +264,11 @@ pub(crate) fn dispatch_key(world: &mut World, key: KeyEvent) -> std::io::Result<
         return Ok(false);
     }
 
+    if world.resource::<ItemInfo>().open {
+        world.resource_mut::<ItemInfo>().open = false;
+        return Ok(false);
+    }
+
     if world.resource::<QuitPrompt>().open {
         return Ok(answer_quit_prompt(world, key));
     }
@@ -295,6 +300,7 @@ fn modal_open(world: &World) -> bool {
         || world.resource::<BarterMenu>().open
         || world.resource::<QuitPrompt>().open
         || world.resource::<HelpMenu>().open
+        || world.resource::<ItemInfo>().open
 }
 
 /// Slams every modal shut and returns to plain movement. Returns whether
@@ -341,6 +347,11 @@ fn close_all_modals(world: &mut World) -> bool {
     let mut help = world.resource_mut::<HelpMenu>();
     if help.open {
         help.open = false;
+        closed = true;
+    }
+    let mut info = world.resource_mut::<ItemInfo>();
+    if info.open {
+        info.open = false;
         closed = true;
     }
     closed
@@ -398,6 +409,14 @@ fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
         KeyCode::Esc => cancel = true,
         KeyCode::Enter | KeyCode::Char(' ') => confirm = true,
         KeyCode::Tab => cycle = true,
+        KeyCode::Char('?') if world.resource::<TargetingState>().looking => {
+            let ts = world.resource::<TargetingState>();
+            let at = Position {
+                x: ts.cursor_x as u16,
+                y: ts.cursor_y as u16,
+            };
+            open_tile_info(world, at);
+        }
         KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('8') => dy = -1,
         KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('2') => dy = 1,
         KeyCode::Char('h') | KeyCode::Left | KeyCode::Char('4') => dx = -1,
@@ -736,6 +755,53 @@ fn begin_look(world: &mut World) -> std::io::Result<bool> {
     Ok(announce_look(world))
 }
 
+/// Everything the player can see on `target`, in the order a look reads it:
+/// creatures, then items, then revealed traps. A [`Hidden`] thing is left out.
+fn things_at(world: &mut World, target: Position) -> Vec<Entity> {
+    let mut q = world.query::<(Entity, &Position)>();
+    let here: Vec<Entity> = q
+        .iter(world)
+        .filter(|(_, p)| **p == target)
+        .map(|(e, _)| e)
+        .filter(|&e| world.get::<Hidden>(e).is_none())
+        .collect();
+    let kinds: [fn(&World, Entity) -> bool; 3] = [
+        |w, e| w.get::<Mob>(e).is_some() || w.get::<Player>(e).is_some(),
+        |w, e| w.get::<Item>(e).is_some(),
+        |w, e| w.get::<Trap>(e).is_some(),
+    ];
+    kinds
+        .iter()
+        .flat_map(|is| here.iter().copied().filter(|&e| is(world, e)))
+        .collect()
+}
+
+/// `?` on the look reticle, and a look click: opens the Info popup on
+/// everything on `target` — each thing's name and numbers, and what a
+/// creature has on, laid out as the pack's Info row lays out an item. Opens
+/// nothing on bare floor.
+fn open_tile_info(world: &mut World, target: Position) {
+    let mut lines: Vec<String> = Vec::new();
+    for e in things_at(world, target) {
+        let mut block = vec![models::with_article(world, e)];
+        block.extend(models::tile_info(world, e));
+        for worn in models::equipped_items(world, e) {
+            block.push(String::new());
+            block.extend(models::item_info(world, worn));
+        }
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        lines.extend(block);
+    }
+    if lines.is_empty() {
+        return;
+    }
+    let mut info = world.resource_mut::<ItemInfo>();
+    info.lines = lines;
+    info.open = true;
+}
+
 /// What `Look` reads off the aimed tile: whichever monster or item is
 /// standing there (a monster wins over something lying under it), or —
 /// failing that — an already-revealed trap, or nothing at all, which logs
@@ -753,21 +819,7 @@ fn begin_look(world: &mut World) -> std::io::Result<bool> {
 /// at what lives in it, and "its" for the ones without the wits to use items
 /// was a distinction the player never asked for.
 fn describe_target(world: &mut World, target: Position) -> Vec<String> {
-    let visible: Vec<Entity> = {
-        let mut q = world.query::<(Entity, &Position)>();
-        q.iter(world)
-            .filter(|(_, p)| **p == target)
-            .map(|(e, _)| e)
-            .filter(|&e| world.get::<Hidden>(e).is_none())
-            .collect()
-    };
-    let pick = visible
-        .iter()
-        .find(|&&e| world.get::<Mob>(e).is_some() || world.get::<Player>(e).is_some())
-        .or_else(|| visible.iter().find(|&&e| world.get::<Item>(e).is_some()))
-        .or_else(|| visible.iter().find(|&&e| world.get::<Trap>(e).is_some()))
-        .copied();
-    let Some(seen) = pick else {
+    let Some(seen) = things_at(world, target).first().copied() else {
         return Vec::new();
     };
 
@@ -784,8 +836,8 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
     lines
 }
 
-/// A keypress while the pack is open: routed to the action modal (Use / Throw /
-/// Drop) when one is up, otherwise to the item list underneath it.
+/// A keypress while the pack is open: routed to the action modal (Use / Drop /
+/// Throw / Info) when one is up, otherwise to the item list underneath it.
 fn handle_inventory_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     let (selected, action_mode, action_selected) = {
         let pack = world.resource::<PackIsOpen>();
@@ -797,7 +849,7 @@ fn handle_inventory_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
     Ok(navigate_pack(world, key, selected))
 }
 
-/// The Use / Throw / Drop modal. Returns whether the keypress spent a turn —
+/// The Use / Drop / Throw / Info modal. Returns whether the keypress spent a turn —
 /// true only when it committed to a plain (non-aimed) Use or a successful Drop.
 fn run_action_modal(
     world: &mut World,
@@ -860,6 +912,19 @@ fn commit_item_action(
                 return true;
             };
             aim_throw(world, player, item, item_idx);
+            false
+        }
+        ItemAction::Info => {
+            let Some(item) = world
+                .get::<Backpack>(player)
+                .and_then(|pack| pack.items.get(item_idx).copied())
+            else {
+                return true;
+            };
+            let lines = models::item_info(world, item);
+            let mut info = world.resource_mut::<ItemInfo>();
+            info.lines = lines;
+            info.open = true;
             false
         }
         ItemAction::Drop => {
@@ -1642,6 +1707,7 @@ pub(crate) fn dispatch_mouse(
     for line in describe_target(world, Position { x, y }) {
         world.resource_mut::<GameLog>().add(line);
     }
+    open_tile_info(world, Position { x, y });
     Ok(meet_its_eyes(world, Position { x, y }))
 }
 
@@ -2064,6 +2130,7 @@ mod tests {
         w.init_resource::<PackIsOpen>();
         w.init_resource::<QuitPrompt>();
         w.init_resource::<HelpMenu>();
+        w.init_resource::<ItemInfo>();
         w.init_resource::<CommandBar>();
         w.init_resource::<AutoExplore>();
         w.init_resource::<AutoPickup>();
@@ -3132,6 +3199,136 @@ mod tests {
             y: here.y,
         };
         assert!(describe_target(&mut w, empty).is_empty());
+    }
+
+    /// `?` on the look reticle opens the Info popup on what is under it: a
+    /// pile lists every item, and bare floor opens nothing.
+    #[test]
+    fn question_mark_on_a_look_opens_info_for_the_whole_pile() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let beside = Position {
+            x: here.x + 1,
+            y: here.y,
+        };
+        let question = KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE);
+        begin_look(&mut w).unwrap();
+        w.resource_mut::<TargetingState>().cursor_x = beside.x as i16;
+        dispatch_key(&mut w, question).unwrap();
+        assert!(!w.resource::<ItemInfo>().open, "bare floor opened info");
+
+        for name in ["dagger", "dagger"] {
+            models::spawn_named(&mut w, name, beside).unwrap();
+        }
+        dispatch_key(&mut w, question).unwrap();
+        let info = w.resource::<ItemInfo>();
+        assert!(info.open);
+        assert_eq!(
+            info.lines.iter().filter(|l| l.contains("dagger")).count(),
+            2
+        );
+    }
+
+    fn info_world() -> (World, Position) {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        (
+            w,
+            Position {
+                x: here.x + 1,
+                y: here.y,
+            },
+        )
+    }
+
+    fn info_at(w: &mut World, at: Position) -> Vec<String> {
+        open_tile_info(w, at);
+        w.resource::<ItemInfo>().lines.clone()
+    }
+
+    fn mob_at(w: &mut World, at: Position) -> Entity {
+        models::spawn_named(w, "kestral", at).unwrap()
+    }
+
+    /// A creature, an item and a trap on one tile read in that order, one
+    /// block each, split by a blank line.
+    #[test]
+    fn a_crowded_tile_reads_creature_then_item_then_trap() {
+        let (mut w, at) = info_world();
+        w.spawn((
+            models::Trap {
+                effect: models::TrapEffect::Bear,
+                reveal: models::TrapReveal::Sight,
+                revealed: true,
+            },
+            Name {
+                what: "bear trap".into(),
+            },
+            at,
+        ));
+        models::spawn_named(&mut w, "dagger", at).unwrap();
+        mob_at(&mut w, at);
+
+        let lines = info_at(&mut w, at);
+        let blocks: Vec<&[String]> = lines.split(|l| l.is_empty()).collect();
+        assert_eq!(blocks.len(), 3, "{lines:?}");
+        assert!(blocks[0][0].contains("kestral"), "{lines:?}");
+        assert!(blocks[1][0].contains("dagger"), "{lines:?}");
+        assert!(blocks[2][0].contains("bear trap"), "{lines:?}");
+    }
+
+    /// Looking is not a way to cheat a search: a [`Hidden`] thing in the pile
+    /// stays out of the popup.
+    #[test]
+    fn a_hidden_thing_in_a_pile_stays_out_of_the_popup() {
+        let (mut w, at) = info_world();
+        models::spawn_named(&mut w, "dagger", at).unwrap();
+        let secret = models::spawn_named(&mut w, "long sword", at).unwrap();
+        w.entity_mut(secret).insert(Hidden);
+
+        let lines = info_at(&mut w, at);
+        assert!(lines.iter().any(|l| l.contains("dagger")), "{lines:?}");
+        assert!(!lines.iter().any(|l| l.contains("long sword")), "{lines:?}");
+    }
+
+    /// What a creature has on rides in the same popup, its Info lines under
+    /// its own numbers.
+    #[test]
+    fn a_creature_s_gear_is_in_its_popup() {
+        let (mut w, at) = info_world();
+        let mob = mob_at(&mut w, at);
+        let hammer = models::spawn_named(&mut w, "war hammer", at).unwrap();
+        w.entity_mut(hammer)
+            .remove::<Position>()
+            .insert(models::Equipped {
+                by: Some(mob),
+                slot: models::Slot::Hand,
+            });
+
+        let lines = info_at(&mut w, at);
+        let hammer_row = lines
+            .iter()
+            .position(|l| l == "war hammer")
+            .expect("{lines:?}");
+        let health_row = lines.iter().position(|l| l.starts_with("Health:")).unwrap();
+        assert!(health_row < hammer_row, "{lines:?}");
+        assert!(
+            lines[hammer_row..].iter().any(|l| l.starts_with("Melee:")),
+            "{lines:?}"
+        );
+    }
+
+    /// Four items make four blocks, and none is dropped for being a repeat.
+    #[test]
+    fn a_pile_of_four_lists_all_four() {
+        let (mut w, at) = info_world();
+        for name in ["dagger", "dagger", "long sword", "war hammer"] {
+            models::spawn_named(&mut w, name, at).unwrap();
+        }
+        let lines = info_at(&mut w, at);
+        assert_eq!(lines.split(|l| l.is_empty()).count(), 4, "{lines:?}");
     }
 
     /// A creature's dangers share one line after the sighting, so a dragon

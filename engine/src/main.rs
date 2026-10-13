@@ -130,7 +130,8 @@ fn run_death_screens<W: std::io::Write>(
         true => models::leaderboard::Outcome::LoseAscent,
         false => models::leaderboard::Outcome::LoseDescent,
     };
-    let _ = models::leaderboard::record(&name, outcome, score);
+    let board = models::leaderboard::Board::of(world);
+    let _ = models::leaderboard::record(board, &name, outcome, score);
     let dump = morgue::write(world, &screen.shown_text(), outcome).ok();
     let _ = models::bones::deposit(world);
 
@@ -156,7 +157,8 @@ fn run_victory_screens<W: std::io::Write>(
         let score = q.iter(world).next().map(|s| s.value).unwrap_or(0);
         (world.resource::<PlayerName>().what.clone(), score)
     };
-    let _ = models::leaderboard::record(&name, models::leaderboard::Outcome::Win, score);
+    let board = models::leaderboard::Board::of(world);
+    let _ = models::leaderboard::record(board, &name, models::leaderboard::Outcome::Win, score);
     let dump = morgue::write(
         world,
         &screen.shown_text(),
@@ -225,9 +227,13 @@ fn print_help(out: &mut impl Write) -> std::io::Result<()> {
 /// Prints the internal leaderboard, highest score first, without entering the
 /// alternate screen — the same way `-content` never touches the terminal. A
 /// leaderboard file it can't read is named on stderr and left as it is.
-fn print_leaderboard(out: &mut impl Write) -> std::io::Result<()> {
-    let Ok(entries) = models::leaderboard::top(models::leaderboard::LEADERBOARD_STORE_LIMIT) else {
-        let path = models::leaderboard::path();
+fn print_leaderboard(
+    out: &mut impl Write,
+    board: models::leaderboard::Board,
+) -> std::io::Result<()> {
+    let Ok(entries) = models::leaderboard::top(board, models::leaderboard::LEADERBOARD_STORE_LIMIT)
+    else {
+        let path = models::leaderboard::path(board);
         eprintln!(
             "{}",
             strings::leaderboard_unreadable(&path.display().to_string())
@@ -262,6 +268,19 @@ fn player_step(world: &mut World) -> std::io::Result<bool> {
     update::process_input_and_update(world)
 }
 
+/// The mode flags a load will throw away, spelled for the player, or `None`.
+/// A save keeps the mode it was started in.
+fn dropped_mode_flags(fast: bool, endless: bool, loading: bool) -> Option<String> {
+    let flags: Vec<&str> = [(fast, "-fast"), (endless, "-endless")]
+        .into_iter()
+        .filter_map(|(on, flag)| on.then_some(flag))
+        .collect();
+    (loading && !flags.is_empty()).then(|| flags.join(" "))
+}
+
+/// Floors in a `-fast` run.
+const FAST_FLOORS: u8 = 6;
+
 /// Maps a double-dash longhand to the short flag the parser matches on.
 /// Anything else comes back unchanged.
 fn canonical_flag(arg: &str) -> &str {
@@ -277,6 +296,7 @@ fn canonical_flag(arg: &str) -> &str {
         "--as-monster" => "-am",
         "--leaderboard" => "-scores",
         "--endless" => "-endless",
+        "--fast" | "--bullet" | "--quick" | "-bullet" | "-quick" => "-fast",
         "--anim-rate" => "-anim-rate",
         "--keymap" => "-keymap",
         "--content" => "-content",
@@ -288,7 +308,7 @@ fn canonical_flag(arg: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_flag, find_save};
+    use super::{canonical_flag, dropped_mode_flags, find_save};
 
     fn data_dir(tag: &str) -> std::path::PathBuf {
         let dir =
@@ -296,6 +316,20 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn a_load_names_the_mode_flags_it_will_drop() {
+        assert_eq!(
+            dropped_mode_flags(true, false, true).as_deref(),
+            Some("-fast")
+        );
+        assert_eq!(
+            dropped_mode_flags(false, true, true).as_deref(),
+            Some("-endless")
+        );
+        assert_eq!(dropped_mode_flags(true, false, false), None);
+        assert_eq!(dropped_mode_flags(false, false, true), None);
     }
 
     #[test]
@@ -325,6 +359,9 @@ mod tests {
     fn longhands_map_to_their_short_flags() {
         assert_eq!(canonical_flag("--leaderboard"), "-scores");
         assert_eq!(canonical_flag("--no-save"), "-ns");
+        for alias in ["--fast", "--bullet", "--quick", "-bullet", "-quick"] {
+            assert_eq!(canonical_flag(alias), "-fast");
+        }
         assert_eq!(canonical_flag("--as-monster"), "-am");
         assert_eq!(canonical_flag("--anim-rate"), "-anim-rate");
         assert_eq!(canonical_flag("bae"), "bae");
@@ -361,6 +398,7 @@ fn main() -> std::io::Result<()> {
     let mut mouse = false;
     let mut no_bones = false;
     let mut endless = false;
+    let mut fast = false;
     let mut list_content = false;
     let mut show_leaderboard = false;
     let mut pride_off = false;
@@ -397,6 +435,7 @@ fn main() -> std::io::Result<()> {
             "-mouse" => mouse = true,
             "-nobones" => no_bones = true,
             "-endless" => endless = true,
+            "-fast" => fast = true,
             "-content" => list_content = true,
             "-scores" => show_leaderboard = true,
             "-pride" => match iter.next().filter(|v| !v.starts_with('-')) {
@@ -468,12 +507,18 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
+    if fast && endless {
+        eprintln!("{}", strings::fast_and_endless());
+        return Ok(());
+    }
+
     if list_content {
         return finish_listing(print_content(&mut stdout().lock()));
     }
 
     if show_leaderboard {
-        return finish_listing(print_leaderboard(&mut stdout().lock()));
+        let board = models::leaderboard::Board::pick(endless, fast);
+        return finish_listing(print_leaderboard(&mut stdout().lock(), board));
     }
 
     if pride_off {
@@ -553,6 +598,15 @@ fn main() -> std::io::Result<()> {
         }
     }
 
+    if let Some(flags) = dropped_mode_flags(fast, endless, load_path.is_some()) {
+        println!("{}", strings::mode_flags_dropped(&flags));
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
+            return Ok(());
+        }
+    }
+
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         let _ = execute!(
@@ -592,6 +646,7 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<BarterMenu>();
     world.init_resource::<QuitPrompt>();
     world.init_resource::<HelpMenu>();
+    world.init_resource::<ItemInfo>();
     world.init_resource::<CommandBar>();
     world.insert_resource(PlayerName {
         what: player_name.to_ascii_uppercase(),
@@ -625,6 +680,9 @@ fn main() -> std::io::Result<()> {
     ));
 
     world.insert_resource(models::Endless { enabled: endless });
+    if fast {
+        world.insert_resource(models::Floors::new(FAST_FLOORS));
+    }
 
     match &load_path {
         Some((path, _)) => {

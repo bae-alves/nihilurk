@@ -62,6 +62,7 @@ pub(crate) use wands::elemental_blast;
 
 /// What a staircase does to every spent rune in the pack.
 pub(crate) use runes::recharge_runes;
+pub(crate) use scrolls::map_the_floor;
 
 pub use throwing::{
     FrozenThrows, aim_footprint, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow,

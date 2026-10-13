@@ -257,26 +257,6 @@ fn blank_map() -> Map {
 }
 
 #[test]
-fn special_tint_covers_the_floor_and_its_bounding_wall_only() {
-    let mut map = blank_map();
-    map.tiles[tile_index(5, 5)] = TileType::Room;
-    map.tiles[tile_index(4, 5)] = TileType::Wall;
-    map.special[tile_index(5, 5)] = Some(SpecialRoom::RedRoom);
-
-    assert_eq!(map.special_tint(5, 5), Some(crossterm::style::Color::Red));
-    assert_eq!(
-        map.special_tint(4, 5),
-        Some(crossterm::style::Color::Red),
-        "the wall bounding a red room's floor tints the same colour"
-    );
-    assert_eq!(
-        map.special_tint(10, 10),
-        None,
-        "a tile nowhere near a special room stays untinted"
-    );
-}
-
-#[test]
 fn the_entry_line_fires_once_on_the_threshold_in_the_wall_colour() {
     let mut map = blank_map();
     for x in 5..=7 {

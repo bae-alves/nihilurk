@@ -32,10 +32,12 @@ pub enum ItemAction {
     Drop,
     /// Hurl it at a spot you pick with the aiming reticle.
     Throw,
+    /// Read what it is. Spends no turn.
+    Info,
 }
 
 impl ItemAction {
-    /// The three rows of the `i` modal, in the order they are offered.
+    /// The four rows of the `i` modal, in the order they are offered.
     ///
     /// A fixed order, not a setting. It used to be swappable (`-dropthrow`, for
     /// players who dropped far more often than they threw) and that flag paid
@@ -43,7 +45,12 @@ impl ItemAction {
     /// three verbs. It isn't: `a`, `t` and `d` each do one of them in a single
     /// keystroke, so the order of a menu you need never open again is not worth
     /// a command-line flag.
-    pub const MENU: [ItemAction; 3] = [ItemAction::Use, ItemAction::Throw, ItemAction::Drop];
+    pub const MENU: [ItemAction; 4] = [
+        ItemAction::Use,
+        ItemAction::Drop,
+        ItemAction::Throw,
+        ItemAction::Info,
+    ];
 
     /// The action sitting at menu row `idx`.
     pub fn at(idx: usize) -> ItemAction {
@@ -56,6 +63,7 @@ impl ItemAction {
             ItemAction::Use => strings::action_use(),
             ItemAction::Drop => strings::action_drop(),
             ItemAction::Throw => strings::action_throw(),
+            ItemAction::Info => strings::action_info(),
         }
     }
 }
@@ -271,7 +279,12 @@ mod tests {
 
     #[test]
     fn the_browse_modal_offers_each_verb_exactly_once() {
-        for action in [ItemAction::Use, ItemAction::Throw, ItemAction::Drop] {
+        for action in [
+            ItemAction::Use,
+            ItemAction::Throw,
+            ItemAction::Drop,
+            ItemAction::Info,
+        ] {
             assert_eq!(
                 ItemAction::MENU.iter().filter(|&&a| a == action).count(),
                 1,
@@ -281,7 +294,7 @@ mod tests {
         assert_eq!(ItemAction::at(0), ItemAction::Use);
         assert_eq!(
             ItemAction::at(99),
-            ItemAction::Drop,
+            ItemAction::Info,
             "clamped, not panicking"
         );
     }

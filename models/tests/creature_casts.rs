@@ -2,6 +2,9 @@
 //! kind of tile it might aim at. A spell that only ever ran from the player's
 //! side can assume a player caster; this sweep is what catches it.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -79,7 +82,7 @@ fn every_creature_can_cast_every_spell_it_knows_at_anything() {
                     let here = *w.get::<Position>(p).unwrap();
                     let tiles = open_tiles_near(&w, here, 3);
                     let caster = spawn_monster(&mut w, def, tiles[0]);
-                    let bystander = spawn_monster(&mut w, MonsterDef::named("orc"), tiles[1]);
+                    let bystander = monster::plain_monster(&mut w, "bystander", tiles[1]);
                     w.entity_mut(bystander).insert(Faction::Ally);
                     let target = match aim {
                         0 => here,

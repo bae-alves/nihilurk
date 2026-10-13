@@ -16,7 +16,9 @@ use crate::effects::{
     AlwaysHelper, ArmorBonus, ArmorDie, Asleep, ConfusingTouch, Grant, Lifetime, PowerBonus,
     PowerDie, Rooted, ThrowBonus,
 };
-use crate::equipment::{Slot, destroy_worn, equipped_in, equipped_items, force_unequip};
+use crate::equipment::{
+    Slot, destroy_worn, equipped_in, equipped_items, force_unequip, lift_curse,
+};
 use crate::helpers::{
     actor_line, free_adjacent_tile, hostiles_in_view, item_label, mark_conditions, spark_burst_at,
     tile_of,
@@ -32,12 +34,12 @@ use super::potions::{is_the_relic, worth_detecting};
 
 /// Destroys every cursed item `user` currently has equipped (a scroll of remove
 /// curse): each one is unequipped, pulled out of the pack and despawned. Cursed
-/// items sitting unequipped in the pack are left untouched. Returns how many
-/// items were destroyed.
+/// items sitting unequipped in the pack are left untouched, and so is anything
+/// [`MegaCurse`]d. Returns how many items were destroyed.
 pub(super) fn lift_curses(world: &mut World, user: Entity) -> usize {
     let doomed: Vec<Entity> = equipped_items(world, user)
         .into_iter()
-        .filter(|&e| world.get::<Curse>(e).is_some())
+        .filter(|&e| world.get::<Curse>(e).is_some() && world.get::<MegaCurse>(e).is_none())
         .collect();
     destroy_worn(world, user, &doomed);
     doomed.len()
@@ -110,22 +112,7 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
                 .resource_mut::<GameLog>()
                 .add_colored(msg.to_string(), category);
         }
-        ScrollEffect::MagicMapping => {
-            let hero = world
-                .get::<Position>(user)
-                .map(|p| (p.x, p.y))
-                .unwrap_or((MAP_WIDTH / 2, MAP_HEIGHT / 2));
-            let style = std::env::var("NIHILURK_MAGICMAP")
-                .ok()
-                .and_then(|v| MagicMapStyle::from_name(&v))
-                .unwrap_or_else(|| MagicMapStyle::roll(&mut world.resource_mut::<GameRng>().0));
-            if let Some(mut reveal) = world.get_resource_mut::<MagicMapReveal>() {
-                reveal.start(hero, style);
-            }
-            world
-                .resource_mut::<GameLog>()
-                .add(style.flavour().to_string());
-        }
+        ScrollEffect::MagicMapping => map_the_floor(world, user),
         ScrollEffect::Teleportation => teleport_reader(world, user),
         ScrollEffect::AggravateMonsters => aggravate_floor(world, user),
         ScrollEffect::CreateMonster => create_monster(world, user),
@@ -152,6 +139,14 @@ pub(super) fn apply_scroll_effect(world: &mut World, user: Entity, effect: Scrol
         ScrollEffect::Pitfall => {
             let is_player = world.get::<Player>(user).is_some();
             trapdoor_effect(world, user, is_player, true);
+        }
+        ScrollEffect::TeleportToStairs => {
+            let up = crate::map::holding_element_of_yoord(world);
+            if super::decks::move_to_stair(world, user, up) {
+                world
+                    .resource_mut::<GameLog>()
+                    .add(strings::scroll_to_stair(up).to_string());
+            }
         }
         ScrollEffect::Atonement => crate::spirits::atone(world),
         ScrollEffect::Charming => {
@@ -181,6 +176,25 @@ fn charm_room(world: &mut World, user: Entity) -> usize {
 // ---------------------------------------------------------------------------
 // Amnesia
 // ---------------------------------------------------------------------------
+
+/// Arms the magic-map wipe centred on `user` and logs its flavour line. The
+/// scroll and the Element's climb share it.
+pub(crate) fn map_the_floor(world: &mut World, user: Entity) {
+    let hero = world
+        .get::<Position>(user)
+        .map(|p| (p.x, p.y))
+        .unwrap_or((MAP_WIDTH / 2, MAP_HEIGHT / 2));
+    let style = std::env::var("NIHILURK_MAGICMAP")
+        .ok()
+        .and_then(|v| MagicMapStyle::from_name(&v))
+        .unwrap_or_else(|| MagicMapStyle::roll(&mut world.resource_mut::<GameRng>().0));
+    if let Some(mut reveal) = world.get_resource_mut::<MagicMapReveal>() {
+        reveal.start(hero, style);
+    }
+    world
+        .resource_mut::<GameLog>()
+        .add(style.flavour().to_string());
+}
 
 /// Scroll of amnesia: 1... 2... Poof! One random spell vanishes off the
 /// reader's [`Spellset`] — chosen fresh each time, exactly as unpredictable as
@@ -487,7 +501,8 @@ pub(crate) fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> b
     if !raise_plus(world, item) {
         return false;
     }
-    world.entity_mut(item).remove::<Curse>();
+    let mega = world.get::<MegaCurse>(item).is_some();
+    lift_curse(world, item);
     world.entity_mut(item).insert(KnownQuality);
 
     let name = item_label(world, item);
@@ -495,7 +510,7 @@ pub(crate) fn enchant_equipped(world: &mut World, user: Entity, slot: Slot) -> b
     world
         .resource_mut::<GameLog>()
         .add(strings::enchant_sparks(&name));
-    if !was_cursed {
+    if !was_cursed || mega {
         return true;
     }
     world

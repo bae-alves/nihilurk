@@ -42,11 +42,13 @@ use crate::monsters::{BESTIARY, SUMMONS};
 use crate::constants::items::ESTOC_NUMBER_OF_ATTACKS;
 use crate::constants::loot::{
     AMMO_BUNDLE_MAX, AMMO_BUNDLE_MIN, CURSED_BONUS_MAX, CURSED_BONUS_MIN, EXCEPTIONAL_BONUS_MAX,
-    EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, IMPROVISED_THROW_DIE, NORMAL_QUALITY_PCT,
+    EXCEPTIONAL_BONUS_MIN, EXCEPTIONAL_QUALITY_PCT, IMPROVISED_THROW_DIE, MEGACURSED_BONUS_MAX,
+    MEGACURSED_BONUS_MIN, MEGACURSED_PCT_OF_CURSED, NORMAL_QUALITY_PCT,
 };
 use crate::constants::rings::{
     CURSED_BONUS_MAX as RING_CURSED_BONUS_MAX, CURSED_BONUS_MIN as RING_CURSED_BONUS_MIN,
-    EXCEPTIONAL_BONUS as RING_EXCEPTIONAL_BONUS, PLAIN_BONUS,
+    EXCEPTIONAL_BONUS as RING_EXCEPTIONAL_BONUS, MEGACURSED_BONUS_MAX as RING_MEGACURSED_BONUS_MAX,
+    MEGACURSED_BONUS_MIN as RING_MEGACURSED_BONUS_MIN, PLAIN_BONUS,
 };
 use crate::constants::wands::WAND_CHARGES;
 
@@ -245,6 +247,7 @@ pub const SCROLLS: &[ScrollDef] = &[
     ScrollDef { effect: ScrollEffect::Charming,          name: "scroll of charming" },
     ScrollDef { effect: ScrollEffect::Pitfall,           name: "scroll of pitfall" },
     ScrollDef { effect: ScrollEffect::Atonement,         name: "scroll of atonement" },
+    ScrollDef { effect: ScrollEffect::TeleportToStairs,  name: "scroll of teleport to stairs" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1678,6 +1681,7 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &s
 /// | Normal      | [`NORMAL_QUALITY_PCT`]     | +0                                              |
 /// | Exceptional | [`EXCEPTIONAL_QUALITY_PCT`]| [`EXCEPTIONAL_BONUS_MIN`]..[`EXCEPTIONAL_BONUS_MAX`] |
 /// | Cursed      | whatever is left           | [`CURSED_BONUS_MIN`]..[`CURSED_BONUS_MAX`] (yes, a cursed item can roll positive) |
+/// | MEGACURSED  | [`MEGACURSED_PCT_OF_CURSED`]% of the cursed | [`MEGACURSED_BONUS_MIN`]..[`MEGACURSED_BONUS_MAX`], and a [`MegaCurse`] |
 ///
 /// The bonus lands on the flat modifier, never the die size. A ring rolls the
 /// same three qualities but its own numbers: see [`enchant_ring`].
@@ -1686,6 +1690,7 @@ enum Quality {
     Normal,
     Exceptional,
     Cursed,
+    MegaCursed,
 }
 
 impl Quality {
@@ -1696,6 +1701,9 @@ impl Quality {
         }
         if roll < NORMAL_QUALITY_PCT + EXCEPTIONAL_QUALITY_PCT {
             return Quality::Exceptional;
+        }
+        if rng.gen_range(0..100) < MEGACURSED_PCT_OF_CURSED {
+            return Quality::MegaCursed;
         }
         Quality::Cursed
     }
@@ -1715,12 +1723,11 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
         Quality::Normal => 0,
         Quality::Exceptional => rng.gen_range(EXCEPTIONAL_BONUS_MIN..=EXCEPTIONAL_BONUS_MAX),
         Quality::Cursed => rng.gen_range(CURSED_BONUS_MIN..=CURSED_BONUS_MAX),
+        Quality::MegaCursed => rng.gen_range(MEGACURSED_BONUS_MIN..=MEGACURSED_BONUS_MAX),
     };
 
     apply_bonus(world, item, bonus);
-    if quality == Quality::Cursed {
-        world.entity_mut(item).insert(Curse);
-    }
+    brand(world, item, quality);
 }
 
 /// [`enchant_equipment`], or [`enchant_ring`] for a ring, with the quality
@@ -1741,6 +1748,7 @@ pub fn make_exceptional(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) 
 /// | Normal      | [`PLAIN_BONUS`] (its row)         | nothing           |
 /// | Exceptional | [`RING_EXCEPTIONAL_BONUS`]        | nothing           |
 /// | Cursed      | [`RING_CURSED_BONUS_MIN`]..[`RING_CURSED_BONUS_MAX`], and a [`Curse`] | a [`Curse`] |
+/// | MEGACURSED  | [`RING_MEGACURSED_BONUS_MIN`]..[`RING_MEGACURSED_BONUS_MAX`], and a [`MegaCurse`] | a [`MegaCurse`] |
 ///
 /// The odds are the gear odds ([`Quality::roll`]). The plus is an absolute
 /// number that replaces the row's, not a bonus on top of it.
@@ -1750,13 +1758,24 @@ fn enchant_ring(world: &mut World, rng: &mut ChaCha12Rng, ring: Entity, numeric:
         Quality::Normal => PLAIN_BONUS,
         Quality::Exceptional => RING_EXCEPTIONAL_BONUS,
         Quality::Cursed => rng.gen_range(RING_CURSED_BONUS_MIN..=RING_CURSED_BONUS_MAX),
+        Quality::MegaCursed => rng.gen_range(RING_MEGACURSED_BONUS_MIN..=RING_MEGACURSED_BONUS_MAX),
     };
-    let mut entity = world.entity_mut(ring);
     if numeric {
-        set_ring_plus(&mut entity, plus);
+        set_ring_plus(&mut world.entity_mut(ring), plus);
     }
-    if quality == Quality::Cursed {
-        entity.insert(Curse);
+    brand(world, ring, quality);
+}
+
+/// Stamps the curse tags `quality` calls for onto `item`.
+fn brand(world: &mut World, item: Entity, quality: Quality) {
+    match quality {
+        Quality::Cursed => {
+            world.entity_mut(item).insert(Curse);
+        }
+        Quality::MegaCursed => {
+            world.entity_mut(item).insert((Curse, MegaCurse));
+        }
+        _ => {}
     }
 }
 

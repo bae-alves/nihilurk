@@ -1132,7 +1132,7 @@ pub(super) fn cancel_entity(world: &mut World, victim: Entity) {
 /// enchantment on their weapons and armour — good or ill — is wiped to zero,
 /// every unread scroll goes blank, every potion turns to plain water. The one
 /// mercy is that a curse counts as magic too, so it lifts without taking the
-/// item with it.
+/// item with it. A MEGACURSE does not lift.
 fn cancel_player(world: &mut World, player: Entity) {
     clear_player_conditions(world, player);
     revoke_all(world, player);
@@ -1144,6 +1144,7 @@ fn cancel_player(world: &mut World, player: Entity) {
     carried.extend(equipped_items(world, player));
 
     for item in carried {
+        crate::equipment::lift_curse(world, item);
         let mut em = world.entity_mut(item);
         if em.contains::<PowerDie>() && em.contains::<PowerBonus>() {
             em.insert(PowerBonus(0));
@@ -1154,7 +1155,6 @@ fn cancel_player(world: &mut World, player: Entity) {
         if em.contains::<Launcher>() && em.contains::<ThrowBonus>() {
             em.insert(ThrowBonus(0));
         }
-        em.remove::<Curse>();
         if let Some(mut scroll) = em.get_mut::<Scroll>() {
             scroll.effect = ScrollEffect::BlankPaper;
             if let Some(mut name) = em.get_mut::<Name>() {

@@ -1,4 +1,4 @@
-//! The internal leaderboard: a postcard blob at [`path`], in [`crate::data_dir`],
+//! The internal leaderboards, one per [`Board`]: a postcard blob at [`path`], in [`crate::data_dir`],
 //! versioned like a save, updated the moment a run ends and read back by
 //! `-scores` without starting a game.
 //!
@@ -46,10 +46,45 @@ struct Entry {
     epoch_secs: u64,
 }
 
-/// Where the leaderboard lives: `leaderboard.sav` in [`crate::data_dir`], next
-/// to the saves.
-pub fn path() -> PathBuf {
-    crate::data_dir().join("leaderboard.sav")
+/// Which board a run is scored on. Each has its own file, so a six-floor run
+/// is never ranked against a thirteen-floor one, nor an endless run against either.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Board {
+    /// The ordinary run.
+    Normal,
+    /// `-fast`.
+    Fast,
+    /// `-endless`. The CLI refuses it together with `-fast`.
+    Endless,
+}
+
+impl Board {
+    /// The board for a run with these modes on.
+    pub fn pick(endless: bool, fast: bool) -> Self {
+        match (endless, fast) {
+            (true, _) => Self::Endless,
+            (false, true) => Self::Fast,
+            (false, false) => Self::Normal,
+        }
+    }
+
+    /// The board the run in `world` is scored on.
+    pub fn of(world: &bevy_ecs::world::World) -> Self {
+        let endless = world
+            .get_resource::<crate::Endless>()
+            .is_some_and(|e| e.enabled);
+        Self::pick(endless, crate::Floors::of(world).last < crate::FINAL_DEPTH)
+    }
+}
+
+/// Where a board lives in [`crate::data_dir`], next to the saves:
+/// `leaderboard.sav`, `leaderboard-fast.sav` or `leaderboard-endless.sav`.
+pub fn path(board: Board) -> PathBuf {
+    crate::data_dir().join(match board {
+        Board::Normal => "leaderboard.sav",
+        Board::Fast => "leaderboard-fast.sav",
+        Board::Endless => "leaderboard-endless.sav",
+    })
 }
 
 /// The leaderboard file's format version, written ahead of the entries. A file
@@ -66,8 +101,8 @@ pub const LEADERBOARD_STORE_LIMIT: usize = 10;
 /// scores ever seen. Best-effort: a leaderboard nobody can write to (a
 /// read-only directory) shouldn't stop the player's run from ending, so a
 /// caller that cares can log the `Err` rather than propagate it.
-pub fn record(name: &str, outcome: Outcome, score: i64) -> std::io::Result<()> {
-    record_to(path(), name, outcome, score, now_epoch_secs())
+pub fn record(board: Board, name: &str, outcome: Outcome, score: i64) -> std::io::Result<()> {
+    record_to(path(board), name, outcome, score, now_epoch_secs())
 }
 
 /// Seconds since the Unix epoch, UTC; 0 on a clock set before it.
@@ -135,8 +170,8 @@ fn all(path: impl AsRef<Path>) -> std::io::Result<Vec<Entry>> {
 /// The `limit` highest scores ever recorded, highest first, each with a
 /// "YYYY-MM-DD HH:MM" UTC rendering of when the run ended. Errs the way
 /// [`all`] does.
-pub fn top(limit: usize) -> std::io::Result<Vec<(String, Outcome, i64, String)>> {
-    Ok(all(path())?
+pub fn top(board: Board, limit: usize) -> std::io::Result<Vec<(String, Outcome, i64, String)>> {
+    Ok(all(path(board))?
         .into_iter()
         .take(limit)
         .map(|e| (e.name, e.outcome, e.score, format_timestamp(e.epoch_secs)))
@@ -199,6 +234,23 @@ mod tests {
             .to_str()
             .unwrap()
             .to_string()
+    }
+
+    #[test]
+    fn each_board_has_its_own_file() {
+        let paths = [Board::Normal, Board::Fast, Board::Endless].map(path);
+        assert_eq!(paths[0].file_name().unwrap(), "leaderboard.sav");
+        assert!(paths[0] != paths[1] && paths[1] != paths[2] && paths[0] != paths[2]);
+    }
+
+    #[test]
+    fn a_run_belongs_to_the_board_of_its_mode() {
+        let mut w = bevy_ecs::world::World::new();
+        assert_eq!(Board::of(&w), Board::Normal);
+        w.insert_resource(crate::Floors::new(6));
+        assert_eq!(Board::of(&w), Board::Fast);
+        w.insert_resource(crate::Endless { enabled: true });
+        assert_eq!(Board::of(&w), Board::Endless);
     }
 
     #[test]

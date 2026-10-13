@@ -3,6 +3,8 @@
 //! stepping.
 
 mod common;
+#[path = "common/monster.rs"]
+mod monster;
 
 use bevy_ecs::prelude::*;
 use models::*;
@@ -71,7 +73,7 @@ fn an_open_step_spends_the_turn_but_waits_for_the_schedule_to_move() {
 fn a_step_into_a_monster_is_a_blow_and_the_player_stays_put() {
     let (mut w, player, here) = quiet_room(1);
     let target = at(here.x as i32 + 1, here.y as i32);
-    let foe = spawn_monster(&mut w, &BESTIARY[0], target);
+    let foe = monster::plain_monster(&mut w, "foe", target);
     let before = w.resource::<GameLog>().unread.len();
     assert!(queue_step(&mut w, 1, 0));
     resolve(&mut w);
@@ -84,7 +86,7 @@ fn a_step_into_a_monster_is_a_blow_and_the_player_stays_put() {
 fn stepping_into_a_helper_swaps_places_with_it() {
     let (mut w, player, here) = quiet_room(1);
     let target = at(here.x as i32 + 1, here.y as i32);
-    let pet = spawn_monster(&mut w, &BESTIARY[0], target);
+    let pet = monster::plain_monster(&mut w, "foe", target);
     w.entity_mut(pet).insert((Helper, Faction::Ally));
     assert!(queue_step(&mut w, 1, 0));
     resolve(&mut w);
@@ -97,7 +99,7 @@ fn stepping_into_a_helper_swaps_places_with_it() {
 fn stepping_into_a_charmed_ally_swaps_places_with_it() {
     let (mut w, player, here) = quiet_room(1);
     let target = at(here.x as i32 + 1, here.y as i32);
-    let pal = spawn_monster(&mut w, &BESTIARY[0], target);
+    let pal = monster::plain_monster(&mut w, "foe", target);
     w.entity_mut(pal).insert(Faction::Ally);
     assert!(queue_step(&mut w, 1, 0));
     resolve(&mut w);
@@ -118,7 +120,7 @@ fn a_rooted_player_strains_and_stays_where_they_are() {
 fn an_estoc_lunges_across_the_empty_tile_at_the_foe_beyond() {
     let (mut w, player, here) = quiet_room(1);
     w.entity_mut(player).insert(Lunges);
-    let foe = spawn_monster(&mut w, &BESTIARY[0], at(here.x as i32 + 2, here.y as i32));
+    let foe = monster::plain_monster(&mut w, "foe", at(here.x as i32 + 2, here.y as i32));
     assert!(queue_step(&mut w, 1, 0));
     resolve(&mut w);
     assert_eq!(

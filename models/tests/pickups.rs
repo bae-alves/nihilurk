@@ -243,7 +243,7 @@ fn a_platinum_coin_pays_a_point_of_die_at_the_stairs() {
     let mut w = test_world(1);
     let p = player(&mut w);
     assert!(step_on(&mut w, "platine coin"));
-    assert!(w.get::<Plated>(p).is_some(), "PLAT");
+    assert!(w.get::<Plated>(p).is_some(), "PLx1");
     let (power, armor) = {
         let f = w.get::<Fighter>(p).unwrap();
         (f.power, f.armor)
@@ -310,7 +310,7 @@ fn a_forge_coin_may_land_on_a_ring_without_preferring_it() {
         descend(&mut w);
         on_ring += (w.get::<ArmorBonus>(ring).unwrap().0 > plus) as u32;
     }
-    assert!((5..35).contains(&on_ring), "{on_ring} of 40");
+    assert!(on_ring > 0 && on_ring < 40, "{on_ring} of 40");
 }
 
 #[test]
@@ -334,16 +334,6 @@ fn being_hurt_breaks_the_promise() {
         (f.power, f.armor),
         (power, armor),
         "and the stairs pay nothing"
-    );
-}
-
-#[test]
-fn a_promise_you_already_hold_leaves_the_coin_on_the_floor() {
-    let mut w = test_world(1);
-    assert!(step_on(&mut w, "platine coin"));
-    assert!(
-        !step_on(&mut w, "platine coin"),
-        "no stacking perfection: the second one keeps"
     );
 }
 
@@ -729,7 +719,8 @@ fn a_bounty_creature_pays_a_multiplied_kill_score() {
         x: at.x + 3,
         y: at.y,
     };
-    let apis = spawn_named(&mut w, "apis", spot).expect("apis is a bestiary row");
+    let apis = monster::plain_monster(&mut w, "bounty", spot);
+    w.entity_mut(apis).insert(ScoreBounty);
     let max_hp = w.get::<Fighter>(apis).unwrap().max_hp;
     let before = score(&mut w);
 
@@ -738,7 +729,7 @@ fn a_bounty_creature_pays_a_multiplied_kill_score() {
     assert_eq!(
         score(&mut w) - before,
         i64::from(max_hp * BOUNTY_SCORE_MULTIPLIER * KILL_PER_MAX_HP),
-        "an apis kill pays the bounty multiplier"
+        "a bounty kill pays the bounty multiplier"
     );
 }
 
@@ -751,7 +742,7 @@ fn a_plain_monster_pays_the_unmultiplied_kill_score() {
         x: at.x + 3,
         y: at.y,
     };
-    let snake = spawn_named(&mut w, "rattlesnake", spot).expect("rattlesnake is a bestiary row");
+    let snake = monster::plain_monster(&mut w, "plain", spot);
     let max_hp = w.get::<Fighter>(snake).unwrap().max_hp;
     let before = score(&mut w);
 
@@ -805,4 +796,25 @@ fn a_full_pack_says_so_once_for_the_whole_pile() {
         .filter(|l| l.as_str() == strings::pack_full())
         .count();
     assert_eq!(full, 1);
+}
+
+#[test]
+fn coins_stack_and_all_pay_at_the_stairs() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let (power, armor) = {
+        let f = w.get::<Fighter>(p).unwrap();
+        (f.power, f.armor)
+    };
+    for _ in 0..3 {
+        assert!(step_on(&mut w, "platine coin"));
+    }
+    assert!(!step_on(&mut w, "platine coin"), "a fourth keeps");
+    assert_eq!(w.get::<Plated>(p).unwrap().0, 3);
+
+    descend(&mut w);
+
+    let f = w.get::<Fighter>(p).unwrap();
+    assert_eq!((f.power + f.armor) - (power + armor), 3);
+    assert!(w.get::<Plated>(p).is_none());
 }

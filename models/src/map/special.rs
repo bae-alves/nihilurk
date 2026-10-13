@@ -30,7 +30,7 @@ use super::generate::{
 };
 use super::streams::level_rng;
 use super::{
-    FINAL_DEPTH, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, NEIGHBOUR_DIRS, Rooms, SpecialLevel,
+    Floors, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, NEIGHBOUR_DIRS, Rooms, SpecialLevel,
     TileType, tile_index,
 };
 
@@ -40,28 +40,64 @@ use super::{
 /// the content author's way to look at a kind without hunting for a seed
 /// that has one, the same kind of knob `NIHILURK_SPAWN` is. A value that
 /// names no kind is ignored.
-pub(super) fn roll_special_level(seed: u64, depth: u8, bees: bool) -> Option<SpecialLevel> {
+pub(super) fn roll_special_level(
+    seed: u64,
+    depth: u8,
+    bees: bool,
+    floors: Floors,
+) -> Option<SpecialLevel> {
     if let Some(forced) = std::env::var("NIHILURK_LEVEL")
         .ok()
         .and_then(|v| SpecialLevel::named(&v))
     {
         return Some(forced);
     }
-    if !(SPECIAL_LEVEL_MIN_DEPTH..FINAL_DEPTH).contains(&depth) {
-        return None;
-    }
-    if bees {
+    if bees && is_eligible(depth, floors) {
         return Some(SpecialLevel::BeeWorld);
     }
-    const TABLE: [(f64, SpecialLevel); 6] = [
+    let mut taken = Vec::new();
+    let mut here = None;
+    for d in 1..=depth {
+        here = roll_floor(seed, d, floors, &taken);
+        taken.extend(here);
+    }
+    here
+}
+
+fn is_eligible(depth: u8, floors: Floors) -> bool {
+    floors.forces_special(depth) || (SPECIAL_LEVEL_MIN_DEPTH..floors.last).contains(&depth)
+}
+
+/// One floor's roll, given the kinds the floors above it already took: a kind
+/// shows up at most once a run. Replaying the floors above from the seed keeps
+/// this a pure function of `(seed, depth)`, like the layout it feeds.
+fn roll_floor(
+    seed: u64,
+    depth: u8,
+    floors: Floors,
+    taken: &[SpecialLevel],
+) -> Option<SpecialLevel> {
+    if !is_eligible(depth, floors) {
+        return None;
+    }
+    let table = [
         (BATTLEFIELD_CHANCE, SpecialLevel::Battlefield),
         (LABYRINTH_CHANCE, SpecialLevel::Labyrinth),
         (VAULT_CHANCE, SpecialLevel::Vault),
         (BEE_WORLD_CHANCE, SpecialLevel::BeeWorld),
         (CASTLE_CHANCE, SpecialLevel::Castle),
         (ISLAND_CHANCE, SpecialLevel::Island),
-    ];
-    roll_table(&mut level_rng(seed, depth), &TABLE)
+    ]
+    .into_iter()
+    .filter(|(_, level)| !taken.contains(level))
+    .collect::<Vec<_>>();
+    let rng = &mut level_rng(seed, depth);
+    if !floors.forces_special(depth) {
+        return roll_table(rng, &table);
+    }
+    let total: f64 = table.iter().map(|&(chance, _)| chance).sum();
+    let odds: Vec<_> = table.iter().map(|&(c, level)| (c / total, level)).collect();
+    roll_table(rng, &odds).or(table.last().map(|&(_, level)| level))
 }
 
 /// Carves `level` from the floor's layout stream: the finished [`Map`] and
@@ -452,4 +488,23 @@ fn island(rng: &mut ChaCha12Rng, tiles: &mut [TileType]) -> Rooms {
         }
     }
     scatter_stairs(rng, tiles_of(tiles, TileType::Room), tiles)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kind_shows_up_at_most_once_a_run() {
+        for last in [8, 12, 26] {
+            let floors = Floors::new(last);
+            for seed in 0..500 {
+                let kinds: Vec<_> = (1..=last)
+                    .filter_map(|d| roll_special_level(seed, d, false, floors))
+                    .collect();
+                let unique: HashSet<_> = kinds.iter().map(|k| *k as u8).collect();
+                assert_eq!(unique.len(), kinds.len(), "seed {seed}, last {last}");
+            }
+        }
+    }
 }

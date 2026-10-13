@@ -186,6 +186,7 @@ Components — item type keys
 | `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
 | `Rune`    | `RuneEffect`  | `items/runes.rs`; `charged: bool` says whether it still holds a use | key and `charged` yes |
 | `Curse`   | marker        | equipped-and-stuck until remove curse destroys it, or a scroll of enchantment burns it off | yes |
+| `MegaCurse` | marker      | rides with `Curse` on a MEGACURSED item; nothing lifts it or destroys the item but a suit taking the killing blow | yes |
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
 | `KnownQuality` | marker   | this instance's enchantment plus/curse/vorpal bane are known — set by wearing it (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singling it out | yes |
 
@@ -255,8 +256,8 @@ Components — player conditions
 | `Blind`     | marker | player-only: viewshed cut to the 3x3, every glyph in it painted white, every mob `Hidden` (so auto-walk and auto-fight stall too). The AI is unaffected — see below. HUD `BLND` | yes |
 | `Paralyzed` | marker | for the player a `PARALYSIS_LOST_TURN_CHANCE` share of turns forfeited outright before a key is read (never over an open menu), tempo untouched. A monster has `Speed` dropped to `Slow` instead, and carries it for the renderer's tint too, plus a log line of its own if the player can actually see it land (`conditions::paralyse`). HUD `PARL` | yes |
 | `ConfusingTouch` | marker | hands charged by a scroll of monster confusion: the next blow the bearer *lands* confuses what it hits and is spent doing it (an `ABILITIES` row keyed on `Moment::OnHit` — see `content-tables.md`). Not an impairment, and it survives a staircase. HUD `GLOW` | yes |
-| `Plated` | marker | the platinum coin's promise: reach the next **staircase** unhurt and it pays a permanent point of attack or defence *die*, the dungeon's coin flip. HUD `PLAT` | yes |
-| `Forged` | marker | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon, worn armour or a worn ring with a number to it (the Princess of Diamonds' pool), one of the three at random. HUD `FORG` | yes |
+| `Plated` | count | the platinum coin's promise: reach the next **staircase** unhurt and it pays a permanent point of attack or defence *die*, the dungeon's coin flip. stacks to 3, one payout per coin, one blow takes all. HUD `PLxN` | yes |
+| `Forged` | count | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon, worn armour or a worn ring with a number to it (the Princess of Diamonds' pool), one of the three at random. stacks likewise. HUD `FOxN` | yes |
 | `MagicWard` | marker | the spell Magic Ward: for the rest of the floor, checked in `helpers::apply_hit` (every `Hit` with `magical` set -- zapped, thrown, breathed or cast -- bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted like `Confused`/`Blind`/`Paralyzed` above. HUD `WARD` | yes |
 | `Bided` | marker | the spell Bide: `combat::fold_matchup` folds `constants::combat::BIDE_ATTACK_BONUS` into the bearer's very next attack roll, and `combat::resolve_attack` removes the marker the instant that roll is folded — hit, glancing or miss. Anything else done with a turn instead (a step, a used/thrown item, another spell) spends it unfired, via `equipment::reset_momentum`. HUD `BIDE` | yes |
 
@@ -356,6 +357,7 @@ Resources
 |-----------------|----------------------------------------------------------|-------|
 | `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
 | `HelpMenu`      | `open: bool`                                              | the F1 key list. Any key closes it and does nothing else. |
+| `ItemInfo`      | `open: bool`, `lines: Vec<String>`                        | the Info popup: the pack's Info row, and `?` or a click in look mode. Any key closes it and does nothing else. |
 | `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar; the log and player line move left into its columns. |
 | `QuitPrompt`    | `open: bool`, `warned: bool`                              | the "Really quit?" modal, raised by `Esc` **with nothing else open** and answered `y` (or `strings::quit_yes_key`) / `n`. With `models::time_stopped`, the first yes sets `warned` (red "did not save" rows, "REALLY sure?") and a second yes quits. Ctrl+C bypasses it. |
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
@@ -405,7 +407,7 @@ Also here: `SpellsMenu` (`open`, `selected`; the `Z` menu, the only way to an ac
 
 Everything but Browse, Throw and Drop is `Use`, because "quaff", "read" and "wear" are all one verb once `item_system` has the item in hand — the mode only decides what you were offered.
 
-`ItemAction::MENU` is the fixed Use / Throw / Drop order of the Browse modal (`ItemAction::at(idx)` indexes it).
+`ItemAction::MENU` is the fixed Use / Drop / Throw / Info order of the Browse modal (`ItemAction::at(idx)` indexes it).
 
 `pack_rows(world, mode)` is the single place the filter is applied, and it returns **backpack indices**. Both the renderer and the cursor key off that list, so a menu can never highlight or act on a row it isn't showing, and a row keeps its pack letter in every mode (the potion that is `c` in the pack is `c` in the quaff menu, alone on screen or not).
 

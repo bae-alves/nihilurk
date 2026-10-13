@@ -71,3 +71,18 @@ fn bad_arguments_are_refused() {
         );
     }
 }
+
+#[test]
+fn fast_and_endless_cannot_be_combined() {
+    for args in [["-fast", "-endless"], ["--endless", "--bullet"]] {
+        let out = Command::new(env!("CARGO_BIN_EXE_nihilurk"))
+            .args(args)
+            .output()
+            .expect("spawn nihilurk");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("-fast") && stderr.contains("-endless") && stderr.contains("one"),
+            "{args:?} said: {stderr}"
+        );
+    }
+}

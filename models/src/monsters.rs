@@ -25,7 +25,7 @@ use crate::effects::{
     StealsAndVanishes, Swims, Undead, Vampiric, Venomous, VorpalTarget, grant_all, lend,
 };
 use crate::equipment::equip_silently;
-use crate::map::{Endless, FINAL_DEPTH, GameRng};
+use crate::map::{Endless, FINAL_DEPTH, Floors, GameRng};
 use crate::particles::{BlastPalette, Particles, on_map};
 use crate::spawn::{pick_weighted, roll_item_except};
 use crate::spirits::{
@@ -1106,7 +1106,10 @@ const MIMIC_LOOKS: &[(&str, char, Color)] = &[
 fn disguise_as_item(world: &mut World, mob: Entity, rng: &mut ChaCha12Rng) {
     let depth = world.get_resource::<Depth>().map_or(1, |d| d.what);
     let endless = world.get_resource::<Endless>().is_some_and(|e| e.enabled);
-    let (name, glyph, color): (&str, char, Color) = if depth >= FINAL_DEPTH && !endless {
+    let last = world
+        .get_resource::<Floors>()
+        .map_or(FINAL_DEPTH, |f| f.last);
+    let (name, glyph, color): (&str, char, Color) = if depth >= last && !endless {
         (crate::spawn::ELEMENT_OF_YOORD, '"', Color::Magenta)
     } else {
         MIMIC_LOOKS[rng.gen_range(0..MIMIC_LOOKS.len())]
@@ -1231,6 +1234,7 @@ pub(crate) fn reshape(world: &mut World, victim: Entity, def: &MonsterDef) -> En
         .collect();
     let helper = world.get::<Helper>(victim).is_some();
     let ally = world.get::<Faction>(victim) == Some(&Faction::Ally);
+    crate::combat::leave_gear_behind(world, victim);
     crate::spirits::poof(world, victim);
 
     let new = spawn_monster(world, def, pos.unwrap_or(Position { x: 0, y: 0 }));

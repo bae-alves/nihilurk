@@ -33,7 +33,9 @@ use crate::rect::Rect;
 
 use super::special::{carve, roll_special_level};
 use super::streams::{RngSeed, layout_rng};
-use super::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, Rooms, SpecialRoom, TileType, tile_index};
+use super::{
+    Floors, MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, Rooms, SpecialRoom, TileType, tile_index,
+};
 
 // ---------------------------------------------------------------------------
 // The grid the floor is laid out on
@@ -450,9 +452,9 @@ pub(super) fn tiles_of(tiles: &[TileType], want: TileType) -> Vec<(u16, u16)> {
 /// population needs to know about the shape it is stocking. A floor the roll
 /// makes a [`super::SpecialLevel`] is carved by [`carve`]; every other is
 /// Rogue's own [`build_tiles`]. Pure in `(seed, depth)` either way.
-pub(super) fn build_floor(seed: u64, depth: u8, bees: bool) -> (Map, Rooms) {
+pub(super) fn build_floor(seed: u64, depth: u8, bees: bool, floors: Floors) -> (Map, Rooms) {
     let rng = &mut layout_rng(seed, depth);
-    if let Some(level) = roll_special_level(seed, depth, bees) {
+    if let Some(level) = roll_special_level(seed, depth, bees, floors) {
         return carve(level, rng);
     }
     let (tiles, rooms, dark, special) = build_tiles(rng, bees);
@@ -474,7 +476,7 @@ pub(super) fn build_floor(seed: u64, depth: u8, bees: bool) -> (Map, Rooms) {
 pub fn create_map(world: &mut World) -> ((u16, u16), Rooms) {
     let seed = world.resource::<RngSeed>().0;
     let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
-    let (map, rooms) = build_floor(seed, depth, crate::body::bee_run(world));
+    let (map, rooms) = build_floor(seed, depth, crate::body::bee_run(world), Floors::of(world));
     let start = find_tile(&map.tiles, TileType::Upstairs).expect("every floor has an up-stair");
     world.insert_resource(map);
     (start, rooms)
@@ -483,7 +485,7 @@ pub fn create_map(world: &mut World) -> ((u16, u16), Rooms) {
 /// The tiles `(seed, depth)` generates, before anything in play (a wand of
 /// digging) changed them — what a save diffs the live map against.
 pub(crate) fn pristine_tiles(world: &World, seed: u64, depth: u8) -> Vec<TileType> {
-    build_floor(seed, depth, crate::body::bee_run(world))
+    build_floor(seed, depth, crate::body::bee_run(world), Floors::of(world))
         .0
         .tiles
 }
@@ -493,7 +495,7 @@ pub(crate) fn pristine_tiles(world: &World, seed: u64, depth: u8) -> Vec<TileTyp
 /// reconstructed from `(seed, depth)` rather than read out of the save file.
 pub fn regenerate_map(world: &mut World, seed: u64, depth: u8) {
     let bees = crate::body::bee_run(world);
-    world.insert_resource(build_floor(seed, depth, bees).0);
+    world.insert_resource(build_floor(seed, depth, bees, Floors::of(world)).0);
 }
 
 // What a floor is populated *with* is no longer decided here. Which creature,

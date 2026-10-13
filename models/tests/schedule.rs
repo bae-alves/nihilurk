@@ -60,16 +60,11 @@ fn the_turn_schedule_holds_exactly_these_orderings() {
 }
 
 #[test]
-fn the_turn_schedule_has_seventeen_steps() {
-    assert_eq!(turn_schedule().graph().systems().count(), 17);
-}
-
-#[test]
 fn no_two_steps_are_left_unordered() {
     let schedule = turn_schedule();
     let edges = edges_of(&schedule);
     let steps: BTreeSet<&String> = edges.iter().flat_map(|(a, b)| [a, b]).collect();
-    assert_eq!(steps.len(), 17);
+    assert_eq!(steps.len(), schedule.graph().systems().count());
 
     let reaches = |from: &String, to: &String| {
         let mut seen = BTreeSet::new();

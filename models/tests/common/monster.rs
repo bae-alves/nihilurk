@@ -6,6 +6,7 @@ use crossterm::style::Color;
 use models::*;
 
 /// A neutral item-capable monster with no bestiary behavior or spawn rolls.
+#[allow(dead_code)]
 pub fn monster(world: &mut World, name: &str, position: Position) -> Entity {
     let entity = plain_monster(world, name, position);
     world.entity_mut(entity).insert(ItemUser);

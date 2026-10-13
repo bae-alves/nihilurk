@@ -66,6 +66,50 @@ pub struct Endless {
     pub enabled: bool,
 }
 
+/// `-fast`: how many floors the run has. The last one holds the Element of
+/// Yoord. Content tables are written for [`FINAL_DEPTH`] floors, so a shorter
+/// run draws floor `n` as if it were [`Floors::content_depth`].
+#[derive(Resource, Clone, Copy)]
+pub struct Floors {
+    /// The deepest floor of this run.
+    pub last: u8,
+}
+
+impl Floors {
+    /// A run of `last` floors.
+    pub fn new(last: u8) -> Self {
+        Self { last }
+    }
+
+    /// The run in `world`, or the full-length one when it has none.
+    pub fn of(world: &World) -> Self {
+        world.get_resource::<Self>().copied().unwrap_or_default()
+    }
+
+    /// Whether floor `depth` is a special level every time: the middle floors
+    /// of a short run, which has too few floors to leave them to chance.
+    pub fn forces_special(&self, depth: u8) -> bool {
+        self.last < FINAL_DEPTH && (4..self.last).contains(&depth)
+    }
+
+    /// How many times over each floor runs its item budget: a short run is
+    /// stocked twice as richly, to make up for the floors it lacks.
+    pub fn item_multiplier(&self) -> usize {
+        if self.last < FINAL_DEPTH { 2 } else { 1 }
+    }
+
+    /// `depth` stretched onto the full-length scale; the identity when `last` is [`FINAL_DEPTH`].
+    pub fn content_depth(&self, depth: u8) -> u8 {
+        (depth as u32 * FINAL_DEPTH as u32).div_ceil(self.last as u32) as u8
+    }
+}
+
+impl Default for Floors {
+    fn default() -> Self {
+        Self::new(FINAL_DEPTH)
+    }
+}
+
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 /// What one map tile is made of: the whole vocabulary of the terrain.
 pub enum TileType {

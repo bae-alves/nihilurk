@@ -82,9 +82,9 @@ Each is a `const Rule` wrapping a plain function of the percept.
 
 | Rule | Fires when | Action |
 |---|---|---|
-| `CAST` | The spellset is not empty. It picks `spellset[roll % len]` and fires it at the nearest foe in the spell's `SpellDef::range`. Only `Force Lance` needs a clear line; the rest are aimed at the foe's tile. An ally passes over any foe whose footprint (`agents::reaches`) holds the player: a blast radius, the lance's line, or the target tile itself for Sting and Thunderbolt. Only an `Attack` spell with a range above 0 is ever fired. | `Cast` |
-| `SHOOT` | A launcher is drawn, not pinned, a foe within `MONSTER_SHOT_RANGE` with a clear line. | `Shoot` the nearest such foe |
-| `STRIKE` | A foe on one of the eight tiles around it. | `Strike` it, the player before anyone else |
+| `CAST` | The spellset is not empty. It picks `spellset[roll % len]` and fires it at the nearest foe in the spell's `SpellDef::range`. Only `Force Lance` needs a clear line; the rest are aimed at the foe's tile. An ally passes over any foe whose footprint (`agents::reaches`) holds the player: a blast radius, the lance's line, or the target tile itself for Sting and Thunderbolt. Only an `Attack` spell with a range above 0 is ever fired. Never at a foe across a corner (`across_corner`). | `Cast` |
+| `SHOOT` | A launcher is drawn, not pinned, a foe within `MONSTER_SHOT_RANGE` with a clear line, and not across a corner (`across_corner`: next to it, but past a doorway or room corner it could not step across). | `Shoot` the nearest such foe |
+| `STRIKE` | A foe on one of the eight tiles around it, bar one across a corner (`across_corner`). | `Strike` it, the player before anyone else |
 | `CLOSE_IN` | Any foe: the player once noticed, or an ally of theirs. | `Step` along the shortest walk to the nearest |
 | `HEEL` | More than one tile from the player. | `Step` along the shortest walk to a tile next to them |
 | `FLEE` | The player is among the foes. | `Step` straight away from them |

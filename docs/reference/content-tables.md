@@ -621,6 +621,9 @@ Rolled by `enchant_equipment` for every weapon, armour and launcher, and by `enc
 | Normal      | `NORMAL_QUALITY_PCT`        | +0                            |
 | Exceptional | `EXCEPTIONAL_QUALITY_PCT`   | `EXCEPTIONAL_BONUS_MIN` .. `EXCEPTIONAL_BONUS_MAX` |
 | Cursed      | whatever is left            | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX`, plus a `Curse` tag |
+| MEGACURSED  | `MEGACURSED_PCT_OF_CURSED`% of the cursed | `MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX` (-3 .. +0), plus `Curse` and `MegaCurse` tags |
+
+A MEGACURSED item is stuck on for good. Remove curse, a scroll of enchantment, cancellation, an angel's test of faith and a Five Flush all leave the `Curse` on it (enchantment, cancellation and the flush still change the plus). Remove curse, the pink demon, a curse merge and the deck's shivering ring never destroy it. A suit of armour taking the killing blow is the one way out. The `MegaCurse` tag marks it, and `equipment::lift_curse` is the one place a curse comes off.
 
 A cursed item can roll better than a clean one; it simply cannot be taken off once equipped, short of a scroll of remove curse (which destroys it) or the matching scroll of enchantment (which lifts the `Curse` tag and mends any minus to `+0` — see `constants::scrolls::ENCHANT_BONUS`).
 
@@ -635,6 +638,7 @@ A ring rolls the same three qualities at the same odds, with its own numbers (`c
 | Normal      | `PLAIN_BONUS` (+2, which is the row)      | nothing        |
 | Exceptional | `EXCEPTIONAL_BONUS` (+3)                  | nothing        |
 | Cursed      | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX` (-3 .. +2), plus a `Curse` tag | a `Curse` tag |
+| MEGACURSED  | `rings::MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX` (+0 .. +13), plus `Curse` and `MegaCurse` tags | `Curse` and `MegaCurse` tags |
 
 A cursed ring never beats a plain one: its range stops at `PLAIN_BONUS`. The rows spell their number with `PLAIN_BONUS`, so the table and the roll cannot disagree.
 

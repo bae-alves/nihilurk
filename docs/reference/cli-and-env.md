@@ -24,11 +24,12 @@ In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`,
 | `-ns`, `--no-save` | No save. The run is never written to disk.                |
 | `-nb`, `--no-blood` | No blood. Suppresses bloodstain rendering, and with it the flung-corpse-and-bones death animation — a kill just leaves a static grey corpse mark. |
 | `-nshake`, `--no-shake` | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
-| `-mouse`, `--mouse` | Turn on mouse capture. Left click reads a tile (look); right click travels there, like `O` then Enter. On the aiming reticle, left moves the cursor and right moves it and fires; on the `O` cursor, left moves it and right goes. Menus and the `--MORE--` prompt ignore clicks. Off by default, because capture takes the terminal's own text selection (Shift+drag copies). |
+| `-mouse`, `--mouse` | Turn on mouse capture. Left click reads a tile (look) and opens its Info popup; right click travels there, like `O` then Enter. On the aiming reticle, left moves the cursor and right moves it and fires; on the `O` cursor, left moves it and right goes. Menus and the `--MORE--` prompt ignore clicks. Off by default, because capture takes the terminal's own text selection (Shift+drag copies). |
 | `-nobones`, `--no-bones` | Skip the bones mechanic entirely: a death never writes a `bones-N.sav`, and an ascent never reads one. Not the corpse-fling animation `-nb` mentions above — this is the NetHack-style "a past run's ghost, guarding its own cursed gear" (`models::bones`). |
-| `-endless`, `--endless` | No Element of Yoord ever spawns, so there is no way to win: the dungeon keeps going down past `FINAL_DEPTH`. Sets the `Endless` resource (`models/src/map.rs`); the depth-`FINAL_DEPTH` checks in `traps.rs`, `monsters.rs` and `saveload.rs` read it. |
+| `-endless`, `--endless` | No Element of Yoord ever spawns, so there is no way to win: the dungeon keeps going down past `FINAL_DEPTH`. Sets the `Endless` resource (`models/src/map.rs`), which the save records (`SaveGame::endless`); refused together with `-fast`; the depth-`FINAL_DEPTH` checks in `traps.rs`, `monsters.rs` and `saveload.rs` read it. |
+| `-fast`, `--fast`, `--bullet`, `--quick` (also `-bullet`, `-quick`) | A six-floor dungeon: the Element of Yoord sits on floor 6, and floors 4 and 5 are always special levels (`Floors::forces_special`). Sets the `Floors` resource (`models/src/map.rs`); floor `n` draws monsters, traps and items as depth `ceil(n*13/6)`, and every floor runs its item budget twice (`Floors::item_multiplier`). The save records the run length (`SaveGame::floors`), so on a load the flag is ignored and the saved length wins; passing it with a save says so and asks `Load anyway? [y/N]` (same for `-endless`). Refused together with `-endless`. |
 | `-content`, `--content` | Print every name the content tables know, then exit.      |
-| `-scores`, `--leaderboard` | Print the leaderboard (top 10 scores ever recorded), then exit. |
+| `-scores`, `--leaderboard` | Print the leaderboard (top 10 scores ever recorded), then exit. Add `-fast` or `-endless` for that mode's board. |
 | `-anim-rate <n>`, `--anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad, non-finite or missing value is refused as an invalid argument. |
 | `-keymap <file>`, `--keymap` | Remap keys from the file; without it, `keymap.txt` in the data directory is read if it exists. See [Key remapping](#key-remapping). A bad line or an unreadable file is named on stderr and the game does not start. |
 | `-b <body>`, `--body` | Play as `nihil` (the default) or `lurk`. See below. |
@@ -149,7 +150,7 @@ The game needs a terminal of at least 80 columns by 25 rows. In a smaller one th
     cargo run -p nihilurk -- -content | grep ring
     cargo run -p nihilurk -- -content | less
 
-`-scores` reads the same way, straight off `leaderboard.sav` in the data directory (see `NIHILURK_DATA` below) -- a small versioned postcard file, like a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)`, where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended. A leaderboard it can't read, damaged or from another version, is named on stderr and never overwritten: no score is recorded until it is moved away. Two runs ending at once take turns at the file through `leaderboard.sav.lock`.
+`-scores` reads the same way, straight off `leaderboard.sav` in the data directory (`-scores -fast` reads `leaderboard-fast.sav`, `-scores -endless` reads `leaderboard-endless.sav`; each mode keeps its own board) (see `NIHILURK_DATA` below) -- a small versioned postcard file, like a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)`, where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended. A leaderboard it can't read, damaged or from another version, is named on stderr and never overwritten: no score is recorded until it is moved away. Two runs ending at once take turns at the file through `leaderboard.sav.lock`.
 
 A run that ends in a win or a death also leaves a run dump, `morgue/NAME-YYYYMMDD-HHMMSS.txt` in the data directory (UTC; any character of `NAME` that is not a letter, a digit, `-` or `_` becomes `_`). It is plain text for sharing: the outcome, cause, depth and score, the final screen, the pack, every kill by name (most first) and the message log. The path is printed once the terminal is back. `-ns` does not stop it -- a dump is a record of the run, like the leaderboard, not a save. A dump never overwrites another, and one that can't be written is skipped without a word.
 
@@ -197,11 +198,12 @@ Details:
 
   * Any name from `-content` works -- monsters, items, traps, the Element itself.
   * Whitespace around each name is trimmed; empty entries are skipped.
-  * Gear and ammunition take optional dressing, written around the name in this order: `[cursed] [+N|-N] name [xN]`.
+  * Gear and ammunition take optional dressing, written around the name in this order: `[cursed|megacursed] [+N|-N] name [xN]`.
 
     | Piece    | Example             | Effect |
     |----------|---------------------|--------|
     | `cursed` | `cursed ring mail`  | Adds the `Curse` tag: once worn or wielded it will not come off until a scroll of remove curse. |
+    | `megacursed` | `megacursed ring mail` | Adds `Curse` and `MegaCurse`: nothing lifts it or destroys it. |
     | `+N`/`-N`| `+3 long sword`     | Adds N to the item's flat bonus: a weapon's hit roll, armour's guard, or a launcher's throw (the arrows it looses). On a numeric ring (protection, strength, increase damage, sharpshooting) N is the ring's whole number, so `+3 ring of protection` is a +3 ring. Same code as the dungeon's own enchantment roll (`catalog::apply_bonus`). |
     | `xN`     | `arrow x13`         | Sets the stack size, clamped to `1..=STACK_LIMIT`. `x0` gives 1, and anything over the limit gives the limit. |
 
@@ -254,7 +256,7 @@ The file is read from the data directory, or from the path given to `-keymap`. A
 
 ### NIHILURK_DATA
 
-The directory nihilurk keeps its files in: saves, `bones-N.sav`, `leaderboard.sav` and the run dumps in `morgue/`. Set, it wins. Unset or empty, the OS convention decides (`models::data_dir`):
+The directory nihilurk keeps its files in: saves, `bones-N.sav`, `leaderboard.sav`, `leaderboard-fast.sav`, `leaderboard-endless.sav` and the run dumps in `morgue/`. Set, it wins. Unset or empty, the OS convention decides (`models::data_dir`):
 
 | OS              | Data directory                                              |
 |-----------------|-------------------------------------------------------------|

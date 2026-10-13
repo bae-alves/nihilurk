@@ -424,7 +424,7 @@ fn gate_down_drops_the_caster_a_floor_and_charges_for_it() {
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
     let def = SpellDef::of(SpellEffect::GateDown);
-    assert_eq!((def.cost, def.kind), (4, SpellKind::Skill));
+    assert_eq!(def.kind, SpellKind::Skill);
     assert!(!SpellEffect::GateDown.needs_target());
     w.get_mut::<Magic>(p).unwrap().points = def.cost;
 

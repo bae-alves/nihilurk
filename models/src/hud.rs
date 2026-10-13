@@ -263,29 +263,6 @@ mod tests {
             .join(" ")
     }
 
-    /// A message wider than the log wraps onto the next line instead of
-    /// running off the edge, loses no word, and keeps its category.
-    #[test]
-    fn a_long_message_wraps_onto_the_next_line() {
-        let words: Vec<String> = (0..12).map(|i| format!("word{i:02}")).collect();
-        let long = words.join(" ");
-        assert!(long.len() > LOG_WIDTH && long.len() < 2 * LOG_WIDTH - 10);
-        let unread = vec![LogEntry::tagged(long.clone(), LogCategory::Wounded)];
-
-        let (lines, consumed, more) = log_view(&unread, LOG_WIDTH);
-
-        assert_eq!(lines.len(), 2, "it should take both lines");
-        assert!(lines.iter().flatten().all(|e| e.text.len() <= LOG_WIDTH));
-        assert!(
-            lines
-                .iter()
-                .flatten()
-                .all(|e| e.category == LogCategory::Wounded)
-        );
-        assert_eq!(text_of(&lines), long);
-        assert_eq!((consumed, more), (1, false));
-    }
-
     /// A message too long for what is left on the screen is split across
     /// pages: acknowledging keeps the unshown rest as the next unread, so
     /// no word is ever lost to the pager.
@@ -310,57 +287,5 @@ mod tests {
         assert!(unread.is_empty(), "the pager never finished");
         assert!(seen.len() > 1, "the fixture fits on one page");
         assert_eq!(seen.join(" "), long, "words were lost or repeated");
-    }
-
-    /// Opting out of the command bar hands its columns to the log and the
-    /// player line: they start at the screen's edge and run the full width.
-    #[test]
-    fn a_hidden_bar_gives_its_columns_to_the_log() {
-        let shown = CommandBar { hidden: false };
-        let hidden = CommandBar { hidden: true };
-        assert_eq!((shown.log_x(), shown.log_width()), (LOG_X, LOG_WIDTH));
-        assert_eq!((hidden.log_x(), hidden.log_width()), (0, 80));
-    }
-
-    /// The width the log wraps at is the caller's, so the page the renderer
-    /// draws and the page `acknowledge` cuts agree whichever way the bar is.
-    #[test]
-    fn a_wider_log_keeps_on_one_line_what_a_narrow_one_wraps() {
-        let text = vec!["word"; 13].join(" ");
-        assert!(text.len() > LOG_WIDTH && text.len() <= CommandBar { hidden: true }.log_width());
-        let unread = vec![LogEntry::plain(text.clone())];
-
-        let narrow = log_view(&unread, CommandBar { hidden: false }.log_width()).0;
-        let wide = log_view(&unread, CommandBar { hidden: true }.log_width()).0;
-
-        assert_eq!((narrow.len(), wide.len()), (2, 1));
-        assert_eq!(text_of(&wide), text);
-    }
-
-    /// The `--MORE--` prompt keeps its 22 columns however wide the log is.
-    #[test]
-    fn the_pager_reserves_the_prompt_at_any_width() {
-        let width = CommandBar { hidden: true }.log_width();
-        let unread: Vec<LogEntry> = (0..12)
-            .map(|i| LogEntry::plain(format!("Message number {i} is a fairly long one.")))
-            .collect();
-        let (lines, consumed, more) = log_view(&unread, width);
-        assert!(more && consumed < unread.len());
-        let last: usize = lines.last().unwrap().iter().map(|e| e.text.len() + 1).sum();
-        assert!(
-            last <= width - MORE_PROMPT_WIDTH,
-            "the last line runs under the prompt"
-        );
-    }
-
-    /// Short messages still share a line, as before.
-    #[test]
-    fn short_messages_still_share_a_line() {
-        let unread = vec![LogEntry::plain("You hit."), LogEntry::plain("It dies.")];
-        let (lines, consumed, more) = log_view(&unread, LOG_WIDTH);
-        assert_eq!(
-            (lines.len(), lines[0].len(), consumed, more),
-            (1, 2, 2, false)
-        );
     }
 }

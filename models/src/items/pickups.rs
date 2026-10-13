@@ -25,7 +25,7 @@ use rand::Rng;
 use rand::seq::SliceRandom;
 
 use crate::components::*;
-use crate::constants::spells::SPELLSET_CAP;
+use crate::constants::spells::{PROMISE_CAP, SPELLSET_CAP};
 use crate::equipment::Slot;
 use crate::identify::display_name;
 use crate::map::{GameRng, Map, SpecialRoom};
@@ -227,9 +227,7 @@ fn apply(world: &mut World, taker: Entity, effect: PickupEffect, amount: i32) ->
 ///
 /// The gate is the pickup category's whole character: a coin you cannot use is
 /// a coin you have not spent, and it keeps until you can. Treasure and the two
-/// promises always help — there is no such thing as too much score, and a
-/// promise you already hold is one the staircase has not settled yet, so
-/// `Promise::already_held` answers for those.
+/// promises help until the stairs owe you `PROMISE_CAP` of that kind.
 pub fn would_help(world: &World, taker: Entity, effect: PickupEffect) -> bool {
     match effect {
         PickupEffect::Coin => true,
@@ -241,8 +239,8 @@ pub fn would_help(world: &World, taker: Entity, effect: PickupEffect) -> bool {
         PickupEffect::Strength => world
             .get::<Fighter>(taker)
             .is_some_and(|f| f.power < f.max_power),
-        PickupEffect::Platinum => !Promise::Platinum.already_held(world, taker),
-        PickupEffect::Forge => !Promise::Forge.already_held(world, taker),
+        PickupEffect::Platinum => Promise::Platinum.held(world, taker) < PROMISE_CAP,
+        PickupEffect::Forge => Promise::Forge.held(world, taker) < PROMISE_CAP,
         PickupEffect::LearnRandomSpell => world
             .get::<Spellset>(taker)
             .is_some_and(|m| m.slots.len() < SPELLSET_CAP),
@@ -367,18 +365,20 @@ impl Promise {
         }
     }
 
-    fn already_held(self, world: &World, taker: Entity) -> bool {
+    /// How many coins of this kind the staircase still owes.
+    fn held(self, world: &World, taker: Entity) -> u8 {
         match self {
-            Promise::Platinum => world.get::<Plated>(taker).is_some(),
-            Promise::Forge => world.get::<Forged>(taker).is_some(),
+            Promise::Platinum => world.get::<Plated>(taker).map_or(0, |p| p.0),
+            Promise::Forge => world.get::<Forged>(taker).map_or(0, |p| p.0),
         }
     }
 
     fn attach(self, world: &mut World, taker: Entity) {
+        let n = (self.held(world, taker) + 1).min(PROMISE_CAP);
         let mut e = world.entity_mut(taker);
         match self {
-            Promise::Platinum => e.insert(Plated),
-            Promise::Forge => e.insert(Forged),
+            Promise::Platinum => e.insert(Plated(n)),
+            Promise::Forge => e.insert(Forged(n)),
         };
     }
 
@@ -404,7 +404,7 @@ fn promise(world: &mut World, taker: Entity, which: Promise) -> String {
 /// and keep one.
 pub fn break_promises(world: &mut World, victim: Entity) {
     for promise in Promise::ALL {
-        if !promise.already_held(world, victim) {
+        if promise.held(world, victim) == 0 {
             continue;
         }
         promise.detach(world, victim);
@@ -421,13 +421,13 @@ pub fn break_promises(world: &mut World, victim: Entity) {
 /// lift, because reaching the staircase is the whole of what it asked for.
 pub fn settle_promises(world: &mut World, player: Entity) {
     for promise in Promise::ALL {
-        if !promise.already_held(world, player) {
-            continue;
-        }
+        let owed = promise.held(world, player);
         promise.detach(world, player);
-        match promise {
-            Promise::Platinum => pay_platinum(world, player),
-            Promise::Forge => pay_forge(world, player),
+        for _ in 0..owed {
+            match promise {
+                Promise::Platinum => pay_platinum(world, player),
+                Promise::Forge => pay_forge(world, player),
+            }
         }
     }
 }

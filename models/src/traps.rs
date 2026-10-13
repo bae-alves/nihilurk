@@ -94,8 +94,8 @@ use crate::helpers::{
 };
 use crate::identify::article_for;
 use crate::map::{
-    Endless, FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType,
-    tile_index, transition_level,
+    Endless, Floors, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index,
+    transition_level,
 };
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
@@ -980,12 +980,12 @@ pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool
         if let Some(pos) = world.get::<Position>(victim).copied() {
             leave_smoke(world, pos);
         }
-        world.entity_mut(victim).despawn();
+        crate::spirits::poof(world, victim);
         return;
     }
 
     let depth = world.resource::<Depth>().what;
-    if depth >= FINAL_DEPTH && !world.resource::<Endless>().enabled {
+    if depth >= world.resource::<Floors>().last && !world.resource::<Endless>().enabled {
         world
             .resource_mut::<GameLog>()
             .add(strings::trapdoor_grinds_shut());

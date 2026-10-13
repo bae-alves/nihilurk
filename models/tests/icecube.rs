@@ -6,6 +6,7 @@ mod monster;
 
 use bevy_ecs::prelude::*;
 use models::constants::ice::{DAMAGE_DICE, DAMAGE_SIDES};
+use models::constants::traps::{TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES};
 use models::*;
 
 const FIRE_IMMUNITY: &[Grant] = &[Grant::of::<FireImmune>()];
@@ -94,7 +95,7 @@ fn cubes(w: &mut World) -> Vec<(Entity, Position)> {
 }
 
 #[test]
-fn a_cold_kill_leaves_a_cyan_wall_glyph_that_blocks_like_a_creature() {
+fn a_cold_kill_leaves_a_cube_that_blocks_like_a_creature() {
     let mut w = test_world(3);
     let spot = open_tiles_near_player(&mut w, 1)[0];
     let orc = monster::monster(&mut w, "orc", spot);
@@ -106,11 +107,6 @@ fn a_cold_kill_leaves_a_cyan_wall_glyph_that_blocks_like_a_creature() {
     assert_eq!(found.len(), 1);
     let (cube, at) = found[0];
     assert_eq!(at, spot);
-    let look = w.get::<Renderable>(cube).unwrap();
-    assert_eq!(
-        (look.glyph, look.color),
-        ('#', crossterm::style::Color::Cyan)
-    );
     assert!(
         w.get::<Fighter>(cube).is_none(),
         "a cube has nothing to hurt"
@@ -221,7 +217,10 @@ fn a_shot_cube_bursts_into_cold_that_freezes_what_it_kills() {
         "and froze it"
     );
     let lost = 100 - w.get::<Fighter>(hardy).unwrap().hp;
-    assert!((2..=6).contains(&lost), "lost {lost}");
+    assert!(
+        (TRICK_SHOT_DAMAGE_DICE..=TRICK_SHOT_DAMAGE_DICE * TRICK_SHOT_DAMAGE_SIDES).contains(&lost),
+        "lost {lost}"
+    );
 }
 
 #[test]
@@ -298,7 +297,9 @@ fn fire_on_a_cube_doubles_its_radius_and_damage() {
     zap(&mut w, WandEffect::Fire, at);
 
     let lost = 100 - w.get::<Fighter>(bystander).unwrap().hp;
-    assert!((4..=12).contains(&lost), "lost {lost}");
+    let scorched =
+        2 * TRICK_SHOT_DAMAGE_DICE..=2 * TRICK_SHOT_DAMAGE_DICE * TRICK_SHOT_DAMAGE_SIDES;
+    assert!(scorched.contains(&lost), "lost {lost}");
 }
 
 #[test]

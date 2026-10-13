@@ -191,7 +191,7 @@ Every rule above is checked by one script, so none of this has to be remembered:
     ./docs_style.sh docs/how-to       one directory, or one file
     ./docs_style.sh --quiet           print only what failed
 
-It reports and never rewrites, because where a check fires the fix is a judgement call about where a sentence should break. Nine checks, one per section of this page; its own header comment says which is which, and why a markdown formatter is the wrong tool for this particular corpus.
+It reports and never rewrites, because where a check fires the fix is a judgement call about where a sentence should break. Ten checks, one per section of this page; its own header comment says which is which, and why a markdown formatter is the wrong tool for this particular corpus.
 
 Exit status is 0 when everything passes, so it drops into a pre-commit hook or a CI step as `./docs_style.sh || exit 1`.
 

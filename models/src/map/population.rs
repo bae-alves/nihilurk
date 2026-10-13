@@ -37,7 +37,7 @@ use super::generate::{corridor_centers, find_tile, room_floor_tiles, tiles_of};
 use super::levels::holding_element_of_yoord;
 use super::special::castle_rooms;
 use super::streams::{RngSeed, content_rng};
-use super::{FINAL_DEPTH, Map, Rooms, SpecialLevel, SpecialRoom, TileType, tile_index};
+use super::{Floors, Map, Rooms, SpecialLevel, SpecialRoom, TileType, tile_index};
 
 /// Reserves a free tile in a random room other than the start room (index 0)
 /// — or in the start room itself, on a floor that is one room and nothing
@@ -112,7 +112,8 @@ fn random_tile(room: &[(u16, u16)], rng: &mut ChaCha12Rng) -> (u16, u16) {
 /// On the deepest floor, replaces the down-stair with the Element of Yoord. A
 /// no-op on every shallower floor.
 fn place_element_of_yoord(world: &mut World, occupied: &mut HashSet<(u16, u16)>, depth: u8) {
-    if depth < FINAL_DEPTH || world.resource::<super::Endless>().enabled {
+    if depth < world.resource::<super::Floors>().last || world.resource::<super::Endless>().enabled
+    {
         return;
     }
     let Some((ex, ey)) = find_tile(&world.resource::<Map>().tiles, TileType::Downstairs) else {
@@ -488,7 +489,8 @@ pub(super) fn populate_level(
     occupied.insert((player_x, player_y));
 
     // Rough danger tier: deeper floors unlock nastier letters.
-    let depth = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
+    let floor = world.get_resource::<Depth>().map(|d| d.what).unwrap_or(1);
+    let depth = world.resource::<Floors>().content_depth(floor);
 
     let anything_goes = holding_element_of_yoord(world);
     let level = world.resource::<Map>().level;
@@ -524,6 +526,7 @@ pub(super) fn populate_level(
     );
 
     let (monster_runs, item_runs) = budget_runs(level, tier);
+    let item_runs = item_runs * world.resource::<Floors>().item_multiplier();
     let monster_rooms = match level {
         Some(SpecialLevel::Island) => {
             let sea = tiles_of(&tiles, TileType::Water);
@@ -580,7 +583,7 @@ pub(super) fn populate_level(
         }
     }
 
-    place_element_of_yoord(world, &mut occupied, depth);
+    place_element_of_yoord(world, &mut occupied, floor);
 
     let max_traps = TRAP_SLOTS_BASE + tier as usize;
     let trap_chance =

@@ -891,6 +891,9 @@ pub enum ScrollEffect {
     Pitfall,
     /// Makes the spirits neutral again: `crate::spirits::atone`.
     Atonement,
+    /// Carries the reader to this floor's stair down, or to the stair up while
+    /// the Element of Yoord is in the pack.
+    TeleportToStairs,
 }
 
 /// A deck of cards: five faces stacked when the deck was rolled, read one at a
@@ -1241,6 +1244,15 @@ pub enum RingEffect {
 #[derive(Component)]
 pub struct Curse;
 
+/// Rides alongside [`Curse`] on the rare MEGACURSED item (see
+/// [`crate::constants::loot::MEGACURSED_PCT_OF_CURSED`]). Nothing lifts it:
+/// not remove curse, enchanting, cancellation, a test of faith or a Five
+/// Flush, and nothing destroys the item either — no remove curse, pink demon,
+/// curse merge or shivering ring. The one exception is a suit taking the
+/// killing blow ([`crate::helpers::armor_takes_last_hit`]).
+#[derive(Component)]
+pub struct MegaCurse;
+
 /// A bones ghost whose name matches the current character's own — set only
 /// by `crate::map::levels::spawn_bones_ghost`. `crate::combat` reads this to
 /// decide when a fight with the ghost is narrated as "you" against yourself
@@ -1425,7 +1437,8 @@ pub struct ReachPiercing;
 /// saying so.
 ///
 /// [`Plated`] pays a permanent point of attack or defence die — the coin flip
-/// is the dungeon's, not yours. [`Forged`] pays a point of plus on the weapon
+/// is the dungeon's, not yours. The count is how many coins are owed; they
+/// stack to three, all pay at the staircase, and one blow takes them all. [`Forged`] pays a point of plus on the weapon
 /// in your hand or the armour on your back, exactly as the matching scroll
 /// would, curse and all.
 ///
@@ -1435,11 +1448,11 @@ pub struct ReachPiercing;
 /// staircase — the staircase is what cashes them
 /// (`crate::items::pickups::settle_promises`).
 #[derive(Component)]
-pub struct Plated;
+pub struct Plated(pub u8);
 
 /// The forge's half of the same bargain. See [`Plated`].
 #[derive(Component)]
-pub struct Forged;
+pub struct Forged(pub u8);
 
 // ===========================================================================
 // Traps and snares
@@ -1731,6 +1744,16 @@ pub struct QuitPrompt {
 pub struct HelpMenu {
     /// Whether the list is up.
     pub open: bool,
+}
+
+/// The pack's Info popup: whether it is up and the lines it shows. Any key
+/// closes it and does nothing else, so it can never cost a turn.
+#[derive(Resource, Default)]
+pub struct ItemInfo {
+    /// Whether the popup is up.
+    pub open: bool,
+    /// What it shows, the item's name first.
+    pub lines: Vec<String>,
 }
 
 /// The yellow command bar at the bottom left: whether the player has opted out
