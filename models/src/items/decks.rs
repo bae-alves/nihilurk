@@ -207,7 +207,7 @@ fn princess(world: &mut World, user: Entity, reversed: bool) {
     }
     let worn: Vec<Entity> = crate::equipment::equipped_items(world, user)
         .into_iter()
-        .filter(|&e| world.get::<Ring>(e).is_some())
+        .filter(|&e| world.get::<Ring>(e).is_some() && world.get::<MegaCurse>(e).is_none())
         .collect();
     let Some(&ring) = worn.choose(&mut world.resource_mut::<GameRng>().0) else {
         say(world, strings::card_no_ring());
@@ -324,6 +324,14 @@ fn summon(world: &mut World, user: Entity, def: &MonsterDef, reversed: bool) {
 /// The Child and The Crone: to this floor's up-stair (`up`) or down-stair, or
 /// beside it when something stands on it.
 fn to_stair(world: &mut World, user: Entity, up: bool) {
+    if move_to_stair(world, user, up) {
+        say(world, strings::card_to_stair(up));
+    }
+}
+
+/// Moves `user` to the stair, saying only that there is none when it cannot.
+/// Returns whether it moved.
+pub(super) fn move_to_stair(world: &mut World, user: Entity, up: bool) -> bool {
     let want = if up {
         TileType::Upstairs
     } else {
@@ -331,7 +339,7 @@ fn to_stair(world: &mut World, user: Entity, up: bool) {
     };
     let Some(stair) = crate::map::find_tile(&world.resource::<Map>().tiles, want) else {
         say(world, strings::card_no_stair());
-        return;
+        return false;
     };
     let at = Position {
         x: stair.0,
@@ -343,10 +351,10 @@ fn to_stair(world: &mut World, user: Entity, up: bool) {
     };
     let Some(tile) = tile else {
         say(world, strings::card_no_stair());
-        return;
+        return false;
     };
     move_reader_to(world, user, tile);
-    say(world, strings::card_to_stair(up));
+    true
 }
 
 /// Whether a creature, the player included, stands on `at`.
@@ -616,7 +624,7 @@ fn hand_name(rank: Rank) -> &'static str {
 fn five_flush(world: &mut World, user: Entity) {
     for item in crate::equipment::equipped_items(world, user) {
         if set_to_five(world, item) {
-            world.entity_mut(item).remove::<Curse>();
+            crate::equipment::lift_curse(world, item);
             world.entity_mut(item).insert(KnownQuality);
         }
     }

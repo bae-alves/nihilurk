@@ -16,8 +16,8 @@ use rand::seq::SliceRandom;
 
 use crate::catalog::{ARMORS, ItemDef, POTIONS, RINGS, SCROLLS, SpellDef, WANDS, WEAPONS};
 use crate::components::{
-    Alignment, Backpack, BarterColumn, BarterMenu, Curse, Faction, Fighter, GameLog, KnownQuality,
-    Magic, Mob, MovementType, OfferMenu, OfferOption, Player, Position, Price, SpellEffect,
+    Alignment, Backpack, BarterColumn, BarterMenu, Faction, Fighter, GameLog, KnownQuality, Magic,
+    MegaCurse, Mob, MovementType, OfferMenu, OfferOption, Player, Position, Price, SpellEffect,
     Spellset, SpiritEvent, SpiritKind, SpiritsHostile, TestOfFaithLedger, Tradeable,
 };
 use crate::constants::spells::SPELLSET_CAP;
@@ -26,7 +26,7 @@ use crate::constants::spirits::{
     TEST_OF_FAITH_DUD_BONUS, TEST_OF_FAITH_GEAR_BONUS, TEST_OF_FAITH_HP_DIVISOR,
 };
 use crate::effects::{ArmorBonus, PowerBonus, revoke_all};
-use crate::equipment::{Equipped, Slot, destroy_worn, equipped_items};
+use crate::equipment::{Equipped, Slot, destroy_worn, equipped_items, lift_curse};
 use crate::helpers::item_label;
 use crate::items::stow;
 use crate::map::GameRng;
@@ -386,10 +386,15 @@ fn open_shop(world: &mut World, player: Entity, spirit: Entity, options: Vec<Off
 /// Despawns a creature. A spirit goes out with a poof that pulls the
 /// player's [`Alignment`], however it leaves: a deal done, a kill, a
 /// polymorph, a Helper lost. Every mob despawn calls this rather than
-/// `World::despawn`, since a spirit can be any of them.
+/// `World::despawn`, since a spirit can be any of them. Gear it still wears
+/// goes with it: a caller that wants the gear left behind settles it first
+/// ([`crate::combat::leave_gear_behind`]).
 pub(crate) fn poof(world: &mut World, spirit: Entity) {
     pull_alignment(world, spirit);
     if world.get_entity(spirit).is_some() {
+        for item in crate::equipment::equipped_items(world, spirit) {
+            world.despawn(item);
+        }
         world.despawn(spirit);
     }
 }
@@ -634,11 +639,14 @@ pub(crate) fn blue_demon_event(world: &mut World, player: Entity, spirit: Entity
 }
 
 /// Pink demon: destroys every piece of gear the player has on, cursed or
-/// not. Each piece gone is [`PINK_DEMON_ODDS_PER_PIECE`] toward them joining
+/// not — save the [`MegaCurse`]d, which it cannot touch. Each piece gone is [`PINK_DEMON_ODDS_PER_PIECE`] toward them joining
 /// as the player's Helper; if they won't join, they vanish. A player with
 /// nothing on has nothing to offer, and is [`refuse`]d.
 pub(crate) fn pink_demon_event(world: &mut World, player: Entity, spirit: Entity) {
-    let worn = equipped_items(world, player);
+    let worn: Vec<Entity> = equipped_items(world, player)
+        .into_iter()
+        .filter(|&e| world.get::<MegaCurse>(e).is_none())
+        .collect();
     if worn.is_empty() {
         refuse(world, spirit);
         return;
@@ -727,13 +735,13 @@ pub fn apply_test_of_faith(world: &mut World, player: Entity) {
                 world
                     .entity_mut(item)
                     .insert((PowerBonus(TEST_OF_FAITH_GEAR_BONUS), KnownQuality));
-                world.entity_mut(item).remove::<Curse>();
+                lift_curse(world, item);
             }
             Some(Slot::Body) => {
                 world
                     .entity_mut(item)
                     .insert((ArmorBonus(TEST_OF_FAITH_GEAR_BONUS), KnownQuality));
-                world.entity_mut(item).remove::<Curse>();
+                lift_curse(world, item);
             }
             _ => {
                 let is_dud = world.get::<PowerBonus>(item).is_none()

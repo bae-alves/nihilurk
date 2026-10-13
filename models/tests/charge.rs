@@ -4,6 +4,7 @@
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
+use models::constants::combat::VULN_DAMAGE_PERCENT;
 use models::*;
 
 #[path = "common/monster.rs"]
@@ -145,7 +146,7 @@ fn vuln_lasts_through_one_monster_phase_and_no_longer() {
 }
 
 #[test]
-fn a_vuln_target_takes_a_quarter_more_from_a_monster() {
+fn a_vuln_target_takes_the_vuln_share_more_from_a_monster() {
     let swing = |vuln: bool| {
         let (mut w, p) = arena(7);
         let orc = put_monster(&mut w, 13, 9);
@@ -159,8 +160,14 @@ fn a_vuln_target_takes_a_quarter_more_from_a_monster() {
         1000 - w.get::<Fighter>(p).unwrap().hp
     };
     let plain = swing(false);
-    assert!(plain >= 4, "the fixture should hit hard enough to see 25%");
-    assert_eq!(swing(true), (plain * 5 + 2) / 4);
+    assert!(
+        plain >= 4,
+        "the fixture should hit hard enough to see the extra"
+    );
+    assert_eq!(
+        swing(true),
+        plain + (plain * VULN_DAMAGE_PERCENT + 50) / 100
+    );
 }
 
 #[test]

@@ -592,13 +592,13 @@ fn a_fourth_condition_is_refused() {
     assert!(lend(&mut w, p, Grant::of::<Blind>(), Lifetime::Floor));
     assert!(lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor));
     assert!(lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor));
-    assert_eq!(conditions_held(&w, p), 3);
+    assert_eq!(conditions_held(&w, p), CONDITION_CAP);
 
     assert!(
         !lend(&mut w, p, Grant::of::<Paralyzed>(), Lifetime::Floor),
         "the fourth is turned away"
     );
-    assert_eq!(conditions_held(&w, p), 3, "the ceiling is three");
+    assert_eq!(conditions_held(&w, p), CONDITION_CAP, "the ceiling holds");
     assert!(w.get::<Blind>(p).is_some(), "what is held stays held");
     assert!(w.get::<Confused>(p).is_some());
     assert!(w.get::<MagicWard>(p).is_some());
@@ -628,7 +628,7 @@ fn worn_and_innate_magic_does_not_count_against_the_ceiling() {
     lend(&mut w, p, Grant::of::<Confused>(), Lifetime::Floor);
     lend(&mut w, p, Grant::of::<MagicWard>(), Lifetime::Floor);
 
-    assert_eq!(conditions_held(&w, p), 3);
+    assert_eq!(conditions_held(&w, p), CONDITION_CAP);
     assert!(w.get::<Blind>(p).is_some(), "a ring is not a condition");
     assert!(w.get::<FireImmune>(p).is_some());
 }
@@ -644,7 +644,7 @@ fn a_temporary_boon_is_not_a_condition() {
     grant_for_floor(&mut w, p, Grant::of::<SeesInvisible>());
     lend(&mut w, p, Grant::of::<Detected>(), Lifetime::Floor);
 
-    assert_eq!(conditions_held(&w, p), 3);
+    assert_eq!(conditions_held(&w, p), CONDITION_CAP);
     assert!(w.get::<Blind>(p).is_some(), "the oldest condition stands");
     assert!(w.get::<SeesInvisible>(p).is_some());
     assert!(w.get::<Detected>(p).is_some());

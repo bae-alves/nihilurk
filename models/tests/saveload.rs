@@ -180,6 +180,8 @@ fn a_won_run_saves_as_clear_data() {
 /// what the gear lends its wearer (a ring's granted effect, an armour's die)
 /// comes back with it, because the save leaves loaned effects out of every
 /// entity's set and load re-lends them.
+///
+/// Saving is read-only: it did not undress anyone to write the file.
 #[test]
 fn equipped_gear_stays_on_across_a_save() {
     let mut w = World::new();
@@ -211,7 +213,6 @@ fn equipped_gear_stays_on_across_a_save() {
     let save = common::SaveFile::new("worn");
     let p = save.path();
     save_game(&mut w, p).unwrap();
-    // Saving is read-only: it did not undress anyone to write the file.
     assert_eq!(w.get::<Equipped>(ring).map(|e| e.by), Some(Some(hero)));
     assert_eq!(w.get::<Equipped>(dagger).map(|e| e.by), Some(Some(orc)));
 
@@ -377,17 +378,25 @@ fn a_monsters_spent_magic_and_spellset_survive_a_save() {
     initialize_world(&mut w);
     let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
     let here = *w.get::<Position>(hero).unwrap();
-    let dragon = spawn_monster(
+    let caster = monster::plain_monster(
         &mut w,
-        MonsterDef::named("dragon"),
+        "caster",
         Position {
             x: here.x + 1,
             y: here.y,
         },
     );
-    w.get_mut::<Magic>(dragon).unwrap().points = 1;
+    w.entity_mut(caster).insert((
+        Magic {
+            points: 1,
+            max_points: 8,
+        },
+        Spellset {
+            slots: vec![SpellEffect::DragonBreath],
+        },
+    ));
 
-    let save = common::SaveFile::new("dragon_magic");
+    let save = common::SaveFile::new("caster_magic");
     save_game(&mut w, save.path()).unwrap();
 
     let mut w2 = World::new();

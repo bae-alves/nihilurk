@@ -7,6 +7,7 @@ mod monster;
 
 use bevy_ecs::prelude::*;
 use crossterm::style::Color;
+use models::constants::spirits::RED_DEMON_GEAR_PRICE;
 use models::*;
 
 fn spirits_world(seed: u64) -> World {
@@ -625,7 +626,11 @@ fn the_red_demon_sells_a_weapon_an_armor_and_a_ring_for_max_hp() {
     assert!(matches!(options[0], OfferOption::Weapon(_)));
     assert!(matches!(options[1], OfferOption::Armor(_)));
     assert!(matches!(options[2], OfferOption::Ring(_)));
-    assert!(options.iter().all(|o| o.price() == Some(Price::MaxHp(3))));
+    assert!(
+        options
+            .iter()
+            .all(|o| o.price() == Some(Price::MaxHp(RED_DEMON_GEAR_PRICE)))
+    );
 }
 
 #[test]
@@ -638,7 +643,8 @@ fn buying_from_the_red_demon_costs_max_hp_and_poofs_them() {
     let choice = offered(&w)[1];
     spirits::confirm_offer(&mut w, player, choice);
     let f = w.get::<Fighter>(player).unwrap();
-    assert_eq!((f.hp, f.max_hp), (17, 17));
+    let max_hp = 20 - RED_DEMON_GEAR_PRICE;
+    assert_eq!((f.hp, f.max_hp), (19.min(max_hp), max_hp));
     assert_eq!(w.get::<Backpack>(player).unwrap().items.len(), 1);
     assert!(w.get_entity(spirit).is_none());
     assert!(!w.resource::<OfferMenu>().open);

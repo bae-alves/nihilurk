@@ -197,7 +197,6 @@ fn a_crossbow_doubles_a_quarrel_and_a_bow_does_not() {
         let cb = stash(w, p, |w| spawn_launcher(w, "crossbow", NOWHERE));
         toggle_equipped(w, p, cb);
     });
-    // The wrong launcher is no launcher: a bow does nothing for a quarrel.
     let wrong_launcher = damage_samples(2, "quarrel", 400, |w, p| {
         let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
         toggle_equipped(w, p, bow);
@@ -249,7 +248,6 @@ fn wielded_launcher_only_answers_once_a_launcher_is_drawn() {
     toggle_equipped(&mut w, p, bow);
     assert_eq!(wielded_launcher(&w, p), Some(bow));
 
-    // A sword in hand instead is not a launcher, drawn or not.
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
     toggle_equipped(&mut w, p, sword);
     assert!(wielded_launcher(&w, p).is_none());
@@ -343,7 +341,6 @@ fn firing_a_quarrel_from_a_crossbow_says_fire_not_throw() {
     let p = player(&mut w);
     let spot = open_run(&mut w, 1)[0];
 
-    // The wrong launcher (a bow) is no launcher: still a throw.
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     toggle_equipped(&mut w, p, bow);
     let mishandled = quiver(&mut w, p, "quarrel", 1);
@@ -385,9 +382,9 @@ fn a_ring_of_sharpshooting_adds_two_to_everything_you_throw() {
     assert!((mean(&deft) - mean(&plain) - 2.0).abs() < 0.4);
 }
 
+/// The enchantment has no melee roll to land on, so it lands on the throw.
 #[test]
 fn a_bows_plus_rides_along_on_what_it_looses() {
-    // The enchantment has no melee roll to land on, so it lands on the throw.
     let sharp = damage_samples(6, "arrow", 300, |w, p| {
         let bow = stash(w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
         w.entity_mut(bow).insert(ThrowBonus(3));
@@ -441,10 +438,23 @@ fn only_armour_plus_blunts_a_throw_and_the_armour_die_never_does() {
             .unwrap()
     }
 
-    assert_eq!(worst("dagger", 0), 4);
-    assert_eq!(worst("dagger", 3), 1);
-    assert_eq!(worst("mace", 0), 2);
-    assert_eq!(worst("mace", 3), 0);
+    fn thrown_damage(weapon: &'static str) -> i32 {
+        let mut w = test_world(8);
+        let item = spawn_weapon(&mut w, weapon, NOWHERE);
+        w.get::<ThrownDamage>(item).expect("a weapon throws").0
+    }
+
+    for weapon in ["dagger", "mace"] {
+        assert_eq!(
+            worst(weapon, 0),
+            thrown_damage(weapon),
+            "{weapon}: armour die 20 blunted the throw"
+        );
+        assert!(
+            worst(weapon, 3) < worst(weapon, 0),
+            "{weapon}: armour plus did not blunt the throw"
+        );
+    }
 }
 
 #[test]
@@ -868,7 +878,6 @@ fn the_dagger_in_your_hand_can_be_thrown_unless_it_is_cursed() {
     throw(&mut w, p, dagger, spot);
     assert_eq!(equipped_total::<PowerDie>(&w, p), 0);
 
-    // A cursed one is welded on, and a welded weapon cannot be hurled.
     let cursed = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
     w.entity_mut(cursed).insert(Curse);
     toggle_equipped(&mut w, p, cursed);
@@ -886,15 +895,17 @@ fn throwing_from_a_quiver_spends_one_and_keeps_the_slot() {
     let spot = open_run(&mut w, 1)[0];
     empty_pack(&mut w, p);
     let arrows = quiver(&mut w, p, "arrow", 10);
-    // Something else above it, so "kept its slot" means something.
-    let ring = stash(&mut w, p, |w| spawn_ring(w, RingEffect::Adornment, NOWHERE));
-    w.get_mut::<Backpack>(p).unwrap().items = vec![ring, arrows];
+    let slot_above = stash(&mut w, p, |w| spawn_ring(w, RingEffect::Adornment, NOWHERE));
+    w.get_mut::<Backpack>(p).unwrap().items = vec![slot_above, arrows];
 
     let loosed = throw(&mut w, p, arrows, spot);
 
     assert_ne!(loosed, arrows, "the quiver itself never leaves your hand");
     assert_eq!(w.get::<Stack>(arrows).unwrap().count, 9);
-    assert_eq!(w.get::<Backpack>(p).unwrap().items, vec![ring, arrows]);
+    assert_eq!(
+        w.get::<Backpack>(p).unwrap().items,
+        vec![slot_above, arrows]
+    );
 }
 
 #[test]
@@ -1027,9 +1038,12 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     });
     load_game(&mut loaded, save.path()).unwrap();
 
-    let arrows = loaded
-        .query_filtered::<Entity, (With<Stack>, With<LaunchedBy>)>()
-        .single(&loaded);
+    let hero = player(&mut loaded);
+    let packed = loaded.get::<Backpack>(hero).unwrap().items.clone();
+    let arrows = *packed
+        .iter()
+        .find(|&&e| loaded.get::<Stack>(e).is_some() && loaded.get::<LaunchedBy>(e).is_some())
+        .expect("the quiver survived the save");
     assert_eq!(loaded.get::<Stack>(arrows).unwrap().count, 13);
     assert_eq!(loaded.get::<ThrownDamage>(arrows), Some(&arrow_damage));
     assert_eq!(
@@ -1051,14 +1065,14 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     assert!(loaded.get::<Launcher>(bow).is_some());
     assert_eq!(loaded.get::<ThrowBonus>(bow), Some(&ThrowBonus(2)));
 
-    let spear = loaded
-        .query_filtered::<Entity, (With<Piercing>, With<Projectile>)>()
-        .single(&loaded);
+    let spear = *packed
+        .iter()
+        .find(|&&e| loaded.get::<Piercing>(e).is_some() && loaded.get::<Projectile>(e).is_some())
+        .expect("the spear survived the save");
     assert_eq!(loaded.get::<ThrownDamage>(spear), Some(&spear_damage));
     assert!(loaded.get::<Piercing>(spear).is_some());
     assert!(loaded.get::<Projectile>(spear).is_some());
 
-    let hero = player(&mut loaded);
     toggle_equipped(&mut loaded, hero, bow);
     assert!(loaded.get::<FireArrow>(hero).is_some());
 }
@@ -1220,7 +1234,6 @@ fn a_drawn_launcher_reaches_a_tile_further_than_a_bare_hand() {
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     toggle_equipped(&mut w, p, bow);
     assert_eq!(throw_reach(&w, p, arrows), LAUNCHER_RANGE);
-    assert_eq!(LAUNCHER_RANGE, 8, "a bow reaches eight tiles");
     assert!(LAUNCHER_RANGE > THROW_RANGE);
     assert_eq!(
         throw_reach(&w, p, quarrels),

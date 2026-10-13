@@ -2,6 +2,9 @@
 //! the drinker's body for good, the three conditions, the two detections, the
 //! floor-long second sight, and the one that is a staircase in a bottle.
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
@@ -528,7 +531,7 @@ fn a_potion_of_polymorph_polymorphs_the_drinker_for_the_floor() {
 fn an_unseen_monsters_second_sight_says_nothing() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let orc = spawn_named(&mut w, "orc", Position { x: 50, y: 15 }).unwrap();
+    let orc = monster::plain_monster(&mut w, "orc", Position { x: 50, y: 15 });
     w.entity_mut(orc).insert(Backpack { items: vec![] });
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(1, 1)];
 

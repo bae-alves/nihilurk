@@ -251,24 +251,3 @@ impl Default for Screen {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn shown_text_is_the_flushed_frame_one_line_per_row() {
-        let mut screen = Screen::new();
-        screen.puts(0, 0, "hello", Color::White);
-        screen.puts(3, 2, "@", Color::White);
-        screen.flush(&mut Vec::new(), (0, 0)).unwrap();
-        screen.puts(0, 0, "unflushed", Color::White);
-
-        let text = screen.shown_text();
-        let lines: Vec<&str> = text.lines().collect();
-        assert_eq!(lines.len(), SCREEN_H as usize);
-        assert_eq!(lines[0], "hello");
-        assert_eq!(lines[1], "");
-        assert_eq!(lines[2], "   @");
-    }
-}

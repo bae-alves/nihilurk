@@ -10,8 +10,8 @@ use bevy_ecs::prelude::*;
 
 use crate::combat::mean_blow;
 use crate::components::{
-    Curse, Fighter, Item, KnownQuality, LaunchedDamage, Mob, Name, Player, Reach, Rune, Speed,
-    SpeedKind, Stack, ThrownDamage, Trap, Vorpal,
+    Curse, Fighter, Item, KnownQuality, LaunchedDamage, MegaCurse, Mob, Name, Player, Reach, Rune,
+    Speed, SpeedKind, Stack, ThrownDamage, Trap, Vorpal,
 };
 use crate::effects::{ArmorBonus, ArmorDie, MaxHpBonus, PowerBonus, PowerDie, ThrowBonus};
 use crate::traps::TrapDef;
@@ -19,7 +19,7 @@ use crate::traps::TrapDef;
 /// What the player actually sees for `item`: its true [`Name`], a [`Stack`]
 /// count if it holds more than one, and — once [`known_quality`] says either
 /// is actually known — a weapon, suit of armour or launcher additionally gets
-/// an enchantment plus in front and a `(cursed)` tag after. A rune with
+/// an enchantment plus in front and a `(cursed)` (`(MEGACURSED)`) tag after. A rune with
 /// nothing left in it is tagged `(inert)`.
 pub fn display_name(world: &World, item: Entity) -> String {
     let base = named_display(world.get::<Name>(item), world.get::<Stack>(item));
@@ -64,7 +64,9 @@ fn annotate_quality(world: &World, item: Entity, base: String) -> String {
     } else {
         base
     };
-    let name = if world.get::<Curse>(item).is_some() {
+    let name = if world.get::<MegaCurse>(item).is_some() {
+        format!("{name} (MEGACURSED)")
+    } else if world.get::<Curse>(item).is_some() {
         format!("{name} (cursed)")
     } else {
         name
@@ -105,7 +107,9 @@ pub fn item_info(world: &World, item: Entity) -> Vec<String> {
         if plus != 0 {
             lines.push(strings::info_enchantment(plus));
         }
-        if world.get::<Curse>(item).is_some() {
+        if world.get::<MegaCurse>(item).is_some() {
+            lines.push(strings::megacursed_explained().to_string());
+        } else if world.get::<Curse>(item).is_some() {
             lines.push(strings::cursed_explained().to_string());
         }
     }

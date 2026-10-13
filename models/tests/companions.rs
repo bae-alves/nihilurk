@@ -591,6 +591,24 @@ fn a_shapeshifted_dog_keeps_its_traits_its_loyalty_and_says_so() {
     ));
 }
 
+#[test]
+fn a_shapeshifted_wearer_leaves_no_gear_pointing_at_its_old_body() {
+    let mut w = test_world(6);
+    let at = east_of_player(&mut w, 1);
+    let orc = monster::plain_monster(&mut w, "orc", at);
+    let blade = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
+    assert!(equip_silently(&mut w, orc, blade));
+
+    shapeshift(&mut w, orc).expect("an orc shapeshifts");
+
+    let stale = w
+        .query::<&Equipped>()
+        .iter(&w)
+        .filter(|e| e.by == Some(orc))
+        .count();
+    assert_eq!(stale, 0, "gear still worn by a body that is gone");
+}
+
 /// Kills `n` hostile monsters with a fresh killer carrying `traits` and
 /// reports how many times the killer came out a different creature.
 fn shapeshifts_in(n: u32, shifts: bool) -> u32 {

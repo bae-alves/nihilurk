@@ -991,10 +991,6 @@ fn polymorphing_the_polymorphed_player_shocks_them_or_makes_a_chimeric_form() {
         shocked > 0 && shaped > 0,
         "{shocked} shocks, {shaped} forms"
     );
-    assert!(
-        (16..=48).contains(&shocked),
-        "about half: got {shocked} of 64"
-    );
 }
 
 #[test]

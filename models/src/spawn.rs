@@ -35,7 +35,7 @@ use crate::catalog::{
     WEAPONS, spawn_element_of_yoord,
 };
 use crate::catalog::{apply_bonus, make_exceptional};
-use crate::components::{Curse, Position, STACK_LIMIT, Stack, TrapReveal};
+use crate::components::{Curse, MegaCurse, Position, STACK_LIMIT, Stack, TrapReveal};
 use crate::map::Map;
 use crate::monsters::{MonsterDef, spawn_monster};
 use crate::traps::{TrapBundle, TrapDef};
@@ -387,7 +387,8 @@ pub fn spawn_list(
     spawned
 }
 
-/// The optional dressing on a `NIHILURK_SPAWN` entry: `cursed`, a `+N`/`-N`
+/// The optional dressing on a `NIHILURK_SPAWN` entry: `cursed` (or
+/// `megacursed`, which never lifts), a `+N`/`-N`
 /// enchantment and an `xN` stack size, in that order around the name --
 /// `cursed -2 long sword`, `arrow x13`. Each is ignored by a thing it does not
 /// fit (a stack on a dragon, a plus on a ring that is not a number). On a numeric
@@ -397,6 +398,7 @@ pub fn spawn_list(
 #[derive(Default)]
 struct SpawnMods {
     cursed: bool,
+    mega: bool,
     bonus: Option<i32>,
     count: Option<u8>,
 }
@@ -404,7 +406,11 @@ struct SpawnMods {
 impl SpawnMods {
     fn parse(mut s: &str) -> (Self, &str) {
         let mut m = SpawnMods::default();
-        if let Some(rest) = s.strip_prefix("cursed ") {
+        if let Some(rest) = s.strip_prefix("megacursed ") {
+            m.cursed = true;
+            m.mega = true;
+            s = rest.trim_start();
+        } else if let Some(rest) = s.strip_prefix("cursed ") {
             m.cursed = true;
             s = rest.trim_start();
         }
@@ -427,6 +433,9 @@ impl SpawnMods {
     fn apply(&self, world: &mut World, e: Entity) {
         if self.cursed {
             world.entity_mut(e).insert(Curse);
+        }
+        if self.mega {
+            world.entity_mut(e).insert(MegaCurse);
         }
         if let Some(b) = self.bonus {
             apply_bonus(world, e, b);

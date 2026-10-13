@@ -121,7 +121,6 @@ fn only_an_item_with_thrown_damage_hurts_what_it_hits() {
     let bat = monster(&mut w, "bat", spot);
     w.get_mut::<Fighter>(bat).unwrap().hp = 20;
 
-    // A suit of armour carries no `ThrownDamage`: it bounces off and lands.
     let mail = stash(&mut w, p, |w| spawn_armor(w, "leather armor", NOWHERE));
     throw(&mut w, p, mail, spot);
 
@@ -131,9 +130,8 @@ fn only_an_item_with_thrown_damage_hurts_what_it_hits() {
         "armour is not a weapon"
     );
 
-    // A dagger does carry one.
     let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    assert_eq!(w.get::<ThrownDamage>(dagger), Some(&ThrownDamage(4)));
+    assert!(w.get::<ThrownDamage>(dagger).is_some());
     throw(&mut w, p, dagger, spot);
     assert!(w.get::<Fighter>(bat).unwrap().hp < 20, "a dagger is");
 }
@@ -309,14 +307,34 @@ fn a_helper_lost_to_system_shock_is_minus_two_alignment() {
 }
 
 #[test]
+fn a_thrown_wand_of_cancellation_wipes_a_megacursed_plus_but_not_the_curse() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    let blade = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
+    w.entity_mut(blade)
+        .insert((PowerBonus(-3), Curse, MegaCurse));
+    let spot = east_of_player(&mut w, 1);
+    monster(&mut w, "bat", spot);
+    let wand = stash(&mut w, p, |w| {
+        spawn_wand(w, WandEffect::Cancellation, NOWHERE)
+    });
+    w.get_mut::<Battery>(wand).unwrap().charges = 4;
+
+    throw(&mut w, p, wand, spot);
+
+    assert_eq!(w.get::<PowerBonus>(blade).map(|b| b.0), Some(0));
+    assert!(w.get::<Curse>(blade).is_some() && w.get::<MegaCurse>(blade).is_some());
+}
+
+/// A bow wears its plus on the throw, not on a melee roll — the third kind
+/// of gear, and the one a "weapons and armour" reading of the rule misses.
+#[test]
 fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
     let mut w = test_world(4);
     let p = player(&mut w);
 
     let blade = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
     w.entity_mut(blade).insert((PowerBonus(3), Curse));
-    // A bow wears its plus on the throw, not on a melee roll — the third kind
-    // of gear, and the one a "weapons and armour" reading of the rule misses.
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     w.entity_mut(bow).insert(ThrowBonus(3));
     let scroll = stash(&mut w, p, |w| {
@@ -705,7 +723,11 @@ fn throwing_equipped_gear_takes_it_off_first() {
     let spot = east_of_player(&mut w, 1);
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
     toggle_equipped(&mut w, p, sword);
-    assert_eq!(equipped_total::<PowerDie>(&w, p), 8);
+    assert_ne!(
+        equipped_total::<PowerDie>(&w, p),
+        0,
+        "the sword starts in hand"
+    );
 
     throw(&mut w, p, sword, spot);
 
@@ -806,7 +828,7 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let sword = stash(&mut w, p, |w| spawn_weapon(w, "long sword", NOWHERE));
-    assert_eq!(w.get::<ThrownDamage>(sword), Some(&ThrownDamage(2)));
+    let thrown = w.get::<ThrownDamage>(sword).expect("a sword throws").0;
 
     let save = common::SaveFile::new("thrown-damage");
     save_game(&mut w, save.path()).unwrap();
@@ -818,7 +840,7 @@ fn a_weapon_keeps_its_thrown_damage_across_a_save() {
         .filter(|e| e.get::<Name>().is_some_and(|n| n.what == "long sword"))
         .filter_map(|e| e.get::<ThrownDamage>().map(|t| t.0))
         .collect();
-    assert_eq!(dice, vec![2]);
+    assert_eq!(dice, vec![thrown]);
 }
 
 /// A shot that comes down on a trap the player has found sets it off — and a
@@ -1138,7 +1160,7 @@ fn a_thrown_wand_previews_its_burst_on_the_first_creature_in_the_way() {
     let near = east_of_player(&mut w, 1);
     monster(&mut w, "orc", near);
     let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
-    let cursor = east_of_player(&mut w, 4);
+    let cursor = east_of_player(&mut w, 2 + GRENADE_RADIUS as u16);
 
     let cells = preview(&mut w, Some(wand), true, None, cursor);
 

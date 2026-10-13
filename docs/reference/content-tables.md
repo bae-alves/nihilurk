@@ -421,9 +421,9 @@ A shot that sets *anything* off with something other than ammunition — a dagge
 
 **Chain reactions.** Everything that blows up, flies or zaps ends by setting off everything in its own footprint that a shot could have set off (`traps::chain_react`), whatever the footprint's size: a blast's disc (`traps::burst`, `wands::elemental_blast`), a bolt's line (the bolt wands, Force Lance), the one tile of a Sting or Thunderbolt, the victims' tiles under Frost Nova and Circle of Death. Traps first, then coins, then potions, then ice cubes (a fire blast scorches them), and the author is carried through: a coin your chain reaches still pays you. A trap nobody has found *is* a valid link — the `Hidden` rule is about aiming, and a blast rolling over a tile does not have to know what is buried in it. The chain always ends, because every link is despawned before its own burst opens, so nothing is ever a link twice. The Element of Yoord is deliberately not a link: it is never spent, and a burst that reached it would answer itself forever.
 
-Each link's explosion is queued *behind* the last one (`Particles::explosion` returns its span, `Particles::hold` pushes the rest of the batch back by it), so a chain reads as a run of explosions rather than one indistinguishable flash.
+Each link's explosion is queued *behind* the last one (`Particles::explosion` returns its span, `Particles::hold` pushes the rest of the batch back by it), so a chain reads as a run of explosions rather than one indistinguishable flash. `elemental_blast` holds the same way, but only when something lies under it to set off (`traps::has_links`); a blast with nothing behind it leaves the clock alone, so its own follow-up sparks keep their timing.
 
-A wand's blast sets off everything it covers, traps first and then coins (`wands::elemental_blast`, via `traps::things_in`), and the coins pay *the zapper* — the blast's author is the shooter. Those bursts chain on their own; none of them re-enters `elemental_blast`.
+A wand's blast sets off everything it covers, traps first and then coins (`wands::elemental_blast`, via `traps::things_in`), and the coins pay *the zapper* — the blast's author is the shooter. A potion in the footprint splashes through `elemental_blast` in its turn, so a blast can re-enter it; the chain still ends because the potion is despawned first.
 
 A coin set off with no author at all is simply spent: `detonate_pickup` takes an `Option<Entity>` and pays nobody when there is nobody to pay.
 
@@ -621,6 +621,9 @@ Rolled by `enchant_equipment` for every weapon, armour and launcher, and by `enc
 | Normal      | `NORMAL_QUALITY_PCT`        | +0                            |
 | Exceptional | `EXCEPTIONAL_QUALITY_PCT`   | `EXCEPTIONAL_BONUS_MIN` .. `EXCEPTIONAL_BONUS_MAX` |
 | Cursed      | whatever is left            | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX`, plus a `Curse` tag |
+| MEGACURSED  | `MEGACURSED_PCT_OF_CURSED`% of the cursed | `MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX` (-3 .. +0), plus `Curse` and `MegaCurse` tags |
+
+A MEGACURSED item is stuck on for good. Remove curse, a scroll of enchantment, cancellation, an angel's test of faith and a Five Flush all leave the `Curse` on it (enchantment, cancellation and the flush still change the plus). Remove curse, the pink demon, a curse merge and the deck's shivering ring never destroy it. A suit of armour taking the killing blow is the one way out. The `MegaCurse` tag marks it, and `equipment::lift_curse` is the one place a curse comes off.
 
 A cursed item can roll better than a clean one; it simply cannot be taken off once equipped, short of a scroll of remove curse (which destroys it) or the matching scroll of enchantment (which lifts the `Curse` tag and mends any minus to `+0` — see `constants::scrolls::ENCHANT_BONUS`).
 
@@ -635,6 +638,7 @@ A ring rolls the same three qualities at the same odds, with its own numbers (`c
 | Normal      | `PLAIN_BONUS` (+2, which is the row)      | nothing        |
 | Exceptional | `EXCEPTIONAL_BONUS` (+3)                  | nothing        |
 | Cursed      | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX` (-3 .. +2), plus a `Curse` tag | a `Curse` tag |
+| MEGACURSED  | `rings::MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX` (+0 .. +13), plus `Curse` and `MegaCurse` tags | `Curse` and `MegaCurse` tags |
 
 A cursed ring never beats a plain one: its range stops at `PLAIN_BONUS`. The rows spell their number with `PLAIN_BONUS`, so the table and the roll cannot disagree.
 

@@ -49,7 +49,7 @@ use super::generate::{build_floor, create_map, find_tile};
 use super::population::{difficulty_tier, populate_level};
 use super::streams::{FxRng, GameRng, RngSeed};
 use super::{
-    DUNGEON_LORD_PATIENCE, Endless, FINAL_DEPTH, MAP_TILE_COUNT, Map, Rooms, TileType,
+    DUNGEON_LORD_PATIENCE, Endless, Floors, MAP_TILE_COUNT, Map, Rooms, TileType,
     special_level_arrival,
 };
 
@@ -169,6 +169,7 @@ pub fn level_change_refusal(world: &mut World, going_down: bool) -> Option<&'sta
 /// anybody earning anything.
 fn award_stair_score(world: &mut World) {
     let depth = world.resource::<Depth>().what;
+    let depth = world.resource::<Floors>().content_depth(depth);
     crate::score::award_stairs(world, difficulty_tier(depth));
 }
 
@@ -234,6 +235,9 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
         .add(arrival_line(cause, going_down, depth));
     if cause == LevelChange::Stairs {
         log_level_feeling(world);
+        if !going_down {
+            crate::items::map_the_floor(world, player);
+        }
     }
     if world.resource::<crate::bones::Bones>().enabled && holding_element_of_yoord(world) {
         spawn_bones_ghost(world, depth, &rooms);
@@ -331,7 +335,7 @@ fn step_depth(world: &mut World, going_down: bool) -> u8 {
 /// stand the player in one and to populate the rest.
 fn build_the_floor(world: &mut World, depth: u8) -> Rooms {
     let seed = world.resource::<RngSeed>().0;
-    let (map, rooms) = build_floor(seed, depth, crate::body::bee_run(world));
+    let (map, rooms) = build_floor(seed, depth, crate::body::bee_run(world), Floors::of(world));
     world.insert_resource(map);
     world.resource_mut::<BloodStains>().clear();
     world.resource_mut::<Smoke>().clear();
@@ -556,7 +560,7 @@ pub fn dungeon_lord_system(world: &mut World) {
         transition_level(world, false, LevelChange::Portal);
         return;
     }
-    if depth >= FINAL_DEPTH && !world.resource::<Endless>().enabled {
+    if depth >= world.resource::<Floors>().last && !world.resource::<Endless>().enabled {
         world
             .resource_mut::<GameLog>()
             .add(strings::portal_no_deeper_floor());
@@ -582,6 +586,7 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(Corpses::new());
     world.init_resource::<crate::bones::Bones>();
     world.init_resource::<Endless>();
+    world.init_resource::<Floors>();
     world.init_resource::<crate::magicmap::MagicMapReveal>();
     world.init_resource::<crate::score::ScoreFlash>();
     world.init_resource::<crate::score::Combo>();

@@ -1,6 +1,6 @@
 -- Rebuilds the screen a terminal would show from the bytes a program wrote.
 --
---   lua screen.lua FILE [END] [ROWS COLS] [--bg]
+--   lua screen.lua FILE [END] [ROWS COLS] [--bg | --percept]
 --
 -- prints the screen after the first END bytes of FILE (all of it by default),
 -- on a ROWS x COLS grid (25 x 80 by default). nihilurk paints with absolute
@@ -10,11 +10,18 @@
 
 local M = {}
 
-local function utf8_len(lead)
-    if lead >= 0xF0 then return 4 end
-    if lead >= 0xE0 then return 3 end
-    if lead >= 0xC0 then return 2 end
-    return 1
+--- How many bytes the UTF-8 glyph at `i` takes, or nil when the bytes there
+--- are not one: a stray tail byte, or a lead whose tail is cut short. A nil
+--- glyph is dropped, so it can never carry a control byte onto the screen.
+local function glyph_len(raw, i)
+    local lead = raw:byte(i)
+    local len = lead < 0x80 and 1 or lead >= 0xF8 and 0 or lead >= 0xF0 and 4
+        or lead >= 0xE0 and 3 or lead >= 0xC0 and 2 or 0
+    for k = i + 1, i + len - 1 do
+        local b = raw:byte(k)
+        if not b or b < 0x80 or b > 0xBF then return nil end
+    end
+    return len > 0 and len or nil
 end
 
 -- crossterm's names for the sixteen ANSI colours, by index.
@@ -111,10 +118,10 @@ local function run(raw, rows, cols)
             row, i = math.min(row + 1, rows), i + 1
         elseif b == 8 then
             col, i = math.max(col - 1, 1), i + 1
-        elseif b < 32 or b == 127 then
+        elseif b < 32 or b == 127 or not glyph_len(raw, i) then
             i = i + 1
         else
-            local len = utf8_len(b)
+            local len = glyph_len(raw, i)
             if col <= cols then
                 grid[row][col] = raw:sub(i, i + len - 1)
                 bgs[row][col] = bg
@@ -126,10 +133,7 @@ local function run(raw, rows, cols)
     return grid, bgs
 end
 
---- The screen after `raw`, as rows joined by newlines with trailing spaces
---- trimmed.
-function M.render(raw, rows, cols)
-    local grid = run(raw, rows, cols)
+local function screen_of(grid)
     local out = {}
     for r = 1, #grid do
         out[r] = table.concat(grid[r]):gsub("%s+$", "")
@@ -137,11 +141,7 @@ function M.render(raw, rows, cols)
     return table.concat(out, "\n")
 end
 
---- Every cell on a coloured background, row by row, as `"ROW COL GLYPH NAME"`
---- (1-based, crossterm's colour names). This is how a tint shows up: the
---- glyph screen alone says nothing about colour.
-function M.backgrounds(raw, rows, cols)
-    local grid, bgs = run(raw, rows, cols)
+local function tints_of(grid, bgs)
     local out = {}
     for r = 1, #grid do
         for c = 1, #grid[r] do
@@ -151,21 +151,45 @@ function M.backgrounds(raw, rows, cols)
     return out
 end
 
+--- The screen after `raw`, as rows joined by newlines with trailing spaces
+--- trimmed.
+function M.render(raw, rows, cols)
+    return screen_of(run(raw, rows, cols))
+end
+
+--- Every cell on a coloured background, row by row, as `"ROW COL GLYPH NAME"`
+--- (1-based, crossterm's colour names). This is how a tint shows up: the
+--- glyph screen alone says nothing about colour.
+function M.backgrounds(raw, rows, cols)
+    return tints_of(run(raw, rows, cols))
+end
+
+--- The screen, then its tint lines if it has any, from one pass over `raw`:
+--- what serve.sh sends for each key.
+function M.percept(raw, rows, cols)
+    local grid, bgs = run(raw, rows, cols)
+    local tints = tints_of(grid, bgs)
+    if #tints == 0 then return screen_of(grid) end
+    return screen_of(grid) .. "\n" .. table.concat(tints, "\n")
+end
+
 if arg and arg[0] and arg[0]:match("screen%.lua$") and arg[1] then
-    local words, want_bg = {}, false
+    local words, mode = {}, M.render
     for _, a in ipairs(arg) do
-        if a == "--bg" then want_bg = true else words[#words + 1] = a end
+        if a == "--bg" then
+            mode = function(...) return table.concat(M.backgrounds(...), "\n") end
+        elseif a == "--percept" then
+            mode = M.percept
+        else
+            words[#words + 1] = a
+        end
     end
     local f = assert(io.open(words[1], "rb"))
     local raw = f:read("a")
     f:close()
     local stop = tonumber(words[2])
     if stop then raw = raw:sub(1, stop) end
-    if want_bg then
-        print(table.concat(M.backgrounds(raw, tonumber(words[3]), tonumber(words[4])), "\n"))
-    else
-        print(M.render(raw, tonumber(words[3]), tonumber(words[4])))
-    end
+    print(mode(raw, tonumber(words[3]), tonumber(words[4])))
 end
 
 return M

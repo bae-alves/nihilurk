@@ -8,6 +8,9 @@
 #[path = "common/mod.rs"]
 mod common;
 
+#[path = "common/monster.rs"]
+mod monster;
+
 use bevy_ecs::prelude::*;
 use models::*;
 
@@ -378,7 +381,7 @@ fn a_polymorphed_ally_stays_polymorphed_down_the_stairs() {
         x: here.x + 1,
         y: here.y,
     };
-    spawn_monster(&mut w, species("dog"), spot);
+    monster::plain_monster(&mut w, "pup", spot);
     let wand = spawn_wand(&mut w, WandEffect::Polymorph, here);
     w.entity_mut(wand).remove::<Position>();
     let slot = w.get::<Backpack>(p).unwrap().items.len();
@@ -394,9 +397,9 @@ fn a_polymorphed_ally_stays_polymorphed_down_the_stairs() {
         .iter(&w)
         .find(|(_, pos)| **pos == spot)
         .map(|(e, _)| e)
-        .expect("the dog was polymorphed, not killed");
+        .expect("the pup was polymorphed, not killed");
     assert!(w.get::<Polymorphed>(changed).is_some());
-    charm(&mut w, changed);
+    recruit(&mut w, changed);
     assert_eq!(all_helpers(&mut w), vec![changed]);
 
     descend(&mut w, p);

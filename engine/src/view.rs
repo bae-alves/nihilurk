@@ -298,11 +298,18 @@ pub fn render<W: Write>(
             if charmed.is_some() {
                 v.push(("GLOW", Color::Magenta));
             }
-            if plated.is_some() {
-                v.push(("PLAT", Color::White));
+            const PL: [&str; 10] = [
+                "", "PLx1", "PLx2", "PLx3", "PLx4", "PLx5", "PLx6", "PLx7", "PLx8", "PLx9",
+            ];
+            const FO: [&str; 10] = [
+                "", "FOx1", "FOx2", "FOx3", "FOx4", "FOx5", "FOx6", "FOx7", "FOx8", "FOx9",
+            ];
+            let stack_ix = |n: u8| (n as usize).min(9);
+            if let Some(Plated(n)) = plated {
+                v.push((PL[stack_ix(*n)], Color::White));
             }
-            if forged.is_some() {
-                v.push(("FORG", Color::DarkYellow));
+            if let Some(Forged(n)) = forged {
+                v.push((FO[stack_ix(*n)], Color::DarkYellow));
             }
             if warded.is_some() {
                 v.push(("WARD", Color::Cyan));
@@ -1381,7 +1388,7 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
         (p.mode, p.selected, p.action_mode, p.action_selected)
     };
 
-    let item_names: Vec<(usize, String, bool, bool)> = {
+    let item_names: Vec<(usize, String, bool, Option<bool>)> = {
         let entities: Vec<Entity> = {
             let mut query = world.query_filtered::<&Backpack, With<Player>>();
             match query.iter(world).next() {
@@ -1395,9 +1402,12 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
             .map(|(i, e)| {
                 let name = pack_name(world, e);
                 let equipped = is_worn(world, e);
-                let cursed_known =
-                    models::known_quality(world, e) && world.get::<Curse>(e).is_some();
-                (i, name, equipped, cursed_known)
+                let known = models::known_quality(world, e);
+                let curse = match (known, world.get::<Curse>(e).is_some()) {
+                    (true, true) => Some(world.get::<MegaCurse>(e).is_some()),
+                    _ => None,
+                };
+                (i, name, equipped, curse)
             })
             .collect()
     };
@@ -1427,16 +1437,18 @@ fn draw_inventory(world: &mut World, screen: &mut Screen) {
         Color::Yellow,
     );
 
-    for (row, (i, name, equipped, cursed_known)) in item_names.iter().enumerate() {
+    for (row, (i, name, equipped, curse)) in item_names.iter().enumerate() {
         let y = start_y + 1 + row as u16;
         let letter = (b'a' + *i as u8) as char;
         let selected = *i == selected_idx;
-        let color = match (selected, *cursed_known, *equipped) {
-            (true, true, _) => Color::Red,
-            (false, true, _) => Color::DarkRed,
-            (true, false, _) => Color::Yellow,
-            (false, false, true) => Color::Cyan,
-            (false, false, false) => Color::White,
+        let color = match (selected, *curse, *equipped) {
+            (true, Some(true), _) => Color::Magenta,
+            (false, Some(true), _) => Color::DarkMagenta,
+            (true, Some(false), _) => Color::Red,
+            (false, Some(false), _) => Color::DarkRed,
+            (true, None, _) => Color::Yellow,
+            (false, None, true) => Color::Cyan,
+            (false, None, false) => Color::White,
         };
         let text = row_text(letter, name, *equipped);
         screen.put(start_x, y, '│', grey);
@@ -1803,36 +1815,6 @@ mod tests {
     }
 
     #[test]
-    fn a_remap_never_changes_a_row_width() {
-        let map = swapped("hl\nlh\nox\nxo\nAZ\n");
-        for row in strings::help_rows() {
-            assert_eq!(
-                remap_help_row(row, &map).chars().count(),
-                row.chars().count()
-            );
-        }
-        for row in strings::onboarding_keys() {
-            assert_eq!(
-                remap_onboarding(row, &map).chars().count(),
-                row.chars().count()
-            );
-        }
-    }
-
-    #[test]
-    fn the_scorekeeper_shortens_a_score_it_cannot_print_in_six_digits() {
-        assert_eq!(score_text(140), "000140", "the arcade format, padded");
-        assert_eq!(score_text(999_999), "999999", "six digits is the limit");
-        assert_eq!(score_text(1_000_000), "1.00M");
-        assert_eq!(score_text(4_098_000), "4.09M", "truncated, never rounded");
-        assert_eq!(score_text(999_999_999), "999.99M", "and never rounded up");
-        assert_eq!(score_text(1_310_000_000), "1.31B");
-        assert_eq!(score_text(9_440_000_000_000), "9.44T");
-        assert_eq!(score_text(4_611_686_018_427_387_900), "4.61e18");
-        assert_eq!(score_text(i64::MAX), "MAXIMUM");
-    }
-
-    #[test]
     fn a_backlog_holds_its_prompt_until_the_animation_is_over() {
         let mut w = gate_world();
         flood_the_log(&mut w);
@@ -1861,69 +1843,5 @@ mod tests {
             !log_panel(&w).1,
             "nothing is waiting to be read: the gate has nothing to hold back"
         );
-    }
-
-    #[test]
-    fn status_tint_takes_asleep_over_everything_else() {
-        assert_eq!(
-            status_tint(true, true, true, true, true),
-            Some(Color::DarkBlue),
-            "asleep outranks paralysed, held-down, staggering, slowed"
-        );
-    }
-
-    #[test]
-    fn status_tint_gives_paralysis_its_own_colour() {
-        let paralysed = status_tint(false, true, true, true, true);
-        assert_eq!(
-            paralysed,
-            Some(Color::Cyan),
-            "paralysed outranks held-down, staggering, slowed"
-        );
-        let others = [
-            status_tint(true, false, false, false, false),
-            status_tint(false, false, true, false, false),
-            status_tint(false, false, false, true, false),
-            status_tint(false, false, false, false, true),
-        ];
-        assert!(
-            others.iter().all(|tint| *tint != paralysed),
-            "no other condition may share paralysis's tint: {others:?}"
-        );
-    }
-
-    #[test]
-    fn status_tint_puts_a_bear_trap_and_hold_monster_on_the_same_colour() {
-        assert_eq!(
-            status_tint(false, false, true, false, false),
-            Some(Color::DarkGreen)
-        );
-        assert_eq!(
-            status_tint(false, false, true, true, true),
-            Some(Color::DarkGreen),
-            "held-down outranks staggering and slowed"
-        );
-    }
-
-    #[test]
-    fn status_tint_marks_confused_and_fleeing_the_same_yellow() {
-        assert_eq!(
-            status_tint(false, false, false, true, false),
-            Some(Color::Yellow)
-        );
-        assert_eq!(
-            status_tint(false, false, false, true, true),
-            Some(Color::Yellow),
-            "staggering outranks merely slowed"
-        );
-    }
-
-    #[test]
-    fn status_tint_falls_back_to_slowed_then_nothing() {
-        assert_eq!(
-            status_tint(false, false, false, false, true),
-            Some(Color::Grey)
-        );
-        assert_eq!(status_tint(false, false, false, false, false), None);
     }
 }

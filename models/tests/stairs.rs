@@ -546,3 +546,34 @@ fn cannot_ascend_without_the_dungeon_lords_blessing() {
         "standing on the downstairs, not the upstairs -- the generic refusal, not the Dungeon Lord's"
     );
 }
+
+#[test]
+fn climbing_with_the_element_arms_a_magic_map_and_descending_does_not() {
+    let mut w = test_world(7);
+    descend_to(&mut w, 13);
+    assert!(
+        !w.resource::<MagicMapReveal>().active,
+        "going down maps nothing"
+    );
+
+    let p = player(&mut w);
+    let element = w
+        .query_filtered::<Entity, (With<Amulet>, With<Position>)>()
+        .single(&w);
+    w.entity_mut(element).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(element);
+    let up = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == TileType::Upstairs)
+        .unwrap();
+    w.get_mut::<Position>(p).unwrap().x = (up % MAP_WIDTH as usize) as u16;
+    w.get_mut::<Position>(p).unwrap().y = (up / MAP_WIDTH as usize) as u16;
+    assert!(change_level(&mut w, false));
+    assert!(w.resource::<MagicMapReveal>().active);
+
+    finish_magic_map_reveal(&mut w);
+    let known = w.get::<Viewshed>(p).unwrap().revealed_tiles.count_ones(..);
+    assert_eq!(known, MAP_TILE_COUNT);
+}

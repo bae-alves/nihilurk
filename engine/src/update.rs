@@ -836,8 +836,8 @@ fn describe_target(world: &mut World, target: Position) -> Vec<String> {
     lines
 }
 
-/// A keypress while the pack is open: routed to the action modal (Use / Throw /
-/// Drop) when one is up, otherwise to the item list underneath it.
+/// A keypress while the pack is open: routed to the action modal (Use / Drop /
+/// Throw / Info) when one is up, otherwise to the item list underneath it.
 fn handle_inventory_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
     let (selected, action_mode, action_selected) = {
         let pack = world.resource::<PackIsOpen>();

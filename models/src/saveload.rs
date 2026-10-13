@@ -65,8 +65,8 @@ use crate::effects::{
 };
 use crate::equipment::{Equipped, Slot};
 use crate::map::{
-    BloodStains, Corpses, Endless, FINAL_DEPTH, FxRng, GameRng, Map, RngSeed, Smoke, TileType,
-    regenerate_map,
+    BloodStains, Corpses, Endless, FINAL_DEPTH, Floors, FxRng, GameRng, Map, RngSeed, Smoke,
+    TileType, regenerate_map,
 };
 use crate::monsters::{BESTIARY, MonsterDef};
 use crate::state::{Ending, GameState};
@@ -231,6 +231,8 @@ struct EntitySave<'a> {
     stack: Option<u8>,
     /// Marker: this equipment is cursed and can't be taken off once equipped.
     curse: bool,
+    /// Marker: the curse is a MEGACURSE, which nothing lifts.
+    megacurse: bool,
     /// Marker: this equipment's enchantment plus and curse status are known —
     /// worn at least once, or singled out by a scroll of identify.
     known_quality: bool,
@@ -258,9 +260,9 @@ struct EntitySave<'a> {
     /// other condition they are not lifted by the stairs, so a save that forgot
     /// them would quietly eat a coin.
     #[serde(default)]
-    plated: bool,
+    plated: u8,
     #[serde(default)]
-    forged: bool,
+    forged: u8,
     /// The player's active-spell bar. Nothing else in the game carries one yet.
     #[serde(default)]
     spellset: Option<Vec<SpellEffect>>,
@@ -312,7 +314,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 6;
+pub const SAVE_VERSION: u16 = 9;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -371,6 +373,10 @@ struct SaveGame<'a> {
     /// [`Kills`]: each name a corpse died under, and how many.
     #[serde(borrow)]
     kills: Vec<(Cow<'a, str>, u32)>,
+    /// [`Floors::last`]: the run's length (`-fast` is 6), so a reload keeps it.
+    floors: u8,
+    /// [`Endless::enabled`]: whether the run is `-endless`, so a reload keeps it.
+    endless: bool,
 }
 
 /// The winner's details, pulled from a won game's clear-data save file.
@@ -559,14 +565,15 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             max_hp_bonus: er.get::<MaxHpBonus>().map(|m| m.0),
             stack: er.get::<Stack>().map(|s| s.count),
             curse: er.contains::<Curse>(),
+            megacurse: er.contains::<MegaCurse>(),
             known_quality: er.contains::<KnownQuality>(),
             vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
             effects: effects_of(world, e).iter().map(SavedEffect::of).collect(),
             speed: er.get::<Speed>().map(|s| s.kind),
             trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
             pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
-            plated: er.contains::<Plated>(),
-            forged: er.contains::<Forged>(),
+            plated: er.get::<Plated>().map_or(0, |p| p.0),
+            forged: er.get::<Forged>().map_or(0, |p| p.0),
             spellset: er.get::<Spellset>().map(|m| m.slots.clone()),
             equipped_by: er
                 .get::<Equipped>()
@@ -610,6 +617,8 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         dug_tiles: dug_tiles(world),
         cleared: world.get_resource::<Ending>().is_some_and(|e| e.player_won),
         spirits_hostile: world.get_resource::<SpiritsHostile>().is_some_and(|s| s.0),
+        floors: Floors::of(world).last,
+        endless: world.get_resource::<Endless>().is_some_and(|e| e.enabled),
         monster_body,
         kills: world.get_resource::<Kills>().map_or_else(Vec::new, |k| {
             k.by_name
@@ -744,6 +753,10 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     if let Some(def) = body_def {
         world.insert_resource(crate::body::StartingBody(crate::body::Body::Monster(def)));
     }
+    world.insert_resource(Floors::new(save.floors.max(1)));
+    world.insert_resource(Endless {
+        enabled: save.endless,
+    });
     regenerate_map(world, save.rng_seed, save.depth);
     world.resource_mut::<Map>().dark = save.dark_tiles;
     {
@@ -761,7 +774,10 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     // so carve it back to plain floor. The Element of Yoord entity (or its place
     // in the pack) comes back from the save itself.
     let endless = world.get_resource::<Endless>().is_some_and(|e| e.enabled);
-    if save.depth >= FINAL_DEPTH && !endless {
+    let last = world
+        .get_resource::<Floors>()
+        .map_or(FINAL_DEPTH, |f| f.last);
+    if save.depth >= last && !endless {
         let mut map = world.resource_mut::<Map>();
         if let Some(i) = map.tiles.iter().position(|&t| t == TileType::Downstairs) {
             map.tiles[i] = TileType::Room;
@@ -958,6 +974,9 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if es.curse {
             em.insert(Curse);
         }
+        if es.megacurse {
+            em.insert(MegaCurse);
+        }
         if es.known_quality {
             em.insert(KnownQuality);
         }
@@ -1000,11 +1019,11 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if let Some((effect, amount)) = es.pickup {
             em.insert(Pickup { effect, amount });
         }
-        if es.plated {
-            em.insert(Plated);
+        if es.plated > 0 {
+            em.insert(Plated(es.plated));
         }
-        if es.forged {
-            em.insert(Forged);
+        if es.forged > 0 {
+            em.insert(Forged(es.forged));
         }
         if es.mimic {
             em.insert(Mimic);
@@ -1211,14 +1230,15 @@ mod tests {
             max_hp_bonus: None,
             stack: None,
             curse: false,
+            megacurse: false,
             known_quality: false,
             vorpal: None,
             effects: Vec::new(),
             speed: None,
             trap: None,
             pickup: None,
-            plated: false,
-            forged: false,
+            plated: 0,
+            forged: 0,
             spellset: None,
             equipped_by: None,
             helper: false,
@@ -1246,6 +1266,8 @@ mod tests {
             spirits_hostile: false,
             monster_body: None,
             kills: Vec::new(),
+            floors: FINAL_DEPTH,
+            endless: false,
         }
     }
 
@@ -1373,6 +1395,7 @@ mod tests {
             max_hp_bonus: None,
             stack: Some(200),
             curse: true,
+            megacurse: true,
             known_quality: true,
             vorpal: Some(Cow::Borrowed("bane")),
             effects: vec![
@@ -1390,8 +1413,8 @@ mod tests {
             speed: Some(SpeedKind::Quick),
             trap: Some((TrapEffect::Dart, TrapReveal::Triggered, true)),
             pickup: Some((PickupEffect::LearnRandomSpell, 300)),
-            plated: true,
-            forged: true,
+            plated: 1,
+            forged: 1,
             spellset: Some(vec![SpellEffect::GateDown]),
             equipped_by: Some(300),
             helper: true,

@@ -1020,3 +1020,39 @@ fn atonement_makes_angered_spirits_neutral_again() {
         MovementType::Confused
     ));
 }
+
+// ---------------------------------------------------------------------------
+// Teleport to stairs
+// ---------------------------------------------------------------------------
+
+fn within_one_of(w: &World, p: Entity, tile: TileType) -> bool {
+    let i = w
+        .resource::<Map>()
+        .tiles
+        .iter()
+        .position(|&t| t == tile)
+        .unwrap();
+    let (sx, sy) = (
+        (i % MAP_WIDTH as usize) as u16,
+        (i / MAP_WIDTH as usize) as u16,
+    );
+    let at = w.get::<Position>(p).unwrap();
+    at.x.abs_diff(sx) <= 1 && at.y.abs_diff(sy) <= 1
+}
+
+#[test]
+fn teleport_to_stairs_goes_down_without_the_element_and_up_with_it() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    assert!(!within_one_of(&w, p, TileType::Downstairs));
+
+    read(&mut w, p, ScrollEffect::TeleportToStairs);
+    assert!(within_one_of(&w, p, TileType::Downstairs));
+
+    let element = spawn_element_of_yoord(&mut w, Position { x: 0, y: 0 });
+    stash(&mut w, p, element);
+    assert!(!within_one_of(&w, p, TileType::Upstairs));
+
+    read(&mut w, p, ScrollEffect::TeleportToStairs);
+    assert!(within_one_of(&w, p, TileType::Upstairs));
+}

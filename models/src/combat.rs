@@ -94,6 +94,10 @@ fn entity_name(world: &World, entity: Entity) -> String {
 /// pending attack (currently these are all monster-initiated; the player's
 /// melee is resolved inline by the input handler).
 ///
+/// A blow is dropped when its two sides no longer touch: `ai` queued it, but a
+/// trap or a swap since then may have moved either one off the tile it struck
+/// from, or onto the far side of a doorway corner.
+///
 /// Assumes `equipment_effects_system` has already folded every lent effect
 /// into `Loadout`-relevant components this turn, so the opposed roll below
 /// reads a wearer's current gear and never a stale one.
@@ -101,8 +105,22 @@ pub fn combat_system(world: &mut World) {
     let attacks = std::mem::take(&mut world.resource_mut::<AttackQueue>().attacks);
 
     for attack in attacks {
-        resolve_attack(world, attack.attacker, attack.target);
+        if still_in_reach(world, attack.attacker, attack.target) {
+            resolve_attack(world, attack.attacker, attack.target);
+        }
     }
+}
+
+fn still_in_reach(world: &World, attacker: Entity, target: Entity) -> bool {
+    let (Some(a), Some(t)) = (
+        world.get::<Position>(attacker),
+        world.get::<Position>(target),
+    ) else {
+        return true;
+    };
+    crate::helpers::chebyshev(*a, *t) == 1
+        && (world.get::<crate::effects::Phasing>(attacker).is_some()
+            || world.resource::<Map>().diagonal_step_ok(a.x, a.y, t.x, t.y))
 }
 
 /// Sweeps up anything that has been reduced to 0 HP by a source that doesn't

@@ -17,7 +17,10 @@
 #
 # Options:
 #   -s SEED    reproducible run (default 1)
-#   -S LIST    NIHILURK_SPAWN: names dropped around the player on floor 1
+#   -S LIST    NIHILURK_SPAWN: names dropped around the player on every floor
+#              ("cursed -2 long sword,arrow x13" works); a name that -content
+#              does not list is warned about, since the game skips it silently
+#   -L LEVEL   NIHILURK_LEVEL: battlefield, labyrinth, vault, bee, castle, island
 #   -a ARGS    more game flags, one quoted string (e.g. "-b lurk")
 #   -d SECS    pause after every key (default 0.4)
 #   -w SECS    wait for the first frame (default 1.5)
@@ -25,8 +28,9 @@
 #   -c CMD     run CMD in the pty instead of the game: for testing this script
 #   -k FILE    keep the raw bytes the game wrote, for screen.lua
 #
-# The game runs from a scratch directory with -ns -nobones -nshake -nb, so it
-# writes no save, bones or leaderboard into the repo, and it is killed when the
+# The game runs from a scratch directory, which is also its data directory,
+# with -ns -nobones -nshake -nb, so it writes no save or bones, never reads your
+# keymap or writes to your leaderboard and morgue, and it is killed when the
 # keys run out. Linux: `script` is util-linux's.
 
 set -euo pipefail
@@ -35,11 +39,12 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/../../.." && pwd)"
 bin="$root/target/debug/nihilurk"
 
-seed=1 spawn="" extra="" pause=0.4 wait_first=1.5 size=25x80 custom="" keep=""
-while getopts "s:S:a:d:w:z:c:k:" opt; do
+seed=1 spawn="" level="" extra="" pause=0.4 wait_first=1.5 size=25x80 custom="" keep=""
+while getopts "s:S:L:a:d:w:z:c:k:" opt; do
     case "$opt" in
         s) seed="$OPTARG" ;;
         S) spawn="$OPTARG" ;;
+        L) level="$OPTARG" ;;
         a) extra="$OPTARG" ;;
         d) pause="$OPTARG" ;;
         w) wait_first="$OPTARG" ;;
@@ -56,6 +61,14 @@ rows="${size%x*}" cols="${size#*x}"
 if [[ -z "$custom" ]]; then
     (cd "$root" && cargo build -q -p nihilurk)
     command="exec '$bin' -s $seed -ns -nobones -nshake -nb $extra"
+    if [[ -n "$spawn" ]]; then
+        known="$("$bin" -content | sed -nE 's/^  (.+)$/\1/p')"
+        IFS=',' read -ra wanted <<< "$spawn"
+        for w in "${wanted[@]}"; do
+            name="$(sed -E 's/^ +//; s/ +$//; s/^cursed +//; s/^[+-][0-9]+ +//; s/ +x[0-9]+$//' <<< "$w")"
+            [[ -z "$name" ]] || grep -qxF "$name" <<< "$known" || echo "warning: '$name' is not in -content; the game will skip it" >&2
+        done
+    fi
 else
     command="exec $custom"
 fi
@@ -72,7 +85,7 @@ trap cleanup EXIT
 
 mkfifo "$work/in"
 cd "$work"
-NIHILURK_SPAWN="$spawn" script -qefc "echo \$\$ > '$work/pid'; stty rows $rows cols $cols; $command" /dev/null \
+NIHILURK_SPAWN="$spawn" NIHILURK_LEVEL="$level" NIHILURK_DATA="$work" SHELL=/bin/sh script -qefc "echo \$\$ > '$work/pid'; stty rows $rows cols $cols; $command" /dev/null \
     < "$work/in" > "$work/raw" 2>&1 &
 exec 3> "$work/in"
 sleep "$wait_first"

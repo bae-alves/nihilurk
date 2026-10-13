@@ -127,11 +127,10 @@ pub mod player {
 /// The lurk: the other playable species. Quadruped, fanged, clawed, furred,
 /// and carrying nothing it did not grow itself.
 ///
-/// Its two dice start exactly where nihil's *bare* ones do
-/// ([`player::START_POWER`], [`player::START_ARMOR`]): the difference is that
-/// nihil walks out of the gate holding a mace and wearing ring mail and the
-/// lurk never will, so where nihil's numbers are bought, the lurk's are
-/// eaten. Less meat and less magic than nihil to pay for the technique it is
+/// Its two dice start one under nihil's *bare* ones
+/// ([`player::START_POWER`], [`player::START_ARMOR`]), and nihil walks out of
+/// the gate holding a mace and wearing ring mail that the lurk never will, so
+/// where nihil's numbers are bought, the lurk's are eaten. Less meat and less magic than nihil to pay for the technique it is
 /// born with (see `crate::body::wear_lurk`).
 pub mod lurk {
     /// Starting (and maximum) hit points. Well under [`super::player::START_HP`].
@@ -229,19 +228,19 @@ pub mod map {
 
     /// Chance a room past the starting one is entirely coin, guarded by a
     /// forced dragon or two. See [`crate::map::SpecialRoom::DragonHoard`].
-    pub const DRAGON_HOARD_CHANCE: f64 = 0.0125;
+    pub const DRAGON_HOARD_CHANCE: f64 = 0.025;
 
     /// Chance a room past the starting one is packed wall to wall with
     /// monsters. See [`crate::map::SpecialRoom::MonsterZoo`].
-    pub const MONSTER_ZOO_CHANCE: f64 = 0.0125;
+    pub const MONSTER_ZOO_CHANCE: f64 = 0.025;
 
     /// Chance a room past the starting one is entirely coin, guarded by one
     /// apis. See [`crate::map::SpecialRoom::TreasureHive`].
-    pub const TREASURE_HIVE_CHANCE: f64 = 0.0125;
+    pub const TREASURE_HIVE_CHANCE: f64 = 0.025;
 
     /// Chance a room past the starting one is a hive when the player is an
     /// apis (`-am apis`), the only special room such a run has.
-    pub const BEE_RUN_HIVE_CHANCE: f64 = 0.10;
+    pub const BEE_RUN_HIVE_CHANCE: f64 = 0.5;
 
     /// Chance a room past the starting one holds a normal item budget that
     /// vanishes down to one the moment any of it is picked up. See
@@ -255,27 +254,27 @@ pub mod map {
 
     /// Chance an eligible floor is one open room, wall to wall. See
     /// [`crate::map::SpecialLevel::Battlefield`].
-    pub const BATTLEFIELD_CHANCE: f64 = 0.05;
+    pub const BATTLEFIELD_CHANCE: f64 = 0.1;
 
     /// Chance an eligible floor is a maze of passages. See
     /// [`crate::map::SpecialLevel::Labyrinth`].
-    pub const LABYRINTH_CHANCE: f64 = 0.01;
+    pub const LABYRINTH_CHANCE: f64 = 0.1;
 
     /// Chance an eligible floor is a treasure vault of doored cells. See
     /// [`crate::map::SpecialLevel::Vault`].
-    pub const VAULT_CHANCE: f64 = 0.01;
+    pub const VAULT_CHANCE: f64 = 0.1;
 
     /// Chance an eligible floor is one yellow cave full of apis. See
     /// [`crate::map::SpecialLevel::BeeWorld`].
-    pub const BEE_WORLD_CHANCE: f64 = 0.01;
+    pub const BEE_WORLD_CHANCE: f64 = 0.05;
 
     /// Chance an eligible floor has a castle in the middle of it. See
     /// [`crate::map::SpecialLevel::Castle`].
-    pub const CASTLE_CHANCE: f64 = 0.01;
+    pub const CASTLE_CHANCE: f64 = 0.05;
 
     /// Chance an eligible floor is an island in deep water. See
     /// [`crate::map::SpecialLevel::Island`].
-    pub const ISLAND_CHANCE: f64 = 0.01;
+    pub const ISLAND_CHANCE: f64 = 0.05;
 }
 
 // ===========================================================================
@@ -289,7 +288,7 @@ pub mod map {
 pub mod population {
     /// Monster slots on floor 1, before the per-tier bonus. The first slot
     /// always fills; the rest roll [`MONSTER_FILL_CHANCE_BASE`].
-    pub const MONSTER_SLOTS_BASE: usize = 4;
+    pub const MONSTER_SLOTS_BASE: usize = 6;
 
     /// Chance a non-first monster slot actually spawns something, at tier 0.
     pub const MONSTER_FILL_CHANCE_BASE: f64 = 0.80;
@@ -301,7 +300,7 @@ pub mod population {
     pub const MONSTER_FILL_CHANCE_CAP: f64 = 0.95;
 
     /// Trap slots on floor 1, before the per-tier bonus.
-    pub const TRAP_SLOTS_BASE: usize = 4;
+    pub const TRAP_SLOTS_BASE: usize = 6;
 
     /// Chance a trap slot produces a trap, at tier 0.
     pub const TRAP_FILL_CHANCE_BASE: f64 = 0.40;
@@ -319,7 +318,7 @@ pub mod population {
 
     /// Per-corridor chance of a mid-corridor lurker, once past
     /// [`CORRIDOR_LURKER_MIN_DEPTH`].
-    pub const CORRIDOR_LURKER_CHANCE: f64 = 0.15;
+    pub const CORRIDOR_LURKER_CHANCE: f64 = 0.30;
 
     /// Ordinary item drops attempted on floor 1, before the per-tier bonus.
     /// Like the monster and trap budgets, the item budget gains one attempt per
@@ -340,7 +339,7 @@ pub mod population {
     /// of where the player lands is kept clear of monsters and loot: the
     /// start room every other floor already has. Raise it for a gentler
     /// arrival.
-    pub const START_CLEARING_RADIUS: u16 = 4;
+    pub const START_CLEARING_RADIUS: u16 = 6;
 
     /// How many times a floor with no special level (and the labyrinth, castle
     /// and island, which promise no crowd) runs each of the monster and item
@@ -349,13 +348,13 @@ pub mod population {
 
     /// A battlefield runs the monster budget this many times: one lit room, all
     /// of it in view, so it needs the crowd to be a fight at all.
-    pub const BATTLEFIELD_MONSTER_RUNS: usize = 2;
+    pub const BATTLEFIELD_MONSTER_RUNS: usize = 3;
 
     /// A battlefield runs the item budget this many times.
-    pub const BATTLEFIELD_ITEM_RUNS: usize = 2;
+    pub const BATTLEFIELD_ITEM_RUNS: usize = 3;
 
     /// A vault runs the monster budget this many times.
-    pub const VAULT_MONSTER_RUNS: usize = 2;
+    pub const VAULT_MONSTER_RUNS: usize = 3;
 
     /// A vault runs the item budget this many times: the haul is the point.
     pub const VAULT_ITEM_RUNS: usize = 3;
@@ -367,26 +366,28 @@ pub mod population {
     /// Where the level feeling draws its lines, per difficulty tier: a floor
     /// with at most `.0` monsters feels safe, one with more than `.1` feels
     /// dangerous. Cut from the counts 300 seeds of floors actually held, so
-    /// about one floor in ten reads safe and one in seven reads dangerous.
+    /// about one floor in ten reads safe and one in four reads dangerous. Special
+    /// rooms make a long tail (a zoo holds 40 to 190), so the dangerous line sits
+    /// just over what an ordinary floor holds, not at the tail's edge.
     ///
     /// **If you change a budget above:** the shape of these counts moves with
     /// it. `models/tests/level_feeling.rs` fails when a line stops firing or
     /// starts firing on most floors; re-cut the numbers then.
-    pub const FEELING_MONSTERS: [(usize, usize); 5] = [(2, 4), (3, 7), (5, 11), (6, 14), (7, 14)];
+    pub const FEELING_MONSTERS: [(usize, usize); 5] = [(3, 7), (5, 19), (7, 22), (9, 27), (10, 41)];
 
     /// [`FEELING_MONSTERS`] for items on the floor: at most `.0` feels poor,
     /// more than `.1` feels rich.
-    pub const FEELING_ITEMS: [(usize, usize); 5] = [(5, 11), (6, 13), (7, 15), (8, 17), (10, 19)];
+    pub const FEELING_ITEMS: [(usize, usize); 5] = [(5, 14), (6, 18), (7, 20), (8, 24), (10, 47)];
 
     /// How many times a placement will re-roll before giving the slot up.
     ///
-    /// Ten, not a hundred. A floor is a few hundred open tiles holding a dozen
+    /// Thirteen, not a hundred. A floor is a few hundred open tiles holding a dozen
     /// things, so the first draw nearly always lands somewhere free and the budget
     /// is never spent; the only floors that reach the end of it are ones so
-    /// crowded that the eleventh try would not have helped either. Spending a
+    /// crowded that the fourteenth try would not have helped either. Spending a
     /// hundred draws to find that out costs the same seeded RNG stream everything
     /// else on the floor draws from, for a slot the dungeon is happy to skip.
-    pub const PLACEMENT_TRIES: usize = 10;
+    pub const PLACEMENT_TRIES: usize = 13;
 }
 
 // ===========================================================================
@@ -410,7 +411,7 @@ pub mod traps {
     /// ARROW_DAMAGE_BONUS` before armour-plus.
     pub const ARROW_DAMAGE_DICE: i32 = 1;
     /// See [`ARROW_DAMAGE_DICE`].
-    pub const ARROW_DAMAGE_SIDES: i32 = 2;
+    pub const ARROW_DAMAGE_SIDES: i32 = 3;
     /// See [`ARROW_DAMAGE_DICE`].
     pub const ARROW_DAMAGE_BONUS: i32 = 1;
 
@@ -445,7 +446,7 @@ pub mod traps {
     /// and the tile is clear again ("The dart trap breaks!"). The bear trap is
     /// exempt: it always bites once and is done. Raise it to make a floor's
     /// traps a one-time toll, lower it to make the same tile a lasting hazard.
-    pub const TRAP_BREAK_CHANCE: f64 = 0.25;
+    pub const TRAP_BREAK_CHANCE: f64 = 0.5;
 
     /// Radius, in tiles, of the burst a trap makes when something sets it off
     /// from a distance — `1` is the 3×3 around it. See `traps::detonate_trap`.
@@ -462,7 +463,7 @@ pub mod traps {
     /// that a trap's own damage still allows.
     pub const TRICK_SHOT_DAMAGE_DICE: i32 = 2;
     /// See [`TRICK_SHOT_DAMAGE_DICE`].
-    pub const TRICK_SHOT_DAMAGE_SIDES: i32 = 3;
+    pub const TRICK_SHOT_DAMAGE_SIDES: i32 = 2;
 }
 
 // ===========================================================================
@@ -506,9 +507,9 @@ pub mod potions {
     pub const PARALYSIS_LOST_TURN_CHANCE: f64 = 0.5;
 
     /// A potion doesn't just dose whoever it hits: it breaks and spreads over
-    /// this radius, the same delivery a thrown utility wand's blast uses (see
-    /// [`crate::constants::wands::BLAST_RADIUS`]), just narrower — a potion is
-    /// a mouthful of glass, not a wand's whole battery.
+    /// this radius, the same delivery and the same reach as a thrown utility
+    /// wand's blast (see [`crate::constants::wands::BLAST_RADIUS`]) — a potion
+    /// is a mouthful of glass, but it spreads as far as a wand's small blast.
     pub const POTION_SPLASH_RADIUS: f32 = 1.0;
 }
 
@@ -542,7 +543,7 @@ pub mod scrolls {
     /// How many turns a scroll of hold monster roots what it catches. Longer
     /// than sleep, because a held monster is only pinned and can still fight:
     /// it buys distance, not a free kill.
-    pub const HOLD_TURNS: u32 = 8;
+    pub const HOLD_TURNS: u32 = 10;
 }
 
 // ===========================================================================
@@ -568,17 +569,17 @@ pub mod decks {
     pub const CARD_CHAIN_CAP: u32 = 32;
 
     /// What `BALA` adds to its holder's damage roll.
-    pub const BALA_POWER: i32 = 5;
+    pub const BALA_POWER: i32 = 4;
 
     /// What `BOLE` adds to its holder's armour roll.
-    pub const BOLE_ARMOR: i32 = 5;
+    pub const BOLE_ARMOR: i32 = 4;
 
     /// How many turns THE WORLD stops time for.
     pub const WORLD_TURNS: u32 = 5;
 
     /// How many casts of their spell the Skull King and the Black Mage are
     /// born with. They spam it.
-    pub const CARD_CASTER_CASTS: u8 = 12;
+    pub const CARD_CASTER_CASTS: u8 = 13;
 
     /// How many monsters a reversed GOLDEN WIND conjures.
     pub const GOLDEN_WIND_SUMMONS: usize = 8;
@@ -623,7 +624,7 @@ pub mod wands {
     /// player is left on 1 HP). Otherwise it settles into a chimeric form.
     ///
     /// [`Polymorphed`]: crate::effects::Polymorphed
-    pub const SYSTEM_SHOCK_CHANCE: f64 = 0.5;
+    pub const SYSTEM_SHOCK_CHANCE: f64 = 0.25;
 
     /// How many times a system shock splashes the gore, and how hard each
     /// splash is: `spill_blood`'s droplets and reach stop growing at a cap, and
@@ -660,7 +661,7 @@ pub mod wands {
     /// light) makes when it bursts on impact — the grenade. Wider and hotter
     /// than a zap, and it does not care who set it off: lob one too close and
     /// it burns you too.
-    pub const GRENADE_RADIUS: f32 = 2.0;
+    pub const GRENADE_RADIUS: f32 = 3.0;
 
     /// A thrown wand spends *every* remaining charge at once. An attack-wand
     /// grenade rolls one die of this many sides per charge — at 1, a flat
@@ -672,7 +673,7 @@ pub mod wands {
     pub const EFFECT_DIE_PER_CHARGE: i32 = 3;
 
     /// How many turns a fire blast's smoke lingers on the tiles it covered,
-    /// DCSS-style — purely cosmetic, never blocks movement or sight. Zapped
+    /// purely cosmetic, never blocks movement or sight. Zapped
     /// or thrown, makes no difference; see `elemental_blast`.
     pub const SMOKE_LINGER_TURNS: u8 = 4;
 }
@@ -712,6 +713,19 @@ pub mod loot {
     pub const CURSED_BONUS_MIN: i32 = -5;
     /// See [`CURSED_BONUS_MIN`].
     pub const CURSED_BONUS_MAX: i32 = 5;
+
+    /// Percent of cursed drops that come up MEGACURSED instead: stuck on for
+    /// good, see [`crate::components::MegaCurse`]. Rolled after the cursed
+    /// share above, so a gear drop is MEGACURSED about
+    /// `(100 - NORMAL - EXCEPTIONAL) * this / 100` percent of the time.
+    pub const MEGACURSED_PCT_OF_CURSED: i32 = 1;
+
+    /// MEGACURSED gear rolls a flat bonus uniformly in this inclusive range:
+    /// never better than plain. A ring rolls its own, see
+    /// [`crate::constants::rings::MEGACURSED_BONUS_MAX`].
+    pub const MEGACURSED_BONUS_MIN: i32 = -3;
+    /// See [`MEGACURSED_BONUS_MIN`].
+    pub const MEGACURSED_BONUS_MAX: i32 = 0;
 
     /// Percent chance a curse merge (equipping a known cursed item over a worn
     /// cursed one in the same slot) leaves the worn item's form.
@@ -791,6 +805,13 @@ pub mod rings {
     /// Magic points one deliberate teleport costs a wearer of the ring of
     /// teleportation.
     pub const TELEPORT_MAGIC_COST: u8 = 2;
+
+    /// A MEGACURSED numeric ring rolls its plus uniformly in this inclusive
+    /// range: built different, it can far outclass any other ring, and still
+    /// never comes off.
+    pub const MEGACURSED_BONUS_MIN: i32 = 0;
+    /// See [`MEGACURSED_BONUS_MIN`].
+    pub const MEGACURSED_BONUS_MAX: i32 = 13;
 
     /// The plus a *numeric* ring — protection, strength, increase damage,
     /// sharpshooting — carries when it rolls plain. An absolute number, not a
@@ -994,6 +1015,10 @@ pub mod spells {
     /// rows of the `Z` menu, and no further row to reach for. A hero
     /// coin stops teaching once this is full.
     pub const SPELLSET_CAP: usize = 4;
+
+    /// The most platinum or forge coins the stairs will owe you at once; a
+    /// coin past it stays on the floor.
+    pub const PROMISE_CAP: u8 = 3;
 
     /// A staff's [`crate::effects::TurboMagic`]: what an
     /// [`Attack`](crate::components::SpellKind::Attack)'s

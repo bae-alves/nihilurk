@@ -224,7 +224,7 @@ The inventory overlay
 fn draw_inventory(world: &mut World, screen: &mut Screen)
 ```
 
-A bordered box sized to the widest row actually being drawn (`row_text`, the one place a row's text — letter, name, `" (E)"` for equipped — is assembled, so sizing and drawing can never disagree about a row's width) or 30 columns, whichever is larger. Row colour is a small decision table on `(selected, cursed_known, equipped)` — `known_quality` gates the cursed colouring, so an unidentified cursed item still reads as ordinary. The Use/Throw/Drop action modal, when open, is a second small box floated to the right of the item row it belongs to, its three labels coming from `ItemAction::MENU`.
+A bordered box sized to the widest row actually being drawn (`row_text`, the one place a row's text — letter, name, `" (E)"` for equipped — is assembled, so sizing and drawing can never disagree about a row's width) or 30 columns, whichever is larger. Row colour is a small decision table on `(selected, cursed_known, equipped)` — `known_quality` gates the cursed colouring, so an unidentified cursed item still reads as ordinary. The Use/Drop/Throw/Info action modal, when open, is a second small box floated to the right of the item row it belongs to, its four labels coming from `ItemAction::MENU`.
 
 `draw_quit_prompt` is the overlay's sibling and the last thing painted in the frame, so "Really quit?" sits over everything: a box centred on the map (two lines, four once `QuitPrompt.warned` adds the red time-stopped rows), spelling out both answers rather than leaning on "any key". It is the only modal in the game whose job is to *slow the player down*, which is also why it is centred instead of tucked into a corner where a key could be answered by reflex.
 

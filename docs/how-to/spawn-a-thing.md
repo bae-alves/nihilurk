@@ -26,7 +26,7 @@ No code. `NIHILURK_SPAWN` drops names on free tiles around the player on every f
     NIHILURK_SPAWN="dragon" cargo run -p nihilurk      # 2. put one in front of me
     NIHILURK_SPAWN="bow,arrow,arrow,dart trap" cargo run -p nihilurk
 
-Gear and ammunition take dressing: `cursed`, `+N`/`-N` and `xN`.
+Gear and ammunition take dressing: `cursed` (or `megacursed`), `+N`/`-N` and `xN`.
 
 To press keys in the game it starts and read the screen back as text, with no terminal of your own, use `play-through-a-pty.md`.
 

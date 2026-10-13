@@ -42,6 +42,9 @@ fn every_content_name_is_shown_under_its_own_display_name() {
     }
 }
 
+/// A mimic is the one deliberate exception: it is born wearing a false
+/// name on purpose, and only [`crate::monsters::reveal_mimics`] gives it
+/// back.
 #[test]
 fn every_content_name_spawns_and_keeps_its_name() {
     for (category, name) in content_names() {
@@ -52,9 +55,6 @@ fn every_content_name_spawns_and_keeps_its_name() {
             .get::<Name>(entity)
             .expect("everything spawns with a Name")
             .what;
-        // A mimic is the one deliberate exception: it is born wearing a false
-        // name on purpose, and only [`crate::monsters::reveal_mimics`] gives it
-        // back.
         let mimics = MonsterDef::lookup(name).is_some_and(|m| m.mimics);
         if !mimics {
             assert_eq!(
@@ -150,13 +150,13 @@ fn a_species_never_appears_above_its_min_depth() {
     }
 }
 
+/// "The deepest tier" is the deepest `min_depth` shared by at least three
+/// species, read off the table — rebalancing which floor a monster debuts
+/// on must not turn this red. A single rarer capstone above it (the xeroc,
+/// deeper still and alone up there) is deliberately not what this checks:
+/// that one is asked for on its own in `xeroc_only_turns_up_past_its_debut`.
 #[test]
 fn the_deep_letters_do_eventually_turn_up() {
-    // "The deepest tier" is the deepest `min_depth` shared by at least three
-    // species, read off the table — rebalancing which floor a monster debuts
-    // on must not turn this red. A single rarer capstone above it (the xeroc,
-    // deeper still and alone up there) is deliberately not what this checks:
-    // that one is asked for on its own in `xeroc_only_turns_up_past_its_debut`.
     let mut tiers: Vec<u8> = BESTIARY.iter().map(|m| m.min_depth).collect();
     tiers.sort_unstable();
     tiers.dedup();
@@ -376,6 +376,8 @@ fn every_trap_row_can_actually_be_drawn() {
 // The NIHILURK_SPAWN shortcut
 // ---------------------------------------------------------------------------
 
+/// The floor is already populated, so only the entities that appear *after*
+/// the call are the ones the list asked for.
 #[test]
 fn a_spawn_list_drops_each_name_on_its_own_free_tile() {
     let mut w = World::new();
@@ -390,8 +392,6 @@ fn a_spawn_list_drops_each_name_on_its_own_free_tile() {
     let start = *w.query_filtered::<&Position, With<Player>>().single(&w);
     let mut occupied: HashSet<(u16, u16)> = HashSet::from([(start.x, start.y)]);
 
-    // The floor is already populated, so only the entities that appear *after*
-    // the call are the ones the list asked for.
     let before: HashSet<Entity> = w.iter_entities().map(|e| e.id()).collect();
     let recognised = models::spawn_list(
         &mut w,

@@ -104,7 +104,7 @@ Every page names its own audience and prerequisites in a header. Broadly:
                     `engine/` itself (input handling, rendering) is
                     thinner ground than `models/`: its tests
                     cover key dispatch (`update.rs`) and the log gate
-                    and status tints (`view.rs`), not what a frame looks
+                    and help-key remap (`view.rs`), not what a frame looks
                     like, so a change to a frame is checked by playing
                     the game, not by `cargo test`. See `reference/input-and-turn-loop.md`
                     and `reference/rendering.md`.

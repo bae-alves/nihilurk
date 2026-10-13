@@ -161,6 +161,8 @@ fn every_published_crate_is_named_for_the_game() {
     );
 }
 
+/// A path dependency with no version is rejected at publish time,
+/// after every crate before it in the order has already gone out.
 #[test]
 fn every_published_crate_has_what_crates_io_asks_for() {
     let root = workspace_root();
@@ -201,8 +203,6 @@ fn every_published_crate_has_what_crates_io_asks_for() {
         } else {
             missing.push(format!("{dir}/ has no `keywords`"));
         }
-        // A path dependency with no version is rejected at publish time,
-        // after every crate before it in the order has already gone out.
         for line in text.lines().filter(|l| l.contains("path = \"../")) {
             if !line.contains("version = ") {
                 missing.push(format!(

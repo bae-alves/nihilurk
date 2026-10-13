@@ -3,6 +3,8 @@
 //! step.
 
 mod common;
+#[path = "common/monster.rs"]
+mod monster;
 
 use bevy_ecs::prelude::*;
 use models::*;
@@ -132,7 +134,7 @@ fn willed_teleport_spends_the_magic_when_the_schedule_runs() {
 #[test]
 fn a_charge_closes_on_the_foe_when_the_schedule_runs() {
     let (mut w, player, here) = quiet_room(1);
-    let foe = spawn_monster(&mut w, &BESTIARY[0], at(here.x as i32 + 3, here.y as i32));
+    let foe = monster::plain_monster(&mut w, "foe", at(here.x as i32 + 3, here.y as i32));
     assert!(queue_charge(&mut w, foe));
     assert_eq!(*w.get::<Position>(player).unwrap(), here);
     resolve(&mut w);
@@ -146,7 +148,7 @@ fn a_charge_closes_on_the_foe_when_the_schedule_runs() {
 #[test]
 fn a_charge_through_a_wall_is_refused() {
     let (mut w, _, here) = quiet_room(1);
-    let foe = spawn_monster(&mut w, &BESTIARY[0], at(here.x as i32 + 3, here.y as i32));
+    let foe = monster::plain_monster(&mut w, "foe", at(here.x as i32 + 3, here.y as i32));
     w.resource_mut::<Map>().tiles[tile_index(here.x + 1, here.y)] = TileType::Wall;
     assert!(!queue_charge(&mut w, foe));
     assert!(w.resource::<PlayerActionQueue>().actions.is_empty());
@@ -159,7 +161,7 @@ fn a_reach_attack_strikes_when_the_schedule_runs() {
     w.entity_mut(weapon).remove::<Position>();
     w.entity_mut(weapon).insert(Reach(2));
     let foe_at = at(here.x as i32 + 2, here.y as i32);
-    let foe = spawn_monster(&mut w, &BESTIARY[0], foe_at);
+    let foe = monster::plain_monster(&mut w, "foe", foe_at);
     let hp = w.get::<Fighter>(foe).unwrap().hp;
     let before = log_len(&w);
     queue_reach_attack(&mut w, weapon, foe_at);

@@ -25,8 +25,8 @@ use rand::Rng;
 use crate::body::equip_refusal;
 use crate::catalog::set_plus;
 use crate::components::{
-    Backpack, Curse, Fighter, GameLog, KnownQuality, Launcher, LogCategory, Player, Position,
-    Reach, Returns, Vorpal,
+    Backpack, Curse, Fighter, GameLog, KnownQuality, Launcher, LogCategory, MegaCurse, Player,
+    Position, Reach, Returns, Vorpal,
 };
 use crate::constants::loot::{MERGE_DONOR_PCT, MERGE_RECIPIENT_PCT};
 use crate::effects::{
@@ -245,6 +245,15 @@ pub fn force_unequip(world: &mut World, item: Entity) {
     }
 }
 
+/// Burns the [`Curse`] off `item`, unless it is [`MegaCurse`]d: that one never
+/// lifts. Every effect that mends a curse without destroying the item goes
+/// through here.
+pub fn lift_curse(world: &mut World, item: Entity) {
+    if world.get::<MegaCurse>(item).is_none() {
+        world.entity_mut(item).remove::<Curse>();
+    }
+}
+
 /// Destroys `doomed`, gear `wearer` has on: each piece comes off, leaves the
 /// pack and is gone, and whatever it lent its wearer goes with it. The scroll
 /// of remove curse and the pink demon both end gear this way.
@@ -345,7 +354,7 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
 /// gear outside a pack (a monster's) ranks last.
 fn merge_recipient(world: &World, user: Entity, slot: Slot, item: Entity) -> Option<Entity> {
     let known = world.get::<Player>(user).is_none() || world.get::<KnownQuality>(item).is_some();
-    if world.get::<Curse>(item).is_none() || !known {
+    if world.get::<Curse>(item).is_none() || world.get::<MegaCurse>(item).is_some() || !known {
         return None;
     }
     let worn = equipped_in_slot(world, user, slot);
@@ -354,7 +363,7 @@ fn merge_recipient(world: &World, user: Entity, slot: Slot, item: Entity) -> Opt
     }
     let pack = world.get::<Backpack>(user).map(|b| b.items.as_slice());
     worn.into_iter()
-        .filter(|&e| world.get::<Curse>(e).is_some())
+        .filter(|&e| world.get::<Curse>(e).is_some() && world.get::<MegaCurse>(e).is_none())
         .min_by_key(|e| {
             pack.and_then(|p| p.iter().position(|i| i == e))
                 .unwrap_or(usize::MAX)

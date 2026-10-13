@@ -94,8 +94,8 @@ use crate::helpers::{
 };
 use crate::identify::article_for;
 use crate::map::{
-    Endless, FINAL_DEPTH, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType,
-    tile_index, transition_level,
+    Endless, Floors, GameRng, LevelChange, MAP_HEIGHT, MAP_WIDTH, Map, Smoke, TileType, tile_index,
+    transition_level,
 };
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
@@ -741,6 +741,20 @@ pub(crate) fn chain_react(
     chain_react_with(world, area, shooter, fire, cubes);
 }
 
+/// Whether [`chain_react_with`] would find anything to set off under `area`.
+/// A blast with links behind it holds its animation so they open after it;
+/// one without leaves the clock alone, so its own follow-up sparks keep their timing.
+pub(crate) fn has_links(
+    world: &mut World,
+    area: &std::collections::HashSet<(u16, u16)>,
+    cubes: &[Entity],
+) -> bool {
+    !cubes.is_empty()
+        || !things_in::<Trap>(world, area).is_empty()
+        || !things_in::<Pickup>(world, area).is_empty()
+        || !things_in::<Potion>(world, area).is_empty()
+}
+
 /// [`chain_react`] with the cubes chosen by the caller. A cold blast that
 /// kills something freezes it inside its own footprint, and that cube is
 /// the blast's work, not a link in it: the caller names the cubes that stood
@@ -980,12 +994,12 @@ pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool
         if let Some(pos) = world.get::<Position>(victim).copied() {
             leave_smoke(world, pos);
         }
-        world.entity_mut(victim).despawn();
+        crate::spirits::poof(world, victim);
         return;
     }
 
     let depth = world.resource::<Depth>().what;
-    if depth >= FINAL_DEPTH && !world.resource::<Endless>().enabled {
+    if depth >= world.resource::<Floors>().last && !world.resource::<Endless>().enabled {
         world
             .resource_mut::<GameLog>()
             .add(strings::trapdoor_grinds_shut());

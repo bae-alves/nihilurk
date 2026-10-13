@@ -62,6 +62,27 @@ fn logged(w: &World, needle: &str) -> bool {
         .any(|l| l.contains(needle))
 }
 
+const BREATHER: &str = "fire breather";
+
+fn breath_cost() -> u8 {
+    SpellDef::of(SpellEffect::DragonBreath).cost
+}
+
+/// A neutral caster that knows only the dragon's fireball and has `points` of Ma.
+fn breather(w: &mut World, at: Position, points: u8) -> Entity {
+    let e = monster::plain_monster(w, BREATHER, at);
+    w.entity_mut(e).insert((
+        Magic {
+            points,
+            max_points: points,
+        },
+        Spellset {
+            slots: vec![SpellEffect::DragonBreath],
+        },
+    ));
+    e
+}
+
 /// A walkable tile `dx` east of the player.
 fn east_of_player(w: &mut World, dx: u16) -> Position {
     let p = player_pos(w);
@@ -201,7 +222,7 @@ fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
     let mut w = test_world(9);
     let dragon_at = east_of_player(&mut w, 1);
     let foe_at = east_of_player(&mut w, 5);
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), dragon_at);
+    let dragon = breather(&mut w, dragon_at, 2 * breath_cost());
     recruit(&mut w, dragon);
     let foe = monster::plain_monster(&mut w, "kobold", foe_at);
     w.get_mut::<Mob>(foe).unwrap().movement_type = MovementType::Static;
@@ -209,7 +230,7 @@ fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
     w.resource_mut::<GameLog>().history.clear();
     ai(&mut w);
     assert!(
-        logged(&w, &strings::breathe_fire_mob("dragon")),
+        logged(&w, &strings::breathe_fire_mob(BREATHER)),
         "the dragon held fire on a foe the blast could not carry to you"
     );
 
@@ -217,7 +238,7 @@ fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
     let mut w = test_world(9);
     let dragon_at = east_of_player(&mut w, edge + 1);
     let foe_at = east_of_player(&mut w, edge);
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), dragon_at);
+    let dragon = breather(&mut w, dragon_at, 2 * breath_cost());
     recruit(&mut w, dragon);
     let foe = monster::plain_monster(&mut w, "kobold", foe_at);
     w.get_mut::<Mob>(foe).unwrap().movement_type = MovementType::Static;
@@ -227,7 +248,7 @@ fn a_tamed_dragon_breathes_only_where_the_fire_cannot_reach_you() {
         w.resource_mut::<AttackQueue>().attacks.clear();
         ai(&mut w);
         assert!(
-            !logged(&w, &strings::breathe_fire_mob("dragon")),
+            !logged(&w, &strings::breathe_fire_mob(BREATHER)),
             "the dragon breathed fire that would catch the player"
         );
         let attacks = &w.resource::<AttackQueue>().attacks;
@@ -326,18 +347,12 @@ fn a_wild_dragon_pays_for_its_fireball_and_runs_dry() {
     w.get_mut::<Fighter>(p).unwrap().hp = 10_000;
     w.get_mut::<Fighter>(p).unwrap().max_hp = 10_000;
     let at = east_of_player(&mut w, 3);
-    let dragon = spawn_monster(&mut w, MonsterDef::named("dragon"), at);
-    let cost = SpellDef::of(SpellEffect::DragonBreath).cost;
-    *w.get_mut::<Magic>(dragon)
-        .expect("a dragon is born with a Magic pool") = Magic {
-        points: cost,
-        max_points: cost,
-    };
+    let dragon = breather(&mut w, at, breath_cost());
     run_visibility(&mut w);
     w.resource_mut::<GameLog>().history.clear();
     ai(&mut w);
     assert!(
-        logged(&w, &strings::breathe_fire_mob("dragon")),
+        logged(&w, &strings::breathe_fire_mob(BREATHER)),
         "the dragon did not breathe with the Ma to do it"
     );
     assert_eq!(w.get::<Magic>(dragon).unwrap().points, 0);
@@ -347,7 +362,7 @@ fn a_wild_dragon_pays_for_its_fireball_and_runs_dry() {
         ai(&mut w);
     }
     assert!(
-        !logged(&w, &strings::breathe_fire_mob("dragon")),
+        !logged(&w, &strings::breathe_fire_mob(BREATHER)),
         "the dragon breathed fire on no Ma"
     );
 }

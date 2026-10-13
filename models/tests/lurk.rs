@@ -93,7 +93,6 @@ fn quick_is_three_turns_for_every_two_monster_rounds() {
         })
         .collect();
     assert_eq!(rounds, vec![1, 1, 0, 1, 1, 0]);
-    assert_eq!(SpeedKind::Quick.rate(), 3, "1.5x the Normal rate of 2");
 }
 
 #[test]

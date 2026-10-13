@@ -286,13 +286,25 @@ pub const STAGGER: Rule = Rule {
     fire: stagger,
 };
 
+/// Whether the foe stands diagonally past a doorway or room corner the mob
+/// could not step across: next to it, but out of reach of blow, shot and spell.
+fn across_corner(p: &Percept, f: &Sighting) -> bool {
+    chebyshev(p.at, f.at) == 1
+        && !p.phasing
+        && !p.map.diagonal_step_ok(p.at.x, p.at.y, f.at.x, f.at.y)
+}
+
 fn shoot(p: &Percept) -> Option<Action> {
     if !p.launcher || p.pinned {
         return None;
     }
     p.foes
         .iter()
-        .find(|f| chebyshev(p.at, f.at) <= MONSTER_SHOT_RANGE && clear_line(p.map, p.at, f.at))
+        .find(|f| {
+            chebyshev(p.at, f.at) <= MONSTER_SHOT_RANGE
+                && clear_line(p.map, p.at, f.at)
+                && !across_corner(p, f)
+        })
         .map(|f| Action::Shoot(f.who))
 }
 
@@ -309,6 +321,7 @@ fn cast(p: &Percept) -> Option<Action> {
         .iter()
         .find(|f| {
             chebyshev(p.at, f.at) <= def.range
+                && !across_corner(p, f)
                 && (!needs_line(spell) || clear_line(p.map, p.at, f.at))
                 && !(p.ally && reaches(p.map, spell, p.at, f.at, p.player_at))
         })
@@ -316,7 +329,7 @@ fn cast(p: &Percept) -> Option<Action> {
 }
 
 fn strike(p: &Percept) -> Option<Action> {
-    let alongside = |f: &&Sighting| chebyshev(p.at, f.at) == 1;
+    let alongside = |f: &&Sighting| chebyshev(p.at, f.at) == 1 && !across_corner(p, f);
     p.foes
         .iter()
         .filter(alongside)
@@ -721,5 +734,20 @@ mod tests {
             think(&p, &CHASER),
             Action::Cast(SpellEffect::Thunderbolt, at)
         );
+    }
+
+    #[test]
+    fn nothing_swings_shoots_or_casts_across_a_doorway_corner() {
+        let mut map = room();
+        map.tiles[tile_index(16, 5)] = TileType::Door;
+        let e = entities(1);
+        let mut p = percept(&map, (15, 4), (16, 5));
+        p.launcher = true;
+        p.spellset = vec![SpellEffect::DragonBreath];
+        p.foes = vec![sighting(e[0], (16, 5), true)];
+        assert!(!matches!(
+            think(&p, &CHASER),
+            Action::Strike(_) | Action::Shoot(_) | Action::Cast(..)
+        ));
     }
 }

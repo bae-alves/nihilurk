@@ -47,7 +47,12 @@ eq(show("ab  \27[2;1H   "), "ab\n\n\n", "trailing spaces")
 -- 9. Charset and OSC escapes are skipped whole.
 eq(show("\27(Bx\27]0;title\7y"), "xy\n\n\n", "charset and osc")
 
--- 10. Backgrounds: which cells sit on a coloured background, by crossterm's name.
+-- 10. A broken UTF-8 lead byte is dropped: it never swallows the escape after
+--     it, so no control byte reaches the screen text.
+eq(show("a\xF0\27[1;4Hz"), "a  z\n\n\n", "broken lead before an escape")
+eq(show("\xC3x\xE2\x96y"), "xy\n\n\n", "short sequences")
+
+-- 11. Backgrounds: which cells sit on a coloured background, by crossterm's name.
 local function bgs(raw)
     return table.concat(screen.backgrounds(raw, 4, 10), "|")
 end
@@ -60,5 +65,9 @@ eq(bgs("\27[106mq"), "1 1 q Cyan", "bright basic background")
 eq(bgs("\27[38;5;14;48;5;4mz"), "1 1 z DarkBlue", "foreground and background in one sequence")
 eq(bgs("\27[48;5;14mX\27[49m\27[1;1HY"), "", "a later write without a background replaces it")
 eq(bgs("\27[48;5;14m \27[49mY"), "1 1   Cyan", "a blank cell on a background still counts")
+
+-- 12. A percept is the screen, then the tint lines, from one pass.
+eq(screen.percept("\27[48;5;14mX\27[49mY", 4, 10), "XY\n\n\n\n1 1 X Cyan", "screen then tints")
+eq(screen.percept("plain", 4, 10), "plain\n\n\n", "no tints, no extra line")
 
 print("screen_test: ok")
