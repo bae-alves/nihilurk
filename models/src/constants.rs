@@ -151,7 +151,7 @@ pub mod lurk {
     /// Odds that one corpse feeds the lurk, rolled per death. Rolled rather
     /// than counted, so a growth is something
     /// that *happens* to a hunt and never something to count down to.
-    pub const GROWTH_CHANCE: f64 = 0.15;
+    pub const GROWTH_CHANCE: f64 = 0.30;
 
     /// What one growth is worth, on whichever of the four numbers it lands.
     pub const GROWTH_STEP: i32 = 1;
@@ -786,7 +786,7 @@ pub mod rings {
     /// notices them, in tiles (Chebyshev — a diagonal counts as one). Set it
     /// small and a ring of stealth makes you effectively untouchable outside
     /// melee; set it large and it stops changing how a room plays.
-    pub const STEALTH_RANGE: i32 = 3;
+    pub const STEALTH_RANGE: i32 = 2;
 
     /// Magic points one deliberate teleport costs a wearer of the ring of
     /// teleportation.

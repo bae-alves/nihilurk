@@ -109,7 +109,7 @@ the map as a magenta `@`. It is the other way of playing:
     Shift still runs, but it cannot charge; that is nihil's.
   * It knows Bide, and pays magic for it like anybody else.
   * **It eats and grows.** Any creature that dies on the floor may feed it:
-    roughly one in seven does, and the lurk gains a point of health, magic,
+    roughly one in three does, and the lurk gains a point of health, magic,
     attack or defence, at random. `FEAR THE LURK!` There is no counter to
     watch and nothing to save up for -- it happens while you hunt or it does
     not.
