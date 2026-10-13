@@ -8,10 +8,13 @@
 
 use bevy_ecs::prelude::*;
 
+use crate::combat::mean_blow;
 use crate::components::{
-    Curse, KnownQuality, LaunchedDamage, Name, Reach, Rune, Stack, ThrownDamage, Vorpal,
+    Curse, Fighter, Item, KnownQuality, LaunchedDamage, Mob, Name, Player, Reach, Rune, Speed,
+    SpeedKind, Stack, ThrownDamage, Trap, Vorpal,
 };
 use crate::effects::{ArmorBonus, ArmorDie, MaxHpBonus, PowerBonus, PowerDie, ThrowBonus};
+use crate::traps::TrapDef;
 
 /// What the player actually sees for `item`: its true [`Name`], a [`Stack`]
 /// count if it holds more than one, and — once [`known_quality`] says either
@@ -107,6 +110,62 @@ pub fn item_info(world: &World, item: Entity) -> Vec<String> {
         }
     }
     lines
+}
+
+/// The lines `?` on the look reticle (and a look click) add under the sighting
+/// line for `entity`: the pack's Info lines for an item (minus its name, the
+/// sighting already gave that), a creature's numbers, or what a trap does.
+/// Empty for anything else. A trap not yet [`Trap::revealed`] is the caller's
+/// to pass over, as for every other purpose.
+pub fn tile_info(world: &World, entity: Entity) -> Vec<String> {
+    if world.get::<Item>(entity).is_some() {
+        return item_info(world, entity).split_off(1);
+    }
+    if let Some(f) = world.get::<Fighter>(entity) {
+        let mut lines = vec![
+            strings::info_health(f.hp, f.max_hp),
+            strings::info_attack(f.power, f.power_bonus),
+            strings::info_defence(f.armor, f.armor_bonus),
+        ];
+        if let Some(s) = world.get::<Speed>(entity) {
+            lines.push(strings::info_speed(match s.kind {
+                SpeedKind::Slow => strings::speed_slow(),
+                SpeedKind::Normal => strings::speed_normal(),
+                SpeedKind::Quick => strings::speed_quick(),
+                SpeedKind::Fast => strings::speed_fast(),
+            }));
+        }
+        if world.get::<Mob>(entity).is_some() {
+            lines.extend(odds_against_player(world, entity));
+        }
+        return lines;
+    }
+    match world.get::<Trap>(entity) {
+        Some(t) => {
+            let def = TrapDef::of(t.effect);
+            vec![strings::trap_explained(def.name, def.snare_turns)]
+        }
+        None => Vec::new(),
+    }
+}
+
+/// "They will likely kill you in 4 hits" and its mirror, from
+/// [`mean_blow`] each way against the hero's current health. Nothing when
+/// there is no hero.
+fn odds_against_player(world: &World, mob: Entity) -> Vec<String> {
+    let Some(player) = world
+        .iter_entities()
+        .find(|e| e.contains::<Player>())
+        .map(|e| e.id())
+    else {
+        return Vec::new();
+    };
+    let hits = |hp: i32, mean: f64| (mean > 0.0).then(|| (f64::from(hp) / mean).ceil() as u32);
+    let hp_of = |e| world.get::<Fighter>(e).map_or(0, |f| f.hp);
+    vec![
+        strings::info_they_kill_you(hits(hp_of(player), mean_blow(world, mob, player))),
+        strings::info_you_kill_them(hits(hp_of(mob), mean_blow(world, player, mob))),
+    ]
 }
 
 /// The [`display_name`] logic, decoupled from `&World` so a `Query`-based

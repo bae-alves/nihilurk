@@ -558,6 +558,67 @@ fn fold_matchup(world: &World, attacker: Entity, target: Entity) -> Matchup {
     }
 }
 
+/// Every value `rolls` dice of `sides` sides can average to (rounded down),
+/// with its weight out of `sides.pow(rolls)`. A non-positive die is a flat 0.
+fn dice_spread(sides: i32, rolls: u32, average: bool) -> Vec<(i32, f64)> {
+    if sides <= 0 {
+        return vec![(0, 1.0)];
+    }
+    let mut sums: Vec<(i32, f64)> = vec![(0, 1.0)];
+    for _ in 0..rolls {
+        let mut next = std::collections::BTreeMap::new();
+        for (sum, weight) in &sums {
+            for face in 1..=sides {
+                *next.entry(sum + face).or_insert(0.0) += weight / f64::from(sides);
+            }
+        }
+        sums = next.into_iter().collect();
+    }
+    let divisor = if average { rolls as i32 } else { 1 };
+    sums.into_iter().map(|(s, w)| (s / divisor, w)).collect()
+}
+
+/// The average damage one blow from `attacker` does to `target`, worked out
+/// exactly from the same numbers [`roll_swing`] and [`clamp_swing`] use: both
+/// sides' dice, bonuses and worn gear, the hero's excellent hit and chip
+/// floor, and a launcher's melee cap. Abilities, spells, stone and
+/// protection are left out. Rolls no dice.
+pub fn mean_blow(world: &World, attacker: Entity, target: Entity) -> f64 {
+    let m = fold_matchup(world, attacker, target);
+    let armor = dice_spread(m.armor, BELL_CURVE_DICE as u32, true);
+    let normal = dice_spread(m.power, BELL_CURVE_DICE as u32, true);
+    let excellent = dice_spread(m.power, EXCELLENT_HIT_DICE as u32, false);
+    let (p_excellent, normal_share) = match (m.always_excellent, m.attacker_is_player) {
+        (true, _) => (1.0, 0.0),
+        (false, true) => (EXCELLENT_HIT_CHANCE, 1.0 - EXCELLENT_HIT_CHANCE),
+        (false, false) => (0.0, 1.0),
+    };
+    let blow = |attack: i32, defence: i32, is_excellent: bool| {
+        let net = attack + m.power_bonus - defence - m.armor_bonus;
+        let mut damage = match m.attacker_is_player && !is_excellent && net < CHIP_DAMAGE {
+            true => CHIP_DAMAGE,
+            false => net.max(0),
+        };
+        if let Some(cap) = m.melee_cap {
+            damage = damage.min(cap);
+        }
+        if is_excellent {
+            damage = damage.max(CHIP_DAMAGE);
+        }
+        f64::from(damage)
+    };
+    let mut mean = 0.0;
+    for (defence, d_weight) in &armor {
+        for (attack, a_weight) in &normal {
+            mean += normal_share * a_weight * d_weight * blow(*attack, *defence, false);
+        }
+        for (attack, a_weight) in &excellent {
+            mean += p_excellent * a_weight * d_weight * blow(*attack, *defence, true);
+        }
+    }
+    mean
+}
+
 /// The two opposed rolls, made independently, and the player-only chip floor
 /// under the difference.
 ///
