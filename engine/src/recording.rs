@@ -81,8 +81,18 @@ pub fn parse(text: &str) -> Result<(Header, Vec<(u64, Event)>), String> {
         match key {
             "version" => header.version = rest.to_string(),
             "seed" => header.seed = rest.parse().map_err(|_| format!("bad seed '{rest}'"))?,
-            "name" => header.name = rest.to_string(),
-            "body" => header.body = Some(rest.to_string()),
+            "name" => {
+                if models::name_fault(rest).is_some() {
+                    return Err(format!("bad name '{}'", models::strip_control_chars(rest)));
+                }
+                header.name = rest.to_string();
+            }
+            "body" => {
+                if !(rest.starts_with("-b ") || rest.starts_with("-am ")) {
+                    return Err(format!("bad body line '{line}'"));
+                }
+                header.body = Some(rest.to_string());
+            }
             "endless" => header.endless = true,
             "fast" => header.fast = true,
             "nobones" => header.nobones = true,
@@ -114,29 +124,21 @@ pub fn parse(text: &str) -> Result<(Header, Vec<(u64, Event)>), String> {
 /// Where a run's recording goes: `recordings/NAME-SEED.rec` in `data_dir`, the
 /// name cut down to characters safe in a file name.
 pub fn path_for(data_dir: &Path, name: &str, seed: u64) -> PathBuf {
-    let safe: String = name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
     data_dir
         .join("recordings")
-        .join(format!("{safe}-{seed}.rec"))
+        .join(format!("{}-{seed}.rec", models::file_safe(name)))
 }
 
 /// Opens `path` for a new run, writes `header` and returns the file to log
-/// events to. Best effort by the caller: a run on a read-only disk still plays.
+/// events to. A recording already at `path` is replaced: a rerun under the same
+/// name and `-s` seed overwrites the last one. Best effort by the caller: a run
+/// on a read-only disk still plays.
 pub fn start(path: &Path, header: &Header) -> std::io::Result<std::fs::File> {
     use std::io::Write;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    let mut file = std::fs::File::create(path)?;
+    let mut file = models::create_fresh(path)?;
     file.write_all(header.to_text().as_bytes())?;
     file.flush()?;
     Ok(file)
@@ -192,6 +194,33 @@ mod tests {
                 .unwrap_err()
                 .contains("line 1")
         );
+    }
+
+    #[test]
+    fn a_name_the_game_would_refuse_is_refused() {
+        for name in ["BAE\x1b[31m", "ABCDEFGHIJKLMN"] {
+            let header = Header {
+                name: name.into(),
+                ..full()
+            };
+            assert!(parse(&header.to_text()).is_err(), "{name:?}");
+        }
+        let longest = Header {
+            name: "ABCDEFGHIJKLM".into(),
+            ..full()
+        };
+        assert!(parse(&longest.to_text()).is_ok());
+    }
+
+    #[test]
+    fn a_body_line_that_is_not_a_body_flag_is_refused() {
+        for body in ["-scores", "-am", "-b", "lurk", "-x lurk"] {
+            let header = Header {
+                body: Some(body.into()),
+                ..full()
+            };
+            assert!(parse(&header.to_text()).is_err(), "{body}");
+        }
     }
 
     #[test]

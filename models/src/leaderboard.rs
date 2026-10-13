@@ -205,7 +205,7 @@ fn all(path: impl AsRef<Path>) -> std::io::Result<Vec<Entry>> {
     };
     let invalid = || std::io::Error::from(std::io::ErrorKind::InvalidData);
     let (version, _) = postcard::take_from_bytes::<u16>(&bytes).map_err(|_| invalid())?;
-    match version {
+    let mut entries = match version {
         LEADERBOARD_VERSION => postcard::from_bytes::<(u16, Vec<Entry>)>(&bytes)
             .map(|(_, entries)| entries)
             .map_err(|_| invalid()),
@@ -213,7 +213,11 @@ fn all(path: impl AsRef<Path>) -> std::io::Result<Vec<Entry>> {
             .map(|(_, old)| old.into_iter().map(Entry::from).collect())
             .map_err(|_| invalid()),
         _ => Err(invalid()),
+    }?;
+    for entry in &mut entries {
+        entry.name = crate::clean_name(&entry.name);
     }
+    Ok(entries)
 }
 
 /// One leaderboard row, ready to print.
@@ -412,6 +416,19 @@ mod tests {
             after,
             vec![("NEW".to_string(), 0b11), ("OLD".to_string(), 0)]
         );
+    }
+
+    #[test]
+    fn a_name_with_an_escape_reads_back_without_it() {
+        let path = temp_path("escape");
+        let _ = std::fs::remove_file(&path);
+        record_to(&path, "BAE\x1b[31m", Outcome::Win, 1, 0, 0).unwrap();
+
+        let entries = all(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{path}.lock"));
+
+        assert_eq!(entries[0].name, "BAE[31m");
     }
 
     #[test]

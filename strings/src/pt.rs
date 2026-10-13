@@ -3163,3 +3163,23 @@ pub fn replay_other_version(recorded: &str, running: &str) -> String {
 pub fn replay_ended(outcome: &str) -> String {
     String::new()
 }
+
+// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn name_too_long(name: &str, max: usize) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn name_is_a_device(name: &str) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn name_has_control_chars() -> String {
+    String::new()
+}

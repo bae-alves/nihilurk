@@ -27,7 +27,7 @@ fn write_in(
     outcome: Outcome,
     epoch_secs: u64,
 ) -> std::io::Result<PathBuf> {
-    let name = file_safe(&world.resource::<PlayerName>().what);
+    let name = models::file_safe(&world.resource::<PlayerName>().what);
     let morgue = dir.join("morgue");
     let path = morgue.join(format!("{name}-{}.txt", file_stamp(epoch_secs)));
     let text = render(world, screen_text, outcome, &format_timestamp(epoch_secs));
@@ -38,18 +38,6 @@ fn write_in(
         .open(&path)?
         .write_all(text.as_bytes())?;
     Ok(path)
-}
-
-/// A player name cut down to what is safe in a file name on every OS: letters
-/// and digits stay, `-` and `_` stay, everything else becomes `_`. A name is
-/// typed by the player, so `../x` must not climb out of `morgue/`.
-fn file_safe(name: &str) -> String {
-    name.chars()
-        .map(|c| match c.is_alphanumeric() || c == '-' || c == '_' {
-            true => c,
-            false => '_',
-        })
-        .collect()
 }
 
 /// The dump's text: who, how it ended, when, then the final screen, the pack,

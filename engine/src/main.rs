@@ -84,15 +84,25 @@ fn find_case_insensitive(name: &Path) -> Option<PathBuf> {
     matches.into_iter().nth(exact.unwrap_or(0))
 }
 
-/// The save a positional argument names: a file at `arg` as typed, or else
-/// `<arg>` or `<arg>.sav` in `data`, any case.
+/// Where the save for a run played as `name` lives: `<name>.sav` in `data`,
+/// the name cut down by [`models::file_safe`].
+fn save_path_in(data: &Path, name: &str) -> PathBuf {
+    data.join(format!("{}.sav", models::file_safe(name)))
+}
+
+/// The save a positional argument names: a file at `arg` as typed, or else the
+/// save for the name `arg` (with or without its `.sav`) in `data`, any case.
 fn find_save(arg: &str, data: &Path) -> Option<PathBuf> {
     let typed = Path::new(arg);
     if typed.is_file() {
         return Some(typed.to_path_buf());
     }
-    find_case_insensitive(&data.join(arg))
-        .or_else(|| find_case_insensitive(&data.join(format!("{arg}.sav"))))
+    let cut = arg.len().saturating_sub(4);
+    let stem = match arg.get(cut..) {
+        Some(tail) if cut > 0 && tail.eq_ignore_ascii_case(".sav") => &arg[..cut],
+        _ => arg,
+    };
+    find_case_insensitive(&save_path_in(data, stem))
 }
 
 /// Blocks until the player presses a key (any key, or a specific one). Ignores
@@ -325,12 +335,7 @@ fn load_replay(args: &[String]) -> Result<(Vec<String>, Option<Recording>), Stri
         "-ns".into(),
         "-nobones".into(),
     ]);
-    rebuilt.extend(
-        header
-            .body
-            .iter()
-            .flat_map(|b| b.split(' ').map(String::from)),
-    );
+    rebuilt.extend(header.body.iter().flat_map(|b| body_args(b)));
     if header.endless {
         rebuilt.push("-endless".into());
     }
@@ -338,6 +343,13 @@ fn load_replay(args: &[String]) -> Result<(Vec<String>, Option<Recording>), Stri
         rebuilt.push("-fast".into());
     }
     Ok((rebuilt, Some((header, events))))
+}
+
+/// A recorded body line as two arguments, the flag and the name, so a name
+/// can never read as more flags.
+fn body_args(body: &str) -> Vec<String> {
+    let (flag, name) = body.split_once(' ').unwrap_or((body, ""));
+    vec![flag.to_string(), name.to_string()]
 }
 
 /// Maps a double-dash longhand to the short flag the parser matches on.
@@ -369,7 +381,7 @@ fn canonical_flag(arg: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_flag, dropped_mode_flags, find_save};
+    use super::{body_args, canonical_flag, dropped_mode_flags, find_save, save_path_in};
 
     fn data_dir(tag: &str) -> std::path::PathBuf {
         let dir =
@@ -377,6 +389,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn a_recorded_body_stays_one_flag_and_one_name() {
+        assert_eq!(body_args("-am dire wolf"), ["-am", "dire wolf"]);
+        assert_eq!(
+            body_args("-b lurk -keymap /etc/passwd"),
+            ["-b", "lurk -keymap /etc/passwd"]
+        );
     }
 
     #[test]
@@ -402,6 +423,19 @@ mod tests {
         assert_eq!(find_save("Lurk.sav", &data), Some(data.join("lurk.sav")));
         assert_eq!(find_save("nobody", &data), None);
         let _ = std::fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn a_name_cannot_climb_out_of_the_data_dir() {
+        let root = data_dir("climb");
+        let data = root.join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(root.join("esc.sav"), b"").unwrap();
+
+        assert_eq!(save_path_in(&data, "a/../b c"), data.join("a____b_c.sav"));
+        assert_eq!(save_path_in(&data, "/tmp/x"), data.join("_tmp_x.sav"));
+        assert_eq!(find_save("../esc", &data), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -441,8 +475,10 @@ fn flag_with_value(flag: &str, value: Option<&String>) -> String {
 /// loop until the run ends. Prints the ending screens and writes the save or
 /// leaderboard entry on the way out.
 fn main() -> std::io::Result<()> {
-    let args: Vec<String> = std::env::args()
-        .map(|a| models::strip_control_chars(&a))
+    let raw_args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = raw_args
+        .iter()
+        .map(|a| models::strip_control_chars(a))
         .collect();
     if args
         .iter()
@@ -664,7 +700,26 @@ fn main() -> std::io::Result<()> {
     } else if let Some(arg) = positional {
         match find_save(&arg, &data_dir) {
             Some(found) => load_path = Some((found, arg)),
-            None => player_name = arg,
+            None => {
+                let typed = raw_args
+                    .get(1)
+                    .filter(|r| models::strip_control_chars(r) == arg);
+                match models::name_fault(typed.unwrap_or(&arg)) {
+                    Some(models::NameFault::TooLong) => {
+                        eprintln!("{}", strings::name_too_long(&arg, models::NAME_MAX));
+                        return Ok(());
+                    }
+                    Some(models::NameFault::Reserved) => {
+                        eprintln!("{}", strings::name_is_a_device(&arg));
+                        return Ok(());
+                    }
+                    Some(models::NameFault::ControlChar) => {
+                        eprintln!("{}", strings::name_has_control_chars());
+                        return Ok(());
+                    }
+                    None => player_name = arg,
+                }
+            }
         }
     }
 
@@ -840,7 +895,7 @@ fn main() -> std::io::Result<()> {
 
     let name = world.resource::<PlayerName>().what.to_ascii_lowercase();
     let (save_path, resume_as) =
-        load_path.unwrap_or_else(|| (data_dir.join(format!("{name}.sav")), name));
+        load_path.unwrap_or_else(|| (save_path_in(&data_dir, &name), name));
     let shown_path = save_path.display().to_string();
 
     let mut time_stopped = models::time_stopped(&mut world);

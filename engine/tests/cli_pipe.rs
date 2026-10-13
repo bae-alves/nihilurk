@@ -86,3 +86,28 @@ fn fast_and_endless_cannot_be_combined() {
         );
     }
 }
+
+#[test]
+fn a_name_with_control_characters_or_over_thirteen_characters_is_refused() {
+    let dir = std::env::temp_dir().join(format!("nihilurk-name-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    for name in ["bae\x1b[31m", "abcdefghijklmn", "nul", "CON"] {
+        let out = Command::new(env!("CARGO_BIN_EXE_nihilurk"))
+            .arg(name)
+            .env("NIHILURK_DATA", &dir)
+            .output()
+            .expect("spawn nihilurk");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("name"),
+            "{name:?} was not refused: {stderr}"
+        );
+        assert!(!stderr.contains('\x1b'), "the refusal echoed an escape");
+    }
+    let left: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
+    std::fs::remove_dir_all(&dir).ok();
+    assert!(
+        left.is_empty(),
+        "a refused name still wrote files: {left:?}"
+    );
+}

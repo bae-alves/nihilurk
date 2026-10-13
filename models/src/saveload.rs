@@ -408,6 +408,90 @@ pub fn strip_control_chars(s: &str) -> String {
     s.chars().filter(|c| !c.is_control()).collect()
 }
 
+/// The most characters a player name may hold.
+pub const NAME_MAX: usize = 13;
+
+/// Why a typed player name is refused.
+#[derive(Debug, PartialEq)]
+pub enum NameFault {
+    /// More than [`NAME_MAX`] characters.
+    TooLong,
+    /// Holds a control character: an escape sequence, a tab, a newline.
+    ControlChar,
+    /// A Windows device name (`nul`, `con`, `com1`, ...), which Windows will
+    /// not let a file carry whatever its extension.
+    Reserved,
+}
+
+/// What is wrong with `name` as a player name, if anything. Names come from the
+/// command line and from recordings, and they reach file names, the terminal and
+/// the leaderboard, so these two are refused rather than quietly repaired.
+///
+/// ```
+/// use models::{name_fault, NameFault};
+///
+/// assert_eq!(name_fault("bae"), None);
+/// assert_eq!(name_fault("bae\x1b[31m"), Some(NameFault::ControlChar));
+/// assert_eq!(name_fault("a name far too long"), Some(NameFault::TooLong));
+/// ```
+pub fn name_fault(name: &str) -> Option<NameFault> {
+    if name.chars().any(char::is_control) {
+        Some(NameFault::ControlChar)
+    } else if name.chars().count() > NAME_MAX {
+        Some(NameFault::TooLong)
+    } else if is_device_name(name) {
+        Some(NameFault::Reserved)
+    } else {
+        None
+    }
+}
+
+/// Whether Windows reserves `name` as a device: `CON`, `PRN`, `AUX`, `NUL`,
+/// `COM1`-`COM9` and `LPT1`-`LPT9`, in any case.
+fn is_device_name(name: &str) -> bool {
+    let name = name.to_ascii_uppercase();
+    matches!(name.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (name.len() == 4
+            && (name.starts_with("COM") || name.starts_with("LPT"))
+            && matches!(name.as_bytes()[3], b'1'..=b'9'))
+}
+
+/// `name` as read back from a file the game wrote: control characters dropped,
+/// cut to [`NAME_MAX`] characters. A hand-edited or shared file does not get
+/// to refuse a run the way a typed name does, so it is repaired instead.
+pub fn clean_name(name: &str) -> String {
+    strip_control_chars(name).chars().take(NAME_MAX).collect()
+}
+
+/// `name` cut down to what is safe in a file name on every OS: letters and
+/// digits stay, `-` and `_` stay, everything else becomes `_`, and no more than
+/// 64 characters are kept. A Windows device name such as `nul` gets a `_` in
+/// front, and an empty name becomes `_`. A name is typed by the player, so
+/// `../x` must not climb out of the data dir. Every file name built from player
+/// text goes through here.
+///
+/// ```
+/// use models::file_safe;
+///
+/// assert_eq!(file_safe("../x y"), "___x_y");
+/// assert_eq!(file_safe(""), "_");
+/// ```
+pub fn file_safe(name: &str) -> String {
+    let safe: String = name
+        .chars()
+        .take(64)
+        .map(|c| match c.is_alphanumeric() || c == '-' || c == '_' {
+            true => c,
+            false => '_',
+        })
+        .collect();
+    if safe.is_empty() || is_device_name(&safe) {
+        format!("_{safe}")
+    } else {
+        safe
+    }
+}
+
 /// If `path` holds the clear data of a won run, returns the winner's name.
 /// `Ok(None)` for an ordinary save — or one this build can no longer parse, so
 /// the normal load path can report that instead.
@@ -417,7 +501,7 @@ pub fn clear_data(path: impl AsRef<Path>) -> std::io::Result<Option<ClearData>> 
         return Ok(None);
     };
     Ok(save.cleared.then(|| ClearData {
-        player_name: strip_control_chars(&save.player_name),
+        player_name: clean_name(&save.player_name),
     }))
 }
 
@@ -684,6 +768,20 @@ pub(crate) fn make_parent_dir(path: &Path) -> std::io::Result<()> {
     }
 }
 
+/// Opens a new, empty `path` for writing. Whatever sits there is removed first
+/// — a symlink goes, its target does not — and `create_new` refuses to open
+/// anything that appears in the gap, so a planted link is never written through.
+pub fn create_fresh(path: &Path) -> std::io::Result<std::fs::File> {
+    match std::fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+        _ => {}
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+}
+
 /// Writes `path` by way of a sibling `<path>.tmp` that is synced and then
 /// renamed over it, so a crash or an error mid-write leaves the old file
 /// whole. Every file the game writes goes through here: the save, the
@@ -697,7 +795,7 @@ pub(crate) fn write_atomically(
     let path = path.as_ref();
     make_parent_dir(path)?;
     let tmp = with_suffix(path, ".tmp");
-    let result = std::fs::File::create(&tmp)
+    let result = create_fresh(&tmp)
         .and_then(|file| {
             let mut writer = std::io::BufWriter::new(file);
             write(&mut writer)?;
@@ -736,7 +834,7 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     world.init_resource::<crate::bones::Bones>();
     world.insert_resource(GameLog::default());
     world.insert_resource(PlayerName {
-        what: strip_control_chars(&save.player_name),
+        what: clean_name(&save.player_name),
     });
     world.insert_resource(Depth { what: save.depth });
     world.insert_resource(FloorChanges {
@@ -766,7 +864,12 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         enabled: save.endless,
     });
     regenerate_map(world, save.rng_seed, save.depth);
-    world.resource_mut::<Map>().dark = save.dark_tiles;
+    {
+        let mut map = world.resource_mut::<Map>();
+        let mut dark = save.dark_tiles;
+        dark.grow(map.tiles.len());
+        map.dark = dark;
+    }
     {
         let mut map = world.resource_mut::<Map>();
         for i in save.dug_tiles {
@@ -1075,6 +1178,62 @@ mod tests {
     use rand::SeedableRng;
     use std::io::Write;
 
+    #[cfg(unix)]
+    #[test]
+    fn a_planted_symlink_is_replaced_not_written_through() {
+        let dir =
+            std::env::temp_dir().join(format!("nihilurk-fresh-unit-{}-link", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let victim = dir.join("victim");
+        std::fs::write(&victim, b"mine").unwrap();
+        let path = dir.join("run.sav");
+        std::os::unix::fs::symlink(&victim, with_suffix(&path, ".tmp")).unwrap();
+
+        write_atomically(&path, |w| w.write_all(b"the run")).unwrap();
+
+        assert_eq!(std::fs::read(&victim).unwrap(), b"mine");
+        assert_eq!(std::fs::read(&path).unwrap(), b"the run");
+
+        std::os::unix::fs::symlink(&victim, dir.join("rec")).unwrap();
+        create_fresh(&dir.join("rec"))
+            .unwrap()
+            .write_all(b"x")
+            .unwrap();
+        assert_eq!(std::fs::read(&victim).unwrap(), b"mine");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_name_is_thirteen_characters_without_control_characters() {
+        assert_eq!(name_fault("ABCDEFGHIJKLM"), None);
+        assert_eq!(name_fault("Zoë Júnior"), None);
+        assert_eq!(name_fault("ABCDEFGHIJKLMN"), Some(NameFault::TooLong));
+        assert_eq!(name_fault("bae\x1b[31m"), Some(NameFault::ControlChar));
+        assert_eq!(name_fault("a\tb"), Some(NameFault::ControlChar));
+        assert_eq!(clean_name("ab\x1bcdefghijklmnop"), "abcdefghijklm");
+    }
+
+    #[test]
+    fn a_windows_device_name_is_no_name() {
+        for name in ["nul", "NUL", "Con", "prn", "aux", "com1", "LPT9"] {
+            assert_eq!(name_fault(name), Some(NameFault::Reserved), "{name}");
+            assert!(!file_safe(name).eq_ignore_ascii_case(name), "{name}");
+        }
+        assert_eq!(file_safe("nul"), "_nul");
+        assert_eq!(name_fault("null"), None);
+        assert_eq!(name_fault("com10"), None);
+        assert_eq!(name_fault("console"), None);
+    }
+
+    #[test]
+    fn a_file_name_keeps_words_and_loses_paths_and_length() {
+        assert_eq!(file_safe("Zoë-9_x"), "Zoë-9_x");
+        assert_eq!(file_safe("/etc/passwd"), "_etc_passwd");
+        assert_eq!(file_safe("..\\..\\x"), "______x");
+        assert_eq!(file_safe(&"a".repeat(200)).chars().count(), 64);
+    }
+
     fn atomic_path(tag: &str) -> String {
         std::env::temp_dir()
             .join(format!(
@@ -1320,6 +1479,17 @@ mod tests {
             load_bytes("oob", &bytes).is_err(),
             "a crafted save with an out-of-range backpack index must error, not panic"
         );
+    }
+
+    #[test]
+    fn a_short_dark_room_list_still_lets_a_wand_of_light_work() {
+        let mut save = blank_save(vec![blank_entity()]);
+        save.dark_tiles = FixedBitSet::with_capacity(1);
+        let mut world = load_bytes("dark", &encode(SAVE_VERSION, &save)).unwrap();
+
+        world
+            .resource_mut::<Map>()
+            .light_tile(crate::map::MAP_WIDTH - 1, crate::map::MAP_HEIGHT - 1);
     }
 
     #[test]

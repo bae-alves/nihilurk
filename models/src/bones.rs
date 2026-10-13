@@ -164,7 +164,9 @@ pub fn take(dir: &Path, depth: u8) -> Option<BonesFile> {
 fn take_from(path: impl AsRef<Path>) -> Option<BonesFile> {
     let bytes = std::fs::read(&path).ok()?;
     let _ = std::fs::remove_file(&path);
-    postcard::from_bytes(&bytes).ok()
+    let mut bones: BonesFile = postcard::from_bytes(&bytes).ok()?;
+    bones.name = crate::clean_name(&bones.name);
+    Some(bones)
 }
 
 #[cfg(test)]
@@ -187,6 +189,21 @@ mod tests {
         w.insert_resource(PlayerName { what: "BAE".into() });
         let player = w.spawn((Player, Backpack { items: Vec::new() })).id();
         (w, player)
+    }
+
+    #[test]
+    fn a_dead_name_with_an_escape_comes_back_without_it() {
+        let path = temp_path("escape");
+        let _ = std::fs::remove_file(&path);
+        let (mut w, _) = world_with_player();
+        w.insert_resource(PlayerName {
+            what: "BAE\x1b[31m".into(),
+        });
+
+        deposit_to(&mut w, &path).unwrap();
+        let bones = take_from(&path).expect("a bones file was written");
+
+        assert_eq!(bones.name, "BAE[31m");
     }
 
     #[test]

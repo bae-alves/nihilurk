@@ -701,6 +701,21 @@ pub fn no_such_monster(name: &str) -> String {
     format!("nihilurk: no monster called '{name}'. Try -content for the bestiary.")
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn name_too_long(name: &str, max: usize) -> String {
+    format!("nihilurk: the name '{name}' is longer than {max} characters.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn name_is_a_device(name: &str) -> String {
+    format!("nihilurk: '{name}' is a reserved device name on Windows, so it cannot be a name.")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn name_has_control_chars() -> String {
+    "nihilurk: a name cannot hold control characters.".to_string()
+}
+
 pub fn stray_positional(stray: &str) -> String {
     format!("nihilurk: '{stray}' is not a flag, and a name has to come first: nihilurk {stray} ...")
 }
