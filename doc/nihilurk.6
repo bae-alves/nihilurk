@@ -146,6 +146,22 @@ and an ascent never reads one.
 No Element of Yoord ever spawns, so there is no way to win. The dungeon keeps
 going down past the thirteenth floor.
 .TP
+.BR \-fast ", " \-\-fast ", " \-\-bullet ", " \-\-quick
+A six-floor dungeon: the Element of Yoord sits on floor 6, and floors 4 and 5
+are always special levels. Floor n draws monsters, traps and items as depth
+ceil(n*13/6), and every floor holds twice the items. A save records its own
+length, so on a load the saved length wins and the flag asks first. Refused
+together with
+.BR \-endless .
+.TP
+.BR \-mouse ", " \-\-mouse
+Turn on mouse capture. Left click looks at a tile; right click travels there.
+On the aiming reticle, left moves the cursor and right moves it and fires.
+Menus and the
+.B \-\-MORE\-\-
+prompt ignore clicks. Off by default, because capture takes the terminal's own
+text selection.
+.TP
 .BI "\-anim\-rate, \-\-anim\-rate" " multiplier"
 Set the on-screen hold time for particle, mapping, and shake animation
 frames. The default is 1.0; raise it for a terminal whose redraw cannot keep
