@@ -12,7 +12,7 @@ Reference: components, resources and events
 
 Almost every `Component`, `Resource` and `Event` is declared in `models/src/components.rs`. That file is **nouns only** — a component says what a thing *is*, never what happens as a result. The verbs are the systems: `combat.rs`, `ai.rs`, `items/`, `visibility.rs`, `traps.rs`.
 
-The exceptions are the handful of resources that come with real logic attached and live with it instead: `Shake` (`shake.rs`), `AutoExplore` / `AutoPickup` (`autoexplore.rs`), `FastMove` (`fastmove.rs`), and the pack screen's `PackIsOpen` / `PackMode` / `ItemAction` (`pack.rs`). All of them are re-exported from `models`, so a call site never has to know which file they came from.
+The exceptions are the handful of resources that come with real logic attached and live with it instead: `Shake` (`shake.rs`), `AutoExplore` / `AutoPickup` / `LeftBehind` (`autoexplore.rs`), `FastMove` (`fastmove.rs`), and the pack screen's `PackIsOpen` / `PackMode` / `ItemAction` (`pack.rs`). All of them are re-exported from `models`, so a call site never has to know which file they came from.
 
 A `Bundle` — the struct that assembles components for one spawn (`MonsterBundle`, `TrapBundle`) — is **not** here. It lives next to its content table (`monsters.rs`, `traps.rs`), because it names that table's `Def` row and is the one place an entity of that kind is described. See `../explanation/data-driven-content.md`, "Where the pieces live".
 
@@ -363,6 +363,7 @@ Resources
 | `PackIsOpen`    | `open`, `mode: PackMode`, `selected`, `action_mode: Option<usize>`, `action_selected` | pack modal cursors; `selected` and `action_mode` are **backpack indices**, not row numbers. `pack.rs`. |
 | `PackMode`      | enum: `Browse` `Use` `Throw` `Drop` `Equip` `Quaff` `Read` `Zap` `Wield` `Wear` `PutOn` | which key opened the pack, and therefore its title, its rows, and what picking one does. See below. |
 | `AutoPickup`    | `enabled: bool` (default `true`)                          | the `A` toggle: whether auto-explore detours for loot. `autoexplore.rs`. |
+| `LeftBehind`    | private: the items turned down, the room the player is in | what auto-explore walks past: items the player dropped, or saw in a room and walked out of without. Never saved; a new floor empties it. `autoexplore.rs`. |
 | `TargetingState`| `active`, `item: Option<Entity>`, `throwing: bool`, `cursor_x`, `cursor_y: i16` | aiming reticle; `throwing` swaps the range to whatever `throw_reach` gives the item and confirm to a hurl. |
 | `PlayerTempo`   | `fast_parity: bool`                                       | the player half of the speed system: a `Fast` turn flips it, monsters move only when it flips back. |
 | `AttackQueue` / `UseQueue` / `ThrowQueue` / `SpellQueue` | `Vec<…>`            | see Events above. |

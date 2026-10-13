@@ -1,6 +1,7 @@
-//! `o`'s pathfinding: the frontier `explore_step` walks toward, the staircase
-//! and item beelines, and the refusals — a known trap, a fully-explored
-//! floor — that end a walk before it starts.
+//! `o`'s pathfinding: the nearest frontier or item `explore_step` walks
+//! toward, the staircase beeline, the items it leaves behind, and the
+//! refusals — a known trap, a fully-explored floor — that end a walk before
+//! it starts.
 
 use std::collections::{HashSet, VecDeque};
 
@@ -288,12 +289,11 @@ fn explore_step_wont_walk_onto_a_known_trap() {
     );
 }
 
-/// Once auto-explore has committed to a frontier, a nearer alternative
-/// appearing elsewhere doesn't hijack the walk — the whole point of
-/// [`AutoExplore::frontier`]: finish the approach you're already on instead
-/// of trekking back to it later.
+/// Every step heads for whichever frontier is nearest from where the player
+/// stands now. A frontier picked on an earlier step holds no claim: a player
+/// who has since moved nearer another one goes there.
 #[test]
-fn explore_step_keeps_walking_toward_its_committed_frontier() {
+fn explore_step_heads_for_whichever_frontier_is_nearest_now() {
     let mut w = World::new();
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
     w.insert_resource(RngSeed(2112));
@@ -321,11 +321,6 @@ fn explore_step_keeps_walking_toward_its_committed_frontier() {
 
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
     {
-        let mut p = w.get_mut::<Position>(player).unwrap();
-        p.x = 10;
-        p.y = 10;
-    }
-    {
         let mut vs = w.get_mut::<Viewshed>(player).unwrap();
         for x in 9..=14u16 {
             for y in 9..=11u16 {
@@ -334,17 +329,18 @@ fn explore_step_keeps_walking_toward_its_committed_frontier() {
         }
     }
 
-    w.resource_mut::<AutoExplore>().frontier = Some((14, 10));
-
+    *w.get_mut::<Position>(player).unwrap() = Position { x: 13, y: 10 };
     assert_eq!(
         explore_step(&mut w),
         Some((1, 0)),
-        "should keep heading east toward the committed frontier, not detour to the nearer west nook"
+        "one hop from the east end, the walk should head east"
     );
+
+    *w.get_mut::<Position>(player).unwrap() = Position { x: 10, y: 10 };
     assert_eq!(
-        w.resource::<AutoExplore>().frontier,
-        Some((14, 10)),
-        "the commitment should survive the step unchanged"
+        explore_step(&mut w),
+        Some((-1, 0)),
+        "one hop from the west end, the walk should turn west, whatever it picked last step"
     );
 }
 
@@ -444,74 +440,18 @@ fn monster_in_sight_tracks_visible_mobs() {
     );
 }
 
-/// A spotted item on the floor outranks frontier exploration: even mid-walk,
-/// already committed to a frontier in the opposite direction, auto-explore
-/// beelines for the item instead.
-#[test]
-fn explore_step_beelines_for_a_known_item_over_the_committed_frontier() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
-    w.insert_resource(RngSeed(2112));
-    w.init_resource::<GameLog>();
-    w.init_resource::<AutoExplore>();
-    w.insert_resource(PlayerName {
-        what: "TESTER".into(),
-    });
-    initialize_world(&mut w);
-
-    let existing_traps: Vec<Entity> = w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
-    for e in existing_traps {
-        w.despawn(e);
-    }
-    let existing_items: Vec<Entity> = w.query_filtered::<Entity, With<Item>>().iter(&w).collect();
-    for e in existing_items {
-        w.despawn(e);
-    }
-
-    {
-        let mut map = w.resource_mut::<Map>();
-        for t in map.tiles.iter_mut() {
-            *t = TileType::Wall;
-        }
-        for x in 7..=13u16 {
-            map.tiles[tile_index(x, 10)] = TileType::Passage;
-        }
-    }
-
-    let player = w.query_filtered::<Entity, With<Player>>().single(&w);
-    {
-        let mut p = w.get_mut::<Position>(player).unwrap();
-        p.x = 10;
-        p.y = 10;
-    }
-    {
-        let mut vs = w.get_mut::<Viewshed>(player).unwrap();
-        for x in 7..=13u16 {
-            for y in 9..=11u16 {
-                vs.revealed_tiles.insert(tile_index(x, y));
-            }
-        }
-    }
-    w.resource_mut::<AutoExplore>().frontier = Some((13, 10));
-
-    w.spawn((Position { x: 8, y: 10 }, Item));
-
-    assert_eq!(
-        explore_step(&mut w),
-        Some((-1, 0)),
-        "should divert west toward the spotted item instead of the committed east frontier"
-    );
-}
-
-/// The corridor from the test above, ready to divert: player at the hub, a
-/// spotted item two hops west, a committed frontier three hops east.
-fn corridor_with_loot_to_the_west() -> (World, Entity) {
+/// A generated first floor walled up whole, then opened again where a test
+/// says, with nothing on it but the player and an empty pack: no monster, no
+/// trap, no floor item the generator placed.
+fn walled_floor() -> (World, Entity) {
     let mut w = World::new();
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));
     w.insert_resource(RngSeed(2112));
     w.init_resource::<GameLog>();
     w.init_resource::<AutoExplore>();
     w.init_resource::<AutoPickup>();
+    w.init_resource::<LeftBehind>();
+    w.init_resource::<PlayerActionQueue>();
     w.insert_resource(PlayerName {
         what: "TESTER".into(),
     });
@@ -519,47 +459,109 @@ fn corridor_with_loot_to_the_west() -> (World, Entity) {
 
     let clutter: Vec<Entity> = w
         .iter_entities()
-        .filter(|e| e.contains::<Trap>() || e.contains::<Item>())
+        .filter(|e| {
+            !e.contains::<Player>()
+                && (e.contains::<Trap>() || e.contains::<Item>() || e.contains::<Mob>())
+        })
         .map(|e| e.id())
         .collect();
     for e in clutter {
         w.despawn(e);
     }
 
-    {
-        let mut map = w.resource_mut::<Map>();
-        for t in map.tiles.iter_mut() {
-            *t = TileType::Wall;
-        }
-        for x in 7..=13u16 {
-            map.tiles[tile_index(x, 10)] = TileType::Passage;
-        }
-    }
-
     let player = w.query_filtered::<Entity, With<Player>>().single(&w);
-    {
-        let mut p = w.get_mut::<Position>(player).unwrap();
-        p.x = 10;
-        p.y = 10;
+    w.get_mut::<Backpack>(player).unwrap().items.clear();
+    for t in w.resource_mut::<Map>().tiles.iter_mut() {
+        *t = TileType::Wall;
     }
-    {
+    (w, player)
+}
+
+/// Opens `tiles` as `kind` and reveals them and the ring of tiles around them.
+fn open(w: &mut World, player: Entity, kind: TileType, tiles: &[(u16, u16)]) {
+    for &(x, y) in tiles {
+        w.resource_mut::<Map>().tiles[tile_index(x, y)] = kind;
         let mut vs = w.get_mut::<Viewshed>(player).unwrap();
-        for x in 7..=13u16 {
-            for y in 9..=11u16 {
-                vs.revealed_tiles.insert(tile_index(x, y));
-            }
+        for (dx, dy) in DIRS.iter().chain(&[(0, 0)]) {
+            vs.revealed_tiles
+                .insert(tile_index((x as i32 + dx) as u16, (y as i32 + dy) as u16));
         }
     }
-    w.resource_mut::<AutoExplore>().frontier = Some((13, 10));
-    w.spawn((Position { x: 8, y: 10 }, Item));
+}
+
+/// Hides `tiles` again, so the open tiles beside them are frontiers.
+fn unseen(w: &mut World, player: Entity, tiles: &[(u16, u16)]) {
+    let mut vs = w.get_mut::<Viewshed>(player).unwrap();
+    for &(x, y) in tiles {
+        vs.revealed_tiles.set(tile_index(x, y), false);
+    }
+}
+
+/// A corridor on row 10 from `west` to `east`, both ends frontiers, with the
+/// player at `at`.
+fn corridor(west: u16, east: u16, at: u16) -> (World, Entity) {
+    let (mut w, player) = walled_floor();
+    let tiles: Vec<(u16, u16)> = (west..=east).map(|x| (x, 10)).collect();
+    open(&mut w, player, TileType::Passage, &tiles);
+    unseen(&mut w, player, &[(west - 1, 10), (east + 1, 10)]);
+    *w.get_mut::<Position>(player).unwrap() = Position { x: at, y: 10 };
     (w, player)
+}
+
+/// A room (x 3..=7, rows 9..=11), its door at (8, 10), and a corridor east
+/// from it to a frontier at (20, 10). The player stands at the room's east
+/// edge, (7, 10); a spotted scroll lies at its west edge, (3, 10), six hops
+/// away from the corridor's first tile, where the frontier is eleven.
+fn room_with_a_scroll() -> (World, Entity, Entity) {
+    let (mut w, player) = walled_floor();
+    let room: Vec<(u16, u16)> = (3..=7)
+        .flat_map(|x| (9..=11).map(move |y| (x, y)))
+        .collect();
+    open(&mut w, player, TileType::Room, &room);
+    open(&mut w, player, TileType::Door, &[(8, 10)]);
+    let hall: Vec<(u16, u16)> = (9..=20).map(|x| (x, 10)).collect();
+    open(&mut w, player, TileType::Passage, &hall);
+    unseen(&mut w, player, &[(21, 10)]);
+    *w.get_mut::<Position>(player).unwrap() = Position { x: 7, y: 10 };
+    let scroll = spawn_named(&mut w, "scroll of identify", Position { x: 3, y: 10 }).unwrap();
+    w.entity_mut(scroll).remove::<Hidden>();
+    (w, player, scroll)
+}
+
+/// Takes one step the way a key press does: planned, queued, applied.
+fn walk(w: &mut World, dx: i16, dy: i16) {
+    assert!(queue_step(w, dx, dy), "the step ({dx}, {dy}) was refused");
+    player_action_system(w);
+}
+
+/// A spotted item on the floor, nearer than any frontier: the walk goes for
+/// it.
+#[test]
+fn a_nearer_item_outranks_a_farther_frontier() {
+    let (mut w, _) = corridor(3, 12, 10);
+    w.spawn((Position { x: 9, y: 10 }, Item));
+    assert_eq!(explore_step(&mut w), Some((-1, 0)));
+}
+
+/// A frontier nearer than any spotted item: the walk explores first, and the
+/// item waits until it is the nearest thing left.
+#[test]
+fn a_nearer_frontier_outranks_a_farther_item() {
+    let (mut w, _) = corridor(3, 12, 10);
+    w.spawn((Position { x: 6, y: 10 }, Item));
+    assert_eq!(
+        explore_step(&mut w),
+        Some((1, 0)),
+        "the east end is two hops off, the item four: east first"
+    );
 }
 
 /// `A` off: the walk stops noticing loot and goes back to exploring. The item
 /// is still there, still spotted — it is simply no longer a destination.
 #[test]
 fn the_pickup_toggle_calls_off_the_beeline() {
-    let (mut w, _) = corridor_with_loot_to_the_west();
+    let (mut w, _) = corridor(3, 12, 10);
+    w.spawn((Position { x: 9, y: 10 }, Item));
     assert_eq!(
         explore_step(&mut w),
         Some((-1, 0)),
@@ -570,7 +572,7 @@ fn the_pickup_toggle_calls_off_the_beeline() {
     assert_eq!(
         explore_step(&mut w),
         Some((1, 0)),
-        "with pick-up off the walk should resume its committed frontier east"
+        "with pick-up off the walk should head for the nearer east end"
     );
 }
 
@@ -579,7 +581,8 @@ fn the_pickup_toggle_calls_off_the_beeline() {
 /// same thing again on the next `o` — the floor never gets explored.
 #[test]
 fn a_full_pack_calls_off_the_beeline_without_being_told_to() {
-    let (mut w, player) = corridor_with_loot_to_the_west();
+    let (mut w, player) = corridor(3, 12, 10);
+    w.spawn((Position { x: 9, y: 10 }, Item));
 
     let junk: Vec<Entity> = (0..models::constants::items::PACK_CAPACITY)
         .map(|_| w.spawn(Item).id())
@@ -591,4 +594,88 @@ fn a_full_pack_calls_off_the_beeline_without_being_told_to() {
         Some((1, 0)),
         "with nowhere to put it, the walk should explore instead of fetching"
     );
+}
+
+/// What the player drops, the walk leaves where it lies. Without this the
+/// next `o` picks it straight back up.
+#[test]
+fn a_dropped_item_is_left_behind() {
+    let (mut w, player) = corridor(3, 14, 9);
+    let scroll = spawn_named(&mut w, "scroll of identify", Position { x: 9, y: 10 }).unwrap();
+    pick_up_here(&mut w, player, 9, 10);
+    assert!(queue_drop(&mut w, player, scroll));
+    player_action_system(&mut w);
+    *w.get_mut::<Position>(player).unwrap() = Position { x: 10, y: 10 };
+
+    assert_eq!(
+        explore_step(&mut w),
+        Some((1, 0)),
+        "the dropped scroll is one hop west, but the walk should explore east"
+    );
+}
+
+/// Picking a dropped item back up forgets the drop: should it reach the floor
+/// again some other way, the walk wants it again.
+#[test]
+fn picking_a_dropped_item_back_up_forgets_the_drop() {
+    let (mut w, player) = corridor(3, 14, 9);
+    let scroll = spawn_named(&mut w, "scroll of identify", Position { x: 9, y: 10 }).unwrap();
+    pick_up_here(&mut w, player, 9, 10);
+    assert!(queue_drop(&mut w, player, scroll));
+    player_action_system(&mut w);
+    pick_up_here(&mut w, player, 9, 10);
+
+    assert!(!w.resource::<LeftBehind>().holds(scroll));
+}
+
+/// Walking out of a room past a spotted item you did not take: the walk
+/// leaves it there too.
+#[test]
+fn an_item_seen_in_a_room_you_walk_out_of_is_left_behind() {
+    let (mut w, _, _) = room_with_a_scroll();
+    walk(&mut w, 1, 0);
+    walk(&mut w, 1, 0);
+    assert_eq!(
+        explore_step(&mut w),
+        Some((1, 0)),
+        "the scroll was left in the room behind; the walk should explore east"
+    );
+}
+
+/// Auto-explore's own steps out of a room leave nothing behind: the walk
+/// passing an item on the way to a nearer frontier has not turned it down.
+#[test]
+fn leaving_a_room_by_auto_explore_leaves_nothing_behind() {
+    let (mut w, _, _) = room_with_a_scroll();
+    w.resource_mut::<AutoExplore>().start(None);
+    walk(&mut w, 1, 0);
+    walk(&mut w, 1, 0);
+    assert_eq!(
+        explore_step(&mut w),
+        Some((-1, 0)),
+        "the walk left the room itself; it should go back for the scroll"
+    );
+}
+
+/// The doorway is not out: a step into it and back leaves nothing behind.
+#[test]
+fn a_step_into_the_doorway_and_back_leaves_nothing_behind() {
+    let (mut w, _, _) = room_with_a_scroll();
+    walk(&mut w, 1, 0);
+    walk(&mut w, -1, 0);
+    walk(&mut w, 1, 0);
+    walk(&mut w, -1, 0);
+    assert_eq!(explore_step(&mut w), Some((-1, 0)));
+}
+
+/// Only what you saw is left behind: an item still hidden when you walk out
+/// is wanted once you spot it.
+#[test]
+fn an_item_unseen_when_you_leave_is_not_left_behind() {
+    let (mut w, _, scroll) = room_with_a_scroll();
+    w.entity_mut(scroll).insert(Hidden);
+    walk(&mut w, 1, 0);
+    walk(&mut w, 1, 0);
+    w.entity_mut(scroll).remove::<Hidden>();
+    assert_eq!(explore_step(&mut w), Some((-1, 0)));
 }

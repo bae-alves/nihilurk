@@ -2,13 +2,11 @@
 //! staircase you have already found walks you to it. Either way the player moves
 //! one step per turn until the goal is reached or something interrupts the walk.
 //!
-//! The pathfinding here mostly only reads the world — so the engine can own the
-//! parts that touch the terminal (polling for a keypress) and the message log,
-//! and the interesting logic stays testable. [`explore_step`] is the one
-//! exception: it remembers, in [`AutoExplore::frontier`], the unexplored tile
-//! it's currently walking toward, so a single-step recompute doesn't abandon
-//! an almost-finished approach the instant something else looks marginally
-//! closer — see its doc comment.
+//! The pathfinding here only reads the world — so the engine can own the parts
+//! that touch the terminal (polling for a keypress) and the message log, and
+//! the interesting logic stays testable. What it remembers between steps is
+//! [`LeftBehind`]: the items the player turned down, which the walk no longer
+//! goes for.
 
 use std::collections::{HashSet, VecDeque};
 
@@ -35,12 +33,6 @@ pub struct AutoExplore {
     /// `Some` while travelling to a fixed tile (a known staircase); `None` for
     /// open-ended exploration.
     pub target: Option<(u16, u16)>,
-    /// The frontier tile open-ended exploration (`target == None`) is
-    /// currently committed to walking toward. [`explore_step`] keeps heading
-    /// here — rather than re-picking the globally nearest frontier every
-    /// single turn — until it's reached or stops being a frontier, so a room
-    /// that's nearly mapped gets finished before something else takes over.
-    pub frontier: Option<(u16, u16)>,
 }
 
 impl AutoExplore {
@@ -50,15 +42,145 @@ impl AutoExplore {
         self.active = true;
         self.steps = 0;
         self.target = target;
-        self.frontier = None;
     }
 
     /// Halt any auto-walk.
     pub fn stop(&mut self) {
         self.active = false;
         self.target = None;
-        self.frontier = None;
     }
+
+    /// Whether `o` is under way: an auto-walk with no fixed tile to reach.
+    fn exploring(&self) -> bool {
+        self.active && self.target.is_none()
+    }
+}
+
+/// The items auto-explore walks past: ones the player dropped, and ones they
+/// saw in a room and walked out of it without. Transient like [`AutoExplore`]:
+/// never saved, so a reload forgets it and the walk wants everything again. A
+/// new floor starts it empty ([`forget_left_behind`]).
+#[derive(Resource, Default)]
+pub struct LeftBehind {
+    items: HashSet<Entity>,
+    /// The floor tiles of the room the player last stood in, until they walk
+    /// out of it. A doorway does not count as out.
+    room: Option<FixedBitSet>,
+}
+
+impl LeftBehind {
+    /// Whether the walk leaves `item` where it lies.
+    pub fn holds(&self, item: Entity) -> bool {
+        self.items.contains(&item)
+    }
+}
+
+/// The player put `item` down: the walk leaves it there.
+pub fn leave_behind(world: &mut World, item: Entity) {
+    if let Some(mut left) = world.get_resource_mut::<LeftBehind>() {
+        left.items.insert(item);
+    }
+}
+
+/// The player picked `item` up: should it reach the floor again by a throw or
+/// a thief, the walk wants it again.
+pub fn take_back(world: &mut World, item: Entity) {
+    if let Some(mut left) = world.get_resource_mut::<LeftBehind>() {
+        left.items.remove(&item);
+    }
+}
+
+/// A new floor: nothing on it has been turned down yet, and the player stands
+/// in none of the old floor's rooms.
+pub fn forget_left_behind(world: &mut World) {
+    if let Some(mut left) = world.get_resource_mut::<LeftBehind>() {
+        *left = LeftBehind::default();
+    }
+}
+
+/// Notes the player's step from `from` to `to`. A step out of a room, onto a
+/// corridor or into another room, leaves behind every item spotted in it that
+/// still lies there, unless `o` took the step: the walk passing an item on its
+/// way to a nearer frontier has not turned it down. Call it after the step's
+/// pickup, so what the step picked up is not on the floor.
+pub fn note_room_step(world: &mut World, from: (u16, u16), to: (u16, u16)) {
+    let Some(held) = world
+        .get_resource_mut::<LeftBehind>()
+        .map(|mut left| left.room.take())
+    else {
+        return;
+    };
+    let (now, walked_out_of) = room_step(world.resource::<Map>(), held, from, to);
+    let exploring = world
+        .get_resource::<AutoExplore>()
+        .is_some_and(AutoExplore::exploring);
+    let turned_down: Vec<Entity> = match walked_out_of.filter(|_| !exploring) {
+        Some(room) => world
+            .query_filtered::<(Entity, &Position), (With<Item>, Without<Hidden>)>()
+            .iter(world)
+            .filter(|(_, p)| room.contains(tile_index(p.x, p.y)))
+            .map(|(item, _)| item)
+            .collect(),
+        None => Vec::new(),
+    };
+    let mut left = world.resource_mut::<LeftBehind>();
+    left.room = now;
+    left.items.extend(turned_down);
+}
+
+/// The room the player stands in after a step from `from` to `to`, given
+/// `held`, the one they stood in before, and the room the step walked out of,
+/// if it did. A doorway and water are neither in nor out.
+fn room_step(
+    map: &Map,
+    held: Option<FixedBitSet>,
+    from: (u16, u16),
+    to: (u16, u16),
+) -> (Option<FixedBitSet>, Option<FixedBitSet>) {
+    let held = match held {
+        Some(room) if room.contains(tile_index(from.0, from.1)) => Some(room),
+        held => room_floor(map, from).or(held),
+    };
+    match map.tile(to.0, to.1) {
+        TileType::Door | TileType::Water | TileType::Wall => (held, None),
+        _ if held
+            .as_ref()
+            .is_some_and(|room| room.contains(tile_index(to.0, to.1))) =>
+        {
+            (held, None)
+        }
+        _ => (room_floor(map, to), held),
+    }
+}
+
+/// Every room-floor tile 4-connected to `at` through room floor: one room.
+/// `None` off room floor.
+fn room_floor(map: &Map, at: (u16, u16)) -> Option<FixedBitSet> {
+    let floor = |x: u16, y: u16| {
+        matches!(
+            map.tile(x, y),
+            TileType::Room | TileType::Upstairs | TileType::Downstairs
+        )
+    };
+    if !floor(at.0, at.1) {
+        return None;
+    }
+    let mut room = FixedBitSet::with_capacity(MAP_TILE_COUNT);
+    room.insert(tile_index(at.0, at.1));
+    let mut stack = vec![at];
+    while let Some((x, y)) = stack.pop() {
+        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+            let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+            if nx < 0 || ny < 0 || nx >= MAP_WIDTH as i32 || ny >= MAP_HEIGHT as i32 {
+                continue;
+            }
+            let (nx, ny) = (nx as u16, ny as u16);
+            if floor(nx, ny) && !room.put(tile_index(nx, ny)) {
+                stack.push((nx, ny));
+            }
+        }
+    }
+    Some(room)
 }
 
 /// Whether an auto-explore walk detours to pick things up, toggled in-game with
@@ -137,9 +259,8 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
 
 /// Every tile holding an item the player has already spotted and would
 /// actually take — an [`Item`] still lying on the floor (still carries
-/// [`Position`]) whose [`Hidden`] tag has been lifted. [`explore_step`]
-/// beelines for these ahead of frontier exploration, so a visible item doesn't
-/// get left behind while the walk wanders off toward unseen ground.
+/// [`Position`]) whose [`Hidden`] tag has been lifted. [`explore_step`] counts
+/// these as goals alongside the frontier, nearest first.
 ///
 /// Two kinds are left out, and for the same reason: walking to something the
 /// arrival will refuse halts the walk, leaves the thing where it was, and sends
@@ -151,6 +272,9 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
 /// * Everything that needs a pack slot, once the pack is full
 ///   (`stowable_room`). A coin needs no slot, which is why the pack no longer
 ///   calls the whole detour off.
+///
+/// So is what the player turned down, [`LeftBehind`]: there the arrival would
+/// take the thing, but the player has said they do not want it.
 pub fn known_item_tiles(world: &mut World) -> Vec<(u16, u16)> {
     let Some(player) = world
         .query_filtered::<Entity, With<Player>>()
@@ -172,7 +296,14 @@ pub fn known_item_tiles(world: &mut World) -> Vec<(u16, u16)> {
 
 /// Whether arriving at `item` would actually achieve something: a pickup has to
 /// be one the player can use, and anything else has to have a slot to go into.
+/// Nothing the player has turned down ([`LeftBehind`]) is.
 fn worth_the_walk(world: &World, player: Entity, item: Entity, room: bool) -> bool {
+    if world
+        .get_resource::<LeftBehind>()
+        .is_some_and(|left| left.holds(item))
+    {
+        return false;
+    }
     match world.get::<Pickup>(item).map(|p| p.effect) {
         Some(effect) => crate::items::would_help(world, player, effect),
         None => room,
@@ -351,24 +482,15 @@ fn first_hop(px: u16, py: u16, start: usize, found: usize, prev: &[usize]) -> Op
 /// The single `(dx, dy)` step the player should take to keep exploring, or
 /// `None` when every reachable tile has already been seen.
 ///
-/// A known item still sitting on the floor (see [`known_item_tiles`]) always
-/// wins over frontier exploration: the walk beelines straight for it, `move_player`
-/// picks it up on arrival, and only once it's gone does frontier picking resume.
-/// `detours_for_loot` is what can call that rule off, and it is the `A`
-/// toggle and nothing else — whether a *particular* item is worth the walk is
-/// [`known_item_tiles`]'s question, item by item.
-///
-/// Otherwise keeps heading toward [`AutoExplore::frontier`] — the frontier tile
-/// it last committed to — for as long as that's still a real frontier, rather
-/// than re-picking the globally nearest one fresh every turn. Recomputing
-/// "nearest" on every step is what let auto-explore abandon a room that was
-/// nearly mapped the moment something elsewhere became marginally closer, only to
-/// trek back through it later; sticking to one destination until it's actually
-/// reached (or made moot) avoids that. Once a new frontier needs picking, ties
-/// toward the still-unseen downstairs when there's a real choice of direction.
-///
-/// Reads the world like the rest of this module's `*_step` functions, but
-/// also writes the frontier it commits to back into [`AutoExplore`].
+/// Every step heads for the nearest goal from where the player stands now: a
+/// frontier tile, or a known item still sitting on the floor (see
+/// [`known_item_tiles`]), which `move_player` picks up on arrival. Nothing is
+/// remembered from the step before, so a player who moves nearer another goal
+/// goes there. `detours_for_loot` takes the items out of the running, and it
+/// is the `A` toggle and nothing else — whether a *particular* item is worth
+/// the walk is [`known_item_tiles`]'s question, item by item. Goals equally
+/// near tie toward the still-unseen downstairs, so finishing the floor does
+/// not end with a separate walk back to find them.
 pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
     let traps = known_trap_tiles(world);
     let items = detours_for_loot(world)
@@ -376,9 +498,6 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
         .unwrap_or_default();
     let (px, py, seen) = player_view(world)?;
     let swims = crate::helpers::player_swims(world);
-    // `AutoExplore` isn't inserted in every test world; treat it as having no
-    // committed frontier yet rather than panicking.
-    let cached_frontier = world.get_resource::<AutoExplore>().and_then(|a| a.frontier);
     let map = world.resource::<Map>().clone();
 
     let is_seen = |x: u16, y: u16| -> bool {
@@ -403,39 +522,11 @@ pub fn explore_step(world: &mut World) -> Option<(i16, i16)> {
                     && !is_seen(nx as u16, ny as u16)
             })
     };
+    let is_goal = |x: u16, y: u16| items.contains(&(x, y)) || is_frontier(x, y);
 
     let step_ok = |fx: u16, fy: u16, tx: u16, ty: u16| map.diagonal_step_ok(fx, fy, tx, ty);
-
-    if !items.is_empty() {
-        if let Some(hop) = first_step(px, py, &open, step_ok, |x, y| items.contains(&(x, y)), None)
-        {
-            return Some(hop);
-        }
-    }
-
-    if let Some(target) = cached_frontier {
-        if is_frontier(target.0, target.1) {
-            if let Some(hop) = first_step(
-                px,
-                py,
-                &open,
-                step_ok,
-                |x, y| (x, y) == target,
-                Some(target),
-            ) {
-                return Some(hop);
-            }
-        }
-    }
-
-    // Time to pick a new one — steer toward the downstairs while they're
-    // still unseen, so finishing the floor doesn't end with a separate walk
-    // back to find them.
     let stairs_bias = stair_location(&map, true).filter(|&(sx, sy)| !is_seen(sx, sy));
-    let next = nearest_open_tile(px, py, &open, step_ok, &is_frontier, stairs_bias)?;
-    if let Some(mut auto) = world.get_resource_mut::<AutoExplore>() {
-        auto.frontier = Some(next);
-    }
+    let next = nearest_open_tile(px, py, &open, step_ok, is_goal, stairs_bias)?;
     first_step(px, py, &open, step_ok, |x, y| (x, y) == next, Some(next))
 }
 
