@@ -104,6 +104,9 @@ local function empty_value_for(ret)
         end
         return "[" .. table.concat(parts, ", ") .. "]"
     end
+    if ret:match("^Option<.*>$") then
+        return "None"
+    end
     -- Unknown shape: fail loudly rather than emit something that won't
     -- compile -- see the pre-commit check right after this script runs.
     error(

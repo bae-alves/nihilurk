@@ -374,9 +374,21 @@ fn answer_quit_prompt(world: &mut World, key: KeyEvent) -> bool {
     false
 }
 
+/// The key a `keymap.txt` line makes of a pressed one. Only the two handlers
+/// that read commands call it; menus keep their printed labels.
+fn remap_key(world: &World, mut key: KeyEvent) -> KeyEvent {
+    if let KeyCode::Char(c) = key.code
+        && let Some(keymap) = world.get_resource::<models::KeyMap>()
+    {
+        key.code = KeyCode::Char(keymap.apply(c));
+    }
+    key
+}
+
 /// A keypress while the aiming reticle is up: move it, jump it to the next
 /// interesting thing in view, fire it, or cancel.
 fn handle_targeting_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    let key = remap_key(world, key);
     let mut cancel = false;
     let mut confirm = false;
     let mut cycle = false;
@@ -1100,6 +1112,7 @@ const SPELL_KEYS: [char; 4] = ['q', 'w', 'e', 'r'];
 /// doesn't. `Esc` only gets here with no menu open, so mashing it out of a menu
 /// never reaches the prompt. `x` swaps between a melee weapon and a launcher.
 fn handle_movement_input(world: &mut World, key: KeyEvent) -> std::io::Result<bool> {
+    let key = remap_key(world, key);
     if let Some((rdx, rdy)) = run_direction(key.code, key.modifiers) {
         return Ok(start_run(world, rdx, rdy));
     }
@@ -2063,6 +2076,7 @@ mod tests {
         w.init_resource::<SpellsMenu>();
         w.init_resource::<OfferMenu>();
         w.init_resource::<BarterMenu>();
+        w.init_resource::<models::KeyMap>();
         w.insert_resource(TargetingState {
             active: false,
             item: None,
@@ -2409,6 +2423,44 @@ mod tests {
             "the cursor key went to the --MORE-- prompt, not the offer"
         );
         assert_eq!(w.resource::<GameLog>().unread.len(), queued);
+    }
+
+    // -----------------------------------------------------------------------
+    // keymap.txt
+    // -----------------------------------------------------------------------
+
+    fn with_keymap(seed: u64, text: &str) -> World {
+        let mut w = modal_world(seed);
+        w.insert_resource(models::parse_keymap(text).unwrap());
+        w
+    }
+
+    #[test]
+    fn a_remapped_key_walks_like_the_key_it_stands_for() {
+        let mut mapped = with_keymap(8, "hl\n");
+        let mut plain = modal_world(8);
+        let start = player_pos(&mut plain);
+        dispatch_key(&mut mapped, press('h')).unwrap();
+        dispatch_key(&mut plain, press('l')).unwrap();
+        models::player_action_system(&mut mapped);
+        models::player_action_system(&mut plain);
+        assert_ne!(player_pos(&mut plain), start, "the baseline did not move");
+        assert_eq!(player_pos(&mut mapped), player_pos(&mut plain));
+    }
+
+    #[test]
+    fn menus_keep_their_literal_keys() {
+        let mut w = with_keymap(11, "jk\n");
+        {
+            let mut menu = w.resource_mut::<OfferMenu>();
+            menu.open = true;
+            menu.options = vec![
+                OfferOption::Spell(SpellEffect::DragonBreath),
+                OfferOption::Spell(SpellEffect::DragonBreath),
+            ];
+        }
+        dispatch_key(&mut w, press('j')).unwrap();
+        assert_eq!(w.resource::<OfferMenu>().selected, 1);
     }
 
     // -----------------------------------------------------------------------

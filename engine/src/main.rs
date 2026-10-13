@@ -278,6 +278,7 @@ fn canonical_flag(arg: &str) -> &str {
         "--leaderboard" => "-scores",
         "--endless" => "-endless",
         "--anim-rate" => "-anim-rate",
+        "--keymap" => "-keymap",
         "--content" => "-content",
         "--pride" => "-pride",
         "--prideoff" => "-prideoff",
@@ -372,6 +373,7 @@ fn main() -> std::io::Result<()> {
     let mut player_name = "null".to_string();
     let mut positional: Option<String> = None;
     let mut anim_rate: f32 = 1.0;
+    let mut keymap_path: Option<PathBuf> = None;
     let mut first = true;
     let mut stray_positional: Option<String> = None;
     let mut invalid_argument: Option<String> = None;
@@ -441,6 +443,15 @@ fn main() -> std::io::Result<()> {
                     }
                 }
             }
+            "-keymap" => {
+                let value = iter.next();
+                match value {
+                    Some(path) => keymap_path = Some(PathBuf::from(path)),
+                    None => {
+                        invalid_argument.get_or_insert(flag_with_value("-keymap", value));
+                    }
+                }
+            }
             _ if arg.starts_with('-') => {
                 invalid_argument.get_or_insert_with(|| arg.clone());
             }
@@ -502,6 +513,17 @@ fn main() -> std::io::Result<()> {
     }
 
     let data_dir = models::data_dir();
+    let keymap = match &keymap_path {
+        Some(path) => models::load_keymap(path),
+        None => models::load_keymap_if_present(&data_dir.join("keymap.txt")),
+    };
+    let keymap = match keymap {
+        Ok(keymap) => keymap,
+        Err(err) => {
+            eprintln!("{}", strings::keymap_error(&err));
+            return Ok(());
+        }
+    };
     let mut load_path: Option<(PathBuf, String)> = None;
     if let Some(arg) = positional {
         match find_save(&arg, &data_dir) {
@@ -596,6 +618,7 @@ fn main() -> std::io::Result<()> {
     world.insert_resource(models::Particles::new());
     world.insert_resource(models::Shake::new());
     world.insert_resource(models::AnimRate(anim_rate));
+    world.insert_resource(keymap);
 
     world.insert_resource(models::StartingBody(
         body.map(|(b, _)| b).unwrap_or_default(),

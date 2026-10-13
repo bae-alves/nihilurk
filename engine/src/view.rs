@@ -789,8 +789,14 @@ pub fn render<W: Write>(
     }
 
     if !world.resource::<CommandBar>().hidden {
+        let map = world.resource::<models::KeyMap>();
         for (i, line) in strings::onboarding_keys().iter().enumerate() {
-            screen.puts(BAR_X, 22 + i as u16, line, Color::Yellow);
+            screen.puts(
+                BAR_X,
+                22 + i as u16,
+                &remap_onboarding(line, map),
+                Color::Yellow,
+            );
         }
     }
 
@@ -845,7 +851,11 @@ pub fn render<W: Write>(
     }
 
     if world.resource::<HelpMenu>().open {
-        draw_help(screen);
+        draw_help(world, screen);
+    }
+
+    if world.resource::<ItemInfo>().open {
+        draw_item_info(world, screen);
     }
 
     if world.resource::<QuitPrompt>().open {
@@ -1246,9 +1256,45 @@ fn draw_quit_prompt(screen: &mut Screen, warned: bool) {
     screen.put(x + 1 + inner, bottom, '┘', grey);
 }
 
+/// A key column with each remapped key shown as the key that now produces it.
+/// Only single characters and all-lowercase runs (`hjklyubn`) count as keys;
+/// names such as `Tab` or `Shift+dir` are left alone.
+fn remap_keys(keys: &str, map: &models::KeyMap) -> String {
+    let is_sep = |c: char| c.is_whitespace() || matches!(c, '/' | '[' | ']');
+    let mut out = String::with_capacity(keys.len());
+    let mut rest = keys;
+    while !rest.is_empty() {
+        let end = rest
+            .find(|c| is_sep(c) != is_sep(rest.chars().next().unwrap()))
+            .unwrap_or(rest.len());
+        let (run, tail) = rest.split_at(end);
+        let is_key = !run.starts_with(is_sep)
+            && (run.chars().count() == 1 || run.chars().all(|c| c.is_ascii_lowercase()));
+        match is_key {
+            true => out.extend(run.chars().map(|c| map.show(c))),
+            false => out.push_str(run),
+        }
+        rest = tail;
+    }
+    out
+}
+
+/// An F1 row: the key column runs up to the first double space.
+fn remap_help_row(row: &str, map: &models::KeyMap) -> String {
+    let at = row.find("  ").unwrap_or(row.len());
+    format!("{}{}", remap_keys(&row[..at], map), &row[at..])
+}
+
+/// A sidebar hint such as `[o/TAB] EXPLORE/FIGHT`: only the bracket is keys.
+fn remap_onboarding(line: &str, map: &models::KeyMap) -> String {
+    let at = line.find(']').map_or(0, |i| i + 1);
+    format!("{}{}", remap_keys(&line[..at], map), &line[at..])
+}
+
 /// The F1 key list: a bordered box, centred, one row per `strings::help_rows`.
-fn draw_help(screen: &mut Screen) {
-    let rows = strings::help_rows();
+fn draw_help(world: &World, screen: &mut Screen) {
+    let map = world.resource::<models::KeyMap>();
+    let rows = strings::help_rows().map(|r| remap_help_row(r, map));
     let title = strings::help_title();
     let close = strings::help_close();
     let inner = rows
@@ -1684,6 +1730,49 @@ mod tests {
             log_view(&w.resource::<GameLog>().unread, LOG_WIDTH).2,
             "the fixture did not actually give the log a backlog to prompt about"
         );
+    }
+
+    fn swapped(text: &str) -> models::KeyMap {
+        models::parse_keymap(text).unwrap()
+    }
+
+    #[test]
+    fn help_shows_the_key_that_now_does_the_job() {
+        let map = swapped("hl\nlh\n");
+        assert_eq!(remap_help_row("hjklyubn    move", &map), "ljkhyubn    move");
+        assert_eq!(
+            remap_help_row("Z ;         spells", &map),
+            "Z ;         spells"
+        );
+    }
+
+    #[test]
+    fn word_keys_are_never_rewritten() {
+        let map = swapped("ih\nhi\ntl\nlt\nEs\nsE\n");
+        for row in ["Tab         fight", "Shift+dir   run", "Alt+QWER    cast"] {
+            assert_eq!(remap_help_row(row, &map), row);
+        }
+        assert_eq!(
+            remap_onboarding("[o/TAB] EXPLORE", &swapped("ob\nbo\n")),
+            "[b/TAB] EXPLORE"
+        );
+    }
+
+    #[test]
+    fn a_remap_never_changes_a_row_width() {
+        let map = swapped("hl\nlh\nox\nxo\nAZ\n");
+        for row in strings::help_rows() {
+            assert_eq!(
+                remap_help_row(row, &map).chars().count(),
+                row.chars().count()
+            );
+        }
+        for row in strings::onboarding_keys() {
+            assert_eq!(
+                remap_onboarding(row, &map).chars().count(),
+                row.chars().count()
+            );
+        }
     }
 
     #[test]

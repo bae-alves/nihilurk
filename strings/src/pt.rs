@@ -29,11 +29,11 @@ pub use super::en::content_name;
 pub use super::en::{
     body_conflicts_with_load, clear_data_not_saved, clear_data_prompt, clear_data_saved,
     conflicting_bodies, content_group_header, content_header, content_spawn_hint,
-    failed_to_save_clear_data, failed_to_save_game, game_not_saved, game_saved, help_text,
-    invalid_save, leaderboard_empty, leaderboard_entry, leaderboard_header, leaderboard_unreadable,
-    morgue_ended, morgue_header, morgue_kills_title, morgue_messages_title, morgue_pack_title,
-    morgue_screen_title, morgue_summary, morgue_written, no_such_body, no_such_monster,
-    no_such_pride_flag, stray_positional, world_keeps_its_light,
+    failed_to_save_clear_data, failed_to_save_game, fast_and_endless, game_not_saved, game_saved,
+    help_text, invalid_save, leaderboard_empty, leaderboard_entry, leaderboard_header,
+    leaderboard_unreadable, mode_flags_dropped, morgue_ended, morgue_header, morgue_kills_title,
+    morgue_messages_title, morgue_pack_title, morgue_screen_title, morgue_summary, morgue_written,
+    no_such_body, no_such_monster, no_such_pride_flag, stray_positional, world_keeps_its_light,
 };
 
 /// Content ids stay untranslated (see `content_name` above), so one can
@@ -2986,6 +2986,11 @@ pub fn cannot_charge_in_the_thick_of_it() -> &'static str {
 // --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
 
 // TODO: machine-translated placeholder; needs a native speaker's pass.
+pub fn keymap_error(err: &str) -> String {
+    format!("teclas: {err}")
+}
+
+// TODO: machine-translated placeholder; needs a native speaker's pass.
 pub fn invalid_argument(arg: &str) -> String {
     format!("argumento inválido {arg}. Veja -help para mais informações")
 }
@@ -2995,5 +3000,145 @@ pub fn invalid_argument(arg: &str) -> String {
 // TODO: translate.
 #[allow(unused_variables)]
 pub fn no_other_weapon() -> &'static str {
+    ""
+}
+
+// --- Auto-stubbed by .githooks/pre-commit: not yet translated. ---
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn action_info() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_melee(die: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_armor(die: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_thrown(die: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_launched(die: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_reach(n: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_enchantment(plus: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_health(hp: i32, max_hp: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_attack(die: i32, bonus: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_defence(die: i32, bonus: i32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_they_kill_you(n: Option<u32>) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_you_kill_them(n: Option<u32>) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_speed(kind: &str) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub const fn speed_slow() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub const fn speed_normal() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub const fn speed_quick() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub const fn speed_fast() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn trap_explained(id: &str, snare_turns: u32) -> String {
+    String::new()
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn cursed_explained() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn megacursed_explained() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn info_close_hint() -> &'static str {
+    ""
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn item_blurb(id: &str) -> Option<&'static str> {
+    None
+}
+
+// TODO: translate.
+#[allow(unused_variables)]
+pub fn scroll_to_stair(up: bool) -> &'static str {
     ""
 }

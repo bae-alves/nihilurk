@@ -9,6 +9,7 @@ nihilurk \- terminal roguelike
 [\fB\-nshake\fR|\fB\-\-no\-shake\fR] [\fB\-nobones\fR|\fB\-\-no\-bones\fR]
 [\fB\-endless\fR|\fB\-\-endless\fR]
 [\fB\-anim\-rate\fR|\fB\-\-anim\-rate\fR \fImultiplier\fR]
+[\fB\-keymap\fR|\fB\-\-keymap\fR \fIfile\fR]
 [\fB\-b\fR|\fB\-\-body\fR \fIbody\fR | \fB\-am\fR|\fB\-\-as\-monster\fR \fIspecies\fR]
 .PP
 .B nihilurk
@@ -150,6 +151,23 @@ Set the on-screen hold time for particle, mapping, and shake animation
 frames. The default is 1.0; raise it for a terminal whose redraw cannot keep
 up, lower it for snappier animations. The value is clamped to 0.1 through 5.0;
 an unparseable or missing value is refused as an invalid argument.
+.TP
+.BI "\-keymap, \-\-keymap" " file"
+Remap keys. Each line of
+.I file
+is two characters, with no separator: the key pressed, then the key it acts as.
+.B hj
+makes h act as j; list both
+.B hj
+and
+.B jh
+to swap. Blank lines and lines starting with # are skipped. A bad line, or an
+unreadable file, is named on stderr and nihilurk does not start. Without this
+option,
+.I keymap.txt
+in the data directory is read if it exists. Remaps apply on the map and to the
+aiming reticle; menus keep the letters they print. F1 and the sidebar show the
+remapped keys.
 .TP
 .BI "\-b, \-\-body" " body"
 Which creature descends:

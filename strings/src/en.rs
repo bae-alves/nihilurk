@@ -612,7 +612,10 @@ OPTIONS
     -mouse, --mouse            left click looks, right click travels
     -nobones, --no-bones       skip the bones mechanic (saving and loading a run's own)
     -endless, --endless        no Element of Yoord, no way up, no way to win: just floors
+    -fast, --fast, --bullet, --quick
+                               a six-floor dungeon; floors 4 and 5 are special levels
     -anim-rate, --anim-rate N  set animation pacing multiplier (0.1..=5.0)
+    -keymap, --keymap FILE     remap keys from FILE (default: keymap.txt in the data dir)
     -b, --body BODY            play as nihil (default) or lurk
     -am, --as-monster SPECIES  play as a monster: any bestiary name, e.g. -am dragon
     -content, --content        list names accepted by NIHILURK_SPAWN
@@ -650,6 +653,18 @@ pub fn conflicting_bodies(first_flag: &str, second: &str) -> String {
     format!("nihilurk: {first_flag} and {second} are the same choice. Pick one.")
 }
 
+// TODO: placeholder English; needs a human's pass.
+pub fn fast_and_endless() -> String {
+    "nihilurk: -fast and -endless cannot be combined. Pick one.".to_string()
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn mode_flags_dropped(flags: &str) -> String {
+    format!(
+        "nihilurk: a save keeps the mode it was started in, so {flags} is dropped. Load anyway? [y/N]"
+    )
+}
+
 pub fn no_such_body(name: &str) -> String {
     format!("nihilurk: no body called '{name}'. There is nihil, and there is lurk.")
 }
@@ -665,6 +680,11 @@ pub fn stray_positional(stray: &str) -> String {
 // TODO: placeholder English; needs a human's pass.
 pub fn invalid_argument(arg: &str) -> String {
     format!("invalid argument {arg}. Please see -help for more information")
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn keymap_error(err: &str) -> String {
+    format!("keymap: {err}")
 }
 
 pub fn clear_data_prompt(player_name: &str) -> String {
@@ -2487,6 +2507,143 @@ pub fn action_throw() -> &'static str {
 pub fn action_drop() -> &'static str {
     " Drop   "
 }
+// TODO: placeholder English; needs a human's pass.
+pub fn action_info() -> &'static str {
+    " Info   "
+}
+
+// ---------------------------------------------------------------------------
+// models/src/identify.rs - the Info row's text
+// ---------------------------------------------------------------------------
+
+// TODO: placeholder English; needs a human's pass.
+pub fn info_melee(die: i32) -> String {
+    format!("Melee: d{die}")
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_armor(die: i32) -> String {
+    format!("Armor: d{die}")
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_thrown(die: i32) -> String {
+    format!("Thrown: d{die}")
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_launched(die: i32) -> String {
+    format!("Loosed from its launcher: d{die}")
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_reach(n: i32) -> String {
+    format!("Reach: {n} tiles")
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_enchantment(plus: i32) -> String {
+    format!("Enchantment: {plus:+}")
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_health(hp: i32, max_hp: i32) -> String {
+    format!("Health: {hp}/{max_hp}")
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_attack(die: i32, bonus: i32) -> String {
+    format!("Attack: d{die}{}", info_bonus(bonus))
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_defence(die: i32, bonus: i32) -> String {
+    format!("Defence: d{die}{}", info_bonus(bonus))
+}
+fn info_bonus(bonus: i32) -> String {
+    if bonus == 0 {
+        String::new()
+    } else {
+        format!("{bonus:+}")
+    }
+}
+fn hits(n: u32) -> String {
+    match n {
+        1 => "1 hit".to_string(),
+        n => format!("{n} hits"),
+    }
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_they_kill_you(n: Option<u32>) -> String {
+    match n {
+        Some(n) => format!("They will likely kill you in {}", hits(n)),
+        None => "They cannot hurt you".to_string(),
+    }
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_you_kill_them(n: Option<u32>) -> String {
+    match n {
+        Some(n) => format!("You will likely kill them in {}", hits(n)),
+        None => "You cannot hurt them".to_string(),
+    }
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_speed(kind: &str) -> String {
+    format!("Speed: {kind}")
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn speed_slow() -> &'static str {
+    "slow"
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn speed_normal() -> &'static str {
+    "normal"
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn speed_quick() -> &'static str {
+    "quick"
+}
+// TODO: placeholder English; needs a human's pass.
+pub const fn speed_fast() -> &'static str {
+    "fast"
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn trap_explained(id: &str, snare_turns: u32) -> String {
+    match id {
+        "trapdoor" => "Drops whatever steps on it to the next floor.".to_string(),
+        "bear trap" => format!("Holds whatever steps on it fast for {snare_turns} turns."),
+        "sleeping gas trap" => {
+            format!("Puts whatever steps on it to sleep for {snare_turns} turns.")
+        }
+        "teleport trap" => "Flings whatever steps on it to a random spot on the floor.".to_string(),
+        "arrow trap" => "Shoots whatever steps on it. Deeper traps hit harder.".to_string(),
+        "dart trap" => {
+            "Pricks whatever steps on it with a poisoned dart that saps melee power for good."
+                .to_string()
+        }
+        _ => String::new(),
+    }
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn cursed_explained() -> &'static str {
+    "Cursed: once you wear or wield it, it sticks to you and will not come off \
+     until a scroll of remove curse lifts it."
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn megacursed_explained() -> &'static str {
+    "MEGACURSED: once you wear or wield it, it sticks to you for good. No scroll, \
+     spirit or spell lifts or destroys it. Only a suit of armor taking a killing \
+     blow will ever be rid of it."
+}
+// TODO: placeholder English; needs a human's pass.
+pub fn info_close_hint() -> &'static str {
+    "Any key closes."
+}
+
+// TODO: placeholder English; needs a human's pass.
+/// One authored line about a catalog row, keyed by its id. Most rows need
+/// none: the numbers and the name already say it.
+pub fn item_blurb(id: &str) -> Option<&'static str> {
+    Some(match id {
+        "rapier" => "Every hit that lands makes the next one hit harder.",
+        "war hammer" => "Stone turns steel aside. A hammer goes through it whole.",
+        "chaos blade" => "Every hit you land also lands a little on you.",
+        "spikemail" => "Whoever lands a blow on you is pricked for it.",
+        _ => return None,
+    })
+}
 
 // ---------------------------------------------------------------------------
 // models/src/items/throwing.rs
@@ -2670,6 +2827,14 @@ pub fn card_no_ring() -> &'static str {
 
 pub fn card_no_stair() -> &'static str {
     "The card points nowhere."
+}
+
+// TODO: placeholder English; needs a human's pass.
+pub fn scroll_to_stair(up: bool) -> &'static str {
+    match up {
+        true => "The scroll whisks you to the stair up.",
+        false => "The scroll whisks you to the stair down.",
+    }
 }
 
 pub fn card_to_stair(up: bool) -> &'static str {

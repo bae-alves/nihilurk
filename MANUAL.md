@@ -47,6 +47,7 @@ Other flags, in any order after the name:
 | `-nobones`, `--no-bones` | A death writes no bones file and an ascent reads none. |
 | `-endless`, `--endless` | No Element of Yoord spawns, so you cannot win. The dungeon keeps going down. |
 | `-anim-rate N`, `--anim-rate N` | Scale animation hold time, 0.1 to 5.0. Raise it if your terminal redraws slowly. |
+| `-keymap FILE`, `--keymap FILE` | Remap keys from FILE. Without it, `keymap.txt` in the data directory is read if it exists. One pair per line, two characters: `hj` makes `h` act as `j`. List both `hj` and `jh` to swap. `#` starts a comment. Applies to the map and the aiming reticle; menus keep the letters they print. F1 and the sidebar show your keys. |
 | `-content`, `--content` | List every name `NIHILURK_SPAWN` accepts, and exit. |
 | `-scores`, `--leaderboard` | Print the ten highest scores, and exit. |
 | `-h`, `-help`, `--help` | Print a short guide, and exit. |

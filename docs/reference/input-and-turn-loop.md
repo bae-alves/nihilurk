@@ -234,6 +234,8 @@ A reach weapon's own strike (a bardiche, a whip) does not go through `queue_step
 The keyboard on the map
 ------------------------
 
+**`keymap.txt` remaps keys here.** `remap_key` (`update.rs`) runs at the top of `handle_movement_input` and `handle_targeting_input` and nothing else. The menus read `a`-`z` as the labels they print, so a remap there would make the label lie. `dispatch_key` handles Ctrl+C, `--MORE--` and the `x` escape hatch before either handler, so a bad keymap cannot lock the player in. The `KeyMap` resource is `models::KeyMap`.
+
 Movement is vi keys, arrows and the numpad, eight ways, plus Shift+direction to run (`run_direction`). **WASD is not a movement scheme any more**, shifted or otherwise: those letters are commands.
 
 **`Esc` quits, from the bare map only.** Every modal takes `Esc` first, so mashing it out of a menu never reaches the prompt. Quitting is `Esc` through the prompt, or Ctrl+C without one. `Q` and `X` no longer quit.

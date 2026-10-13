@@ -15,7 +15,7 @@ After `cargo install nihilurk`, run `nihilurk [flags] [name-or-save]` instead. I
 Flags
 -----
 
-In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`, `-ns`, `-nb`, `-nshake`, `-mouse`, `-nobones`, `-b`, `-am`, `-scores`) also have a double-dash longhand (`--seed`, `--centered`, `--no-save`, `--no-blood`, `--no-shake`, `--mouse`, `--no-bones`, `--body`, `--as-monster`, `--leaderboard`), and `-endless`, `-anim-rate`, `-content`, `-pride` and `-prideoff` also take `--`. Any other argument that starts with `-` is refused, and so is a flag whose value is missing or bad (`-s -5`, `-s abc`, `-anim-rate fast`, `-b` with nothing after it); the message quotes the flag and its value: `invalid argument ARG. Please see -help for more information`. A player name therefore cannot start with `-`.
+In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`, `-ns`, `-nb`, `-nshake`, `-mouse`, `-nobones`, `-b`, `-am`, `-scores`) also have a double-dash longhand (`--seed`, `--centered`, `--no-save`, `--no-blood`, `--no-shake`, `--mouse`, `--no-bones`, `--body`, `--as-monster`, `--leaderboard`), and `-endless`, `-anim-rate`, `-keymap`, `-content`, `-pride` and `-prideoff` also take `--`. Any other argument that starts with `-` is refused, and so is a flag whose value is missing or bad (`-s -5`, `-s abc`, `-anim-rate fast`, `-b` with nothing after it); the message quotes the flag and its value: `invalid argument ARG. Please see -help for more information`. A player name therefore cannot start with `-`.
 
 | Flag         | Effect                                                    |
 |--------------|-----------------------------------------------------------|
@@ -30,6 +30,7 @@ In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`,
 | `-content`, `--content` | Print every name the content tables know, then exit.      |
 | `-scores`, `--leaderboard` | Print the leaderboard (top 10 scores ever recorded), then exit. |
 | `-anim-rate <n>`, `--anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad, non-finite or missing value is refused as an invalid argument. |
+| `-keymap <file>`, `--keymap` | Remap keys from the file; without it, `keymap.txt` in the data directory is read if it exists. See [Key remapping](#key-remapping). A bad line or an unreadable file is named on stderr and the game does not start. |
 | `-b <body>`, `--body` | Play as `nihil` (the default) or `lurk`. See below. |
 | `-am <species>`, `--as-monster` | Play *as* a monster: any bestiary name (`-am dragon`). See below. |
 
@@ -244,6 +245,12 @@ Forces the animation a scroll of magic mapping plays, instead of rolling one. Us
 | `explode`, `explosion`, `blast`, `burst`      | Explode    |
 
 Anything unrecognised falls back to a random roll.
+
+### Key remapping
+
+`keymap.txt` is one pair per line, two characters with no separator (Brogue's format): `hj` makes pressing `h` act as `j`. List `hj` and `jh` to swap; lookup is a single pass, so pairs never chain. A key with no line acts as itself, so `hl` alone leaves `l` live too. An uppercase letter with no line of its own follows its lowercase one, so Shift-run keeps working. Blank lines and lines starting `#` are skipped. A line of any other length, a space as a key, or a key listed twice is refused with its line number (`models::parse_keymap`).
+
+The file is read from the data directory, or from the path given to `-keymap`. A missing auto-loaded file is fine; a missing `-keymap` file is not. F1 and the sidebar hints show the key that now does each job (word keys such as `Tab` stay as they are). A command whose own letter is remapped away and that nothing maps to shows its old letter.
 
 ### NIHILURK_DATA
 

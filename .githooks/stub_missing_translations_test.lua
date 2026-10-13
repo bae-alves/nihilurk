@@ -24,4 +24,6 @@ assert(not covered.fresh)
 
 local text = stub.stub_for("fresh", sigs.fresh.params, sigs.fresh.ret, sigs.fresh.const)
 assert(text:find("pub const fn fresh(n: i32) -> String {", 1, true), "stub keeps const")
+local opt = stub.stub_for("blurb", "id: &str", "Option<&'static str>", false)
+assert(opt:find("None", 1, true), "an Option return stubs to None")
 print("ok")
