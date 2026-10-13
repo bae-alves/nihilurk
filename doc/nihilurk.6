@@ -258,7 +258,7 @@ highest first \(em and exit without entering the alternate screen. Read from
 in the data directory, a small versioned file like a save. Updated
 whenever a run ends in a win or a death. A leaderboard that is damaged or from
 another version is named and left alone, and no score is recorded until it is
-moved away;
+moved away; a board from before conducts is read and upgraded;
 .B OUTCOME
 is
 .BR WIN ,
@@ -524,7 +524,7 @@ What a dead run left on floor N, in the data directory.
 .TP
 .IR morgue/name \- YYYYMMDD \- HHMMSS .txt
 The run dump: a plain-text record of a run that ended in a win or a death
-\(em the final screen, the pack, the kills and the message log \(em in the
+\(em the final screen, the pack, the kills, for a win the conducts kept, and the message log \(em in the
 data directory, stamped in UTC. Its path is printed when the game exits.
 .SH SEE ALSO
 .BR grep (1),

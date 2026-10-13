@@ -135,7 +135,14 @@ pub fn record(
     score: i64,
     conducts: u16,
 ) -> std::io::Result<()> {
-    record_to(path(board), name, outcome, score, conducts, now_epoch_secs())
+    record_to(
+        path(board),
+        name,
+        outcome,
+        score,
+        conducts,
+        now_epoch_secs(),
+    )
 }
 
 /// Seconds since the Unix epoch, UTC; 0 on a clock set before it.
@@ -209,24 +216,33 @@ fn all(path: impl AsRef<Path>) -> std::io::Result<Vec<Entry>> {
     }
 }
 
+/// One leaderboard row, ready to print.
+pub struct Standing {
+    /// The name the run was played under.
+    pub name: String,
+    /// How the run ended.
+    pub outcome: Outcome,
+    /// The final score.
+    pub score: i64,
+    /// "YYYY-MM-DD HH:MM", UTC.
+    pub when: String,
+    /// The conducts kept, a bit each ([`crate::conduct::Conduct`]).
+    pub conducts: u16,
+}
+
 /// The `limit` highest scores ever recorded, highest first, each with a
 /// "YYYY-MM-DD HH:MM" UTC rendering of when the run ended. Errs the way
 /// [`all`] does.
-pub fn top(
-    board: Board,
-    limit: usize,
-) -> std::io::Result<Vec<(String, Outcome, i64, String, u16)>> {
+pub fn top(board: Board, limit: usize) -> std::io::Result<Vec<Standing>> {
     Ok(all(path(board))?
         .into_iter()
         .take(limit)
-        .map(|e| {
-            (
-                e.name,
-                e.outcome,
-                e.score,
-                format_timestamp(e.epoch_secs),
-                e.conducts,
-            )
+        .map(|e| Standing {
+            name: e.name,
+            outcome: e.outcome,
+            score: e.score,
+            when: format_timestamp(e.epoch_secs),
+            conducts: e.conducts,
         })
         .collect())
 }

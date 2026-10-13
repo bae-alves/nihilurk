@@ -255,15 +255,21 @@ fn print_leaderboard(
         return writeln!(out, "{}", strings::leaderboard_empty());
     }
     writeln!(out, "{}", strings::leaderboard_header(entries.len()))?;
-    for (rank, (name, outcome, score, when, conducts)) in entries.into_iter().enumerate() {
-        let marks: String = models::conduct::marks(conducts, &[])
+    for (rank, row) in entries.into_iter().enumerate() {
+        let marks: String = models::conduct::marks(row.conducts, &[])
             .into_iter()
             .map(|(mark, _)| mark)
             .collect();
         writeln!(
             out,
             "{} {marks}",
-            strings::leaderboard_entry(rank + 1, &name, &outcome.to_string(), score, &when)
+            strings::leaderboard_entry(
+                rank + 1,
+                &row.name,
+                &row.outcome.to_string(),
+                row.score,
+                &row.when
+            )
         )?;
     }
     Ok(())

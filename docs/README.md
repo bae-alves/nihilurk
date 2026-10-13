@@ -33,6 +33,7 @@ Start here
 | Change a balance number                        | `reference/constants.md`                        |
 | Look up a function I have to call              | `reference/spawn-api.md`                        |
 | Look up a flag or an env var                   | `reference/cli-and-env.md`                      |
+| Look up a conduct, or what a win is paid       | `reference/conducts.md`                         |
 | Look up how input and the turn loop work       | `reference/input-and-turn-loop.md`              |
 | Look up what a monster does with its turn      | `reference/agents.md`                           |
 | Look up how a frame gets to the screen         | `reference/rendering.md`                        |

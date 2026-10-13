@@ -211,10 +211,10 @@ End-of-run panels
 ```
 pub fn render_you_died<W>(stdout, screen, offset) -> std::io::Result<()>
 pub fn render_lose<W>(stdout, screen, offset, player_name, cause, score)
-pub fn render_win<W>(stdout, screen, offset, player_name, score)
+pub fn render_win<W>(stdout, screen, offset, player_name, score, marks)
 ```
 
-Full-screen, drawn in place of `render` (not layered with it) via `screen.clear()` and `screen.dirty_all = true` — a full repaint, since nothing about the map frame should bleed through. Both end panels are one word — `WIN` or `LOSE` — then the name, the cause (death only), the score and the prompt; `centered_x` centres every line. `main.rs`'s `run_death_screens`/`run_victory_screens` drive these: death shows the "You die..." panel, blocks for the acknowledging keypress (`wait_for_key`), then shows LOSE and blocks again; victory shows WIN and blocks once. Both write the run dump (`morgue.rs`) first, while the last map frame is still the one on the terminal: `Screen::shown_text` reads that frame, so the dump's final screen is what the player last saw.
+Full-screen, drawn in place of `render` (not layered with it) via `screen.clear()` and `screen.dirty_all = true` — a full repaint, since nothing about the map frame should bleed through. Both end panels are one word — `WIN` or `LOSE` — then the name, the cause (death only), the score and the prompt; `centered_x` centres every line. `main.rs`'s `run_death_screens`/`run_victory_screens` drive these: death shows the "You die..." panel, blocks for the acknowledging keypress (`wait_for_key`), then shows LOSE and blocks again; victory shows WIN and blocks once. The win panel also draws `marks`, one coloured `◆` per conduct kept, under the score (`conducts.md`). Both write the run dump (`morgue.rs`) first, while the last map frame is still the one on the terminal: `Screen::shown_text` reads that frame, so the dump's final screen is what the player last saw.
 
 
 The inventory overlay
