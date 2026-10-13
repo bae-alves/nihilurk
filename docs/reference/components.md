@@ -407,7 +407,7 @@ Also here: `SpellsMenu` (`open`, `selected`; the `Z` menu, the only way to an ac
 
 Everything but Browse, Throw and Drop is `Use`, because "quaff", "read" and "wear" are all one verb once `item_system` has the item in hand — the mode only decides what you were offered.
 
-`ItemAction::MENU` is the fixed Use / Drop / Throw / Info order of the Browse modal (`ItemAction::at(idx)` indexes it).
+`ItemAction::MENU` is the fixed Use / Throw / Drop / Info order of the Browse modal (`ItemAction::at(idx)` indexes it).
 
 `pack_rows(world, mode)` is the single place the filter is applied, and it returns **backpack indices**. Both the renderer and the cursor key off that list, so a menu can never highlight or act on a row it isn't showing, and a row keeps its pack letter in every mode (the potion that is `c` in the pack is `c` in the quaff menu, alone on screen or not).
 

@@ -151,11 +151,12 @@ The split between the two is the line between "needs a keyboard" and "does not".
 
 Before reading a key at all, three things can consume the frame without one: a pending `--MORE--` prompt (only Space/Enter clears it; every other key is swallowed), `player_incapacitated` (asleep — in gas, or in a scroll of sleep that turned in your own mouth: the turn is forfeited outright with no key read; a bear trap or a scroll's hold does *not* forfeit the turn, since either only blocks movement, not the whole turn — see "Movement and attack" below), and `paralysis_forfeits_turn` (a potion of paralysis: the coin is flipped **once per turn**, here, before any key is read and never while a menu, prompt or reticle is open, so a lost turn is a turn the monsters get and the player does not, rather than a swallowed keystroke; a forfeited one holds the screen `INCAPACITATED_PAUSE_MS` so it reads as time passing).
 
-Once a key is read, `x` and `X` are checked first, everywhere: they are the universal escape hatch, closing whichever modal is open (`close_all_modals`, the quit prompt included) and returning to plain movement with no turn spent. On the bare map `close_all_modals` reports nothing to close, so `x` falls through to the weapon swap and `X` does nothing. After that, exactly one of four contexts owns the keypress:
+Once a key is read, `x` and `X` are checked first, everywhere: they are the universal escape hatch, closing whichever modal is open (`close_all_modals`, the quit prompt included) and returning to plain movement with no turn spent. On the bare map `close_all_modals` reports nothing to close, so `x` falls through to the weapon swap and `X` does nothing. After that, exactly one of these contexts owns the keypress:
 
 | Context (checked in this order) | Resource      | Handler                    |
 |----------------------------------|---------------|-----------------------------|
 | Key list (F1)                    | `HelpMenu.open` | `dispatch_key` itself: any key closes it, nothing else runs |
+| Item Info popup                  | `ItemInfo.open` | `dispatch_key` itself: any key closes it, nothing else runs |
 | "Really quit?"                   | `QuitPrompt.open` | `answer_quit_prompt`   |
 | Aiming (a throw or a ranged use)| `TargetingState.active` | `handle_targeting_input` |
 | Pack open                        | `PackIsOpen.open` | `handle_inventory_input` |

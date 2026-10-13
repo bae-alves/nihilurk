@@ -47,8 +47,8 @@ impl ItemAction {
     /// a command-line flag.
     pub const MENU: [ItemAction; 4] = [
         ItemAction::Use,
-        ItemAction::Drop,
         ItemAction::Throw,
+        ItemAction::Drop,
         ItemAction::Info,
     ];
 

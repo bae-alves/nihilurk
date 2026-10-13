@@ -199,7 +199,7 @@ fn monster_round(world: &mut World, ctx: &mut AiCtx) {
         for actor in actors {
             let rate = crate::conditions::tempo(world, actor).rate();
             if let Some(mut speed) = world.get_mut::<Speed>(actor) {
-                speed.energy = (speed.energy + rate).min(2 * Speed::COST);
+                speed.energy = (speed.energy + rate).min(rate + Speed::COST - 1);
             }
         }
     }
@@ -621,6 +621,87 @@ mod tests {
             (60..140).contains(&lost),
             "about half should go (got {lost})"
         );
+    }
+
+    #[test]
+    fn a_normal_mob_with_banked_energy_still_acts_once_per_round() {
+        let mut world = World::new();
+        world.insert_resource(GameRng(rand::SeedableRng::seed_from_u64(7)));
+        world.init_resource::<AttackQueue>();
+        let player = world
+            .spawn((Player, Position { x: 7, y: 5 }, Faction::Player))
+            .id();
+        let mob = world
+            .spawn((
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                Position { x: 5, y: 5 },
+                Faction::Monster,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        world.get_mut::<Speed>(mob).unwrap().energy = 2 * Speed::COST;
+        let map = open_floor();
+        let visible: HashSet<(u16, u16)> = (0..40).map(|x| (x, 5)).collect();
+        let mut ctx = AiCtx {
+            pass: 0,
+            player,
+            player_pos: Position { x: 7, y: 5 },
+            player_faction: Faction::Player,
+            visible: &visible,
+            stealthy: false,
+            warded: false,
+            map: &map,
+        };
+        monster_round(&mut world, &mut ctx);
+        assert_eq!(world.get::<Position>(mob).unwrap().x, 6);
+        assert!(
+            world.resource::<AttackQueue>().attacks.is_empty(),
+            "walked up and struck in one round"
+        );
+    }
+
+    #[test]
+    fn a_normal_mob_never_acts_twice_in_one_turn_against_a_lurking_player() {
+        let mut world = World::new();
+        world.insert_resource(GameRng(rand::SeedableRng::seed_from_u64(7)));
+        world.init_resource::<AttackQueue>();
+        world.init_resource::<PlayerTempo>();
+        world.init_resource::<ExtraMonsterRound>();
+        world.insert_resource(open_floor());
+        world.spawn((
+            Player,
+            Position { x: 12, y: 5 },
+            Faction::Player,
+            Speed::new(SpeedKind::Quick),
+            Viewshed {
+                visible_tiles: (0..40).map(|x| (x, 5)).collect(),
+                revealed_tiles: FixedBitSet::with_capacity(MAP_TILE_COUNT),
+                range: 8,
+                dirty: false,
+            },
+        ));
+        let mob = world
+            .spawn((
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                Position { x: 5, y: 5 },
+                Faction::Monster,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        world.get_mut::<Speed>(mob).unwrap().energy = 2 * Speed::COST;
+        for turn in 0..12 {
+            let before = *world.get::<Position>(mob).unwrap();
+            let blows = world.resource::<AttackQueue>().attacks.len();
+            ai(&mut world);
+            let after = *world.get::<Position>(mob).unwrap();
+            let acted =
+                (after != before) as usize + world.resource::<AttackQueue>().attacks.len() - blows;
+            assert!(acted <= 1, "turn {turn}: {acted} actions");
+        }
     }
 
     fn stagger_once(seed: u64) -> (u16, u16) {

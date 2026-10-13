@@ -26,8 +26,8 @@ fn info_is_the_last_row_of_the_menu() {
         ItemAction::MENU,
         [
             ItemAction::Use,
-            ItemAction::Drop,
             ItemAction::Throw,
+            ItemAction::Drop,
             ItemAction::Info
         ]
     );

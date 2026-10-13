@@ -776,17 +776,17 @@ fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
 }
 
 #[test]
-fn throw_is_the_third_row_of_the_browse_modal_and_has_a_key_of_its_own() {
+fn throw_is_the_second_row_of_the_browse_modal_and_has_a_key_of_its_own() {
     assert_eq!(
         ItemAction::MENU,
         [
             ItemAction::Use,
-            ItemAction::Drop,
             ItemAction::Throw,
+            ItemAction::Drop,
             ItemAction::Info
         ]
     );
-    assert_eq!(ItemAction::at(2), ItemAction::Throw);
+    assert_eq!(ItemAction::at(1), ItemAction::Throw);
     assert_eq!(PackMode::Throw.action(), Some(ItemAction::Throw));
 }
 

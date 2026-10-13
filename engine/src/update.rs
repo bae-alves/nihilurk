@@ -849,7 +849,7 @@ fn handle_inventory_input(world: &mut World, key: KeyEvent) -> std::io::Result<b
     Ok(navigate_pack(world, key, selected))
 }
 
-/// The Use / Drop / Throw / Info modal. Returns whether the keypress spent a turn —
+/// The Use / Throw / Drop / Info modal. Returns whether the keypress spent a turn —
 /// true only when it committed to a plain (non-aimed) Use or a successful Drop.
 fn run_action_modal(
     world: &mut World,
@@ -892,8 +892,9 @@ fn run_action_modal(
 }
 
 /// Pulls the chosen item out of the pack and carries out `action` on it: queue
-/// a use, open the aiming reticle, or drop it. Returns whether a turn was spent
-/// (a plain Use or a completed Drop; aiming and refusals do not).
+/// a use, open the aiming reticle, drop it, or open its Info popup. Returns
+/// whether a turn was spent (a plain Use or a completed Drop; aiming, Info and
+/// refusals do not).
 fn commit_item_action(
     world: &mut World,
     player: Entity,
@@ -914,6 +915,15 @@ fn commit_item_action(
             aim_throw(world, player, item, item_idx);
             false
         }
+        ItemAction::Drop => {
+            let Some(item) = world
+                .get::<Backpack>(player)
+                .and_then(|pack| pack.items.get(item_idx).copied())
+            else {
+                return true;
+            };
+            models::queue_drop(world, player, item)
+        }
         ItemAction::Info => {
             let Some(item) = world
                 .get::<Backpack>(player)
@@ -926,15 +936,6 @@ fn commit_item_action(
             info.lines = lines;
             info.open = true;
             false
-        }
-        ItemAction::Drop => {
-            let Some(item) = world
-                .get::<Backpack>(player)
-                .and_then(|pack| pack.items.get(item_idx).copied())
-            else {
-                return true;
-            };
-            models::queue_drop(world, player, item)
         }
     }
 }
@@ -3545,6 +3546,30 @@ mod tests {
 
         assert_eq!(*w.get::<Position>(player).unwrap(), here);
         assert_eq!(*w.get::<Position>(pal).unwrap(), there);
+    }
+
+    #[test]
+    fn info_opens_the_popup_on_the_item_and_costs_nothing() {
+        let mut w = modal_world(3);
+        let player = player_entity(&mut w);
+        let element = models::spawn_element_of_yoord(&mut w, Position { x: 0, y: 0 });
+        w.entity_mut(element).remove::<Position>();
+        w.get_mut::<Backpack>(player)
+            .unwrap()
+            .items
+            .insert(0, element);
+
+        let turn = commit_item_action(&mut w, player, 0, ItemAction::Info);
+
+        assert!(!turn, "reading is free");
+        assert!(w.resource::<ItemInfo>().open);
+        assert_eq!(w.get::<Backpack>(player).unwrap().items[0], element);
+        let key = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
+        assert!(
+            !dispatch_key(&mut w, key).unwrap(),
+            "any key only closes it"
+        );
+        assert!(!w.resource::<ItemInfo>().open);
     }
 
     #[test]

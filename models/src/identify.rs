@@ -9,13 +9,12 @@
 use bevy_ecs::prelude::*;
 
 use crate::combat::mean_blow;
-use crate::traps::TrapDef;
-
 use crate::components::{
     Curse, Fighter, Item, KnownQuality, LaunchedDamage, MegaCurse, Mob, Name, Player, Reach, Rune,
     Speed, SpeedKind, Stack, ThrownDamage, Trap, Vorpal,
 };
 use crate::effects::{ArmorBonus, ArmorDie, MaxHpBonus, PowerBonus, PowerDie, ThrowBonus};
+use crate::traps::TrapDef;
 
 /// What the player actually sees for `item`: its true [`Name`], a [`Stack`]
 /// count if it holds more than one, and — once [`known_quality`] says either
