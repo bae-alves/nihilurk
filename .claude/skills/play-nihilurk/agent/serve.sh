@@ -50,24 +50,38 @@ alive() {
     [[ -n "$now" && "$now" == "$(cat "$dir/born")" ]]
 }
 
+# True when the open capture fd 6 had bytes the last percept did not see; it
+# reads them, so the next call sees only what comes after.
+wrote() {
+    local LC_ALL=C chunk got=1
+    while IFS= read -r -d '' -N 65536 -u 6 chunk || [[ -n "$chunk" ]]; do
+        [[ -n "$chunk" ]] || break
+        got=0
+        (( ${#chunk} == 65536 )) || break
+    done
+    return "$got"
+}
+
 # ponytail: quiet bytes stand in for "the game waits on a key". Every busy
 # loop repaints well inside 250 ms; an engine-side ready signal is the upgrade
-# if a stall ever outlasts it.
+# if a stall ever outlasts it. Waits on fd 7, a pipe nobody writes to, so a
+# 10 ms tick costs no process; gives up after 30 s.
 settle() {
-    local size=-1 now quiet=0 tries=0
-    while (( quiet < 5 && tries < 600 )); do
-        sleep 0.05
-        now="$(stat -c %s "$dir/raw")"
-        if [[ "$now" == "$size" ]]; then quiet=$((quiet + 1)); else quiet=0 size="$now"; fi
-        tries=$((tries + 1))
+    local start last
+    start="${EPOCHREALTIME/[.,]/}" last="$start"
+    while (( ${EPOCHREALTIME/[.,]/} - last < 250000 && ${EPOCHREALTIME/[.,]/} - start < 30000000 )); do
+        read -r -t 0.01 -u 7 || true
+        ! wrote || last="${EPOCHREALTIME/[.,]/}"
     done
 }
 
-# ponytail: screen.lua replays the whole capture each time; fine for a run,
-# slow once it is many MB.
+# ponytail: screen.lua replays the whole capture each time; 35 KB after 300
+# keys takes 10 ms, so a run is fine, a many-MB capture is not. `shown` is
+# the capture's size at this percept, so the next session knows the game has
+# not moved since.
 percept() {
-    lua "$screen" "$dir/raw" "" 25 80
-    lua "$screen" "$dir/raw" "" 25 80 --bg | sed '/^$/d'
+    stat -c %s "$dir/raw" > "$dir/shown"
+    lua "$screen" "$dir/raw" "" 25 80 --percept
     if alive; then echo end; else echo over; return 1; fi
 }
 
@@ -111,9 +125,10 @@ session() {
     dir="$1"
     exec 5> "$dir/lock"
     flock 5
-    exec 4<> "$dir/in"
+    exec 4<> "$dir/in" 6< "$dir/raw" 7<> <(:)
     touch "$dir/seen"
-    settle
+    wrote || true
+    [[ "$(stat -c %s "$dir/raw")" == "$(cat "$dir/shown" 2>/dev/null)" ]] || settle
     percept || return 0
     local line secs idle=()
     secs="$(< "$dir/idle")"

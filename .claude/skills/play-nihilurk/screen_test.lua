@@ -66,4 +66,8 @@ eq(bgs("\27[38;5;14;48;5;4mz"), "1 1 z DarkBlue", "foreground and background in 
 eq(bgs("\27[48;5;14mX\27[49m\27[1;1HY"), "", "a later write without a background replaces it")
 eq(bgs("\27[48;5;14m \27[49mY"), "1 1   Cyan", "a blank cell on a background still counts")
 
+-- 12. A percept is the screen, then the tint lines, from one pass.
+eq(screen.percept("\27[48;5;14mX\27[49mY", 4, 10), "XY\n\n\n\n1 1 X Cyan", "screen then tints")
+eq(screen.percept("plain", 4, 10), "plain\n\n\n", "no tints, no extra line")
+
 print("screen_test: ok")

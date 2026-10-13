@@ -188,4 +188,23 @@ out="$("$fake/act.sh" -d "$fake")"
 grep -q 'boom' <<< "$out" || fail "act.sh lost the text: $out"
 LC_ALL=C grep -q $'[\x01-\x09\x0b-\x1f\x7f]\|\xc2[\x80-\x9f]' <<< "$out" && fail "act.sh passed control bytes: $(head -1 <<< "$out" | od -c | head -2)"
 
+# 21. A percept waits for 250 ms without output: output that starts late, or
+#     comes in bursts less than 250 ms apart, is all on it.
+game "sh -c 'read x; sleep 0.15; echo late; read y'"
+out="$("$serve" session "$dir" <<< 'x\r')"
+grep -q '^late' <<< "$out" || fail "a percept missed output 150 ms after the key: $out"
+game "sh -c 'read x; for i in 1 2 3 4; do printf \$i; sleep 0.2; done; read y'"
+out="$("$serve" session "$dir" <<< 'x\r')"
+grep -q '1234' <<< "$out" || fail "a percept cut a run of bursts 200 ms apart: $out"
+
+# 22. A session on a run that has written nothing since its last percept
+#    answers at once: the game is still waiting on a key.
+game cat
+"$serve" session "$dir" <<< 'a' > /dev/null
+start="${EPOCHREALTIME/[.,]/}"
+out="$("$serve" session "$dir" < /dev/null)"
+took=$(( ${EPOCHREALTIME/[.,]/} - start ))
+grep -q '^a' <<< "$out" || fail "the quick percept lost the screen: $out"
+(( took < 200000 )) || fail "a settled run took $((took / 1000)) ms to answer on connect"
+
 echo "serve_test: ok"
