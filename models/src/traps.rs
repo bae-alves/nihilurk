@@ -741,6 +741,20 @@ pub(crate) fn chain_react(
     chain_react_with(world, area, shooter, fire, cubes);
 }
 
+/// Whether [`chain_react_with`] would find anything to set off under `area`.
+/// A blast with links behind it holds its animation so they open after it;
+/// one without leaves the clock alone, so its own follow-up sparks keep their timing.
+pub(crate) fn has_links(
+    world: &mut World,
+    area: &std::collections::HashSet<(u16, u16)>,
+    cubes: &[Entity],
+) -> bool {
+    !cubes.is_empty()
+        || !things_in::<Trap>(world, area).is_empty()
+        || !things_in::<Pickup>(world, area).is_empty()
+        || !things_in::<Potion>(world, area).is_empty()
+}
+
 /// [`chain_react`] with the cubes chosen by the caller. A cold blast that
 /// kills something freezes it inside its own footprint, and that cube is
 /// the blast's work, not a link in it: the caller names the cubes that stood

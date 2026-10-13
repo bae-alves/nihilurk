@@ -1414,3 +1414,34 @@ fn each_link_of_a_chain_explodes_after_the_last_one_has() {
         "the second blast opens at {latest} ms, inside the first one"
     );
 }
+
+#[test]
+fn a_potion_in_a_chain_makes_the_next_link_wait_for_its_splash() {
+    let mut w = test_world(11);
+    clear_traps(&mut w);
+    clear_mobs(&mut w);
+    w.init_resource::<Particles>();
+    let (site, _, two_off) = blast_site(&mut w);
+    let one_off = Position {
+        x: site.x + 1,
+        y: site.y,
+    };
+    let first = w.spawn(TrapBundle::bear(site)).id();
+    w.entity_mut(first).remove::<Hidden>();
+    spawn_potion(&mut w, PotionEffect::Healing, one_off);
+    w.spawn(TrapBundle::bear(two_off));
+
+    detonate_at(&mut w, site, None);
+
+    let latest = w
+        .resource::<Particles>()
+        .live
+        .iter()
+        .filter(|p| (p.x, p.y) == (two_off.x, two_off.y))
+        .map(|p| p.delay_ms)
+        .fold(0.0_f32, f32::max);
+    assert!(
+        latest >= 560.0,
+        "the third blast opens at {latest} ms, inside the potion's splash"
+    );
+}

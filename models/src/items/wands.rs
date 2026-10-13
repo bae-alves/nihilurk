@@ -275,10 +275,14 @@ pub(crate) fn elemental_blast(
         }
     }
 
+    let linked = crate::traps::has_links(world, &cell_set, &cubes);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        fx.explosion(&blast_cells, palette);
+        let span = fx.explosion(&blast_cells, palette);
         if matches!(element, Some(Element::Fire) | Some(Element::Cold)) {
             fx.smoke_burst(&blast_cells);
+        }
+        if linked {
+            fx.hold(span);
         }
     }
 
