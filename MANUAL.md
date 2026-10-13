@@ -268,6 +268,20 @@ You do not carry coins. Stepping on one spends it on the spot, and a coin that w
   * The hero coin teaches you a spell you do not know.
 
 
+Conducts
+--------
+
+A conduct is something you go without. Win a run and each one you kept adds 10% of your score on top, so a clean run is worth much more than a loud one. Die and you earn nothing for them.
+
+  * No potions, no scrolls, no wands, no runes.
+  * No casting, no coins, no throwing or firing, no melee attacks.
+  * No charming, no boon companion.
+  * No damage taken, no gear put on, never saved by your armour.
+  * Played as the lurk.
+
+The win screen shows one coloured mark for each conduct you kept. The run dump lists them by name, and `-scores` prints the marks after each win.
+
+
 Unknown things
 --------------
 
