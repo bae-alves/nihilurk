@@ -109,7 +109,7 @@ settle() {
 # not moved since.
 percept() {
     stat -c %s "$dir/raw" > "$dir/shown"
-    lua "$screen" "$dir/raw" "" 25 80 --percept
+    lua "$screen" "$dir/raw" "" 25 80 --percept || { echo "serve.sh: screen.lua could not draw the screen; is lua installed?" >&2; return 1; }
     if alive; then echo end; else echo over; return 1; fi
 }
 

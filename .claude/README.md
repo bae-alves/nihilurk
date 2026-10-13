@@ -10,7 +10,7 @@ How Claude Code is set up for nihilurk. Open the repo root in Claude Code and th
 | `settings.json` | Permissions and hooks. | yes |
 | `commands/` | Slash commands. | yes |
 | `skills/` | `play-nihilurk`: plays the game through a pty and prints the screen, so Claude can see a change working in the real game. | yes |
-| `hooks/` | `rustfmt.lua` formats each `.rs` file Claude writes. `rustfmt_test.lua` checks it. | yes |
+| `hooks/` | `rustfmt.lua` formats each `.rs` file Claude writes. `rustfmt_test.lua` checks it. `session-start.sh` installs Lua in a Claude Code cloud session that lacks it. | yes |
 | `journal.local.md` | Dated notes Claude keeps about this repo. | no |
 | `settings.local.json` | One person's own permissions. | no |
 | `tutorial-inventions.md` | Names the tutorials and how-tos use as worked examples. None may exist in the game. | yes |
