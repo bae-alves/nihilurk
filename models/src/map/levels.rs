@@ -581,6 +581,7 @@ pub fn initialize_world(world: &mut World) {
     world.insert_resource(Depth { what: 1 });
     world.insert_resource(FloorChanges::default());
     world.init_resource::<Kills>();
+    world.init_resource::<crate::conduct::Conducts>();
     world.insert_resource(BloodStains::new());
     world.insert_resource(Smoke::new());
     world.insert_resource(Corpses::new());

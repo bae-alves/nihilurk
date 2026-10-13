@@ -166,6 +166,7 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
     if !would_help(world, taker, effect) {
         return None;
     }
+    crate::conduct::player_broke(world, taker, crate::conduct::Conduct::Coins);
     let name = display_name(world, item);
     pay_out_value(world, item);
     let line = apply(world, taker, effect, amount);

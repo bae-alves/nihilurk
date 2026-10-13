@@ -11,11 +11,11 @@
 
 use std::time::Duration;
 
+use crate::input::{poll, read};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use crossterm::event::{
     Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-    poll, read,
 };
 
 use crate::constants::timing::{INCAPACITATED_PAUSE_MS, TRAVEL_BLINK_MS};
@@ -3843,5 +3843,44 @@ mod tests {
         w.resource_mut::<PackIsOpen>().open = true;
         dispatch_mouse(&mut w, click(MouseButton::Right, goal), (0, 0)).unwrap();
         assert!(!w.resource::<AutoExplore>().active);
+    }
+    /// What a run has become after `keys`: the log, the place, the floor and the
+    /// next roll. Two runs of one seed and one key list must agree on all four,
+    /// which is the whole contract a replay stands on.
+    fn run_fingerprint(seed: u64, keys: &str) -> (Vec<String>, Position, u8, u64) {
+        use rand::RngCore;
+        let mut w = modal_world(seed);
+        let mut schedule = models::turn_schedule();
+        schedule.run(&mut w);
+        for c in keys.chars() {
+            if !w.resource::<models::GameState>().is_running {
+                break;
+            }
+            if dispatch_key(&mut w, press(c)).unwrap() {
+                schedule.run(&mut w);
+            }
+        }
+        let log = w.resource::<GameLog>().history.clone();
+        let depth = w.resource::<Depth>().what;
+        let roll = w.resource_mut::<GameRng>().0.next_u64();
+        (log, player_pos(&mut w), depth, roll)
+    }
+
+    #[test]
+    fn one_seed_and_one_key_list_play_out_the_same_run() {
+        let keys: String = "hjklyubn>. "
+            .chars()
+            .cycle()
+            .enumerate()
+            .map(|(i, c)| if i % 7 == 3 { 'l' } else { c })
+            .take(600)
+            .collect();
+        for seed in 0..20 {
+            assert_eq!(
+                run_fingerprint(seed, &keys),
+                run_fingerprint(seed, &keys),
+                "seed {seed}: two plays of the same keys diverged"
+            );
+        }
     }
 }

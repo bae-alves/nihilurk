@@ -103,6 +103,19 @@ fn render(world: &mut World, screen_text: &str, outcome: Outcome, when: &str) ->
             .iter()
             .map(|(name, count)| format!("{count:>width$} {name}")),
     );
+    if outcome == Outcome::Win {
+        let kept = models::conduct::kept_mask(world);
+        lines.push(strings::morgue_conducts_title(
+            models::conduct::bonus_percent(kept),
+        ));
+        lines.extend(
+            Conduct::ALL
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| kept & c.bit() != 0)
+                .map(|(i, _)| strings::conduct_name(i).to_string()),
+        );
+    }
     lines.push(strings::morgue_messages_title().to_string());
     lines.extend(world.resource::<GameLog>().history.iter().cloned());
     lines.join("\n") + "\n"
@@ -164,6 +177,20 @@ mod tests {
         let moth = lines.iter().position(|l| l.ends_with("1 fixture-moth"));
         assert!(gnat.is_some() && gnat < moth, "most-killed first:\n{text}");
         assert!(lines.contains(&"fixture log line"), "{text}");
+    }
+
+    #[test]
+    fn a_won_dump_lists_the_conducts_kept_and_a_lost_one_does_not() {
+        let mut w = fixture_world();
+        models::conduct::broke(&mut w, models::Conduct::Potions);
+
+        let won = render(&mut w, "", Outcome::Win, "2026-10-12 14:15");
+        let lost = render(&mut w, "", Outcome::LoseDescent, "2026-10-12 14:15");
+
+        assert!(won.contains("-- Conducts (+120%) --"), "{won}");
+        assert!(won.contains("no scrolls"), "{won}");
+        assert!(!won.contains("no potions"), "{won}");
+        assert!(!lost.contains("Conducts"), "{lost}");
     }
 
     #[test]

@@ -95,6 +95,7 @@ pub fn pay_for_spell(world: &mut World, user: Entity, effect: SpellEffect) -> bo
     if let Some(mut magic) = world.get_mut::<Magic>(user) {
         magic.points -= cost;
     }
+    crate::conduct::player_broke(world, user, crate::conduct::Conduct::Spells);
     true
 }
 

@@ -13,11 +13,12 @@ use std::time::Duration;
 
 use bevy_ecs::prelude::*;
 use crossterm::{
-    event::{Event, KeyEventKind, poll, read},
+    event::{Event, KeyEventKind},
     style::Color,
     terminal::size,
 };
 
+use crate::input::{poll, read};
 use models::*;
 
 use crate::constants::timing::{ANIMATION_SLOWDOWN, BASE_FRAME_MS};
@@ -1164,6 +1165,7 @@ pub fn render_win<W: Write>(
     offset: (u16, u16),
     player_name: &str,
     score: i64,
+    marks: &[(char, Color)],
 ) -> std::io::Result<()> {
     screen.clear();
 
@@ -1179,6 +1181,15 @@ pub fn render_win<W: Write>(
     let score_line = strings::score_line(&score_text(score));
     screen.puts(centered_x(&score_line), y, &score_line, Color::Yellow);
     y += 2;
+
+    if !marks.is_empty() {
+        let row: String = marks.iter().map(|(mark, _)| *mark).collect();
+        let x = centered_x(&row);
+        for (i, (mark, color)) in marks.iter().enumerate() {
+            screen.puts(x + i as u16, y, &mark.to_string(), *color);
+        }
+        y += 2;
+    }
 
     let prompt = strings::press_any_key_to_depart();
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);

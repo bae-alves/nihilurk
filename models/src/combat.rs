@@ -767,6 +767,7 @@ fn land_swing(world: &mut World, attacker: Entity, target: Entity, swing: &Swing
         && (garrote || (!swing.glancing && blade_vorpal));
     let garrote = garrote && vorpal;
 
+    crate::conduct::player_broke(world, attacker, crate::conduct::Conduct::Attacking);
     let hp_before = world.get::<Fighter>(target).map(|f| f.hp);
     let mut lethal = false;
     if let Some(mut fighter) = world.get_mut::<Fighter>(target) {

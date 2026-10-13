@@ -94,6 +94,7 @@ pub(crate) fn offer(world: &mut World, victim: Entity, item: Entity, treat_name:
 /// make room) and it does not follow the player downstairs
 /// (`crate::map::levels` only carries the [`Helper`] along).
 pub fn charm(world: &mut World, mob: Entity) {
+    crate::conduct::broke(world, crate::conduct::Conduct::Charming);
     if world.get::<AlwaysHelper>(mob).is_some() {
         recruit(world, mob);
         return;
@@ -108,6 +109,7 @@ pub fn charm(world: &mut World, mob: Entity) {
 /// Makes `mob` the player's Helper. A Helper already at the player's side
 /// explodes first: there is only ever one.
 pub fn recruit(world: &mut World, mob: Entity) {
+    crate::conduct::broke(world, crate::conduct::Conduct::Companion);
     if let Some(old) = the_helper(world).filter(|&old| old != mob) {
         explode(world, old);
     }

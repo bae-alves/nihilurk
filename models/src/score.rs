@@ -267,3 +267,20 @@ fn player_score(world: &mut World) -> Option<Mut<'_, Score>> {
         .next()?;
     world.get_mut::<Score>(player)
 }
+
+/// Pays a won run for the conducts it kept: [`crate::conduct::bonus_percent`]
+/// of the score, added on top. Settles the turn's kills first, like [`double`],
+/// so the percentage is taken of a score that already holds them. Returns the
+/// mask it paid for, which is what the leaderboard and the win screen show.
+///
+/// Called once, by the victory sequence. Paying twice would pay twice.
+pub fn pay_conducts(world: &mut World) -> u16 {
+    settle_kills(world);
+    let mask = crate::conduct::kept_mask(world);
+    let percent = crate::conduct::bonus_percent(mask);
+    if let Some(mut score) = player_score(world) {
+        let bonus = score.value.saturating_mul(percent) / 100;
+        score.value = score.value.saturating_add(bonus);
+    }
+    mask
+}

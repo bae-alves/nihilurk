@@ -455,6 +455,7 @@ fn resolve_wand_throw(
     effect: WandEffect,
     seen_name: &str,
 ) {
+    crate::conduct::player_broke(world, thrower, crate::conduct::Conduct::Wands);
     let charges = world
         .get::<Battery>(item)
         .map(|b| b.charges as i32)
@@ -676,6 +677,7 @@ fn put_back(world: &mut World, carrier: Entity, item: Entity, slot_idx: Option<u
 fn resolve_throw(world: &mut World, throw: WantsToThrow, from: Option<Position>) {
     let by_hand = world.get::<LaunchedBy>(throw.item).is_none();
     let thrower_is_player = world.get::<Player>(throw.thrower).is_some();
+    crate::conduct::player_broke(world, throw.thrower, crate::conduct::Conduct::Ranged);
 
     let Some(landing) = deliver_throw(world, throw, from) else {
         return;

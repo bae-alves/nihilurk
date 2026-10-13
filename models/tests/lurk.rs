@@ -313,6 +313,26 @@ fn the_lurk_sees_its_stealth_range_on_floor_tiles_only() {
 }
 
 #[test]
+fn the_lurk_shows_no_stealth_range_while_standing_on_a_passage() {
+    let mut w = lurk_world(1);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+    w.resource_mut::<Map>().tiles[tile_index(here.x, here.y)] = TileType::Passage;
+    assert!(stealth_range_tiles(&w, p).is_empty());
+}
+
+#[test]
+fn the_lurk_shows_no_stealth_range_in_an_unlit_dark_room() {
+    let mut w = lurk_world(1);
+    let p = player(&mut w);
+    let here = *w.get::<Position>(p).unwrap();
+    w.resource_mut::<Map>()
+        .dark
+        .insert(tile_index(here.x, here.y));
+    assert!(stealth_range_tiles(&w, p).is_empty());
+}
+
+#[test]
 fn nihil_has_no_stealth_range_to_see() {
     let (w, p) = common::fresh_run(1);
     assert!(stealth_range_tiles(&w, p).is_empty());

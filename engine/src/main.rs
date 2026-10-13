@@ -4,16 +4,19 @@
 //! — everything else the turn touches lives in `models`.
 
 mod constants;
+mod input;
 mod morgue;
+mod recording;
 mod screen;
 mod update;
 mod view;
+use input::read;
 use models::*;
 
 use bevy_ecs::prelude::{With, World};
 use crossterm::{
     cursor::{Hide, Show},
-    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, read},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     style::{Color as CrosstermColor, Print, ResetColor, SetForegroundColor},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -131,7 +134,7 @@ fn run_death_screens<W: std::io::Write>(
         false => models::leaderboard::Outcome::LoseDescent,
     };
     let board = models::leaderboard::Board::of(world);
-    let _ = models::leaderboard::record(board, &name, outcome, score);
+    let _ = models::leaderboard::record(board, &name, outcome, score, 0);
     let dump = morgue::write(world, &screen.shown_text(), outcome).ok();
     let _ = models::bones::deposit(world);
 
@@ -152,13 +155,20 @@ fn run_victory_screens<W: std::io::Write>(
     screen: &mut view::Screen,
 ) -> std::io::Result<Option<PathBuf>> {
     let offset = view::centering_offset(world);
+    let conducts = models::pay_conducts(world);
     let (name, score) = {
         let mut q = world.query_filtered::<&Score, With<Player>>();
         let score = q.iter(world).next().map(|s| s.value).unwrap_or(0);
         (world.resource::<PlayerName>().what.clone(), score)
     };
     let board = models::leaderboard::Board::of(world);
-    let _ = models::leaderboard::record(board, &name, models::leaderboard::Outcome::Win, score);
+    let _ = models::leaderboard::record(
+        board,
+        &name,
+        models::leaderboard::Outcome::Win,
+        score,
+        conducts,
+    );
     let dump = morgue::write(
         world,
         &screen.shown_text(),
@@ -166,7 +176,8 @@ fn run_victory_screens<W: std::io::Write>(
     )
     .ok();
 
-    view::render_win(stdout, screen, offset, &name, score)?;
+    let marks = models::conduct::marks(conducts, models::stripes(world));
+    view::render_win(stdout, screen, offset, &name, score, &marks)?;
     wait_for_key(|_| true)?;
     Ok(dump)
 }
@@ -244,10 +255,14 @@ fn print_leaderboard(
         return writeln!(out, "{}", strings::leaderboard_empty());
     }
     writeln!(out, "{}", strings::leaderboard_header(entries.len()))?;
-    for (rank, (name, outcome, score, when)) in entries.into_iter().enumerate() {
+    for (rank, (name, outcome, score, when, conducts)) in entries.into_iter().enumerate() {
+        let marks: String = models::conduct::marks(conducts, &[])
+            .into_iter()
+            .map(|(mark, _)| mark)
+            .collect();
         writeln!(
             out,
-            "{}",
+            "{} {marks}",
             strings::leaderboard_entry(rank + 1, &name, &outcome.to_string(), score, &when)
         )?;
     }
@@ -281,6 +296,44 @@ fn dropped_mode_flags(fast: bool, endless: bool, loading: bool) -> Option<String
 /// Floors in a `-fast` run.
 const FAST_FLOORS: u8 = 6;
 
+type Recording = (recording::Header, Vec<(u64, Event)>);
+
+/// Finds `-v FILE` in `args`. With one, loads the recording and returns the
+/// arguments to run with instead: the rest of the line, then the flags that
+/// rebuild the recorded run (a later `-s` wins over an earlier one).
+fn load_replay(args: &[String]) -> Result<(Vec<String>, Option<Recording>), String> {
+    let Some(at) = args.iter().skip(1).position(|a| canonical_flag(a) == "-v") else {
+        return Ok((args.to_vec(), None));
+    };
+    let at = at + 1;
+    let Some(path) = args.get(at + 1) else {
+        return Ok((args.to_vec(), None));
+    };
+    let fail = |e: String| strings::replay_unreadable(path, &e);
+    let text = std::fs::read_to_string(path).map_err(|e| fail(e.to_string()))?;
+    let (header, events) = recording::parse(&text).map_err(fail)?;
+    let mut rebuilt: Vec<String> = args[..at].iter().chain(&args[at + 2..]).cloned().collect();
+    rebuilt.extend([
+        "-s".into(),
+        header.seed.to_string(),
+        "-ns".into(),
+        "-nobones".into(),
+    ]);
+    rebuilt.extend(
+        header
+            .body
+            .iter()
+            .flat_map(|b| b.split(' ').map(String::from)),
+    );
+    if header.endless {
+        rebuilt.push("-endless".into());
+    }
+    if header.fast {
+        rebuilt.push("-fast".into());
+    }
+    Ok((rebuilt, Some((header, events))))
+}
+
 /// Maps a double-dash longhand to the short flag the parser matches on.
 /// Anything else comes back unchanged.
 fn canonical_flag(arg: &str) -> &str {
@@ -299,6 +352,8 @@ fn canonical_flag(arg: &str) -> &str {
         "--fast" | "--bullet" | "--quick" | "-bullet" | "-quick" => "-fast",
         "--anim-rate" => "-anim-rate",
         "--keymap" => "-keymap",
+        "--replay" => "-v",
+        "--no-recording" => "-nrec",
         "--content" => "-content",
         "--pride" => "-pride",
         "--prideoff" => "-prideoff",
@@ -390,6 +445,13 @@ fn main() -> std::io::Result<()> {
     {
         return finish_listing(print_help(&mut stdout().lock()));
     }
+    let (args, replay) = match load_replay(&args) {
+        Ok(found) => found,
+        Err(message) => {
+            eprintln!("{message}");
+            return Ok(());
+        }
+    };
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
     let mut no_save = false;
@@ -412,6 +474,8 @@ fn main() -> std::io::Result<()> {
     let mut positional: Option<String> = None;
     let mut anim_rate: f32 = 1.0;
     let mut keymap_path: Option<PathBuf> = None;
+    let mut no_rec = false;
+    let mut replaying = false;
     let mut first = true;
     let mut stray_positional: Option<String> = None;
     let mut invalid_argument: Option<String> = None;
@@ -481,6 +545,10 @@ fn main() -> std::io::Result<()> {
                         invalid_argument.get_or_insert(flag_with_value("-anim-rate", value));
                     }
                 }
+            }
+            "-nrec" => no_rec = true,
+            "-v" => {
+                invalid_argument.get_or_insert(flag_with_value("-v", None));
             }
             "-keymap" => {
                 let value = iter.next();
@@ -558,9 +626,10 @@ fn main() -> std::io::Result<()> {
     }
 
     let data_dir = models::data_dir();
-    let keymap = match &keymap_path {
-        Some(path) => models::load_keymap(path),
-        None => models::load_keymap_if_present(&data_dir.join("keymap.txt")),
+    let keymap = match (&replay, &keymap_path) {
+        (Some((header, _)), _) => models::parse_keymap(header.keymap.as_deref().unwrap_or("")),
+        (None, Some(path)) => models::load_keymap(path),
+        (None, None) => models::load_keymap_if_present(&data_dir.join("keymap.txt")),
     };
     let keymap = match keymap {
         Ok(keymap) => keymap,
@@ -570,7 +639,23 @@ fn main() -> std::io::Result<()> {
         }
     };
     let mut load_path: Option<(PathBuf, String)> = None;
-    if let Some(arg) = positional {
+    if let Some((header, events)) = replay {
+        if header.version != env!("CARGO_PKG_VERSION") {
+            eprintln!(
+                "{}",
+                strings::replay_other_version(&header.version, env!("CARGO_PKG_VERSION"))
+            );
+        }
+        for key in recording::SHAPING_ENV {
+            match header.env.iter().find(|(k, _)| k == key) {
+                Some((_, value)) => unsafe { std::env::set_var(key, value) },
+                None => unsafe { std::env::remove_var(key) },
+            }
+        }
+        player_name = header.name;
+        input::replay_from(events);
+        replaying = true;
+    } else if let Some(arg) = positional {
         match find_save(&arg, &data_dir) {
             Some(found) => load_path = Some((found, arg)),
             None => player_name = arg,
@@ -627,6 +712,32 @@ fn main() -> std::io::Result<()> {
     let seed_value = seed.unwrap_or_else(rand::random);
     world.insert_resource(models::GameRng(ChaCha12Rng::seed_from_u64(seed_value)));
     world.insert_resource(models::RngSeed(seed_value));
+    if !replaying && !no_rec && load_path.is_none() {
+        let header = recording::Header {
+            version: env!("CARGO_PKG_VERSION").into(),
+            seed: seed_value,
+            name: player_name.clone(),
+            body: body_arg.clone(),
+            endless,
+            fast,
+            nobones: no_bones,
+            env: recording::SHAPING_ENV
+                .iter()
+                .filter_map(|k| Some((k.to_string(), std::env::var(k).ok()?)))
+                .filter(|(_, v)| !v.contains('\n'))
+                .collect(),
+            keymap: std::fs::read_to_string(
+                keymap_path
+                    .clone()
+                    .unwrap_or_else(|| data_dir.join("keymap.txt")),
+            )
+            .ok(),
+        };
+        let path = recording::path_for(&data_dir, &player_name, seed_value);
+        if let Ok(file) = recording::start(&path, &header) {
+            input::record_to(Box::new(file));
+        }
+    }
     world.init_resource::<PackIsOpen>();
     world.insert_resource(RenderConfig {
         centered: centered_mode,
@@ -767,6 +878,17 @@ fn main() -> std::io::Result<()> {
         if world.resource::<Ending>().player_dead || world.resource::<Ending>().player_won {
             break;
         }
+    }
+
+    if replaying {
+        let outcome = match world.resource::<Ending>() {
+            e if e.player_won => "the run was won".to_string(),
+            e if e.player_dead => format!("the run ended in death: {}", e.cause),
+            _ => "the recording ended mid-run".to_string(),
+        };
+        drop(guard);
+        println!("{}", strings::replay_ended(&outcome));
+        return Ok(());
     }
 
     if world.resource::<Ending>().player_won {

@@ -155,12 +155,16 @@ fn wear_lurk(world: &mut World, player: Entity) {
 /// The floor tiles within [`STEALTH_RANGE`] of `player`, where a stealthy
 /// body is noticed: the lurk's own sense of how far its quiet reaches, and
 /// nobody else's. Doors, stairs, water and rock are not floor. Empty for any
-/// body but the lurk, ring of stealth or no.
+/// body but the lurk, ring of stealth or no, and while the lurk stands in a
+/// passage or an unlit dark room.
 pub fn stealth_range_tiles(world: &World, player: Entity) -> Vec<(u16, u16)> {
     let (Some(_), Some(here)) = (world.get::<Lurk>(player), world.get::<Position>(player)) else {
         return Vec::new();
     };
     let map = world.resource::<Map>();
+    if matches!(map.tile(here.x, here.y), TileType::Passage) || map.is_dark(here.x, here.y) {
+        return Vec::new();
+    }
     let r = STEALTH_RANGE;
     let mut tiles = Vec::new();
     for dy in -r..=r {

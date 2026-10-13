@@ -314,7 +314,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 9;
+pub const SAVE_VERSION: u16 = 10;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -377,6 +377,8 @@ struct SaveGame<'a> {
     floors: u8,
     /// [`Endless::enabled`]: whether the run is `-endless`, so a reload keeps it.
     endless: bool,
+    /// [`crate::conduct::Conducts`]: the broken ones, a bit each.
+    conducts: u16,
 }
 
 /// The winner's details, pulled from a won game's clear-data save file.
@@ -626,6 +628,9 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .map(|(name, count)| (Cow::Borrowed(name.as_str()), *count))
                 .collect()
         }),
+        conducts: world
+            .get_resource::<crate::conduct::Conducts>()
+            .map_or(0, |c| c.broken),
     };
 
     write_atomically(path, |writer| {
@@ -743,6 +748,9 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             .iter()
             .map(|(name, count)| (strip_control_chars(name), *count))
             .collect(),
+    });
+    world.insert_resource(crate::conduct::Conducts {
+        broken: save.conducts,
     });
     world.insert_resource(RngSeed(save.rng_seed));
     world.insert_resource(GameRng(save.rng_state));
@@ -1268,6 +1276,7 @@ mod tests {
             kills: Vec::new(),
             floors: FINAL_DEPTH,
             endless: false,
+            conducts: 0,
         }
     }
 

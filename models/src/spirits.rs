@@ -674,8 +674,14 @@ pub(crate) fn pink_demon_event(world: &mut World, player: Entity, spirit: Entity
 /// menu to wait on.
 pub(crate) fn angel_event(world: &mut World, player: Entity, spirit: Entity) {
     revoke_all(world, player);
+    let mut halved = false;
     if let Some(mut f) = world.get_mut::<Fighter>(player) {
+        let before = f.hp;
         f.hp = (f.hp / TEST_OF_FAITH_HP_DIVISOR).max(1);
+        halved = f.hp < before;
+    }
+    if halved {
+        crate::conduct::broke(world, crate::conduct::Conduct::Damage);
     }
     world.entity_mut(player).insert(TestOfFaithLedger);
     world

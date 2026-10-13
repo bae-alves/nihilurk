@@ -44,6 +44,30 @@ struct Entry {
     /// [`format_timestamp`] rather than stored pre-formatted, so the file
     /// keeps the one number and the rendering can change without touching it.
     epoch_secs: u64,
+    /// The [`crate::conduct::Conduct`]s kept, a bit each. Only a win keeps any.
+    conducts: u16,
+}
+
+/// An [`Entry`] as version 1 of the file wrote it, before conducts. Read, never
+/// written: the first write after a read turns the whole board into version 2.
+#[derive(Serialize, Deserialize)]
+struct EntryV1 {
+    name: String,
+    outcome: Outcome,
+    score: i64,
+    epoch_secs: u64,
+}
+
+impl From<EntryV1> for Entry {
+    fn from(old: EntryV1) -> Self {
+        Entry {
+            name: old.name,
+            outcome: old.outcome,
+            score: old.score,
+            epoch_secs: old.epoch_secs,
+            conducts: 0,
+        }
+    }
 }
 
 /// Which board a run is scored on. Each has its own file, so a six-floor run
@@ -90,7 +114,10 @@ pub fn path(board: Board) -> PathBuf {
 /// The leaderboard file's format version, written ahead of the entries. A file
 /// under any other version is refused, never overwritten, so a format change
 /// can't wipe the board.
-const LEADERBOARD_VERSION: u16 = 1;
+const LEADERBOARD_VERSION: u16 = 2;
+
+/// The version before conducts. Still read; see [`EntryV1`].
+const LEADERBOARD_V1: u16 = 1;
 
 /// How many rows the file keeps, and `-scores` prints. A run that doesn't
 /// beat the lowest of these is dropped on write rather than kept and hidden,
@@ -101,8 +128,14 @@ pub const LEADERBOARD_STORE_LIMIT: usize = 10;
 /// scores ever seen. Best-effort: a leaderboard nobody can write to (a
 /// read-only directory) shouldn't stop the player's run from ending, so a
 /// caller that cares can log the `Err` rather than propagate it.
-pub fn record(board: Board, name: &str, outcome: Outcome, score: i64) -> std::io::Result<()> {
-    record_to(path(board), name, outcome, score, now_epoch_secs())
+pub fn record(
+    board: Board,
+    name: &str,
+    outcome: Outcome,
+    score: i64,
+    conducts: u16,
+) -> std::io::Result<()> {
+    record_to(path(board), name, outcome, score, conducts, now_epoch_secs())
 }
 
 /// Seconds since the Unix epoch, UTC; 0 on a clock set before it.
@@ -118,6 +151,7 @@ fn record_to(
     name: &str,
     outcome: Outcome,
     score: i64,
+    conducts: u16,
     epoch_secs: u64,
 ) -> std::io::Result<()> {
     let path = path.as_ref();
@@ -128,6 +162,7 @@ fn record_to(
         outcome,
         score,
         epoch_secs,
+        conducts,
     });
     entries.sort_by_key(|e| std::cmp::Reverse(e.score));
     entries.truncate(LEADERBOARD_STORE_LIMIT);
@@ -154,27 +189,45 @@ fn lock_beside(path: &Path) -> std::io::Result<std::fs::File> {
 
 /// Every entry the file holds, already in score order. Empty if nothing has
 /// been recorded yet. A file that won't parse, or carries another
-/// [`LEADERBOARD_VERSION`], is an `InvalidData` error: the scores in it are
+/// [`LEADERBOARD_VERSION`] (or the one before it, which is upgraded), is an `InvalidData` error: the scores in it are
 /// still someone's, so nothing here starts a fresh board over them.
 fn all(path: impl AsRef<Path>) -> std::io::Result<Vec<Entry>> {
     let bytes = match std::fs::read(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         read => read?,
     };
-    match postcard::from_bytes::<(u16, Vec<Entry>)>(&bytes) {
-        Ok((LEADERBOARD_VERSION, entries)) => Ok(entries),
-        _ => Err(std::io::ErrorKind::InvalidData.into()),
+    let invalid = || std::io::Error::from(std::io::ErrorKind::InvalidData);
+    let (version, _) = postcard::take_from_bytes::<u16>(&bytes).map_err(|_| invalid())?;
+    match version {
+        LEADERBOARD_VERSION => postcard::from_bytes::<(u16, Vec<Entry>)>(&bytes)
+            .map(|(_, entries)| entries)
+            .map_err(|_| invalid()),
+        LEADERBOARD_V1 => postcard::from_bytes::<(u16, Vec<EntryV1>)>(&bytes)
+            .map(|(_, old)| old.into_iter().map(Entry::from).collect())
+            .map_err(|_| invalid()),
+        _ => Err(invalid()),
     }
 }
 
 /// The `limit` highest scores ever recorded, highest first, each with a
 /// "YYYY-MM-DD HH:MM" UTC rendering of when the run ended. Errs the way
 /// [`all`] does.
-pub fn top(board: Board, limit: usize) -> std::io::Result<Vec<(String, Outcome, i64, String)>> {
+pub fn top(
+    board: Board,
+    limit: usize,
+) -> std::io::Result<Vec<(String, Outcome, i64, String, u16)>> {
     Ok(all(path(board))?
         .into_iter()
         .take(limit)
-        .map(|e| (e.name, e.outcome, e.score, format_timestamp(e.epoch_secs)))
+        .map(|e| {
+            (
+                e.name,
+                e.outcome,
+                e.score,
+                format_timestamp(e.epoch_secs),
+                e.conducts,
+            )
+        })
         .collect())
 }
 
@@ -258,9 +311,9 @@ mod tests {
         let path = temp_path("roundtrip");
         let _ = std::fs::remove_file(&path);
 
-        record_to(&path, "GUEST", Outcome::LoseDescent, 100, 1).unwrap();
-        record_to(&path, "BAE", Outcome::Win, 4200, 2).unwrap();
-        record_to(&path, "AL-OK", Outcome::LoseAscent, 900, 3).unwrap();
+        record_to(&path, "GUEST", Outcome::LoseDescent, 100, 0, 1).unwrap();
+        record_to(&path, "BAE", Outcome::Win, 4200, 0, 2).unwrap();
+        record_to(&path, "AL-OK", Outcome::LoseAscent, 900, 0, 3).unwrap();
 
         let entries: Vec<_> = all(&path)
             .unwrap()
@@ -285,13 +338,64 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         for i in 0..(LEADERBOARD_STORE_LIMIT + 5) {
-            record_to(&path, "P", Outcome::Win, i as i64, 0).unwrap();
+            record_to(&path, "P", Outcome::Win, i as i64, 0, 0).unwrap();
         }
 
         let entries = all(&path).unwrap();
         let _ = std::fs::remove_file(&path);
         assert_eq!(entries.len(), LEADERBOARD_STORE_LIMIT);
         assert_eq!(entries.last().unwrap().score, 5);
+    }
+
+    #[test]
+    fn a_conduct_mask_round_trips_with_its_run() {
+        let path = temp_path("mask");
+        let _ = std::fs::remove_file(&path);
+
+        record_to(&path, "BAE", Outcome::Win, 4200, 0b101, 2).unwrap();
+
+        let masks: Vec<u16> = all(&path)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.conducts)
+            .collect();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(masks, vec![0b101]);
+    }
+
+    #[test]
+    fn a_version_one_board_is_read_kept_and_upgraded_on_the_next_write() {
+        let path = temp_path("v1");
+        let old = vec![EntryV1 {
+            name: "OLD".into(),
+            outcome: Outcome::Win,
+            score: 777,
+            epoch_secs: 5,
+        }];
+        std::fs::write(&path, postcard::to_allocvec(&(1u16, old)).unwrap()).unwrap();
+
+        let read: Vec<_> = all(&path)
+            .unwrap()
+            .into_iter()
+            .map(|e| (e.name, e.score, e.conducts))
+            .collect();
+        assert_eq!(read, vec![("OLD".to_string(), 777, 0)]);
+
+        record_to(&path, "NEW", Outcome::Win, 900, 0b11, 6).unwrap();
+        let after: Vec<_> = all(&path)
+            .unwrap()
+            .into_iter()
+            .map(|e| (e.name, e.conducts))
+            .collect();
+        let version = postcard::take_from_bytes::<u16>(&std::fs::read(&path).unwrap())
+            .unwrap()
+            .0;
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(version, LEADERBOARD_VERSION);
+        assert_eq!(
+            after,
+            vec![("NEW".to_string(), 0b11), ("OLD".to_string(), 0)]
+        );
     }
 
     #[test]
@@ -305,7 +409,7 @@ mod tests {
         std::fs::write(&path, b"\xff\xff\xff not a leaderboard").unwrap();
 
         assert!(all(&path).is_err());
-        assert!(record_to(&path, "BAE", Outcome::Win, 1, 0).is_err());
+        assert!(record_to(&path, "BAE", Outcome::Win, 1, 0, 0).is_err());
 
         assert_eq!(
             std::fs::read(&path).unwrap(),
@@ -321,7 +425,7 @@ mod tests {
         let bytes = postcard::to_allocvec(&(LEADERBOARD_VERSION + 1, theirs)).unwrap();
         std::fs::write(&path, &bytes).unwrap();
 
-        assert!(record_to(&path, "BAE", Outcome::Win, 1, 0).is_err());
+        assert!(record_to(&path, "BAE", Outcome::Win, 1, 0, 0).is_err());
 
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
         let _ = std::fs::remove_file(&path);
@@ -339,7 +443,7 @@ mod tests {
                     let (path, start) = (&path, &start);
                     s.spawn(move || {
                         start.wait();
-                        record_to(path, "P", Outcome::Win, score, 0).unwrap();
+                        record_to(path, "P", Outcome::Win, score, 0, 0).unwrap();
                     });
                 }
             });

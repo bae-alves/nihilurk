@@ -127,6 +127,7 @@ use bevy_ecs::query::With;
 use bevy_ecs::world::World;
 
 use crate::components::*;
+use crate::conduct::Conduct;
 use crate::equipment::toggle_equipped;
 use crate::helpers::item_label;
 use crate::identify::{display_name, with_the};
@@ -325,6 +326,8 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
             .add(strings::you_zap(&seen_name));
     }
 
+    break_use_conducts(world, item_use.user, &plan);
+
     if let Some(eff) = plan.potion {
         apply_potion_effect(world, item_use.user, eff);
     }
@@ -351,6 +354,22 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
             .resource_mut::<GameLog>()
             .add(strings::rune_is_inert().to_string()),
         None => {}
+    }
+}
+
+/// Breaks the conduct for each kind of thing `plan` is about to do, if the
+/// user is the player. A rune only counts when it was charged to fire.
+fn break_use_conducts(world: &mut World, user: Entity, plan: &UsePlan) {
+    let used = [
+        (plan.potion.is_some(), Conduct::Potions),
+        (plan.wand.is_some(), Conduct::Wands),
+        (plan.scroll.is_some(), Conduct::Scrolls),
+        (matches!(plan.rune, Some((_, true))), Conduct::Runes),
+    ];
+    for (did, conduct) in used {
+        if did {
+            crate::conduct::player_broke(world, user, conduct);
+        }
     }
 }
 

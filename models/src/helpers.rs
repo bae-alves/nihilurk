@@ -496,6 +496,7 @@ pub(crate) fn armor_takes_last_hit(world: &mut World, entity: Entity) -> bool {
     world
         .resource_mut::<GameLog>()
         .add_colored(strings::armor_takes_the_blow(&name), LogCategory::Wounded);
+    crate::conduct::broke(world, crate::conduct::Conduct::Armor);
     true
 }
 
@@ -509,6 +510,7 @@ pub(crate) fn armor_takes_last_hit(world: &mut World, entity: Entity) -> bool {
 /// [`crate::combat::resolve_attack`], which applies its own. Anything that
 /// should notice a wound goes in here rather than in one of them.
 pub(crate) fn took_damage(world: &mut World, entity: Entity, hp_before: Option<i32>) {
+    crate::conduct::player_broke(world, entity, crate::conduct::Conduct::Damage);
     crate::items::break_promises(world, entity);
     warn_if_newly_low(world, entity, hp_before);
     crate::spirits::on_wounded(world, entity);

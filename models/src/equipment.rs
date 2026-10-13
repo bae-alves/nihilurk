@@ -315,6 +315,8 @@ pub fn toggle_equipped(world: &mut World, user: Entity, item: Entity) -> bool {
         return true;
     }
 
+    crate::conduct::player_broke(world, user, crate::conduct::Conduct::Gear);
+
     if let Some(recipient) = merge_recipient(world, user, slot, item) {
         merge_curses(world, user, item, recipient);
         return true;
