@@ -658,6 +658,7 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();
     world.init_resource::<AutoPickup>();
+    world.init_resource::<LeftBehind>();
     world.init_resource::<FastMove>();
     world.init_resource::<TravelCursor>();
     world.init_resource::<MagicMapReveal>();

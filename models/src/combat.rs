@@ -223,7 +223,7 @@ pub(crate) fn finish_indirect_kill(world: &mut World, entity: Entity, source: Op
         blank_player_glyph(world, entity);
         let mut ending = world.resource_mut::<Ending>();
         ending.player_dead = true;
-        ending.cause = strings::killer_unknown().to_string();
+        ending.cause = strings::mangled_beyond_recognition().to_string();
         return;
     }
 

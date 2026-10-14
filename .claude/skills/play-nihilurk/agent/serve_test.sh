@@ -268,4 +268,18 @@ took=$(( ${EPOCHREALTIME/[.,]/} - start ))
 grep -q '^split' <<< "$out" || fail "a split signal lost the screen: $out"
 (( took >= 300000 && took < 1000000 )) || fail "a split signal answered after $((took / 1000)) ms"
 
+# 27. A percept screen.lua cannot draw hangs the session up: a percept with no
+#     screen rows left act.sh waiting on rows that never come. A stand-in lua
+#     that fails plays a machine without one.
+nolua="$(mktemp -d)"
+dirs+=("$nolua")
+printf '#!/bin/sh\necho "lua: command not found" >&2\nexit 127\n' > "$nolua/lua"
+chmod +x "$nolua/lua"
+game cat
+code=0
+PATH="$nolua:$PATH" timeout 5 "$here/act.sh" -d "$dir" > /dev/null 2> "$dir/err" || code=$?
+(( code != 124 )) || fail "act.sh hung on a percept screen.lua could not draw"
+(( code != 0 )) || fail "act.sh passed a percept screen.lua could not draw"
+grep -q 'lua' "$dir/err" || fail "the failure does not name lua: $(cat "$dir/err")"
+
 echo "serve_test: ok"
