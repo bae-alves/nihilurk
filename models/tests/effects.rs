@@ -5,7 +5,7 @@
 //! `match ring_effect { ... }` in a subsystem, the "gear grants what a monster
 //! is born with" tests below are what should start failing.
 
-#[path = "common/monster.rs"]
+#[path = "it/common/monster.rs"]
 mod monster;
 
 use bevy_ecs::prelude::*;

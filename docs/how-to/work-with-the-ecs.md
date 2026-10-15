@@ -201,7 +201,7 @@ Components that only *some* of the kind carry stay off the bundle and go on afte
         world.entity_mut(e).insert(Invisible);
     }
 
-**3. A way to reach it by name.** Add the table to `spawn::spawn_named` and to `spawn::content_names`, and the new kind immediately answers to `NIHILURK_SPAWN`, to `-content`, to every test, and to `models/tests/content.rs`'s "every name spawns and keeps its name" check. If it is *loot* rather than furniture, implement `ItemDef` and give it a `DROPS` row instead — `add-an-item-category.md` is the full recipe.
+**3. A way to reach it by name.** Add the table to `spawn::spawn_named` and to `spawn::content_names`, and the new kind immediately answers to `NIHILURK_SPAWN`, to `-content`, to every test, and to `models/tests/it/content.rs`'s "every name spawns and keeps its name" check. If it is *loot* rather than furniture, implement `ItemDef` and give it a `DROPS` row instead — `add-an-item-category.md` is the full recipe.
 
 Then the bookkeeping, in order:
 
@@ -440,7 +440,7 @@ Every hit of that last one should be a `let … else` or a two-armed expression 
 
 And the one that catches an ECS mistake specifically:
 
-    cargo test --test determinism
+    cargo test --test it determinism::
 
 It pins that a seed produces the same walls and the same floor contents it always has. If a change to *when* something is spawned moves that, you have drawn from the wrong RNG stream — see `map::streams::content_rng`.
 
@@ -458,7 +458,7 @@ Appendix: quick check
 8. Input: push an intent onto its queue and return; the matching system drains it.
 9. System: register it in `models/src/schedule.rs` with an explicit `.after()`, and explain the edge in `../reference/input-and-turn-loop.md`.
 10. Cosmetics: use `get_resource_mut`, roll from `FxRng`, and gate anything that leaks on `player_sees`.
-11. Run `cargo test --workspace`, `cargo clippy --all-targets`, `cargo fmt --all`, and `cargo test --test determinism`.
+11. Run `cargo test --workspace`, `cargo clippy --all-targets`, `cargo fmt --all`, and `cargo test --test it determinism::`.
 
 
 See also

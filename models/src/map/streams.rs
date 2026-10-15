@@ -7,7 +7,7 @@
 //! than drawn from either, which is what lets a save rebuild its map from
 //! nothing but `(seed, depth)`.
 //!
-//! `models/tests/determinism.rs` is the test that holds all three apart.
+//! `models/tests/it/determinism.rs` is the test that holds all three apart.
 
 use bevy_ecs::prelude::*;
 use rand::SeedableRng;
@@ -118,7 +118,7 @@ pub fn level_rng(seed: u64, depth: u8) -> ChaCha12Rng {
 /// stream the *run* spends — combat rolls, item effects, traps springing — and
 /// anything drawn from it while a floor is being built would tie that floor back
 /// to the player's blow-by-blow history rather than to the clean
-/// staircase count. `models/tests/determinism.rs` exists to catch that.
+/// staircase count. `models/tests/it/determinism.rs` exists to catch that.
 pub fn content_rng(seed: u64, depth: u8, changes: u32) -> ChaCha12Rng {
     floor_stream(seed, depth, CONTENT_SALT, changes as u64)
 }

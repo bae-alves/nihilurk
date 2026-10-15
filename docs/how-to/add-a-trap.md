@@ -66,7 +66,7 @@ The recipe
 Then:
 
     cargo build
-    cargo test --test content
+    cargo test --test it content::
     NIHILURK_SPAWN="pit trap" cargo run -p nihilurk
 
 
@@ -156,7 +156,7 @@ Appendix: quick check
 2. Add the `TrapDef` row to `TRAPS` in `models/src/traps.rs`: `weight`, `min_depth`, and `snare_turns` if it holds.
 3. Write the arm in `apply_trap_effect`; log through `seen` and `is_player`, and subtract `total_armor_plus` only.
 4. Write the arm in `trap_flourish`, or an empty one that says why.
-5. Run `cargo build`, then `cargo test --test content`.
+5. Run `cargo build`, then `cargo test --test it content::`.
 6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
 7. Fix the docs: the `TrapEffect` line in `../reference/components.md` (`update-the-docs.md`).
 

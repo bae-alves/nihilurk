@@ -118,7 +118,7 @@ Step 5: prove it, so it stays proved
 
 Looking at it is not the same as knowing it works. Run the table tests:
 
-    cargo test --test content
+    cargo test --test it content::
 
 Several of those tests just read your new row. They checked that no two rows share a name, that every name spawns something, that what spawns keeps the name it was spawned by, and that the loot table can still produce one of everything. Your quarterstaff was included automatically, because those tests iterate the tables too.
 
@@ -245,9 +245,9 @@ Most of a wand's arm is borrowed. Sleep is `conditions::snare(world, victim, Gra
 
 ### The one thing to check afterwards
 
-Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test content` fails if a catalog row ever spawns `PotionEffect::Water`, `ScrollEffect::BlankPaper` or `WandEffect::Nothing`, which exist only as what a wand of cancellation turns a carried item into.
+Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog row ever spawns `PotionEffect::Water`, `ScrollEffect::BlankPaper` or `WandEffect::Nothing`, which exist only as what a wand of cancellation turns a carried item into.
 
-    cargo test --test content
+    cargo test --test it content::
 
 
 Where to go next

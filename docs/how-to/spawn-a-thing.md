@@ -46,7 +46,7 @@ Recipe 2: one specific thing in a test
        let mut w = World::new();
        let dragon = spawn_named(&mut w, "dragon", Position { x: 5, y: 5 }).unwrap();
 
-   That is what `models/tests/content.rs` does for all hundred-odd rows.
+   That is what `models/tests/it/content.rs` does for all hundred-odd rows.
    Use it whenever the thing itself is the subject -- its components, its
    name, its glyph.
 
@@ -62,7 +62,7 @@ Recipe 2: one specific thing in a test
            w
        }
 
-   Copy it from `models/tests/identify.rs`, and add the queue your system
+   Copy it from `models/tests/it/identify.rs`, and add the queue your system
    reads (`w.init_resource::<UseQueue>()`, `ThrowQueue`, `AttackQueue`) if
    you are about to run one. The player is
    `w.query_filtered::<Entity, With<Player>>().single(&w)`.
@@ -90,7 +90,7 @@ Recipe 2: one specific thing in a test
 
    If the kit competes with what you are testing in the pack rather than
    on the body, empty the pack first -- `empty_pack` in
-   `models/tests/identify.rs` is the pattern.
+   `models/tests/it/identify.rs` is the pattern.
 
 4. **Name it in a literal and let it panic.** `MonsterDef::named("dragon")` and `TrapDef::of(TrapEffect::Bear)` panic on a miss, which is what you want from a typo in a test. Save `lookup` for names that came from outside the source.
 
@@ -192,14 +192,14 @@ When it does not work
 
 **Two things landed on the same tile.** Only `spawn_list` and `spawn_requested` track occupancy, via the `&mut HashSet<(u16, u16)>` you pass in. Spawning in a loop yourself means keeping that set yourself.
 
-**A seeded test started failing after you added content.** Floor layout is a pure function of `(seed, depth)` and cannot move -- but the *contents* are drawn from a weighted table, so adding a row changes which rows a given roll lands on. Assert on what you spawned by name, not on what a seed happened to produce. `models/tests/determinism.rs` holds the line that matters.
+**A seeded test started failing after you added content.** Floor layout is a pure function of `(seed, depth)` and cannot move -- but the *contents* are drawn from a weighted table, so adding a row changes which rows a given roll lands on. Assert on what you spawned by name, not on what a seed happened to produce. `models/tests/it/determinism.rs` holds the line that matters.
 
 
 Check yourself
 --------------
 
-    cargo test --test content        # every name still spawns and keeps its name
-    cargo test --test determinism    # seeds still mean what they meant
+    cargo test --test it content::        # every name still spawns and keeps its name
+    cargo test --test it determinism::    # seeds still mean what they meant
     cargo run -p nihilurk -- -content  # what the game knows, live from the tables
 
 
@@ -208,12 +208,12 @@ Appendix: quick check
 
 1. Look at it now: `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, with names from `-content`.
 2. In a test: `spawn_named(&mut w, "<name>", Position { x, y }).unwrap()` on a bare `World`.
-3. Needs a floor: build the world with `initialize_world`, as `models/tests/identify.rs` does.
+3. Needs a floor: build the world with `initialize_world`, as `models/tests/it/identify.rs` does.
 4. In the pack: `stow(&mut w, player, item)`. Worn: `force_unequip` the incumbent, then `equip_silently`.
 5. From game code: find a free tile, roll from `GameRng` in a scoped block, then spawn through `spawn_monster`, `spawn_named` or `TrapBundle::from_def`.
 6. Many at once: `spawn_list`, which tracks occupancy.
 7. Loot as the dungeon rolls it: `roll_item(world, &mut rng, depth, pos)`.
-8. Run `cargo test --test content` and `cargo test --test determinism`.
+8. Run `cargo test --test it content::` and `cargo test --test it determinism::`.
 
 
 See also

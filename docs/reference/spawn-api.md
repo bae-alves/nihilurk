@@ -252,7 +252,7 @@ Builds the current floor (reading `Depth` and `RngSeed`) into the `Map` resource
 
 Rebuilds one floor's tiles without spawning anything. This is why the save file does not store a map: `(seed, depth)` is enough to get the exact layout back (the save carries the staircase count so the contents come back too).
 
-Held by `models/tests/determinism.rs`.
+Held by `models/tests/it/determinism.rs`.
 
 
 Constants

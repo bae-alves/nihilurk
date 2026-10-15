@@ -48,7 +48,7 @@ Two steps are the same whatever you're building; then the path forks on `SpellKi
 
    `cost` is Magic points, multiplied by `constants::spells::TURBO_MAGIC_COST_MULT` when a staff (`TurboMagic`) is wielded and `kind` is `SpellKind::Attack`, never for a `SpellKind::Skill`. `cost` is also calibrated against `constants::player::START_MAGIC` and sits in one of four Magic-cost tiers, 1 through 4; the rows already in `SPELLS` show where each tier lands. `range` feeds the aiming reticle exactly like a wand's `Ranged`, and is meaningless -- leave it `0` -- for a spell you're about to make a Skill.
 
-   List the spell in `every_spell_has_a_catalog_row` (`models/tests/creature_casts.rs`), in its `match` and in its `all` array. `cargo test` will not build until you do.
+   List the spell in `every_spell_has_a_catalog_row` (`models/tests/it/creature_casts.rs`), in its `match` and in its `all` array. `cargo test` will not build until you do.
 
 Which of the two you're building decides everything from here.
 
@@ -137,9 +137,9 @@ Verify what you added
 ----------------------
 
     cargo build
-    cargo test --test spells
+    cargo test --test it spells::
 
-There is no `cargo test --test content` coverage for spells the way there is for monsters and items -- `SPELLS` is not part of `spawn_named` or `content_names()`, because nothing about a spell is spawned. `models/tests/spells.rs` pins a spell's *mechanic* instead: it pushes a `WantsToCast` onto `SpellQueue` and runs `spell_system` against a dummy. Copy `sting_bites_like_the_dart_trap_it_borrows_from` if your spell has a number worth holding still.
+There is no `cargo test --test it content::` coverage for spells the way there is for monsters and items -- `SPELLS` is not part of `spawn_named` or `content_names()`, because nothing about a spell is spawned. `models/tests/it/spells.rs` pins a spell's *mechanic* instead: it pushes a `WantsToCast` onto `SpellQueue` and runs `spell_system` against a dummy. Copy `sting_bites_like_the_dart_trap_it_borrows_from` if your spell has a number worth holding still.
 
 Then prove it by hand: give it to the player, aim it, and watch the log line `spell_system` prints (`"You cast ___!"`) followed by whatever `apply_spell_effect` logs itself.
 
@@ -148,14 +148,14 @@ Appendix: quick check
 ---------------------
 
 1. Append a variant at the end of `SpellEffect` in `models/src/components.rs`.
-2. Add the `SpellDef` row to `SPELLS` in `models/src/catalog.rs`: `cost`, `range` (`0` for a skill), `kind`. List it in `every_spell_has_a_catalog_row` (`models/tests/creature_casts.rs`).
+2. Add the `SpellDef` row to `SPELLS` in `models/src/catalog.rs`: `cost`, `range` (`0` for a skill), `kind`. List it in `every_spell_has_a_catalog_row` (`models/tests/it/creature_casts.rs`).
 3. Attack: write the arm in `apply_spell_effect` (`models/src/items/spells.rs`), and land damage through `apply_hit` with `Hit::magic` or `Hit::elemental`.
 4. Attack that hits everyone in view: add it to `SpellEffect::needs_target`.
 5. Skill: add it to the `needs_target` list unless it is aimed, then write the arm, borrowing a scroll if one already does the job.
 6. A marker the spell leaves behind: add it to `EFFECTS` and lend it through `effects::lend`.
 7. Give it to a species with `.casts(n, &[SpellEffect::<Name>])`; only a ranged attack is ever cast that way.
 8. Try it: put it in the starting `Spellset` in `initialize_world`, press `Z`, then revert that edit.
-9. Run `cargo test --test spells`.
+9. Run `cargo test --test it spells::`.
 10. Fix the docs: nothing, unless it adds a `constants::` module (`update-the-docs.md`).
 
 

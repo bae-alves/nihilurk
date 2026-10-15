@@ -9,9 +9,14 @@ readme.workspace = true
 rust-version = "1.91"
 keywords = ["roguelike", "ecs", "bevy", "procedural", "gamedev"]
 categories = ["game-development", "games"]
-# Both read the workspace around the crate (`../docs`, and `engine/src`), so
-# neither can pass from a download. They still run in the repository.
-exclude = ["tests/content_docs.rs", "tests/effects.rs"]
+# All four read the workspace around the crate (`../docs`, and `engine/src`),
+# so none can pass from a download. They still run in the repository.
+exclude = [
+    "tests/content_docs.rs",
+    "tests/docs_constants.rs",
+    "tests/docs_counts.rs",
+    "tests/effects.rs",
+]
 
 [lib]
 name = "models"

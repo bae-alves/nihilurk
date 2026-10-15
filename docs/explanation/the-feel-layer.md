@@ -40,7 +40,7 @@ The rules
 
 **Gameplay arms a flourish and forgets it.** A mechanic calls `fx.hit_spark(x, y)` or `shake::kick_shake(world, ShakeKind::Heavy)` and moves on. It never waits, never checks, and never learns whether anything was drawn — the effect resources are reached through `get_resource_mut`, so a headless test world with no renderer in it runs the same code path.
 
-**Cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/determinism.rs` exists to catch exactly that.
+**Cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/it/determinism.rs` exists to catch exactly that.
 
 **Anything that could leak information is gated on sight.** A shake for a blast in a room the player has never entered tells them there is a room there. `helpers::player_sees` is the shared check.
 
@@ -115,7 +115,7 @@ One rule on this side of the line does clear that bar, and it is the exception w
 Two things in the effect layer keep their tests, and the exceptions are worth knowing because they are not about feel:
 
   * `particle-core`'s own tests, including `tests/parity.rs`. That crate is `no_std` and compiles for a microcontroller, and `f32::ceil` has two implementations — the hosted intrinsic and a hand-rolled branch. If those disagree, the bare-metal build is compiling arithmetic the game does not run and the whole portability proof is worthless. `nostd_check.sh` runs the parity test *first*, before it compiles anything. See `cross-platform-testing.md`.
-  * `models/tests/determinism.rs`, which cares about the effect layer only to prove it stays out of the way — that cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
+  * `models/tests/it/determinism.rs`, which cares about the effect layer only to prove it stays out of the way — that cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
 
 Neither is testing how anything looks.
 

@@ -155,7 +155,7 @@ Build again:
 
     cargo build
 
-It compiles. `cargo test` has one more exhaustive match: `every_spell_has_a_catalog_row` in `models/tests/creature_casts.rs` lists every spell, so add `SpellEffect::IceBolt` to its `match` and to its `all` array.
+It compiles. `cargo test` has one more exhaustive match: `every_spell_has_a_catalog_row` in `models/tests/it/creature_casts.rs` lists every spell, so add `SpellEffect::IceBolt` to its `match` and to its `all` array.
 
 
 Step 4: give it to yourself

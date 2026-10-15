@@ -128,13 +128,13 @@ Step 5: prove it, so it stays proved
 
 Looking at it is not the same as knowing it works:
 
-    cargo test --test content
+    cargo test --test it content::
 
 Several of those tests just read your new row. They checked that no two species share a name, that every name spawns something, that what spawns keeps the name it was spawned by, and -- the one that matters most for a monster -- that nothing ever turns up above its `min_depth`.
 
 Then run the one that protects everybody else's saved seeds:
 
-    cargo test --test determinism
+    cargo test --test it determinism::
 
 That test says adding content cannot move a wall. A floor's layout is a pure function of `(seed, depth)` and is drawn from its own RNG stream, so your basilisk cannot reach into somebody's seed 1234 and rearrange it. If you ever make that test go red, you have drawn from the wrong stream -- and it is much better to find out here.
 

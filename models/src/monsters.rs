@@ -227,7 +227,7 @@ impl MonsterDef {
     /// the player is adjacent. An invisible row hides by not being drawn at
     /// all. Combine them and the result is a creature that, having just been
     /// noticed, still cannot be seen -- a state neither mechanic resolves.
-    /// `models/tests/content.rs`'s `a_mimic_is_never_also_invisible` holds
+    /// `models/tests/it/content.rs`'s `a_mimic_is_never_also_invisible` holds
     /// this to the fire.
     const fn mimics(mut self) -> Self {
         self.mimics = true;

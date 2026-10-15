@@ -333,7 +333,7 @@ Testing
   * **The quit prompt.** `y` / `n`; every other key ignored rather than guessed at; it outranks a movement key; `Esc` closes one, and raises one from the bare map.
   * **The keyboard.** A numpad digit moves identically to its vi-key equivalent, and Shift+numpad reads as a run direction like Shift+arrow.
 
-`view.rs` has no tests of what a frame looks like, on purpose — see `rendering.md`. It pins only the log gate and the help-key remap. What is exercised only by playing the game: everything the renderer draws, and the run / travel / auto-explore loops (they poll and sleep). The reticle's opening target and the tile a zap or throw lands on are tested in `update.rs`; its cursor loop is not. What *can* be tested is also tested one level down, in `models/`: `tests/pack.rs` pins what each menu shows, and `tests/autoexplore.rs` pins when the loot beeline is called off.
+`view.rs` has no tests of what a frame looks like, on purpose — see `rendering.md`. It pins only the log gate and the help-key remap. What is exercised only by playing the game: everything the renderer draws, and the run / travel / auto-explore loops (they poll and sleep). The reticle's opening target and the tile a zap or throw lands on are tested in `update.rs`; its cursor loop is not. What *can* be tested is also tested one level down, in `models/`: `tests/it/pack.rs` pins what each menu shows, and `tests/it/autoexplore.rs` pins when the loot beeline is called off.
 
 When you add a branch here, prefer moving the *decision* (what should happen) into a pure function — `dispatch_key`, or something in `models/` — and leave `engine/` holding only the parts that must touch the terminal.
 

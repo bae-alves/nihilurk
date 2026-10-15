@@ -143,7 +143,7 @@ Three things make that cheap here:
 
   1. The docs describe *tables*, and the tables are short. There is rarely more than one page to touch.
 
-  2. `models/tests/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
+  2. `models/tests/it/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/it/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
 
   3. `cargo run -p nihilurk -- -content` prints the live content list. It reads the tables, so it can never go stale. Prefer pointing a reader at it over pasting a list into a page.
 
@@ -153,8 +153,8 @@ Quick sanity check
 
     ./docs_style.sh                           these pages, house style
     cargo test                                # everything still works
-    cargo test --test content                 # the tables specifically
-    cargo test --test determinism             # seeds still mean what they meant
+    cargo test --test it content::                 # the tables specifically
+    cargo test --test it determinism::             # seeds still mean what they meant
     cargo test -p nihilurk --test workspace     # the root test run still covers everything
     cargo run -p nihilurk -- -content           # what the game knows
     NIHILURK_SPAWN="dragon" cargo run -p nihilurk   # put one in front of me

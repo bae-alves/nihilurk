@@ -162,7 +162,7 @@ The table tests pick your category up automatically: `every_drop_category_can_ac
 
 Round-trip a save before you call it done -- step 6 is the one people skip:
 
-    cargo test --test saveload
+    cargo test --test it saveload::
 
 
 Appendix: quick check
@@ -176,7 +176,7 @@ Appendix: quick check
 6. Save: extend `restore_from_catalog`, or append a field to `EntitySave` and bump `SAVE_VERSION`; never insert one.
 7. Worn gear with a hidden quality: run `enchant_equipment` at spawn and let `KnownQuality` gate it.
 8. Run `cargo run -p nihilurk -- -content | grep -A3 '^<category>'` and `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
-9. Run `cargo test`, then `cargo test --test saveload`.
+9. Run `cargo test`, then `cargo test --test it saveload::`.
 10. Fix the docs: `update-the-docs.md`, "A whole item category".
 
 

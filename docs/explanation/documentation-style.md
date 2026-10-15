@@ -99,7 +99,7 @@ The one exception the corpus keeps is in `reference/`, which fences a bare **dec
 
 Shell examples carry a comment saying what the command answers:
 
-    cargo test --test content                 # the tables specifically
+    cargo test --test it content::                 # the tables specifically
     cargo run -p nihilurk -- -content           # what the game knows
 
 ### Tables
@@ -178,7 +178,7 @@ What a page must not do
   * **Be two kinds of document at once.** A how-to that starts explaining itself is a how-to and an explanation; split it and link. That rule is in `../README.md`, and the ECS pages follow it: a how-to and an explanation, not one page.
   * **Document a deliberate secret.** The `T` key and the `-pride` flags stay out of `MANUAL.md` and out of `../reference/cli-and-env.md` on purpose. Where a page has to mention one — because an engine developer will meet it in the source — it says *keep it out of the manual* in as many words.
   * **Leave a public item in `models` without a doc comment.** The crate carries `#![warn(missing_docs)]`, so a build names the item. Say what the thing is *for*; a field its name already explains needs one short line, and a doc that only repeats the name is worse than none. The voice rules above apply to doc comments too.
-  * **Go stale quietly.** If a claim can be a test, make it a test and cite the test. `models/tests/content.rs` exists to hold up the claims `how-to/` makes about the tables.
+  * **Go stale quietly.** If a claim can be a test, make it a test and cite the test. `models/tests/it/content.rs` exists to hold up the claims `how-to/` makes about the tables.
   * **Qualify a path it cannot keep.** `` `models/src/map/levels.rs` `` is a claim about where something lives, and `docs_style.sh` checks it. A bare `` `levels.rs` `` is prose and is not checked — so name the directory when the reader needs it, and drop it once context has established where you are.
 
 

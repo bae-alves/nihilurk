@@ -113,7 +113,7 @@ That buys:
 
 Two players on one seed diverge the moment their staircase counts do. The maps are fixed; the run is not.
 
-`models/tests/determinism.rs` holds the contract to the fire -- layout is identical across reloads and however much of the shared stream a run burns; contents match between lockstep descents and *differ* on a repeat visit. If the layout half ever fails, floor generation has started reading something it should not.
+`models/tests/it/determinism.rs` holds the contract to the fire -- layout is identical across reloads and however much of the shared stream a run burns; contents match between lockstep descents and *differ* on a repeat visit. If the layout half ever fails, floor generation has started reading something it should not.
 
 What follows from it
 --------------------
@@ -123,7 +123,7 @@ What follows from it
     cargo run -p nihilurk -- -content      lists every name, live
     NIHILURK_SPAWN="dragon,bow"              spawns any of them
     spawn_named(world, name, pos)        one door for tests and scripts
-    models/tests/content.rs              tests the data as data
+    models/tests/it/content.rs              tests the data as data
 
 None of those has a list of content in it. They read the tables. A row added today is covered by all four today.
 
@@ -157,7 +157,7 @@ A mechanic has a third home. A condition (confusion, blindness, paralysis, a shi
 The test that keeps this honest
 -------------------------------
 
-If you want one sentence that captures the design, it is the assertion in `models/tests/content.rs`:
+If you want one sentence that captures the design, it is the assertion in `models/tests/it/content.rs`:
 
     for (category, name) in content_names() {
         let entity = spawn_named(&mut w, name, at(5, 5)).unwrap();

@@ -89,13 +89,15 @@ new shape.
 Checks that will catch you
 ---------------------------
 
-`cargo test --test body` and `--test lurk` are the pattern to copy for a new
-`--test wraithkin`: build a `World` with `StartingBody(Body::Wraithkin)`,
+`models/tests/it/body.rs` and `lurk.rs` are the pattern to copy for a new
+`wraithkin.rs`, declared as `mod wraithkin;` in `models/tests/it/main.rs`
+and run with `cargo test --test it wraithkin::`. Build a `World` with
+`StartingBody(Body::Wraithkin)`,
 call `initialize_world`, then assert the glyph, the dice, the grants, and
 that a save/load round trip comes back as the same body. Nothing else in the
 suite exercises a body that doesn't exist yet.
 
-`cargo test --test content` won't see this at all — a hand-written body is
+`cargo test --test it content::` won't see this at all — a hand-written body is
 not a table row, so none of its checks apply. That absence is the tell that
 you're outside the tables and should be moving carefully, not the sign that
 you can skip testing.
@@ -127,7 +129,7 @@ Appendix: quick check
 6. Teach `equip_refusal` if the body cannot wear everything, and say why in the string.
 7. Add the `("-b", "<name>")` arm in `engine/src/main.rs`.
 8. Leave `brings_a_pack` returning `false`.
-9. Copy `models/tests/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
+9. Copy `models/tests/it/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
 10. Run that test with `cargo test --test <file>`, then `cargo test`.
 11. Fix the docs: `update-the-docs.md`, "A playable body".
 

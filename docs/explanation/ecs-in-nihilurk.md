@@ -121,7 +121,7 @@ Two whole categories of state are kept out of the ECS, and both for the same rea
 
 **Nothing cosmetic is saved.** Bloodstains, corpse marks, smoke, live particles, the shake, the scorekeeper's flash and `FxRng` are all rebuilt empty on load. The three map-sized overlays alone would come to 2.2 KB — more than the entire save file they would be joining — and none of it is gameplay. A reloaded floor is the floor you left, scrubbed of the mess you made on it. The map and the message log are out for the same reason; `saveload.rs` lists all four exclusions at the top.
 
-The related rule is that **cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/determinism.rs` exists to catch exactly that class of mistake.
+The related rule is that **cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/it/determinism.rs` exists to catch exactly that class of mistake.
 
 
 See also

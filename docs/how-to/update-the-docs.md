@@ -69,7 +69,7 @@ Check
 -----
 
     ./docs_style.sh                    # house style, links, paths
-    cargo test --test content          # the claims the how-tos make about the tables
+    cargo test --test it content::          # the claims the how-tos make about the tables
     grep -rn 'old_name' docs MANUAL.md doc   # what your rename left behind
 
 With `git config core.hooksPath .githooks` on, the pre-commit hook runs `../../.githooks/docs_nudge.lua` and names the pages from the table above that your staged change leaves out. It reminds and never refuses. A row you add to the table above needs a rule in `../../.githooks/docs_nudge_rules.lua`, or a stated reason no diff can see it; `../../.githooks/docs_nudge_test.lua` refuses the commit while the two disagree.

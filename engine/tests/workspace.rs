@@ -211,17 +211,39 @@ fn every_published_crate_has_what_crates_io_asks_for() {
             }
         }
         let tests = root.join(&dir).join("tests");
-        for entry in std::fs::read_dir(&tests).into_iter().flatten().flatten() {
-            let file = entry.file_name().to_string_lossy().into_owned();
-            let Ok(src) = std::fs::read_to_string(entry.path()) else {
-                continue;
-            };
-            let leaves = src.contains("CARGO_MANIFEST_DIR")
-                && (src.contains(".parent()") || src.contains("/../"));
-            if leaves && !text.contains(&format!("\"tests/{file}\"")) {
-                missing.push(format!(
-                    "{dir}/tests/{file} reads outside its crate but is not in `exclude`"
-                ));
+        let mut dirs = vec![tests.clone()];
+        while let Some(at) = dirs.pop() {
+            for entry in std::fs::read_dir(&at).into_iter().flatten().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                let Ok(src) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let leaves = src.contains("CARGO_MANIFEST_DIR")
+                    && (src.contains(".parent()")
+                        || src.contains("/../")
+                        || src.contains(".join(\"..\")"));
+                if !leaves {
+                    continue;
+                }
+                let file = path
+                    .strip_prefix(&tests)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned();
+                if at != tests {
+                    missing.push(format!(
+                        "{dir}/tests/{file} reads outside its crate inside a shared test \
+                         binary; make it a file of its own under `tests/` and `exclude` it"
+                    ));
+                } else if !text.contains(&format!("\"tests/{file}\"")) {
+                    missing.push(format!(
+                        "{dir}/tests/{file} reads outside its crate but is not in `exclude`"
+                    ));
+                }
             }
         }
     }

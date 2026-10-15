@@ -51,7 +51,7 @@ The recipe
 
 4. Run the table tests, which will now include your row:
 
-       cargo test --test content
+       cargo test --test it content::
 
 That is the whole procedure. Nothing else in the codebase needs to be told that basilisks exist.
 
@@ -137,7 +137,7 @@ Chains combine in any order:
 Checks that will catch you
 --------------------------
 
-`cargo test --test content` fails if:
+`cargo test --test it content::` fails if:
 
   * two rows share a name (`every_content_name_is_unique`)
   * your row cannot be built by name (`every_content_name_spawns_and_...`)
@@ -155,7 +155,7 @@ Appendix: quick check
 4. Pick a colour from the sixteen in the palette, and never write `Aggravated` as the movement.
 5. Never rename an existing row; saved monsters look their species up by id (the `name`).
 6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk` and look at it.
-7. Run `cargo test --test content`.
+7. Run `cargo test --test it content::`.
 8. Fix the docs: nothing, unless the row brings a new mechanic (`update-the-docs.md`).
 
 

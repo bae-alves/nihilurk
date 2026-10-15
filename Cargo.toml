@@ -58,6 +58,12 @@ perf = { level = "warn", priority = -1 }
 # Profiles
 # ---------------------------------------------------------------------------
 
+# Debug and test builds. Full debug info made one `models` build 85 MB, and
+# `target/` keeps every build it ever made. Line tables still give a panic's
+# backtrace its files and lines; a debugger loses local variables.
+[profile.dev]
+debug = "line-tables-only"
+
 # What actually ships. Every knob here costs compile time and buys either
 # runtime speed or bytes on disk; none of them change behaviour.
 #

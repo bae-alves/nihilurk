@@ -107,7 +107,7 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 > will do its job for the rest of the session. It will not be saved, will
 > not come back on load, and cannot be cancelled. This is the quiet
 > failure to look for when an effect works until you reload.
-> `models/tests/abilities.rs` catches it for anything armed by an ability
+> `models/tests/it/abilities.rs` catches it for anything armed by an ability
 > row; nothing catches it for an effect only a mechanic reads.
 
 
@@ -204,10 +204,10 @@ Verify
 ------
 
     cargo build
-    cargo test                   # save round-trips: tests/saveload.rs
+    cargo test                   # save round-trips: tests/it/saveload.rs
     NIHILURK_SPAWN="<a thing that grants it>" cargo run -p nihilurk
 
-If your effect should survive a reload, the test worth copying is in `models/tests/wands.rs`: the one named `cancellation_strips_the_magic_but_leaves_the_creature` exercises the grant / probe / revoke path end to end.
+If your effect should survive a reload, the test worth copying is in `models/tests/it/wands.rs`: the one named `cancellation_strips_the_magic_but_leaves_the_creature` exercises the grant / probe / revoke path end to end.
 
 
 Appendix: quick check

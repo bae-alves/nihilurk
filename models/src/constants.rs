@@ -371,7 +371,7 @@ pub mod population {
     /// just over what an ordinary floor holds, not at the tail's edge.
     ///
     /// **If you change a budget above:** the shape of these counts moves with
-    /// it. `models/tests/level_feeling.rs` fails when a line stops firing or
+    /// it. `models/tests/it/level_feeling.rs` fails when a line stops firing or
     /// starts firing on most floors; re-cut the numbers then.
     pub const FEELING_MONSTERS: [(usize, usize); 5] = [(3, 7), (5, 19), (7, 22), (9, 27), (10, 41)];
 
@@ -776,7 +776,7 @@ pub mod items {
     /// second slot. A round, generous number — nothing in the engine forces a
     /// particular value.
     ///
-    /// **If you change it:** `models/tests/missiles.rs` and
+    /// **If you change it:** `models/tests/it/missiles.rs` and
     /// `docs/reference/content-tables.md` name the current value and would need
     /// a pass.
     pub const STACK_LIMIT: u8 = 13;

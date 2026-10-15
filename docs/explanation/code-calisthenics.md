@@ -204,7 +204,7 @@ Three ways out, in order of preference:
 2. **Read the constant.** `DAMAGE_DICE * DAMAGE_SIDES` instead of `8`; `share_of("coin")` off `DROPS` instead of `17.0`. Now the test proves the roller honours the table rather than proving the table says what it says.
 3. **Purge it.** If a test's only claim was the number, delete it and put something real in its place. "A stashed item carries `Invisible` *and* `Hidden`" is the kind of claim to put there: an invariant a rebalance cannot touch and a bug could.
 
-A test's own loop bound is not a tuning number and should not borrow one. `models/tests/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it would make a tightened valve look like an infinite loop.
+A test's own loop bound is not a tuning number and should not borrow one. `models/tests/it/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it would make a tightened valve look like an infinite loop.
 
 
 One rule of nihilurk's own: behavior tests build components, not bestiary rows
@@ -227,7 +227,7 @@ species happened to carry extra behavior.
 Keep bestiary-backed tests only where the bestiary itself is the subject:
 content-table validation, playable-body definitions, spawn behavior, and
 roster-wide contracts. Those tests should say so in their names and comments.
-The shared neutral fixtures live under `models/tests/common/monster.rs`.
+The shared neutral fixtures live under `models/tests/it/common/monster.rs`.
 
 
 One rule of nihilurk's own: no comments inside a function body

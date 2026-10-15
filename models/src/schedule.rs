@@ -3,7 +3,7 @@
 //! One flat list, run once per player turn. Every `.after()`/`.before()` is
 //! load-bearing; the order is documented in
 //! `docs/reference/input-and-turn-loop.md` and pinned by
-//! `models/tests/schedule.rs`.
+//! `models/tests/it/schedule.rs`.
 
 use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
 

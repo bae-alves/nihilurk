@@ -652,7 +652,7 @@ Potions, scrolls, wands and rings are always shown by their true name — no cos
 
 Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_ring` curses and, for a numeric ring, gives a plus, hides both the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
 
-A dud effect (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `WandEffect::Nothing`) is never a spawnable row; it only ever happens as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`). Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/content.rs`.
+A dud effect (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `WandEffect::Nothing`) is never a spawnable row; it only ever happens as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`). Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
 
 
 The colour palette

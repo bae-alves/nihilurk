@@ -213,7 +213,7 @@ Verify, whichever you added
     cargo build
     cargo run -p nihilurk -- -content | grep '<your name>'
     NIHILURK_SPAWN="<your name>" cargo run -p nihilurk
-    cargo test --test content
+    cargo test --test it content::
 
 The tests check that names are unique, that every row can be built by name, that what spawns keeps its name, and that every drop category can still produce something.
 
@@ -233,7 +233,7 @@ Appendix: quick check
 5. A wand with no reticle (it acts on the room or the zapper): add it to `WandEffect::needs_target`.
 6. Never insert or reorder an enum variant; a save stores its position.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.
-8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test content`.
+8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test it content::`.
 9. Fix the docs: the enum line in `../reference/components.md`, and for a wand its table row (`update-the-docs.md`).
 
 

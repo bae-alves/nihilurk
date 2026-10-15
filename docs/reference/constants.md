@@ -59,7 +59,7 @@ The modules
 Two caveats worth repeating
 ---------------------------
 
-**`map::WIDTH` / `map::HEIGHT` pin every seed.** `models/tests/determinism.rs` asserts that a given seed produces the same walls it always has. Changing either dimension moves every wall on every seed and that test will fail — correctly. Only change them as a deliberate "all old seeds are void" decision.
+**`map::WIDTH` / `map::HEIGHT` pin every seed.** `models/tests/it/determinism.rs` asserts that a given seed produces the same walls it always has. Changing either dimension moves every wall on every seed and that test will fail — correctly. Only change them as a deliberate "all old seeds are void" decision.
 
 **Enchantment odds are read as ranges against a `0..100` roll.** `loot::NORMAL_QUALITY_PCT` and `loot::EXCEPTIONAL_QUALITY_PCT` must sum to 100 or less; the remainder is the cursed share. The prose odds tables in this directory's `content-tables.md` and in `catalog::Quality::roll` do not update themselves.
 

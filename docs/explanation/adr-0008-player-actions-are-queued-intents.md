@@ -39,7 +39,7 @@ Accepted costs:
 
 Benefits realised:
 
-  * A bot can drive the real turn by queueing actions, which `models/tests/soak.rs` does.
+  * A bot can drive the real turn by queueing actions, which `models/tests/it/soak.rs` does.
   * `EntityMoved` is set and cleared inside `models`.
   * The rules of a step live in `models`, where they are tested without a terminal.
 

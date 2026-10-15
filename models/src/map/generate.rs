@@ -12,7 +12,7 @@
 //! function of `(seed, depth)` ([`super::streams::layout_rng`]), which is why a
 //! save can throw its map away and rebuild it exactly. Move a `gen_range` and
 //! every seed anyone has ever played means something different;
-//! `models/tests/determinism.rs` exists to say so.
+//! `models/tests/it/determinism.rs` exists to say so.
 
 use fixedbitset::FixedBitSet;
 use rand::Rng;
