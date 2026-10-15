@@ -214,6 +214,7 @@ pub(crate) fn transition_level(world: &mut World, going_down: bool, cause: Level
 
     crate::items::thaw_into_pack(world);
     tear_down_the_floor(world);
+    crate::autoexplore::forget_left_behind(world);
     let depth = step_depth(world, going_down);
     let rooms = build_the_floor(world, depth);
     let start = put_the_player_down(world, player, going_down);

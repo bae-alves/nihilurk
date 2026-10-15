@@ -2303,8 +2303,8 @@ pub fn rune_protection_cast(turns: u32) -> String {
 // models/src/combat.rs
 // ---------------------------------------------------------------------------
 
-pub fn killer_unknown() -> &'static str {
-    "Assassino desconhecido"
+pub fn mangled_beyond_recognition() -> &'static str {
+    "Mutilado até ficar irreconhecível"
 }
 
 pub fn mob_dies(name: &str) -> String {

@@ -256,6 +256,18 @@ Anything unrecognised falls back to a random roll.
 
 The file is read from the data directory, or from the path given to `-keymap`. A missing auto-loaded file is fine; a missing `-keymap` file is not. F1 and the sidebar hints show the key that now does each job (word keys such as `Tab` stay as they are). A command whose own letter is remapped away and that nothing maps to shows its old letter.
 
+### NIHILURK_READY
+
+Set and not empty, the game writes an OSC string, `ESC ] nihilurk;ready BEL`, each time it blocks waiting for a key: the turn loop, the `O` travel cursor, and the death and victory screens. A script that drives the game through a pty reads it as "the last key has done all it will": the play agent's `serve.sh` sets it and answers a key the moment it sees the signal, instead of waiting for 250 ms without output (`engine::ready`).
+
+    NIHILURK_READY=1 cargo run -p nihilurk
+
+Details:
+
+  * It comes after the frame it settles, on the same stream, so a reader that has the signal has the frame.
+  * Nothing is written before a read that only lets a key skip an animation or stop a walk, or while a key is already waiting to be read: the game is not waiting there.
+  * A terminal ignores an OSC string it does not know, so the game looks the same with it set. Unset, the game does not write it or look at the input for it.
+
 ### NIHILURK_DATA
 
 The directory nihilurk keeps its files in: saves, `bones-N.sav`, `leaderboard.sav`, `leaderboard-fast.sav`, `leaderboard-endless.sav` and the run dumps in `morgue/`. Set, it wins. Unset or empty, the OS convention decides (`models::data_dir`):

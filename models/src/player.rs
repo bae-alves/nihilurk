@@ -83,7 +83,10 @@ pub fn pick_up_here(world: &mut World, player_entity: Entity, x: u16, y: u16) {
         }
         let stowable = world.get::<Pickup>(item_entity).is_none();
         match crate::pick_up(world, player_entity, item_entity) {
-            Some(msg) => world.resource_mut::<GameLog>().add(msg),
+            Some(msg) => {
+                crate::autoexplore::take_back(world, item_entity);
+                world.resource_mut::<GameLog>().add(msg);
+            }
             None if stowable && !full => {
                 full = true;
                 world.resource_mut::<GameLog>().add(strings::pack_full());
@@ -248,6 +251,7 @@ fn apply_step(world: &mut World, plan: StepPlan) {
             {
                 announce_special_room_entry(world, (here.x, here.y), (now.x, now.y));
                 pick_up_here(world, player, now.x, now.y);
+                crate::autoexplore::note_room_step(world, (here.x, here.y), (now.x, now.y));
             }
         }
         StepPlan::Kick { cube } => {
@@ -277,6 +281,7 @@ fn apply_step(world: &mut World, plan: StepPlan) {
             announce_special_room_entry(world, (from.x, from.y), (to.x, to.y));
             try_whirl_attack(world, player, from, to);
             pick_up_here(world, player, to.x, to.y);
+            crate::autoexplore::note_room_step(world, (from.x, from.y), (to.x, to.y));
         }
     }
 }
@@ -435,6 +440,7 @@ fn apply_drop(world: &mut World, item: Entity) {
     force_unequip(world, item);
     sync_equipment_effects(world, player);
     world.entity_mut(item).insert(here);
+    crate::autoexplore::leave_behind(world, item);
     let name = display_name(world, item);
     world
         .resource_mut::<GameLog>()

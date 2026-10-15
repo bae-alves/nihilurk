@@ -6,6 +6,7 @@
 mod constants;
 mod input;
 mod morgue;
+mod ready;
 mod recording;
 mod screen;
 mod update;
@@ -109,6 +110,7 @@ fn find_save(arg: &str, data: &Path) -> Option<PathBuf> {
 /// key-release events so a single physical press doesn't skip two screens.
 fn wait_for_key(accept: impl Fn(KeyCode) -> bool) -> std::io::Result<()> {
     loop {
+        ready::signal_ready()?;
         if let Event::Key(key) = read()? {
             if key.kind == KeyEventKind::Press && accept(key.code) {
                 return Ok(());
@@ -828,6 +830,7 @@ fn main() -> std::io::Result<()> {
     world.init_resource::<Ending>();
     world.init_resource::<AutoExplore>();
     world.init_resource::<AutoPickup>();
+    world.init_resource::<LeftBehind>();
     world.init_resource::<FastMove>();
     world.init_resource::<TravelCursor>();
     world.init_resource::<MagicMapReveal>();

@@ -199,6 +199,7 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
         return Ok(true);
     }
 
+    crate::ready::signal_ready()?;
     match read()? {
         Event::Key(key) if key.kind == KeyEventKind::Press => dispatch_key(world, key),
         Event::Mouse(m) => dispatch_mouse(world, m, crate::view::centering_offset(world)),
@@ -1900,6 +1901,7 @@ pub fn auto_explore_step(world: &mut World) -> std::io::Result<bool> {
 /// or `O` cancels. A bare timeout just flips the
 /// highlight's blink phase and repaints.
 pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
+    crate::ready::signal_ready()?;
     if !poll(Duration::from_millis(TRAVEL_BLINK_MS))? {
         let mut tc = world.resource_mut::<TravelCursor>();
         tc.blink_on = !tc.blink_on;

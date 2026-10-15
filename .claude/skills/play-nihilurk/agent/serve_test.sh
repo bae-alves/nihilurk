@@ -207,4 +207,79 @@ took=$(( ${EPOCHREALTIME/[.,]/} - start ))
 grep -q '^a' <<< "$out" || fail "the quick percept lost the screen: $out"
 (( took < 200000 )) || fail "a settled run took $((took / 1000)) ms to answer on connect"
 
+# 23-25 play a game that says when it waits on a key, as the real one does
+# with NIHILURK_READY: an OSC string before each read.
+games="$(mktemp -d)"
+dirs+=("$games")
+cat > "$games/late" <<'EOF'
+#!/bin/sh
+ready() { printf '\033]nihilurk;ready\007'; }
+ready; read x; sleep 0.4; echo late; ready; read y
+EOF
+cat > "$games/quick" <<'EOF'
+#!/bin/sh
+ready() { printf '\033]nihilurk;ready\007'; }
+ready; read x; echo quick; ready; read y
+EOF
+cat > "$games/quits" <<'EOF'
+#!/bin/sh
+printf '\033]nihilurk;ready\007'; read x; echo bye
+EOF
+chmod +x "$games"/*
+
+# 23. A game that signals is waited on until it signals, however long it is
+#     quiet first: output 400 ms after the key is on the percept.
+game "$games/late"
+out="$("$serve" session "$dir" <<< 'x\r')"
+grep -q '^late' <<< "$out" || fail "a percept cut a signalling game at 250 ms: $out"
+[[ -n "$(cat "$dir/pid")" ]]
+
+# 24. ...and answered as soon as it signals: no 250 ms of quiet to sit out.
+game "$games/quick"
+"$serve" session "$dir" < /dev/null > /dev/null
+start="${EPOCHREALTIME/[.,]/}"
+out="$("$serve" session "$dir" <<< 'x\r')"
+took=$(( ${EPOCHREALTIME/[.,]/} - start ))
+grep -q '^quick' <<< "$out" || fail "the signalled percept lost the screen: $out"
+(( took < 150000 )) || fail "a signalling game took $((took / 1000)) ms to answer a key"
+
+# 25. A signalling game that exits on a key answers `over` without waiting
+#     for a signal that never comes.
+game "$games/quits"
+start="${EPOCHREALTIME/[.,]/}"
+out="$("$serve" session "$dir" <<< 'q\r')"
+took=$(( ${EPOCHREALTIME/[.,]/} - start ))
+[[ "$(tail -n 1 <<< "$out")" == over ]] || fail "an exiting signalling game is not over: $out"
+(( took < 1000000 )) || fail "an exiting signalling game took $((took / 1000)) ms"
+
+# 26. A signal that reaches the capture in two halves counts once whole, and
+#     not before: the percept waits for the second half.
+cat > "$games/split" <<'EOF'
+#!/bin/sh
+ready() { printf '\033]nihilurk;ready\007'; }
+ready; read x; echo split; printf '\033]nihil'; sleep 0.3; printf 'urk;ready\007'; read y
+EOF
+chmod +x "$games/split"
+game "$games/split"
+"$serve" session "$dir" < /dev/null > /dev/null
+start="${EPOCHREALTIME/[.,]/}"
+out="$("$serve" session "$dir" <<< 'x\r')"
+took=$(( ${EPOCHREALTIME/[.,]/} - start ))
+grep -q '^split' <<< "$out" || fail "a split signal lost the screen: $out"
+(( took >= 300000 && took < 1000000 )) || fail "a split signal answered after $((took / 1000)) ms"
+
+# 27. A percept screen.lua cannot draw hangs the session up: a percept with no
+#     screen rows left act.sh waiting on rows that never come. A stand-in lua
+#     that fails plays a machine without one.
+nolua="$(mktemp -d)"
+dirs+=("$nolua")
+printf '#!/bin/sh\necho "lua: command not found" >&2\nexit 127\n' > "$nolua/lua"
+chmod +x "$nolua/lua"
+game cat
+code=0
+PATH="$nolua:$PATH" timeout 5 "$here/act.sh" -d "$dir" > /dev/null 2> "$dir/err" || code=$?
+(( code != 124 )) || fail "act.sh hung on a percept screen.lua could not draw"
+(( code != 0 )) || fail "act.sh passed a percept screen.lua could not draw"
+grep -q 'lua' "$dir/err" || fail "the failure does not name lua: $(cat "$dir/err")"
+
 echo "serve_test: ok"

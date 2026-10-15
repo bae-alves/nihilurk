@@ -208,6 +208,8 @@ Several commands let you spend less time walking:
 | `F1` | Show the key list |
 | `F2` | Hide or show the yellow key hints at the bottom left |
 
+Auto-explore heads for whatever is nearest: unexplored ground, or an item worth taking. It leaves alone what you dropped, and what you saw in a room and walked out of without.
+
 Automation stops when a monster enters view. Auto-fight will not start when you are badly hurt or confused. Treat these commands as a way to handle safe ground, not as a substitute for looking at the screen.
 
 
