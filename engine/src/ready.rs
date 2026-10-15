@@ -9,9 +9,6 @@
 
 use std::io::Write;
 use std::sync::OnceLock;
-use std::time::Duration;
-
-use crossterm::event::poll;
 
 /// OSC, `nihilurk;ready`, BEL.
 pub const READY: &[u8] = b"\x1b]nihilurk;ready\x07";
@@ -31,7 +28,7 @@ fn enabled() -> bool {
 /// key's frame, not after it. Off, it does not even look at the input.
 pub fn signal_ready() -> std::io::Result<()> {
     let on = enabled();
-    let key_pending = on && poll(Duration::ZERO)?;
+    let key_pending = on && crate::input::waiting()?;
     write_ready(&mut std::io::stdout(), on, key_pending)
 }
 

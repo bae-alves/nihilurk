@@ -19,7 +19,7 @@ Reference: input handling and the turn loop
 The split this code sits on
 ----------------------------
 
-`models/` holds the pathfinding and state machines (`autoexplore.rs`, `fastmove.rs`) as **pure functions that only read the world** — no terminal, no sleeping, no turn-taking. `engine/src/update.rs` is the other half: it owns the keyboard (`crossterm::event::read`/`poll`), decides when a turn is spent, and drives those pure functions to completion. Nothing in `models/` blocks on input or sleeps; nothing in `engine/` does pathfinding. If you find yourself wanting to add a `World` query that decides *where* to go, it almost certainly belongs in `models/`, not here — see the module doc comments at the top of `autoexplore.rs` and `fastmove.rs`.
+`models/` holds the pathfinding and state machines (`autoexplore.rs`, `fastmove.rs`) as **pure functions that only read the world** — no terminal, no sleeping, no turn-taking. `engine/src/update.rs` is the other half: it reads the keyboard through `engine/src/input.rs` (the one place that calls `crossterm::event::read`/`poll`, so a run can be recorded and replayed), decides when a turn is spent, and drives those pure functions to completion. Nothing in `models/` blocks on input or sleeps; nothing in `engine/` does pathfinding. If you find yourself wanting to add a `World` query that decides *where* to go, it almost certainly belongs in `models/`, not here — see the module doc comments at the top of `autoexplore.rs` and `fastmove.rs`.
 
 
 The main loop

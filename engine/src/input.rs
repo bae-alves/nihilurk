@@ -59,16 +59,51 @@ fn recordable(event: &Event) -> bool {
     }
 }
 
-fn arrive(event: Event) {
+/// Logs `event` with `stamp` and holds it for the next `poll` or `read`.
+fn arrive(event: Event, stamp: u64) {
     STREAM.with(|s| {
         let mut s = s.borrow_mut();
-        let calls = s.calls;
         if let Some(out) = s.recorder.as_mut() {
-            let _ = writeln!(out, "{}", encode(calls, &event));
+            let _ = writeln!(out, "{}", encode(stamp, &event));
             let _ = out.flush();
         }
         s.pending = Some(event);
     });
+}
+
+fn calls_so_far() -> u64 {
+    STREAM.with(|s| s.borrow().calls)
+}
+
+/// Holds `event` for the next call, stamped as that call would have stamped
+/// it, so looking ahead leaves the log as it would be without the look.
+/// Whether it was one worth holding.
+fn hold_ahead(event: Event) -> bool {
+    if !recordable(&event) {
+        return false;
+    }
+    arrive(event, calls_so_far() + 1);
+    true
+}
+
+/// Whether the next `poll` or `read` gets an event at once. Not a call itself:
+/// the stamps stay as they were. Live, it drops what `read` would skip and
+/// holds a key or click for the next call, which the caller is about to make.
+/// Replay always has the next event, or the Ctrl+C that ends the log.
+pub fn waiting() -> std::io::Result<bool> {
+    let ready = STREAM.with(|s| {
+        let s = s.borrow();
+        s.pending.is_some() || s.replay.is_some()
+    });
+    if ready {
+        return Ok(true);
+    }
+    while crossterm::event::poll(Duration::ZERO)? {
+        if hold_ahead(crossterm::event::read()?) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Whether an event is waiting, giving the player up to `wait` to produce one.
@@ -108,7 +143,7 @@ pub fn poll(wait: Duration) -> std::io::Result<bool> {
         }
         let event = crossterm::event::read()?;
         if recordable(&event) {
-            arrive(event);
+            arrive(event, calls_so_far());
             return Ok(true);
         }
     }
@@ -148,7 +183,7 @@ pub fn read() -> std::io::Result<Event> {
     loop {
         let event = crossterm::event::read()?;
         if recordable(&event) {
-            arrive(event);
+            arrive(event, calls_so_far());
             return Ok(STREAM.with(|s| s.borrow_mut().pending.take().expect("arrive set it")));
         }
     }
@@ -341,12 +376,68 @@ mod tests {
         reset();
         let sink = Sink::default();
         record_to(Box::new(sink.clone()));
-        STREAM.with(|s| s.borrow_mut().calls = 4);
-        arrive(key('x'));
-        arrive(click());
+        arrive(key('x'), 4);
+        arrive(click(), 4);
         let text = String::from_utf8(sink.0.borrow().clone()).unwrap();
         let lines: Vec<_> = text.lines().collect();
         assert_eq!(lines, ["4 k c120 0", "4 m R 12 7 1"]);
+        reset();
+    }
+
+    #[test]
+    fn waiting_sees_a_key_a_poll_already_holds_and_is_no_call() {
+        reset();
+        STREAM.with(|s| s.borrow_mut().pending = Some(key('a')));
+        assert!(waiting().unwrap());
+        assert_eq!(calls_so_far(), 0);
+        reset();
+    }
+
+    #[test]
+    fn waiting_in_replay_is_yes_and_leaves_the_stamps_alone() {
+        reset();
+        replay_from(vec![(2, key('a')), (4, key('b')), (7, key('c'))]);
+        let mut seen = Vec::new();
+        for _ in 0..5 {
+            assert!(waiting().unwrap());
+            let yes = poll(Duration::ZERO).unwrap();
+            seen.push(yes);
+            if yes {
+                read().unwrap();
+            }
+        }
+        assert_eq!(seen, [false, true, true, false, true]);
+        reset();
+    }
+
+    #[test]
+    fn a_key_held_ahead_is_stamped_for_the_call_that_takes_it() {
+        reset();
+        let sink = Sink::default();
+        record_to(Box::new(sink.clone()));
+        STREAM.with(|s| s.borrow_mut().calls = 4);
+        assert!(hold_ahead(key('x')));
+        assert_eq!(read().unwrap(), key('x'));
+        assert_eq!(calls_so_far(), 5);
+        let text = String::from_utf8(sink.0.borrow().clone()).unwrap();
+        assert_eq!(text.lines().collect::<Vec<_>>(), ["5 k c120 0"]);
+        reset();
+    }
+
+    #[test]
+    fn what_read_would_skip_is_not_held_ahead() {
+        reset();
+        let sink = Sink::default();
+        record_to(Box::new(sink.clone()));
+        let release = Event::Key(KeyEvent::new_with_kind(
+            KeyCode::Char('x'),
+            KeyModifiers::NONE,
+            KeyEventKind::Release,
+        ));
+        assert!(!hold_ahead(release));
+        assert!(!hold_ahead(Event::Resize(80, 25)));
+        assert!(STREAM.with(|s| s.borrow().pending.is_none()));
+        assert!(sink.0.borrow().is_empty());
         reset();
     }
 }
