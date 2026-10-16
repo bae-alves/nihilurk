@@ -58,6 +58,8 @@ nihilurk speaks English and a bit of Portuguese (`pt`). Spanish (`es`) and Haiti
 
     nihilurk --lang pt
 
+A `cargo install` holds one language and has no `--lang`; switch by reinstalling with `cargo install nihilurk --force --no-default-features --features lang-pt` (or `lang-es`, `lang-ht`). The prebuilt download from the releases page holds all four.
+
 From a clone, a language is a build choice and there is no flag:
 
     cargo run -p nihilurk --no-default-features --features lang-pt

@@ -20,13 +20,15 @@ Download a prebuilt game (v0.5.1), no Rust needed:
   * [Linux, x86_64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.5.1/nihilurk-0.5.1-x86_64-unknown-linux-musl.tar.gz)
   * [Linux, aarch64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.5.1/nihilurk-0.5.1-aarch64-unknown-linux-musl.tar.gz)
 
-Unpack it and run `./nihilurk` (`nihilurk.exe` on Windows). Keep the files together: the dispatcher starts the `nihilurk-<lang>` binary next to it. The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it. Every file has a checksum at the same address plus `.sha256`, and older versions are on the [releases page](https://github.com/bae-alves/nihilurk/releases).
+Unpack it and run `./nihilurk` (`nihilurk.exe` on Windows). All four languages are in the download: `./nihilurk --lang pt` picks one (`en`, `pt`, `es`, `ht`), and with no flag it follows your `LC_ALL`, `LANG` or `LANGUAGE`. Keep the files together: the dispatcher starts the `nihilurk-<lang>` binary next to it. The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it. Every file has a checksum at the same address plus `.sha256`, and older versions are on the [releases page](https://github.com/bae-alves/nihilurk/releases).
 
 Or install from crates.io (needs Rust 1.91 or newer) and play:
 
     cargo install nihilurk                  # install the English game
-    cargo install nihilurk --no-default-features --features lang-pt    # or another language
+    cargo install nihilurk --force --no-default-features --features lang-pt    # or lang-es, lang-ht
     nihilurk                                # play
+
+A crates.io install holds one language, and `--lang` does nothing there. Run the install line again with another `lang-*` to switch. The prebuilt download is the way to keep all four.
 
 If the shell says `nihilurk: command not found`, the cargo bin directory is not on your `PATH`. `rustup` normally adds it, but a rebuilt dotfile or a distro Rust package may not. Add it, then open a new shell:
 

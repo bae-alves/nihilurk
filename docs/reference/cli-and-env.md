@@ -183,6 +183,8 @@ The language is a build-time choice, not a flag. `engine` forwards one `lang-*` 
 
 The installed `nihilurk` command is `nihilurk-dispatch`, which reads `LC_ALL`, `LANG` or `LANGUAGE`, and `exec`s the matching `nihilurk-<lang>` beside it, passing every argument through. `--lang <en|pt|es|ht>` as the first two arguments overrides that and is stripped before forwarding. Anything it does not recognise gets English.
 
+A `cargo install` has no dispatcher and no `--lang`: it holds the one language it was built with. Reinstall with `cargo install nihilurk --force --no-default-features --features lang-pt` to switch. The prebuilt download holds all four.
+
 
 Environment variables
 ---------------------

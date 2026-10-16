@@ -78,7 +78,13 @@ or
 and falls back to English if none matches. To choose one yourself, put
 .B \-\-lang
 .I pt
-first. From a clone, a language is a build choice with no flag:
+first. A
+.B cargo install
+holds one language and has no
+.BR \-\-lang ;
+reinstall with
+.B \-\-force \-\-no\-default\-features \-\-features lang\-pt
+to switch. The prebuilt download holds all four. From a clone, a language is a build choice with no flag:
 .B cargo run \-p nihilurk \-\-no\-default\-features \-\-features lang\-pt
 .PP
 To get started you only need to know two things: the direction keys move you,
