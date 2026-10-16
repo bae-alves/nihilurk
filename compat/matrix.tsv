@@ -10,17 +10,14 @@
 #
 #   id        short name, used for file names and report rows
 #   target    rust target triple
-#   class     linux  -- has an OS, a terminal and a shell; nihilurk runs here
-#             bare   -- no OS; only `particle-core` is built, and only checked
-#   platform  docker --platform value for a `native` row, or "-" for bare
-#             metal. A `qemu` row's container runs as the host's own
+#   class     always `linux`: an OS, a terminal and a shell; nihilurk runs here
+#   platform  docker --platform value for a `native` row. A `qemu` row's container runs as the host's own
 #             architecture instead (see run_check.sh), so this column only
 #             tells it which static interpreter to fetch.
-#   image     runtime image the binary is executed in, or the SDK image for bare
+#   image     runtime image the binary is executed in
 #   exec      native -- the host CPU runs it directly
 #             qemu   -- run under a directly-invoked qemu-user-static
 #                        interpreter; needs no binfmt_misc and no --privileged
-#             none   -- not executed at all (bare metal)
 #   note      what real machine this row is standing in for
 #
 # House rule: every `linux` row's image must have a shell in it (alpine's
@@ -52,5 +49,3 @@ pi3	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	Raspberry Pi 3
 pi4	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	Raspberry Pi 4 B (quad Cortex-A72 @1.5GHz), 2GB variant
 cm	aarch64-unknown-linux-musl	linux	linux/arm64	alpine:3.22	qemu	Compute Module 4, same SoC as pi4, the 1GB Lite variant embedded designs ship
 potato	i686-unknown-linux-musl	linux	linux/386	i386/alpine:3.22	native	32-bit Atom or Pentium M netbook, ca. 2008
-esp32c3	riscv32imc-unknown-none-elf	bare	-	espressif/idf-rust:all_latest	none	ESP32-C3 / any RISC-V microcontroller
-esp32	xtensa-esp32-none-elf	bare	-	espressif/idf-rust:all_latest	none	ESP32 (Xtensa LX6), the original Arduino-adjacent one

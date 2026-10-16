@@ -148,7 +148,7 @@ This game is made for terminal screens and is styled like the original Rogue, wi
 ### Technical Description
 This is a game made to run on most shells and devices that run shells. It uses keyboard controls though, that might limit the hardware scope. It is made using bevy_ecs and crossterm on rust for unnecesarily peak performance.
 
-The particle arithmetic is portable and lives in a reusable effects crate, `particle-core`: `no_std`, no dependencies, and `compat/` builds it for RISC-V and ESP32, so it's likely to run on a potato if you try hard enough.
+The particle arithmetic is portable and lives in a reusable effects crate, `particle-core`: `no_std`, no dependencies, so it's likely to run on a potato if you try hard enough.
 
 Content is data. Every monster, item and trap is a row in a table, and the dungeon decides what turns up by drawing from those tables with a weight and a debut depth, so adding a thing is usually adding a line. `docs/` covers how: a tutorial, a recipe per kind of content, a reference for every field, and the reasoning behind the shape. This document is the design; `docs/` is the code.
 

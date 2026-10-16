@@ -130,7 +130,7 @@ nm_bin() {
 # $ONLY. Comments and blank lines are dropped here so no caller has to think
 # about them.
 #
-# $1, when given, filters by class (`linux` or `bare`).
+# $1, when given, filters by class (always `linux` now).
 matrix_rows() {
   local want_class="${1:-}"
   awk -F'\t' -v want="$want_class" -v only="${ONLY:-}" '
@@ -202,8 +202,7 @@ target_bin() {
 }
 
 # A row's claim to have a shell, checked rather than assumed. Used two ways:
-# nostd_check.sh's bare rows use it to say whether `--shell <id>` will work;
-# run_check.sh's linux rows use it as a hard gate, because a shell is not a
+# run_check.sh uses it as a hard gate, because a shell is not a
 # nicety there -- nihilurk needs a real terminal under it, an image with no
 # shell can't give it one, and a row that can't run the game has no business
 # being in "does nihilurk run on these machines".

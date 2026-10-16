@@ -13,17 +13,6 @@
 /// The raw table. Editing it is how a machine is added to the matrix.
 const MATRIX: &str = include_str!("../matrix.tsv");
 
-/// What kind of machine a row describes.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Class {
-    /// Has an operating system, a terminal and a shell. nihilurk runs here, and
-    /// this is the only kind of row `run_check.sh` executes.
-    Linux,
-    /// No operating system. Only `particle-core` is built for it, and it is
-    /// only ever checked, never run. See `nostd_check.sh`.
-    Bare,
-}
-
 /// How the host gets the binary to execute.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Exec {
@@ -33,8 +22,6 @@ pub enum Exec {
     /// A directly-invoked qemu-user-static interpreter runs it -- no
     /// binfmt_misc, no `--privileged` (see `run_check.sh`).
     Qemu,
-    /// Never executed.
-    None,
 }
 
 /// One machine.
@@ -42,14 +29,12 @@ pub enum Exec {
 pub struct Row {
     pub id: String,
     pub target: String,
-    pub class: Class,
     /// `docker --platform` value for a `Native` row. A `Qemu` row's
     /// container instead runs as the host's own architecture, so this only
     /// tells `run_check.sh` which qemu-user-static interpreter to fetch.
     pub platform: String,
     pub image: String,
     pub exec: Exec,
-    pub note: String,
 }
 
 /// Every row of the matrix, in file order.
@@ -75,27 +60,19 @@ fn parse_row(line: &str) -> Option<Row> {
     Some(Row {
         id: f[0].to_string(),
         target: f[1].to_string(),
-        class: match f[2] {
-            "bare" => Class::Bare,
-            _ => Class::Linux,
-        },
         platform: f[3].to_string(),
         image: f[4].to_string(),
         exec: match f[5] {
             "qemu" => Exec::Qemu,
-            "none" => Exec::None,
             _ => Exec::Native,
         },
-        note: f[6].to_string(),
     })
 }
 
-/// The rows a run should cover: every Linux row, or the ones named in
-/// `--targets`.
-pub fn selected(only: &[String], class: Option<Class>) -> Vec<Row> {
+/// The rows a run should cover: every row, or the ones named in `--targets`.
+pub fn selected(only: &[String]) -> Vec<Row> {
     rows()
         .into_iter()
-        .filter(|r| class.is_none_or(|c| r.class == c))
         .filter(|r| only.is_empty() || only.contains(&r.id))
         .collect()
 }
@@ -105,31 +82,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_table_parses_and_has_both_kinds_of_row() {
+    fn the_table_parses() {
         let rows = rows();
         assert!(rows.len() >= 4, "matrix.tsv lost rows: {}", rows.len());
-        assert!(rows.iter().any(|r| r.class == Class::Linux));
-        assert!(rows.iter().any(|r| r.class == Class::Bare));
     }
 
     #[test]
     fn every_linux_row_is_a_musl_target() {
         // A -gnu row would build a binary bound to the glibc it was linked
         // against, which is the one thing the matrix exists to rule out.
-        for row in rows().iter().filter(|r| r.class == Class::Linux) {
+        for row in rows().iter() {
             assert!(
                 row.target.contains("musl"),
                 "{} is not a musl target: {}",
                 row.id,
                 row.target
             );
-        }
-    }
-
-    #[test]
-    fn bare_rows_are_never_executed() {
-        for row in rows().iter().filter(|r| r.class == Class::Bare) {
-            assert_eq!(row.exec, Exec::None, "{} would be executed", row.id);
         }
     }
 

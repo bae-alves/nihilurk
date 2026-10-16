@@ -30,7 +30,7 @@ use std::fmt::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use crate::matrix::{Class, Exec, Row};
+use crate::matrix::{Exec, Row};
 use crate::results::{Results, Status};
 
 /// Where the shell half writes, relative to the workspace root.
@@ -115,12 +115,10 @@ WHERE THE NUMBERS COME FROM
                               reports the size and the blame
     ./compat/run_check.sh     checks each machine's image has a shell and
                               that the binary actually starts there
-    ./compat/nostd_check.sh   the bare-metal rows: particle-core compiled
-                              for microcontrollers
     ./compat/headless_check.sh  the rules (models) need no terminal; not
                               in the report, it fails on its own
 
-    or ./compat_test.sh to do all four and print this.
+    or ./compat_test.sh to do all three and print this.
 
 WHAT IS BEING CLAIMED
     if it builds, the image has a shell, and the target is std, nihilurk can
@@ -137,8 +135,7 @@ WHAT IS BEING CLAIMED
 fn report(results: &Results) -> ExitCode {
     let mut out = String::new();
     let w = &mut out;
-    let linux = matrix::selected(&[], Some(Class::Linux));
-    let bare = matrix::selected(&[], Some(Class::Bare));
+    let linux = matrix::selected(&[]);
 
     let _ = writeln!(w, "\n=== does nihilurk run here? ===\n");
     if results.is_empty() {
@@ -153,8 +150,8 @@ fn report(results: &Results) -> ExitCode {
 
     let _ = writeln!(
         w,
-        "  {:<9} {:<7} {:>10}  {}",
-        "machine", "exec", "binary", "verdict"
+        "  {:<9} {:<31} {:<7} {:>10}  {}",
+        "machine", "target", "exec", "binary", "verdict"
     );
     for row in &linux {
         let check = results.check(&row.id);
@@ -162,8 +159,9 @@ fn report(results: &Results) -> ExitCode {
         let footprint = results.footprint(&row.id).unwrap_or_default();
         let _ = writeln!(
             w,
-            "  {:<9} {:<7} {:>10}  {}",
+            "  {:<9} {:<31} {:<7} {:>10}  {}",
             row.id,
+            row.target,
             exec_word(row.exec),
             cell(footprint.game, bytes),
             status.label(),
@@ -175,7 +173,6 @@ fn report(results: &Results) -> ExitCode {
         "\n  `binary` is nihilurk, --release: one static musl file, no libc to install."
     );
 
-    report_bare(w, &bare);
     report_failures(w, results, &linux);
 
     let broken: Vec<&str> = results
@@ -197,26 +194,6 @@ fn report(results: &Results) -> ExitCode {
     let _ = writeln!(w);
     print!("{out}");
     ExitCode::SUCCESS
-}
-
-/// The microcontroller rows. They are not a game and never claimed to be.
-fn report_bare(w: &mut String, bare: &[Row]) {
-    if bare.is_empty() {
-        return;
-    }
-    let _ = writeln!(
-        w,
-        "\n  BARE METAL (particle-core only -- compiled, never executed)\n"
-    );
-    for row in bare {
-        let _ = writeln!(w, "  {:<9} {:<32}  {}", row.id, row.target, row.note);
-    }
-    let _ = writeln!(
-        w,
-        "\n  These rows prove the particle arithmetic compiles with no operating\n  \
-         system under it. They do not run nihilurk: crossterm needs a terminal, and\n  \
-         a microcontroller has none. ./compat/nostd_check.sh is what checks them."
-    );
 }
 
 /// Where to go when a row did not check out cleanly. A skipped row was never
@@ -258,7 +235,6 @@ fn exec_word(exec: Exec) -> &'static str {
     match exec {
         Exec::Native => "native",
         Exec::Qemu => "qemu",
-        Exec::None => "-",
     }
 }
 

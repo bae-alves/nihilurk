@@ -2,8 +2,7 @@ Why the compatibility matrix is built this way
 ==============================================
 
     Audience       Anyone changing `compat/`, adding a machine to the
-                   matrix, or wondering why a roguelike is being
-                   compiled for a microcontroller.
+                   matrix, or wondering why the matrix is built this way.
     Prerequisites  You have run `./compat_test.sh` once.
     This is        Understanding. The recipe is
                    `../how-to/run-the-compat-pipeline.md`.
@@ -92,28 +91,10 @@ qemu-user-static's job is exactly that -- syscall translation -- and nothing mor
 The `cloud` row is the control: the host's own architecture, no emulation in the way.
 
 
-Why microcontrollers are in a matrix of machines that run the game
---------------------------------------------------------------------
-
-They are not, and the report says so in as many words.
-
-nihilurk draws with crossterm. crossterm drives a terminal. An ESP32 has no terminal and no operating system to provide one, and no amount of cross-compilation will change that. A bare-metal row failing to produce a game is not a bug, because no game was ever being built.
-
-What the bare rows prove is narrower. `particle-core` -- when a mote is visible, which keyframe is showing, which glyph a beam segment draws, and which way the screen shake throws the map on a given frame -- is `no_std`, allocates nothing, and depends on no crate at all. It compiles for `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf`, and `nostd_check.sh` proves it on demand.
-
-That is worth having for a reason that has nothing to do with microcontrollers: it is a standing structural check on the game. The moment someone gives the particle arithmetic a `Vec`, a `String`, or a call into libm, the bare-metal build breaks -- and it breaks in the crate the game itself calls, not a copy of it. The ESP32 is a canary, not a port.
-
-The one seam is `ceil`. `f32::ceil` lives in `std` rather than `core` because it lowers to a libm call, so a hosted build takes the intrinsic and a bare-metal build takes a hand-rolled branch. Two branches means they can disagree, and if they do, the bare-metal build is compiling arithmetic the game does not run and the whole proof is worthless. `particle-core/tests/parity.rs` holds that line, which is why `nostd_check.sh` runs it *first*, before it compiles anything.
-
-Both bare rows also name an SDK image with a shell in it, so the toolchain can be poked at by hand rather than only through the script:
-
-    ./compat/nostd_check.sh --shell esp32
-
-
 Why there is a headless check
 ------------------------------
 
-The bare rows say what the game cannot do without a terminal. `headless_check.sh` says what it can: `models`, which holds every rule, has no crossterm in its dependency graph, and its tests pass without one. The terminal lives in `engine/src/term.rs` and nowhere else, and `engine/tests/term_boundary.rs` keeps it there. So a new front end (a web page, a bot) takes `models` whole and writes its own `term.rs`.
+`headless_check.sh` says what the game can do without a terminal: `models`, which holds every rule, has no crossterm in its dependency graph, and its tests pass without one. The terminal lives in `engine/src/term.rs` and nowhere else, and `engine/tests/term_boundary.rs` keeps it there. So a new front end (a web page, a bot) takes `models` whole and writes its own `term.rs`.
 
 It is host-only and has no matrix row, since having no terminal is the same on every machine. It is not in the `nihilurk-compat` report either; it fails on its own, and `compat_test.sh` lists it as skipped when it does. `--no-headless` leaves it out, and `./compat/headless_check.sh --quick` runs just the graph and the boundary, in a few seconds.
 

@@ -46,7 +46,7 @@ Decision
 Rejected:
 
   5. **Renaming the library too.** The library name defaults to the package name with hyphens turned into underscores, so renaming the package alone would have made it `nihilurk_models` and broken every `use models::` line in the game, the tests and the docs. Renaming the library means touching every file that mentions it, a diff a hundred times the size for a gain the player never sees.
-  6. **One crate.** Fold `models`, `strings` and `particle-core` into one `nihilurk` crate as modules and publish once. Two reasons against: `particle-core` is `no_std` with no dependencies so that `compat/nostd_check.sh` can compile it for an ESP32 and have that mean something about the game, and folded in it would sit beside `bevy_ecs` and the save-file code, and the proof would be about a copy. And `models` is the crate the documentation is written around: almost every page under `tutorial/`, `how-to/` and `reference/` names a file in it, so moving it is a rewrite of the docs, not a release task.
+  6. **One crate.** Fold `models`, `strings` and `particle-core` into one `nihilurk` crate as modules and publish once. Two reasons against: `particle-core` is `no_std` with no dependencies so it can be compiled for a machine with no OS and have that mean something about the game, and folded in it would sit beside `bevy_ecs` and the save-file code, and the proof would be about a copy. And `models` is the crate the documentation is written around: almost every page under `tutorial/`, `how-to/` and `reference/` names a file in it, so moving it is a rewrite of the docs, not a release task.
 
 
 Consequences

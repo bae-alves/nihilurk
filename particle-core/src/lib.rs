@@ -4,9 +4,8 @@
 //! It is `no_std`, allocates nothing, and depends on no crate at all -- not
 //! `crossterm`, not `bevy_ecs`, not `core::fmt`. That is the whole reason it is
 //! a separate crate rather than a module of `models`: this is the only part of
-//! the game that can be *proved* to run somewhere without an operating system,
-//! and `compat/` proves it on every build by compiling this crate for
-//! `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf`.
+//! the game that can run somewhere without an operating system. `compat/` no
+//! longer builds it for a microcontroller; it stays `no_std` for whoever does.
 //!
 //! The proof is only worth something because the game runs this code and not a
 //! copy of it. `models::particles` owns the `Vec` of keyframes, the colour

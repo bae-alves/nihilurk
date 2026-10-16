@@ -3,9 +3,10 @@
 //! `particle-core::ceil` is the crate's one `#[cfg(feature = "std")]`: a hosted
 //! build lowers it to the `f32::ceil` intrinsic, a bare-metal build takes a
 //! hand-rolled branch that needs no libm. A feature flag that changes an answer
-//! rather than just an implementation would mean the ESP32 build and the game
-//! animate differently, and the bare-metal check in `compat/` would be proving
-//! something about code the game does not run.
+//! rather than just an implementation would mean a bare-metal build and the game
+//! animate differently, and a bare-metal build would be running arithmetic
+//! the game does not.
+
 //!
 //! So this walks the whole domain nihilurk actually uses -- a blast radius, in
 //! quarter-tile steps, out past any map -- and requires bit-for-bit equality.

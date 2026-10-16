@@ -26,8 +26,6 @@ Quick commands
     ./compat_test.sh --targets cloud  one machine
     ./compat_test.sh --no-build       reuse what is already built (needs --keep on the run before)
     ./compat_test.sh --keep           keep the images and target/cross afterwards
-    ./compat_test.sh --targets pi-zero --no-bare     one row, no ESP32
-    ./compat_test.sh --no-bare        skip the microcontroller check
     ./compat_test.sh --no-headless    skip the no-terminal check (models has no crossterm)
     ./compat_test.sh --timeout 60     per-row seconds for the run check
     ./compat_test.sh --help
@@ -40,7 +38,6 @@ using. So every run is a cold run; use `--keep` while you iterate.
 The three phases on their own:
 
     ./compat/cross_build.sh           build for every machine + blame
-    ./compat/nostd_check.sh           the microcontroller rows
     ./compat/run_check.sh             check each machine actually runs it
 
 The report:
@@ -67,14 +64,10 @@ The machines
     pi4        aarch64 musl    qemu     Raspberry Pi 4 B
     cm         aarch64 musl    qemu     Compute Module 4 (1GB Lite)
     potato     i686 musl       native   32-bit netbook, ca. 2008
-    esp32c3    riscv32imc      none     ESP32-C3, compiled only
-    esp32      xtensa-esp32    none     ESP32, compiled only
 
 There is no CPU or memory cap on any row. nihilurk has no workload heavy enough to need a stress test -- every feel-layer effect is bounded -- so the matrix checks a narrower, cheaper claim instead: if it builds, the image has a shell, and the target is std (every `linux` row here is), nihilurk can run there. `cloud` and `potato` run on the host CPU directly; every other `linux` row runs under a directly-invoked qemu-user-static interpreter, fetched by the pipeline on its own -- no `binfmt_misc`, no `--privileged`.
 
 Every `linux` row's image is checked for a shell before the binary is run -- that is not optional, nihilurk cannot start without a real terminal under it -- and a row that fails the check fails the pipeline rather than being silently skipped. See "why every `linux` row must have a shell" in `../explanation/cross-platform-testing.md`.
-
-The two `esp32*` rows are never executed, under any flag: they are `no_std`, and there is no "run it for real" for a target with no OS to run it under. See "The microcontroller rows" below.
 
 
 1. Does nihilurk still run everywhere?
@@ -86,11 +79,11 @@ The two `esp32*` rows are never executed, under any flag: they are `no_std`, and
 
 2. Read the table. One line per machine:
 
-       machine   exec       binary  verdict
-       cloud     native    1.8 MiB  runs
-       graviton  qemu      1.6 MiB  runs
-       pi-zero   qemu      1.6 MiB  runs
-       potato    native    1.8 MiB  runs
+       machine   target                          exec        binary  verdict
+       cloud     x86_64-unknown-linux-musl       native     3.5 MiB  runs
+       graviton  aarch64-unknown-linux-musl      qemu       3.1 MiB  runs
+       pi-zero   armv7-unknown-linux-musleabihf  qemu       3.2 MiB  runs
+       potato    i686-unknown-linux-musl         native     3.2 MiB  runs
 
    The verdict column is the whole story:
 
@@ -138,25 +131,7 @@ Those are *symbol* bytes, not file bytes -- the difference is section headers, p
 The full table per machine is in `target/compat/blame-<machine>.txt`. `--no-blame` skips the stage; `--top 20` lists more crates.
 
 
-4. The microcontroller rows
----------------------------
-
-    ./compat/nostd_check.sh
-
-This does not build nihilurk for an ESP32. nihilurk draws with crossterm, crossterm needs a terminal, and a microcontroller has neither a terminal nor an OS to provide one.
-
-What it checks is that `particle-core` -- the arithmetic of the particle layer, which the game itself calls -- still compiles with no operating system under it, for `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf`. It is a standing structural check: the moment that arithmetic is given a `Vec`, a `String`, or a libm call, this goes red.
-
-It runs the parity test first, which is what makes the rest mean anything -- see the explanation page.
-
-RISC-V is a rustup target, so that row is a one-second `cargo check` on the host. Xtensa needs Espressif's rustc fork, so that row runs in `espressif/idf-rust:all_latest`. Both rows name an image with a shell, for poking at the toolchain by hand:
-
-    ./compat/nostd_check.sh --shell esp32
-    ./compat/nostd_check.sh --shell esp32c3
-    ./compat/nostd_check.sh --pull        fetch it first (a few GB)
-
-
-5. Adding a machine
+4. Adding a machine
 -------------------
 
 Add a line to `compat/matrix.tsv`. Seven tab-separated fields:
@@ -183,7 +158,6 @@ That is all. `cross_build.sh`, `run_check.sh` and the report all read the table.
 Two rules the tests enforce, so you will hear about it:
 
   - Every `linux` row must be a `-musl` triple. A `-gnu` binary is bound to the glibc it was linked against, which is the one thing the matrix exists to rule out.
-  - Every `bare` row must have `exec` of `none`. Those rows are compiled, never run.
 
     cargo test -p nihilurk-compat
 
@@ -286,5 +260,4 @@ Every script takes `--help`, and each one's help is the authority on its own fla
     ./compat_test.sh --help
     ./compat/cross_build.sh --help
     ./compat/run_check.sh --help
-    ./compat/nostd_check.sh --help
     target/release/nihilurk-compat --help

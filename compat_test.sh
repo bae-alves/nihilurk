@@ -19,8 +19,6 @@
 #   compat/cross_build.sh   phase 1: one container per architecture, builds
 #                           the game, prints its size and who is to blame
 #                           for it
-#   compat/nostd_check.sh   the bare-metal rows: particle-core for ESP32
-#                           and RISC-V microcontrollers
 #   compat/headless_check.sh  the rules need no terminal: models has no
 #                           crossterm, and its tests pass without one
 #   compat/run_check.sh     phase 2: checks each machine's image has a
@@ -37,7 +35,6 @@
 #   ./compat_test.sh                  everything
 #   ./compat_test.sh --targets cloud  one machine (comma-separated)
 #   ./compat_test.sh --no-build       reuse the binaries already built
-#   ./compat_test.sh --no-bare        skip the microcontroller check
 #   ./compat_test.sh --no-headless    skip the no-terminal check
 #   ./compat_test.sh --timeout 60     per-row seconds for the run check
 #   ./compat_test.sh --keep           keep the images and target/cross (see below)
@@ -55,7 +52,6 @@ cd "$(dirname "$0")" || exit 1
 
 ONLY=""
 DO_BUILD=1
-DO_BARE=1
 DO_HEADLESS=1
 KEEP=0
 TIMEOUT=60
@@ -65,7 +61,6 @@ while [ $# -gt 0 ]; do
     --targets)  ONLY="${2:?--targets needs a list}"; shift ;;
     --timeout)  TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
     --no-build) DO_BUILD=0 ;;
-    --no-bare)  DO_BARE=0 ;;
     --no-headless) DO_HEADLESS=0 ;;
     --keep)     KEEP=1 ;;
     --help|-h)  sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
@@ -105,20 +100,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Bare metal
-# ---------------------------------------------------------------------------
-
-if [ "$DO_BARE" -eq 1 ]; then
-  # Not fatal to the pipeline: the microcontroller rows are a separate claim
-  # from "nihilurk runs on this hardware", and a missing Xtensa toolchain should
-  # not stop the matrix from being checked.
-  ./compat/nostd_check.sh || SKIPPED="${SKIPPED}bare "
-else
-  warn "skipping the bare-metal check (--no-bare)"
-fi
-
-# ---------------------------------------------------------------------------
-# 3. Headless
+# 2. Headless
 # ---------------------------------------------------------------------------
 
 if [ "$DO_HEADLESS" -eq 1 ]; then
@@ -128,14 +110,14 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. Check it
+# 3. Check it
 # ---------------------------------------------------------------------------
 
 ./compat/run_check.sh "${TARGET_ARGS[@]}" --timeout "$TIMEOUT"
 CHECK_STATUS=$?
 
 # ---------------------------------------------------------------------------
-# 5. Verdict
+# 4. Verdict
 # ---------------------------------------------------------------------------
 
 heading "Verdict"

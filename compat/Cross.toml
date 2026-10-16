@@ -82,18 +82,3 @@ image = "ghcr.io/cross-rs/i686-unknown-linux-musl:0.2.5"
 # software what this one does in silicon.
 [target.armv7-unknown-linux-musleabihf]
 image = "ghcr.io/cross-rs/armv7-unknown-linux-musleabihf:0.2.5"
-
-# ---------------------------------------------------------------------------
-# Bare metal -- see nostd_check.sh
-# ---------------------------------------------------------------------------
-#
-# `riscv32imc-unknown-none-elf` and `xtensa-esp32-none-elf` are deliberately
-# absent from this file. They are never linked into an executable and never run,
-# so they need no container and no linker: `cargo check -p nihilurk-particle-core
-# --target <triple>` is the whole job, and it runs on the host toolchain in
-# under a second. `nostd_check.sh` does that, and reaches for a container only
-# for the Xtensa target, whose compiler is a fork rustup does not carry.
-#
-# What is *not* being claimed there: that nihilurk runs on a microcontroller. It
-# does not, it is not meant to, and a bare-metal row failing to produce a game
-# is not a bug. See docs/explanation/cross-platform-testing.md.
