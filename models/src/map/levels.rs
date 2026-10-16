@@ -37,8 +37,8 @@
 //! the call site alone. If you are adding to it, add a step; do not add a
 //! paragraph to one.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use std::collections::HashSet;
 

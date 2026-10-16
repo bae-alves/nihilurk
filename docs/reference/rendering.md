@@ -25,14 +25,14 @@ The frame buffer
 ```
 pub struct Screen {
     cur: Vec<Cell>,        // this frame, being painted
-    prev: Vec<Cell>,       // last frame, as flushed
+    prev: Vec<Cell>,       // last frame, as presented
     map_shift: (i16, i16), // where the screen shake has thrown the map
     ...
 }
 type Cell = (char, Color, Color); // glyph, foreground, background
 ```
 
-`render` paints the entire 80x25 grid into `cur` every call — nothing is incremental at that level. `Screen::flush` is what's incremental: it diffs `cur` against `prev` cell by cell and only emits a `MoveTo`/`Print` (plus `SetForegroundColor`/`SetBackgroundColor` when the colour actually changed) for cells that differ, then swaps the two buffers. A typical turn changes a handful of cells; `flush` writes a handful of escape sequences, not 2000. `dirty_all` forces a full repaint — set on the first frame, and whenever the centering offset changes (`-c`, or the terminal was resized), since a shifted viewport would otherwise leave stale cells sitting where the old frame was.
+`render` paints the entire 80x25 grid into `cur` every call — nothing is incremental at that level. `Screen::changed` is what's incremental: it diffs `cur` against `prev` cell by cell and yields only the cells that differ, and `Term::present` (`engine/src/term.rs`, the one file that names crossterm) turns those into a `MoveTo`/`Print` (plus `SetForegroundColor`/`SetBackgroundColor` when the colour actually changed), flushes, then calls `Screen::shown` to swap the two buffers. A typical turn changes a handful of cells; `present` writes a handful of escape sequences, not 2000. `dirty_all` forces a full repaint — set on the first frame, and by `present` whenever the centering offset changes (`-c`, or the terminal was resized), since a shifted viewport would otherwise leave stale cells sitting where the old frame was.
 
 `put`/`set_fg`/`set_bg`/`puts`/`hline` are the only ways `render` touches `cur`; they silently no-op on an out-of-bounds coordinate rather than panicking, since a couple of callers (the targeting beam, the travel cursor) compute a tile position that can legitimately fall off the 80x25 frame.
 
@@ -40,9 +40,9 @@ type Cell = (char, Color, Color); // glyph, foreground, background
 
 `map_cell` returning `None` means "not drawn". It never clamps: a tile the shake pushes off the left edge is dropped, not piled onto column 0, and a tile pushed off the top is dropped, not smeared into the status line. Nothing is rendered to fill the gap either — **the shake does not change the game's resolution, and what leaves the viewport is simply not drawn.** With `map_shift` at `(0, 0)` every map tile still maps to exactly the cell it always did, so a resting frame is the frame nihilurk drew before any of this existed. `screen.rs`'s module docs state the same rules.
 
-`centering_offset` reads `RenderConfig.centered` (`-c`) and the real terminal size to compute the top-left offset that keeps the fixed 80x25 frame centred; `(0, 0)` when not centred.
+`Term::present` works out the top-left offset that keeps the fixed 80x25 frame centred from the real terminal size when `Term::new(true)` (`-c`) built it; `(0, 0)` otherwise. Nothing above `term.rs` sees the offset: a click comes back from `term::read` already in grid coordinates, and `view` and `update` paint and read the 80x25 grid alone. Every `view` function that draws takes `term: &mut Term` and the `Screen`.
 
-**`Screen` is not in this file.** It is `engine/src/screen.rs`, which holds the grid, the double buffer, the cell diff and the map/screen coordinate split, and knows nothing about the game. `engine` paints into it; what *this* file owns is everything that goes *in* the grid: the layers below, the HUD, the overlays and the playback loops.
+**`Screen` is not in this file.** It is `engine/src/screen.rs`, which holds the grid, the double buffer, the cell diff and the map/screen coordinate split, and knows nothing about the game. `engine` paints into it and `term.rs` presents it; what *this* file owns is everything that goes *in* the grid: the layers below, the HUD, the overlays and the playback loops.
 
 
 `render`: the layers, in order
@@ -176,7 +176,7 @@ pub fn play_magic_map<W: Write>(world, stdout, screen) -> std::io::Result<()>
 
 Both share the same shape: `drain_input` first, then — while the effect (`Particles`/ `MagicMapReveal`) still has something to show — advance it one frame, call `render` to paint the result, and `interrupted` for the frame's duration — a key *press* during that poll is swallowed and skips straight to the finished state (magic mapping additionally `finish_magic_map_reveal`s the map instantly rather than leaving it part-revealed). Frame duration is `AnimRate`-scaled (`-anim-rate`, clamped `0.1..=5.0`) off a `33ms` base for particles and `MagicMapReveal::frame_ms()` for the map wipe, so a slow terminal or a player who wants snappier turns can retune both without either one's code changing.
 
-The two helpers around that poll exist for one bug: the loops treat a pending event as "skip this", and the key that *started* the animation can still be echoing — a terminal that reports key releases hands back the release of the zap key, which killed the bolt on its first frame and made a wand look like it drew nothing at all. `drain_input` empties the queue before the first frame; `interrupted` counts only `KeyEventKind::Press`, so a release, a resize or a mouse report arriving mid-flight is not a skip. Keys typed ahead are still swallowed, one frame earlier than before.
+The two helpers around that poll exist for one bug: the loops treat a pending event as "skip this", and the key that *started* the animation can still be echoing — a terminal that reports key releases hands back the release of the zap key, which killed the bolt on its first frame and made a wand look like it drew nothing at all. `drain_input` empties the queue before the first frame; `interrupted` counts only `Event::Key`, and `term::read` hands up nothing but presses and clicks, so a release, a resize or a mouse report arriving mid-flight is not a skip. Keys typed ahead are still swallowed, one frame earlier than before.
 
 The turn itself is already fully resolved by the time either of these runs — they only animate what already happened, which is what makes it safe to block input here the way NetHack and DCSS do for a bolt.
 
@@ -202,16 +202,16 @@ What is armed, and by what, is the table in `components.md`, "The screen shake".
 
 A player death is the one moment with nothing left to protect, and it arms no shake at all — the map holds still and `helpers::death_burst` plays out three times slower instead, in Step B2, before the main loop reaches its `Ending` check and `run_death_screens` paints over it.
 
-One thing to know if you are measuring: a shake frame changes most of the map's ~1700 cells, so it is the one situation where `flush`'s cell-diff has little left to skip. It lasts 2-15 frames.
+One thing to know if you are measuring: a shake frame changes most of the map's ~1700 cells, so it is the one situation where the cell-diff has little left to skip. It lasts 2-15 frames.
 
 
 End-of-run panels
 -------------------
 
 ```
-pub fn render_you_died<W>(stdout, screen, offset) -> std::io::Result<()>
-pub fn render_lose<W>(stdout, screen, offset, player_name, cause, score)
-pub fn render_win<W>(stdout, screen, offset, player_name, score, marks)
+pub fn render_you_died(term, screen) -> std::io::Result<()>
+pub fn render_lose(term, screen, player_name, cause, score)
+pub fn render_win(term, screen, player_name, score, marks)
 ```
 
 Full-screen, drawn in place of `render` (not layered with it) via `screen.clear()` and `screen.dirty_all = true` — a full repaint, since nothing about the map frame should bleed through. Both end panels are one word — `WIN` or `LOSE` — then the name, the cause (death only), the score and the prompt; `centered_x` centres every line. `main.rs`'s `run_death_screens`/`run_victory_screens` drive these: death shows the "You die..." panel, blocks for the acknowledging keypress (`wait_for_key`), then shows LOSE and blocks again; victory shows WIN and blocks once. The win panel also draws `marks`, one coloured `◆` per conduct kept, under the score (`conducts.md`). Both write the run dump (`morgue.rs`) first, while the last map frame is still the one on the terminal: `Screen::shown_text` reads that frame, so the dump's final screen is what the player last saw.

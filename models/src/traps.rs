@@ -73,8 +73,8 @@
 //! [`DART_POWER_DRAIN_PER_TIER`] to the dart trap's permanent power drain. The
 //! dials are [`crate::constants::traps`].
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 

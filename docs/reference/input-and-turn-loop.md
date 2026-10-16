@@ -19,7 +19,22 @@ Reference: input handling and the turn loop
 The split this code sits on
 ----------------------------
 
-`models/` holds the pathfinding and state machines (`autoexplore.rs`, `fastmove.rs`) as **pure functions that only read the world** — no terminal, no sleeping, no turn-taking. `engine/src/update.rs` is the other half: it reads the keyboard through `engine/src/input.rs` (the one place that calls `crossterm::event::read`/`poll`, so a run can be recorded and replayed), decides when a turn is spent, and drives those pure functions to completion. Nothing in `models/` blocks on input or sleeps; nothing in `engine/` does pathfinding. If you find yourself wanting to add a `World` query that decides *where* to go, it almost certainly belongs in `models/`, not here — see the module doc comments at the top of `autoexplore.rs` and `fastmove.rs`.
+`models/` holds the pathfinding and state machines (`autoexplore.rs`, `fastmove.rs`) as **pure functions that only read the world** — no terminal, no sleeping, no turn-taking. `engine/src/update.rs` is the other half: it reads the keyboard through `engine/src/input.rs` (the one place that calls `term::read`/`poll`, so a run can be recorded and replayed), decides when a turn is spent, and drives those pure functions to completion. Neither `update.rs` nor `view.rs` names a terminal library: input reaches them as `input.rs`'s own `Event`, and `engine/src/term.rs` is the one file that names crossterm. Nothing in `models/` blocks on input or sleeps; nothing in `engine/` does pathfinding. If you find yourself wanting to add a `World` query that decides *where* to go, it almost certainly belongs in `models/`, not here — see the module doc comments at the top of `autoexplore.rs` and `fastmove.rs`.
+
+
+The event types
+----------------
+
+```
+pub enum Event { Key(KeyEvent), Mouse(MouseEvent) }
+pub struct KeyEvent { code: KeyCode, modifiers: KeyModifiers }
+pub struct MouseEvent { button: MouseButton, column: u16, row: u16, modifiers: KeyModifiers }
+pub enum MouseButton { Left, Right }
+```
+
+These live in `input.rs` and are the game's own, so `update.rs` matches on them without a terminal library in sight. `KeyCode` has the keys a recording can name (`Char`, `F`, the arrows, `Home`/`End`, `PageUp`/`PageDown`, `Tab`, `BackTab`, `Delete`, `Insert`, `Esc`, `Enter`, `Backspace`). `KeyModifiers` is one byte with Shift 1, Control 2 and Alt 4, the same bits a recording holds; a recording line with any other bit set (Super, say) decodes with that bit dropped.
+
+`term::read` is where the terminal's events become these, and where the filtering happens. Only a key press and a Left or Right mouse down get through: a release, a repeat, a resize, pointer motion, a middle click and a key with no `KeyCode` (Caps Lock, a media key) return `None` and are never logged. That is why no handler in `update.rs` or `view.rs` checks a key's kind. A click comes back in grid coordinates, with the `-c` centering offset of the frame on screen taken off; a click outside the frame is dropped there too.
 
 
 The main loop
@@ -320,9 +335,9 @@ The player can also turn an item down, and `worth_the_walk` skips what they have
 
 Fast move (`fast_move_run`) is the odd one out: it runs its entire walk **inside one call**, stepping `schedule.run` itself between moves and never repainting until it returns, so a run reads as a single jump rather than an animated walk. Auto-explore and travel instead take one step per `player_step` call (`auto_explore_step`), returning to the main loop's normal render-and-pace cycle after each — which is why auto-explore visibly walks while a run visibly jumps.
 
-All three refuse to *start* while confused or with a monster in sight — except that a Shift run from a body with `Charges` (nihil) toward a creature in the pressed direction's wedge becomes a charge (`models::queue_charge`, applied by `models::charge`): one turn, the player lands beside the creature, strikes, and is `Vuln` for the monster phase that follows — and both `auto_explore_step` and `fast_move_run` drain pending input before every step through `walk_interrupted`, stopping on the first key press or mouse click (`stops_a_walk`) and swallowing it — otherwise it would also be read as a move on the next frame. A mouse release or pointer motion is read and dropped without stopping anything, so a right click's own release cannot cut short the travel it started.
+All three refuse to *start* while confused or with a monster in sight — except that a Shift run from a body with `Charges` (nihil) toward a creature in the pressed direction's wedge becomes a charge (`models::queue_charge`, applied by `models::charge`): one turn, the player lands beside the creature, strikes, and is `Vuln` for the monster phase that follows — and both `auto_explore_step` and `fast_move_run` drain pending input before every step through `walk_interrupted`, stopping on the first event and swallowing it — otherwise it would also be read as a move on the next frame. Only a key press or a Left or Right click ever gets that far (see "The event types" below), so a right click's own release cannot cut short the travel it started.
 
-**Mouse** (`-mouse` only; capture is off otherwise). `process_input_and_update` and `travel_cursor_step` both pass an `Event::Mouse` to `dispatch_mouse`, which maps the cell to a tile with `tile_under` (frame offset and `MAP_TOP` removed). Left = look (`describe_target` + `open_tile_info` + `meet_its_eyes`, no turn), or move the reticle / `O` cursor. Right = travel (`O` cursor's commit via `confirm_travel_cursor`), or on the reticle move then `fire_at_target`. Unseen tiles, menus and `--MORE--` ignore it. Tests: `update.rs`, "The mouse".
+**Mouse** (`-mouse` only; capture is off otherwise). `process_input_and_update` and `travel_cursor_step` both pass an `Event::Mouse` to `dispatch_mouse`, which maps the grid cell to a tile with `tile_under` (`MAP_TOP` removed; `term::read` took the centering offset off already). Left = look (`describe_target` + `open_tile_info` + `meet_its_eyes`, no turn), or move the reticle / `O` cursor. Right = travel (`O` cursor's commit via `confirm_travel_cursor`), or on the reticle move then `fire_at_target`. Unseen tiles, menus and `--MORE--` ignore it. Tests: `update.rs`, "The mouse".
 
 `travel_cursor_step` is different again: it isn't a walk at all, just a blinking highlight the player steers with arrow/vi/numpad keys over already-`revealed` ground (sliding along one axis when the diagonal neighbour is still unseen), gated to 400ms polls so the blink phase flips on a timeout. It runs its own loop outside `process_input_and_update`, so the universal escape hatch never sees its keys — `x` / `X` are handled in its own cancel arm instead, which is the only reason closing it works at all. Enter commits the tile to a travel `AutoExplore` via `nearest_reachable` if the chosen tile isn't itself walkable.
 

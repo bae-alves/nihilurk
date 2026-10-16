@@ -104,7 +104,7 @@ pub(crate) fn element_surfaces(world: &mut World, player: Entity, element: Entit
     if let Some(at) = world.get::<Position>(player).copied()
         && let Some(mut fx) = world.get_resource_mut::<crate::particles::Particles>()
     {
-        fx.spark_burst(at.x, at.y, crossterm::style::Color::White);
+        fx.spark_burst(at.x, at.y, crate::Color::White);
     }
 }
 

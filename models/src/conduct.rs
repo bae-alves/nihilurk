@@ -11,8 +11,8 @@
 //! The order of [`Conduct::ALL`] is a file format. The leaderboard stores the
 //! kept mask by bit index, so a variant goes on the end and none are reordered.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 
 use crate::components::Player;
 use crate::effects::Lurk;

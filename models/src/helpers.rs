@@ -29,7 +29,7 @@ use bevy_ecs::{
 use rand::Rng;
 use std::collections::HashSet;
 
-use crossterm::style::Color;
+use crate::Color;
 
 use crate::components::{Element, LogCategory};
 use crate::effects::{ArmorBonus, GreenBlood, equipped_total};

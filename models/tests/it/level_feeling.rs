@@ -6,7 +6,7 @@ use crate::common::monster;
 
 use bevy_ecs::prelude::*;
 use common::fresh_run;
-use crossterm::style::Color;
+use models::Color;
 use models::*;
 use monster::plain_monster;
 

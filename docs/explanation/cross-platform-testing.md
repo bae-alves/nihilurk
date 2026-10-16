@@ -110,6 +110,14 @@ Both bare rows also name an SDK image with a shell in it, so the toolchain can b
     ./compat/nostd_check.sh --shell esp32
 
 
+Why there is a headless check
+------------------------------
+
+The bare rows say what the game cannot do without a terminal. `headless_check.sh` says what it can: `models`, which holds every rule, has no crossterm in its dependency graph, and its tests pass without one. The terminal lives in `engine/src/term.rs` and nowhere else, and `engine/tests/term_boundary.rs` keeps it there. So a new front end (a web page, a bot) takes `models` whole and writes its own `term.rs`.
+
+It is host-only and has no matrix row, since having no terminal is the same on every machine. It is not in the `nihilurk-compat` report either; it fails on its own, and `compat_test.sh` lists it as skipped when it does. `--no-headless` leaves it out, and `./compat/headless_check.sh --quick` runs just the graph and the boundary, in a few seconds.
+
+
 Why the grading lives in Rust
 -----------------------------
 

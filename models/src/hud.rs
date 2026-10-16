@@ -1,7 +1,7 @@
 //! Presentation helpers shared by the renderer and the input handler so both
 //! agree on exactly what the message log is showing this frame.
 
-use crossterm::style::Color;
+use crate::Color;
 
 use crate::components::{CommandBar, LogCategory, LogEntry};
 

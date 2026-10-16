@@ -33,8 +33,8 @@
 //! serialised struct by field order. Append new variants and fields; do not
 //! reorder existing ones, or old saves change meaning.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
 
@@ -1695,13 +1695,6 @@ pub struct SpellQueue {
 pub struct PlayerName {
     /// The name the player typed.
     pub what: String,
-}
-
-/// Whether the viewport scrolls to keep the player centred (`-centered`).
-#[derive(Resource, Default)]
-pub struct RenderConfig {
-    /// `true` when the run started with `-centered`.
-    pub centered: bool,
 }
 
 // The pack screen's own state — `ItemAction`, `PackMode` and `PackIsOpen` —

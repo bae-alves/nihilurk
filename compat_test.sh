@@ -21,6 +21,8 @@
 #                           for it
 #   compat/nostd_check.sh   the bare-metal rows: particle-core for ESP32
 #                           and RISC-V microcontrollers
+#   compat/headless_check.sh  the rules need no terminal: models has no
+#                           crossterm, and its tests pass without one
 #   compat/run_check.sh     phase 2: checks each machine's image has a
 #                           shell and that the binary it built actually
 #                           starts and runs there
@@ -36,6 +38,7 @@
 #   ./compat_test.sh --targets cloud  one machine (comma-separated)
 #   ./compat_test.sh --no-build       reuse the binaries already built
 #   ./compat_test.sh --no-bare        skip the microcontroller check
+#   ./compat_test.sh --no-headless    skip the no-terminal check
 #   ./compat_test.sh --timeout 60     per-row seconds for the run check
 #   ./compat_test.sh --keep           keep the images and target/cross (see below)
 #   ./compat_test.sh --help
@@ -53,6 +56,7 @@ cd "$(dirname "$0")" || exit 1
 ONLY=""
 DO_BUILD=1
 DO_BARE=1
+DO_HEADLESS=1
 KEEP=0
 TIMEOUT=60
 
@@ -62,6 +66,7 @@ while [ $# -gt 0 ]; do
     --timeout)  TIMEOUT="${2:?--timeout needs seconds}"; shift ;;
     --no-build) DO_BUILD=0 ;;
     --no-bare)  DO_BARE=0 ;;
+    --no-headless) DO_HEADLESS=0 ;;
     --keep)     KEEP=1 ;;
     --help|-h)  sed -n '3,/^set -/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
     *) echo "compat_test.sh: unknown option $1 (try --help)" >&2; exit 1 ;;
@@ -113,14 +118,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Check it
+# 3. Headless
+# ---------------------------------------------------------------------------
+
+if [ "$DO_HEADLESS" -eq 1 ]; then
+  ./compat/headless_check.sh || SKIPPED="${SKIPPED}headless "
+else
+  warn "skipping the headless check (--no-headless)"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Check it
 # ---------------------------------------------------------------------------
 
 ./compat/run_check.sh "${TARGET_ARGS[@]}" --timeout "$TIMEOUT"
 CHECK_STATUS=$?
 
 # ---------------------------------------------------------------------------
-# 4. Verdict
+# 5. Verdict
 # ---------------------------------------------------------------------------
 
 heading "Verdict"

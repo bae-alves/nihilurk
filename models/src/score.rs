@@ -25,8 +25,8 @@
 //! number never does. An arcade scoreboard that does not react is just a
 //! number.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::{GameLog, LogCategory, Player, Score};

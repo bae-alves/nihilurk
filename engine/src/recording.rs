@@ -5,8 +5,7 @@
 //! A run resumed from a save has no recording: a seed and keys only describe a
 //! run from its first turn.
 
-use crate::input;
-use crossterm::event::Event;
+use crate::input::{self, Event};
 use std::path::{Path, PathBuf};
 
 const MAGIC: &str = "nihilurk-rec 1";

@@ -22,7 +22,7 @@
 //! `map::BloodStains` keep resolving and a caller never has to know which file
 //! a thing came from.
 
-use crossterm::style::Color;
+use crate::Color;
 use fixedbitset::FixedBitSet;
 
 use bevy_ecs::prelude::*;

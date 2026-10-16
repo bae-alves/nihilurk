@@ -7,8 +7,8 @@
 //! ([`auto_fight_target`], the same pick Tab makes) for cold damage, and
 //! shatters on impact.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::BlastPalette;

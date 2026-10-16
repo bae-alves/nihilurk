@@ -51,7 +51,7 @@ fn the_lurk_is_its_own_creature() {
     let p = player(&mut w);
 
     let r = w.get::<Renderable>(p).unwrap();
-    assert_eq!((r.glyph, r.color), ('@', crossterm::style::Color::Magenta));
+    assert_eq!((r.glyph, r.color), ('@', models::Color::Magenta));
 
     let f = w.get::<Fighter>(p).unwrap();
     assert_eq!(f.hp, f.max_hp);

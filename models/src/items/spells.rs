@@ -17,8 +17,8 @@
 //! That is deliberate — a spell is a *delivery method*, and the dungeon
 //! already knows what a wand of light or a scroll of magic mapping does.
 
+use crate::Color;
 use bevy_ecs::{entity::Entity, world::World};
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::*;

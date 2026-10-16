@@ -19,8 +19,8 @@
 //!   ledger like any other thing a creature was born with.
 //! * **nihil** is what a player with neither is.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::*;

@@ -5,7 +5,7 @@ use crate::common;
 use crate::common::monster;
 
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
+use models::Color;
 use models::*;
 
 fn run(body: Body) -> World {
@@ -379,7 +379,7 @@ fn broken_conducts_survive_a_save() {
 
 #[test]
 fn marks_run_the_rainbow_in_order_and_the_lurk_keeps_its_own_colour() {
-    use crossterm::style::Color::*;
+    use models::Color::*;
     let stripes = [Red, Green];
     let mask = Conduct::Potions.bit() | Conduct::Wands.bit() | Conduct::Lurk.bit();
 

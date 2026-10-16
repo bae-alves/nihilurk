@@ -19,8 +19,8 @@
 //!
 //! [`RingEffect`]: crate::components::RingEffect
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::{Consume, GameLog, LogCategory, Magic, Player, Position};

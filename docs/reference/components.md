@@ -355,7 +355,6 @@ Resources
 
 | Resource        | Fields                                                    | Notes |
 |-----------------|----------------------------------------------------------|-------|
-| `RenderConfig`  | `centered: bool`                                          | `-centered` flag. |
 | `HelpMenu`      | `open: bool`                                              | the F1 key list. Any key closes it and does nothing else. |
 | `ItemInfo`      | `open: bool`, `lines: Vec<String>`                        | the Info popup: the pack's Info row, and `?` or a click in look mode. Any key closes it and does nothing else. |
 | `CommandBar`    | `hidden: bool`                                            | F2 hides the yellow command bar; the log and player line move left into its columns. |

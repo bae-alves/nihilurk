@@ -8,8 +8,8 @@
 //! wand. [`wear_monster`] is the odd one out: it puts a species' body on the
 //! *player* instead of spawning a new entity, for playing as a monster.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
@@ -248,12 +248,6 @@ impl MonsterDef {
     }
 
     /// Make a species rarer or commoner than its floor-mates.
-    ///
-    /// No row asks for it at present — within a tier nihilurk draws evenly on
-    /// purpose — so it is kept as the extension point the docs teach
-    /// (`docs/tutorial/add-your-first-monster.md`) rather than deleted as
-    /// unused. The same is true of `ItemDef::weight` next door.
-    #[allow(dead_code)]
     const fn weight(mut self, weight: u32) -> Self {
         self.weight = weight;
         self

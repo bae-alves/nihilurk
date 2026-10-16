@@ -326,7 +326,7 @@ fn a_vaults_stairs_sit_in_its_corner_rooms() {
 
 #[test]
 fn a_vault_is_white_and_the_bee_world_is_yellow() {
-    use crossterm::style::Color;
+    use models::Color;
     for (kind, color) in [
         (SpecialLevel::Vault, Color::White),
         (SpecialLevel::BeeWorld, Color::Yellow),

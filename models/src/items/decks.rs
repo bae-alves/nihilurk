@@ -8,8 +8,8 @@
 //! [`CARD_CHAIN_CAP`] cards in all, which is what ends a chain that would not
 //! end by itself.
 
+use crate::Color;
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
-use crossterm::style::Color;
 use rand::seq::SliceRandom;
 
 use crate::catalog::{CARDS, CardDef, RingDef};

@@ -5,8 +5,8 @@
 //! aloud by a *monster* you threw it at runs the same [`apply_scroll_effect`],
 //! with the monster as the reader (see [`super::throwing`]).
 
+use crate::Color;
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::*;

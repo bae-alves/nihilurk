@@ -117,8 +117,10 @@ WHERE THE NUMBERS COME FROM
                               that the binary actually starts there
     ./compat/nostd_check.sh   the bare-metal rows: particle-core compiled
                               for microcontrollers
+    ./compat/headless_check.sh  the rules (models) need no terminal; not
+                              in the report, it fails on its own
 
-    or ./compat_test.sh to do all three and print this.
+    or ./compat_test.sh to do all four and print this.
 
 WHAT IS BEING CLAIMED
     if it builds, the image has a shell, and the target is std, nihilurk can

@@ -2,7 +2,8 @@
 //! back.
 //!
 //! Every `poll` and `read` in the engine goes through here. Live, they pass
-//! to crossterm and log each key press and mouse click that the game acts on.
+//! to [`crate::term`] and log each key press and mouse click that the game
+//! acts on.
 //! In replay, they answer from a log instead. Each logged event carries a
 //! *stamp*: how many calls into this module had been made when the event first
 //! showed up (a `poll` that said yes, or a `read` that had to wait for it).
@@ -11,15 +12,141 @@
 //!
 //! Only presses and clicks are logged. Releases, resizes and mouse moves never
 //! change the game, and logging them would make the stream depend on the
-//! terminal.
+//! terminal: [`crate::term`] drops them before an event reaches this module.
+//!
+//! The event types are the game's own, so nothing above the terminal names a
+//! terminal library. Their names and shapes follow what `update` matches on.
 
-use crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-};
+use crate::term;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::io::{ErrorKind, Write};
 use std::time::Duration;
+
+/// A key, as far as the game tells them apart.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum KeyCode {
+    /// A character key, as typed (shifted keys arrive already shifted).
+    Char(char),
+    /// A function key, `F(1)` to `F(12)` and beyond.
+    F(u8),
+    /// Backspace.
+    Backspace,
+    /// Enter or Return.
+    Enter,
+    /// Arrow left.
+    Left,
+    /// Arrow right.
+    Right,
+    /// Arrow up.
+    Up,
+    /// Arrow down.
+    Down,
+    /// Home.
+    Home,
+    /// End.
+    End,
+    /// Page up.
+    PageUp,
+    /// Page down.
+    PageDown,
+    /// Tab.
+    Tab,
+    /// Shift+Tab.
+    BackTab,
+    /// Delete.
+    Delete,
+    /// Insert.
+    Insert,
+    /// Escape.
+    Esc,
+}
+
+/// The modifier keys held with an event. The bits are the ones recordings
+/// hold: Shift 1, Control 2, Alt 4. Any other bit a log line carries is dropped.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct KeyModifiers(u8);
+
+impl KeyModifiers {
+    /// No modifier.
+    #[cfg(test)]
+    pub const NONE: Self = Self(0);
+    /// Shift.
+    pub const SHIFT: Self = Self(1);
+    /// Control.
+    pub const CONTROL: Self = Self(2);
+    /// Alt.
+    pub const ALT: Self = Self(4);
+
+    /// Whether every modifier in `other` is held.
+    pub fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// The modifiers as a recording writes them.
+    pub fn bits(self) -> u8 {
+        self.0
+    }
+
+    /// The modifiers in `bits`, ignoring any bit the game has no modifier for.
+    pub fn from_bits_truncate(bits: u8) -> Self {
+        Self(bits & 0b111)
+    }
+}
+
+impl std::ops::BitOr for KeyModifiers {
+    type Output = Self;
+    fn bitor(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+}
+
+/// A key press.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct KeyEvent {
+    /// Which key.
+    pub code: KeyCode,
+    /// The modifiers held with it.
+    pub modifiers: KeyModifiers,
+}
+
+impl KeyEvent {
+    /// A press of `code` with `modifiers` held.
+    pub fn new(code: KeyCode, modifiers: KeyModifiers) -> Self {
+        Self { code, modifiers }
+    }
+}
+
+/// The mouse buttons the game acts on.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum MouseButton {
+    /// The left button.
+    Left,
+    /// The right button.
+    Right,
+}
+
+/// A mouse button going down, at a cell of the terminal.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MouseEvent {
+    /// Which button went down.
+    pub button: MouseButton,
+    /// The column, counted from 0.
+    pub column: u16,
+    /// The row, counted from 0.
+    pub row: u16,
+    /// The modifiers held with it.
+    pub modifiers: KeyModifiers,
+}
+
+/// What the player did that the game acts on.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Event {
+    /// A key went down.
+    Key(KeyEvent),
+    /// A mouse button went down.
+    Mouse(MouseEvent),
+}
 
 /// How long replay holds on each key the log hands back from a blocking read,
 /// so a watcher can follow the run.
@@ -48,17 +175,6 @@ pub fn replay_from(events: Vec<(u64, Event)>) {
     STREAM.with(|s| s.borrow_mut().replay = Some(events.into()));
 }
 
-fn recordable(event: &Event) -> bool {
-    match event {
-        Event::Key(k) => k.kind == KeyEventKind::Press,
-        Event::Mouse(m) => matches!(
-            m.kind,
-            MouseEventKind::Down(MouseButton::Left | MouseButton::Right)
-        ),
-        _ => false,
-    }
-}
-
 /// Logs `event` with `stamp` and holds it for the next `poll` or `read`.
 fn arrive(event: Event, stamp: u64) {
     STREAM.with(|s| {
@@ -77,18 +193,14 @@ fn calls_so_far() -> u64 {
 
 /// Holds `event` for the next call, stamped as that call would have stamped
 /// it, so looking ahead leaves the log as it would be without the look.
-/// Whether it was one worth holding.
-fn hold_ahead(event: Event) -> bool {
-    if !recordable(&event) {
-        return false;
-    }
+fn hold_ahead(event: Event) {
     arrive(event, calls_so_far() + 1);
-    true
 }
 
 /// Whether the next `poll` or `read` gets an event at once. Not a call itself:
-/// the stamps stay as they were. Live, it drops what `read` would skip and
-/// holds a key or click for the next call, which the caller is about to make.
+/// the stamps stay as they were. Live, it drops what the terminal reports that
+/// is no key or click and holds a key or click for the next call, which the
+/// caller is about to make.
 /// Replay always has the next event, or the Ctrl+C that ends the log.
 pub fn waiting() -> std::io::Result<bool> {
     let ready = STREAM.with(|s| {
@@ -98,8 +210,9 @@ pub fn waiting() -> std::io::Result<bool> {
     if ready {
         return Ok(true);
     }
-    while crossterm::event::poll(Duration::ZERO)? {
-        if hold_ahead(crossterm::event::read()?) {
+    while term::poll(Duration::ZERO)? {
+        if let Some(event) = term::read()? {
+            hold_ahead(event);
             return Ok(true);
         }
     }
@@ -138,11 +251,10 @@ pub fn poll(wait: Duration) -> std::io::Result<bool> {
     let started = std::time::Instant::now();
     loop {
         let left = wait.saturating_sub(started.elapsed());
-        if !crossterm::event::poll(left)? {
+        if !term::poll(left)? {
             return Ok(false);
         }
-        let event = crossterm::event::read()?;
-        if recordable(&event) {
+        if let Some(event) = term::read()? {
             arrive(event, calls_so_far());
             return Ok(true);
         }
@@ -181,8 +293,7 @@ pub fn read() -> std::io::Result<Event> {
         return Ok(event);
     }
     loop {
-        let event = crossterm::event::read()?;
-        if recordable(&event) {
+        if let Some(event) = term::read()? {
             arrive(event, calls_so_far());
             return Ok(STREAM.with(|s| s.borrow_mut().pending.take().expect("arrive set it")));
         }
@@ -224,15 +335,14 @@ fn decode_code(text: &str) -> Option<KeyCode> {
     })
 }
 
-/// One log line for `event`, stamped with the call it arrived on. Only events
-/// that [`recordable`] accepts have a line.
+/// One log line for `event`, stamped with the call it arrived on.
 fn encode(stamp: u64, event: &Event) -> String {
     match event {
         Event::Key(k) => format!("{stamp} k {} {}", encode_code(k.code), k.modifiers.bits()),
         Event::Mouse(m) => {
-            let button = match m.kind {
-                MouseEventKind::Down(MouseButton::Right) => 'R',
-                _ => 'L',
+            let button = match m.button {
+                MouseButton::Right => 'R',
+                MouseButton::Left => 'L',
             };
             format!(
                 "{stamp} m {button} {} {} {}",
@@ -241,7 +351,6 @@ fn encode(stamp: u64, event: &Event) -> String {
                 m.modifiers.bits()
             )
         }
-        _ => String::new(),
     }
 }
 
@@ -253,7 +362,7 @@ pub fn decode(line: &str) -> Option<(u64, Event)> {
     let rest: Vec<&str> = parts.collect();
     let event = match (kind, rest.as_slice()) {
         ("k", [code, mods]) => {
-            let mods = KeyModifiers::from_bits(mods.parse().ok()?)?;
+            let mods = KeyModifiers::from_bits_truncate(mods.parse().ok()?);
             Event::Key(KeyEvent::new(decode_code(code)?, mods))
         }
         ("m", [button, column, row, mods]) => {
@@ -263,10 +372,10 @@ pub fn decode(line: &str) -> Option<(u64, Event)> {
                 _ => return None,
             };
             Event::Mouse(MouseEvent {
-                kind: MouseEventKind::Down(button),
+                button,
                 column: column.parse().ok()?,
                 row: row.parse().ok()?,
-                modifiers: KeyModifiers::from_bits(mods.parse().ok()?)?,
+                modifiers: KeyModifiers::from_bits_truncate(mods.parse().ok()?),
             })
         }
         _ => return None,
@@ -298,7 +407,7 @@ mod tests {
 
     fn click() -> Event {
         Event::Mouse(MouseEvent {
-            kind: MouseEventKind::Down(MouseButton::Right),
+            button: MouseButton::Right,
             column: 12,
             row: 7,
             modifiers: KeyModifiers::SHIFT,
@@ -321,8 +430,33 @@ mod tests {
         ];
         for (i, event) in events.iter().enumerate() {
             let line = encode(i as u64, event);
-            assert_eq!(decode(&line), Some((i as u64, event.clone())), "{line}");
+            assert_eq!(decode(&line), Some((i as u64, *event)), "{line}");
         }
+    }
+
+    #[test]
+    fn modifiers_and_both_buttons_survive_their_log_line() {
+        let shifted = Event::Key(KeyEvent::new(KeyCode::Char('K'), KeyModifiers::SHIFT));
+        let ctrl_alt = Event::Key(KeyEvent::new(
+            KeyCode::Char('x'),
+            KeyModifiers::CONTROL | KeyModifiers::ALT,
+        ));
+        let left = Event::Mouse(MouseEvent {
+            button: MouseButton::Left,
+            column: 3,
+            row: 9,
+            modifiers: KeyModifiers::NONE,
+        });
+        for event in [shifted, ctrl_alt, left, click()] {
+            let line = encode(1, &event);
+            assert_eq!(decode(&line), Some((1, event)), "{line}");
+        }
+    }
+
+    #[test]
+    fn a_modifier_bit_the_game_does_not_know_is_dropped_not_refused() {
+        assert_eq!(decode("3 k c107 8"), Some((3, key('k'))));
+        assert_eq!(decode("3 k c107 11"), decode("3 k c107 3"));
     }
 
     #[test]
@@ -416,28 +550,11 @@ mod tests {
         let sink = Sink::default();
         record_to(Box::new(sink.clone()));
         STREAM.with(|s| s.borrow_mut().calls = 4);
-        assert!(hold_ahead(key('x')));
+        hold_ahead(key('x'));
         assert_eq!(read().unwrap(), key('x'));
         assert_eq!(calls_so_far(), 5);
         let text = String::from_utf8(sink.0.borrow().clone()).unwrap();
         assert_eq!(text.lines().collect::<Vec<_>>(), ["5 k c120 0"]);
-        reset();
-    }
-
-    #[test]
-    fn what_read_would_skip_is_not_held_ahead() {
-        reset();
-        let sink = Sink::default();
-        record_to(Box::new(sink.clone()));
-        let release = Event::Key(KeyEvent::new_with_kind(
-            KeyCode::Char('x'),
-            KeyModifiers::NONE,
-            KeyEventKind::Release,
-        ));
-        assert!(!hold_ahead(release));
-        assert!(!hold_ahead(Event::Resize(80, 25)));
-        assert!(STREAM.with(|s| s.borrow().pending.is_none()));
-        assert!(sink.0.borrow().is_empty());
         reset();
     }
 }

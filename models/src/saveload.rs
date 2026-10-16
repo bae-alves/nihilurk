@@ -47,8 +47,8 @@
 //!   attribute instead, and the next one ships as a change that quietly kills
 //!   every run already in progress.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use fixedbitset::FixedBitSet;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -1177,6 +1177,33 @@ mod tests {
     use super::*;
     use rand::SeedableRng;
     use std::io::Write;
+
+    #[test]
+    fn every_saved_colour_survives_the_byte_codec() {
+        use Color::*;
+        let palette = [
+            Black,
+            DarkGrey,
+            Red,
+            DarkRed,
+            Green,
+            DarkGreen,
+            Yellow,
+            DarkYellow,
+            Blue,
+            DarkBlue,
+            Magenta,
+            DarkMagenta,
+            Cyan,
+            DarkCyan,
+            White,
+            Grey,
+        ];
+        for (n, c) in palette.into_iter().enumerate() {
+            assert_eq!(color_to_u8(&c), n as u8);
+            assert_eq!(u8_to_color(n as u8), c);
+        }
+    }
 
     #[cfg(unix)]
     #[test]

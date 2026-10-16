@@ -2,7 +2,7 @@
 //! tile and fight, without any bestiary row's behaviour or spawn rolls.
 
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
+use models::Color;
 use models::*;
 
 /// A neutral item-capable monster with no bestiary behavior or spawn rolls.

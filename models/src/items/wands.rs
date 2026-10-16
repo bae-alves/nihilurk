@@ -6,8 +6,8 @@
 //! most of its machinery ([`elemental_blast`], [`blast_palette`], the
 //! per-creature effects) from here.
 
+use crate::Color;
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
-use crossterm::style::Color;
 use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::{HashSet, VecDeque};

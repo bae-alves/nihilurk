@@ -28,6 +28,7 @@ Quick commands
     ./compat_test.sh --keep           keep the images and target/cross afterwards
     ./compat_test.sh --targets pi-zero --no-bare     one row, no ESP32
     ./compat_test.sh --no-bare        skip the microcontroller check
+    ./compat_test.sh --no-headless    skip the no-terminal check (models has no crossterm)
     ./compat_test.sh --timeout 60     per-row seconds for the run check
     ./compat_test.sh --help
 

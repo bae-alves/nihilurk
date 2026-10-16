@@ -24,8 +24,8 @@
 //!   That is the flag, not a bug — the rainbow is the only one that happens to
 //!   wrap cleanly.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 
 /// One flag: what to call it on the command line, and its stripes in order.
 pub struct PrideFlag {

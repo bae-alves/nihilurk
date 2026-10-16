@@ -166,7 +166,7 @@ pub fn sink_system(world: &mut World) {
             .resource_mut::<GameLog>()
             .add(strings::sinks_with_a_splash(&what));
         if let Some(mut fx) = world.get_resource_mut::<crate::particles::Particles>() {
-            fx.impact_sparks(at.x, at.y, crossterm::style::Color::Blue, 0.0);
+            fx.impact_sparks(at.x, at.y, crate::Color::Blue, 0.0);
         }
     }
 }

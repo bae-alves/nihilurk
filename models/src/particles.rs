@@ -13,8 +13,8 @@
 //! This mirrors how NetHack's `tmp_at()` and DCSS's `bolt::animate()` freeze
 //! input for the length of a transient effect, only much smaller.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 
 use crate::map::{MAP_HEIGHT, MAP_WIDTH};
 
@@ -22,7 +22,7 @@ use crate::map::{MAP_HEIGHT, MAP_WIDTH};
 /// which keyframe it is showing, how long a ripple takes to reach a tile --
 /// lives in `particle-core`, a `no_std` crate with no dependencies at all. This
 /// module owns what a microcontroller cannot have: the `Vec` of keyframes, the
-/// crossterm colour, and the ECS resource.
+/// colour, and the ECS resource.
 ///
 /// The split is what makes `compat/`'s bare-metal check worth running. It
 /// compiles `particle-core` for an ESP32 and a RISC-V board, and because the

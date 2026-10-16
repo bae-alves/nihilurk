@@ -1,11 +1,11 @@
-//! The terminal grid nihilurk paints onto, and the diff that gets it there.
+//! The grid nihilurk paints onto, and the diff that says what changed.
 //!
 //! What lives here is the *grid*: its size, its double buffer, the cell-diff
-//! that turns a painted frame into escape sequences, and the map/screen
-//! coordinate split the screen shake rides on. What does not live here is any
-//! knowledge of the game -- no map, no HUD, no monsters. `view` decides what
-//! goes in a frame; this module knows how big a frame is and how to get one
-//! onto a terminal.
+//! ([`Screen::changed`]), and the map/screen coordinate split the screen shake
+//! rides on. What does not live here is any knowledge of the game -- no map,
+//! no HUD, no monsters -- or of any terminal. `view` decides what goes in a
+//! frame; this module knows how big a frame is and which cells differ from
+//! the last one shown; `term` turns those cells into escape sequences.
 //!
 //! # The two coordinate systems
 //!
@@ -19,15 +19,7 @@
 //! column, and nothing is rendered to fill the gap. The shake moves the map
 //! inside a fixed frame; it does not change the resolution.
 
-use std::io::Write;
-
-use crossterm::{
-    cursor::MoveTo,
-    queue,
-    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
-};
-
-use models::MAP_HEIGHT;
+use models::{Color, MAP_HEIGHT};
 
 pub use crate::constants::screen::{MAP_TOP, SCREEN_H, SCREEN_W};
 
@@ -37,7 +29,7 @@ pub type Cell = (char, Color, Color);
 pub const BLANK_CELL: Cell = (' ', Color::Reset, Color::Reset);
 
 /// Double-buffered character grid. `render` paints the whole frame into `cur`;
-/// `flush` then emits terminal commands only for the cells that differ from the
+/// `Term::present` then draws only the cells that differ from the
 /// previously displayed frame, so a typical turn writes a few dozen cells
 /// instead of repainting all 2000.
 pub struct Screen {
@@ -45,11 +37,9 @@ pub struct Screen {
     cur: Vec<Cell>,
     /// The frame the terminal is showing, for diffing against `cur`.
     prev: Vec<Cell>,
-    /// Force a full repaint on the next flush (first frame, or the centering
+    /// Force a full repaint on the next present (first frame, or the centering
     /// offset changed and stale cells would otherwise be left behind).
     pub dirty_all: bool,
-    /// The centering offset the last flush drew at.
-    last_offset: (u16, u16),
     /// Where the screen shake has thrown the map this frame, in whole cells
     /// right and down. Read only by the map-space painters below, so the
     /// status line, the message log and the pack overlay stay nailed down
@@ -65,14 +55,13 @@ pub struct Screen {
 
 impl Screen {
     /// A blank grid of `SCREEN_W` x `SCREEN_H` cells, due a full repaint on
-    /// the first flush.
+    /// the first present.
     pub fn new() -> Self {
         let len = (SCREEN_W * SCREEN_H) as usize;
         Self {
             cur: vec![BLANK_CELL; len],
             prev: vec![BLANK_CELL; len],
             dirty_all: true,
-            last_offset: (0, 0),
             map_shift: (0, 0),
         }
     }
@@ -194,47 +183,27 @@ impl Screen {
         }
     }
 
-    /// Emits terminal commands for the cells that changed since the last flush
-    /// (all of them when `dirty_all` is set or `offset` moved), drawing the grid
-    /// shifted by `offset`. Returns how many cells it wrote.
-    pub fn flush<W: Write>(&mut self, out: &mut W, offset: (u16, u16)) -> std::io::Result<usize> {
-        if offset != self.last_offset {
-            self.dirty_all = true;
-            self.last_offset = offset;
-        }
-
-        let mut cur_fg: Option<Color> = None;
-        let mut cur_bg: Option<Color> = None;
-        let mut drawn = 0usize;
-        for y in 0..SCREEN_H {
-            for x in 0..SCREEN_W {
+    /// The cells that differ from the frame being shown, row by row (all of
+    /// them when `dirty_all` is set), as `(x, y, cell)`.
+    pub fn changed(&self) -> impl Iterator<Item = (u16, u16, Cell)> + '_ {
+        let all = self.dirty_all;
+        (0..SCREEN_H)
+            .flat_map(|y| (0..SCREEN_W).map(move |x| (x, y)))
+            .filter_map(move |(x, y)| {
                 let idx = (y * SCREEN_W + x) as usize;
-                if !self.dirty_all && self.cur[idx] == self.prev[idx] {
-                    continue;
-                }
-                let (ch, fg, bg) = self.cur[idx];
-                if cur_fg != Some(fg) {
-                    queue!(out, SetForegroundColor(fg))?;
-                    cur_fg = Some(fg);
-                }
-                if cur_bg != Some(bg) {
-                    queue!(out, SetBackgroundColor(bg))?;
-                    cur_bg = Some(bg);
-                }
-                queue!(out, MoveTo(offset.0 + x, offset.1 + y), Print(ch))?;
-                drawn += 1;
-            }
-        }
-        out.flush()?;
+                (all || self.cur[idx] != self.prev[idx]).then(|| (x, y, self.cur[idx]))
+            })
+    }
 
+    /// Marks the frame being built as the one the terminal now shows.
+    pub fn shown(&mut self) {
         std::mem::swap(&mut self.cur, &mut self.prev);
         self.dirty_all = false;
-        Ok(drawn)
     }
 
     /// The frame the terminal is showing, as plain text: one line per row,
-    /// trailing blanks trimmed, colours dropped. Reads `prev`, since `flush`
-    /// swaps the shown frame there.
+    /// trailing blanks trimmed, colours dropped. Reads `prev`, since
+    /// [`Screen::shown`] swaps the shown frame there.
     pub fn shown_text(&self) -> String {
         self.prev
             .chunks(SCREEN_W as usize)
@@ -249,5 +218,42 @@ impl Screen {
 impl Default for Screen {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fresh_screen_changes_everywhere_until_it_is_shown() {
+        let mut s = Screen::new();
+        assert_eq!(s.changed().count(), (SCREEN_W * SCREEN_H) as usize);
+        s.shown();
+        assert_eq!(s.changed().count(), 0);
+    }
+
+    #[test]
+    fn only_a_cell_that_differs_from_the_shown_frame_changes() {
+        let mut s = Screen::new();
+        s.shown();
+        s.put(3, 2, 'x', Color::Red);
+        assert_eq!(
+            s.changed().collect::<Vec<_>>(),
+            [(3, 2, ('x', Color::Red, Color::Reset))]
+        );
+        s.shown();
+        s.clear();
+        s.put(3, 2, 'x', Color::Red);
+        assert_eq!(s.changed().count(), 0, "unchanged since it was shown");
+    }
+
+    #[test]
+    fn shown_text_reads_the_frame_last_shown() {
+        let mut s = Screen::new();
+        s.puts(1, 0, "hi", Color::White);
+        s.shown();
+        s.clear();
+        assert!(s.shown_text().starts_with(" hi\n"));
     }
 }

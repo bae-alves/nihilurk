@@ -11,12 +11,9 @@
 
 use std::time::Duration;
 
-use crate::input::{poll, read};
+use crate::input::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, poll, read};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
-use crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
-};
 
 use crate::constants::timing::{INCAPACITATED_PAUSE_MS, TRAVEL_BLINK_MS};
 use crate::screen::MAP_TOP;
@@ -201,9 +198,8 @@ pub fn process_input_and_update(world: &mut World) -> std::io::Result<bool> {
 
     crate::ready::signal_ready()?;
     match read()? {
-        Event::Key(key) if key.kind == KeyEventKind::Press => dispatch_key(world, key),
-        Event::Mouse(m) => dispatch_mouse(world, m, crate::view::centering_offset(world)),
-        _ => Ok(false),
+        Event::Key(key) => dispatch_key(world, key),
+        Event::Mouse(m) => dispatch_mouse(world, m),
     }
 }
 
@@ -1638,34 +1634,26 @@ fn begin_auto_explore(world: &mut World) -> std::io::Result<bool> {
     Ok(false)
 }
 
-/// The map tile under terminal cell `(col, row)` when the frame sits at
-/// `offset`; `None` off the map rows or past either edge.
-pub(crate) fn tile_under(col: u16, row: u16, offset: (u16, u16)) -> Option<(u16, u16)> {
-    let x = col.checked_sub(offset.0)?;
-    let y = row.checked_sub(offset.1)?.checked_sub(MAP_TOP)?;
-    (x < MAP_WIDTH && y < MAP_HEIGHT).then_some((x, y))
+/// The map tile under grid cell `(col, row)`; `None` off the map rows or past
+/// either edge.
+pub(crate) fn tile_under(col: u16, row: u16) -> Option<(u16, u16)> {
+    let y = row.checked_sub(MAP_TOP)?;
+    (col < MAP_WIDTH && y < MAP_HEIGHT).then_some((col, y))
 }
 
 /// A mouse press, only ever seen when `-mouse` turned capture on. Left reads
 /// a tile (look), moves the reticle or the `O` cursor; right travels there
 /// (the `O` cursor's commit) or, on the reticle, moves and fires. Menus, the
 /// `--MORE--` prompt and unseen tiles ignore it. Returns whether a turn went.
-pub(crate) fn dispatch_mouse(
-    world: &mut World,
-    m: MouseEvent,
-    offset: (u16, u16),
-) -> std::io::Result<bool> {
-    let MouseEventKind::Down(button @ (MouseButton::Left | MouseButton::Right)) = m.kind else {
-        return Ok(false);
-    };
-    let Some((x, y)) = tile_under(m.column, m.row, offset) else {
+pub(crate) fn dispatch_mouse(world: &mut World, m: MouseEvent) -> std::io::Result<bool> {
+    let Some((x, y)) = tile_under(m.column, m.row) else {
         return Ok(false);
     };
     let width = world.resource::<CommandBar>().log_width();
     if log_view(&world.resource::<GameLog>().unread, width).2 {
         return Ok(false);
     }
-    let right = button == MouseButton::Right;
+    let right = m.button == MouseButton::Right;
 
     if world.resource::<TravelCursor>().active {
         if !tile_is_revealed(world, x, y) {
@@ -1785,26 +1773,12 @@ fn travel_or_use_stairs(world: &mut World, going_down: bool) -> bool {
     false
 }
 
-/// Whether `event` is the player asking a walk to stop: a key press or a mouse
-/// click. Under `-mouse` the terminal also reports every release and every
-/// twitch of the pointer, and a right click's own release must not cut short
-/// the travel it just started.
-fn stops_a_walk(event: &Event) -> bool {
-    match event {
-        Event::Key(k) => k.kind == KeyEventKind::Press,
-        Event::Mouse(m) => matches!(m.kind, MouseEventKind::Down(_)),
-        _ => false,
-    }
-}
-
-/// Reads pending input until something [`stops_a_walk`] or the queue runs
-/// dry; whether it found one. The stopping event is swallowed, so it is not
-/// also read as a move on the next frame.
+/// Whether the player pressed a key or clicked since the last frame. The
+/// event is swallowed, so it is not also read as a move on the next frame.
 fn walk_interrupted() -> std::io::Result<bool> {
-    while poll(Duration::from_millis(0))? {
-        if stops_a_walk(&read()?) {
-            return Ok(true);
-        }
+    if poll(Duration::from_millis(0))? {
+        read()?;
+        return Ok(true);
     }
     Ok(false)
 }
@@ -1909,13 +1883,11 @@ pub fn travel_cursor_step(world: &mut World) -> std::io::Result<()> {
     }
 
     let key = match read()? {
-        Event::Key(key) if key.kind == KeyEventKind::Press => key,
+        Event::Key(key) => key,
         Event::Mouse(m) => {
-            let offset = crate::view::centering_offset(world);
-            dispatch_mouse(world, m, offset)?;
+            dispatch_mouse(world, m)?;
             return Ok(());
         }
-        _ => return Ok(()),
     };
 
     let (mut dx, mut dy) = (0i32, 0i32);
@@ -2037,7 +2009,7 @@ fn confirm_travel_cursor(world: &mut World) -> std::io::Result<()> {
 /// (`schedule.run`), so running costs exactly as many turns as walking.
 ///
 /// The run halts the instant anything wants the player's attention: a key is
-/// pressed or the mouse clicked ([`stops_a_walk`]), a creature is (or comes)
+/// pressed or the mouse clicked, a creature is (or comes)
 /// in view, a message is logged (something
 /// spotted, an item picked up, a hit taken), the beeline reaches its target, a
 /// straight run meets a door / staircase / corridor branch or a wall, or the
@@ -2111,7 +2083,6 @@ mod tests {
     }
 
     use super::*;
-    use crossterm::event::KeyEvent;
 
     fn test_world(seed: u64) -> World {
         let mut w = World::new();
@@ -3693,11 +3664,9 @@ mod tests {
     // The mouse
     // -----------------------------------------------------------------------
 
-    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-
     fn click(button: MouseButton, (x, y): (u16, u16)) -> MouseEvent {
         MouseEvent {
-            kind: MouseEventKind::Down(button),
+            button,
             column: x,
             row: y + MAP_TOP,
             modifiers: KeyModifiers::NONE,
@@ -3730,42 +3699,18 @@ mod tests {
     }
 
     #[test]
-    fn only_a_press_or_a_click_stops_a_walk() {
-        let mouse = |kind| {
-            Event::Mouse(MouseEvent {
-                kind,
-                column: 0,
-                row: 0,
-                modifiers: KeyModifiers::NONE,
-            })
-        };
-        assert!(stops_a_walk(&Event::Key(press('o'))));
-        assert!(stops_a_walk(&mouse(MouseEventKind::Down(
-            MouseButton::Right
-        ))));
-        assert!(
-            !stops_a_walk(&mouse(MouseEventKind::Up(MouseButton::Right))),
-            "a right click's release cut the travel it started"
-        );
-        assert!(!stops_a_walk(&mouse(MouseEventKind::Moved)));
-        assert!(!stops_a_walk(&Event::Resize(80, 24)));
-    }
-
-    #[test]
     fn a_terminal_cell_maps_to_the_map_tile_under_it() {
-        assert_eq!(tile_under(5, MAP_TOP + 3, (0, 0)), Some((5, 3)));
-        assert_eq!(tile_under(15, MAP_TOP + 5, (10, 2)), Some((5, 3)));
-        assert_eq!(tile_under(9, MAP_TOP + 5, (10, 2)), None);
-        assert_eq!(tile_under(5, 0, (0, 0)), None, "the status row is not map");
-        assert_eq!(tile_under(5, MAP_TOP + MAP_HEIGHT, (0, 0)), None);
-        assert_eq!(tile_under(MAP_WIDTH, MAP_TOP, (0, 0)), None);
+        assert_eq!(tile_under(5, MAP_TOP + 3), Some((5, 3)));
+        assert_eq!(tile_under(5, 0), None, "the status row is not map");
+        assert_eq!(tile_under(5, MAP_TOP + MAP_HEIGHT), None);
+        assert_eq!(tile_under(MAP_WIDTH, MAP_TOP), None);
     }
 
     #[test]
     fn right_click_travels_to_the_tile() {
         let mut w = modal_world(11);
         let goal = seen_floor(&mut w);
-        let spent = dispatch_mouse(&mut w, click(MouseButton::Right, goal), (0, 0)).unwrap();
+        let spent = dispatch_mouse(&mut w, click(MouseButton::Right, goal)).unwrap();
         assert!(!spent, "setting off is not a turn");
         let ae = w.resource::<AutoExplore>();
         assert!(ae.active && ae.target == Some(goal));
@@ -3778,7 +3723,7 @@ mod tests {
         let here = player_pos(&mut w);
         let at = (here.x, here.y);
         w.resource_mut::<GameLog>().history.clear();
-        let spent = dispatch_mouse(&mut w, click(MouseButton::Left, at), (0, 0)).unwrap();
+        let spent = dispatch_mouse(&mut w, click(MouseButton::Left, at)).unwrap();
         assert!(!spent);
         assert!(
             !w.resource::<GameLog>().history.is_empty(),
@@ -3800,7 +3745,7 @@ mod tests {
             })
             .find(|&(x, y)| !tile_is_revealed(&mut w, x, y))
             .unwrap();
-        dispatch_mouse(&mut w, click(MouseButton::Right, unseen), (0, 0)).unwrap();
+        dispatch_mouse(&mut w, click(MouseButton::Right, unseen)).unwrap();
         assert!(!w.resource::<AutoExplore>().active);
     }
 
@@ -3813,12 +3758,12 @@ mod tests {
             ts.active = true;
             ts.looking = true;
         }
-        dispatch_mouse(&mut w, click(MouseButton::Left, at), (0, 0)).unwrap();
+        dispatch_mouse(&mut w, click(MouseButton::Left, at)).unwrap();
         let ts = w.resource::<TargetingState>();
         assert!(ts.active, "left only moves the cursor");
         assert_eq!((ts.cursor_x as u16, ts.cursor_y as u16), at);
 
-        dispatch_mouse(&mut w, click(MouseButton::Right, at), (0, 0)).unwrap();
+        dispatch_mouse(&mut w, click(MouseButton::Right, at)).unwrap();
         assert!(!w.resource::<TargetingState>().active, "right fires");
     }
 
@@ -3828,12 +3773,12 @@ mod tests {
         let at = seen_floor(&mut w);
         let here = player_pos(&mut w);
         w.resource_mut::<TravelCursor>().open(here.x, here.y);
-        dispatch_mouse(&mut w, click(MouseButton::Left, at), (0, 0)).unwrap();
+        dispatch_mouse(&mut w, click(MouseButton::Left, at)).unwrap();
         let tc = w.resource::<TravelCursor>();
         assert!(tc.active && (tc.x, tc.y) == at);
         assert!(!w.resource::<AutoExplore>().active);
 
-        dispatch_mouse(&mut w, click(MouseButton::Right, at), (0, 0)).unwrap();
+        dispatch_mouse(&mut w, click(MouseButton::Right, at)).unwrap();
         assert!(!w.resource::<TravelCursor>().active);
         assert_eq!(w.resource::<AutoExplore>().target, Some(at));
     }
@@ -3843,7 +3788,7 @@ mod tests {
         let mut w = modal_world(11);
         let goal = seen_floor(&mut w);
         w.resource_mut::<PackIsOpen>().open = true;
-        dispatch_mouse(&mut w, click(MouseButton::Right, goal), (0, 0)).unwrap();
+        dispatch_mouse(&mut w, click(MouseButton::Right, goal)).unwrap();
         assert!(!w.resource::<AutoExplore>().active);
     }
     /// What a run has become after `keys`: the log, the place, the floor and the

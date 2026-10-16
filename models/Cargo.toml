@@ -45,7 +45,6 @@ strings = { package = "nihilurk-strings", path = "../strings", version = "0.5.1"
 # hosted build has an `f32::ceil` intrinsic worth using; see the crate's own
 # `Cargo.toml` for why that flag cannot change an answer.
 particle-core = { package = "nihilurk-particle-core", path = "../particle-core", version = "0.5.1", features = ["std"] }
-crossterm = "0.29.0"
 bevy_ecs = "0.12" 
 rand = "0.8"
 rand_chacha = { version = "0.3", features = ["serde1"] }
@@ -53,12 +52,7 @@ serde = { version = "1", features = ["derive"] }
 postcard = { version = "1", features = ["use-std"] }
 fixedbitset = { version = "0.5", features = ["serde"] }
 
-# Test-only. `models` already depends on `fixedbitset` at this version for
-# `Viewshed.revealed_tiles` and `Map.dark`; an integration test is its own
-# crate, so it needs its own line to build the same bitsets when it assembles
-# a fixture world by hand. No new crate enters the graph.
 [dev-dependencies]
-fixedbitset = { version = "0.5", features = ["serde"] }
 
 # `tests/effects.rs` reads the game's own source to check that no effect is
 # attached or detached behind the ledger's back — a rule the compiler has no

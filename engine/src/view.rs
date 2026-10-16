@@ -1,24 +1,19 @@
 //! Everything that goes *in* the terminal grid: the map layers, the HUD, the
 //! overlays and the playback loops that pace an animation across frames.
 //!
-//! The grid itself — `Screen`, its diffing and its flush — lives in
+//! The grid itself — `Screen` and its diffing — lives in
 //! `screen.rs`. [`render`] is the whole frame, drawn layer by
 //! layer (terrain, blood, items, actors, overlays); [`play_particles`],
 //! [`play_magic_map`] and [`play_shake`] are the three ways a turn's
 //! aftermath gets spread across more than one of them.
 
 use std::collections::HashSet;
-use std::io::Write;
 use std::time::Duration;
 
 use bevy_ecs::prelude::*;
-use crossterm::{
-    event::{Event, KeyEventKind},
-    style::Color,
-    terminal::size,
-};
 
-use crate::input::{poll, read};
+use crate::input::{Event, poll, read};
+use crate::term::Term;
 use models::*;
 
 use crate::constants::timing::{ANIMATION_SLOWDOWN, BASE_FRAME_MS};
@@ -56,23 +51,6 @@ fn bresenham_line(x0: u16, y0: u16, x1: u16, y1: u16) -> Vec<(u16, u16)> {
         }
     }
     result
-}
-
-/// The top-left offset that keeps the 80x25 frame centred in the real terminal
-/// when `-c` was passed; `(0, 0)` otherwise.
-pub fn centering_offset(world: &World) -> (u16, u16) {
-    let is_centered = world
-        .get_resource::<RenderConfig>()
-        .map(|cfg| cfg.centered)
-        .unwrap_or(false);
-    if !is_centered {
-        return (0, 0);
-    }
-    let (term_width, term_height) = size().unwrap_or((SCREEN_W, SCREEN_H));
-    (
-        term_width.saturating_sub(SCREEN_W) / 2,
-        term_height.saturating_sub(SCREEN_H) / 2,
-    )
 }
 
 /// What the message log shows this frame: the unread messages packed onto its
@@ -122,15 +100,9 @@ fn status_tint(
 }
 
 /// Paints the whole frame (map, actors, status line, message log and any open
-/// menu) into `screen`, then flushes it to `stdout`.
-pub fn render<W: Write>(
-    world: &mut World,
-    stdout: &mut W,
-    screen: &mut Screen,
-) -> std::io::Result<()> {
+/// menu) into `screen`, then presents it on `term`.
+pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::io::Result<()> {
     screen.clear();
-
-    let offset = centering_offset(world);
 
     let (log_x, log_width) = {
         let bar = world.resource::<CommandBar>();
@@ -870,7 +842,7 @@ pub fn render<W: Write>(
         draw_quit_prompt(screen, world.resource::<QuitPrompt>().warned);
     }
 
-    screen.flush(stdout, offset)?;
+    term.present(screen)?;
     Ok(())
 }
 
@@ -918,7 +890,7 @@ fn interrupted(frame: Duration) -> std::io::Result<bool> {
     if !poll(frame)? {
         return Ok(false);
     }
-    Ok(matches!(read()?, Event::Key(k) if k.kind == KeyEventKind::Press))
+    Ok(matches!(read()?, Event::Key(_)))
 }
 
 /// Stretches a frame's real on-screen hold time by [`ANIMATION_SLOWDOWN`].
@@ -937,9 +909,9 @@ fn slow(frame_ms: u64) -> u64 {
 /// the map; the loop ends when the last mote dies or the player hits a key
 /// (that key is swallowed, exactly like the auto-explore interrupt). A no-op
 /// when nothing was queued.
-pub fn play_particles<W: Write>(
+pub fn play_particles(
     world: &mut World,
-    stdout: &mut W,
+    term: &mut Term,
     screen: &mut Screen,
 ) -> std::io::Result<()> {
     if !world.resource::<Particles>().pending {
@@ -958,7 +930,7 @@ pub fn play_particles<W: Write>(
                 break;
             }
         }
-        render(world, stdout, screen)?;
+        render(world, term, screen)?;
         if interrupted(Duration::from_millis(slow(frame_ms)))? {
             settle_shake(world);
             break;
@@ -977,9 +949,9 @@ pub fn play_particles<W: Write>(
 /// Mirrors [`play_particles`]: the turn is already resolved, so freezing input
 /// here for a few hundred ms is fine, and any keypress skips straight to the
 /// finished map (the key is swallowed). A no-op when no reveal is armed.
-pub fn play_magic_map<W: Write>(
+pub fn play_magic_map(
     world: &mut World,
-    stdout: &mut W,
+    term: &mut Term,
     screen: &mut Screen,
 ) -> std::io::Result<()> {
     if !world.resource::<MagicMapReveal>().active {
@@ -995,7 +967,7 @@ pub fn play_magic_map<W: Write>(
         if !magic_map_reveal_step(world) {
             break;
         }
-        render(world, stdout, screen)?;
+        render(world, term, screen)?;
         if interrupted(sleep)? {
             finish_magic_map_reveal(world);
             settle_shake(world);
@@ -1004,7 +976,7 @@ pub fn play_magic_map<W: Write>(
     }
 
     world.resource_mut::<MagicMapReveal>().stop();
-    render(world, stdout, screen)?;
+    render(world, term, screen)?;
     Ok(())
 }
 
@@ -1028,11 +1000,7 @@ pub fn play_magic_map<W: Write>(
 /// has to know.
 ///
 /// A no-op when nothing armed one, and under `-nshake` nothing ever does.
-pub fn play_shake<W: Write>(
-    world: &mut World,
-    stdout: &mut W,
-    screen: &mut Screen,
-) -> std::io::Result<()> {
+pub fn play_shake(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::io::Result<()> {
     if !world.resource::<Shake>().active() {
         return Ok(());
     }
@@ -1043,14 +1011,14 @@ pub fn play_shake<W: Write>(
         if !world.resource::<Shake>().active() {
             break;
         }
-        render(world, stdout, screen)?;
+        render(world, term, screen)?;
         if poll(Duration::from_millis(slow(frame_ms)))? {
             settle_shake(world);
             break;
         }
     }
 
-    render(world, stdout, screen)
+    render(world, term, screen)
 }
 
 /// A die and its flat bonus, as the HUD prints them: `10`, `10+2`, `10-2`.
@@ -1104,11 +1072,7 @@ fn centered_x(text: &str) -> u16 {
 
 /// The transient "You die..." panel. It is deliberately sparse: a single line
 /// and a `--MORE--` prompt the player must acknowledge before the tombstone.
-pub fn render_you_died<W: Write>(
-    stdout: &mut W,
-    screen: &mut Screen,
-    offset: (u16, u16),
-) -> std::io::Result<()> {
+pub fn render_you_died(term: &mut Term, screen: &mut Screen) -> std::io::Result<()> {
     screen.clear();
     let y = SCREEN_H / 2;
     let msg = strings::you_die();
@@ -1116,17 +1080,16 @@ pub fn render_you_died<W: Write>(
     let more = strings::more_prompt();
     screen.puts(centered_x(more), y + 2, more, Color::Yellow);
     screen.dirty_all = true;
-    screen.flush(stdout, offset)?;
+    term.present(screen)?;
     Ok(())
 }
 
 /// The defeat panel. Shown once the player has acknowledged the death prompt:
 /// the word, the name, what did it, the number. No stone and no epitaph — a
 /// run that ended is a fact, not a ceremony.
-pub fn render_lose<W: Write>(
-    stdout: &mut W,
+pub fn render_lose(
+    term: &mut Term,
     screen: &mut Screen,
-    offset: (u16, u16),
     player_name: &str,
     cause: &str,
     score: i64,
@@ -1152,17 +1115,16 @@ pub fn render_lose<W: Write>(
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
 
     screen.dirty_all = true;
-    screen.flush(stdout, offset)?;
+    term.present(screen)?;
     Ok(())
 }
 
 /// The victory panel. Shown when the player carries the Element of Yoord up the
 /// final stair. The counterpart to [`render_lose`], and as plain: the dungeon
 /// does not congratulate anyone.
-pub fn render_win<W: Write>(
-    stdout: &mut W,
+pub fn render_win(
+    term: &mut Term,
     screen: &mut Screen,
-    offset: (u16, u16),
     player_name: &str,
     score: i64,
     marks: &[(char, Color)],
@@ -1195,7 +1157,7 @@ pub fn render_win<W: Write>(
     screen.puts(centered_x(prompt), y, prompt, Color::DarkGrey);
 
     screen.dirty_all = true;
-    screen.flush(stdout, offset)?;
+    term.present(screen)?;
     Ok(())
 }
 

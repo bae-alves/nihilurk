@@ -9,50 +9,18 @@ mod morgue;
 mod ready;
 mod recording;
 mod screen;
+mod term;
 mod update;
 mod view;
-use input::read;
+use input::{Event, KeyCode, read};
 use models::*;
+use term::{Term, TerminalGuard};
 
 use bevy_ecs::prelude::{With, World};
-use crossterm::{
-    cursor::{Hide, Show},
-    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
-    execute,
-    style::{Color as CrosstermColor, Print, ResetColor, SetForegroundColor},
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
-use std::io::{BufWriter, Write, stdout};
+use std::io::{Write, stdout};
 use std::path::{Path, PathBuf};
 
 use models::{ChaCha12Rng, SeedableRng};
-
-/// Puts the terminal into raw, alternate-screen mode for the run and takes it
-/// back out on drop, panic included — the [`std::panic::set_hook`] below
-/// leaves the terminal sane even if the drop never gets to run because
-/// unwinding is disabled.
-pub struct TerminalGuard;
-
-impl TerminalGuard {
-    /// Enters raw mode and the alternate screen with the cursor hidden, and
-    /// mouse capture too when `mouse` is set. Fails
-    /// if the terminal refuses either; nothing is left half-set.
-    pub fn new(mouse: bool) -> std::io::Result<Self> {
-        enable_raw_mode()?;
-        let guard = Self;
-        execute!(stdout(), EnterAlternateScreen, Hide)?;
-        if mouse {
-            execute!(stdout(), EnableMouseCapture)?;
-        }
-        Ok(guard)
-    }
-}
-impl Drop for TerminalGuard {
-    fn drop(&mut self) {
-        let _ = execute!(stdout(), DisableMouseCapture, Show, LeaveAlternateScreen);
-        let _ = disable_raw_mode();
-    }
-}
 
 /// Finds a file in `name`'s directory whose name matches `name`'s
 /// case-insensitively, returning its actual on-disk path. This makes save
@@ -112,7 +80,7 @@ fn wait_for_key(accept: impl Fn(KeyCode) -> bool) -> std::io::Result<()> {
     loop {
         ready::signal_ready()?;
         if let Event::Key(key) = read()? {
-            if key.kind == KeyEventKind::Press && accept(key.code) {
+            if accept(key.code) {
                 return Ok(());
             }
         }
@@ -123,15 +91,14 @@ fn wait_for_key(accept: impl Fn(KeyCode) -> bool) -> std::io::Result<()> {
 /// "You die..." `--MORE--` panel, then the LOSE panel. Runs while the terminal
 /// guard is still active; returns where the dump went, for the caller to say
 /// once the terminal is back.
-fn run_death_screens<W: std::io::Write>(
+fn run_death_screens(
     world: &mut World,
-    stdout: &mut W,
+    term: &mut Term,
     screen: &mut view::Screen,
     save_path: &Path,
 ) -> std::io::Result<Option<PathBuf>> {
     let _ = std::fs::remove_file(save_path);
 
-    let offset = view::centering_offset(world);
     let (name, cause, score) = {
         let mut q = world.query_filtered::<(&Score,), With<Player>>();
         let score = q.iter(world).next().map(|(s,)| s.value).unwrap_or(0);
@@ -150,10 +117,10 @@ fn run_death_screens<W: std::io::Write>(
     let dump = morgue::write(world, &screen.shown_text(), outcome).ok();
     let _ = models::bones::deposit(world);
 
-    view::render_you_died(stdout, screen, offset)?;
+    view::render_you_died(term, screen)?;
     wait_for_key(|c| matches!(c, KeyCode::Char(' ') | KeyCode::Enter))?;
 
-    view::render_lose(stdout, screen, offset, &name, &cause, score)?;
+    view::render_lose(term, screen, &name, &cause, score)?;
     wait_for_key(|_| true)?;
     Ok(dump)
 }
@@ -161,12 +128,11 @@ fn run_death_screens<W: std::io::Write>(
 /// The victory sequence: write the run dump, show the WIN panel, and return
 /// where the dump went. Unlike death, the save is *not* destroyed — the caller
 /// keeps it as "clear data" (see [`models::clear_data`]).
-fn run_victory_screens<W: std::io::Write>(
+fn run_victory_screens(
     world: &mut World,
-    stdout: &mut W,
+    term: &mut Term,
     screen: &mut view::Screen,
 ) -> std::io::Result<Option<PathBuf>> {
-    let offset = view::centering_offset(world);
     let conducts = models::pay_conducts(world);
     let (name, score) = {
         let mut q = world.query_filtered::<&Score, With<Player>>();
@@ -189,7 +155,7 @@ fn run_victory_screens<W: std::io::Write>(
     .ok();
 
     let marks = models::conduct::marks(conducts, models::stripes(world));
-    view::render_win(stdout, screen, offset, &name, score, &marks)?;
+    view::render_win(term, screen, &name, score, &marks)?;
     wait_for_key(|_| true)?;
     Ok(dump)
 }
@@ -634,12 +600,9 @@ fn main() -> std::io::Result<()> {
     }
 
     if pride_off {
-        execute!(
-            stdout(),
-            SetForegroundColor(CrosstermColor::Red),
-            Print(models::pride::pride_off_refusal()),
-            Print("\n"),
-            ResetColor
+        term::print_colored(
+            models::Color::Red,
+            &format!("{}\n", models::pride::pride_off_refusal()),
         )?;
         return Ok(());
     }
@@ -755,20 +718,10 @@ fn main() -> std::io::Result<()> {
         }
     }
 
-    let original_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |panic_info| {
-        let _ = execute!(
-            std::io::stderr(),
-            DisableMouseCapture,
-            LeaveAlternateScreen,
-            Show
-        );
-        let _ = disable_raw_mode();
-        original_hook(panic_info);
-    }));
+    term::install_panic_hook();
 
     let guard = TerminalGuard::new(mouse)?;
-    let mut stdout = BufWriter::with_capacity(32 * 1024, stdout());
+    let mut term = Term::new(centered_mode);
     let mut screen = view::Screen::new();
     let mut world = World::new();
 
@@ -802,9 +755,6 @@ fn main() -> std::io::Result<()> {
         }
     }
     world.init_resource::<PackIsOpen>();
-    world.insert_resource(RenderConfig {
-        centered: centered_mode,
-    });
     world.insert_resource(TargetingState {
         active: false,
         item: None,
@@ -894,7 +844,7 @@ fn main() -> std::io::Result<()> {
     let mut schedule = turn_schedule();
 
     schedule.run(&mut world);
-    view::render(&mut world, &mut stdout, &mut screen)?;
+    view::render(&mut world, &mut term, &mut screen)?;
 
     let name = world.resource::<PlayerName>().what.to_ascii_lowercase();
     let (save_path, resume_as) =
@@ -919,13 +869,13 @@ fn main() -> std::io::Result<()> {
             update::save_on_time_edge(&mut world, &mut time_stopped, &save_path);
         }
 
-        view::play_particles(&mut world, &mut stdout, &mut screen)?;
+        view::play_particles(&mut world, &mut term, &mut screen)?;
 
-        view::play_magic_map(&mut world, &mut stdout, &mut screen)?;
+        view::play_magic_map(&mut world, &mut term, &mut screen)?;
 
-        view::render(&mut world, &mut stdout, &mut screen)?;
+        view::render(&mut world, &mut term, &mut screen)?;
 
-        view::play_shake(&mut world, &mut stdout, &mut screen)?;
+        view::play_shake(&mut world, &mut term, &mut screen)?;
 
         if world.resource::<AutoExplore>().active {
             std::thread::sleep(std::time::Duration::from_millis(
@@ -956,7 +906,7 @@ fn main() -> std::io::Result<()> {
     }
 
     if world.resource::<Ending>().player_won {
-        let dump = run_victory_screens(&mut world, &mut stdout, &mut screen)?;
+        let dump = run_victory_screens(&mut world, &mut term, &mut screen)?;
         if no_save {
             drop(guard);
             print_dump_path(dump);
@@ -974,7 +924,7 @@ fn main() -> std::io::Result<()> {
     }
 
     if world.resource::<Ending>().player_dead {
-        let dump = run_death_screens(&mut world, &mut stdout, &mut screen, &save_path)?;
+        let dump = run_death_screens(&mut world, &mut term, &mut screen, &save_path)?;
         drop(guard);
         print_dump_path(dump);
         return Ok(());

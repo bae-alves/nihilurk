@@ -4,7 +4,7 @@
 use crate::common::monster;
 
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
+use models::Color;
 use models::constants::spirits::RED_DEMON_GEAR_PRICE;
 use models::*;
 

@@ -25,8 +25,8 @@
 //!
 //! The full recipes, per category, are in `docs/how-to/add-an-item.md`.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 

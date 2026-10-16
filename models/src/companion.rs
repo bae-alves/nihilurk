@@ -10,8 +10,8 @@
 //! first explode. A [`PriorityHelper`] (the dog) is exempt from that, and
 //! explodes the ordinary kind when it joins.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::*;

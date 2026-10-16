@@ -622,7 +622,6 @@ name = "nihilurk-models"
 version = "0.5.1"
 dependencies = [
  "bevy_ecs",
- "crossterm",
  "fixedbitset 0.5.7",
  "nihilurk-particle-core",
  "nihilurk-strings",

@@ -14,12 +14,12 @@
 
 use std::collections::HashSet;
 
+use crate::Color;
 use bevy_ecs::{
     entity::Entity,
     query::{Or, With},
     world::World,
 };
-use crossterm::style::Color;
 use rand::Rng;
 
 use crate::components::*;

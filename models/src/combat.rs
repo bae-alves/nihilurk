@@ -9,8 +9,8 @@
 //! stages — [`punctuate`], [`report_blow`], [`settle_the_dead`] — so each
 //! reads the blow rather than re-deriving it.
 
+use crate::Color;
 use bevy_ecs::prelude::*;
-use crossterm::style::Color;
 use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
