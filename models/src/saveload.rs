@@ -869,9 +869,6 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         let mut dark = save.dark_tiles;
         dark.grow(map.tiles.len());
         map.dark = dark;
-    }
-    {
-        let mut map = world.resource_mut::<Map>();
         for i in save.dug_tiles {
             if let Some(tile) = map.tiles.get_mut(i as usize)
                 && *tile == TileType::Wall

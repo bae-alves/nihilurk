@@ -1226,8 +1226,8 @@ pub fn medusa_gaze_line() -> &'static str {
 // models/src/visibility.rs
 // ---------------------------------------------------------------------------
 
-pub fn spotted_line(phrase: &str, worn: &str) -> String {
-    format!("A la vista: {phrase}{worn}.")
+pub fn spotted_line(phrase: &str) -> String {
+    format!("A la vista: {phrase}.")
 }
 
 pub fn trap_spotted(_article: &str, label: &str) -> String {

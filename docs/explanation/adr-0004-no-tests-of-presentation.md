@@ -32,7 +32,7 @@ A test earns its place if it pins something a player could be cheated by: damage
 Three things keep tests, because they are not about feel:
 
   1. **The `--MORE--` gate.** `log_panel` holds the prompt back until the effect layer is empty, because `play_particles` reads any keypress as "skip". A trick shot's blast is queued behind the missile's flight, so the key would eat the explosion and leave the flight looking fine. The player is cheated of the shot they lined up, and the frame it happens in looks correct, which is the one case playing does not catch. Two tests in `view.rs` pin it, on a fixture of two resources.
-  2. **`particle-core`.** It is `no_std` and compiles for a microcontroller, and `f32::ceil` has two implementations. If they disagree, the bare-metal build compiles arithmetic the game does not run. `tests/parity.rs` runs first in `nostd_check.sh`.
+  2. **`particle-core`.** It is `no_std`, and `f32::ceil` has two implementations. If they disagree, a `no_std` build animates differently from the game. `tests/parity.rs` runs both under `cargo test`.
   3. **`models/tests/it/determinism.rs`.** It proves cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
 
 

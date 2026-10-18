@@ -90,7 +90,7 @@ use crate::constants::traps::{
 use crate::effects::{Asleep, Grant, Petrified, Pinned};
 use crate::helpers::{
     Hit, apply_damage, apply_hit, leave_smoke, leave_tinted_smoke, player_sees, roll_dice,
-    spill_blood, total_armor_plus,
+    spill_blood, stand_in, total_armor_plus,
 };
 use crate::identify::article_for;
 use crate::map::{
@@ -409,6 +409,7 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
             .0
             .gen_bool(TRAP_BREAK_CHANCE);
     if spent {
+        stand_in(world, trap);
         world.entity_mut(trap).despawn();
         if seen && effect != TrapEffect::Bear {
             world
@@ -497,21 +498,21 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
     };
 
     world.entity_mut(trap).despawn();
-    let victims = burst(
+    let epitaph = strings::blown_up_by(effect.label_article(), effect.label());
+    let victims = burst_of(
         world,
         center,
         TRICK_SHOT_RADIUS,
         BlastPalette::Force,
         true,
         shooter,
+        (None, 1, Some(epitaph)),
     );
 
     for victim in victims {
-        if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
-            finish_burst_casualty(world, victim, center, effect);
-            continue;
-        }
-        if world.get::<Position>(victim).is_none() {
+        if world.get::<Position>(victim).is_none()
+            || world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0)
+        {
             continue;
         }
         let is_player = world.get::<Player>(victim).is_some();
@@ -552,6 +553,7 @@ pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity
     if let Some(shooter) = shooter {
         crate::items::claim_from_afar(world, shooter, pickup);
     }
+    stand_in(world, pickup);
     world.entity_mut(pickup).despawn();
     if effect == PickupEffect::LearnRandomSpell {
         world
@@ -657,11 +659,27 @@ fn burst(
     announce: bool,
     shooter: Option<Entity>,
 ) -> Vec<Entity> {
-    burst_of(world, center, radius, palette, announce, shooter, (None, 1))
+    burst_of(
+        world,
+        center,
+        radius,
+        palette,
+        announce,
+        shooter,
+        (None, 1, None),
+    )
 }
 
 /// [`burst`] with an element on its damage, which an immunity can turn aside,
-/// and a multiplier on the one roll: `(element, damage_mult)`.
+/// a multiplier on the one roll, and the cause a dead player's tombstone gives
+/// (`None` keeps [`crate::combat::finish_indirect_kill`]'s own):
+/// `(element, damage_mult, epitaph)`.
+///
+/// Everyone it kills is finished here, before the chain goes on, so their
+/// corpses fly with the blast. Every link of a chain opens on the same frame:
+/// nothing here holds the batch. The ice
+/// cubes it chains into are the ones that stood here before it hurt anyone: a
+/// cube a cold kill froze into is this burst's work, not a link in it.
 fn burst_of(
     world: &mut World,
     center: Position,
@@ -669,7 +687,7 @@ fn burst_of(
     palette: BlastPalette,
     announce: bool,
     shooter: Option<Entity>,
-    (element, damage_mult): (Option<Element>, i32),
+    (element, damage_mult, epitaph): (Option<Element>, i32, Option<String>),
 ) -> Vec<Entity> {
     let cells = burst_cells(world, center, radius);
     let victims = creatures_in(world, &cells);
@@ -688,11 +706,10 @@ fn burst_of(
         kick_shake(world, ShakeKind::Hit);
     }
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-        let span = fx.explosion(&cells, palette);
+        fx.explosion(&cells, palette);
         if palette == BlastPalette::Ultimate {
             fx.smoke_burst(&cells);
         }
-        fx.hold(span);
     }
     if palette == BlastPalette::Ultimate {
         let mut smoke = world.resource_mut::<Smoke>();
@@ -701,6 +718,8 @@ fn burst_of(
         }
     }
 
+    let area = cells.iter().map(|&(x, y, _)| (x, y)).collect();
+    let cubes = things_in::<crate::ice::IceCube>(world, &area);
     let damage = roll_dice(world, TRICK_SHOT_DAMAGE_DICE, TRICK_SHOT_DAMAGE_SIDES) * damage_mult;
     for &victim in &victims {
         match element {
@@ -710,8 +729,12 @@ fn burst_of(
             None => apply_damage(world, victim, damage),
         }
     }
-    let area = cells.iter().map(|&(x, y, _)| (x, y)).collect();
-    chain_react(world, &area, shooter, false);
+    for &victim in &victims {
+        if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
+            finish_burst_casualty(world, victim, center, epitaph.as_deref());
+        }
+    }
+    chain_react_with(world, &area, shooter, false, cubes);
     victims
 }
 
@@ -739,20 +762,6 @@ pub(crate) fn chain_react(
 ) {
     let cubes = things_in::<crate::ice::IceCube>(world, area);
     chain_react_with(world, area, shooter, fire, cubes);
-}
-
-/// Whether [`chain_react_with`] would find anything to set off under `area`.
-/// A blast with links behind it holds its animation so they open after it;
-/// one without leaves the clock alone, so its own follow-up sparks keep their timing.
-pub(crate) fn has_links(
-    world: &mut World,
-    area: &std::collections::HashSet<(u16, u16)>,
-    cubes: &[Entity],
-) -> bool {
-    !cubes.is_empty()
-        || !things_in::<Trap>(world, area).is_empty()
-        || !things_in::<Pickup>(world, area).is_empty()
-        || !things_in::<Potion>(world, area).is_empty()
 }
 
 /// [`chain_react`] with the cubes chosen by the caller. A cold blast that
@@ -812,32 +821,26 @@ fn set_off_ice_cube(
     let Some(center) = world.get::<Position>(cube).copied() else {
         return false;
     };
+    stand_in(world, cube);
     world.entity_mut(cube).despawn();
     crate::ice::shatter(world, center);
     let (radius, mult, palette) = match scorched {
         true => (TRICK_SHOT_RADIUS * 2, 2, BlastPalette::Fire),
         false => (TRICK_SHOT_RADIUS, 1, BlastPalette::Frost),
     };
-    let victims = burst_of(
+    burst_of(
         world,
         center,
         radius,
         palette,
         true,
         shooter,
-        (Some(Element::Cold), mult),
+        (
+            Some(Element::Cold),
+            mult,
+            Some(strings::killed_by_ice_cube().to_string()),
+        ),
     );
-    for victim in victims {
-        if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
-            let player_was_alive = world.get::<Player>(victim).is_some()
-                && !world.resource::<crate::state::Ending>().player_dead;
-            crate::combat::finish_indirect_kill(world, victim, Some(center));
-            if player_was_alive {
-                world.resource_mut::<crate::state::Ending>().cause =
-                    strings::killed_by_ice_cube().to_string();
-            }
-        }
-    }
     true
 }
 
@@ -917,22 +920,27 @@ fn thing_at<C: Component>(world: &mut World, pos: Position) -> Option<Entity> {
         .map(|(e, _)| e)
 }
 
-/// Finishes one creature the burst killed, here rather than at the reaper's
-/// next sweep, so the corpse is flung away from the trap it was standing next
-/// to — and so the trap's effect is never worked on something already dead.
-/// A dead player gets the trap named on their tombstone; "killer unknown" is a
+/// Finishes one creature a burst killed, here rather than at the reaper's
+/// next sweep, so the corpse is flung away from the burst it was standing in
+/// — and so a trap's effect is never worked on something already dead.
+/// A dead player gets `epitaph` on their tombstone; "killer unknown" is a
 /// poor epitaph for a shot you lined up yourself.
-fn finish_burst_casualty(world: &mut World, victim: Entity, center: Position, effect: TrapEffect) {
+fn finish_burst_casualty(
+    world: &mut World,
+    victim: Entity,
+    center: Position,
+    epitaph: Option<&str>,
+) {
     let is_player = world.get::<Player>(victim).is_some();
     let already_dead = world
         .get_resource::<crate::state::Ending>()
         .is_some_and(|e| e.player_dead);
     crate::combat::finish_indirect_kill(world, victim, Some(center));
-    if !is_player || already_dead {
+    let Some(epitaph) = epitaph.filter(|_| is_player && !already_dead) else {
         return;
-    }
+    };
     if let Some(mut ending) = world.get_resource_mut::<crate::state::Ending>() {
-        ending.cause = strings::blown_up_by(effect.label_article(), effect.label());
+        ending.cause = epitaph.to_string();
     }
 }
 

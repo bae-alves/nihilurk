@@ -308,6 +308,25 @@ fn encode_code(code: KeyCode) -> String {
     }
 }
 
+/// Every code `encode_code` writes by its `Debug` name.
+const NAMED: [KeyCode; 15] = [
+    KeyCode::Backspace,
+    KeyCode::Enter,
+    KeyCode::Left,
+    KeyCode::Right,
+    KeyCode::Up,
+    KeyCode::Down,
+    KeyCode::Home,
+    KeyCode::End,
+    KeyCode::PageUp,
+    KeyCode::PageDown,
+    KeyCode::Tab,
+    KeyCode::BackTab,
+    KeyCode::Delete,
+    KeyCode::Insert,
+    KeyCode::Esc,
+];
+
 fn decode_code(text: &str) -> Option<KeyCode> {
     if let Some(n) = text.strip_prefix('c') {
         return char::from_u32(n.parse().ok()?).map(KeyCode::Char);
@@ -315,24 +334,7 @@ fn decode_code(text: &str) -> Option<KeyCode> {
     if let Some(n) = text.strip_prefix('F') {
         return n.parse().ok().map(KeyCode::F);
     }
-    Some(match text {
-        "Backspace" => KeyCode::Backspace,
-        "Enter" => KeyCode::Enter,
-        "Left" => KeyCode::Left,
-        "Right" => KeyCode::Right,
-        "Up" => KeyCode::Up,
-        "Down" => KeyCode::Down,
-        "Home" => KeyCode::Home,
-        "End" => KeyCode::End,
-        "PageUp" => KeyCode::PageUp,
-        "PageDown" => KeyCode::PageDown,
-        "Tab" => KeyCode::Tab,
-        "BackTab" => KeyCode::BackTab,
-        "Delete" => KeyCode::Delete,
-        "Insert" => KeyCode::Insert,
-        "Esc" => KeyCode::Esc,
-        _ => return None,
-    })
+    NAMED.into_iter().find(|k| format!("{k:?}") == text)
 }
 
 /// One log line for `event`, stamped with the call it arrived on.

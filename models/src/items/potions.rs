@@ -118,6 +118,7 @@ pub(crate) fn detonate_potion(world: &mut World, potion: Entity, shooter: Option
         return false;
     };
     let seen_name = display_name(world, potion);
+    crate::helpers::stand_in(world, potion);
     world.entity_mut(potion).despawn();
     world
         .resource_mut::<GameLog>()

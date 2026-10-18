@@ -181,7 +181,8 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
 /// heals you a beat before your own blast decides what it thinks of you. There
 /// is no [`would_help`] gate here: stepping over a coin you cannot use is
 /// leaving it for later, but shooting one is a decision, and a decision is
-/// allowed to be a waste.
+/// allowed to be a waste. A wasted one says nothing, though: a red coin shot at
+/// full health is spent without a line in the log.
 ///
 /// The coin must still exist — this reads its row off the entity — and the
 /// caller destroys it afterwards.
@@ -199,9 +200,10 @@ pub(crate) fn claim_from_afar(world: &mut World, shooter: Entity, coin: Entity) 
         return;
     };
     let name = display_name(world, coin);
+    let helps = would_help(world, shooter, effect);
     pay_out_value(world, coin);
     let line = apply(world, shooter, effect, amount);
-    if world.get::<Player>(shooter).is_none() {
+    if !helps || world.get::<Player>(shooter).is_none() {
         return;
     }
     world

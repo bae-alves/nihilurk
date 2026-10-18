@@ -118,7 +118,7 @@ fn identical_monsters_spotted_together_are_one_counted_line() {
 }
 
 #[test]
-fn monsters_in_different_gear_stay_on_their_own_lines() {
+fn monsters_in_different_gear_share_one_counted_line() {
     let mut w = test_world(5);
     let spot = beside_player(&mut w);
     monster::monster(&mut w, "emu", spot);
@@ -126,10 +126,5 @@ fn monsters_in_different_gear_stay_on_their_own_lines() {
     let bow = spawn_launcher(&mut w, "short bow", spot);
     assert!(equip_silently(&mut w, armed, bow));
     let said = sightings(&mut w);
-    assert!(said.iter().any(|l| l == "You spotted an emu."), "{said:?}");
-    assert!(
-        said.iter()
-            .any(|l| l == "You spotted an emu (w. a short bow)."),
-        "{said:?}"
-    );
+    assert!(said.iter().any(|l| l == "You spotted 2 emus."), "{said:?}");
 }

@@ -556,6 +556,33 @@ fn a_chained_coin_still_pays_whoever_started_the_chain() {
 }
 
 #[test]
+fn a_coin_shot_for_nothing_says_nothing() {
+    let names_the_coin = |w: &World| {
+        w.resource::<GameLog>()
+            .unread
+            .iter()
+            .any(|e| e.text.contains("red coin"))
+    };
+    for (hp, says) in [(None, false), (Some(1), true)] {
+        let mut w = test_world(1);
+        let p = player(&mut w);
+        if let Some(hp) = hp {
+            w.get_mut::<Fighter>(p).unwrap().hp = hp;
+        }
+        let at = *w.get::<Position>(p).unwrap();
+        let spot = Position {
+            x: at.x + 4,
+            y: at.y,
+        };
+        spawn_named(&mut w, "red coin", spot).expect("a coin");
+
+        detonate_at(&mut w, spot, Some(p));
+
+        assert_eq!(names_the_coin(&w), says, "hp {hp:?}");
+    }
+}
+
+#[test]
 fn a_coin_whose_shooter_died_first_is_simply_spent() {
     let mut w = test_world(1);
     let p = player(&mut w);

@@ -1,5 +1,5 @@
-//! Gear a creature is wearing rides along in the lines that name it: the
-//! sighting log and `look` both hang a `"(w. …)"` on the creature.
+//! Gear a creature is wearing rides along when `look` names it, as a
+//! `"(w. …)"`; the sighting log leaves it out.
 
 use crate::common::monster;
 
@@ -77,14 +77,14 @@ fn spawn_gear(w: &mut World, name: &str, pos: Position) -> Entity {
 }
 
 #[test]
-fn a_sighting_names_what_the_creature_is_wearing() {
+fn a_sighting_leaves_out_what_the_creature_is_wearing() {
     let mut w = test_world(1);
     armed_neighbour(&mut w, &["short bow"]);
 
     run_visibility(&mut w);
 
     assert!(
-        log_has(&w, "You spotted an emu (w. a short bow)."),
+        log_has(&w, "You spotted an emu.") && !log_has(&w, "(w. "),
         "{:?}",
         w.resource::<GameLog>().history
     );

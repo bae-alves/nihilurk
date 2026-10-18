@@ -114,7 +114,7 @@ One rule on this side of the line does clear that bar, and it is the exception w
 
 Two things in the effect layer keep their tests, and the exceptions are worth knowing because they are not about feel:
 
-  * `particle-core`'s own tests, including `tests/parity.rs`. That crate is `no_std` and compiles for a microcontroller, and `f32::ceil` has two implementations — the hosted intrinsic and a hand-rolled branch. If those disagree, the bare-metal build is compiling arithmetic the game does not run and the whole portability proof is worthless. `nostd_check.sh` runs the parity test *first*, before it compiles anything. See `cross-platform-testing.md`.
+  * `particle-core`'s own tests, including `tests/parity.rs`. That crate is `no_std`, and `f32::ceil` has two implementations — the hosted intrinsic and a hand-rolled branch. If those disagree, a `no_std` build animates differently from the game. `parity.rs` runs both branches under `cargo test`.
   * `models/tests/it/determinism.rs`, which cares about the effect layer only to prove it stays out of the way — that cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
 
 Neither is testing how anything looks.

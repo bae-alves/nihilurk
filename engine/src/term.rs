@@ -118,7 +118,6 @@ fn to_ct(c: Color) -> CtColor {
 pub struct Term {
     out: BufWriter<Stdout>,
     centered: bool,
-    last_offset: (u16, u16),
 }
 
 impl Term {
@@ -127,7 +126,6 @@ impl Term {
         Self {
             out: BufWriter::with_capacity(32 * 1024, stdout()),
             centered,
-            last_offset: (0, 0),
         }
     }
 
@@ -146,9 +144,8 @@ impl Term {
     /// offset moved) and marks the frame as shown.
     pub fn present(&mut self, screen: &mut Screen) -> std::io::Result<()> {
         let offset = self.offset();
-        if offset != self.last_offset {
+        if offset != FRAME_AT.get() {
             screen.dirty_all = true;
-            self.last_offset = offset;
         }
         FRAME_AT.set(offset);
 

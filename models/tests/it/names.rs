@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 const RAW_READS: &[(&str, usize, &str)] = &[
     (
         "visibility.rs",
-        5,
-        "the sighting line (reads the form first) and three gear names",
+        2,
+        "the sighting line (reads the form first)",
     ),
     (
         "monsters.rs",

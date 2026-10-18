@@ -465,8 +465,6 @@ fn cycle_target(world: &mut World) -> bool {
         )
     };
     let player = player_entity(world);
-    let player_pos = *world.get::<Position>(player).unwrap();
-    let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
     let max_range = aim_range(
         world,
         player,
@@ -477,27 +475,7 @@ fn cycle_target(world: &mut World) -> bool {
         reach_attack,
     );
 
-    let mut candidates: Vec<(u16, u16)> = {
-        let mut q = world
-            .query_filtered::<(Entity, &Position, Option<&Mob>, Option<&Item>), Without<Hidden>>();
-        let in_reach: Vec<(Entity, u16, u16, bool)> = q
-            .iter(world)
-            .filter(|(_, pos, mob, thing)| {
-                (mob.is_some() || thing.is_some())
-                    && (pos.x, pos.y) != (player_pos.x, player_pos.y)
-                    && visible.contains(&(pos.x, pos.y))
-                    && chebyshev(player_pos, **pos) <= max_range
-            })
-            .map(|(e, pos, mob, _)| (e, pos.x, pos.y, mob.is_some()))
-            .collect();
-        in_reach
-            .into_iter()
-            .filter(|&(e, .., is_mob)| {
-                !(is_mob && wasted_on(world, item, spell_effect, throwing, e))
-            })
-            .map(|(_, x, y, _)| (x, y))
-            .collect()
-    };
+    let mut candidates = reticle_targets(world, player, max_range, item, spell_effect, throwing);
     if candidates.is_empty() {
         return false;
     }
@@ -516,6 +494,38 @@ fn cycle_target(world: &mut World) -> bool {
         ts.cursor_y = ny as i16;
     }
     announce_look(world)
+}
+
+/// Every tile [`cycle_target`] can land on: a monster or item in `player`'s
+/// view, within `max_range`, off the player's own tile, and not a monster the
+/// wand or spell would be wasted on. A [`Hidden`] thing is left out.
+fn reticle_targets(
+    world: &mut World,
+    player: Entity,
+    max_range: i32,
+    item: Option<Entity>,
+    spell_effect: Option<SpellEffect>,
+    throwing: bool,
+) -> Vec<(u16, u16)> {
+    let player_pos = *world.get::<Position>(player).unwrap();
+    let visible = world.get::<Viewshed>(player).unwrap().visible_tiles.clone();
+    let mut q =
+        world.query_filtered::<(Entity, &Position, Option<&Mob>, Option<&Item>), Without<Hidden>>();
+    let in_reach: Vec<(Entity, u16, u16, bool)> = q
+        .iter(world)
+        .filter(|(_, pos, mob, thing)| {
+            (mob.is_some() || thing.is_some())
+                && (pos.x, pos.y) != (player_pos.x, player_pos.y)
+                && visible.contains(&(pos.x, pos.y))
+                && chebyshev(player_pos, **pos) <= max_range
+        })
+        .map(|(e, pos, mob, _)| (e, pos.x, pos.y, mob.is_some()))
+        .collect();
+    in_reach
+        .into_iter()
+        .filter(|&(e, .., is_mob)| !(is_mob && wasted_on(world, item, spell_effect, throwing, e)))
+        .map(|(_, x, y, _)| (x, y))
+        .collect()
 }
 
 /// A directional key while aiming: nudge the reticle one tile, but only onto a
@@ -807,8 +817,8 @@ fn open_tile_info(world: &mut World, target: Position) {
 /// looking is not a way to cheat a search.
 ///
 /// Whatever it is wearing rides along in the same line — `"You see a centaur
-/// (w. a short bow)."` — exactly as it does when the thing is first spotted
-/// ([`models::worn_tag`]).
+/// (w. a short bow)."` ([`models::worn_tag`]). The sighting line leaves it out;
+/// look is where gear gets read.
 ///
 /// A monster gets a line of its own after the sighting: every notable move,
 /// immunity or on-hit trick it carries, `"Beware: flying; spellcasting."`. Every creature in
@@ -999,6 +1009,8 @@ fn open_reticle(world: &mut World, player: Entity, item: Entity, throwing: bool)
 /// Arms the aiming reticle on whichever one of an item, a spell or a plain look
 /// the caller wants — exactly one of `item` / `spell_effect` / `looking` is
 /// ever set, and [`fire_at_target`] is what reads the combination back apart.
+/// An aim opens on [`nearest_mob`]; a look on the nearest thing `Tab` could
+/// reach, gaze and all, or on the player when there is nothing else to see.
 fn open_reticle_for(
     world: &mut World,
     player: Entity,
@@ -1009,20 +1021,22 @@ fn open_reticle_for(
     reach_attack: bool,
 ) {
     let pos = *world.get::<Position>(player).unwrap();
-    let snap = (!looking)
-        .then(|| {
-            let range = aim_range(
-                world,
-                player,
-                item,
-                spell_effect,
-                looking,
-                throwing,
-                reach_attack,
-            );
-            nearest_mob(world, player, range, item, spell_effect, throwing)
-        })
-        .flatten();
+    let range = aim_range(
+        world,
+        player,
+        item,
+        spell_effect,
+        looking,
+        throwing,
+        reach_attack,
+    );
+    let snap = if looking {
+        reticle_targets(world, player, range, None, None, false)
+            .into_iter()
+            .min_by_key(|&(x, y)| (chebyshev(pos, Position { x, y }), y, x))
+    } else {
+        nearest_mob(world, player, range, item, spell_effect, throwing)
+    };
     let (cx, cy) = snap.unwrap_or((pos.x, pos.y));
     let mut ts = world.resource_mut::<TargetingState>();
     ts.active = true;
@@ -3082,6 +3096,43 @@ mod tests {
         );
     }
 
+    /// `;` opens on the nearest thing in view that is not the player — an
+    /// item counts — and on the player when there is nothing else to see.
+    #[test]
+    fn look_opens_on_the_closest_thing_in_view() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let row: Vec<u16> = {
+            let map = w.resource::<Map>();
+            (1..=4)
+                .map(|d| here.x + d)
+                .take_while(|&x| !map.blocks(x, here.y))
+                .collect()
+        };
+        assert!(row.len() >= 3, "need open floor beside the player");
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
+            row.iter().map(|&x| (x, here.y)).collect();
+
+        begin_look(&mut w).unwrap();
+        let ts = w.resource::<TargetingState>();
+        assert_eq!((ts.cursor_x, ts.cursor_y), (here.x as i16, here.y as i16));
+
+        let near = Position {
+            x: row[1],
+            y: here.y,
+        };
+        let far = Position {
+            x: row[2],
+            y: here.y,
+        };
+        mob_at(&mut w, far);
+        models::spawn_named(&mut w, "dagger", near).unwrap();
+        begin_look(&mut w).unwrap();
+        let ts = w.resource::<TargetingState>();
+        assert_eq!((ts.cursor_x, ts.cursor_y), (near.x as i16, near.y as i16));
+    }
+
     /// Two orcs in view, the nearer one beyond the wand's help: the reticle
     /// opens on the one it can change, and `Tab` never lands on the other.
     fn aim_wand_past_a_useless_target(
@@ -3343,11 +3394,9 @@ mod tests {
         );
     }
 
-    /// Look mode is the one reticle that still opens on you: its cursor is
-    /// your attention, and snapping it onto a medusa would petrify you for
-    /// pressing `L`.
+    /// The sighting line leaves gear out, so look is where it gets read.
     #[test]
-    fn look_mode_still_opens_on_your_own_tile() {
+    fn look_names_what_a_creature_has_on() {
         let mut w = modal_world(5);
         let player = player_entity(&mut w);
         let here = *w.get::<Position>(player).unwrap();
@@ -3355,22 +3404,12 @@ mod tests {
             x: here.x + 1,
             y: here.y,
         };
-        w.spawn((
-            Name {
-                what: "medusa".into(),
-            },
-            Mob {
-                movement_type: MovementType::Static,
-            },
-            beside,
-            Faction::Monster,
-        ));
-        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = vec![(beside.x, beside.y)];
+        let mob = mob_at(&mut w, beside);
+        let bow = models::spawn_launcher(&mut w, "short bow", beside);
+        assert!(models::equip_silently(&mut w, mob, bow));
 
-        open_reticle_for(&mut w, player, None, None, true, false, false);
-
-        let ts = w.resource::<TargetingState>();
-        assert_eq!((ts.cursor_x, ts.cursor_y), (here.x as i16, here.y as i16));
+        let lines = describe_target(&mut w, beside);
+        assert!(lines[0].contains("(w. a short bow)"), "{lines:?}");
     }
 
     /// A throw comes down on the floor as it was when the player let go, not

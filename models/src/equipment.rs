@@ -167,35 +167,31 @@ pub fn equipped_in(world: &World, entity: Entity, slot: Slot) -> Option<Entity> 
 
 /// What `wearer` has on, as the parenthetical that rides along behind their
 /// name: `" (w. a short bow)"`, and an empty string for a creature carrying
-/// nothing. Every line that names a creature the player can see — the sighting,
-/// `look` — hangs this on the end, so "what is it holding" never needs a second
-/// look.
+/// nothing. `look` hangs this on the end of the creature it names, so "what is
+/// it holding" never needs a second look.
 pub fn worn_tag(world: &World, wearer: Entity) -> String {
-    worn_tag_from(equipped_items(world, wearer).into_iter().map(|i| {
-        let name = crate::identify::display_name(world, i);
-        let slot = world.get::<Equipped>(i).map(|e| e.slot);
-        worn_phrase(&name, slot)
-    }))
+    let names: Vec<String> = equipped_items(world, wearer)
+        .into_iter()
+        .map(|i| {
+            let name = crate::identify::display_name(world, i);
+            let slot = world.get::<Equipped>(i).map(|e| e.slot);
+            worn_phrase(&name, slot)
+        })
+        .collect();
+    if names.is_empty() {
+        return String::new();
+    }
+    strings::worn_tag(&names.join(", "))
 }
 
 /// One worn item as it reads in the tag. Armour is a mass noun — "ring mail",
 /// not "a ring mail" — and a suit is the one thing a creature wears rather than
 /// carries, so [`Slot::Body`] is the whole rule.
-pub fn worn_phrase(name: &str, slot: Option<Slot>) -> String {
+fn worn_phrase(name: &str, slot: Option<Slot>) -> String {
     match slot {
         Some(Slot::Body) => name.to_string(),
         _ => crate::identify::phrase_for(name),
     }
-}
-
-/// [`worn_tag`] from item phrases already rendered — for the `Query`-based
-/// spotting system, which never holds a whole-`World` reference.
-pub fn worn_tag_from(names: impl Iterator<Item = String>) -> String {
-    let names: Vec<String> = names.collect();
-    if names.is_empty() {
-        return String::new();
-    }
-    strings::worn_tag(&names.join(", "))
 }
 
 /// The bow or crossbow `entity` currently has in `Slot::Hand`, if any. `f`

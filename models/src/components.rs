@@ -1936,6 +1936,38 @@ impl GameLog {
             self.history.remove(0);
         }
     }
+
+    /// Drops every unread line since the first unread trick-shot shout except
+    /// the shouts themselves, from the history too: a combo the shot earned
+    /// says it all, and the deaths, the clatter and the coins between are noise.
+    pub fn fold_into_trick_shot(&mut self) {
+        let Some(start) = self
+            .unread
+            .iter()
+            .position(|e| e.category == LogCategory::TrickShot)
+        else {
+            return;
+        };
+        let since = &self.unread[start + 1..];
+        let from = self.history.len().saturating_sub(since.len());
+        if self.history[from..]
+            .iter()
+            .eq(since.iter().map(|e| &e.text))
+        {
+            let shouts = since
+                .iter()
+                .filter(|e| e.category == LogCategory::TrickShot)
+                .map(|e| e.text.clone())
+                .collect::<Vec<_>>();
+            self.history.truncate(from);
+            self.history.extend(shouts);
+        }
+        let mut at = 0;
+        self.unread.retain(|e| {
+            at += 1;
+            at <= start + 1 || e.category == LogCategory::TrickShot
+        });
+    }
 }
 
 /// The current dungeon floor, 1-based.

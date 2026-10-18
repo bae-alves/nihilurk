@@ -743,6 +743,25 @@ pub fn death_burst(world: &mut World, entity: Entity, source: Option<Position>) 
     death_burst_at(world, entity, source, stretch);
 }
 
+/// Keeps `entity` drawn where it stood until the animation queued ahead of its
+/// death has played ([`Particles::stand_in`]), so a creature a chain's later
+/// link kills is still there when that link's blast reaches it. A creature the
+/// player could not see standing there stays unseen.
+pub(crate) fn stand_in(world: &mut World, entity: Entity) {
+    if world.get::<crate::Hidden>(entity).is_some() {
+        return;
+    }
+    let (Some(pos), Some(look)) = (
+        world.get::<Position>(entity).copied(),
+        world.get::<Renderable>(entity).map(|r| (r.glyph, r.color)),
+    ) else {
+        return;
+    };
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.stand_in(pos.x, pos.y, look.0, look.1);
+    }
+}
+
 /// [`death_burst`] with the caller choosing the `stretch`, for the one death
 /// that must ignore what the creature is.
 pub(crate) fn death_burst_at(
@@ -754,6 +773,7 @@ pub(crate) fn death_burst_at(
     let Some(pos) = world.get::<Position>(entity).copied() else {
         return;
     };
+    stand_in(world, entity);
 
     if !world.resource::<BloodStains>().enabled {
         world.resource_mut::<Corpses>().mark(pos.x, pos.y);

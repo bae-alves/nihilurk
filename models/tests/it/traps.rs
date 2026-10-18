@@ -1386,37 +1386,7 @@ fn a_burst_sets_off_the_next_trap_along_even_a_hidden_one() {
 }
 
 #[test]
-fn each_link_of_a_chain_explodes_after_the_last_one_has() {
-    let mut w = test_world(11);
-    clear_traps(&mut w);
-    clear_mobs(&mut w);
-    w.init_resource::<Particles>();
-    let (site, _, _) = blast_site(&mut w);
-    let one_off = Position {
-        x: site.x + 1,
-        y: site.y,
-    };
-    let first = w.spawn(TrapBundle::bear(site)).id();
-    w.entity_mut(first).remove::<Hidden>();
-    w.spawn(TrapBundle::bear(one_off));
-
-    detonate_at(&mut w, site, None);
-
-    let latest = w
-        .resource::<Particles>()
-        .live
-        .iter()
-        .filter(|p| (p.x, p.y) == (one_off.x, one_off.y))
-        .map(|p| p.delay_ms)
-        .fold(0.0_f32, f32::max);
-    assert!(
-        latest >= 280.0,
-        "the second blast opens at {latest} ms, inside the first one"
-    );
-}
-
-#[test]
-fn a_potion_in_a_chain_makes_the_next_link_wait_for_its_splash() {
+fn a_whole_chain_goes_off_at_once_with_its_dead() {
     let mut w = test_world(11);
     clear_traps(&mut w);
     clear_mobs(&mut w);
@@ -1430,18 +1400,33 @@ fn a_potion_in_a_chain_makes_the_next_link_wait_for_its_splash() {
     w.entity_mut(first).remove::<Hidden>();
     spawn_potion(&mut w, PotionEffect::Healing, one_off);
     w.spawn(TrapBundle::bear(two_off));
+    let far = Position {
+        x: two_off.x + 1,
+        y: two_off.y,
+    };
+    let orc = orc_at(&mut w, far);
+    w.get_mut::<Fighter>(orc).unwrap().hp = 1;
 
     detonate_at(&mut w, site, None);
 
-    let latest = w
-        .resource::<Particles>()
-        .live
+    assert!(w.get_entity(orc).is_none(), "the last link reached the orc");
+    let live = &w.resource::<Particles>().live;
+    let opens = live
         .iter()
-        .filter(|p| (p.x, p.y) == (two_off.x, two_off.y))
+        .filter(|p| (p.x, p.y) == (far.x, far.y))
         .map(|p| p.delay_ms)
-        .fold(0.0_f32, f32::max);
+        .fold(f32::MAX, f32::min);
+    let falls = live
+        .iter()
+        .filter(|p| p.frames.iter().any(|&(g, _)| g == '%'))
+        .map(|p| p.delay_ms)
+        .fold(f32::MAX, f32::min);
     assert!(
-        latest >= 560.0,
-        "the third blast opens at {latest} ms, inside the potion's splash"
+        opens < 100.0,
+        "the last link opens at {opens} ms, queued behind the others"
+    );
+    assert!(
+        falls < 100.0,
+        "its dead fall at {falls} ms, queued behind the others"
     );
 }

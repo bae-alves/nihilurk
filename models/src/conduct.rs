@@ -92,17 +92,18 @@ pub fn broke(world: &mut World, conduct: Conduct) {
     }
 }
 
+const ALL_MASK: u16 = (1 << Conduct::ALL.len()) - 1;
+
 /// The conducts the run has kept, one bit each. A world with no tally has kept
 /// every one it can show.
 pub fn kept_mask(world: &mut World) -> u16 {
-    let all = Conduct::ALL.iter().fold(0, |mask, c| mask | c.bit());
     let broken = world.get_resource::<Conducts>().map_or(0, |c| c.broken);
     let lurk = world
         .query_filtered::<Entity, (With<Player>, With<Lurk>)>()
         .iter(world)
         .next()
         .is_some();
-    let mut kept = all & !broken;
+    let mut kept = ALL_MASK & !broken;
     if !lurk {
         kept &= !Conduct::Lurk.bit();
     }
@@ -139,10 +140,13 @@ pub fn marks(mask: u16, stripes: &[Color]) -> Vec<(char, Color)> {
         .enumerate()
         .filter(|(_, c)| mask & c.bit() != 0)
         .map(|(i, &c)| {
-            let colour = match (c, stripes.is_empty()) {
-                (Conduct::Lurk, _) => LURK_COLOR,
-                (_, true) => Color::White,
-                (_, false) => stripes[i % stripes.len()],
+            let colour = if c == Conduct::Lurk {
+                LURK_COLOR
+            } else {
+                stripes
+                    .get(i % stripes.len().max(1))
+                    .copied()
+                    .unwrap_or(Color::White)
             };
             (MARK, colour)
         })

@@ -74,6 +74,7 @@ pub(crate) fn encase(world: &mut World, victim: Entity) {
     let Some(pos) = world.get::<Position>(victim).copied() else {
         return;
     };
+    crate::helpers::stand_in(world, victim);
     crate::spirits::poof(world, victim);
     spawn_ice_cube(world, pos);
     if let Some(mut fx) = world.get_resource_mut::<Particles>() {

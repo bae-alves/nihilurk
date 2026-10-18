@@ -202,6 +202,9 @@ fn pay(world: &mut World, points: i32, kills: u32) {
 /// The roll is off [`FxRng`], like everything else here: which of two sentences
 /// the log prints is decoration, and decoration does not get to move the
 /// gameplay dice.
+///
+/// A combo a trick shot earned folds the log down to the shout and this line
+/// ([`GameLog::fold_into_trick_shot`]).
 fn announce_combo(world: &mut World) {
     let proud = world
         .get_resource_mut::<FxRng>()
@@ -210,9 +213,9 @@ fn announce_combo(world: &mut World) {
         true => (crate::hud::pride_line(), LogCategory::Pride),
         false => (strings::with_style(), LogCategory::Combo),
     };
-    world
-        .resource_mut::<GameLog>()
-        .add_colored(line.to_string(), category);
+    let mut log = world.resource_mut::<GameLog>();
+    log.fold_into_trick_shot();
+    log.add_colored(line.to_string(), category);
 }
 
 /// What a staircase is worth on a floor of difficulty `tier` (0-based, as

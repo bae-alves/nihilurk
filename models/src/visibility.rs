@@ -9,8 +9,7 @@
 
 use crate::components::*;
 use crate::effects::{Blind, FormMarks, SeesInvisible, form_of_marks};
-use crate::equipment::{Equipped, worn_phrase, worn_tag_from};
-use crate::identify::{named_display, phrase_for};
+use crate::identify::phrase_for;
 use crate::map::{MAP_HEIGHT, MAP_TILE_COUNT, MAP_WIDTH, Map, TileType, tile_index};
 use bevy_ecs::prelude::*;
 use std::collections::{HashSet, VecDeque};
@@ -60,9 +59,6 @@ pub fn visibility_system(
         Or<(With<Mob>, With<Item>)>,
     >,
 
-    // Gear somebody is wearing, for the "(w. a bow)" on a sighting line.
-    worn_query: Query<(&Equipped, &Name, Option<&Stack>)>,
-
     // The player's Helper, which is never news.
     helpers: Query<(), With<Helper>>,
 
@@ -90,7 +86,6 @@ pub fn visibility_system(
             &mut commands,
             &mut log,
             &spot_query,
-            &worn_query,
             &helpers,
             &visible,
             perception,
@@ -243,13 +238,12 @@ fn hide_and_announce(
         ),
         Or<(With<Mob>, With<Item>)>,
     >,
-    worn_query: &Query<(&Equipped, &Name, Option<&Stack>)>,
     helpers: &Query<(), With<Helper>>,
     visible: &HashSet<(u16, u16)>,
     perception: bool,
     blind: bool,
 ) {
-    let mut sightings: Vec<(String, String, u32)> = Vec::new();
+    let mut sightings: Vec<(String, u32)> = Vec::new();
     for (entity, pos, mob, invisible, name, stack, spotted, marks) in spot_query.iter() {
         let in_view = !blind && visible.contains(&(pos.x, pos.y));
         let perceptible = in_view && (invisible.is_none() || perception);
@@ -274,14 +268,10 @@ fn hide_and_announce(
                 Some(form) => form.name.to_string(),
                 None => name.map_or("item", |n| n.what.as_str()).to_string(),
             };
-            let worn = worn_by(worn_query, entity);
             let count = stack.map_or(1, |s| u32::from(s.count));
-            match sightings
-                .iter_mut()
-                .find(|(n, w, _)| *n == what && *w == worn)
-            {
-                Some((_, _, total)) => *total += count,
-                None => sightings.push((what, worn, count)),
+            match sightings.iter_mut().find(|(n, _)| *n == what) {
+                Some((_, total)) => *total += count,
+                None => sightings.push((what, count)),
             }
             commands.entity(entity).insert(Spotted);
         }
@@ -289,33 +279,20 @@ fn hide_and_announce(
             commands.entity(entity).remove::<Spotted>();
         }
     }
-    for (what, worn, total) in sightings {
+    for (what, total) in sightings {
         let seen = match total {
             1 => what,
             n => crate::identify::counted(&what, n.min(u8::MAX.into()) as u8),
         };
-        log.add(spotted_line(&seen, &worn));
+        log.add(spotted_line(&seen));
     }
 }
 
 /// The sighting line for a freshly spotted thing, using its identification-aware
-/// display name rather than its (possibly still-secret) true [`Name`], with
-/// whatever it is wearing in tow.
-fn spotted_line(seen_name: &str, worn: &str) -> String {
-    strings::spotted_line(&phrase_for(seen_name), worn)
-}
-
-/// The `" (w. a bow)"` tag for whatever `wearer` has equipped. Plain [`Name`]s,
-/// not [`crate::identify::display_name`]: a monster's gear is never identified
-/// (see [`crate::equipment::equip_silently`]), so there is nothing to annotate
-/// and no `&World` needed to say so.
-fn worn_by(worn_query: &Query<(&Equipped, &Name, Option<&Stack>)>, wearer: Entity) -> String {
-    worn_tag_from(
-        worn_query
-            .iter()
-            .filter(|(eq, _, _)| eq.by == Some(wearer))
-            .map(|(eq, name, stack)| worn_phrase(&named_display(Some(name), stack), Some(eq.slot))),
-    )
+/// display name rather than its (possibly still-secret) true [`Name`]. What a
+/// creature has on is left to `look`.
+fn spotted_line(seen_name: &str) -> String {
+    strings::spotted_line(&phrase_for(seen_name))
 }
 
 /// Brings hidden traps to light: a `Sight` trap the instant its tile is in

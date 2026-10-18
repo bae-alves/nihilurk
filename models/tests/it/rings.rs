@@ -759,3 +759,30 @@ fn a_cursed_ring_of_health_can_kill() {
     assert!(cur <= 0, "2 hp and a -3 ring leaves {cur}");
     assert_eq!(max, base_max - 3);
 }
+
+#[test]
+fn a_trick_shot_combo_logs_the_shout_and_the_combo_and_nothing_between() {
+    let mut w = test_world(1);
+    {
+        let mut log = w.resource_mut::<GameLog>();
+        log.add("before the shot");
+        log.add_colored("shout", LogCategory::TrickShot);
+        log.add("the noise of the chain");
+    }
+    corpses(&mut w, 3, 4);
+
+    let log = w.resource::<GameLog>();
+    let unread: Vec<&str> = log.unread.iter().map(|e| e.text.as_str()).collect();
+    let shout = unread.iter().position(|&l| l == "shout").unwrap();
+    assert_eq!(unread[shout - 1], "before the shot");
+    assert_eq!(
+        unread.len(),
+        shout + 2,
+        "between the shout and the combo: {unread:?}"
+    );
+    assert!(
+        log.unread[shout + 1].category != LogCategory::Plain,
+        "the line after the shout is the combo's: {unread:?}"
+    );
+    assert!(!log.history.iter().any(|l| l == "the noise of the chain"));
+}
