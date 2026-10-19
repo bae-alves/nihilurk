@@ -112,7 +112,7 @@ Rust's borrow friction stays. SCS absorbs it into written convention, in phases 
 - **One grammar.** Five questions, one answer each. A reader never has to ask where a thing lives.
 - **Order is data, and it is checked.** The schedule is one flat list with every dependency written, and a test compares the real graph to the intended edges. No two steps are left unordered, so the executor has no order to choose. A reordering is a visible diff and a failing test.
 - **Everything is a queued intent.** The player's actions and the monsters' attacks both enter as intent, and the schedule resolves them in its fixed order. The player acts first in the turn, so what they do resolves before the others move.
-- **Invariants are checked on a running game.** A seeded bot plays the real schedule and, after every turn, the world must hold what each step assumed of the one before: queues drained, no stale markers, no fighter left at zero, no pack pointing at nothing.
+- **Invariants are checked on a running game.** A seeded bot plays the real schedule (it walks, fights, uses, throws, casts, drops and takes the stairs) and, after every turn, the world must hold what each step assumed of the one before: queues drained, no stale markers, no fighter left at zero, no pack pointing at nothing, no item in two pack slots, no stack outside its limit, no two creatures on one tile.
 - **Properties, not kinds.** Rules ask whether something has a component, never what kind of thing it is. A fire-resist ring and a fire-immune monster answer the same question, so rules compose without knowing each other.
 - **Data where the verb already exists.** A new instance of a known verb is a row. Nothing else has to hear about it.
 - **Small runtime.** No scheduler machinery, no plugin layer, no parallelism to reason about. nihilurk ships as a roughly 3 MB binary and idles in single-digit megabytes.
@@ -120,8 +120,8 @@ Rust's borrow friction stays. SCS absorbs it into written convention, in phases 
 ### Weak
 
 - **Data-driven stops at the verb.** A new kind of effect costs code in three places: a variant, a row, and a handler. "Add content" is a row only while the vocabulary is enough. Moving the handler onto the row saves one line and gives up the compiler's missing-handler error, so the question is open, not solved.
-- **Assumptions are checked late.** Each step's preconditions are prose beside its definition. The soak checks their consequences at the end of a turn, and a single `debug_assert!` checks one at the step. A step that stops assuming something fails a turn later, in a different place.
-- **Direct mutation gives up conflict detection.** No scheduler checks that two systems fight over the same data. A total order and the soak carry that.
+- **Assumptions are checked late.** Each step's preconditions are prose beside its definition. The soak checks their consequences at the end of a turn, and two `debug_assert!`s check theirs at the step. A step that stops assuming something fails a turn later, in a different place.
+- **Direct mutation gives up conflict detection.** No scheduler checks that two systems fight over the same data. A total order and the soak carry that. The soak checks that no two creatures end a turn on one tile.
 - **Prose drifts.** The step count and the queue count in the docs are tested against the code. Every other number or diagram in a document is a second copy of the code, and nothing compares them.
 
 ### Ugly
@@ -143,7 +143,7 @@ The target was never direct mutation. It was conventions nobody wrote down or ch
 | Effects spread across tables and systems | **kept** | One vocabulary, read by systems that never learn where an effect came from. |
 | Row legality | **tested** | Impossible rows fail the suite before a system sees them. |
 | Schedule order | **tested** | The graph is compared to the intended edges, and no pair of steps is left unordered. |
-| System preconditions | **soaked, mostly** | Prose at each system, with their consequences checked after every turn of a seeded run. One is asserted. |
+| System preconditions | **soaked, mostly** | Prose at each system, with their consequences checked after every turn of a seeded run. Two are asserted. |
 | Mutation sites | **soaked for damage** | The soak finds dangling references. Nothing checks that a spawn or despawn sits at its deciding rule. |
 | Command and effect queues | **intent queued, log synchronous** | The player and the monsters queue intent. The message log is read back within the turn, so queueing it would break it. |
 | Relationship indexes | **declined, with a trigger** | A world-wide scan is cheap at small scale. Add an index when the world holds thousands. |

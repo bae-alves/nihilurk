@@ -290,10 +290,15 @@ fn apply_step(world: &mut World, plan: StepPlan) {
 /// The schedule's first step: applies what the player chose to do this turn.
 ///
 /// Assumes the plan was made against the world as it stands now. Nothing runs
-/// between a key press and the schedule, so it was. It runs before every other
+/// between a key press and the schedule, so it was. Debug builds assert it for
+/// a melee target, a kicked cube and a dropped item. It runs before every other
 /// step because everything the player does resolves before the monsters move.
 pub fn player_action_system(world: &mut World) {
     let actions = std::mem::take(&mut world.resource_mut::<PlayerActionQueue>().actions);
+    debug_assert!(
+        actions.iter().all(|a| still_as_planned(world, a)),
+        "player_action_system: a queued Melee target or Kick cube is gone, or a Drop item left the pack, between the key and the schedule"
+    );
     for action in actions {
         match action {
             PlayerAction::Step(plan) => apply_step(world, plan),
@@ -322,6 +327,19 @@ pub fn player_action_system(world: &mut World) {
                 }
             }
         }
+    }
+}
+
+/// Whether `action` still names what it was planned against: a melee target
+/// or kicked cube that exists, a dropped item still in the player's pack.
+fn still_as_planned(world: &mut World, action: &PlayerAction) -> bool {
+    match action {
+        PlayerAction::Step(StepPlan::Melee { target }) => world.get_entity(*target).is_some(),
+        PlayerAction::Step(StepPlan::Kick { cube }) => world.get_entity(*cube).is_some(),
+        PlayerAction::Drop { item } => player_position(world)
+            .and_then(|(player, _)| world.get::<Backpack>(player))
+            .is_some_and(|pack| pack.items.contains(item)),
+        _ => true,
     }
 }
 
