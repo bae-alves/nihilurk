@@ -234,18 +234,18 @@ The arm returns `bool` -- whether the dose visibly took hold.
     ScrollDef { effect: ScrollEffect::ProtectArmor,
                 name: "scroll of protect armor" },
 
-**A wand.** Row in `WANDS`, variant on `WandEffect`, arm in `apply_wand_effect` (`items/wands.rs`) -- plus one more, because a wand can be thrown as well as zapped: give it a colour in `blast_palette`, and add it to `is_attack_wand` if it should deal damage rather than deliver an effect.
+**A wand.** A zap handler in `items/wands.rs` and a row in `WANDS` that names it; no enum. The row also says how its blasts look, and, because a wand can be thrown as well as zapped, what a throw does: the default is the small blast that changes nobody, and `.thrown(Thrown::Blast(f))` runs `f` on everyone it catches. Add `.attack()` if it should deal damage rather than deliver an effect.
 
-    WandDef { effect: WandEffect::Sleep, name: "wand of sleep",
-              color: Color::Blue, range: 6 },
+    &WandDef::new("wand of sleep", Color::Blue, 6, BlastPalette::Warp, wands::sleep)
+        .thrown(Thrown::Blast(wands::put_to_sleep)),
 
-Most of a wand's arm is borrowed. Sleep is `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)` and nothing else; the trap and the scroll that also put things to sleep call the same verb.
+Most of a wand's handler is borrowed. Sleep is `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)` and nothing else; the trap and the scroll that also put things to sleep call the same verb.
 
 **A genuinely new kind of coin** -- one that does something no coin does yet -- needs a `PickupEffect` variant and arms in both `apply` and `would_help` (`items/pickups.rs`). `would_help` is the interesting one: it is what leaves a coin on the floor when taking it would do nothing, so a red coin waits at full health for the fight that goes badly.
 
 ### The one thing to check afterwards
 
-Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog row ever spawns `PotionEffect::Water`, `ScrollEffect::BlankPaper` or `WandEffect::Nothing`, which exist only as what a wand of cancellation turns a carried item into.
+Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog table ever holds `PotionEffect::Water`, `ScrollEffect::BlankPaper`, `BLANK_RUNE` or `WAND_OF_NOTHING`, which are never floor loot.
 
     cargo test --test it content::
 

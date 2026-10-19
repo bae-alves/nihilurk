@@ -367,7 +367,7 @@ fn magic_detection_skips_ordinary_gear() {
     let p = player(&mut w);
     let here = Position { x: 40, y: 10 };
 
-    let wand = spawn_wand(&mut w, WandEffect::Striking, here);
+    let wand = spawn_named(&mut w, "wand of striking", here).unwrap();
     w.entity_mut(wand).insert((Hidden, Invisible));
     let plain = spawn_weapon(&mut w, "dagger", here);
     let cursed = spawn_weapon(&mut w, "mace", here);

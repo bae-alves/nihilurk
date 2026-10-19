@@ -326,7 +326,7 @@ fn a_wand_of_digging_leaves_a_red_rooms_walls_alone() {
     }
     w.get_mut::<Position>(p).unwrap().x = 10;
     w.get_mut::<Position>(p).unwrap().y = 10;
-    let wand = spawn_wand(&mut w, WandEffect::Digging, Position { x: 0, y: 0 });
+    let wand = spawn_named(&mut w, "wand of digging", Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);
     let slot = w.get::<Backpack>(p).unwrap().items.len() - 1;

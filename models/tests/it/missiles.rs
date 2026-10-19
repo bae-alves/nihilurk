@@ -1267,7 +1267,9 @@ fn the_small_stuff_carries_further_out_of_a_bare_hand() {
         stash(&mut w, p, |w| {
             spawn_scroll(w, ScrollEffect::Identify, NOWHERE)
         }),
-        stash(&mut w, p, |w| spawn_wand(w, WandEffect::Lightning, NOWHERE)),
+        stash(&mut w, p, |w| {
+            spawn_named(w, "wand of lightning", NOWHERE).unwrap()
+        }),
         stash(&mut w, p, |w| {
             spawn_ring(w, RingEffect::Protection, NOWHERE)
         }),

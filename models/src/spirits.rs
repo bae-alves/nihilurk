@@ -312,7 +312,7 @@ pub fn confirm_offer(world: &mut World, player: Entity, choice: OfferOption) {
         OfferOption::Ring(def) => give_item(world, player, def),
         OfferOption::Scroll(def) => give_item(world, player, def),
         OfferOption::Potion(def) => give_item(world, player, def),
-        OfferOption::Wand(def) => give_item(world, player, def),
+        OfferOption::Wand(def) => give_item(world, player, &def),
     }
     if let Some(spirit) = source {
         poof(world, spirit);
@@ -419,7 +419,7 @@ fn learn_offered_spell(world: &mut World, player: Entity, effect: SpellEffect) {
 /// Spawns `def` at the player's feet, already identified, and takes it
 /// straight into their pack — or leaves it on the ground if the pack is
 /// already full, exactly as any other pickup would.
-fn give_item(world: &mut World, player: Entity, def: &'static impl ItemDef) {
+fn give_item(world: &mut World, player: Entity, def: &impl ItemDef) {
     let Some(pos) = world.get::<Position>(player).copied() else {
         return;
     };
@@ -626,7 +626,7 @@ pub(crate) fn gnome_event(world: &mut World, player: Entity, spirit: Entity) {
         [
             SCROLLS.choose(rng).map(OfferOption::Scroll),
             POTIONS.choose(rng).map(OfferOption::Potion),
-            WANDS.choose(rng).map(OfferOption::Wand),
+            WANDS.choose(rng).map(|&row| OfferOption::Wand(row)),
         ]
     });
     open_shop(world, player, spirit, options);

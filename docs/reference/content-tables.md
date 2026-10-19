@@ -155,16 +155,23 @@ Draws `'`, always white. Attaches `Item` and `Rune { row, charged: true }`, and 
 
 ### WANDS — WandDef
 
-| Field    | Type           | Notes                                    |
-|----------|----------------|------------------------------------------|
-| `effect` | `WandEffect`   | Keys the mechanic; identity in saves.    |
-| `name`   | `&'static str` |                                          |
-| `color`  | `Color`        |                                          |
-| `range`  | `i32`          | Feeds the aiming reticle. In use: 6, 8.  |
+| Field          | Type                         | Notes |
+|----------------|------------------------------|-------|
+| `name`         | `&'static str`               | Identity; the save stores it. |
+| `color`        | `Color`                      | |
+| `range`        | `i32`                        | Feeds the aiming reticle. In use: 6, 8. |
+| `palette`      | `BlastPalette`               | Its blasts, zapped or thrown, and the tint a thrown one flies in. |
+| `zap`          | `fn(&mut World, Zap)`        | What zapping does. Required. |
+| `attack`       | `bool`                       | Deals damage; thrown, the grenade; doubled by `DualZap`. |
+| `element`      | `Option<Element>`            | What its damage carries, if anything. |
+| `needs_target` | `bool`                       | Whether zapping opens the reticle. |
+| `zap_radius`   | `Option<f32>`                | The burst the reticle paints for a zap. |
+| `wasted_on`    | `fn(&World, Entity) -> bool` | Creatures the reticle passes over. |
+| `thrown`       | `Thrown`                     | What it does thrown. |
 
-Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. Every wand spawns full, with `WAND_CHARGES`, however it was made. Zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Whether zapping opens the reticle: `WandEffect::needs_target`, which is true for everything except the wand of light. Mechanic: `apply_wand_effect` in `models/src/items/wands.rs`. That match has no catch-all, so a new `WandEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above; every existing variant already does something real. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), a narrower, still-`_`-fallback dispatch over only the six utility effects a thrown blast can carry (`apply_thrown_wand_effect`) — it is not the "unwired effect" checkpoint; `apply_wand_effect` is.
+Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. Every wand spawns full, with `WAND_CHARGES`, however it was made. Zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Rows are `static`, built with `WandDef::new(name, color, range, palette, zap)` and a chain (`.attack()`, `.element(..)`, `.bursts()`, `.unaimed()`, `.wasted_on(..)`, `.thrown(..)`); a `Wand` holds its row. Only the wand of light is `.unaimed()`. Mechanic: the row's `zap`, one handler per row in `models/src/items/wands.rs`, run by `zap_wand`. `new` takes the handler, so a row without one does not compile. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), by the row's `Thrown`.
 
-Every wand's zap, burst, poof and blast palette is described in `../explanation/the-feel-layer.md`; none of it is a field on this table.
+Every wand's zap, burst and poof is described in `../explanation/the-feel-layer.md`; of all that, only the `palette` is a field on this table.
 
 A thrown one bursts only on impact like any wand, so aim it at the rock. A zapped **wand of digging** (`dig_tunnel`) turns every wall on the aim's line, out to `DIG_RANGE` tiles, into passage, and never what `Map::diggable` refuses: the map's outer wall, and the floor and bounding walls of any room whose `SpecialRoom::undiggable` marker is set. Only the red room sets it. A tunnel is not in the seed, so the save carries it (`dug_tiles`, found by diffing the live map against `map::pristine_tiles`).
 
@@ -172,18 +179,18 @@ A zapped **wand of swapping** (`swap_with_target`) trades the zapper's tile for 
 
 Neither a zap nor a throw can be aimed at the player's own tile: the engine refuses it with "Great idea! But no." and no turn passes.
 
-**Thrown**, a wand bursts on impact and spends every remaining charge at once. Which blast it makes is three rows:
+**Thrown**, a wand bursts on impact and spends every remaining charge at once. Which blast it makes is its row's `Thrown`:
 
-| Wand kind | Radius | Damage | Payload |
+| `Thrown` | Radius | Damage | Payload |
 |---|---|---|---|
-| attack (`is_attack_wand`) | `GRENADE_RADIUS` | `GRENADE_DIE_PER_CHARGE` sides per charge, armour-ignoring | its element, if it has one |
-| wand of light | `GRENADE_RADIUS` | the same | `dazzle` on every creature caught |
-| utility | `BLAST_RADIUS` | none | the wand's own effect, on every creature caught |
-| wand of nothing | — | none | confetti |
-| wand of digging | `GRENADE_RADIUS` | none | a crater: every wall in the disc goes, in sight or not (`wands::crater`) |
-| wand of swapping | `BLAST_RADIUS` | none | every creature caught on dry floor moves to another's tile, in a random ring so none keeps its own (`wands::shuffle_places`) |
+| `Grenade` (every `.attack()` wand) | `GRENADE_RADIUS` | `GRENADE_DIE_PER_CHARGE` sides per charge, armour-ignoring | its element, if it has one |
+| `Flash` (wand of light) | `GRENADE_RADIUS` | the same | `dazzle` on every creature caught |
+| `Blast(f)` (utility, the default) | `BLAST_RADIUS` | none | `f`, the wand's own effect, on every creature caught |
+| `Confetti` (wand of nothing) | — | none | confetti |
+| `Crater` (wand of digging) | `GRENADE_RADIUS` | none | a crater: every wall in the disc goes, in sight or not (`wands::crater`) |
+| `Shuffle` (wand of swapping) | `BLAST_RADIUS` | none | every creature caught on dry floor moves to another's tile, in a random ring so none keeps its own (`wands::shuffle_places`) |
 
-Dials: `constants::wands`. Resolution: `resolve_wand_throw` and `apply_thrown_wand_effect` in `models/src/items/throwing.rs`. What each of those looks like on screen is `../explanation/the-feel-layer.md`; what a condition does to the player it lands on is `components.md`.
+Dials: `constants::wands`. Resolution: `resolve_wand_throw` in `models/src/items/throwing.rs`. What each of those looks like on screen is `../explanation/the-feel-layer.md`; what a condition does to the player it lands on is `components.md`.
 
 ### SPELLS — SpellDef
 
@@ -195,7 +202,7 @@ The one catalog row that never spawns anything: a spell carries no `Item`, no `P
 | `name`   | `&'static str` | Shown on the `Z` menu and in "You unleash your ___!"           |
 | `cost`   | `u8`           | `Magic` points one use spends, times `constants::spells::TURBO_MAGIC_COST_MULT` when `TurboMagic` (a staff) meets an `Attack` — which multiplies that spell's damage by the larger `TURBO_MAGIC_POWER_MULT` in the same breath. |
 | `range`  | `i32`          | Feeds the aiming reticle. Meaningless — left at `0` — for a spell whose `SpellEffect::needs_target()` is `false`. |
-| `kind`   | `SpellKind`     | `Attack` or `Skill` — the same split `WandEffect`'s attack/utility divide makes, and the one `TurboMagic` checks. |
+| `kind`   | `SpellKind`     | `Attack` or `Skill` — the same split a wand row's `attack` flag makes, and the one `TurboMagic` checks. |
 
 One row per `SpellEffect`, in four `Magic`-cost tiers, any of which a coin or spirit may teach (`SpellDef::learnable`). `SpellEffect::needs_target` says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy `WandEffect::needs_target` gives the wand of light.
 
@@ -663,7 +670,7 @@ Potions, scrolls, wands and rings are always shown by their true name — no cos
 
 Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_ring` curses and, for a numeric ring, gives a plus, hides both the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
 
-A dud effect (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `WandEffect::Nothing`) is never a spawnable row; it only ever happens as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`). Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
+A dud (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `BLANK_RUNE`, `WAND_OF_NOTHING`) is never a spawnable row. The first three only ever happen as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`); nothing makes a wand of nothing today. Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
 
 
 The colour palette

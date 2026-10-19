@@ -577,8 +577,8 @@ fn a_ring_with_no_number_gets_no_number_however_it_rolls() {
 // ---------------------------------------------------------------------------
 
 /// A well-charged `effect` wand in `user`'s pack, zapped at `at`.
-fn zap_with(w: &mut World, user: Entity, effect: WandEffect, charges: i8, at: Position) -> Entity {
-    let wand = spawn_wand(w, effect, Position { x: 0, y: 0 });
+fn zap_with(w: &mut World, user: Entity, name: &str, charges: i8, at: Position) -> Entity {
+    let wand = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Battery>(wand).unwrap().charges = charges;
     w.get_mut::<Backpack>(user).unwrap().items.push(wand);
@@ -621,7 +621,7 @@ fn dualzap_spends_two_charges_for_two_casts() {
     put_on(&mut w, p, RingEffect::DualZap);
     let at = aim_at_open_tile(&w, p);
 
-    let wand = zap_with(&mut w, p, WandEffect::MagicMissile, 5, at);
+    let wand = zap_with(&mut w, p, "wand of magic missile", 5, at);
 
     assert_eq!(w.get::<Battery>(wand).unwrap().charges, 3);
     assert_eq!(bolts_logged(&w), 2);
@@ -634,7 +634,7 @@ fn dualzap_on_a_last_charge_casts_once() {
     put_on(&mut w, p, RingEffect::DualZap);
     let at = aim_at_open_tile(&w, p);
 
-    let wand = zap_with(&mut w, p, WandEffect::MagicMissile, 1, at);
+    let wand = zap_with(&mut w, p, "wand of magic missile", 1, at);
 
     assert!(w.get_entity(wand).is_none(), "the wand crumbles");
     assert_eq!(bolts_logged(&w), 1, "one charge buys one cast");
@@ -647,7 +647,7 @@ fn dualzap_leaves_utility_wands_alone() {
     put_on(&mut w, p, RingEffect::DualZap);
     let at = aim_at_open_tile(&w, p);
 
-    let wand = zap_with(&mut w, p, WandEffect::SlowMonster, 5, at);
+    let wand = zap_with(&mut w, p, "wand of slow monster", 5, at);
 
     assert_eq!(w.get::<Battery>(wand).unwrap().charges, 4);
 }
@@ -658,7 +658,7 @@ fn a_bare_hand_zaps_one_charge_one_cast() {
     let p = player(&mut w);
     let at = aim_at_open_tile(&w, p);
 
-    let wand = zap_with(&mut w, p, WandEffect::MagicMissile, 5, at);
+    let wand = zap_with(&mut w, p, "wand of magic missile", 5, at);
 
     assert_eq!(w.get::<Battery>(wand).unwrap().charges, 4);
     assert_eq!(bolts_logged(&w), 1);

@@ -150,7 +150,7 @@ fn reading_a_scroll_breaks_scrolls_only() {
 #[test]
 fn zapping_a_wand_breaks_wands_only() {
     let mut w = run(Body::Nihil);
-    let wand = spawn_wand(&mut w, WandEffect::Light, NOWHERE);
+    let wand = spawn_named(&mut w, "wand of light", NOWHERE).unwrap();
     stash(&mut w, wand);
     use_item(&mut w, wand);
     only_broken(&mut w, Conduct::Wands);

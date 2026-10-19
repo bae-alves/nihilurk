@@ -213,7 +213,7 @@ fn recharging_adds_one_charge_to_every_wand_up_to_the_cap() {
     let wands: Vec<Entity> = charges
         .iter()
         .map(|&c| {
-            let wand = spawn_wand(&mut w, WandEffect::Light, NOWHERE);
+            let wand = spawn_named(&mut w, "wand of light", NOWHERE).unwrap();
             w.get_mut::<Battery>(wand).unwrap().charges = c;
             stash(&mut w, p, wand)
         })

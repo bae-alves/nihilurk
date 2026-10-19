@@ -26,7 +26,7 @@ At a glance
 | Ring      | `RINGS`     | no         | a `RingEffect` variant           |
 | Potion    | `POTIONS`   | no         | a `PotionEffect` variant + a mechanic |
 | Scroll    | `SCROLLS`   | no         | a `ScrollEffect` variant + a mechanic |
-| Wand      | `WANDS`     | no         | a `WandEffect` variant + a mechanic |
+| Wand      | `WANDS`     | no         | a zap handler in `items/wands.rs`, named by the row |
 | Deck      | `DECKS`     | yes        | a new card: a `CardFace` variant, a `CARDS` row + an arm in `items/decks.rs` |
 | Rune      | `RUNES`     | no         | a handler in `items/runes.rs`, named by the row |
 
@@ -140,14 +140,14 @@ Reach for `.grants(...)` before anything else: if the property already exists as
 `.on_wear(...)` is the last resort, for a ring whose effect is an *event* rather than a property: it takes an `OnWear(fn(&mut World, wearer, item))` and fires once, after the ring is worn and identified. The ring of adornment is the only one, and its function lives with the other two ring verbs in `models/src/items/rings.rs`.
 
 
-Potions, scrolls and wands
---------------------------
+Potions and scrolls
+-------------------
 
-These three are consumables with a mechanic, so they take three edits. The pattern is identical for all three; only the names change.
+These two are consumables with a mechanic, so they take three edits. The pattern is identical for both; only the names change.
 
-1. **Append** a variant to the effect enum in `models/src/components.rs` -- `PotionEffect`, `ScrollEffect` or `WandEffect`.
+1. **Append** a variant to the effect enum in `models/src/components.rs` -- `PotionEffect` or `ScrollEffect`.
 
-2. **Add the row** in `POTIONS`, `SCROLLS` or `WANDS`.
+2. **Add the row** in `POTIONS` or `SCROLLS`.
 
        PotionDef { effect: PotionEffect::Levitation,
                    name: "potion of levitation", color: Color::Cyan },
@@ -155,27 +155,21 @@ These three are consumables with a mechanic, so they take three edits. The patte
        ScrollDef { effect: ScrollEffect::Genocide,
                    name: "scroll of genocide" },
 
-       WandDef { effect: WandEffect::Digging, name: "wand of digging",
-                 color: Color::DarkYellow, range: 8 },
-
-   Potions draw as `!`, scrolls as `?` (always white), wands as `/`.
-   A wand's `range` feeds the aiming reticle; a wand always spawns with
-   `constants::wands::WAND_CHARGES`, full.
+   Potions draw as `!`, scrolls as `?` (always white).
 
 3. **Write the mechanic** as one arm of the matching function:
 
        apply_potion_effect(world, user, effect) -> bool   models/src/items/potions.rs
        apply_scroll_effect(world, user, effect)            models/src/items/scrolls.rs
-       apply_wand_effect(world, user, target, effect)      models/src/items/wands.rs
 
    A potion's mechanic returns whether it visibly did anything.
 
-> **Step 3 is the one the compiler makes you do.** All three of
+> **Step 3 is the one the compiler makes you do.** Both of
 > those functions are exhaustive matches over their effect enum, the
 > same as `apply_trap_effect` is over `TrapEffect` -- no catch-all arm, so
 > step 1's new variant will not build until step 3 gives it one. The
 > error names the function and the missing variant, so there is no
-> guessing which of the three you forgot.
+> guessing which of the two you forgot.
 >
 > An explicit arm is still allowed to do nothing on purpose -- the scroll
 > of blank paper, and the two potions that are only a taste, sit in
@@ -193,7 +187,12 @@ The row is the rune: a `Rune` component points at its row, and the save stores t
 
 A rune draws as `'`, always white. It is a scroll that goes inert when read instead of crumbling, and a staircase wakes it, so the mechanic is "what happens on each invocation" and never "what is left afterwards". `BLANK_RUNE` is the one row outside `RUNES`: a wand of cancellation makes it. Only the player invokes a rune.
 
-Wands only: if your wand should *not* open the aiming reticle -- it acts on the zapper or the room, like the wand of light -- add it to `WandEffect::needs_target` in `models/src/components.rs`.
+Wands take two edits and no enum. Write the zap handler, `fn(&mut World, Zap)`, in `models/src/items/wands.rs`, and name it in the row; `WandDef::new` takes it, so a row without one does not compile. The builder adds what the reticle, a throw and a `DualZap` read off the row:
+
+    &WandDef::new("wand of fire", Color::Red, 8, BlastPalette::Fire, wands::fire)
+        .attack().element(Element::Fire).bursts().wasted_on(wands::fireproof),
+
+`.attack()` makes it a damage wand (thrown, the grenade; doubled by `DualZap`), `.element(..)` names what resists it, `.bursts()` paints the zap's blast on the reticle, `.unaimed()` skips the reticle (the wand of light), `.wasted_on(..)` lets the reticle pass over a creature it would not change, and `.thrown(Thrown::..)` picks what it does thrown; the default is the small blast that changes nobody. A wand draws as `/`, its `range` feeds the reticle, and it always spawns with `constants::wands::WAND_CHARGES`, full. `WAND_OF_NOTHING` is the one row outside `WANDS`.
 
 
 > **Append enum variants; never insert or reorder them.** The save file
@@ -231,8 +230,8 @@ Appendix: quick check
 1. Find your category in "At a glance".
 2. Weapon, armour, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
 3. Ring: append a `RingEffect` variant at the end, then add the `RingDef::new` row.
-4. Potion, scroll, wand: append the effect variant at the end, add the row, write the arm in `apply_potion_effect`, `apply_scroll_effect` or `apply_wand_effect`. Rune: write the handler in `items/runes.rs` and add the row naming it.
-5. A wand with no reticle (it acts on the room or the zapper): add it to `WandEffect::needs_target`.
+4. Potion, scroll: append the effect variant at the end, add the row, write the arm in `apply_potion_effect` or `apply_scroll_effect`. Wand: write the zap handler in `items/wands.rs` and add the row naming it. Rune: write the handler in `items/runes.rs` and add the row naming it.
+5. A wand with no reticle (it acts on the room or the zapper): `.unaimed()` on its row.
 6. Never insert or reorder an enum variant; a save stores its position.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.
 8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test it content::`.

@@ -33,8 +33,9 @@ use rand_chacha::ChaCha12Rng;
 use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
-use crate::items::runes;
+use crate::items::{runes, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
+use crate::particles::BlastPalette;
 
 // --- Tuning constants -----------------------------------------------------
 // The numbers a *drop* rolls that are not part of any one row: wand battery
@@ -51,7 +52,7 @@ use crate::constants::rings::{
     EXCEPTIONAL_BONUS as RING_EXCEPTIONAL_BONUS, MEGACURSED_BONUS_MAX as RING_MEGACURSED_BONUS_MAX,
     MEGACURSED_BONUS_MIN as RING_MEGACURSED_BONUS_MIN, PLAIN_BONUS,
 };
-use crate::constants::wands::WAND_CHARGES;
+use crate::constants::wands::{BLAST_RADIUS, WAND_CHARGES};
 
 // ---------------------------------------------------------------------------
 // The shape every catalog row shares
@@ -452,10 +453,11 @@ pub fn rune_row(name: &str) -> Option<&'static RuneDef> {
 // Wands
 // ---------------------------------------------------------------------------
 
-/// A wand: zapped until its battery runs dry. `range` feeds the aiming reticle.
+/// A wand: zapped until its battery runs dry. The row is the wand: a [`Wand`]
+/// points at its row, zapping calls the row's `zap`, and the rest of the row
+/// says what the reticle, a throw and a [`DualZap`] read off it. The handlers
+/// live in the `wands` submodule of `crate::items`.
 pub struct WandDef {
-    /// The [`WandEffect`] this row is the entry for.
-    pub effect: WandEffect,
     /// The row's identity: the save file stores it and
     /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
     /// [`ItemDef::display_name`] instead.
@@ -464,9 +466,123 @@ pub struct WandDef {
     pub color: Color,
     /// How far the aiming reticle reaches.
     pub range: i32,
+    /// The palette its blasts burn in, zapped or thrown, and the tint a thrown
+    /// one flies in.
+    pub palette: BlastPalette,
+    /// What zapping it does.
+    pub zap: fn(&mut World, Zap),
+    /// Whether it deals damage. Thrown, it goes off as the grenade; a
+    /// [`DualZap`] wearer fires it twice.
+    pub attack: bool,
+    /// The element its damage carries, if any ([`Element`]).
+    pub element: Option<Element>,
+    /// Whether zapping opens the aiming reticle. Only a wand that acts on the
+    /// zapper's own room does not.
+    pub needs_target: bool,
+    /// The disc a zap bursts in on the aimed tile, for the reticle to paint.
+    pub zap_radius: Option<f32>,
+    /// Whether a zap at this creature would change nothing, so the reticle
+    /// passes it over.
+    pub wasted_on: fn(&World, Entity) -> bool,
+    /// What it does thrown.
+    pub thrown: Thrown,
 }
 
-impl ItemDef for WandDef {
+/// One zap, as a row's handler receives it.
+#[derive(Clone, Copy)]
+pub struct Zap {
+    /// The wand's row.
+    pub row: &'static WandDef,
+    /// Whoever zaps.
+    pub user: Entity,
+    /// Where they stand.
+    pub from: Position,
+    /// The aimed tile; the zapper's own for a wand that takes no aim.
+    pub at: Position,
+}
+
+/// What a thrown wand does where it breaks. The mechanisms, not the wands: a
+/// new wand picks one.
+#[derive(Clone, Copy)]
+pub enum Thrown {
+    /// The wide, hot grenade, elemental where the wand is.
+    Grenade,
+    /// The grenade, and every creature it catches is dazzled.
+    Flash,
+    /// The small blast that hurts nobody, worked on every creature it catches.
+    Blast(fn(&mut World, Entity)),
+    /// The small blast that hurts nobody; the creatures it catches trade places.
+    Shuffle,
+    /// Confetti, and nothing else.
+    Confetti,
+    /// A crater, line of sight or not.
+    Crater,
+}
+
+impl WandDef {
+    /// A wand that zaps through `zap`, wasted on nobody, thrown as the plain
+    /// small blast.
+    pub const fn new(
+        name: &'static str,
+        color: Color,
+        range: i32,
+        palette: BlastPalette,
+        zap: fn(&mut World, Zap),
+    ) -> Self {
+        Self {
+            name,
+            color,
+            range,
+            palette,
+            zap,
+            attack: false,
+            element: None,
+            needs_target: true,
+            zap_radius: None,
+            wasted_on: |_, _| false,
+            thrown: Thrown::Blast(|_, _| {}),
+        }
+    }
+
+    /// It deals damage, and thrown it is the grenade.
+    const fn attack(mut self) -> Self {
+        self.attack = true;
+        self.thrown = Thrown::Grenade;
+        self
+    }
+
+    /// Its damage carries `element`.
+    const fn element(mut self, element: Element) -> Self {
+        self.element = Some(element);
+        self
+    }
+
+    /// A zap bursts over [`BLAST_RADIUS`] where it is aimed.
+    const fn bursts(mut self) -> Self {
+        self.zap_radius = Some(BLAST_RADIUS);
+        self
+    }
+
+    /// It takes no aim: zapping acts on the spot.
+    const fn unaimed(mut self) -> Self {
+        self.needs_target = false;
+        self
+    }
+
+    /// The reticle passes over a creature `wasted` says it would not change.
+    const fn wasted_on(mut self, wasted: fn(&World, Entity) -> bool) -> Self {
+        self.wasted_on = wasted;
+        self
+    }
+
+    /// What it does thrown.
+    const fn thrown(mut self, thrown: Thrown) -> Self {
+        self.thrown = thrown;
+        self
+    }
+}
+
+impl ItemDef for &'static WandDef {
     fn name(&self) -> &'static str {
         self.name
     }
@@ -483,9 +599,7 @@ impl ItemDef for WandDef {
                 },
                 pos,
                 Item,
-                Wand {
-                    effect: self.effect,
-                },
+                Wand { row: self },
                 Ranged { range: self.range },
                 Battery {
                     charges: WAND_CHARGES,
@@ -495,26 +609,48 @@ impl ItemDef for WandDef {
     }
 }
 
-/// Every wand in the game, one row each.
+/// Every wand the dungeon drops, one row each.
 #[rustfmt::skip]
-pub const WANDS: &[WandDef] = &[
-    WandDef { effect: WandEffect::Light,        name: "wand of light",         color: Color::Yellow,      range: 8 },
-    WandDef { effect: WandEffect::Striking,     name: "wand of striking",      color: Color::White,       range: 6 },
-    WandDef { effect: WandEffect::Lightning,    name: "wand of lightning",     color: Color::Cyan,        range: 8 },
-    WandDef { effect: WandEffect::Fire,         name: "wand of fire",          color: Color::Red,         range: 8 },
-    WandDef { effect: WandEffect::Cold,         name: "wand of cold",          color: Color::Blue,        range: 8 },
-    WandDef { effect: WandEffect::Polymorph,    name: "wand of polymorph",     color: Color::Magenta,     range: 6 },
-    WandDef { effect: WandEffect::MagicMissile, name: "wand of magic missile", color: Color::Cyan,        range: 6 },
-    WandDef { effect: WandEffect::HasteMonster, name: "wand of haste monster", color: Color::DarkYellow,  range: 6 },
-    WandDef { effect: WandEffect::SlowMonster,  name: "wand of slow monster",  color: Color::DarkCyan,    range: 6 },
-    WandDef { effect: WandEffect::DrainLife,    name: "wand of drain life",    color: Color::DarkRed,     range: 6 },
-    WandDef { effect: WandEffect::TeleportAway, name: "wand of teleport away", color: Color::Green,       range: 8 },
-    WandDef { effect: WandEffect::TeleportTo,   name: "wand of teleport to",   color: Color::Green,       range: 8 },
-    WandDef { effect: WandEffect::Cancellation, name: "wand of cancellation",  color: Color::DarkMagenta, range: 6 },
-    WandDef { effect: WandEffect::Charming,     name: "wand of charming",      color: Color::Magenta,     range: 6 },
-    WandDef { effect: WandEffect::Digging,      name: "wand of digging",       color: Color::DarkYellow,  range: 8 },
-    WandDef { effect: WandEffect::Swapping,     name: "wand of swapping",      color: Color::DarkGreen,   range: 8 },
+pub static WANDS: &[&WandDef] = &[
+    &WandDef::new("wand of light",         Color::Yellow,      8, BlastPalette::Glam,   wands::light).unaimed().thrown(Thrown::Flash),
+    &WandDef::new("wand of striking",      Color::White,       6, BlastPalette::Force,  wands::striking).attack(),
+    &WandDef::new("wand of lightning",     Color::Cyan,        8, BlastPalette::Spark,  wands::lightning).attack(),
+    &WandDef::new("wand of fire",          Color::Red,         8, BlastPalette::Fire,   wands::fire).attack().element(Element::Fire).bursts().wasted_on(wands::fireproof),
+    &WandDef::new("wand of cold",          Color::Blue,        8, BlastPalette::Frost,  wands::cold).attack().element(Element::Cold).bursts().wasted_on(wands::coldproof),
+    &WandDef::new("wand of polymorph",     Color::Magenta,     6, BlastPalette::Warp,   wands::polymorph).thrown(Thrown::Blast(wands::polymorph_entity)),
+    &WandDef::new("wand of magic missile", Color::Cyan,        6, BlastPalette::Arcane, wands::magic_missile).attack(),
+    &WandDef::new("wand of haste monster", Color::DarkYellow,  6, BlastPalette::Warp,   wands::haste_monster).thrown(Thrown::Blast(wands::haste_entity)),
+    &WandDef::new("wand of slow monster",  Color::DarkCyan,    6, BlastPalette::Warp,   wands::slow_monster).wasted_on(wands::already_slow).thrown(Thrown::Blast(wands::slow_entity)),
+    &WandDef::new("wand of drain life",    Color::DarkRed,     6, BlastPalette::Death,  wands::drain_life).attack().element(Element::Drain),
+    &WandDef::new("wand of teleport away", Color::Green,       8, BlastPalette::Warp,   wands::teleport_away).thrown(Thrown::Blast(wands::teleport_entity_away)),
+    &WandDef::new("wand of teleport to",   Color::Green,       8, BlastPalette::Warp,   wands::teleport_to).thrown(Thrown::Blast(wands::teleport_entity_to_self)),
+    &WandDef::new("wand of cancellation",  Color::DarkMagenta, 6, BlastPalette::Void,   wands::cancellation).thrown(Thrown::Blast(wands::cancel_entity)),
+    &WandDef::new("wand of charming",      Color::Magenta,     6, BlastPalette::Warp,   wands::charming).wasted_on(wands::already_an_ally),
+    &WandDef::new("wand of digging",       Color::DarkYellow,  8, BlastPalette::Warp,   wands::digging).thrown(Thrown::Crater),
+    &WandDef::new("wand of swapping",      Color::DarkGreen,   8, BlastPalette::Warp,   wands::swapping).thrown(Thrown::Shuffle),
 ];
+
+/// The wand that does nothing, and says so. Kept out of [`WANDS`], so the
+/// dungeon never drops one.
+pub static WAND_OF_NOTHING: WandDef = WandDef::new(
+    "wand of nothing",
+    Color::Grey,
+    6,
+    BlastPalette::Warp,
+    wands::nothing,
+)
+.wasted_on(|_, _| true)
+.thrown(Thrown::Confetti);
+
+/// The wand row called `name`, the wand of nothing included: how a load finds
+/// a saved wand's row again.
+pub fn wand_row(name: &str) -> Option<&'static WandDef> {
+    WANDS
+        .iter()
+        .copied()
+        .chain([&WAND_OF_NOTHING])
+        .find(|row| row.name == name)
+}
 
 // ---------------------------------------------------------------------------
 // Weapons and armour
@@ -1258,11 +1394,10 @@ pub const RINGS: &[RingDef] = &[
 // Active spells
 // ---------------------------------------------------------------------------
 
-/// An active spell: the identity and numbers behind a [`SpellEffect`], the way
-/// [`WandDef`] is behind a [`WandEffect`]. Unlike every other row in this
-/// file, a spell is never spawned — it is not an [`ItemDef`], has no
-/// [`Position`] on the floor and no pack slot. Its mechanic lives in
-/// `crate::items::spells`, keyed by [`SpellDef::effect`].
+/// An active spell: the identity and numbers behind a [`SpellEffect`]. Unlike
+/// every other row in this file, a spell is never spawned — it is not an
+/// [`ItemDef`], has no [`Position`] on the floor and no pack slot. Its
+/// mechanic lives in `crate::items::spells`, keyed by [`SpellDef::effect`].
 pub struct SpellDef {
     /// The [`SpellEffect`] this row is the entry for.
     pub effect: SpellEffect,
@@ -1543,16 +1678,6 @@ pub fn spawn_scroll(world: &mut World, effect: ScrollEffect, pos: Position) -> E
         .iter()
         .find(|d| d.effect == effect)
         .expect("scroll row")
-        .spawn(world, pos)
-}
-
-/// A wand of `effect` on the floor at `pos`. Panics if [`WANDS`] has no row for
-/// it, which would mean a [`WandEffect`] variant nobody gave a row.
-pub fn spawn_wand(world: &mut World, effect: WandEffect, pos: Position) -> Entity {
-    WANDS
-        .iter()
-        .find(|d| d.effect == effect)
-        .expect("wand row")
         .spawn(world, pos)
 }
 

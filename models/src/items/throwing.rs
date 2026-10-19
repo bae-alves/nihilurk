@@ -38,12 +38,9 @@ use crate::traps::detonate_at;
 
 use super::scrolls::apply_scroll_effect;
 use super::spells::spell_blast_radius;
-use super::wands::{
-    blast_cells, blast_palette, cancel_entity, crater, dazzle, elemental_blast, is_attack_wand,
-    polymorph_entity, shuffle_places, teleport_entity_away, teleport_entity_to_self,
-    zap_blast_radius,
-};
-use crate::conditions::{shift_entity_speed, snare};
+use super::wands::{blast_cells, crater, dazzle, elemental_blast, shuffle_places};
+use crate::catalog::{Thrown, WandDef};
+use crate::conditions::snare;
 
 use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE, PACK_CAPACITY, THROW_RANGE};
 use crate::constants::potions::POTION_SPLASH_RADIUS;
@@ -161,11 +158,11 @@ fn wand_breaks(
 /// the grenade for an attack wand or light, the small blast for a utility
 /// wand. Nothing for the wand of nothing, which only makes confetti, or for
 /// digging, whose crater ignores line of sight.
-fn thrown_wand_radius(effect: WandEffect) -> Option<f32> {
-    match effect {
-        WandEffect::Nothing | WandEffect::Digging => None,
-        e if is_attack_wand(e) || e == WandEffect::Light => Some(GRENADE_RADIUS),
-        _ => Some(BLAST_RADIUS),
+fn thrown_wand_radius(row: &WandDef) -> Option<f32> {
+    match row.thrown {
+        Thrown::Confetti | Thrown::Crater => None,
+        Thrown::Grenade | Thrown::Flash => Some(GRENADE_RADIUS),
+        Thrown::Blast(_) | Thrown::Shuffle => Some(BLAST_RADIUS),
     }
 }
 
@@ -199,7 +196,7 @@ pub fn aim_footprint(world: &mut World) -> Vec<(u16, u16)> {
         (None, Some(item)) if throwing => thrown_blast(world, player, item, cursor),
         (None, Some(item)) => world
             .get::<Wand>(item)
-            .and_then(|w| zap_blast_radius(w.effect))
+            .and_then(|w| w.row.zap_radius)
             .map(|r| (cursor, r)),
         (None, None) => None,
     };
@@ -226,12 +223,12 @@ fn thrown_blast(
     if world.get::<Potion>(item).is_some() {
         return Some((landing, POTION_SPLASH_RADIUS));
     }
-    let effect = world.get::<Wand>(item)?.effect;
+    let row = world.get::<Wand>(item)?.row;
     let reach = throw_reach(world, player, item);
     if !wand_breaks(!victims.is_empty(), origin, landing, target, reach) {
         return None;
     }
-    thrown_wand_radius(effect).map(|r| (landing, r))
+    thrown_wand_radius(row).map(|r| (landing, r))
 }
 
 /// Whether `item` is ammunition being *loosed* — it carries [`LaunchedBy`] and
@@ -436,23 +433,23 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
 }
 
 /// A thrown wand bursts where it lands, spending every charge it had left in one
-/// go.
+/// go, the way its row's [`Thrown`] says.
 ///
-/// * An **attack** wand throws the wide, hot grenade —
-///   one die of [`GRENADE_DIE_PER_CHARGE`] sides a charge (at 1, a flat point
-///   a charge) at [`GRENADE_RADIUS`],
-///   armour-ignoring, elemental where the wand is.
-/// * The **wand of light** throws the same wide grenade but [`dazzle`]s every
-///   creature it catches instead of carrying an element.
-/// * A **utility** wand throws a smaller [`BLAST_RADIUS`] blast that deals *no*
-///   damage — the payload is the effect, worked on every creature caught.
-/// * The **wand of nothing** just makes confetti.
+/// * [`Thrown::Grenade`], an attack wand: the wide, hot grenade — one die of
+///   [`GRENADE_DIE_PER_CHARGE`] sides a charge (at 1, a flat point a charge)
+///   at [`GRENADE_RADIUS`], armour-ignoring, elemental where the wand is.
+/// * [`Thrown::Flash`], the wand of light: the same grenade, and it
+///   [`dazzle`]s every creature it catches.
+/// * [`Thrown::Blast`], a utility wand: a smaller [`BLAST_RADIUS`] blast that
+///   deals *no* damage — the payload is the effect, worked on every creature
+///   caught. [`Thrown::Shuffle`] trades their places instead.
+/// * [`Thrown::Confetti`] just makes confetti; [`Thrown::Crater`] digs one.
 fn resolve_wand_throw(
     world: &mut World,
     thrower: Entity,
     item: Entity,
     landing: Position,
-    effect: WandEffect,
+    row: &'static WandDef,
     seen_name: &str,
 ) {
     crate::conduct::player_broke(world, thrower, crate::conduct::Conduct::Wands);
@@ -462,27 +459,27 @@ fn resolve_wand_throw(
         .unwrap_or(0)
         .max(0);
 
-    if effect == WandEffect::Nothing {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::thrown_wand_confetti(seen_name));
-        if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            confetti_burst(&mut fx, landing);
+    match row.thrown {
+        Thrown::Confetti => {
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::thrown_wand_confetti(seen_name));
+            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+                confetti_burst(&mut fx, landing);
+            }
+            return;
         }
-        return;
+        Thrown::Crater => {
+            world
+                .resource_mut::<GameLog>()
+                .add(strings::thrown_wand_shatters(seen_name, charges));
+            crater(world, landing, GRENADE_RADIUS);
+            return;
+        }
+        Thrown::Grenade | Thrown::Flash | Thrown::Blast(_) | Thrown::Shuffle => {}
     }
 
-    if effect == WandEffect::Digging {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::thrown_wand_shatters(seen_name, charges));
-        crater(world, landing, GRENADE_RADIUS);
-        return;
-    }
-
-    let is_attack = is_attack_wand(effect);
-    let is_light = effect == WandEffect::Light;
-    let grenade = is_attack || is_light;
+    let grenade = matches!(row.thrown, Thrown::Grenade | Thrown::Flash);
     let (radius, sides) = if grenade {
         (GRENADE_RADIUS, GRENADE_DIE_PER_CHARGE)
     } else {
@@ -493,29 +490,30 @@ fn resolve_wand_throw(
     } else {
         0
     };
-    let element = if is_attack { Element::of(effect) } else { None };
 
     world
         .resource_mut::<GameLog>()
         .add(strings::thrown_wand_shatters(seen_name, charges));
 
-    let palette = blast_palette(effect);
     let caught = elemental_blast(
         world,
         Some(thrower),
         landing,
         radius,
         damage,
-        element,
-        palette,
+        row.element,
+        row.palette,
     );
 
-    if is_attack {
-        return;
-    }
-    if effect == WandEffect::Swapping {
-        shuffle_places(world, &caught);
-    }
+    let each: fn(&mut World, Entity) = match row.thrown {
+        Thrown::Flash => dazzle,
+        Thrown::Blast(each) => each,
+        Thrown::Shuffle => {
+            shuffle_places(world, &caught);
+            |_, _| {}
+        }
+        Thrown::Grenade | Thrown::Confetti | Thrown::Crater => return,
+    };
     for entity in caught {
         let is_creature =
             world.get::<Mob>(entity).is_some() || world.get::<Player>(entity).is_some();
@@ -525,31 +523,10 @@ fn resolve_wand_throw(
         if !is_creature {
             continue;
         }
-        match is_light {
-            true => dazzle(world, entity),
-            false => apply_thrown_wand_effect(world, entity, effect),
-        }
+        each(world, entity);
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            fx.secondary_burst(pos.x, pos.y, radius, palette);
+            fx.secondary_burst(pos.x, pos.y, radius, row.palette);
         }
-    }
-}
-
-/// The per-creature half of a thrown utility wand: the same change a zap would
-/// have made, applied to everyone the blast reached.
-fn apply_thrown_wand_effect(world: &mut World, entity: Entity, effect: WandEffect) {
-    match effect {
-        WandEffect::Polymorph => polymorph_entity(world, entity),
-        WandEffect::HasteMonster => {
-            shift_entity_speed(world, entity, true);
-        }
-        WandEffect::SlowMonster => {
-            shift_entity_speed(world, entity, false);
-        }
-        WandEffect::TeleportAway => teleport_entity_away(world, entity),
-        WandEffect::TeleportTo => teleport_entity_to_self(world, entity),
-        WandEffect::Cancellation => cancel_entity(world, entity),
-        _ => {}
     }
 }
 
@@ -769,9 +746,9 @@ fn deliver_throw(
     // A thrown wand flies as a tumbling mystic grenade, tinted with the
     // element it's about to burst in — not its own catalog glyph, which is
     // what every other thrown item still flies as.
-    match world.get::<Wand>(item).map(|w| w.effect) {
-        Some(effect) => {
-            let color = blast_palette(effect).accent_color();
+    match world.get::<Wand>(item).map(|w| w.row) {
+        Some(row) => {
+            let color = row.palette.accent_color();
             if let Some(mut fx) = world.get_resource_mut::<Particles>() {
                 fx.lob(&cells, color);
             }
@@ -830,10 +807,10 @@ fn deliver_throw(
     // But the glass only breaks on *impact*: the wand has to hit a creature or a
     // wall, or fly its full leash, before it goes off. Lobbed gently into open
     // floor, it just clatters down with its charges intact.
-    if let Some(effect) = world.get::<Wand>(item).map(|w| w.effect) {
+    if let Some(row) = world.get::<Wand>(item).map(|w| w.row) {
         let reach = throw_reach(world, thrower, item);
         if wand_breaks(victim.is_some(), origin, landing, target, reach) {
-            resolve_wand_throw(world, thrower, item, landing, effect, &seen_name);
+            resolve_wand_throw(world, thrower, item, landing, row, &seen_name);
             world.entity_mut(item).despawn();
             return Some(landing);
         }

@@ -68,7 +68,7 @@ fn open_tiles_near_player(w: &mut World, n: usize) -> Vec<Position> {
 
 fn cold_kill(w: &mut World, victim: Entity) {
     let p = player(w);
-    let wand = spawn_wand(w, WandEffect::Cold, Position { x: 0, y: 0 });
+    let wand = spawn_named(w, "wand of cold", Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);
     let at = *w.get::<Position>(victim).unwrap();
@@ -115,7 +115,7 @@ fn a_kill_by_anything_else_leaves_no_cube() {
     let spot = open_tiles_near_player(&mut w, 1)[0];
     let orc = monster::monster(&mut w, "orc", spot);
     let p = player(&mut w);
-    let wand = spawn_wand(&mut w, WandEffect::MagicMissile, Position { x: 0, y: 0 });
+    let wand = spawn_named(&mut w, "wand of magic missile", Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Fighter>(orc).unwrap().hp = 1;
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
@@ -241,9 +241,9 @@ fn a_thrown_dagger_that_stops_on_a_cube_sets_it_off() {
     assert!(w.get_entity(cube).is_none());
 }
 
-fn zap(w: &mut World, effect: WandEffect, at: Position) {
+fn zap(w: &mut World, name: &str, at: Position) {
     let p = player(w);
-    let wand = spawn_wand(w, effect, Position { x: 0, y: 0 });
+    let wand = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
         user: p,
@@ -269,7 +269,7 @@ fn a_cold_blast_over_a_cube_sets_it_off() {
     cold_kill(&mut w, orc);
     let (cube, at) = cubes(&mut w)[0];
 
-    zap(&mut w, WandEffect::Cold, at);
+    zap(&mut w, "wand of cold", at);
 
     assert!(w.get_entity(cube).is_none());
     assert!(
@@ -289,7 +289,7 @@ fn fire_on_a_cube_doubles_its_radius_and_damage() {
     let bystander = monster::monster(&mut w, "salamander", far);
     grant_all(&mut w, bystander, FIRE_IMMUNITY);
 
-    zap(&mut w, WandEffect::Fire, at);
+    zap(&mut w, "wand of fire", at);
 
     let lost = 100 - w.get::<Fighter>(bystander).unwrap().hp;
     let scorched =
@@ -331,7 +331,7 @@ fn a_bolt_sets_off_a_cube_it_passes_through() {
         y: (spot.y as i32 * 2 - here.y as i32) as u16,
     };
 
-    zap(&mut w, WandEffect::MagicMissile, beyond);
+    zap(&mut w, "wand of magic missile", beyond);
 
     assert!(w.get_entity(cube).is_none());
 }

@@ -41,8 +41,8 @@ fn player(w: &mut World) -> Entity {
 
 /// Give the player a fresh, well-charged wand of the given kind, already in the
 /// pack.
-fn give_wand(w: &mut World, p: Entity, effect: WandEffect) -> Entity {
-    let wand = spawn_wand(w, effect, Position { x: 0, y: 0 });
+fn give_wand(w: &mut World, p: Entity, name: &str) -> Entity {
+    let wand = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Battery>(wand).unwrap().charges = 9;
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);
@@ -66,6 +66,42 @@ fn zap(w: &mut World, user: Entity, wand: Entity, target: Position) {
         });
     }
     item_system(w);
+}
+
+/// Where the fixture wand was aimed, left on whoever zapped it.
+#[derive(Component)]
+struct ZappedAt(Position);
+
+fn mark_the_aim(world: &mut World, zap: Zap) {
+    world.entity_mut(zap.user).insert(ZappedAt(zap.at));
+}
+
+static FIXTURE_WAND: WandDef = WandDef::new(
+    "wand of the test",
+    Color::White,
+    6,
+    BlastPalette::Warp,
+    mark_the_aim,
+);
+
+#[test]
+fn a_wand_does_what_its_row_says() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let wand = (&FIXTURE_WAND).spawn(&mut w, Position { x: 0, y: 0 });
+    w.entity_mut(wand).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
+    let here = *w.get::<Position>(p).unwrap();
+    let aim = Position {
+        x: here.x + 1,
+        y: here.y,
+    };
+
+    zap(&mut w, p, wand, aim);
+
+    let marked = w.get::<ZappedAt>(p).map(|z| (z.0.x, z.0.y));
+    assert_eq!(marked, Some((aim.x, aim.y)));
+    assert_eq!(w.get::<Battery>(wand).unwrap().charges, WAND_CHARGES - 1);
 }
 
 /// Zap a self-targeted wand (light).
@@ -150,7 +186,7 @@ fn beside_player(w: &mut World) -> (Position, Position) {
 #[test]
 fn a_fresh_wand_always_spawns_fully_charged() {
     let mut w = test_world(1);
-    let wand = spawn_wand(&mut w, WandEffect::MagicMissile, Position { x: 0, y: 0 });
+    let wand = spawn_named(&mut w, "wand of magic missile", Position { x: 0, y: 0 }).unwrap();
     let charges = w.get::<Battery>(wand).unwrap().charges;
     assert_eq!(
         charges, WAND_CHARGES,
@@ -164,7 +200,7 @@ fn zapping_the_last_charge_still_fires_and_destroys_the_wand() {
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
     let target = dummy(&mut w, "sack", spot, 40);
-    let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
+    let wand = give_wand(&mut w, p, "wand of magic missile");
     w.get_mut::<Battery>(wand).unwrap().charges = 1;
 
     zap(&mut w, p, wand, spot);
@@ -185,7 +221,7 @@ fn a_wand_with_charges_left_comes_back_to_the_pack() {
     let p = player(&mut w);
     let (_here, spot) = beside_player(&mut w);
     dummy(&mut w, "sack", spot, 40);
-    let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
+    let wand = give_wand(&mut w, p, "wand of magic missile");
     w.get_mut::<Battery>(wand).unwrap().charges = 2;
 
     zap(&mut w, p, wand, spot);
@@ -222,7 +258,7 @@ fn a_wand_bolt_ignores_armour_entirely() {
         ))
         .id();
 
-    let wand = give_wand(&mut w, p, WandEffect::MagicMissile);
+    let wand = give_wand(&mut w, p, "wand of magic missile");
     zap(&mut w, p, wand, spot);
 
     let lost = 40 - w.get::<Fighter>(target).unwrap().hp;
@@ -246,7 +282,7 @@ fn drain_life_heals_the_zapper_by_the_damage_dealt() {
     w.get_mut::<Fighter>(p).unwrap().max_hp = 50;
     w.get_mut::<Fighter>(p).unwrap().hp = 10;
 
-    let wand = give_wand(&mut w, p, WandEffect::DrainLife);
+    let wand = give_wand(&mut w, p, "wand of drain life");
     zap(&mut w, p, wand, spot);
 
     let dealt = 30 - w.get::<Fighter>(target).unwrap().hp;
@@ -269,7 +305,7 @@ fn undead_are_immune_to_draining_and_grant_no_lifesteal() {
     let zhp = w.get::<Fighter>(zombie).unwrap().hp;
     w.get_mut::<Fighter>(p).unwrap().hp = 5;
 
-    let wand = give_wand(&mut w, p, WandEffect::DrainLife);
+    let wand = give_wand(&mut w, p, "wand of drain life");
     zap(&mut w, p, wand, spot);
 
     assert_eq!(
@@ -303,7 +339,7 @@ fn a_dragon_shrugs_off_fire_and_a_yeti_shrugs_off_cold() {
     let dragon = monster::monster(&mut w, "dragon", spot);
     grant_all(&mut w, dragon, FIRE_IMMUNITY);
     let dhp = w.get::<Fighter>(dragon).unwrap().hp;
-    let fire = give_wand(&mut w, p, WandEffect::Fire);
+    let fire = give_wand(&mut w, p, "wand of fire");
     zap(&mut w, p, fire, spot);
     assert_eq!(
         w.get::<Fighter>(dragon).unwrap().hp,
@@ -315,7 +351,7 @@ fn a_dragon_shrugs_off_fire_and_a_yeti_shrugs_off_cold() {
     let yeti = monster::monster(&mut w, "yeti", spot);
     grant_all(&mut w, yeti, COLD_IMMUNITY);
     let yhp = w.get::<Fighter>(yeti).unwrap().hp;
-    let cold = give_wand(&mut w, p, WandEffect::Cold);
+    let cold = give_wand(&mut w, p, "wand of cold");
     zap(&mut w, p, cold, spot);
     assert_eq!(
         w.get::<Fighter>(yeti).unwrap().hp,
@@ -337,7 +373,7 @@ fn polymorph_swaps_the_target_for_a_different_species_on_the_same_tile() {
     let original_name = w.get::<Name>(original).unwrap().what.clone();
     let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
 
-    let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+    let wand = give_wand(&mut w, p, "wand of polymorph");
     zap(&mut w, p, wand, spot);
 
     assert!(!w.entities().contains(original), "the original is gone");
@@ -362,11 +398,11 @@ fn haste_and_slow_step_the_target_along_the_speed_scale() {
     let (_here, spot) = beside_player(&mut w);
     let mob = dummy(&mut w, "orc", spot, 5);
 
-    let haste = give_wand(&mut w, p, WandEffect::HasteMonster);
+    let haste = give_wand(&mut w, p, "wand of haste monster");
     zap(&mut w, p, haste, spot);
     assert_eq!(w.get::<Speed>(mob).unwrap().kind, SpeedKind::Fast);
 
-    let slow = give_wand(&mut w, p, WandEffect::SlowMonster);
+    let slow = give_wand(&mut w, p, "wand of slow monster");
     zap(&mut w, p, slow, spot);
     assert_eq!(
         w.get::<Speed>(mob).unwrap().kind,
@@ -503,7 +539,7 @@ fn teleport_away_relocates_the_target() {
     let (_here, spot) = beside_player(&mut w);
     let mob = dummy(&mut w, "orc", spot, 5);
 
-    let wand = give_wand(&mut w, p, WandEffect::TeleportAway);
+    let wand = give_wand(&mut w, p, "wand of teleport away");
     zap(&mut w, p, wand, spot);
 
     let now = *w.get::<Position>(mob).unwrap();
@@ -529,7 +565,7 @@ fn teleport_to_drags_the_target_next_to_the_zapper() {
     };
     let mob = dummy(&mut w, "orc", far, 5);
 
-    let wand = give_wand(&mut w, p, WandEffect::TeleportTo);
+    let wand = give_wand(&mut w, p, "wand of teleport to");
     zap(&mut w, p, wand, far);
 
     let now = *w.get::<Position>(mob).unwrap();
@@ -579,7 +615,7 @@ fn teleport_to_is_not_blocked_by_loot_lying_on_the_floor() {
     };
     let mob = dummy(&mut w, "orc", far, 5);
 
-    let wand = give_wand(&mut w, p, WandEffect::TeleportTo);
+    let wand = give_wand(&mut w, p, "wand of teleport to");
     zap(&mut w, p, wand, far);
 
     let now = *w.get::<Position>(mob).unwrap();
@@ -626,7 +662,7 @@ fn teleport_to_with_no_room_bursts_the_target() {
     };
     let mob = dummy(&mut w, "orc", far, 5);
 
-    let wand = give_wand(&mut w, p, WandEffect::TeleportTo);
+    let wand = give_wand(&mut w, p, "wand of teleport to");
     zap(&mut w, p, wand, far);
 
     assert!(
@@ -659,7 +695,7 @@ fn teleport_away_with_nowhere_to_land_bursts_the_target() {
         }
     }
 
-    let wand = give_wand(&mut w, p, WandEffect::TeleportAway);
+    let wand = give_wand(&mut w, p, "wand of teleport away");
     zap(&mut w, p, wand, spot);
 
     assert!(w.get_entity(mob).is_none(), "it did not arrive anywhere");
@@ -678,7 +714,7 @@ fn cancellation_strips_the_magic_but_leaves_the_creature() {
     grant_all(&mut w, dragon, FIRE_IMMUNITY);
     w.get_mut::<Speed>(dragon).unwrap().kind = SpeedKind::Fast;
 
-    let wand = give_wand(&mut w, p, WandEffect::Cancellation);
+    let wand = give_wand(&mut w, p, "wand of cancellation");
     zap(&mut w, p, wand, spot);
 
     assert!(
@@ -698,7 +734,7 @@ fn cancellation_strips_the_magic_but_leaves_the_creature() {
     );
 
     let dhp = w.get::<Fighter>(dragon).unwrap().hp;
-    let fire = give_wand(&mut w, p, WandEffect::Fire);
+    let fire = give_wand(&mut w, p, "wand of fire");
     zap(&mut w, p, fire, spot);
     assert!(
         w.get::<Fighter>(dragon).unwrap().hp < dhp,
@@ -717,7 +753,7 @@ fn charming_tames_the_target_as_a_plain_ally_not_the_helper() {
     let (_here, spot) = beside_player(&mut w);
     let orc = monster::monster(&mut w, "orc", spot);
 
-    let wand = give_wand(&mut w, p, WandEffect::Charming);
+    let wand = give_wand(&mut w, p, "wand of charming");
     zap(&mut w, p, wand, spot);
 
     assert_eq!(w.get::<Faction>(orc), Some(&Faction::Ally));
@@ -730,7 +766,7 @@ fn charming_yourself_does_nothing_but_feel_adorable() {
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
 
-    let wand = give_wand(&mut w, p, WandEffect::Charming);
+    let wand = give_wand(&mut w, p, "wand of charming");
     zap(&mut w, p, wand, here);
 
     assert_eq!(w.get::<Faction>(p), Some(&Faction::Player));
@@ -785,7 +821,7 @@ fn light_clears_a_dark_room_and_reveals_its_traps() {
     };
     let trap = w.spawn(trap_bundle).id();
 
-    let wand = give_wand(&mut w, p, WandEffect::Light);
+    let wand = give_wand(&mut w, p, "wand of light");
     zap_self(&mut w, p, wand);
 
     assert!(
@@ -815,7 +851,7 @@ fn a_blast_sets_off_a_trap_it_washes_over() {
     let (_, next_door) = beside_player(&mut w);
     let trap = w.spawn(TrapBundle::sleep(next_door)).id();
 
-    let wand = give_wand(&mut w, p, WandEffect::Fire);
+    let wand = give_wand(&mut w, p, "wand of fire");
     zap(&mut w, p, wand, next_door);
 
     assert!(w.get_entity(trap).is_none(), "the blast set the trap off");
@@ -847,7 +883,7 @@ fn teleporting_a_pinned_monster_clears_the_ledger_not_just_the_component() {
 
     assert!(models::effects::hold(&mut w, mob, Grant::of::<Pinned>(), 6));
 
-    let wand = give_wand(&mut w, p, WandEffect::TeleportAway);
+    let wand = give_wand(&mut w, p, "wand of teleport away");
     zap(&mut w, p, wand, spot);
 
     assert!(w.get::<Pinned>(mob).is_none(), "the jaws let go");
@@ -882,7 +918,7 @@ fn a_wand_of_digging_bores_a_tunnel_down_the_aim() {
     let p = player(&mut w);
     let here = Position { x: 10, y: 10 };
     buried(&mut w, p, here);
-    let wand = give_wand(&mut w, p, WandEffect::Digging);
+    let wand = give_wand(&mut w, p, "wand of digging");
     zap(&mut w, p, wand, Position { x: 12, y: 10 });
     for x in 11..=(10 + DIG_RANGE as u16) {
         assert!(open(&w, x, 10), "no tunnel at x={x}");
@@ -902,7 +938,7 @@ fn a_wand_of_digging_cannot_break_the_edge_of_the_map() {
     let mut w = test_world(12);
     let p = player(&mut w);
     buried(&mut w, p, Position { x: 3, y: 10 });
-    let wand = give_wand(&mut w, p, WandEffect::Digging);
+    let wand = give_wand(&mut w, p, "wand of digging");
     zap(&mut w, p, wand, Position { x: 1, y: 10 });
     assert!(open(&w, 1, 10) && open(&w, 2, 10));
     assert!(!open(&w, 0, 10), "the dungeon's outer wall is not rock");
@@ -912,7 +948,7 @@ fn a_wand_of_digging_cannot_break_the_edge_of_the_map() {
 fn a_wand_of_polymorph_zapped_at_yourself_polymorphs_you() {
     let mut w = test_world(5);
     let p = player(&mut w);
-    let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+    let wand = give_wand(&mut w, p, "wand of polymorph");
 
     let here = *w.get::<Position>(p).unwrap();
     zap(&mut w, p, wand, here);
@@ -931,7 +967,7 @@ fn sustain_form_turns_the_polymorph_bolt_aside_shock_included() {
         if already {
             lend(&mut w, p, Grant::of::<Polymorphed>(), Lifetime::Floor);
         }
-        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+        let wand = give_wand(&mut w, p, "wand of polymorph");
 
         zap(&mut w, p, wand, here);
 
@@ -964,7 +1000,7 @@ fn polymorphing_the_polymorphed_player_shocks_them_or_makes_a_chimeric_form() {
         let hp = w.get::<Fighter>(p).unwrap().hp;
         assert!(hp > 1);
         lend(&mut w, p, Grant::of::<Polymorphed>(), Lifetime::Floor);
-        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+        let wand = give_wand(&mut w, p, "wand of polymorph");
 
         zap(&mut w, p, wand, here);
 
@@ -999,7 +1035,7 @@ fn polymorphing_the_polymorphed_monster_bursts_it_or_makes_a_chimeric_form() {
         let (_here, spot) = beside_player(&mut w);
         let mob = monster::monster(&mut w, "test monster", spot);
         lend(&mut w, mob, Grant::of::<Polymorphed>(), Lifetime::Floor);
-        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+        let wand = give_wand(&mut w, p, "wand of polymorph");
 
         zap(&mut w, p, wand, spot);
 
@@ -1031,11 +1067,11 @@ fn polymorph_and_haste_reach_an_ally() {
     let pal = dummy(&mut w, "pal", spot, 5);
     w.entity_mut(pal).insert(Faction::Ally);
 
-    let haste = give_wand(&mut w, p, WandEffect::HasteMonster);
+    let haste = give_wand(&mut w, p, "wand of haste monster");
     zap(&mut w, p, haste, spot);
     assert_eq!(w.get::<Speed>(pal).unwrap().kind, SpeedKind::Fast);
 
-    let poly = give_wand(&mut w, p, WandEffect::Polymorph);
+    let poly = give_wand(&mut w, p, "wand of polymorph");
     zap(&mut w, p, poly, spot);
     let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
     let e = q
@@ -1058,7 +1094,7 @@ fn the_first_polymorph_of_a_monster_marks_it_and_never_shocks_it() {
         let p = player(&mut w);
         let (_here, spot) = beside_player(&mut w);
         monster::monster(&mut w, "test monster", spot);
-        let wand = give_wand(&mut w, p, WandEffect::Polymorph);
+        let wand = give_wand(&mut w, p, "wand of polymorph");
 
         zap(&mut w, p, wand, spot);
 
@@ -1088,7 +1124,7 @@ fn swapping_trades_places_with_the_monster_on_the_aimed_tile() {
     let (here, spot) = beside_player(&mut w);
     let orc = dummy(&mut w, "orc", spot, 5);
 
-    let wand = give_wand(&mut w, p, WandEffect::Swapping);
+    let wand = give_wand(&mut w, p, "wand of swapping");
     zap(&mut w, p, wand, spot);
 
     assert!(at(&w, p) == spot, "you stand where the orc stood");
@@ -1110,7 +1146,7 @@ fn swapping_trades_places_with_an_item_or_a_found_trap() {
             false => spawn_weapon(&mut w, "dagger", spot),
         };
 
-        let wand = give_wand(&mut w, p, WandEffect::Swapping);
+        let wand = give_wand(&mut w, p, "wand of swapping");
         zap(&mut w, p, wand, spot);
 
         assert!(
@@ -1133,7 +1169,7 @@ fn swapping_passes_over_a_trap_nobody_has_found() {
     let (here, spot) = beside_player(&mut w);
     let trap = w.spawn(TrapBundle::bear(spot)).id();
 
-    let wand = give_wand(&mut w, p, WandEffect::Swapping);
+    let wand = give_wand(&mut w, p, "wand of swapping");
     zap(&mut w, p, wand, spot);
 
     assert!(at(&w, p) == here, "you stay put");
@@ -1149,7 +1185,7 @@ fn swapping_never_sets_anyone_down_where_they_cannot_stand() {
     let ghost = dummy(&mut w, "ghost", spot, 5);
     grant_all(&mut w, ghost, GHOSTLY);
 
-    let wand = give_wand(&mut w, p, WandEffect::Swapping);
+    let wand = give_wand(&mut w, p, "wand of swapping");
     zap(&mut w, p, wand, spot);
 
     assert!(at(&w, p) == here, "you are not walled up in the rock");
@@ -1165,9 +1201,73 @@ fn a_monster_zapping_swapping_at_you_trades_places_with_you() {
     let gnome = dummy(&mut w, "gnome", spot, 5);
     w.entity_mut(gnome).insert(Backpack { items: Vec::new() });
 
-    let wand = give_wand(&mut w, gnome, WandEffect::Swapping);
+    let wand = give_wand(&mut w, gnome, "wand of swapping");
     zap(&mut w, gnome, wand, here);
 
     assert!(at(&w, p) == spot);
     assert!(at(&w, gnome) == here);
+}
+
+#[test]
+fn every_wand_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    w.get_mut::<Backpack>(p).unwrap().items.clear();
+    let rows: Vec<&'static WandDef> = WANDS.iter().copied().chain([&WAND_OF_NOTHING]).collect();
+    for row in &rows {
+        let wand = row.spawn(&mut w, Position { x: 0, y: 0 });
+        w.entity_mut(wand).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(wand);
+    }
+
+    let file = crate::common::SaveFile::new("wand-rows");
+    save_game(&mut w, file.path()).unwrap();
+    let mut loaded = World::new();
+    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
+    loaded.insert_resource(RngSeed(3));
+    loaded.init_resource::<GameLog>();
+    loaded.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    load_game(&mut loaded, file.path()).unwrap();
+
+    let lp = player(&mut loaded);
+    let back: Vec<&'static WandDef> = loaded
+        .get::<Backpack>(lp)
+        .unwrap()
+        .items
+        .iter()
+        .filter_map(|&e| loaded.get::<Wand>(e).map(|wand| wand.row))
+        .collect();
+    assert_eq!(back.len(), rows.len());
+    for (was, is) in rows.iter().zip(&back) {
+        assert!(
+            std::ptr::eq(*was, *is),
+            "{} came back as {}",
+            was.name,
+            is.name
+        );
+    }
+}
+
+#[test]
+fn the_wand_of_nothing_changes_nothing_and_the_reticle_skips_everyone() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let wand = (&WAND_OF_NOTHING).spawn(&mut w, Position { x: 0, y: 0 });
+    w.entity_mut(wand).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
+    let here = *w.get::<Position>(p).unwrap();
+    let aim = Position {
+        x: here.x + 1,
+        y: here.y,
+    };
+    let foe = dummy(&mut w, "dummy", aim, 10);
+    assert!(wand_wasted_on(&w, &WAND_OF_NOTHING, foe));
+
+    zap(&mut w, p, wand, aim);
+
+    assert_eq!(w.get::<Fighter>(foe).unwrap().hp, 10);
+    assert_eq!(*w.get::<Position>(foe).unwrap(), aim);
+    assert_eq!(w.get::<Battery>(wand).unwrap().charges, WAND_CHARGES - 1);
 }

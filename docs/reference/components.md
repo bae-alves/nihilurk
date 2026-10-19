@@ -182,7 +182,7 @@ Components — item type keys
 |-----------|---------------|--------------------------------------|--------|
 | `Potion`  | `PotionEffect`| `items/potions.rs`                    | key yes |
 | `Scroll`  | `ScrollEffect`| `items/scrolls.rs`                    | key yes |
-| `Wand`    | `WandEffect`  | `items/wands.rs`; thrown, `items/throwing.rs` | key yes |
+| `Wand`    | `&'static WandDef` | its row's `zap`, in `items/wands.rs`; thrown, its row's `Thrown`, in `items/throwing.rs` | row name yes |
 | `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
 | `Rune`    | `&'static RuneDef` | its row's `apply`, in `items/runes.rs`; `charged: bool` says whether it still holds a use | row name and `charged` yes |
 | `Curse`   | marker        | equipped-and-stuck until remove curse destroys it, or a scroll of enchantment burns it off | yes |
@@ -194,13 +194,11 @@ All five key enums are **saved by variant order** — append, never reorder. The
 
 `KnownQuality` is per-*instance*: two rings of protection are two separate rolls of the curse dice, so each needs its own `KnownQuality`, set the moment it's worn (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singles it out. `identify::display_name` reads it to decide whether to print a weapon/armour/launcher's `+N` prefix, a `(cursed)` suffix, or a `(vorpal vs. X)` suffix — hidden for anything not yet known. Potions, scrolls, wands and rings carry no such hidden state of their own; they always show their true name.
 
-`WandEffect::needs_target()` is `false` only for the wand of light (it floods the room, no reticle).
+`WandDef::needs_target` is `false` only for the wand of light (it floods the room, no reticle).
 
 `PotionEffect`: Blindness, Confusion, ExtraHealing, FruitJuice, GainStrength, Haste, Healing, MagicDetection, MonsterDetection, Paralysis, Poison, RaiseLevel, RestoreStrength, SeeInvisible, Water, Magic, Adjustment, Polymorph.
 
 `ScrollEffect` (every arm wired; `BlankPaper` does nothing on purpose): MonsterConfusion, MagicMapping, HoldMonster, Sleep, EnchantArmor, Identify, ScareMonster, FoodDetection, Teleportation, EnchantWeapon, CreateMonster, RemoveCurse, AggravateMonsters, BlankPaper, VorpalizeWeapon, Amnesia, Charming, Pitfall, Atonement.
-
-`WandEffect`: Light, Striking, Lightning, Fire, Cold, Polymorph, MagicMissile, HasteMonster, SlowMonster, DrainLife, Nothing, TeleportAway, TeleportTo, Cancellation, Charming, Digging, Swapping.
 
 `RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor, Polymorph, SustainForm, DualZap, Health.
 
@@ -214,7 +212,6 @@ A `Rune` is a scroll that goes inert when read: reading spends `charged` instead
 
 | Method              | Returns                                          |
 |---------------------|-------------------------------------------------|
-| `Element::of(wand)` | the element a `WandEffect` carries, or `None`.   |
 | `.immunity()`       | the `Grant` that shrugs it off (`FireImmune` / `ColdImmune` / `Undead`). |
 | `.noun()`           | "flames" / "cold" / "evil magic" for the log.    |
 

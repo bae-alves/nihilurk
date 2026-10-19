@@ -1,10 +1,9 @@
 //! Zapping a wand, and everything a bolt or a blast does once it lands.
 //!
-//! The catalog ([`crate::catalog::WANDS`]) says what each wand is called, how it
-//! draws and how far it reaches; this file resolves the zap. A thrown wand — the
-//! whole battery let go at once — is [`super::throwing`]'s job, but it borrows
-//! most of its machinery ([`elemental_blast`], [`blast_palette`], the
-//! per-creature effects) from here.
+//! Each row of [`crate::catalog::WANDS`] names one of the zap handlers here,
+//! and [`zap_wand`] runs it. A thrown wand — the whole battery let go at once —
+//! is [`super::throwing`]'s job, but it borrows most of its machinery
+//! ([`elemental_blast`], the per-creature effects) from here.
 
 use crate::Color;
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
@@ -12,6 +11,7 @@ use rand::Rng;
 use rand::seq::SliceRandom;
 use std::collections::{HashSet, VecDeque};
 
+use crate::catalog::{WandDef, Zap};
 use crate::components::*;
 use crate::conditions::{clear_player_conditions, confuse, shift_entity_speed};
 use crate::effects::*;
@@ -112,16 +112,14 @@ pub(crate) fn ward_ricochet(world: &mut World, victim: Entity) {
 /// Fires one of the straight-line "bolt" wands: a beam from the zapper to the
 /// aimed tile that hurts everything caught along the way. Drain-life feeds the
 /// HP it takes straight back to the zapper, never past their maximum.
-fn fire_bolt(
-    world: &mut World,
-    user: Entity,
-    user_pos: Position,
-    target_pos: Position,
-    effect: WandEffect,
-    msg: &str,
-    color: Color,
-) {
-    let element = Element::of(effect);
+fn fire_bolt(world: &mut World, zap: Zap, msg: &str, color: Color) {
+    let Zap {
+        user,
+        from: user_pos,
+        at: target_pos,
+        ..
+    } = zap;
+    let element = zap.row.element;
     let damage = roll_wand_damage(world);
     world.resource_mut::<GameLog>().add(msg.to_string());
 
@@ -141,7 +139,7 @@ fn fire_bolt(
         kick_shake(world, ShakeKind::Hit);
     }
 
-    if effect == WandEffect::DrainLife && bolt.hp_taken > 0 {
+    if element == Some(Element::Drain) && bolt.hp_taken > 0 {
         let taken = bolt.hp_taken;
         if let Some(mut fighter) = world.get_mut::<Fighter>(user) {
             fighter.hp = (fighter.hp + taken).min(fighter.max_hp);
@@ -337,29 +335,6 @@ pub(crate) fn leave_smoke_ring(world: &mut World, center: Position) {
     }
 }
 
-/// The blast-animation palette a wand's explosion burns in.
-pub(super) fn blast_palette(effect: WandEffect) -> BlastPalette {
-    match effect {
-        WandEffect::Fire => BlastPalette::Fire,
-        WandEffect::Cold => BlastPalette::Frost,
-        WandEffect::Lightning => BlastPalette::Spark,
-        WandEffect::MagicMissile => BlastPalette::Arcane,
-        WandEffect::Striking => BlastPalette::Force,
-        WandEffect::DrainLife => BlastPalette::Death,
-        WandEffect::Light => BlastPalette::Glam,
-        WandEffect::Cancellation => BlastPalette::Void,
-        WandEffect::Polymorph
-        | WandEffect::HasteMonster
-        | WandEffect::SlowMonster
-        | WandEffect::TeleportAway
-        | WandEffect::TeleportTo
-        | WandEffect::Charming
-        | WandEffect::Digging
-        | WandEffect::Swapping
-        | WandEffect::Nothing => BlastPalette::Warp,
-    }
-}
-
 /// Dazzle — the wand of light's confusion: the flash in the eyes, and then
 /// [`crate::conditions::confuse`] does the rest. The wand owns the *flavour*
 /// (a flash) and nothing else; what confusion means to a player as against a
@@ -374,27 +349,34 @@ pub(super) fn dazzle(world: &mut World, entity: Entity) {
     );
 }
 
-/// The disc a zapped wand bursts in on the aimed tile: fire and cold do, at
-/// [`BLAST_RADIUS`]; every bolt, touch and line does not.
-pub(super) fn zap_blast_radius(effect: WandEffect) -> Option<f32> {
-    matches!(effect, WandEffect::Fire | WandEffect::Cold).then_some(BLAST_RADIUS)
-}
-
-/// Whether zapping `effect` at `target` would change nothing: the aiming
+/// Whether zapping `wand` at `target` would change nothing: the aiming
 /// reticle passes such a creature over. Only what is plain from the creature
 /// itself counts — a fire blast on something fireproof, a slowing of the
 /// already slow, a charm on an ally, a wand of nothing at anyone.
-pub fn wand_wasted_on(world: &World, effect: WandEffect, target: Entity) -> bool {
-    match effect {
-        WandEffect::Nothing => true,
-        WandEffect::Fire => world.get::<FireImmune>(target).is_some(),
-        WandEffect::Cold => world.get::<ColdImmune>(target).is_some(),
-        WandEffect::SlowMonster => world
-            .get::<Speed>(target)
-            .is_some_and(|s| s.kind == SpeedKind::Slow),
-        WandEffect::Charming => world.get::<Faction>(target) == Some(&Faction::Ally),
-        _ => false,
-    }
+pub fn wand_wasted_on(world: &World, wand: &WandDef, target: Entity) -> bool {
+    (wand.wasted_on)(world, target)
+}
+
+/// Wasted on: something fireproof.
+pub(crate) fn fireproof(world: &World, target: Entity) -> bool {
+    world.get::<FireImmune>(target).is_some()
+}
+
+/// Wasted on: something proof against cold.
+pub(crate) fn coldproof(world: &World, target: Entity) -> bool {
+    world.get::<ColdImmune>(target).is_some()
+}
+
+/// Wasted on: something already slow.
+pub(crate) fn already_slow(world: &World, target: Entity) -> bool {
+    world
+        .get::<Speed>(target)
+        .is_some_and(|s| s.kind == SpeedKind::Slow)
+}
+
+/// Wasted on: an ally already.
+pub(crate) fn already_an_ally(world: &World, target: Entity) -> bool {
+    world.get::<Faction>(target) == Some(&Faction::Ally)
 }
 
 /// [`wand_wasted_on`] for a spell: the fire spells on something fireproof.
@@ -405,117 +387,151 @@ pub fn spell_wasted_on(world: &World, effect: SpellEffect, target: Entity) -> bo
     ) && world.get::<FireImmune>(target).is_some()
 }
 
-/// The wands that deal damage when zapped. Thrown, these go off wider and hotter
-/// than the utility ("effect") wands.
-pub(super) fn is_attack_wand(effect: WandEffect) -> bool {
-    matches!(
-        effect,
-        WandEffect::Fire
-            | WandEffect::Cold
-            | WandEffect::Lightning
-            | WandEffect::MagicMissile
-            | WandEffect::Striking
-            | WandEffect::DrainLife
-    )
-}
-
-pub(super) fn apply_wand_effect(
+/// Zaps `row` from `user`: at `target` when the wand takes aim, on the spot
+/// when it does not. An aimed zap fires the targeted-ability hooks of whoever
+/// stands there, then the row's handler runs. A wand that takes aim and was
+/// given none does nothing.
+pub(super) fn zap_wand(
     world: &mut World,
     user: Entity,
     target: Option<Position>,
-    effect: WandEffect,
+    row: &'static WandDef,
 ) {
-    let user_pos = match world.get::<Position>(user) {
-        Some(pos) => *pos,
-        None => return,
-    };
-
-    if effect == WandEffect::Light {
-        light_area(world, user, user_pos);
+    let Some(from) = world.get::<Position>(user).copied() else {
         return;
-    }
-
-    let target_pos = match target {
-        Some(pos) => pos,
-        None => return,
     };
-
-    if let Some(seen) = monster_at(world, target_pos) {
+    let at = match (row.needs_target, target) {
+        (false, _) => from,
+        (true, Some(at)) => at,
+        (true, None) => return,
+    };
+    if row.needs_target
+        && let Some(seen) = monster_at(world, at)
+    {
         crate::abilities::fire_on_targeted(world, user, seen);
     }
+    (row.zap)(
+        world,
+        Zap {
+            row,
+            user,
+            from,
+            at,
+        },
+    );
+}
 
-    match effect {
-        WandEffect::MagicMissile => fire_bolt(
-            world,
-            user,
-            user_pos,
-            target_pos,
-            effect,
-            strings::bolt_magic_missile(),
-            Color::Cyan,
-        ),
-        WandEffect::Lightning => fire_bolt(
-            world,
-            user,
-            user_pos,
-            target_pos,
-            effect,
-            strings::bolt_lightning(),
-            Color::Yellow,
-        ),
-        WandEffect::Striking => fire_bolt(
-            world,
-            user,
-            user_pos,
-            target_pos,
-            effect,
-            strings::bolt_striking(),
-            Color::White,
-        ),
-        WandEffect::DrainLife => fire_bolt(
-            world,
-            user,
-            user_pos,
-            target_pos,
-            effect,
-            strings::bolt_drain_life(),
-            Color::DarkMagenta,
-        ),
-        WandEffect::Fire | WandEffect::Cold => {
-            let is_fire = effect == WandEffect::Fire;
-            let msg = if is_fire {
-                strings::blast_fire()
-            } else {
-                strings::blast_cold()
-            };
-            let damage = roll_wand_damage(world);
-            world.resource_mut::<GameLog>().add(msg.to_string());
-            elemental_blast(
-                world,
-                Some(user),
-                target_pos,
-                BLAST_RADIUS,
-                damage,
-                Element::of(effect),
-                blast_palette(effect),
-            );
-        }
-        WandEffect::Polymorph => polymorph_target(world, target_pos),
-        WandEffect::HasteMonster => shift_target_speed(world, target_pos, true),
-        WandEffect::SlowMonster => shift_target_speed(world, target_pos, false),
-        WandEffect::TeleportAway => teleport_target_away(world, target_pos),
-        WandEffect::TeleportTo => teleport_target_here(world, user, user_pos, target_pos),
-        WandEffect::Cancellation => cancel_target(world, target_pos),
-        WandEffect::Charming => charm_target(world, target_pos),
-        WandEffect::Digging => dig_tunnel(world, user_pos, target_pos),
-        WandEffect::Swapping => swap_with_target(world, user, user_pos, target_pos),
-        WandEffect::Nothing => {
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::wand_does_nothing());
-        }
-        WandEffect::Light => {}
-    }
+/// Wand of light: the zapper's room, lit for good.
+pub(crate) fn light(world: &mut World, zap: Zap) {
+    light_area(world, zap.user, zap.from);
+}
+
+/// Wand of magic missile: a bolt.
+pub(crate) fn magic_missile(world: &mut World, zap: Zap) {
+    fire_bolt(world, zap, strings::bolt_magic_missile(), Color::Cyan);
+}
+
+/// Wand of lightning: a bolt.
+pub(crate) fn lightning(world: &mut World, zap: Zap) {
+    fire_bolt(world, zap, strings::bolt_lightning(), Color::Yellow);
+}
+
+/// Wand of striking: a bolt.
+pub(crate) fn striking(world: &mut World, zap: Zap) {
+    fire_bolt(world, zap, strings::bolt_striking(), Color::White);
+}
+
+/// Wand of drain life: a bolt that feeds the zapper.
+pub(crate) fn drain_life(world: &mut World, zap: Zap) {
+    fire_bolt(world, zap, strings::bolt_drain_life(), Color::DarkMagenta);
+}
+
+/// Wand of fire: a blast where aimed.
+pub(crate) fn fire(world: &mut World, zap: Zap) {
+    blast(world, zap, strings::blast_fire());
+}
+
+/// Wand of cold: a blast where aimed.
+pub(crate) fn cold(world: &mut World, zap: Zap) {
+    blast(world, zap, strings::blast_cold());
+}
+
+/// A blast over [`BLAST_RADIUS`] on the aimed tile, in the row's element and
+/// palette.
+fn blast(world: &mut World, zap: Zap, msg: &str) {
+    let damage = roll_wand_damage(world);
+    world.resource_mut::<GameLog>().add(msg.to_string());
+    elemental_blast(
+        world,
+        Some(zap.user),
+        zap.at,
+        BLAST_RADIUS,
+        damage,
+        zap.row.element,
+        zap.row.palette,
+    );
+}
+
+/// Wand of polymorph.
+pub(crate) fn polymorph(world: &mut World, zap: Zap) {
+    polymorph_target(world, zap.at);
+}
+
+/// Wand of haste monster.
+pub(crate) fn haste_monster(world: &mut World, zap: Zap) {
+    shift_target_speed(world, zap.at, true);
+}
+
+/// Wand of slow monster.
+pub(crate) fn slow_monster(world: &mut World, zap: Zap) {
+    shift_target_speed(world, zap.at, false);
+}
+
+/// Wand of teleport away.
+pub(crate) fn teleport_away(world: &mut World, zap: Zap) {
+    teleport_target_away(world, zap.at);
+}
+
+/// Wand of teleport to.
+pub(crate) fn teleport_to(world: &mut World, zap: Zap) {
+    teleport_target_here(world, zap.user, zap.from, zap.at);
+}
+
+/// Wand of cancellation.
+pub(crate) fn cancellation(world: &mut World, zap: Zap) {
+    cancel_target(world, zap.at);
+}
+
+/// Wand of charming.
+pub(crate) fn charming(world: &mut World, zap: Zap) {
+    charm_target(world, zap.at);
+}
+
+/// Wand of digging.
+pub(crate) fn digging(world: &mut World, zap: Zap) {
+    dig_tunnel(world, zap.from, zap.at);
+}
+
+/// Wand of swapping.
+pub(crate) fn swapping(world: &mut World, zap: Zap) {
+    swap_with_target(world, zap.user, zap.from, zap.at);
+}
+
+/// Wand of nothing: says so.
+pub(crate) fn nothing(world: &mut World, _zap: Zap) {
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::wand_does_nothing());
+}
+
+/// A thrown wand of haste monster, on one creature it caught.
+pub(crate) fn haste_entity(world: &mut World, victim: Entity) {
+    shift_entity_speed(world, victim, true);
+}
+
+/// A thrown wand of slow monster, on one creature it caught.
+pub(crate) fn slow_entity(world: &mut World, victim: Entity) {
+    shift_entity_speed(world, victim, false);
 }
 
 /// Wand of digging: every wall on the line from the zapper through the aimed
@@ -745,7 +761,7 @@ fn charm_target(world: &mut World, pos: Position) {
 /// Either way the creature is left [`Polymorphed`], and polymorphing one that
 /// already is has two outcomes at even odds: system shock ([`system_shock`]),
 /// or the creature settles into a chimeric form ([`assume_form`]).
-pub(super) fn polymorph_entity(world: &mut World, victim: Entity) {
+pub(crate) fn polymorph_entity(world: &mut World, victim: Entity) {
     polymorph_entity_with(world, victim, true);
 }
 
@@ -911,7 +927,7 @@ fn teleport_target_away(world: &mut World, pos: Position) {
 /// scroll of teleportation (see [`teleport_reader`]); for a monster it is a
 /// yank into the dark. Either way, the wand's own signature — smoke left where
 /// they stood — marks the departure; the scroll gets no such flourish.
-pub(super) fn teleport_entity_away(world: &mut World, victim: Entity) {
+pub(crate) fn teleport_entity_away(world: &mut World, victim: Entity) {
     if world.get::<Player>(victim).is_some() {
         let old_pos = world.get::<Position>(victim).copied();
         teleport_reader(world, victim);
@@ -990,7 +1006,7 @@ fn burst_in_transit(world: &mut World, victim: Entity, source: Option<Position>)
 
 /// Teleport-to with no other target: the creature arrives exactly where it
 /// started, to no effect but the indignity.
-pub(super) fn teleport_entity_to_self(world: &mut World, who: Entity) {
+pub(crate) fn teleport_entity_to_self(world: &mut World, who: Entity) {
     let msg = if world.get::<Player>(who).is_some() {
         strings::teleport_self_player().to_string()
     } else {
@@ -1113,7 +1129,7 @@ fn cancel_target(world: &mut World, pos: Position) {
 
 /// Cancellation applied to one creature. A monster loses its magic and its
 /// tempo. The player loses far more (see [`cancel_player`]).
-pub(super) fn cancel_entity(world: &mut World, victim: Entity) {
+pub(crate) fn cancel_entity(world: &mut World, victim: Entity) {
     if world.get::<Player>(victim).is_some() {
         cancel_player(world, victim);
         return;

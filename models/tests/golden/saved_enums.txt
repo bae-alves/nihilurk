@@ -9,7 +9,6 @@ components.rs::SpeedKind = Slow,Normal,Fast,Quick
 components.rs::SpellEffect = DragonBreath,Sting,Thunderbolt,Cure,Bide,ForceLance,Identify,Setup,Lux,CircleOfDeath,MagicWard,Heal,MeteorStrike,FrostNova,MagicMapping,HasteSelf,PolymorphSelf,PolymorphOther,GateDown
 components.rs::TrapEffect = Trapdoor,Bear,Sleep,Teleport,Arrow,Dart
 components.rs::TrapReveal = Sight,Adjacent,Triggered
-components.rs::WandEffect = Light,Striking,Lightning,Fire,Cold,Polymorph,MagicMissile,HasteMonster,SlowMonster,DrainLife,Nothing,TeleportAway,TeleportTo,Cancellation,Charming,Digging,Swapping
 equipment.rs::Slot = Hand,Body,Finger
 leaderboard.rs::Outcome = Win,LoseAscent,LoseDescent
 saveload.rs::SavedLifetime = Permanent,Floor,Turns,NextAction

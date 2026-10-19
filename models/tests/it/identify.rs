@@ -77,7 +77,7 @@ fn a_potion_shows_its_true_name_before_it_is_ever_used() {
 fn a_wand_shows_its_true_name_before_and_after_a_zap() {
     let mut w = test_world(3);
     let p = player(&mut w);
-    let wand = spawn_wand(&mut w, WandEffect::Fire, Position { x: 0, y: 0 });
+    let wand = spawn_named(&mut w, "wand of fire", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, wand);
 
     assert_eq!(display_name(&w, wand), "wand of fire");

@@ -66,7 +66,7 @@ An `Attack` opens the aiming reticle, deals damage (or a status a target can shr
            }
        }
 
-   The match has no catch-all, the same as `apply_wand_effect` over `WandEffect` -- step 1's new variant will not build until this step gives it an arm. The compiler names the function and the missing variant, so there is nothing to remember. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied the cost, `1` otherwise -- fold it into your damage roll (multiply the final number, the way every existing `Attack` arm does; see `sting`, `thunderbolt`, `force_lance` for the shape when armour is or isn't subtracted).
+   The match has no catch-all, the same as `apply_scroll_effect` over `ScrollEffect` -- step 1's new variant will not build until this step gives it an arm. The compiler names the function and the missing variant, so there is nothing to remember. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied the cost, `1` otherwise -- fold it into your damage roll (multiply the final number, the way every existing `Attack` arm does; see `sting`, `thunderbolt`, `force_lance` for the shape when armour is or isn't subtracted).
 
    Most of an attack's mechanic is borrowed rather than written:
 

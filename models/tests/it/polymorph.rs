@@ -380,7 +380,7 @@ fn a_polymorphed_ally_stays_polymorphed_down_the_stairs() {
         y: here.y,
     };
     monster::plain_monster(&mut w, "pup", spot);
-    let wand = spawn_wand(&mut w, WandEffect::Polymorph, here);
+    let wand = spawn_named(&mut w, "wand of polymorph", here).unwrap();
     w.entity_mut(wand).remove::<Position>();
     let slot = w.get::<Backpack>(p).unwrap().items.len();
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);

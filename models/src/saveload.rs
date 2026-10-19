@@ -56,7 +56,7 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use crate::catalog::{RingDef, content_id_of, restore_from_catalog, rune_row};
+use crate::catalog::{RingDef, content_id_of, restore_from_catalog, rune_row, wand_row};
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
 use crate::effects::{
@@ -210,7 +210,7 @@ struct EntitySave<'a> {
     value: Option<i32>,
     potion: Option<PotionEffect>,
     battery: Option<i8>,
-    wand: Option<WandEffect>,
+    wand: Option<String>,
     ranged: Option<i32>,
     scroll: Option<ScrollEffect>,
     ring: Option<RingEffect>,
@@ -315,7 +315,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 11;
+pub const SAVE_VERSION: u16 = 12;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -638,7 +638,7 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             value: er.get::<Value>().map(|v| v.amount),
             potion: er.get::<Potion>().map(|p| p.effect),
             battery: er.get::<Battery>().map(|b| b.charges),
-            wand: er.get::<Wand>().map(|w| w.effect),
+            wand: er.get::<Wand>().map(|w| w.row.name.to_string()),
             ranged: er.get::<Ranged>().map(|r| r.range),
             scroll: er.get::<Scroll>().map(|s| s.effect),
             rune: er
@@ -915,15 +915,19 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             "save file names an entity index outside its own entity list",
         ));
     }
-    let runes_known = save.entities.iter().all(|es| {
+    let rows_known = save.entities.iter().all(|es| {
         es.rune
             .as_ref()
             .is_none_or(|(name, _)| rune_row(name).is_some())
+            && es
+                .wand
+                .as_deref()
+                .is_none_or(|name| wand_row(name).is_some())
     });
-    if !runes_known {
+    if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune this build has no row for",
+            "save file names a rune or wand this build has no row for",
         ));
     }
 
@@ -1037,8 +1041,8 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if let Some(b) = es.battery {
             em.insert(Battery { charges: b });
         }
-        if let Some(w) = es.wand {
-            em.insert(Wand { effect: w });
+        if let Some(row) = es.wand.as_deref().and_then(wand_row) {
+            em.insert(Wand { row });
         }
         if let Some(r) = es.ranged {
             em.insert(Ranged { range: r });
@@ -1601,7 +1605,7 @@ mod tests {
             value: Some(300),
             potion: Some(PotionEffect::Polymorph),
             battery: Some(-3),
-            wand: Some(WandEffect::Swapping),
+            wand: Some("wand of swapping".to_string()),
             ranged: Some(300),
             scroll: Some(ScrollEffect::Atonement),
             ring: Some(RingEffect::Polymorph),
@@ -1714,6 +1718,17 @@ mod tests {
     fn load_one(tag: &str, entity: EntitySave) -> World {
         load_bytes(tag, &encode(SAVE_VERSION, &blank_save(vec![entity])))
             .expect("a well-formed save loads")
+    }
+
+    #[test]
+    fn a_wand_no_row_has_refuses_the_load() {
+        let mut entity = blank_entity();
+        entity.wand = Some("wand of nowhere".to_string());
+        let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
+        let err = load_bytes("unknown-wand", &bytes)
+            .err()
+            .expect("the load is refused");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 
     #[test]

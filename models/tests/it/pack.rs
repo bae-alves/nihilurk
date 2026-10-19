@@ -26,7 +26,7 @@ fn carrying_one_of_everything() -> World {
     let pack = vec![
         spawn_potion(&mut w, PotionEffect::Healing, nowhere),
         spawn_scroll(&mut w, ScrollEffect::MagicMapping, nowhere),
-        spawn_wand(&mut w, WandEffect::Fire, nowhere),
+        spawn_named(&mut w, "wand of fire", nowhere).unwrap(),
         spawn_weapon(&mut w, "dagger", nowhere),
         spawn_armor(&mut w, "ring mail", nowhere),
         spawn_ring(&mut w, RingEffect::Protection, nowhere),

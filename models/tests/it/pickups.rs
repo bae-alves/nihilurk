@@ -407,7 +407,7 @@ fn a_blast_sets_off_the_coins_it_covers_and_pays_the_zapper() {
     };
     spawn_named(&mut w, "gold coin", center).expect("a coin");
     let before = score(&mut w);
-    let wand = spawn_wand(&mut w, WandEffect::Fire, Position { x: 0, y: 0 });
+    let wand = spawn_named(&mut w, "wand of fire", Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);
 

@@ -153,7 +153,7 @@ fn magic_ward_blocks_every_point_of_a_wands_damage() {
     let target = dummy(&mut w, spot, 40);
     w.entity_mut(target).insert(MagicWard);
 
-    let wand = spawn_wand(&mut w, WandEffect::Fire, Position { x: 0, y: 0 });
+    let wand = spawn_named(&mut w, "wand of fire", Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Battery>(wand).unwrap().charges = 9;
     let idx = w.get_mut::<Backpack>(p).unwrap().items.len();

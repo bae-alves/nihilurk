@@ -28,7 +28,7 @@ return {
     enum_variant("A ring", "RingEffect", { COMPONENTS }),
     enum_variant("A potion", "PotionEffect", { COMPONENTS }),
     enum_variant("A scroll", "ScrollEffect", { COMPONENTS, FEEL }),
-    enum_variant("A wand", "WandEffect", { COMPONENTS, TABLES, FEEL }),
+    { row = "A wand", file = "models/src/catalog.rs", line = "^%+%s+&WandDef::new%(", pages = { TABLES, FEEL } },
     enum_variant("A trap", "TrapEffect", { COMPONENTS }),
     { row = "An effect", file = "models/src/effects.rs", line = '^%+%s+"[%l_]+" => ', pages = { TABLES } },
     { row = "A playable body", file = "models/src/body.rs", under = "^pub enum Body", line = variant,

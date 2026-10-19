@@ -890,9 +890,7 @@ fn commit_item_action(
 /// thrown says so (no turn).
 fn use_or_aim(world: &mut World, player: Entity, item: Entity) -> bool {
     let needs_reticle = world.get::<Ranged>(item).is_some()
-        && world
-            .get::<Wand>(item)
-            .map_or(true, |w| w.effect.needs_target());
+        && world.get::<Wand>(item).map_or(true, |w| w.row.needs_target);
     if !needs_reticle {
         return models::queue_use(world, player, item, None);
     }
@@ -1025,7 +1023,7 @@ fn wasted_on(
     !throwing
         && item
             .and_then(|i| world.get::<Wand>(i))
-            .is_some_and(|w| models::wand_wasted_on(world, w.effect, target))
+            .is_some_and(|w| models::wand_wasted_on(world, w.row, target))
 }
 
 /// The row `dir` steps around the ring from `from`. `rows` are backpack
@@ -2923,7 +2921,8 @@ mod tests {
             .collect();
 
         let aimed_at = *w.get::<Position>(mob).unwrap();
-        let wand = models::spawn_wand(&mut w, WandEffect::SlowMonster, Position { x: 0, y: 0 });
+        let wand =
+            models::spawn_named(&mut w, "wand of slow monster", Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(wand).remove::<Position>();
         w.resource_mut::<UseQueue>().uses.push(WantsToUse {
             user: player,
@@ -3000,7 +2999,8 @@ mod tests {
         w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
             row.iter().map(|&x| (x, here.y)).collect();
 
-        let wand = models::spawn_wand(&mut w, WandEffect::SlowMonster, Position { x: 0, y: 0 });
+        let wand =
+            models::spawn_named(&mut w, "wand of slow monster", Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(wand).remove::<Position>();
         open_reticle(&mut w, player, wand, false);
 
@@ -3052,7 +3052,7 @@ mod tests {
     /// Two orcs in view, the nearer one beyond the wand's help: the reticle
     /// opens on the one it can change, and `Tab` never lands on the other.
     fn aim_wand_past_a_useless_target(
-        effect: WandEffect,
+        name: &str,
         near_grant: Option<Grant>,
     ) -> (World, Position, Position) {
         let mut w = modal_world(5);
@@ -3097,7 +3097,7 @@ mod tests {
         }
         w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
             row.iter().map(|&x| (x, here.y)).collect();
-        let wand = models::spawn_wand(&mut w, effect, Position { x: 0, y: 0 });
+        let wand = models::spawn_named(&mut w, name, Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(wand).remove::<Position>();
         open_reticle(&mut w, player, wand, false);
         (w, near, far)
@@ -3106,24 +3106,24 @@ mod tests {
     #[test]
     fn the_reticle_skips_targets_the_wand_cannot_change() {
         let cases = [
-            (WandEffect::Fire, Some(Grant::of::<FireImmune>())),
-            (WandEffect::Cold, Some(Grant::of::<ColdImmune>())),
-            (WandEffect::SlowMonster, None),
+            ("wand of fire", Some(Grant::of::<FireImmune>())),
+            ("wand of cold", Some(Grant::of::<ColdImmune>())),
+            ("wand of slow monster", None),
         ];
-        for (effect, grant) in cases {
-            let (mut w, near, far) = aim_wand_past_a_useless_target(effect, grant);
+        for (name, grant) in cases {
+            let (mut w, near, far) = aim_wand_past_a_useless_target(name, grant);
             let ts = w.resource::<TargetingState>();
             assert_eq!(
                 (ts.cursor_x, ts.cursor_y),
                 (far.x as i16, far.y as i16),
-                "{effect:?}: opened on the target it cannot change"
+                "{name}: opened on the target it cannot change"
             );
             cycle_target(&mut w);
             let ts = w.resource::<TargetingState>();
             assert_eq!(
                 (ts.cursor_x, ts.cursor_y),
                 (far.x as i16, far.y as i16),
-                "{effect:?}: Tab landed on {near:?}"
+                "{name}: Tab landed on {near:?}"
             );
         }
     }

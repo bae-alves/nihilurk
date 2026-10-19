@@ -16,7 +16,7 @@ Checked 2026-10-05 against `models/`, `engine/` and `strings/`: none of these ex
 | sling, sling stone, `FireStone` (id `fire_stone`) | launcher, ammo, effect | `tutorial/add-your-first-item.md`, `how-to/add-an-item.md`, `how-to/add-an-effect.md` |
 | potion of levitation, `PotionEffect::Levitation` | potion | `tutorial/add-your-first-item.md`, `how-to/add-an-item.md` |
 | scroll of protect armor, `ScrollEffect::ProtectArmor` | scroll | `tutorial/add-your-first-item.md` |
-| wand of sleep, `WandEffect::Sleep` | wand | `tutorial/add-your-first-item.md` |
+| wand of sleep, `wands::sleep`, `wands::put_to_sleep` | wand | `tutorial/add-your-first-item.md` |
 | basilisk | monster row | `tutorial/add-your-first-monster.md`, `how-to/add-a-monster.md`, `how-to/add-an-effect.md`, `reference/cli-and-env.md`, `doc/nihilurk.6` |
 | Ice Bolt, `SpellEffect::IceBolt`, `ice_bolt` | spell | `tutorial/add-your-first-spell.md`, `how-to/add-a-spell.md` |
 | ninja, `Body::Ninja`, `wear_ninja`, `NINJA_GRANTS` | body | `tutorial/add-your-first-body.md` |

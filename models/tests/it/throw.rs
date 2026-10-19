@@ -138,7 +138,9 @@ fn a_thrown_wand_of_fire_goes_off_like_a_grenade() {
     let orc = monster(&mut w, "orc", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 40;
     w.get_mut::<Fighter>(p).unwrap().hp = 99;
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of fire", NOWHERE).unwrap()
+    });
     w.get_mut::<Battery>(wand).unwrap().charges = 5;
 
     throw(&mut w, p, wand, spot);
@@ -179,7 +181,9 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
             x: pp.x + 1,
             y: pp.y,
         };
-        let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+        let wand = stash(&mut w, p, |w| {
+            spawn_named(w, "wand of fire", NOWHERE).unwrap()
+        });
         w.get_mut::<Battery>(wand).unwrap().charges = 5;
 
         if throw_it {
@@ -241,7 +245,9 @@ fn a_wand_lobbed_into_open_floor_lands_a_dud() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 2);
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of fire", NOWHERE).unwrap()
+    });
     w.get_mut::<Battery>(wand).unwrap().charges = 7;
     throw(&mut w, p, wand, spot);
 
@@ -259,7 +265,7 @@ fn a_thrown_effect_wand_works_its_effect_on_everyone_in_the_blast() {
     assert_eq!(w.get::<Speed>(orc).unwrap().kind, SpeedKind::Normal);
 
     let wand = stash(&mut w, p, |w| {
-        spawn_wand(w, WandEffect::HasteMonster, NOWHERE)
+        spawn_named(w, "wand of haste monster", NOWHERE).unwrap()
     });
     w.get_mut::<Battery>(wand).unwrap().charges = 6;
     throw(&mut w, p, wand, spot);
@@ -283,7 +289,9 @@ fn a_helper_lost_to_system_shock_is_minus_two_alignment() {
         recruit(&mut w, pal);
         lend(&mut w, pal, Grant::of::<Polymorphed>(), Lifetime::Floor);
         assert_eq!(w.get::<Alignment>(p).unwrap().0, 1, "recruiting: +1");
-        let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Polymorph, NOWHERE));
+        let wand = stash(&mut w, p, |w| {
+            spawn_named(w, "wand of polymorph", NOWHERE).unwrap()
+        });
         w.get_mut::<Battery>(wand).unwrap().charges = 6;
 
         throw(&mut w, p, wand, spot);
@@ -306,7 +314,7 @@ fn a_thrown_wand_of_cancellation_wipes_a_megacursed_plus_but_not_the_curse() {
     let spot = east_of_player(&mut w, 1);
     monster(&mut w, "bat", spot);
     let wand = stash(&mut w, p, |w| {
-        spawn_wand(w, WandEffect::Cancellation, NOWHERE)
+        spawn_named(w, "wand of cancellation", NOWHERE).unwrap()
     });
     w.get_mut::<Battery>(wand).unwrap().charges = 4;
 
@@ -337,7 +345,7 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
     let spot = east_of_player(&mut w, 1);
     monster(&mut w, "bat", spot);
     let wand = stash(&mut w, p, |w| {
-        spawn_wand(w, WandEffect::Cancellation, NOWHERE)
+        spawn_named(w, "wand of cancellation", NOWHERE).unwrap()
     });
     w.get_mut::<Battery>(wand).unwrap().charges = 4;
     throw(&mut w, p, wand, spot);
@@ -374,7 +382,7 @@ fn cancellation_blanks_the_runes_the_player_carries() {
     let spot = east_of_player(&mut w, 1);
     monster(&mut w, "bat", spot);
     let wand = stash(&mut w, p, |w| {
-        spawn_wand(w, WandEffect::Cancellation, NOWHERE)
+        spawn_named(w, "wand of cancellation", NOWHERE).unwrap()
     });
     w.get_mut::<Battery>(wand).unwrap().charges = 4;
     throw(&mut w, p, wand, spot);
@@ -394,7 +402,7 @@ fn cancellation_clears_the_players_conditions() {
     let spot = east_of_player(&mut w, 1);
     monster(&mut w, "bat", spot);
     let wand = stash(&mut w, p, |w| {
-        spawn_wand(w, WandEffect::Cancellation, NOWHERE)
+        spawn_named(w, "wand of cancellation", NOWHERE).unwrap()
     });
     w.get_mut::<Battery>(wand).unwrap().charges = 4;
     throw(&mut w, p, wand, spot);
@@ -417,7 +425,9 @@ fn a_thrown_wand_of_light_dazzles_and_burns_everyone_in_the_blast() {
     let orc = monster(&mut w, "orc", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 40;
 
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Light, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of light", NOWHERE).unwrap()
+    });
     w.get_mut::<Battery>(wand).unwrap().charges = 5;
     throw(&mut w, p, wand, spot);
 
@@ -445,7 +455,7 @@ fn a_thrown_utility_wand_blast_deals_no_damage() {
     w.get_mut::<Fighter>(orc).unwrap().hp = 30;
 
     let wand = stash(&mut w, p, |w| {
-        spawn_wand(w, WandEffect::SlowMonster, NOWHERE)
+        spawn_named(w, "wand of slow monster", NOWHERE).unwrap()
     });
     w.get_mut::<Battery>(wand).unwrap().charges = 9;
     throw(&mut w, p, wand, spot);
@@ -467,7 +477,7 @@ fn a_thrown_wand_of_teleport_to_with_no_target_sends_a_victim_to_itself() {
     let before = pos_of(&w, orc);
 
     let wand = stash(&mut w, p, |w| {
-        spawn_wand(w, WandEffect::TeleportTo, NOWHERE)
+        spawn_named(w, "wand of teleport to", NOWHERE).unwrap()
     });
     w.get_mut::<Battery>(wand).unwrap().charges = 5;
     throw(&mut w, p, wand, spot);
@@ -486,7 +496,9 @@ fn a_thrown_wand_of_swapping_shuffles_everyone_it_catches() {
     let b = monster(&mut w, "orc", far);
     let before = [p, a, b].map(|e| pos_of(&w, e));
 
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Swapping, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of swapping", NOWHERE).unwrap()
+    });
     w.get_mut::<Battery>(wand).unwrap().charges = 5;
     throw(&mut w, p, wand, near);
 
@@ -960,7 +972,9 @@ fn a_potion_caught_in_a_wands_grenade_goes_off_too() {
     let starved_power = w.get::<Fighter>(orc).unwrap().power;
     let potion = spawn_potion(&mut w, PotionEffect::RestoreStrength, spot);
 
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of fire", NOWHERE).unwrap()
+    });
     w.get_mut::<Battery>(wand).unwrap().charges = 4;
     throw(&mut w, p, wand, spot);
 
@@ -1063,7 +1077,9 @@ fn a_thrown_wand_of_digging_makes_a_crater() {
     }
     w.get_mut::<Position>(p).unwrap().x = 20;
     w.get_mut::<Position>(p).unwrap().y = 10;
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Digging, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of digging", NOWHERE).unwrap()
+    });
     throw(&mut w, p, wand, Position { x: 23, y: 10 });
 
     let r = GRENADE_RADIUS;
@@ -1151,7 +1167,9 @@ fn a_thrown_wand_previews_its_burst_on_the_first_creature_in_the_way() {
     let p = player(&mut w);
     let near = east_of_player(&mut w, 1);
     monster(&mut w, "orc", near);
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of fire", NOWHERE).unwrap()
+    });
     let cursor = east_of_player(&mut w, 2 + GRENADE_RADIUS as u16);
 
     let cells = preview(&mut w, Some(wand), true, None, cursor);
@@ -1164,7 +1182,9 @@ fn a_thrown_wand_previews_its_burst_on_the_first_creature_in_the_way() {
 fn a_wand_lobbed_onto_open_floor_previews_nothing() {
     let mut w = test_world(3);
     let p = player(&mut w);
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of fire", NOWHERE).unwrap()
+    });
     let cursor = east_of_player(&mut w, 2);
 
     assert!(preview(&mut w, Some(wand), true, None, cursor).is_empty());
@@ -1177,7 +1197,9 @@ fn a_creature_the_player_cannot_see_does_not_move_the_preview() {
     let near = east_of_player(&mut w, 1);
     let unseen = monster(&mut w, "orc", near);
     w.entity_mut(unseen).insert(Hidden);
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Fire, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of fire", NOWHERE).unwrap()
+    });
     let cursor = east_of_player(&mut w, 2);
 
     assert!(preview(&mut w, Some(wand), true, None, cursor).is_empty());
@@ -1190,7 +1212,9 @@ fn a_zapped_blast_previews_on_the_cursor_past_a_creature() {
     let p = player(&mut w);
     let near = east_of_player(&mut w, 1);
     monster(&mut w, "orc", near);
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Cold, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of cold", NOWHERE).unwrap()
+    });
     let cursor = east_of_player(&mut w, 4);
 
     let cells = preview(&mut w, Some(wand), false, None, cursor);
@@ -1229,7 +1253,9 @@ fn a_thrown_potion_previews_its_splash_where_it_lands() {
 fn a_bolt_a_line_spell_and_a_look_preview_nothing() {
     let mut w = test_world(13);
     let p = player(&mut w);
-    let wand = stash(&mut w, p, |w| spawn_wand(w, WandEffect::Striking, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        spawn_named(w, "wand of striking", NOWHERE).unwrap()
+    });
     let cursor = east_of_player(&mut w, 3);
 
     assert!(preview(&mut w, Some(wand), false, None, cursor).is_empty());

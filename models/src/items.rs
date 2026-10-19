@@ -8,7 +8,7 @@
 //! * [`scrolls`] — reading a scroll ([`scrolls::apply_scroll_effect`])
 //! * [`runes`] — invoking a rune (each row's `apply` handler), which goes
 //!   inert instead of crumbling and wakes on the stairs
-//! * [`wands`] — zapping a wand ([`wands::apply_wand_effect`]), plus the blast
+//! * [`wands`] — zapping a wand ([`wands::zap_wand`]), plus the blast
 //!   and bolt machinery a thrown wand also borrows
 //! * [`throwing`] — hurling anything at anything, and what catches it
 //! * [`rings`] — the three rings whose effect is a verb rather than a number
@@ -35,7 +35,7 @@ mod scrolls;
 mod spells;
 mod theft;
 mod throwing;
-mod wands;
+pub(crate) mod wands;
 
 pub use spells::{can_afford_spell, pay_for_spell, spell_cost, spell_system};
 pub use wands::{polymorph_player_into, spell_wasted_on, wand_wasted_on};
@@ -134,7 +134,7 @@ use crate::identify::{display_name, with_the};
 
 use self::potions::apply_potion_effect;
 use self::scrolls::apply_scroll_effect;
-use self::wands::{apply_wand_effect, is_attack_wand};
+use self::wands::zap_wand;
 
 /// The schedule step for deep water: anything lying on a
 /// [`TileType::Water`](crate::map::TileType::Water) tile sinks, with a splash
@@ -244,7 +244,7 @@ pub(crate) fn lift_from_pack(world: &mut World, carrier: Entity, item: Entity) -
 #[derive(Default)]
 struct UsePlan {
     potion: Option<PotionEffect>,
-    wand: Option<WandEffect>,
+    wand: Option<&'static crate::catalog::WandDef>,
     /// How many times the wand fires: two for an attack wand in the hands of a
     /// [`DualZap`](crate::effects::DualZap) wearer with the charges to pay.
     casts: u8,
@@ -269,7 +269,7 @@ fn plan_use(world: &mut World, user: Entity, item: Entity) -> UsePlan {
     let dual = world.get::<crate::effects::DualZap>(user).is_some();
     let mut e = world.entity_mut(item);
     plan.potion = e.get::<Potion>().map(|p| p.effect);
-    plan.wand = e.get::<Wand>().map(|w| w.effect);
+    plan.wand = e.get::<Wand>().map(|w| w.row);
     plan.scroll = e.get::<Scroll>().map(|s| s.effect);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
     if let Some(mut rune) = e.get_mut::<Rune>() {
@@ -281,7 +281,7 @@ fn plan_use(world: &mut World, user: Entity, item: Entity) -> UsePlan {
         if battery.charges <= 0 {
             plan.wand = None;
         }
-        let doubled = dual && plan.wand.is_some_and(is_attack_wand) && battery.charges >= 2;
+        let doubled = dual && plan.wand.is_some_and(|row| row.attack) && battery.charges >= 2;
         plan.casts = if doubled { 2 } else { 1 };
         battery.charges -= i8::try_from(plan.casts).unwrap_or(1);
         plan.destroy = battery.charges <= 0;
@@ -347,9 +347,9 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
     if let Some(eff) = plan.potion {
         apply_potion_effect(world, item_use.user, eff);
     }
-    if let Some(eff) = plan.wand {
+    if let Some(row) = plan.wand {
         for _ in 0..plan.casts {
-            apply_wand_effect(world, item_use.user, item_use.target, eff);
+            zap_wand(world, item_use.user, item_use.target, row);
         }
     }
     if let Some(eff) = plan.scroll {

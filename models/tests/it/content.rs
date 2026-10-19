@@ -533,7 +533,7 @@ fn the_dungeon_never_generates_a_dud_as_normal_loot() {
         "scroll of blank paper must not be a spawnable row"
     );
     assert!(
-        !WANDS.iter().any(|d| d.effect == WandEffect::Nothing),
+        !WANDS.iter().any(|d| std::ptr::eq(*d, &WAND_OF_NOTHING)),
         "wand of nothing must not be a spawnable row"
     );
     assert!(

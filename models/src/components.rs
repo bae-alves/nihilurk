@@ -884,7 +884,7 @@ pub enum ScrollEffect {
     /// and every tile they have ever seen on this floor.
     Amnesia,
     /// Every monster the reader can see is charmed — a plain
-    /// [`Faction::Ally`], the same as [`WandEffect::Charming`] lands on one.
+    /// [`Faction::Ally`], the same as the wand of charming lands on one.
     Charming,
     /// Opens a trapdoor under the reader: the same plunge as [`TrapEffect::Trapdoor`].
     /// Appended for the save-order reason above.
@@ -977,81 +977,18 @@ pub struct Rune {
 /// (zapped), and `throwing` (hurled).
 #[derive(Component)]
 pub struct Wand {
-    /// Which wand this is.
-    pub effect: WandEffect,
+    /// Which wand this is, and what zapping or throwing it does. Identity for
+    /// saves by its name — see [`crate::catalog::WANDS`].
+    pub row: &'static crate::catalog::WandDef,
 }
 
-/// Which wand this is. Identity for identification and saves — see
-/// [`crate::catalog::WANDS`].
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WandEffect {
-    /// Lights the room (or passage) the zapper stands in for good, and turns up
-    /// any hidden trap there. Takes no target ([`WandEffect::needs_target`]).
-    Light,
-    /// A bolt of armour-ignoring force along the aimed line.
-    Striking,
-    /// A bolt of lightning along the aimed line.
-    Lightning,
-    /// A fire blast over [`BLAST_RADIUS`](crate::constants::wands::BLAST_RADIUS)
-    /// where aimed, resisted by [`FireImmune`] ([`Element::Fire`]).
-    Fire,
-    /// A cold blast over [`BLAST_RADIUS`](crate::constants::wands::BLAST_RADIUS)
-    /// where aimed, resisted by [`ColdImmune`] ([`Element::Cold`]).
-    Cold,
-    /// Replaces the monster on the aimed tile with a random other species.
-    /// Aimed at the zapper's own tile, it polymorphs them.
-    Polymorph,
-    /// A bolt of magic missile along the aimed line.
-    MagicMissile,
-    /// Steps the target one notch faster, for good.
-    HasteMonster,
-    /// Steps the target one notch slower, for good.
-    SlowMonster,
-    /// A bolt that hands the HP it takes back to the zapper, never past their
-    /// maximum ([`Element::Drain`]).
-    DrainLife,
-    /// Does nothing, and says so.
-    Nothing,
-    /// Flings the target monster to a random open tile.
-    TeleportAway,
-    /// Drags the target monster to a tile beside the zapper.
-    TeleportTo,
-    /// Strips every marker effect from the target and resets its tempo. The
-    /// player zapped by it loses far more.
-    Cancellation,
-    /// Tames the monster on the target tile: a plain [`Faction::Ally`], not
-    /// the [`Helper`] — it fights at your side but doesn't follow downstairs,
-    /// and taking a second one doesn't retire a first. See
-    /// [`crate::companion::charm`].
-    Charming,
-    /// Bores a tunnel through rock along the aim, [`DIG_RANGE`] tiles deep
-    /// (never through the map's outer wall). See
-    /// `crate::items::wands`'s `dig_tunnel`.
-    ///
-    /// [`DIG_RANGE`]: crate::constants::wands::DIG_RANGE
-    Digging,
-    /// The zapper and what stands on the aimed tile trade places; thrown, the
-    /// blast's creatures trade among themselves. See
-    /// `crate::items::wands`'s `swap_with_target`.
-    Swapping,
-}
-
-impl WandEffect {
-    /// Whether zapping this wand opens the aiming reticle. Every wand needs a
-    /// target except the wand of light, which floods the room the zapper stands
-    /// in and so is "used" immediately like a potion or scroll.
-    pub fn needs_target(self) -> bool {
-        !matches!(self, WandEffect::Light)
-    }
-}
-
-/// Which active spell this is — a spell's identity, the same way [`WandEffect`]
-/// is a wand's. See [`crate::catalog::SpellDef`].
+/// Which active spell this is — a spell's identity. See
+/// [`crate::catalog::SpellDef`].
 ///
 /// Serialised by variant position — append, never reorder.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SpellEffect {
-    /// A fire blast like [`WandEffect::Fire`], but the damage is whatever the
+    /// A fire blast like the wand of fire's, but the damage is whatever the
     /// caster's own attack deals. A dragon's breath is this spell; the player
     /// knows it as Fireball.
     DragonBreath,
@@ -1065,13 +1002,13 @@ pub enum SpellEffect {
     /// Does nothing now, and strengthens the caster's next swing
     /// ([`crate::effects::Bided`]).
     Bide,
-    /// A line of armour-ignoring damage: [`WandEffect::Striking`], cast.
+    /// A line of armour-ignoring damage: the wand of striking, cast.
     ForceLance,
     /// [`ScrollEffect::Identify`] on demand.
     Identify,
     /// Plants a revealed arrow trap on each of the caster's four diagonals.
     Setup,
-    /// [`WandEffect::Light`] hurled as a grenade: a wide, hot burst that blinds.
+    /// The wand of light hurled as a grenade: a wide, hot burst that blinds.
     Lux,
     /// Armour-ignoring drain on every hostile in view, handed back to the caster
     /// as HP.
@@ -1093,7 +1030,7 @@ pub enum SpellEffect {
     /// Appended, not filed under P: a save encodes a variant as its
     /// position. See `crate::items::wands::polymorph_entity`.
     PolymorphSelf,
-    /// Polymorphs the creature on the aimed tile, as [`WandEffect::Polymorph`]
+    /// Polymorphs the creature on the aimed tile, as the wand of polymorph
     /// does.
     PolymorphOther,
     /// Opens a trapdoor under the caster: [`ScrollEffect::Pitfall`] on demand.
@@ -1104,7 +1041,7 @@ impl SpellEffect {
     /// Whether triggering this spell opens the aiming reticle at all. Most
     /// attacks do; every skill that works on the caster alone or on
     /// everything in view has nothing to aim at, and fires the instant its
-    /// slot is pressed — the same courtesy [`WandEffect::needs_target`] gives
+    /// slot is pressed — the same courtesy [`crate::catalog::WandDef::needs_target`] gives
     /// the wand of light.
     pub fn needs_target(self) -> bool {
         !matches!(
@@ -1126,7 +1063,7 @@ impl SpellEffect {
 }
 
 /// The two shapes an active spell comes in — an attack wand's own split
-/// (`crate::items::wands::is_attack_wand`), drawn again here because a spell
+/// ([`crate::catalog::WandDef::attack`]), drawn again here because a spell
 /// answers to it too: a staff's [`crate::effects::TurboMagic`] multiplies the
 /// cost ([`TURBO_MAGIC_COST_MULT`](crate::constants::spells::TURBO_MAGIC_COST_MULT))
 /// and the damage ([`TURBO_MAGIC_POWER_MULT`](crate::constants::spells::TURBO_MAGIC_POWER_MULT))
@@ -1276,18 +1213,6 @@ pub enum Element {
 }
 
 impl Element {
-    /// Which element a wand's damage carries, if any. Non-elemental damage
-    /// (magic missile, lightning, striking) returns `None` and is never
-    /// resisted.
-    pub fn of(effect: WandEffect) -> Option<Element> {
-        match effect {
-            WandEffect::Fire => Some(Element::Fire),
-            WandEffect::Cold => Some(Element::Cold),
-            WandEffect::DrainLife => Some(Element::Drain),
-            _ => None,
-        }
-    }
-
     /// The marker effect that shrugs this element off.
     pub fn immunity(self) -> Grant {
         match self {
