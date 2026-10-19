@@ -6,7 +6,7 @@
 //!
 //! * [`potions`] — quaffing a potion ([`potions::apply_potion_effect`])
 //! * [`scrolls`] — reading a scroll ([`scrolls::apply_scroll_effect`])
-//! * [`runes`] — invoking a rune ([`runes::apply_rune_effect`]), which goes
+//! * [`runes`] — invoking a rune (each row's `apply` handler), which goes
 //!   inert instead of crumbling and wakes on the stairs
 //! * [`wands`] — zapping a wand ([`wands::apply_wand_effect`]), plus the blast
 //!   and bolt machinery a thrown wand also borrows
@@ -30,7 +30,7 @@ mod decks;
 mod pickups;
 mod potions;
 pub(crate) mod rings;
-mod runes;
+pub(crate) mod runes;
 mod scrolls;
 mod spells;
 mod theft;
@@ -133,7 +133,6 @@ use crate::helpers::item_label;
 use crate::identify::{display_name, with_the};
 
 use self::potions::apply_potion_effect;
-use self::runes::apply_rune_effect;
 use self::scrolls::apply_scroll_effect;
 use self::wands::{apply_wand_effect, is_attack_wand};
 
@@ -252,8 +251,8 @@ struct UsePlan {
     scroll: Option<ScrollEffect>,
     /// The card just taken off the top of a deck.
     card: Option<Card>,
-    /// A rune's effect, and whether it held a charge going in.
-    rune: Option<(RuneEffect, bool)>,
+    /// A rune's row, and whether it held a charge going in.
+    rune: Option<(&'static crate::catalog::RuneDef, bool)>,
     is_equipment: bool,
     destroy: bool,
     keep: bool,
@@ -274,7 +273,7 @@ fn plan_use(world: &mut World, user: Entity, item: Entity) -> UsePlan {
     plan.scroll = e.get::<Scroll>().map(|s| s.effect);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
     if let Some(mut rune) = e.get_mut::<Rune>() {
-        plan.rune = Some((rune.effect, rune.charged));
+        plan.rune = Some((rune.row, rune.charged));
         rune.charged = false;
         plan.keep = true;
     }
@@ -361,11 +360,11 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         decks::draw(world, item_use.user, deck, card);
     }
     match plan.rune {
-        Some((eff, true)) => {
+        Some((row, true)) => {
             world
                 .resource_mut::<GameLog>()
                 .add(strings::you_invoke(&seen_name));
-            apply_rune_effect(world, item_use.user, eff);
+            (row.apply)(world, item_use.user);
         }
         Some((_, false)) => world
             .resource_mut::<GameLog>()

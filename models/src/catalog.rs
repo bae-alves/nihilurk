@@ -33,6 +33,7 @@ use rand_chacha::ChaCha12Rng;
 use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
+use crate::items::runes;
 use crate::monsters::{BESTIARY, SUMMONS};
 
 // --- Tuning constants -----------------------------------------------------
@@ -381,19 +382,19 @@ pub const DECKS: &[DeckDef] = &[DeckDef {
 // ---------------------------------------------------------------------------
 
 /// A rune: a scroll that goes inert when read instead of crumbling, and wakes
-/// again on the stairs. Its mechanic lives in the `runes` submodule of
-/// `crate::items`, keyed by [`RuneDef::effect`]. There is no row for
-/// [`RuneEffect::Blank`]: only a wand of cancellation makes one.
+/// again on the stairs. The row is the rune: a [`Rune`] points at its row, and
+/// invoking it calls the row's `apply`. The handlers live in the `runes`
+/// submodule of `crate::items`.
 pub struct RuneDef {
-    /// The [`RuneEffect`] this row is the entry for.
-    pub effect: RuneEffect,
     /// The row's identity: the save file stores it and
     /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
     /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// What invoking a charged rune does to its `user`.
+    pub apply: fn(&mut World, Entity),
 }
 
-impl ItemDef for RuneDef {
+impl ItemDef for &'static RuneDef {
     fn name(&self) -> &'static str {
         self.name
     }
@@ -411,7 +412,7 @@ impl ItemDef for RuneDef {
                 pos,
                 Item,
                 Rune {
-                    effect: self.effect,
+                    row: self,
                     charged: true,
                 },
             ))
@@ -421,14 +422,31 @@ impl ItemDef for RuneDef {
 
 /// Every rune the dungeon drops, one row each.
 #[rustfmt::skip]
-pub const RUNES: &[RuneDef] = &[
-    RuneDef { effect: RuneEffect::Recharging,   name: "rune of recharging" },
-    RuneDef { effect: RuneEffect::Displacement, name: "rune of displacement" },
-    RuneDef { effect: RuneEffect::Justice,      name: "rune of justice" },
-    RuneDef { effect: RuneEffect::Chaos,        name: "rune of chaos" },
-    RuneDef { effect: RuneEffect::Ice,          name: "rune of ice" },
-    RuneDef { effect: RuneEffect::Protection,   name: "rune of protection" },
+pub static RUNES: &[&RuneDef] = &[
+    &RuneDef { name: "rune of recharging",   apply: runes::recharging },
+    &RuneDef { name: "rune of displacement", apply: runes::displacement },
+    &RuneDef { name: "rune of justice",      apply: runes::justice },
+    &RuneDef { name: "rune of chaos",        apply: runes::chaos },
+    &RuneDef { name: "rune of ice",          apply: runes::ice },
+    &RuneDef { name: "rune of protection",   apply: runes::protection },
 ];
+
+/// What a wand of cancellation leaves of any rune. Kept out of [`RUNES`], so
+/// the dungeon never drops one.
+pub static BLANK_RUNE: RuneDef = RuneDef {
+    name: "blank rune",
+    apply: runes::blank,
+};
+
+/// The rune row called `name`, the blank one included: how a load finds a
+/// saved rune's row again.
+pub fn rune_row(name: &str) -> Option<&'static RuneDef> {
+    RUNES
+        .iter()
+        .copied()
+        .chain([&BLANK_RUNE])
+        .find(|row| row.name == name)
+}
 
 // ---------------------------------------------------------------------------
 // Wands
@@ -1525,16 +1543,6 @@ pub fn spawn_scroll(world: &mut World, effect: ScrollEffect, pos: Position) -> E
         .iter()
         .find(|d| d.effect == effect)
         .expect("scroll row")
-        .spawn(world, pos)
-}
-
-/// A rune of `effect` on the floor at `pos`. Panics if [`RUNES`] has no row for
-/// it: [`RuneEffect::Blank`] has none, since only cancellation makes one.
-pub fn spawn_rune(world: &mut World, effect: RuneEffect, pos: Position) -> Entity {
-    RUNES
-        .iter()
-        .find(|d| d.effect == effect)
-        .expect("rune row")
         .spawn(world, pos)
 }
 

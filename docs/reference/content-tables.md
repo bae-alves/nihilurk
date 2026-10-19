@@ -146,12 +146,12 @@ The dials the arms read — what one enchantment is worth, how long sleep and ho
 
 | Field    | Type           | Notes                                    |
 |----------|----------------|------------------------------------------|
-| `effect` | `RuneEffect`   | Keys the mechanic; identity in saves.    |
-| `name`   | `&'static str` |                                          |
+| `name`   | `&'static str` | Identity; the save stores it.            |
+| `apply`  | `fn(&mut World, Entity)` | What invoking it does to the user. Required. |
 
-Draws `'`, always white. Attaches `Item` and `Rune { effect, charged: true }`, and no `Consume`: reading a rune spends its charge (`item_system` clears `charged`), and it stays in its pack slot, shown as `(inert)`. A staircase wakes every spent rune in the pack (`items::recharge_runes`, called from `transition_level` for `LevelChange::Stairs` only: a trapdoor or a portal does not). `r` reads scrolls and runes. Mechanic: `apply_rune_effect` in `models/src/items/runes.rs`, exhaustive with no catch-all like `apply_scroll_effect`.
+Draws `'`, always white. Attaches `Item` and `Rune { row, charged: true }`, and no `Consume`: reading a rune spends its charge (`item_system` clears `charged`), and it stays in its pack slot, shown as `(inert)`. A staircase wakes every spent rune in the pack (`items::recharge_runes`, called from `transition_level` for `LevelChange::Stairs` only: a trapdoor or a portal does not). `r` reads scrolls and runes. Mechanic: the row's `apply`, one handler per row in `models/src/items/runes.rs`. Rows are `static`, so a `Rune` holds the row itself.
 
-There is no row for `RuneEffect::Blank`. A wand of cancellation makes one out of any rune the player carries, and a blank rune never wakes. Displacement is a scroll of teleportation; Chaos and Ice cast Haste Self and Frost Nova for free; Recharging adds `RECHARGE_STEP` to every wand's `Battery` up to `RECHARGE_CAP`; Justice lends `ExplodesOnDeath` to everything in view; Protection lends `Protected` for `PROTECTION_TURNS`. The dials are `constants::runes`. Runes drop from floor 3 (see DROPS). Only the player invokes one: a monster that catches a thrown rune does nothing with it.
+`BLANK_RUNE` sits outside `RUNES`, so nothing drops one. A wand of cancellation makes one out of any rune the player carries, and a blank rune never wakes. Displacement is a scroll of teleportation; Chaos and Ice cast Haste Self and Frost Nova for free; Recharging adds `RECHARGE_STEP` to every wand's `Battery` up to `RECHARGE_CAP`; Justice lends `ExplodesOnDeath` to everything in view; Protection lends `Protected` for `PROTECTION_TURNS`. The dials are `constants::runes`. Runes drop from floor 3 (see DROPS). Only the player invokes one: a monster that catches a thrown rune does nothing with it.
 
 ### WANDS — WandDef
 

@@ -367,7 +367,9 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
 fn cancellation_blanks_the_runes_the_player_carries() {
     let mut w = test_world(4);
     let p = player(&mut w);
-    let rune = stash(&mut w, p, |w| spawn_rune(w, RuneEffect::Justice, NOWHERE));
+    let rune = stash(&mut w, p, |w| {
+        spawn_named(w, "rune of justice", NOWHERE).unwrap()
+    });
 
     let spot = east_of_player(&mut w, 1);
     monster(&mut w, "bat", spot);
@@ -378,7 +380,7 @@ fn cancellation_blanks_the_runes_the_player_carries() {
     throw(&mut w, p, wand, spot);
 
     let blanked = w.get::<Rune>(rune).unwrap();
-    assert_eq!(blanked.effect, RuneEffect::Blank);
+    assert!(std::ptr::eq(blanked.row, &BLANK_RUNE));
     assert!(!blanked.charged, "nothing left in it to wake");
 }
 

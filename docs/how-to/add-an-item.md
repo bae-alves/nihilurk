@@ -28,7 +28,7 @@ At a glance
 | Scroll    | `SCROLLS`   | no         | a `ScrollEffect` variant + a mechanic |
 | Wand      | `WANDS`     | no         | a `WandEffect` variant + a mechanic |
 | Deck      | `DECKS`     | yes        | a new card: a `CardFace` variant, a `CARDS` row + an arm in `items/decks.rs` |
-| Rune      | `RUNES`     | no         | a `RuneEffect` variant + an arm in `apply_rune_effect` |
+| Rune      | `RUNES`     | no         | a handler in `items/runes.rs`, named by the row |
 
 Every table is in `models/src/catalog.rs`. Every effect enum is in `models/src/components.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `throwing.rs` (`models/src/items.rs` itself is just the `item_system` dispatcher).
 
@@ -185,11 +185,13 @@ These three are consumables with a mechanic, so they take three edits. The patte
 > The guarantee is only that you *chose* nothing, not that you *forgot*
 > to write something.
 
-Runes take the same three edits, with `RuneEffect`, `RUNES` and `apply_rune_effect(world, user, effect)` in `models/src/items/runes.rs`:
+Runes take two edits and no enum. Write the handler, `fn(&mut World, Entity)`, in `models/src/items/runes.rs`, and name it in the row's required `apply` field:
 
-    RuneDef { effect: RuneEffect::Ice, name: "rune of ice" },
+    &RuneDef { name: "rune of ice", apply: runes::ice },
 
-A rune draws as `'`, always white. It is a scroll that goes inert when read instead of crumbling, and a staircase wakes it, so the mechanic is "what happens on each invocation" and never "what is left afterwards". `RuneEffect::Blank` is the one variant with no row: a wand of cancellation makes it. Only the player invokes a rune.
+The row is the rune: a `Rune` component points at its row, and the save stores the row's name. A row without `apply` does not compile.
+
+A rune draws as `'`, always white. It is a scroll that goes inert when read instead of crumbling, and a staircase wakes it, so the mechanic is "what happens on each invocation" and never "what is left afterwards". `BLANK_RUNE` is the one row outside `RUNES`: a wand of cancellation makes it. Only the player invokes a rune.
 
 Wands only: if your wand should *not* open the aiming reticle -- it acts on the zapper or the room, like the wand of light -- add it to `WandEffect::needs_target` in `models/src/components.rs`.
 
@@ -229,7 +231,7 @@ Appendix: quick check
 1. Find your category in "At a glance".
 2. Weapon, armour, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
 3. Ring: append a `RingEffect` variant at the end, then add the `RingDef::new` row.
-4. Potion, scroll, wand, rune: append the effect variant at the end, add the row, write the arm in `apply_potion_effect`, `apply_scroll_effect`, `apply_wand_effect` or `apply_rune_effect`.
+4. Potion, scroll, wand: append the effect variant at the end, add the row, write the arm in `apply_potion_effect`, `apply_scroll_effect` or `apply_wand_effect`. Rune: write the handler in `items/runes.rs` and add the row naming it.
 5. A wand with no reticle (it acts on the room or the zapper): add it to `WandEffect::needs_target`.
 6. Never insert or reorder an enum variant; a save stores its position.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.

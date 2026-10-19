@@ -536,6 +536,10 @@ fn the_dungeon_never_generates_a_dud_as_normal_loot() {
         !WANDS.iter().any(|d| d.effect == WandEffect::Nothing),
         "wand of nothing must not be a spawnable row"
     );
+    assert!(
+        !RUNES.iter().any(|d| std::ptr::eq(*d, &BLANK_RUNE)),
+        "the blank rune must not be a spawnable row"
+    );
 }
 
 /// A swimmer lives in the water, so only a water tile ever asks for one: the

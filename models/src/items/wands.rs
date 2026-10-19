@@ -1162,10 +1162,10 @@ fn cancel_player(world: &mut World, player: Entity) {
             }
         }
         if let Some(mut rune) = em.get_mut::<Rune>() {
-            rune.effect = RuneEffect::Blank;
+            rune.row = &crate::catalog::BLANK_RUNE;
             rune.charged = false;
             if let Some(mut name) = em.get_mut::<Name>() {
-                name.what = strings::content_name("blank rune").to_string();
+                name.what = strings::content_name(crate::catalog::BLANK_RUNE.name).to_string();
             }
         }
         if let Some(mut potion) = em.get_mut::<Potion>() {

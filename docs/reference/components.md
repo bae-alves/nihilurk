@@ -184,7 +184,7 @@ Components — item type keys
 | `Scroll`  | `ScrollEffect`| `items/scrolls.rs`                    | key yes |
 | `Wand`    | `WandEffect`  | `items/wands.rs`; thrown, `items/throwing.rs` | key yes |
 | `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
-| `Rune`    | `RuneEffect`  | `items/runes.rs`; `charged: bool` says whether it still holds a use | key and `charged` yes |
+| `Rune`    | `&'static RuneDef` | its row's `apply`, in `items/runes.rs`; `charged: bool` says whether it still holds a use | row name and `charged` yes |
 | `Curse`   | marker        | equipped-and-stuck until remove curse destroys it, or a scroll of enchantment burns it off | yes |
 | `MegaCurse` | marker      | rides with `Curse` on a MEGACURSED item; nothing lifts it or destroys the item but a suit taking the killing blow | yes |
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
@@ -203,8 +203,6 @@ All five key enums are **saved by variant order** — append, never reorder. The
 `WandEffect`: Light, Striking, Lightning, Fire, Cold, Polymorph, MagicMissile, HasteMonster, SlowMonster, DrainLife, Nothing, TeleportAway, TeleportTo, Cancellation, Charming, Digging, Swapping.
 
 `RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor, Polymorph, SustainForm, DualZap, Health.
-
-`RuneEffect` (every arm wired; `Blank` does nothing on purpose and has no `RUNES` row): Blank, Recharging, Displacement, Justice, Chaos, Ice, Protection.
 
 A `Rune` is a scroll that goes inert when read: reading spends `charged` instead of destroying the item, and `items::recharge_runes` wakes every non-blank rune in the pack on a staircase. A trapdoor does not. Only the player invokes one.
 

@@ -3552,11 +3552,8 @@ mod tests {
     fn using_an_inert_rune_says_so_and_costs_nothing() {
         let mut w = modal_world(3);
         let player = player_entity(&mut w);
-        let rune = models::spawn_rune(
-            &mut w,
-            models::RuneEffect::Displacement,
-            Position { x: 0, y: 0 },
-        );
+        let rune =
+            models::spawn_named(&mut w, "rune of displacement", Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(rune).remove::<Position>();
         w.get_mut::<models::Rune>(rune).unwrap().charged = false;
         w.get_mut::<Backpack>(player).unwrap().items.insert(0, rune);

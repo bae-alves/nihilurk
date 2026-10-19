@@ -159,7 +159,7 @@ fn zapping_a_wand_breaks_wands_only() {
 #[test]
 fn invoking_a_charged_rune_breaks_runes_only() {
     let mut w = run(Body::Nihil);
-    let rune = spawn_rune(&mut w, RuneEffect::Recharging, NOWHERE);
+    let rune = spawn_named(&mut w, "rune of recharging", NOWHERE).unwrap();
     stash(&mut w, rune);
     use_item(&mut w, rune);
     only_broken(&mut w, Conduct::Runes);
@@ -168,7 +168,7 @@ fn invoking_a_charged_rune_breaks_runes_only() {
 #[test]
 fn an_inert_rune_breaks_nothing() {
     let mut w = run(Body::Nihil);
-    let rune = spawn_rune(&mut w, RuneEffect::Recharging, NOWHERE);
+    let rune = spawn_named(&mut w, "rune of recharging", NOWHERE).unwrap();
     w.get_mut::<Rune>(rune).unwrap().charged = false;
     stash(&mut w, rune);
     use_item(&mut w, rune);

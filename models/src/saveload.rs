@@ -56,7 +56,7 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use crate::catalog::{RingDef, content_id_of, restore_from_catalog};
+use crate::catalog::{RingDef, content_id_of, restore_from_catalog, rune_row};
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
 use crate::effects::{
@@ -289,9 +289,10 @@ struct EntitySave<'a> {
     /// A deck's remaining cards, bottom first. See [`Deck`].
     #[serde(default)]
     deck: Option<Vec<Card>>,
-    /// A rune's effect and whether it still holds a charge.
+    /// A rune's row name and whether it still holds a charge. The loader finds
+    /// the row again by name ([`rune_row`]).
     #[serde(default)]
-    rune: Option<(RuneEffect, bool)>,
+    rune: Option<(String, bool)>,
     /// The id of the catalog row this entity was made from (see
     /// [`content_id_of`]). The loader reads the row back by it, and rebuilds
     /// [`Name`] from it, so nothing depends on what a row is called in the
@@ -314,7 +315,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 10;
+pub const SAVE_VERSION: u16 = 11;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -640,7 +641,9 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             wand: er.get::<Wand>().map(|w| w.effect),
             ranged: er.get::<Ranged>().map(|r| r.range),
             scroll: er.get::<Scroll>().map(|s| s.effect),
-            rune: er.get::<Rune>().map(|r| (r.effect, r.charged)),
+            rune: er
+                .get::<Rune>()
+                .map(|r| (r.row.name.to_string(), r.charged)),
             ring: er.get::<Ring>().map(|r| r.effect),
             equipped: er.get::<Equipped>().map(|e| e.slot),
             power_die: er.get::<PowerDie>().map(|m| m.0),
@@ -912,6 +915,17 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             "save file names an entity index outside its own entity list",
         ));
     }
+    let runes_known = save.entities.iter().all(|es| {
+        es.rune
+            .as_ref()
+            .is_none_or(|(name, _)| rune_row(name).is_some())
+    });
+    if !runes_known {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "save file names a rune this build has no row for",
+        ));
+    }
 
     let mut new_ents = Vec::with_capacity(count);
     for _ in 0..count {
@@ -1032,8 +1046,10 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if let Some(effect) = es.scroll {
             em.insert(Scroll { effect });
         }
-        if let Some((effect, charged)) = es.rune {
-            em.insert(Rune { effect, charged });
+        if let Some((name, charged)) = es.rune
+            && let Some(row) = rune_row(&name)
+        {
+            em.insert(Rune { row, charged });
         }
         if let Some(effect) = es.ring {
             em.insert(Ring { effect });
@@ -1629,7 +1645,7 @@ mod tests {
                 face: CardFace::GoldenWind,
                 reversed: true,
             }]),
-            rune: Some((RuneEffect::Protection, true)),
+            rune: Some(("rune of protection".to_string(), true)),
             content: Some(Cow::Borrowed("arrow")),
         }
     }
@@ -1698,6 +1714,17 @@ mod tests {
     fn load_one(tag: &str, entity: EntitySave) -> World {
         load_bytes(tag, &encode(SAVE_VERSION, &blank_save(vec![entity])))
             .expect("a well-formed save loads")
+    }
+
+    #[test]
+    fn a_rune_no_row_has_refuses_the_load() {
+        let mut entity = blank_entity();
+        entity.rune = Some(("rune of nowhere".to_string(), true));
+        let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
+        let err = load_bytes("unknown-rune", &bytes)
+            .err()
+            .expect("the load is refused");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     }
 
     #[test]

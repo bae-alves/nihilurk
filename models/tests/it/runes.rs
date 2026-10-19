@@ -56,14 +56,44 @@ fn stash(w: &mut World, user: Entity, item: Entity) -> Entity {
     item
 }
 
-/// A fresh rune of `effect` in `user`'s pack.
-fn pack_rune(w: &mut World, user: Entity, effect: RuneEffect) -> Entity {
-    let rune = spawn_rune(w, effect, NOWHERE);
+/// A fresh rune called `name` in `user`'s pack.
+fn pack_rune(w: &mut World, user: Entity, name: &str) -> Entity {
+    let rune = spawn_named(w, name, NOWHERE).unwrap();
     stash(w, user, rune)
 }
 
 fn charged(w: &World, rune: Entity) -> bool {
     w.get::<Rune>(rune).unwrap().charged
+}
+
+// ---------------------------------------------------------------------------
+// The row is the rune
+// ---------------------------------------------------------------------------
+
+/// What the fixture rune leaves on whoever invokes it.
+#[derive(Component)]
+struct Invoked;
+
+fn mark_invoker(world: &mut World, user: Entity) {
+    world.entity_mut(user).insert(Invoked);
+}
+
+static FIXTURE_RUNE: RuneDef = RuneDef {
+    name: "rune of the test",
+    apply: mark_invoker,
+};
+
+#[test]
+fn a_rune_does_what_its_row_says() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let rune = (&FIXTURE_RUNE).spawn(&mut w, NOWHERE);
+    stash(&mut w, p, rune);
+
+    use_item(&mut w, p, rune);
+
+    assert!(w.get::<Invoked>(p).is_some());
+    assert!(!charged(&w, rune));
 }
 
 /// Two open tiles side by side on the hero's row, east of them, nearest first.
@@ -90,7 +120,7 @@ fn make_tough(w: &mut World, e: Entity) {
 fn a_charged_rune_fires_once_stays_in_its_slot_and_goes_inert() {
     let mut w = test_world(7);
     let p = player(&mut w);
-    let rune = pack_rune(&mut w, p, RuneEffect::Displacement);
+    let rune = pack_rune(&mut w, p, "rune of displacement");
     let slot = w
         .get::<Backpack>(p)
         .unwrap()
@@ -128,8 +158,8 @@ fn a_charged_rune_fires_once_stays_in_its_slot_and_goes_inert() {
 fn the_stairs_wake_every_inert_rune_in_the_pack() {
     let mut w = test_world(7);
     let p = player(&mut w);
-    let a = pack_rune(&mut w, p, RuneEffect::Ice);
-    let b = pack_rune(&mut w, p, RuneEffect::Chaos);
+    let a = pack_rune(&mut w, p, "rune of ice");
+    let b = pack_rune(&mut w, p, "rune of chaos");
     w.get_mut::<Rune>(a).unwrap().charged = false;
     w.get_mut::<Rune>(b).unwrap().charged = false;
 
@@ -152,7 +182,7 @@ fn the_stairs_wake_every_inert_rune_in_the_pack() {
 fn a_trapdoor_does_not_wake_a_rune() {
     let mut w = test_world(7);
     let p = player(&mut w);
-    let rune = pack_rune(&mut w, p, RuneEffect::Ice);
+    let rune = pack_rune(&mut w, p, "rune of ice");
     w.get_mut::<Rune>(rune).unwrap().charged = false;
 
     let pit = spawn_scroll(&mut w, ScrollEffect::Pitfall, NOWHERE);
@@ -167,7 +197,7 @@ fn a_trapdoor_does_not_wake_a_rune() {
 fn the_read_menu_lists_runes() {
     let mut w = test_world(7);
     let p = player(&mut w);
-    let rune = pack_rune(&mut w, p, RuneEffect::Ice);
+    let rune = pack_rune(&mut w, p, "rune of ice");
     assert!(PackMode::Read.admits(&w, rune));
 }
 
@@ -189,7 +219,7 @@ fn recharging_adds_one_charge_to_every_wand_up_to_the_cap() {
         })
         .collect();
 
-    let rune = pack_rune(&mut w, p, RuneEffect::Recharging);
+    let rune = pack_rune(&mut w, p, "rune of recharging");
     use_item(&mut w, p, rune);
 
     let now: Vec<i8> = wands
@@ -208,7 +238,7 @@ fn recharging_adds_one_charge_to_every_wand_up_to_the_cap() {
 fn chaos_hastes_the_reader() {
     let mut w = test_world(7);
     let p = player(&mut w);
-    let rune = pack_rune(&mut w, p, RuneEffect::Chaos);
+    let rune = pack_rune(&mut w, p, "rune of chaos");
     use_item(&mut w, p, rune);
     assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Fast);
 }
@@ -223,7 +253,7 @@ fn ice_freezes_what_the_reader_can_see_and_only_that() {
     let unseen = monster::plain_monster(&mut w, "troll", far);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (near.x, near.y)];
 
-    let rune = pack_rune(&mut w, p, RuneEffect::Ice);
+    let rune = pack_rune(&mut w, p, "rune of ice");
     use_item(&mut w, p, rune);
 
     assert!(w.get::<Fighter>(seen).unwrap().hp < 100, "it is hurt");
@@ -246,7 +276,7 @@ fn protection_stops_all_damage_for_six_turns_and_then_stops_stopping_it() {
     let orc = monster::plain_monster(&mut w, "orc", near);
     w.get_mut::<Fighter>(orc).unwrap().power = 8;
 
-    let rune = pack_rune(&mut w, p, RuneEffect::Protection);
+    let rune = pack_rune(&mut w, p, "rune of protection");
     use_item(&mut w, p, rune);
     assert!(w.get::<Protected>(p).is_some());
 
@@ -313,7 +343,7 @@ fn justice_scene(w: &mut World) -> (Entity, Entity, Entity) {
     }
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (at_a.x, at_a.y)];
 
-    let rune = pack_rune(w, p, RuneEffect::Justice);
+    let rune = pack_rune(w, p, "rune of justice");
     use_item(w, p, rune);
     (p, a, b)
 }
@@ -363,7 +393,7 @@ fn displacement_is_a_scroll_of_teleportation() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let before = *w.get::<Position>(p).unwrap();
-    let rune = pack_rune(&mut w, p, RuneEffect::Displacement);
+    let rune = pack_rune(&mut w, p, "rune of displacement");
     use_item(&mut w, p, rune);
     let after = *w.get::<Position>(p).unwrap();
     assert_ne!((after.x, after.y), (before.x, before.y));
@@ -379,8 +409,8 @@ fn a_blank_rune_does_nothing_and_says_so() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let before = *w.get::<Position>(p).unwrap();
-    let rune = pack_rune(&mut w, p, RuneEffect::Justice);
-    w.get_mut::<Rune>(rune).unwrap().effect = RuneEffect::Blank;
+    let rune = pack_rune(&mut w, p, "rune of justice");
+    w.get_mut::<Rune>(rune).unwrap().row = &BLANK_RUNE;
     use_item(&mut w, p, rune);
     let after = *w.get::<Position>(p).unwrap();
     assert_eq!((after.x, after.y), (before.x, before.y));
@@ -391,17 +421,10 @@ fn a_blank_rune_does_nothing_and_says_so() {
 // Saves
 // ---------------------------------------------------------------------------
 
-#[test]
-fn a_rune_keeps_its_kind_and_its_charge_through_a_save() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    pack_rune(&mut w, p, RuneEffect::Justice);
-    let spent = pack_rune(&mut w, p, RuneEffect::Ice);
-    w.get_mut::<Rune>(spent).unwrap().charged = false;
-
-    let file = common::SaveFile::new("runes");
-    save_game(&mut w, file.path()).unwrap();
-
+/// `w` written to a save file and read back into a fresh world.
+fn saved_and_loaded(w: &mut World, tag: &str) -> World {
+    let file = common::SaveFile::new(tag);
+    save_game(w, file.path()).unwrap();
     let mut loaded = World::new();
     loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
     loaded.insert_resource(RngSeed(3));
@@ -410,16 +433,60 @@ fn a_rune_keeps_its_kind_and_its_charge_through_a_save() {
         what: "TESTER".into(),
     });
     load_game(&mut loaded, file.path()).unwrap();
+    loaded
+}
+
+#[test]
+fn every_rune_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    w.get_mut::<Backpack>(p).unwrap().items.clear();
+    let rows: Vec<&'static RuneDef> = RUNES.iter().copied().chain([&BLANK_RUNE]).collect();
+    for row in &rows {
+        let rune = row.spawn(&mut w, NOWHERE);
+        stash(&mut w, p, rune);
+    }
+
+    let mut loaded = saved_and_loaded(&mut w, "rune-rows");
+
+    let lp = player(&mut loaded);
+    let back: Vec<&'static RuneDef> = loaded
+        .get::<Backpack>(lp)
+        .unwrap()
+        .items
+        .iter()
+        .filter_map(|&e| loaded.get::<Rune>(e).map(|r| r.row))
+        .collect();
+    assert_eq!(back.len(), rows.len());
+    for (was, is) in rows.iter().zip(&back) {
+        assert!(
+            std::ptr::eq(*was, *is),
+            "{} came back as {}",
+            was.name,
+            is.name
+        );
+    }
+}
+
+#[test]
+fn a_rune_keeps_its_kind_and_its_charge_through_a_save() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    pack_rune(&mut w, p, "rune of justice");
+    let spent = pack_rune(&mut w, p, "rune of ice");
+    w.get_mut::<Rune>(spent).unwrap().charged = false;
+
+    let mut loaded = saved_and_loaded(&mut w, "runes");
 
     let lp = player(&mut loaded);
     let pack = loaded.get::<Backpack>(lp).unwrap().items.clone();
-    let runes: Vec<(RuneEffect, bool)> = pack
+    let runes: Vec<(&str, bool)> = pack
         .iter()
         .filter_map(|&e| loaded.get::<Rune>(e))
-        .map(|r| (r.effect, r.charged))
+        .map(|r| (r.row.name, r.charged))
         .collect();
     assert_eq!(
         runes,
-        vec![(RuneEffect::Justice, true), (RuneEffect::Ice, false)]
+        vec![("rune of justice", true), ("rune of ice", false)]
     );
 }

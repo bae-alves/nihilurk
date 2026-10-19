@@ -314,7 +314,10 @@ fn a_queued_throw_and_use_leave_the_pack_alone_until_the_schedule_runs() {
     assert!(queue_throw(&mut w, player, quiver, target));
     assert!(queue_use(&mut w, player, potion, None));
 
-    assert_eq!(w.get::<Backpack>(player).unwrap().items, vec![potion, quiver]);
+    assert_eq!(
+        w.get::<Backpack>(player).unwrap().items,
+        vec![potion, quiver]
+    );
     assert_eq!(w.get::<Stack>(quiver).unwrap().count, 7);
     let throw = w.resource::<ThrowQueue>().throws[0];
     assert_eq!((throw.item, throw.slot_idx), (quiver, Some(1)));

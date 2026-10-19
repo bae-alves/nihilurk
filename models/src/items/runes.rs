@@ -1,13 +1,15 @@
 //! Invoking a rune.
 //!
-//! The catalog ([`crate::catalog::RUNES`]) names each rune; this file is where
-//! the one on it takes effect, keyed by [`RuneEffect`]. A rune is a scroll that
-//! goes inert instead of crumbling, so [`super::resolve_use`] spends its
-//! [`Rune::charged`] and calls [`apply_rune_effect`]; a staircase wakes it again
-//! through [`recharge_runes`]. Only the player ever invokes one.
+//! Each row of [`crate::catalog::RUNES`] names one of the handlers here as its
+//! `apply`. A rune is a scroll that goes inert instead of crumbling, so
+//! [`super::resolve_use`] spends its [`Rune::charged`] and calls the row's
+//! handler; a staircase wakes it again through [`recharge_runes`]. Only the
+//! player ever invokes one. Chaos and Ice cast the spell they are named for,
+//! free; the spell's own flourish and log lines are the rune's.
 
 use bevy_ecs::{entity::Entity, world::World};
 
+use crate::catalog::BLANK_RUNE;
 use crate::components::*;
 use crate::constants::runes::*;
 use crate::effects::{ExplodesOnDeath, Grant, Lifetime, Protected, lend};
@@ -16,30 +18,37 @@ use crate::helpers::hostiles_in_view;
 use super::scrolls::apply_scroll_effect;
 use super::spells::apply_spell_effect;
 
-/// Exhaustive over [`RuneEffect`], deliberately with no catch-all: a rune added
-/// to the enum and not given an arm here fails the build instead of reading as
-/// nothing — the same guarantee [`super::scrolls::apply_scroll_effect`] gives a
-/// new scroll. Chaos and Ice cast the spell they are named for, free; the
-/// spell's own flourish and log lines are the rune's.
-pub(super) fn apply_rune_effect(world: &mut World, user: Entity, effect: RuneEffect) {
-    match effect {
-        RuneEffect::Blank => log(world, strings::rune_blank_nothing()),
-        RuneEffect::Recharging => recharge_wands(world, user),
-        RuneEffect::Displacement => apply_scroll_effect(world, user, ScrollEffect::Teleportation),
-        RuneEffect::Justice => mark_the_watchers(world, user),
-        RuneEffect::Chaos => cast_free(world, user, SpellEffect::HasteSelf),
-        RuneEffect::Ice => cast_free(world, user, SpellEffect::FrostNova),
-        RuneEffect::Protection => {
-            lend(
-                world,
-                user,
-                Grant::of::<Protected>(),
-                Lifetime::Turns(PROTECTION_TURNS),
-            );
-            let line = strings::rune_protection_cast(PROTECTION_TURNS);
-            world.resource_mut::<GameLog>().add(line);
-        }
-    }
+/// The blank rune: does nothing, and says so.
+pub(crate) fn blank(world: &mut World, _user: Entity) {
+    log(world, strings::rune_blank_nothing());
+}
+
+/// Rune of displacement: a scroll of teleportation.
+pub(crate) fn displacement(world: &mut World, user: Entity) {
+    apply_scroll_effect(world, user, ScrollEffect::Teleportation);
+}
+
+/// Rune of chaos: the spell Haste Self, free.
+pub(crate) fn chaos(world: &mut World, user: Entity) {
+    cast_free(world, user, SpellEffect::HasteSelf);
+}
+
+/// Rune of ice: the spell Frost Nova, free.
+pub(crate) fn ice(world: &mut World, user: Entity) {
+    cast_free(world, user, SpellEffect::FrostNova);
+}
+
+/// Rune of protection: no damage at all for [`PROTECTION_TURNS`] turns
+/// ([`Protected`]).
+pub(crate) fn protection(world: &mut World, user: Entity) {
+    lend(
+        world,
+        user,
+        Grant::of::<Protected>(),
+        Lifetime::Turns(PROTECTION_TURNS),
+    );
+    let line = strings::rune_protection_cast(PROTECTION_TURNS);
+    world.resource_mut::<GameLog>().add(line);
 }
 
 /// Wakes every spent rune `player` is carrying: what a staircase does. A blank
@@ -51,7 +60,7 @@ pub(crate) fn recharge_runes(world: &mut World, player: Entity) {
         .unwrap_or_default();
     for item in carried {
         if let Some(mut rune) = world.get_mut::<Rune>(item) {
-            rune.charged |= rune.effect != RuneEffect::Blank;
+            rune.charged |= !std::ptr::eq(rune.row, &BLANK_RUNE);
         }
     }
 }
@@ -62,7 +71,7 @@ fn log(world: &mut World, line: &str) {
 
 /// Rune of recharging: [`RECHARGE_STEP`] more in every wand `user` carries,
 /// never past [`RECHARGE_CAP`] and never lowering one that is already there.
-fn recharge_wands(world: &mut World, user: Entity) {
+pub(crate) fn recharging(world: &mut World, user: Entity) {
     let carried = world
         .get::<Backpack>(user)
         .map(|bp| bp.items.clone())
@@ -89,7 +98,7 @@ fn recharge_wands(world: &mut World, user: Entity) {
 
 /// Rune of justice: every hostile in view will burst when it dies
 /// ([`ExplodesOnDeath`]). Held for the floor, which is as long as they live.
-fn mark_the_watchers(world: &mut World, user: Entity) {
+pub(crate) fn justice(world: &mut World, user: Entity) {
     let watchers = hostiles_in_view(world, user);
     let line = match watchers.is_empty() {
         true => strings::rune_justice_nobody(),
