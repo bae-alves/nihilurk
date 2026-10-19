@@ -214,13 +214,30 @@ pub(crate) fn sink_items(world: &mut World) -> Vec<(Position, String)> {
 ///
 /// Assumes nothing upstream but a filled [`UseQueue`]: a targeted use was
 /// already aimed at the reticle before it was queued, so this only has to
-/// resolve what arrives.
+/// resolve what arrives. A use that names a pack row finds its item still in
+/// the pack and lifts it here; one whose item has left the pack since does
+/// nothing.
 pub fn item_system(world: &mut World) {
     let uses = std::mem::take(&mut world.resource_mut::<UseQueue>().uses);
-    for item_use in uses {
+    for mut item_use in uses {
         crate::equipment::reset_momentum(world, item_use.user);
+        if item_use.slot_idx.is_some() {
+            let Some(row) = lift_from_pack(world, item_use.user, item_use.item) else {
+                continue;
+            };
+            item_use.slot_idx = Some(row);
+        }
         resolve_use(world, item_use);
     }
+}
+
+/// Takes `item` out of `carrier`'s pack and returns the row it sat in, or
+/// `None` when the pack does not hold it.
+pub(crate) fn lift_from_pack(world: &mut World, carrier: Entity, item: Entity) -> Option<usize> {
+    let mut pack = world.get_mut::<Backpack>(carrier)?;
+    let row = pack.items.iter().position(|&held| held == item)?;
+    pack.items.remove(row);
+    Some(row)
 }
 
 /// What a single queued use is: the kinds of thing the item might be, and what

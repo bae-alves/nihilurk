@@ -73,10 +73,6 @@ fn cold_kill(w: &mut World, victim: Entity) {
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);
     let at = *w.get::<Position>(victim).unwrap();
     w.get_mut::<Fighter>(victim).unwrap().hp = 1;
-    w.get_mut::<Backpack>(p)
-        .unwrap()
-        .items
-        .retain(|&e| e != wand);
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
         user: p,
         item: wand,
@@ -253,7 +249,7 @@ fn zap(w: &mut World, effect: WandEffect, at: Position) {
         user: p,
         item: wand,
         target: Some(at),
-        slot_idx: Some(0),
+        slot_idx: None,
     });
     item_system(w);
 }

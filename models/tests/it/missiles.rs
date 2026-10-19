@@ -72,24 +72,20 @@ fn quiver(w: &mut World, p: Entity, name: &str, count: u8) -> Entity {
     ammo
 }
 
-/// The engine's Throw action, in full: the item leaves the pack, a stack gives
-/// up one of itself, and `throw_system` finds out where the missile ends up.
-/// Returns whatever actually took flight.
-fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Entity {
-    let mut slot = None;
-    if let Some(mut bp) = w.get_mut::<Backpack>(thrower) {
-        slot = bp.items.iter().position(|&e| e == item);
-        bp.items.retain(|&e| e != item);
-    }
-    let missile = draw_one(w, thrower, item, slot);
+/// The engine's Throw action, in full: the throw names the item's pack row,
+/// and `throw_system` lifts it (a stack gives up one of itself) and finds out
+/// where the missile ends up.
+fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) {
+    let slot = w
+        .get::<Backpack>(thrower)
+        .and_then(|bp| bp.items.iter().position(|&e| e == item));
     w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
         thrower,
-        item: missile,
+        item,
         target,
         slot_idx: slot,
     });
     throw_system(w);
-    missile
 }
 
 /// A run of `n` open tiles leading away from the player, in whichever of the
@@ -825,8 +821,8 @@ fn a_projectile_that_hits_something_is_spent() {
     }
 
     let arrow = quiver(&mut w, p, "arrow", 1);
-    let loosed = throw(&mut w, p, arrow, spot);
-    assert!(w.get_entity(loosed).is_none(), "the arrow snapped");
+    throw(&mut w, p, arrow, spot);
+    assert!(w.get_entity(arrow).is_none(), "the arrow snapped");
 }
 
 #[test]
@@ -897,9 +893,12 @@ fn throwing_from_a_quiver_spends_one_and_keeps_the_slot() {
     let slot_above = stash(&mut w, p, |w| spawn_ring(w, RingEffect::Adornment, NOWHERE));
     w.get_mut::<Backpack>(p).unwrap().items = vec![slot_above, arrows];
 
-    let loosed = throw(&mut w, p, arrows, spot);
+    throw(&mut w, p, arrows, spot);
 
-    assert_ne!(loosed, arrows, "the quiver itself never leaves your hand");
+    assert!(
+        w.get::<Position>(arrows).is_none(),
+        "the quiver itself never leaves your hand"
+    );
     assert_eq!(w.get::<Stack>(arrows).unwrap().count, 9);
     assert_eq!(
         w.get::<Backpack>(p).unwrap().items,
@@ -915,9 +914,12 @@ fn the_last_arrow_takes_the_slot_with_it() {
     empty_pack(&mut w, p);
     let arrows = quiver(&mut w, p, "arrow", 1);
 
-    let loosed = throw(&mut w, p, arrows, spot);
+    throw(&mut w, p, arrows, spot);
 
-    assert_eq!(loosed, arrows, "a stack of one is thrown whole");
+    assert!(
+        w.get_entity(arrows).is_none() || w.get::<Position>(arrows).is_some(),
+        "a stack of one is thrown whole"
+    );
     assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
 }
 

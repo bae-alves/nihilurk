@@ -366,7 +366,7 @@ Input handlers do not resolve anything. They push an intent and return whether a
 | `WantsToThrow`   | `ThrowQueue`  | `throw_system` |
 | `WantsToCast`    | `SpellQueue`   | `spell_system`  |
 
-`WantsToUse` carries `slot_idx` so a surviving item goes back to the exact pack row it came from, and `target` for anything aimed. A throw of a stacked item goes through `models::draw_one` first, which splits one arrow off and leaves the quiver where it was. `WantsToCast` is an active spell's own intent — a wand's twin, minus everything about an item because a spell isn't one.
+`WantsToUse` and `WantsToThrow` name an item still in the pack, with `slot_idx` for its row; the draining system lifts it, so the key changes nothing in the world. A surviving item goes back to that row, and `target` carries anything aimed. A throw of a stacked item goes through `models::draw_one` in `throw_system`, which splits one arrow off and leaves the quiver where it was. `WantsToCast` is an active spell's own intent — a wand's twin, minus everything about an item because a spell isn't one.
 
 
 Recipe: add a system to the turn

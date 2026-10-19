@@ -126,7 +126,7 @@ Rust's borrow friction stays. SCS absorbs it into written convention, in phases 
 
 ### Ugly
 
-- **The key still touches the world.** Choosing what to do is separate from doing it, with one exception: preparing a throw splits a stack at the key, before the intent is queued. Menus, targeting and looking also change state at the key, but none of them spends a turn.
+- **The key still touches the interface.** Choosing what to do is separate from doing it: a throw or a use names its item where it sits in the pack, and the schedule lifts it. Menus, targeting and looking change state at the key, but none of them spends a turn.
 - **Two descriptions of one decision.** Each queued action is planned at the key and applied by the schedule, so the planner and the applier both name the same cases. They must agree, and only tests make them.
 - **Spawn and despawn authority is everywhere.** Any system may create or destroy an entity. The discipline is that each does so at the rule that decided it. The soak catches the damage a bad despawn leaves (a dangling reference). Nothing catches a despawn at the wrong rule.
 - **A stated invariant is only a sentence, unless something runs it.** Where the soak covers it, it is guarded. Where it does not, it is prose.

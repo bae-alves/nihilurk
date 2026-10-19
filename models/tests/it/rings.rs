@@ -39,7 +39,6 @@ fn use_item(w: &mut World, user: Entity, item: Entity) {
         .iter()
         .position(|&e| e == item);
     if let Some(i) = idx {
-        w.get_mut::<Backpack>(user).unwrap().items.remove(i);
         w.resource_mut::<UseQueue>().uses.push(WantsToUse {
             user,
             item,

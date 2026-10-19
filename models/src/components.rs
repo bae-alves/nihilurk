@@ -1562,7 +1562,7 @@ pub struct WantsToAttack {
 
 /// Intent: `user` uses `item` — quaff, read, zap or (un)equip, depending on what
 /// it is. `target` is the aimed tile for a wand; `slot_idx` is the pack row it
-/// came from, so it can go back exactly there. Drained by
+/// sits in, so it can go back exactly there. Drained by
 /// [`item_system`](crate::items::item_system).
 #[derive(Event, Clone, Copy)]
 pub struct WantsToUse {
@@ -1572,7 +1572,8 @@ pub struct WantsToUse {
     pub item: Entity,
     /// The aimed tile. `None` for anything that is not aimed.
     pub target: Option<Position>,
-    /// The pack row the item came from. `None` when it did not come from one.
+    /// The pack row the item sits in; [`item_system`](crate::items::item_system)
+    /// lifts it from there. `None` when it is not in a pack.
     pub slot_idx: Option<usize>,
 }
 
@@ -1586,9 +1587,10 @@ pub struct WantsToThrow {
     pub item: Entity,
     /// The tile it is thrown at.
     pub target: Position,
-    /// The pack row the item came from, where a [`Returns`] item lands again,
-    /// and so does a throw time stopped that a save or a floor change thaws.
-    /// `None` when it did not come from one.
+    /// The pack row the item sits in; [`crate::items::throw_system`] lifts it
+    /// from there. A [`Returns`] item lands in that row again, and so does a
+    /// throw time stopped that a save or a floor change thaws. `None` when it
+    /// is not in a pack.
     pub slot_idx: Option<usize>,
 }
 

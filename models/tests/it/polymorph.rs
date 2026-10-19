@@ -383,6 +383,7 @@ fn a_polymorphed_ally_stays_polymorphed_down_the_stairs() {
     let wand = spawn_wand(&mut w, WandEffect::Polymorph, here);
     w.entity_mut(wand).remove::<Position>();
     let slot = w.get::<Backpack>(p).unwrap().items.len();
+    w.get_mut::<Backpack>(p).unwrap().items.push(wand);
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
         user: p,
         item: wand,

@@ -27,7 +27,7 @@ fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
 
-/// Simulate the inventory "Use" action: pull the item out of the pack, queue it,
+/// Simulate the inventory "Use" action: queue the item at its pack row,
 /// run the item system (which re-inserts it), exactly like the engine does.
 fn use_item(w: &mut World, user: Entity, item: Entity) {
     let idx = w
@@ -37,7 +37,6 @@ fn use_item(w: &mut World, user: Entity, item: Entity) {
         .iter()
         .position(|&e| e == item);
     if let Some(i) = idx {
-        w.get_mut::<Backpack>(user).unwrap().items.remove(i);
         w.resource_mut::<UseQueue>().uses.push(WantsToUse {
             user,
             item,

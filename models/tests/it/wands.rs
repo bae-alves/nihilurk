@@ -58,7 +58,6 @@ fn zap(w: &mut World, user: Entity, wand: Entity, target: Position) {
         .iter()
         .position(|&e| e == wand);
     if let Some(i) = i {
-        w.get_mut::<Backpack>(user).unwrap().items.remove(i);
         w.resource_mut::<UseQueue>().uses.push(WantsToUse {
             user,
             item: wand,
@@ -78,7 +77,6 @@ fn zap_self(w: &mut World, user: Entity, wand: Entity) {
         .iter()
         .position(|&e| e == wand);
     if let Some(i) = i {
-        w.get_mut::<Backpack>(user).unwrap().items.remove(i);
         w.resource_mut::<UseQueue>().uses.push(WantsToUse {
             user,
             item: wand,

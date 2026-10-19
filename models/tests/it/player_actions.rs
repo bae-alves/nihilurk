@@ -296,13 +296,30 @@ fn a_thrown_arrow_leaves_the_rest_of_the_quiver_in_its_slot() {
     let target = at(here.x as i32 + 3, here.y as i32);
 
     assert!(queue_throw(&mut w, player, quiver, target));
+    throw_system(&mut w);
 
     assert_eq!(w.get::<Backpack>(player).unwrap().items[1], quiver);
     assert_eq!(w.get::<Stack>(quiver).unwrap().count, 6);
-    let throws = &w.resource::<ThrowQueue>().throws;
-    assert_eq!(throws.len(), 1);
-    assert_ne!(throws[0].item, quiver);
-    assert_eq!(throws[0].slot_idx, Some(1));
+}
+
+#[test]
+fn a_queued_throw_and_use_leave_the_pack_alone_until_the_schedule_runs() {
+    let (mut w, player, here) = quiet_room(1);
+    w.get_mut::<Backpack>(player).unwrap().items.clear();
+    let potion = carry(&mut w, player, here, "potion of healing");
+    let quiver = carry(&mut w, player, here, "arrow");
+    w.entity_mut(quiver).insert(Stack { count: 7 });
+    let target = at(here.x as i32 + 3, here.y as i32);
+
+    assert!(queue_throw(&mut w, player, quiver, target));
+    assert!(queue_use(&mut w, player, potion, None));
+
+    assert_eq!(w.get::<Backpack>(player).unwrap().items, vec![potion, quiver]);
+    assert_eq!(w.get::<Stack>(quiver).unwrap().count, 7);
+    let throw = w.resource::<ThrowQueue>().throws[0];
+    assert_eq!((throw.item, throw.slot_idx), (quiver, Some(1)));
+    let used = w.resource::<UseQueue>().uses[0];
+    assert_eq!((used.item, used.slot_idx), (potion, Some(0)));
 }
 
 #[test]
@@ -371,4 +388,23 @@ fn an_affordable_spell_is_queued() {
     assert!(queue_cast(&mut w, player, SpellEffect::HasteSelf, here));
     assert_eq!(w.resource::<SpellQueue>().spells.len(), 1);
     assert_eq!(w.get::<Magic>(player).unwrap().points, 50);
+}
+
+#[test]
+fn a_queued_item_that_left_the_pack_before_the_schedule_is_neither_used_nor_thrown() {
+    let (mut w, player, here) = quiet_room(1);
+    w.get_mut::<Backpack>(player).unwrap().items.clear();
+    let potion = carry(&mut w, player, here, "potion of healing");
+    let dagger = carry(&mut w, player, here, "dagger");
+    let target = at(here.x as i32 + 2, here.y as i32);
+    assert!(queue_use(&mut w, player, potion, None));
+    assert!(queue_throw(&mut w, player, dagger, target));
+    w.get_mut::<Backpack>(player).unwrap().items.clear();
+
+    item_system(&mut w);
+    throw_system(&mut w);
+
+    assert!(w.get_entity(potion).is_some(), "the potion was not drunk");
+    assert!(w.get::<Position>(dagger).is_none(), "the dagger never flew");
+    assert!(w.get::<Backpack>(player).unwrap().items.is_empty());
 }

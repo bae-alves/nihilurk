@@ -96,12 +96,11 @@ fn deck_in_pack(w: &mut World, cards: &[Card]) -> Entity {
     deck
 }
 
-/// The engine's "Use": out of the pack, onto the queue, through the system.
+/// The engine's "Use": onto the queue, through the system.
 fn use_item(w: &mut World, item: Entity) {
     let p = player(w);
-    let mut bp = w.get_mut::<Backpack>(p).unwrap();
+    let bp = w.get::<Backpack>(p).unwrap();
     let i = bp.items.iter().position(|&e| e == item).unwrap();
-    bp.items.remove(i);
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
         user: p,
         item,
@@ -790,10 +789,6 @@ fn the_world_holds_the_floor_still_for_its_turns() {
         .items
         .iter()
         .position(|&e| e == deck);
-    w.get_mut::<Backpack>(p)
-        .unwrap()
-        .items
-        .retain(|&e| e != deck);
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
         user: p,
         item: deck,

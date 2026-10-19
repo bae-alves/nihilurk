@@ -24,10 +24,10 @@ use crate::map::{Map, special_room_entry_message};
 use crate::traps::{bear_trap_thrash, clamped_thrash, player_held_by};
 use crate::{
     Backpack, Equipped, Grant, Launcher, Slot, can_afford_spell, can_charge, can_teleport_at_will,
-    change_level, charge, display_name, draw_one, drop_refusal, equipped_in, force_unequip,
-    known_quality, level_change_refusal, melee_attack, resolve_reach_attack,
-    sync_equipment_effects, throw_refusal, toggle_equipped, toggle_refusal, try_lunge,
-    try_whirl_attack, use_refusal, willed_teleport,
+    change_level, charge, display_name, drop_refusal, equipped_in, force_unequip, known_quality,
+    level_change_refusal, melee_attack, resolve_reach_attack, sync_equipment_effects,
+    throw_refusal, toggle_equipped, toggle_refusal, try_lunge, try_whirl_attack, use_refusal,
+    willed_teleport,
 };
 
 const STUMBLE_DIRS: [(i16, i16); 8] = [
@@ -449,33 +449,33 @@ pub fn queue_reach_attack(world: &mut World, weapon: Entity, at: Position) {
     queue(world, PlayerAction::Reach { weapon, at });
 }
 
-/// Queues throwing `item` from the pack at `target`. A stack gives up one and
-/// keeps its slot; anything else leaves the pack. Refused, with a log line,
-/// when the item will not leave the hand; `false` when it is not in the pack.
+/// Queues throwing `item` from the pack at `target`. The item stays in the
+/// pack until [`crate::throw_system`] lifts it. Refused, with a log line, when
+/// the item will not leave the hand; `false` when it is not in the pack.
 pub fn queue_throw(world: &mut World, player: Entity, item: Entity, target: Position) -> bool {
     if let Some(refusal) = throw_refusal(world, player, item) {
         world.resource_mut::<GameLog>().add(refusal);
         return false;
     }
-    let Some(slot) = lift_from_pack(world, player, item) else {
+    let Some(slot) = pack_row(world, player, item) else {
         return false;
     };
-    let missile = draw_one(world, player, item, Some(slot));
     world
         .resource_mut::<ThrowQueue>()
         .throws
         .push(WantsToThrow {
             thrower: player,
-            item: missile,
+            item,
             target,
             slot_idx: Some(slot),
         });
     true
 }
 
-/// Queues using `item` from the pack, aimed at `target` when it is aimed.
-/// Refused, with a log line, when it has no use or a cursed slot blocks it;
-/// `false` when it is not in the pack.
+/// Queues using `item` from the pack, aimed at `target` when it is aimed. The
+/// item stays in the pack until [`crate::item_system`] lifts it. Refused, with
+/// a log line, when it has no use or a cursed slot blocks it; `false` when it
+/// is not in the pack.
 pub fn queue_use(
     world: &mut World,
     player: Entity,
@@ -487,7 +487,7 @@ pub fn queue_use(
         world.resource_mut::<GameLog>().add(refusal);
         return false;
     }
-    let Some(slot) = lift_from_pack(world, player, item) else {
+    let Some(slot) = pack_row(world, player, item) else {
         return false;
     };
     world.resource_mut::<UseQueue>().uses.push(WantsToUse {
@@ -521,12 +521,13 @@ pub fn queue_cast(
     true
 }
 
-/// Takes `item` out of `player`'s pack and returns the row it sat in.
-fn lift_from_pack(world: &mut World, player: Entity, item: Entity) -> Option<usize> {
-    let mut pack = world.get_mut::<Backpack>(player)?;
-    let slot = pack.items.iter().position(|&held| held == item)?;
-    pack.items.remove(slot);
-    Some(slot)
+/// The pack row `item` sits in, if `player` carries it.
+fn pack_row(world: &World, player: Entity, item: Entity) -> Option<usize> {
+    world
+        .get::<Backpack>(player)?
+        .items
+        .iter()
+        .position(|&held| held == item)
 }
 
 fn apply_drop(world: &mut World, item: Entity) {

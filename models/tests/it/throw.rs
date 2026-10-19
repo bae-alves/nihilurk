@@ -47,25 +47,20 @@ fn stash(w: &mut World, p: Entity, spawn: impl FnOnce(&mut World) -> Entity) -> 
 /// The tile an item is spawned on before it is stashed — never looked at.
 const NOWHERE: Position = Position { x: 0, y: 0 };
 
-/// The engine's "Throw" action: the item leaves the pack for good, and
-/// `throw_system` finds out where it ends up. A quiver is the exception — it
-/// gives up one arrow and stays in its slot — so this goes through `draw_one`
-/// exactly as the engine does, and returns whatever actually took flight.
-fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) -> Entity {
-    let mut slot = None;
-    if let Some(mut bp) = w.get_mut::<Backpack>(thrower) {
-        slot = bp.items.iter().position(|&e| e == item);
-        bp.items.retain(|&e| e != item);
-    }
-    let missile = draw_one(w, thrower, item, slot);
+/// The engine's "Throw" action: the throw names the item's pack row and
+/// `throw_system` lifts it and finds out where it ends up. A quiver gives up
+/// one arrow and stays in its slot.
+fn throw(w: &mut World, thrower: Entity, item: Entity, target: Position) {
+    let slot = w
+        .get::<Backpack>(thrower)
+        .and_then(|bp| bp.items.iter().position(|&e| e == item));
     w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
         thrower,
-        item: missile,
+        item,
         target,
         slot_idx: slot,
     });
     throw_system(w);
-    missile
 }
 
 /// A plain monster dropped onto a tile next to the player so the throw has a
@@ -196,10 +191,6 @@ fn the_grenade_is_wider_and_hotter_than_the_beam() {
                 .items
                 .iter()
                 .position(|&e| e == wand);
-            w.get_mut::<Backpack>(p)
-                .unwrap()
-                .items
-                .retain(|&e| e != wand);
             w.resource_mut::<UseQueue>().uses.push(WantsToUse {
                 user: p,
                 item: wand,

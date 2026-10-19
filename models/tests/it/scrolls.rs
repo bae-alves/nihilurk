@@ -31,7 +31,7 @@ fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
 
-/// Pull `item` out of the pack, queue it, run the item system — the engine's
+/// Queue `item` at its pack row, run the item system — the engine's
 /// "Use" action.
 fn use_item(w: &mut World, user: Entity, item: Entity) {
     let idx = w
@@ -41,7 +41,6 @@ fn use_item(w: &mut World, user: Entity, item: Entity) {
         .iter()
         .position(|&e| e == item);
     if let Some(i) = idx {
-        w.get_mut::<Backpack>(user).unwrap().items.remove(i);
         w.resource_mut::<UseQueue>().uses.push(WantsToUse {
             user,
             item,

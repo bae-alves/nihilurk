@@ -319,8 +319,8 @@ fn land_item(world: &mut World, item: Entity, at: Position) {
 /// it came from, so it goes back there instead of to the bottom of the list.
 /// Anything that is not a stack is thrown whole and comes back unchanged.
 ///
-/// Called with `item` already lifted out of the pack, which is how both the
-/// engine's Throw action and a scripted throw hand an item over.
+/// Called with `item` already lifted out of the pack, which is how
+/// [`throw_system`] hands a queued throw's item over.
 pub fn draw_one(world: &mut World, thrower: Entity, item: Entity, slot: Option<usize>) -> Entity {
     let Some(count) = world.get::<Stack>(item).map(|s| s.count).filter(|&c| c > 1) else {
         return item;
@@ -557,13 +557,19 @@ fn apply_thrown_wand_effect(world: &mut World, entity: Entity, effect: WandEffec
 ///
 /// Assumes nothing upstream but a filled [`ThrowQueue`]: every throw was
 /// already validated (range, a legal target) at the reticle before it was
-/// queued, so this only has to resolve what arrives.
+/// queued, so this only has to resolve what arrives. A throw that names a pack
+/// row finds its item still in the pack and takes it in hand here (see
+/// [`take_in_hand`]).
 ///
 /// With time stopped a throw hangs in the air ([`FrozenThrows`]), except a
 /// [`Returns`] weapon: THE WORLD has no hold on it, so it strikes and comes
 /// home at once.
 pub fn throw_system(world: &mut World) {
-    let throws = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
+    let queued = std::mem::take(&mut world.resource_mut::<ThrowQueue>().throws);
+    let throws: Vec<WantsToThrow> = queued
+        .into_iter()
+        .filter_map(|throw| take_in_hand(world, throw))
+        .collect();
     for throw in &throws {
         crate::equipment::reset_momentum(world, throw.thrower);
     }
@@ -599,6 +605,20 @@ pub fn throw_system(world: &mut World) {
     for throw in throws {
         resolve_throw(world, throw, None);
     }
+}
+
+/// Lifts a queued throw's item out of the thrower's pack: a stack gives up one
+/// and keeps its row ([`draw_one`]), anything else leaves the pack. A throw not
+/// from a pack passes through as it is; one whose item has left the pack since
+/// it was queued is dropped.
+fn take_in_hand(world: &mut World, mut throw: WantsToThrow) -> Option<WantsToThrow> {
+    if throw.slot_idx.is_none() {
+        return Some(throw);
+    }
+    let row = crate::items::lift_from_pack(world, throw.thrower, throw.item)?;
+    throw.item = draw_one(world, throw.thrower, throw.item, Some(row));
+    throw.slot_idx = Some(row);
+    Some(throw)
 }
 
 /// Throws made while THE WORLD held time still, each with the tile it left the

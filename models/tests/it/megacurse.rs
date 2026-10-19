@@ -48,7 +48,7 @@ fn read(w: &mut World, user: Entity, effect: ScrollEffect) {
         user,
         item: scroll,
         target: None,
-        slot_idx: Some(0),
+        slot_idx: None,
     });
     item_system(w);
 }
