@@ -302,7 +302,7 @@ The action modal (`run_action_modal`, `PackMode::Browse` only) is a fixed four-r
 | `Drop`       | `queue_drop`: refused by `drop_refusal` (cursed and equipped) with the item left in the pack; otherwise queued, and `player_action_system` unequips it and places it on the floor. | Yes, on success |
 | `Info`       | Fills `ItemInfo` from `models::item_info` and opens its popup (`draw_item_info`); any key closes it. The text is the name, the dice and reach its components carry, `strings::item_blurb(id)` if the row has an authored line, and — only when `known_quality` — the enchantment plus and `strings::cursed_explained`. Add a blurb as an arm in `item_blurb`. | Never |
 
-`take_pack_item` / `return_to_pack` move an item out of the `Backpack` and back by index — used so an item earmarked for aiming can sit "in flight" without being in either the pack or on the floor while the reticle is up.
+`pack_item` reads the item at a pack row. Nothing leaves the `Backpack` at the key, not even while the reticle is up: the queued intent names the item where it sits, and its system lifts it.
 
 
 The aiming reticle
