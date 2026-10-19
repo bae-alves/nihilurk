@@ -13,7 +13,7 @@ use rand::Rng;
 
 use crate::components::{
     Curse, Faction, GameLog, Item, LogCategory, Pickup, Player, PlayerAction, PlayerActionQueue,
-    Position,
+    Position, SpellEffect, SpellQueue, ThrowQueue, UseQueue, WantsToCast, WantsToThrow, WantsToUse,
 };
 use crate::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use crate::effects::{Clamped, Confused, Pinned, Rooted, Swims};
@@ -23,10 +23,11 @@ use crate::ice::{IceCube, kick_ice_cube};
 use crate::map::{Map, special_room_entry_message};
 use crate::traps::{bear_trap_thrash, clamped_thrash, player_held_by};
 use crate::{
-    Backpack, Equipped, Grant, Launcher, Slot, can_charge, can_teleport_at_will, change_level,
-    charge, display_name, drop_refusal, equipped_in, force_unequip, known_quality,
-    level_change_refusal, melee_attack, resolve_reach_attack, sync_equipment_effects,
-    toggle_equipped, toggle_refusal, try_lunge, try_whirl_attack, willed_teleport,
+    Backpack, Equipped, Grant, Launcher, Slot, can_afford_spell, can_charge, can_teleport_at_will,
+    change_level, charge, display_name, draw_one, drop_refusal, equipped_in, force_unequip,
+    known_quality, level_change_refusal, melee_attack, resolve_reach_attack,
+    sync_equipment_effects, throw_refusal, toggle_equipped, toggle_refusal, try_lunge,
+    try_whirl_attack, use_refusal, willed_teleport,
 };
 
 const STUMBLE_DIRS: [(i16, i16); 8] = [
@@ -428,6 +429,86 @@ pub fn queue_charge(world: &mut World, target: Entity) -> bool {
 /// aim, so this always spends the turn.
 pub fn queue_reach_attack(world: &mut World, weapon: Entity, at: Position) {
     queue(world, PlayerAction::Reach { weapon, at });
+}
+
+/// Queues throwing `item` from the pack at `target`. A stack gives up one and
+/// keeps its slot; anything else leaves the pack. Refused, with a log line,
+/// when the item will not leave the hand; `false` when it is not in the pack.
+pub fn queue_throw(world: &mut World, player: Entity, item: Entity, target: Position) -> bool {
+    if let Some(refusal) = throw_refusal(world, player, item) {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
+    let Some(slot) = lift_from_pack(world, player, item) else {
+        return false;
+    };
+    let missile = draw_one(world, player, item, Some(slot));
+    world
+        .resource_mut::<ThrowQueue>()
+        .throws
+        .push(WantsToThrow {
+            thrower: player,
+            item: missile,
+            target,
+            slot_idx: Some(slot),
+        });
+    true
+}
+
+/// Queues using `item` from the pack, aimed at `target` when it is aimed.
+/// Refused, with a log line, when it has no use or a cursed slot blocks it;
+/// `false` when it is not in the pack.
+pub fn queue_use(
+    world: &mut World,
+    player: Entity,
+    item: Entity,
+    target: Option<Position>,
+) -> bool {
+    if let Some(refusal) = use_refusal(world, item).or_else(|| toggle_refusal(world, player, item))
+    {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
+    let Some(slot) = lift_from_pack(world, player, item) else {
+        return false;
+    };
+    world.resource_mut::<UseQueue>().uses.push(WantsToUse {
+        user: player,
+        item,
+        target,
+        slot_idx: Some(slot),
+    });
+    true
+}
+
+/// Queues casting `effect` at `target`. Refused, with a log line, when the
+/// pool cannot cover it; [`crate::spell_system`] pays when it resolves.
+pub fn queue_cast(
+    world: &mut World,
+    player: Entity,
+    effect: SpellEffect,
+    target: Position,
+) -> bool {
+    if !can_afford_spell(world, player, effect) {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::no_magic_for_that().to_string());
+        return false;
+    }
+    world.resource_mut::<SpellQueue>().spells.push(WantsToCast {
+        user: player,
+        effect,
+        target,
+    });
+    true
+}
+
+/// Takes `item` out of `player`'s pack and returns the row it sat in.
+fn lift_from_pack(world: &mut World, player: Entity, item: Entity) -> Option<usize> {
+    let mut pack = world.get_mut::<Backpack>(player)?;
+    let slot = pack.items.iter().position(|&held| held == item)?;
+    pack.items.remove(slot);
+    Some(slot)
 }
 
 fn apply_drop(world: &mut World, item: Entity) {

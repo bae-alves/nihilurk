@@ -89,8 +89,8 @@ pub use pack::*;
 pub use particles::*;
 pub use player::{
     Hold, StepPlan, announce_special_room_entry, maybe_stumble, pick_up_here, plan_step,
-    player_action_system, queue_charge, queue_drop, queue_reach_attack, queue_stairs, queue_step,
-    queue_swap_weapon, queue_willed_teleport,
+    player_action_system, queue_cast, queue_charge, queue_drop, queue_reach_attack, queue_stairs,
+    queue_step, queue_swap_weapon, queue_throw, queue_use, queue_willed_teleport,
 };
 pub use pride::*;
 pub use rect::*;

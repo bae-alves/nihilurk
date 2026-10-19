@@ -277,3 +277,98 @@ fn the_starting_mace_swaps_to_the_starting_bow() {
     let held = equipped_in(&w, player, Slot::Hand).unwrap();
     assert!(w.get::<Launcher>(held).is_some());
 }
+
+/// Puts a named item at the end of the pack.
+fn carry(w: &mut World, player: Entity, here: Position, name: &str) -> Entity {
+    let item = spawn_named(w, name, here).unwrap();
+    w.entity_mut(item).remove::<Position>();
+    w.get_mut::<Backpack>(player).unwrap().items.push(item);
+    item
+}
+
+#[test]
+fn a_thrown_arrow_leaves_the_rest_of_the_quiver_in_its_slot() {
+    let (mut w, player, here) = quiet_room(1);
+    w.get_mut::<Backpack>(player).unwrap().items.clear();
+    carry(&mut w, player, here, "potion of healing");
+    let quiver = carry(&mut w, player, here, "arrow");
+    w.entity_mut(quiver).insert(Stack { count: 7 });
+    let target = at(here.x as i32 + 3, here.y as i32);
+
+    assert!(queue_throw(&mut w, player, quiver, target));
+
+    assert_eq!(w.get::<Backpack>(player).unwrap().items[1], quiver);
+    assert_eq!(w.get::<Stack>(quiver).unwrap().count, 6);
+    let throws = &w.resource::<ThrowQueue>().throws;
+    assert_eq!(throws.len(), 1);
+    assert_ne!(throws[0].item, quiver);
+    assert_eq!(throws[0].slot_idx, Some(1));
+}
+
+#[test]
+fn cursed_gear_on_the_body_will_not_be_thrown() {
+    let (mut w, player, here) = quiet_room(1);
+    let dagger = carry_weapon(&mut w, player, here, "dagger", true);
+    w.entity_mut(dagger).insert(Curse);
+    let before = log_len(&w);
+    assert!(!queue_throw(
+        &mut w,
+        player,
+        dagger,
+        at(here.x as i32 + 2, here.y as i32)
+    ));
+    assert!(log_len(&w) > before);
+    assert!(w.resource::<ThrowQueue>().throws.is_empty());
+    assert!(w.get::<Backpack>(player).unwrap().items.contains(&dagger));
+}
+
+#[test]
+fn a_used_potion_is_queued_with_the_slot_it_came_from() {
+    let (mut w, player, here) = quiet_room(1);
+    w.get_mut::<Backpack>(player).unwrap().items.clear();
+    carry(&mut w, player, here, "arrow");
+    let potion = carry(&mut w, player, here, "potion of healing");
+
+    assert!(queue_use(&mut w, player, potion, None));
+
+    let uses = &w.resource::<UseQueue>().uses;
+    assert_eq!(uses.len(), 1);
+    assert_eq!(uses[0].item, potion);
+    assert_eq!(uses[0].slot_idx, Some(1));
+}
+
+#[test]
+fn an_arrow_will_not_be_used() {
+    let (mut w, player, here) = quiet_room(1);
+    let arrow = carry(&mut w, player, here, "arrow");
+    let before = log_len(&w);
+    assert!(!queue_use(&mut w, player, arrow, None));
+    assert!(log_len(&w) > before);
+    assert!(w.resource::<UseQueue>().uses.is_empty());
+    assert!(w.get::<Backpack>(player).unwrap().items.contains(&arrow));
+}
+
+#[test]
+fn a_spell_the_pool_cannot_cover_is_refused() {
+    let (mut w, player, here) = quiet_room(1);
+    w.entity_mut(player).insert(Magic {
+        points: 0,
+        max_points: 4,
+    });
+    let before = log_len(&w);
+    assert!(!queue_cast(&mut w, player, SpellEffect::HasteSelf, here));
+    assert!(log_len(&w) > before);
+    assert!(w.resource::<SpellQueue>().spells.is_empty());
+}
+
+#[test]
+fn an_affordable_spell_is_queued() {
+    let (mut w, player, here) = quiet_room(1);
+    w.entity_mut(player).insert(Magic {
+        points: 50,
+        max_points: 50,
+    });
+    assert!(queue_cast(&mut w, player, SpellEffect::HasteSelf, here));
+    assert_eq!(w.resource::<SpellQueue>().spells.len(), 1);
+    assert_eq!(w.get::<Magic>(player).unwrap().points, 50);
+}

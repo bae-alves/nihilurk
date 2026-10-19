@@ -141,10 +141,6 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
         world.resource_mut::<GameLog>().add(strings::out_of_ammo());
         return false;
     };
-    if let Some(refusal) = throw_refusal(world, player, item) {
-        world.resource_mut::<GameLog>().add(refusal);
-        return false;
-    }
     let target_pos = *world.get::<Position>(target).unwrap();
     let player_pos = *world.get::<Position>(player).unwrap();
     if chebyshev(player_pos, target_pos) > throw_reach(world, player, item) {
@@ -158,23 +154,10 @@ fn ranged_auto_fight(world: &mut World, player: Entity) -> bool {
         return false;
     }
 
-    let Some((slot, item)) = world.get_mut::<Backpack>(player).and_then(|mut bp| {
-        let pos = bp.items.iter().position(|&e| e == item)?;
-        Some((pos, bp.items.remove(pos)))
-    }) else {
+    if !models::queue_throw(world, player, item, target_pos) {
         return false;
-    };
-    let missile = draw_one(world, player, item, Some(slot));
+    }
     world.resource_mut::<GameLog>().unread.clear();
-    world
-        .resource_mut::<ThrowQueue>()
-        .throws
-        .push(WantsToThrow {
-            thrower: player,
-            item: missile,
-            target: target_pos,
-            slot_idx: Some(slot),
-        });
     true
 }
 
@@ -717,41 +700,16 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
     }
 
     if let Some(effect) = spell_effect {
-        world.resource_mut::<SpellQueue>().spells.push(WantsToCast {
-            user: player,
-            effect,
-            target,
-        });
-        return Ok(true);
+        return Ok(models::queue_cast(world, player, effect, target));
     }
 
-    let Some((slot, item)) = world.get_mut::<Backpack>(player).and_then(|mut bp| {
-        let pos = bp.items.iter().position(|&e| e == item_entity.unwrap())?;
-        Some((pos, bp.items.remove(pos)))
-    }) else {
+    let Some(item) = item_entity else {
         return Ok(false);
     };
-
     if throwing {
-        let missile = models::draw_one(world, player, item, Some(slot));
-        world
-            .resource_mut::<ThrowQueue>()
-            .throws
-            .push(WantsToThrow {
-                thrower: player,
-                item: missile,
-                target,
-                slot_idx: Some(slot),
-            });
-        return Ok(true);
+        return Ok(models::queue_throw(world, player, item, target));
     }
-    world.resource_mut::<UseQueue>().uses.push(WantsToUse {
-        user: player,
-        item,
-        target: Some(target),
-        slot_idx: Some(slot),
-    });
-    Ok(true)
+    Ok(models::queue_use(world, player, item, Some(target)))
 }
 
 /// `L`: open the aiming reticle in look mode — the one reticle purpose that
@@ -898,46 +856,26 @@ fn run_action_modal(
     commit_item_action(world, player, item_idx, action)
 }
 
-/// Pulls the chosen item out of the pack and carries out `action` on it: queue
-/// a use, open the aiming reticle, drop it, or open its Info popup. Returns
-/// whether a turn was spent (a plain Use or a completed Drop; aiming, Info and
-/// refusals do not).
+/// Carries out `action` on the chosen item: queue a use, open the aiming
+/// reticle, drop it, or open its Info popup. Returns whether a turn was spent
+/// (a plain Use or a completed Drop; aiming, Info and refusals do not).
 fn commit_item_action(
     world: &mut World,
     player: Entity,
     item_idx: usize,
     action: ItemAction,
 ) -> bool {
+    let Some(item) = pack_item(world, player, item_idx) else {
+        return true;
+    };
     match action {
-        ItemAction::Use => {
-            let Some(item) = take_pack_item(world, player, item_idx) else {
-                return true;
-            };
-            use_or_aim(world, player, item, item_idx)
-        }
+        ItemAction::Use => use_or_aim(world, player, item),
         ItemAction::Throw => {
-            let Some(item) = take_pack_item(world, player, item_idx) else {
-                return true;
-            };
-            aim_throw(world, player, item, item_idx);
+            aim_throw(world, player, item);
             false
         }
-        ItemAction::Drop => {
-            let Some(item) = world
-                .get::<Backpack>(player)
-                .and_then(|pack| pack.items.get(item_idx).copied())
-            else {
-                return true;
-            };
-            models::queue_drop(world, player, item)
-        }
+        ItemAction::Drop => models::queue_drop(world, player, item),
         ItemAction::Info => {
-            let Some(item) = world
-                .get::<Backpack>(player)
-                .and_then(|pack| pack.items.get(item_idx).copied())
-            else {
-                return true;
-            };
             let lines = models::item_info(world, item);
             let mut info = world.resource_mut::<ItemInfo>();
             info.lines = lines;
@@ -948,38 +886,29 @@ fn commit_item_action(
 }
 
 /// Use: a plain item goes straight to the use queue (turn spent); a ranged one
-/// goes back in the pack and opens the aiming reticle instead (no turn); a
-/// thing that is only ever thrown goes back in the pack and says so (no turn).
-fn use_or_aim(world: &mut World, player: Entity, item: Entity, item_idx: usize) -> bool {
-    if let Some(refusal) =
-        use_refusal(world, item).or_else(|| models::toggle_refusal(world, player, item))
-    {
-        return_to_pack(world, player, item, item_idx);
-        world.resource_mut::<GameLog>().add(refusal);
-        return false;
-    }
+/// opens the aiming reticle instead (no turn); a thing that is only ever
+/// thrown says so (no turn).
+fn use_or_aim(world: &mut World, player: Entity, item: Entity) -> bool {
     let needs_reticle = world.get::<Ranged>(item).is_some()
         && world
             .get::<Wand>(item)
             .map_or(true, |w| w.effect.needs_target());
     if !needs_reticle {
-        world.resource_mut::<UseQueue>().uses.push(WantsToUse {
-            user: player,
-            item,
-            target: None,
-            slot_idx: Some(item_idx),
-        });
-        return true;
+        return models::queue_use(world, player, item, None);
     }
-    return_to_pack(world, player, item, item_idx);
+    if let Some(refusal) =
+        use_refusal(world, item).or_else(|| models::toggle_refusal(world, player, item))
+    {
+        world.resource_mut::<GameLog>().add(refusal);
+        return false;
+    }
     open_reticle(world, player, item, false);
     false
 }
 
-/// Throw: the item waits in the pack and the aiming reticle opens — unless
-/// something (the Element, cursed worn gear) refuses to leave the hand.
-fn aim_throw(world: &mut World, player: Entity, item: Entity, item_idx: usize) {
-    return_to_pack(world, player, item, item_idx);
+/// Throw: the aiming reticle opens — unless something (the Element, cursed
+/// worn gear) refuses to leave the hand.
+fn aim_throw(world: &mut World, player: Entity, item: Entity) {
     if let Some(refusal) = throw_refusal(world, player, item) {
         world.resource_mut::<GameLog>().add(refusal);
         return;
@@ -987,18 +916,12 @@ fn aim_throw(world: &mut World, player: Entity, item: Entity, item_idx: usize) {
     open_reticle(world, player, item, true);
 }
 
-/// Removes pack row `idx` and hands back the item, or `None` if the row is out
-/// of range (the pack shifted since the menu opened).
-fn take_pack_item(world: &mut World, player: Entity, idx: usize) -> Option<Entity> {
-    let mut backpack = world.get_mut::<Backpack>(player)?;
-    (idx < backpack.items.len()).then(|| backpack.items.remove(idx))
-}
-
-/// Puts `item` back at pack row `idx`.
-fn return_to_pack(world: &mut World, player: Entity, item: Entity, idx: usize) {
-    if let Some(mut backpack) = world.get_mut::<Backpack>(player) {
-        backpack.items.insert(idx, item);
-    }
+/// The item at pack row `idx`, or `None` if the row is out of range (the pack
+/// shifted since the menu opened).
+fn pack_item(world: &World, player: Entity, idx: usize) -> Option<Entity> {
+    world
+        .get::<Backpack>(player)
+        .and_then(|pack| pack.items.get(idx).copied())
 }
 
 /// Arms the aiming reticle on `item`, centred on the player.
@@ -1342,25 +1265,18 @@ fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .add(strings::no_spell_there());
         return Ok(false);
     };
-    let cost = models::spell_cost(world, player, effect);
-    let affordable = world.get::<Magic>(player).is_some_and(|m| m.points >= cost);
-    if !affordable {
-        world
-            .resource_mut::<GameLog>()
-            .add(strings::no_magic_for_that());
-        return Ok(false);
-    }
     if !effect.needs_target() {
         let target = world
             .get::<Position>(player)
             .copied()
             .unwrap_or(Position { x: 0, y: 0 });
-        world.resource_mut::<SpellQueue>().spells.push(WantsToCast {
-            user: player,
-            effect,
-            target,
-        });
-        return Ok(true);
+        return Ok(models::queue_cast(world, player, effect, target));
+    }
+    if !models::can_afford_spell(world, player, effect) {
+        world
+            .resource_mut::<GameLog>()
+            .add(strings::no_magic_for_that());
+        return Ok(false);
     }
     open_reticle_for(world, player, None, Some(effect), false, false, false);
     Ok(false)
