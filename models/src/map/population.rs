@@ -585,7 +585,11 @@ pub(super) fn populate_level(
 
     place_element_of_yoord(world, &mut occupied, floor);
 
-    let max_traps = TRAP_SLOTS_BASE + tier as usize;
+    let max_traps = if level == Some(SpecialLevel::Labyrinth) {
+        0
+    } else {
+        TRAP_SLOTS_BASE + tier as usize
+    };
     let trap_chance =
         (TRAP_FILL_CHANCE_BASE + TRAP_FILL_CHANCE_PER_TIER * tier as f64).min(TRAP_FILL_CHANCE_CAP);
     for _ in 0..max_traps {

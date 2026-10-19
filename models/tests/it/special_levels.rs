@@ -223,6 +223,15 @@ fn walking_into_a_labyrinth_says_so() {
     );
 }
 
+#[test]
+fn a_labyrinth_holds_no_traps() {
+    for (seed, depth, _) in samples(SpecialLevel::Labyrinth) {
+        let mut w = world_at(seed, depth);
+        let traps = w.query::<&Trap>().iter(&w).count();
+        assert_eq!(traps, 0, "seed {seed} depth {depth}: a one-tile passage cannot dodge a trap");
+    }
+}
+
 /// Which room every room-floor tile belongs to: floods of Room and stair
 /// tiles, 8-connected the way sight and diagonal steps are. A door is not
 /// room floor, so it is where one room stops and the next begins.

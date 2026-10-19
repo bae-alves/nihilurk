@@ -173,7 +173,8 @@ pub enum SpecialLevel {
     /// [`BATTLEFIELD_ITEM_RUNS`](crate::constants::population::BATTLEFIELD_ITEM_RUNS) runs of the budgets).
     Battlefield,
     /// A maze of passages with a few loops knocked through it, and no room
-    /// anywhere to light it.
+    /// anywhere to light it. No traps: a passage is one tile wide, so a trap
+    /// would be the only way through.
     Labyrinth,
     /// A white honeycomb of rooms, each joined to every neighbour by one
     /// door, with the stairs in two of its four corners: [`VAULT_MONSTER_RUNS`](crate::constants::population::VAULT_MONSTER_RUNS)

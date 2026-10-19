@@ -83,12 +83,21 @@ Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bon
 | `weight`      | `u32`              | `10`    | Rarity vs eligible pool.   |
 | `grants`      | `&'static [Grant]` | `&[]`   | Effects it is born with.   |
 | `invisible`   | `bool`             | `false` | Born unseeable.            |
+| `spells`      | `&'static [SpellEffect]` | `&[]` | Spells it is born knowing; a player wearing the row gets them too. |
+| `casts`       | `u8`               | `0`     | Casts of its dearest spell it is born with Ma for. The pool never refills. |
+| `speed`       | `SpeedKind`        | `Normal`| Born at this tempo (the wraith is `Fast`). |
+| `equip_rolls` | `&'static [EquipRoll]` | `&[]` | Independent odds of spawning carrying a piece of gear. |
+| `mimics`      | `bool`             | `false` | Born disguised as an item until you are adjacent (the xeroc). |
+| `spirit_kind` | `Option<SpiritKind>` | `None` | `Some` makes it a `Faction::Spirits` row and says which way it pulls `Alignment` when it poofs. |
+| `spirit_event` | `Option<SpiritEvent>` | `None` | What a peaceful melee against it does. Only meaningful with `spirit_kind: Some(_)`. |
+| `random_grants` | `Option<(&'static [Grant], u8)>` | `None` | A pool to draw `n` distinct `Grant`s from at spawn, on top of `grants`. Set by `.spirit(...)` only. |
+| `stocks_barter` | `bool`           | `false` | Born with floor loot to trade away (the yellow demon): `BARTER_STOCK_MIN` to `BARTER_STOCK_MAX` drops. |
 
-Chains: `.grants(&[...])`, `.invisible()`, `.weight(n)`.
+Chains: `.grants(&[...])`, `.invisible()`, `.weight(n)`, `.casts(n, &[...])`, `.fast()`, `.equip(&[...])`, `.mimics()`, `.spirit(kind, event)`, `.stocks_barter()`. `.spirit(...)` also sets `grants` to the shared spirit grants and `random_grants` to the spirit boon pool.
 
 Combat: `damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)`, both sides rolled independently. Nothing ever misses.
 
-Spawning a row attaches: `Name`, `Mob`, `Fighter`, `Renderable`, `Position`, `Faction::Monster`, `Blood`, `Grants`, `Speed(Normal)`, plus each granted effect component, plus `Invisible` if the row asked.
+Spawning a row attaches: `Name`, `Mob`, `Fighter`, `Renderable`, `Position`, `Faction` (`Spirits` if `spirit_kind` is set, else `Monster`), `Blood`, `Grants`, `Speed` (from `speed`), plus each granted effect component. Then, when the row asks: `Invisible`; `Magic` and `Spellset` if it has `spells`; `spirit_kind` and `spirit_event` as components. With a `GameRng` it also rolls `equip_rolls`, `random_grants` and the barter `Backpack`, and a `mimics` row is disguised as an item. Without one (a bare test fixture) it gets none of those rolls.
 
 `MovementType::Aggravated { tx, ty }` exists but is applied at run time by the scroll of aggravate monsters. Never put it in a row.
 
