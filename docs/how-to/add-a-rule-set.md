@@ -34,7 +34,7 @@ A set is picked from the monster's `MovementType` in `rule_set_for`. Add a varia
 
     MovementType::Skirmish => &SKIRMISHER,
 
-The compiler will not build until every `match` on `MovementType` has the new arm. Those are the places that still read the tactic directly (the renderer's tints, the garrote).
+`rule_set_for` is the one exhaustive `match` on `MovementType`, so the compiler stops there and nowhere else. The other places that read the tactic use `matches!` and treat the new one as none of theirs: the renderer's staggering tint (`Confused`, `Flee`) and the garrote's helpless-target check in `combat.rs`. Read both and decide whether the new tactic belongs.
 
 
 Step 3: use it
@@ -64,7 +64,7 @@ Appendix: quick check
 1. Write `pub static <NAME>: RuleSet` in `models/src/agents.rs`; the order of `rules` is the behaviour.
 2. Set `leashed: true` only for a set that hunts the player.
 3. Append a `MovementType` variant at the end in `models/src/components.rs`, and add its arm to `rule_set_for`.
-4. Fix every other `match` on `MovementType` the compiler names.
+4. Check the `matches!` readers of `MovementType` (the renderer's tint, the garrote) and add the new tactic where it belongs.
 5. Put the variant in the `movement` column of a bestiary row.
 6. Test each rule the set lists: one case where it wins, one where an earlier rule passes.
 7. Run `cargo test -p nihilurk-models --lib agents` and `NIHILURK_SPAWN="<monster>" cargo run -p nihilurk`.
