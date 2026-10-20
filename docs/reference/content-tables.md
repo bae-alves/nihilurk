@@ -42,6 +42,7 @@ Where everything is
 | Table               | File                       | Row type       |
 |---------------------|----------------------------|----------------|
 | `BESTIARY`          | `models/src/monsters.rs`   | `MonsterDef`   |
+| `SUMMONS`           | `models/src/monsters.rs`   | `MonsterDef`   |
 | `POTIONS`           | `models/src/catalog.rs`    | `PotionDef`    |
 | `SCROLLS`           | `models/src/catalog.rs`    | `ScrollDef`    |
 | `RUNES`             | `models/src/catalog.rs`    | `RuneDef`      |
@@ -71,7 +72,7 @@ For the live contents of any of them:
 BESTIARY — MonsterDef
 ----------------------
 
-Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bonus, armor, armor_bonus, min_depth)`, then optional chains.
+Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bonus, armor, armor_bonus, min_depth)`, then optional chains. `SUMMONS` holds rows of the same type that no floor, conjuring or polymorph rolls: the creatures only a deck of cards brings. `MonsterDef::lookup` finds them, so a save, `NIHILURK_SPAWN` and `-am` do too.
 
 | Field         | Type               | Def.    | Meaning                    |
 |---------------|--------------------|---------|----------------------------|
