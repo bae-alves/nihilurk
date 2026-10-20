@@ -15,7 +15,7 @@ The mechanics are one file:
 
     models/src/traps.rs
 
-The components a trap is built from -- `Trap`, `TrapReveal`, `EntityMoved` -- are nouns and live in `models/src/components.rs` with everything else the ECS is made of. The three holds a trap can put on a victim (`Asleep`, `Pinned`, `Rooted`) are ordinary effects and live in `models/src/effects.rs`. The row and its handlers stay in `traps.rs`, and no enum names the trap: a `Trap` points at its row.
+The components a trap is built from -- `Trap`, `TrapReveal`, `EntityMoved` -- are nouns and live in `models/src/components.rs` with everything else the ECS is made of. The holds a trap can put on a victim (`Asleep`, `Pinned`, and `Rooted` or `Clamped` if yours wants them) are ordinary effects and live in `models/src/effects.rs`. The row and its handlers stay in `traps.rs`, and no enum names the trap: a `Trap` points at its row.
 
 
 The recipe
@@ -24,7 +24,7 @@ The recipe
 1. **Write the mechanic**, `fn(&mut World, Spring)`:
 
        fn pit(world: &mut World, spring: Spring) {
-           pit_effect(world, spring.victim, spring.is_player, spring.seen);
+           trapdoor_effect(world, spring.victim, spring.is_player, spring.seen);
        }
 
 2. **Say what it looks like**, `fn(&mut World, &'static TrapDef, Position)`:
@@ -64,11 +64,13 @@ Then:
     cargo test --test it content::
     NIHILURK_SPAWN="pit trap" cargo run -p nihilurk
 
+The pit trap is this page's example, so `a_traps_label_is_its_row` (`models/tests/it/content.rs`) asserts the game has none: copied as it stands, the row fails that test. Give yours its own name.
+
 
 Writing the mechanic
 --------------------
 
-Look at what the existing six do, and reuse the pieces:
+Look at what the existing traps do, and reuse the pieces:
 
     trapdoor_effect       moves the victim to the next floor down
     snare_victim(...)     Holds the victim for `TrapDef.snare_turns` turns
@@ -95,8 +97,8 @@ Your handler receives a `Spring`:
 > messages about a bat.
 
 > **A trap fires for whoever is *near* it too.** Shoot a trap, or catch
-> one in a wand's blast, and `detonate_trap` bursts it over the 3x3
-> around its tile: your handler then runs once per creature caught, none
+> one in a wand's blast, and `detonate_trap` bursts it over the
+> `TRICK_SHOT_RADIUS` around its tile: your handler then runs once per creature caught, none
 > of whom is standing on the trap. So read `victim`'s own `Position` if
 > you need where they are, take `at` as where the trap *was*, and do not
 > assume the two are the same tile. The burst's own damage
@@ -113,9 +115,9 @@ Your handler receives a `Spring`:
 > nothing else -- see `arrow_effect`. Rolling a full opposed defence would
 > make armour far better against traps than the design intends.
 
-If your trap costs the victim turns, hold them: `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)`, or `Pinned`, or `Rooted`. Each is an ordinary effect held for `Lifetime::Turns`, aged down once per turn by `effects::tick_effects` and lifted when its clock runs out. `Asleep` forfeits the victim's turn outright (`player_incapacitated`, and the AI skips the monster); `Pinned` only blocks movement -- a swing still lands, a step is a `bear_trap_thrash`; `Rooted` is `Pinned` without the teeth. You do not have to implement any of that; you pick which hold and for how long.
+If your trap costs the victim turns, hold them: `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)`, or `Pinned`, `Rooted` or `Clamped` (`effects::HOLDS` lists them). Each is an ordinary effect held for `Lifetime::Turns`, aged down once per turn by `effects::tick_effects` and lifted when its clock runs out. `Asleep` forfeits the victim's turn outright (`player_incapacitated`, and the AI skips the monster); `Pinned` only blocks movement -- a swing still lands, a step is a `bear_trap_thrash`; `Rooted` is `Pinned` without the teeth; `Clamped` is a creature's jaws, `clamped_thrash` in place of the bear trap's. You do not have to implement any of that; you pick which hold and for how long.
 
-The three run on their own clocks, so a victim can be asleep *and* pinned, and comes out of each when its own turns are up.
+Each runs on its own clock, so a victim can be asleep *and* pinned, and comes out of each when its own turns are up.
 
 
 Reveal styles
