@@ -885,6 +885,44 @@ fn traps_scale_with_depth_and_never_exceed_ten_per_floor() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn every_trap_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(5);
+    clear_traps(&mut w);
+    for (i, row) in TRAPS.iter().enumerate() {
+        let at = Position {
+            x: 10 + i as u16,
+            y: 5,
+        };
+        w.spawn(TrapBundle::from_def(row, TrapReveal::Sight, at));
+    }
+
+    let save = common::SaveFile::new("trap-rows");
+    save_game(&mut w, save.path()).unwrap();
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
+    w2.insert_resource(RngSeed(5));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+
+    let mut back: Vec<(u16, &'static TrapDef)> = w2
+        .query::<(&Trap, &Position)>()
+        .iter(&w2)
+        .map(|(t, p)| (p.x, t.row))
+        .collect();
+    back.sort_by_key(|(x, _)| *x);
+    assert_eq!(back.len(), TRAPS.len());
+    for (was, (_, is)) in TRAPS.iter().zip(&back) {
+        assert!(
+            std::ptr::eq(*was, *is),
+            "{} came back as {}",
+            was.name,
+            is.name
+        );
+    }
+}
+
+#[test]
 fn traps_and_snares_survive_a_save_and_reload() {
     let mut w = test_world(5);
     clear_traps(&mut w);
