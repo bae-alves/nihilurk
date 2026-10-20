@@ -23,7 +23,7 @@ A creature's `Spellset` component holds the [`SpellDef`](../../models/src/catalo
         pub slots: Vec<&'static SpellDef>,
     }
 
-Today only the player has one, taught in play by a hero coin (an uncommon coin-table row that puts a random, not-yet-known spell straight into the taker's `Spellset`, up to `constants::spells::SPELLSET_CAP` -- four) rather than started with any. Giving a spell to the player for testing without going through the drop table means putting it in that `Vec` by hand -- there is no `NIHILURK_SPAWN` for this, because there is no entity to spawn. See "Hold it in your hands" below.
+The player starts with an empty one (a lurk starts with Bide) and learns spells in play: from a hero coin, an uncommon coin-table row that puts a random, not-yet-known spell straight into the taker's `Spellset`, up to `constants::spells::SPELLSET_CAP`, or from a spirit's offer. Monsters that cast hold one too (below). Giving a spell to the player for testing without going through the drop table means putting it in that `Vec` by hand -- there is no `NIHILURK_SPAWN` for this, because there is no entity to spawn. See "Hold it in your hands" below.
 
 The other consequence of not being an item: a spell costs [`Magic`](../../models/src/components.rs), not a battery. `SpellDef::cost` is spent by [`spell_system`](../../models/src/items/spells.rs) every time the *player* triggers it. A monster that does the same trick under its own steam -- the dragon's fireball, the eel's thunderbolt -- has a `Spellset` and a `Magic` pool of its own, put there by its bestiary row (`MonsterDef::casts`). It pays `SpellDef::cost` out of that pool through the same `spell_cost` the player does (`pay_for_spell`), and it never refills.
 
@@ -107,7 +107,7 @@ Any damage your spell deals to another creature goes through [`helpers::apply_hi
 
 `Hit::magic` (no element) and `Hit::elemental` (fire, cold, ...) both set the hit's `magical` flag, and `apply_hit` reads it: a warded victim takes nothing, the log says so, and `wands::ward_ricochet` plays the bounce. `Hit::physical` is the opt-out -- steel, wood and gravity, which a ward is no help against.
 
-No spell checks `MagicWard` by hand, and none should. `apply_hit` owns that question along with elemental immunity and the stone-chip cap, so routing through `wands::elemental_blast` gets all three for free -- the blast calls `apply_hit` per victim itself. The only other ward check in the game is `abilities::fire_on_hit`, and it answers a different question: whether the *trick riding on* a landed blow takes hold. Roll damage straight onto a `Fighter` and your spell becomes the one hole in an otherwise complete shield, which is worse than it sounds: the player *bought* that immunity with three whole Magic points.
+No spell checks `MagicWard` by hand, and none should. `apply_hit` owns that question along with elemental immunity and the stone-chip cap, so routing through `wands::elemental_blast` gets all three for free -- the blast calls `apply_hit` per victim itself. The only other ward check in the game is `abilities::fire_on_hit`, and it answers a different question: whether the *trick riding on* a landed blow takes hold. Roll damage straight onto a `Fighter` and your spell becomes the one hole in an otherwise complete shield, which is worse than it sounds: the player *bought* that immunity with Magic.
 
 
 Hold it in your hands
@@ -121,7 +121,7 @@ There is no `NIHILURK_SPAWN` for a spell. In play the only way to learn one is a
 
 Build, run, and press `Z` to see it listed, then its row letter to aim it, or `Alt`+`Q`/`W`/`E`/`R` for slots one to four. `Tab` while aiming snaps the reticle to the next thing in view.
 
-If this was a dry run, `git checkout models/src/map/levels.rs` along with `catalog.rs` and `items/spells.rs`.
+Revert the `initialize_world` edit before you run the tests: a player who starts knowing a spell fails the tests that count the starting spellset (`hero_coin_teaches_a_spell_up_to_the_four_slot_cap`, the amnesia test). If this was a dry run, `git checkout models/src/map/levels.rs` along with `catalog.rs` and `items/spells.rs`.
 
 
 > **`Spellset` does survive a save** -- `models/src/saveload.rs` stores each spell by row name and refuses a save that names a spell no row has. So do the two marker components spells have left behind so far, `MagicWard` and `Bided` -- but not through a field of their own: each is a row in the `EFFECTS` registry (`models/src/effects.rs`, `"magic_ward" => MagicWard;`) lent through `effects::lend`, and `EntitySave::effects` saves it by id with the `Lifetime` it is being held for. If your new spell leaves a marker of its own lying around outside `Spellset`, register it there and lend it; a component inserted directly is the one a reload quietly forgets.

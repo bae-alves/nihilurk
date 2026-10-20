@@ -205,7 +205,7 @@ The one catalog row that never spawns anything: a spell carries no `Item`, no `P
 
 | Field    | Type           | Notes                                                          |
 |----------|----------------|-----------------------------------------------------------------|
-| `name`   | `&'static str` | Identity in saves (a `Spellset` holds rows; a save stores their names). Shown on the `Z` menu and in "You unleash your ___!" |
+| `name`   | `&'static str` | Identity in saves (a `Spellset` holds rows; a save stores their names). Shown on the `Z` menu and in "You cast ___!" (`strings::you_cast`) |
 | `cost`   | `u8`           | `Magic` points one use spends, times `constants::spells::TURBO_MAGIC_COST_MULT` when `TurboMagic` (a staff) meets an `Attack` — which multiplies that spell's damage by the larger `TURBO_MAGIC_POWER_MULT` in the same breath. |
 | `range`  | `i32`          | Feeds the aiming reticle (`.aimed(range)`). `0` for a spell that fires the instant its slot is pressed. |
 | `kind`   | `SpellKind`     | `Attack` (`.attack()`) or `Skill` — the same split a wand row's `attack` flag makes, and the one `TurboMagic` checks. |
