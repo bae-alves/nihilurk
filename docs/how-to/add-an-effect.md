@@ -31,7 +31,7 @@ Which kind do you need?
 
 Markers are the common case. Take that branch unless your property is literally an integer that adds up, or a limit that overrides one.
 
-There is one cap today (`MeleeCap`, carried by bows and crossbows) and it is read by one line of `resolve_attack`. It is written out by hand below the `modifiers!` rows rather than being one of them, because ceilings fold with `min` and the generated rows all fold with `+`. A second cap would be the moment to generalise that the way `equipped_total` is generalised over `Modifier`; see `melee_cap` in `models/src/effects.rs`.
+There is one cap today (`MeleeCap`, carried by every launcher) and it is read by one line of combat's damage roll (`combat.rs`, where `melee_cap` clamps the blow). It is written out by hand below the `modifiers!` rows rather than being one of them, because ceilings fold with `min` and the generated rows all fold with `+`. A second cap would be the moment to generalise that the way `equipped_total` is generalised over `Modifier`; see `melee_cap` in `models/src/effects.rs`.
 
 
 Adding a marker effect
@@ -50,8 +50,8 @@ Adding a marker effect
 
        effects! {
            ...
-           "fire_quarrel"   => FireQuarrel,
-           "poison_immune"  => PoisonImmune,      // <- your row
+           "fire_quarrel" => FireQuarrel;
+           "poison_immune" => PoisonImmune;
        }
 
    The id is what a save file stores. Write it out; never derive it from
@@ -59,10 +59,13 @@ Adding a marker effect
    bestiary row lives by. Rows may be reordered and retired freely,
    because nothing about a row's *position* means anything.
 
-   An effect that ends on its own gets the line the player reads when it
-   does, in brackets after the type:
+   After the type a row may name three lines from `strings`, each
+   optional and in this order: `ends`, what the player reads when the
+   effect runs out; `beware`, the phrase a look warns of; and `feel`, what
+   a player born with it (`-am`) is told at the start of the run.
 
-       "asleep" => Asleep ["You shake off the drowsiness and come to."],
+       "asleep" => Asleep, ends strings::ends_asleep();
+       "fire_immune" => FireImmune, beware strings::beware_fireproof(), feel strings::feel_fireproof();
 
 3. **Hand it out** from a row. Any of these, or all of them:
 
@@ -75,7 +78,7 @@ Adding a marker effect
 
        // a launcher that lends it while held
        LauncherDef { name: "sling", color: ...,
-                     grants: &[Grant::of::<FireStone>()] },
+                     grants: &[Grant::of::<FireStone>()], melee_cap: 1 },
 
 4. **Ask about it** where it matters. It is an ordinary component, so:
 
@@ -95,7 +98,7 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 > file stores, so renaming one is renaming the thing on disk: every
 > existing save comes back without that effect. Reordering rows and
 > retiring them are both safe, and there is no ceiling on how many there
-> can be -- the `u64` bitset that capped the list at 64 is gone.
+> can be.
 
 > **An id a save names and the build has no row for is dropped**, counted,
 > and reported to the player in one line at the end of the load. Losing one
@@ -107,8 +110,9 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 > will do its job for the rest of the session. It will not be saved, will
 > not come back on load, and cannot be cancelled. This is the quiet
 > failure to look for when an effect works until you reload.
-> `models/tests/it/abilities.rs` catches it for anything armed by an ability
-> row; nothing catches it for an effect only a mechanic reads.
+> `every_ability_marker_is_in_the_save_format` (`models/tests/it/abilities.rs`)
+> catches it for anything armed by an ability row; nothing catches it for an
+> effect only a mechanic reads.
 
 
 Making an effect act on its own
@@ -149,7 +153,7 @@ A `Grant` is a property held while the gear is worn. An *event* at the moment of
     pub struct OnWear(pub fn(&mut World, Entity, Entity));
     pub struct OnDoff(pub fn(&mut World, Entity, Entity));
 
-`equipment::toggle_equipped` fires it with `(wearer, item)` after the item is worn, named and known, and the function owns everything that follows -- including tagging the item `Consume` if wearing it is what spends it (`item_system` re-checks for that tag after the toggle and destroys the item instead of stowing it). The ring of adornment is the only thing in the game that uses it. A row attaches it the way it attaches grants, and `saveload` reads it back off the row.
+`equipment::toggle_equipped` fires it with `(wearer, item)` after the item is worn, named and known, and the function owns everything that follows -- including tagging the item `Consume` if wearing it is what spends it (`item_system` re-checks for that tag after the toggle and destroys the item instead of stowing it). The ring of adornment and the staff use it, and the staff also names an `OnDoff`, fired when it is deliberately put away. A row attaches either the way it attaches grants, and a load reads them back off the row (`restore_from_catalog` for a weapon; `load_game` off the `Ring` row for a ring).
 
 
 Adding a numeric modifier
@@ -181,8 +185,8 @@ Rarer, and a bigger change, because a number has to be added *somewhere* specifi
    Either sums the component across everything the entity has equipped
    plus anything it carries itself. Take the first when a caller wants one
    number and the second when it is already walking the gear for others
-   -- combat and the HUD both want the whole `Loadout`, and a sixth
-   `equipped_total` call there would be a sixth walk over the same handful
+   -- combat and the HUD both want the whole `Loadout`, and another
+   `equipped_total` call there would be another walk over the same handful
    of items.
 
    This is the step no framework can do for you: `PowerBonus` is read in
@@ -218,7 +222,7 @@ Appendix: quick check
 3. Hand it out with `.grants(&[Grant::of::<Type>()])` on a monster, ring or launcher row.
 4. Read it with a `With<Type>` filter, `world.get::<Type>(e)`, or `grant.probe(world, e)`.
 5. Acts on its own: add one row to `ABILITIES` in `models/src/abilities.rs`, with its `Moment`.
-6. Fires once on wear: attach `OnWear` from the row.
+6. Fires once on wear: attach `OnWear` from the row (and `OnDoff` if taking it off needs saying).
 7. Number: add one row to `modifiers!`, attach it from rows, and read it with `equipped_total`.
 8. Nothing may cancel it: add its id to `IDENTITY_EFFECTS`.
 9. Run `cargo test`, spawn something that grants it, save, reload, and check it is still there.
