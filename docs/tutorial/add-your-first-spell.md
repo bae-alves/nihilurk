@@ -116,7 +116,7 @@ The error names a missing match arm in `models/src/items/spells.rs`:
         }
     }
 
-The match has no catch-all, on purpose -- the same discipline `apply_scroll_effect` holds over `ScrollEffect`. A variant that compiled without an arm would be a spell that silently did nothing, and nihilurk does not ship those. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does. The staff gives back more damage than it takes in Magic; both multipliers live in `constants::spells`, one beside the other, so the trade stays readable.
+The match has no catch-all, on purpose. A variant that compiled without an arm would be a spell that silently did nothing, and nihilurk does not ship those. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does. The staff gives back more damage than it takes in Magic; both multipliers live in `constants::spells`, one beside the other, so the trade stays readable.
 
 Add the arm, and the function it calls:
 

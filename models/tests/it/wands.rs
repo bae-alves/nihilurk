@@ -602,7 +602,7 @@ fn teleport_to_is_not_blocked_by_loot_lying_on_the_floor() {
     };
     assert!(!ring.is_empty(), "the player has somewhere to drag them to");
     for spot in &ring {
-        spawn_scroll(&mut w, ScrollEffect::Identify, *spot);
+        spawn_named(&mut w, "scroll of identify", *spot).unwrap();
     }
 
     let far = {

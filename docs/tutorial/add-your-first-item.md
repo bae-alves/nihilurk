@@ -220,7 +220,7 @@ Thrown by hand the stone rolls its `die`. Loosed by somebody carrying `FireStone
 
 ### A row, plus one place that says what it does
 
-Each of these needs somebody to say what it does, and the compiler holds you to it: a potion or wand row has a required handler field, and a scroll variant has to get an arm in an **exhaustive match with no catch-all**. You cannot ship a potion that silently does nothing.
+Each of these needs somebody to say what it does, and the compiler holds you to it: the row has a **required handler field**, so a row that names no handler does not build. You cannot ship a potion that silently does nothing.
 
 **A potion.** A handler in `items/potions.rs` and a row in `POTIONS` that names it; no enum:
 
@@ -228,10 +228,9 @@ Each of these needs somebody to say what it does, and the compiler holds you to 
 
 The handler returns `bool` -- whether the dose visibly took hold.
 
-**A scroll.** Row in `SCROLLS`, variant on `ScrollEffect`, arm in `apply_scroll_effect` (`items/scrolls.rs`). A scroll has no colour: it is always white, and what varies is its unreadable title.
+**A scroll.** A handler in `items/scrolls.rs` and a row in `SCROLLS` that names it. A scroll has no colour: it is always white, and what varies is its unreadable title.
 
-    ScrollDef { effect: ScrollEffect::ProtectArmor,
-                name: "scroll of protect armor" },
+    &ScrollDef::new("scroll of protect armor", scrolls::protect_armor),
 
 **A wand.** A zap handler in `items/wands.rs` and a row in `WANDS` that names it; no enum. The row also says how its blasts look, and, because a wand can be thrown as well as zapped, what a throw does: the default is the small blast that changes nobody, and `.thrown(Thrown::blast(f))` runs `f` on everyone it catches. Add `.attack()` if it should deal damage rather than deliver an effect.
 
@@ -244,7 +243,7 @@ Most of a wand's handler is borrowed. Sleep is `conditions::snare(world, victim,
 
 ### The one thing to check afterwards
 
-Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog table ever holds `POTION_OF_WATER`, `ScrollEffect::BlankPaper`, `BLANK_RUNE` or `WAND_OF_NOTHING`, which are never floor loot.
+Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog table ever holds `POTION_OF_WATER`, `SCROLL_OF_BLANK_PAPER`, `BLANK_RUNE` or `WAND_OF_NOTHING`, which are never floor loot.
 
     cargo test --test it content::
 

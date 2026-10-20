@@ -141,7 +141,7 @@ fn drinking_a_potion_breaks_potions_only() {
 #[test]
 fn reading_a_scroll_breaks_scrolls_only() {
     let mut w = run(Body::Nihil);
-    let scroll = spawn_scroll(&mut w, ScrollEffect::MagicMapping, NOWHERE);
+    let scroll = spawn_named(&mut w, "scroll of magic mapping", NOWHERE).unwrap();
     stash(&mut w, scroll);
     use_item(&mut w, scroll);
     only_broken(&mut w, Conduct::Scrolls);

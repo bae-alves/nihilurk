@@ -57,7 +57,7 @@ fn reading_magic_mapping_arms_the_reveal_and_the_sweep_maps_every_tile() {
         "should not start with the whole map known"
     );
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::MagicMapping, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of magic mapping", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 

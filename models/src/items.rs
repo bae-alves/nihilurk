@@ -5,7 +5,7 @@
 //! one, split by the kind of action:
 //!
 //! * [`potions`] — quaffing a potion (each row of `crate::catalog::POTIONS` names its handler there)
-//! * [`scrolls`] — reading a scroll ([`scrolls::apply_scroll_effect`])
+//! * [`scrolls`] — reading a scroll (each row of `crate::catalog::SCROLLS` names its handler there)
 //! * [`runes`] — invoking a rune (each row's `apply` handler), which goes
 //!   inert instead of crumbling and wakes on the stairs
 //! * [`wands`] — zapping a wand ([`wands::zap_wand`]), plus the blast
@@ -31,7 +31,7 @@ mod pickups;
 pub(crate) mod potions;
 pub(crate) mod rings;
 pub(crate) mod runes;
-mod scrolls;
+pub(crate) mod scrolls;
 mod spells;
 mod theft;
 pub(crate) mod throwing;
@@ -132,7 +132,6 @@ use crate::equipment::toggle_equipped;
 use crate::helpers::item_label;
 use crate::identify::{display_name, with_the};
 
-use self::scrolls::apply_scroll_effect;
 use self::wands::zap_wand;
 
 /// The schedule step for deep water: anything lying on a
@@ -247,7 +246,7 @@ struct UsePlan {
     /// How many times the wand fires: two for an attack wand in the hands of a
     /// [`DualZap`](crate::effects::DualZap) wearer with the charges to pay.
     casts: u8,
-    scroll: Option<ScrollEffect>,
+    scroll: Option<&'static crate::catalog::ScrollDef>,
     /// The card just taken off the top of a deck.
     card: Option<Card>,
     /// A rune's row, and whether it held a charge going in.
@@ -269,7 +268,7 @@ fn plan_use(world: &mut World, user: Entity, item: Entity) -> UsePlan {
     let mut e = world.entity_mut(item);
     plan.potion = e.get::<Potion>().map(|p| p.row);
     plan.wand = e.get::<Wand>().map(|w| w.row);
-    plan.scroll = e.get::<Scroll>().map(|s| s.effect);
+    plan.scroll = e.get::<Scroll>().map(|s| s.row);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
     if let Some(mut rune) = e.get_mut::<Rune>() {
         plan.rune = Some((rune.row, rune.charged));
@@ -351,8 +350,8 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
             zap_wand(world, item_use.user, item_use.target, row);
         }
     }
-    if let Some(eff) = plan.scroll {
-        apply_scroll_effect(world, item_use.user, eff);
+    if let Some(row) = plan.scroll {
+        (row.apply)(world, item_use.user);
     }
     if let Some(card) = plan.card {
         let deck = (!plan.destroy).then_some(item_use.item);

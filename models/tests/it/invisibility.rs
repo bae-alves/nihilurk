@@ -224,7 +224,7 @@ fn out_of_view(w: &mut World) -> Position {
 
 /// A stand-in floor item: `spawn_random_item` is private, so just drop a scroll.
 fn spawn_random_item_for_test(w: &mut World, pos: Position) -> Entity {
-    spawn_scroll(w, ScrollEffect::Identify, pos)
+    spawn_named(w, "scroll of identify", pos).unwrap()
 }
 
 #[test]

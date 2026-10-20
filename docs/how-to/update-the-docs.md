@@ -19,7 +19,7 @@ Look it up
 |-----------------------------------|-----------------------------------------------------------------------|----------------------------------------------|
 | A monster, weapon, armour, coin, ammo, launcher, treat or potion | nothing, unless it brings a new mechanic (see below)   | `-content` prints every row                  |
 | A ring                            | `../reference/components.md`, the `RingEffect` line                      | the enum is pasted there                     |
-| A scroll                          | `../reference/components.md`, the `ScrollEffect` line; `../explanation/the-feel-layer.md`, "What a scroll looks like" | the enum is pasted there; each scroll has a flourish |
+| A scroll                          | `../explanation/the-feel-layer.md`, "What a scroll looks like"       | each scroll has a flourish                   |
 | A wand                            | `../reference/content-tables.md`, the wand table; `../explanation/the-feel-layer.md`, "What a wand looks like" and the thrown-wand list | one table row per wand; a thrown wand blasts by kind |
 | A spell                           | nothing, unless it adds a `constants::` module (see below)            | `SPELLS` is not in `-content`, but no page lists spells |
 | A trap                            | `../reference/components.md`, the `TrapEffect` line                      | the enum is pasted there                     |

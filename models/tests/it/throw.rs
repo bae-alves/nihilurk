@@ -399,7 +399,7 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
     let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
     w.entity_mut(bow).insert(ThrowBonus(3));
     let scroll = stash(&mut w, p, |w| {
-        spawn_scroll(w, ScrollEffect::Teleportation, NOWHERE)
+        spawn_named(w, "scroll of teleportation", NOWHERE).unwrap()
     });
     let potion = stash(&mut w, p, |w| {
         spawn_named(w, "potion of poison", NOWHERE).unwrap()
@@ -427,10 +427,10 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
         Some(0),
         "a bow's plus is an enchantment like any other, and goes the same way"
     );
-    assert_eq!(
-        w.get::<Scroll>(scroll).unwrap().effect,
-        ScrollEffect::BlankPaper
-    );
+    assert!(std::ptr::eq(
+        w.get::<Scroll>(scroll).unwrap().row,
+        &SCROLL_OF_BLANK_PAPER
+    ));
     assert!(std::ptr::eq(
         w.get::<Potion>(potion).unwrap().row,
         &POTION_OF_WATER
@@ -693,7 +693,7 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
     let bat = monster(&mut w, "bat", spot);
     w.get_mut::<Fighter>(bat).unwrap().hp = 20;
     let scroll = stash(&mut w, p, |w| {
-        spawn_scroll(w, ScrollEffect::FoodDetection, NOWHERE)
+        spawn_named(w, "scroll of food detection", NOWHERE).unwrap()
     });
 
     throw(&mut w, p, scroll, spot);
@@ -701,7 +701,7 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
     assert_eq!(pos_of(&w, scroll), (spot.x, spot.y));
 
     let scroll = stash(&mut w, p, |w| {
-        spawn_scroll(w, ScrollEffect::FoodDetection, NOWHERE)
+        spawn_named(w, "scroll of food detection", NOWHERE).unwrap()
     });
     w.despawn(bat);
     let orc = monster::monster(&mut w, "test monster", spot);

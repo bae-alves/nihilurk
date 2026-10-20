@@ -57,7 +57,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    RingDef, content_id_of, potion_row, restore_from_catalog, rune_row, wand_row,
+    RingDef, content_id_of, potion_row, restore_from_catalog, rune_row, scroll_row, wand_row,
 };
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
@@ -214,7 +214,7 @@ struct EntitySave<'a> {
     battery: Option<i8>,
     wand: Option<String>,
     ranged: Option<i32>,
-    scroll: Option<ScrollEffect>,
+    scroll: Option<String>,
     ring: Option<RingEffect>,
     /// Which slot this piece of gear occupies, and (see
     /// [`EntitySave::equipped_by`]) who is wearing it.
@@ -317,7 +317,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 13;
+pub const SAVE_VERSION: u16 = 14;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -642,7 +642,7 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             battery: er.get::<Battery>().map(|b| b.charges),
             wand: er.get::<Wand>().map(|w| w.row.name.to_string()),
             ranged: er.get::<Ranged>().map(|r| r.range),
-            scroll: er.get::<Scroll>().map(|s| s.effect),
+            scroll: er.get::<Scroll>().map(|s| s.row.name.to_string()),
             rune: er
                 .get::<Rune>()
                 .map(|r| (r.row.name.to_string(), r.charged)),
@@ -929,11 +929,15 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .potion
                 .as_deref()
                 .is_none_or(|name| potion_row(name).is_some())
+            && es
+                .scroll
+                .as_deref()
+                .is_none_or(|name| scroll_row(name).is_some())
     });
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune, wand or potion this build has no row for",
+            "save file names a rune, wand, potion or scroll this build has no row for",
         ));
     }
 
@@ -1053,8 +1057,8 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if let Some(r) = es.ranged {
             em.insert(Ranged { range: r });
         }
-        if let Some(effect) = es.scroll {
-            em.insert(Scroll { effect });
+        if let Some(row) = es.scroll.as_deref().and_then(scroll_row) {
+            em.insert(Scroll { row });
         }
         if let Some((name, charged)) = es.rune
             && let Some(row) = rune_row(&name)

@@ -185,7 +185,7 @@ fn a_trapdoor_does_not_wake_a_rune() {
     let rune = pack_rune(&mut w, p, "rune of ice");
     w.get_mut::<Rune>(rune).unwrap().charged = false;
 
-    let pit = spawn_scroll(&mut w, ScrollEffect::Pitfall, NOWHERE);
+    let pit = spawn_named(&mut w, "scroll of pitfall", NOWHERE).unwrap();
     stash(&mut w, p, pit);
     use_item(&mut w, p, pit);
 

@@ -56,11 +56,34 @@ fn stash(w: &mut World, user: Entity, item: Entity) {
     w.get_mut::<Backpack>(user).unwrap().items.push(item);
 }
 
-/// Put a fresh scroll of `effect` in `user`'s pack and read it.
-fn read(w: &mut World, user: Entity, effect: ScrollEffect) {
-    let scroll = spawn_scroll(w, effect, Position { x: 0, y: 0 });
+/// Put a fresh scroll of the row called `name` in `user`'s pack and read it.
+fn read(w: &mut World, user: Entity, name: &str) {
+    let scroll = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
     stash(w, user, scroll);
     use_item(w, user, scroll);
+}
+
+/// Left on whoever read the fixture scroll.
+#[derive(Component)]
+struct Read;
+
+fn mark_the_reader(world: &mut World, user: Entity) {
+    world.entity_mut(user).insert(Read);
+}
+
+static FIXTURE_SCROLL: ScrollDef = ScrollDef::new("scroll of the test", mark_the_reader);
+
+#[test]
+fn a_scroll_does_what_its_row_says() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let scroll = (&FIXTURE_SCROLL).spawn(&mut w, Position { x: 0, y: 0 });
+    stash(&mut w, p, scroll);
+
+    use_item(&mut w, p, scroll);
+
+    assert!(w.get::<Read>(p).is_some());
+    assert!(w.get_entity(scroll).is_none(), "read, it crumbles");
 }
 
 fn logged(w: &World, needle: &str) -> bool {
@@ -107,7 +130,7 @@ fn teleportation_drops_the_reader_somewhere_else_on_the_floor() {
     let before = *w.get::<Position>(p).unwrap();
     w.get_mut::<Viewshed>(p).unwrap().dirty = false;
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::Teleportation, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of teleportation", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -150,11 +173,12 @@ fn aggravate_turns_every_monster_into_a_hunter_that_closes_in_unseen() {
     );
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y)];
 
-    let scroll = spawn_scroll(
+    let scroll = spawn_named(
         &mut w,
-        ScrollEffect::AggravateMonsters,
+        "scroll of aggravate monsters",
         Position { x: 0, y: 0 },
-    );
+    )
+    .unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -189,7 +213,7 @@ fn scare_monster_routs_what_you_can_see_and_leaves_the_rest_alone() {
     let unseen = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::ScareMonster, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of scare monster", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -220,7 +244,7 @@ fn create_monster_conjures_a_fresh_creature_on_the_floor() {
 
     let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::CreateMonster, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of create monster", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -244,7 +268,8 @@ fn create_monster_sometimes_conjures_it_already_tamed() {
         let before: std::collections::HashSet<Entity> =
             w.query_filtered::<Entity, With<Mob>>().iter(&w).collect();
 
-        let scroll = spawn_scroll(&mut w, ScrollEffect::CreateMonster, Position { x: 0, y: 0 });
+        let scroll =
+            spawn_named(&mut w, "scroll of create monster", Position { x: 0, y: 0 }).unwrap();
         stash(&mut w, p, scroll);
         use_item(&mut w, p, scroll);
 
@@ -280,7 +305,7 @@ fn charming_tames_every_monster_in_view_and_leaves_the_rest_alone() {
     let unseen = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::Charming, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of charming", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -319,11 +344,12 @@ fn vorpalize_brands_the_wielded_blade_and_names_a_bane() {
     let p = player(&mut w);
     let sword = wield_a_blade(&mut w, p);
 
-    let scroll = spawn_scroll(
+    let scroll = spawn_named(
         &mut w,
-        ScrollEffect::VorpalizeWeapon,
+        "scroll of vorpalize weapon",
         Position { x: 0, y: 0 },
-    );
+    )
+    .unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -342,11 +368,12 @@ fn vorpalizing_an_already_vorpal_weapon_crumbles_it() {
     let sword = wield_a_blade(&mut w, p);
     w.entity_mut(sword).insert(Vorpal { bane: "orc".into() });
 
-    let scroll = spawn_scroll(
+    let scroll = spawn_named(
         &mut w,
-        ScrollEffect::VorpalizeWeapon,
+        "scroll of vorpalize weapon",
         Position { x: 0, y: 0 },
-    );
+    )
+    .unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -374,11 +401,12 @@ fn vorpalize_with_empty_hands_just_fizzles() {
         force_unequip(&mut w, item);
     }
 
-    let scroll = spawn_scroll(
+    let scroll = spawn_named(
         &mut w,
-        ScrollEffect::VorpalizeWeapon,
+        "scroll of vorpalize weapon",
         Position { x: 0, y: 0 },
-    );
+    )
+    .unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -396,11 +424,12 @@ fn vorpalize_with_a_bow_in_hand_also_just_fizzles() {
     stash(&mut w, p, bow);
     toggle_equipped(&mut w, p, bow);
 
-    let scroll = spawn_scroll(
+    let scroll = spawn_named(
         &mut w,
-        ScrollEffect::VorpalizeWeapon,
+        "scroll of vorpalize weapon",
         Position { x: 0, y: 0 },
-    );
+    )
+    .unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -559,7 +588,7 @@ fn enchant_weapon_adds_a_plus_to_the_blade_in_hand() {
     let p = player(&mut w);
     let sword = wield_a_blade(&mut w, p);
 
-    read(&mut w, p, ScrollEffect::EnchantWeapon);
+    read(&mut w, p, "scroll of enchant weapon");
 
     assert_eq!(
         w.get::<PowerBonus>(sword).map(|b| b.0),
@@ -581,7 +610,7 @@ fn enchant_weapon_mends_a_minus_all_the_way_to_plus_zero_and_burns_the_curse_off
     w.entity_mut(sword).insert(PowerBonus(-4));
     w.entity_mut(sword).insert(Curse);
 
-    read(&mut w, p, ScrollEffect::EnchantWeapon);
+    read(&mut w, p, "scroll of enchant weapon");
 
     assert_eq!(
         w.get::<PowerBonus>(sword).map(|b| b.0),
@@ -602,7 +631,7 @@ fn enchant_armor_raises_the_armour_actually_being_worn() {
     let worn = equipped_in(&w, p, Slot::Body).expect("the hero starts in ring mail");
     let before = w.get::<ArmorBonus>(worn).map_or(0, |b| b.0);
 
-    read(&mut w, p, ScrollEffect::EnchantArmor);
+    read(&mut w, p, "scroll of enchant armor");
 
     assert_eq!(w.get::<ArmorBonus>(worn).map(|b| b.0), Some(before + 1));
 }
@@ -618,7 +647,7 @@ fn enchanting_a_bow_lands_on_the_throw_the_way_the_dungeon_rolls_one() {
     stash(&mut w, p, bow);
     toggle_equipped(&mut w, p, bow);
 
-    read(&mut w, p, ScrollEffect::EnchantWeapon);
+    read(&mut w, p, "scroll of enchant weapon");
 
     assert_eq!(
         w.get::<ThrowBonus>(bow).map(|b| b.0),
@@ -639,7 +668,7 @@ fn enchanting_with_nothing_in_the_slot_just_gutters_out() {
         force_unequip(&mut w, item);
     }
 
-    read(&mut w, p, ScrollEffect::EnchantArmor);
+    read(&mut w, p, "scroll of enchant armor");
 
     assert!(logged(&w, "bare skin"));
 }
@@ -653,7 +682,7 @@ fn monster_confusion_charges_the_hands_and_the_next_landed_blow_spends_them() {
     let mut w = test_world(1);
     let p = player(&mut w);
 
-    read(&mut w, p, ScrollEffect::MonsterConfusion);
+    read(&mut w, p, "scroll of monster confusion");
     assert!(
         w.get::<ConfusingTouch>(p).is_some(),
         "the charm waits on the hands rather than going off now"
@@ -688,7 +717,7 @@ fn a_glancing_scrape_never_passes_the_charm_on() {
     w.get_mut::<Fighter>(p).unwrap().power = 1;
     w.get_mut::<Fighter>(p).unwrap().power_bonus = 0;
 
-    read(&mut w, p, ScrollEffect::MonsterConfusion);
+    read(&mut w, p, "scroll of monster confusion");
 
     let hero = *w.get::<Position>(p).unwrap();
     let wall = spawn_dummy(&mut w, "orc", hero.x + 1, hero.y, 30, MovementType::Chase);
@@ -720,7 +749,7 @@ fn hold_monster_roots_what_you_can_see_and_leaves_the_rest_alone() {
     let unseen = spawn_dummy(&mut w, "troll", hero.x + 2, hero.y, 4, MovementType::Chase);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
 
-    read(&mut w, p, ScrollEffect::HoldMonster);
+    read(&mut w, p, "scroll of hold monster");
 
     assert!(
         w.get::<Rooted>(seen).is_some(),
@@ -747,7 +776,7 @@ fn a_held_monster_cannot_step_but_still_bites_what_comes_in_reach() {
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
         vec![(hero.x, hero.y), (hero.x + 2, hero.y), (hero.x, hero.y + 1)];
 
-    read(&mut w, p, ScrollEffect::HoldMonster);
+    read(&mut w, p, "scroll of hold monster");
     let stood = *w.get::<Position>(far).unwrap();
     run_ai(&mut w);
 
@@ -778,7 +807,7 @@ fn read_sleep_once(seed: u64) -> bool {
     let mob = spawn_dummy(&mut w, "rat", hero.x + 1, hero.y, 4, MovementType::Chase);
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
 
-    read(&mut w, p, ScrollEffect::Sleep);
+    read(&mut w, p, "scroll of sleep");
 
     let reader_out = w.get::<Asleep>(p).is_some();
     let room_out = w.get::<Asleep>(mob).is_some();
@@ -833,7 +862,7 @@ fn food_detection_turns_up_the_plain_things_and_leaves_the_magic_alone() {
     let cursed = spawn_weapon(&mut w, "mace", spot);
     w.entity_mut(cursed).insert(Curse);
 
-    read(&mut w, p, ScrollEffect::FoodDetection);
+    read(&mut w, p, "scroll of food detection");
 
     assert!(
         w.get::<Detected>(plain).is_some(),
@@ -862,7 +891,7 @@ fn detection_turns_a_stashed_item_up_for_good() {
     let p = player(&mut w);
     let plain = spawn_weapon(&mut w, "dagger", spot);
     w.entity_mut(plain).insert((Hidden, Invisible));
-    read(&mut w, p, ScrollEffect::FoodDetection);
+    read(&mut w, p, "scroll of food detection");
     assert!(w.get::<Detected>(plain).is_some());
     assert!(w.get::<Hidden>(plain).is_none());
     assert!(w.get::<Invisible>(plain).is_none());
@@ -906,7 +935,7 @@ fn both_detections_find_the_element_of_yoord() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let relic = spawn_element_of_yoord(&mut w, spot);
-    read(&mut w, p, ScrollEffect::FoodDetection);
+    read(&mut w, p, "scroll of food detection");
     assert!(
         w.get::<Detected>(relic).is_some(),
         "the scroll finds the relic"
@@ -934,15 +963,15 @@ fn both_detections_find_the_element_of_yoord() {
 #[test]
 fn the_new_scrolls_queue_their_flourish_when_there_is_an_effect_layer() {
     let cases = [
-        ScrollEffect::EnchantWeapon,
-        ScrollEffect::EnchantArmor,
-        ScrollEffect::MonsterConfusion,
-        ScrollEffect::HoldMonster,
-        ScrollEffect::Sleep,
-        ScrollEffect::FoodDetection,
-        ScrollEffect::Teleportation,
+        "scroll of enchant weapon",
+        "scroll of enchant armor",
+        "scroll of monster confusion",
+        "scroll of hold monster",
+        "scroll of sleep",
+        "scroll of food detection",
+        "scroll of teleportation",
     ];
-    for effect in cases {
+    for name in cases {
         let mut w = test_world(6);
         w.insert_resource(Particles::new());
         let p = player(&mut w);
@@ -951,12 +980,12 @@ fn the_new_scrolls_queue_their_flourish_when_there_is_an_effect_layer() {
         w.get_mut::<Viewshed>(p).unwrap().visible_tiles =
             vec![(hero.x, hero.y), (hero.x + 1, hero.y)];
 
-        read(&mut w, p, effect);
+        read(&mut w, p, name);
 
         let fx = w.resource::<Particles>();
         assert!(
             fx.pending && fx.any_alive(),
-            "{effect:?} should have queued something to look at"
+            "{name} should have queued something to look at"
         );
     }
 }
@@ -971,7 +1000,7 @@ fn pitfall_drops_the_reader_a_floor_like_a_trapdoor() {
     let p = player(&mut w);
     w.get_mut::<Fighter>(p).unwrap().hp = 5;
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::Pitfall, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of pitfall", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, scroll);
     use_item(&mut w, p, scroll);
 
@@ -1005,7 +1034,7 @@ fn atonement_makes_angered_spirits_neutral_again() {
         MovementType::Chase
     ));
 
-    read(&mut w, p, ScrollEffect::Atonement);
+    read(&mut w, p, "scroll of atonement");
 
     assert!(!w.resource::<SpiritsHostile>().0);
     assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
@@ -1040,13 +1069,59 @@ fn teleport_to_stairs_goes_down_without_the_element_and_up_with_it() {
     let p = player(&mut w);
     assert!(!within_one_of(&w, p, TileType::Downstairs));
 
-    read(&mut w, p, ScrollEffect::TeleportToStairs);
+    read(&mut w, p, "scroll of teleport to stairs");
     assert!(within_one_of(&w, p, TileType::Downstairs));
 
     let element = spawn_element_of_yoord(&mut w, Position { x: 0, y: 0 });
     stash(&mut w, p, element);
     assert!(!within_one_of(&w, p, TileType::Upstairs));
 
-    read(&mut w, p, ScrollEffect::TeleportToStairs);
+    read(&mut w, p, "scroll of teleport to stairs");
     assert!(within_one_of(&w, p, TileType::Upstairs));
+}
+
+#[test]
+fn every_scroll_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    w.get_mut::<Backpack>(p).unwrap().items.clear();
+    let rows: Vec<&'static ScrollDef> = SCROLLS
+        .iter()
+        .copied()
+        .chain([&SCROLL_OF_BLANK_PAPER])
+        .collect();
+    for row in &rows {
+        let scroll = row.spawn(&mut w, Position { x: 0, y: 0 });
+        w.entity_mut(scroll).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(scroll);
+    }
+
+    let file = crate::common::SaveFile::new("scroll-rows");
+    save_game(&mut w, file.path()).unwrap();
+    let mut loaded = World::new();
+    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
+    loaded.insert_resource(RngSeed(3));
+    loaded.init_resource::<GameLog>();
+    loaded.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    load_game(&mut loaded, file.path()).unwrap();
+
+    let lp = player(&mut loaded);
+    let back: Vec<&'static ScrollDef> = loaded
+        .get::<Backpack>(lp)
+        .unwrap()
+        .items
+        .iter()
+        .filter_map(|&e| loaded.get::<Scroll>(e).map(|scroll| scroll.row))
+        .collect();
+    assert_eq!(back.len(), rows.len());
+    for (was, is) in rows.iter().zip(&back) {
+        assert!(
+            std::ptr::eq(*was, *is),
+            "{} came back as {}",
+            was.name,
+            is.name
+        );
+    }
 }

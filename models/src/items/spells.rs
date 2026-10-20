@@ -11,8 +11,9 @@
 //! and calls this.
 //!
 //! Several spells borrow another category's own machinery outright rather
-//! than reinvent it: Identify and Magic Mapping are literally
-//! [`super::scrolls::apply_scroll_effect`] under a different name, and Lux
+//! than reinvent it: Identify and Magic Mapping are literally the scroll
+//! handlers ([`super::scrolls::identify_everything_hidden`],
+//! [`super::scrolls::map_the_floor`]) under a different name, and Lux
 //! and Meteor Strike are [`elemental_blast`] played with a stand-in battery.
 //! That is deliberate — a spell is a *delivery method*, and the dungeon
 //! already knows what a wand of light or a scroll of magic mapping does.
@@ -143,8 +144,8 @@ pub(crate) fn spell_blast_radius(spell: SpellEffect) -> Option<f32> {
 
 /// Exhaustive over [`SpellEffect`], deliberately with no catch-all: a spell
 /// added to the enum and not given an arm here fails the build instead of
-/// spending its cost for nothing — the same guarantee every other effect
-/// table in the game gives.
+/// spending its cost for nothing — the guarantee a catalog row gets from
+/// its required handler field.
 pub(crate) fn apply_spell_effect(
     world: &mut World,
     user: Entity,
@@ -165,9 +166,7 @@ pub(crate) fn apply_spell_effect(
         SpellEffect::Cure => cure_self(world, user),
         SpellEffect::Bide => bide(world, user),
         SpellEffect::ForceLance => force_lance(world, user, target, power_mult),
-        SpellEffect::Identify => {
-            super::scrolls::apply_scroll_effect(world, user, ScrollEffect::Identify)
-        }
+        SpellEffect::Identify => super::scrolls::identify_everything_hidden(world, user),
         SpellEffect::Setup => setup(world, user),
         SpellEffect::Lux => lux(world, user, target, power_mult),
         SpellEffect::CircleOfDeath => circle_of_death(world, user, power_mult),
@@ -175,15 +174,11 @@ pub(crate) fn apply_spell_effect(
         SpellEffect::Heal => heal_self(world, user),
         SpellEffect::MeteorStrike => meteor_strike(world, user, target, power_mult),
         SpellEffect::FrostNova => frost_nova(world, user, power_mult),
-        SpellEffect::MagicMapping => {
-            super::scrolls::apply_scroll_effect(world, user, ScrollEffect::MagicMapping)
-        }
+        SpellEffect::MagicMapping => super::scrolls::map_the_floor(world, user),
         SpellEffect::HasteSelf => haste_self(world, user),
         SpellEffect::PolymorphSelf => super::wands::polymorph_entity(world, user),
         SpellEffect::PolymorphOther => super::wands::polymorph_target(world, target),
-        SpellEffect::GateDown => {
-            super::scrolls::apply_scroll_effect(world, user, ScrollEffect::Pitfall)
-        }
+        SpellEffect::GateDown => super::scrolls::pitfall(world, user),
     }
 }
 

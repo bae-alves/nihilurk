@@ -14,7 +14,6 @@ use crate::abilities::{steal_equipped_item, steal_unequipped_item};
 use crate::components::*;
 use crate::helpers::{item_label, leave_smoke};
 
-use super::scrolls::apply_scroll_effect;
 use super::wands::teleport_entity_away;
 
 /// The leprechaun's on-hit: lift something loose from the victim's pack,
@@ -108,8 +107,8 @@ fn use_stolen_item(world: &mut World, thief: Entity, item: Entity) {
         world.entity_mut(item).despawn();
         return;
     }
-    if let Some(effect) = world.get::<Scroll>(item).map(|s| s.effect) {
-        apply_scroll_effect(world, thief, effect);
+    if let Some(row) = world.get::<Scroll>(item).map(|s| s.row) {
+        (row.apply)(world, thief);
         world.entity_mut(item).despawn();
         return;
     }

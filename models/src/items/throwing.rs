@@ -36,7 +36,6 @@ use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
 
-use super::scrolls::apply_scroll_effect;
 use super::spells::spell_blast_radius;
 use super::wands::{blast_cells, elemental_blast, shuffle_places};
 use crate::catalog::{Burst, WandDef};
@@ -783,14 +782,14 @@ fn deliver_throw(
 
     // A scroll only means something to a creature that can read it. Anything
     // else it bounces off, and it can be picked up again.
-    if let Some(effect) = world.get::<Scroll>(item).map(|s| s.effect) {
+    if let Some(row) = world.get::<Scroll>(item).map(|s| s.row) {
         match victim.filter(|&v| world.get::<ItemUser>(v).is_some()) {
             Some(reader) => {
                 let who = item_label(world, reader);
                 world
                     .resource_mut::<GameLog>()
                     .add(strings::scroll_read_aloud(&who, &seen_name));
-                apply_scroll_effect(world, reader, effect);
+                (row.apply)(world, reader);
                 world.entity_mut(item).despawn();
             }
             None => land_item(world, item, landing),

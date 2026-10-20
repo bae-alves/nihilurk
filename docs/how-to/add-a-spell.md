@@ -66,7 +66,7 @@ An `Attack` opens the aiming reticle, deals damage (or a status a target can shr
            }
        }
 
-   The match has no catch-all, the same as `apply_scroll_effect` over `ScrollEffect` -- step 1's new variant will not build until this step gives it an arm. The compiler names the function and the missing variant, so there is nothing to remember. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied the cost, `1` otherwise -- fold it into your damage roll (multiply the final number, the way every existing `Attack` arm does; see `sting`, `thunderbolt`, `force_lance` for the shape when armour is or isn't subtracted).
+   The match has no catch-all -- step 1's new variant will not build until this step gives it an arm. The compiler names the function and the missing variant, so there is nothing to remember. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied the cost, `1` otherwise -- fold it into your damage roll (multiply the final number, the way every existing `Attack` arm does; see `sting`, `thunderbolt`, `force_lance` for the shape when armour is or isn't subtracted).
 
    Most of an attack's mechanic is borrowed rather than written:
 
@@ -77,7 +77,7 @@ An `Attack` opens the aiming reticle, deals damage (or a status a target can shr
 
    Whichever shape you pick, land the damage through `helpers::apply_hit` with a `Hit::magic` or `Hit::elemental` rather than writing to a `Fighter`'s `hp` yourself -- that one call is what makes Magic Ward, elemental immunity and a petrified victim's damage cap apply to your spell. See "Play fair with Magic Ward" below.
 
-4. **Say whether it needs a target.** Every attack above that hits one aimed tile does; `SpellEffect::needs_target` (`models/src/components.rs`) lists the ones that don't, because they hit everyone in view instead (Circle of Death, Frost Nova) -- add your variant there if that's the shape you picked in step 3, the same way `WandEffect::needs_target` carves the wand of light out from every other wand. Leave it out (needing a target is the default) for anything aimed.
+4. **Say whether it needs a target.** Every attack above that hits one aimed tile does; `SpellEffect::needs_target` (`models/src/components.rs`) lists the ones that don't, because they hit everyone in view instead (Circle of Death, Frost Nova) -- add your variant there if that's the shape you picked in step 3, the same way `.unaimed()` carves the wand of light out from every other wand. Leave it out (needing a target is the default) for anything aimed.
 
 
 ### Create a skill
@@ -90,7 +90,7 @@ A `Skill` never opens on damage. It changes the caster (Cure, Heal, Bide, Magic 
 
      * **Borrow a scroll wholesale.** Identify and Magic Mapping are one line each:
 
-           SpellEffect::Identify => super::scrolls::apply_scroll_effect(world, user, ScrollEffect::Identify),
+           SpellEffect::Identify => super::scrolls::identify_everything_hidden(world, user),
 
        Reach for this whenever an existing scroll already does exactly what you want -- a spell is a delivery method, not a reason to write the mechanic twice.
 

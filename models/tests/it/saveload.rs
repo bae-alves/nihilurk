@@ -86,7 +86,7 @@ fn round_trip() {
     });
     let cursed_armor = spawn_armor(&mut w3, "plate mail", pos);
     w3.entity_mut(cursed_armor).insert(Curse);
-    spawn_scroll(&mut w3, ScrollEffect::MagicMapping, pos);
+    spawn_named(&mut w3, "scroll of magic mapping", pos).unwrap();
     spawn_ring(&mut w3, RingEffect::Regeneration, pos);
     spawn_element_of_yoord(&mut w3, pos);
     let save3 = common::SaveFile::new("gear");
@@ -126,9 +126,9 @@ fn round_trip() {
     assert_eq!(
         w4.query::<&Scroll>()
             .iter(&w4)
-            .map(|s| s.effect)
+            .map(|s| s.row.name)
             .collect::<Vec<_>>(),
-        vec![ScrollEffect::MagicMapping],
+        vec!["scroll of magic mapping"],
     );
     assert_eq!(
         w4.query::<&Ring>()
@@ -323,7 +323,7 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
     let hero = w.query_filtered::<Entity, With<Player>>().single(&w);
     let here = *w.get::<Position>(hero).unwrap();
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::MonsterConfusion, here);
+    let scroll = spawn_named(&mut w, "scroll of monster confusion", here).unwrap();
     w.entity_mut(scroll).remove::<Position>();
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
         user: hero,

@@ -412,7 +412,7 @@ fn full_entity<'a>() -> EntitySave<'a> {
         battery: Some(-3),
         wand: Some("wand of swapping".to_string()),
         ranged: Some(300),
-        scroll: Some(ScrollEffect::Atonement),
+        scroll: Some("scroll of atonement".to_string()),
         ring: Some(RingEffect::Polymorph),
         equipped: Some(Slot::Finger),
         power_die: Some(300),
@@ -542,6 +542,17 @@ fn a_potion_no_row_has_refuses_the_load() {
     entity.potion = Some("potion of nowhere".to_string());
     let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
     let err = load_bytes("unknown-potion", &bytes)
+        .err()
+        .expect("the load is refused");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+}
+
+#[test]
+fn a_scroll_no_row_has_refuses_the_load() {
+    let mut entity = blank_entity();
+    entity.scroll = Some("scroll of nowhere".to_string());
+    let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
+    let err = load_bytes("unknown-scroll", &bytes)
         .err()
         .expect("the load is refused");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);

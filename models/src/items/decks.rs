@@ -63,7 +63,7 @@ pub(super) fn throw_deck(world: &mut World, thrower: Entity, deck: Entity) {
 }
 
 /// Plays one card. Exhaustive over [`CardFace`] with no catch-all, the way
-/// `apply_scroll_effect` is: a new face fails the build until it does
+/// `apply_spell_effect` is: a new face fails the build until it does
 /// something.
 fn play(world: &mut World, deal: &mut Deal, card: Card) {
     if deal.budget == 0 {

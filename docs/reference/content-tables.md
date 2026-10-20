@@ -115,7 +115,7 @@ Every row implements `ItemDef`, which supplies:
     fn min_depth(&self) -> u8                  default 1
     fn spawn_as_loot(&self, world, rng, pos)   default: calls spawn
 
-Only the scroll of identify and the scroll of remove curse override `weight` (twice the baseline); no item row overrides `min_depth`. Every other row picks evenly on purpose.
+Only the scroll of identify and the scroll of remove curse change `weight` (`.common()`, twice the baseline); no item row overrides `min_depth`. Every other row picks evenly on purpose.
 
 ### POTIONS — PotionDef
 
@@ -131,12 +131,13 @@ The dials the handlers read — how much ceiling a dose of healing is worth, how
 
 ### SCROLLS — ScrollDef
 
-| Field    | Type           | Notes                                    |
-|----------|----------------|------------------------------------------|
-| `effect` | `ScrollEffect` | Keys the mechanic; identity in saves.    |
-| `name`   | `&'static str` |                                          |
+| Field    | Type                     | Notes                                    |
+|----------|--------------------------|------------------------------------------|
+| `name`   | `&'static str`           | Identity in saves and for `spawn_named`. |
+| `apply`  | `fn(&mut World, Entity)` | What reading it does to the reader.      |
+| `weight` | `u32`                    | How often it drops against the other scrolls. |
 
-Draws `?`, always white — a scroll has no colour field. Attaches `Item`, `Scroll`, `Consume`. Mechanic: `apply_scroll_effect` in `models/src/items/scrolls.rs`. That match has no catch-all, so a new `ScrollEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above. Every row bites; `BlankPaper` is the only arm that does nothing, and it says so.
+Draws `?`, always white — a scroll has no colour field. Attaches `Item`, `Scroll`, `Consume`; a `Scroll` holds its row. Rows are `static`, built with `ScrollDef::new(name, apply)`; `.common()` doubles the weight. Mechanic: the row's `apply`, one handler per row in `models/src/items/scrolls.rs`. `new` takes the handler, so a row without one does not compile. Every row bites; `SCROLL_OF_BLANK_PAPER`, kept out of `SCROLLS`, is the only one that does nothing, and it says so.
 
 Each scroll has a flourish of its own — which one, and why that one, is `../explanation/the-feel-layer.md`.
 
@@ -204,15 +205,15 @@ The one catalog row that never spawns anything: a spell carries no `Item`, no `P
 | `range`  | `i32`          | Feeds the aiming reticle. Meaningless — left at `0` — for a spell whose `SpellEffect::needs_target()` is `false`. |
 | `kind`   | `SpellKind`     | `Attack` or `Skill` — the same split a wand row's `attack` flag makes, and the one `TurboMagic` checks. |
 
-One row per `SpellEffect`, in four `Magic`-cost tiers, any of which a coin or spirit may teach (`SpellDef::learnable`). `SpellEffect::needs_target` says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy `WandEffect::needs_target` gives the wand of light.
+One row per `SpellEffect`, in four `Magic`-cost tiers, any of which a coin or spirit may teach (`SpellDef::learnable`). `SpellEffect::needs_target` says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy the wand of light's `.unaimed()` row gets.
 
-Mechanic: `apply_spell_effect` in `models/src/items/spells.rs`, keyed by `SpellEffect`, exhaustive with no catch-all like every other effect table in the game. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into `scrolls::apply_scroll_effect`; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a spell has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
+Mechanic: `apply_spell_effect` in `models/src/items/spells.rs`, keyed by `SpellEffect`, exhaustive with no catch-all like every other effect table in the game. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into the scroll handlers; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a spell has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
 
 `MagicWard` (the spell) is an `EFFECTS` row like any other marker, lent for `Lifetime::Floor` by `effects::lend`, and it is checked in exactly two places — `helpers::apply_hit` (every `Hit` whose `magical` flag is set, zapped, thrown, breathed or cast, bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted at the next staircase like any other floor-scoped effect, and named on the way out as a boon rather than an affliction (`conditions::FLOOR_BOONS`, `conditions::clear_player_conditions`).
 
 `Bided` (Bide) is likewise a plain marker: `combat::fold_matchup` folds `constants::combat::BIDE_ATTACK_BONUS` into the bearer's next attack roll, and `combat::resolve_attack` removes the marker the instant that roll is folded — hit, glancing or miss, and before a double-striking estoc or a cleave can see it twice. Anything else the bearer does with a turn instead of landing an attack — a plain step, a used or thrown item, another move cast — spends it unfired: `equipment::reset_momentum` strips it on the same occasions it zeroes a rapier's `Momentum`.
 
-A scroll of amnesia (`ScrollEffect::Amnesia`) is the one thing that un-teaches a spell: `scrolls::read_amnesia` drops one random entry from the reader's `Spellset` and clears their `Viewshed::revealed_tiles` for the current floor in the same breath.
+A scroll of amnesia is the one thing that un-teaches a spell: `scrolls::read_amnesia` drops one random entry from the reader's `Spellset` and clears their `Viewshed::revealed_tiles` for the current floor in the same breath.
 
 ### WEAPONS — WeaponDef
 
@@ -670,7 +671,7 @@ Potions, scrolls, wands and rings are always shown by their true name — no cos
 
 Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_ring` curses and, for a numeric ring, gives a plus, hides both the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
 
-A dud (`POTION_OF_WATER`, `ScrollEffect::BlankPaper`, `BLANK_RUNE`, `WAND_OF_NOTHING`) is never a spawnable row. The first three only ever happen as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`); nothing makes a wand of nothing today. Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
+A dud (`POTION_OF_WATER`, `SCROLL_OF_BLANK_PAPER`, `BLANK_RUNE`, `WAND_OF_NOTHING`) is never a spawnable row. The first three only ever happen as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`); nothing makes a wand of nothing today. Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
 
 
 The colour palette

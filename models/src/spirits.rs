@@ -310,7 +310,7 @@ pub fn confirm_offer(world: &mut World, player: Entity, choice: OfferOption) {
         OfferOption::Weapon(def) => give_item(world, player, def),
         OfferOption::Armor(def) => give_item(world, player, def),
         OfferOption::Ring(def) => give_item(world, player, def),
-        OfferOption::Scroll(def) => give_item(world, player, def),
+        OfferOption::Scroll(def) => give_item(world, player, &def),
         OfferOption::Potion(def) => give_item(world, player, &def),
         OfferOption::Wand(def) => give_item(world, player, &def),
     }
@@ -624,7 +624,7 @@ pub(crate) fn red_demon_event(world: &mut World, player: Entity, spirit: Entity)
 pub(crate) fn gnome_event(world: &mut World, player: Entity, spirit: Entity) {
     let options = roll_one_of_each(world, |rng| {
         [
-            SCROLLS.choose(rng).map(OfferOption::Scroll),
+            SCROLLS.choose(rng).map(|&row| OfferOption::Scroll(row)),
             POTIONS.choose(rng).map(|&row| OfferOption::Potion(row)),
             WANDS.choose(rng).map(|&row| OfferOption::Wand(row)),
         ]

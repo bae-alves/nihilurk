@@ -35,7 +35,7 @@ use crate::conditions::{blind, hasten, paralyse};
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 use crate::items::wands::dazzle;
-use crate::items::{potions, runes, throwing, wands};
+use crate::items::{potions, runes, scrolls, throwing, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
 use crate::particles::BlastPalette;
 
@@ -209,30 +209,45 @@ pub fn potion_row(name: &str) -> Option<&'static PotionDef> {
 // Scrolls
 // ---------------------------------------------------------------------------
 
-/// A scroll: read once, then it crumbles. Its mechanic lives in the `scrolls`
-/// submodule of `crate::items`, keyed by [`ScrollDef::effect`].
+/// A scroll: read once, then it crumbles. The row is the scroll: a [`Scroll`]
+/// points at its row, and reading it calls the row's `apply`. The handlers
+/// live in the `scrolls` submodule of `crate::items`.
 pub struct ScrollDef {
-    /// The [`ScrollEffect`] this row is the entry for.
-    pub effect: ScrollEffect,
     /// The row's identity: the save file stores it and
     /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
     /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
+    /// What reading it does to its `reader`, the player or a monster it was
+    /// thrown at.
+    pub apply: fn(&mut World, Entity),
+    /// How often the dungeon drops it against the other scrolls.
+    pub weight: u32,
 }
 
-impl ItemDef for ScrollDef {
+impl ScrollDef {
+    /// A scroll that reads through `apply`, dropped as often as most.
+    pub const fn new(name: &'static str, apply: fn(&mut World, Entity)) -> Self {
+        Self {
+            name,
+            apply,
+            weight: crate::constants::monsters::DEFAULT_SPAWN_WEIGHT,
+        }
+    }
+
+    /// Dropped twice as often as most.
+    const fn common(mut self) -> Self {
+        self.weight *= 2;
+        self
+    }
+}
+
+impl ItemDef for &'static ScrollDef {
     fn name(&self) -> &'static str {
         self.name
     }
 
-    /// Identify and remove curse are the two scrolls every run needs, so they
-    /// drop twice as often as the rest.
     fn weight(&self) -> u32 {
-        let base = crate::constants::monsters::DEFAULT_SPAWN_WEIGHT;
-        match self.effect {
-            ScrollEffect::Identify | ScrollEffect::RemoveCurse => base * 2,
-            _ => base,
-        }
+        self.weight
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
@@ -247,38 +262,52 @@ impl ItemDef for ScrollDef {
                 },
                 pos,
                 Item,
-                Scroll {
-                    effect: self.effect,
-                },
+                Scroll { row: self },
                 Consume,
             ))
             .id()
     }
 }
 
-/// Every scroll in the game, one row each.
+/// Every scroll the dungeon drops, one row each. Identify and remove curse are
+/// the two every run needs, so they are `.common()`.
 #[rustfmt::skip]
-pub const SCROLLS: &[ScrollDef] = &[
-    ScrollDef { effect: ScrollEffect::MonsterConfusion,  name: "scroll of monster confusion" },
-    ScrollDef { effect: ScrollEffect::MagicMapping,      name: "scroll of magic mapping" },
-    ScrollDef { effect: ScrollEffect::HoldMonster,       name: "scroll of hold monster" },
-    ScrollDef { effect: ScrollEffect::Sleep,             name: "scroll of sleep" },
-    ScrollDef { effect: ScrollEffect::EnchantArmor,      name: "scroll of enchant armor" },
-    ScrollDef { effect: ScrollEffect::Identify,          name: "scroll of identify" },
-    ScrollDef { effect: ScrollEffect::ScareMonster,      name: "scroll of scare monster" },
-    ScrollDef { effect: ScrollEffect::FoodDetection,     name: "scroll of food detection" },
-    ScrollDef { effect: ScrollEffect::Teleportation,     name: "scroll of teleportation" },
-    ScrollDef { effect: ScrollEffect::EnchantWeapon,     name: "scroll of enchant weapon" },
-    ScrollDef { effect: ScrollEffect::CreateMonster,     name: "scroll of create monster" },
-    ScrollDef { effect: ScrollEffect::RemoveCurse,       name: "scroll of remove curse" },
-    ScrollDef { effect: ScrollEffect::AggravateMonsters, name: "scroll of aggravate monsters" },
-    ScrollDef { effect: ScrollEffect::VorpalizeWeapon,   name: "scroll of vorpalize weapon" },
-    ScrollDef { effect: ScrollEffect::Amnesia,           name: "scroll of amnesia" },
-    ScrollDef { effect: ScrollEffect::Charming,          name: "scroll of charming" },
-    ScrollDef { effect: ScrollEffect::Pitfall,           name: "scroll of pitfall" },
-    ScrollDef { effect: ScrollEffect::Atonement,         name: "scroll of atonement" },
-    ScrollDef { effect: ScrollEffect::TeleportToStairs,  name: "scroll of teleport to stairs" },
+pub static SCROLLS: &[&ScrollDef] = &[
+    &ScrollDef::new("scroll of monster confusion",  scrolls::charm_hands),
+    &ScrollDef::new("scroll of magic mapping",      scrolls::map_the_floor),
+    &ScrollDef::new("scroll of hold monster",       scrolls::hold_in_view),
+    &ScrollDef::new("scroll of sleep",              scrolls::read_sleep),
+    &ScrollDef::new("scroll of enchant armor",      scrolls::enchant_armor),
+    &ScrollDef::new("scroll of identify",           scrolls::identify_everything_hidden).common(),
+    &ScrollDef::new("scroll of scare monster",      scrolls::scare_monster),
+    &ScrollDef::new("scroll of food detection",     scrolls::detect_mundane_items),
+    &ScrollDef::new("scroll of teleportation",      scrolls::teleport_reader),
+    &ScrollDef::new("scroll of enchant weapon",     scrolls::enchant_weapon),
+    &ScrollDef::new("scroll of create monster",     scrolls::create_monster),
+    &ScrollDef::new("scroll of remove curse",       scrolls::remove_curse).common(),
+    &ScrollDef::new("scroll of aggravate monsters", scrolls::aggravate_floor),
+    &ScrollDef::new("scroll of vorpalize weapon",   scrolls::vorpalize_wielded_weapon),
+    &ScrollDef::new("scroll of amnesia",            scrolls::read_amnesia),
+    &ScrollDef::new("scroll of charming",           scrolls::charming),
+    &ScrollDef::new("scroll of pitfall",            scrolls::pitfall),
+    &ScrollDef::new("scroll of atonement",          scrolls::atonement),
+    &ScrollDef::new("scroll of teleport to stairs", scrolls::teleport_to_stairs),
 ];
+
+/// What a wand of cancellation leaves of any scroll. Kept out of [`SCROLLS`],
+/// so the dungeon never drops one.
+pub static SCROLL_OF_BLANK_PAPER: ScrollDef =
+    ScrollDef::new("scroll of blank paper", scrolls::blank_paper);
+
+/// The scroll row called `name`, blank paper included: how a load finds a
+/// saved scroll's row again.
+pub fn scroll_row(name: &str) -> Option<&'static ScrollDef> {
+    SCROLLS
+        .iter()
+        .copied()
+        .chain([&SCROLL_OF_BLANK_PAPER])
+        .find(|row| row.name == name)
+}
 
 // ---------------------------------------------------------------------------
 // Decks of cards
@@ -1742,16 +1771,6 @@ fn named<'a, D: ItemDef>(table: &'a [D], name: &str, kind: &str) -> &'a D {
         .iter()
         .find(|d| d.name() == name)
         .unwrap_or_else(|| panic!("no {kind} named {name:?}"))
-}
-
-/// A scroll of `effect` on the floor at `pos`. Panics if [`SCROLLS`] has no row
-/// for it, which would mean a [`ScrollEffect`] variant nobody gave a row.
-pub fn spawn_scroll(world: &mut World, effect: ScrollEffect, pos: Position) -> Entity {
-    SCROLLS
-        .iter()
-        .find(|d| d.effect == effect)
-        .expect("scroll row")
-        .spawn(world, pos)
 }
 
 /// A ring of `effect` on the floor at `pos`. Panics on a variant with no row in

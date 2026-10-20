@@ -87,7 +87,7 @@ fn cursed_gear_sticks_until_the_curse_is_lifted() {
     let cursed_mail = spawn_armor(&mut w, "plate mail", Position { x: 0, y: 0 });
     w.entity_mut(cursed_mail).insert(Curse);
     let plain_mail = spawn_armor(&mut w, "leather armor", Position { x: 0, y: 0 });
-    let scroll = spawn_scroll(&mut w, ScrollEffect::RemoveCurse, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of remove curse", Position { x: 0, y: 0 }).unwrap();
     for e in [cursed_mail, plain_mail, scroll] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
@@ -136,7 +136,7 @@ fn remove_curse_spares_unequipped_cursed_gear() {
     w.entity_mut(worn_ring).insert(Curse);
     let stashed_sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
     w.entity_mut(stashed_sword).insert(Curse);
-    let scroll = spawn_scroll(&mut w, ScrollEffect::RemoveCurse, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of remove curse", Position { x: 0, y: 0 }).unwrap();
     for e in [worn_ring, stashed_sword, scroll] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
@@ -458,7 +458,7 @@ fn a_scroll_of_identify_can_single_out_an_unworn_plus_or_curse() {
 
     let mail = spawn_armor(&mut w, "ring mail", Position { x: 0, y: 0 });
     w.entity_mut(mail).insert((ArmorBonus(2), Curse));
-    let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of identify", Position { x: 0, y: 0 }).unwrap();
     for e in [mail, scroll] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);

@@ -304,7 +304,7 @@ fn amnesia_forgets_one_spell_and_every_tile_seen_this_floor() {
     w.get_mut::<Viewshed>(p).unwrap().revealed_tiles.insert(1);
     assert!(w.get::<Viewshed>(p).unwrap().revealed_tiles.count_ones(..) > 0);
 
-    let scroll = spawn_scroll(&mut w, ScrollEffect::Amnesia, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of amnesia", Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(scroll).remove::<Position>();
     let idx = w.get_mut::<Backpack>(p).unwrap().items.len();
     w.get_mut::<Backpack>(p).unwrap().items.push(scroll);

@@ -1172,9 +1172,10 @@ fn cancel_player(world: &mut World, player: Entity) {
             em.insert(ThrowBonus(0));
         }
         if let Some(mut scroll) = em.get_mut::<Scroll>() {
-            scroll.effect = ScrollEffect::BlankPaper;
+            scroll.row = &crate::catalog::SCROLL_OF_BLANK_PAPER;
             if let Some(mut name) = em.get_mut::<Name>() {
-                name.what = strings::content_name("scroll of blank paper").to_string();
+                name.what =
+                    strings::content_name(crate::catalog::SCROLL_OF_BLANK_PAPER.name).to_string();
             }
         }
         if let Some(mut rune) = em.get_mut::<Rune>() {

@@ -16,10 +16,10 @@
 //!
 //! * **Type-key components** — [`Potion`], [`Scroll`], [`Wand`], [`Ring`] — name
 //!   *which* one an item is. The key is the item's identity for identification
-//!   and for the save file. [`Potion`], [`Wand`] and [`Rune`] hold their catalog
-//!   row ([`crate::catalog`]), and the row names the handler that does the work.
-//!   [`Scroll`] and [`Ring`] still hold an enum value ([`ScrollEffect`] &c.),
-//!   and the mechanic (`crate::items`) is a `match` on it.
+//!   and for the save file. [`Potion`], [`Scroll`], [`Wand`] and [`Rune`] hold
+//!   their catalog row ([`crate::catalog`]), and the row names the handler that
+//!   does the work. [`Ring`] holds a [`RingEffect`], and the ring's row turns
+//!   it into the components that do something.
 //!
 //! **Transient vs serialised.** Some fields are rebuilt from scratch every frame
 //! or every load and are deliberately left out of the save format —
@@ -770,73 +770,11 @@ pub struct Potion {
     pub row: &'static PotionDef,
 }
 
-/// Type-key for a scroll. Mechanic: the `scrolls` submodule of `crate::items`.
+/// Type-key for a scroll: its row. Reading it calls the row's `apply`.
 #[derive(Component)]
 pub struct Scroll {
     /// Which scroll this is.
-    pub effect: ScrollEffect,
-}
-
-/// Which scroll this is. Identity for identification and saves — see
-/// [`crate::catalog::SCROLLS`].
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ScrollEffect {
-    /// Charges the reader's hands instead of acting now: the next blow they land
-    /// confuses what it hits ([`crate::effects::ConfusingTouch`]).
-    MonsterConfusion,
-    /// Maps the whole floor into the reader's memory, wiped out from where they
-    /// stand ([`crate::magicmap`]).
-    MagicMapping,
-    /// Roots everything in sight where it stands for a while
-    /// ([`crate::effects::Rooted`]). A held monster still bites what comes
-    /// within reach.
-    HoldMonster,
-    /// Puts everything in sight to sleep. Now and then the words turn on the
-    /// reader and put them out instead.
-    Sleep,
-    /// A permanent plus on the worn armour, and its curse lifted. Fizzles with
-    /// nothing worn.
-    EnchantArmor,
-    /// Reveals the hidden enchantment and curse of every piece of gear in the
-    /// pack.
-    Identify,
-    /// Every monster in view turns tail for good.
-    ScareMonster,
-    /// Marks the mundane items on the floor as [`Detected`](crate::effects::Detected):
-    /// exactly what the potion of magic detection skips.
-    FoodDetection,
-    /// Moves the reader to a random open tile on the floor.
-    Teleportation,
-    /// A permanent plus on the wielded weapon, and its curse lifted. Fizzles
-    /// with an empty hand.
-    EnchantWeapon,
-    /// Conjures a creature from the bestiary beside the reader.
-    CreateMonster,
-    /// Destroys every cursed item the reader has equipped. Cursed items left in
-    /// the pack are untouched.
-    RemoveCurse,
-    /// Every creature on the floor homes in on the reader's tile, out of sight
-    /// ([`Aggravated`]).
-    AggravateMonsters,
-    /// Does nothing, and means it.
-    BlankPaper,
-    /// Brands the wielded weapon [`Vorpal`] against one random species. A weapon
-    /// that is already vorpal crumbles instead.
-    VorpalizeWeapon,
-    /// 1... 2... Poof! Forgets one random spell off the reader's [`Spellset`]
-    /// and every tile they have ever seen on this floor.
-    Amnesia,
-    /// Every monster the reader can see is charmed — a plain
-    /// [`Faction::Ally`], the same as the wand of charming lands on one.
-    Charming,
-    /// Opens a trapdoor under the reader: the same plunge as [`TrapEffect::Trapdoor`].
-    /// Appended for the save-order reason above.
-    Pitfall,
-    /// Makes the spirits neutral again: `crate::spirits::atone`.
-    Atonement,
-    /// Carries the reader to this floor's stair down, or to the stair up while
-    /// the Element of Yoord is in the pack.
-    TeleportToStairs,
+    pub row: &'static ScrollDef,
 }
 
 /// A deck of cards: five faces stacked when the deck was rolled, read one at a
@@ -947,7 +885,7 @@ pub enum SpellEffect {
     Bide,
     /// A line of armour-ignoring damage: the wand of striking, cast.
     ForceLance,
-    /// [`ScrollEffect::Identify`] on demand.
+    /// The scroll of identify, on demand.
     Identify,
     /// Plants a revealed arrow trap on each of the caster's four diagonals.
     Setup,
@@ -966,7 +904,7 @@ pub enum SpellEffect {
     MeteorStrike,
     /// Cold damage to everything in view, and paralysis for what survives.
     FrostNova,
-    /// [`ScrollEffect::MagicMapping`] on demand.
+    /// The scroll of magic mapping, on demand.
     MagicMapping,
     /// Hastes the caster ([`crate::conditions::hasten`]).
     HasteSelf,
@@ -976,7 +914,7 @@ pub enum SpellEffect {
     /// Polymorphs the creature on the aimed tile, as the wand of polymorph
     /// does.
     PolymorphOther,
-    /// Opens a trapdoor under the caster: [`ScrollEffect::Pitfall`] on demand.
+    /// Opens a trapdoor under the caster: the scroll of pitfall on demand.
     GateDown,
 }
 

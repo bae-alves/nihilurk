@@ -26,7 +26,7 @@ end
 return {
   rules = {
     enum_variant("A ring", "RingEffect", { COMPONENTS }),
-    enum_variant("A scroll", "ScrollEffect", { COMPONENTS, FEEL }),
+    { row = "A scroll", file = "models/src/catalog.rs", line = "^%+%s+&ScrollDef::new%(", pages = { FEEL } },
     { row = "A wand", file = "models/src/catalog.rs", line = "^%+%s+&WandDef::new%(", pages = { TABLES, FEEL } },
     enum_variant("A trap", "TrapEffect", { COMPONENTS }),
     { row = "An effect", file = "models/src/effects.rs", line = '^%+%s+"[%l_]+" => ', pages = { TABLES } },

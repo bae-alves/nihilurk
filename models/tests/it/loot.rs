@@ -295,8 +295,8 @@ fn identify_and_remove_curse_drop_twice_as_often_as_other_scrolls() {
 
     let (mut favoured, mut rest) = (0u32, 0u32);
     for s in w.query::<&Scroll>().iter(&w) {
-        match s.effect {
-            ScrollEffect::Identify | ScrollEffect::RemoveCurse => favoured += 1,
+        match s.row.name {
+            "scroll of identify" | "scroll of remove curse" => favoured += 1,
             _ => rest += 1,
         }
     }

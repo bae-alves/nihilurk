@@ -25,7 +25,7 @@ At a glance
 | Treat     | `TREATS`    | yes        | --                               |
 | Ring      | `RINGS`     | no         | a `RingEffect` variant           |
 | Potion    | `POTIONS`   | no         | a handler in `items/potions.rs`, named by the row |
-| Scroll    | `SCROLLS`   | no         | a `ScrollEffect` variant + a mechanic |
+| Scroll    | `SCROLLS`   | no         | a handler in `items/scrolls.rs`, named by the row |
 | Wand      | `WANDS`     | no         | a zap handler in `items/wands.rs`, named by the row |
 | Deck      | `DECKS`     | yes        | a new card: a `CardFace` variant, a `CARDS` row + an arm in `items/decks.rs` |
 | Rune      | `RUNES`     | no         | a handler in `items/runes.rs`, named by the row |
@@ -151,30 +151,11 @@ Potions take two edits and no enum. Write the handler, `fn(&mut World, Entity) -
 
 The handler returns whether the dose visibly did anything: a potion thrown at a monster names itself only then. A verb that already exists can stand in for a handler: the potion of blindness names `conditions::blind`. The row is the potion: a `Potion` component points at its row, and the save stores the row's name. A row without `apply` does not compile. A potion draws as `!`. `POTION_OF_WATER` is the one row outside `POTIONS`: a wand of cancellation makes it.
 
-Scrolls take three edits.
+Scrolls take two edits and no enum. Write the handler, `fn(&mut World, Entity)`, in `models/src/items/scrolls.rs`, and name it in the row; `ScrollDef::new` takes it, so a row without one does not compile:
 
-1. **Append** a variant to `ScrollEffect` in `models/src/components.rs`.
+    &ScrollDef::new("scroll of genocide", scrolls::genocide),
 
-2. **Add the row** in `SCROLLS`.
-
-       ScrollDef { effect: ScrollEffect::Genocide,
-                   name: "scroll of genocide" },
-
-   Scrolls draw as `?`, always white.
-
-3. **Write the mechanic** as one arm of `apply_scroll_effect` in `models/src/items/scrolls.rs`.
-
-> **Step 3 is the one the compiler makes you do.** The function is an
-> exhaustive match over `ScrollEffect`, the same as `apply_trap_effect`
-> is over `TrapEffect` -- no catch-all arm, so step 1's new variant will
-> not build until step 3 gives it one.
->
-> An explicit arm is still allowed to do nothing on purpose -- the scroll
-> of blank paper sits in a do-nothing arm, named rather than caught by a
-> wildcard (see
-> `../explanation/data-driven-content.md`, "Where it does not reach").
-> The guarantee is only that you *chose* nothing, not that you *forgot*
-> to write something.
+The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do. A scroll draws as `?`, always white. `SCROLL_OF_BLANK_PAPER` is the one row outside `SCROLLS`: a wand of cancellation makes it, and its handler does nothing on purpose. Give the new scroll a flourish (`../explanation/the-feel-layer.md`, "What a scroll looks like").
 
 Runes take two edits and no enum. Write the handler, `fn(&mut World, Entity)`, in `models/src/items/runes.rs`, and name it in the row's required `apply` field:
 
@@ -227,7 +208,7 @@ Appendix: quick check
 1. Find your category in "At a glance".
 2. Weapon, armour, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
 3. Ring: append a `RingEffect` variant at the end, then add the `RingDef::new` row.
-4. Scroll: append the effect variant at the end, add the row, write the arm in `apply_scroll_effect`. Potion: write the handler in `items/potions.rs` and add the row naming it. Wand: write the zap handler in `items/wands.rs` and add the row naming it. Rune: write the handler in `items/runes.rs` and add the row naming it.
+4. Potion, scroll: write the handler in `items/potions.rs` or `items/scrolls.rs` and add the row naming it. Wand: write the zap handler in `items/wands.rs` and add the row naming it. Rune: write the handler in `items/runes.rs` and add the row naming it.
 5. A wand with no reticle (it acts on the room or the zapper): `.unaimed()` on its row.
 6. Never insert or reorder an enum variant; a save stores its position.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.

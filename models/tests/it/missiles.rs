@@ -1265,7 +1265,7 @@ fn the_small_stuff_carries_further_out_of_a_bare_hand() {
             spawn_named(w, "potion of healing", NOWHERE).unwrap()
         }),
         stash(&mut w, p, |w| {
-            spawn_scroll(w, ScrollEffect::Identify, NOWHERE)
+            spawn_named(w, "scroll of identify", NOWHERE).unwrap()
         }),
         stash(&mut w, p, |w| {
             spawn_named(w, "wand of lightning", NOWHERE).unwrap()

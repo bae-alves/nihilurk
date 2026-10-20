@@ -15,7 +15,6 @@ use crate::constants::runes::*;
 use crate::effects::{ExplodesOnDeath, Grant, Lifetime, Protected, lend};
 use crate::helpers::hostiles_in_view;
 
-use super::scrolls::apply_scroll_effect;
 use super::spells::apply_spell_effect;
 
 /// The blank rune: does nothing, and says so.
@@ -25,7 +24,7 @@ pub(crate) fn blank(world: &mut World, _user: Entity) {
 
 /// Rune of displacement: a scroll of teleportation.
 pub(crate) fn displacement(world: &mut World, user: Entity) {
-    apply_scroll_effect(world, user, ScrollEffect::Teleportation);
+    super::scrolls::teleport_reader(world, user);
 }
 
 /// Rune of chaos: the spell Haste Self, free.

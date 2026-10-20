@@ -529,7 +529,9 @@ fn the_dungeon_never_generates_a_dud_as_normal_loot() {
         "potion of thirst quenching must not be a spawnable row"
     );
     assert!(
-        !SCROLLS.iter().any(|d| d.effect == ScrollEffect::BlankPaper),
+        !SCROLLS
+            .iter()
+            .any(|d| std::ptr::eq(*d, &SCROLL_OF_BLANK_PAPER)),
         "scroll of blank paper must not be a spawnable row"
     );
     assert!(

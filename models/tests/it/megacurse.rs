@@ -41,8 +41,8 @@ fn wield_mega_blade(w: &mut World, p: Entity) -> Entity {
     sword
 }
 
-fn read(w: &mut World, user: Entity, effect: ScrollEffect) {
-    let scroll = spawn_scroll(w, effect, Position { x: 0, y: 0 });
+fn read(w: &mut World, user: Entity, name: &str) {
+    let scroll = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(scroll).remove::<Position>();
     w.resource_mut::<UseQueue>().uses.push(WantsToUse {
         user,
@@ -90,7 +90,7 @@ fn remove_curse_leaves_megacursed_gear_on() {
     w.get_mut::<Equipped>(plain).unwrap().by = Some(p);
     w.entity_mut(plain).insert(Curse);
 
-    read(&mut w, p, ScrollEffect::RemoveCurse);
+    read(&mut w, p, "scroll of remove curse");
 
     assert!(
         w.get_entity(sword).is_some(),
@@ -109,7 +109,7 @@ fn enchanting_mends_the_plus_but_never_the_megacurse() {
     let p = player(&mut w);
     let sword = wield_mega_blade(&mut w, p);
 
-    read(&mut w, p, ScrollEffect::EnchantWeapon);
+    read(&mut w, p, "scroll of enchant weapon");
 
     assert!(w.get::<Curse>(sword).is_some());
     assert!(w.get::<MegaCurse>(sword).is_some());

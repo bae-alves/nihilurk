@@ -132,7 +132,7 @@ fn scroll_of_identify_reveals_every_hidden_piece_of_gear_in_one_read() {
     w.entity_mut(dagger).insert(Curse);
     let armor = spawn_armor(&mut w, "leather armor", Position { x: 0, y: 0 });
     w.entity_mut(armor).insert(ArmorBonus(2));
-    let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of identify", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, dagger);
     stash(&mut w, p, armor);
     stash(&mut w, p, scroll);
@@ -162,7 +162,7 @@ fn scroll_of_identify_says_so_when_the_pack_holds_nothing_hidden() {
     let mut w = test_world(6);
     let p = player(&mut w);
     empty_pack(&mut w, p);
-    let scroll = spawn_scroll(&mut w, ScrollEffect::Identify, Position { x: 0, y: 0 });
+    let scroll = spawn_named(&mut w, "scroll of identify", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, scroll);
 
     use_item(&mut w, p, scroll);
