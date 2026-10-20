@@ -16,9 +16,9 @@
 //! only ways a trap ever comes to light before it bites.
 //!
 //! The trap components themselves ([`Trap`], the three holds,
-//! [`TrapEffect`], [`TrapReveal`], [`EntityMoved`]) are nouns and live in
+//! [`TrapReveal`], [`EntityMoved`]) are nouns and live in
 //! [`crate::components`]; this module is the verbs — the catalog row
-//! ([`TrapDef`]), the spring, and the per-effect mechanics.
+//! ([`TrapDef`]), the spring, and the handler each row names.
 //!
 //! ## Turn wiring
 //!
@@ -100,34 +100,18 @@ use crate::map::{
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
 
-impl TrapEffect {
-    /// The name shown once the trap is known — read straight off the row.
-    pub fn label(self) -> &'static str {
-        TrapDef::of(self).display_name()
-    }
-
-    /// `"a"` / `"an"` to read correctly before [`TrapEffect::label`].
-    pub fn label_article(self) -> &'static str {
-        article_for(self.label())
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The trap catalog
 // ---------------------------------------------------------------------------
 
 /// One kind of trap, one row: what it is called, how it draws, how often the
-/// dungeon lays one, the shallowest floor it lays one on, and — for the two
-/// snaring traps — how many turns it holds the victim. The mechanic itself
-/// lives in `apply_trap_effect`, keyed by [`TrapDef::effect`] — a row is
-/// description and the numbers its mechanic needs, never behaviour.
+/// dungeon lays one, the shallowest floor it lays one on, how many turns a
+/// snaring trap holds the victim, and the two handlers that make it go off.
+/// The row is the trap: a [`Trap`] points at its row.
 ///
-/// Adding a trap is a row here, a [`TrapEffect`] variant, and an arm in each
-/// of `apply_trap_effect` and `trap_flourish`. See
+/// Adding a trap is a row here naming its handlers. See
 /// `docs/how-to/add-a-trap.md`.
 pub struct TrapDef {
-    /// The [`TrapEffect`] this row is the entry for.
-    pub effect: TrapEffect,
     /// The row's identity, and what the trap is called.
     pub name: &'static str,
     /// The character it draws as once known.
@@ -143,20 +127,35 @@ pub struct TrapDef {
     /// gas). `0` for every trap that does not hold. Kept on the row (not in
     /// `constants.rs`) so a snaring trap is still one file to add.
     pub snare_turns: u32,
+    /// Whether going off always uses it up, the way a bear trap's jaws stay
+    /// shut on the victim. Any other trap breaks [`TRAP_BREAK_CHANCE`] of the
+    /// time.
+    pub always_spent: bool,
+    /// What it does to one victim, stepped on or caught in its trick shot.
+    pub apply: fn(&mut World, Spring),
+    /// What it looks like going off on its own tile, before `apply` works.
+    pub flourish: fn(&mut World, &'static TrapDef, Position),
+}
+
+/// One victim a trap goes off on, as a row's `apply` receives it.
+#[derive(Clone, Copy)]
+pub struct Spring {
+    /// The trap's row.
+    pub row: &'static TrapDef,
+    /// Whoever it goes off on.
+    pub victim: Entity,
+    /// Whether that is the player.
+    pub is_player: bool,
+    /// Whether the player sees it happen.
+    pub seen: bool,
+    /// The trap's tile, if it had one.
+    pub at: Option<Position>,
 }
 
 impl TrapDef {
-    /// The row for `effect`. Panics on a variant nobody gave a row.
-    pub fn of(effect: TrapEffect) -> &'static TrapDef {
-        TRAPS
-            .iter()
-            .find(|t| t.effect == effect)
-            .unwrap_or_else(|| panic!("no trap row for {effect:?}"))
-    }
-
     /// The row called `name`, or `None`.
     pub fn lookup(name: &str) -> Option<&'static TrapDef> {
-        TRAPS.iter().find(|t| t.name == name)
+        TRAPS.iter().copied().find(|t| t.name == name)
     }
 
     /// What the player sees this trap called, in whatever language this
@@ -166,10 +165,16 @@ impl TrapDef {
         strings::content_name(self.name)
     }
 
+    /// `"a"` / `"an"` to read correctly before [`TrapDef::display_name`].
+    pub fn display_article(&self) -> &'static str {
+        article_for(self.display_name())
+    }
+
     /// A weighted draw from every trap the floor has unlocked.
     pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static TrapDef {
-        let pool: Vec<&TrapDef> = TRAPS
+        let pool: Vec<&'static TrapDef> = TRAPS
             .iter()
+            .copied()
             .filter(|t| t.min_depth <= depth.max(1))
             .collect();
         let weights: Vec<u32> = pool.iter().map(|t| t.weight).collect();
@@ -181,15 +186,24 @@ impl TrapDef {
 /// available from the first floor; the dials are there so a new trap need not
 /// be. `snare_turns` is `0` for everything that does not pin the victim.
 #[rustfmt::skip]
-pub const TRAPS: &[TrapDef] = &[
-    //        effect                       name                 glyph  colour                  wt  dep  snare
-    TrapDef { effect: TrapEffect::Trapdoor, name: "trapdoor",          glyph: '^', color: Color::Green,       weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
-    TrapDef { effect: TrapEffect::Bear,     name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 3 },
-    TrapDef { effect: TrapEffect::Sleep,    name: "sleeping gas trap", glyph: '^', color: Color::Blue,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 5 },
-    TrapDef { effect: TrapEffect::Teleport, name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
-    TrapDef { effect: TrapEffect::Arrow,    name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
-    TrapDef { effect: TrapEffect::Dart,     name: "dart trap",         glyph: '^', color: Color::Cyan,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0 },
+pub static TRAPS: &[&TrapDef] = &[
+    &TrapDef { name: "trapdoor",          glyph: '^', color: Color::Green,       weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: trapdoor, flourish: no_flourish },
+    &BEAR_TRAP,
+    &TrapDef { name: "sleeping gas trap", glyph: '^', color: Color::Blue,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 5, always_spent: false, apply: sleep,    flourish: gas },
+    &TrapDef { name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: teleport, flourish: no_flourish },
+    &ARROW_TRAP,
+    &TrapDef { name: "dart trap",         glyph: '^', color: Color::Cyan,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: dart,     flourish: missile },
 ];
+
+/// Named because a creature's clamping bite holds as long as these jaws do.
+#[rustfmt::skip]
+pub static BEAR_TRAP: TrapDef =
+    TrapDef { name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 3, always_spent: true,  apply: bear,     flourish: jaws };
+
+/// Named because the Setup spell plants these.
+#[rustfmt::skip]
+pub static ARROW_TRAP: TrapDef =
+    TrapDef { name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: arrow,    flourish: missile };
 
 impl TrapReveal {
     const ALL: [TrapReveal; 3] = [
@@ -256,7 +270,7 @@ pub struct TrapBundle {
     pub glyph: Renderable,
     /// The tile it lies on.
     pub position: Position,
-    /// The trap itself: effect, reveal style and whether it is known.
+    /// The trap itself: its row, reveal style and whether it is known.
     pub trap: Trap,
     /// Every trap starts hidden, whatever its reveal style.
     pub hidden: Hidden,
@@ -265,7 +279,7 @@ pub struct TrapBundle {
 impl TrapBundle {
     /// A trap built straight from its catalog row, with the reveal style the
     /// caller wants. The one place a trap entity is described.
-    pub fn from_def(def: &TrapDef, reveal: TrapReveal, position: Position) -> Self {
+    pub fn from_def(def: &'static TrapDef, reveal: TrapReveal, position: Position) -> Self {
         Self {
             name: Name {
                 what: strings::content_name(def.name).to_string(),
@@ -276,41 +290,12 @@ impl TrapBundle {
             },
             position,
             trap: Trap {
-                effect: def.effect,
+                row: def,
                 reveal,
                 revealed: false,
             },
             hidden: Hidden,
         }
-    }
-
-    fn new(effect: TrapEffect, reveal: TrapReveal, position: Position) -> Self {
-        Self::from_def(TrapDef::of(effect), reveal, position)
-    }
-
-    /// A trapdoor at `position`, revealed by sight.
-    pub fn trapdoor(position: Position) -> Self {
-        Self::new(TrapEffect::Trapdoor, TrapReveal::Sight, position)
-    }
-    /// A bear trap at `position`, revealed by sight.
-    pub fn bear(position: Position) -> Self {
-        Self::new(TrapEffect::Bear, TrapReveal::Sight, position)
-    }
-    /// A sleeping-gas trap at `position`, revealed by sight.
-    pub fn sleep(position: Position) -> Self {
-        Self::new(TrapEffect::Sleep, TrapReveal::Sight, position)
-    }
-    /// A teleport trap at `position`, revealed by sight.
-    pub fn teleport(position: Position) -> Self {
-        Self::new(TrapEffect::Teleport, TrapReveal::Sight, position)
-    }
-    /// An arrow trap at `position`, revealed by sight.
-    pub fn arrow(position: Position) -> Self {
-        Self::new(TrapEffect::Arrow, TrapReveal::Sight, position)
-    }
-    /// A poisoned-dart trap at `position`, revealed by sight.
-    pub fn dart(position: Position) -> Self {
-        Self::new(TrapEffect::Dart, TrapReveal::Sight, position)
     }
 
     /// The trap a floor at `depth` lays: a weighted draw from [`TRAPS`], with a
@@ -381,7 +366,7 @@ pub fn trap_at(world: &mut World, pos: Position) -> Option<Entity> {
 /// it if the mechanism is spent — always for the bear trap, otherwise
 /// [`TRAP_BREAK_CHANCE`] of the time.
 pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
-    let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else {
+    let Some(row) = world.get::<Trap>(trap).map(|t| t.row) else {
         return;
     };
     let is_player = world.get::<Player>(victim).is_some();
@@ -398,12 +383,12 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
         let who = actor_label(world, victim);
         world.resource_mut::<GameLog>().add(strings::steps_on_trap(
             &who,
-            article_for(effect.label()),
-            effect.label(),
+            row.display_article(),
+            row.display_name(),
         ));
     }
 
-    let spent = effect == TrapEffect::Bear
+    let spent = row.always_spent
         || world
             .resource_mut::<GameRng>()
             .0
@@ -411,61 +396,40 @@ pub(crate) fn spring_trap(world: &mut World, trap: Entity, victim: Entity) {
     if spent {
         stand_in(world, trap);
         world.entity_mut(trap).despawn();
-        if seen && effect != TrapEffect::Bear {
+        if seen && !row.always_spent {
             world
                 .resource_mut::<GameLog>()
-                .add(strings::trap_breaks(effect.label()));
+                .add(strings::trap_breaks(row.display_name()));
         }
     }
 
-    apply_trap_effect(world, effect, victim, is_player, seen, trap_pos);
+    go_off(
+        world,
+        Spring {
+            row,
+            victim,
+            is_player,
+            seen,
+            at: trap_pos,
+        },
+    );
 }
 
 /// What a trap *does* to one victim, with the trap entity already dealt with by
-/// the caller. Split out from [`spring_trap`] because a trap has two ways of
+/// the caller: its row's flourish when the victim stands on it, then its row's
+/// `apply`. Split out from [`spring_trap`] because a trap has two ways of
 /// going off — something stood on it, or something shot it (see
-/// [`detonate_trap`]) — and only the mechanics below are common to both.
-///
-/// Exhaustive over [`TrapEffect`], deliberately with no catch-all: a trap
-/// effect added to the enum and not given an arm here fails the build instead
-/// of quietly doing nothing.
-fn apply_trap_effect(
-    world: &mut World,
-    effect: TrapEffect,
-    victim: Entity,
-    is_player: bool,
-    seen: bool,
-    trap_pos: Option<Position>,
-) {
-    let snare_turns = TrapDef::of(effect).snare_turns;
-
-    let on_the_mechanism = trap_pos.is_some() && trap_pos == world.get::<Position>(victim).copied();
-    if (is_player || seen) && on_the_mechanism {
-        trap_flourish(world, effect, trap_pos);
+/// [`detonate_trap`]) — and only this is common to both.
+fn go_off(world: &mut World, spring: Spring) {
+    let on_the_mechanism =
+        spring.at.is_some() && spring.at == world.get::<Position>(spring.victim).copied();
+    if let Some(p) = spring.at
+        && (spring.is_player || spring.seen)
+        && on_the_mechanism
+    {
+        (spring.row.flourish)(world, spring.row, p);
     }
-
-    match effect {
-        TrapEffect::Trapdoor => trapdoor_effect(world, victim, is_player, seen),
-        TrapEffect::Bear => snare_victim(
-            world,
-            victim,
-            Grant::of::<Pinned>(),
-            snare_turns,
-            is_player,
-            strings::bear_trap_snare(),
-        ),
-        TrapEffect::Sleep => snare_victim(
-            world,
-            victim,
-            Grant::of::<Asleep>(),
-            snare_turns,
-            is_player,
-            strings::sleep_gas_snare(),
-        ),
-        TrapEffect::Teleport => teleport_effect(world, victim, is_player),
-        TrapEffect::Arrow => arrow_effect(world, victim, is_player, seen, trap_pos),
-        TrapEffect::Dart => dart_effect(world, victim, is_player, seen, trap_pos),
-    }
+    (spring.row.apply)(world, spring);
 }
 
 // ---------------------------------------------------------------------------
@@ -490,7 +454,7 @@ fn apply_trap_effect(
 /// Returns whether there was a trap here to set off at all, so a caller can
 /// hand the same tile to it without checking first.
 pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -> bool {
-    let Some(effect) = world.get::<Trap>(trap).map(|t| t.effect) else {
+    let Some(row) = world.get::<Trap>(trap).map(|t| t.row) else {
         return false;
     };
     let Some(center) = world.get::<Position>(trap).copied() else {
@@ -498,7 +462,7 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
     };
 
     world.entity_mut(trap).despawn();
-    let epitaph = strings::blown_up_by(effect.label_article(), effect.label());
+    let epitaph = strings::blown_up_by(row.display_article(), row.display_name());
     let victims = burst_of(
         world,
         center,
@@ -517,7 +481,16 @@ pub fn detonate_trap(world: &mut World, trap: Entity, shooter: Option<Entity>) -
         }
         let is_player = world.get::<Player>(victim).is_some();
         let seen = player_sees(world, center.x, center.y);
-        apply_trap_effect(world, effect, victim, is_player, seen, Some(center));
+        go_off(
+            world,
+            Spring {
+                row,
+                victim,
+                is_player,
+                seen,
+                at: Some(center),
+            },
+        );
     }
     true
 }
@@ -991,6 +964,59 @@ fn trap_spark(world: &mut World, trap_pos: Option<Position>) {
     }
 }
 
+/// The trapdoor: the victim drops a floor.
+fn trapdoor(world: &mut World, spring: Spring) {
+    trapdoor_effect(world, spring.victim, spring.is_player, spring.seen);
+}
+
+/// The bear trap: the victim is [`Pinned`] for the row's `snare_turns`.
+fn bear(world: &mut World, spring: Spring) {
+    snare_victim(
+        world,
+        spring,
+        Grant::of::<Pinned>(),
+        strings::bear_trap_snare(),
+    );
+}
+
+/// The sleeping gas trap: the victim is [`Asleep`] for the row's
+/// `snare_turns`.
+fn sleep(world: &mut World, spring: Spring) {
+    snare_victim(
+        world,
+        spring,
+        Grant::of::<Asleep>(),
+        strings::sleep_gas_snare(),
+    );
+}
+
+/// The teleport trap: the victim lands on a random open tile.
+fn teleport(world: &mut World, spring: Spring) {
+    teleport_effect(world, spring.victim, spring.is_player);
+}
+
+/// The arrow trap ([`arrow_effect`]).
+fn arrow(world: &mut World, spring: Spring) {
+    arrow_effect(
+        world,
+        spring.victim,
+        spring.is_player,
+        spring.seen,
+        spring.at,
+    );
+}
+
+/// The dart trap ([`dart_effect`]).
+fn dart(world: &mut World, spring: Spring) {
+    dart_effect(
+        world,
+        spring.victim,
+        spring.is_player,
+        spring.seen,
+        spring.at,
+    );
+}
+
 pub(crate) fn trapdoor_effect(world: &mut World, victim: Entity, is_player: bool, seen: bool) {
     if !is_player {
         if seen {
@@ -1031,19 +1057,13 @@ fn dust_puff(world: &mut World, pos: Option<Position>) {
     }
 }
 
-/// Holds `victim` and, when it is the player, says how it felt. The sentence
-/// belongs to the trap that sprang rather than to the hold itself — the same
-/// jaws read differently from a scroll's words — so it is passed in.
-fn snare_victim(
-    world: &mut World,
-    victim: Entity,
-    grant: Grant,
-    turns: u32,
-    is_player: bool,
-    line: &str,
-) {
-    crate::conditions::snare(world, victim, grant, turns);
-    if is_player {
+/// Holds the victim for the row's `snare_turns` and, when it is the player,
+/// says how it felt. The sentence belongs to the trap that sprang rather than
+/// to the hold itself — the same jaws read differently from a scroll's words —
+/// so it is passed in.
+fn snare_victim(world: &mut World, spring: Spring, grant: Grant, line: &str) {
+    crate::conditions::snare(world, spring.victim, grant, spring.row.snare_turns);
+    if spring.is_player {
         world.resource_mut::<GameLog>().add(line.to_string());
     }
 }
@@ -1069,36 +1089,31 @@ fn teleport_effect(world: &mut World, victim: Entity, is_player: bool) {
     }
 }
 
-/// What a trap looks like going off, before its mechanic works on anybody.
-///
-/// Exhaustive over [`TrapEffect`] with no catch-all, the same way
-/// [`apply_trap_effect`] is: a trap added to the enum has to answer "and what
-/// does it look like?" or fail the build. Two of the six answer it further
-/// down instead, where they know where the victim ended up, and say so here
-/// rather than going unlisted.
-fn trap_flourish(world: &mut World, effect: TrapEffect, trap_pos: Option<Position>) {
-    let Some(p) = trap_pos else {
-        return;
-    };
-    match effect {
-        TrapEffect::Arrow | TrapEffect::Dart => {
-            kick_shake(world, ShakeKind::Hit);
-            missile_flourish(world, p, TrapDef::of(effect).color)
-        }
-        TrapEffect::Bear => {
-            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                fx.spark_burst(p.x, p.y, Color::DarkGreen);
-                fx.condition_mark(p.x, p.y, '#', Color::DarkGreen, BEAR_MARK_DELAY_MS);
-            }
-        }
-        TrapEffect::Sleep => {
-            let cells = burst_cells(world, p, 1);
-            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                fx.smoke_burst(&cells);
-                fx.condition_mark(p.x, p.y, 'z', Color::Blue, SLEEP_MARK_DELAY_MS);
-            }
-        }
-        TrapEffect::Teleport | TrapEffect::Trapdoor => {}
+/// No flourish of its own: the trapdoor and the teleport trap show theirs
+/// where the victim ends up, which only their `apply` knows.
+fn no_flourish(_world: &mut World, _row: &'static TrapDef, _at: Position) {}
+
+/// The arrow and dart traps: a shake, and the bolt flying in
+/// ([`missile_flourish`]) in the trap's colour.
+fn missile(world: &mut World, row: &'static TrapDef, at: Position) {
+    kick_shake(world, ShakeKind::Hit);
+    missile_flourish(world, at, row.color);
+}
+
+/// The bear trap: the jaws spark shut, and the held mark follows.
+fn jaws(world: &mut World, _row: &'static TrapDef, at: Position) {
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.spark_burst(at.x, at.y, Color::DarkGreen);
+        fx.condition_mark(at.x, at.y, '#', Color::DarkGreen, BEAR_MARK_DELAY_MS);
+    }
+}
+
+/// The sleeping gas trap: a puff of gas, and the sleep mark follows.
+fn gas(world: &mut World, _row: &'static TrapDef, at: Position) {
+    let cells = burst_cells(world, at, 1);
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        fx.smoke_burst(&cells);
+        fx.condition_mark(at.x, at.y, 'z', Color::Blue, SLEEP_MARK_DELAY_MS);
     }
 }
 

@@ -284,10 +284,10 @@ Defined in `components.rs` (nouns); the mechanics are `traps.rs`.
 
 | Component     | Data                                        | Meaning | Saved? |
 |---------------|---------------------------------------------|---------|--------|
-| `Trap`        | `effect: TrapEffect`, `reveal: TrapReveal`, `revealed: bool` | a `^` entity; `revealed` latches once known | yes |
+| `Trap`        | `row: &'static TrapDef`, `reveal: TrapReveal`, `revealed: bool` | a `^` entity; `revealed` latches once known | row name yes |
 | `EntityMoved` | marker                                       | changed `Position` this turn — `trap_system` checks its tile | **transient** (cleared each `trap_system` run) |
 
-`TrapEffect` — enum, **saved by variant order** (`Trapdoor`, `Bear`, `Sleep`, `Teleport`, `Arrow`, `Dart`). Keys the mechanic in `apply_trap_effect`; the catalog row (`TrapDef`) is name / glyph / rarity / `snare_turns`. Arrow and dart damage scale with depth — `constants::traps`.
+`Trap::row` names the trap's catalog row (`TrapDef`): name / glyph / rarity / `snare_turns`, and the `apply` and `flourish` handlers. The save stores the row's name. Arrow and dart damage scale with depth — `constants::traps`.
 
 `TrapReveal` — enum, saved by variant order (`Sight`, `Adjacent`, `Triggered`). Rolled equal-odds at spawn; read by `visibility.rs`.
 
@@ -410,7 +410,7 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 
 | `ShakeKind` | Armed by | Shape |
 |-------------|----------|-------|
-| `Hit`       | the light stuff. Anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see; `traps::trap_flourish` when a shooting trap (arrow or dart) goes off in sight, hit or miss — there the shake is the mechanism firing, not the damage; and `traps::burst` on the first burst of a trick shot the player can see — deliberately the lightest kick there is, because a trick shot is a *chain* and a chain of heavy thumps is a map that never stops moving | 80 ms, 1 cell — a tick |
+| `Hit`       | the light stuff. Anything of the player's that got through armour: `combat::resolve_attack` on an ordinary blow — not a crit (that is `Heavy`), not a kill (that is `Kill`), never a glancing blow; `items::throwing::strike_victim` on a throw or shot that drew blood; `items::wands::fire_bolt` on a bolt that bit something the player can see; `traps::missile`, the shooting traps' flourish, when an arrow or dart trap goes off in sight, hit or miss — there the shake is the mechanism firing, not the damage; and `traps::burst` on the first burst of a trick shot the player can see — deliberately the lightest kick there is, because a trick shot is a *chain* and a chain of heavy thumps is a map that never stops moving | 80 ms, 1 cell — a tick |
 | `Kill`      | `combat::kill_shake`, from `resolve_attack` and `finish_indirect_kill`, when the player can see the victim's tile | 120 ms, 1 cell — short |
 | `Heavy`     | everything that hits hard: `combat::resolve_attack` on the player's own excellent hit and on a garrote's pop; `items::wands::elemental_blast` if the player can see the blast centre; `items::rings::do_it_with_style`, the adornment / victory flourish; and the three spells that go off with a bang — `circle_of_death`, `meteor_strike`, `frost_nova` | 260 ms, 2 cells — medium |
 | `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | 460 ms, 2 cells — long, and the heaviest there is |

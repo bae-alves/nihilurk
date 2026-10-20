@@ -689,7 +689,7 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
         .map(|(e, _, t)| {
             (
                 e,
-                format!("{} {}", t.effect.label_article(), t.effect.label()),
+                format!("{} {}", t.row.display_article(), t.row.display_name()),
             )
         })
         .collect();

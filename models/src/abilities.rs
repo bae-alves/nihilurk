@@ -28,7 +28,7 @@ use rand::Rng;
 
 use crate::combat::resolve_attack;
 use crate::components::{
-    Backpack, Curse, ExtraMonsterRound, Fighter, GameLog, Mob, Player, Position, TrapEffect,
+    Backpack, Curse, ExtraMonsterRound, Fighter, GameLog, Mob, Player, Position,
 };
 use crate::conditions::snare;
 use crate::effects::{
@@ -481,7 +481,7 @@ fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> b
     let Some(target) = target else {
         return false;
     };
-    let turns = crate::traps::TrapDef::of(TrapEffect::Bear).snare_turns;
+    let turns = crate::traps::BEAR_TRAP.snare_turns;
     if !snare(world, target, Grant::of::<Clamped>(), turns) {
         return false;
     }

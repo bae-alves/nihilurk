@@ -1242,32 +1242,6 @@ pub struct Forged(pub u8);
 // Traps and snares
 // ===========================================================================
 
-/// Which of the six trap kinds a [`Trap`] entity is. The effect always fires
-/// when the trap is stepped on — there is no saving throw. The mechanic keyed
-/// off each variant lives in `crate::traps` (`apply_trap_effect`); the catalog row
-/// (name, glyph, rarity, debut depth) is [`crate::traps::TrapDef`].
-///
-/// Serialised by variant position — append, never reorder (a saved trapdoor
-/// would become something else).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TrapEffect {
-    /// Drops the victim straight to the next floor down. No escape.
-    Trapdoor,
-    /// Clamps shut: the victim is [`Pinned`](crate::effects::Pinned) and cannot move — though it may
-    /// still strike an adjacent foe — until it works free.
-    Bear,
-    /// A hiss of gas: the victim sleeps through its next few turns.
-    Sleep,
-    /// Flings the victim to a random open tile on the current floor.
-    Teleport,
-    /// Fires a bolt; on a clean miss the arrow lands on the floor as loot.
-    /// Damage scales with depth (`crate::constants::traps`).
-    Arrow,
-    /// A poisoned dart: light damage, and on a hit it saps melee power for good
-    /// — more of it the deeper you are — unless a ring of strength is worn.
-    Dart,
-}
-
 /// How a trap becomes known to the player before it is triggered. Rolled once,
 /// with equal probability, when the trap spawns; read by `crate::visibility`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1286,8 +1260,9 @@ pub enum TrapReveal {
 /// `crate::visibility`.
 #[derive(Component)]
 pub struct Trap {
-    /// What it does to whatever steps on it.
-    pub effect: TrapEffect,
+    /// Which trap this is: its row, which says what it does to whatever
+    /// steps on it.
+    pub row: &'static crate::traps::TrapDef,
     /// How the player gets to know it is there before it goes off.
     pub reveal: TrapReveal,
     /// Whether the player knows about it yet. Once true, it stays true.

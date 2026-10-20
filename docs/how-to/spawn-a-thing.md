@@ -92,7 +92,7 @@ Recipe 2: one specific thing in a test
    on the body, empty the pack first -- `empty_pack` in
    `models/tests/it/identify.rs` is the pattern.
 
-4. **Name it in a literal and let it panic.** `MonsterDef::named("dragon")` and `TrapDef::of(TrapEffect::Bear)` panic on a miss, which is what you want from a typo in a test. Save `lookup` for names that came from outside the source.
+4. **Name it in a literal and let it panic.** `MonsterDef::named("dragon")` and `spawn_named(w, "bear trap", pos).unwrap()` panic on a miss, which is what you want from a typo in a test. Save `lookup` for names that came from outside the source.
 
 
 Recipe 3: one from game code, mid-run
@@ -130,7 +130,7 @@ The scroll of create monster (`models/src/items/scrolls.rs`, `create_monster`) i
        spawn_monster(world, &BESTIARY[idx], pos);        // monsters
        spawn_named(world, "long sword", pos);            // items, by name
        world.spawn(TrapBundle::from_def(                 // a trap is a bundle,
-           TrapDef::of(TrapEffect::Bear),                //   not an entity
+           &BEAR_TRAP,                                   //   not an entity
            TrapReveal::Sight,
            pos,
        ));

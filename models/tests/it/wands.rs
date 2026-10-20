@@ -849,7 +849,7 @@ fn a_blast_sets_off_a_trap_it_washes_over() {
     let mut w = test_world(3);
     let p = player(&mut w);
     let (_, next_door) = beside_player(&mut w);
-    let trap = w.spawn(TrapBundle::sleep(next_door)).id();
+    let trap = spawn_named(&mut w, "sleeping gas trap", next_door).unwrap();
 
     let wand = give_wand(&mut w, p, "wand of fire");
     zap(&mut w, p, wand, next_door);
@@ -1139,7 +1139,7 @@ fn swapping_trades_places_with_an_item_or_a_found_trap() {
         let (here, spot) = beside_player(&mut w);
         let thing = match found_trap {
             true => {
-                let trap = w.spawn(TrapBundle::bear(spot)).id();
+                let trap = spawn_named(&mut w, "bear trap", spot).unwrap();
                 w.entity_mut(trap).remove::<Hidden>();
                 trap
             }
@@ -1167,7 +1167,7 @@ fn swapping_passes_over_a_trap_nobody_has_found() {
     let mut w = test_world(4);
     let p = player(&mut w);
     let (here, spot) = beside_player(&mut w);
-    let trap = w.spawn(TrapBundle::bear(spot)).id();
+    let trap = spawn_named(&mut w, "bear trap", spot).unwrap();
 
     let wand = give_wand(&mut w, p, "wand of swapping");
     zap(&mut w, p, wand, spot);

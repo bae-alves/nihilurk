@@ -399,23 +399,25 @@ TRAPS — TrapDef
 
 | Field         | Type          | Notes                                          |
 |---------------|---------------|------------------------------------------------|
-| `effect`      | `TrapEffect`  | Keys the mechanic; identity in saves.          |
-| `name`        | `&'static str`| What `TrapEffect::label()` returns.            |
+| `name`        | `&'static str`| Identity in saves; what `TrapDef::display_name` translates. |
 | `glyph`       | `char`        | `'^'` for every row.                             |
 | `color`       | `Color`       | One per row.                                   |
 | `weight`      | `u32`         | Rarity relative to its table-mates.            |
 | `min_depth`   | `u8`          | Shallowest floor it can spawn on.               |
 | `snare_turns` | `u32`         | Turns a bear / gas trap holds you; `0` otherwise. |
+| `always_spent` | `bool`       | Used up every time it goes off (the bear trap). |
+| `apply`       | `fn(&mut World, Spring)` | What it does to one victim.    |
+| `flourish`    | `fn(&mut World, &'static TrapDef, Position)` | What it looks like going off on its own tile. |
 
-A trap entity carries `Name`, `Renderable`, `Position`, `Trap`, `Hidden`. It is never an `Item` and never a tile type.
+A trap entity carries `Name`, `Renderable`, `Position`, `Trap`, `Hidden`; a `Trap` holds its row. It is never an `Item` and never a tile type. Rows are `static`; `BEAR_TRAP` and `ARROW_TRAP` are named because game code reaches for them (a clamping bite holds as long as the bear trap does, and the Setup spell plants arrow traps).
 
-Mechanic: `apply_trap_effect` in `models/src/traps.rs`. That match has no catch-all, so a new `TrapEffect` variant will not compile until it has an arm. A snaring trap reads its duration straight off the row, so it stays a one-file change.
+Mechanic: the row's `apply`, and its `flourish` first when the victim stands on it, both in `models/src/traps.rs`. Both fields are required, so a row without them does not compile. A snaring trap reads its duration straight off the row, so it stays a one-file change.
 
 Reveal style is rolled per trap at spawn, equal odds, not per row: `Sight` / `Adjacent` / `Triggered`.
 
-A sprung trap gives out `TRAP_BREAK_CHANCE` of the time — the entity despawns and the log says `"The dart trap breaks!"` when the player can see it. The bear trap is exempt: it always bites once and is gone, quietly.
+A sprung trap gives out `TRAP_BREAK_CHANCE` of the time — the entity despawns and the log says `"The dart trap breaks!"` when the player can see it. The bear trap is exempt (`always_spent`): it always bites once and is gone, quietly.
 
-A trap set off *from a distance* — a missile that lands on it, a wand's blast that covers it, another burst chaining into it — has nobody standing on it to bite, so it bursts instead: `detonate_trap` deals `TRICK_SHOT_DAMAGE_DICE d TRICK_SHOT_DAMAGE_SIDES` (armour-ignoring) over the `TRICK_SHOT_RADIUS` around its tile and then runs the mechanic once per creature caught. Dials: `constants::traps`.
+A trap set off *from a distance* — a missile that lands on it, a wand's blast that covers it, another burst chaining into it — has nobody standing on it to bite, so it bursts instead: `detonate_trap` deals `TRICK_SHOT_DAMAGE_DICE d TRICK_SHOT_DAMAGE_SIDES` (armour-ignoring) over the `TRICK_SHOT_RADIUS` around its tile and then runs the row's `apply` once per creature caught. Dials: `constants::traps`.
 
 ### Trick shots — what a landing missile can set off
 
@@ -448,7 +450,7 @@ A coin set off with no author at all is simply spent: `detonate_pickup` takes an
 
 Damage traps are missiles: they ignore the defender's armour *die* but still subtract the armour *plus* (`total_armor_plus`). Their bite also scales with depth in three bands (floors 1-4, 5-8, 9-13): each band adds a point to the arrow trap's roll and a point to the dart trap's permanent power drain. Dial: `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier steps).
 
-The `Trap`, `TrapEffect` and `TrapReveal` types are defined in `components.rs`, not `traps.rs` — see `components.md`. The holds a trap applies (`Asleep`, `Pinned`, `Rooted`) are effects, in `effects.rs`.
+The `Trap` and `TrapReveal` types are defined in `components.rs`, not `traps.rs` — see `components.md`. The holds a trap applies (`Asleep`, `Pinned`, `Rooted`) are effects, in `effects.rs`.
 
 
 DROPS — DropCategory

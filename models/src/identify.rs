@@ -14,7 +14,6 @@ use crate::components::{
     Speed, SpeedKind, Stack, ThrownDamage, Trap, Vorpal,
 };
 use crate::effects::{ArmorBonus, ArmorDie, MaxHpBonus, PowerBonus, PowerDie, ThrowBonus};
-use crate::traps::TrapDef;
 
 /// What the player actually sees for `item`: its true [`Name`], a [`Stack`]
 /// count if it holds more than one, and — once [`known_quality`] says either
@@ -146,8 +145,7 @@ pub fn tile_info(world: &World, entity: Entity) -> Vec<String> {
     }
     match world.get::<Trap>(entity) {
         Some(t) => {
-            let def = TrapDef::of(t.effect);
-            vec![strings::trap_explained(def.name, def.snare_turns)]
+            vec![strings::trap_explained(t.row.name, t.row.snare_turns)]
         }
         None => Vec::new(),
     }
@@ -224,7 +222,7 @@ pub fn with_article(world: &World, item: Entity) -> String {
 
 /// The indefinite article that reads correctly before `s`: `"an"` before a
 /// vowel sound, `"a"` otherwise. The one place this rule lives — [`Name::article`]
-/// and [`crate::TrapEffect::label_article`] both defer here, and it works on any
+/// and [`crate::TrapDef::display_article`] both defer here, and it works on any
 /// display string, not just a [`Name`] (an appearance is not a [`Name`]).
 /// Good enough for nihilurk's vocabulary — no "an hour" / "a unicorn" edge cases.
 pub fn article_for(s: &str) -> &'static str {

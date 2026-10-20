@@ -2952,7 +2952,7 @@ mod tests {
             let mut w = modal_world(seed);
             let player = player_entity(&mut w);
             let here = *w.get::<Position>(player).unwrap();
-            w.spawn(models::TrapBundle::trapdoor(here));
+            models::spawn_named(&mut w, "trapdoor", here).unwrap();
             models::mark_moved(&mut w, player);
             w.get_mut::<Viewshed>(player).unwrap().dirty = true;
 
@@ -3200,7 +3200,7 @@ mod tests {
         let (mut w, at) = info_world();
         w.spawn((
             models::Trap {
-                effect: models::TrapEffect::Bear,
+                row: models::TrapDef::lookup("bear trap").unwrap(),
                 reveal: models::TrapReveal::Sight,
                 revealed: true,
             },

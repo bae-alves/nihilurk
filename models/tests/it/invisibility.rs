@@ -154,10 +154,10 @@ fn perception_reveals_traps_in_view_only() {
     let p = player(&mut w);
 
     let far = out_of_view(&mut w);
-    let far_trap = w.spawn(TrapBundle::dart(far)).id();
+    let far_trap = spawn_named(&mut w, "dart trap", far).unwrap();
     w.get_mut::<Trap>(far_trap).unwrap().reveal = TrapReveal::Triggered;
     let near = beside_player(&mut w);
-    let near_trap = w.spawn(TrapBundle::dart(near)).id();
+    let near_trap = spawn_named(&mut w, "dart trap", near).unwrap();
     w.get_mut::<Trap>(near_trap).unwrap().reveal = TrapReveal::Triggered;
 
     run_visibility(&mut w);

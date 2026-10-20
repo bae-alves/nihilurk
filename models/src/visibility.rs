@@ -322,8 +322,8 @@ fn reveal_traps(
         trap.revealed = true;
         commands.entity(entity).remove::<Hidden>();
         log.add(strings::trap_spotted(
-            trap.effect.label_article(),
-            trap.effect.label(),
+            trap.row.display_article(),
+            trap.row.display_name(),
         ));
     }
 }

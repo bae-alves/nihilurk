@@ -1093,7 +1093,7 @@ fn trap_sprang(seed: u64, flies: bool) -> bool {
             what: "trap".into(),
         },
         Trap {
-            effect: TrapEffect::Dart,
+            row: TrapDef::lookup("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },

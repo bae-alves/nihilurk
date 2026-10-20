@@ -64,6 +64,42 @@ fn log_contains(w: &World, needle: &str) -> bool {
         .any(|l| l.to_lowercase().contains(&needle.to_lowercase()))
 }
 
+/// Left on whoever set the fixture trap off.
+#[derive(Component)]
+struct Sprung;
+
+fn mark_the_victim(world: &mut World, spring: Spring) {
+    world.entity_mut(spring.victim).insert(Sprung);
+}
+
+static FIXTURE_TRAP: TrapDef = TrapDef {
+    name: "trap of the test",
+    glyph: '^',
+    color: Color::White,
+    weight: 0,
+    min_depth: 1,
+    snare_turns: 0,
+    always_spent: true,
+    apply: mark_the_victim,
+    flourish: |_, _, _| {},
+};
+
+#[test]
+fn a_trap_does_what_its_row_says() {
+    let mut w = test_world(7);
+    clear_traps(&mut w);
+    let p = player(&mut w);
+    let here = player_pos(&mut w);
+    w.spawn(TrapBundle::from_def(&FIXTURE_TRAP, TrapReveal::Sight, here));
+    step_player_onto(&mut w, here.x, here.y);
+
+    trap_system(&mut w);
+
+    assert!(w.get::<Sprung>(p).is_some());
+    let left = w.query_filtered::<Entity, With<Trap>>().iter(&w).count();
+    assert_eq!(left, 0, "an always-spent trap is gone once it goes off");
+}
+
 // ---------------------------------------------------------------------------
 // Trapdoor
 // ---------------------------------------------------------------------------
@@ -76,7 +112,7 @@ fn trapdoor_drops_the_player_a_floor_with_no_heal() {
     w.get_mut::<Fighter>(p).unwrap().hp = 5;
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::trapdoor(here));
+    spawn_named(&mut w, "trapdoor", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
 
     trap_system(&mut w);
@@ -97,7 +133,7 @@ fn a_fall_gives_no_level_feeling() {
         let mut w = test_world(seed);
         clear_traps(&mut w);
         let here = player_pos(&mut w);
-        w.spawn(TrapBundle::trapdoor(here));
+        spawn_named(&mut w, "trapdoor", here).unwrap();
         step_player_onto(&mut w, here.x, here.y);
         trap_system(&mut w);
         assert_eq!(w.resource::<Depth>().what, 2);
@@ -123,7 +159,7 @@ fn trapdoor_on_the_deepest_floor_only_fizzles() {
     clear_traps(&mut w);
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::trapdoor(here));
+    spawn_named(&mut w, "trapdoor", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
@@ -156,7 +192,7 @@ fn trapdoor_loses_a_random_unequipped_item_but_spares_equipped_gear() {
     assert!(equip_silently(&mut w, p, worn));
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::trapdoor(here));
+    spawn_named(&mut w, "trapdoor", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
 
     trap_system(&mut w);
@@ -179,7 +215,7 @@ fn a_monster_that_hits_a_trapdoor_is_gone() {
         x: here.x + 2,
         y: here.y,
     };
-    w.spawn(TrapBundle::trapdoor(spot));
+    spawn_named(&mut w, "trapdoor", spot).unwrap();
     let mob = w
         .spawn((
             Name { what: "orc".into() },
@@ -221,7 +257,7 @@ fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
     clear_traps(&mut w);
     let p = player(&mut w);
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::bear(here));
+    spawn_named(&mut w, "bear trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
 
     trap_system(&mut w);
@@ -230,7 +266,7 @@ fn bear_trap_holds_for_three_turns_then_lets_go_and_is_spent() {
     let held_for = turns_left(&w, p, Grant::of::<Pinned>()).expect("held on a clock");
     assert_eq!(
         held_for,
-        TrapDef::of(TrapEffect::Bear).snare_turns,
+        TrapDef::lookup("bear trap").unwrap().snare_turns,
         "held for something other than the row's own duration"
     );
     assert_eq!(
@@ -270,7 +306,7 @@ fn a_sprung_trap_sometimes_breaks() {
         let mut w = test_world(seed);
         clear_traps(&mut w);
         let here = player_pos(&mut w);
-        w.spawn(TrapBundle::sleep(here));
+        spawn_named(&mut w, "sleeping gas trap", here).unwrap();
         step_player_onto(&mut w, here.x, here.y);
 
         trap_system(&mut w);
@@ -297,7 +333,7 @@ fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
     clear_traps(&mut w);
     let p = player(&mut w);
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::sleep(here));
+    spawn_named(&mut w, "sleeping gas trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
 
     trap_system(&mut w);
@@ -306,7 +342,7 @@ fn sleep_trap_knocks_the_player_out_for_five_turns_and_stays_armed() {
     let held_for = turns_left(&w, p, Grant::of::<Asleep>()).expect("out on a clock");
     assert_eq!(
         held_for,
-        TrapDef::of(TrapEffect::Sleep).snare_turns,
+        TrapDef::lookup("sleeping gas trap").unwrap().snare_turns,
         "out for something other than the row's own duration"
     );
     assert_eq!(
@@ -330,7 +366,7 @@ fn a_bear_trap_blocks_your_feet_not_your_fists() {
     w.get_mut::<Fighter>(p).unwrap().hp = 12;
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::bear(here));
+    spawn_named(&mut w, "bear trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
@@ -354,7 +390,7 @@ fn sleeping_gas_leaves_you_incapacitated() {
     let mut w = test_world(1);
     clear_traps(&mut w);
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::sleep(here));
+    spawn_named(&mut w, "sleeping gas trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
@@ -468,7 +504,7 @@ fn teleport_trap_flings_the_player_elsewhere() {
     clear_traps(&mut w);
     let p = player(&mut w);
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::teleport(here));
+    spawn_named(&mut w, "teleport trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     w.get_mut::<Viewshed>(p).unwrap().dirty = false;
 
@@ -507,7 +543,7 @@ fn arrow_trap_hits_an_unarmoured_target() {
     w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::arrow(here));
+    spawn_named(&mut w, "arrow trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
@@ -528,7 +564,7 @@ fn a_missed_arrow_lands_on_the_floor_as_loot() {
     w.get_mut::<Fighter>(p).unwrap().hp = 12;
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::arrow(here));
+    spawn_named(&mut w, "arrow trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
@@ -551,7 +587,7 @@ fn dart_trap_saps_melee_power_for_good() {
     let max_power_before = w.get::<Fighter>(p).unwrap().max_power;
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::dart(here));
+    spawn_named(&mut w, "dart trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
@@ -583,7 +619,7 @@ fn a_ring_of_strength_stops_the_dart_poison() {
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
 
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::dart(here));
+    spawn_named(&mut w, "dart trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
 
@@ -603,7 +639,7 @@ fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
     w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
     w.get_mut::<Fighter>(p).unwrap().hp = 12;
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::dart(here));
+    spawn_named(&mut w, "dart trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
     assert!(
@@ -619,7 +655,7 @@ fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
     w.get_mut::<Fighter>(p).unwrap().hp = 12;
     let power_before = w.get::<Fighter>(p).unwrap().power;
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::dart(here));
+    spawn_named(&mut w, "dart trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
     trap_system(&mut w);
     assert_eq!(
@@ -651,7 +687,7 @@ fn the_dart_trap_drains_more_strength_the_deeper_you_are() {
         let power_before = w.get::<Fighter>(p).unwrap().power;
 
         let here = player_pos(&mut w);
-        w.spawn(TrapBundle::dart(here));
+        spawn_named(&mut w, "dart trap", here).unwrap();
         step_player_onto(&mut w, here.x, here.y);
         trap_system(&mut w);
 
@@ -679,7 +715,7 @@ fn the_arrow_trap_hits_harder_the_deeper_you_are() {
                 w.get_mut::<Fighter>(p).unwrap().hp = 100;
 
                 let here = player_pos(&mut w);
-                w.spawn(TrapBundle::arrow(here));
+                spawn_named(&mut w, "arrow trap", here).unwrap();
                 step_player_onto(&mut w, here.x, here.y);
                 trap_system(&mut w);
                 100 - w.get::<Fighter>(p).unwrap().hp
@@ -735,9 +771,7 @@ fn a_sight_trap_reveals_itself_as_soon_as_it_is_in_view() {
     let mut w = test_world(11);
     clear_traps(&mut w);
     let (p, (tx, ty)) = far_visible_tile(&mut w);
-    let trap = w
-        .spawn(TrapBundle::trapdoor(Position { x: tx, y: ty }))
-        .id();
+    let trap = spawn_named(&mut w, "trapdoor", Position { x: tx, y: ty }).unwrap();
     assert!(w.get::<Hidden>(trap).is_some());
 
     w.get_mut::<Viewshed>(p).unwrap().dirty = true;
@@ -752,9 +786,7 @@ fn an_adjacent_trap_stays_hidden_until_you_are_next_to_it() {
     let mut w = test_world(11);
     clear_traps(&mut w);
     let (p, (tx, ty)) = far_visible_tile(&mut w);
-    let trap = w
-        .spawn(TrapBundle::trapdoor(Position { x: tx, y: ty }))
-        .id();
+    let trap = spawn_named(&mut w, "trapdoor", Position { x: tx, y: ty }).unwrap();
     w.get_mut::<Trap>(trap).unwrap().reveal = TrapReveal::Adjacent;
 
     w.get_mut::<Viewshed>(p).unwrap().dirty = true;
@@ -776,7 +808,7 @@ fn a_triggered_trap_is_invisible_until_it_goes_off() {
     let mut w = test_world(11);
     clear_traps(&mut w);
     let (p, (tx, ty)) = far_visible_tile(&mut w);
-    let trap = w.spawn(TrapBundle::dart(Position { x: tx, y: ty })).id();
+    let trap = spawn_named(&mut w, "dart trap", Position { x: tx, y: ty }).unwrap();
     w.get_mut::<Trap>(trap).unwrap().reveal = TrapReveal::Triggered;
 
     {
@@ -858,8 +890,8 @@ fn traps_and_snares_survive_a_save_and_reload() {
     clear_traps(&mut w);
     let p = player(&mut w);
 
-    w.spawn(TrapBundle::teleport(Position { x: 10, y: 5 }));
-    let known = w.spawn(TrapBundle::arrow(Position { x: 12, y: 5 })).id();
+    spawn_named(&mut w, "teleport trap", Position { x: 10, y: 5 }).unwrap();
+    let known = spawn_named(&mut w, "arrow trap", Position { x: 12, y: 5 }).unwrap();
     w.entity_mut(known).remove::<Hidden>();
     w.get_mut::<Trap>(known).unwrap().revealed = true;
     const OUT_FOR: u32 = 4;
@@ -876,14 +908,14 @@ fn traps_and_snares_survive_a_save_and_reload() {
     w2.insert_resource(PlayerName { what: "X".into() });
     load_game(&mut w2, sp).unwrap();
 
-    let mut effects: Vec<TrapEffect> = w2.query::<&Trap>().iter(&w2).map(|t| t.effect).collect();
-    effects.sort_by_key(|e| format!("{e:?}"));
-    assert_eq!(effects, vec![TrapEffect::Arrow, TrapEffect::Teleport]);
+    let mut names: Vec<&str> = w2.query::<&Trap>().iter(&w2).map(|t| t.row.name).collect();
+    names.sort();
+    assert_eq!(names, vec!["arrow trap", "teleport trap"]);
 
     let revealed = w2
         .query::<(&Trap, Option<&Hidden>)>()
         .iter(&w2)
-        .find(|(t, _)| t.effect == TrapEffect::Arrow)
+        .find(|(t, _)| std::ptr::eq(t.row, &ARROW_TRAP))
         .map(|(t, h)| (t.revealed, h.is_some()))
         .unwrap();
     assert_eq!(revealed, (true, false), "the known arrow trap stays known");
@@ -912,7 +944,7 @@ fn a_trap_a_monster_steps_on_is_revealed_even_unseen() {
     };
     let trap = w
         .spawn(TrapBundle::from_def(
-            TrapDef::of(TrapEffect::Dart),
+            TrapDef::lookup("dart trap").unwrap(),
             TrapReveal::Adjacent,
             spot,
         ))
@@ -1045,7 +1077,7 @@ fn a_detonated_trap_bursts_over_its_whole_three_by_three_and_no_further() {
     clear_mobs(&mut w);
     let (site, ring, two_off) = blast_site(&mut w);
 
-    let trap = w.spawn(TrapBundle::bear(site)).id();
+    let trap = spawn_named(&mut w, "bear trap", site).unwrap();
     let near = [orc_at(&mut w, ring[0]), orc_at(&mut w, ring[1])];
     let clear = orc_at(&mut w, two_off);
 
@@ -1084,7 +1116,7 @@ fn a_trick_shot_in_sight_shouts_bam() {
     let (_, (tx, ty)) = far_visible_tile(&mut w);
     let site = Position { x: tx, y: ty };
 
-    let trap = w.spawn(TrapBundle::bear(site)).id();
+    let trap = spawn_named(&mut w, "bear trap", site).unwrap();
     let orc = orc_at(&mut w, Position { x: tx - 1, y: ty });
 
     detonate_trap(&mut w, trap, None);
@@ -1108,7 +1140,7 @@ fn a_trap_that_is_merely_stepped_on_does_not_burst() {
     clear_mobs(&mut w);
     let (site, ring, _) = blast_site(&mut w);
 
-    w.spawn(TrapBundle::bear(site));
+    spawn_named(&mut w, "bear trap", site).unwrap();
     let bystander = orc_at(&mut w, ring[0]);
     let victim = orc_at(&mut w, site);
     w.entity_mut(victim).insert(EntityMoved);
@@ -1135,7 +1167,7 @@ fn a_trick_shot_that_catches_you_asks_why() {
 
     *w.get_mut::<Position>(p).unwrap() = ring[0];
 
-    let trap = w.spawn(TrapBundle::bear(site)).id();
+    let trap = spawn_named(&mut w, "bear trap", site).unwrap();
     detonate_trap(&mut w, trap, None);
 
     assert!(log_contains(&w, "WHY! Trick shot!"));
@@ -1158,7 +1190,7 @@ fn a_detonated_trap_works_its_effect_on_everyone_it_catches() {
     clear_mobs(&mut w);
     let (site, ring, _) = blast_site(&mut w);
 
-    let trap = w.spawn(TrapBundle::sleep(site)).id();
+    let trap = spawn_named(&mut w, "sleeping gas trap", site).unwrap();
     let caught = [orc_at(&mut w, ring[0]), orc_at(&mut w, ring[1])];
 
     detonate_trap(&mut w, trap, None);
@@ -1173,7 +1205,7 @@ fn a_teleport_trap_leaves_smoke_where_the_victim_stood() {
     let mut w = test_world(14);
     clear_traps(&mut w);
     let here = player_pos(&mut w);
-    w.spawn(TrapBundle::teleport(here));
+    spawn_named(&mut w, "teleport trap", here).unwrap();
     step_player_onto(&mut w, here.x, here.y);
 
     trap_system(&mut w);
@@ -1191,7 +1223,7 @@ fn a_monster_that_falls_through_a_trapdoor_leaves_smoke() {
     clear_mobs(&mut w);
     let (site, _, _) = blast_site(&mut w);
 
-    w.spawn(TrapBundle::trapdoor(site));
+    spawn_named(&mut w, "trapdoor", site).unwrap();
     let doomed = orc_at(&mut w, site);
     w.entity_mut(doomed).insert(EntityMoved);
 
@@ -1258,7 +1290,7 @@ fn no_trap_is_planted_in_a_doorway_or_the_tile_just_inside_one() {
 
 /// Every trap in the catalog puts something on the effect layer when it
 /// springs — a trap that goes off invisibly reads as a bug in the log. Walks
-/// the whole of `TRAPS`, so a new row with no flourish arm fails here.
+/// the whole of `TRAPS`, so a new row whose flourish shows nothing fails here.
 #[test]
 fn every_trap_animates_when_it_springs() {
     for def in models::TRAPS {
@@ -1286,10 +1318,7 @@ fn every_trap_animates_when_it_springs() {
 
 #[test]
 fn a_shooting_trap_shakes_the_map_even_on_a_miss() {
-    for make in [
-        TrapBundle::arrow as fn(Position) -> TrapBundle,
-        TrapBundle::dart,
-    ] {
+    for name in ["arrow trap", "dart trap"] {
         let mut w = test_world(2);
         clear_traps(&mut w);
         w.init_resource::<Shake>();
@@ -1297,7 +1326,7 @@ fn a_shooting_trap_shakes_the_map_even_on_a_miss() {
         w.get_mut::<Fighter>(p).unwrap().armor_bonus = 20;
 
         let here = player_pos(&mut w);
-        w.spawn(make(here));
+        spawn_named(&mut w, name, here).unwrap();
         step_player_onto(&mut w, here.x, here.y);
         trap_system(&mut w);
 
@@ -1319,7 +1348,7 @@ fn an_aimed_shot_passes_over_a_trap_nobody_has_found() {
     clear_mobs(&mut w);
     let (site, ring, _) = blast_site(&mut w);
 
-    let trap = w.spawn(TrapBundle::bear(site)).id();
+    let trap = spawn_named(&mut w, "bear trap", site).unwrap();
     assert!(w.get::<Hidden>(trap).is_some(), "a fresh trap is hidden");
     let bystander = orc_at(&mut w, ring[0]);
 
@@ -1339,7 +1368,7 @@ fn an_aimed_shot_sets_off_a_trap_that_has_been_found() {
     clear_mobs(&mut w);
     let (site, ring, _) = blast_site(&mut w);
 
-    let trap = w.spawn(TrapBundle::bear(site)).id();
+    let trap = spawn_named(&mut w, "bear trap", site).unwrap();
     w.entity_mut(trap).remove::<Hidden>();
     let bystander = orc_at(&mut w, ring[0]);
 
@@ -1365,10 +1394,10 @@ fn a_burst_sets_off_the_next_trap_along_even_a_hidden_one() {
     if w.resource::<Map>().blocks(three_off.x, three_off.y) {
         return;
     }
-    let first = w.spawn(TrapBundle::bear(site)).id();
+    let first = spawn_named(&mut w, "bear trap", site).unwrap();
     w.entity_mut(first).remove::<Hidden>();
-    let second = w.spawn(TrapBundle::bear(one_off)).id();
-    let third = w.spawn(TrapBundle::bear(two_off)).id();
+    let second = spawn_named(&mut w, "bear trap", one_off).unwrap();
+    let third = spawn_named(&mut w, "bear trap", two_off).unwrap();
     let far = orc_at(&mut w, three_off);
 
     detonate_at(&mut w, site, None);
@@ -1396,10 +1425,10 @@ fn a_whole_chain_goes_off_at_once_with_its_dead() {
         x: site.x + 1,
         y: site.y,
     };
-    let first = w.spawn(TrapBundle::bear(site)).id();
+    let first = spawn_named(&mut w, "bear trap", site).unwrap();
     w.entity_mut(first).remove::<Hidden>();
     spawn_named(&mut w, "potion of healing", one_off).unwrap();
-    w.spawn(TrapBundle::bear(two_off));
+    spawn_named(&mut w, "bear trap", two_off).unwrap();
     let far = Position {
         x: two_off.x + 1,
         y: two_off.y,

@@ -231,7 +231,7 @@ fn a_peaceful_spirit_is_not_charged_but_a_hostile_one_is() {
 fn landing_on_a_trap_springs_it_and_jumping_over_one_does_not() {
     let (mut w, _) = arena(1);
     let orc = put_monster(&mut w, 18, 9);
-    w.spawn(TrapBundle::trapdoor(Position { x: 14, y: 9 }));
+    spawn_named(&mut w, "trapdoor", Position { x: 14, y: 9 }).unwrap();
     assert!(matches!(
         fast_move_plan(&mut w, 1, 0),
         FastMovePlan::Charge(_)
@@ -242,7 +242,7 @@ fn landing_on_a_trap_springs_it_and_jumping_over_one_does_not() {
 
     let (mut w, _) = arena(1);
     let orc = put_monster(&mut w, 18, 9);
-    w.spawn(TrapBundle::trapdoor(Position { x: 17, y: 9 }));
+    spawn_named(&mut w, "trapdoor", Position { x: 17, y: 9 }).unwrap();
     charge(&mut w, orc);
     trap_system(&mut w);
     assert_eq!(w.resource::<Depth>().what, 2, "the trap was landed on");

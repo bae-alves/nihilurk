@@ -334,9 +334,7 @@ fn a_mimic_is_never_also_invisible() {
 #[test]
 fn a_traps_label_is_its_row() {
     for def in TRAPS {
-        assert_eq!(def.effect.label(), def.name);
-        assert_eq!(TrapDef::of(def.effect).name, def.name);
-        assert!(TrapDef::lookup(def.name).is_some());
+        assert!(TrapDef::lookup(def.name).is_some_and(|row| std::ptr::eq(row, *def)));
     }
     assert!(TrapDef::lookup("pit trap").is_none());
 }

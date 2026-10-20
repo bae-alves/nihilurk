@@ -99,13 +99,12 @@ Traps
     models/src/traps.rs
 
     impl TrapDef {
-        pub fn of(effect: TrapEffect) -> &'static TrapDef     // panics
         pub fn lookup(name: &str) -> Option<&'static TrapDef>
         pub fn pick(depth: u8, rng: &mut ChaCha12Rng) -> &'static TrapDef
     }
 
     impl TrapBundle {
-        pub fn from_def(def: &TrapDef, reveal: TrapReveal, position: Position)
+        pub fn from_def(def: &'static TrapDef, reveal: TrapReveal, position: Position)
             -> Self
         pub fn random(rng: &mut ChaCha12Rng, depth: u8, position: Position)
             -> Self

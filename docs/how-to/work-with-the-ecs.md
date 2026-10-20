@@ -168,13 +168,13 @@ A new kind is three pieces, and the third is what keeps it from spreading:
 **1. A `Def` row type, with the table beside it.** Not in `components.rs` — next to the content it describes, so the type, the table and the one place it is built are all in one file:
 
     pub struct TrapDef {
-        pub effect: TrapEffect,
         pub name: &'static str,
         pub glyph: char,
         /* … the dials its mechanic needs, on the row */
+        pub apply: fn(&mut World, Spring),
     }
 
-    pub const TRAPS: &[TrapDef] = &[ /* one line per trap */ ];
+    pub static TRAPS: &[&TrapDef] = &[ /* one line per trap */ ];
 
 **2. A `Bundle`, so the entity is described exactly once.** Every spawn site goes through it — level population, a scroll that conjures one, a save being reloaded — and none of them assembles the components by hand:
 

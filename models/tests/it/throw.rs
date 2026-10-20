@@ -923,7 +923,7 @@ fn a_shot_that_lands_on_a_trap_sets_it_off() {
     let spot = east_of_player(&mut w, 2);
     assert!(!w.resource::<Map>().blocks(spot.x, spot.y), "open floor");
 
-    let trap = w.spawn(TrapBundle::sleep(spot)).id();
+    let trap = spawn_named(&mut w, "sleeping gas trap", spot).unwrap();
     w.entity_mut(trap).remove::<Hidden>();
     let beside_it = east_of_player(&mut w, 3);
     let bystander = monster(&mut w, "orc", beside_it);
@@ -954,7 +954,7 @@ fn a_shot_that_lands_on_a_hidden_trap_just_lands() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 2);
-    let trap = w.spawn(TrapBundle::sleep(spot)).id();
+    let trap = spawn_named(&mut w, "sleeping gas trap", spot).unwrap();
     let beside_it = east_of_player(&mut w, 3);
     let bystander = monster(&mut w, "orc", beside_it);
     w.get_mut::<Fighter>(bystander).unwrap().hp = 30;
@@ -975,7 +975,7 @@ fn hitting_a_monster_standing_on_a_trap_sets_the_trap_off() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let spot = east_of_player(&mut w, 1);
-    let trap = w.spawn(TrapBundle::sleep(spot)).id();
+    let trap = spawn_named(&mut w, "sleeping gas trap", spot).unwrap();
     w.entity_mut(trap).remove::<Hidden>();
     let orc = monster(&mut w, "orc", spot);
     w.get_mut::<Fighter>(orc).unwrap().hp = 30;

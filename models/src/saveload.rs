@@ -72,6 +72,7 @@ use crate::map::{
 };
 use crate::monsters::{BESTIARY, MonsterDef};
 use crate::state::{Ending, GameState};
+use crate::traps::TrapDef;
 use rand_chacha::ChaCha12Rng;
 
 /// The 16-colour terminal palette, packed to one byte instead of a debug string.
@@ -251,8 +252,9 @@ struct EntitySave<'a> {
     effects: Vec<SavedEffect>,
     /// A creature's movement tempo. The energy pool is transient and resets to 0.
     speed: Option<SpeedKind>,
-    /// (effect, reveal style, already discovered) for a floor trap.
-    trap: Option<(TrapEffect, TrapReveal, bool)>,
+    /// (row name, reveal style, already discovered) for a floor trap. The
+    /// loader finds the row again by name ([`TrapDef::lookup`]).
+    trap: Option<(String, TrapReveal, bool)>,
     /// A coin's effect and the dial it works with — see `Pickup`. Both are on
     /// the catalog row, but a coin is spent by the entity rather than looked up
     /// by name, so the entity carries them.
@@ -317,7 +319,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 14;
+pub const SAVE_VERSION: u16 = 15;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -661,7 +663,9 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             vorpal: er.get::<Vorpal>().map(|v| Cow::Borrowed(v.bane.as_str())),
             effects: effects_of(world, e).iter().map(SavedEffect::of).collect(),
             speed: er.get::<Speed>().map(|s| s.kind),
-            trap: er.get::<Trap>().map(|t| (t.effect, t.reveal, t.revealed)),
+            trap: er
+                .get::<Trap>()
+                .map(|t| (t.row.name.to_string(), t.reveal, t.revealed)),
             pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
             plated: er.get::<Plated>().map_or(0, |p| p.0),
             forged: er.get::<Forged>().map_or(0, |p| p.0),
@@ -933,11 +937,15 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .scroll
                 .as_deref()
                 .is_none_or(|name| scroll_row(name).is_some())
+            && es
+                .trap
+                .as_ref()
+                .is_none_or(|(name, _, _)| TrapDef::lookup(name).is_some())
     });
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune, wand, potion or scroll this build has no row for",
+            "save file names a rune, wand, potion, scroll or trap this build has no row for",
         ));
     }
 
@@ -1147,9 +1155,11 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if es.player || es.mob.is_some() {
             em.insert(Speed::new(es.speed.unwrap_or_default()));
         }
-        if let Some((effect, reveal, revealed)) = es.trap {
+        if let Some((name, reveal, revealed)) = es.trap
+            && let Some(row) = TrapDef::lookup(&name)
+        {
             em.insert(Trap {
-                effect,
+                row,
                 reveal,
                 revealed,
             });

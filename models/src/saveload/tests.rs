@@ -439,7 +439,7 @@ fn full_entity<'a>() -> EntitySave<'a> {
             },
         ],
         speed: Some(SpeedKind::Quick),
-        trap: Some((TrapEffect::Dart, TrapReveal::Triggered, true)),
+        trap: Some(("dart trap".to_string(), TrapReveal::Triggered, true)),
         pickup: Some((PickupEffect::LearnRandomSpell, 300)),
         plated: 1,
         forged: 1,
@@ -553,6 +553,17 @@ fn a_scroll_no_row_has_refuses_the_load() {
     entity.scroll = Some("scroll of nowhere".to_string());
     let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
     let err = load_bytes("unknown-scroll", &bytes)
+        .err()
+        .expect("the load is refused");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+}
+
+#[test]
+fn a_trap_no_row_has_refuses_the_load() {
+    let mut entity = blank_entity();
+    entity.trap = Some(("trap of nowhere".to_string(), TrapReveal::Sight, false));
+    let bytes = encode(SAVE_VERSION, &blank_save(vec![entity]));
+    let err = load_bytes("unknown-trap", &bytes)
         .err()
         .expect("the load is refused");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);

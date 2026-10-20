@@ -32,7 +32,7 @@ use crate::helpers::{
 use crate::map::{GameRng, Map};
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
-use crate::traps::{TrapBundle, spring_trap, trap_at, trap_damage_tier};
+use crate::traps::{ARROW_TRAP, TrapBundle, spring_trap, trap_at, trap_damage_tier};
 
 use super::wands::{dazzle, elemental_blast};
 
@@ -432,7 +432,9 @@ fn setup(world: &mut World, user: Entity) {
         if map.blocks(x, y) || trap_at(world, spot).is_some() {
             continue;
         }
-        let trap = world.spawn(TrapBundle::arrow(spot)).id();
+        let trap = world
+            .spawn(TrapBundle::from_def(&ARROW_TRAP, TrapReveal::Sight, spot))
+            .id();
         world.entity_mut(trap).remove::<Hidden>();
         if let Some(mut t) = world.get_mut::<Trap>(trap) {
             t.revealed = true;

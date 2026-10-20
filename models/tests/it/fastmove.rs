@@ -187,7 +187,7 @@ fn straight_step_stops_before_a_known_trap() {
     w.spawn((
         Position { x: 18, y: 9 },
         Trap {
-            effect: TrapEffect::Dart,
+            row: TrapDef::lookup("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },
@@ -209,7 +209,7 @@ fn fast_move_plan_is_blocked_by_a_known_trap_dead_ahead() {
     w.spawn((
         Position { x: 18, y: 9 },
         Trap {
-            effect: TrapEffect::Dart,
+            row: TrapDef::lookup("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },

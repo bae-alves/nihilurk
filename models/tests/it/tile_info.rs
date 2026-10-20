@@ -44,7 +44,7 @@ fn a_trap_says_what_it_does() {
     let trap = w
         .spawn((
             Trap {
-                effect: TrapEffect::Bear,
+                row: TrapDef::lookup("bear trap").unwrap(),
                 reveal: TrapReveal::Sight,
                 revealed: true,
             },
@@ -56,7 +56,7 @@ fn a_trap_says_what_it_does() {
         lines,
         vec![strings::trap_explained(
             "bear trap",
-            TrapDef::of(TrapEffect::Bear).snare_turns
+            TrapDef::lookup("bear trap").unwrap().snare_turns
         )]
     );
 }

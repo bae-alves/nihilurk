@@ -206,7 +206,7 @@ fn travel_step_wont_walk_onto_a_known_trap() {
             y: target.1,
         },
         Trap {
-            effect: TrapEffect::Dart,
+            row: TrapDef::lookup("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },
@@ -277,7 +277,7 @@ fn explore_step_wont_walk_onto_a_known_trap() {
     w.spawn((
         Position { x: 3, y: 5 },
         Trap {
-            effect: TrapEffect::Dart,
+            row: TrapDef::lookup("dart trap").unwrap(),
             reveal: TrapReveal::Sight,
             revealed: true,
         },
