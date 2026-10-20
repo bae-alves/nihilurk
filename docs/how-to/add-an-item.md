@@ -192,7 +192,7 @@ Wands take two edits and no enum. Write the zap handler, `fn(&mut World, Zap)`, 
     &WandDef::new("wand of fire", Color::Red, 8, BlastPalette::Fire, wands::fire)
         .attack().element(Element::Fire).bursts().wasted_on(wands::fireproof),
 
-`.attack()` makes it a damage wand (thrown, the grenade; doubled by `DualZap`), `.element(..)` names what resists it, `.bursts()` paints the zap's blast on the reticle, `.unaimed()` skips the reticle (the wand of light), `.wasted_on(..)` lets the reticle pass over a creature it would not change, and `.thrown(Thrown::..)` picks what it does thrown; the default is the small blast that changes nobody. A wand draws as `/`, its `range` feeds the reticle, and it always spawns with `constants::wands::WAND_CHARGES`, full. `WAND_OF_NOTHING` is the one row outside `WANDS`.
+`.attack()` makes it a damage wand (thrown, the grenade; doubled by `DualZap`), `.element(..)` names what resists it, `.bursts()` paints the zap's blast on the reticle, `.unaimed()` skips the reticle (the wand of light), `.wasted_on(..)` lets the reticle pass over a creature it would not change, and `.thrown(Thrown::..)` picks what it does thrown (`Thrown::blast(f)` or one of the `Thrown` consts); the default is the small blast that changes nobody. A wand draws as `/`, its `range` feeds the reticle, and it always spawns with `constants::wands::WAND_CHARGES`, full. `WAND_OF_NOTHING` is the one row outside `WANDS`.
 
 
 > **Append enum variants; never insert or reorder them.** The save file

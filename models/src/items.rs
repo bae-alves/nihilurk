@@ -34,7 +34,7 @@ pub(crate) mod runes;
 mod scrolls;
 mod spells;
 mod theft;
-mod throwing;
+pub(crate) mod throwing;
 pub(crate) mod wands;
 
 pub use spells::{can_afford_spell, pay_for_spell, spell_cost, spell_system};

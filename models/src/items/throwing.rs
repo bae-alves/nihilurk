@@ -38,16 +38,14 @@ use crate::traps::detonate_at;
 
 use super::scrolls::apply_scroll_effect;
 use super::spells::spell_blast_radius;
-use super::wands::{blast_cells, crater, dazzle, elemental_blast, shuffle_places};
-use crate::catalog::{Thrown, WandDef};
+use super::wands::{blast_cells, elemental_blast, shuffle_places};
+use crate::catalog::{Burst, WandDef};
 use crate::conditions::snare;
 
 use crate::constants::items::{LAUNCHER_RANGE, LIGHT_THROW_RANGE, PACK_CAPACITY, THROW_RANGE};
 use crate::constants::potions::POTION_SPLASH_RADIUS;
 use crate::constants::scrolls::HOLD_TURNS;
-use crate::constants::wands::{
-    BLAST_RADIUS, EFFECT_DIE_PER_CHARGE, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS,
-};
+use crate::constants::wands::{BLAST_RADIUS, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS};
 
 /// Why `user` can't throw `item`, if they can't: exactly the things that
 /// can't be put down either ([`drop_refusal`]). Anything else is fair game.
@@ -154,18 +152,6 @@ fn wand_breaks(
     hit_creature || landing != target || chebyshev(origin, landing) >= reach
 }
 
-/// The disc a hurled wand bursts in, as [`resolve_wand_throw`] sets it off:
-/// the grenade for an attack wand or light, the small blast for a utility
-/// wand. Nothing for the wand of nothing, which only makes confetti, or for
-/// digging, whose crater ignores line of sight.
-fn thrown_wand_radius(row: &WandDef) -> Option<f32> {
-    match row.thrown {
-        Thrown::Confetti | Thrown::Crater => None,
-        Thrown::Grenade | Thrown::Flash => Some(GRENADE_RADIUS),
-        Thrown::Blast(_) | Thrown::Shuffle => Some(BLAST_RADIUS),
-    }
-}
-
 /// The tiles the blast a confirmed reticle would set off covers, for the
 /// renderer to paint under it. A spell or a zap bursts on the cursor; a throw
 /// bursts where it comes down, traced past every creature the player cannot
@@ -228,7 +214,7 @@ fn thrown_blast(
     if !wand_breaks(!victims.is_empty(), origin, landing, target, reach) {
         return None;
     }
-    thrown_wand_radius(row).map(|r| (landing, r))
+    row.thrown.radius.map(|r| (landing, r))
 }
 
 /// Whether `item` is ammunition being *loosed* — it carries [`LaunchedBy`] and
@@ -434,16 +420,6 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
 
 /// A thrown wand bursts where it lands, spending every charge it had left in one
 /// go, the way its row's [`Thrown`] says.
-///
-/// * [`Thrown::Grenade`], an attack wand: the wide, hot grenade — one die of
-///   [`GRENADE_DIE_PER_CHARGE`] sides a charge (at 1, a flat point a charge)
-///   at [`GRENADE_RADIUS`], armour-ignoring, elemental where the wand is.
-/// * [`Thrown::Flash`], the wand of light: the same grenade, and it
-///   [`dazzle`]s every creature it catches.
-/// * [`Thrown::Blast`], a utility wand: a smaller [`BLAST_RADIUS`] blast that
-///   deals *no* damage — the payload is the effect, worked on every creature
-///   caught. [`Thrown::Shuffle`] trades their places instead.
-/// * [`Thrown::Confetti`] just makes confetti; [`Thrown::Crater`] digs one.
 fn resolve_wand_throw(
     world: &mut World,
     thrower: Entity,
@@ -458,63 +434,89 @@ fn resolve_wand_throw(
         .map(|b| b.charges as i32)
         .unwrap_or(0)
         .max(0);
+    (row.thrown.burst)(
+        world,
+        Burst {
+            row,
+            thrower,
+            at: landing,
+            charges,
+            seen_name,
+        },
+    );
+}
 
-    match row.thrown {
-        Thrown::Confetti => {
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::thrown_wand_confetti(seen_name));
-            if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-                confetti_burst(&mut fx, landing);
-            }
-            return;
-        }
-        Thrown::Crater => {
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::thrown_wand_shatters(seen_name, charges));
-            crater(world, landing, GRENADE_RADIUS);
-            return;
-        }
-        Thrown::Grenade | Thrown::Flash | Thrown::Blast(_) | Thrown::Shuffle => {}
-    }
+/// [`Thrown::GRENADE`] and [`Thrown::FLASH`]: one die of
+/// [`GRENADE_DIE_PER_CHARGE`] sides a charge (at 1, a flat point a charge),
+/// armour-ignoring, elemental where the wand is.
+pub(crate) fn grenade(world: &mut World, burst: Burst) {
+    let damage = roll_dice(world, burst.charges, GRENADE_DIE_PER_CHARGE);
+    let caught = shatter(world, burst, damage);
+    touch(world, burst, &caught, burst.row.thrown.each);
+}
 
-    let grenade = matches!(row.thrown, Thrown::Grenade | Thrown::Flash);
-    let (radius, sides) = if grenade {
-        (GRENADE_RADIUS, GRENADE_DIE_PER_CHARGE)
-    } else {
-        (BLAST_RADIUS, EFFECT_DIE_PER_CHARGE)
-    };
-    let damage = if grenade {
-        roll_dice(world, charges, sides)
-    } else {
-        0
-    };
+/// [`Thrown::blast`]: it deals *no* damage; the payload is the row's `each`.
+pub(crate) fn blast(world: &mut World, burst: Burst) {
+    let caught = shatter(world, burst, 0);
+    touch(world, burst, &caught, burst.row.thrown.each);
+}
 
+/// [`Thrown::SHUFFLE`]: the harmless blast, and the creatures it catches trade
+/// places.
+pub(crate) fn shuffle(world: &mut World, burst: Burst) {
+    let caught = shatter(world, burst, 0);
+    shuffle_places(world, &caught);
+    touch(world, burst, &caught, Some(|_, _| {}));
+}
+
+/// [`Thrown::CONFETTI`].
+pub(crate) fn confetti(world: &mut World, burst: Burst) {
     world
         .resource_mut::<GameLog>()
-        .add(strings::thrown_wand_shatters(seen_name, charges));
+        .add(strings::thrown_wand_confetti(burst.seen_name));
+    if let Some(mut fx) = world.get_resource_mut::<Particles>() {
+        confetti_burst(&mut fx, burst.at);
+    }
+}
 
-    let caught = elemental_blast(
+/// [`Thrown::CRATER`]: the grenade's reach, dug.
+pub(crate) fn crater(world: &mut World, burst: Burst) {
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::thrown_wand_shatters(
+            burst.seen_name,
+            burst.charges,
+        ));
+    super::wands::crater(world, burst.at, GRENADE_RADIUS);
+}
+
+/// Says the wand shattered and blasts its row's radius for `damage`; who it
+/// caught.
+fn shatter(world: &mut World, burst: Burst, damage: i32) -> Vec<Entity> {
+    world
+        .resource_mut::<GameLog>()
+        .add(strings::thrown_wand_shatters(
+            burst.seen_name,
+            burst.charges,
+        ));
+    elemental_blast(
         world,
-        Some(thrower),
-        landing,
-        radius,
+        Some(burst.thrower),
+        burst.at,
+        burst_radius(burst),
         damage,
-        row.element,
-        row.palette,
-    );
+        burst.row.element,
+        burst.row.palette,
+    )
+}
 
-    let each: fn(&mut World, Entity) = match row.thrown {
-        Thrown::Flash => dazzle,
-        Thrown::Blast(each) => each,
-        Thrown::Shuffle => {
-            shuffle_places(world, &caught);
-            |_, _| {}
-        }
-        Thrown::Grenade | Thrown::Confetti | Thrown::Crater => return,
+/// Works `each` on every creature `caught`, each one flashing. Nothing at all,
+/// not even the flash, without an `each`.
+fn touch(world: &mut World, burst: Burst, caught: &[Entity], each: Option<fn(&mut World, Entity)>) {
+    let Some(each) = each else {
+        return;
     };
-    for entity in caught {
+    for &entity in caught {
         let is_creature =
             world.get::<Mob>(entity).is_some() || world.get::<Player>(entity).is_some();
         let Some(pos) = world.get::<Position>(entity).copied() else {
@@ -525,9 +527,14 @@ fn resolve_wand_throw(
         }
         each(world, entity);
         if let Some(mut fx) = world.get_resource_mut::<Particles>() {
-            fx.secondary_burst(pos.x, pos.y, radius, row.palette);
+            fx.secondary_burst(pos.x, pos.y, burst_radius(burst), burst.row.palette);
         }
     }
+}
+
+/// The disc the row's [`Thrown`] bursts in, the one the reticle painted.
+fn burst_radius(burst: Burst) -> f32 {
+    burst.row.thrown.radius.unwrap_or(BLAST_RADIUS)
 }
 
 /// The schedule step that resolves everything hurled this turn.

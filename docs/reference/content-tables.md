@@ -167,9 +167,9 @@ Draws `'`, always white. Attaches `Item` and `Rune { row, charged: true }`, and 
 | `needs_target` | `bool`                       | Whether zapping opens the reticle. |
 | `zap_radius`   | `Option<f32>`                | The burst the reticle paints for a zap. |
 | `wasted_on`    | `fn(&World, Entity) -> bool` | Creatures the reticle passes over. |
-| `thrown`       | `Thrown`                     | What it does thrown. |
+| `thrown`       | `Thrown`                     | What it does thrown: the radius the reticle paints, the `burst` handler, and what happens to `each` creature caught. |
 
-Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. Every wand spawns full, with `WAND_CHARGES`, however it was made. Zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Rows are `static`, built with `WandDef::new(name, color, range, palette, zap)` and a chain (`.attack()`, `.element(..)`, `.bursts()`, `.unaimed()`, `.wasted_on(..)`, `.thrown(..)`); a `Wand` holds its row. Only the wand of light is `.unaimed()`. Mechanic: the row's `zap`, one handler per row in `models/src/items/wands.rs`, run by `zap_wand`. `new` takes the handler, so a row without one does not compile. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), by the row's `Thrown`.
+Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. Every wand spawns full, with `WAND_CHARGES`, however it was made. Zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Rows are `static`, built with `WandDef::new(name, color, range, palette, zap)` and a chain (`.attack()`, `.element(..)`, `.bursts()`, `.unaimed()`, `.wasted_on(..)`, `.thrown(..)`); a `Wand` holds its row. Only the wand of light is `.unaimed()`. Mechanic: the row's `zap`, one handler per row in `models/src/items/wands.rs`, run by `zap_wand`. `new` takes the handler, so a row without one does not compile. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), which calls the row's `thrown.burst`.
 
 Every wand's zap, burst and poof is described in `../explanation/the-feel-layer.md`; of all that, only the `palette` is a field on this table.
 
@@ -179,18 +179,18 @@ A zapped **wand of swapping** (`swap_with_target`) trades the zapper's tile for 
 
 Neither a zap nor a throw can be aimed at the player's own tile: the engine refuses it with "Great idea! But no." and no turn passes.
 
-**Thrown**, a wand bursts on impact and spends every remaining charge at once. Which blast it makes is its row's `Thrown`:
+**Thrown**, a wand bursts on impact and spends every remaining charge at once. Which blast it makes is its row's `Thrown`, a struct, not an enum: a new way to burst is a new const and a handler in `throwing.rs`, and no match grows. The burst reads its radius from the same struct the reticle does.
 
 | `Thrown` | Radius | Damage | Payload |
 |---|---|---|---|
-| `Grenade` (every `.attack()` wand) | `GRENADE_RADIUS` | `GRENADE_DIE_PER_CHARGE` sides per charge, armour-ignoring | its element, if it has one |
-| `Flash` (wand of light) | `GRENADE_RADIUS` | the same | `dazzle` on every creature caught |
-| `Blast(f)` (utility, the default) | `BLAST_RADIUS` | none | `f`, the wand's own effect, on every creature caught |
-| `Confetti` (wand of nothing) | — | none | confetti |
-| `Crater` (wand of digging) | `GRENADE_RADIUS` | none | a crater: every wall in the disc goes, in sight or not (`wands::crater`) |
-| `Shuffle` (wand of swapping) | `BLAST_RADIUS` | none | every creature caught on dry floor moves to another's tile, in a random ring so none keeps its own (`wands::shuffle_places`) |
+| `GRENADE` (every `.attack()` wand) | `GRENADE_RADIUS` | `GRENADE_DIE_PER_CHARGE` sides per charge, armour-ignoring | its element, if it has one |
+| `FLASH` (wand of light) | `GRENADE_RADIUS` | the same | `dazzle` on every creature caught |
+| `blast(f)` (utility, the default) | `BLAST_RADIUS` | none | `f`, the wand's own effect, on every creature caught |
+| `CONFETTI` (wand of nothing) | — | none | confetti |
+| `CRATER` (wand of digging) | `GRENADE_RADIUS`, unpainted | none | a crater: every wall in the disc goes, in sight or not (`wands::crater`) |
+| `SHUFFLE` (wand of swapping) | `BLAST_RADIUS` | none | every creature caught on dry floor moves to another's tile, in a random ring so none keeps its own (`wands::shuffle_places`) |
 
-Dials: `constants::wands`. Resolution: `resolve_wand_throw` in `models/src/items/throwing.rs`. What each of those looks like on screen is `../explanation/the-feel-layer.md`; what a condition does to the player it lands on is `components.md`.
+Dials: `constants::wands`. Resolution: `resolve_wand_throw` and the burst handlers in `models/src/items/throwing.rs`. What each of those looks like on screen is `../explanation/the-feel-layer.md`; what a condition does to the player it lands on is `components.md`.
 
 ### SPELLS — SpellDef
 

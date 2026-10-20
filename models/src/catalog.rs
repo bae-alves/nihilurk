@@ -33,7 +33,8 @@ use rand_chacha::ChaCha12Rng;
 use crate::components::*;
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
-use crate::items::{runes, wands};
+use crate::items::wands::dazzle;
+use crate::items::{runes, throwing, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
 use crate::particles::BlastPalette;
 
@@ -52,7 +53,7 @@ use crate::constants::rings::{
     EXCEPTIONAL_BONUS as RING_EXCEPTIONAL_BONUS, MEGACURSED_BONUS_MAX as RING_MEGACURSED_BONUS_MAX,
     MEGACURSED_BONUS_MIN as RING_MEGACURSED_BONUS_MIN, PLAIN_BONUS,
 };
-use crate::constants::wands::{BLAST_RADIUS, WAND_CHARGES};
+use crate::constants::wands::{BLAST_RADIUS, GRENADE_RADIUS, WAND_CHARGES};
 
 // ---------------------------------------------------------------------------
 // The shape every catalog row shares
@@ -501,22 +502,77 @@ pub struct Zap {
     pub at: Position,
 }
 
-/// What a thrown wand does where it breaks. The mechanisms, not the wands: a
-/// new wand picks one.
+/// What a thrown wand does where it breaks. The reticle paints `radius` and
+/// the throw calls `burst`, which reads the radius back from here, so the two
+/// cannot disagree. A new wand picks one of the consts below or
+/// [`Thrown::blast`]; a new way to burst is a new const and a handler in the
+/// `throwing` submodule of `crate::items`.
 #[derive(Clone, Copy)]
-pub enum Thrown {
+pub struct Thrown {
+    /// The disc it bursts in, for the reticle to paint; `None` paints nothing.
+    pub radius: Option<f32>,
+    /// What breaking does.
+    pub burst: fn(&mut World, Burst),
+    /// What happens to each creature the burst catches, if anything.
+    pub each: Option<fn(&mut World, Entity)>,
+}
+
+/// One thrown wand breaking, as a [`Thrown::burst`] handler receives it.
+#[derive(Clone, Copy)]
+pub struct Burst<'a> {
+    /// The wand's row.
+    pub row: &'static WandDef,
+    /// Whoever threw it.
+    pub thrower: Entity,
+    /// Where it broke.
+    pub at: Position,
+    /// The charges it had left, all spent at once.
+    pub charges: i32,
+    /// The wand's name as the thrower saw it.
+    pub seen_name: &'a str,
+}
+
+impl Thrown {
     /// The wide, hot grenade, elemental where the wand is.
-    Grenade,
+    pub const GRENADE: Thrown = Thrown {
+        radius: Some(GRENADE_RADIUS),
+        burst: throwing::grenade,
+        each: None,
+    };
     /// The grenade, and every creature it catches is dazzled.
-    Flash,
-    /// The small blast that hurts nobody, worked on every creature it catches.
-    Blast(fn(&mut World, Entity)),
-    /// The small blast that hurts nobody; the creatures it catches trade places.
-    Shuffle,
+    pub const FLASH: Thrown = Thrown {
+        each: Some(dazzle),
+        ..Thrown::GRENADE
+    };
+    /// The small blast that hurts nobody; the creatures it catches trade
+    /// places.
+    pub const SHUFFLE: Thrown = Thrown {
+        radius: Some(BLAST_RADIUS),
+        burst: throwing::shuffle,
+        each: None,
+    };
     /// Confetti, and nothing else.
-    Confetti,
-    /// A crater, line of sight or not.
-    Crater,
+    pub const CONFETTI: Thrown = Thrown {
+        radius: None,
+        burst: throwing::confetti,
+        each: None,
+    };
+    /// A crater, line of sight or not, so the reticle paints none.
+    pub const CRATER: Thrown = Thrown {
+        radius: None,
+        burst: throwing::crater,
+        each: None,
+    };
+
+    /// The small blast that hurts nobody, `each` worked on every creature it
+    /// catches.
+    pub const fn blast(each: fn(&mut World, Entity)) -> Thrown {
+        Thrown {
+            radius: Some(BLAST_RADIUS),
+            burst: throwing::blast,
+            each: Some(each),
+        }
+    }
 }
 
 impl WandDef {
@@ -540,14 +596,14 @@ impl WandDef {
             needs_target: true,
             zap_radius: None,
             wasted_on: |_, _| false,
-            thrown: Thrown::Blast(|_, _| {}),
+            thrown: Thrown::blast(|_, _| {}),
         }
     }
 
     /// It deals damage, and thrown it is the grenade.
     const fn attack(mut self) -> Self {
         self.attack = true;
-        self.thrown = Thrown::Grenade;
+        self.thrown = Thrown::GRENADE;
         self
     }
 
@@ -576,7 +632,7 @@ impl WandDef {
     }
 
     /// What it does thrown.
-    const fn thrown(mut self, thrown: Thrown) -> Self {
+    pub const fn thrown(mut self, thrown: Thrown) -> Self {
         self.thrown = thrown;
         self
     }
@@ -612,22 +668,22 @@ impl ItemDef for &'static WandDef {
 /// Every wand the dungeon drops, one row each.
 #[rustfmt::skip]
 pub static WANDS: &[&WandDef] = &[
-    &WandDef::new("wand of light",         Color::Yellow,      8, BlastPalette::Glam,   wands::light).unaimed().thrown(Thrown::Flash),
+    &WandDef::new("wand of light",         Color::Yellow,      8, BlastPalette::Glam,   wands::light).unaimed().thrown(Thrown::FLASH),
     &WandDef::new("wand of striking",      Color::White,       6, BlastPalette::Force,  wands::striking).attack(),
     &WandDef::new("wand of lightning",     Color::Cyan,        8, BlastPalette::Spark,  wands::lightning).attack(),
     &WandDef::new("wand of fire",          Color::Red,         8, BlastPalette::Fire,   wands::fire).attack().element(Element::Fire).bursts().wasted_on(wands::fireproof),
     &WandDef::new("wand of cold",          Color::Blue,        8, BlastPalette::Frost,  wands::cold).attack().element(Element::Cold).bursts().wasted_on(wands::coldproof),
-    &WandDef::new("wand of polymorph",     Color::Magenta,     6, BlastPalette::Warp,   wands::polymorph).thrown(Thrown::Blast(wands::polymorph_entity)),
+    &WandDef::new("wand of polymorph",     Color::Magenta,     6, BlastPalette::Warp,   wands::polymorph).thrown(Thrown::blast(wands::polymorph_entity)),
     &WandDef::new("wand of magic missile", Color::Cyan,        6, BlastPalette::Arcane, wands::magic_missile).attack(),
-    &WandDef::new("wand of haste monster", Color::DarkYellow,  6, BlastPalette::Warp,   wands::haste_monster).thrown(Thrown::Blast(wands::haste_entity)),
-    &WandDef::new("wand of slow monster",  Color::DarkCyan,    6, BlastPalette::Warp,   wands::slow_monster).wasted_on(wands::already_slow).thrown(Thrown::Blast(wands::slow_entity)),
+    &WandDef::new("wand of haste monster", Color::DarkYellow,  6, BlastPalette::Warp,   wands::haste_monster).thrown(Thrown::blast(wands::haste_entity)),
+    &WandDef::new("wand of slow monster",  Color::DarkCyan,    6, BlastPalette::Warp,   wands::slow_monster).wasted_on(wands::already_slow).thrown(Thrown::blast(wands::slow_entity)),
     &WandDef::new("wand of drain life",    Color::DarkRed,     6, BlastPalette::Death,  wands::drain_life).attack().element(Element::Drain),
-    &WandDef::new("wand of teleport away", Color::Green,       8, BlastPalette::Warp,   wands::teleport_away).thrown(Thrown::Blast(wands::teleport_entity_away)),
-    &WandDef::new("wand of teleport to",   Color::Green,       8, BlastPalette::Warp,   wands::teleport_to).thrown(Thrown::Blast(wands::teleport_entity_to_self)),
-    &WandDef::new("wand of cancellation",  Color::DarkMagenta, 6, BlastPalette::Void,   wands::cancellation).thrown(Thrown::Blast(wands::cancel_entity)),
+    &WandDef::new("wand of teleport away", Color::Green,       8, BlastPalette::Warp,   wands::teleport_away).thrown(Thrown::blast(wands::teleport_entity_away)),
+    &WandDef::new("wand of teleport to",   Color::Green,       8, BlastPalette::Warp,   wands::teleport_to).thrown(Thrown::blast(wands::teleport_entity_to_self)),
+    &WandDef::new("wand of cancellation",  Color::DarkMagenta, 6, BlastPalette::Void,   wands::cancellation).thrown(Thrown::blast(wands::cancel_entity)),
     &WandDef::new("wand of charming",      Color::Magenta,     6, BlastPalette::Warp,   wands::charming).wasted_on(wands::already_an_ally),
-    &WandDef::new("wand of digging",       Color::DarkYellow,  8, BlastPalette::Warp,   wands::digging).thrown(Thrown::Crater),
-    &WandDef::new("wand of swapping",      Color::DarkGreen,   8, BlastPalette::Warp,   wands::swapping).thrown(Thrown::Shuffle),
+    &WandDef::new("wand of digging",       Color::DarkYellow,  8, BlastPalette::Warp,   wands::digging).thrown(Thrown::CRATER),
+    &WandDef::new("wand of swapping",      Color::DarkGreen,   8, BlastPalette::Warp,   wands::swapping).thrown(Thrown::SHUFFLE),
 ];
 
 /// The wand that does nothing, and says so. Kept out of [`WANDS`], so the
@@ -640,7 +696,7 @@ pub static WAND_OF_NOTHING: WandDef = WandDef::new(
     wands::nothing,
 )
 .wasted_on(|_, _| true)
-.thrown(Thrown::Confetti);
+.thrown(Thrown::CONFETTI);
 
 /// The wand row called `name`, the wand of nothing included: how a load finds
 /// a saved wand's row again.

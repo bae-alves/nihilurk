@@ -339,7 +339,7 @@ pub(crate) fn leave_smoke_ring(world: &mut World, center: Position) {
 /// [`crate::conditions::confuse`] does the rest. The wand owns the *flavour*
 /// (a flash) and nothing else; what confusion means to a player as against a
 /// monster is not this file's business.
-pub(super) fn dazzle(world: &mut World, entity: Entity) {
+pub(crate) fn dazzle(world: &mut World, entity: Entity) {
     confuse(
         world,
         entity,

@@ -665,12 +665,8 @@ pub mod wands {
 
     /// A thrown wand spends *every* remaining charge at once. An attack-wand
     /// grenade rolls one die of this many sides per charge — at 1, a flat
-    /// point a charge...
+    /// point a charge.
     pub const GRENADE_DIE_PER_CHARGE: i32 = 1;
-    /// ...and a thrown utility wand's blast rolls this many (it deals no damage,
-    /// but the roll still drives the animation's reach). See
-    /// `crate::items``::resolve_wand_throw`.
-    pub const EFFECT_DIE_PER_CHARGE: i32 = 3;
 
     /// How many turns a fire blast's smoke lingers on the tiles it covered,
     /// purely cosmetic, never blocks movement or sight. Zapped

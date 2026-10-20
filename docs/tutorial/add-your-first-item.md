@@ -234,10 +234,10 @@ The arm returns `bool` -- whether the dose visibly took hold.
     ScrollDef { effect: ScrollEffect::ProtectArmor,
                 name: "scroll of protect armor" },
 
-**A wand.** A zap handler in `items/wands.rs` and a row in `WANDS` that names it; no enum. The row also says how its blasts look, and, because a wand can be thrown as well as zapped, what a throw does: the default is the small blast that changes nobody, and `.thrown(Thrown::Blast(f))` runs `f` on everyone it catches. Add `.attack()` if it should deal damage rather than deliver an effect.
+**A wand.** A zap handler in `items/wands.rs` and a row in `WANDS` that names it; no enum. The row also says how its blasts look, and, because a wand can be thrown as well as zapped, what a throw does: the default is the small blast that changes nobody, and `.thrown(Thrown::blast(f))` runs `f` on everyone it catches. Add `.attack()` if it should deal damage rather than deliver an effect.
 
     &WandDef::new("wand of sleep", Color::Blue, 6, BlastPalette::Warp, wands::sleep)
-        .thrown(Thrown::Blast(wands::put_to_sleep)),
+        .thrown(Thrown::blast(wands::put_to_sleep)),
 
 Most of a wand's handler is borrowed. Sleep is `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)` and nothing else; the trap and the scroll that also put things to sleep call the same verb.
 

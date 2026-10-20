@@ -78,9 +78,9 @@ Fire and cold blasts (zapped or thrown — both run through the one `elemental_b
 
 Anyone `elemental_blast` kills outright is finished off right there (`combat::finish_indirect_kill`) rather than left for `reaper_system`'s next sweep, so their death burst knows the blast's centre and flings the corpse radially outward through where they stood — an edge casualty gets launched straight on away from the blast, not a random direction like an ordinary indirect kill. A casualty standing exactly on the blast's own centre has no "outward" to speak of, so it falls back to the usual random fling.
 
-- *Attack* wands (fire, cold, lightning, magic missile, striking, drain life — the rows built with `.attack()`, `Thrown::Grenade`) throw the wide grenade: `GRENADE_RADIUS`, `GRENADE_DIE_PER_CHARGE` sides per remaining charge, armour-ignoring. Fire, cold and drain life carry their element (immunities apply); the rest are non-elemental.
+- *Attack* wands (fire, cold, lightning, magic missile, striking, drain life — the rows built with `.attack()`, `Thrown::GRENADE`) throw the wide grenade: `GRENADE_RADIUS`, `GRENADE_DIE_PER_CHARGE` sides per remaining charge, armour-ignoring. Fire, cold and drain life carry their element (immunities apply); the rest are non-elemental.
 - *Wand of light* throws the same wide grenade, but instead of an element it **dazzles** every creature caught (`dazzle`) — a monster flips to `MovementType::Confused`, the player gains the `Confused` condition. "dazzle" in the log.
-- *Utility* wands (polymorph, haste, slow, teleport away/to, cancellation) throw a small `BLAST_RADIUS` blast that deals **no damage** — the effect is the whole payload, worked on every creature caught (the `f` in the row's `Thrown::Blast(f)`), thrower included.
+- *Utility* wands (polymorph, haste, slow, teleport away/to, cancellation) throw a small `BLAST_RADIUS` blast that deals **no damage** — the effect is the whole payload, worked on every creature caught (the `f` in the row's `Thrown::blast(f)`), thrower included.
 - *Wand of swapping* throws the same small blast and shuffles everyone it caught, thrower included, into each other's tiles (`shuffle_places`).
 - Wand of nothing: bursts in magenta/cyan confetti particles, no blast.
 

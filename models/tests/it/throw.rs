@@ -278,6 +278,69 @@ fn a_thrown_effect_wand_works_its_effect_on_everyone_in_the_blast() {
     );
 }
 
+/// Where the fixture wand burst and with how many charges, left on whoever
+/// threw it.
+#[derive(Component)]
+struct BurstAt(Position, i32);
+
+fn mark_the_burst(world: &mut World, burst: Burst) {
+    world
+        .entity_mut(burst.thrower)
+        .insert(BurstAt(burst.at, burst.charges));
+}
+
+static FIXTURE_WAND: WandDef = WandDef::new(
+    "wand of the test",
+    Color::White,
+    6,
+    BlastPalette::Warp,
+    |_, _| {},
+)
+.thrown(Thrown {
+    radius: None,
+    burst: mark_the_burst,
+    each: None,
+});
+
+#[test]
+fn a_thrown_wand_bursts_the_way_its_row_says() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    monster(&mut w, "orc", spot);
+    let wand = stash(&mut w, p, |w| (&FIXTURE_WAND).spawn(w, NOWHERE));
+    w.get_mut::<Battery>(wand).unwrap().charges = 4;
+
+    throw(&mut w, p, wand, spot);
+
+    assert!(w.get_entity(wand).is_none(), "the wand burst");
+    let marked = w.get::<BurstAt>(p).map(|b| ((b.0.x, b.0.y), b.1));
+    assert_eq!(marked, Some(((spot.x, spot.y), 4)));
+}
+
+#[test]
+fn a_thrown_wand_of_nothing_makes_confetti_and_nothing_else() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    let spot = east_of_player(&mut w, 1);
+    let orc = monster(&mut w, "orc", spot);
+    let hp = |w: &World| {
+        (
+            w.get::<Fighter>(p).unwrap().hp,
+            w.get::<Fighter>(orc).unwrap().hp,
+        )
+    };
+    let before = hp(&w);
+    let wand = stash(&mut w, p, |w| (&WAND_OF_NOTHING).spawn(w, NOWHERE));
+
+    throw(&mut w, p, wand, spot);
+
+    assert!(w.get_entity(wand).is_none(), "the wand burst");
+    assert!(logged(&w, "confetti"));
+    assert_eq!(hp(&w), before, "nobody was hurt");
+    assert_eq!(pos_of(&w, orc), (spot.x, spot.y), "nobody moved");
+}
+
 #[test]
 fn a_helper_lost_to_system_shock_is_minus_two_alignment() {
     let mut shocked = 0;

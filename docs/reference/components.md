@@ -182,7 +182,7 @@ Components — item type keys
 |-----------|---------------|--------------------------------------|--------|
 | `Potion`  | `PotionEffect`| `items/potions.rs`                    | key yes |
 | `Scroll`  | `ScrollEffect`| `items/scrolls.rs`                    | key yes |
-| `Wand`    | `&'static WandDef` | its row's `zap`, in `items/wands.rs`; thrown, its row's `Thrown`, in `items/throwing.rs` | row name yes |
+| `Wand`    | `&'static WandDef` | its row's `zap`, in `items/wands.rs`; thrown, its row's `Thrown`, burst in `items/throwing.rs` | row name yes |
 | `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
 | `Rune`    | `&'static RuneDef` | its row's `apply`, in `items/runes.rs`; `charged: bool` says whether it still holds a use | row name and `charged` yes |
 | `Curse`   | marker        | equipped-and-stuck until remove curse destroys it, or a scroll of enchantment burns it off | yes |
