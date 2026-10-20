@@ -30,7 +30,7 @@ of `body.rs` before you touch it.
 The recipe
 ----------
 
-Follow `wear_lurk` line for line; a fourth body is a sibling of it, not a
+Follow `wear_lurk` line for line; a new body is a sibling of it, not a
 new shape.
 
 1. **Add the row**, and list it in `BODIES`:
@@ -64,7 +64,9 @@ new shape.
    effect ledger like anything else a creature was born with. Your body
    needs the same: an effect (or existing marker) that (a) is already
    saved, and (b) nothing else in the game would attach to the player by
-   accident. A new saved field changes the save format: see the
+   accident. That marker is how the game knows the body after a load:
+   `innate_tempo` and `equip_refusal` read `Lurk` the same way, and so
+   does `conduct::kept_mask`. A new saved field changes the save format: see the
    `EntitySave` note in `add-an-item-category.md`.
 
 4. **Teach `innate_tempo`** if the body doesn't return to `SpeedKind::Normal`
@@ -124,7 +126,7 @@ Appendix: quick check
 6. Add the name to `no_such_body` in every `strings/src/` language.
 7. Leave `brings_a_pack` false.
 8. Copy `models/tests/it/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
-9. Run that test with `cargo test --test <file>`, then `cargo test`.
+9. Run that test with `cargo test --test it <name>::`, then `cargo test`.
 10. Fix the docs: `update-the-docs.md`, "A playable body".
 
 
