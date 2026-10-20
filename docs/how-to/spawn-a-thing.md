@@ -46,7 +46,7 @@ Recipe 2: one specific thing in a test
        let mut w = World::new();
        let dragon = spawn_named(&mut w, "dragon", Position { x: 5, y: 5 }).unwrap();
 
-   That is what `models/tests/it/content.rs` does for all hundred-odd rows.
+   That is what `models/tests/it/content.rs` does for every row.
    Use it whenever the thing itself is the subject -- its components, its
    name, its glyph.
 
@@ -158,7 +158,7 @@ The `rng` is the caller's, not `GameRng`: floor generation passes its own `conte
 To roll one piece of quality onto something you spawned by name:
 
     let sword = spawn_named(world, "long sword", pos).unwrap();
-    enchant_equipment(world, &mut rng, sword);    // +1..+3, or cursed
+    enchant_equipment(world, &mut rng, sword);    // a plus, or a curse, as a drop rolls
 
 
 What comes out is the bare row
@@ -169,7 +169,8 @@ What comes out is the bare row
 | You spawn | You get | Not |
 |-----------|---------|-----|
 | a wand    | `Battery { charges: WAND_CHARGES }`, full, same as a drop | a battery rolled off `constants::wands` |
-| a weapon, armour, a ring | no bonus, no `Curse` | an enchantment roll |
+| a weapon, armour | no bonus, no `Curse` | an enchantment roll |
+| a ring    | its row's own number, no `Curse` | an enchantment roll |
 | arrows, quarrels | `Stack { count: 1 }` | a bundle |
 | a trap    | `TrapReveal::Sight`, so you can see what you placed | a rolled reveal style |
 | a monster | the row, effects and invisibility included | anything depth-scaled |
