@@ -35,7 +35,7 @@ use crate::conditions::{blind, hasten, paralyse};
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 use crate::items::wands::dazzle;
-use crate::items::{pickups, potions, runes, scrolls, spells, throwing, wands};
+use crate::items::{decks, pickups, potions, runes, scrolls, spells, throwing, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
 use crate::particles::BlastPalette;
 
@@ -314,49 +314,67 @@ pub fn scroll_row(name: &str) -> Option<&'static ScrollDef> {
 // Decks of cards
 // ---------------------------------------------------------------------------
 
-/// One card: its face and the name the log calls it.
+/// One card: the name the log calls it, and what drawing it does.
 pub struct CardDef {
-    /// The [`CardFace`] this row is the entry for.
-    pub face: CardFace,
-    /// What the log calls it, through [`strings::content_name`].
+    /// The row's identity: the save file stores it, and the log calls it this
+    /// through [`strings::content_name`].
     pub name: &'static str,
+    /// What the card does when it plays, either way up: `card` is the card
+    /// itself, so `card.reversed` says which way it lay. `deal` is the draw in
+    /// progress: who plays it, and the deck it came from.
+    pub play: fn(&mut World, &mut decks::Deal, Card),
 }
 
-impl CardDef {
-    /// The row for `face`.
-    pub fn of(face: CardFace) -> &'static CardDef {
-        CARDS
-            .iter()
-            .find(|c| c.face == face)
-            .expect("every CardFace has a CARDS row")
+impl PartialEq for CardDef {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
     }
 }
+
+impl Eq for CardDef {}
+
+impl std::fmt::Debug for CardDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name)
+    }
+}
+
+/// FOOL: does nothing drawn, and is wild in a hand ([`decks::score_hand`]).
+pub static FOOL: CardDef = CardDef {
+    name: "FOOL",
+    play: decks::fool,
+};
 
 /// Every card a deck can hold, one row each. A rolled deck draws from these
 /// evenly, with replacement.
 #[rustfmt::skip]
-pub const CARDS: &[CardDef] = &[
-    CardDef { face: CardFace::Joker,              name: "The Joker" },
-    CardDef { face: CardFace::KingOfClubs,        name: "King of Clubs" },
-    CardDef { face: CardFace::PrinceOfSwords,     name: "Prince of Swords" },
-    CardDef { face: CardFace::QueenOfCups,        name: "Queen of Cups" },
-    CardDef { face: CardFace::PrincessOfDiamonds, name: "Princess of Diamonds" },
-    CardDef { face: CardFace::Balance,            name: "The Balance" },
-    CardDef { face: CardFace::Bole,               name: "The Bole" },
-    CardDef { face: CardFace::PlusFour,           name: "The +4" },
-    CardDef { face: CardFace::SkullKing,          name: "THE SKULL KING!" },
-    CardDef { face: CardFace::PotOfSin,           name: "Pot of Sin" },
-    CardDef { face: CardFace::BlackMage,          name: "THE BLACK MAGE" },
-    CardDef { face: CardFace::Child,              name: "The Child" },
-    CardDef { face: CardFace::Crone,              name: "The Crone" },
-    CardDef { face: CardFace::Eyes,               name: "The Eyes Never Lie" },
-    CardDef { face: CardFace::Fool,               name: "FOOL" },
-    CardDef { face: CardFace::Excuse,             name: "THE EXCUSE" },
-    CardDef { face: CardFace::Jester,             name: "JESTER" },
-    CardDef { face: CardFace::Chariot,            name: "VII THE CHARIOT" },
-    CardDef { face: CardFace::World,              name: "XXII THE WORLD" },
-    CardDef { face: CardFace::GoldenWind,         name: "XXIII GOLDEN WIND" },
+pub static CARDS: &[&CardDef] = &[
+    &CardDef { name: "The Joker",             play: decks::joker },
+    &CardDef { name: "King of Clubs",         play: decks::king_of_clubs },
+    &CardDef { name: "Prince of Swords",      play: decks::prince_of_swords },
+    &CardDef { name: "Queen of Cups",         play: decks::queen_of_cups },
+    &CardDef { name: "Princess of Diamonds",  play: decks::princess_of_diamonds },
+    &CardDef { name: "The Balance",           play: decks::balance },
+    &CardDef { name: "The Bole",              play: decks::bole },
+    &CardDef { name: "The +4",                play: decks::plus_four },
+    &CardDef { name: "THE SKULL KING!",       play: decks::skull_king },
+    &CardDef { name: "Pot of Sin",            play: decks::pot_of_sin },
+    &CardDef { name: "THE BLACK MAGE",        play: decks::black_mage },
+    &CardDef { name: "The Child",             play: decks::child },
+    &CardDef { name: "The Crone",             play: decks::crone },
+    &CardDef { name: "The Eyes Never Lie",    play: decks::eyes },
+    &FOOL,
+    &CardDef { name: "THE EXCUSE",            play: decks::excuse },
+    &CardDef { name: "JESTER",                play: decks::jester },
+    &CardDef { name: "VII THE CHARIOT",       play: decks::chariot },
+    &CardDef { name: "XXII THE WORLD",        play: decks::the_world },
+    &CardDef { name: "XXIII GOLDEN WIND",     play: decks::golden_wind },
 ];
+
+/// The card row named `name`, for a save to find its card by.
+pub fn card_row(name: &str) -> Option<&'static CardDef> {
+    CARDS.iter().copied().find(|row| row.name == name)
+}
 
 /// A deck of cards: read off the top one card at a time, or thrown and played
 /// as a poker hand. Its mechanic lives in the `decks` submodule of
@@ -379,8 +397,8 @@ impl ItemDef for DeckDef {
         use crate::constants::decks::DECK_SIZE;
         let cards = CARDS[..DECK_SIZE]
             .iter()
-            .map(|c| Card {
-                face: c.face,
+            .map(|&row| Card {
+                row,
                 reversed: false,
             })
             .collect();
@@ -418,7 +436,7 @@ pub fn roll_deck(rng: &mut ChaCha12Rng) -> Deck {
     use rand::seq::SliceRandom;
     let mut cards: Vec<Card> = (0..DECK_SIZE)
         .map(|_| Card {
-            face: CARDS[rng.gen_range(0..CARDS.len())].face,
+            row: CARDS[rng.gen_range(0..CARDS.len())],
             reversed: false,
         })
         .collect();

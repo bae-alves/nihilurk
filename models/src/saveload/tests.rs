@@ -450,10 +450,7 @@ fn full_entity<'a>() -> EntitySave<'a> {
         ice_cube: true,
         aggravated: Some((700, 701)),
         alignment: Some(-100),
-        deck: Some(vec![Card {
-            face: CardFace::GoldenWind,
-            reversed: true,
-        }]),
+        deck: Some(vec![("XXIII GOLDEN WIND".to_string(), true)]),
         rune: Some(("rune of protection".to_string(), true)),
         content: Some(Cow::Borrowed("arrow")),
     }

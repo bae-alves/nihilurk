@@ -758,58 +758,12 @@ pub struct Deck {
 
 /// One card in a [`Deck`]: what it is, and whether it lies reversed (which
 /// plays its other effect).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Card {
     /// Which card.
-    pub face: CardFace,
+    pub row: &'static crate::catalog::CardDef,
     /// Upside down: plays the card's reversed effect.
     pub reversed: bool,
-}
-
-/// Which card this is. Identity for saves — see [`crate::catalog::CARDS`].
-/// Serialised by variant position: append, never reorder.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CardFace {
-    /// Plays another card at random.
-    Joker,
-    /// Refills the pack's wands. Reversed: empties them.
-    KingOfClubs,
-    /// Enchants the wielded weapon. Reversed: one point off.
-    PrinceOfSwords,
-    /// Enchants the worn armour. Reversed: one point off.
-    QueenOfCups,
-    /// Enchants a worn ring that has a number. Reversed: one point off, or gone.
-    PrincessOfDiamonds,
-    /// `BALA`: a flat bonus on the damage roll for the floor. Same reversed.
-    Balance,
-    /// `BOLE`: a flat bonus on the armour roll for the floor. Same reversed.
-    Bole,
-    /// Plays four different cards.
-    PlusFour,
-    /// The Skull King arrives as an ally. Reversed: as a foe.
-    SkullKing,
-    /// Plays two different cards.
-    PotOfSin,
-    /// The Black Mage arrives as the Helper. Reversed: as a foe.
-    BlackMage,
-    /// To this floor's up-stair. Reversed: the down-stair.
-    Child,
-    /// To this floor's down-stair. Reversed: the up-stair.
-    Crone,
-    /// Shows what is left in the deck. Same reversed, with a remark.
-    Eyes,
-    /// Nothing, either way up. Wild in a hand.
-    Fool,
-    /// Confuses every foe in view. Reversed: confuses the reader.
-    Excuse,
-    /// Plays the rest of the deck as a hand, as if it were thrown.
-    Jester,
-    /// `CRT!`: every blow lands excellent. Reversed: `OOF!`, every blow taken does.
-    Chariot,
-    /// Time stops on the floor. Reversed: the reader is paralysed.
-    World,
-    /// Floor items and traps come alive as allies. Reversed: eight summons.
-    GoldenWind,
 }
 
 /// Type-key for a rune: a scroll that goes inert when read instead of

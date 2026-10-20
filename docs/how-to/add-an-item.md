@@ -27,7 +27,7 @@ At a glance
 | Potion    | `POTIONS`   | no         | a handler in `items/potions.rs`, named by the row |
 | Scroll    | `SCROLLS`   | no         | a handler in `items/scrolls.rs`, named by the row |
 | Wand      | `WANDS`     | no         | a zap handler in `items/wands.rs`, named by the row |
-| Deck      | `DECKS`     | yes        | a new card: a `CardFace` variant, a `CARDS` row + an arm in `items/decks.rs` |
+| Deck      | `DECKS`     | yes        | a new card: a `CARDS` row and its `play` handler in `items/decks.rs` |
 | Rune      | `RUNES`     | no         | a handler in `items/runes.rs`, named by the row |
 
 Every table is in `models/src/catalog.rs`. Every effect enum is in `models/src/components.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `throwing.rs` (`models/src/items.rs` itself is just the `item_system` dispatcher).

@@ -12,7 +12,7 @@ use crate::Color;
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
 use rand::seq::SliceRandom;
 
-use crate::catalog::{CARDS, CardDef, RingDef};
+use crate::catalog::{CARDS, CardDef, FOOL, RingDef};
 use crate::components::*;
 use crate::constants::decks::*;
 use crate::effects::{Bala, Bole, Crit, Grant, Lifetime, Oof, TimeStopped, lend};
@@ -28,11 +28,19 @@ use super::scrolls::{
 };
 
 /// One draw in progress: who plays, the deck they hold (`None` once it is gone
-/// or on the table), and how many more cards this draw may still play.
-struct Deal {
+/// or on the table), and how many more cards this draw may still play. A
+/// [`CardDef`] row's `play` gets it.
+pub struct Deal {
     user: Entity,
     deck: Option<Entity>,
     budget: u32,
+}
+
+impl Deal {
+    /// Who drew or threw the card: whoever it plays on.
+    pub fn user(&self) -> Entity {
+        self.user
+    }
 }
 
 /// Reading a deck: `card` is the one just taken off the top. `deck` is the deck
@@ -62,68 +70,118 @@ pub(super) fn throw_deck(world: &mut World, thrower: Entity, deck: Entity) {
     play_hand(world, &mut deal, &cards);
 }
 
-/// Plays one card. Exhaustive over [`CardFace`] with no catch-all, the way
-/// `apply_spell_effect` is: a new face fails the build until it does
-/// something.
-fn play(world: &mut World, deal: &mut Deal, card: Card) {
+/// Plays one card: its row's `play`, inside this draw's [`CARD_CHAIN_CAP`].
+pub(crate) fn play(world: &mut World, deal: &mut Deal, card: Card) {
     if deal.budget == 0 {
         say(world, strings::card_chain_spent());
         return;
     }
     deal.budget -= 1;
-    let name = card_name(card.face);
+    let name = card_name(card.row);
     say(world, &strings::card_drawn(&name, card.reversed));
+    (card.row.play)(world, deal, card);
+}
 
-    let user = deal.user;
-    let r = card.reversed;
-    match card.face {
-        CardFace::Joker => {
-            if let Some(&face) = other_faces(world, card.face, 1).first() {
-                play(world, deal, Card { face, reversed: r });
+/// The Joker: another card at random, the same way up.
+pub(crate) fn joker(world: &mut World, deal: &mut Deal, card: Card) {
+    play_others(world, deal, card, 1);
+}
+
+/// Pot of Sin: two different cards.
+pub(crate) fn pot_of_sin(world: &mut World, deal: &mut Deal, card: Card) {
+    play_others(world, deal, card, 2);
+}
+
+/// The +4: four different cards.
+pub(crate) fn plus_four(world: &mut World, deal: &mut Deal, card: Card) {
+    play_others(world, deal, card, 4);
+}
+
+pub(crate) fn king_of_clubs(world: &mut World, deal: &mut Deal, card: Card) {
+    recharge_wands(world, deal.user, card.reversed);
+}
+
+pub(crate) fn prince_of_swords(world: &mut World, deal: &mut Deal, card: Card) {
+    enchant_or_dull(world, deal.user, Slot::Hand, card.reversed);
+}
+
+pub(crate) fn queen_of_cups(world: &mut World, deal: &mut Deal, card: Card) {
+    enchant_or_dull(world, deal.user, Slot::Body, card.reversed);
+}
+
+pub(crate) fn princess_of_diamonds(world: &mut World, deal: &mut Deal, card: Card) {
+    princess(world, deal.user, card.reversed);
+}
+
+/// `BALA`: a flat bonus on the damage roll for the floor. Same reversed.
+pub(crate) fn balance(world: &mut World, deal: &mut Deal, _: Card) {
+    ledger(world, deal.user, Grant::of::<Bala>(), strings::card_bala());
+}
+
+/// `BOLE`: a flat bonus on the armour roll for the floor. Same reversed.
+pub(crate) fn bole(world: &mut World, deal: &mut Deal, _: Card) {
+    ledger(world, deal.user, Grant::of::<Bole>(), strings::card_bole());
+}
+
+/// VII THE CHARIOT: every blow excellent for the floor. Reversed: every one
+/// fumbled.
+pub(crate) fn chariot(world: &mut World, deal: &mut Deal, card: Card) {
+    match card.reversed {
+        false => ledger(world, deal.user, Grant::of::<Crit>(), strings::card_crit()),
+        true => ledger(world, deal.user, Grant::of::<Oof>(), strings::card_oof()),
+    }
+}
+
+pub(crate) fn skull_king(world: &mut World, deal: &mut Deal, card: Card) {
+    summon(world, deal.user, &SUMMONS[0], card.reversed);
+}
+
+pub(crate) fn black_mage(world: &mut World, deal: &mut Deal, card: Card) {
+    summon(world, deal.user, &SUMMONS[1], card.reversed);
+}
+
+/// The Child: to this floor's up-stair. Reversed: the down-stair.
+pub(crate) fn child(world: &mut World, deal: &mut Deal, card: Card) {
+    to_stair(world, deal.user, !card.reversed);
+}
+
+/// The Crone: to this floor's down-stair. Reversed: the up-stair.
+pub(crate) fn crone(world: &mut World, deal: &mut Deal, card: Card) {
+    to_stair(world, deal.user, card.reversed);
+}
+
+/// FOOL: nothing, drawn. In a hand it is wild.
+pub(crate) fn fool(world: &mut World, _: &mut Deal, _: Card) {
+    say(world, strings::card_fool());
+}
+
+/// XXII THE WORLD: time stops for everyone else. Reversed: for the reader.
+pub(crate) fn the_world(world: &mut World, deal: &mut Deal, card: Card) {
+    match card.reversed {
+        false => {
+            lend(
+                world,
+                deal.user,
+                Grant::of::<TimeStopped>(),
+                Lifetime::Turns(WORLD_TURNS),
+            );
+            say(world, strings::card_world());
+        }
+        true => {
+            crate::conditions::paralyse(world, deal.user);
+        }
+    }
+}
+
+/// XXIII GOLDEN WIND. Reversed: a crowd of monsters comes for the reader.
+pub(crate) fn golden_wind(world: &mut World, deal: &mut Deal, card: Card) {
+    match card.reversed {
+        false => wake_the_floor(world),
+        true => {
+            for _ in 0..GOLDEN_WIND_SUMMONS {
+                create_monster(world, deal.user);
             }
         }
-        CardFace::PotOfSin => play_others(world, deal, card, 2),
-        CardFace::PlusFour => play_others(world, deal, card, 4),
-        CardFace::KingOfClubs => recharge_wands(world, user, r),
-        CardFace::PrinceOfSwords => enchant_or_dull(world, user, Slot::Hand, r),
-        CardFace::QueenOfCups => enchant_or_dull(world, user, Slot::Body, r),
-        CardFace::PrincessOfDiamonds => princess(world, user, r),
-        CardFace::Balance => ledger(world, user, Grant::of::<Bala>(), strings::card_bala()),
-        CardFace::Bole => ledger(world, user, Grant::of::<Bole>(), strings::card_bole()),
-        CardFace::Chariot => match r {
-            false => ledger(world, user, Grant::of::<Crit>(), strings::card_crit()),
-            true => ledger(world, user, Grant::of::<Oof>(), strings::card_oof()),
-        },
-        CardFace::SkullKing => summon(world, user, &SUMMONS[0], r),
-        CardFace::BlackMage => summon(world, user, &SUMMONS[1], r),
-        CardFace::Child => to_stair(world, user, !r),
-        CardFace::Crone => to_stair(world, user, r),
-        CardFace::Eyes => eyes(world, deal, r),
-        CardFace::Fool => say(world, strings::card_fool()),
-        CardFace::Excuse => excuse(world, user, r),
-        CardFace::Jester => jester(world, deal),
-        CardFace::World => match r {
-            false => {
-                lend(
-                    world,
-                    user,
-                    Grant::of::<TimeStopped>(),
-                    Lifetime::Turns(WORLD_TURNS),
-                );
-                say(world, strings::card_world());
-            }
-            true => {
-                crate::conditions::paralyse(world, user);
-            }
-        },
-        CardFace::GoldenWind => match r {
-            false => golden_wind(world),
-            true => {
-                for _ in 0..GOLDEN_WIND_SUMMONS {
-                    create_monster(world, user);
-                }
-            }
-        },
     }
 }
 
@@ -131,28 +189,28 @@ fn say(world: &mut World, line: &str) {
     world.resource_mut::<GameLog>().add(line.to_string());
 }
 
-fn card_name(face: CardFace) -> String {
-    strings::content_name(CardDef::of(face).name).to_string()
+fn card_name(row: &CardDef) -> String {
+    strings::content_name(row.name).to_string()
 }
 
-/// `n` faces, all different, none of them `not` — what the Joker, Pot of Sin
+/// `n` cards, all different, none of them `not` — what the Joker, Pot of Sin
 /// and The +4 conjure.
-fn other_faces(world: &mut World, not: CardFace, n: usize) -> Vec<CardFace> {
-    let mut pool: Vec<CardFace> = CARDS.iter().map(|c| c.face).filter(|&f| f != not).collect();
+fn other_cards(world: &mut World, not: &CardDef, n: usize) -> Vec<&'static CardDef> {
+    let mut pool: Vec<&'static CardDef> = CARDS.iter().copied().filter(|&c| c != not).collect();
     pool.shuffle(&mut world.resource_mut::<GameRng>().0);
     pool.truncate(n);
     pool
 }
 
-/// Pot of Sin and The +4: `n` different cards, each played the same way up as
-/// the card that made them.
+/// The Joker, Pot of Sin and The +4: `n` different cards, each played the same
+/// way up as the card that made them.
 fn play_others(world: &mut World, deal: &mut Deal, card: Card, n: usize) {
-    for face in other_faces(world, card.face, n) {
+    for row in other_cards(world, card.row, n) {
         play(
             world,
             deal,
             Card {
-                face,
+                row,
                 reversed: card.reversed,
             },
         );
@@ -367,7 +425,7 @@ fn occupied(world: &mut World, at: Position) -> bool {
 }
 
 /// The Eyes Never Lie: what is left in the deck, top card first.
-fn eyes(world: &mut World, deal: &Deal, reversed: bool) {
+pub(crate) fn eyes(world: &mut World, deal: &mut Deal, card: Card) {
     let cards = deal
         .deck
         .and_then(|d| world.get::<Deck>(d))
@@ -377,20 +435,21 @@ fn eyes(world: &mut World, deal: &Deal, reversed: bool) {
             let names: Vec<String> = cards
                 .iter()
                 .rev()
-                .map(|c| strings::card_seen(&card_name(c.face), c.reversed))
+                .map(|c| strings::card_seen(&card_name(c.row), c.reversed))
                 .collect();
             say(world, &strings::card_eyes(&names));
         }
         _ => say(world, strings::card_eyes_nothing()),
     }
-    if reversed {
+    if card.reversed {
         say(world, strings::card_eyes_never_lie());
     }
 }
 
 /// THE EXCUSE: every foe in view reels. Reversed: the reader does.
-fn excuse(world: &mut World, user: Entity, reversed: bool) {
-    if reversed {
+pub(crate) fn excuse(world: &mut World, deal: &mut Deal, card: Card) {
+    let user = deal.user;
+    if card.reversed {
         crate::conditions::confuse(
             world,
             user,
@@ -412,7 +471,7 @@ fn excuse(world: &mut World, user: Entity, reversed: bool) {
 
 /// JESTER: the rest of the deck, played as a hand. A JESTER in a hand finds
 /// the deck already on the table and does nothing.
-fn jester(world: &mut World, deal: &mut Deal) {
+pub(crate) fn jester(world: &mut World, deal: &mut Deal, _: Card) {
     let Some(deck) = deal.deck.take() else {
         say(world, strings::card_jester_nothing());
         return;
@@ -430,7 +489,7 @@ fn jester(world: &mut World, deal: &mut Deal) {
 
 /// XXIII GOLDEN WIND: every item lying on the floor and every trap stands up as
 /// a creature of this floor, on your side. The Element stays what it is.
-fn golden_wind(world: &mut World) {
+fn wake_the_floor(world: &mut World) {
     let mut things: Vec<(Entity, Position)> = world
         .query_filtered::<(Entity, &Position), With<Item>>()
         .iter(world)
@@ -501,7 +560,7 @@ pub struct Hand {
     /// What the hand is.
     pub rank: Rank,
     /// Each grouped face and how many times it plays.
-    pub plays: Vec<(CardFace, usize)>,
+    pub plays: Vec<(&'static CardDef, usize)>,
     /// How many cards took part: the grouped ones, FOOLs included, or the one
     /// card an anti-flush plays.
     pub cards: usize,
@@ -519,29 +578,29 @@ impl Hand {
 /// plays reversed. `None` for no cards at all.
 ///
 /// ```
-/// # use models::{Card, CardFace, Rank, score_hand};
-/// let up = |face| Card { face, reversed: false };
-/// let hand = score_hand(&[up(CardFace::Bole), up(CardFace::Fool), up(CardFace::Joker)]).unwrap();
+/// # use models::{Card, Rank, card_row, score_hand};
+/// let up = |name| Card { row: card_row(name).unwrap(), reversed: false };
+/// let hand = score_hand(&[up("The Bole"), up("FOOL"), up("The Joker")]).unwrap();
 /// assert_eq!(hand.rank, Rank::Pair);
-/// assert_eq!(hand.plays, vec![(CardFace::Bole, 2)]);
+/// assert_eq!(hand.plays, vec![(card_row("The Bole").unwrap(), 2)]);
 /// ```
 pub fn score_hand(cards: &[Card]) -> Option<Hand> {
     if cards.is_empty() {
         return None;
     }
-    let wild = cards.iter().filter(|c| c.face == CardFace::Fool).count();
-    let mut groups: Vec<(CardFace, usize)> = Vec::new();
-    for c in cards.iter().filter(|c| c.face != CardFace::Fool) {
-        match groups.iter_mut().find(|(f, _)| *f == c.face) {
+    let wild = cards.iter().filter(|c| *c.row == FOOL).count();
+    let mut groups: Vec<(&'static CardDef, usize)> = Vec::new();
+    for c in cards.iter().filter(|c| *c.row != FOOL) {
+        match groups.iter_mut().find(|(f, _)| *f == c.row) {
             Some((_, n)) => *n += 1,
-            None => groups.push((c.face, 1)),
+            None => groups.push((c.row, 1)),
         }
     }
     // Stable, so equal groups keep the order they were dealt in.
     groups.sort_by_key(|g| std::cmp::Reverse(g.1));
     match groups.first_mut() {
         Some(top) => top.1 += wild,
-        None => groups.push((CardFace::Fool, wild)),
+        None => groups.push((&FOOL, wild)),
     }
     let first = groups[0];
     let second = groups.get(1).map_or(0, |g| g.1);
@@ -570,25 +629,25 @@ fn play_hand(world: &mut World, deal: &mut Deal, cards: &[Card]) {
     };
     let plays = match hand.rank {
         Rank::AntiFlush => {
-            let faces: Vec<CardFace> = cards
+            let rows: Vec<&'static CardDef> = cards
                 .iter()
-                .map(|c| c.face)
-                .filter(|&f| f != CardFace::Fool)
+                .map(|c| c.row)
+                .filter(|&f| *f != FOOL)
                 .collect();
-            let face = *faces
+            let row = *rows
                 .choose(&mut world.resource_mut::<GameRng>().0)
                 .expect("an anti-flush holds a card that is not FOOL");
-            vec![(face, 1)]
+            vec![(row, 1)]
         }
         _ => hand.plays.clone(),
     };
-    for (face, times) in plays {
+    for (row, times) in plays {
         for _ in 0..times {
             play(
                 world,
                 deal,
                 Card {
-                    face,
+                    row,
                     reversed: false,
                 },
             );

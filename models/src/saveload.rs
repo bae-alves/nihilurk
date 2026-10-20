@@ -57,8 +57,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    RingDef, coin_row, content_id_of, potion_row, restore_from_catalog, rune_row, scroll_row,
-    spell_row, wand_row,
+    RingDef, card_row, coin_row, content_id_of, potion_row, restore_from_catalog, rune_row,
+    scroll_row, spell_row, wand_row,
 };
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
@@ -290,9 +290,10 @@ struct EntitySave<'a> {
     /// [`Alignment`].
     #[serde(default)]
     alignment: Option<i8>,
-    /// A deck's remaining cards, bottom first. See [`Deck`].
+    /// A deck's remaining cards, bottom first, as (row name, reversed). See
+    /// [`Deck`]. The loader finds each row again by name ([`card_row`]).
     #[serde(default)]
-    deck: Option<Vec<Card>>,
+    deck: Option<Vec<(String, bool)>>,
     /// A rune's row name and whether it still holds a charge. The loader finds
     /// the row again by name ([`rune_row`]).
     #[serde(default)]
@@ -319,7 +320,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 17;
+pub const SAVE_VERSION: u16 = 18;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -680,7 +681,12 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             ice_cube: er.contains::<crate::ice::IceCube>(),
             aggravated: er.get::<Aggravated>().map(|a| (a.tx, a.ty)),
             alignment: er.get::<Alignment>().map(|a| a.0),
-            deck: er.get::<Deck>().map(|d| d.cards.clone()),
+            deck: er.get::<Deck>().map(|d| {
+                d.cards
+                    .iter()
+                    .map(|c| (c.row.name.to_string(), c.reversed))
+                    .collect()
+            }),
             mimic: er.contains::<Mimic>(),
             content: match (er.contains::<Player>(), er.contains::<Mimic>()) {
                 (true, _) => None,
@@ -948,6 +954,11 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .as_deref()
                 .is_none_or(|name| coin_row(name).is_some())
             && es
+                .deck
+                .iter()
+                .flatten()
+                .all(|(name, _)| card_row(name).is_some())
+            && es
                 .spellset
                 .iter()
                 .flatten()
@@ -956,7 +967,7 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune, wand, potion, scroll, trap, coin or spell this build has no row for",
+            "save file names a rune, wand, potion, scroll, trap, coin, card or spell this build has no row for",
         ));
     }
 
@@ -1201,6 +1212,15 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             em.insert(Alignment(a));
         }
         if let Some(cards) = es.deck {
+            let cards = cards
+                .iter()
+                .filter_map(|(name, reversed)| {
+                    card_row(name).map(|row| Card {
+                        row,
+                        reversed: *reversed,
+                    })
+                })
+                .collect();
             em.insert(Deck { cards });
         }
     }

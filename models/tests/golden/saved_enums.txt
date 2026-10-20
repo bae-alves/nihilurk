@@ -1,4 +1,3 @@
-components.rs::CardFace = Joker,KingOfClubs,PrinceOfSwords,QueenOfCups,PrincessOfDiamonds,Balance,Bole,PlusFour,SkullKing,PotOfSin,BlackMage,Child,Crone,Eyes,Fool,Excuse,Jester,Chariot,World,GoldenWind
 components.rs::Faction = Player,Monster,Ally,Spirits,Inert
 components.rs::MovementType = Static,Chase,Flee,Confused,Aggravated,Ambush
 components.rs::RingEffect = Protection,Strength,Perception,Adornment,AggravateMonster,Sharpshooting,IncreaseDamage,Regeneration,SlowDigestion,Teleportation,Stealth,MaintainArmor,Polymorph,SustainForm,DualZap,Health

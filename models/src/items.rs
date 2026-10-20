@@ -26,7 +26,7 @@
 //! [`crate::helpers::free_adjacent_tile`] — live in [`crate::helpers`]. The
 //! verbs that put an affliction on or take one off are [`crate::conditions`].
 
-mod decks;
+pub(crate) mod decks;
 pub(crate) mod pickups;
 pub(crate) mod potions;
 pub(crate) mod rings;
@@ -54,7 +54,7 @@ pub(crate) use theft::{leprechaun_theft, nymph_theft};
 /// What a blast covers, for anything that must know before it lets one off.
 pub(crate) use wands::blast_cells;
 
-pub use decks::{Hand, Rank, score_hand};
+pub use decks::{Deal, Hand, Rank, score_hand};
 
 /// One blast, resolved. A creature marked to burst when it dies
 /// ([`crate::effects::ExplodesOnDeath`]) lets one off through it.
