@@ -537,6 +537,13 @@ fn mob_can_enter(
     !room_leashed
 }
 
+/// Deducts one action's worth of energy from `entity`, if it has a tempo.
+fn spend_energy(world: &mut World, entity: Entity) {
+    if let Some(mut speed) = world.get_mut::<Speed>(entity) {
+        speed.energy -= Speed::COST;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -928,12 +935,5 @@ mod tests {
         let steps = |swims| mob_can_enter(&map, true, Position { x: 5, y: 5 }, 6, 5, swims);
         assert!(!steps(false), "a walker stops at the shore");
         assert!(steps(true), "a swimmer goes in");
-    }
-}
-
-/// Deducts one action's worth of energy from `entity`, if it has a tempo.
-fn spend_energy(world: &mut World, entity: Entity) {
-    if let Some(mut speed) = world.get_mut::<Speed>(entity) {
-        speed.energy -= Speed::COST;
     }
 }

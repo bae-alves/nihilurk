@@ -118,28 +118,32 @@ const ALL: [PackMode; 11] = [
     PackMode::PutOn,
 ];
 
-/// `ALL` holds each mode once. The match has no catch-all, so a new mode
-/// fails to compile here until it is listed, here and in `ALL`.
+/// `ALL` is the chain of modes below, in order and whole. Each arm names the
+/// mode after it, and the match has no catch-all, so a new mode fails to
+/// compile until it has an arm, and an arm nothing links to leaves `ALL` out
+/// of step with the chain.
 #[test]
 fn all_lists_every_mode() {
-    fn listed(mode: PackMode) -> PackMode {
+    fn after(mode: PackMode) -> Option<PackMode> {
         match mode {
-            PackMode::Browse
-            | PackMode::Use
-            | PackMode::Throw
-            | PackMode::Drop
-            | PackMode::Equip
-            | PackMode::Quaff
-            | PackMode::Read
-            | PackMode::Zap
-            | PackMode::Wield
-            | PackMode::Wear
-            | PackMode::PutOn => mode,
+            PackMode::Browse => Some(PackMode::Use),
+            PackMode::Use => Some(PackMode::Throw),
+            PackMode::Throw => Some(PackMode::Drop),
+            PackMode::Drop => Some(PackMode::Equip),
+            PackMode::Equip => Some(PackMode::Quaff),
+            PackMode::Quaff => Some(PackMode::Read),
+            PackMode::Read => Some(PackMode::Zap),
+            PackMode::Zap => Some(PackMode::Wield),
+            PackMode::Wield => Some(PackMode::Wear),
+            PackMode::Wear => Some(PackMode::PutOn),
+            PackMode::PutOn => None,
         }
     }
-    for (i, mode) in ALL.into_iter().map(listed).enumerate() {
-        assert!(!ALL[..i].contains(&mode), "{mode:?} is listed twice");
+    let mut chain = vec![ALL[0]];
+    while let Some(next) = after(*chain.last().unwrap()) {
+        chain.push(next);
     }
+    assert_eq!(chain, ALL);
 }
 
 #[test]
