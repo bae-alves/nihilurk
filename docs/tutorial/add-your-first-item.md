@@ -239,7 +239,7 @@ Each of these needs somebody to say what it does, and the compiler holds you to 
 
 The handler returns `bool` -- whether the dose visibly took hold.
 
-**A scroll.** A handler in `items/scrolls.rs` and a row in `SCROLLS` that names it. A scroll has no colour: it is always white, and what varies is its unreadable title.
+**A scroll.** A handler in `items/scrolls.rs` and a row in `SCROLLS` that names it. A scroll has no colour: it is always white, and it shows its true name, like every scroll.
 
     &ScrollDef::new("scroll of protect armor", scrolls::protect_armor),
 
