@@ -7,7 +7,7 @@
 //!   or not, so there is one place that knows a coin is answered differently
 //!   from a sword. The one exception is the Element of Yoord refusing deep
 //!   water ([`element_surfaces`]), which ends in the same payment.
-//! * [`would_help`] is asked before a coin is spent, and a coin that would do
+//! * A row's `helps` is asked before a coin is spent, and a coin that would do
 //!   nothing is simply not taken. Walking over a red coin at full health leaves
 //!   it there for the fight that goes badly, and auto-explore
 //!   ([`crate::autoexplore`]) reads the same question before it detours.
@@ -15,10 +15,11 @@
 //!   a [`Plated`] / [`Forged`] promise on you, and the staircase settles it
 //!   ([`settle_promises`]) — if you got there unhurt.
 //!
-//! The mechanic is an exhaustive match on [`PickupEffect`] with no catch-all, so
-//! a new coin does not build until it does something. What it does *with* — how
-//! many hit points, how many afflictions — is the `amount` on its
-//! [`crate::catalog::CoinDef`] row, never a number in this file.
+//! What a coin does is its [`crate::catalog::CoinDef`] row's `apply` and
+//! `helps`, both required, so a new coin does not build until it does
+//! something. The handlers live here; what they work *with* — how many hit
+//! points, how many afflictions — is the row's `amount`, never a number in
+//! this file.
 
 use bevy_ecs::prelude::*;
 use rand::Rng;
@@ -161,15 +162,14 @@ fn pay_out_value(world: &mut World, item: Entity) {
 /// Works one coin and destroys it, or leaves it on the floor when it would do
 /// nothing at all. `None` back means the coin is still lying there.
 fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String> {
-    let pickup = world.get::<Pickup>(item).map(|p| (p.effect, p.amount))?;
-    let (effect, amount) = pickup;
-    if !would_help(world, taker, effect) {
+    let row = world.get::<Pickup>(item)?.row;
+    if !(row.helps)(world, taker) {
         return None;
     }
     crate::conduct::player_broke(world, taker, crate::conduct::Conduct::Coins);
     let name = display_name(world, item);
     pay_out_value(world, item);
-    let line = apply(world, taker, effect, amount);
+    let line = (row.apply)(world, taker, row.amount);
     world.entity_mut(item).despawn();
     Some(strings::pick_up_pickup(&name, &line))
 }
@@ -179,7 +179,7 @@ fn spend_pickup(world: &mut World, taker: Entity, item: Entity) -> Option<String
 ///
 /// Called by [`crate::traps::detonate_pickup`] before the burst, so a red coin
 /// heals you a beat before your own blast decides what it thinks of you. There
-/// is no [`would_help`] gate here: stepping over a coin you cannot use is
+/// is no `helps` gate here: stepping over a coin you cannot use is
 /// leaving it for later, but shooting one is a decision, and a decision is
 /// allowed to be a waste. A wasted one says nothing, though: a red coin shot at
 /// full health is spent without a line in the log.
@@ -196,13 +196,13 @@ pub(crate) fn claim_from_afar(world: &mut World, shooter: Entity, coin: Entity) 
     if world.get_entity(shooter).is_none() {
         return;
     }
-    let Some((effect, amount)) = world.get::<Pickup>(coin).map(|p| (p.effect, p.amount)) else {
+    let Some(row) = world.get::<Pickup>(coin).map(|p| p.row) else {
         return;
     };
     let name = display_name(world, coin);
-    let helps = would_help(world, shooter, effect);
+    let helps = (row.helps)(world, shooter);
     pay_out_value(world, coin);
-    let line = apply(world, shooter, effect, amount);
+    let line = (row.apply)(world, shooter, row.amount);
     if !helps || world.get::<Player>(shooter).is_none() {
         return;
     }
@@ -211,50 +211,48 @@ pub(crate) fn claim_from_afar(world: &mut World, shooter: Entity, coin: Entity) 
         .add(strings::coin_gives_itself_up(&name, &line));
 }
 
-/// What one coin does. Exhaustive on purpose — a new [`PickupEffect`] with no
-/// arm here is a build error, not a coin that silently does nothing.
-fn apply(world: &mut World, taker: Entity, effect: PickupEffect, amount: i32) -> String {
-    match effect {
-        PickupEffect::Coin => strings::coin_ledger().to_string(),
-        PickupEffect::Health => heal(world, taker, amount),
-        PickupEffect::Power => refill_magic(world, taker, amount),
-        PickupEffect::Cleanse => cleanse(world, taker, amount),
-        PickupEffect::Strength => restore_strength(world, taker, amount),
-        PickupEffect::Platinum => promise(world, taker, Promise::Platinum),
-        PickupEffect::Forge => promise(world, taker, Promise::Forge),
-        PickupEffect::LearnRandomSpell => learn_spell(world, taker),
-    }
+/// A treasure coin's line: the score itself is its row's `amount`, paid as a
+/// [`Value`] when it is taken.
+pub(crate) fn ledger(_: &mut World, _: Entity, _: i32) -> String {
+    strings::coin_ledger().to_string()
 }
 
-/// Whether taking this coin would actually do something for `taker`.
-///
-/// The gate is the pickup category's whole character: a coin you cannot use is
-/// a coin you have not spent, and it keeps until you can. Treasure and the two
-/// promises help until the stairs owe you `PROMISE_CAP` of that kind.
-pub fn would_help(world: &World, taker: Entity, effect: PickupEffect) -> bool {
-    match effect {
-        PickupEffect::Coin => true,
-        PickupEffect::Health => world.get::<Fighter>(taker).is_some_and(|f| f.hp < f.max_hp),
-        PickupEffect::Power => world
-            .get::<Magic>(taker)
-            .is_some_and(|m| m.points < m.max_points),
-        PickupEffect::Cleanse => crate::conditions::afflicted(world, taker),
-        PickupEffect::Strength => world
-            .get::<Fighter>(taker)
-            .is_some_and(|f| f.power < f.max_power),
-        PickupEffect::Platinum => Promise::Platinum.held(world, taker) < PROMISE_CAP,
-        PickupEffect::Forge => Promise::Forge.held(world, taker) < PROMISE_CAP,
-        PickupEffect::LearnRandomSpell => world
-            .get::<Spellset>(taker)
-            .is_some_and(|m| m.slots.len() < SPELLSET_CAP),
-    }
+pub(crate) fn hurt(world: &World, taker: Entity) -> bool {
+    world.get::<Fighter>(taker).is_some_and(|f| f.hp < f.max_hp)
+}
+
+pub(crate) fn drained(world: &World, taker: Entity) -> bool {
+    world
+        .get::<Magic>(taker)
+        .is_some_and(|m| m.points < m.max_points)
+}
+
+pub(crate) fn weakened(world: &World, taker: Entity) -> bool {
+    world
+        .get::<Fighter>(taker)
+        .is_some_and(|f| f.power < f.max_power)
+}
+
+/// Promises help until the stairs owe you `PROMISE_CAP` of that kind.
+pub(crate) fn owed_platinum(world: &World, taker: Entity) -> bool {
+    Promise::Platinum.held(world, taker) < PROMISE_CAP
+}
+
+pub(crate) fn owed_forge(world: &World, taker: Entity) -> bool {
+    Promise::Forge.held(world, taker) < PROMISE_CAP
+}
+
+pub(crate) fn can_learn_spell(world: &World, taker: Entity) -> bool {
+    world
+        .get::<Spellset>(taker)
+        .is_some_and(|m| m.slots.len() < SPELLSET_CAP)
 }
 
 // ---------------------------------------------------------------------------
 // The coins that give you something back
 // ---------------------------------------------------------------------------
 
-fn heal(world: &mut World, taker: Entity, amount: i32) -> String {
+pub(crate) fn heal(world: &mut World, taker: Entity, amount: i32) -> String {
     let Some(mut f) = world.get_mut::<Fighter>(taker) else {
         return String::new();
     };
@@ -263,7 +261,7 @@ fn heal(world: &mut World, taker: Entity, amount: i32) -> String {
     strings::heal_line(healed)
 }
 
-fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> String {
+pub(crate) fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> String {
     let Some(mut m) = world.get_mut::<Magic>(taker) else {
         return String::new();
     };
@@ -275,7 +273,7 @@ fn refill_magic(world: &mut World, taker: Entity, amount: i32) -> String {
 /// The rosé coin: lifts up to `amount` afflictions, worst first, and says how
 /// many it got. It stops when there is nothing left to lift, so a player with
 /// one condition spends the same coin on one condition.
-fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
+pub(crate) fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
     let lifted = (0..amount)
         .take_while(|_| crate::conditions::cure_one_condition(world, taker))
         .count();
@@ -291,12 +289,12 @@ fn cleanse(world: &mut World, taker: Entity, amount: i32) -> String {
 /// happens to already be known (all sixteen), the coin has nothing left to
 /// give and says so instead of teaching a duplicate.
 ///
-/// The [`SPELLSET_CAP`] is checked *here* rather than left to [`would_help`].
+/// The [`SPELLSET_CAP`] is checked *here* rather than left to [`can_learn_spell`].
 /// Stepping on a coin is not the only way to reach this: a hero coin that is
-/// **shot** goes through [`claim_from_afar`], which has no `would_help` gate
+/// **shot** goes through [`claim_from_afar`], which has no `helps` gate
 /// at all — and a coin that is allowed to be a waste is not allowed to be a
 /// fifth spell slot.
-fn learn_spell(world: &mut World, taker: Entity) -> String {
+pub(crate) fn learn_spell(world: &mut World, taker: Entity, _: i32) -> String {
     if world
         .get::<Spellset>(taker)
         .is_none_or(|m| m.slots.len() >= SPELLSET_CAP)
@@ -328,7 +326,7 @@ fn learn_spell(world: &mut World, taker: Entity) -> String {
     strings::learn_spell_line(name)
 }
 
-fn restore_strength(world: &mut World, taker: Entity, amount: i32) -> String {
+pub(crate) fn restore_strength(world: &mut World, taker: Entity, amount: i32) -> String {
     let Some(mut f) = world.get_mut::<Fighter>(taker) else {
         return String::new();
     };
@@ -402,6 +400,14 @@ impl Promise {
 fn promise(world: &mut World, taker: Entity, which: Promise) -> String {
     which.attach(world, taker);
     which.offer().to_string()
+}
+
+pub(crate) fn platinum(world: &mut World, taker: Entity, _: i32) -> String {
+    promise(world, taker, Promise::Platinum)
+}
+
+pub(crate) fn forge(world: &mut World, taker: Entity, _: i32) -> String {
+    promise(world, taker, Promise::Forge)
 }
 
 /// A blow landed on `victim`: any promise it was holding is off. Called from

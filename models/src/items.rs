@@ -27,7 +27,7 @@
 //! verbs that put an affliction on or take one off are [`crate::conditions`].
 
 mod decks;
-mod pickups;
+pub(crate) mod pickups;
 pub(crate) mod potions;
 pub(crate) mod rings;
 pub(crate) mod runes;
@@ -83,7 +83,7 @@ pub use rings::{can_teleport_at_will, willed_teleport};
 /// Taking something off the floor, in one verb — the pack, the score, and the
 /// coins that are spent where they lie. The input handler calls this and knows
 /// nothing about any of it.
-pub use pickups::{break_promises, pick_up, settle_promises, would_help};
+pub use pickups::{break_promises, pick_up, settle_promises};
 
 /// A coin claimed by shooting it rather than stepping on it — see
 /// [`crate::traps::detonate_pickup`].

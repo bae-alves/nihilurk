@@ -57,8 +57,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    RingDef, content_id_of, potion_row, restore_from_catalog, rune_row, scroll_row, spell_row,
-    wand_row,
+    RingDef, coin_row, content_id_of, potion_row, restore_from_catalog, rune_row, scroll_row,
+    spell_row, wand_row,
 };
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
@@ -256,11 +256,10 @@ struct EntitySave<'a> {
     /// (row name, reveal style, already discovered) for a floor trap. The
     /// loader finds the row again by name ([`TrapDef::lookup`]).
     trap: Option<(String, TrapReveal, bool)>,
-    /// A coin's effect and the dial it works with — see `Pickup`. Both are on
-    /// the catalog row, but a coin is spent by the entity rather than looked up
-    /// by name, so the entity carries them.
+    /// A coin's row name — see `Pickup`. The loader finds the row again by
+    /// name ([`coin_row`]).
     #[serde(default)]
-    pickup: Option<(PickupEffect, i32)>,
+    pickup: Option<String>,
     /// The two promises a staircase settles (`Plated`, `Forged`). Unlike every
     /// other condition they are not lifted by the stairs, so a save that forgot
     /// them would quietly eat a coin.
@@ -320,7 +319,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 16;
+pub const SAVE_VERSION: u16 = 17;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -667,7 +666,7 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             trap: er
                 .get::<Trap>()
                 .map(|t| (t.row.name.to_string(), t.reveal, t.revealed)),
-            pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
+            pickup: er.get::<Pickup>().map(|p| p.row.name.to_string()),
             plated: er.get::<Plated>().map_or(0, |p| p.0),
             forged: er.get::<Forged>().map_or(0, |p| p.0),
             spellset: er
@@ -945,6 +944,10 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .as_ref()
                 .is_none_or(|(name, _, _)| TrapDef::lookup(name).is_some())
             && es
+                .pickup
+                .as_deref()
+                .is_none_or(|name| coin_row(name).is_some())
+            && es
                 .spellset
                 .iter()
                 .flatten()
@@ -953,7 +956,7 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune, wand, potion, scroll, trap or spell this build has no row for",
+            "save file names a rune, wand, potion, scroll, trap, coin or spell this build has no row for",
         ));
     }
 
@@ -1172,8 +1175,8 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 revealed,
             });
         }
-        if let Some((effect, amount)) = es.pickup {
-            em.insert(Pickup { effect, amount });
+        if let Some(row) = es.pickup.as_deref().and_then(coin_row) {
+            em.insert(Pickup { row });
         }
         if es.plated > 0 {
             em.insert(Plated(es.plated));

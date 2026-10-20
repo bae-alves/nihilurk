@@ -267,7 +267,7 @@ pub fn known_trap_tiles(world: &mut World) -> HashSet<(u16, u16)> {
 /// the next `o` straight back to it forever.
 ///
 /// * A [`Pickup`] the player has no use for yet — a red coin at full health
-///   ([`crate::items::would_help`]). It stays visible and stays skipped until
+///   (its [`crate::catalog::CoinDef`] row's `helps`). It stays visible and stays skipped until
 ///   the day it would help, and then the walk goes and gets it.
 /// * Everything that needs a pack slot, once the pack is full
 ///   (`stowable_room`). A coin needs no slot, which is why the pack no longer
@@ -304,8 +304,8 @@ fn worth_the_walk(world: &World, player: Entity, item: Entity, room: bool) -> bo
     {
         return false;
     }
-    match world.get::<Pickup>(item).map(|p| p.effect) {
-        Some(effect) => crate::items::would_help(world, player, effect),
+    match world.get::<Pickup>(item).map(|p| p.row) {
+        Some(coin) => (coin.helps)(world, player),
         None => room,
     }
 }

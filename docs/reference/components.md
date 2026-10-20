@@ -154,7 +154,7 @@ Components — items on the floor and in the pack
 |-----------|------|-----|--------|
 | `Item`    | marker — can be picked up | every item | yes |
 | `Value`   | `amount: i32` — score, paid the moment it is picked up | treasure coins, the relic | yes |
-| `Pickup`  | `effect: PickupEffect`, `amount: i32` — works where it lies and is gone; never carried | every coin | yes |
+| `Pickup`  | `row: &'static CoinDef` — works where it lies and is gone; never carried | every coin | yes, by row name |
 | `Backpack`| `items: Vec<Entity>` — inventory order | actors that carry | yes |
 | `Consume` | marker — used up on use | potions, scrolls | yes |
 | `Battery` | `charges: i8` | wands | yes |
@@ -170,10 +170,10 @@ Components — items on the floor and in the pack
 A `Pickup` is a different kind of thing from an item you stow, in three ways that all follow from "never carried":
 
 * **A full pack is no obstacle.** There is nothing to find room for.
-* **It is left alone when it would do nothing.** `items::would_help` gates it — a red coin at full health stays on the floor, and `autoexplore::known_item_tiles` skips it so a walk never beelines for something it will refuse. It keeps until the day it helps.
+* **It is left alone when it would do nothing.** Its row's `helps` gates it — a red coin at full health stays on the floor, and `autoexplore::known_item_tiles` skips it so a walk never beelines for something it will refuse. It keeps until the day it helps.
 * **It can be shot** — and the shooter gets the effect across the room, plus a burst twice a trap's width. A shot that stops on a *creature* standing on one counts, and the renderer advertises that with a magenta cell. See `content-tables.md`, "Trick shots".
 
-`PickupEffect`: Coin, Health, Power, Cleanse, Strength, Platinum, Forge — saved by variant order, mechanic in `models/src/items/pickups.rs`.
+The row's handlers live in `models/src/items/pickups.rs`.
 
 
 Components — item type keys

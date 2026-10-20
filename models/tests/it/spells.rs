@@ -355,7 +355,7 @@ fn hero_coin_teaches_a_spell_up_to_the_four_slot_cap() {
 
     let (_here, spot) = beside_player(&mut w);
     let coin = spawn_named(&mut w, "hero coin", spot).unwrap();
-    assert!(!would_help(&w, p, PickupEffect::LearnRandomSpell));
+    assert!(!(HERO_COIN.helps)(&w, p));
     assert!(pick_up(&mut w, p, coin).is_none());
 
     detonate_at(&mut w, spot, Some(p));

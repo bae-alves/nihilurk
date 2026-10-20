@@ -42,7 +42,7 @@ fn player(w: &mut World) -> Entity {
 
 /// The row for a named coin, so a test can read the dial instead of copying it.
 fn coin_row(name: &str) -> &'static CoinDef {
-    COINS.iter().find(|c| c.name == name).expect(name)
+    models::coin_row(name).expect(name)
 }
 
 /// Drops the named coin on the player's own tile and steps on it. Returns
@@ -843,4 +843,112 @@ fn coins_stack_and_all_pay_at_the_stairs() {
     let f = w.get::<Fighter>(p).unwrap();
     assert_eq!((f.power + f.armor) - (power + armor), 3);
     assert!(w.get::<Plated>(p).is_none());
+}
+
+// ---------------------------------------------------------------------------
+// The row is the coin
+// ---------------------------------------------------------------------------
+
+fn widen(w: &mut World, taker: Entity, amount: i32) -> String {
+    w.get_mut::<Fighter>(taker).unwrap().max_hp += amount;
+    String::new()
+}
+
+static WIDENING: CoinDef = CoinDef {
+    name: "widening coin",
+    color: Color::White,
+    apply: widen,
+    helps: |_, _| true,
+    amount: 7,
+    treasure: false,
+    weight: 0,
+};
+
+static SPURNED: CoinDef = CoinDef {
+    helps: |_, _| false,
+    ..WIDENING
+};
+
+static HOARD: CoinDef = CoinDef {
+    treasure: true,
+    ..WIDENING
+};
+
+fn step_on_row(w: &mut World, row: &'static CoinDef) -> bool {
+    let p = player(w);
+    let at = *w.get::<Position>(p).unwrap();
+    let coin = row.spawn(w, at);
+    pick_up(w, p, coin).is_some()
+}
+
+#[test]
+fn a_coin_row_runs_its_apply_with_its_amount() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let before = w.get::<Fighter>(p).unwrap().max_hp;
+    assert!(step_on_row(&mut w, &WIDENING));
+    assert_eq!(w.get::<Fighter>(p).unwrap().max_hp - before, 7);
+}
+
+#[test]
+fn a_coin_its_row_says_would_not_help_stays_on_the_floor() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let before = w.get::<Fighter>(p).unwrap().max_hp;
+    assert!(!step_on_row(&mut w, &SPURNED));
+    assert_eq!(w.get::<Fighter>(p).unwrap().max_hp, before);
+}
+
+#[test]
+fn only_a_treasure_row_pays_its_amount_into_the_score() {
+    let mut w = test_world(1);
+    let before = score(&mut w);
+    assert!(step_on_row(&mut w, &WIDENING));
+    assert_eq!(score(&mut w), before);
+    assert!(step_on_row(&mut w, &HOARD));
+    assert_eq!(score(&mut w) - before, 7);
+}
+
+#[test]
+fn every_coin_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(5);
+    let stale: Vec<Entity> = w
+        .query_filtered::<Entity, With<Pickup>>()
+        .iter(&w)
+        .collect();
+    for e in stale {
+        w.despawn(e);
+    }
+    for (i, &row) in COINS.iter().enumerate() {
+        let at = Position {
+            x: 10 + i as u16,
+            y: 5,
+        };
+        row.spawn(&mut w, at);
+    }
+
+    let save = crate::common::SaveFile::new("coin-rows");
+    save_game(&mut w, save.path()).unwrap();
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
+    w2.insert_resource(RngSeed(5));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+
+    let mut back: Vec<(u16, &'static CoinDef)> = w2
+        .query::<(&Pickup, &Position)>()
+        .iter(&w2)
+        .map(|(c, p)| (p.x, c.row))
+        .collect();
+    back.sort_by_key(|(x, _)| *x);
+    assert_eq!(back.len(), COINS.len());
+    for (was, (_, is)) in COINS.iter().zip(&back) {
+        assert!(
+            std::ptr::eq(*was, *is),
+            "{} came back as {}",
+            was.name,
+            is.name
+        );
+    }
 }

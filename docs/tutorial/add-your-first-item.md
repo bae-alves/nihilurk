@@ -186,10 +186,11 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 
 **A weapon.** `WEAPONS`, as above.
 
-**A coin**, as long as it does something a coin already does. `COINS` pairs a `PickupEffect` with the one number that effect works with -- so a cheaper treasure coin is a row, full stop:
+**A coin**, as long as it does something a coin already does. A `COINS` row names its `apply` and `helps` handlers and the one number they work with -- so a cheaper treasure coin is a row, full stop:
 
-    CoinDef { name: "copper coin", color: Color::DarkYellow,
-              effect: PickupEffect::Coin, amount: 250, weight: 10 },
+    &CoinDef { name: "copper coin", color: Color::DarkYellow,
+               apply: pickups::ledger, helps: |_, _| true,
+               amount: 250, treasure: true, weight: 10 },
 
 **A ring**, as long as what it does is a number combat already folds or a marker some system already asks about. This one is the whole argument for the design in three lines:
 
@@ -249,7 +250,7 @@ The handler returns `bool` -- whether the dose visibly took hold.
 
 Most of a wand's handler is borrowed. Sleep is `conditions::snare(world, victim, Grant::of::<Asleep>(), turns)` and nothing else; the trap and the scroll that also put things to sleep call the same verb.
 
-**A genuinely new kind of coin** -- one that does something no coin does yet -- needs a `PickupEffect` variant and arms in both `apply` and `would_help` (`items/pickups.rs`). `would_help` is the interesting one: it is what leaves a coin on the floor when taking it would do nothing, so a red coin waits at full health for the fight that goes badly.
+**A genuinely new kind of coin** -- one that does something no coin does yet -- needs two new handlers in `items/pickups.rs`, named by its row as `apply` and `helps`. `helps` is the interesting one: it is what leaves a coin on the floor when taking it would do nothing, so a red coin waits at full health for the fight that goes badly.
 
 ### The one thing to check afterwards
 

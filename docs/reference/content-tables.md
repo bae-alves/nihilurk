@@ -336,29 +336,31 @@ Coins are the whole **pickup** category: an item that is never carried, works wh
 |----------|-----------------|------------------------------------------------|
 | `name`   | `&'static str`  |                                                |
 | `color`  | `Color`         |                                                |
-| `effect` | `PickupEffect`  | Keys the mechanic; identity in saves.          |
-| `amount` | `i32`           | The one dial. What it means is `effect`'s business: score for a treasure coin, hit points for the red one, afflictions lifted for the rosé. `0` for a row that needs no number. |
+| `apply`  | `fn(&mut World, Entity, i32) -> String` | Works the coin on the taker with `amount`; returns the log line. |
+| `helps`  | `fn(&World, Entity) -> bool` | Whether taking it would do anything now. |
+| `amount` | `i32`           | The one dial. What it means is `apply`'s business: score for a treasure coin, hit points for the red one, afflictions lifted for the rosé. `0` for a row that needs no number. |
+| `treasure` | `bool`        | `amount` also goes into the score, as a `Value`. |
 | `weight` | `u32`           | This row's share of the coin table against its table-mates. Ten is the baseline. |
 
 Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Value`, which is the component the score reads (the relic carries the same one).
 
-| Coin | Effect | What it does |
+| Coin | `apply` | What it does |
 |---|---|---|
-| gold | `Coin` | `amount` into the score |
-| silver | `Coin` | the same, less of it |
-| red | `Health` | heals up to `amount`, never past `max_hp` |
-| blue | `Power` | refills up to `amount` magic points |
-| rosé | `Cleanse` | lifts up to `amount` afflictions, worst first |
-| green | `Strength` | gives back up to `amount` drained `power` |
-| platine | `Platinum` | the `Plated` promise |
-| forge | `Forge` | the `Forged` promise |
-| hero coin | `LearnRandomSpell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Well under the baseline weight — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
+| gold | `ledger` | `amount` into the score |
+| silver | `ledger` | the same, less of it |
+| red | `heal` | heals up to `amount`, never past `max_hp` |
+| blue | `refill_magic` | refills up to `amount` magic points |
+| rosé | `cleanse` | lifts up to `amount` afflictions, worst first |
+| green | `restore_strength` | gives back up to `amount` drained `power` |
+| platine | `platinum` | the `Plated` promise |
+| forge | `forge` | the `Forged` promise |
+| hero coin | `learn_spell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Well under the baseline weight — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
 
-Mechanic: `apply` in `models/src/items/pickups.rs`, an exhaustive match with no catch-all — a new `PickupEffect` does not build until it does something.
+Mechanic: the handlers in `models/src/items/pickups.rs`. Both fields are required, so a new row does not build until it does something. The hero coin is the named static `HERO_COIN`, because a shot one goes off in the ultimate trick shot.
 
 **One of them is not left to chance.** Every floor is stocked with a coin for the body before its item budget is spent — a blue one on the odd floors, a red one on the even. The last floor of each difficulty tier (`DIFFICULTY_TIER_LAST_DEPTH`, `constants::progression`) also gets one draw from `catalog::PROGRESSION_ITEMS`: the platinum, forge and hero coins, the three potions that raise a ceiling (healing, magic, gain strength), and the three scrolls that sharpen gear for good (the two enchantments and vorpalize weapon). Neither comes out of the budget. See `../how-to/tune-rarity-and-depth.md`, "Dial 1".
 
-**A coin that would do nothing is not taken.** `pickups::would_help` gates every one of them: a red coin at full health, a rosé coin with nothing wrong with you, a platinum coin when you already hold the promise. The coin stays on the floor, silently, and auto-explore skips it too (`autoexplore::known_item_tiles`) until the day it would help.
+**A coin that would do nothing is not taken.** The row's `helps` gates every one of them: a red coin at full health, a rosé coin with nothing wrong with you, a platinum coin when you already hold the promise. The coin stays on the floor, silently, and auto-explore skips it too (`autoexplore::known_item_tiles`) until the day it would help.
 
 **A full pack is no obstacle**, because there is nothing to find room for. This is the one thing on the floor a full pack can still answer.
 
@@ -434,8 +436,8 @@ A missile stops on the first creature in its way, so the tile handed to `detonat
 | On the tile | Reach | Damage | Follow-up |
 |---|---|---|---|
 | a `Trap` | `TRICK_SHOT_RADIUS` | the trick-shot dice | the trap's own effect, per survivor |
-| a `Pickup` (a coin) | `PICKUP_TRICK_SHOT_RADIUS` | the same dice | **the coin's effect, paid to the shooter** (`pickups::claim_from_afar`) — a red coin heals them, a gold one pays them, a platinum one makes them its promise. Worked *before* the burst, so the shooter's own blast cannot take the healing back off them. No `would_help` gate: stepping over a coin is leaving it for later, shooting one is a decision, and a decision is allowed to be a waste |
-| a hero coin (`PickupEffect::LearnRandomSpell`) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | the spell, taught to the shooter, and then the ULTIMATE TRICK SHOT below. Spent like any other coin |
+| a `Pickup` (a coin) | `PICKUP_TRICK_SHOT_RADIUS` | the same dice | **the coin's effect, paid to the shooter** (`pickups::claim_from_afar`) — a red coin heals them, a gold one pays them, a platinum one makes them its promise. Worked *before* the burst, so the shooter's own blast cannot take the healing back off them. No `helps` gate: stepping over a coin is leaving it for later, shooting one is a decision, and a decision is allowed to be a waste |
+| a hero coin (`HERO_COIN`) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | the spell, taught to the shooter, and then the ULTIMATE TRICK SHOT below. Spent like any other coin |
 | the `Amulet` (the Element of Yoord) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | see below. The relic is never destroyed, moved or spent |
 
 A shot that sets *anything* off with something other than ammunition — a dagger, a potion, somebody's spare ring — logs "Very clever." Firing an arrow into a trap is what arrows are for; doing it with the rest of your kit is a choice.

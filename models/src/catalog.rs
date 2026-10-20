@@ -35,7 +35,7 @@ use crate::conditions::{blind, hasten, paralyse};
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 use crate::items::wands::dazzle;
-use crate::items::{potions, runes, scrolls, spells, throwing, wands};
+use crate::items::{pickups, potions, runes, scrolls, spells, throwing, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
 use crate::particles::BlastPalette;
 
@@ -1733,7 +1733,7 @@ pub static SPELLS: &[&SpellDef] = &[
 /// of them works the instant you step on it and is never carried — the two
 /// treasure coins go straight into the score, the rest into you.
 ///
-/// `amount` is the row's one dial and what it means is `effect`'s business:
+/// `amount` is the row's one dial and what it means is `apply`'s business:
 /// points for a treasure coin, hit points for the red one, afflictions lifted
 /// for the rosé. A row that needs no number leaves it at zero.
 pub struct CoinDef {
@@ -1743,16 +1743,22 @@ pub struct CoinDef {
     pub name: &'static str,
     /// The colour it draws in.
     pub color: Color,
-    /// What picking it up does.
-    pub effect: PickupEffect,
-    /// The dial `effect` reads. Zero for an effect that needs none.
+    /// What taking it does to the taker, given `amount`. Returns the line the
+    /// log adds after the coin's name.
+    pub apply: fn(&mut World, Entity, i32) -> String,
+    /// Whether taking it would do anything for the taker now. A coin that
+    /// would not is left on the floor, and auto-explore does not detour for it.
+    pub helps: fn(&World, Entity) -> bool,
+    /// The dial `apply` reads. Zero for a row that needs none.
     pub amount: i32,
+    /// Treasure: `amount` also goes into the score as the coin is taken.
+    pub treasure: bool,
     /// This row's share of the coin table against its table-mates. Most sit at
     /// the default; the hero coin sits well under it — an uncommon find.
     pub weight: u32,
 }
 
-impl ItemDef for CoinDef {
+impl ItemDef for &'static CoinDef {
     fn name(&self) -> &'static str {
         self.name
     }
@@ -1772,12 +1778,9 @@ impl ItemDef for CoinDef {
             },
             pos,
             Item,
-            Pickup {
-                effect: self.effect,
-                amount: self.amount,
-            },
+            Pickup { row: self },
         ));
-        if self.effect == PickupEffect::Coin {
+        if self.treasure {
             e.insert(Value {
                 amount: self.amount,
             });
@@ -1786,23 +1789,39 @@ impl ItemDef for CoinDef {
     }
 }
 
+/// The hero coin: teaches a random spell, and a shot one goes off in the
+/// widest burst in the game ([`crate::traps::detonate_pickup`]). Uncommon, and
+/// never disguised: no colour name — it is always just "a hero coin".
+pub static HERO_COIN: CoinDef = CoinDef {
+    name: "hero coin",
+    color: Color::Magenta,
+    apply: pickups::learn_spell,
+    helps: pickups::can_learn_spell,
+    amount: 0,
+    treasure: false,
+    weight: 3,
+};
+
 /// The coins. Two are treasure and six are a small mercy, and the dungeon
 /// scatters them alike — which is why a `$` on the floor is worth walking to
 /// even when your pack is full.
 #[rustfmt::skip]
-pub const COINS: &[CoinDef] = &[
-    CoinDef { name: "gold coin",     color: Color::Yellow,      effect: PickupEffect::Coin,     amount: 5000, weight: 10 },
-    CoinDef { name: "silver coin",   color: Color::Grey,        effect: PickupEffect::Coin,     amount: 1000, weight: 10 },
-    CoinDef { name: "red coin",      color: Color::Red,         effect: PickupEffect::Health,   amount:    4, weight: 10 },
-    CoinDef { name: "blue coin",     color: Color::Blue,        effect: PickupEffect::Power,    amount:    4, weight: 10 },
-    CoinDef { name: "rosé coin",     color: Color::Magenta,     effect: PickupEffect::Cleanse,  amount:    4, weight: 10 },
-    CoinDef { name: "green coin",    color: Color::Green,       effect: PickupEffect::Strength, amount:    4, weight: 10 },
-    CoinDef { name: "platine coin",  color: Color::White,      effect: PickupEffect::Platinum, amount:    0, weight: 10 },
-    CoinDef { name: "forge coin",    color: Color::DarkYellow,  effect: PickupEffect::Forge,    amount:    0, weight: 10 },
-    // Uncommon, and never disguised: no colour name — it is always just
-    // "a hero coin".
-    CoinDef { name: "hero coin",     color: Color::Magenta,     effect: PickupEffect::LearnRandomSpell,     amount:    0, weight:  3 },
+pub static COINS: &[&CoinDef] = &[
+    &CoinDef { name: "gold coin",     color: Color::Yellow,      apply: pickups::ledger,           helps: |_, _| true,               amount: 5000, treasure: true,  weight: 10 },
+    &CoinDef { name: "silver coin",   color: Color::Grey,        apply: pickups::ledger,           helps: |_, _| true,               amount: 1000, treasure: true,  weight: 10 },
+    &CoinDef { name: "red coin",      color: Color::Red,         apply: pickups::heal,             helps: pickups::hurt,             amount:    4, treasure: false, weight: 10 },
+    &CoinDef { name: "blue coin",     color: Color::Blue,        apply: pickups::refill_magic,     helps: pickups::drained,          amount:    4, treasure: false, weight: 10 },
+    &CoinDef { name: "rosé coin",     color: Color::Magenta,     apply: pickups::cleanse,          helps: crate::conditions::afflicted, amount: 4, treasure: false, weight: 10 },
+    &CoinDef { name: "green coin",    color: Color::Green,       apply: pickups::restore_strength, helps: pickups::weakened,         amount:    4, treasure: false, weight: 10 },
+    &CoinDef { name: "platine coin",  color: Color::White,       apply: pickups::platinum,         helps: pickups::owed_platinum,    amount:    0, treasure: false, weight: 10 },
+    &CoinDef { name: "forge coin",    color: Color::DarkYellow,  apply: pickups::forge,            helps: pickups::owed_forge,       amount:    0, treasure: false, weight: 10 },
+    &HERO_COIN,
 ];
+
+/// The coin row named `name`, for a save to find its coin by.
+pub fn coin_row(name: &str) -> Option<&'static CoinDef> {
+    COINS.iter().copied().find(|row| row.name == name)
+}
 
 // ---------------------------------------------------------------------------
 // Treats

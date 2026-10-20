@@ -440,7 +440,7 @@ fn full_entity<'a>() -> EntitySave<'a> {
         ],
         speed: Some(SpeedKind::Quick),
         trap: Some(("dart trap".to_string(), TrapReveal::Triggered, true)),
-        pickup: Some((PickupEffect::LearnRandomSpell, 300)),
+        pickup: Some("hero coin".to_string()),
         plated: 1,
         forged: 1,
         spellset: Some(vec!["Gate Down".to_string()]),

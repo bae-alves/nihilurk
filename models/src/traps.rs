@@ -520,7 +520,7 @@ pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity
     let Some(center) = world.get::<Position>(pickup).copied() else {
         return false;
     };
-    let Some(effect) = world.get::<Pickup>(pickup).map(|p| p.effect) else {
+    let Some(row) = world.get::<Pickup>(pickup).map(|p| p.row) else {
         return false;
     };
     if let Some(shooter) = shooter {
@@ -528,7 +528,7 @@ pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity
     }
     stand_in(world, pickup);
     world.entity_mut(pickup).despawn();
-    if effect == PickupEffect::LearnRandomSpell {
+    if std::ptr::eq(row, &crate::catalog::HERO_COIN) {
         world
             .resource_mut::<GameLog>()
             .add(strings::hero_coin_ultimate());

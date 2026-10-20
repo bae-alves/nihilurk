@@ -666,7 +666,7 @@ pub struct Value {
 /// * **A full pack is no obstacle.** There is nothing to find room for.
 /// * **It is left alone when it would do nothing.** Walk over a red coin at
 ///   full health and it stays on the floor waiting for the day you need it
-///   (`crate::items::pickups::would_help`), and auto-explore does not detour
+///   (its [`crate::catalog::CoinDef`] row's `helps`), and auto-explore does not detour
 ///   for one it cannot use either.
 /// * **It can be shot.** A missile that comes down on one sets it off like a
 ///   trap, in a wider burst
@@ -675,40 +675,8 @@ pub struct Value {
 ///   [`crate::traps::detonate_pickup`].
 #[derive(Component)]
 pub struct Pickup {
-    /// What picking it up does.
-    pub effect: PickupEffect,
-    /// The number the effect works with — points, hit points, afflictions
-    /// lifted — straight off the [`crate::catalog::CoinDef`] row.
-    pub amount: i32,
-}
-
-/// What stepping on a pickup does. The mechanic is an exhaustive match in
-/// `crate::items::pickups`; the amount it works with is the `amount` on the
-/// [`crate::catalog::CoinDef`] row, so "how much" is data and "what kind" is
-/// this.
-///
-/// Serialised by variant position — append, never reorder.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PickupEffect {
-    /// Straight into the score.
-    Coin,
-    /// Hit points, up to the ceiling.
-    Health,
-    /// Magic points, up to the ceiling.
-    Power,
-    /// Lifts up to `amount` afflictions.
-    Cleanse,
-    /// Gives back up to `amount` points of drained melee strength.
-    Strength,
-    /// The [`Plated`] promise.
-    Platinum,
-    /// The [`Forged`] promise.
-    Forge,
-    /// Teaches the taker one random spell, straight into their [`Spellset`] —
-    /// the hero coin, uncommon, and unlike every other item in the game never
-    /// disguised: it is always just "a hero coin", the one thing in the
-    /// dungeon with nothing to identify.
-    LearnRandomSpell,
+    /// Which coin this is: what taking it does, and the number it does it with.
+    pub row: &'static crate::catalog::CoinDef,
 }
 
 /// An actor's carried items, in inventory-letter order. An item in here has had
