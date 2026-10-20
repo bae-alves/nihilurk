@@ -34,7 +34,7 @@ flowchart LR
 What you are about to learn
 ----------------------------
 
-nihilurk teaches its active spells to the player at random, through a hero coin (an uncommon coin-table pickup), rather than starting anyone with any. A spell is coded the way a potion or a wand is -- one catalog row naming the one function that does it -- because it is exactly as *active* as either of those. This tutorial adds one more, by hand, the way every spell in the table was first tried.
+nihilurk teaches its active spells to the player in play, at random through a hero coin (an uncommon coin-table pickup) or by a spirit's offer; only the lurk starts with one, Bide. A spell is coded the way a potion or a wand is -- one catalog row naming the one function that does it -- because it is exactly as *active* as either of those. This tutorial adds one more, by hand, the way every spell in the table was first tried.
 
 It is also, on purpose, not an item. It has no `Position`, no `Item` marker, no pack slot. It cannot be dropped, thrown, or found on a floor. It lives permanently in whoever's `Spellset` it's in, and it spends Magic instead of a battery.
 
@@ -115,6 +115,8 @@ A row has to name a function, so a spell that silently does nothing cannot build
         );
     }
 
+The log line is a string literal so the lesson stays on one page; a sentence the player reads belongs in `strings/src/en.rs`, the way `breathe_fire`'s does (`../how-to/update-the-docs.md`, "Player-facing text").
+
 Look closely and you'll notice you wrote almost nothing. `elemental_blast` is the same function a zapped wand of cold calls -- the disc, the line-of-sight check, the animation, the chain reaction into any trap or coin caught in it, all of it borrowed. The only thing `ice_bolt` supplies is *how much damage*, computed from the caster's own claws rather than a wand's dice. That computation is copied verbatim from `breathe_fire` right above it; a spell that inflicts a status instead of damage would instead borrow from `crate::conditions`, the way a wand's utility effects do.
 
 Build again:
@@ -133,7 +135,7 @@ There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play
         slots: vec![spell_row("Ice Bolt").unwrap()],
     },
 
-Tests about the lurk, the hero coin and amnesia expect an empty starting `Spellset`, so `cargo test` fails while this edit stands. Step 7 reverts it.
+Tests about the lurk, the hero coin, amnesia and the soak bot expect the starting `Spellset` the game really gives, so `cargo test` fails while this edit stands. Step 7 reverts it.
 
 Build and run:
 
@@ -146,7 +148,7 @@ Step 5: cast it
 
 Press `Z`. You should see a small box listing Ice Bolt and its Magic cost. Press `a` (or confirm the highlighted row) to pick it, and the aiming reticle opens exactly as it would for a wand.
 
-Rows are lettered `a` to `d`, the way the pack's are, and the menu is the only way to a spell -- no key fires a slot directly. While the reticle is up, `Tab` snaps it to the next monster or item in view instead of nudging it one tile at a time.
+Rows are lettered `a` to `d`, the way the pack's are. `Alt`+`Q`, `W`, `E` and `R` fire slots one to four straight from the map, without the menu. While the reticle is up, `Tab` snaps it to the next monster or item in view instead of nudging it one tile at a time.
 
 Confirm the shot at something, and watch your Magic drop by two. Try it again with an empty pool: the reticle never even opens, and the log says why.
 
