@@ -15,7 +15,7 @@ After `cargo install nihilurk`, run `nihilurk [flags] [name-or-save]` instead. I
 Flags
 -----
 
-In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`, `-ns`, `-nb`, `-nshake`, `-mouse`, `-nobones`, `-b`, `-am`, `-scores`) also have a double-dash longhand (`--seed`, `--centered`, `--no-save`, `--no-blood`, `--no-shake`, `--mouse`, `--no-bones`, `--body`, `--as-monster`, `--leaderboard`), and `-endless`, `-anim-rate`, `-keymap`, `-content`, `-pride` and `-prideoff` also take `--`. Any other argument that starts with `-` is refused, and so is a flag whose value is missing or bad (`-s -5`, `-s abc`, `-anim-rate fast`, `-b` with nothing after it); the message quotes the flag and its value: `invalid argument ARG. Please see -help for more information`. A player name therefore cannot start with `-`.
+In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`, `-ns`, `-nb`, `-nshake`, `-mouse`, `-nobones`, `-b`, `-am`, `-scores`) also have a double-dash longhand (`--seed`, `--centered`, `--no-save`, `--no-blood`, `--no-shake`, `--mouse`, `--no-bones`, `--body`, `--as-monster`, `--leaderboard`), as do `-nrec` (`--no-recording`) and `-v` (`--replay`), and `-endless`, `-anim-rate`, `-keymap` and `-content` also take `--`. Any other argument that starts with `-` is refused, and so is a flag whose value is missing or bad (`-s -5`, `-s abc`, `-anim-rate fast`, `-b` with nothing after it); the message quotes the flag and its value: `invalid argument ARG. Please see -help for more information`. A player name therefore cannot start with `-`.
 
 | Flag         | Effect                                                    |
 |--------------|-----------------------------------------------------------|
@@ -26,12 +26,12 @@ In any order. Every flag has a single-dash form; the shorthand ones (`-s`, `-c`,
 | `-nshake`, `--no-shake` | No screen shake. The map never leaves its moorings — nothing arms one for the rest of the run. For anyone who would rather the terminal held still; `-anim-rate` can only make a shake *slower*, which is the wrong direction. |
 | `-mouse`, `--mouse` | Turn on mouse capture. Left click reads a tile (look) and opens its Info popup; right click travels there, like `O` then Enter. On the aiming reticle, left moves the cursor and right moves it and fires; on the `O` cursor, left moves it and right goes. Menus and the `--MORE--` prompt ignore clicks. Off by default, because capture takes the terminal's own text selection (Shift+drag copies). |
 | `-nobones`, `--no-bones` | Skip the bones mechanic entirely: a death never writes a `bones-N.sav`, and an ascent never reads one. Not the corpse-fling animation `-nb` mentions above — this is the NetHack-style "a past run's ghost, guarding its own cursed gear" (`models::bones`). |
-| `-endless`, `--endless` | No Element of Yoord ever spawns, so there is no way to win: the dungeon keeps going down past `FINAL_DEPTH`. Sets the `Endless` resource (`models/src/map.rs`), which the save records (`SaveGame::endless`); refused together with `-fast`; the depth-`FINAL_DEPTH` checks in `traps.rs`, `monsters.rs` and `saveload.rs` read it. |
-| `-fast`, `--fast`, `--bullet`, `--quick` (also `-bullet`, `-quick`) | A six-floor dungeon: the Element of Yoord sits on floor 6, and floors 4 and 5 are always special levels (`Floors::forces_special`). Sets the `Floors` resource (`models/src/map.rs`); floor `n` draws monsters, traps and items as depth `ceil(n*13/6)`, and every floor runs its item budget twice (`Floors::item_multiplier`). The save records the run length (`SaveGame::floors`), so on a load the flag is ignored and the saved length wins; passing it with a save says so and asks `Load anyway? [y/N]` (same for `-endless`). Refused together with `-endless`. |
-| `-nrec`, `--no-recording` | Skip the recording. A new run otherwise writes `recordings/NAME-SEED.rec` in the data directory (an existing file of that name is replaced): a header (version, seed, name, body, `-endless`, `-nobones`, the `NIHILURK_SPAWN/LEVEL/MAGICMAP` values, the keymap) then one line per key press or click the game acted on, stamped with the input call it arrived on (`engine/src/input.rs`). Resumed runs are not recorded. |
+| `-endless`, `--endless` | No Element of Yoord ever spawns, so there is no way to win: the dungeon keeps going down past `FINAL_DEPTH`. Sets the `Endless` resource (`models/src/map.rs`), which the save records (`SaveGame::endless`); refused together with `-fast`; everything that would treat `FINAL_DEPTH` as the bottom (floor building and population, the relic, the leaderboard's board) reads it. |
+| `-fast`, `--fast`, `--bullet`, `--quick` (also `-bullet`, `-quick`) | A short dungeon of `FAST_FLOORS` floors (`engine/src/main.rs`): the Element of Yoord sits on the last one, and every floor from 4 to the one before it is a special level (`Floors::forces_special`). Sets the `Floors` resource (`models/src/map.rs`); floor `n` draws monsters, traps and items as the full-length depth it stands for (`Floors::content_depth`), and every floor runs its item budget twice (`Floors::item_multiplier`). The save records the run length (`SaveGame::floors`), so on a load the flag is ignored and the saved length wins; passing it with a save says so and asks `Load anyway? [y/N]` (same for `-endless`). Refused together with `-endless`. |
+| `-nrec`, `--no-recording` | Skip the recording. A new run otherwise writes `recordings/NAME-SEED.rec` in the data directory (an existing file of that name is replaced): a header (version, seed, name, body, `-endless`, `-fast`, `-nobones`, the `NIHILURK_SPAWN/LEVEL/MAGICMAP` values, the keymap) then one line per key press or click the game acted on, stamped with the input call it arrived on (`engine/src/input.rs`). Resumed runs are not recorded. |
 | `-v FILE`, `--replay FILE` | Play back a recording from its first turn. Sets `-s`, `-b`/`-am`, `-endless`, `-fast` from the header, forces `-ns -nobones`, ignores your keymap and shaping variables, writes no save, score, dump or bones, and ends with one line saying how the run finished. Warns on stderr when the recording came from another version, since a changed table can drift it. |
 | `-content`, `--content` | Print every name the content tables know, then exit.      |
-| `-scores`, `--leaderboard` | Print the leaderboard (top 10 scores ever recorded), then exit. Add `-fast` or `-endless` for that mode's board. |
+| `-scores`, `--leaderboard` | Print the leaderboard (the top `LEADERBOARD_STORE_LIMIT` scores ever recorded), then exit. Add `-fast` or `-endless` for that mode's board. |
 | `-anim-rate <n>`, `--anim-rate <n>` | Multiplier on every animation frame's on-screen hold time (particles, the magic-mapping reveal wipe, the screen shake). `1.0` is the default pacing; raise it if a terminal's redraw can't keep up, lower it for snappier animations. Clamped to `0.1..=5.0`; a bad, non-finite or missing value is refused as an invalid argument. |
 | `-keymap <file>`, `--keymap` | Remap keys from the file; without it, `keymap.txt` in the data directory is read if it exists. See [Key remapping](#key-remapping). A bad line or an unreadable file is named on stderr and the game does not start. |
 | `-b <body>`, `--body` | Play as `nihil` (the default) or `lurk`. See below. |
@@ -48,14 +48,14 @@ default and changes nothing.
   * `SpeedKind::Quick`, half again as fast as `Normal` and the only creature
     in the game born at that tempo. Two monster rounds bought per three player
     turns; shown as `QUIK` on the status line.
-  * The estoc's lunge (`Lunges`), without the estoc's double time.
+  * The estoc's lunge (`Lunges`), and a second snap of the jaws after any bite that lands (`Fencer`, `lurk::NUMBER_OF_ATTACKS`).
   * The rapier's momentum (`BuildsMomentum`), built on the creature rather
     than on a blade it does not have.
   * A ring of stealth's quiet (`Stealthy`).
   * Bide in its spellset.
   * **Growth.** Every creature that dies on the floor is rolled against tuning
-    constant `lurk::GROWTH_CHANCE`, and a hit puts one point on one of the four
-    numbers on the status line, drawn at random: `FEAR THE LURK!` Rolled per
+    constant `lurk::GROWTH_CHANCE`, and a hit puts `lurk::GROWTH_STEP` on one of
+    the four numbers on the status line, drawn at random: `FEAR THE LURK!` Rolled per
     kill rather than counted toward a tenth one, so there is no counter to
     pace against and nothing for a save file to remember.
 
@@ -80,8 +80,8 @@ wraith` is permanently hasted), invisibility (`-am phantom`), and the innate
 magic -- a dragon is immune to fire and flies, a rattlesnake's bite is
 venomous, a slime splits when hurt -- into a *hostile* copy of you, carrying
 your hit points, which is working as intended. None of that is a special case
-for the player: the bestiary row is the same one a dragon on floor 10 is built
-from, and the on-hit abilities are the same table.
+for the player: the bestiary row is the same one a dragon deep in the dungeon
+is built from, and the on-hit abilities are the same table.
 
 A row with gear chances (`.equip(...)`) starts you with all of it, every roll
 hit, worn if the body may wear it (`ItemUser`) and in the pack if not. A bow
@@ -97,13 +97,12 @@ Four consequences worth knowing before you pick a monster:
   * **You start with nothing.** The ring mail, mace, short bow, quiver and
     potion are *nihil's* kit.
   * **Only a species that uses items can wear them.** That is the bestiary's
-    own `ItemUser` mark -- the orc, hobgoblin, centaur, medusa, nymph,
-    leprechaun, troll, vampire and ur-vile have hands; a dragon has claws and
-    is told so when it tries.
+    own `ItemUser` mark -- the orc, the centaur and the vampire are among the
+    rows with hands; a dragon has claws and is told so when it tries.
   * **A species' spells land in your spellset, and cost your Ma.** A dragon
     knows Fireball, the same spell a hero coin teaches, cast through the
-    same reticle at the same price out of your own pool. The dragons on
-    floor 10 breathe it too, from a small pool of their own that never
+    same reticle at the same price out of your own pool. The dragons in the
+    dungeon breathe it too, from a small pool of their own that never
     refills.
   * **The log tells you what you were born with.** One "You feel..." line
     per grant the body carries, a spirit's two random boons included:
@@ -111,8 +110,8 @@ Four consequences worth knowing before you pick a monster:
 **Try `-am dragon`.** You start on floor 1 with Fireball in your spell bar
 and claws that hold no sword.
 
-**This will never be a balanced mode of play.** A floor-1 kestral and a
-floor-10 dragon are both one `-am` away, and nothing gates which one you're
+**This will never be a balanced mode of play.** A kestral from the first
+floor and a dragon from the deep are both one `-am` away, and nothing gates which one you're
 allowed to start as, or scales the dungeon to match your pick. That's
 deliberate: `-am` is a costume, not a difficulty setting, and every row in
 the bestiary is tuned to be one thing a `@` fights, never to be the `@`
@@ -133,11 +132,8 @@ would, and a cancelled orc-bodied one loses `ItemUser`, which is to say the
 wits to work a buckle, and can no longer equip what it was wearing a moment
 ago. That is the bargain of wearing something else's magic.
 
-The body is saved with the run and comes back on load -- the player's *name*
-is the species, and that is how the save knows. Two argument shapes are
-refused up front to keep that true, both before the terminal is touched:
+The body is saved with the run and comes back on load: a worn species as its row name (`SaveGame::monster_body`), a lurk through its `Lurk` effect, and nihil as what is left. Two argument shapes are refused up front, both before the terminal is touched:
 
-    nihilurk Dragon             # "Don't name yourself a monster. It's quite demeaning."
     nihilurk -am orc mysave     # the save already knows what body it is in
     nihilurk -b lurk Bae        # a name is the first argument or it is not a name
 
@@ -148,14 +144,14 @@ is intended, and `-s` is how you retry it.
 
     man ./doc/nihilurk.6
 
-The game needs a terminal of at least 80 columns by 25 rows. In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
+The game needs a terminal of at least `SCREEN_W` columns by `SCREEN_H` rows (`engine/src/constants.rs`). In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
 
 `-content` never touches the alternate screen, so it pipes:
 
     cargo run -p nihilurk -- -content | grep ring
     cargo run -p nihilurk -- -content | less
 
-`-scores` reads the same way, straight off `leaderboard.sav` in the data directory (`-scores -fast` reads `leaderboard-fast.sav`, `-scores -endless` reads `leaderboard-endless.sav`; each mode keeps its own board) (see `NIHILURK_DATA` below) -- a small versioned postcard file, like a save, holding the ten highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)` followed by one `◆` per conduct that run kept (see `conducts.md`), where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended. A version 1 leaderboard, from before conducts, is read and upgraded on the next write. A leaderboard it can't read, damaged or from another version, is named on stderr and never overwritten: no score is recorded until it is moved away. Two runs ending at once take turns at the file through `leaderboard.sav.lock`.
+`-scores` reads the same way, straight off `leaderboard.sav` in the data directory (`-scores -fast` reads `leaderboard-fast.sav`, `-scores -endless` reads `leaderboard-endless.sav`; each mode keeps its own board) (see `NIHILURK_DATA` below) -- a small versioned postcard file, like a save, holding the `LEADERBOARD_STORE_LIMIT` highest scores ever recorded across every run that ended in a win or a death (a quit-and-save doesn't count; the run isn't over). Each line it prints is `RANK. NAME - OUTCOME - SCORE (WHEN)` followed by one `conduct::MARK` per conduct that run kept (see `conducts.md`), where `OUTCOME` is `WIN`, `LOSE (Asc.)` (dead on the way back out, carrying the Element), or `LOSE (Desc.)` (dead on the way down), and `WHEN` is the UTC date and time the run ended. A version 1 leaderboard, from before conducts, is read and upgraded on the next write. A leaderboard it can't read, damaged or from another version, is named on stderr and never overwritten: no score is recorded until it is moved away. Two runs ending at once take turns at the file through `leaderboard.sav.lock`.
 
 A run that ends in a win or a death also leaves a run dump, `morgue/NAME-YYYYMMDD-HHMMSS.txt` in the data directory (UTC; any character of `NAME` that is not a letter, a digit, `-` or `_` becomes `_`). It is plain text for sharing: the outcome, cause, depth and score, the final screen, the pack, every kill by name (most first), for a win the conducts kept, and the message log. The path is printed once the terminal is back. `-ns` does not stop it -- a dump is a record of the run, like the leaderboard, not a save. A dump never overwrites another, and one that can't be written is skipped without a word.
 
@@ -168,7 +164,7 @@ The positional argument
 One bare argument, meaning one of two things:
 
   * **A save file**, if it is the path of a file as typed, or names one in the data directory -- as is or with `.sav` appended, matched case-insensitively. The run is loaded, and saves back to that same file.
-  * **A player name**, otherwise. A fresh run starts under that name, saved as `<name>.sav` in the data directory. A name holds at most 13 characters, no control characters (an escape, a tab, a newline) and is not a Windows device name (`con`, `prn`, `aux`, `nul`, `com1`-`com9`, `lpt1`-`lpt9`, in any case); anything else is refused with a message and nothing is written. In file names (the save, `recordings/`, `morgue/`) every character that is not a letter, digit, `-` or `_` becomes `_`, so `a b` saves as `a_b.sav` and `../x` cannot leave the data directory.
+  * **A player name**, otherwise. A fresh run starts under that name, saved as `<name>.sav` in the data directory. A name holds at most `NAME_MAX` characters, no control characters (an escape, a tab, a newline) and is not a Windows device name (`con`, `prn`, `aux`, `nul`, `com1`-`com9`, `lpt1`-`lpt9`, in any case); anything else is refused with a message and nothing is written. In file names (the save, `recordings/`, `morgue/`) every character that is not a letter, digit, `-` or `_` becomes `_`, so `a b` saves as `a_b.sav` and `../x` cannot leave the data directory.
 
         cargo run -p nihilurk -- nihilurk          # loads nihilurk.sav from the data directory if it is there
         cargo run -p nihilurk -- ./old.sav         # loads that file, wherever it is
@@ -194,7 +190,7 @@ Environment variables
 
 ### NIHILURK_SPAWN
 
-Comma-separated content names, dropped on free tiles around the player the moment a floor is built. The content author's shortcut: it means you never have to play down to floor 9 to look at a floor-9 monster.
+Comma-separated content names, dropped on free tiles around the player the moment a floor is built. The content author's shortcut: it means you never have to play down to a deep floor to look at a deep monster.
 
     NIHILURK_SPAWN="dragon" cargo run -p nihilurk
     NIHILURK_SPAWN="bow,arrow,ring of protection" cargo run -p nihilurk
@@ -211,7 +207,7 @@ Details:
     |----------|---------------------|--------|
     | `cursed` | `cursed ring mail`  | Adds the `Curse` tag: once worn or wielded it will not come off until a scroll of remove curse. |
     | `megacursed` | `megacursed ring mail` | Adds `Curse` and `MegaCurse`: nothing lifts it or destroys it. |
-    | `+N`/`-N`| `+3 long sword`     | Adds N to the item's flat bonus: a weapon's hit roll, armour's guard, or a launcher's throw (the arrows it looses). On a numeric ring (protection, strength, increase damage, sharpshooting) N is the ring's whole number, so `+3 ring of protection` is a +3 ring. Same code as the dungeon's own enchantment roll (`catalog::apply_bonus`). |
+    | `+N`/`-N`| `+3 long sword`     | Adds N to the item's flat bonus: a weapon's hit roll, armour's guard, or a launcher's throw (the arrows it looses). On a numeric ring (protection, strength, increase damage, sharpshooting, health) N is the ring's whole number, so `+3 ring of protection` is a +3 ring. Same code as the dungeon's own enchantment roll (`catalog::apply_bonus`). |
     | `xN`     | `arrow x13`         | Sets the stack size, clamped to `1..=STACK_LIMIT`. `x0` gives 1, and anything over the limit gives the limit. |
 
     A curse and a minus are independent: `-2 long sword` is not cursed, and `cursed +2 long sword` is. The quality is hidden until worn or identified, as for any gear.
@@ -263,7 +259,7 @@ The file is read from the data directory, or from the path given to `-keymap`. A
 
 ### NIHILURK_READY
 
-Set and not empty, the game writes an OSC string, `ESC ] nihilurk;ready BEL`, each time it blocks waiting for a key: the turn loop, the `O` travel cursor, and the death and victory screens. A script that drives the game through a pty reads it as "the last key has done all it will": the play agent's `serve.sh` sets it and answers a key the moment it sees the signal, instead of waiting for 250 ms without output (`engine::ready`).
+Set and not empty, the game writes an OSC string, `ESC ] nihilurk;ready BEL`, each time it blocks waiting for a key: the turn loop, the `O` travel cursor, and the death and victory screens. A script that drives the game through a pty reads it as "the last key has done all it will": the play agent's `serve.sh` sets it and answers a key the moment it sees the signal, instead of waiting for a quiet spell with no output (`engine::ready`).
 
     NIHILURK_READY=1 cargo run -p nihilurk
 
