@@ -25,28 +25,28 @@ The modules
 
 | `constants::` | Holds | Read when you want to change |
 |---------------|-------|-----------------------------|
-| `combat`      | Excellent-hit odds and dice, the chip-damage floor, the odds a corpse keeps each piece of gear, a shattered cursed suit's splinters | how swingy a fight is |
-| `player`      | Starting HP / armour / power / magic, sight radius | the hero's opening position (new games only) |
-| `lurk`        | Starting HP / magic (`-b lurk`), `GROWTH_CHANCE` and `GROWTH_STEP` for feeding off a kill | how the lurk starts and how fast it grows |
+| `combat`      | Excellent-hit odds and dice, the chip-damage floor, the bell curve's dice (`BELL_CURVE_DICE`), Bide's bonus, a charge's `VULN_DAMAGE_PERCENT`, the odds a corpse keeps each piece of gear, a shattered cursed suit's splinters | how swingy a fight is |
+| `player`      | Starting HP / armour / power / magic, sight radius, the `LOW_HP_WARNING_FRACTION` the "badly wounded" line crosses | the hero's opening position (new games only) |
+| `lurk`        | Starting HP / magic / power / armour (`-b lurk`), its `NUMBER_OF_ATTACKS`, `GROWTH_CHANCE` and `GROWTH_STEP` for feeding off a kill | how the lurk starts and how fast it grows |
 | `progression` | `FINAL_DEPTH`, `DUNGEON_LORD_PATIENCE`, the staircase heal divisor, `DIFFICULTY_TIER_LAST_DEPTH` (the depth bands the crowding budgets step at) | how long a run is and how hard attrition bites |
-| `map`         | `WIDTH`, `HEIGHT`, dark-room chance | the playfield (see the determinism caveat below) |
+| `map`         | `WIDTH`, `HEIGHT`, the dark-room and special-room chances, `SPECIAL_LEVEL_MIN_DEPTH` and each special level's chance | the playfield and how often a floor is unusual (see the determinism caveat below) |
 | `population`  | Monster / trap / item budgets per floor, the placement retry budget (`PLACEMENT_TRIES`), how they scale with the difficulty tier, how many runs of the budgets a battlefield, vault or bee world gets, corridor lurkers, hidden items, the cutoffs the level feeling reads (`FEELING_MONSTERS`, `FEELING_ITEMS`) | how crowded and dangerous a floor is, and how often a level feeling speaks |
-| `potions`     | What a dose is worth: the max-HP a healing / extra healing potion adds, the power gain strength adds and poison takes (with its floor), the share of turns paralysis eats | how much a potion swings a run |
+| `potions`     | What a dose is worth: the max-HP a healing / extra healing potion adds, the power gain strength adds and poison takes (with its floor), the Ma a potion of magic adds, the share of turns paralysis eats, the radius a broken potion splashes over | how much a potion swings a run |
 | `scrolls`     | What one enchantment is worth (and that a minus is mended whole), how long sleep and hold last, how often sleep backfires on the reader | how strong the room-clearing scrolls are |
-| `decks`       | `DECK_SIZE`, `REVERSED_MIN` / `REVERSED_MAX`, `CARD_CHAIN_CAP`, `BALA_POWER`, `BOLE_ARMOR`, `WORLD_TURNS`, `CARD_CASTER_CASTS`, `GOLDEN_WIND_SUMMONS`, `CARD_POINTS` (what each card in a thrown hand pays) | how wild a deck of cards runs |
+| `decks`       | `DECK_SIZE`, `REVERSED_MIN` / `REVERSED_MAX`, `CARD_CHAIN_CAP`, `BALA_POWER`, `BOLE_ARMOR`, `WORLD_TURNS`, `CARD_CASTER_CASTS`, `GOLDEN_WIND_SUMMONS`, `CARD_POINTS` (what each card in a thrown hand pays), `FIVE_FLUSH_PLUS` | how wild a deck of cards runs |
 | `runes`       | `PROTECTION_TURNS`, `RECHARGE_STEP`, `RECHARGE_CAP` | how long a rune of protection holds and how much one of recharging gives |
 | `traps`       | Arrow / dart damage dice, `TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier bonus / strength drain, the bear-trap thrash, the trick-shot burst (`TRICK_SHOT_RADIUS`, `PICKUP_TRICK_SHOT_RADIUS` and the shared dice), `TRAP_BREAK_CHANCE` | how much a trap hurts and how fast it scales |
-| `wands`       | `WAND_CHARGES`, zap damage dice, both blast radii, per-charge dice a thrown wand spends, `DIG_RANGE` (how deep a wand of digging bores) | how good a wand is |
-| `loot`        | Enchantment odds (normal / exceptional / cursed), the bonus ranges, ammo bundle size, the improvised-throw die | how the drop table feels |
-| `items`       | `THROW_RANGE`, `LIGHT_THROW_RANGE`, `LAUNCHER_RANGE`, `STACK_LIMIT`, `PACK_CAPACITY` | reach and pack density |
+| `wands`       | `WAND_CHARGES`, zap damage dice, both blast radii, per-charge dice a thrown wand spends, `DIG_RANGE` (how deep a wand of digging bores), a polymorph's system shock, how long a fire blast's smoke lingers | how good a wand is |
+| `loot`        | Enchantment odds (normal / exceptional / cursed / MEGACURSED), the bonus ranges, a curse merge's odds, ammo bundle size, the improvised-throw die | how the drop table feels |
+| `items`       | `THROW_RANGE`, `LIGHT_THROW_RANGE`, `LAUNCHER_RANGE`, `STACK_LIMIT`, `PACK_CAPACITY`, `ESTOC_NUMBER_OF_ATTACKS` | reach and pack density |
 | `rings`       | `STEALTH_RANGE` (how close a stealthy player is noticed at), `TELEPORT_MAGIC_COST`, and the numeric rings' quality: `PLAIN_BONUS`, `EXCEPTIONAL_BONUS`, `CURSED_BONUS_MIN`, `CURSED_BONUS_MAX`, `MEGACURSED_BONUS_MIN`, `MEGACURSED_BONUS_MAX` | the two rings with a number that isn't on their row, and what a numeric ring rolls |
-| `score`       | `KILL_PER_MAX_HP`, `COMBO_BONUS_PER_KILL`, `COMBO_PRIDE_CHANCE`, `STAIR_PER_TIER`, `SCORE_FLASH_TURNS` | what the run is scored on, and how loudly |
-| `monsters`    | `DEFAULT_SPAWN_WEIGHT` | the baseline rarity a bestiary row gets |
-| `spirits`     | `ALIGNMENT_POLE` (how far alignment drifts before spirits turn hostile for good), `SPAWN_WEIGHT`, `PINK_DEMON_ODDS_PER_PIECE` (each piece of gear the pink demon destroys adds this to the odds they join you), the red demon's `RED_DEMON_GEAR_PRICE` (Max HP) and the gnome's `GNOME_SCROLL_PRICE` / `GNOME_POTION_PRICE` / `GNOME_WAND_PRICE` (Max Ma), the barterer's `BARTER_STOCK_MIN` / `BARTER_STOCK_MAX`, the `ALIGNMENT_STEP` a poof moves alignment by, the `HELPER_GAINED_ALIGNMENT` / `HELPER_BLOWN_UP_ALIGNMENT` a Helper gained or blown up moves it by, and the angel's test of faith (`TEST_OF_FAITH_HP_DIVISOR`, `TEST_OF_FAITH_GEAR_BONUS`, `TEST_OF_FAITH_DUD_BONUS`) | how common spirits are and how fast they turn on you |
-| `helpers`     | `ACCEPT_CHANCE`, `SHAPESHIFT_CHANCE` | how often a thrown treat wins a Helper, how often a dog's or mirror hound's kill changes its shape, once |
-| `spells`      | `SPELLSET_CAP`, the dice behind the spells that roll their own (Thunderbolt, Force Lance, Circle of Death, Frost Nova), the stand-in batteries (`LUX_CHARGES`, `METEOR_STRIKE_CHARGES`), and a staff's `TURBO_MAGIC_COST_MULT` / `TURBO_MAGIC_POWER_MULT` | how much a spell costs and how hard it lands |
-| `travel`      | Step caps on autoexplore / fast-move, the HP divisor below which auto-fight refuses | only if a walk loops, or auto-fight is too brave or too timid |
-| `hud`         | Message-log rows shown at once, the two wrap widths (normal and `--MORE--`), and how much scrollback `LOG_HISTORY_CAP` keeps | the log's footprint on screen |
+| `score`       | `KILL_PER_MAX_HP`, `COMBO_BONUS_PER_KILL`, `COMBO_PRIDE_CHANCE`, `STAIR_PER_TIER`, `SCORE_FLASH_TURNS`, `BOUNTY_SCORE_MULTIPLIER` | what the run is scored on, and how loudly |
+| `monsters`    | `DEFAULT_SPAWN_WEIGHT`, the gear chances a bestiary row's `.equip` rolls, and the dials of a few species' tricks (a medusa's `PETRIFY_TURNS`, the ice monster's paralysis, the rattlesnake's and vampire's drains) | the baseline rarity a row gets, and how hard those few hit |
+| `spirits`     | `ALIGNMENT_POLE` (how far alignment drifts before the spirits turn hostile), `SPAWN_WEIGHT`, `PINK_DEMON_ODDS_PER_PIECE` (each piece of gear the pink demon destroys adds this to the odds they join you), the red demon's `RED_DEMON_GEAR_PRICE` (Max HP) and the gnome's `GNOME_SCROLL_PRICE` / `GNOME_POTION_PRICE` / `GNOME_WAND_PRICE` (Max Ma), the barterer's `BARTER_STOCK_MIN` / `BARTER_STOCK_MAX`, the `ALIGNMENT_STEP` a poof moves alignment by, the `HELPER_GAINED_ALIGNMENT` / `HELPER_BLOWN_UP_ALIGNMENT` a Helper gained or blown up moves it by, and the angel's test of faith (`TEST_OF_FAITH_HP_DIVISOR`, `TEST_OF_FAITH_GEAR_BONUS`, `TEST_OF_FAITH_DUD_BONUS`) | how common spirits are and how fast they turn on you |
+| `helpers`     | `ACCEPT_CHANCE`, `SHAPESHIFT_CHANCE`, `CREATE_ALLY_CHANCE`, `CREATE_HELPER_CHANCE` | how often a thrown treat wins a Helper, how often a dog's or mirror hound's kill changes its shape, once, and how often a conjured monster comes out on your side |
+| `spells`      | `SPELLSET_CAP`, `PROMISE_CAP`, the dice behind the spells that roll their own (Thunderbolt, with its paralysis chance, Force Lance, Circle of Death, Frost Nova), the stand-in batteries (`LUX_CHARGES`, `METEOR_STRIKE_CHARGES`), Meteor Strike's chain, and a staff's `TURBO_MAGIC_COST_MULT` / `TURBO_MAGIC_POWER_MULT` | how much a spell costs and how hard it lands |
+| `travel`      | Step caps on autoexplore / fast-move, nihil's `CHARGE_RANGE`, the HP divisor below which auto-fight refuses | only if a walk loops, a charge reaches too far, or auto-fight is too brave or too timid |
+| `hud`         | Message-log rows shown at once, where the command bar and the log start (`BAR_X`, `LOG_X`), the log's widths with and without the bar, the room the `--MORE--` prompt takes, and how much scrollback `LOG_HISTORY_CAP` keeps | the log's footprint on screen |
 | `abilities`   | The per-turn odds of the passive abilities (aggravate monster, regeneration, teleportitis, polymorphitis) and `MOMENTUM_PER_HIT` | how often a ring does its thing on its own |
 | `conditions`  | `CONFUSION_STUMBLE_CHANCE`, the share of a confused player's steps that go astray | how much confusion costs (paralysis's dial is in `potions`) |
 | `speed`       | `SLOW_RATE`, `NORMAL_RATE`, `QUICK_RATE`, `FAST_RATE` and the `ACTION_COST` they are read against | how often each tempo acts |
@@ -61,7 +61,7 @@ Two caveats worth repeating
 
 **`map::WIDTH` / `map::HEIGHT` pin every seed.** `models/tests/it/determinism.rs` asserts that a given seed produces the same walls it always has. Changing either dimension moves every wall on every seed and that test will fail — correctly. Only change them as a deliberate "all old seeds are void" decision.
 
-**Enchantment odds are read as ranges against a `0..100` roll.** `loot::NORMAL_QUALITY_PCT` and `loot::EXCEPTIONAL_QUALITY_PCT` must sum to 100 or less; the remainder is the cursed share. The prose odds tables in this directory's `content-tables.md` and in `catalog::Quality::roll` do not update themselves.
+**Enchantment odds are read as ranges against a `0..100` roll.** `loot::NORMAL_QUALITY_PCT` and `loot::EXCEPTIONAL_QUALITY_PCT` must sum to 100 or less; the remainder is the cursed share. `catalog::Quality::roll` reads them as those ranges, and `content-tables.md` names the constants rather than their values, so neither needs touching when they change.
 
 
 What is deliberately *not* in `constants.rs`
@@ -70,6 +70,7 @@ What is deliberately *not* in `constants.rs`
 * **Content-table numbers** — a monster's HP, a weapon's die, a potion's colour. Those are data, one row per thing, in `catalog.rs` / `monsters.rs` / `traps.rs`. See `content-tables.md`.
 * **Animation timing** — the millisecond figures in `particles.rs` (bolt speed, blast ripple) and the wave counts in `magicmap.rs`. Presentation feel, wound tightly around the code that reads them. The shake table is the exception, in `constants::shake`.
 * **RNG salts** and the neighbour-offset tables. Structural, not balance.
+* **A few one-off numbers** still sit where they fire: spikemail's prick (`abilities::spike_prick`), the relic's `Value` (`spawn_element_of_yoord`), and the `-anim-rate` clamp (`engine/src/main.rs`).
 
 
 See also
