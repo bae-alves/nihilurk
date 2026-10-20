@@ -228,7 +228,10 @@ fn a_labyrinth_holds_no_traps() {
     for (seed, depth, _) in samples(SpecialLevel::Labyrinth) {
         let mut w = world_at(seed, depth);
         let traps = w.query::<&Trap>().iter(&w).count();
-        assert_eq!(traps, 0, "seed {seed} depth {depth}: a one-tile passage cannot dodge a trap");
+        assert_eq!(
+            traps, 0,
+            "seed {seed} depth {depth}: a one-tile passage cannot dodge a trap"
+        );
     }
 }
 
