@@ -24,7 +24,7 @@ The three nouns, and what each is allowed to be
 A component says *what a thing is*. It never says what happens as a result. `models/src/components.rs` is one file of nouns — every `Component`, `Resource` and `Event` the game is made of, and nothing that reaches into the `World`. What methods it does carry are about the type itself: `Name::article`, `SpeedKind::faster`, `GameLog::add`. Two shapes recur:
 
   * **Markers** carry nothing. `Player`, `Blood`, `Curse`, `Confused`. Their presence *is* the fact; a system asks `world.get::<Blood>(e).is_some()` and that is the whole check.
-  * **Type keys** name which one an item is — `Potion` holds its catalog row, a `&'static PotionDef`. The key is identity for the save file and for identification. What a potion does is the handler its row names, in `items/potions.rs`; what it *is made of* is the rest of the row.
+  * **Type keys** name which one an item is — `Potion` holds its catalog row, a `&'static PotionDef`. The key is identity for the save file, which stores the row's name. What a potion does is the handler its row names, in `items/potions.rs`; what it *is made of* is the rest of the row.
 
 The rule this buys is the one the whole codebase rests on: **a property is a component, never an enum a subsystem has to recognise.** A dragon born fire-immune and a player wearing a ring of fire resistance both carry `FireImmune`, so the wand-of-fire code asks one question and never learns that rings exist. Adding a ring of fire resistance is a table row and no behaviour code at all.
 
@@ -117,7 +117,7 @@ What the world is *not* asked to remember
 
 Two whole categories of state are kept out of the ECS, and both for the same reason: they are cheaper to derive than to store.
 
-**Terrain is a resource, not entities.** `Map` is one `Vec<TileType>` plus a bitset of which tiles are unlit. nihilurk never had one entity per tile, and a floor-sized crop of entities (`WIDTH` by `HEIGHT`) with a `Renderable` each would cost more to iterate every frame than the whole rest of the world put together.
+**Terrain is a resource, not entities.** `Map` is one `Vec<TileType>`, a bitset of which tiles are unlit, the special room each tile belongs to, and which special level the floor is. nihilurk never had one entity per tile, and a floor-sized crop of entities (`WIDTH` by `HEIGHT`) with a `Renderable` each would cost more to iterate every frame than the whole rest of the world put together.
 
 **Nothing cosmetic is saved.** Bloodstains, corpse marks, smoke, live particles, the shake, the scorekeeper's flash and `FxRng` are all rebuilt empty on load. The three map-sized overlays alone would come to 2.2 KB — more than the entire save file they would be joining — and none of it is gameplay. A reloaded floor is the floor you left, scrubbed of the mess you made on it. The map and the message log are out for the same reason; `saveload.rs` lists all four exclusions at the top.
 
