@@ -67,15 +67,11 @@ costume, that is `add-a-body.md` instead.
 Choosing the numbers
 --------------------
 
-Copy the stat band your creature belongs to:
-
-    fodder      hp 1-2    power 4-8     armor 4-8       min_depth 1
-    mid         hp 3-6    power 6-10    armor 6-10      min_depth 5
-    deep        hp 8-12   power 8-12    armor 6-10      min_depth 10
+Copy the numbers of a row at the depth you want it on: the rows with the same `min_depth` are the band your creature has to fit, and `BESTIARY` lists them in one place.
 
 Raise `armor` to make it hard to kill, `power` to make it frightening to stand next to, `hp` only to buy it one more exchange. Why that is so -- and why nothing in the bestiary has thirty hit points -- is `../explanation/combat-and-balance.md`.
 
-`min_depth` in use is 1, 5 and 10. Nothing stops you using 2 or 11.
+Any `min_depth` from 1 to `FINAL_DEPTH` works.
 
 Optional extras, chained on
 ---------------------------
@@ -100,7 +96,7 @@ The first number is how many casts of its dearest spell the creature has the Ma 
 
     MonsterDef::row("dog", ...).grants(DOG_GRANTS),
 
-`DOG_GRANTS` is five grants, one per behaviour (any treat tames it, a charm makes it the Helper, it outranks the ordinary Helper, a kill may reshape it, and its death reveals a faerie shapeshifter with no gore), and all five are identity effects. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels what makes it a dog (bar its shapeshifting), why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog.  A shapeshift keeps whichever of them the old body held (`monsters::reshape`). To build a creature like that, write one effect per behaviour (`add-an-effect.md`, "An effect nothing can cancel"), list their ids in `IDENTITY_EFFECTS`, and grant them from the row. Keep the behaviours separate: one grant per atomic behaviour, so each can be given and tested on its own.
+`DOG_GRANTS` is five grants, one per behaviour (any treat tames it, a charm makes it the Helper, it outranks the ordinary Helper, a kill may reshape it, and its death reveals a faerie shapeshifter with no gore). Four are identity effects; the shapeshifting (`ShapeshiftOnKill`) is magic, and cancellation stops it. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels what makes it a dog (bar its shapeshifting), why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog.  A shapeshift keeps whichever of them the old body held (`monsters::reshape`). To build a creature like that, write one effect per behaviour (`add-an-effect.md`, "An effect nothing can cancel"), list their ids in `IDENTITY_EFFECTS`, and grant them from the row. Keep the behaviours separate: one grant per atomic behaviour, so each can be given and tested on its own.
 
 **Born invisible** -- unseeable without see-invisible (the phantom):
 
@@ -120,9 +116,9 @@ Chains combine in any order:
         .weight(4),
 
 
-> **Do not write `Aggravated` in a row.** It is a fifth `MovementType`,
-> applied at run time by the scroll of aggravate monsters. The four legal
-> values for a row are the ones listed above; what each does is in
+> **Do not write `Aggravated` in a row.** It is a retired `MovementType`
+> kept only so old saves load; aggravation is the `Aggravated` component
+> now. The five legal values for a row are the ones listed above; what each does is in
 > `../reference/content-tables.md`.
 
 > **Only 16 colours survive a save.** The file packs a colour into one
