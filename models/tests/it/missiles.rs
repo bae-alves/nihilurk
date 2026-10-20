@@ -4,9 +4,9 @@
 //! carry `Projectile` — they are spent on what they hit,
 //! and nothing ever catches one out of the air. What separates them is two more
 //! components: a dagger and a spear are `Piercing` and run the whole line, while
-//! an arrow and a quarrel carry `LaunchedBy` and roll `LaunchedDamage` instead
+//! an arrow and a quarrel are `Ammo` and roll their row's `launched_die` instead
 //! of their hand-thrown die for anyone holding the bow or crossbow that answers
-//! to it: 1d4 for an arrow, 1d6 for a quarrel, 1d2 (and venom) for a blowdart.
+//! to it: 1d3 for an arrow, 1d5 for a quarrel, 1d2 (and venom) for a blowdart.
 //!
 //! Ammunition is also the only thing in the game that stacks, so half of this
 //! file is about one pack slot holding thirteen arrows and giving them up one at a
@@ -1025,7 +1025,7 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     w.entity_mut(bow).insert(ThrowBonus(2));
     let spear = stash(&mut w, p, |w| spawn_weapon(w, "spear", NOWHERE));
     let arrow_damage = *w.get::<ThrownDamage>(arrows).unwrap();
-    let arrow_launched_damage = *w.get::<LaunchedDamage>(arrows).unwrap();
+    let arrow_row = w.get::<Ammo>(arrows).unwrap().row;
     let spear_damage = *w.get::<ThrownDamage>(spear).unwrap();
 
     let save = common::SaveFile::new("missiles");
@@ -1043,16 +1043,15 @@ fn a_quiver_and_a_bow_come_back_whole_from_a_save() {
     let packed = loaded.get::<Backpack>(hero).unwrap().items.clone();
     let arrows = *packed
         .iter()
-        .find(|&&e| loaded.get::<Stack>(e).is_some() && loaded.get::<LaunchedBy>(e).is_some())
+        .find(|&&e| loaded.get::<Stack>(e).is_some() && loaded.get::<Ammo>(e).is_some())
         .expect("the quiver survived the save");
     assert_eq!(loaded.get::<Stack>(arrows).unwrap().count, 13);
     assert_eq!(loaded.get::<ThrownDamage>(arrows), Some(&arrow_damage));
-    assert_eq!(
-        loaded.get::<LaunchedDamage>(arrows),
-        Some(&arrow_launched_damage)
-    );
+    assert!(std::ptr::eq(
+        loaded.get::<Ammo>(arrows).unwrap().row,
+        arrow_row
+    ));
     assert!(loaded.get::<Projectile>(arrows).is_some());
-    assert!(loaded.get::<LaunchedBy>(arrows).is_some());
 
     let bow = loaded
         .query_filtered::<Entity, With<Launcher>>()
@@ -1358,4 +1357,80 @@ fn a_monsters_moon_blade_finds_its_own_enemies() {
         .count();
     assert_eq!(strikes, 3, "an ally, an ally, then the player");
     assert_eq!(pack_count(&w, thrower, blade), 1);
+}
+
+#[derive(Component)]
+struct Bled;
+
+fn mark_bled(world: &mut World, victim: Entity) {
+    world.entity_mut(victim).insert(Bled);
+}
+
+static MARKING_DART: AmmoDef = AmmoDef {
+    name: "dart of the test",
+    color: Color::Green,
+    die: 2,
+    launched_die: 2,
+    launched_by: Grant::of::<FireDart>(),
+    on_blood: mark_bled,
+};
+
+#[test]
+fn an_ammo_row_runs_its_on_blood_on_a_victim_it_bled() {
+    let mut w = test_world(13);
+    let p = player(&mut w);
+    let gun = stash(&mut w, p, |w| spawn_launcher(w, "blowgun", NOWHERE));
+    toggle_equipped(&mut w, p, gun);
+    let spot = open_run(&mut w, 1)[0];
+    let bag = tough(&mut w, "bat", spot);
+    let dart = stash(&mut w, p, |w| (&MARKING_DART).spawn(w, NOWHERE));
+
+    throw(&mut w, p, dart, spot);
+
+    assert!(w.get::<Bled>(bag).is_some());
+}
+
+#[test]
+fn every_ammo_and_treat_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(19);
+    let p = player(&mut w);
+    empty_pack(&mut w, p);
+    for &row in AMMO {
+        stash(&mut w, p, |w| row.spawn(w, NOWHERE));
+    }
+    for &row in TREATS {
+        stash(&mut w, p, |w| row.spawn(w, NOWHERE));
+    }
+
+    let save = common::SaveFile::new("missile-rows");
+    save_game(&mut w, save.path()).unwrap();
+    let mut loaded = World::new();
+    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(19)));
+    loaded.insert_resource(RngSeed(19));
+    loaded.init_resource::<GameLog>();
+    loaded.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    load_game(&mut loaded, save.path()).unwrap();
+
+    let hero = player(&mut loaded);
+    let packed = loaded.get::<Backpack>(hero).unwrap().items.clone();
+    for &row in AMMO {
+        assert!(
+            packed.iter().any(|&e| loaded
+                .get::<Ammo>(e)
+                .is_some_and(|a| std::ptr::eq(a.row, row))),
+            "{}",
+            row.name
+        );
+    }
+    for &row in TREATS {
+        assert!(
+            packed.iter().any(|&e| loaded
+                .get::<Treat>(e)
+                .is_some_and(|t| std::ptr::eq(t.row, row))),
+            "{}",
+            row.name
+        );
+    }
 }

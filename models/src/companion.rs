@@ -66,8 +66,17 @@ pub(crate) fn fits(world: &World, thrower: Entity, victim: Entity, treat: Treat)
     world.get::<Player>(thrower).is_some()
         && world.get::<Mob>(victim).is_some()
         && (is_foe(world, victim) || is_charmed(world, victim))
-        && (world.get::<AlwaysTamed>(victim).is_some()
-            || treat.for_item_users == world.get::<ItemUser>(victim).is_some())
+        && (world.get::<AlwaysTamed>(victim).is_some() || (treat.row.takes)(world, victim))
+}
+
+/// Whether `e` has hands: who takes a fancy of peace.
+pub(crate) fn has_hands(world: &World, e: Entity) -> bool {
+    world.get::<ItemUser>(e).is_some()
+}
+
+/// Whether `e` has no hands: who takes a snack.
+pub(crate) fn has_no_hands(world: &World, e: Entity) -> bool {
+    !has_hands(world, e)
 }
 
 /// `victim` eats `item` and becomes the player's Helper. The treat is gone

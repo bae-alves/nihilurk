@@ -56,10 +56,10 @@ pub fn throw_refusal(world: &World, user: Entity, item: Entity) -> Option<String
 /// used (the Element of Yoord) says that. Asked before the use is queued, so
 /// saying so costs no turn.
 ///
-/// Ammunition is whatever answers to a launcher ([`LaunchedBy`]), not whatever
+/// Ammunition is whatever answers to a launcher ([`Ammo`]), not whatever
 /// flies well ([`Projectile`]): a dagger flies well and is still wielded.
 pub fn use_refusal(world: &World, item: Entity) -> Option<String> {
-    let thrown_only = world.get::<Treat>(item).is_some() || world.get::<LaunchedBy>(item).is_some();
+    let thrown_only = world.get::<Treat>(item).is_some() || world.get::<Ammo>(item).is_some();
     if thrown_only {
         return Some(strings::for_throwing(&display_name(world, item)));
     }
@@ -215,14 +215,14 @@ fn thrown_blast(
     row.thrown.radius.map(|r| (landing, r))
 }
 
-/// Whether `item` is ammunition being *loosed* — it carries [`LaunchedBy`] and
+/// Whether `item` is ammunition being *loosed* — it is [`Ammo`] and
 /// `thrower` has the launcher effect it answers to — rather than chucked by
 /// hand. The launcher entity is never consulted, only the effect, so a monster
 /// that picked one up shoots exactly as the player does.
 fn is_fired(world: &World, thrower: Entity, item: Entity) -> bool {
     world
-        .get::<LaunchedBy>(item)
-        .is_some_and(|&LaunchedBy(launcher)| launcher.probe(world, thrower))
+        .get::<Ammo>(item)
+        .is_some_and(|a| a.row.launched_by.probe(world, thrower))
 }
 
 /// A potion, a scroll, a rune, a wand or a ring — the small stuff, which carries
@@ -258,9 +258,9 @@ pub fn throw_reach(world: &World, thrower: Entity, item: Entity) -> i32 {
 /// [`ThrowBonus`] the *thrower* is wearing — a ring of sharpshooting, the plus on
 /// the bow in their hand. Two things bend it:
 ///
-/// * **A launcher switches the die.** A missile carrying [`LaunchedBy`] asks
+/// * **A launcher switches the die.** An [`Ammo`] missile asks
 ///   whether its thrower has the effect it answers to; if so it rolls its
-///   [`LaunchedDamage`] instead of [`ThrownDamage`] — an arrow lobbed by hand
+///   its row's `launched_die` instead of [`ThrownDamage`] — an arrow lobbed by hand
 ///   rolls its `AmmoDef::die`, the same arrow loosed from a bow its
 ///   `AmmoDef::launched_die`. The bow is not consulted — only the effect is, so a
 ///   monster that picked one up shoots just as well as you do.
@@ -276,7 +276,7 @@ fn roll_throw_damage(
 ) -> Option<i32> {
     let mut die = world.get::<ThrownDamage>(item)?.0;
     if is_fired(world, thrower, item) {
-        die = world.get::<LaunchedDamage>(item).map_or(die, |d| d.0);
+        die = world.get::<Ammo>(item).map_or(die, |a| a.row.launched_die);
     }
     if die < 1 {
         return Some(0);
@@ -677,7 +677,7 @@ fn put_back(world: &mut World, carrier: Entity, item: Entity, slot_idx: Option<u
 /// whole job — it happens whatever the item was, whether or not the shot hit
 /// anyone, and whether or not it was the shot the thrower had in mind.
 fn resolve_throw(world: &mut World, throw: WantsToThrow, from: Option<Position>) {
-    let by_hand = world.get::<LaunchedBy>(throw.item).is_none();
+    let by_hand = world.get::<Ammo>(throw.item).is_none();
     let thrower_is_player = world.get::<Player>(throw.thrower).is_some();
     crate::conduct::player_broke(world, throw.thrower, crate::conduct::Conduct::Ranged);
 
@@ -1034,7 +1034,7 @@ fn confetti_burst(fx: &mut Particles, center: Position) {
 }
 
 /// A launcher-wielding monster's shot: `shooter` looses at `target` exactly as
-/// a fired missile always resolves — the ammunition's [`LaunchedDamage`] die,
+/// a fired missile always resolves — the ammunition's `launched_die`,
 /// the roll ignoring armour outright, plus whatever [`ThrowBonus`] the
 /// launcher's own enchantment lends. A monster keeps no quiver to draw from,
 /// so unlike the player's own shot this one never runs dry: [`crate::ai`](mod@crate::ai)
@@ -1053,7 +1053,7 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
     };
     let (die, noun) = (
         ammo.launched_die,
-        crate::catalog::ItemDef::display_name(ammo),
+        crate::catalog::ItemDef::display_name(&ammo),
     );
     let fires_quarrel = world.get::<FireQuarrel>(shooter).is_some();
     let bonus = equipped_total::<ThrowBonus>(world, shooter);
@@ -1105,18 +1105,24 @@ pub(crate) fn monster_ranged_attack(world: &mut World, shooter: Entity, target: 
             &target_label,
             damage,
         ));
-    if ammo.venom {
-        crate::abilities::venomous_bite(world, shooter, Some(target));
+    (ammo.on_blood)(world, target);
+}
+
+/// An [`Ammo`] missile that drew blood runs its row's `on_blood` on the
+/// victim, once the hit line has been logged. A dead victim takes nothing.
+fn envenom(world: &mut World, item: Entity, victim: Entity, bled: bool) {
+    let alive = world.get::<Fighter>(victim).is_some_and(|f| f.hp > 0);
+    let Some(on_blood) = world.get::<Ammo>(item).map(|a| a.row.on_blood) else {
+        return;
+    };
+    if bled && alive {
+        on_blood(world, victim);
     }
 }
 
-/// An [`Envenomed`] missile that drew blood saps its victim's power, once the
-/// hit line has been logged. A dead victim takes nothing.
-fn envenom(world: &mut World, item: Entity, victim: Entity, bled: bool) {
-    let alive = world.get::<Fighter>(victim).is_some_and(|f| f.hp > 0);
-    if bled && alive && world.get::<Envenomed>(item).is_some() {
-        crate::abilities::venomous_bite(world, item, Some(victim));
-    }
+/// The blowdart's venom: the rattlesnake's bite, carried by the dart.
+pub(crate) fn sap(world: &mut World, victim: Entity) {
+    crate::abilities::venomous_bite(world, victim, Some(victim));
 }
 
 /// One victim in a thrown missile's path: roll damage, apply it, spark the hit,

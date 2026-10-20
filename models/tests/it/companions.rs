@@ -76,8 +76,13 @@ fn east_of_player(w: &mut World, dx: u16) -> Position {
 /// Put a treat in the player's pack and throw it at `target`, the way the
 /// engine's Throw action does.
 fn throw_treat(w: &mut World, name: &str, target: Position) -> Entity {
-    let p = player(w);
     let treat = spawn_named(w, name, Position { x: 0, y: 0 }).expect("a treat row");
+    throw_this_treat(w, treat, target)
+}
+
+/// [`throw_treat`], for a treat already spawned.
+fn throw_this_treat(w: &mut World, treat: Entity, target: Position) -> Entity {
+    let p = player(w);
     w.entity_mut(treat).remove::<Position>();
     let missile = draw_one(w, p, treat, None);
     w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
@@ -859,4 +864,32 @@ fn a_cancelled_mirror_hound_stays_a_hound() {
     kill(&mut w, hound, victim);
 
     assert!(w.get_entity(hound).is_some(), "no change of shape");
+}
+
+#[derive(Component)]
+struct Picky;
+
+static PICKY_TREAT: TreatDef = TreatDef {
+    name: "treat of the test",
+    color: Color::Cyan,
+    takes: |w, e| w.get::<Picky>(e).is_some(),
+};
+
+#[test]
+fn a_treat_row_decides_who_takes_it() {
+    for picky in [true, false] {
+        let mut w = test_world(3);
+        let spot = east_of_player(&mut w, 1);
+        let rat = monster::plain_monster(&mut w, "rat", spot);
+        charm(&mut w, rat);
+        if picky {
+            w.entity_mut(rat).insert(Picky);
+        }
+        let treat = (&PICKY_TREAT).spawn(&mut w, Position { x: 0, y: 0 });
+
+        let thrown = throw_this_treat(&mut w, treat, spot);
+
+        assert_eq!(is_helper(&w, rat), picky);
+        assert_eq!(w.get_entity(thrown).is_none(), picky);
+    }
 }

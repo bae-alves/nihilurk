@@ -159,7 +159,7 @@ Components — items on the floor and in the pack
 | `Consume` | marker — used up on use | potions, scrolls | yes |
 | `Battery` | `charges: i8` | wands | yes |
 | `Stack`   | `count: u8` — how many share one slot | ammunition, treats | yes |
-| `Treat`   | `for_item_users: bool` — thrown as an offer of loyalty, never used | snack, fancy of peace | rebuilt from the row on load |
+| `Treat`   | `row: &'static TreatDef` — thrown as an offer of loyalty, never used | snack, fancy of peace | rebuilt from the row on load |
 | `Ranged`  | `range: i32` — feeds the zap reticle | wands | yes |
 | `Amulet`  | marker — the Element of Yoord; carrying it inverts the staircases | the relic | yes |
 
@@ -221,12 +221,11 @@ A missile and a launcher never name each other; they meet at an effect (`FireArr
 | Component      | Data                     | Meaning                          | Saved? |
 |----------------|--------------------------|----------------------------------|--------|
 | `ThrownDamage` | `i32`                    | die rolled on impact; no component ⇒ bounces off harmlessly | catalog |
-| `LaunchedDamage` | `i32`                  | die rolled instead, once `LaunchedBy` fires | catalog |
 | `Projectile`   | marker                   | spent on what it hits, never caught | catalog |
 | `Piercing`     | marker                   | runs the whole aimed line, hitting everyone in it | catalog |
 | `Returns`      | marker                   | thrown, flies home after the strike: into the pack row it left (`WantsToThrow.slot_idx`), and back in hand if it was wielded; `f`, `v` and `Tab` throw a wielded one | catalog |
 | `ChainHits`    | `u8`                     | thrown by the player, strikes this many creatures in all, each for full damage: the first in its way, then the nearest other living enemy each time (the thrower's sight for the player, the blade's own for a monster), before flying home | catalog |
-| `LaunchedBy`   | `Grant`                  | the effect a launcher must grant to switch this missile to its `LaunchedDamage` die | catalog |
+| `Ammo`         | `row: &'static AmmoDef`  | ammunition: its row names the effect a launcher must grant to switch it to `launched_die`, and what a hit that draws blood does | catalog |
 | `Launcher`     | marker                   | a bow / crossbow / blowgun — no attack die, enchant lands on `ThrowBonus` | catalog |
 
 "catalog" = re-attached by row id on load (`restore_from_catalog`), never written to the save.

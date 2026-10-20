@@ -12,7 +12,7 @@
 //!
 //! Bows are the newest case of it. A bow is not a weapon with a special "fires
 //! arrows" mode; it is an item that [`Grants`] [`FireArrow`], and an arrow is an
-//! item that says it answers to [`FireArrow`] ([`LaunchedBy`]). Neither knows the
+//! item that says it answers to [`FireArrow`] ([`AmmoDef::launched_by`]). Neither knows the
 //! other exists, and a sling is one row in each table away.
 //!
 //! Rings are the clearest case of the design. A ring of protection is not a
@@ -1062,15 +1062,15 @@ pub struct AmmoDef {
     pub color: Color,
     /// The die one of these rolls, lobbed by hand.
     pub die: i32,
-    /// Whether a hit saps the victim's power ([`Envenomed`]).
-    pub venom: bool,
     /// The die one of these rolls loosed from its launcher instead. A quarrel's
     /// is the full step up a crossbow earns; an arrow's is short of that — the
     /// bow is the best thing in the dungeon drawn, and this keeps it from also
     /// being the hardest-hitting.
     pub launched_die: i32,
-    /// The effect that turns a lob into a shot (see [`LaunchedBy`]).
+    /// The effect that turns a lob into a shot.
     pub launched_by: Grant,
+    /// What a hit that draws blood does to the victim, after the hit line.
+    pub on_blood: fn(&mut World, Entity),
 }
 
 impl AmmoDef {
@@ -1081,13 +1081,13 @@ impl AmmoDef {
     }
 }
 
-impl ItemDef for AmmoDef {
+impl ItemDef for &'static AmmoDef {
     fn name(&self) -> &'static str {
         self.name
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
-        let e = world
+        world
             .spawn((
                 Name {
                     what: strings::content_name(self.name).to_string(),
@@ -1099,20 +1099,15 @@ impl ItemDef for AmmoDef {
                 pos,
                 Item,
                 ThrownDamage(self.die),
-                LaunchedDamage(self.launched_die),
                 Projectile,
-                LaunchedBy(self.launched_by),
+                Ammo { row: self },
                 Stack { count: 1 },
             ))
-            .id();
-        if self.venom {
-            world.entity_mut(e).insert(Envenomed);
-        }
-        e
+            .id()
     }
 
     fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng, pos: Position) -> Entity {
-        let bundle = Self::roll_bundle(rng);
+        let bundle = AmmoDef::roll_bundle(rng);
         let e = self.spawn(world, pos);
         if let Some(mut stack) = world.get_mut::<Stack>(e) {
             stack.count = bundle;
@@ -1121,21 +1116,50 @@ impl ItemDef for AmmoDef {
     }
 }
 
+/// The arrow a bow looses.
+pub static ARROW: AmmoDef = AmmoDef {
+    name: "arrow",
+    color: Color::DarkYellow,
+    die: IMPROVISED_THROW_DIE,
+    launched_die: 3,
+    launched_by: Grant::of::<FireArrow>(),
+    on_blood: |_, _| {},
+};
+
+/// The quarrel a crossbow looses.
+pub static QUARREL: AmmoDef = AmmoDef {
+    name: "quarrel",
+    color: Color::Grey,
+    die: IMPROVISED_THROW_DIE,
+    launched_die: 5,
+    launched_by: Grant::of::<FireQuarrel>(),
+    on_blood: |_, _| {},
+};
+
+/// The blowdart a blowgun looses. It saps a victim it bleeds.
+pub static BLOWDART: AmmoDef = AmmoDef {
+    name: "blowdart",
+    color: Color::Green,
+    die: IMPROVISED_THROW_DIE,
+    launched_die: 2,
+    launched_by: Grant::of::<FireDart>(),
+    on_blood: throwing::sap,
+};
+
 /// Every kind of ammunition in the game, one row each.
-#[rustfmt::skip]
-pub const AMMO: &[AmmoDef] = &[
-    AmmoDef { name: "arrow",    color: Color::DarkYellow, die: IMPROVISED_THROW_DIE, venom: false, launched_die: 3, launched_by: Grant::of::<FireArrow>()   },
-    AmmoDef { name: "quarrel",  color: Color::Grey,       die: IMPROVISED_THROW_DIE, venom: false, launched_die: 5, launched_by: Grant::of::<FireQuarrel>() },
-    AmmoDef { name: "blowdart", color: Color::Green,      die: IMPROVISED_THROW_DIE, venom: true,  launched_die: 2, launched_by: Grant::of::<FireDart>()    },
-];
+///
+/// To add one: write a static row, naming a fn in `crate::items::throwing`
+/// for `on_blood` if a hit does more than damage, and list it here.
+pub static AMMO: &[&AmmoDef] = &[&ARROW, &QUARREL, &BLOWDART];
 
 /// The row a monster's shot is loosed from: the ammunition answering to the
 /// effect its launcher lends, so a monster's shot and the player's agree on
-/// the same dial. Monsters keep no quiver to check `LaunchedBy` against, so
+/// the same dial. Monsters keep no quiver to check an `Ammo` row against, so
 /// `crate::items::monster_ranged_attack` picks the row by effect instead.
 /// `None` for a shooter with no launcher effect at all.
 pub fn ammo_for(world: &World, shooter: Entity) -> Option<&'static AmmoDef> {
     AMMO.iter()
+        .copied()
         .find(|def| def.launched_by.probe(world, shooter))
 }
 
@@ -1793,12 +1817,11 @@ pub struct TreatDef {
     pub name: &'static str,
     /// The colour it draws in.
     pub color: Color,
-    /// Whether this one is meant for a creature with hands
-    /// ([`crate::effects::ItemUser`]).
-    pub for_item_users: bool,
+    /// Whether a creature takes this one when it is offered.
+    pub takes: fn(&World, Entity) -> bool,
 }
 
-impl ItemDef for TreatDef {
+impl ItemDef for &'static TreatDef {
     fn name(&self) -> &'static str {
         self.name
     }
@@ -1815,9 +1838,7 @@ impl ItemDef for TreatDef {
                 },
                 pos,
                 Item,
-                Treat {
-                    for_item_users: self.for_item_users,
-                },
+                Treat { row: self },
                 Stack { count: 1 },
             ))
             .id()
@@ -1826,11 +1847,24 @@ impl ItemDef for TreatDef {
 
 /// The treats. They share the coins' slice of the drop table: Rogue's food
 /// slot, which coins stand in for.
-#[rustfmt::skip]
-pub const TREATS: &[TreatDef] = &[
-    TreatDef { name: "snack",          color: Color::DarkYellow, for_item_users: false },
-    TreatDef { name: "fancy of peace", color: Color::Cyan,       for_item_users: true  },
-];
+///
+/// To add one: write a static row, naming a fn in `crate::companion` that
+/// says who takes it, and list it here.
+pub static TREATS: &[&TreatDef] = &[&SNACK, &FANCY_OF_PEACE];
+
+/// For a creature without hands.
+pub static SNACK: TreatDef = TreatDef {
+    name: "snack",
+    color: Color::DarkYellow,
+    takes: crate::companion::has_no_hands,
+};
+
+/// For a creature with hands.
+pub static FANCY_OF_PEACE: TreatDef = TreatDef {
+    name: "fancy of peace",
+    color: Color::Cyan,
+    takes: crate::companion::has_hands,
+};
 
 /// The pool a floor at the end of a difficulty tier draws one extra find from,
 /// over and above its budgeted loot: the nine things that leave the hero
@@ -1990,24 +2024,14 @@ pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &s
             entity.insert(on_doff);
         }
     }
-    if let Some(def) = AMMO.iter().find(|d| d.name == id) {
-        entity.insert((
-            ThrownDamage(def.die),
-            LaunchedDamage(def.launched_die),
-            Projectile,
-            LaunchedBy(def.launched_by),
-        ));
-        if def.venom {
-            entity.insert(Envenomed);
-        }
+    if let Some(def) = AMMO.iter().copied().find(|d| d.name == id) {
+        entity.insert((ThrownDamage(def.die), Projectile, Ammo { row: def }));
     }
     if let Some(def) = LAUNCHERS.iter().find(|d| d.name == id) {
         entity.insert((Launcher, Grants(def.grants), MeleeCap(def.melee_cap)));
     }
-    if let Some(def) = TREATS.iter().find(|d| d.name == id) {
-        entity.insert(Treat {
-            for_item_users: def.for_item_users,
-        });
+    if let Some(def) = TREATS.iter().copied().find(|d| d.name == id) {
+        entity.insert(Treat { row: def });
     }
 }
 

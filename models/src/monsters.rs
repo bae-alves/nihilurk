@@ -995,7 +995,7 @@ fn roll_gear(
                 "arrow"
             };
             let ammo = with_ammo
-                .then(|| AMMO.iter().find(|a| a.name == ammo_name))
+                .then(|| AMMO.iter().copied().find(|a| a.name == ammo_name))
                 .flatten()
                 .map(|a| a.spawn_as_loot(world, rng, pos));
             (launcher, ammo)

@@ -350,8 +350,9 @@ pub struct Helper;
 /// a fancy of peace for one with them. See [`crate::companion`].
 #[derive(Component, Clone, Copy)]
 pub struct Treat {
-    /// Whether this is meant for an [`crate::effects::ItemUser`].
-    pub for_item_users: bool,
+    /// Which treat this is, and who takes it. Identity for saves by its name —
+    /// see [`crate::catalog::TREATS`].
+    pub row: &'static crate::catalog::TreatDef,
 }
 
 // ===========================================================================
@@ -1083,28 +1084,17 @@ pub struct Returns;
 #[derive(Component, Clone, Copy)]
 pub struct ChainHits(pub u8);
 
-/// The effect that turns a lobbed missile into a loosed one. An arrow answers
-/// to [`crate::effects::FireArrow`], a quarrel to
-/// [`crate::effects::FireQuarrel`], a blowdart to [`crate::effects::FireDart`];
-/// the bow, crossbow and blowgun are simply things that
-/// grant those. Neither missile knows a launcher exists, and no launcher knows
-/// what ammunition is — they meet at the effect, like everything else here.
-/// What the missile rolls once loosed is [`LaunchedDamage`], not this.
+/// Ammunition: an arrow, a quarrel, a blowdart. Its row says which launcher
+/// effect looses it ([`crate::catalog::AmmoDef::launched_by`]), what it rolls
+/// then, and what it does to a victim it draws blood from. Neither missile
+/// knows a launcher exists, and no launcher knows what ammunition is — they
+/// meet at the effect, like everything else here. Identity for saves by its
+/// name — see [`crate::catalog::AMMO`].
 #[derive(Component, Clone, Copy)]
-pub struct LaunchedBy(pub crate::effects::Grant);
-
-/// What this item rolls once [`LaunchedBy`] says it has been loosed rather
-/// than lobbed, in place of [`ThrownDamage`]. Ammunition lobbed by hand is a
-/// poor thing ([`IMPROVISED_THROW_DIE`](crate::constants::loot::IMPROVISED_THROW_DIE));
-/// this is what the launcher earns, one dial per row.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LaunchedDamage(pub i32);
-
-/// Whatever this missile wounds is poisoned: it saps the victim's power the
-/// way a rattlesnake's bite does (`crate::abilities::venomous_bite`), on
-/// every hit that draws blood. The blowdart carries it.
-#[derive(Component, Clone, Copy)]
-pub struct Envenomed;
+pub struct Ammo {
+    /// Which ammunition this is.
+    pub row: &'static crate::catalog::AmmoDef,
+}
 
 /// A bow or a crossbow: gear that is worth nothing swung and everything drawn.
 /// It contributes no attack die, so its enchantment has no melee roll to land

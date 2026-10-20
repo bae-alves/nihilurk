@@ -301,7 +301,7 @@ pub struct AggravatesMonsters;
 /// This creature can loose an arrow properly rather than just lobbing it — a
 /// drawn bow doubles the die of every arrow it throws. The bow lends it; nothing
 /// about the arrow knows a bow exists, only which effect it answers to (see
-/// [`crate::components::LaunchedBy`]).
+/// [`crate::catalog::AmmoDef::launched_by`]).
 #[derive(Component, Default, Clone, Copy)]
 pub struct FireArrow;
 

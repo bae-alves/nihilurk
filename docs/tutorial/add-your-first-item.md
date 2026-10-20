@@ -198,9 +198,13 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 
 `FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. `RingEffect::FireResistance` is a variant you append to the enum. It is just the key the row is spawned by -- an identity, not behaviour.
 
-**A treat.** `TREATS`. A treat is thrown at a creature as an offer of loyalty; `for_item_users` says whether it is meant for a creature with hands.
+**A treat.** `TREATS`. A treat is thrown at a creature as an offer of loyalty; `takes` names the fn that says which creatures take it (`companion::has_no_hands` for a snack). Write the row as a static and list it in `TREATS`:
 
-    TreatDef { name: "bone", color: Color::Grey, for_item_users: false },
+    pub static BONE: TreatDef = TreatDef {
+        name: "bone",
+        color: Color::Grey,
+        takes: crate::companion::has_no_hands,
+    };
 
 **Ammunition and a launcher** are one job in two rows, and neither names the other. They meet at an effect:
 
@@ -208,9 +212,15 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
     #[derive(Component, Default, Clone, Copy)]
     pub struct FireStone;
 
-    // in AMMO
-    AmmoDef { name: "sling stone", color: Color::Grey, die: 3, venom: false, launched_die: 6,
-              launched_by: Grant::of::<FireStone>() },
+    // a static listed in AMMO
+    pub static SLING_STONE: AmmoDef = AmmoDef {
+        name: "sling stone",
+        color: Color::Grey,
+        die: 3,
+        launched_die: 6,
+        launched_by: Grant::of::<FireStone>(),
+        on_blood: |_, _| {},
+    };
 
     // in LAUNCHERS
     LauncherDef { name: "sling", color: Color::DarkYellow,

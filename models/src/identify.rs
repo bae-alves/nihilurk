@@ -10,8 +10,8 @@ use bevy_ecs::prelude::*;
 
 use crate::combat::mean_blow;
 use crate::components::{
-    Curse, Fighter, Item, KnownQuality, LaunchedDamage, MegaCurse, Mob, Name, Player, Reach, Rune,
-    Speed, SpeedKind, Stack, ThrownDamage, Trap, Vorpal,
+    Ammo, Curse, Fighter, Item, KnownQuality, MegaCurse, Mob, Name, Player, Reach, Rune, Speed,
+    SpeedKind, Stack, ThrownDamage, Trap, Vorpal,
 };
 use crate::effects::{ArmorBonus, ArmorDie, MaxHpBonus, PowerBonus, PowerDie, ThrowBonus};
 
@@ -92,8 +92,8 @@ pub fn item_info(world: &World, item: Entity) -> Vec<String> {
     if let Some(d) = world.get::<ThrownDamage>(item) {
         lines.push(strings::info_thrown(d.0));
     }
-    if let Some(d) = world.get::<LaunchedDamage>(item) {
-        lines.push(strings::info_launched(d.0));
+    if let Some(a) = world.get::<Ammo>(item) {
+        lines.push(strings::info_launched(a.row.launched_die));
     }
     if let Some(r) = world.get::<Reach>(item) {
         lines.push(strings::info_reach(r.0));

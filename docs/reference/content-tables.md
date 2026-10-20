@@ -253,11 +253,11 @@ Every throw ignores the target's armour die, but the armour *plus* is always sub
 | `name`         | `&'static str` |                                         |
 | `color`        | `Color`        |                                         |
 | `die`          | `i32`          | Rolled when hurled by hand.             |
-| `venom`        | `bool`         | A hit that draws blood saps the victim's power (`Envenomed`). The blowdart. |
 | `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`: an arrow 1d3, a quarrel 1d5, a blowdart 1d2. |
 | `launched_by`  | `Grant`        | The effect that switches to `launched_die`. |
+| `on_blood`     | `fn(&mut World, Entity)` | Runs on a victim a hit draws blood from. The blowdart's saps its power (`throwing::sap`); the others do nothing. |
 
-Draws `)`. Attaches `Item`, `ThrownDamage`, `LaunchedDamage`, `Projectile`, `LaunchedBy`, `Stack { count: 1 }`, and `Envenomed` when `venom` is set. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
+Draws `)`. Rows are statics (`ARROW`, `QUARREL`, `BLOWDART`) listed in `AMMO`. Attaches `Item`, `ThrownDamage`, `Projectile`, `Ammo { row }` and `Stack { count: 1 }`. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
 
 Stacks to `STACK_LIMIT` per pack slot. A floor drop arrives as a bundle of `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX` (`constants::loot`) — never a lone arrow, because finding one arrow is not finding ammunition.
 
@@ -370,9 +370,9 @@ A treat is only ever thrown. It is an offer of loyalty: see "Helpers" below.
 |------------------|----------------|-----------------------------------------|
 | `name`           | `&'static str` |                                         |
 | `color`          | `Color`        |                                         |
-| `for_item_users` | `bool`         | Whether it is meant for a creature with hands (`ItemUser`). |
+| `takes`          | `fn(&World, Entity) -> bool` | Whether a creature takes it: `companion::has_hands` or `companion::has_no_hands`. |
 
-Draws `%`. Attaches `Item`, `Treat` and `Stack`: treats stack like ammo, and `split_one` throws one at a time. `restore_from_catalog` puts `Treat` back on load.
+Draws `%`. Rows are statics (`SNACK`, `FANCY_OF_PEACE`) listed in `TREATS`. Attaches `Item`, `Treat { row }` and `Stack`: treats stack like ammo, and `split_one` throws one at a time. `restore_from_catalog` puts `Treat` back on load.
 
 | Treat | Colour | For |
 |---|---|---|
@@ -381,7 +381,7 @@ Draws `%`. Attaches `Item`, `Treat` and `Stack`: treats stack like ammo, and `sp
 
 Treats share the coins' old slice of the drop table (Rogue's food slot). The coin guaranteed to every floor, and the coins in a hoard, are still coins.
 
-**Use** on a treat, or on ammunition (anything with `LaunchedBy`), logs that it is for throwing and costs no turn (`items::use_refusal`).
+**Use** on a treat, or on ammunition (anything with `Ammo`), logs that it is for throwing and costs no turn (`items::use_refusal`).
 
 **Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one *ordinary* Helper at a time: recruiting a second explodes the first, cosmetically. A creature with `PriorityHelper` (the dog) is never that first one and any number can stand beside you; recruiting one explodes the ordinary Helper. `AlwaysTamed` makes every treat take, `AlwaysHelper` makes a charm or a conjuring the Helper outright, and `ShapeshiftOnKill` rolls `constants::helpers::SHAPESHIFT_CHANCE` on each melee kill to turn the dog into another monster (`monsters::shapeshift`, which keeps whichever of the five grants it held, and its side). `FaerieOnDeath` is the reveal: when the dog dies it is revealed as a faerie shapeshifter and is gone, the way a spirit poofs: no corpse, no gore, no score, no blood even from the wounds before (`combat::reveal_faerie`). The faerie has no body: it is a log line only, in pink (`LogCategory::Faerie`), "It was never a dog, but a faerie shapeshifter!", and it stands in for the kill line. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels what makes it a dog, why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog. Each is its own grant. All but `ShapeshiftOnKill` are identity effects that no cancellation strips; the dog row is just all five (`monsters::DOG_GRANTS`). The mirror hound (`monsters::MIRROR_HOUND_GRANTS`) swaps `ShapeshiftOnKill` for `MirrorOnKill`: each melee kill rolls `SHAPESHIFT_CHANCE` (25%) to turn it into exactly the species it killed (`monsters::mirror`), keeping its side and its other grants. Either shapeshift happens once: the changed creature has lost `ShapeshiftOnKill` or `MirrorOnKill`. Cancel either first and it never changes shape. A Helper:
 

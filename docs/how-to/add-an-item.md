@@ -82,10 +82,18 @@ Coins are the pickup category: never carried, spent where they lie. A row is `na
 
 ### Ammunition
 
-    AmmoDef { name: "bolt", color: Color::Grey, die: IMPROVISED_THROW_DIE, venom: false,
-              launched_die: 5, launched_by: Grant::of::<FireQuarrel>() },
+    pub static BOLT: AmmoDef = AmmoDef {
+        name: "bolt",
+        color: Color::Grey,
+        die: IMPROVISED_THROW_DIE,
+        launched_die: 5,
+        launched_by: Grant::of::<FireQuarrel>(),
+        on_blood: |_, _| {},
+    };
 
-`die` is what one rolls hurled by hand (ammunition is no better thrown than a mace is: `IMPROVISED_THROW_DIE`); a wielder carrying the `launched_by` effect rolls `launched_die` instead. `venom: true` saps the victim's power on every hit that draws blood, as the blowdart does. Stacks up to `constants::items::STACK_LIMIT` per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
+List it in `AMMO`.
+
+`die` is what one rolls hurled by hand (ammunition is no better thrown than a mace is: `IMPROVISED_THROW_DIE`); a wielder carrying the `launched_by` effect rolls `launched_die` instead. `on_blood` runs on a victim each hit draws blood from: the blowdart names `throwing::sap`, which saps the victim's power. Write a fn in `items/throwing.rs` for a new trick. Stacks up to `constants::items::STACK_LIMIT` per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
 
 If your ammunition answers to a launcher that does not exist yet, you need a new effect for the pair to meet at -- see `add-an-effect.md`.
 
@@ -102,9 +110,13 @@ Neither half knows the other exists. That is why a sling is one row here and one
 
 ### Treat
 
-    TreatDef { name: "bone", color: Color::White, for_item_users: false },
+    pub static BONE: TreatDef = TreatDef {
+        name: "bone",
+        color: Color::White,
+        takes: crate::companion::has_no_hands,
+    };
 
-A treat is thrown at a monster as an offer of loyalty and is never used. `for_item_users` says which monsters it is for: those with `ItemUser` (`true`) or those without (`false`). Stacks like ammo. Draws as `%`. What accepting one means is `models/src/companion.rs`.
+List it in `TREATS`. A treat is thrown at a monster as an offer of loyalty and is never used. `takes` says which monsters it is for: `companion::has_hands` (those with `ItemUser`), `companion::has_no_hands`, or a fn of your own in `companion.rs`. Stacks like ammo. Draws as `%`. What accepting one means is `models/src/companion.rs`.
 
 
 Rings
