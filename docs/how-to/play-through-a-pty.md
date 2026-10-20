@@ -27,7 +27,7 @@ Each argument is one key, typed as it stands. `printf %b` runs on it, so `'\r'`,
     @SECS   wait that long before the next key
     #TEXT   print a note with the screens; sends nothing
 
-The screen prints once more when the keys run out. A key waits `-d` seconds (0.4 by default) before the next one goes in. The other options are `-s SEED`, `-S LIST` (that is `NIHILURK_SPAWN`), `-a "FLAGS"` for the game (`-a "-b lurk"`), `-w SECS` for the first frame, `-z RxC` for the terminal size (25x80 by default, the smallest the game draws cleanly), and `-k FILE` to keep the raw bytes.
+The screen prints once more when the keys run out. A key waits `-d` seconds (0.4 by default) before the next one goes in. The other options are `-s SEED`, `-S LIST` (that is `NIHILURK_SPAWN`), `-L LEVEL` (that is `NIHILURK_LEVEL`), `-a "FLAGS"` for the game (`-a "-b lurk"`), `-w SECS` for the first frame, `-z RxC` for the terminal size (25x80 by default, the smallest the game draws cleanly), `-k FILE` to keep the raw bytes, and `-c CMD` to run something else in the pty, which is how the script tests itself.
 
 
 A walk-through: read a rune next to an aquator
@@ -61,7 +61,7 @@ What wastes a run
 * **`--MORE--` eats keys.** Send a Space after anything that logs several messages, and wait (`@2` to `@4`) after anything animated. The log paints letter by letter, so an early screen shows half a sentence. Read the effect off HP, the badge row, the pack, the map and `%`, and use the log as a hint.
 * **`o` explores and picks things up, and any key pressed during it stops it.** Put `@2` after it. It refuses while a hostile is in view.
 * **You cannot pass a turn.** To give monsters time, walk away from them.
-* **The first step can kill.** A dragon one-shots nihil, and a lurk has 6 HP. An orc takes most of nihil's 12 HP. To test an effect on a monster, spawn an aquator: awake, hostile, 9 HP, weak hits. Use a troll or a quagga when the test needs more. A yeti is immune to cold, and a red demon and a gnome are peaceful, so a spell that needs a hostile target ignores them.
+* **The first step can kill.** A dragon one-shots nihil, and a lurk starts with fewer HP still (`lurk::START_HP` against `player::START_HP`). An orc takes most of nihil's. To test an effect on a monster, spawn an aquator: awake, hostile, 9 HP, weak hits. Use a troll or a quagga when the test needs more. A yeti is immune to cold, and a red demon and a gnome are peaceful, so a spell that needs a hostile target ignores them.
 * **Aiming:** `z`, the wand's letter, direction keys to move the cursor, `'\r'` to fire, `x` to cancel.
 
 
