@@ -13,8 +13,8 @@ What 1.0 means is in `gdd.md`. Anything below waits until it ships. Found someth
 
 ## Design
 
-- **Data-driven stops at the verb** (pinned by bae, 2026-10-08, "must be solved, not now"). A new potion, scroll, wand, rune or trap costs a variant, a row and an exhaustive `match` arm. A handler on the row saves the arm and loses the compiler's missing-arm error, about 60 arms to rewrite. Questions: get both (rows carry the fn, and a test checks every variant has one row), compose bespoke effects from smaller verbs, drop the variant (the save stores `Potion { effect }`). `scs.md` section 3, "Weak".
-- **Other `scs.md` weak and ugly points.** Assumptions checked late; no conflict detection between systems; the key still touches the world when a throw splits a stack; the planner and the applier describe one decision twice; spawn and despawn authority is spread out; prose other than the two counts is unchecked.
+- **Data-driven stops at the spell.** Potions, scrolls, wands, runes and traps now name their handler on the row, with no effect enum, and the save stores the row's name (`.claude/plans/post-1.0-design.md`, package 4). Spells, coins and cards still cost a variant, a row and an exhaustive `match` arm. Spells would take the same route and cost more: `SpellEffect` is named across `agents.rs`, `monsters.rs` and `body.rs` as well as `spells.rs`. Rings keep `RingEffect` as identity only; nothing matches on it for behaviour. `scs.md` section 3, "Weak".
+- **Other `scs.md` weak and ugly points.** Assumptions checked late; no conflict detection between systems; menus, targeting and looking still change state at the key; the planner and the applier describe one decision twice; spawn and despawn authority is spread out; prose other than the two counts is unchecked.
 - **Relationship indexes.** Declined until the world holds thousands of entities.
 - **Ideas from other games.** `.claude/concepts-from-other-games.md` (local, untracked). Each must pass the three-question test at its top.
 

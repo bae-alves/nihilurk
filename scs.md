@@ -119,7 +119,7 @@ Rust's borrow friction stays. SCS absorbs it into written convention, in phases 
 
 ### Weak
 
-- **Data-driven stops at the verb.** A new kind of effect costs code in three places: a variant, a row, and a handler. "Add content" is a row only while the vocabulary is enough. Moving the handler onto the row saves one line and gives up the compiler's missing-handler error, so the question is open, not solved.
+- **Data-driven stops at the spell.** A potion, scroll, wand, rune or trap is a row that names its handler, and a row with no handler does not compile: a new one is a handler and a row. A spell, a coin or a card still costs a variant, a row and an exhaustive `match` arm.
 - **Assumptions are checked late.** Each step's preconditions are prose beside its definition. The soak checks their consequences at the end of a turn, and two `debug_assert!`s check theirs at the step. A step that stops assuming something fails a turn later, in a different place.
 - **Direct mutation gives up conflict detection.** No scheduler checks that two systems fight over the same data. A total order and the soak carry that. The soak checks that no two creatures end a turn on one tile.
 - **Prose drifts.** The step count and the queue count in the docs are tested against the code. Every other number or diagram in a document is a second copy of the code, and nothing compares them.
@@ -148,7 +148,7 @@ The target was never direct mutation. It was conventions nobody wrote down or ch
 | Command and effect queues | **intent queued, log synchronous** | The player and the monsters queue intent. The message log is read back within the turn, so queueing it would break it. |
 | Relationship indexes | **declined, with a trigger** | A world-wide scan is cheap at small scale. Add an index when the world holds thousands. |
 | Docs at the seam | **hook plus tests** | A hook forces a docs page into any commit that changes the schedule or a queue, and a test checks the two counts the pages state. Other prose is unchecked. |
-| Item verbs | **open** | See the first Weak point. |
+| Item verbs | **rows** | Potions, scrolls, wands, runes and traps name their handler on the row; the save stores the row's name. Spells, coins and cards still match on a variant. See the first Weak point. |
 
 ---
 
