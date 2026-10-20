@@ -24,7 +24,7 @@ flowchart LR
   POP --> BEST["BESTIARY<br/>MonsterDef::pick"]:::peril
   POP --> DROPS["DROPS<br/>roll_item"]:::magic
   POP --> TRAPS["TRAPS<br/>TrapDef::pick"]:::peril
-  DROPS --> CAT["POTIONS · SCROLLS · RUNES · WANDS<br/>WEAPONS · AMMO · LAUNCHERS<br/>ARMORS · RINGS · COINS"]:::magic
+  DROPS --> CAT["POTIONS · SCROLLS · RUNES · WANDS<br/>WEAPONS · AMMO · LAUNCHERS<br/>ARMORS · RINGS · COINS<br/>TREATS · DECKS"]:::magic
   GEN --> FLOOR(["a floor"]):::hero
   BEST --> FLOOR
   CAT --> FLOOR
@@ -52,6 +52,11 @@ Where everything is
 | `ARMORS`            | `models/src/catalog.rs`    | `ArmorDef`     |
 | `RINGS`             | `models/src/catalog.rs`    | `RingDef`      |
 | `COINS`             | `models/src/catalog.rs`    | `CoinDef`      |
+| `TREATS`            | `models/src/catalog.rs`    | `TreatDef`     |
+| `DECKS`             | `models/src/catalog.rs`    | `DeckDef`      |
+| `CARDS`             | `models/src/catalog.rs`    | `CardDef`      |
+| `SPELLS`            | `models/src/catalog.rs`    | `SpellDef`     |
+| `BODIES`            | `models/src/body.rs`       | `BodyDef`      |
 | `TRAPS`             | `models/src/traps.rs`      | `TrapDef`      |
 | `DROPS`             | `models/src/spawn.rs`      | `DropCategory` |
 | `EFFECTS`           | `models/src/effects.rs`    | `Effect`       |
@@ -73,14 +78,14 @@ Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bon
 | `name`        | `&'static str`     | --      | Unique; its save identity. |
 | `glyph`       | `char`             | --      | One character on the map.  |
 | `color`       | `Color`            | --      | See the palette below.     |
-| `movement`    | `MovementType`     | --      | Static/Chase/Flee/Confused |
+| `movement`    | `MovementType`     | --      | Static/Chase/Flee/Confused/Ambush |
 | `hp`          | `i32`              | --      | Hit points; also `max_hp`. |
 | `power`       | `i32`              | --      | Attack die: `1d[power]`.   |
 | `power_bonus` | `i32`              | --      | Flat, once, on that roll.  |
 | `armor`       | `i32`              | --      | Defence die: `1d[armor]`.  |
 | `armor_bonus` | `i32`              | --      | Flat, once, on that roll.  |
 | `min_depth`   | `u8`               | --      | Shallowest floor it spawns.|
-| `weight`      | `u32`              | `10`    | Rarity vs eligible pool.   |
+| `weight`      | `u32`              | `DEFAULT_SPAWN_WEIGHT` | Rarity vs eligible pool. |
 | `grants`      | `&'static [Grant]` | `&[]`   | Effects it is born with.   |
 | `invisible`   | `bool`             | `false` | Born unseeable.            |
 | `spells`      | `&'static [&'static SpellDef]` | `&[]` | Spells it is born knowing; a player wearing the row gets them too. |
@@ -95,11 +100,11 @@ Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bon
 
 Chains: `.grants(&[...])`, `.invisible()`, `.weight(n)`, `.casts(n, &LIST)`, `.fast()`, `.equip(&[...])`, `.mimics()`, `.spirit(kind, event)`, `.stocks_barter()`. `.spirit(...)` also sets `grants` to the shared spirit grants and `random_grants` to the spirit boon pool.
 
-Combat: `damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)`, both sides rolled independently. Nothing ever misses.
+Combat: `damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)`, both sides rolled independently; `components.md` has the rest.
 
 Spawning a row attaches: `Name`, `Mob`, `Fighter`, `Renderable`, `Position`, `Faction` (`Spirits` if `spirit_kind` is set, else `Monster`), `Blood`, `Grants`, `Speed` (from `speed`), plus each granted effect component. Then, when the row asks: `Invisible`; `Magic` and `Spellset` if it has `spells`; `spirit_kind` and `spirit_event` as components. With a `GameRng` it also rolls `equip_rolls`, `random_grants` and the barter `Backpack`, and a `mimics` row is disguised as an item. Without one (a bare test fixture) it gets none of those rolls.
 
-`MovementType::Aggravated { tx, ty }` exists but is applied at run time by the scroll of aggravate monsters. Never put it in a row.
+`MovementType::Aggravated { tx, ty }` is retired and only read back from old saves; aggravation is the `Aggravated` component. Never put it in a row.
 
 A species' whole special behaviour is its `grants`. The aquator is the one whose grant reaches for the *player's gear* rather than the player: `RustsArmor` means every blow it lands calls `equipment::corrode_armor` on what it hit, taking a point off the worn armour's `ArmorBonus` (never its die — ruined plate is still plate, and the plus can go negative). A scroll of enchant armour mends it; a ring of maintain armor (`SustainsArmor`) stops it; a wand of cancellation takes the corrosion out of the aquator.
 
@@ -111,11 +116,11 @@ Every row implements `ItemDef`, which supplies:
 
     fn name(&self) -> &'static str            required
     fn spawn(&self, world, pos) -> Entity      required
-    fn weight(&self) -> u32                    default 10
+    fn weight(&self) -> u32                    default DEFAULT_SPAWN_WEIGHT
     fn min_depth(&self) -> u8                  default 1
     fn spawn_as_loot(&self, world, rng, pos)   default: calls spawn
 
-Only the scroll of identify and the scroll of remove curse change `weight` (`.common()`, twice the baseline); no item row overrides `min_depth`. Every other row picks evenly on purpose.
+Two tables weigh their rows: `SCROLLS`, where the scroll of identify and the scroll of remove curse are `.common()` (twice the baseline), and `COINS`, whose rows carry a `weight` each. No item row overrides `min_depth`. Every other row picks evenly on purpose.
 
 ### POTIONS — PotionDef
 
@@ -127,7 +132,7 @@ Only the scroll of identify and the scroll of remove curse change `weight` (`.co
 
 Draws `!`. Attaches `Item`, `Potion`, `Consume`; a `Potion` holds its row. Rows are `static`; `POTION_OF_HEALING` is named because every starting pack holds one, and `POTION_OF_WATER` (the potion of thirst quenching) is kept out of `POTIONS`. Mechanic: the row's `apply`, one handler per row in `models/src/items/potions.rs` or a verb borrowed straight from `crate::conditions` (blindness, paralysis, haste). The field is required, so a row without one does not compile. A handler is allowed to do nothing on purpose (fruit juice and water are a log line and a taste); every other one bites.
 
-The dials the handlers read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Five handlers reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength) and one into `Magic` (the potion of magic, which fills the pool and lifts its ceiling the way gain strength lifts the arm's), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one lends `SeesInvisible` for the floor, and raise level calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
+The dials the handlers read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Healing, extra healing, gain strength, poison and restore strength reach straight into `Fighter`; the potion of magic reaches into `Magic`, filling the pool and lifting its ceiling the way gain strength lifts the arm's. Blindness, paralysis and haste are verbs of `crate::conditions` used as the handler, and confusion calls `confuse`. Monster and magic detection tag things `Detected`; see invisible lends `SeesInvisible` for the floor. Adjustment returns the drinker's `Alignment` to the middle. Polymorph is the wand of polymorph, drunk. Raise level calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
 
 ### SCROLLS — ScrollDef
 
@@ -141,7 +146,7 @@ Draws `?`, always white — a scroll has no colour field. Attaches `Item`, `Scro
 
 Each scroll has a flourish of its own — which one, and why that one, is `../explanation/the-feel-layer.md`.
 
-The dials the arms read — what one enchantment is worth, how long sleep and hold last, how often sleep backfires — are `constants::scrolls`. Three arms go off across whatever the reader can see (scare monster, hold monster, sleep, via `helpers::hostiles_in_view`), two reach into the gear in a slot (the enchantments), one arms the reader's next blow (monster confusion, spent by the `ON_HIT_ABILITIES` row below), two tag things `Detected` — food detection takes precisely what a potion of magic detection rejects, so between them they find every item on the floor exactly once, with the Element of Yoord deliberately turning up for both.
+The dials the handlers read — what one enchantment is worth, how long sleep and hold last, how often sleep backfires — are `constants::scrolls`. Scare monster, hold monster, sleep and charming go off across whatever the reader can see (`helpers::hostiles_in_view`); the two enchantments and vorpalize weapon reach into the gear in a slot; monster confusion arms the reader's next blow (spent by its `ABILITIES` row below); magic mapping and food detection reveal the floor; teleportation, teleport to stairs and pitfall move the reader; atonement makes peace with the spirits; and two of them tag things `Detected` — food detection takes precisely what a potion of magic detection rejects, so between them they find every item on the floor exactly once, with the Element of Yoord deliberately turning up for both.
 
 ### RUNES — RuneDef
 
@@ -152,7 +157,7 @@ The dials the arms read — what one enchantment is worth, how long sleep and ho
 
 Draws `'`, always white. Attaches `Item` and `Rune { row, charged: true }`, and no `Consume`: reading a rune spends its charge (`item_system` clears `charged`), and it stays in its pack slot, shown as `(inert)`. A staircase wakes every spent rune in the pack (`items::recharge_runes`, called from `transition_level` for `LevelChange::Stairs` only: a trapdoor or a portal does not). `r` reads scrolls and runes. Mechanic: the row's `apply`, one handler per row in `models/src/items/runes.rs`. Rows are `static`, so a `Rune` holds the row itself.
 
-`BLANK_RUNE` sits outside `RUNES`, so nothing drops one. A wand of cancellation makes one out of any rune the player carries, and a blank rune never wakes. Displacement is a scroll of teleportation; Chaos and Ice cast Haste Self and Frost Nova for free; Recharging adds `RECHARGE_STEP` to every wand's `Battery` up to `RECHARGE_CAP`; Justice lends `ExplodesOnDeath` to everything in view; Protection lends `Protected` for `PROTECTION_TURNS`. The dials are `constants::runes`. Runes drop from floor 3 (see DROPS). Only the player invokes one: a monster that catches a thrown rune does nothing with it.
+`BLANK_RUNE` sits outside `RUNES`, so nothing drops one. A wand of cancellation makes one out of any rune the player carries, and a blank rune never wakes. Displacement is a scroll of teleportation; Chaos and Ice cast Haste Self and Frost Nova for free; Recharging adds `RECHARGE_STEP` to every wand's `Battery` up to `RECHARGE_CAP`; Justice lends `ExplodesOnDeath` to everything in view; Protection lends `Protected` for `PROTECTION_TURNS`. The dials are `constants::runes`. Runes drop from the `rune` row's `min_depth` (see DROPS). Only the player invokes one: a monster that catches a thrown rune does nothing with it.
 
 ### WANDS — WandDef
 
@@ -160,7 +165,7 @@ Draws `'`, always white. Attaches `Item` and `Rune { row, charged: true }`, and 
 |----------------|------------------------------|-------|
 | `name`         | `&'static str`               | Identity; the save stores it. |
 | `color`        | `Color`                      | |
-| `range`        | `i32`                        | Feeds the aiming reticle. In use: 6, 8. |
+| `range`        | `i32`                        | Feeds the aiming reticle. |
 | `palette`      | `BlastPalette`               | Its blasts, zapped or thrown, and the tint a thrown one flies in. |
 | `zap`          | `fn(&mut World, Zap)`        | What zapping does. Required. |
 | `attack`       | `bool`                       | Deals damage; thrown, the grenade; doubled by `DualZap`. |
@@ -186,7 +191,7 @@ Neither a zap nor a throw can be aimed at the player's own tile: the engine refu
 |---|---|---|---|
 | `GRENADE` (every `.attack()` wand) | `GRENADE_RADIUS` | `GRENADE_DIE_PER_CHARGE` sides per charge, armour-ignoring | its element, if it has one |
 | `FLASH` (wand of light) | `GRENADE_RADIUS` | the same | `dazzle` on every creature caught |
-| `blast(f)` (utility, the default) | `BLAST_RADIUS` | none | `f`, the wand's own effect, on every creature caught |
+| `blast(f)` (utility; the default does nothing to anyone) | `BLAST_RADIUS` | none | `f`, the wand's own effect, on every creature caught |
 | `CONFETTI` (wand of nothing) | — | none | confetti |
 | `CRATER` (wand of digging) | `GRENADE_RADIUS`, unpainted | none | a crater: every wall in the disc goes, in sight or not (`wands::crater`) |
 | `SHUFFLE` (wand of swapping) | `BLAST_RADIUS` | none | every creature caught on dry floor moves to another's tile, in a random ring so none keeps its own (`wands::shuffle_places`) |
@@ -195,7 +200,7 @@ Dials: `constants::wands`. Resolution: `resolve_wand_throw` and the burst handle
 
 ### SPELLS — SpellDef
 
-The one catalog row that never spawns anything: a spell carries no `Item`, no `Position`, no pack slot. It lives permanently in whoever's `Spellset` it's in (the player's, taught by a hero coin — see "COINS" above) and is triggered from there (the `Z` menu, by row letter).
+The one catalog row that never spawns anything: a spell carries no `Item`, no `Position`, no pack slot. It lives permanently in whoever's `Spellset` it's in (the player's, taught by a hero coin — see "COINS" below — or by a spirit) and is triggered from there (the `Z` menu, by row letter).
 
 | Field    | Type           | Notes                                                          |
 |----------|----------------|-----------------------------------------------------------------|
@@ -232,15 +237,16 @@ Constructor: `WeaponDef::new(name, color, power_die)`, then chains.
 | `projectile` | `bool`         | `false`      | Built to be thrown.       |
 | `piercing`   | `bool`         | `false`      | Throw runs the whole line.|
 | `returns`    | `bool`         | `false`      | The throw ends back with the thrower. |
-| `reach`      | `i32`          | `0`          | Aimed rather than walked into: a bardiche (2), a whip (5). |
+| `hits`       | `u8`           | `0`          | A throw strikes this many creatures in all (`ChainHits`). |
+| `reach`      | `i32`          | `0`          | Aimed rather than walked into: a bardiche, a whip. |
 | `reach_piercing` | `bool`     | `false`      | The reach strike runs the whole line. |
 | `grants`     | `&[Grant]`     | `&[]`        | Marker effects the wielder holds while it is in hand. |
 | `on_wear`    | `Option<OnWear>` | `None`     | A one-shot fired the instant it is wielded. |
 | `on_doff`    | `Option<OnDoff>` | `None`     | A one-shot fired the instant it is deliberately put away again. |
 
-Chains: `.missile(die)` sets `thrown_die` and `projectile`; `.piercing()`, `.returning()`, `.reach(tiles)`, `.reach_piercing()`, `.grants(&[...])`, `.on_wear(...)`, `.on_doff(...)` each set the field they name.
+Chains: `.missile(die)` sets `thrown_die` and `projectile`; `.piercing()`, `.returning()`, `.hits(n)`, `.reach(tiles)`, `.reach_piercing()`, `.grants(&[...])`, `.on_wear(...)`, `.on_doff(...)` each set the field they name.
 
-Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDamage`, and `Projectile` / `Piercing` / `Returns` / `Reach` / `ReachPiercing` / `Grants` / `OnWear` / `OnDoff` when asked. A floor drop is enchanted (see below). `grants`, `on_wear` and `on_doff` are all re-read from the row on load (`catalog::restore_from_catalog`), never stored in the save.
+Draws `)`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `PowerDie`, `ThrownDamage`, and `Projectile` / `Piercing` / `Returns` / `ChainHits` / `Reach` / `ReachPiercing` / `Grants` / `OnWear` / `OnDoff` when asked. A floor drop is enchanted (see below). `grants`, `on_wear` and `on_doff` are all re-read from the row on load (`catalog::restore_from_catalog`), never stored in the save.
 
 The staff is the only row with an `on_doff`, and the reason is worth repeating: it multiplies what every attacking spell costs and what it does (`constants::spells::TURBO_MAGIC_COST_MULT` and `TURBO_MAGIC_POWER_MULT`), and neither multiplier shows anywhere on the HUD. The two log lines are the whole of the player's notice, which is why the taking-off needs one as much as the putting-on. `OnDoff` fires only on the deliberate path (`equipment::toggle_equipped`), never from `force_unequip` — dropping, being disarmed and dying are not ceremonies, the same asymmetry `OnWear` already has against `equip_silently`.
 
@@ -253,7 +259,7 @@ Every throw ignores the target's armour die, but the armour *plus* is always sub
 | `name`         | `&'static str` |                                         |
 | `color`        | `Color`        |                                         |
 | `die`          | `i32`          | Rolled when hurled by hand.             |
-| `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`: an arrow 1d3, a quarrel 1d5, a blowdart 1d2. |
+| `launched_die` | `i32`          | Rolled instead, once loosed from the launcher that answers to `launched_by`. |
 | `launched_by`  | `Grant`        | The effect that switches to `launched_die`. |
 | `on_blood`     | `fn(&mut World, Entity)` | Runs on a victim a hit draws blood from. The blowdart's saps its power (`throwing::sap`); the others do nothing. |
 
@@ -280,7 +286,7 @@ Draws `}`. Attaches `Item`, `Equipped::loose(Slot::Hand)`, `Launcher`, `ThrowBon
 |-------------|----------------|----------------------------------------|
 | `name`      | `&'static str` |                                        |
 | `color`     | `Color`        |                                        |
-| `armor_die` | `i32`          | Defence roll adds `1d[n]`. In use 2-9. |
+| `armor_die` | `i32`          | Defence roll adds `1d[n]`. |
 | `grants`    | `&[Grant]`     | Marker effects lent while worn. `&[]` for plain mail; spikemail's is `Spiked`. |
 
 Draws `]`. Attaches `Item`, `Equipped::loose(Slot::Body)`, `ArmorDie`, and `Grants` when the row has any.
@@ -297,6 +303,7 @@ Constructor: `RingDef::new(name)`, then chains. `RINGS` holds `&RingDef` rows; `
 | `armor_die`   | `i32`               | `0`     | Adds to the defence die size, the way `armor_bonus` adds a flat amount. |
 | `armor_bonus` | `i32`               | `0`     | `.armor_bonus(n)`         |
 | `throw_bonus` | `i32`               | `0`     | `.throw_bonus(n)`         |
+| `max_hp_bonus` | `i32`              | `0`     | `.max_hp_bonus(n)`        |
 | `grants`      | `&'static [Grant]`  | `&[]`   | `.grants(&[...])`         |
 | `on_wear`     | `Option<OnWear>`    | `None`  | `.on_wear(...)` — a one-shot fired the moment it goes on |
 
@@ -306,12 +313,12 @@ Every ring is live, and all but adornment are pure table — a modifier combat a
 
 | Ring | Row content |
 |---|---|
-| protection | `.armor_bonus(2)` |
-| strength | `.power_bonus(2)`, grants `SustainsStrength` |
+| protection | `.armor_bonus(PLAIN_BONUS)` |
+| strength | `.power_bonus(PLAIN_BONUS)`, grants `SustainsStrength` |
 | perception | grants `SeesInvisible` |
 | aggravate monster | grants `AggravatesMonsters` |
-| sharpshooting | `.throw_bonus(2)` |
-| increase damage | `.power_bonus(2)` |
+| sharpshooting | `.throw_bonus(PLAIN_BONUS)` |
+| increase damage | `.power_bonus(PLAIN_BONUS)` |
 | regeneration | grants `Regenerates` |
 | slow digestion | grants `Sluggish` |
 | teleportation | grants `Teleportitis` |
@@ -320,7 +327,7 @@ Every ring is live, and all but adornment are pure table — a modifier combat a
 | maintain armor | grants `SustainsArmor` |
 | sustain form | grants `SustainsForm` |
 | dualzap | grants `DualZap` |
-| health | `.max_hp_bonus(2)`; the wearer gains the plus in max and current hp on the way on, and only the max comes off, so swapping washes hp and a negative one can kill |
+| health | `.max_hp_bonus(PLAIN_BONUS)`; the wearer gains the plus in max and current hp on the way on, and only the max comes off, so swapping washes hp and a negative one can kill |
 | adornment | `.on_wear(items::rings::ADORNMENT)` |
 
 The only ring behaviour code in the tree is `models/src/items/rings.rs`, and it holds four verbs, not a `match` on which ring it is: the adornment flourish (which the victory climb also calls), the regeneration tick, the teleportitis jump and the polymorphitis roll. Nothing outside that file asks which ring it has.
@@ -339,7 +346,7 @@ Coins are the whole **pickup** category: an item that is never carried, works wh
 | `helps`  | `fn(&World, Entity) -> bool` | Whether taking it would do anything now. |
 | `amount` | `i32`           | The one dial. What it means is `apply`'s business: score for a treasure coin, hit points for the red one, afflictions lifted for the rosé. `0` for a row that needs no number. |
 | `treasure` | `bool`        | `amount` also goes into the score, as a `Value`. |
-| `weight` | `u32`           | This row's share of the coin table against its table-mates. Ten is the baseline. |
+| `weight` | `u32`           | This row's share of the coin table against its table-mates. |
 
 Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Value`, which is the component the score reads (the relic carries the same one).
 
@@ -380,11 +387,11 @@ Draws `%`. Rows are statics (`SNACK`, `FANCY_OF_PEACE`) listed in `TREATS`. Atta
 | snack | dark yellow | a creature without hands |
 | fancy of peace | cyan | a creature with hands |
 
-Treats share the coins' old slice of the drop table (Rogue's food slot). The coin guaranteed to every floor, and the coins in a hoard, are still coins.
+Treats drop as their own `treat` row in DROPS.
 
 **Use** on a treat, or on ammunition (anything with `Ammo`), logs that it is for throwing and costs no turn (`items::use_refusal`).
 
-**Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one *ordinary* Helper at a time: recruiting a second explodes the first, cosmetically. A creature with `PriorityHelper` (the dog) is never that first one and any number can stand beside you; recruiting one explodes the ordinary Helper. `AlwaysTamed` makes every treat take, `AlwaysHelper` makes a charm or a conjuring the Helper outright, and `ShapeshiftOnKill` rolls `constants::helpers::SHAPESHIFT_CHANCE` on each melee kill to turn the dog into another monster (`monsters::shapeshift`, which keeps whichever of the five grants it held, and its side). `FaerieOnDeath` is the reveal: when the dog dies it is revealed as a faerie shapeshifter and is gone, the way a spirit poofs: no corpse, no gore, no score, no blood even from the wounds before (`combat::reveal_faerie`). The faerie has no body: it is a log line only, in pink (`LogCategory::Faerie`), "It was never a dog, but a faerie shapeshifter!", and it stands in for the kill line. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels what makes it a dog, why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog. Each is its own grant. All but `ShapeshiftOnKill` are identity effects that no cancellation strips; the dog row is just all five (`monsters::DOG_GRANTS`). The mirror hound (`monsters::MIRROR_HOUND_GRANTS`) swaps `ShapeshiftOnKill` for `MirrorOnKill`: each melee kill rolls `SHAPESHIFT_CHANCE` (25%) to turn it into exactly the species it killed (`monsters::mirror`), keeping its side and its other grants. Either shapeshift happens once: the changed creature has lost `ShapeshiftOnKill` or `MirrorOnKill`. Cancel either first and it never changes shape. A Helper:
+**Helpers.** A treat that lands on the right kind of monster, thrown by the player, is eaten. On a `constants::helpers::ACCEPT_CHANCE` roll the monster becomes the player's Helper (`companion::recruit`): `Faction::Ally` plus the `Helper` component. Anything else the treat bounces off, and it lands. Only one *ordinary* Helper at a time: recruiting a second explodes the first, cosmetically. A creature with `PriorityHelper` (the dog) is never that first one and any number can stand beside you; recruiting one explodes the ordinary Helper. `AlwaysTamed` makes every treat take, `AlwaysHelper` makes a charm or a conjuring the Helper outright, and `ShapeshiftOnKill` rolls `constants::helpers::SHAPESHIFT_CHANCE` on each melee kill to turn the dog into another monster (`monsters::shapeshift`, which keeps whichever of the five grants it held, and its side). `FaerieOnDeath` is the reveal: when the dog dies it is revealed as a faerie shapeshifter and is gone, the way a spirit poofs: no corpse, no gore, no score, no blood even from the wounds before (`combat::reveal_faerie`). The faerie has no body: it is a log line only, in pink (`LogCategory::Faerie`), "It was never a dog, but a faerie shapeshifter!", and it stands in for the kill line. The (d) is a (d)oppelganger, or rather a dogppelganger: a faerie shapeshifter wearing a dog. That is why nothing cancels what makes it a dog, why a kill can change its shape, and why no dog ever dies. What "dies" was never a dog. Each is its own grant. All but `ShapeshiftOnKill` are identity effects that no cancellation strips; the dog row is just all five (`monsters::DOG_GRANTS`). The mirror hound (`monsters::MIRROR_HOUND_GRANTS`) swaps `ShapeshiftOnKill` for `MirrorOnKill`: each melee kill rolls `SHAPESHIFT_CHANCE` to turn it into exactly the species it killed (`monsters::mirror`), keeping its side and its other grants. Either shapeshift happens once: the changed creature has lost `ShapeshiftOnKill` or `MirrorOnKill`. Cancel either first and it never changes shape. A Helper:
 
 * goes for the nearest monster on a tile the player can see, shooting if it holds a launcher, and otherwise comes back to the player's side (the `HELPER` rule set in `agents.rs`);
 * is hit back by a monster next to it that is not next to the player;
@@ -394,9 +401,36 @@ Treats share the coins' old slice of the drop table (Rogue's food slot). The coi
 
 `Helper` is a plain component, saved as its own field, not an `EFFECTS` row: a wand of cancellation does not undo loyalty.
 
+### DECKS — DeckDef, and CARDS — CardDef
+
+`DECKS` holds one row, the deck of cards; a `DeckDef` is only its `name`. The cards are their own table:
+
+| Field  | Type                                  | Notes                                    |
+|--------|---------------------------------------|------------------------------------------|
+| `name` | `&'static str`                        | Identity; a save stores it with the card's `reversed` flag. |
+| `play` | `fn(&mut World, &mut decks::Deal, Card)` | What the card does when it plays, on whoever drew or threw it. |
+
+Draws `?` in magenta. Attaches `Item` and `Deck { cards }`, each `Card` holding its `CardDef` row and whether it is `reversed`. `spawn` stacks the first `DECK_SIZE` rows of `CARDS` upright; a floor drop (`spawn_as_loot`) rolls a fresh deck instead (`catalog::roll_deck`): `DECK_SIZE` cards drawn evenly from `CARDS` with replacement, `REVERSED_MIN` to `REVERSED_MAX` of them turned over.
+
+Reading a deck (`r`) plays the top card (`decks::draw`). Throwing it plays every card left as a poker hand on the thrower (`decks::throw_deck`, scored by `decks::score_hand`), and a hand never reverses anything. A card may play other cards; one draw plays at most `CARD_CHAIN_CAP` in all. Mechanic: the row's `play`, one handler per row in `models/src/items/decks.rs`. The dials are `constants::decks`.
+
 ### The relic
 
 Not a table — one function, `spawn_element_of_yoord`. Draws `"` in magenta, carries a `Value` and an `Amulet`. Its name is the constant `ELEMENT_OF_YOORD`. Spawned in place of the down-stair on the deepest floor (`FINAL_DEPTH`, `constants::progression`).
+
+
+BODIES — BodyDef
+----------------
+
+    models/src/body.rs
+
+| Field           | Type                     | Notes                                   |
+|-----------------|--------------------------|-----------------------------------------|
+| `name`          | `&'static str`           | What `-b` matches.                      |
+| `brings_a_pack` | `bool`                   | Whether it starts with the usual kit.   |
+| `wear`          | `fn(&mut World, Entity)` | Dresses the freshly spawned player.     |
+
+`BODIES` lists the rows `-b` can name: `NIHIL` (the default) and `LURK`. A bestiary row can be worn as a body too (`-am`); `components.md`, "Components — what the player is", has both. `../how-to/add-a-body.md` adds one.
 
 
 TRAPS — TrapDef
@@ -426,7 +460,7 @@ A trap set off *from a distance* — a missile that lands on it, a wand's blast 
 
 ### Trick shots — what a landing missile can set off
 
-`traps::detonate_at(world, pos, shooter)` is the whole of it, called by `items::throwing::resolve_throw` for every throw, whatever was thrown. It returns a `TrickShot` saying what went off, or `None`. `shooter` is `Option<Entity>` because a chain reaction can run past the last thing its author was around for.
+`traps::detonate_at(world, pos, shooter)` is the whole of it, called by `items::throwing::resolve_throw` for every throw, whatever was thrown. It checks the tile in the order of the table below and sets off the first thing it finds; it returns a `TrickShot` saying what went off, or `None`. `shooter` is `Option<Entity>` because a chain reaction can run past the last thing its author was around for.
 
 A missile stops on the first creature in its way, so the tile handed to `detonate_at` is *that creature's* tile: hitting a monster standing on a trap, a coin or the relic sets the thing underneath off with the blow. That is what the renderer's magenta cell is advertising (see `rendering.md`, layer 9a).
 
@@ -437,6 +471,8 @@ A missile stops on the first creature in its way, so the tile handed to `detonat
 | a `Trap` | `TRICK_SHOT_RADIUS` | the trick-shot dice | the trap's own effect, per survivor |
 | a `Pickup` (a coin) | `PICKUP_TRICK_SHOT_RADIUS` | the same dice | **the coin's effect, paid to the shooter** (`pickups::claim_from_afar`) — a red coin heals them, a gold one pays them, a platinum one makes them its promise. Worked *before* the burst, so the shooter's own blast cannot take the healing back off them. No `helps` gate: stepping over a coin is leaving it for later, shooting one is a decision, and a decision is allowed to be a waste |
 | a hero coin (`HERO_COIN`) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | the spell, taught to the shooter, and then the ULTIMATE TRICK SHOT below. Spent like any other coin |
+| a `Potion` | `POTION_SPLASH_RADIUS` (`items::detonate_potion`) | none | the potion's own `apply` on every creature it splashes |
+| an `IceCube` | `TRICK_SHOT_RADIUS` | the trick-shot dice, of `Element::Cold` | what the cold kills freezes in its turn (`traps::detonate_ice_cube`) |
 | the `Amulet` (the Element of Yoord) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | see below. The relic is never destroyed, moved or spent |
 
 A shot that sets *anything* off with something other than ammunition — a dagger, a potion, somebody's spare ring — logs "Very clever." Firing an arrow into a trap is what arrows are for; doing it with the rest of your kit is a choice.
@@ -453,9 +489,9 @@ A wand's blast sets off everything it covers, traps first and then coins (`wands
 
 A coin set off with no author at all is simply spent: `detonate_pickup` takes an `Option<Entity>` and pays nobody when there is nobody to pay.
 
-Damage traps are missiles: they ignore the defender's armour *die* but still subtract the armour *plus* (`total_armor_plus`). Their bite also scales with depth in three bands (floors 1-4, 5-8, 9-13): each band adds a point to the arrow trap's roll and a point to the dart trap's permanent power drain. Dial: `constants::traps` (`TRAP_DAMAGE_TIER_LAST_DEPTH` and the per-tier steps).
+Damage traps are missiles: they ignore the defender's armour *die* but still subtract the armour *plus* (`total_armor_plus`). Their bite also scales with depth in bands, which `TRAP_DAMAGE_TIER_LAST_DEPTH` ends: each band past the first adds `ARROW_DAMAGE_PER_TIER` to the arrow trap's roll and `DART_POWER_DRAIN_PER_TIER` to the dart trap's permanent power drain. Dial: `constants::traps`.
 
-The `Trap` and `TrapReveal` types are defined in `components.rs`, not `traps.rs` — see `components.md`. The holds a trap applies (`Asleep`, `Pinned`, `Rooted`) are effects, in `effects.rs`.
+The `Trap` and `TrapReveal` types are defined in `components.rs`, not `traps.rs` — see `components.md`. The holds a trap applies (`Asleep`, `Pinned`) are effects, in `effects.rs`.
 
 
 DROPS — DropCategory
@@ -498,90 +534,95 @@ EFFECTS — the marker registry
 
 Each row pairs a **stable string id** with the component it attaches, and that id is what the save file stores. Rows may be reordered and retired freely; the one rule is **never rename an id**, the same rule a bestiary row lives by. There is no ceiling on how many effects there can be.
 
-A row may also carry the line the player reads when it runs out of turns, in brackets after the type:
+A row may also carry, after the type: `ends`, the line the player reads when it runs out of turns; `beware`, the phrase a look warns of (`models::dangers_of`); and `feel`, the line a player born with it (`-am`) reads at the start:
 
-    "asleep" => Asleep ["You shake off the drowsiness and come to."],
+    "asleep" => Asleep, ends strings::ends_asleep();
 
 **Identity effects: parts nothing can cancel.** A wand of cancellation strips every effect a creature holds, except the ones whose id is listed in `IDENTITY_EFFECTS` in `effects.rs`. `revoke_all` removes the rest, then puts the identity ones back with their ledger entry, so they are still saved. Today that is `lurk` (the lurk's body) and the four that make a dog: `always_tamed`, `always_helper`, `priority_helper` and `faerie_on_death`. The dog's shapeshifting (`shapeshift_on_kill`, and the mirror hound's `mirror_on_kill`) is magic, not identity: a wand of cancellation stops it. The rule of thumb: an identity effect is what a creature *is*, not magic it merely has. A dragon's `FireImmune` stays cancellable on purpose. To make a part of a monster uncancellable, write the effect as usual (`../how-to/add-an-effect.md`), list its id in `IDENTITY_EFFECTS`, and grant it from the bestiary row (`../how-to/add-a-monster.md`).
 
-| # | Effect              | Meaning                                        |
-|---|---------------------|------------------------------------------------|
-| 0 | `FireImmune`        | Fire does nothing.                             |
-| 1 | `ColdImmune`        | Cold does nothing.                             |
-| 2 | `Undead`            | Draining passes through, healing nothing.      |
-| 3 | `VorpalTarget`      | Any vorpal weapon slays it outright.           |
-| 4 | `SeesInvisible`     | Sees hidden traps in view, invisible monsters, stashed items. |
-| 5 | `SustainsStrength`  | Immune to dart-trap strength drain.            |
-| 6 | `AggravatesMonsters`| Periodically wakes the floor. Passive.         |
-| 7 | `ItemUser`          | Catches and wears thrown gear; reads scrolls.  |
-| 8 | `FireArrow`         | Looses arrows properly (they roll their `launched_die`). |
-| 9 | `FireQuarrel`       | The crossbow's half of the same bargain.       |
-|10 | `FireDart`          | The blowgun's half of the same bargain.        |
-|11 | `SustainsArmor`     | Worn armour cannot be corroded.                |
-|12 | `RustsArmor`        | Every blow it lands eats a point of the victim's armour plus (the aquator). |
-|13 | `Sluggish`          | Acts one notch below its own tempo. Folded in by `conditions::tempo`, never written to `Speed`. |
-|14 | `Stealthy`          | Unnoticed until `rings::STEALTH_RANGE` tiles away. |
-|15 | `Regenerates`       | Mends one condition, or a point of drained power, on a roll. Passive. |
-|16 | `Teleportitis`      | Jumps somewhere else on a roll. Passive. Also arms the `T` key. |
-|17 | `Flies`             | Never springs a floor trap. |
-|18 | `Batty`             | After a landed blow, hops to a random open adjacent tile. |
-|19 | `Binds`             | Every hit clamps the victim in a bear trap's jaws. |
-|20 | `Gorgon`            | Petrifies whoever targets, shoots or zaps it. |
-|21 | `Vampiric`          | Every hit drinks a point of the victim's maximum HP. |
-|22 | `Venomous`          | Its bite saps the victim's base power, with no floor. |
-|23 | `ScoreBounty`       | Its corpse pays a multiple of the usual score. |
-|24 | `Splits`            | Cut down short of the last point, it buds a copy of itself. |
-|25 | `GreenBlood`        | Wounds well up green. Cosmetic. |
-|26 | `Freezing`          | A chance on every hit to paralyse the victim. |
-|27 | `StealsAndFlees`    | Lifts something loose from the victim's pack, uses it, and vanishes (the leprechaun). |
-|28 | `StealsAndVanishes` | Strips one equipped item and vanishes with it (the nymph). |
-|29 | `AlwaysTamed`       | Any treat takes, every time (the dog). |
-|30 | `AlwaysHelper`      | Charmed or conjured, it is the Helper, not a plain ally (the dog). |
-|31 | `PriorityHelper`    | A Helper that never explodes to make room, and explodes the ordinary one (the dog). |
-|32 | `ShapeshiftOnKill`  | A melee kill sometimes turns it into another random monster, once (the dog). |
-|33 | `MirrorOnKill`      | A melee kill sometimes turns it into exactly what it killed, once (the mirror hound). |
-|34 | `FaerieOnDeath`     | Dying, it is revealed as a faerie shapeshifter and is gone, with no gore (the dog). |
-|35 | `Swims`             | Deep water is floor. |
-|36 | `Phasing`           | Walks through walls and water; no diagonal rule, no room leash. |
-|37 | `Cleaves`           | A connecting swing also lands on every other enemy next to the wielder. |
-|38 | `HeavySwing`        | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
-|39 | `Fencer`            | Every attack is thrown as many times as the grant says (`Grant::counted::<Fencer>(n)`; estoc: `ESTOC_NUMBER_OF_ATTACKS`). |
-|40 | `Lunges`            | Closing the last stride of a run lands a lunge instead of a step. |
-|41 | `Lurk`              | The lurk's body. An identity effect: `revoke_all` leaves it. |
-|42 | `WhirlOnMove`       | Stepping between two tiles beside the same enemy lands a free attack. |
-|43 | `VorpalOnCondition` | A hit on a target with a negative condition slays it outright. |
-|44 | `TurboMagic`        | Damaging spells cost `TURBO_MAGIC_COST_MULT` times the Magic and deal `TURBO_MAGIC_POWER_MULT` times the damage. |
-|45 | `SelfDamageOnHit`   | Every connecting hit costs the wielder a point of HP. |
-|46 | `BuildsMomentum`    | Every hit builds `Momentum` on the weapon. |
-|47 | `ShattersStone`     | Lands whole on a `Petrified` target, past `stone_chip`. |
-|48 | `ConfusingTouch`    | Charged by a scroll: the next blow it lands confuses the target, then the charge is spent. |
-|49 | `Bided`             | The spell Bide: the next attack gets `BIDE_ATTACK_BONUS`, then it is spent or lost. |
-|50 | `Asleep`            | Hold: out cold, no action of any kind. |
-|51 | `Petrified`         | Hold, but not in `HOLDS`: stone is the body, so it travels with its owner. |
-|52 | `Pinned`            | Hold: cannot step, can still strike. Straining costs a turn and blood. |
-|53 | `Rooted`            | Hold: cannot step, can still strike. Straining costs only the turn. |
-|54 | `Clamped`           | Hold: a biter's grip. Killing the biter frees the victim. |
-|55 | `Confused`          | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
-|56 | `Blind`             | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
-|57 | `Paralyzed`         | Affliction: whoever wears it loses a share of their turns. |
-|58 | `MagicWard`         | The spell: magical hits and a blow's riders bounce off, for the floor. |
-|59 | `Detected`          | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
-|60 | `Polymorphed`       | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |
-|61 | `Polymorphitis`     | Turns the bearer into something else on a roll (`POLYMORPHITIS_CHANCE`): the polymorph a wand casts, without the system shock (`polymorph_entity_with(.., false)`), so a bearer already `Polymorphed` settles into a form instead. Passive. |
-|62 | `Chimera`           | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
-|63 | `Typhon`            | The form drawn as `T`. |
-|64 | `Echidna`           | The form drawn as `E`. |
-|65 | `Protected`         | A rune of protection: no damage of any kind for `PROTECTION_TURNS` turns. Checked in `apply_hit` and in melee's `clamp_swing`, the two places HP comes off. |
-|66 | `ExplodesOnDeath`   | A rune of justice: dying, it bursts in one fire blast rolled off its own power die (`combat::burst_on_death`). |
-|67 | `SustainsForm`      | No polymorph takes hold, and no system shock: the wand, potion, spells and the ring of polymorph all turn aside. |
-|68 | `DualZap`           | An attack wand zaps twice for two charges (`items::plan_use`); utility wands, and a wand down to its last charge, zap once. |
-|69 | `Spiked`            | Spikemail: a blow that draws blood from the wearer pricks the attacker for 1d2 straight off their HP (`abilities::spike_prick`, at `Moment::OnStruck`). |
-|70 | `Charges`           | Shift + direction with a creature in view (2 to 6 tiles off) charges it. Nihil is born with it. |
-|71 | `Vuln`              | Monster melee blows land 25% harder. A charge lends it for one monster phase. |
+| Effect              | Meaning                                        |
+|---------------------|------------------------------------------------|
+| `FireImmune`          | Fire does nothing. |
+| `ColdImmune`          | Cold does nothing. |
+| `Undead`              | Draining passes through, healing nothing. |
+| `VorpalTarget`        | Any vorpal weapon slays it outright. |
+| `SeesInvisible`       | Sees hidden traps in view, invisible monsters, stashed items. |
+| `SustainsStrength`    | Immune to dart-trap strength drain. |
+| `AggravatesMonsters`  | Periodically wakes the floor. Passive. |
+| `ItemUser`            | Catches and wears thrown gear; reads scrolls. |
+| `FireArrow`           | Looses arrows properly (they roll their `launched_die`). |
+| `FireQuarrel`         | The crossbow's half of the same bargain. |
+| `FireDart`            | The blowgun's half of the same bargain. |
+| `SustainsArmor`       | Worn armour cannot be corroded. |
+| `RustsArmor`          | Every blow it lands eats a point of the victim's armour plus (the aquator). |
+| `Sluggish`            | Acts one notch below its own tempo. Folded in by `conditions::tempo`, never written to `Speed`. |
+| `Stealthy`            | Unnoticed until `rings::STEALTH_RANGE` tiles away. |
+| `Regenerates`         | Mends one condition, or a point of drained power, on a roll. Passive. |
+| `Teleportitis`        | Jumps somewhere else on a roll. Passive. Also arms the `T` key. |
+| `Flies`               | Never springs a floor trap. |
+| `Batty`               | After a landed blow, hops to a random open adjacent tile. |
+| `Binds`               | Every hit clamps the victim in a bear trap's jaws. |
+| `Gorgon`              | Petrifies whoever targets, shoots or zaps it. |
+| `Vampiric`            | Every hit drinks a point of the victim's maximum HP. |
+| `Venomous`            | Its bite saps the victim's base power, with no floor. |
+| `ScoreBounty`         | Its corpse pays a multiple of the usual score. |
+| `Splits`              | Cut down short of the last point, it buds a copy of itself. |
+| `GreenBlood`          | Wounds well up green. Cosmetic. |
+| `Freezing`            | A chance on every hit to paralyse the victim. |
+| `StealsAndFlees`      | Lifts something loose from the victim's pack, uses it, and vanishes (the leprechaun). |
+| `StealsAndVanishes`   | Strips one equipped item and vanishes with it (the nymph). |
+| `AlwaysTamed`         | Any treat takes, every time (the dog). |
+| `AlwaysHelper`        | Charmed or conjured, it is the Helper, not a plain ally (the dog). |
+| `PriorityHelper`      | A Helper that never explodes to make room, and explodes the ordinary one (the dog). |
+| `ShapeshiftOnKill`    | A melee kill sometimes turns it into another random monster, once (the dog). |
+| `MirrorOnKill`        | A melee kill sometimes turns it into exactly what it killed, once (the mirror hound). |
+| `FaerieOnDeath`       | Dying, it is revealed as a faerie shapeshifter and is gone, with no gore (the dog). |
+| `Swims`               | Deep water is floor. |
+| `Phasing`             | Walks through walls and water; no diagonal rule, no room leash. |
+| `Cleaves`             | A connecting swing also lands on every other enemy next to the wielder. |
+| `HeavySwing`          | A hit that lands staggers the victim for a turn; the swing costs the wielder an extra monster round. |
+| `Fencer`              | Every attack is thrown as many times as the grant says (`Grant::counted::<Fencer>(n)`; estoc: `ESTOC_NUMBER_OF_ATTACKS`). |
+| `Lunges`              | Closing the last stride of a run lands a lunge instead of a step. |
+| `Charges`             | Shift + direction with a creature in view, within `CHARGE_RANGE`, charges it. Nihil is born with it. |
+| `Lurk`                | The lurk's body. An identity effect: `revoke_all` leaves it. |
+| `WhirlOnMove`         | Stepping between two tiles beside the same enemy lands a free attack. |
+| `VorpalOnCondition`   | A hit on a target with a negative condition slays it outright. |
+| `TurboMagic`          | Damaging spells cost `TURBO_MAGIC_COST_MULT` times the Magic and deal `TURBO_MAGIC_POWER_MULT` times the damage. |
+| `SelfDamageOnHit`     | Every connecting hit costs the wielder a point of HP. |
+| `BuildsMomentum`      | Every hit builds `Momentum` on the weapon. |
+| `ShattersStone`       | Lands whole on a `Petrified` target, past `stone_chip`. |
+| `ConfusingTouch`      | Charged by a scroll: the next blow it lands confuses the target, then the charge is spent. |
+| `Bided`               | The spell Bide: the next attack gets `BIDE_ATTACK_BONUS`, then it is spent or lost. |
+| `Asleep`              | Hold: out cold, no action of any kind. |
+| `Petrified`           | Hold, but not in `HOLDS`: stone is the body, so it travels with its owner. |
+| `Pinned`              | Hold: cannot step, can still strike. Straining costs a turn and blood. |
+| `Rooted`              | Hold: cannot step, can still strike. Straining costs only the turn. |
+| `Clamped`             | Hold: a biter's grip. Killing the biter frees the victim. |
+| `Confused`            | Player affliction. A share of moves (`CONFUSION_STUMBLE_CHANCE`) goes astray. Lifted by a staircase or cancellation. |
+| `Blind`               | Player affliction. Sight shrinks to the tile underfoot and no creature is perceptible. |
+| `Paralyzed`           | Affliction: whoever wears it loses a share of their turns. |
+| `MagicWard`           | The spell: magical hits and a blow's riders bounce off, for the floor. |
+| `Detected`            | Drawn on the map where unseen, for the floor. The glyph does not animate or get announced. |
+| `Polymorphed`         | A species' powers on loan (`POLY`): for the floor on the player, permanent on a monster, so a Helper keeps it down the stairs. The species is the grants lent beside it; the creature's own name, glyph and numbers never change. A shape without `ItemUser` has no hands. Polymorphing a creature that holds it is a coin flip (`SYSTEM_SHOCK_CHANCE`): system shock (a monster bursts in gore, the player is left on 1 HP), or a chimeric form. |
+| `Polymorphitis`       | Turns the bearer into something else on a roll (`POLYMORPHITIS_CHANCE`): the polymorph a wand casts, without the system shock (`polymorph_entity_with(.., false)`), so a bearer already `Polymorphed` settles into a form instead. Passive. |
+| `Chimera`             | One of three chimeric forms (`FORMS`), held at most one at a time: a twice-polymorphed creature is drawn as `C` and named for it. Read at the point of use (`chimeric_form`), never written to `Name` or `Renderable`, so a staircase or cancellation ends it. |
+| `Typhon`              | The form drawn as `T`. |
+| `Echidna`             | The form drawn as `E`. |
+| `Bala`                | The Balance (a card): `BALA_POWER` more on every damage roll, for the floor. |
+| `Bole`                | The Bole (a card): `BOLE_ARMOR` more on every armour roll, for the floor. |
+| `Crit`                | VII THE CHARIOT: every melee blow the bearer lands is an excellent hit, for the floor. |
+| `Oof`                 | VII THE CHARIOT, reversed: every melee blow the bearer takes is an excellent hit, for the floor. |
+| `Vuln`                | Monster melee blows land `VULN_DAMAGE_PERCENT` harder. A charge lends it for one monster phase. |
+| `TimeStopped`         | XXII THE WORLD: nothing else on the floor moves while the player holds it; a throw hangs in the air until it ends, save a `Returns` weapon. |
+| `Protected`           | A rune of protection: no damage of any kind for `PROTECTION_TURNS` turns. Checked in `apply_hit` and in melee's `clamp_swing`, the two places HP comes off. |
+| `ExplodesOnDeath`     | A rune of justice: dying, it bursts in one fire blast rolled off its own power die (`combat::burst_on_death`). |
+| `SustainsForm`        | No polymorph takes hold, and no system shock: the wand, potion, spells and the ring of polymorph all turn aside. |
+| `DualZap`             | An attack wand zaps twice for two charges (`items::plan_use`); utility wands, and a wand down to its last charge, zap once. |
+| `Spiked`              | Spikemail: a blow that draws blood from the wearer pricks the attacker straight off their HP (`abilities::spike_prick`, at `Moment::OnStruck`). |
 
 Cap components — ceilings the dice cannot beat. Folded with `min`, not `+`, because the strictest one wins. Not in `EFFECTS`, not bits:
 
-    MeleeCap     most the bearer can deal in one melee blow (a bow: 1)
+    MeleeCap     most the bearer can deal in one melee blow (a launcher's melee_cap)
 
 Modifier components — numbers that stack across equipped gear, folded by `equipped_total::<C>()`. Not in `EFFECTS`, not bits:
 
@@ -620,6 +661,7 @@ silent instead of narrating a non-event.
 | `EachTurn(f64)` | Every turn the bearer acts, at this probability | `AggravatesMonsters`, `Regenerates`, `Teleportitis` and `Polymorphitis` are the rows; see the table for their exact odds. |
 | `OnDamaged` | The bearer was hurt and lived | Driven by `helpers::took_damage`. |
 | `OnTargeted` | The player turned their attention on the bearer | Fires before the blow, whether or not it lands — a gorgon's gaze is the danger. |
+| `OnStruck` | A blow landed on the bearer and drew blood | Driven by `combat::land_swing`; spikemail's barbs. |
 
 There is no moment for a decision. What a creature *chooses* to do with its turn — a dragon's fireball included — is its rule set's business, not an ability's: see `agents.md`.
 
@@ -631,10 +673,8 @@ the player acts from the new tile before anything on the floor moves again.
 Adding a moment nobody has yet is a `Moment` variant and one arm in whatever
 drives it. Adding an ability at a moment that already exists is one row.
 
-`ConfusingTouch` arms an `OnHit` row but is deliberately *not* in `EFFECTS`: it
-is a condition with its own save field (`saveload`), not a cancellable
-creature property. `Grant::probe` works either way — the registry is only
-about save bits and cancellation.
+`ConfusingTouch` arms an `OnHit` row and is an `EFFECTS` row like any other
+marker: saved by its id, and stripped by a wand of cancellation.
 
 
 Enchantment
@@ -647,7 +687,7 @@ Rolled by `enchant_equipment` for every weapon, armour and launcher, and by `enc
 | Normal      | `NORMAL_QUALITY_PCT`        | +0                            |
 | Exceptional | `EXCEPTIONAL_QUALITY_PCT`   | `EXCEPTIONAL_BONUS_MIN` .. `EXCEPTIONAL_BONUS_MAX` |
 | Cursed      | whatever is left            | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX`, plus a `Curse` tag |
-| MEGACURSED  | `MEGACURSED_PCT_OF_CURSED`% of the cursed | `MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX` (-3 .. +0), plus `Curse` and `MegaCurse` tags |
+| MEGACURSED  | `MEGACURSED_PCT_OF_CURSED`% of the cursed | `MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX`, plus `Curse` and `MegaCurse` tags |
 
 A MEGACURSED item is stuck on for good. Remove curse, a scroll of enchantment, cancellation, an angel's test of faith and a Five Flush all leave the `Curse` on it (enchantment, cancellation and the flush still change the plus). Remove curse, the pink demon, a curse merge and the deck's shivering ring never destroy it. A suit of armour taking the killing blow is the one way out. The `MegaCurse` tag marks it, and `equipment::lift_curse` is the one place a curse comes off.
 
@@ -657,14 +697,14 @@ The bonus lands on whichever roll the item feeds, read off the item itself: a th
 
 ### Rings
 
-A ring rolls the same three qualities at the same odds, with its own numbers (`constants::rings`). Only a *numeric* ring (`RingDef::is_numeric`: protection, strength, increase damage, sharpshooting) has a plus to roll, and the plus is absolute: it replaces the row's, it is not added to it.
+A ring rolls the same three qualities at the same odds, with its own numbers (`constants::rings`). Only a *numeric* ring (`RingDef::is_numeric`: protection, strength, increase damage, sharpshooting, health) has a plus to roll, and the plus is absolute: it replaces the row's, it is not added to it.
 
 | Quality     | Numeric ring                              | Any other ring |
 |-------------|-------------------------------------------|----------------|
-| Normal      | `PLAIN_BONUS` (+2, which is the row)      | nothing        |
-| Exceptional | `EXCEPTIONAL_BONUS` (+3)                  | nothing        |
-| Cursed      | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX` (-3 .. +2), plus a `Curse` tag | a `Curse` tag |
-| MEGACURSED  | `rings::MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX` (+0 .. +13), plus `Curse` and `MegaCurse` tags | `Curse` and `MegaCurse` tags |
+| Normal      | `PLAIN_BONUS`, which is the row           | nothing        |
+| Exceptional | `EXCEPTIONAL_BONUS`                       | nothing        |
+| Cursed      | `CURSED_BONUS_MIN` .. `CURSED_BONUS_MAX`, plus a `Curse` tag | a `Curse` tag |
+| MEGACURSED  | `rings::MEGACURSED_BONUS_MIN` .. `MEGACURSED_BONUS_MAX`, plus `Curse` and `MegaCurse` tags | `Curse` and `MegaCurse` tags |
 
 A cursed ring never beats a plain one: its range stops at `PLAIN_BONUS`. The rows spell their number with `PLAIN_BONUS`, so the table and the roll cannot disagree.
 
