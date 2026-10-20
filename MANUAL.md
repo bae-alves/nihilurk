@@ -94,7 +94,7 @@ line). You cannot charge with a foe already next to you; you are in the thick
 of it, and nihil knows better. A trap on the tile you land on goes off; a trap
 you jump over does not.
 
-**The lurk** (`-b lurk`) is quadruped, fanged, clawed and furred, and shows on
+**The lurk** (`-b lurk`, or just a new player named lurk) is quadruped, fanged, clawed and furred, and shows on
 the map as a magenta `@`. It is the other way of playing:
 
   * Seven hit points and two magic. It is thinner than nihil in every way that

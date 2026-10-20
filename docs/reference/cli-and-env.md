@@ -69,7 +69,10 @@ The run starts in that species' body instead of nihil's or lurk's. The
 name must be a bestiary row exactly as `-content` prints it;
 anything else stops the game before it starts rather than quietly starting
 you as nihil. `-b` and `-am` are the same choice asked two ways,
-so passing both is refused too.
+so passing both is refused too. A new player named after a body, in any
+case (`nihilurk lurk`, `nihilurk NIHIL`), is that body, as `-b` would make
+them, so the name refuses `-am` or a different `-b` the same way. Loading a
+save by that name keeps the body the save knows.
 
 What the body changes is what the bestiary row says: the glyph and its colour,
 the hit points, the attack and armour dice and their bonuses, the tempo (`-am

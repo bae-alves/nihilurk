@@ -43,7 +43,8 @@ new shape.
 
        pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK, &WRAITHKIN];
 
-   `name` is what `-b` matches. Only nihil brings a pack; leave
+   `name` is what `-b` matches, and a new player named it becomes it
+   (`nihilurk wraithkin`). Only nihil brings a pack; leave
    `brings_a_pack` false unless the new body is meant to start holding a
    mace, which none of the hand-written ones are — the whole point is a
    body with nothing to buy.

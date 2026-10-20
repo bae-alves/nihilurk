@@ -94,7 +94,8 @@ Step 2: add the row
 
     pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK, &NINJA];
 
-`name` is what `-b` matches, and what an error about the body prints.
+`name` is what `-b` matches, and what an error about the body prints. A new
+player named after it becomes it too: `nihilurk ninja` is `-b ninja`.
 `brings_a_pack` stays false; the ninja gets its gear in step 6.
 
 Build:

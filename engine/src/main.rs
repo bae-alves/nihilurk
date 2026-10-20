@@ -313,6 +313,22 @@ fn load_replay(args: &[String]) -> Result<(Vec<String>, Option<Recording>), Stri
     Ok((rebuilt, Some((header, events))))
 }
 
+/// The body a new player's name picks: a player named after a row of
+/// [`models::BODIES`], in any case, is that body, as `-b` would make them.
+/// `Err` holds the body flag the name clashes with.
+fn body_named(
+    name: &str,
+    body_arg: Option<&str>,
+) -> Result<Option<&'static models::BodyDef>, String> {
+    let Some(def) = models::body_row(&name.to_ascii_lowercase()) else {
+        return Ok(None);
+    };
+    match body_arg {
+        Some(arg) if arg != format!("-b {}", def.name) => Err(arg.to_string()),
+        _ => Ok(Some(def)),
+    }
+}
+
 /// A recorded body line as two arguments, the flag and the name, so a name
 /// can never read as more flags.
 fn body_args(body: &str) -> Vec<String> {
@@ -349,7 +365,9 @@ fn canonical_flag(arg: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{body_args, canonical_flag, dropped_mode_flags, find_save, save_path_in};
+    use super::{
+        body_args, body_named, canonical_flag, dropped_mode_flags, find_save, save_path_in,
+    };
 
     fn data_dir(tag: &str) -> std::path::PathBuf {
         let dir =
@@ -357,6 +375,37 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn a_name_that_is_a_body_picks_that_body() {
+        for &row in models::BODIES {
+            let shouted = row.name.to_ascii_uppercase();
+            for name in [row.name, shouted.as_str()] {
+                let picked = body_named(name, None).unwrap().unwrap();
+                assert!(std::ptr::eq(picked, row), "{name}");
+            }
+            let same = format!("-b {}", row.name);
+            assert!(body_named(row.name, Some(&same)).unwrap().is_some());
+        }
+        assert!(body_named("bae", None).unwrap().is_none());
+        assert!(body_named("bae", Some("-am dragon")).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_name_that_is_a_body_refuses_any_other_body() {
+        for &row in models::BODIES {
+            assert_eq!(
+                body_named(row.name, Some("-am dragon")).err().as_deref(),
+                Some("-am dragon")
+            );
+            assert_eq!(
+                body_named(row.name, Some("-b someone else"))
+                    .err()
+                    .as_deref(),
+                Some("-b someone else")
+            );
+        }
     }
 
     #[test]
@@ -683,7 +732,20 @@ fn main() -> std::io::Result<()> {
                         eprintln!("{}", strings::name_has_control_chars());
                         return Ok(());
                     }
-                    None => player_name = arg,
+                    None => {
+                        match body_named(&arg, body_arg.as_deref()) {
+                            Ok(Some(def)) => {
+                                body = Some((models::Body::Row(def), "-b"));
+                                body_arg = Some(format!("-b {}", def.name));
+                            }
+                            Ok(None) => {}
+                            Err(flag) => {
+                                eprintln!("{}", strings::conflicting_bodies(&flag, &arg));
+                                return Ok(());
+                            }
+                        }
+                        player_name = arg;
+                    }
                 }
             }
         }
