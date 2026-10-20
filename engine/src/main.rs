@@ -533,12 +533,13 @@ fn main() -> std::io::Result<()> {
                     if let Some(first) = body_arg.replace(spelling.clone()) {
                         conflicting_bodies = Some((first, spelling));
                     }
-                    match (flag, name.as_str(), models::MonsterDef::lookup(name)) {
-                        ("-b", "nihil", _) => body = Some((models::Body::Nihil, "-b")),
-                        ("-b", "lurk", _) => body = Some((models::Body::Lurk, "-b")),
-                        ("-b", _, _) => unknown_body = Some((name.clone(), "-b")),
-                        (_, _, Some(def)) => body = Some((models::Body::Monster(def), "-am")),
-                        (_, _, None) => unknown_body = Some((name.clone(), "-am")),
+                    let found = match flag {
+                        "-b" => models::body_row(name).map(models::Body::Row),
+                        _ => models::MonsterDef::lookup(name).map(models::Body::Monster),
+                    };
+                    match found {
+                        Some(b) => body = Some((b, flag)),
+                        None => unknown_body = Some((name.clone(), flag)),
                     }
                 } else {
                     invalid_argument.get_or_insert(flag_with_value(flag, value));

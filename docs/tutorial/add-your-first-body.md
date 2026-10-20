@@ -20,7 +20,7 @@ This is a lesson, not a recipe. When you want the short version, read `../how-to
   'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
   'fontSize':'13px'}}}%%
 flowchart LR
-  S1["1 · find<br/>enum Body"]:::cold --> S2["2 · add<br/>the variant"]:::hero
+  S1["1 · find<br/>BODIES"]:::cold --> S2["2 · add<br/>the row"]:::hero
   S2 --> S3["3 · borrow<br/>Quick + Stealthy"]:::magic
   S3 --> S4["4 · borrow<br/>Venomous"]:::magic
   S4 --> S5["5 · Sting in<br/>the spell bar"]:::magic
@@ -37,9 +37,9 @@ flowchart LR
 What you are about to learn
 ----------------------------
 
-There is no `Class` trait and no `impl Ninja`. `body.rs` is one enum,
-`Body`, with a hand-written function per variant that dresses the player —
-`wear_lurk` is the one that already exists. A new body is a sibling of
+There is no `Class` trait and no `impl Ninja`. `body.rs` is one table,
+`BODIES`, with a row per body naming the hand-written function that dresses
+the player — `wear_lurk` is the one worth copying. A new body is a sibling of
 that function, not a new shape.
 
 The point of this lesson is that a body barely has to invent anything. Every
@@ -57,61 +57,45 @@ By the end you will have a body that:
     that hands somebody gear without a word being logged about it.
 
 
-Step 1: find the enum
------------------------
+Step 1: find the table
+------------------------
 
 Everything a body *is* lives in one file:
 
     models/src/body.rs
 
-Open it and find the enum:
+Open it and find the table:
 
-    pub enum Body {
-        #[default]
-        Nihil,
-        Lurk,
-        Monster(&'static MonsterDef),
-    }
+    pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK];
 
-Three answers today, and the module's own doc comment at the top of the file
-explains why it's one enum and not a flag per body: a player is exactly one
-of these, and the argument parser has nothing to cross-check. Read that
-comment before you touch anything below it.
+and the lurk's row above it:
+
+    pub static LURK: BodyDef = BodyDef {
+        name: "lurk",
+        brings_a_pack: false,
+        wear: wear_lurk,
+    };
+
+A player is `Body::Row` of one of these, or `Body::Monster` for `-am`. The
+module's own doc comment at the top of the file explains why that is one
+enum and not a flag per body: a player is exactly one of these, and the
+argument parser has nothing to cross-check. Read that comment before you
+touch anything below it.
 
 
-Step 2: add the variant
--------------------------
+Step 2: add the row
+---------------------
 
-    pub enum Body {
-        #[default]
-        Nihil,
-        Lurk,
-        Ninja,
-        Monster(&'static MonsterDef),
-    }
+    pub static NINJA: BodyDef = BodyDef {
+        name: "ninja",
+        brings_a_pack: false,
+        wear: wear_ninja,
+    };
 
-`Body::name()` needs an arm too — it's what `-b` matches against, and what
-an error about the body prints:
+    pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK, &NINJA];
 
-    pub fn name(self) -> &'static str {
-        match self {
-            Body::Nihil => "nihil",
-            Body::Lurk => "lurk",
-            Body::Ninja => "ninja",
-            Body::Monster(def) => def.name,
-        }
-    }
-
-And `wear` needs to route to a function you haven't written yet:
-
-    pub fn wear(world: &mut World, player: Entity, body: Body) {
-        match body {
-            Body::Nihil => {}
-            Body::Lurk => wear_lurk(world, player),
-            Body::Ninja => wear_ninja(world, player),
-            Body::Monster(def) => crate::monsters::wear_monster(world, player, def),
-        }
-    }
+`name` is what `-b` matches, and what an error about the body prints.
+`brings_a_pack` stays false; the ninja gets its gear in step 6.
 
 Build:
 
@@ -280,17 +264,10 @@ Build:
 
     cargo build
 
-It compiles. `-b` doesn't know the word "ninja" yet — that's the last wire.
-
-Add a line in `engine/src/main.rs`, next to the two that are already there:
-
-    match (flag, name.as_str(), models::MonsterDef::lookup(name)) {
-        ("-b", "nihil", _) => body = Some((models::Body::Nihil, "-b")),
-        ("-b", "lurk", _) => body = Some((models::Body::Lurk, "-b")),
-        ("-b", "ninja", _) => body = Some((models::Body::Ninja, "-b")),
-        ("-b", _, _) => unknown_body = Some((name.clone(), "-b")),
-        ...
-    }
+It compiles, and `-b ninja` already works: `-b` looks the name up in
+`BODIES`. The one place that lists bodies by hand is the error for a name
+nobody has, `no_such_body` in `strings/src/`, one per language. Add the ninja
+there.
 
 
 Step 7: meet it
@@ -367,7 +344,7 @@ Step 9: keep it or drop it
 If you like the ninja, decide on its save marker and finish the job. If
 this was a dry run:
 
-    git checkout models/src/body.rs engine/src/main.rs
+    git checkout models/src/body.rs strings/src
 
 
 What you actually learned

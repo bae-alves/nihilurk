@@ -78,7 +78,7 @@ fn breath_is_a_spell_the_body_pays_for_like_any_other() {
     assert!(w.get::<Spellset>(p).unwrap().slots.contains(&&FIREBALL));
     assert_eq!(spell_cost(&w, p, &FIREBALL), FIREBALL.cost);
 
-    let mut nihil = test_world(7, Body::Nihil);
+    let mut nihil = test_world(7, Body::Row(&NIHIL));
     let h = player(&mut nihil);
     nihil.get_mut::<Spellset>(h).unwrap().slots.push(&FIREBALL);
     assert_eq!(spell_cost(&nihil, h, &FIREBALL), FIREBALL.cost);
@@ -89,7 +89,7 @@ fn breath_is_a_spell_the_body_pays_for_like_any_other() {
 /// the player it has noticed.
 #[test]
 fn a_dragon_npc_breathes_the_same_spell() {
-    let mut w = test_world(7, Body::Nihil);
+    let mut w = test_world(7, Body::Row(&NIHIL));
     w.init_resource::<AttackQueue>();
     let strays: Vec<Entity> = w
         .query_filtered::<Entity, (With<Mob>, Without<Player>)>()
@@ -134,7 +134,7 @@ fn only_a_body_with_hands_can_equip() {
     let sword = spawn_named(&mut w, "long sword", at).unwrap();
     assert!(equipment::toggle_equipped(&mut w, p, sword));
 
-    let mut w = test_world(7, Body::Nihil);
+    let mut w = test_world(7, Body::Row(&NIHIL));
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
     let sword = spawn_named(&mut w, "long sword", at).unwrap();
@@ -191,7 +191,7 @@ fn the_body_comes_back_from_a_save() {
 
 #[test]
 fn a_player_named_after_a_species_is_still_nihil_after_a_save() {
-    let mut w = named_world(7, "dragon", Body::Nihil);
+    let mut w = named_world(7, "dragon", Body::Row(&NIHIL));
     let p = player(&mut w);
     let hp = w.get::<Fighter>(p).unwrap().max_hp;
 
@@ -222,7 +222,10 @@ fn an_apis_is_called_a_monster_on_the_first_turn() {
 
 #[test]
 fn nobody_else_is_called_a_monster() {
-    for body in [Body::Nihil, Body::Monster(MonsterDef::named("dragon"))] {
+    for body in [
+        Body::Row(&NIHIL),
+        Body::Monster(MonsterDef::named("dragon")),
+    ] {
         let w = test_world(7, body);
         assert!(!logged(&w, strings::you_monster()));
     }
@@ -323,7 +326,7 @@ fn a_worn_spirit_is_born_with_its_boons() {
 
 #[test]
 fn nihil_feels_nothing_at_the_start() {
-    let w = test_world(3, Body::Nihil);
+    let w = test_world(3, Body::Row(&NIHIL));
     let feels: Vec<&str> = EFFECTS.iter().filter_map(|e| e.feel).collect();
     assert!(!said(&w).iter().any(|l| feels.contains(&l.as_str())));
 }
@@ -381,4 +384,52 @@ fn gear_a_monster_spawns_wearing_comes_identified() {
             "spawn gear came unidentified"
         );
     }
+}
+
+#[derive(Component)]
+struct Worn;
+
+fn put_on_the_test_body(world: &mut World, player: Entity) {
+    world.entity_mut(player).insert(Worn);
+}
+
+static PACKLESS: BodyDef = BodyDef {
+    name: "body of the test",
+    brings_a_pack: false,
+    wear: put_on_the_test_body,
+};
+
+static PACKED: BodyDef = BodyDef {
+    brings_a_pack: true,
+    ..PACKLESS
+};
+
+#[test]
+fn a_body_row_wears_what_it_says() {
+    let mut w = test_world(7, Body::Row(&PACKLESS));
+    let p = player(&mut w);
+    assert!(w.get::<Worn>(p).is_some());
+    assert_eq!(Body::Row(&PACKLESS).name(), "body of the test");
+}
+
+#[test]
+fn a_body_row_brings_a_pack_only_when_it_says_so() {
+    let mut bare = test_world(7, Body::Row(&PACKLESS));
+    let p = player(&mut bare);
+    assert!(bare.get::<Backpack>(p).is_none_or(|b| b.items.is_empty()));
+    let mut packed = test_world(7, Body::Row(&PACKED));
+    let p = player(&mut packed);
+    assert!(
+        packed
+            .get::<Backpack>(p)
+            .is_some_and(|b| !b.items.is_empty())
+    );
+}
+
+#[test]
+fn every_body_row_is_found_by_its_name() {
+    for &row in BODIES {
+        assert!(body_row(row.name).is_some_and(|found| std::ptr::eq(found, row)));
+    }
+    assert!(body_row("body of the test").is_none());
 }

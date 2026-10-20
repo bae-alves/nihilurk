@@ -1,10 +1,11 @@
 //! What the player *is* — the one module that answers it.
 //!
-//! Three answers, and the same three wherever the question is asked
-//! ([`Body`]): **nihil**, the default; **lurk**, the other one written to be
-//! played; or a **bestiary row**, for `-am <species>`. They are one enum
-//! rather than two flags because they are one choice: you are exactly one of
-//! them, and the argument parser has nothing to cross-check.
+//! Two kinds of answer, and the same two wherever the question is asked
+//! ([`Body`]): a row of [`BODIES`], picked with `-b` (**nihil**, the default,
+//! and **lurk**, the other one written to be played), or a **bestiary row**,
+//! for `-am <species>`. They are one enum rather than two flags because they
+//! are one choice: you are exactly one of them, and the argument parser has
+//! nothing to cross-check.
 //!
 //! Everything downstream that has to know what a creature is made of comes
 //! through here: what tempo a staircase returns them to ([`innate_tempo`]),
@@ -31,18 +32,57 @@ use crate::equipment::Slot;
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use crate::monsters::MonsterDef;
 
+/// A body written to be played, picked by name with `-b`.
+///
+/// To add one: write its `wear` fn in this file, add a static row naming it,
+/// and list the row in [`BODIES`]. `wear` is required, so a row with nothing
+/// to put on does not build.
+pub struct BodyDef {
+    /// What `-b` matches, and what an error about one says.
+    pub name: &'static str,
+    /// Whether it starts out carrying the usual kit.
+    pub brings_a_pack: bool,
+    /// Dresses the freshly spawned player.
+    pub wear: fn(&mut World, Entity),
+}
+
+/// The default. Wakes up human-shaped and carrying a mace.
+pub static NIHIL: BodyDef = BodyDef {
+    name: "nihil",
+    brings_a_pack: true,
+    wear: wear_nihil,
+};
+
+/// Quadruped, fanged, clawed, furred: its own species, and the only one
+/// besides nihil that was written to be played. See `wear_lurk`.
+pub static LURK: BodyDef = BodyDef {
+    name: "lurk",
+    brings_a_pack: false,
+    wear: wear_lurk,
+};
+
+/// Every body `-b` can name.
+pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK];
+
+/// The row `-b` names.
+pub fn body_row(name: &str) -> Option<&'static BodyDef> {
+    BODIES.iter().copied().find(|row| row.name == name)
+}
+
 /// What a player is. One of these, never two.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub enum Body {
-    /// The default. Wakes up human-shaped and carrying a mace.
-    #[default]
-    Nihil,
-    /// Quadruped, fanged, clawed, furred: its own species, and the only one
-    /// besides nihil that was written to be played. See `wear_lurk`.
-    Lurk,
+    /// A row of [`BODIES`].
+    Row(&'static BodyDef),
     /// Any bestiary row, worn as a costume — `-am dragon`. See
     /// [`crate::monsters::wear_monster`].
     Monster(&'static MonsterDef),
+}
+
+impl Default for Body {
+    fn default() -> Self {
+        Body::Row(&NIHIL)
+    }
 }
 
 impl Body {
@@ -50,17 +90,18 @@ impl Body {
     /// one.
     pub fn name(self) -> &'static str {
         match self {
-            Body::Nihil => "nihil",
-            Body::Lurk => "lurk",
+            Body::Row(def) => def.name,
             Body::Monster(def) => def.name,
         }
     }
 
-    /// Whether this form starts out carrying the usual kit. Only nihil does:
-    /// a mace is no use to a creature with paws, and a monster is not stocked
-    /// the way a floor stocks one.
+    /// Whether this form starts out carrying the usual kit. A monster never
+    /// does: it is not stocked the way a floor stocks one.
     pub fn brings_a_pack(self) -> bool {
-        matches!(self, Body::Nihil)
+        match self {
+            Body::Row(def) => def.brings_a_pack,
+            Body::Monster(_) => false,
+        }
     }
 
     /// Whether this is `-am apis`, which turns the whole dungeon into the
@@ -92,14 +133,18 @@ pub fn bee_run(world: &World) -> bool {
 /// What nihil is born knowing: to throw themself at a creature in view.
 const NIHIL_GRANTS: &[Grant] = &[Grant::of::<Charges>()];
 
-/// Puts `body` on the freshly spawned `player`. Nihil is what the spawn
-/// already built, plus the one trick they were born with.
+/// Puts `body` on the freshly spawned `player`.
 pub fn wear(world: &mut World, player: Entity, body: Body) {
     match body {
-        Body::Nihil => grant_all(world, player, NIHIL_GRANTS),
-        Body::Lurk => wear_lurk(world, player),
+        Body::Row(def) => (def.wear)(world, player),
         Body::Monster(def) => crate::monsters::wear_monster(world, player, def),
     }
+}
+
+/// Nihil is what the spawn already built, plus the one trick they were born
+/// with.
+fn wear_nihil(world: &mut World, player: Entity) {
+    grant_all(world, player, NIHIL_GRANTS);
 }
 
 /// What a lurk is born with. A `const` slice because [`grant_all`] takes the

@@ -5,7 +5,7 @@ How to add a new playable body
     Prerequisites  ../explanation/ecs-in-nihilurk.md, ../how-to/work-with-the-ecs.md.
                    ../tutorial/add-your-first-body.md is the long version,
                    as a lesson, if you want to feel the save-marker bug first.
-    Result         A third hand-written `Body::Variant`, selectable with
+    Result         A third hand-written `BodyDef` row, selectable with
                    `-b <name>`, that survives a save/load round trip.
 
 Not a content-table recipe. `-am <species>` already lets anyone *wear* a
@@ -18,12 +18,13 @@ from `-am` genuinely won't do.
 The table
 ---------
 
-    models/src/body.rs      ->  enum Body
+    models/src/body.rs      ->  BODIES
 
-Three variants today: `Nihil` (the default), `Lurk`, `Monster(&'static
-MonsterDef)`. One enum, not a flag per body, because a player is exactly one
-of them and the argument parser has nothing to cross-check — see the doc
-comment at the top of `body.rs` before you touch it.
+Two rows today: `NIHIL` (the default) and `LURK`. A player is `Body::Row`
+of one of them, or `Body::Monster(&'static MonsterDef)` for `-am`. One enum,
+not a flag per body, because a player is exactly one of them and the
+argument parser has nothing to cross-check — see the doc comment at the top
+of `body.rs` before you touch it.
 
 
 The recipe
@@ -32,17 +33,20 @@ The recipe
 Follow `wear_lurk` line for line; a fourth body is a sibling of it, not a
 new shape.
 
-1. **Add the variant.**
+1. **Add the row**, and list it in `BODIES`:
 
-       pub enum Body {
-           Nihil,
-           Lurk,
-           Wraithkin,                       // new
-           Monster(&'static MonsterDef),
-       }
+       pub static WRAITHKIN: BodyDef = BodyDef {
+           name: "wraithkin",
+           brings_a_pack: false,
+           wear: wear_wraithkin,
+       };
 
-   `Body::name()` needs an arm too — it is what `-b` matches against and
-   what an error about the body prints.
+       pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK, &WRAITHKIN];
+
+   `name` is what `-b` matches. Only nihil brings a pack; leave
+   `brings_a_pack` false unless the new body is meant to start holding a
+   mace, which none of the hand-written ones are — the whole point is a
+   body with nothing to buy.
 
 2. **Write `wear_wraithkin`, next to `wear_lurk`.** It inserts the starting
    `Renderable`, `Fighter`, `Magic` and `Speed` the same way, and grants
@@ -53,11 +57,7 @@ new shape.
    writing them inline — that is the one line `wear_lurk` itself would fail
    review on if it didn't.
 
-3. **Wire it into `wear`:**
-
-       Body::Wraithkin => wear_wraithkin(world, player),
-
-4. **Give it a marker that survives a save.** A monster body is the one
+3. **Give it a marker that survives a save.** A monster body is the one
    body the save writes down (`SaveGame::monster_body`, the species id);
    the lurk is read back from its own `Lurk` effect marker, which rides the
    effect ledger like anything else a creature was born with. Your body
@@ -66,24 +66,18 @@ new shape.
    accident. A new saved field changes the save format: see the
    `EntitySave` note in `add-an-item-category.md`.
 
-5. **Teach `innate_tempo`** if the body doesn't return to `SpeedKind::Normal`
+4. **Teach `innate_tempo`** if the body doesn't return to `SpeedKind::Normal`
    after a staircase lifts whatever the floor lent it (the lurk always
    returns to `Quick`).
 
-6. **Teach `equip_refusal`** if the body can't wear everything nihil can.
+5. **Teach `equip_refusal`** if the body can't wear everything nihil can.
    The lurk refuses every slot but `Slot::Finger`; a monster body refuses
    everything unless its bestiary row carries `ItemUser`. Say *why* in the
    refusal string — it's what the player reads when they try.
 
-7. **Wire the flag.** `engine/src/main.rs` matches `("-b", "nihil")` /
-   `("-b", "lurk")` literally; add `("-b", "wraithkin") => body =
-   Some((models::Body::Wraithkin, "-b"))`. `-b` and `-am` already refuse
-   being passed together and refuse an unrecognised name — nothing else to
-   touch there.
-
-8. **`brings_a_pack`.** Only `Nihil` returns `true`. Leave it that way unless
-   the new body is meant to start holding a mace, which none of the
-   hand-written ones are — the whole point is a body with nothing to buy.
+6. **Name it in the refusal.** `-b` looks the name up in `BODIES`, so the
+   flag needs nothing. An unknown name prints `no_such_body` (`strings/src/`,
+   one per language), which lists the bodies by hand: add yours there.
 
 
 Checks that will catch you
@@ -92,14 +86,14 @@ Checks that will catch you
 `models/tests/it/body.rs` and `lurk.rs` are the pattern to copy for a new
 `wraithkin.rs`, declared as `mod wraithkin;` in `models/tests/it/main.rs`
 and run with `cargo test --test it wraithkin::`. Build a `World` with
-`StartingBody(Body::Wraithkin)`,
+`StartingBody(Body::Row(&WRAITHKIN))`,
 call `initialize_world`, then assert the glyph, the dice, the grants, and
 that a save/load round trip comes back as the same body. Nothing else in the
 suite exercises a body that doesn't exist yet.
 
-`cargo test --test it content::` won't see this at all — a hand-written body is
-not a table row, so none of its checks apply. That absence is the tell that
-you're outside the tables and should be moving carefully, not the sign that
+`cargo test --test it content::` won't see this at all — `BODIES` is not one of
+the content tables it walks, so none of its checks apply. That absence is the tell that
+you're outside the item and monster tables and should be moving carefully, not the sign that
 you can skip testing.
 
 
@@ -121,17 +115,16 @@ and will say something wrong about your body if you don't touch it:
 Appendix: quick check
 ---------------------
 
-1. Add the `Body` variant in `models/src/body.rs`, and its arm in `Body::name()`.
+1. Add the `BodyDef` row in `models/src/body.rs`, and list it in `BODIES`.
 2. Write `wear_<name>` next to `wear_lurk`, with every number in a new `constants::<name>` module.
-3. Add the `Body::<Name> => wear_<name>(world, player)` arm in `wear`.
-4. Give it a save marker: an effect already in `EFFECTS` that nothing else puts on the player.
-5. Teach `innate_tempo` if the body does not return to `SpeedKind::Normal`.
-6. Teach `equip_refusal` if the body cannot wear everything, and say why in the string.
-7. Add the `("-b", "<name>")` arm in `engine/src/main.rs`.
-8. Leave `brings_a_pack` returning `false`.
-9. Copy `models/tests/it/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
-10. Run that test with `cargo test --test <file>`, then `cargo test`.
-11. Fix the docs: `update-the-docs.md`, "A playable body".
+3. Give it a save marker: an effect already in `EFFECTS` that nothing else puts on the player.
+4. Teach `innate_tempo` if the body does not return to `SpeedKind::Normal`.
+5. Teach `equip_refusal` if the body cannot wear everything, and say why in the string.
+6. Add the name to `no_such_body` in every `strings/src/` language.
+7. Leave `brings_a_pack` false.
+8. Copy `models/tests/it/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
+9. Run that test with `cargo test --test <file>`, then `cargo test`.
+10. Fix the docs: `update-the-docs.md`, "A playable body".
 
 
 See also

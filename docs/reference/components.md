@@ -43,10 +43,11 @@ Components — what the player is
 
 `Body` (`models/src/body.rs`, not `components.rs` — it is the one type this
 whole page's "nouns only" file doesn't hold, because it is read at
-character-build time, not by a system) is which of three shapes the run's
-hero descends in: `Nihil` (default), `Lurk`, or `Monster(&'static
-MonsterDef)` — a bestiary row worn as a costume, `-am <species>`. One enum
-rather than three flags, because a player is exactly one of them.
+character-build time, not by a system) is which shape the run's hero
+descends in: `Row(&'static BodyDef)`, a row of `BODIES` picked with `-b`
+(`NIHIL`, the default, or `LURK`), or `Monster(&'static MonsterDef)` — a
+bestiary row worn as a costume, `-am <species>`. One enum rather than a
+flag per body, because a player is exactly one of them.
 
 | Type | Data | On | Saved? |
 |------|------|----|--------|
@@ -466,5 +467,5 @@ See also
   ../explanation/ecs-in-nihilurk.md   what each of the three nouns may be
   input-and-turn-loop.md       what reads and writes the UI resources above
   ../how-to/add-an-effect.md   adding a new marker / modifier component
-  ../how-to/add-a-body.md      adding a new hand-written `Body` variant
+  ../how-to/add-a-body.md      adding a new hand-written `BodyDef` row
   ../explanation/data-driven-content.md  why behaviour is not in the row

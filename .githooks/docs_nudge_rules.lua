@@ -29,7 +29,7 @@ return {
     { row = "A scroll", file = "models/src/catalog.rs", line = "^%+%s+&ScrollDef::new%(", pages = { FEEL } },
     { row = "A wand", file = "models/src/catalog.rs", line = "^%+%s+&WandDef::new%(", pages = { TABLES, FEEL } },
     { row = "An effect", file = "models/src/effects.rs", line = '^%+%s+"[%l_]+" => ', pages = { TABLES } },
-    { row = "A playable body", file = "models/src/body.rs", under = "^pub enum Body", line = variant,
+    { row = "A playable body", file = "models/src/body.rs", line = "^%+pub static [%u_]+: BodyDef",
       pages = { CLI, COMPONENTS, CONSTANTS, MANUAL, MAN } },
     { row = "A rule", file = "models/src/agents.rs", line = "^%+pub const [%u_]+: Rule[ =]", pages = { AGENTS } },
     { row = "A rule set", file = "models/src/agents.rs", line = "^%+pub static [%u_]+: RuleSet", pages = { AGENTS } },

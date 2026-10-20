@@ -278,7 +278,7 @@ fn a_forge_coin_pays_a_point_of_plus_at_the_stairs() {
 
 #[test]
 fn a_forge_coin_pays_a_lurk_onto_its_ring() {
-    let mut w = world_as(1, Some(Body::Lurk));
+    let mut w = world_as(1, Some(Body::Row(&LURK)));
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
     let ring = spawn_named(&mut w, "ring of protection", at).expect("a ring");
