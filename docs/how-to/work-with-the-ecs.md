@@ -123,7 +123,7 @@ Before you write one, check you need one. Three things that look like new compon
 
   * **A property some system will ask about** — fire immunity, sees invisible, hits harder. That is an *effect*: a marker in `effects.rs` plus a row in the `EFFECTS` registry, so a table can name it with `Grant::of::<C>()` and a wand of cancellation can strip it. Follow `add-an-effect.md` instead.
   * **A number gear contributes** — a weapon's die, a ring's plus. That is a `Modifier` in `effects.rs`; `equipped_total` already folds it.
-  * **Which one of a kind a thing is** — a fourteenth wand, a sixteenth potion. That is a variant on an existing type key and a row in `catalog.rs`. See `add-an-item.md`.
+  * **Which one of a kind a thing is** — another wand, another potion. That is a row in `catalog.rs`, and the existing type key (`Wand`, `Potion`) points at it. See `add-an-item.md`.
 
 What is left is a genuinely new *fact about an entity*, and it goes in `models/src/components.rs` — nouns only, no behaviour:
 
@@ -145,7 +145,7 @@ Then, in order:
 Rules that are not negotiable:
 
   * **No `fn` that touches the `World`.** If the component needs a verb, the verb lives in the module that owns the domain — `conditions.rs` for an affliction, `equipment.rs` for gear. Methods *about the type* (`SpeedKind::faster`, `Name::article`) are fine.
-  * **A saved enum is written by variant position.** Append variants; never reorder one, or a saved trapdoor comes back as something else.
+  * **A saved enum is written by variant position.** Append variants; never reorder one, or a saved `TrapReveal::Sight` comes back as `Adjacent`.
   * **Small.** A component with eight fields is usually two components.
 
 ### Attaching and detaching one
@@ -206,7 +206,7 @@ Components that only *some* of the kind carry stay off the bundle and go on afte
 Then the bookkeeping, in order:
 
   * **Saving.** Decide what the save stores and what it reads back off the row. Store the row's *name*, never its contents (see `restore_from_catalog`), and add the entity's own mutable state — a trap's `revealed` latch, a wand's charges.
-  * **Despawning between floors.** `map::levels::transition_level` clears everything with a `Position` that is not the player and not in a backpack. If your kind should survive a staircase, it needs a reason and an exception; if it should not, you have nothing to do.
+  * **Despawning between floors.** `map::levels::transition_level` clears everything with a `Position` that is not the player, not a `Helper` and not in a backpack. If your kind should survive a staircase, it needs a reason and an exception like the Helper's; if it should not, you have nothing to do.
   * **Drawing.** A `Renderable` gets it on screen, but *when* it draws is a layer in `engine/src/view.rs`'s `render`, and the order matters — a later layer covers an earlier one. See `../reference/rendering.md`.
   * **Documenting.** A row in `../reference/content-tables.md` for the table and one in `../reference/components.md` for anything new it carries.
 
@@ -228,8 +228,9 @@ flowchart LR
   R2 --> R3["ABILITIES<br/><i>Moment::OnHit rows</i>"]:::magic --> R4["blood, promise,<br/>low-HP warning"]:::peril
   R4 --> R5["log, shake,<br/>score, despawn"]
 
-  NO(["a trap, a bolt,<br/>a blast"]):::magic --> AD["helpers::apply_damage"]:::peril
-  AD --> A1["HP off"] --> A2["blood, promise,<br/>low-HP warning"]:::peril
+  NO(["a trap, a bolt,<br/>a blast"]):::magic --> AH["helpers::apply_hit"]:::peril
+  AH --> AW["ward, immunity,<br/>stone chip"]:::magic --> AD["apply_damage<br/><i>HP off</i>"]:::peril
+  AD --> A2["blood, promise,<br/>low-HP warning"]:::peril
   A2 --> RP["reaper_system<br/><i>at the tail of the turn</i>"]:::peril
   A2 -. "or, if you know the blast centre" .-> FI["finish_indirect_kill"]:::peril
   classDef hero fill:#3a3418,stroke:#d7ba4a,color:#e8dfa8
@@ -244,13 +245,13 @@ There are exactly two ways, and which one you want depends on whether somebody s
 
     crate::combat::resolve_attack(world, attacker, target);
 
-It rolls both sides, folds in every equipped modifier, fires every `Moment::OnHit` row in `ABILITIES`, spills blood, logs the line, kicks the shake, pays the score and despawns the corpse. You do not do any of that yourself. Monsters reach it by pushing onto the `AttackQueue` (below); the player's own swing calls it inline from `move_player`.
+It rolls both sides, folds in every equipped modifier, fires every `Moment::OnHit` row in `ABILITIES`, spills blood, logs the line, kicks the shake, pays the score and despawns the corpse. You do not do any of that yourself. Monsters reach it by pushing onto the `AttackQueue` (below); the player's own swing reaches it through `player_action_system`, which applies the queued step's `melee_attack`.
 
 **Something took damage with no swinger** — a trap, a bolt, a blast:
 
-    crate::helpers::apply_damage(world, victim, amount);
+    crate::helpers::apply_hit(world, victim, Hit::magic(amount), Some(&line));
 
-That subtracts the HP, spills blood, breaks any promise the victim was holding and fires the low-HP warning. It deliberately does **not** kill: anything left on `hp <= 0` is finished by `reaper_system` at the tail of the turn. If you know where the damage came from and want the corpse flung away from it, finish the casualty yourself instead:
+`Hit::magic`, `Hit::elemental(amount, element)` or `Hit::physical` says what kind of harm it is. `apply_hit` is the one place mitigation is decided: a Magic Ward turns a magical hit aside, an immunity drops an elemental one, a petrified victim takes a chip. It logs your `line` only if the hit lands, then calls `helpers::apply_damage`, which subtracts the HP, spills blood, breaks any promise the victim was holding and fires the low-HP warning. It returns how much came off. It deliberately does **not** kill: anything left on `hp <= 0` is finished by `reaper_system` at the tail of the turn. If you know where the damage came from and want the corpse flung away from it, finish the casualty yourself instead:
 
     if world.get::<Fighter>(victim).is_some_and(|f| f.hp <= 0) {
         crate::combat::finish_indirect_kill(world, victim, Some(center));
@@ -261,7 +262,7 @@ That subtracts the HP, spills blood, breaks any promise the victim was holding a
 Three rules that are easy to get wrong:
 
   * **Armour.** Melee, missile, magic: `resolve_attack` rolls the defender's armour *die* and *plus*; a throw or a shot subtracts only the armour *plus* (`helpers::total_armor_plus`); a spell or wand subtracts nothing. An arrow or dart trap is a missile; every other damage source is magic. No exceptions. See `../explanation/combat-and-balance.md`.
-  * **Elements.** If the damage has a flavour, go through `items::wands`'s `damage_with_element`, which checks the target's immunity (`Element::immunity()`) and logs the shrug. Never match on a species.
+  * **Elements.** If the damage has a flavour, build it with `Hit::elemental`; `apply_hit` checks the target's immunity (`Element::immunity()`) and logs the shrug. Never match on a species, and never call `apply_damage` directly for harm a ward or an immunity should be able to stop.
   * **`took_damage`.** Melee applies its own HP change and so has to call `helpers::took_damage` by hand. If you ever add a third damage path, call it too — it is the one place "what happens because a creature was hurt" lives.
 
 
@@ -276,8 +277,9 @@ Never insert a condition component directly. Call the verb in `crate::conditions
     confuse(
         world,
         victim,
-        "The flash leaves you reeling — you are dazzled!",  // the player reads this
-        "is dazzled",                                       // "The rat ___."
+        strings::dazzle_player_line(), // the player reads this
+        LogCategory::Dazzle,          // and in this colour
+        strings::dazzle_mob_verb(),   // "The rat ___."
     );
 
     // Pinned for a count of turns. Deliberately silent — the sentence
@@ -288,12 +290,10 @@ Every verb returns `bool`: whether it actually took hold. That answer is load-be
 
 **To add a new condition**, in order:
 
-  1. A marker component in `components.rs`, doc-commented with what it costs the player and what it does to a monster instead.
-  2. A verb in `conditions.rs` that does the player/monster split once.
-  3. An arm in `conditions::cure_one_condition` (a rosé coin and a ring of regeneration both lift "the worst thing wrong with you", worst first) and in `conditions::afflicted`.
-  4. An arm in `conditions::clear_player_conditions`, unless it is meant to survive a staircase — `Plated` and `Forged` are the only two that do, and the staircase *settles* them instead.
-  5. A field appended to `saveload::EntitySave`, plus the save and load lines and a new `SAVE_VERSION`. A condition a save forgets is a condition that silently lifts on reload.
-  6. A badge in the HUD's condition list (`engine/src/view.rs`).
+  1. A marker effect in `effects.rs` and its row in `EFFECTS` (`add-an-effect.md`), doc-commented with what it costs the player and what it does to a monster instead. The row is what saves it, by id, with the `Lifetime` it is held for; a condition outside `EFFECTS` silently lifts on reload.
+  2. A verb in `conditions.rs` that does the player/monster split once, and lends the effect through `effects::lend`, the gate that enforces `CONDITION_CAP`.
+  3. A row in `conditions::AFFLICTIONS`, at its place in the worst-first order. That one table is what `afflicted`, `cure_one_condition` (a rosé coin and a ring of regeneration both lift "the worst thing wrong with you") and `clear_player_conditions` all read. A condition meant to survive a staircase stays out of it, the way `Plated` and `Forged` do.
+  4. A badge in the HUD's condition list (`engine/src/view.rs`).
 
 A condition that lives on a *monster* usually needs none of this: prefer a `MovementType` or a `Speed` shift, which the AI already reads.
 
@@ -365,6 +365,7 @@ Input handlers do not resolve anything. They push an intent and return whether a
 | `WantsToUse`     | `UseQueue`    | `item_system`  |
 | `WantsToThrow`   | `ThrowQueue`  | `throw_system` |
 | `WantsToCast`    | `SpellQueue`   | `spell_system`  |
+| `PlayerAction`   | `PlayerActionQueue` | `player_action_system` |
 
 `WantsToUse` and `WantsToThrow` name an item still in the pack, with `slot_idx` for its row; the draining system lifts it, so the key changes nothing in the world. A surviving item goes back to that row, and `target` carries anything aimed. A throw of a stacked item goes through `models::draw_one` in `throw_system`, which splits one arrow off and leaves the quiver where it was. `WantsToCast` is an active spell's own intent — a wand's twin, minus everything about an item because a spell isn't one.
 
@@ -451,8 +452,8 @@ Appendix: quick check
 1. Before a new component, check it is not an effect, a modifier, or a row of an existing kind.
 2. Component: add it to `models/src/components.rs` as nouns only, decide and say if it is saved, and add its row to `../reference/components.md`.
 3. New kind of entity: a `Def` row type and table, a `Bundle`, then `spawn_named` and `content_names`.
-4. Damage: `combat::resolve_attack` if somebody swung, `helpers::apply_damage` if not; the reaper finishes the dead.
-5. Condition: call the verb in `crate::conditions`; a new one needs a marker, a verb, two match arms, a save field and a HUD badge.
+4. Damage: `combat::resolve_attack` if somebody swung, `helpers::apply_hit` with a `Hit` if not; the reaper finishes the dead.
+5. Condition: call the verb in `crate::conditions`; a new one needs an `EFFECTS` row, a verb, an `AFFLICTIONS` row and a HUD badge.
 6. Gear stat: `equipped_total::<C>`, or `loadout` for several; probe the marker to ask a yes or no.
 7. Spawn: `spawn_named` for a row, `roll_item` for a drop; remove an item from the pack before you despawn it.
 8. Input: push an intent onto its queue and return; the matching system drains it.
