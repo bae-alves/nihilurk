@@ -100,7 +100,7 @@ A set is picked by the monster's tactic. Add a variant at the **end** of `Moveme
 
     Cower,
 
-Then build. The compiler lists every `match` that needs to hear about it. The one that matters is `rule_set_for` in `agents.rs`:
+Then build. The compiler stops at the one exhaustive `match` on `MovementType`, `rule_set_for` in `agents.rs`; give it the arm:
 
     MovementType::Cower => &COWARD,
 
@@ -112,7 +112,7 @@ Step 6: meet it
 
     NIHILURK_SPAWN="emu" cargo run -p nihilurk
 
-Walk toward it. At three tiles it runs. Corner it and it bites. Step back past three and it stops and watches. Walk out of the room: it does nothing at all, because a mob off your view never acts.
+Walk toward it. At three tiles it runs, straight away from you, so a wall behind it holds it where it stands. Corner it and it bites. Step back past three and it stops and watches. Walk out of the room: it does nothing at all, because a mob off your view never acts.
 
 
 Step 7: keep it, or put it back
@@ -123,8 +123,10 @@ Step 7: keep it, or put it back
 If you keep it, add the rule and the set to `../reference/agents.md`.
 
 
-See also
---------
+Where to go next
+----------------
 
+  ../how-to/add-a-rule.md         the short version of steps 2 and 4
+  ../how-to/add-a-rule-set.md     the short version of steps 3 and 5
   ../reference/agents.md          every rule, every set
   ../explanation/agents.md        why a mind is a list
