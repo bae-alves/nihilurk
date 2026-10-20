@@ -86,6 +86,7 @@ touch anything below it.
 Step 2: add the row
 ---------------------
 
+    /// Quick, quiet, and poisoned steel.
     pub static NINJA: BodyDef = BodyDef {
         name: "ninja",
         brings_a_pack: false,
@@ -94,7 +95,7 @@ Step 2: add the row
 
     pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK, &NINJA];
 
-`name` is what `-b` matches, and what an error about the body prints. A new
+Put the row above `BODIES` and its doc comment, so the comment stays on the table: `models` warns on any public item without one. `name` is what `-b` matches, and what an error about the body prints. A new
 player named after it becomes it too: `nihilurk ninja` is `-b ninja`.
 `brings_a_pack` stays false; the ninja gets its gear in step 6.
 
@@ -160,8 +161,8 @@ borrowing both:
         grant_all(world, player, NINJA_GRANTS);
     }
 
-The numbers are placeholders for now — 8 HP, nihil's own bare 2/2 dice, 2
-Magic. You'll pull them out to `constants.rs` in the step where you decide
+The numbers are placeholders for now — 8 HP, dice a point under nihil's bare
+ones (`player::START_POWER`, `START_ARMOR`), 2 Magic. You'll pull them out to `constants.rs` in the step where you decide
 you're keeping this.
 
 
@@ -294,9 +295,9 @@ It is tempting to guess this bug lives behind a save and reload, the way a
 lurk's identity does. It doesn't — try it first, so you believe the actual
 answer:
 
-    cargo run -p nihilurk -- -b ninja -ns
-    # play a turn or two, quit, then:
-    cargo run -p nihilurk -- -b ninja -ns
+    cargo run -p nihilurk -- -b ninja kage
+    # play a turn or two, quit with Esc then y, then load the save:
+    cargo run -p nihilurk -- kage
 
 You come back quick, quiet and venomous, exactly as you left. `Speed.kind`,
 `Stealthy` and `Venomous` are all ordinary saved state — a plain field and
