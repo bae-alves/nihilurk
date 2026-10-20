@@ -146,7 +146,7 @@ A row can carry more than numbers. Chain onto it:
 
     MonsterDef::row("basilisk",  'b',   Color::DarkGreen,  Chase,  5,   8,  1,   8,  1,   5)
         .grants(&[Grant::of::<FireImmune>()])
-        .casts(2, &[SpellEffect::Thunderbolt])
+        .casts(2, &CASTS_THUNDERBOLT)
         .invisible()
         .weight(4),
 
@@ -154,7 +154,7 @@ Four things happened, and you wrote no code for any of them.
 
 **`.grants(...)`** hands the creature a property. `FireImmune` is a plain marker component. The wand-of-fire code asks whether its target carries one, and that is the whole check. It has never heard of a basilisk, or of a dragon, or of any ring that might grant the same thing to a player. Every effect on the list works this way; see `../reference/content-tables.md` for what is available, and `../how-to/add-an-effect.md` for adding one.
 
-**`.casts(2, &[...])`** teaches it a spell and the Ma for two casts of it. Thunderbolt costs 1, so the basilisk is born with 2 Ma and a spellset of one. The chaser rule set tries a spell before it tries a bite, so the basilisk zaps you from range until the Ma runs out, and then it walks up and bites. The pool never refills.
+**`.casts(2, &CASTS_THUNDERBOLT)`** teaches it a spell and the Ma for two casts of it. Thunderbolt costs 1, so the basilisk is born with 2 Ma and a spellset of one. The chaser rule set tries a spell before it tries a bite, so the basilisk zaps you from range until the Ma runs out, and then it walks up and bites. The pool never refills.
 
 **`.invisible()`** makes it unseeable without second sight. The visibility system already knows what to do with that, because the phantom needed it first.
 

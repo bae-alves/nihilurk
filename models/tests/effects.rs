@@ -421,8 +421,7 @@ impl LedgerAudit<'_> {
     ///
     /// Rust's own naming convention does the disambiguating, because several
     /// effects share a name with an enum variant — `MovementType::Confused`
-    /// is not the `Confused` component, and `SpellEffect::MagicWard` is not the
-    /// `MagicWard` one. A qualifier that is `snake_case` is a module, so the
+    /// is not the `Confused` component. A qualifier that is `snake_case` is a module, so the
     /// type after it is the real one; a qualifier that is `CamelCase` is a
     /// type, so what follows is its variant or its associated item and none of
     /// this test's business.
@@ -431,8 +430,8 @@ impl LedgerAudit<'_> {
     /// `Asleep::default()` are both attaches — `default` is the escape hatch
     /// every marker has, since `Grant::of` requires it — and anything else
     /// hung off the marker is one too, because a unit struct has nothing else
-    /// worth naming. `SpellEffect::MagicWard` is a row in a catalog, and its
-    /// first capitalised segment is `SpellEffect`, which is no effect of ours.
+    /// worth naming. `MovementType::Confused` is a variant, and its
+    /// first capitalised segment is `MovementType`, which is no effect of ours.
     /// A turbofish is not a segment at all, which is what keeps
     /// `Grant::of::<Asleep>()` legal.
     fn effect_in(&self, path: &syn::Path) -> Option<(String, usize)> {

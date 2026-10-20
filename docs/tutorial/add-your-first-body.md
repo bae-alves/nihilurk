@@ -212,7 +212,7 @@ Step 5: put Sting in the spell bar
 `wear_lurk` ends by handing the lurk one spell it has to pay for:
 
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
-        spellset.slots.push(SpellEffect::Bide);
+        spellset.slots.push(&crate::catalog::BIDE);
     }
 
 Sting already exists — a venomed dart at range, 1 Magic, in
@@ -220,7 +220,7 @@ Sting already exists — a venomed dart at range, 1 Magic, in
 `wear_ninja`:
 
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
-        spellset.slots.push(SpellEffect::Sting);
+        spellset.slots.push(crate::catalog::spell_row("Sting").unwrap());
     }
 
 It costs Magic like anybody else's copy of it would — nothing is

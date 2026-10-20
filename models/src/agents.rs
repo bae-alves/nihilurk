@@ -24,9 +24,8 @@
 use bevy_ecs::entity::Entity;
 
 use crate::catalog::SpellDef;
-use crate::components::{MovementType, Position, SpellEffect, SpellKind};
+use crate::components::{MovementType, Position, SpellKind};
 use crate::constants::monsters::MONSTER_SHOT_RANGE;
-use crate::constants::spells::METEOR_STRIKE_CHAIN_SPREAD;
 use crate::helpers::{chebyshev, get_line};
 use crate::map::Map;
 
@@ -66,7 +65,7 @@ pub struct Percept<'a> {
     /// The spells it can cast: those in its
     /// [`Spellset`](crate::components::Spellset) its [`Magic`](crate::components::Magic)
     /// can pay for.
-    pub spellset: Vec<SpellEffect>,
+    pub spellset: Vec<&'static SpellDef>,
     /// A die already rolled for this turn, for the rules that choose at random
     /// (which spell to try, which way to stagger). Rolled with the percept so a
     /// rule stays a plain function of what it is handed.
@@ -94,7 +93,7 @@ pub enum Action {
     /// Loose the launcher in its hand at someone.
     Shoot(Entity),
     /// Cast a spell it was born with at a tile.
-    Cast(SpellEffect, Position),
+    Cast(&'static SpellDef, Position),
     /// Take one step. Into someone it would fight, that is a swing.
     Step(i16, i16),
     /// Do nothing this turn.
@@ -246,7 +245,7 @@ pub const SHOOT: Rule = Rule {
 
 /// One spell picked at random from the spellset, fired at the nearest foe it
 /// can reach: in its range, and with a clear line only for a spell that
-/// travels one ([`needs_line`]) — a sting or a bolt is aimed at the foe, not
+/// travels one ([`SpellDef::line`]) — a sting or a bolt is aimed at the foe, not
 /// flown to it. An ally also passes over any foe whose spell would catch the
 /// player ([`reaches`]); a monster does not care who else it catches. Only
 /// attack spells with a range are fired this way.
@@ -313,16 +312,15 @@ fn cast(p: &Percept) -> Option<Action> {
         return None;
     }
     let spell = p.spellset[p.roll as usize % p.spellset.len()];
-    let def = SpellDef::of(spell);
-    if !matches!(def.kind, SpellKind::Attack) || def.range == 0 {
+    if !matches!(spell.kind, SpellKind::Attack) || spell.range == 0 {
         return None;
     }
     p.foes
         .iter()
         .find(|f| {
-            chebyshev(p.at, f.at) <= def.range
+            chebyshev(p.at, f.at) <= spell.range
                 && !across_corner(p, f)
-                && (!needs_line(spell) || clear_line(p.map, p.at, f.at))
+                && (!spell.line || clear_line(p.map, p.at, f.at))
                 && !(p.ally && reaches(p.map, spell, p.at, f.at, p.player_at))
         })
         .map(|f| Action::Cast(spell, f.at))
@@ -404,38 +402,23 @@ pub fn clear_line(map: &Map, from: Position, to: Position) -> bool {
         .all(|t| !map.blocks(t.x, t.y))
 }
 
-/// Whether `spell` flies along the line to its target and stops at the first
-/// wall, as a lance does. Every other attack spell lands on the target tile
-/// itself.
-fn needs_line(spell: SpellEffect) -> bool {
-    matches!(spell, SpellEffect::ForceLance)
-}
-
-/// Whether `spell`, cast from `from` at `target`, would reach `who`. A spell
-/// whose footprint this does not know is assumed to reach everyone, so nothing
-/// casts it blind.
-fn reaches(map: &Map, spell: SpellEffect, from: Position, target: Position, who: Position) -> bool {
-    let blast = |radius: f32| {
-        crate::items::blast_cells(map, target, radius)
+/// Whether `spell`, cast from `from` at `target`, would reach `who`: its blast
+/// and any chain spread, else the line it flies to the first wall, else the
+/// target tile alone.
+fn reaches(map: &Map, spell: &SpellDef, from: Position, target: Position, who: Position) -> bool {
+    if let Some(radius) = spell.blast {
+        return crate::items::blast_cells(map, target, radius + spell.spread as f32)
             .iter()
-            .any(|&(x, y, _)| (x, y) == (who.x, who.y))
-    };
-    let chain = match spell {
-        SpellEffect::MeteorStrike => METEOR_STRIKE_CHAIN_SPREAD as f32,
-        _ => 0.0,
-    };
-    if let Some(radius) = crate::items::spell_blast_radius(spell) {
-        return blast(radius + chain);
+            .any(|&(x, y, _)| (x, y) == (who.x, who.y));
     }
-    match spell {
-        SpellEffect::Sting | SpellEffect::Thunderbolt => target == who,
-        SpellEffect::ForceLance => get_line(from, target)
+    if spell.line {
+        return get_line(from, target)
             .into_iter()
             .skip(1)
             .take_while(|t| !map.blocks(t.x, t.y))
-            .any(|t| t == who),
-        _ => true,
+            .any(|t| t == who);
     }
+    target == who
 }
 
 #[cfg(test)]

@@ -91,7 +91,7 @@ fn every_creature_can_cast_every_spell_it_knows_at_anything() {
                     };
                     w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
                         user: caster,
-                        effect: spell,
+                        spell,
                         target,
                     });
                     spell_system(&mut w);
@@ -99,59 +99,4 @@ fn every_creature_can_cast_every_spell_it_knows_at_anything() {
             }
         }
     }
-}
-
-/// Every spell has its row in `SPELLS`. 0.1.3 shipped a creature spell with no
-/// row, and the first gnome to cast it panicked the game. The match has no
-/// catch-all, so a new spell fails to compile here until it is listed.
-#[test]
-fn every_spell_has_a_catalog_row() {
-    fn listed(e: SpellEffect) -> SpellEffect {
-        match e {
-            SpellEffect::DragonBreath
-            | SpellEffect::Sting
-            | SpellEffect::Thunderbolt
-            | SpellEffect::Cure
-            | SpellEffect::Bide
-            | SpellEffect::ForceLance
-            | SpellEffect::Identify
-            | SpellEffect::Setup
-            | SpellEffect::Lux
-            | SpellEffect::CircleOfDeath
-            | SpellEffect::MagicWard
-            | SpellEffect::Heal
-            | SpellEffect::MeteorStrike
-            | SpellEffect::FrostNova
-            | SpellEffect::MagicMapping
-            | SpellEffect::HasteSelf
-            | SpellEffect::PolymorphSelf
-            | SpellEffect::PolymorphOther
-            | SpellEffect::GateDown => e,
-        }
-    }
-    let all = [
-        SpellEffect::DragonBreath,
-        SpellEffect::Sting,
-        SpellEffect::Thunderbolt,
-        SpellEffect::Cure,
-        SpellEffect::Bide,
-        SpellEffect::ForceLance,
-        SpellEffect::Identify,
-        SpellEffect::Setup,
-        SpellEffect::Lux,
-        SpellEffect::CircleOfDeath,
-        SpellEffect::MagicWard,
-        SpellEffect::Heal,
-        SpellEffect::MeteorStrike,
-        SpellEffect::FrostNova,
-        SpellEffect::MagicMapping,
-        SpellEffect::HasteSelf,
-        SpellEffect::PolymorphSelf,
-        SpellEffect::PolymorphOther,
-        SpellEffect::GateDown,
-    ];
-    for e in all {
-        assert!(SPELLS.iter().any(|row| row.effect == listed(e)), "{e:?}");
-    }
-    assert_eq!(SPELLS.len(), all.len(), "a row for a spell not listed here");
 }

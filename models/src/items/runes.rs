@@ -9,13 +9,13 @@
 
 use bevy_ecs::{entity::Entity, world::World};
 
-use crate::catalog::BLANK_RUNE;
+use crate::catalog::{BLANK_RUNE, FROST_NOVA, HASTE_SELF, SpellDef};
 use crate::components::*;
 use crate::constants::runes::*;
 use crate::effects::{ExplodesOnDeath, Grant, Lifetime, Protected, lend};
 use crate::helpers::hostiles_in_view;
 
-use super::spells::apply_spell_effect;
+use super::spells::cast_spell;
 
 /// The blank rune: does nothing, and says so.
 pub(crate) fn blank(world: &mut World, _user: Entity) {
@@ -29,12 +29,12 @@ pub(crate) fn displacement(world: &mut World, user: Entity) {
 
 /// Rune of chaos: the spell Haste Self, free.
 pub(crate) fn chaos(world: &mut World, user: Entity) {
-    cast_free(world, user, SpellEffect::HasteSelf);
+    cast_free(world, user, &HASTE_SELF);
 }
 
 /// Rune of ice: the spell Frost Nova, free.
 pub(crate) fn ice(world: &mut World, user: Entity) {
-    cast_free(world, user, SpellEffect::FrostNova);
+    cast_free(world, user, &FROST_NOVA);
 }
 
 /// Rune of protection: no damage at all for [`PROTECTION_TURNS`] turns
@@ -114,12 +114,12 @@ pub(crate) fn justice(world: &mut World, user: Entity) {
     log(world, line);
 }
 
-/// `effect` cast by `user` on the spot at no cost, full strength, aimed at
+/// `spell` cast by `user` on the spot at no cost, full strength, aimed at
 /// where they stand (both spells here ignore the aim).
-fn cast_free(world: &mut World, user: Entity, effect: SpellEffect) {
+fn cast_free(world: &mut World, user: Entity, spell: &'static SpellDef) {
     let here = world
         .get::<Position>(user)
         .copied()
         .unwrap_or(Position { x: 0, y: 0 });
-    apply_spell_effect(world, user, here, effect, 1);
+    cast_spell(world, spell, user, here, 1);
 }

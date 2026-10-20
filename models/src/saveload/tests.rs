@@ -443,7 +443,7 @@ fn full_entity<'a>() -> EntitySave<'a> {
         pickup: Some((PickupEffect::LearnRandomSpell, 300)),
         plated: 1,
         forged: 1,
-        spellset: Some(vec![SpellEffect::GateDown]),
+        spellset: Some(vec!["Gate Down".to_string()]),
         equipped_by: Some(300),
         helper: true,
         mimic: true,

@@ -182,7 +182,7 @@ pub struct TestOfFaithLedger;
 #[derive(Clone, Copy)]
 pub enum OfferOption {
     /// A spell to learn. Free even in a priced menu: see [`OfferOption::price`].
-    Spell(SpellEffect),
+    Spell(&'static crate::catalog::SpellDef),
     /// A weapon to take. Costs Max HP in a priced menu.
     Weapon(&'static WeaponDef),
     /// A suit of armour to take. Costs Max HP in a priced menu.
@@ -212,7 +212,7 @@ impl OfferOption {
     /// The name the menu lists this row under.
     pub fn display_name(&self) -> &'static str {
         match self {
-            OfferOption::Spell(effect) => crate::catalog::SpellDef::of(*effect).display_name(),
+            OfferOption::Spell(def) => def.display_name(),
             OfferOption::Weapon(def) => def.display_name(),
             OfferOption::Armor(def) => def.display_name(),
             OfferOption::Ring(def) => def.display_name(),
@@ -270,8 +270,8 @@ pub struct OfferMenu {
 pub enum Tradeable {
     /// An item in a pack, by entity.
     Item(Entity),
-    /// A spell, by kind. It moves between spellsets rather than between packs.
-    Spell(SpellEffect),
+    /// A spell, by row. It moves between spellsets rather than between packs.
+    Spell(&'static crate::catalog::SpellDef),
 }
 
 /// Which column the cursor is in.
@@ -321,9 +321,10 @@ impl BarterMenu {
     /// `demon_side` directly.
     ///
     /// ```
-    /// use models::{BarterMenu, SpellEffect, Tradeable};
+    /// use models::{BarterMenu, Tradeable};
+    /// use models::catalog::BIDE;
     ///
-    /// let spell = Tradeable::Spell(SpellEffect::Heal);
+    /// let spell = Tradeable::Spell(&BIDE);
     /// let menu = BarterMenu {
     ///     player_side: vec![spell],
     ///     demon_side: vec![spell, spell, spell],
@@ -863,86 +864,6 @@ pub struct Wand {
     pub row: &'static crate::catalog::WandDef,
 }
 
-/// Which active spell this is — a spell's identity. See
-/// [`crate::catalog::SpellDef`].
-///
-/// Serialised by variant position — append, never reorder.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SpellEffect {
-    /// A fire blast like the wand of fire's, but the damage is whatever the
-    /// caster's own attack deals. A dragon's breath is this spell; the player
-    /// knows it as Fireball.
-    DragonBreath,
-    /// A poisoned dart cast at range: the dart trap's damage and its depth-scaled
-    /// strength drain.
-    Sting,
-    /// Armour-ignoring damage, and a chance to paralyse the target.
-    Thunderbolt,
-    /// Lifts the caster's single worst affliction.
-    Cure,
-    /// Does nothing now, and strengthens the caster's next swing
-    /// ([`crate::effects::Bided`]).
-    Bide,
-    /// A line of armour-ignoring damage: the wand of striking, cast.
-    ForceLance,
-    /// The scroll of identify, on demand.
-    Identify,
-    /// Plants a revealed arrow trap on each of the caster's four diagonals.
-    Setup,
-    /// The wand of light hurled as a grenade: a wide, hot burst that blinds.
-    Lux,
-    /// Armour-ignoring drain on every hostile in view, handed back to the caster
-    /// as HP.
-    CircleOfDeath,
-    /// For the rest of the floor, wand-shaped harm bounces off the caster and
-    /// nothing a monster's blow carries takes hold.
-    MagicWard,
-    /// Refills the caster's HP to their ceiling without raising it.
-    Heal,
-    /// A fire grenade thrown at the aimed tile. Each impact may call another
-    /// down nearby.
-    MeteorStrike,
-    /// Cold damage to everything in view, and paralysis for what survives.
-    FrostNova,
-    /// The scroll of magic mapping, on demand.
-    MagicMapping,
-    /// Hastes the caster ([`crate::conditions::hasten`]).
-    HasteSelf,
-    /// Appended, not filed under P: a save encodes a variant as its
-    /// position. See `crate::items::wands::polymorph_entity`.
-    PolymorphSelf,
-    /// Polymorphs the creature on the aimed tile, as the wand of polymorph
-    /// does.
-    PolymorphOther,
-    /// Opens a trapdoor under the caster: the scroll of pitfall on demand.
-    GateDown,
-}
-
-impl SpellEffect {
-    /// Whether triggering this spell opens the aiming reticle at all. Most
-    /// attacks do; every skill that works on the caster alone or on
-    /// everything in view has nothing to aim at, and fires the instant its
-    /// slot is pressed — the same courtesy [`crate::catalog::WandDef::needs_target`] gives
-    /// the wand of light.
-    pub fn needs_target(self) -> bool {
-        !matches!(
-            self,
-            SpellEffect::Cure
-                | SpellEffect::GateDown
-                | SpellEffect::Bide
-                | SpellEffect::Identify
-                | SpellEffect::Setup
-                | SpellEffect::CircleOfDeath
-                | SpellEffect::MagicWard
-                | SpellEffect::Heal
-                | SpellEffect::FrostNova
-                | SpellEffect::MagicMapping
-                | SpellEffect::HasteSelf
-                | SpellEffect::PolymorphSelf
-        )
-    }
-}
-
 /// The two shapes an active spell comes in — an attack wand's own split
 /// ([`crate::catalog::WandDef::attack`]), drawn again here because a spell
 /// answers to it too: a staff's [`crate::effects::TurboMagic`] multiplies the
@@ -962,17 +883,17 @@ pub enum SpellKind {
 /// The player's active-ability bar: up to four spells, each picked by its row
 /// letter from the `Z` menu.
 ///
-/// A spell is coded the way a potion, scroll or wand is — one identity enum,
-/// one catalog row ([`crate::catalog::SpellDef`]), one mechanic keyed off it
-/// (`crate::items::spells`) — because it is exactly as *active* as any of
+/// A spell is coded the way a potion, scroll or wand is — one catalog row
+/// ([`crate::catalog::SpellDef`]) that names its own handler in
+/// `crate::items::spells` — because it is exactly as *active* as any of
 /// those. It differs from every item in the game in what it is not: it
 /// carries no [`Item`] marker, is never spawned with a [`Position`], holds no
 /// pack slot, and cannot be dropped or thrown. It lives here, permanently, and
 /// costs [`Magic`] per use instead of a battery running dry.
-#[derive(Component, Default, Clone, Serialize, Deserialize)]
+#[derive(Component, Default, Clone)]
 pub struct Spellset {
-    /// The spells known, in slot order.
-    pub slots: Vec<SpellEffect>,
+    /// The spells known, in slot order. Saved by row name.
+    pub slots: Vec<&'static crate::catalog::SpellDef>,
 }
 
 /// Type-key for a ring, the twin of [`Potion`] / [`Scroll`] / [`Wand`]. What the
@@ -1425,7 +1346,7 @@ pub struct PlayerActionQueue {
     pub actions: Vec<PlayerAction>,
 }
 
-/// Intent: `user` triggers active spell `effect` at `target` — a spell's twin of
+/// Intent: `user` triggers active spell `spell` at `target` — a spell's twin of
 /// [`WantsToUse`], minus everything about an item because a spell isn't one.
 /// Drained by [`spell_system`](crate::items::spell_system).
 #[derive(Event, Clone, Copy)]
@@ -1433,7 +1354,7 @@ pub struct WantsToCast {
     /// Whoever casts.
     pub user: Entity,
     /// The spell cast.
-    pub effect: SpellEffect,
+    pub spell: &'static crate::catalog::SpellDef,
     /// The aimed tile.
     pub target: Position,
 }
@@ -1535,7 +1456,7 @@ pub struct TargetingState {
     /// The reticle is triggering an active spell rather than an item —
     /// `item` is `None` whenever this is `Some`. Confirming queues a
     /// [`WantsToCast`] instead of a [`WantsToUse`].
-    pub spell_effect: Option<SpellEffect>,
+    pub spell_effect: Option<&'static crate::catalog::SpellDef>,
     /// The reticle is a plain look: nothing is queued and no turn is spent —
     /// confirming only logs what's on the aimed tile. `item` and `spell_effect`
     /// are both `None` whenever this is set, and unlike every other reticle

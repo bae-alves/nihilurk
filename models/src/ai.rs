@@ -384,7 +384,7 @@ fn act(
             if !crate::items::pay_for_spell(world, mob, spell) {
                 return false;
             }
-            crate::items::apply_spell_effect(world, mob, target, spell, 1);
+            crate::items::cast_spell(world, spell, mob, target, 1);
             spend_energy(world, mob);
             return true;
         }

@@ -13,7 +13,7 @@ use rand::Rng;
 
 use crate::components::{
     Curse, Faction, GameLog, Item, LogCategory, Pickup, Player, PlayerAction, PlayerActionQueue,
-    Position, SpellEffect, SpellQueue, ThrowQueue, UseQueue, WantsToCast, WantsToThrow, WantsToUse,
+    Position, SpellQueue, ThrowQueue, UseQueue, WantsToCast, WantsToThrow, WantsToUse,
 };
 use crate::constants::conditions::CONFUSION_STUMBLE_CHANCE;
 use crate::effects::{Clamped, Confused, Pinned, Rooted, Swims};
@@ -499,15 +499,15 @@ pub fn queue_use(
     true
 }
 
-/// Queues casting `effect` at `target`. Refused, with a log line, when the
+/// Queues casting `spell` at `target`. Refused, with a log line, when the
 /// pool cannot cover it; [`crate::spell_system`] pays when it resolves.
 pub fn queue_cast(
     world: &mut World,
     player: Entity,
-    effect: SpellEffect,
+    spell: &'static crate::catalog::SpellDef,
     target: Position,
 ) -> bool {
-    if !can_afford_spell(world, player, effect) {
+    if !can_afford_spell(world, player, spell) {
         world
             .resource_mut::<GameLog>()
             .add(strings::no_magic_for_that().to_string());
@@ -515,7 +515,7 @@ pub fn queue_cast(
     }
     world.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user: player,
-        effect,
+        spell,
         target,
     });
     true

@@ -19,7 +19,7 @@ This is a lesson, not a recipe. When you want the short version, read `../how-to
   'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
   'fontSize':'13px'}}}%%
 flowchart LR
-  S1["1 · find<br/>SpellEffect"]:::cold --> S2["2 · add<br/>a row"]:::hero
+  S1["1 · find<br/>SPELLS"]:::cold --> S2["2 · add<br/>a row"]:::hero
   S2 --> S3["3 · write<br/>the mechanic"]:::magic
   S3 --> S4["4 · give it<br/>to yourself"]:::hero
   S4 --> S5["5 · cast it"]:::peril
@@ -34,62 +34,45 @@ flowchart LR
 What you are about to learn
 ----------------------------
 
-nihilurk teaches its active spells to the player at random, through a hero coin (an uncommon coin-table pickup), rather than starting anyone with any. A spell is coded the way a potion or a wand is -- one identity enum, one catalog row, one mechanic keyed off it -- because it is exactly as *active* as either of those. This tutorial adds one more, by hand, the way every spell in the table was first tried.
+nihilurk teaches its active spells to the player at random, through a hero coin (an uncommon coin-table pickup), rather than starting anyone with any. A spell is coded the way a potion or a wand is -- one catalog row naming the one function that does it -- because it is exactly as *active* as either of those. This tutorial adds one more, by hand, the way every spell in the table was first tried.
 
 It is also, on purpose, not an item. It has no `Position`, no `Item` marker, no pack slot. It cannot be dropped, thrown, or found on a floor. It lives permanently in whoever's `Spellset` it's in, and it spends Magic instead of a battery.
 
 By the end you will have added Ice Bolt, and you will know exactly which parts of "add an item" still apply and which ones stopped applying the moment you left `Position` off the struct.
 
 
-Step 1: find the enum and the table
--------------------------------------
+Step 1: find the table
+------------------------
 
-A spell's identity is `SpellEffect`, in:
+Every spell is a row in `SPELLS`, in:
 
-    models/src/components.rs
+    models/src/catalog.rs
 
 Search for it:
 
-    pub enum SpellEffect {
-        DragonBreath,
-        Sting,
-        Thunderbolt,
-        // ... more variants ...
-    }
-
-Next to it, in `models/src/catalog.rs`, is the table that gives each variant a name, a cost, a reach and a kind:
-
-    pub const SPELLS: &[SpellDef] = &[
-        SpellDef { effect: SpellEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: SpellKind::Attack },
+    pub static SPELLS: &[&SpellDef] = &[
+        // ...
+        &FIREBALL,
         // ... more rows ...
     ];
 
-Read Fireball's row:
+Fireball is one of the few rows with a name of its own, because a dragon's bestiary row points at it. Read it:
 
-    SpellDef { effect: SpellEffect::DragonBreath, name: "Fireball", cost: 2, range: 8, kind: SpellKind::Attack }
-                              |                          |          |       |                |
-                        the identity                its label   Magic    reticle      Attack or Skill --
-                                                                  spent    reach       a staff's business
-                                                                                        when it's Attack
+    pub static FIREBALL: SpellDef = SpellDef::new("Fireball", 2, spells::breathe_fire)
+        .attack()
+        .aimed(8)
+        .bursts(BLAST_RADIUS)
+        .wasted_on(wands::fireproof);
 
-`cost` is Magic points, spent by `spell_system` the instant the spell actually fires (multiplied by a wielded staff's `TurboMagic`, but only for an `Attack`). `range` feeds the aiming reticle exactly the way a wand's `Ranged.range` does -- you will aim Ice Bolt the same way you'd zap a wand of cold. `kind` is read once, by `spell_cost` and by whatever mechanic you write in step 3.
+`"Fireball"` is the spell's identity: a save stores it. `2` is the `cost` in Magic points, spent by `spell_system` the instant the spell actually fires (multiplied by a wielded staff's `TurboMagic`, but only for an attack). `spells::breathe_fire` is the function that does it. `.attack()` makes it an attack, the staff's business. `.aimed(8)` opens the aiming reticle and lets it reach eight tiles, exactly the way a wand's `Ranged.range` does -- you will aim Ice Bolt the same way you'd zap a wand of cold. `.bursts(..)` is the disc the reticle paints, and `.wasted_on(..)` lets the reticle skip a creature that fire cannot hurt.
 
 
 Step 2: add a row
 -------------------
 
-Ice Bolt is Fireball's cold twin. Append a variant at the very end of the enum -- never in the middle, since a save encodes a `SpellEffect` as its position:
+Ice Bolt is Fireball's cold twin. Add a row anywhere in `SPELLS`:
 
-    pub enum SpellEffect {
-        DragonBreath,
-        // ... the other variants ...
-        GateDown,
-        IceBolt,
-    }
-
-And a row anywhere in `SPELLS` (the table's order doesn't matter, only the enum's does):
-
-    SpellDef { effect: SpellEffect::IceBolt, name: "Ice Bolt", cost: 2, range: 6, kind: SpellKind::Attack },
+    &SpellDef::new("Ice Bolt", 2, spells::ice_bolt).attack().aimed(6).bursts(BLAST_RADIUS),
 
 Build:
 
@@ -101,29 +84,12 @@ It will not compile. That is the point of the next step -- unlike a weapon or a 
 Step 3: write the mechanic
 -----------------------------
 
-The error names a missing match arm in `models/src/items/spells.rs`:
+The error names `spells::ice_bolt`, which does not exist yet. Every spell's function lives in `models/src/items/spells.rs` and takes the same two things: the world and a `SpellCast`, which says who cast it, where it was aimed, and `power_mult`. That is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied an attack's cost, `1` otherwise -- fold it into your damage the way every existing attack does. The staff gives back more damage than it takes in Magic; both multipliers live in `constants::spells`, one beside the other, so the trade stays readable.
 
-    fn apply_spell_effect(
-        world: &mut World,
-        user: Entity,
-        target: Position,
-        effect: SpellEffect,
-        power_mult: i32,
-    ) {
-        match effect {
-            SpellEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
-            // ... more arms ...
-        }
-    }
+A row has to name a function, so a spell that silently does nothing cannot build. Write it next to `breathe_fire`:
 
-The match has no catch-all, on purpose. A variant that compiled without an arm would be a spell that silently did nothing, and nihilurk does not ship those. `power_mult` is `constants::spells::TURBO_MAGIC_POWER_MULT` when a staff multiplied an `Attack`'s cost, `1` otherwise -- fold it into your damage the way every existing `Attack` arm does. The staff gives back more damage than it takes in Magic; both multipliers live in `constants::spells`, one beside the other, so the trade stays readable.
-
-Add the arm, and the function it calls:
-
-    SpellEffect::DragonBreath => breathe_fire(world, user, target, power_mult),
-    SpellEffect::IceBolt => ice_bolt(world, user, target, power_mult),
-
-    fn ice_bolt(world: &mut World, user: Entity, target: Position, power_mult: i32) {
+    pub(crate) fn ice_bolt(world: &mut World, cast: SpellCast) {
+        let SpellCast { user, target, power_mult, .. } = cast;
         let (power, power_bonus) = {
             let fighter = world.get::<Fighter>(user);
             let loadout = loadout(world, user);
@@ -155,7 +121,7 @@ Build again:
 
     cargo build
 
-It compiles. `cargo test` has one more exhaustive match: `every_spell_has_a_catalog_row` in `models/tests/it/creature_casts.rs` lists every spell, so add `SpellEffect::IceBolt` to its `match` and to its `all` array.
+It compiles.
 
 
 Step 4: give it to yourself
@@ -164,7 +130,7 @@ Step 4: give it to yourself
 There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play, the only way to learn one is a hero coin (an uncommon coin-table pickup that teaches a random not-yet-known spell); to try Ice Bolt without hunting for a coin, replace the empty `Spellset::default()` in `initialize_world` (`models/src/map/levels.rs`) with:
 
     Spellset {
-        slots: vec![SpellEffect::IceBolt],
+        slots: vec![spell_row("Ice Bolt").unwrap()],
     },
 
 Tests about the lurk, the hero coin and amnesia expect an empty starting `Spellset`, so `cargo test` fails while this edit stands. Step 7 reverts it.
@@ -192,8 +158,8 @@ Try the things that work on a potion, a wand, a dagger:
 
   * **Open the pack (`i`) and look for Ice Bolt.** It isn't there. A spell never enters a `Backpack`; the player's copy of it lives only in `Spellset`.
   * **Try to throw it (`t`).** There is nothing to select -- the throw menu only ever lists `Backpack` contents, and a spell was never in one.
-  * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/saveload.rs` round-trips it like every other piece of the player. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that marker would need a row in the `EFFECTS` registry and an `effects::lend` to put it there -- see `../how-to/add-a-spell.md` for the two that already do.
-  * **Give a monster the same trick.** `SpellEffect` is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset out of its own `Magic`. Chain `.casts(3, &[SpellEffect::IceBolt])` on a bestiary row, and that creature is born with the spell and the Ma for three casts of it, and its rule set will pick it and fire it at you until the Ma runs out. The dragon's Fireball is exactly that. See `../reference/agents.md`.
+  * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/saveload.rs` stores each spell by its row's name. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that marker would need a row in the `EFFECTS` registry and an `effects::lend` to put it there -- see `../how-to/add-a-spell.md` for the two that already do.
+  * **Give a monster the same trick.** A spell's function is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset out of its own `Magic`. Give Ice Bolt a name of its own (`pub static ICE_BOLT`), put it in a static list the way `BREATHES_FIRE` holds `&FIREBALL` in `models/src/monsters.rs`, and chain `.casts(3, &THAT_LIST)` on a bestiary row, and that creature is born with the spell and the Ma for three casts of it, and its rule set will pick it and fire it at you until the Ma runs out. The dragon's Fireball is exactly that. See `../reference/agents.md`.
 
 None of that is a bug in what you built. It's the shape of the thing: a spell is a mechanic on loan to whoever's `Spellset` names it, not a possession with a life of its own on the floor.
 
@@ -203,20 +169,20 @@ Step 7: keep it or drop it
 
 If you like Ice Bolt, leave it. If this was a dry run:
 
-    git checkout models/src/components.rs models/src/catalog.rs \
-                 models/src/items/spells.rs models/src/map/levels.rs
+    git checkout models/src/catalog.rs models/src/items/spells.rs \
+                 models/src/map/levels.rs
 
 
 What you actually learned
 ----------------------------
 
-  * A spell is identified the same way a potion or a wand is: one enum variant, one catalog row, one arm of an exhaustive match that will not let a variant ship silent.
+  * A spell is built the same way a potion or a wand is: one catalog row that names the function doing it, so a row cannot ship silent.
 
   * Almost all of a spell's behaviour is borrowed from whatever already does the thing -- `elemental_blast` for a blast, `crate::conditions` for a status -- the same reuse a wand's own mechanic leans on.
 
   * A spell is *not* an item, deliberately: no `Position`, no `Item`, no pack slot, no `NIHILURK_SPAWN`, nothing to throw or drop. It lives in a `Spellset`, and it costs Magic instead of running out of charges.
 
-  * A `SpellEffect`'s mechanic is shared and reusable — a monster can do the same trick, as the dragon does. `.casts(...)` on a bestiary row gives it the spell and the Magic to pay for it, and its rule set does the triggering.
+  * A spell's mechanic is shared and reusable — a monster can do the same trick, as the dragon does. `.casts(...)` on a bestiary row gives it the spell and the Magic to pay for it, and its rule set does the triggering.
 
 
 Where to go next

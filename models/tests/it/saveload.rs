@@ -334,7 +334,7 @@ fn a_charged_touch_and_a_coiled_bide_survive_a_save() {
     item_system(&mut w);
     w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user: hero,
-        effect: SpellEffect::Bide,
+        spell: &BIDE,
         target: here,
     });
     spell_system(&mut w);
@@ -391,7 +391,7 @@ fn a_monsters_spent_magic_and_spellset_survive_a_save() {
             max_points: 8,
         },
         Spellset {
-            slots: vec![SpellEffect::DragonBreath],
+            slots: vec![&FIREBALL],
         },
     ));
 
@@ -409,7 +409,7 @@ fn a_monsters_spent_magic_and_spellset_survive_a_save() {
         .query_filtered::<(&Magic, &Spellset), With<Mob>>()
         .single(&w2);
     assert_eq!(magic.points, 1);
-    assert_eq!(spells.slots, vec![SpellEffect::DragonBreath]);
+    assert_eq!(spells.slots, vec![&FIREBALL]);
 }
 
 #[test]

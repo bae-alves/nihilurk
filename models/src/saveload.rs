@@ -57,7 +57,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    RingDef, content_id_of, potion_row, restore_from_catalog, rune_row, scroll_row, wand_row,
+    RingDef, content_id_of, potion_row, restore_from_catalog, rune_row, scroll_row, spell_row,
+    wand_row,
 };
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
@@ -267,9 +268,9 @@ struct EntitySave<'a> {
     plated: u8,
     #[serde(default)]
     forged: u8,
-    /// The player's active-spell bar. Nothing else in the game carries one yet.
+    /// The player's active-spell bar, by row name.
     #[serde(default)]
-    spellset: Option<Vec<SpellEffect>>,
+    spellset: Option<Vec<String>>,
     /// Who is wearing this piece of gear, as an index into the saved entity
     /// list — `None` when it is loose in a pack or on the floor. An index
     /// rather than an id because ids are ephemeral; it is remapped on load the
@@ -319,7 +320,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 15;
+pub const SAVE_VERSION: u16 = 16;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -669,7 +670,9 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             pickup: er.get::<Pickup>().map(|p| (p.effect, p.amount)),
             plated: er.get::<Plated>().map_or(0, |p| p.0),
             forged: er.get::<Forged>().map_or(0, |p| p.0),
-            spellset: er.get::<Spellset>().map(|m| m.slots.clone()),
+            spellset: er
+                .get::<Spellset>()
+                .map(|m| m.slots.iter().map(|s| s.name.to_string()).collect()),
             equipped_by: er
                 .get::<Equipped>()
                 .and_then(|e| e.by)
@@ -941,11 +944,16 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .trap
                 .as_ref()
                 .is_none_or(|(name, _, _)| TrapDef::lookup(name).is_some())
+            && es
+                .spellset
+                .iter()
+                .flatten()
+                .all(|name| spell_row(name).is_some())
     });
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune, wand, potion, scroll or trap this build has no row for",
+            "save file names a rune, wand, potion, scroll, trap or spell this build has no row for",
         ));
     }
 
@@ -1182,7 +1190,8 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if es.ice_cube {
             em.insert(crate::ice::IceCube);
         }
-        if let Some(slots) = es.spellset {
+        if let Some(names) = es.spellset {
+            let slots = names.iter().filter_map(|n| spell_row(n)).collect();
             em.insert(Spellset { slots });
         }
         if let Some(a) = es.alignment {

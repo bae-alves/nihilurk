@@ -214,8 +214,7 @@ pub(crate) fn read_amnesia(world: &mut World, user: Entity) {
         _ => {
             let idx = world.resource_mut::<GameRng>().0.gen_range(0..slot_count);
             let mut spellset = world.get_mut::<Spellset>(user).expect("checked above");
-            let effect = spellset.slots.remove(idx);
-            let name = crate::catalog::SpellDef::of(effect).display_name();
+            let name = spellset.slots.remove(idx).display_name();
             lines.push(strings::amnesia_forgotten(name));
         }
     }

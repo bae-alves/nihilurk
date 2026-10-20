@@ -1141,7 +1141,7 @@ fn breath_round(seed: u64, breathes: bool) -> bool {
     if breathes {
         w.entity_mut(breather).insert((
             Spellset {
-                slots: vec![SpellEffect::DragonBreath],
+                slots: vec![&FIREBALL],
             },
             Magic {
                 points: 2,
@@ -1804,7 +1804,7 @@ fn dangers_are_read_off_the_creature_not_guessed() {
     );
     lend(&mut w, nasty, Grant::of::<Flies>(), Lifetime::Permanent);
     w.entity_mut(nasty).insert(Spellset {
-        slots: vec![SpellEffect::DragonBreath],
+        slots: vec![&FIREBALL],
     });
 
     let warned = dangers_of(&w, nasty);

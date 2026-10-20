@@ -487,7 +487,7 @@ fn reticle_targets(
     player: Entity,
     max_range: i32,
     item: Option<Entity>,
-    spell_effect: Option<SpellEffect>,
+    spell_effect: Option<&'static SpellDef>,
     throwing: bool,
 ) -> Vec<(u16, u16)> {
     let player_pos = *world.get::<Position>(player).unwrap();
@@ -625,7 +625,7 @@ fn aim_range(
     world: &World,
     thrower: Entity,
     item: Option<Entity>,
-    spell_effect: Option<SpellEffect>,
+    spell_effect: Option<&'static SpellDef>,
     looking: bool,
     throwing: bool,
     reach_attack: bool,
@@ -633,8 +633,8 @@ fn aim_range(
     if looking {
         return (MAP_WIDTH as i32).max(MAP_HEIGHT as i32);
     }
-    if let Some(effect) = spell_effect {
-        return models::SpellDef::of(effect).range;
+    if let Some(spell) = spell_effect {
+        return spell.range;
     }
     if throwing {
         return item.map_or(THROW_RANGE, |i| throw_reach(world, thrower, i));
@@ -699,8 +699,8 @@ fn fire_at_target(world: &mut World) -> std::io::Result<bool> {
         return Ok(true);
     }
 
-    if let Some(effect) = spell_effect {
-        return Ok(models::queue_cast(world, player, effect, target));
+    if let Some(spell) = spell_effect {
+        return Ok(models::queue_cast(world, player, spell, target));
     }
 
     let Some(item) = item_entity else {
@@ -936,7 +936,7 @@ fn open_reticle_for(
     world: &mut World,
     player: Entity,
     item: Option<Entity>,
-    spell_effect: Option<SpellEffect>,
+    spell_effect: Option<&'static SpellDef>,
     looking: bool,
     throwing: bool,
     reach_attack: bool,
@@ -981,7 +981,7 @@ fn nearest_mob(
     player: Entity,
     max_range: i32,
     item: Option<Entity>,
-    spell_effect: Option<SpellEffect>,
+    spell_effect: Option<&'static SpellDef>,
     throwing: bool,
 ) -> Option<(u16, u16)> {
     let player_pos = *world.get::<Position>(player)?;
@@ -1008,17 +1008,17 @@ fn nearest_mob(
 }
 
 /// Whether the wand or spell under the reticle would do nothing to `target`
-/// ([`models::wand_wasted_on`], [`models::spell_wasted_on`]). A throw sends the
+/// ([`models::wand_wasted_on`], [`SpellDef::wasted_on`]). A throw sends the
 /// item as a missile, so it never counts.
 fn wasted_on(
     world: &World,
     item: Option<Entity>,
-    spell_effect: Option<SpellEffect>,
+    spell_effect: Option<&'static SpellDef>,
     throwing: bool,
     target: Entity,
 ) -> bool {
-    if let Some(effect) = spell_effect {
-        return models::spell_wasted_on(world, effect, target);
+    if let Some(spell) = spell_effect {
+        return (spell.wasted_on)(world, target);
     }
     !throwing
         && item
@@ -1254,7 +1254,7 @@ fn open_pack(world: &mut World, mode: PackMode) -> std::io::Result<bool> {
 /// actually spends the cost.
 fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
     let player = player_entity(world);
-    let Some(effect) = world
+    let Some(spell) = world
         .get::<Spellset>(player)
         .and_then(|m| m.slots.get(slot).copied())
     else {
@@ -1263,20 +1263,20 @@ fn fire_spell(world: &mut World, slot: usize) -> std::io::Result<bool> {
             .add(strings::no_spell_there());
         return Ok(false);
     };
-    if !effect.needs_target() {
+    if !spell.needs_target() {
         let target = world
             .get::<Position>(player)
             .copied()
             .unwrap_or(Position { x: 0, y: 0 });
-        return Ok(models::queue_cast(world, player, effect, target));
+        return Ok(models::queue_cast(world, player, spell, target));
     }
-    if !models::can_afford_spell(world, player, effect) {
+    if !models::can_afford_spell(world, player, spell) {
         world
             .resource_mut::<GameLog>()
             .add(strings::no_magic_for_that());
         return Ok(false);
     }
-    open_reticle_for(world, player, None, Some(effect), false, false, false);
+    open_reticle_for(world, player, None, Some(spell), false, false, false);
     Ok(false)
 }
 
@@ -2378,10 +2378,7 @@ mod tests {
         {
             let mut menu = w.resource_mut::<OfferMenu>();
             menu.open = true;
-            menu.options = vec![
-                OfferOption::Spell(SpellEffect::DragonBreath),
-                OfferOption::Spell(SpellEffect::DragonBreath),
-            ];
+            menu.options = vec![OfferOption::Spell(&FIREBALL), OfferOption::Spell(&FIREBALL)];
         }
         let queued = flood_the_log(&mut w);
 
@@ -2423,10 +2420,7 @@ mod tests {
         {
             let mut menu = w.resource_mut::<OfferMenu>();
             menu.open = true;
-            menu.options = vec![
-                OfferOption::Spell(SpellEffect::DragonBreath),
-                OfferOption::Spell(SpellEffect::DragonBreath),
-            ];
+            menu.options = vec![OfferOption::Spell(&FIREBALL), OfferOption::Spell(&FIREBALL)];
         }
         dispatch_key(&mut w, press('j')).unwrap();
         assert_eq!(w.resource::<OfferMenu>().selected, 1);
@@ -2643,7 +2637,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     /// A player with `slots` spells and the magic to pay for all of them.
-    fn spells_world(seed: u64, slots: &[SpellEffect]) -> World {
+    fn spells_world(seed: u64, slots: &[&'static SpellDef]) -> World {
         let mut w = modal_world(seed);
         let player = player_entity(&mut w);
         w.entity_mut(player).insert(Spellset {
@@ -2658,12 +2652,14 @@ mod tests {
 
     /// The four moves the shortcut tests fire, all of them aimed ones, so
     /// firing a slot is visible as the reticle it opens.
-    const FOUR_SPELLS: [SpellEffect; 4] = [
-        SpellEffect::DragonBreath,
-        SpellEffect::Sting,
-        SpellEffect::Thunderbolt,
-        SpellEffect::ForceLance,
-    ];
+    fn four_spells() -> [&'static SpellDef; 4] {
+        [
+            &FIREBALL,
+            spell_row("Sting").unwrap(),
+            &THUNDERBOLT,
+            &FORCE_LANCE,
+        ]
+    }
 
     #[test]
     fn semicolon_looks_and_shift_l_still_runs() {
@@ -2682,7 +2678,7 @@ mod tests {
 
     #[test]
     fn the_moves_menu_picks_a_slot_by_letter() {
-        let mut w = spells_world(22, &FOUR_SPELLS);
+        let mut w = spells_world(22, &four_spells());
         dispatch_key(&mut w, press('Z')).unwrap();
         assert!(w.resource::<SpellsMenu>().open);
 
@@ -2690,14 +2686,14 @@ mod tests {
         assert!(!w.resource::<SpellsMenu>().open, "the menu stayed open");
         assert_eq!(
             w.resource::<TargetingState>().spell_effect,
-            Some(FOUR_SPELLS[2]),
+            Some(four_spells()[2]),
             "`c` did not fire the third slot"
         );
     }
 
     #[test]
     fn a_letter_past_the_last_slot_does_nothing_in_the_moves_menu() {
-        let mut w = spells_world(23, &FOUR_SPELLS[..2]);
+        let mut w = spells_world(23, &four_spells()[..2]);
         dispatch_key(&mut w, press('Z')).unwrap();
         dispatch_key(&mut w, press('d')).unwrap();
         assert!(
@@ -2709,7 +2705,7 @@ mod tests {
 
     #[test]
     fn digits_navigate_the_moves_menu_and_never_fire_a_slot() {
-        let mut w = spells_world(24, &FOUR_SPELLS);
+        let mut w = spells_world(24, &four_spells());
         dispatch_key(&mut w, press('Z')).unwrap();
         dispatch_key(&mut w, press('2')).unwrap();
         assert!(w.resource::<SpellsMenu>().open, "`2` closed the menu");
@@ -2727,7 +2723,7 @@ mod tests {
     #[test]
     fn alt_q_w_e_r_fire_spell_slots_one_to_four() {
         for (slot, letter) in ['q', 'w', 'e', 'r'].into_iter().enumerate() {
-            let mut w = spells_world(27, &FOUR_SPELLS);
+            let mut w = spells_world(27, &four_spells());
             dispatch_key(
                 &mut w,
                 KeyEvent::new(KeyCode::Char(letter), KeyModifiers::ALT),
@@ -2735,7 +2731,7 @@ mod tests {
             .unwrap();
             assert_eq!(
                 w.resource::<TargetingState>().spell_effect,
-                Some(FOUR_SPELLS[slot]),
+                Some(four_spells()[slot]),
                 "Alt+{letter} did not aim slot {slot}"
             );
             assert!(
@@ -2747,7 +2743,7 @@ mod tests {
 
     #[test]
     fn alt_on_an_empty_slot_says_so_and_does_not_fall_through_to_the_bare_letter() {
-        let mut w = spells_world(27, &FOUR_SPELLS[..1]);
+        let mut w = spells_world(27, &four_spells()[..1]);
         dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('w'), KeyModifiers::ALT)).unwrap();
         assert!(w.resource::<TargetingState>().spell_effect.is_none());
         assert!(
@@ -2758,7 +2754,7 @@ mod tests {
 
     #[test]
     fn alt_with_any_other_letter_still_does_what_the_bare_letter_does() {
-        let mut w = spells_world(27, &FOUR_SPELLS);
+        let mut w = spells_world(27, &four_spells());
         dispatch_key(&mut w, KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT)).unwrap();
         assert!(
             w.resource::<PackIsOpen>().open,
@@ -2769,7 +2765,7 @@ mod tests {
     #[test]
     fn ctrl_held_letters_do_nothing_but_ctrl_c_quits() {
         for letter in ['z', 'j', 'l', 'q', 'a', 'o'] {
-            let mut w = spells_world(29, &FOUR_SPELLS);
+            let mut w = spells_world(29, &four_spells());
             let player = player_entity(&mut w);
             let before = w.get::<Position>(player).copied();
             let key = KeyEvent::new(KeyCode::Char(letter), KeyModifiers::CONTROL);
@@ -2792,7 +2788,7 @@ mod tests {
     fn ctrl_c_quits_from_every_context_including_a_pending_more() {
         let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
-        let mut w = spells_world(28, &FOUR_SPELLS);
+        let mut w = spells_world(28, &four_spells());
         dispatch_key(&mut w, press('Z')).unwrap();
         dispatch_key(&mut w, ctrl_c).unwrap();
         assert!(
@@ -3049,12 +3045,9 @@ mod tests {
         assert_eq!((ts.cursor_x, ts.cursor_y), (near.x as i16, near.y as i16));
     }
 
-    /// Two orcs in view, the nearer one beyond the wand's help: the reticle
-    /// opens on the one it can change, and `Tab` never lands on the other.
-    fn aim_wand_past_a_useless_target(
-        name: &str,
-        near_grant: Option<Grant>,
-    ) -> (World, Position, Position) {
+    /// Two orcs in view beside the player, the nearer one lent `near_grant`
+    /// (or slowed, without one).
+    fn two_orcs(near_grant: Option<Grant>) -> (World, Entity, Position, Position) {
         let mut w = modal_world(5);
         let player = player_entity(&mut w);
         let here = *w.get::<Position>(player).unwrap();
@@ -3097,6 +3090,16 @@ mod tests {
         }
         w.get_mut::<Viewshed>(player).unwrap().visible_tiles =
             row.iter().map(|&x| (x, here.y)).collect();
+        (w, player, near, far)
+    }
+
+    /// Two orcs in view, the nearer one beyond the wand's help: the reticle
+    /// opens on the one it can change, and `Tab` never lands on the other.
+    fn aim_wand_past_a_useless_target(
+        name: &str,
+        near_grant: Option<Grant>,
+    ) -> (World, Position, Position) {
+        let (mut w, player, near, far) = two_orcs(near_grant);
         let wand = models::spawn_named(&mut w, name, Position { x: 0, y: 0 }).unwrap();
         w.entity_mut(wand).remove::<Position>();
         open_reticle(&mut w, player, wand, false);
@@ -3126,6 +3129,35 @@ mod tests {
                 "{name}: Tab landed on {near:?}"
             );
         }
+    }
+
+    static SKIPS_THE_FIREPROOF: SpellDef = SpellDef {
+        range: 8,
+        wasted_on: |w, e| w.get::<FireImmune>(e).is_some(),
+        ..SpellDef::new("spell of the test", 1, |_, _| {})
+    };
+
+    #[test]
+    fn the_reticle_skips_targets_the_spell_row_is_wasted_on() {
+        let (mut w, player, near, far) = two_orcs(Some(Grant::of::<FireImmune>()));
+        open_reticle_for(
+            &mut w,
+            player,
+            None,
+            Some(&SKIPS_THE_FIREPROOF),
+            false,
+            false,
+            false,
+        );
+        let ts = w.resource::<TargetingState>();
+        assert_eq!((ts.cursor_x, ts.cursor_y), (far.x as i16, far.y as i16));
+        cycle_target(&mut w);
+        let ts = w.resource::<TargetingState>();
+        assert_eq!(
+            (ts.cursor_x, ts.cursor_y),
+            (far.x as i16, far.y as i16),
+            "Tab landed on {near:?}"
+        );
     }
 
     /// Looking at bare floor says nothing: the reticle already shows there is

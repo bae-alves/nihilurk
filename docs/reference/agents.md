@@ -52,7 +52,7 @@ Both switch to their rule set the moment they stand in view. "The player's view"
 | `pinned` | `bool` | `Pinned`, `Rooted` or `Clamped`: strikes, but never steps or shoots. |
 | `swims` | `bool` | Deep water is floor to it. |
 | `launcher` | `bool` | A launcher is drawn in its hand. |
-| `spellset` | `Vec<SpellEffect>` | Each spell in its `Spellset` that its `Magic` can pay for. |
+| `spellset` | `Vec<&'static SpellDef>` | Each spell in its `Spellset` that its `Magic` can pay for. |
 | `roll` | `u32` | A die rolled for this turn off the seed's `GameRng`, so a seeded run replays it. |
 | `helper` | `bool` | It is the player's `Helper`. |
 | `ally` | `bool` | Its `Faction` is `Ally`: its spells never go where they would catch the player. |
@@ -70,7 +70,7 @@ Both switch to their rule set the moment they stand in view. "The player's view"
 |---|---|
 | `Strike(Entity)` | A step onto the foe's tile, which queues a blow. |
 | `Shoot(Entity)` | `items::monster_ranged_attack`. |
-| `Cast(SpellEffect, Position)` | `items::apply_spell_effect(mob, at, spell, 1)`. Free: no Magic. |
+| `Cast(&'static SpellDef, Position)` | `items::pay_for_spell`, then `items::cast_spell(spell, mob, at, 1)`. |
 | `Step(dx, dy)` | One step; into a foe, a blow. |
 | `Wait` | Nothing. The turn is not spent. |
 

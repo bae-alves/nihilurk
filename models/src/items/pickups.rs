@@ -303,12 +303,14 @@ fn learn_spell(world: &mut World, taker: Entity) -> String {
     {
         return strings::learn_spell_full().to_string();
     }
-    let known: Vec<SpellEffect> = world
+    let known: Vec<&'static crate::catalog::SpellDef> = world
         .get::<Spellset>(taker)
         .map(|m| m.slots.clone())
         .unwrap_or_default();
-    let learnable: Vec<SpellEffect> = crate::catalog::SpellDef::learnable()
-        .filter(|e| !known.contains(e))
+    let learnable: Vec<&'static crate::catalog::SpellDef> = crate::catalog::SPELLS
+        .iter()
+        .copied()
+        .filter(|s| !known.contains(s))
         .collect();
     if learnable.is_empty() {
         return strings::learn_spell_all_known().to_string();
@@ -317,12 +319,12 @@ fn learn_spell(world: &mut World, taker: Entity) -> String {
         .resource_mut::<GameRng>()
         .0
         .gen_range(0..learnable.len());
-    let effect = learnable[idx];
+    let spell = learnable[idx];
     let Some(mut spellset) = world.get_mut::<Spellset>(taker) else {
         return String::new();
     };
-    spellset.slots.push(effect);
-    let name = crate::catalog::SpellDef::of(effect).display_name();
+    spellset.slots.push(spell);
+    let name = spell.display_name();
     strings::learn_spell_line(name)
 }
 

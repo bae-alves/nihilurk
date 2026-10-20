@@ -32,18 +32,18 @@ pub(crate) mod potions;
 pub(crate) mod rings;
 pub(crate) mod runes;
 pub(crate) mod scrolls;
-mod spells;
+pub(crate) mod spells;
 mod theft;
 pub(crate) mod throwing;
 pub(crate) mod wands;
 
 pub use spells::{can_afford_spell, pay_for_spell, spell_cost, spell_system};
-pub use wands::{polymorph_player_into, spell_wasted_on, wand_wasted_on};
+pub use wands::{polymorph_player_into, wand_wasted_on};
 
 /// One spell resolved on the spot, cost already settled.
 /// [`spell_system`] is the way in for a spell the player triggered; this is
 /// the way in for a monster's, which [`pay_for_spell`] first.
-pub(crate) use spells::apply_spell_effect;
+pub(crate) use spells::cast_spell;
 pub(crate) use wands::leave_smoke_ring;
 
 /// The leprechaun's and the nymph's on-hit tricks, named by
@@ -68,9 +68,6 @@ pub use throwing::{
     FrozenThrows, aim_footprint, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow,
     thaw_into_pack, throw_reach, throw_refusal, throw_system, time_stopped, use_refusal,
 };
-
-/// The disc each blast spell bursts in, for an ally weighing who it would catch.
-pub(crate) use spells::spell_blast_radius;
 
 /// A launcher-wielding monster's shot, called by [`crate::ai`] in place of a
 /// melee attack for as long as it has one drawn.

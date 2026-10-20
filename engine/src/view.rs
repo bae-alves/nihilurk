@@ -1484,9 +1484,8 @@ fn draw_spells(world: &mut World, screen: &mut Screen) {
     let rows: Vec<String> = slots
         .iter()
         .enumerate()
-        .map(|(i, &effect)| {
-            let def = SpellDef::of(effect);
-            let cost = models::spell_cost(world, player, effect);
+        .map(|(i, &def)| {
+            let cost = models::spell_cost(world, player, def);
             let letter = (b'a' + i as u8) as char;
             format!(" {letter}) {} ({} Ma) ", def.display_name(), cost)
         })
@@ -1614,7 +1613,7 @@ fn draw_offer_menu(world: &mut World, screen: &mut Screen) {
 fn tradeable_label(world: &World, item: Tradeable) -> String {
     match item {
         Tradeable::Item(e) => models::display_name(world, e),
-        Tradeable::Spell(effect) => SpellDef::of(effect).display_name().to_string(),
+        Tradeable::Spell(def) => def.display_name().to_string(),
     }
 }
 

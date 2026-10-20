@@ -264,13 +264,13 @@ fn a_full_spellset_declines_the_offer_instead_of_overflowing() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
     w.get_mut::<Spellset>(player).unwrap().slots = vec![
-        SpellEffect::Sting,
-        SpellEffect::Thunderbolt,
-        SpellEffect::Cure,
-        SpellEffect::Heal,
+        spell_row("Sting").unwrap(),
+        &THUNDERBOLT,
+        spell_row("Cure").unwrap(),
+        spell_row("Heal").unwrap(),
     ];
     let before = w.get::<Spellset>(player).unwrap().slots.clone();
-    spirits::confirm_offer(&mut w, player, OfferOption::Spell(SpellEffect::Bide));
+    spirits::confirm_offer(&mut w, player, OfferOption::Spell(&BIDE));
     assert_eq!(w.get::<Spellset>(player).unwrap().slots, before);
     assert!(logged(&w, "nowhere to sit"));
 }
@@ -460,7 +460,7 @@ fn a_spell_barter_with_an_empty_spellset_grunts_instead_of_opening() {
     let player = spawn_player(&mut w, 6);
     let demon = spawn_demon(&mut w, Vec::new());
 
-    spirits::open_spell_barter(&mut w, player, demon, &[SpellEffect::Cure]);
+    spirits::open_spell_barter(&mut w, player, demon, &[spell_row("Cure").unwrap()]);
 
     assert!(!w.resource::<BarterMenu>().open);
     assert!(logged(&w, "grunts"));
@@ -470,19 +470,19 @@ fn a_spell_barter_with_an_empty_spellset_grunts_instead_of_opening() {
 fn spell_barter_trades_a_known_spell_for_an_offered_one() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
-    w.get_mut::<Spellset>(player).unwrap().slots = vec![SpellEffect::Sting];
+    w.get_mut::<Spellset>(player).unwrap().slots = vec![spell_row("Sting").unwrap()];
     let demon = spawn_demon(&mut w, Vec::new());
 
-    spirits::open_spell_barter(&mut w, player, demon, &[SpellEffect::Cure]);
+    spirits::open_spell_barter(&mut w, player, demon, &[spell_row("Cure").unwrap()]);
     {
         let mut menu = w.resource_mut::<BarterMenu>();
-        menu.player_selected = vec![Tradeable::Spell(SpellEffect::Sting)];
-        menu.demon_selected = vec![Tradeable::Spell(SpellEffect::Cure)];
+        menu.player_selected = vec![Tradeable::Spell(spell_row("Sting").unwrap())];
+        menu.demon_selected = vec![Tradeable::Spell(spell_row("Cure").unwrap())];
     }
     spirits::confirm_barter(&mut w, player);
 
     let slots = &w.get::<Spellset>(player).unwrap().slots;
-    assert_eq!(slots, &vec![SpellEffect::Cure]);
+    assert_eq!(slots, &vec![spell_row("Cure").unwrap()]);
 }
 
 #[test]
@@ -555,7 +555,7 @@ fn the_sphynx_offers_a_stocked_range_of_spells() {
     for seed in 0..20 {
         let mut w = spirits_world(seed);
         let player = spawn_player(&mut w, 6);
-        w.get_mut::<Spellset>(player).unwrap().slots = vec![SpellEffect::Sting];
+        w.get_mut::<Spellset>(player).unwrap().slots = vec![spell_row("Sting").unwrap()];
         let sphynx = spawn_monster(&mut w, MonsterDef::named("sphynx"), Position { x: 5, y: 5 });
         resolve_attack(&mut w, player, sphynx);
         let offered = w.resource::<BarterMenu>().demon_side.len();
@@ -966,7 +966,7 @@ fn the_test_of_faith_is_a_no_op_without_a_pending_ledger() {
 fn the_sphynx_opens_a_spell_barter() {
     let mut w = spirits_world(0);
     let player = spawn_player(&mut w, 6);
-    w.get_mut::<Spellset>(player).unwrap().slots = vec![SpellEffect::Sting];
+    w.get_mut::<Spellset>(player).unwrap().slots = vec![spell_row("Sting").unwrap()];
     let spirit = spawn_monster(&mut w, MonsterDef::named("sphynx"), Position { x: 5, y: 5 });
     resolve_attack(&mut w, player, spirit);
     let menu = w.resource::<BarterMenu>();

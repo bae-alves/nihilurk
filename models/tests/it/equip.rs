@@ -647,7 +647,7 @@ fn a_staff_doubles_the_cost_and_triples_the_damage_of_a_damaging_spell() {
         let magic_before = w.get::<Magic>(p).unwrap().points;
         w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
             user: p,
-            effect: SpellEffect::DragonBreath,
+            spell: &FIREBALL,
             target,
         });
         spell_system(&mut w);
@@ -660,11 +660,7 @@ fn a_staff_doubles_the_cost_and_triples_the_damage_of_a_damaging_spell() {
     let (plain_cost, plain_damage) = cast_fireball(23, "estoc");
     let (turbo_cost, turbo_damage) = cast_fireball(23, "staff");
 
-    assert_eq!(
-        plain_cost,
-        SpellDef::of(SpellEffect::DragonBreath).cost,
-        "Fireball's own row cost"
-    );
+    assert_eq!(plain_cost, FIREBALL.cost, "Fireball's own row cost");
     assert_eq!(
         turbo_cost,
         plain_cost * TURBO_MAGIC_COST_MULT,

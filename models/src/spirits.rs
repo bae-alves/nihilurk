@@ -17,8 +17,8 @@ use rand::seq::SliceRandom;
 use crate::catalog::{ARMORS, ItemDef, POTIONS, RINGS, SCROLLS, SpellDef, WANDS, WEAPONS};
 use crate::components::{
     Alignment, Backpack, BarterColumn, BarterMenu, Faction, Fighter, GameLog, KnownQuality, Magic,
-    MegaCurse, Mob, MovementType, OfferMenu, OfferOption, Player, Position, Price, SpellEffect,
-    Spellset, SpiritEvent, SpiritKind, SpiritsHostile, TestOfFaithLedger, Tradeable,
+    MegaCurse, Mob, MovementType, OfferMenu, OfferOption, Player, Position, Price, Spellset,
+    SpiritEvent, SpiritKind, SpiritsHostile, TestOfFaithLedger, Tradeable,
 };
 use crate::constants::spells::SPELLSET_CAP;
 use crate::constants::spirits::{
@@ -219,7 +219,9 @@ fn roll_spells(world: &mut World, player: Entity, count: usize) -> Vec<OfferOpti
         .get::<Spellset>(player)
         .map(|s| s.slots.clone())
         .unwrap_or_default();
-    let learnable: Vec<_> = SpellDef::learnable()
+    let learnable: Vec<_> = crate::catalog::SPELLS
+        .iter()
+        .copied()
         .filter(|e| !known.contains(e))
         .collect();
     roll_with_shared_rng(world, |rng| {
@@ -399,7 +401,7 @@ pub(crate) fn poof(world: &mut World, spirit: Entity) {
     }
 }
 
-fn learn_offered_spell(world: &mut World, player: Entity, effect: SpellEffect) {
+fn learn_offered_spell(world: &mut World, player: Entity, effect: &'static SpellDef) {
     let Some(mut spellset) = world.get_mut::<Spellset>(player) else {
         return;
     };
@@ -410,7 +412,7 @@ fn learn_offered_spell(world: &mut World, player: Entity, effect: SpellEffect) {
         return;
     }
     spellset.slots.push(effect);
-    let name = crate::catalog::SpellDef::of(effect).display_name();
+    let name = effect.display_name();
     world
         .resource_mut::<GameLog>()
         .add(strings::learn_spell_line(name));
@@ -462,7 +464,7 @@ pub fn open_spell_barter(
     world: &mut World,
     player: Entity,
     demon: Entity,
-    demon_spells: &[SpellEffect],
+    demon_spells: &[&'static SpellDef],
 ) {
     let player_spells = world
         .get::<Spellset>(player)
@@ -694,7 +696,7 @@ pub(crate) fn angel_event(world: &mut World, player: Entity, spirit: Entity) {
 /// known spell given up for one of its own, off the same "not already
 /// known" pool [`roll_spell_offer`] draws from.
 pub(crate) fn sphynx_event(world: &mut World, player: Entity, spirit: Entity) {
-    let offered: Vec<SpellEffect> = roll_spell_stock(world, player)
+    let offered: Vec<&'static SpellDef> = roll_spell_stock(world, player)
         .into_iter()
         .filter_map(|o| match o {
             OfferOption::Spell(effect) => Some(effect),

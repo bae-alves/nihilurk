@@ -83,7 +83,7 @@ Components — creatures and combat
 | `Helper`  | marker — the player's boon companion, a `Faction::Ally` that follows them between floors | at most one ordinary one, plus any number with `PriorityHelper` | yes (its own field, not an effect row) |
 
 | `Mimic`   | marker — a xeroc still in disguise: it reads as an item and every "monster nearby" check skips it. `reveal_mimics` strips it when the player stands adjacent | xerocs | no |
-| `Spellset` | `slots: Vec<SpellEffect>` — the spells the creature knows, capped at `constants::spells::SPELLSET_CAP` | the hero | yes |
+| `Spellset` | `slots: Vec<&'static SpellDef>` — the spells the creature knows, capped at `constants::spells::SPELLSET_CAP` | the hero | yes |
 | `GhostOfPlayer` | marker — the bones ghost of the player's own past run; `combat.rs` narrates a fight with it as "you" against yourself | the bones ghost | no |
 
 `MovementType` — enum, **saved by variant order**:
@@ -333,7 +333,7 @@ An input handler or the AI pushes an intent onto a queue resource; the matching 
 | `WantsToAttack` → `AttackQueue`     | `attacker`, `target`                     | `combat_system`       |
 | `WantsToUse` → `UseQueue`           | `user`, `item`, `target: Option<Position>`, `slot_idx: Option<usize>` | `item_system` |
 | `WantsToThrow` → `ThrowQueue`       | `thrower`, `item`, `target: Position`, `slot_idx: Option<usize>` | `throw_system` |
-| `WantsToCast` → `SpellQueue`         | `user`, `effect: SpellEffect`, `target: Position` | `spell_system`   |
+| `WantsToCast` → `SpellQueue`         | `user`, `spell: &'static SpellDef`, `target: Position` | `spell_system`   |
 | `PlayerAction` → `PlayerActionQueue` | `Step(StepPlan)` (a step, blow, lunge, kick or struggle), `Stairs`, `Drop`, `WilledTeleport`, `Charge`, `Reach`, each decided at the key | `player_action_system` |
 
 All five queues are transient (empty at save time).
@@ -374,7 +374,7 @@ Peaceful `Faction::Spirits` mobs (`spirits.rs`): melee on one triggers an event 
 | `OfferOption` | enum | `Spell` / `Weapon` / `Armor` / `Ring`; one row of that menu | transient |
 | `BarterMenu` | resource | `open`, `demon`, `column: BarterColumn`, `cursor`, `player_side` / `demon_side` and `player_selected` / `demon_selected: Vec<Tradeable>` | transient |
 | `BarterColumn` | enum | `Player` / `Demon`; which column the cursor is in | transient |
-| `Tradeable` | enum | `Item(Entity)` / `Spell(SpellEffect)`; one thing on either side of a barter | transient |
+| `Tradeable` | enum | `Item(Entity)` / `Spell(&'static SpellDef)`; one thing on either side of a barter | transient |
 
 Also here: `SpellsMenu` (`open`, `selected`; the `Z` menu, the only way to an active spell) and `SpellKind` (`Attack` / `Skill`; a staff's `TurboMagic` scales only the first). `ExtraMonsterRound(bool)` is set by a greatclub's heavy swing; the turn loop runs one extra monster round after that action and clears it.
 

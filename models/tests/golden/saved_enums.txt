@@ -4,7 +4,6 @@ components.rs::MovementType = Static,Chase,Flee,Confused,Aggravated,Ambush
 components.rs::PickupEffect = Coin,Health,Power,Cleanse,Strength,Platinum,Forge,LearnRandomSpell
 components.rs::RingEffect = Protection,Strength,Perception,Adornment,AggravateMonster,Sharpshooting,IncreaseDamage,Regeneration,SlowDigestion,Teleportation,Stealth,MaintainArmor,Polymorph,SustainForm,DualZap,Health
 components.rs::SpeedKind = Slow,Normal,Fast,Quick
-components.rs::SpellEffect = DragonBreath,Sting,Thunderbolt,Cure,Bide,ForceLance,Identify,Setup,Lux,CircleOfDeath,MagicWard,Heal,MeteorStrike,FrostNova,MagicMapping,HasteSelf,PolymorphSelf,PolymorphOther,GateDown
 components.rs::TrapReveal = Sight,Adjacent,Triggered
 equipment.rs::Slot = Hand,Body,Finger
 leaderboard.rs::Outcome = Win,LoseAscent,LoseDescent

@@ -183,7 +183,7 @@ fn casting_a_spell_breaks_spells_only() {
     w.get_mut::<Magic>(p).unwrap().points = 99;
     w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user: p,
-        effect: SpellEffect::Setup,
+        spell: spell_row("Setup").unwrap(),
         target: here,
     });
     spell_system(&mut w);

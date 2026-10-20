@@ -72,10 +72,10 @@ fn the_lurk_is_its_own_creature() {
     assert!(w.get::<BuildsMomentum>(p).is_some(), "a rhythm that builds");
     assert!(w.get::<Stealthy>(p).is_some(), "a hunter's quiet");
     let slots = &w.get::<Spellset>(p).unwrap().slots;
-    assert_eq!(slots, &vec![SpellEffect::Bide]);
+    assert_eq!(slots, &vec![&BIDE]);
     assert_eq!(
-        spell_cost(&w, p, SpellEffect::Bide),
-        SpellDef::of(SpellEffect::Bide).cost,
+        spell_cost(&w, p, &BIDE),
+        BIDE.cost,
         "Bide is learned, not innate: it costs magic"
     );
 }
@@ -225,10 +225,7 @@ fn the_lurk_survives_a_save() {
     assert!(w2.get::<Stealthy>(p2).is_some());
     assert_eq!(w2.get::<Speed>(p2).unwrap().kind, SpeedKind::Quick);
     assert_eq!(w2.get::<Fighter>(p2).unwrap().max_power, expected_power);
-    assert_eq!(
-        w2.get::<Spellset>(p2).unwrap().slots,
-        vec![SpellEffect::Bide]
-    );
+    assert_eq!(w2.get::<Spellset>(p2).unwrap().slots, vec![&BIDE]);
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use super::*;
+use crate::catalog::{BIDE, FIREBALL, FORCE_LANCE, SpellDef, THUNDERBOLT, spell_row};
 use crate::map::{MAP_TILE_COUNT, TileType, tile_index};
 use bevy_ecs::world::World;
 use fixedbitset::FixedBitSet;
@@ -173,11 +174,11 @@ fn a_helper_holds_fire_that_would_reach_the_player() {
     let mut p = percept(&map, (6, 6), (5, 6));
     p.helper = true;
     p.ally = true;
-    p.spellset = vec![SpellEffect::DragonBreath];
+    p.spellset = vec![&FIREBALL];
     p.foes = vec![sighting(e[0], (11, 6), false)];
     assert_eq!(
         think(&p, &HELPER),
-        Action::Cast(SpellEffect::DragonBreath, Position { x: 11, y: 6 })
+        Action::Cast(&FIREBALL, Position { x: 11, y: 6 })
     );
     p.player_at = Position { x: 12, y: 6 };
     assert!(matches!(think(&p, &HELPER), Action::Step(1, 0)));
@@ -188,7 +189,7 @@ fn a_targeted_spell_needs_no_clear_line() {
     let mut map = room();
     map.tiles[tile_index(9, 6)] = TileType::Wall;
     let e = entities(1);
-    for spell in [SpellEffect::Sting, SpellEffect::Thunderbolt] {
+    for spell in [spell_row("Sting").unwrap(), &THUNDERBOLT] {
         let mut p = percept(&map, (6, 6), (11, 6));
         p.spellset = vec![spell];
         p.foes = vec![sighting(e[0], (11, 6), true)];
@@ -205,7 +206,7 @@ fn a_line_spell_needs_a_clear_line() {
     map.tiles[tile_index(9, 6)] = TileType::Wall;
     let e = entities(1);
     let mut p = percept(&map, (6, 6), (11, 6));
-    p.spellset = vec![SpellEffect::ForceLance];
+    p.spellset = vec![&FORCE_LANCE];
     p.foes = vec![sighting(e[0], (11, 6), true)];
     assert!(!matches!(think(&p, &CHASER), Action::Cast(..)));
 }
@@ -216,11 +217,11 @@ fn a_helper_casts_every_attack_spell_that_spares_the_player() {
     let e = entities(1);
     let foe = Position { x: 11, y: 6 };
     for spell in [
-        SpellEffect::Sting,
-        SpellEffect::Thunderbolt,
-        SpellEffect::ForceLance,
-        SpellEffect::Lux,
-        SpellEffect::MeteorStrike,
+        spell_row("Sting").unwrap(),
+        &THUNDERBOLT,
+        &FORCE_LANCE,
+        spell_row("Lux").unwrap(),
+        spell_row("Meteor Strike").unwrap(),
     ] {
         let mut p = percept(&map, (6, 6), (5, 8));
         p.helper = true;
@@ -239,13 +240,59 @@ fn a_helper_holds_a_lance_through_the_player_but_not_a_bolt_beside_them() {
     p.helper = true;
     p.ally = true;
     p.foes = vec![sighting(e[0], (11, 6), false)];
-    p.spellset = vec![SpellEffect::ForceLance];
+    p.spellset = vec![&FORCE_LANCE];
     assert!(!matches!(think(&p, &HELPER), Action::Cast(..)));
-    p.spellset = vec![SpellEffect::Thunderbolt];
+    p.spellset = vec![&THUNDERBOLT];
     assert_eq!(
         think(&p, &HELPER),
-        Action::Cast(SpellEffect::Thunderbolt, Position { x: 11, y: 6 })
+        Action::Cast(&THUNDERBOLT, Position { x: 11, y: 6 })
     );
+}
+
+static BOLT: SpellDef = SpellDef {
+    kind: SpellKind::Attack,
+    range: 8,
+    ..SpellDef::new("bolt of the test", 1, |_, _| {})
+};
+
+static BURST: SpellDef = SpellDef {
+    blast: Some(1.5),
+    ..BOLT
+};
+
+static CHAIN: SpellDef = SpellDef { spread: 3, ..BURST };
+
+static LANCE: SpellDef = SpellDef { line: true, ..BOLT };
+
+/// A helper aiming at a foe at (11, 6) from (6, 6), with the player at `player_at`.
+fn helper_casts(map: &Map, spell: &'static SpellDef, player_at: (u16, u16)) -> bool {
+    let e = entities(1);
+    let mut p = percept(map, (6, 6), player_at);
+    p.helper = true;
+    p.ally = true;
+    p.spellset = vec![spell];
+    p.foes = vec![sighting(e[0], (11, 6), false)];
+    think(&p, &HELPER) == Action::Cast(spell, Position { x: 11, y: 6 })
+}
+
+#[test]
+fn a_helper_keeps_the_player_out_of_a_rows_blast_and_its_spread() {
+    let map = room();
+    assert!(helper_casts(&map, &BOLT, (12, 6)));
+    assert!(!helper_casts(&map, &BURST, (12, 6)));
+    assert!(helper_casts(&map, &BURST, (14, 6)));
+    assert!(!helper_casts(&map, &CHAIN, (14, 6)));
+}
+
+#[test]
+fn a_helper_keeps_the_player_off_a_rows_line() {
+    let map = room();
+    assert!(helper_casts(&map, &BOLT, (8, 6)));
+    assert!(!helper_casts(&map, &LANCE, (8, 6)));
+    let mut walled = room();
+    walled.tiles[tile_index(9, 6)] = TileType::Wall;
+    assert!(helper_casts(&walled, &BOLT, (5, 8)));
+    assert!(!helper_casts(&walled, &LANCE, (5, 8)));
 }
 
 #[test]
@@ -253,11 +300,11 @@ fn a_chaser_fires_its_spell_whoever_else_it_catches() {
     let map = room();
     let e = entities(1);
     let mut p = percept(&map, (6, 6), (11, 6));
-    p.spellset = vec![SpellEffect::DragonBreath];
+    p.spellset = vec![&FIREBALL];
     p.foes = vec![sighting(e[0], (11, 6), true)];
     assert_eq!(
         think(&p, &CHASER),
-        Action::Cast(SpellEffect::DragonBreath, Position { x: 11, y: 6 })
+        Action::Cast(&FIREBALL, Position { x: 11, y: 6 })
     );
 }
 
@@ -266,11 +313,11 @@ fn a_spell_it_cannot_fire_sends_it_to_melee() {
     let map = room();
     let e = entities(1);
     let mut p = percept(&map, (5, 6), (15, 6));
-    p.spellset = vec![SpellEffect::DragonBreath];
+    p.spellset = vec![&FIREBALL];
     p.foes = vec![sighting(e[0], (15, 6), true)];
     assert_eq!(think(&p, &CHASER), Action::Step(1, 0));
     p.at = Position { x: 14, y: 6 };
-    p.spellset = vec![SpellEffect::Bide];
+    p.spellset = vec![&BIDE];
     assert_eq!(think(&p, &CHASER), Action::Strike(e[0]));
 }
 
@@ -279,19 +326,13 @@ fn the_roll_picks_which_spell_is_tried() {
     let map = room();
     let e = entities(1);
     let mut p = percept(&map, (6, 6), (11, 6));
-    p.spellset = vec![SpellEffect::DragonBreath, SpellEffect::Thunderbolt];
+    p.spellset = vec![&FIREBALL, &THUNDERBOLT];
     p.foes = vec![sighting(e[0], (11, 6), true)];
     let at = Position { x: 11, y: 6 };
     p.roll = 0;
-    assert_eq!(
-        think(&p, &CHASER),
-        Action::Cast(SpellEffect::DragonBreath, at)
-    );
+    assert_eq!(think(&p, &CHASER), Action::Cast(&FIREBALL, at));
     p.roll = 1;
-    assert_eq!(
-        think(&p, &CHASER),
-        Action::Cast(SpellEffect::Thunderbolt, at)
-    );
+    assert_eq!(think(&p, &CHASER), Action::Cast(&THUNDERBOLT, at));
 }
 
 #[test]
@@ -301,7 +342,7 @@ fn nothing_swings_shoots_or_casts_across_a_doorway_corner() {
     let e = entities(1);
     let mut p = percept(&map, (15, 4), (16, 5));
     p.launcher = true;
-    p.spellset = vec![SpellEffect::DragonBreath];
+    p.spellset = vec![&FIREBALL];
     p.foes = vec![sighting(e[0], (16, 5), true)];
     assert!(!matches!(
         think(&p, &CHASER),

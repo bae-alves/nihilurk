@@ -83,7 +83,7 @@ Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bon
 | `weight`      | `u32`              | `10`    | Rarity vs eligible pool.   |
 | `grants`      | `&'static [Grant]` | `&[]`   | Effects it is born with.   |
 | `invisible`   | `bool`             | `false` | Born unseeable.            |
-| `spells`      | `&'static [SpellEffect]` | `&[]` | Spells it is born knowing; a player wearing the row gets them too. |
+| `spells`      | `&'static [&'static SpellDef]` | `&[]` | Spells it is born knowing; a player wearing the row gets them too. |
 | `casts`       | `u8`               | `0`     | Casts of its dearest spell it is born with Ma for. The pool never refills. |
 | `speed`       | `SpeedKind`        | `Normal`| Born at this tempo (the wraith is `Fast`). |
 | `equip_rolls` | `&'static [EquipRoll]` | `&[]` | Independent odds of spawning carrying a piece of gear. |
@@ -93,7 +93,7 @@ Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bon
 | `random_grants` | `Option<(&'static [Grant], u8)>` | `None` | A pool to draw `n` distinct `Grant`s from at spawn, on top of `grants`. Set by `.spirit(...)` only. |
 | `stocks_barter` | `bool`           | `false` | Born with floor loot to trade away (the yellow demon): `BARTER_STOCK_MIN` to `BARTER_STOCK_MAX` drops. |
 
-Chains: `.grants(&[...])`, `.invisible()`, `.weight(n)`, `.casts(n, &[...])`, `.fast()`, `.equip(&[...])`, `.mimics()`, `.spirit(kind, event)`, `.stocks_barter()`. `.spirit(...)` also sets `grants` to the shared spirit grants and `random_grants` to the spirit boon pool.
+Chains: `.grants(&[...])`, `.invisible()`, `.weight(n)`, `.casts(n, &LIST)`, `.fast()`, `.equip(&[...])`, `.mimics()`, `.spirit(kind, event)`, `.stocks_barter()`. `.spirit(...)` also sets `grants` to the shared spirit grants and `random_grants` to the spirit boon pool.
 
 Combat: `damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)`, both sides rolled independently. Nothing ever misses.
 
@@ -199,15 +199,19 @@ The one catalog row that never spawns anything: a spell carries no `Item`, no `P
 
 | Field    | Type           | Notes                                                          |
 |----------|----------------|-----------------------------------------------------------------|
-| `effect` | `SpellEffect`   | Keys the mechanic; identity in saves (a `Spellset` is `Vec<SpellEffect>`). |
-| `name`   | `&'static str` | Shown on the `Z` menu and in "You unleash your ___!"           |
+| `name`   | `&'static str` | Identity in saves (a `Spellset` holds rows; a save stores their names). Shown on the `Z` menu and in "You unleash your ___!" |
 | `cost`   | `u8`           | `Magic` points one use spends, times `constants::spells::TURBO_MAGIC_COST_MULT` when `TurboMagic` (a staff) meets an `Attack` — which multiplies that spell's damage by the larger `TURBO_MAGIC_POWER_MULT` in the same breath. |
-| `range`  | `i32`          | Feeds the aiming reticle. Meaningless — left at `0` — for a spell whose `SpellEffect::needs_target()` is `false`. |
-| `kind`   | `SpellKind`     | `Attack` or `Skill` — the same split a wand row's `attack` flag makes, and the one `TurboMagic` checks. |
+| `range`  | `i32`          | Feeds the aiming reticle (`.aimed(range)`). `0` for a spell that fires the instant its slot is pressed. |
+| `kind`   | `SpellKind`     | `Attack` (`.attack()`) or `Skill` — the same split a wand row's `attack` flag makes, and the one `TurboMagic` checks. |
+| `cast`   | `fn(&mut World, SpellCast)` | What casting it does. Required. |
+| `blast`  | `Option<f32>`   | `.bursts(radius)`: the disc the reticle paints, and the one an ally keeps the player out of. |
+| `spread` | `i32`           | `.spreads(n)`: how far past the blast a chained impact lands. |
+| `line`   | `bool`          | `.line()`: it flies the line and stops at the first wall. |
+| `wasted_on` | `fn(&World, Entity) -> bool` | `.wasted_on(f)`: the reticle passes over a creature it would not change. |
 
-One row per `SpellEffect`, in four `Magic`-cost tiers, any of which a coin or spirit may teach (`SpellDef::learnable`). `SpellEffect::needs_target` says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy the wand of light's `.unaimed()` row gets.
+Four `Magic`-cost tiers, any row of which a coin or spirit may teach. `SpellDef::needs_target` (`range > 0`) says whether a spell opens the aiming reticle at all (an attack aimed at a tile) or fires on the caster/everyone-in-view the instant its slot is pressed (a self-cast skill, or a room-wide attack like Circle of Death) — the same courtesy the wand of light's `.unaimed()` row gets.
 
-Mechanic: `apply_spell_effect` in `models/src/items/spells.rs`, keyed by `SpellEffect`, exhaustive with no catch-all like every other effect table in the game. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into the scroll handlers; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a spell has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
+Mechanic: the row's `cast` handler, in `models/src/items/spells.rs`. Several rows are literally another category's own mechanic under a different name rather than a reinvention — Identify and Magic Mapping call straight into the scroll handlers; Lux and Meteor Strike call `wands::elemental_blast` with a stand-in charge count, because a spell has no battery to read one off. Sting borrows the dart trap's own formula (`traps::trap_damage_tier`) rather than a fresh roll.
 
 `MagicWard` (the spell) is an `EFFECTS` row like any other marker, lent for `Lifetime::Floor` by `effects::lend`, and it is checked in exactly two places — `helpers::apply_hit` (every `Hit` whose `magical` flag is set, zapped, thrown, breathed or cast, bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted at the next staircase like any other floor-scoped effect, and named on the way out as a boon rather than an affliction (`conditions::FLOOR_BOONS`, `conditions::clear_player_conditions`).
 

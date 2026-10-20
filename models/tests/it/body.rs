@@ -75,28 +75,13 @@ fn a_monster_starts_with_an_empty_pack() {
 fn breath_is_a_spell_the_body_pays_for_like_any_other() {
     let mut w = test_world(7, Body::Monster(MonsterDef::named("dragon")));
     let p = player(&mut w);
-    assert!(
-        w.get::<Spellset>(p)
-            .unwrap()
-            .slots
-            .contains(&SpellEffect::DragonBreath)
-    );
-    assert_eq!(
-        spell_cost(&w, p, SpellEffect::DragonBreath),
-        SpellDef::of(SpellEffect::DragonBreath).cost
-    );
+    assert!(w.get::<Spellset>(p).unwrap().slots.contains(&&FIREBALL));
+    assert_eq!(spell_cost(&w, p, &FIREBALL), FIREBALL.cost);
 
     let mut nihil = test_world(7, Body::Nihil);
     let h = player(&mut nihil);
-    nihil
-        .get_mut::<Spellset>(h)
-        .unwrap()
-        .slots
-        .push(SpellEffect::DragonBreath);
-    assert_eq!(
-        spell_cost(&nihil, h, SpellEffect::DragonBreath),
-        SpellDef::of(SpellEffect::DragonBreath).cost
-    );
+    nihil.get_mut::<Spellset>(h).unwrap().slots.push(&FIREBALL);
+    assert_eq!(spell_cost(&nihil, h, &FIREBALL), FIREBALL.cost);
 }
 
 /// A wild dragon breathes the same spell a dragon-bodied player casts: its

@@ -82,13 +82,91 @@ fn dummy(w: &mut World, at: Position, hp: i32) -> Entity {
     .id()
 }
 
-fn cast(w: &mut World, user: Entity, effect: SpellEffect, target: Position) {
+fn cast(w: &mut World, user: Entity, spell: &'static SpellDef, target: Position) {
     w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user,
-        effect,
+        spell,
         target,
     });
     spell_system(w);
+}
+
+#[derive(Component)]
+struct Cast;
+
+fn mark_the_caster(world: &mut World, cast: SpellCast) {
+    world.entity_mut(cast.user).insert(Cast);
+}
+
+static FIXTURE_SPELL: SpellDef = SpellDef::new("spell of the test", 2, mark_the_caster);
+
+#[test]
+fn a_spell_does_what_its_row_says() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    w.entity_mut(p).insert(Magic {
+        points: 5,
+        max_points: 5,
+    });
+    let here = *w.get::<Position>(p).unwrap();
+
+    cast(&mut w, p, &FIXTURE_SPELL, here);
+
+    assert!(w.get::<Cast>(p).is_some());
+    assert_eq!(w.get::<Magic>(p).unwrap().points, 3);
+}
+
+#[test]
+fn every_spell_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    w.entity_mut(p).insert(Spellset {
+        slots: SPELLS.to_vec(),
+    });
+
+    let file = crate::common::SaveFile::new("spell-rows");
+    save_game(&mut w, file.path()).unwrap();
+    let mut loaded = World::new();
+    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
+    loaded.insert_resource(RngSeed(3));
+    loaded.init_resource::<GameLog>();
+    loaded.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    load_game(&mut loaded, file.path()).unwrap();
+
+    let lp = player(&mut loaded);
+    let back = &loaded.get::<Spellset>(lp).unwrap().slots;
+    assert_eq!(back.len(), SPELLS.len());
+    for (was, is) in SPELLS.iter().zip(back) {
+        assert!(
+            std::ptr::eq(*was, *is),
+            "{} came back as {}",
+            was.name,
+            is.name
+        );
+    }
+}
+
+#[test]
+fn a_spell_no_row_has_refuses_the_load() {
+    let mut w = test_world(4);
+    let p = player(&mut w);
+    w.entity_mut(p).insert(Spellset {
+        slots: vec![&FIXTURE_SPELL],
+    });
+
+    let file = crate::common::SaveFile::new("spell-unknown");
+    save_game(&mut w, file.path()).unwrap();
+    let mut loaded = World::new();
+    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(4)));
+    loaded.insert_resource(RngSeed(4));
+    loaded.init_resource::<GameLog>();
+    loaded.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    let err = load_game(&mut loaded, file.path()).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
 }
 
 #[test]
@@ -193,7 +271,7 @@ fn sting_bites_like_the_dart_trap_it_borrows_from() {
     w.get_mut::<Magic>(p).unwrap().points = 10;
     w.get_mut::<Magic>(p).unwrap().max_points = 10;
 
-    cast(&mut w, p, SpellEffect::Sting, spot);
+    cast(&mut w, p, spell_row("Sting").unwrap(), spot);
 
     assert!(
         w.get::<Fighter>(target).unwrap().hp < 40,
@@ -216,7 +294,7 @@ fn sting_is_magic_and_armour_does_not_blunt_it() {
     w.get_mut::<Magic>(p).unwrap().points = 10;
     w.get_mut::<Magic>(p).unwrap().max_points = 10;
 
-    cast(&mut w, p, SpellEffect::Sting, spot);
+    cast(&mut w, p, spell_row("Sting").unwrap(), spot);
 
     assert!(w.get::<Fighter>(target).unwrap().hp < 40);
 }
@@ -238,7 +316,7 @@ fn setup_plants_four_revealed_traps_and_trips_one_under_a_bystander() {
     let before: std::collections::HashSet<Entity> =
         w.query_filtered::<Entity, With<Trap>>().iter(&w).collect();
 
-    cast(&mut w, p, SpellEffect::Setup, here);
+    cast(&mut w, p, spell_row("Setup").unwrap(), here);
 
     let traps: Vec<Entity> = w
         .query_filtered::<Entity, With<Trap>>()
@@ -295,11 +373,11 @@ fn amnesia_forgets_one_spell_and_every_tile_seen_this_floor() {
     w.get_mut::<Spellset>(p)
         .unwrap()
         .slots
-        .push(SpellEffect::Sting);
+        .push(spell_row("Sting").unwrap());
     w.get_mut::<Spellset>(p)
         .unwrap()
         .slots
-        .push(SpellEffect::Cure);
+        .push(spell_row("Cure").unwrap());
     w.get_mut::<Viewshed>(p).unwrap().revealed_tiles.insert(0);
     w.get_mut::<Viewshed>(p).unwrap().revealed_tiles.insert(1);
     assert!(w.get::<Viewshed>(p).unwrap().revealed_tiles.count_ones(..) > 0);
@@ -342,7 +420,7 @@ fn a_mob_a_spell_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
         movement_type: MovementType::Ambush,
     });
 
-    cast(&mut w, p, SpellEffect::Thunderbolt, spot);
+    cast(&mut w, p, &THUNDERBOLT, spot);
     assert!(
         w.get::<Fighter>(victim).unwrap().hp <= 0,
         "the fixture did not actually kill the mob"
@@ -366,9 +444,9 @@ fn polymorph_self_polymorphs_the_caster_and_charges_for_it() {
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
     let before = w.get::<Magic>(p).unwrap().points;
-    let cost = SpellDef::of(SpellEffect::PolymorphSelf).cost;
+    let cost = spell_row("Polymorph Self").unwrap().cost;
 
-    cast(&mut w, p, SpellEffect::PolymorphSelf, here);
+    cast(&mut w, p, spell_row("Polymorph Self").unwrap(), here);
 
     assert!(w.get::<Polymorphed>(p).is_some());
     assert_eq!(w.get::<Magic>(p).unwrap().points, before - cost);
@@ -381,7 +459,7 @@ fn polymorph_other_polymorphs_what_it_is_aimed_at() {
     let (_here, spot) = beside_player(&mut w);
     let victim = dummy(&mut w, spot, 5);
 
-    cast(&mut w, p, SpellEffect::PolymorphOther, spot);
+    cast(&mut w, p, spell_row("Polymorph Other").unwrap(), spot);
 
     assert!(!w.entities().contains(victim), "the dummy was swapped out");
     let mut q = w.query_filtered::<(Entity, &Position), With<Mob>>();
@@ -396,22 +474,18 @@ fn polymorph_other_polymorphs_what_it_is_aimed_at() {
 
 #[test]
 fn only_polymorph_other_opens_the_reticle() {
-    assert!(SpellEffect::PolymorphOther.needs_target());
-    assert!(!SpellEffect::PolymorphSelf.needs_target());
+    assert!(spell_row("Polymorph Other").unwrap().needs_target());
+    assert!(!spell_row("Polymorph Self").unwrap().needs_target());
 }
 
 #[test]
 fn a_staff_does_not_double_what_a_polymorph_costs() {
-    for e in [SpellEffect::PolymorphSelf, SpellEffect::PolymorphOther] {
-        assert_eq!(SpellDef::of(e).kind, SpellKind::Skill);
+    for e in [
+        spell_row("Polymorph Self").unwrap(),
+        spell_row("Polymorph Other").unwrap(),
+    ] {
+        assert_eq!(e.kind, SpellKind::Skill);
     }
-}
-
-#[test]
-fn a_hero_coin_can_teach_the_polymorph_spells() {
-    let taught: Vec<SpellEffect> = SpellDef::learnable().collect();
-    assert!(taught.contains(&SpellEffect::PolymorphSelf));
-    assert!(taught.contains(&SpellEffect::PolymorphOther));
 }
 
 // ---------------------------------------------------------------------------
@@ -423,12 +497,12 @@ fn gate_down_drops_the_caster_a_floor_and_charges_for_it() {
     let mut w = test_world(7);
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
-    let def = SpellDef::of(SpellEffect::GateDown);
+    let def = spell_row("Gate Down").unwrap();
     assert_eq!(def.kind, SpellKind::Skill);
-    assert!(!SpellEffect::GateDown.needs_target());
+    assert!(!spell_row("Gate Down").unwrap().needs_target());
     w.get_mut::<Magic>(p).unwrap().points = def.cost;
 
-    cast(&mut w, p, SpellEffect::GateDown, here);
+    cast(&mut w, p, spell_row("Gate Down").unwrap(), here);
 
     assert_eq!(w.resource::<Depth>().what, 2, "fell one floor");
     assert_eq!(w.get::<Magic>(p).unwrap().points, 0);

@@ -379,14 +379,6 @@ pub(crate) fn already_an_ally(world: &World, target: Entity) -> bool {
     world.get::<Faction>(target) == Some(&Faction::Ally)
 }
 
-/// [`wand_wasted_on`] for a spell: the fire spells on something fireproof.
-pub fn spell_wasted_on(world: &World, effect: SpellEffect, target: Entity) -> bool {
-    matches!(
-        effect,
-        SpellEffect::DragonBreath | SpellEffect::MeteorStrike
-    ) && world.get::<FireImmune>(target).is_some()
-}
-
 /// Zaps `row` from `user`: at `target` when the wand takes aim, on the spot
 /// when it does not. An aimed zap fires the targeted-ability hooks of whoever
 /// stands there, then the row's handler runs. A wand that takes aim and was
@@ -714,7 +706,7 @@ fn light_area(world: &mut World, user: Entity, from: Position) {
 /// Wand of polymorph: replace the monster on `pos` with a different species,
 /// fresh, on the same tile. Aimed at the player's own tile, it polymorphs the
 /// player ([`polymorph_player_into`]).
-pub(super) fn polymorph_target(world: &mut World, pos: Position) {
+pub(crate) fn polymorph_target(world: &mut World, pos: Position) {
     let player = world
         .query_filtered::<(Entity, &Position), With<Player>>()
         .iter(world)

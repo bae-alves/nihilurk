@@ -35,7 +35,7 @@ use crate::conditions::{blind, hasten, paralyse};
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 use crate::items::wands::dazzle;
-use crate::items::{potions, runes, scrolls, throwing, wands};
+use crate::items::{potions, runes, scrolls, spells, throwing, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
 use crate::particles::BlastPalette;
 
@@ -54,6 +54,7 @@ use crate::constants::rings::{
     EXCEPTIONAL_BONUS as RING_EXCEPTIONAL_BONUS, MEGACURSED_BONUS_MAX as RING_MEGACURSED_BONUS_MAX,
     MEGACURSED_BONUS_MIN as RING_MEGACURSED_BONUS_MIN, PLAIN_BONUS,
 };
+use crate::constants::spells::METEOR_STRIKE_CHAIN_SPREAD;
 use crate::constants::wands::{BLAST_RADIUS, GRENADE_RADIUS, WAND_CHARGES};
 
 // ---------------------------------------------------------------------------
@@ -1506,39 +1507,111 @@ pub const RINGS: &[RingDef] = &[
 // Active spells
 // ---------------------------------------------------------------------------
 
-/// An active spell: the identity and numbers behind a [`SpellEffect`]. Unlike
-/// every other row in this file, a spell is never spawned — it is not an
-/// [`ItemDef`], has no [`Position`] on the floor and no pack slot. Its
-/// mechanic lives in `crate::items::spells`, keyed by [`SpellDef::effect`].
+/// An active spell. Unlike every other row in this file, a spell is never
+/// spawned — it is not an [`ItemDef`], has no [`Position`] on the floor and no
+/// pack slot. A [`Spellset`] holds the row itself, and a save stores its name.
+///
+/// To add one: write its handler in `crate::items::spells`, then add a row to
+/// [`SPELLS`] naming it. `cast` is required, so a row with no handler does not
+/// build.
 pub struct SpellDef {
-    /// The [`SpellEffect`] this row is the entry for.
-    pub effect: SpellEffect,
-    /// The spell's identity, as [`ItemDef::name`] is an item's. The player reads
-    /// [`SpellDef::display_name`] instead.
+    /// The spell's identity, as [`ItemDef::name`] is an item's: the save file
+    /// stores it. The player reads [`SpellDef::display_name`] instead.
     pub name: &'static str,
     /// [`Magic`] points one use costs.
     pub cost: u8,
-    /// How far the aiming reticle reaches.
+    /// How far the aiming reticle reaches; `0` for a spell that takes no aim
+    /// and fires on its slot press.
     pub range: i32,
     /// Attack or skill — the dial a staff's [`TurboMagic`] checks before
     /// multiplying the cost and the damage of the cast. See
     /// [`crate::items::spell_system`].
     pub kind: SpellKind,
+    /// What casting it does.
+    pub cast: fn(&mut World, SpellCast),
+    /// The disc it bursts in on the aimed tile, for the reticle to paint and
+    /// for a monster to keep its friends out of.
+    pub blast: Option<f32>,
+    /// How far past the blast a chained impact can land.
+    pub spread: i32,
+    /// Whether it flies along the line and stops at the first wall, as a lance
+    /// does. Every other aimed spell lands on the aimed tile itself.
+    pub line: bool,
+    /// Whether a cast at this creature would change nothing, so the reticle
+    /// passes it over.
+    pub wasted_on: fn(&World, Entity) -> bool,
+}
+
+/// One cast, as a row's handler receives it.
+#[derive(Clone, Copy)]
+pub struct SpellCast {
+    /// The spell's row.
+    pub row: &'static SpellDef,
+    /// Whoever casts.
+    pub user: Entity,
+    /// The aimed tile; the caster's own for a spell that takes no aim.
+    pub target: Position,
+    /// What the damage is multiplied by: a staff's
+    /// [`TURBO_MAGIC_POWER_MULT`](crate::constants::spells::TURBO_MAGIC_POWER_MULT)
+    /// on an attack, `1` otherwise.
+    pub power_mult: i32,
 }
 
 impl SpellDef {
-    /// The catalog row for `effect`. Panics on a spell that isn't in the table
-    /// — which would mean a [`SpellEffect`] variant nobody ever gave a row.
-    pub fn of(effect: SpellEffect) -> &'static SpellDef {
-        SPELLS
-            .iter()
-            .find(|m| m.effect == effect)
-            .unwrap_or_else(|| panic!("no spell row for {effect:?}"))
+    /// A skill that takes no aim, wasted on nobody.
+    pub const fn new(name: &'static str, cost: u8, cast: fn(&mut World, SpellCast)) -> Self {
+        Self {
+            name,
+            cost,
+            range: 0,
+            kind: SpellKind::Skill,
+            cast,
+            blast: None,
+            spread: 0,
+            line: false,
+            wasted_on: |_, _| false,
+        }
     }
 
-    /// The spells a coin or a spirit may teach: every one in [`SPELLS`].
-    pub fn learnable() -> impl Iterator<Item = SpellEffect> {
-        SPELLS.iter().map(|m| m.effect)
+    /// It deals damage.
+    const fn attack(mut self) -> Self {
+        self.kind = SpellKind::Attack;
+        self
+    }
+
+    /// It opens the reticle, which reaches `range` tiles.
+    const fn aimed(mut self, range: i32) -> Self {
+        self.range = range;
+        self
+    }
+
+    /// It bursts over `radius` where it is aimed.
+    const fn bursts(mut self, radius: f32) -> Self {
+        self.blast = Some(radius);
+        self
+    }
+
+    /// Its impacts chain up to `spread` tiles past the blast.
+    const fn spreads(mut self, spread: i32) -> Self {
+        self.spread = spread;
+        self
+    }
+
+    /// It flies the line and stops at the first wall.
+    const fn line(mut self) -> Self {
+        self.line = true;
+        self
+    }
+
+    /// The reticle passes over a creature `wasted` says it would not change.
+    const fn wasted_on(mut self, wasted: fn(&World, Entity) -> bool) -> Self {
+        self.wasted_on = wasted;
+        self
+    }
+
+    /// Whether triggering it opens the aiming reticle at all.
+    pub fn needs_target(&self) -> bool {
+        self.range > 0
     }
 
     /// What the player sees this spell called, in whatever language this
@@ -1549,40 +1622,83 @@ impl SpellDef {
     }
 }
 
+impl PartialEq for SpellDef {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other)
+    }
+}
+
+impl Eq for SpellDef {}
+
+impl std::fmt::Debug for SpellDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name)
+    }
+}
+
+/// The row named `name`, as a save stores it.
+pub fn spell_row(name: &str) -> Option<&'static SpellDef> {
+    SPELLS.iter().copied().find(|row| row.name == name)
+}
+
+/// The fire blast a dragon breathes, and the player casts.
+pub static FIREBALL: SpellDef = SpellDef::new("Fireball", 2, spells::breathe_fire)
+    .attack()
+    .aimed(8)
+    .bursts(BLAST_RADIUS)
+    .wasted_on(wands::fireproof);
+
+/// The eel's bolt.
+pub static THUNDERBOLT: SpellDef = SpellDef::new("Thunderbolt", 1, spells::thunderbolt)
+    .attack()
+    .aimed(8);
+
+/// The card caster's lance.
+pub static FORCE_LANCE: SpellDef = SpellDef::new("Force Lance", 2, spells::force_lance)
+    .attack()
+    .aimed(8)
+    .line();
+
+/// What a lurk is born knowing.
+pub static BIDE: SpellDef = SpellDef::new("Bide", 1, spells::bide);
+
+/// The rune of chaos's spell.
+pub static HASTE_SELF: SpellDef = SpellDef::new("Haste Self", 4, spells::haste_self);
+
+/// The rune of ice's spell.
+pub static FROST_NOVA: SpellDef = SpellDef::new("Frost Nova", 4, spells::frost_nova).attack();
+
 /// Every active spell in the game: tiers priced by [`Magic`]
 /// cost, the same way a floor's danger is priced by depth. A
 /// monster pays the same price out of its own
-/// [`Magic`] (`crate::monsters::MonsterDef::magic`).
-///
-/// `range` is meaningless for a spell whose [`SpellEffect::needs_target`] is
-/// `false` — it fires on its slot press with no reticle at all — and is left
-/// at `0` for those rows.
+/// [`Magic`] (`crate::monsters::MonsterDef::magic`). These are the spells a
+/// coin or a spirit may teach.
 #[rustfmt::skip]
-pub const SPELLS: &[SpellDef] = &[
+pub static SPELLS: &[&SpellDef] = &[
     // --- 1 Ma ---------------------------------------------------------
-    SpellDef { effect: SpellEffect::Sting,       name: "Sting",       cost: 1, range: 8, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::Thunderbolt, name: "Thunderbolt", cost: 1, range: 8, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::Cure,        name: "Cure",        cost: 1, range: 0, kind: SpellKind::Skill },
-    SpellDef { effect: SpellEffect::Bide,        name: "Bide",        cost: 1, range: 0, kind: SpellKind::Skill },
+    &SpellDef::new("Sting", 1, spells::sting).attack().aimed(8),
+    &THUNDERBOLT,
+    &SpellDef::new("Cure", 1, spells::cure_self),
+    &BIDE,
     // --- 2 Ma ---------------------------------------------------------
-    SpellDef { effect: SpellEffect::DragonBreath, name: "Fireball",   cost: 2, range: 8, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::ForceLance,  name: "Force Lance", cost: 2, range: 8, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::Identify,    name: "Identify",    cost: 2, range: 0, kind: SpellKind::Skill },
-    SpellDef { effect: SpellEffect::Setup,       name: "Setup",       cost: 2, range: 0, kind: SpellKind::Skill },
-    SpellDef { effect: SpellEffect::PolymorphSelf, name: "Polymorph Self", cost: 2, range: 0, kind: SpellKind::Skill },
+    &FIREBALL,
+    &FORCE_LANCE,
+    &SpellDef::new("Identify", 2, spells::identify),
+    &SpellDef::new("Setup", 2, spells::setup),
+    &SpellDef::new("Polymorph Self", 2, spells::polymorph_self),
     // --- 3 Ma ---------------------------------------------------------
-    SpellDef { effect: SpellEffect::Lux,          name: "Lux",           cost: 3, range: 8, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::CircleOfDeath, name: "Circle of Death", cost: 3, range: 0, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::MagicWard,    name: "Magic Ward",    cost: 3, range: 0, kind: SpellKind::Skill },
-    SpellDef { effect: SpellEffect::Heal,         name: "Heal",          cost: 3, range: 0, kind: SpellKind::Skill },
+    &SpellDef::new("Lux", 3, spells::lux).attack().aimed(8).bursts(GRENADE_RADIUS),
+    &SpellDef::new("Circle of Death", 3, spells::circle_of_death).attack(),
+    &SpellDef::new("Magic Ward", 3, spells::magic_ward),
+    &SpellDef::new("Heal", 3, spells::heal_self),
     // An aimed skill: it does no damage, so a staff has nothing to double.
-    SpellDef { effect: SpellEffect::PolymorphOther, name: "Polymorph Other", cost: 3, range: 8, kind: SpellKind::Skill },
+    &SpellDef::new("Polymorph Other", 3, spells::polymorph_other).aimed(8),
     // --- 4 Ma ---------------------------------------------------------
-    SpellDef { effect: SpellEffect::MeteorStrike, name: "Meteor Strike", cost: 4, range: 8, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::FrostNova,    name: "Frost Nova",    cost: 4, range: 0, kind: SpellKind::Attack },
-    SpellDef { effect: SpellEffect::MagicMapping, name: "Magic Mapping", cost: 4, range: 0, kind: SpellKind::Skill },
-    SpellDef { effect: SpellEffect::HasteSelf,    name: "Haste Self",    cost: 4, range: 0, kind: SpellKind::Skill },
-    SpellDef { effect: SpellEffect::GateDown,     name: "Gate Down",     cost: 4, range: 0, kind: SpellKind::Skill },
+    &SpellDef::new("Meteor Strike", 4, spells::meteor_strike).attack().aimed(8).bursts(GRENADE_RADIUS).spreads(METEOR_STRIKE_CHAIN_SPREAD).wasted_on(wands::fireproof),
+    &FROST_NOVA,
+    &SpellDef::new("Magic Mapping", 4, spells::magic_mapping),
+    &HASTE_SELF,
+    &SpellDef::new("Gate Down", 4, spells::gate_down),
 ];
 
 // ---------------------------------------------------------------------------

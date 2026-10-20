@@ -36,7 +36,6 @@ use crate::particles::Particles;
 use crate::shake::{ShakeKind, kick_shake};
 use crate::traps::detonate_at;
 
-use super::spells::spell_blast_radius;
 use super::wands::{blast_cells, elemental_blast, shuffle_places};
 use crate::catalog::{Burst, WandDef};
 use crate::conditions::snare;
@@ -177,7 +176,7 @@ pub fn aim_footprint(world: &mut World) -> Vec<(u16, u16)> {
         return Vec::new();
     };
     let disc = match (spell, item) {
-        (Some(spell), _) => spell_blast_radius(spell).map(|r| (cursor, r)),
+        (Some(spell), _) => spell.blast.map(|r| (cursor, r)),
         (None, Some(item)) if throwing => thrown_blast(world, player, item, cursor),
         (None, Some(item)) => world
             .get::<Wand>(item)

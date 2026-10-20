@@ -1198,7 +1198,7 @@ fn preview(
     w: &mut World,
     item: Option<Entity>,
     throwing: bool,
-    spell_effect: Option<SpellEffect>,
+    spell_effect: Option<&'static SpellDef>,
     at: Position,
 ) -> std::collections::HashSet<(u16, u16)> {
     w.insert_resource(TargetingState {
@@ -1288,14 +1288,20 @@ fn a_zapped_blast_previews_on_the_cursor_past_a_creature() {
     assert!(centred_on(&cells, cursor, BLAST_RADIUS), "{cells:?}");
 }
 
+static BURST: SpellDef = SpellDef {
+    range: 8,
+    blast: Some(2.5),
+    ..SpellDef::new("burst of the test", 1, |_, _| {})
+};
+
 #[test]
-fn a_blast_spell_previews_on_the_cursor() {
+fn a_blast_spell_previews_its_rows_disc_on_the_cursor() {
     let mut w = test_world(13);
     let cursor = east_of_player(&mut w, 3);
 
-    let cells = preview(&mut w, None, false, Some(SpellEffect::Lux), cursor);
+    let cells = preview(&mut w, None, false, Some(&BURST), cursor);
 
-    assert!(centred_on(&cells, cursor, GRENADE_RADIUS), "{cells:?}");
+    assert!(centred_on(&cells, cursor, 2.5), "{cells:?}");
 }
 
 #[test]
@@ -1325,7 +1331,7 @@ fn a_bolt_a_line_spell_and_a_look_preview_nothing() {
     let cursor = east_of_player(&mut w, 3);
 
     assert!(preview(&mut w, Some(wand), false, None, cursor).is_empty());
-    assert!(preview(&mut w, None, false, Some(SpellEffect::ForceLance), cursor).is_empty());
+    assert!(preview(&mut w, None, false, Some(&FORCE_LANCE), cursor).is_empty());
     w.resource_mut::<TargetingState>().looking = true;
     assert!(aim_footprint(&mut w).is_empty());
 }

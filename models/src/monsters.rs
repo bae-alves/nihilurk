@@ -14,7 +14,7 @@ use rand::Rng;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 
-use crate::catalog::ItemDef;
+use crate::catalog::{FIREBALL, FORCE_LANCE, ItemDef, SpellDef, THUNDERBOLT};
 use crate::components::*;
 use crate::constants::decks::CARD_CASTER_CASTS;
 use crate::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
@@ -89,9 +89,9 @@ pub struct MonsterDef {
     /// component, so the wand of fire has one case to handle, not two.
     pub grants: &'static [Grant],
     /// The spells this species is born knowing: its [`Spellset`], the same
-    /// [`SpellEffect`]s a player learns, at the same `SpellDef::cost`. A
+    /// [`SpellDef`] rows a player learns, at the same cost. A
     /// player wearing the row gets them in the spell bar.
-    pub spells: &'static [SpellEffect],
+    pub spells: &'static [&'static SpellDef],
     /// How many times a monster of this row can cast its dearest spell: two
     /// for the beefy, three for the weak. It is born with that many
     /// casts' worth of [`Magic`] ([`MonsterDef::magic_pool`]), and the pool
@@ -131,12 +131,7 @@ pub struct MonsterDef {
 impl MonsterDef {
     /// The Ma this row is born with: `casts` casts of its dearest spell.
     pub fn magic_pool(&self) -> u8 {
-        let dearest = self
-            .spells
-            .iter()
-            .map(|&s| crate::catalog::SpellDef::of(s).cost)
-            .max()
-            .unwrap_or(0);
+        let dearest = self.spells.iter().map(|s| s.cost).max().unwrap_or(0);
         self.casts * dearest
     }
 
@@ -196,7 +191,7 @@ impl MonsterDef {
 
     /// Teach a bestiary row `spells`, with Ma for `casts` casts of the dearest
     /// (the dragon).
-    const fn casts(mut self, casts: u8, spells: &'static [SpellEffect]) -> Self {
+    const fn casts(mut self, casts: u8, spells: &'static [&'static SpellDef]) -> Self {
         self.casts = casts;
         self.spells = spells;
         self
@@ -404,6 +399,12 @@ pub const MIRROR_HOUND_GRANTS: &[Grant] = &[
     Grant::of::<FaerieOnDeath>(),
 ];
 
+/// The spell lists the bestiary hands to [`MonsterDef::casts`]. Statics: a
+/// const cannot borrow a fresh slice of static rows.
+static BREATHES_FIRE: [&SpellDef; 1] = [&FIREBALL];
+static CASTS_THUNDERBOLT: [&SpellDef; 1] = [&THUNDERBOLT];
+static CASTS_FORCE_LANCE: [&SpellDef; 1] = [&FORCE_LANCE];
+
 /// The whole bestiary: Rogue's 26 lettered creatures and the few nihilurk
 /// added, in one table. Effects that pick a
 /// creature at random (scrolls of create monster and vorpalize weapon) index
@@ -471,11 +472,11 @@ pub const BESTIARY: &[MonsterDef] = &[
         .weight(2),
     MonsterDef::row("dragon", 'D', Color::Red, Chase, 13, 12, 2, 10, 2, 10)
         .grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>()])
-        .casts(2, &[SpellEffect::DragonBreath]),
+        .casts(2, &BREATHES_FIRE),
     MonsterDef::row("emu", 'E', Color::DarkGreen, Chase, 6, 4, 0, 4, 1, 1),
     MonsterDef::row("eel", 'e', Color::Cyan, Chase, 6, 6, 0, 6, 0, 6)
         .grants(&[Grant::of::<Swims>()])
-        .casts(3, &[SpellEffect::Thunderbolt]),
+        .casts(3, &CASTS_THUNDERBOLT),
     MonsterDef::row(
         "venus flytrap",
         'f',
@@ -736,9 +737,9 @@ pub const BESTIARY: &[MonsterDef] = &[
 pub const SUMMONS: &[MonsterDef] = &[
     //              name          glyph  colour          move   hp  pow  pb  ar  ab  dep
     MonsterDef::row("skull king", 'S', Color::Magenta, Chase, 12,  6,  0,  6,  0,  1)
-        .casts(CARD_CASTER_CASTS, &[SpellEffect::Thunderbolt]),
+        .casts(CARD_CASTER_CASTS, &CASTS_THUNDERBOLT),
     MonsterDef::row("black mage", '&', Color::Magenta, Chase, 12,  5,  0,  8,  0,  1)
-        .casts(CARD_CASTER_CASTS, &[SpellEffect::ForceLance]),
+        .casts(CARD_CASTER_CASTS, &CASTS_FORCE_LANCE),
 ];
 
 /// A bones ghost — a past character come back angry (see `crate::bones` and

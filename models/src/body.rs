@@ -148,7 +148,7 @@ fn wear_lurk(world: &mut World, player: Entity) {
     ));
     grant_all(world, player, LURK_GRANTS);
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
-        spellset.slots.push(SpellEffect::Bide);
+        spellset.slots.push(&crate::catalog::BIDE);
     }
 }
 
