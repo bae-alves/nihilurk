@@ -249,6 +249,3 @@ pub fn acknowledge(unread: &mut Vec<LogEntry>, width: usize) {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

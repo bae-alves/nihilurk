@@ -1,5 +1,10 @@
-use super::*;
+//! The message pager: how the unread log packs into the lines the HUD has
+//! room for, and what `acknowledge` keeps when the player pages on.
 
+use models::*;
+
+/// Every word on a page, in order, joined by single spaces, so pages can be
+/// strung back together and compared with the message they came from.
 fn text_of(lines: &[Vec<LogEntry>]) -> String {
     lines
         .iter()

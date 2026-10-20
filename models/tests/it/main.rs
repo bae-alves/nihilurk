@@ -9,6 +9,12 @@
 //! A test that reads outside the crate stays a file of its own under `tests/`,
 //! so `Cargo.toml` can `exclude` it without dropping this whole binary from the
 //! package.
+//!
+//! A test that only needs what `models` exports lives here. A test that needs
+//! a private item stays in its module, inline at the bottom, as
+//! `#[cfg(test)] mod tests { ... }`, the same as in `engine` and
+//! `particle-core`. Its scratch files go through `crate::scratch::Scratch`,
+//! the unit-test twin of `common::SaveFile`.
 
 mod common;
 
@@ -31,6 +37,7 @@ mod equip;
 mod fast;
 mod fastmove;
 mod fencer;
+mod hud;
 mod icecube;
 mod identify;
 mod invisibility;

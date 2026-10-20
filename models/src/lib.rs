@@ -61,6 +61,8 @@ pub use helpers::{Hit, apply_hit, chebyshev, mark_moved, mob_at};
 mod identify;
 mod items;
 mod saveload;
+#[cfg(test)]
+mod scratch;
 
 pub use abilities::*;
 pub use agents::*;

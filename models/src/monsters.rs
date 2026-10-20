@@ -1419,4 +1419,21 @@ fn feel_what_you_were_born_with(world: &mut World, player: Entity) {
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    /// A row with nothing to it but one grant. The test is about
+    /// `spawn_monster` handing a row's grants to the body it builds, so the
+    /// fixture names its own grant. Borrowing `GHOST` would test what the
+    /// ghost row says, and an edit to that row would break the test.
+    const PHASER: MonsterDef =
+        MonsterDef::row("phaser", 'p', Color::White, Chase, 1, 1, 0, 0, 0, 1)
+            .grants(&[Grant::of::<Phasing>()]);
+
+    #[test]
+    fn a_spawned_monster_carries_the_grants_of_its_row() {
+        let mut w = World::new();
+        let phaser = spawn_monster(&mut w, &PHASER, Position { x: 1, y: 1 });
+        assert!(Grant::of::<Phasing>().probe(&w, phaser));
+    }
+}

@@ -247,6 +247,3 @@ pub fn pack_rows(world: &mut World, mode: PackMode) -> Vec<usize> {
         .map(|(idx, _)| idx)
         .collect()
 }
-
-#[cfg(test)]
-mod tests;
