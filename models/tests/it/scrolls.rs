@@ -829,7 +829,7 @@ fn food_detection_turns_up_the_plain_things_and_leaves_the_magic_alone() {
     let spot = Position { x: 1, y: 1 };
 
     let plain = spawn_weapon(&mut w, "dagger", spot);
-    let potion = spawn_potion(&mut w, PotionEffect::Healing, spot);
+    let potion = spawn_named(&mut w, "potion of healing", spot).unwrap();
     let cursed = spawn_weapon(&mut w, "mace", spot);
     w.entity_mut(cursed).insert(Curse);
 
@@ -869,9 +869,9 @@ fn detection_turns_a_stashed_item_up_for_good() {
 
     let mut w = test_world(2);
     let p = player(&mut w);
-    let potion = spawn_potion(&mut w, PotionEffect::Healing, spot);
+    let potion = spawn_named(&mut w, "potion of healing", spot).unwrap();
     w.entity_mut(potion).insert((Hidden, Invisible));
-    let detection = spawn_potion(&mut w, PotionEffect::MagicDetection, spot);
+    let detection = spawn_named(&mut w, "potion of magic detection", spot).unwrap();
     stash(&mut w, p, detection);
     use_item(&mut w, p, detection);
     assert!(w.get::<Detected>(potion).is_some());
@@ -890,7 +890,7 @@ fn a_detection_that_skips_an_item_leaves_its_stash_alone() {
     let plain = spawn_weapon(&mut w, "dagger", spot);
     w.entity_mut(plain).insert((Hidden, Invisible));
 
-    let detection = spawn_potion(&mut w, PotionEffect::MagicDetection, spot);
+    let detection = spawn_named(&mut w, "potion of magic detection", spot).unwrap();
     stash(&mut w, p, detection);
     use_item(&mut w, p, detection);
 
@@ -915,11 +915,7 @@ fn both_detections_find_the_element_of_yoord() {
     let mut w = test_world(2);
     let p = player(&mut w);
     let relic = spawn_element_of_yoord(&mut w, spot);
-    let potion = spawn_potion(
-        &mut w,
-        PotionEffect::MagicDetection,
-        Position { x: 0, y: 0 },
-    );
+    let potion = spawn_named(&mut w, "potion of magic detection", Position { x: 0, y: 0 }).unwrap();
     stash(&mut w, p, potion);
     use_item(&mut w, p, potion);
     assert!(

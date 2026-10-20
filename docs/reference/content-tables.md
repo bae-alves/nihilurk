@@ -119,15 +119,15 @@ Only the scroll of identify and the scroll of remove curse override `weight` (tw
 
 ### POTIONS — PotionDef
 
-| Field    | Type           | Notes                                    |
-|----------|----------------|------------------------------------------|
-| `effect` | `PotionEffect` | Keys the mechanic; identity in saves.    |
-| `name`   | `&'static str` |                                          |
-| `color`  | `Color`        |                                          |
+| Field   | Type                          | Notes                                    |
+|---------|-------------------------------|------------------------------------------|
+| `name`  | `&'static str`                | Identity in saves and for `spawn_named`. |
+| `color` | `Color`                       |                                          |
+| `apply` | `fn(&mut World, Entity) -> bool` | What a dose does to whoever takes it, drunk or splashed; whether it visibly took hold. |
 
-Draws `!`. Attaches `Item`, `Potion`, `Consume`. Mechanic: `apply_potion_effect` in `models/src/items/potions.rs`. That match has no catch-all, so a new `PotionEffect` variant will not compile until it has an arm — same rule as `TrapEffect` above. An arm is allowed to do nothing on purpose (`FruitJuice` and `Water` are a log line and a taste); every other arm bites.
+Draws `!`. Attaches `Item`, `Potion`, `Consume`; a `Potion` holds its row. Rows are `static`; `POTION_OF_HEALING` is named because every starting pack holds one, and `POTION_OF_WATER` (the potion of thirst quenching) is kept out of `POTIONS`. Mechanic: the row's `apply`, one handler per row in `models/src/items/potions.rs` or a verb borrowed straight from `crate::conditions` (blindness, paralysis, haste). The field is required, so a row without one does not compile. A handler is allowed to do nothing on purpose (fruit juice and water are a log line and a taste); every other one bites.
 
-The dials the arms read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Five arms reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength) and one into `Magic` (the potion of magic, which fills the pool and lifts its ceiling the way gain strength lifts the arm's), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one lends `SeesInvisible` for the floor, and `RaiseLevel` calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
+The dials the handlers read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Five handlers reach straight into `Fighter` (healing, extra healing, gain strength, poison, restore strength) and one into `Magic` (the potion of magic, which fills the pool and lifts its ceiling the way gain strength lifts the arm's), three hand off to `crate::conditions` (blindness, confusion, paralysis — and haste, via `hasten`), two tag things `Detected`, one lends `SeesInvisible` for the floor, and raise level calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
 
 ### SCROLLS — ScrollDef
 
@@ -670,7 +670,7 @@ Potions, scrolls, wands and rings are always shown by their true name — no cos
 
 Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_ring` curses and, for a numeric ring, gives a plus, hides both the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
 
-A dud (`PotionEffect::Water`, `ScrollEffect::BlankPaper`, `BLANK_RUNE`, `WAND_OF_NOTHING`) is never a spawnable row. The first three only ever happen as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`); nothing makes a wand of nothing today. Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
+A dud (`POTION_OF_WATER`, `ScrollEffect::BlankPaper`, `BLANK_RUNE`, `WAND_OF_NOTHING`) is never a spawnable row. The first three only ever happen as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`); nothing makes a wand of nothing today. Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
 
 
 The colour palette

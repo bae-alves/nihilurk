@@ -132,7 +132,7 @@ fn only_broken(w: &mut World, c: Conduct) {
 #[test]
 fn drinking_a_potion_breaks_potions_only() {
     let mut w = run(Body::Nihil);
-    let potion = spawn_potion(&mut w, PotionEffect::Confusion, NOWHERE);
+    let potion = spawn_named(&mut w, "potion of confusion", NOWHERE).unwrap();
     stash(&mut w, potion);
     use_item(&mut w, potion);
     only_broken(&mut w, Conduct::Potions);
@@ -205,7 +205,7 @@ fn throwing_something_breaks_ranged_only() {
     let mut w = run(Body::Nihil);
     let p = player(&mut w);
     let at = beside(&mut w);
-    let potion = spawn_potion(&mut w, PotionEffect::Confusion, NOWHERE);
+    let potion = spawn_named(&mut w, "potion of confusion", NOWHERE).unwrap();
     stash(&mut w, potion);
     w.get_mut::<Backpack>(p)
         .unwrap()

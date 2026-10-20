@@ -1185,9 +1185,9 @@ fn cancel_player(world: &mut World, player: Entity) {
             }
         }
         if let Some(mut potion) = em.get_mut::<Potion>() {
-            potion.effect = PotionEffect::Water;
+            potion.row = &crate::catalog::POTION_OF_WATER;
             if let Some(mut name) = em.get_mut::<Name>() {
-                name.what = strings::content_name("potion of thirst quenching").to_string();
+                name.what = strings::content_name(crate::catalog::POTION_OF_WATER.name).to_string();
             }
         }
     }

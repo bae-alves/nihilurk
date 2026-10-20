@@ -220,14 +220,13 @@ Thrown by hand the stone rolls its `die`. Loosed by somebody carrying `FireStone
 
 ### A row, plus one place that says what it does
 
-Each of these is keyed by an enum, and the mechanic that reads it is an **exhaustive match with no catch-all**. That is deliberate: a new variant does not compile until somebody has said what it does. You cannot ship a potion that silently does nothing.
+Each of these needs somebody to say what it does, and the compiler holds you to it: a potion or wand row has a required handler field, and a scroll variant has to get an arm in an **exhaustive match with no catch-all**. You cannot ship a potion that silently does nothing.
 
-**A potion.** Row in `POTIONS`, variant on `PotionEffect`, arm in `apply_potion_effect` (`items/potions.rs`):
+**A potion.** A handler in `items/potions.rs` and a row in `POTIONS` that names it; no enum:
 
-    PotionDef { effect: PotionEffect::Levitation,
-                name: "potion of levitation", color: Color::Cyan },
+    &PotionDef { name: "potion of levitation", color: Color::Cyan, apply: potions::levitation },
 
-The arm returns `bool` -- whether the dose visibly took hold.
+The handler returns `bool` -- whether the dose visibly took hold.
 
 **A scroll.** Row in `SCROLLS`, variant on `ScrollEffect`, arm in `apply_scroll_effect` (`items/scrolls.rs`). A scroll has no colour: it is always white, and what varies is its unreadable title.
 
@@ -245,7 +244,7 @@ Most of a wand's handler is borrowed. Sleep is `conditions::snare(world, victim,
 
 ### The one thing to check afterwards
 
-Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog table ever holds `PotionEffect::Water`, `ScrollEffect::BlankPaper`, `BLANK_RUNE` or `WAND_OF_NOTHING`, which are never floor loot.
+Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog table ever holds `POTION_OF_WATER`, `ScrollEffect::BlankPaper`, `BLANK_RUNE` or `WAND_OF_NOTHING`, which are never floor loot.
 
     cargo test --test it content::
 

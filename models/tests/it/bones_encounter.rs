@@ -80,7 +80,7 @@ fn die_and_leave_bones(depth: u8, name: &str) {
         by: Some(p),
         slot: equipment::Slot::Hand,
     });
-    let potion = catalog::spawn_potion(&mut w, PotionEffect::Healing, Position { x: 0, y: 0 });
+    let potion = spawn_named(&mut w, "potion of healing", Position { x: 0, y: 0 }).unwrap();
     w.get_mut::<Backpack>(p).unwrap().items.push(potion);
 
     bones::deposit(&mut w).unwrap();

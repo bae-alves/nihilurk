@@ -46,12 +46,41 @@ fn use_item(w: &mut World, user: Entity, item: Entity) {
     item_system(w);
 }
 
-/// Put a fresh potion of `effect` in `user`'s pack and drink it.
-fn quaff(w: &mut World, user: Entity, effect: PotionEffect) {
-    let potion = spawn_potion(w, effect, Position { x: 0, y: 0 });
+/// Put a fresh potion of the row called `name` in `user`'s pack and drink it.
+fn quaff(w: &mut World, user: Entity, name: &str) {
+    let potion = spawn_named(w, name, Position { x: 0, y: 0 }).unwrap();
     w.entity_mut(potion).remove::<Position>();
     w.get_mut::<Backpack>(user).unwrap().items.push(potion);
     use_item(w, user, potion);
+}
+
+/// Left on whoever drank the fixture potion.
+#[derive(Component)]
+struct Drank;
+
+fn mark_the_drinker(world: &mut World, user: Entity) -> bool {
+    world.entity_mut(user).insert(Drank);
+    true
+}
+
+static FIXTURE_POTION: PotionDef = PotionDef {
+    name: "potion of the test",
+    color: Color::White,
+    apply: mark_the_drinker,
+};
+
+#[test]
+fn a_potion_does_what_its_row_says() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let potion = (&FIXTURE_POTION).spawn(&mut w, Position { x: 0, y: 0 });
+    w.entity_mut(potion).remove::<Position>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(potion);
+
+    use_item(&mut w, p, potion);
+
+    assert!(w.get::<Drank>(p).is_some());
+    assert!(w.get_entity(potion).is_none(), "drunk, it is gone");
 }
 
 fn logged(w: &World, needle: &str) -> bool {
@@ -117,7 +146,7 @@ fn healing_refills_and_raises_the_ceiling() {
     let max = w.get::<Fighter>(p).unwrap().max_hp;
     w.get_mut::<Fighter>(p).unwrap().hp = 1;
 
-    quaff(&mut w, p, PotionEffect::Healing);
+    quaff(&mut w, p, "potion of healing");
 
     let f = w.get::<Fighter>(p).unwrap();
     assert!(f.max_hp > max, "a dose raises the ceiling");
@@ -130,7 +159,7 @@ fn extra_healing_raises_the_ceiling() {
     let p = player(&mut w);
     let max = w.get::<Fighter>(p).unwrap().max_hp;
 
-    quaff(&mut w, p, PotionEffect::ExtraHealing);
+    quaff(&mut w, p, "potion of extra healing");
 
     let f = w.get::<Fighter>(p).unwrap();
     assert!(f.max_hp > max);
@@ -143,11 +172,11 @@ fn strength_is_gained_poisoned_and_restored() {
     let p = player(&mut w);
     let base = w.get::<Fighter>(p).unwrap().power;
 
-    quaff(&mut w, p, PotionEffect::GainStrength);
+    quaff(&mut w, p, "potion of gain strength");
     let f = w.get::<Fighter>(p).unwrap();
     assert_eq!((f.power, f.max_power), (base + 1, base + 1));
 
-    quaff(&mut w, p, PotionEffect::Poison);
+    quaff(&mut w, p, "potion of poison");
     let f = w.get::<Fighter>(p).unwrap();
     assert!(
         f.power < base + 1 && f.power >= 1,
@@ -155,7 +184,7 @@ fn strength_is_gained_poisoned_and_restored() {
     );
     assert_eq!(f.max_power, base + 1, "the ceiling is untouched");
 
-    quaff(&mut w, p, PotionEffect::RestoreStrength);
+    quaff(&mut w, p, "potion of restore strength");
     let f = w.get::<Fighter>(p).unwrap();
     assert_eq!(
         f.power, f.max_power,
@@ -169,8 +198,8 @@ fn poison_can_leave_you_feeble_but_never_weaponless() {
     let p = player(&mut w);
     w.get_mut::<Fighter>(p).unwrap().power = 2;
 
-    quaff(&mut w, p, PotionEffect::Poison);
-    quaff(&mut w, p, PotionEffect::Poison);
+    quaff(&mut w, p, "potion of poison");
+    quaff(&mut w, p, "potion of poison");
 
     assert_eq!(w.get::<Fighter>(p).unwrap().power, 1, "the floor holds");
 }
@@ -184,10 +213,10 @@ fn haste_overflows_and_the_stairs_wash_it_out() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    quaff(&mut w, p, PotionEffect::Haste);
+    quaff(&mut w, p, "potion of haste self");
     assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Fast);
 
-    quaff(&mut w, p, PotionEffect::Haste);
+    quaff(&mut w, p, "potion of haste self");
     assert_eq!(
         w.get::<Speed>(p).unwrap().kind,
         SpeedKind::Slow,
@@ -203,7 +232,7 @@ fn paralysis_costs_you_turns_but_not_tempo_until_a_staircase() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    quaff(&mut w, p, PotionEffect::Paralysis);
+    quaff(&mut w, p, "potion of paralysis");
     assert!(w.get::<Paralyzed>(p).is_some());
     assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Normal);
 
@@ -227,7 +256,7 @@ fn paralysis_costs_you_turns_but_not_tempo_until_a_staircase() {
 fn confusion_confuses_the_player_and_staggers_a_monster() {
     let mut w = test_world(3);
     let p = player(&mut w);
-    quaff(&mut w, p, PotionEffect::Confusion);
+    quaff(&mut w, p, "potion of confusion");
     assert!(w.get::<Confused>(p).is_some());
 
     let orc = spawn_dummy(&mut w, "orc", 5, 5);
@@ -264,7 +293,7 @@ fn blindness_cuts_the_player_to_arms_reach_and_hides_every_monster() {
     run_visibility(&mut w);
     let sighted = w.get::<Viewshed>(p).unwrap().visible_tiles.len();
 
-    quaff(&mut w, p, PotionEffect::Blindness);
+    quaff(&mut w, p, "potion of blindness");
     run_visibility(&mut w);
 
     let vs = w.get::<Viewshed>(p).unwrap();
@@ -291,7 +320,7 @@ fn a_blinded_player_is_not_a_hidden_player() {
     let orc = spawn_dummy(&mut w, "orc", start.x + 4, start.y);
     let before = *w.get::<Position>(orc).unwrap();
 
-    quaff(&mut w, p, PotionEffect::Blindness);
+    quaff(&mut w, p, "potion of blindness");
     run_visibility(&mut w);
     let mut s = Schedule::default();
     s.add_systems(ai);
@@ -313,7 +342,7 @@ fn see_invisible_lasts_the_floor_and_no_longer() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    quaff(&mut w, p, PotionEffect::SeeInvisible);
+    quaff(&mut w, p, "potion of see invisible");
     assert!(w.get::<SeesInvisible>(p).is_some());
 
     descend(&mut w, p);
@@ -333,7 +362,7 @@ fn a_worn_ring_keeps_its_sight_when_the_potion_expires() {
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     toggle_equipped(&mut w, p, ring);
 
-    quaff(&mut w, p, PotionEffect::SeeInvisible);
+    quaff(&mut w, p, "potion of see invisible");
     descend(&mut w, p);
 
     assert!(
@@ -349,7 +378,7 @@ fn monster_detection_turns_up_every_creature_on_the_floor() {
     let far = spawn_dummy(&mut w, "orc", 60, 18);
     w.entity_mut(far).insert((Hidden, Invisible));
 
-    quaff(&mut w, p, PotionEffect::MonsterDetection);
+    quaff(&mut w, p, "potion of monster detection");
 
     assert!(w.get::<Detected>(far).is_some());
     assert!(w.get::<Hidden>(far).is_some());
@@ -375,7 +404,7 @@ fn magic_detection_skips_ordinary_gear() {
     let enchanted = spawn_armor(&mut w, "leather armor", here);
     w.entity_mut(enchanted).insert(ArmorBonus(2));
 
-    quaff(&mut w, p, PotionEffect::MagicDetection);
+    quaff(&mut w, p, "potion of magic detection");
 
     assert!(
         w.get::<Detected>(wand).is_some(),
@@ -403,7 +432,7 @@ fn raise_level_climbs_a_floor_without_the_element() {
     descend(&mut w, p);
     assert_eq!(w.resource::<Depth>().what, 3);
 
-    quaff(&mut w, p, PotionEffect::RaiseLevel);
+    quaff(&mut w, p, "potion of raise level");
 
     assert_eq!(w.resource::<Depth>().what, 2, "up one, relic or no relic");
     assert!(!w.resource::<Ending>().player_won);
@@ -414,7 +443,7 @@ fn raise_level_on_depth_one_needs_the_relic() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    quaff(&mut w, p, PotionEffect::RaiseLevel);
+    quaff(&mut w, p, "potion of raise level");
 
     assert!(!w.resource::<Ending>().player_won, "nothing to rise to");
     assert_eq!(w.resource::<Depth>().what, 1);
@@ -429,7 +458,7 @@ fn raise_level_on_depth_one_with_the_element_wins_the_run() {
     w.entity_mut(relic).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(relic);
 
-    quaff(&mut w, p, PotionEffect::RaiseLevel);
+    quaff(&mut w, p, "potion of raise level");
 
     assert!(
         w.resource::<Ending>().player_won,
@@ -450,20 +479,9 @@ fn fruit_juice_and_water_are_flavour_and_nothing_else() {
         (f.hp, f.max_hp, f.power)
     };
 
-    quaff(&mut w, p, PotionEffect::FruitJuice);
+    quaff(&mut w, p, "potion of fruit juice");
 
-    let water = w
-        .spawn((
-            Name {
-                what: "potion of thirst quenching".into(),
-            },
-            Potion {
-                effect: PotionEffect::Water,
-            },
-            Consume,
-            Position { x: 0, y: 0 },
-        ))
-        .id();
+    let water = (&POTION_OF_WATER).spawn(&mut w, Position { x: 0, y: 0 });
     w.entity_mut(water).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(water);
     use_item(&mut w, p, water);
@@ -481,7 +499,7 @@ fn magic_refills_the_pool_and_raises_its_ceiling() {
     let max = w.get::<Magic>(p).unwrap().max_points;
     w.get_mut::<Magic>(p).unwrap().points = 0;
 
-    quaff(&mut w, p, PotionEffect::Magic);
+    quaff(&mut w, p, "potion of magic");
 
     let m = *w.get::<Magic>(p).unwrap();
     assert_eq!(m.max_points, max + 1, "a dose is worth a point of ceiling");
@@ -494,7 +512,7 @@ fn adjustment_resets_alignment_to_neutral() {
     let p = player(&mut w);
     w.get_mut::<Alignment>(p).unwrap().0 = -3;
 
-    quaff(&mut w, p, PotionEffect::Adjustment);
+    quaff(&mut w, p, "potion of adjustment");
 
     assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
     assert!(logged(&w, "calm"));
@@ -506,7 +524,7 @@ fn adjustment_on_an_already_neutral_player_still_logs_but_changes_nothing() {
     let p = player(&mut w);
     assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
 
-    quaff(&mut w, p, PotionEffect::Adjustment);
+    quaff(&mut w, p, "potion of adjustment");
 
     assert_eq!(w.get::<Alignment>(p).unwrap().0, 0);
     assert!(logged(&w, "calm"));
@@ -517,7 +535,7 @@ fn a_potion_of_polymorph_polymorphs_the_drinker_for_the_floor() {
     let mut w = test_world(3);
     let p = player(&mut w);
 
-    quaff(&mut w, p, PotionEffect::Polymorph);
+    quaff(&mut w, p, "potion of polymorph");
     assert!(w.get::<Polymorphed>(p).is_some());
 
     descend(&mut w, p);
@@ -533,8 +551,50 @@ fn an_unseen_monsters_second_sight_says_nothing() {
     w.entity_mut(orc).insert(Backpack { items: vec![] });
     w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(1, 1)];
 
-    quaff(&mut w, orc, PotionEffect::SeeInvisible);
+    quaff(&mut w, orc, "potion of see invisible");
 
     assert!(w.get::<SeesInvisible>(orc).is_some());
     assert!(!logged(&w, "orc"), "{:?}", w.resource::<GameLog>().history);
+}
+
+#[test]
+fn every_potion_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(3);
+    let p = player(&mut w);
+    w.get_mut::<Backpack>(p).unwrap().items.clear();
+    let rows: Vec<&'static PotionDef> = POTIONS.iter().copied().chain([&POTION_OF_WATER]).collect();
+    for row in &rows {
+        let potion = row.spawn(&mut w, Position { x: 0, y: 0 });
+        w.entity_mut(potion).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(potion);
+    }
+
+    let file = crate::common::SaveFile::new("potion-rows");
+    save_game(&mut w, file.path()).unwrap();
+    let mut loaded = World::new();
+    loaded.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(3)));
+    loaded.insert_resource(RngSeed(3));
+    loaded.init_resource::<GameLog>();
+    loaded.insert_resource(PlayerName {
+        what: "TESTER".into(),
+    });
+    load_game(&mut loaded, file.path()).unwrap();
+
+    let lp = player(&mut loaded);
+    let back: Vec<&'static PotionDef> = loaded
+        .get::<Backpack>(lp)
+        .unwrap()
+        .items
+        .iter()
+        .filter_map(|&e| loaded.get::<Potion>(e).map(|potion| potion.row))
+        .collect();
+    assert_eq!(back.len(), rows.len());
+    for (was, is) in rows.iter().zip(&back) {
+        assert!(
+            std::ptr::eq(*was, *is),
+            "{} came back as {}",
+            was.name,
+            is.name
+        );
+    }
 }

@@ -525,7 +525,7 @@ fn a_spawn_list_plus_sets_a_numeric_rings_number() {
 #[test]
 fn the_dungeon_never_generates_a_dud_as_normal_loot() {
     assert!(
-        !POTIONS.iter().any(|d| d.effect == PotionEffect::Water),
+        !POTIONS.iter().any(|d| std::ptr::eq(*d, &POTION_OF_WATER)),
         "potion of thirst quenching must not be a spawnable row"
     );
     assert!(

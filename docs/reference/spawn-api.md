@@ -130,7 +130,6 @@ Items, by kind
 
 Convenience wrappers over the tables. Each panics on an unknown name or effect -- they exist for call sites holding a literal.
 
-    pub fn spawn_potion(world, effect: PotionEffect, pos)  -> Entity
     pub fn spawn_scroll(world, effect: ScrollEffect, pos)  -> Entity
     pub fn spawn_ring(world, effect: RingEffect, pos)      -> Entity
     pub fn spawn_weapon(world, name: &str, pos)            -> Entity

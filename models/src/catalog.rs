@@ -31,10 +31,11 @@ use rand::Rng;
 use rand_chacha::ChaCha12Rng;
 
 use crate::components::*;
+use crate::conditions::{blind, hasten, paralyse};
 use crate::effects::*;
 use crate::equipment::{Equipped, Slot};
 use crate::items::wands::dazzle;
-use crate::items::{runes, throwing, wands};
+use crate::items::{potions, runes, throwing, wands};
 use crate::monsters::{BESTIARY, SUMMONS};
 use crate::particles::BlastPalette;
 
@@ -117,20 +118,23 @@ fn insert_modifier<C: Modifier>(entity: &mut bevy_ecs::world::EntityWorldMut, va
 // Potions
 // ---------------------------------------------------------------------------
 
-/// A potion: quaffed once, then gone. What it *does* lives in the `potions`
-/// submodule of `crate::items`, keyed by [`PotionDef::effect`].
+/// A potion: quaffed once, then gone. The row is the potion: a [`Potion`]
+/// points at its row, and drinking it calls the row's `apply`. The handlers
+/// live in the `potions` submodule of `crate::items`.
 pub struct PotionDef {
-    /// The [`PotionEffect`] this row is the entry for.
-    pub effect: PotionEffect,
     /// The row's identity: the save file stores it and
     /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
     /// [`ItemDef::display_name`] instead.
     pub name: &'static str,
     /// The colour it draws in.
     pub color: Color,
+    /// What a dose does to whoever takes it, drunk or splashed. Returns
+    /// whether it visibly took hold: a potion thrown at a monster gives itself
+    /// away only then.
+    pub apply: fn(&mut World, Entity) -> bool,
 }
 
-impl ItemDef for PotionDef {
+impl ItemDef for &'static PotionDef {
     fn name(&self) -> &'static str {
         self.name
     }
@@ -147,36 +151,59 @@ impl ItemDef for PotionDef {
                 },
                 pos,
                 Item,
-                Potion {
-                    effect: self.effect,
-                },
+                Potion { row: self },
                 Consume,
             ))
             .id()
     }
 }
 
-/// Every potion in the game, one row each.
+/// Every potion the dungeon drops, one row each.
 #[rustfmt::skip]
-pub const POTIONS: &[PotionDef] = &[
-    PotionDef { effect: PotionEffect::Confusion,       name: "potion of confusion",        color: Color::Magenta },
-    PotionDef { effect: PotionEffect::Paralysis,       name: "potion of paralysis",        color: Color::DarkGrey },
-    PotionDef { effect: PotionEffect::Poison,          name: "potion of poison",           color: Color::Green },
-    PotionDef { effect: PotionEffect::GainStrength,    name: "potion of gain strength",    color: Color::Red },
-    PotionDef { effect: PotionEffect::SeeInvisible,    name: "potion of see invisible",    color: Color::Cyan },
-    PotionDef { effect: PotionEffect::Healing,         name: "potion of healing",          color: Color::Red },
-    PotionDef { effect: PotionEffect::MonsterDetection,name: "potion of monster detection",color: Color::Yellow },
-    PotionDef { effect: PotionEffect::MagicDetection,  name: "potion of magic detection",  color: Color::Yellow },
-    PotionDef { effect: PotionEffect::RaiseLevel,      name: "potion of raise level",      color: Color::White },
-    PotionDef { effect: PotionEffect::ExtraHealing,    name: "potion of extra healing",    color: Color::Red },
-    PotionDef { effect: PotionEffect::Haste,           name: "potion of haste self",       color: Color::DarkYellow },
-    PotionDef { effect: PotionEffect::RestoreStrength, name: "potion of restore strength", color: Color::Red },
-    PotionDef { effect: PotionEffect::Blindness,       name: "potion of blindness",        color: Color::DarkGrey },
-    PotionDef { effect: PotionEffect::FruitJuice,      name: "potion of fruit juice",      color: Color::DarkYellow },
-    PotionDef { effect: PotionEffect::Magic,           name: "potion of magic",            color: Color::Blue },
-    PotionDef { effect: PotionEffect::Adjustment,      name: "potion of adjustment",       color: Color::DarkCyan },
-    PotionDef { effect: PotionEffect::Polymorph,       name: "potion of polymorph",        color: Color::DarkMagenta },
+pub static POTIONS: &[&PotionDef] = &[
+    &PotionDef { name: "potion of confusion",         color: Color::Magenta,     apply: potions::confusion },
+    &PotionDef { name: "potion of paralysis",         color: Color::DarkGrey,    apply: paralyse },
+    &PotionDef { name: "potion of poison",            color: Color::Green,       apply: potions::poison },
+    &PotionDef { name: "potion of gain strength",     color: Color::Red,         apply: potions::gain_strength },
+    &PotionDef { name: "potion of see invisible",     color: Color::Cyan,        apply: potions::see_invisible },
+    &POTION_OF_HEALING,
+    &PotionDef { name: "potion of monster detection", color: Color::Yellow,      apply: potions::detect_monsters },
+    &PotionDef { name: "potion of magic detection",   color: Color::Yellow,      apply: potions::detect_magic },
+    &PotionDef { name: "potion of raise level",       color: Color::White,       apply: potions::raise_level },
+    &PotionDef { name: "potion of extra healing",     color: Color::Red,         apply: potions::extra_healing },
+    &PotionDef { name: "potion of haste self",        color: Color::DarkYellow,  apply: hasten },
+    &PotionDef { name: "potion of restore strength",  color: Color::Red,         apply: potions::restore_strength },
+    &PotionDef { name: "potion of blindness",         color: Color::DarkGrey,    apply: blind },
+    &PotionDef { name: "potion of fruit juice",       color: Color::DarkYellow,  apply: potions::fruit_juice },
+    &PotionDef { name: "potion of magic",             color: Color::Blue,        apply: potions::gain_magic },
+    &PotionDef { name: "potion of adjustment",        color: Color::DarkCyan,    apply: potions::adjustment },
+    &PotionDef { name: "potion of polymorph",         color: Color::DarkMagenta, apply: potions::polymorph },
 ];
+
+/// Named because every starting pack holds one.
+pub static POTION_OF_HEALING: PotionDef = PotionDef {
+    name: "potion of healing",
+    color: Color::Red,
+    apply: potions::healing,
+};
+
+/// What a wand of cancellation leaves of any potion: plain water. Kept out of
+/// [`POTIONS`], so the dungeon never drops one.
+pub static POTION_OF_WATER: PotionDef = PotionDef {
+    name: "potion of thirst quenching",
+    color: Color::Blue,
+    apply: potions::water,
+};
+
+/// The potion row called `name`, water included: how a load finds a saved
+/// potion's row again.
+pub fn potion_row(name: &str) -> Option<&'static PotionDef> {
+    POTIONS
+        .iter()
+        .copied()
+        .chain([&POTION_OF_WATER])
+        .find(|row| row.name == name)
+}
 
 // ---------------------------------------------------------------------------
 // Scrolls
@@ -1715,16 +1742,6 @@ fn named<'a, D: ItemDef>(table: &'a [D], name: &str, kind: &str) -> &'a D {
         .iter()
         .find(|d| d.name() == name)
         .unwrap_or_else(|| panic!("no {kind} named {name:?}"))
-}
-
-/// A potion of `effect` on the floor at `pos`. Panics if [`POTIONS`] has no row
-/// for it, which would mean a [`PotionEffect`] variant nobody gave a row.
-pub fn spawn_potion(world: &mut World, effect: PotionEffect, pos: Position) -> Entity {
-    POTIONS
-        .iter()
-        .find(|d| d.effect == effect)
-        .expect("potion row")
-        .spawn(world, pos)
 }
 
 /// A scroll of `effect` on the floor at `pos`. Panics if [`SCROLLS`] has no row

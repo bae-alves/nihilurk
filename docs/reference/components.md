@@ -19,7 +19,7 @@ A `Bundle` — the struct that assembles components for one spawn (`MonsterBundl
 Two shapes recur:
 
   * **Marker** — no fields. Presence is the fact (`Player`, `Blood`, `Curse`, `Confused`).
-  * **Type key** — one enum naming which one it is (`Potion` → `PotionEffect`). The key is identity for `identify.rs` and the save file; it is never behaviour. The catalog row turns a key into the components that do something; the mechanic is a `match` on the key.
+  * **Type key** — names which one an item is. The key is identity for `identify.rs` and the save file. `Potion`, `Wand` and `Rune` hold their catalog row (`&'static PotionDef` &c.), and the row names the handler that does the work. `Scroll` and `Ring` still hold an enum (`Scroll` → `ScrollEffect`), and the mechanic is a `match` on it.
 
 "Saved?" below means the field survives `models/src/saveload.rs`. A **transient** field is rebuilt every frame or every load and deliberately left out of the save. A **catalog** component is re-attached from the row's id on load (`restore_from_catalog`), so it is never written either.
 
@@ -180,7 +180,7 @@ Components — item type keys
 
 | Component | Key enum      | Mechanic                              | Saved? |
 |-----------|---------------|--------------------------------------|--------|
-| `Potion`  | `PotionEffect`| `items/potions.rs`                    | key yes |
+| `Potion`  | `&'static PotionDef` | its row's `apply`, in `items/potions.rs` | row name yes |
 | `Scroll`  | `ScrollEffect`| `items/scrolls.rs`                    | key yes |
 | `Wand`    | `&'static WandDef` | its row's `zap`, in `items/wands.rs`; thrown, its row's `Thrown`, burst in `items/throwing.rs` | row name yes |
 | `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
@@ -190,13 +190,11 @@ Components — item type keys
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
 | `KnownQuality` | marker   | this instance's enchantment plus/curse/vorpal bane are known — set by wearing it (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singling it out | yes |
 
-All five key enums are **saved by variant order** — append, never reorder. The catalog tables (`crate::catalog`) are the other thing keyed off these enums.
+The key enums left (`ScrollEffect`, `RingEffect`) are **saved by variant order** — append, never reorder. A row is saved by its `name`, and a load that names no row is refused.
 
 `KnownQuality` is per-*instance*: two rings of protection are two separate rolls of the curse dice, so each needs its own `KnownQuality`, set the moment it's worn (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singles it out. `identify::display_name` reads it to decide whether to print a weapon/armour/launcher's `+N` prefix, a `(cursed)` suffix, or a `(vorpal vs. X)` suffix — hidden for anything not yet known. Potions, scrolls, wands and rings carry no such hidden state of their own; they always show their true name.
 
 `WandDef::needs_target` is `false` only for the wand of light (it floods the room, no reticle).
-
-`PotionEffect`: Blindness, Confusion, ExtraHealing, FruitJuice, GainStrength, Haste, Healing, MagicDetection, MonsterDetection, Paralysis, Poison, RaiseLevel, RestoreStrength, SeeInvisible, Water, Magic, Adjustment, Polymorph.
 
 `ScrollEffect` (every arm wired; `BlankPaper` does nothing on purpose): MonsterConfusion, MagicMapping, HoldMonster, Sleep, EnchantArmor, Identify, ScareMonster, FoodDetection, Teleportation, EnchantWeapon, CreateMonster, RemoveCurse, AggravateMonsters, BlankPaper, VorpalizeWeapon, Amnesia, Charming, Pitfall, Atonement.
 

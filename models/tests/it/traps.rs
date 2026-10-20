@@ -1398,7 +1398,7 @@ fn a_whole_chain_goes_off_at_once_with_its_dead() {
     };
     let first = w.spawn(TrapBundle::bear(site)).id();
     w.entity_mut(first).remove::<Hidden>();
-    spawn_potion(&mut w, PotionEffect::Healing, one_off);
+    spawn_named(&mut w, "potion of healing", one_off).unwrap();
     w.spawn(TrapBundle::bear(two_off));
     let far = Position {
         x: two_off.x + 1,

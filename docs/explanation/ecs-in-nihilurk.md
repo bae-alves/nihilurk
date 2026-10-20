@@ -24,7 +24,7 @@ The three nouns, and what each is allowed to be
 A component says *what a thing is*. It never says what happens as a result. `models/src/components.rs` is one file of nouns — every `Component`, `Resource` and `Event` the game is made of, and nothing that reaches into the `World`. What methods it does carry are about the type itself: `Name::article`, `SpeedKind::faster`, `GameLog::add`. Two shapes recur:
 
   * **Markers** carry nothing. `Player`, `Blood`, `Curse`, `Confused`. Their presence *is* the fact; a system asks `world.get::<Blood>(e).is_some()` and that is the whole check.
-  * **Type keys** carry one enum naming which one it is — `Potion` → `PotionEffect`. The key is identity for the save file and for identification. It is **never** a description of behaviour: what a potion does is a `match` in `items/potions.rs`, and what it *is made of* is the catalog row.
+  * **Type keys** name which one an item is — `Potion` holds its catalog row, a `&'static PotionDef`. The key is identity for the save file and for identification. What a potion does is the handler its row names, in `items/potions.rs`; what it *is made of* is the rest of the row.
 
 The rule this buys is the one the whole codebase rests on: **a property is a component, never an enum a subsystem has to recognise.** A dragon born fire-immune and a player wearing a ring of fire resistance both carry `FireImmune`, so the wand-of-fire code asks one question and never learns that rings exist. Adding a ring of fire resistance is a table row and no behaviour code at all.
 

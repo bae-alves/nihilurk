@@ -4,7 +4,7 @@
 //! you add content. This module is only what happens when the player acts on
 //! one, split by the kind of action:
 //!
-//! * [`potions`] — quaffing a potion ([`potions::apply_potion_effect`])
+//! * [`potions`] — quaffing a potion (each row of `crate::catalog::POTIONS` names its handler there)
 //! * [`scrolls`] — reading a scroll ([`scrolls::apply_scroll_effect`])
 //! * [`runes`] — invoking a rune (each row's `apply` handler), which goes
 //!   inert instead of crumbling and wakes on the stairs
@@ -28,7 +28,7 @@
 
 mod decks;
 mod pickups;
-mod potions;
+pub(crate) mod potions;
 pub(crate) mod rings;
 pub(crate) mod runes;
 mod scrolls;
@@ -132,7 +132,6 @@ use crate::equipment::toggle_equipped;
 use crate::helpers::item_label;
 use crate::identify::{display_name, with_the};
 
-use self::potions::apply_potion_effect;
 use self::scrolls::apply_scroll_effect;
 use self::wands::zap_wand;
 
@@ -243,7 +242,7 @@ pub(crate) fn lift_from_pack(world: &mut World, carrier: Entity, item: Entity) -
 /// should become of it. Filled in from the item's components, then acted on.
 #[derive(Default)]
 struct UsePlan {
-    potion: Option<PotionEffect>,
+    potion: Option<&'static crate::catalog::PotionDef>,
     wand: Option<&'static crate::catalog::WandDef>,
     /// How many times the wand fires: two for an attack wand in the hands of a
     /// [`DualZap`](crate::effects::DualZap) wearer with the charges to pay.
@@ -268,7 +267,7 @@ fn plan_use(world: &mut World, user: Entity, item: Entity) -> UsePlan {
     };
     let dual = world.get::<crate::effects::DualZap>(user).is_some();
     let mut e = world.entity_mut(item);
-    plan.potion = e.get::<Potion>().map(|p| p.effect);
+    plan.potion = e.get::<Potion>().map(|p| p.row);
     plan.wand = e.get::<Wand>().map(|w| w.row);
     plan.scroll = e.get::<Scroll>().map(|s| s.effect);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
@@ -344,8 +343,8 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
 
     break_use_conducts(world, item_use.user, &plan);
 
-    if let Some(eff) = plan.potion {
-        apply_potion_effect(world, item_use.user, eff);
+    if let Some(row) = plan.potion {
+        (row.apply)(world, item_use.user);
     }
     if let Some(row) = plan.wand {
         for _ in 0..plan.casts {

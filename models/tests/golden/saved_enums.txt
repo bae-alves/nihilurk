@@ -2,7 +2,6 @@ components.rs::CardFace = Joker,KingOfClubs,PrinceOfSwords,QueenOfCups,PrincessO
 components.rs::Faction = Player,Monster,Ally,Spirits,Inert
 components.rs::MovementType = Static,Chase,Flee,Confused,Aggravated,Ambush
 components.rs::PickupEffect = Coin,Health,Power,Cleanse,Strength,Platinum,Forge,LearnRandomSpell
-components.rs::PotionEffect = Blindness,Confusion,ExtraHealing,FruitJuice,GainStrength,Haste,Healing,MagicDetection,MonsterDetection,Paralysis,Poison,RaiseLevel,RestoreStrength,SeeInvisible,Water,Magic,Adjustment,Polymorph
 components.rs::RingEffect = Protection,Strength,Perception,Adornment,AggravateMonster,Sharpshooting,IncreaseDamage,Regeneration,SlowDigestion,Teleportation,Stealth,MaintainArmor,Polymorph,SustainForm,DualZap,Health
 components.rs::ScrollEffect = MonsterConfusion,MagicMapping,HoldMonster,Sleep,EnchantArmor,Identify,ScareMonster,FoodDetection,Teleportation,EnchantWeapon,CreateMonster,RemoveCurse,AggravateMonsters,BlankPaper,VorpalizeWeapon,Amnesia,Charming,Pitfall,Atonement,TeleportToStairs
 components.rs::SpeedKind = Slow,Normal,Fast,Quick

@@ -58,7 +58,9 @@ use super::{
 use super::overlays::{BloodStains, Corpses, Smoke};
 
 // Setting a run up — what the hero starts with, worn without a log line about it.
-use crate::catalog::{spawn_ammo, spawn_armor, spawn_launcher, spawn_potion, spawn_weapon};
+use crate::catalog::{
+    ItemDef, POTION_OF_HEALING, spawn_ammo, spawn_armor, spawn_launcher, spawn_weapon,
+};
 use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
 use crate::equipment::{Equipped, equip_silently};
 
@@ -699,7 +701,7 @@ fn starting_kit(world: &mut World) -> Vec<Entity> {
     }
     pack_up(world, arrows);
 
-    let healing = spawn_potion(world, PotionEffect::Healing, origin);
+    let healing = (&POTION_OF_HEALING).spawn(world, origin);
     pack_up(world, healing);
 
     vec![ring_mail, mace, shortbow, arrows, healing]

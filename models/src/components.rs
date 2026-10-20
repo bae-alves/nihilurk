@@ -14,12 +14,12 @@
 //!   [`Confused`](crate::Confused). Their presence *is* the fact. A system asks
 //!   `world.get::<Blood>(e).is_some()` and that is the whole check.
 //!
-//! * **Type-key components** — [`Potion`], [`Scroll`], [`Wand`], [`Ring`] — hold
-//!   one enum value ([`PotionEffect`] &c.) that names *which* one it is. The key
-//!   is the item's identity for identification and for the save file; it is
-//!   never a description of behaviour. The catalog row ([`crate::catalog`])
-//!   turns a key into the components that actually do something, and the
-//!   mechanic (`crate::items`) is a `match` on the key.
+//! * **Type-key components** — [`Potion`], [`Scroll`], [`Wand`], [`Ring`] — name
+//!   *which* one an item is. The key is the item's identity for identification
+//!   and for the save file. [`Potion`], [`Wand`] and [`Rune`] hold their catalog
+//!   row ([`crate::catalog`]), and the row names the handler that does the work.
+//!   [`Scroll`] and [`Ring`] still hold an enum value ([`ScrollEffect`] &c.),
+//!   and the mechanic (`crate::items`) is a `match` on it.
 //!
 //! **Transient vs serialised.** Some fields are rebuilt from scratch every frame
 //! or every load and are deliberately left out of the save format —
@@ -757,74 +757,17 @@ pub struct Amulet;
 // ===========================================================================
 // Items: type keys
 //
-// One component + one enum per identifiable kind. The enum value is the item's
-// identity for `crate::identify` and the save file, and the thing the mechanic
-// in `crate::items` matches on. It is never a description of behaviour — that is
-// assembled from other components by the catalog row.
+// One component per identifiable kind, holding its catalog row or an enum
+// value: the item's identity for `crate::identify` and the save file. A row
+// names its own handler; an enum value is what the mechanic in `crate::items`
+// matches on.
 // ===========================================================================
 
-/// Type-key for a potion. Mechanic: the `potions` submodule of `crate::items`.
+/// Type-key for a potion: its row. Drinking it calls the row's `apply`.
 #[derive(Component)]
 pub struct Potion {
     /// Which potion this is.
-    pub effect: PotionEffect,
-}
-
-/// Which potion this is. Identity for identification and saves — see
-/// [`crate::catalog::POTIONS`].
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PotionEffect {
-    /// Blinds the drinker for the floor ([`crate::conditions::blind`]): sight
-    /// shrinks to the 3x3 around them.
-    Blindness,
-    /// Confuses the drinker ([`crate::conditions::confuse`]).
-    Confusion,
-    /// Refills HP and raises max HP for good, by more than
-    /// [`Healing`](PotionEffect::Healing) does.
-    ExtraHealing,
-    /// Nothing happens, and it reports nothing, so a thrown one never gives
-    /// itself away.
-    FruitJuice,
-    /// Raises the attack die for good, floor and ceiling both ([`Fighter::power`]
-    /// and [`Fighter::max_power`]).
-    GainStrength,
-    /// Hastes the drinker ([`crate::conditions::hasten`]).
-    Haste,
-    /// Refills HP and raises max HP for good, so one drunk at full health is not
-    /// wasted.
-    Healing,
-    /// Marks every magic item on the floor as [`Detected`](crate::effects::Detected)
-    /// until the drinker leaves it. The Element of Yoord counts as magic.
-    MagicDetection,
-    /// Marks every creature on the floor as [`Detected`](crate::effects::Detected)
-    /// until the drinker leaves it. They are sensed, not watched: no sighting is
-    /// announced.
-    MonsterDetection,
-    /// Locks the drinker's limbs ([`crate::conditions::paralyse`]). The player
-    /// forfeits a share of their turns.
-    Paralysis,
-    /// Drains the drinker's attack die and does not give it back. Only
-    /// [`RestoreStrength`](PotionEffect::RestoreStrength) cures it.
-    Poison,
-    /// Pulls the drinker up one floor, Element of Yoord or not. On Depth 1 it
-    /// wins the run for a player carrying the Element.
-    RaiseLevel,
-    /// Back up to [`Fighter::max_power`], undoing every poison and poisoned dart
-    /// at once.
-    RestoreStrength,
-    /// Lends the ring of perception's sight for the floor
-    /// ([`crate::effects::SeesInvisible`]).
-    SeeInvisible,
-    /// Plain water. Reports nothing, like [`PotionEffect::FruitJuice`].
-    Water,
-    // Appended, not filed under M: a save encodes a variant as its position.
-    /// Refills Ma and raises max Ma for good.
-    Magic,
-    /// Resets `Alignment` to neutral. Appended after `Magic` for the same
-    /// reason.
-    Adjustment,
-    /// The wand of polymorph, drunk. Appended for the same reason.
-    Polymorph,
+    pub row: &'static PotionDef,
 }
 
 /// Type-key for a scroll. Mechanic: the `scrolls` submodule of `crate::items`.
@@ -860,7 +803,7 @@ pub enum ScrollEffect {
     /// Every monster in view turns tail for good.
     ScareMonster,
     /// Marks the mundane items on the floor as [`Detected`](crate::effects::Detected):
-    /// exactly what [`PotionEffect::MagicDetection`] skips.
+    /// exactly what the potion of magic detection skips.
     FoodDetection,
     /// Moves the reader to a random open tile on the floor.
     Teleportation,

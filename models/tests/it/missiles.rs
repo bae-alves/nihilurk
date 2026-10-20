@@ -1262,7 +1262,7 @@ fn the_small_stuff_carries_further_out_of_a_bare_hand() {
 
     let light = [
         stash(&mut w, p, |w| {
-            spawn_potion(w, PotionEffect::Healing, NOWHERE)
+            spawn_named(w, "potion of healing", NOWHERE).unwrap()
         }),
         stash(&mut w, p, |w| {
             spawn_scroll(w, ScrollEffect::Identify, NOWHERE)

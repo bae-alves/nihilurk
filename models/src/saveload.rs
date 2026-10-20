@@ -56,7 +56,9 @@ use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use crate::catalog::{RingDef, content_id_of, restore_from_catalog, rune_row, wand_row};
+use crate::catalog::{
+    RingDef, content_id_of, potion_row, restore_from_catalog, rune_row, wand_row,
+};
 use crate::components::*;
 use crate::constants::player::START_MAGIC;
 use crate::effects::{
@@ -208,7 +210,7 @@ struct EntitySave<'a> {
     /// Marker only — the display name rides along in [`EntitySave::name`].
     item: bool,
     value: Option<i32>,
-    potion: Option<PotionEffect>,
+    potion: Option<String>,
     battery: Option<i8>,
     wand: Option<String>,
     ranged: Option<i32>,
@@ -315,7 +317,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 12;
+pub const SAVE_VERSION: u16 = 13;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -636,7 +638,7 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             mob: er.get::<Mob>().map(|m| m.movement_type),
             item: er.contains::<Item>(),
             value: er.get::<Value>().map(|v| v.amount),
-            potion: er.get::<Potion>().map(|p| p.effect),
+            potion: er.get::<Potion>().map(|p| p.row.name.to_string()),
             battery: er.get::<Battery>().map(|b| b.charges),
             wand: er.get::<Wand>().map(|w| w.row.name.to_string()),
             ranged: er.get::<Ranged>().map(|r| r.range),
@@ -923,11 +925,15 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .wand
                 .as_deref()
                 .is_none_or(|name| wand_row(name).is_some())
+            && es
+                .potion
+                .as_deref()
+                .is_none_or(|name| potion_row(name).is_some())
     });
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune or wand this build has no row for",
+            "save file names a rune, wand or potion this build has no row for",
         ));
     }
 
@@ -1035,8 +1041,8 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         if let Some(v) = es.value {
             em.insert(Value { amount: v });
         }
-        if let Some(p) = es.potion {
-            em.insert(Potion { effect: p });
+        if let Some(row) = es.potion.as_deref().and_then(potion_row) {
+            em.insert(Potion { row });
         }
         if let Some(b) = es.battery {
             em.insert(Battery { charges: b });

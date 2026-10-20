@@ -402,7 +402,7 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
         spawn_scroll(w, ScrollEffect::Teleportation, NOWHERE)
     });
     let potion = stash(&mut w, p, |w| {
-        spawn_potion(w, PotionEffect::Poison, NOWHERE)
+        spawn_named(w, "potion of poison", NOWHERE).unwrap()
     });
 
     let spot = east_of_player(&mut w, 1);
@@ -431,7 +431,10 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
         w.get::<Scroll>(scroll).unwrap().effect,
         ScrollEffect::BlankPaper
     );
-    assert_eq!(w.get::<Potion>(potion).unwrap().effect, PotionEffect::Water);
+    assert!(std::ptr::eq(
+        w.get::<Potion>(potion).unwrap().row,
+        &POTION_OF_WATER
+    ));
 }
 
 #[test]
@@ -651,7 +654,7 @@ fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
     }
     let old_max_hp = w.get::<Fighter>(orc).unwrap().max_hp;
     let potion = stash(&mut w, p, |w| {
-        spawn_potion(w, PotionEffect::Healing, NOWHERE)
+        spawn_named(w, "potion of healing", NOWHERE).unwrap()
     });
 
     throw(&mut w, p, potion, spot);
@@ -674,7 +677,7 @@ fn a_potion_that_does_nothing_visible_still_lands_on_its_target() {
     let hp = w.get::<Fighter>(orc).unwrap().max_hp;
     w.get_mut::<Fighter>(orc).unwrap().hp = hp;
     let potion = stash(&mut w, p, |w| {
-        spawn_potion(w, PotionEffect::RestoreStrength, NOWHERE)
+        spawn_named(w, "potion of restore strength", NOWHERE).unwrap()
     });
 
     throw(&mut w, p, potion, spot);
@@ -1011,7 +1014,7 @@ fn a_thrown_potion_splashes_everyone_in_the_small_burst() {
         f.hp = 1;
     }
     let potion = stash(&mut w, p, |w| {
-        spawn_potion(w, PotionEffect::Healing, NOWHERE)
+        spawn_named(w, "potion of healing", NOWHERE).unwrap()
     });
 
     throw(&mut w, p, potion, spot);
@@ -1033,7 +1036,7 @@ fn a_potion_caught_in_a_wands_grenade_goes_off_too() {
     let orc = monster(&mut w, "test monster", spot);
     w.get_mut::<Fighter>(orc).unwrap().power -= 2;
     let starved_power = w.get::<Fighter>(orc).unwrap().power;
-    let potion = spawn_potion(&mut w, PotionEffect::RestoreStrength, spot);
+    let potion = spawn_named(&mut w, "potion of restore strength", spot).unwrap();
 
     let wand = stash(&mut w, p, |w| {
         spawn_named(w, "wand of fire", NOWHERE).unwrap()
@@ -1303,7 +1306,7 @@ fn a_thrown_potion_previews_its_splash_where_it_lands() {
     let near = east_of_player(&mut w, 1);
     monster(&mut w, "orc", near);
     let potion = stash(&mut w, p, |w| {
-        spawn_potion(w, PotionEffect::Healing, NOWHERE)
+        spawn_named(w, "potion of healing", NOWHERE).unwrap()
     });
     let cursor = east_of_player(&mut w, 3);
 
