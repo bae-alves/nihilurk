@@ -19,7 +19,7 @@ A `Bundle` — the struct that assembles components for one spawn (`MonsterBundl
 Two shapes recur:
 
   * **Marker** — no fields. Presence is the fact (`Player`, `Blood`, `Curse`, `Confused`).
-  * **Type key** — names which one an item is. The key is identity for `identify.rs` and the save file. `Potion`, `Scroll`, `Wand` and `Rune` hold their catalog row (`&'static PotionDef` &c.), and the row names the handler that does the work. `Ring` holds a `RingEffect`, and the ring's row turns it into the components that do something.
+  * **Type key** — names which one an item is. The key is identity for `identify.rs` and the save file. `Potion`, `Scroll`, `Wand` and `Rune` hold their catalog row (`&'static PotionDef` &c.), and the row names the handler that does the work. `Ring` holds its row too, and the row turns into the components that do something.
 
 "Saved?" below means the field survives `models/src/saveload.rs`. A **transient** field is rebuilt every frame or every load and deliberately left out of the save. A **catalog** component is re-attached from the row's id on load (`restore_from_catalog`), so it is never written either.
 
@@ -184,20 +184,18 @@ Components — item type keys
 | `Potion`  | `&'static PotionDef` | its row's `apply`, in `items/potions.rs` | row name yes |
 | `Scroll`  | `&'static ScrollDef` | its row's `apply`, in `items/scrolls.rs` | row name yes |
 | `Wand`    | `&'static WandDef` | its row's `zap`, in `items/wands.rs`; thrown, its row's `Thrown`, burst in `items/throwing.rs` | row name yes |
-| `Ring`    | `RingEffect`  | numbers + `Grants` from the `RingDef` row; the three with verbs are `items/rings.rs` | key yes |
+| `Ring`    | `&'static RingDef` | numbers + `Grants` from its row; the three with verbs are `items/rings.rs` | row name yes |
 | `Rune`    | `&'static RuneDef` | its row's `apply`, in `items/runes.rs`; `charged: bool` says whether it still holds a use | row name and `charged` yes |
 | `Curse`   | marker        | equipped-and-stuck until remove curse destroys it, or a scroll of enchantment burns it off | yes |
 | `MegaCurse` | marker      | rides with `Curse` on a MEGACURSED item; nothing lifts it or destroys the item but a suit taking the killing blow | yes |
 | `Vorpal`  | `bane: String`| any blooding hit slays `bane` (or any `VorpalTarget`) outright | yes |
 | `KnownQuality` | marker   | this instance's enchantment plus/curse/vorpal bane are known — set by wearing it (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singling it out | yes |
 
-`RingEffect`, the key enum left, is **saved by variant order** — append, never reorder. A row is saved by its `name`, and a load that names no row is refused.
+A row is saved by its `name`, and a load that names no row is refused.
 
 `KnownQuality` is per-*instance*: two rings of protection are two separate rolls of the curse dice, so each needs its own `KnownQuality`, set the moment it's worn (`equipment::toggle_equipped`/`equip_silently`) or a scroll of identify singles it out. `identify::display_name` reads it to decide whether to print a weapon/armour/launcher's `+N` prefix, a `(cursed)` suffix, or a `(vorpal vs. X)` suffix — hidden for anything not yet known. Potions, scrolls, wands and rings carry no such hidden state of their own; they always show their true name.
 
 `WandDef::needs_target` is `false` only for the wand of light (it floods the room, no reticle).
-
-`RingEffect`: Protection, Strength, Perception, Adornment, AggravateMonster, Sharpshooting, IncreaseDamage, Regeneration, SlowDigestion, Teleportation, Stealth, MaintainArmor, Polymorph, SustainForm, DualZap, Health.
 
 A `Rune` is a scroll that goes inert when read: reading spends `charged` instead of destroying the item, and `items::recharge_runes` wakes every non-blank rune in the pack on a staircase. A trapdoor does not. Only the player invokes one.
 

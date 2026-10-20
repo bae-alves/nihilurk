@@ -14,10 +14,8 @@
 //! * **Polymorph** — [`polymorphitis`], likewise.
 //!
 //! Even these are named by the catalog row and dispatched through a general
-//! mechanism; no file outside this one matches on a [`RingEffect`] to decide
+//! mechanism; no file outside this one matches on which ring it is to decide
 //! what happens.
-//!
-//! [`RingEffect`]: crate::components::RingEffect
 
 use crate::Color;
 use bevy_ecs::prelude::*;

@@ -365,7 +365,7 @@ fn firing_a_quarrel_from_a_crossbow_says_fire_not_throw() {
 fn a_ring_of_sharpshooting_adds_two_to_everything_you_throw() {
     let plain = damage_samples(5, "arrow", 300, |_, _| {});
     let deft = damage_samples(5, "arrow", 300, |w, p| {
-        let ring = stash(w, p, |w| spawn_ring(w, RingEffect::Sharpshooting, NOWHERE));
+        let ring = stash(w, p, |w| spawn_ring(w, "ring of sharpshooting", NOWHERE));
         toggle_equipped(w, p, ring);
         assert_eq!(equipped_total::<ThrowBonus>(w, p), 2);
     });
@@ -890,7 +890,7 @@ fn throwing_from_a_quiver_spends_one_and_keeps_the_slot() {
     let spot = open_run(&mut w, 1)[0];
     empty_pack(&mut w, p);
     let arrows = quiver(&mut w, p, "arrow", 10);
-    let slot_above = stash(&mut w, p, |w| spawn_ring(w, RingEffect::Adornment, NOWHERE));
+    let slot_above = stash(&mut w, p, |w| spawn_ring(w, "ring of adornment", NOWHERE));
     w.get_mut::<Backpack>(p).unwrap().items = vec![slot_above, arrows];
 
     throw(&mut w, p, arrows, spot);
@@ -1269,9 +1269,7 @@ fn the_small_stuff_carries_further_out_of_a_bare_hand() {
         stash(&mut w, p, |w| {
             spawn_named(w, "wand of lightning", NOWHERE).unwrap()
         }),
-        stash(&mut w, p, |w| {
-            spawn_ring(w, RingEffect::Protection, NOWHERE)
-        }),
+        stash(&mut w, p, |w| spawn_ring(w, "ring of protection", NOWHERE)),
     ];
     for item in light {
         assert_eq!(

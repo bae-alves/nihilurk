@@ -87,7 +87,7 @@ fn round_trip() {
     let cursed_armor = spawn_armor(&mut w3, "plate mail", pos);
     w3.entity_mut(cursed_armor).insert(Curse);
     spawn_named(&mut w3, "scroll of magic mapping", pos).unwrap();
-    spawn_ring(&mut w3, RingEffect::Regeneration, pos);
+    spawn_ring(&mut w3, "ring of regeneration", pos);
     spawn_element_of_yoord(&mut w3, pos);
     let save3 = common::SaveFile::new("gear");
     let p3 = save3.path();
@@ -133,9 +133,9 @@ fn round_trip() {
     assert_eq!(
         w4.query::<&Ring>()
             .iter(&w4)
-            .map(|r| r.effect)
+            .map(|r| r.row.name)
             .collect::<Vec<_>>(),
-        vec![RingEffect::Regeneration],
+        vec!["ring of regeneration"],
     );
     assert_eq!(w4.query::<&Amulet>().iter(&w4).count(), 1);
     assert_eq!(w4.query::<&Curse>().iter(&w4).count(), 1);
@@ -201,7 +201,7 @@ fn equipped_gear_stays_on_across_a_save() {
         w.despawn(e);
     }
     let here = *w.get::<Position>(hero).unwrap();
-    let ring = spawn_ring(&mut w, RingEffect::Perception, here);
+    let ring = spawn_ring(&mut w, "ring of perception", here);
     assert!(toggle_equipped(&mut w, hero, ring));
     assert!(w.get::<SeesInvisible>(hero).is_some());
     let dagger = spawn_weapon(&mut w, "dagger", here);
@@ -228,8 +228,8 @@ fn equipped_gear_stays_on_across_a_save() {
     assert!(equipped_in(&w2, hero2, Slot::Body).is_some());
     let worn = equipped_in(&w2, hero2, Slot::Finger).expect("the ring stayed on");
     assert_eq!(
-        w2.get::<Ring>(worn).map(|r| r.effect),
-        Some(RingEffect::Perception)
+        w2.get::<Ring>(worn).map(|r| r.row.name),
+        Some("ring of perception")
     );
     assert!(
         w2.get::<SeesInvisible>(hero2).is_some(),

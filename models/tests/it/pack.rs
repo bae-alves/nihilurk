@@ -29,7 +29,7 @@ fn carrying_one_of_everything() -> World {
         spawn_named(&mut w, "wand of fire", nowhere).unwrap(),
         spawn_weapon(&mut w, "dagger", nowhere),
         spawn_armor(&mut w, "ring mail", nowhere),
-        spawn_ring(&mut w, RingEffect::Protection, nowhere),
+        spawn_ring(&mut w, "ring of protection", nowhere),
     ];
     for &item in &pack {
         w.entity_mut(item).remove::<Position>();

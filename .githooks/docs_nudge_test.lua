@@ -43,6 +43,7 @@ local BASE = {
   ["models/src/agents.rs"] = "pub const STRIKE: Rule = Rule {};\n",
   ["models/src/spawn.rs"] = "pub const DROPS: &[u8] = &[\n    category!(\"scroll\", 300, 1, SCROLLS),\n];\n",
   ["docs/reference/components.md"] = "x\n",
+  ["docs/reference/agents.md"] = "x\n",
 }
 for name, text in pairs(BASE) do write(name, text) end
 git("add -A")
@@ -62,15 +63,15 @@ local function change(name, from, to)
   git("add -- '" .. name .. "'")
 end
 
--- 1. A new ring names the page that pastes the enum, and does not fail.
-change("models/src/components.rs", "    Strength,\n", "    Strength,\n    Polymorph,\n")
+-- 1. A new rule names the page that lists the rules, and does not fail.
+change("models/src/agents.rs", "pub const STRIKE: Rule = Rule {};\n", "pub const STRIKE: Rule = Rule {};\npub const BOLT: Rule = Rule {};\n")
 local out, code = nudge()
 assert(code == 0, "the nudge never fails a commit, got " .. tostring(code))
-assert(out:find("docs/reference/components.md", 1, true), "ring should name components.md, got: " .. out)
+assert(out:find("docs/reference/agents.md", 1, true), "rule should name agents.md, got: " .. out)
 assert(out:find("update-the-docs.md", 1, true), "should point at the lookup page, got: " .. out)
 
 -- 2. Staging that page too silences it.
-change("docs/reference/components.md", "x\n", "x\ny\n")
+change("docs/reference/agents.md", "x\n", "x\ny\n")
 out, code = nudge()
 assert(code == 0 and out == "", "page staged should be silent, got: " .. out)
 reset()

@@ -5,7 +5,7 @@
 --
 -- A rule fires on an added or removed line of `file`. `under` narrows it to
 -- hunks whose top-level item matches (git puts that item in the hunk header,
--- so `pub enum RingEffect {` names the enum a new variant joined). `line` is
+-- so `pub enum Rank {` names the enum a new variant joined). `line` is
 -- a Lua pattern, a list of them, or a function of the diff line.
 
 local COMPONENTS = "docs/reference/components.md"
@@ -17,15 +17,8 @@ local AGENTS = "docs/reference/agents.md"
 local MAN = "doc/nihilurk.6"
 local MANUAL = "MANUAL.md"
 
-local function variant(line) return line:match("^[+-]    %u%w*,") ~= nil end
-
-local function enum_variant(row, enum, pages)
-  return { row = row, file = "models/src/components.rs", under = "^pub enum " .. enum, line = variant, pages = pages }
-end
-
 return {
   rules = {
-    enum_variant("A ring", "RingEffect", { COMPONENTS }),
     { row = "A scroll", file = "models/src/catalog.rs", line = "^%+%s+&ScrollDef::new%(", pages = { FEEL } },
     { row = "A wand", file = "models/src/catalog.rs", line = "^%+%s+&WandDef::new%(", pages = { TABLES, FEEL } },
     { row = "An effect", file = "models/src/effects.rs", line = '^%+%s+"[%l_]+" => ', pages = { TABLES } },

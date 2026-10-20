@@ -170,7 +170,7 @@ fn megacursed_numeric_rings_roll_their_own_range() {
     let mut rng = ChaCha12Rng::seed_from_u64(3);
     let mut top = 0;
     for _ in 0..20_000 {
-        let ring = RingDef::of(RingEffect::Protection).spawn_as_loot(
+        let ring = ring_row("ring of protection").unwrap().spawn_as_loot(
             &mut w,
             &mut rng,
             Position { x: 0, y: 0 },

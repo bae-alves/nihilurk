@@ -57,7 +57,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::catalog::{
-    RingDef, card_row, coin_row, content_id_of, potion_row, restore_from_catalog, rune_row,
+    card_row, coin_row, content_id_of, potion_row, restore_from_catalog, ring_row, rune_row,
     scroll_row, spell_row, wand_row,
 };
 use crate::components::*;
@@ -217,7 +217,7 @@ struct EntitySave<'a> {
     wand: Option<String>,
     ranged: Option<i32>,
     scroll: Option<String>,
-    ring: Option<RingEffect>,
+    ring: Option<String>,
     /// Which slot this piece of gear occupies, and (see
     /// [`EntitySave::equipped_by`]) who is wearing it.
     equipped: Option<Slot>,
@@ -320,7 +320,7 @@ struct EntitySave<'a> {
 /// postcard parse error. `release/bump.lua` reads this line: it refuses a
 /// `patch` release when the value changed since the last tag, because a changed
 /// save format is a minor bump.
-pub const SAVE_VERSION: u16 = 18;
+pub const SAVE_VERSION: u16 = 19;
 
 /// Splits a save file into its version and the [`SaveGame`] behind it, and
 /// refuses any version but [`SAVE_VERSION`]. A file written before saves were
@@ -649,7 +649,7 @@ pub fn save_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
             rune: er
                 .get::<Rune>()
                 .map(|r| (r.row.name.to_string(), r.charged)),
-            ring: er.get::<Ring>().map(|r| r.effect),
+            ring: er.get::<Ring>().map(|r| r.row.name.to_string()),
             equipped: er.get::<Equipped>().map(|e| e.slot),
             power_die: er.get::<PowerDie>().map(|m| m.0),
             power_bonus: er.get::<PowerBonus>().map(|m| m.0),
@@ -954,6 +954,10 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
                 .as_deref()
                 .is_none_or(|name| coin_row(name).is_some())
             && es
+                .ring
+                .as_deref()
+                .is_none_or(|name| ring_row(name).is_some())
+            && es
                 .deck
                 .iter()
                 .flatten()
@@ -967,7 +971,7 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
     if !rows_known {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "save file names a rune, wand, potion, scroll, trap, coin, card or spell this build has no row for",
+            "save file names a rune, wand, potion, scroll, trap, coin, card, ring or spell this build has no row for",
         ));
     }
 
@@ -1095,9 +1099,8 @@ pub fn load_game(world: &mut World, path: impl AsRef<Path>) -> std::io::Result<(
         {
             em.insert(Rune { row, charged });
         }
-        if let Some(effect) = es.ring {
-            em.insert(Ring { effect });
-            let def = RingDef::of(effect);
+        if let Some(def) = es.ring.as_deref().and_then(ring_row) {
+            em.insert(Ring { row: def });
             em.insert(Grants(def.grants));
             if let Some(on_wear) = def.on_wear {
                 em.insert(on_wear);

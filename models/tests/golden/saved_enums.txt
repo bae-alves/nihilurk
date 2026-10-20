@@ -1,6 +1,5 @@
 components.rs::Faction = Player,Monster,Ally,Spirits,Inert
 components.rs::MovementType = Static,Chase,Flee,Confused,Aggravated,Ambush
-components.rs::RingEffect = Protection,Strength,Perception,Adornment,AggravateMonster,Sharpshooting,IncreaseDamage,Regeneration,SlowDigestion,Teleportation,Stealth,MaintainArmor,Polymorph,SustainForm,DualZap,Health
 components.rs::SpeedKind = Slow,Normal,Fast,Quick
 components.rs::TrapReveal = Sight,Adjacent,Triggered
 equipment.rs::Slot = Hand,Body,Finger

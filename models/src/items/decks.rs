@@ -12,7 +12,7 @@ use crate::Color;
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
 use rand::seq::SliceRandom;
 
-use crate::catalog::{CARDS, CardDef, FOOL, RingDef};
+use crate::catalog::{CARDS, CardDef, FOOL};
 use crate::components::*;
 use crate::constants::decks::*;
 use crate::effects::{Bala, Bole, Crit, Grant, Lifetime, Oof, TimeStopped, lend};
@@ -314,9 +314,7 @@ fn shift_worn_ring(
 
 /// Whether `ring`'s row has a number on it at all.
 fn ring_is_numeric(world: &World, ring: Entity) -> bool {
-    world
-        .get::<Ring>(ring)
-        .is_some_and(|r| RingDef::of(r.effect).is_numeric())
+    world.get::<Ring>(ring).is_some_and(|r| r.row.is_numeric())
 }
 
 /// The number a worn ring adds, whichever roll it lands on.
@@ -332,7 +330,7 @@ fn ring_plus(world: &World, ring: Entity) -> i32 {
 /// the old number to the new.
 fn shift_ring(world: &mut World, ring: Entity, to: fn(i32) -> i32) {
     use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
-    let Some(def) = world.get::<Ring>(ring).map(|r| RingDef::of(r.effect)) else {
+    let Some(def) = world.get::<Ring>(ring).map(|r| r.row) else {
         return;
     };
     let (power, armor, throw, hp) = def.bonuses();

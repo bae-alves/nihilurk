@@ -413,7 +413,7 @@ fn full_entity<'a>() -> EntitySave<'a> {
         wand: Some("wand of swapping".to_string()),
         ranged: Some(300),
         scroll: Some("scroll of atonement".to_string()),
-        ring: Some(RingEffect::Polymorph),
+        ring: Some("ring of polymorph".to_string()),
         equipped: Some(Slot::Finger),
         power_die: Some(300),
         power_bonus: Some(-300),

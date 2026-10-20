@@ -132,7 +132,7 @@ fn remove_curse_spares_unequipped_cursed_gear() {
     let mut w = test_world(5);
     let p = player(&mut w);
 
-    let worn_ring = spawn_ring(&mut w, RingEffect::Adornment, Position { x: 0, y: 0 });
+    let worn_ring = spawn_ring(&mut w, "ring of adornment", Position { x: 0, y: 0 });
     w.entity_mut(worn_ring).insert(Curse);
     let stashed_sword = spawn_weapon(&mut w, "long sword", Position { x: 0, y: 0 });
     w.entity_mut(stashed_sword).insert(Curse);
@@ -261,7 +261,7 @@ fn a_worn_ring_of_protection_soaks_hits() {
     let foe = attacker(&mut w);
     w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
     w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
-    let ring = spawn_ring(&mut w, RingEffect::Protection, Position { x: 0, y: 0 });
+    let ring = spawn_ring(&mut w, "ring of protection", Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     use_item(&mut w, p, ring);
@@ -365,7 +365,7 @@ fn a_worn_ring_of_strength_adds_two_to_every_blow() {
     let mut w = test_world(4);
     let p = player(&mut w);
     let target = bag(&mut w);
-    let ring = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
+    let ring = spawn_ring(&mut w, "ring of strength", Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     use_item(&mut w, p, ring);
@@ -384,11 +384,7 @@ fn a_worn_ring_of_aggravate_monster_periodically_shrieks() {
     let p = player(&mut w);
     let orc = monster::monster(&mut w, "test monster", Position { x: 40, y: 11 });
 
-    let ring = spawn_ring(
-        &mut w,
-        RingEffect::AggravateMonster,
-        Position { x: 0, y: 0 },
-    );
+    let ring = spawn_ring(&mut w, "ring of aggravate monster", Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
 
@@ -502,8 +498,8 @@ fn two_rings_can_be_worn_at_once_and_both_effects_stack() {
         w.despawn(item);
     }
 
-    let protection = spawn_ring(&mut w, RingEffect::Protection, Position { x: 0, y: 0 });
-    let strength = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
+    let protection = spawn_ring(&mut w, "ring of protection", Position { x: 0, y: 0 });
+    let strength = spawn_ring(&mut w, "ring of strength", Position { x: 0, y: 0 });
     for e in [protection, strength] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
@@ -527,9 +523,9 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
     let mut w = test_world(19);
     let p = player(&mut w);
 
-    let first = spawn_ring(&mut w, RingEffect::Protection, Position { x: 0, y: 0 });
-    let second = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
-    let third = spawn_ring(&mut w, RingEffect::Sharpshooting, Position { x: 0, y: 0 });
+    let first = spawn_ring(&mut w, "ring of protection", Position { x: 0, y: 0 });
+    let second = spawn_ring(&mut w, "ring of strength", Position { x: 0, y: 0 });
+    let third = spawn_ring(&mut w, "ring of sharpshooting", Position { x: 0, y: 0 });
     for e in [first, second, third] {
         w.entity_mut(e).remove::<Position>();
         w.get_mut::<Backpack>(p).unwrap().items.push(e);
@@ -556,7 +552,7 @@ fn a_third_ring_evicts_an_uncursed_one_but_not_a_cursed_pair() {
     for &e in &worn {
         w.entity_mut(e).insert(Curse);
     }
-    let fourth = spawn_ring(&mut w, RingEffect::Adornment, Position { x: 0, y: 0 });
+    let fourth = spawn_ring(&mut w, "ring of adornment", Position { x: 0, y: 0 });
     w.entity_mut(fourth).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(fourth);
     use_item(&mut w, p, fourth);
@@ -852,13 +848,7 @@ fn cursed_armor_merges() {
 
 #[test]
 fn cursed_rings_merge() {
-    let make = |w: &mut World, n: &str| {
-        let effect = match n {
-            "ring of strength" => RingEffect::Strength,
-            _ => RingEffect::Sharpshooting,
-        };
-        spawn_ring(w, effect, Position { x: 0, y: 0 })
-    };
+    let make = |w: &mut World, n: &str| spawn_ring(w, n, Position { x: 0, y: 0 });
     let names = merge_names(make, "ring of strength", "ring of sharpshooting");
     assert_split(&names, "ring of strength", "ring of sharpshooting");
 }
@@ -870,9 +860,9 @@ fn merge_picks_the_first_cursed_ring_in_pack() {
         let p = player(&mut w);
         bare(&mut w, p);
         let at = Position { x: 0, y: 0 };
-        let a = spawn_ring(&mut w, RingEffect::Protection, at);
-        let b = spawn_ring(&mut w, RingEffect::Protection, at);
-        let donor = spawn_ring(&mut w, RingEffect::Protection, at);
+        let a = spawn_ring(&mut w, "ring of protection", at);
+        let b = spawn_ring(&mut w, "ring of protection", at);
+        let donor = spawn_ring(&mut w, "ring of protection", at);
         cursed(&mut w, a, -1);
         cursed(&mut w, b, -2);
         cursed(&mut w, donor, 3);
@@ -911,8 +901,8 @@ fn cursed_ring_fills_a_free_finger_instead_of_merging() {
     let p = player(&mut w);
     bare(&mut w, p);
     let at = Position { x: 0, y: 0 };
-    let a = spawn_ring(&mut w, RingEffect::Protection, at);
-    let b = spawn_ring(&mut w, RingEffect::Protection, at);
+    let a = spawn_ring(&mut w, "ring of protection", at);
+    let b = spawn_ring(&mut w, "ring of protection", at);
     cursed(&mut w, a, -1);
     cursed(&mut w, b, 3);
     pack(&mut w, p, a);

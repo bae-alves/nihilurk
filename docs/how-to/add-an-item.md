@@ -23,7 +23,7 @@ At a glance
 | Ammo      | `AMMO`      | yes*       | *a launcher effect to answer to  |
 | Launcher  | `LAUNCHERS` | yes*       | *an effect to grant              |
 | Treat     | `TREATS`    | yes        | --                               |
-| Ring      | `RINGS`     | no         | a `RingEffect` variant           |
+| Ring      | `RINGS`     | yes        | --                               |
 | Potion    | `POTIONS`   | no         | a handler in `items/potions.rs`, named by the row |
 | Scroll    | `SCROLLS`   | no         | a handler in `items/scrolls.rs`, named by the row |
 | Wand      | `WANDS`     | no         | a zap handler in `items/wands.rs`, named by the row |
@@ -125,18 +125,12 @@ Rings
 
 A ring is a modifier item, exactly like a sword. Most of them have no behaviour code anywhere -- they stack numbers through the same components combat already folds, and lend marker effects through `Grants`.
 
-1. Append a variant to `RingEffect` in `models/src/components.rs`:
+Add the row in `RINGS`:
 
-       pub enum RingEffect {
-           ...
-           MaintainArmor,
-           FireResistance,      // <- at the end. See the warning below.
-       }
+    &RingDef::new("ring of fire resistance")
+        .grants(&[Grant::of::<FireImmune>()]),
 
-2. Add the row in `RINGS`:
-
-       RingDef::new(RingEffect::FireResistance, "ring of fire resistance")
-           .grants(&[Grant::of::<FireImmune>()]),
+The `name` is the ring's identity: the save stores it, and a load that names no row is refused.
 
 Available chains:
 
@@ -219,8 +213,8 @@ Appendix: quick check
 ---------------------
 
 1. Find your category in "At a glance".
-2. Weapon, armour, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
-3. Ring: append a `RingEffect` variant at the end, then add the `RingDef::new` row.
+2. Weapon, armour, ring, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
+3. A ring's row is `&RingDef::new(name)` and its chains.
 4. Potion, scroll: write the handler in `items/potions.rs` or `items/scrolls.rs` and add the row naming it. Wand: write the zap handler in `items/wands.rs` and add the row naming it. Rune: write the handler in `items/runes.rs` and add the row naming it.
 5. A wand with no reticle (it acts on the room or the zapper): `.unaimed()` on its row.
 6. Never insert or reorder an enum variant; a save stores its position.

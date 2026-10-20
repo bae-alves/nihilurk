@@ -235,7 +235,7 @@ something they just picked up and pulled on. Import it beside `Slot` in the `use
 
     let armor = crate::catalog::spawn_armor(world, "leather armor", origin);
     strip(world, armor);
-    let ring = crate::catalog::spawn_ring(world, RingEffect::Protection, origin);
+    let ring = crate::catalog::spawn_ring(world, "ring of protection", origin);
     strip(world, ring);
     let daggers: Vec<Entity> = (0..5)
         .map(|_| {

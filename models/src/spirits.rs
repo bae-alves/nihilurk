@@ -242,7 +242,9 @@ pub fn roll_armor_offer(world: &mut World) -> Vec<OfferOption> {
 
 /// Rolls the rings a spirit's menu offers, a sample of [`RINGS`].
 pub fn roll_ring_offer(world: &mut World) -> Vec<OfferOption> {
-    roll_with_shared_rng(world, |rng| sample_refs(RINGS, rng, OfferOption::Ring))
+    roll_with_shared_rng(world, |rng| {
+        sample_refs(RINGS, rng, |&row| OfferOption::Ring(row))
+    })
 }
 
 /// One row off each table: the red demon's weapon, armor and ring, or the
@@ -311,7 +313,7 @@ pub fn confirm_offer(world: &mut World, player: Entity, choice: OfferOption) {
         OfferOption::Spell(effect) => learn_offered_spell(world, player, effect),
         OfferOption::Weapon(def) => give_item(world, player, def),
         OfferOption::Armor(def) => give_item(world, player, def),
-        OfferOption::Ring(def) => give_item(world, player, def),
+        OfferOption::Ring(def) => give_item(world, player, &def),
         OfferOption::Scroll(def) => give_item(world, player, &def),
         OfferOption::Potion(def) => give_item(world, player, &def),
         OfferOption::Wand(def) => give_item(world, player, &def),
@@ -616,7 +618,7 @@ pub(crate) fn red_demon_event(world: &mut World, player: Entity, spirit: Entity)
         [
             WEAPONS.choose(rng).map(OfferOption::Weapon),
             ARMORS.choose(rng).map(OfferOption::Armor),
-            RINGS.choose(rng).map(OfferOption::Ring),
+            RINGS.choose(rng).map(|&row| OfferOption::Ring(row)),
         ]
     });
     open_shop(world, player, spirit, options);

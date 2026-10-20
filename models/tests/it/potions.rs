@@ -357,7 +357,7 @@ fn see_invisible_lasts_the_floor_and_no_longer() {
 fn a_worn_ring_keeps_its_sight_when_the_potion_expires() {
     let mut w = test_world(3);
     let p = player(&mut w);
-    let ring = spawn_ring(&mut w, RingEffect::Perception, Position { x: 0, y: 0 });
+    let ring = spawn_ring(&mut w, "ring of perception", Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     toggle_equipped(&mut w, p, ring);

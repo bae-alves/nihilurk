@@ -90,7 +90,7 @@ fn a_wand_shows_its_true_name_before_and_after_a_zap() {
 fn wearing_a_ring_toggles_it_like_any_other_gear() {
     let mut w = test_world(2);
     let p = player(&mut w);
-    let ring = spawn_ring(&mut w, RingEffect::Regeneration, Position { x: 0, y: 0 });
+    let ring = spawn_ring(&mut w, "ring of regeneration", Position { x: 0, y: 0 });
     stash(&mut w, p, ring);
 
     assert_eq!(display_name(&w, ring), "ring of regeneration");

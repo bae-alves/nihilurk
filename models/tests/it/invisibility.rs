@@ -55,8 +55,8 @@ fn run_visibility(w: &mut World) {
     s.run(w);
 }
 
-fn wear_ring(w: &mut World, p: Entity, effect: RingEffect) -> Entity {
-    let ring = spawn_ring(w, effect, Position { x: 0, y: 0 });
+fn wear_ring(w: &mut World, p: Entity, name: &str) -> Entity {
+    let ring = spawn_ring(w, name, Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     w.get_mut::<Equipped>(ring).unwrap().by = Some(p);
@@ -107,7 +107,7 @@ fn a_ring_of_perception_turns_up_the_phantom() {
     let spot = beside_player(&mut w);
     let phantom = monster::monster(&mut w, "phantom", spot);
     w.entity_mut(phantom).insert(Invisible);
-    wear_ring(&mut w, p, RingEffect::Perception);
+    wear_ring(&mut w, p, "ring of perception");
 
     run_visibility(&mut w);
 
@@ -141,7 +141,7 @@ fn an_unseen_attacker_is_only_ever_something() {
     );
     assert!(!log_has(&w, "phantom hits you"));
 
-    wear_ring(&mut w, p, RingEffect::Perception);
+    wear_ring(&mut w, p, "ring of perception");
     run_visibility(&mut w);
     assert!(w.get::<Hidden>(phantom).is_none());
     resolve_attack(&mut w, phantom, p);
@@ -170,7 +170,7 @@ fn perception_reveals_traps_in_view_only() {
         "hidden without the ring"
     );
 
-    wear_ring(&mut w, p, RingEffect::Perception);
+    wear_ring(&mut w, p, "ring of perception");
     run_visibility(&mut w);
     assert!(
         w.get::<Hidden>(near_trap).is_none(),
@@ -199,7 +199,7 @@ fn an_invisible_item_hides_until_perception_or_a_misstep() {
     assert!(!log_has(&w, "something here"));
     assert!(w.get::<Spotted>(item).is_none(), "never announced");
 
-    wear_ring(&mut w, p, RingEffect::Perception);
+    wear_ring(&mut w, p, "ring of perception");
     run_visibility(&mut w);
     assert!(w.get::<Hidden>(item).is_none());
     assert!(w.get::<Invisible>(item).is_none());
@@ -240,7 +240,7 @@ fn perception_announces_nothing_outside_the_viewshed() {
         .expect("an open tile out of view");
     let phantom = monster::monster(&mut w, "phantom", Position { x: far.0, y: far.1 });
     w.entity_mut(phantom).insert(Invisible);
-    wear_ring(&mut w, p, RingEffect::Perception);
+    wear_ring(&mut w, p, "ring of perception");
 
     run_visibility(&mut w);
 

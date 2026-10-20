@@ -18,8 +18,8 @@
 //!   *which* one an item is. The key is the item's identity for identification
 //!   and for the save file. [`Potion`], [`Scroll`], [`Wand`] and [`Rune`] hold
 //!   their catalog row ([`crate::catalog`]), and the row names the handler that
-//!   does the work. [`Ring`] holds a [`RingEffect`], and the ring's row turns
-//!   it into the components that do something.
+//!   does the work. [`Ring`] holds its row too, and the row turns into the
+//!   components that do something.
 //!
 //! **Transient vs serialised.** Some fields are rebuilt from scratch every frame
 //! or every load and are deliberately left out of the save format —
@@ -826,55 +826,7 @@ pub struct Spellset {
 #[derive(Component)]
 pub struct Ring {
     /// Which ring this is.
-    pub effect: RingEffect,
-}
-
-/// The name of a ring type — its identity for identification and saving, not a
-/// description of its behaviour. See [`crate::catalog::RINGS`].
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RingEffect {
-    /// A bonus to the armour roll.
-    Protection,
-    /// A bonus to the damage roll, and strength that a poisoned dart cannot drain
-    /// ([`crate::effects::SustainsStrength`]).
-    Strength,
-    /// Sees what is invisible: hidden traps, stashes and monsters
-    /// ([`crate::effects::SeesInvisible`]).
-    Perception,
-    /// Worn once, for one action, it doubles the run's score and is gone.
-    Adornment,
-    /// Now and then everything on the floor learns where the wearer is
-    /// ([`crate::effects::AggravatesMonsters`]).
-    AggravateMonster,
-    /// A bonus to the throw roll, on a hurled dagger as much as a loosed arrow.
-    Sharpshooting,
-    /// A bonus to the damage roll, without [`RingEffect::Strength`]'s protection
-    /// from drain.
-    IncreaseDamage,
-    /// Knits the wearer back together as they go
-    /// ([`crate::effects::Regenerates`]).
-    Regeneration,
-    /// Slows the wearer one notch ([`crate::effects::Sluggish`]).
-    SlowDigestion,
-    /// Now and then the wearer is somewhere else ([`crate::effects::Teleportitis`]).
-    Teleportation,
-    /// Nothing notices the wearer until it is within
-    /// [`STEALTH_RANGE`](crate::constants::rings::STEALTH_RANGE) tiles
-    /// ([`crate::effects::Stealthy`]).
-    Stealth,
-    /// What the wearer has on cannot be corroded ([`crate::effects::SustainsArmor`]).
-    MaintainArmor,
-    /// Appended: a save encodes a variant as its position.
-    Polymorph,
-    /// No polymorph takes hold of the wearer, system shock included
-    /// ([`crate::effects::SustainsForm`]).
-    SustainForm,
-    /// Attack wands zap twice for two charges ([`crate::effects::DualZap`]).
-    DualZap,
-    /// A bonus to the wearer's maximum and current hit points, paid once on
-    /// the way on ([`crate::effects::MaxHpBonus`]). Taking it off only lowers
-    /// the ceiling, so a swap washes hit points; a negative one can kill.
-    Health,
+    pub row: &'static RingDef,
 }
 
 /// Tag for a cursed piece of equipment. Rolled on at spawn for the majority of

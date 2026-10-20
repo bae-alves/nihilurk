@@ -39,6 +39,8 @@ fn player(w: &mut World) -> Entity {
 /// item carrying modifier components and a grant list — without adding one to
 /// the shipped catalog. If this needs more than components to work, the design
 /// has leaked.
+static CUSTOM_RING: RingDef = RingDef::new("custom ring");
+
 fn custom_ring(
     w: &mut World,
     name: &str,
@@ -48,9 +50,7 @@ fn custom_ring(
     w.spawn((
         Name { what: name.into() },
         Item,
-        Ring {
-            effect: RingEffect::Adornment,
-        },
+        Ring { row: &CUSTOM_RING },
         Equipped::loose(Slot::Finger),
         Grants(grants),
         modifiers,
@@ -159,14 +159,6 @@ fn cancellation_strips_every_effect_in_the_registry() {
             !effect.grant.probe(&w, monster),
             "cancellation walks the whole registry"
         );
-    }
-}
-
-#[test]
-fn every_ring_in_the_catalog_has_a_row() {
-    let _w = test_world(6);
-    for def in RINGS {
-        assert_eq!(RingDef::of(def.effect).name, def.name);
     }
 }
 

@@ -287,12 +287,11 @@ Draws `]`. Attaches `Item`, `Equipped::loose(Slot::Body)`, `ArmorDie`, and `Gran
 
 ### RINGS — RingDef
 
-Constructor: `RingDef::new(effect, name)`, then chains.
+Constructor: `RingDef::new(name)`, then chains. `RINGS` holds `&RingDef` rows; `Ring` holds its row.
 
 | Field         | Type                | Default | Notes                     |
 |---------------|---------------------|---------|---------------------------|
-| `effect`      | `RingEffect`        | --      | Identity for ident/saves. |
-| `name`        | `&'static str`      | --      |                           |
+| `name`        | `&'static str`      | --      | Identity for ident/saves. |
 | `power_die`   | `i32`               | `0`     | Adds to the attack die size, the way `power_bonus` adds a flat amount. |
 | `power_bonus` | `i32`               | `0`     | `.power_bonus(n)`         |
 | `armor_die`   | `i32`               | `0`     | Adds to the defence die size, the way `armor_bonus` adds a flat amount. |
@@ -324,7 +323,7 @@ Every ring is live, and all but adornment are pure table — a modifier combat a
 | health | `.max_hp_bonus(2)`; the wearer gains the plus in max and current hp on the way on, and only the max comes off, so swapping washes hp and a negative one can kill |
 | adornment | `.on_wear(items::rings::ADORNMENT)` |
 
-The only ring behaviour code in the tree is `models/src/items/rings.rs`, and it holds four verbs, not a `match` on `RingEffect`: the adornment flourish (which the victory climb also calls), the regeneration tick, the teleportitis jump and the polymorphitis roll. Nothing outside that file asks which ring it has.
+The only ring behaviour code in the tree is `models/src/items/rings.rs`, and it holds four verbs, not a `match` on which ring it is: the adornment flourish (which the victory climb also calls), the regeneration tick, the teleportitis jump and the polymorphitis roll. Nothing outside that file asks which ring it has.
 
 `do_it_with_style` is the flourish, and two things call it: wearing the ring, and `map::levels::win_with_style` (both ways out of the dungeon — the last stair, and a potion of raise level drunk on Depth 1). What it looks like is `../explanation/the-feel-layer.md`; what it is *worth* is `score::double`.
 

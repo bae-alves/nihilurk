@@ -3607,11 +3607,7 @@ mod tests {
     fn taking_off_cursed_gear_says_it_is_stuck_and_costs_nothing() {
         let mut w = modal_world(3);
         let player = player_entity(&mut w);
-        let ring = models::spawn_ring(
-            &mut w,
-            models::RingEffect::Protection,
-            Position { x: 0, y: 0 },
-        );
+        let ring = models::spawn_ring(&mut w, "ring of protection", Position { x: 0, y: 0 });
         w.entity_mut(ring)
             .remove::<Position>()
             .insert(models::Curse);

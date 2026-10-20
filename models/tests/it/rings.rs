@@ -49,10 +49,10 @@ fn use_item(w: &mut World, user: Entity, item: Entity) {
     item_system(w);
 }
 
-/// Spawn a ring of `effect` into `user`'s pack and put it on. Uncursed, so the
+/// Spawn the ring called `name` into `user`'s pack and put it on. Uncursed, so the
 /// test is never wearing something it can't take off again.
-fn put_on(w: &mut World, user: Entity, effect: RingEffect) -> Entity {
-    let ring = spawn_ring(w, effect, Position { x: 0, y: 0 });
+fn put_on(w: &mut World, user: Entity, name: &str) -> Entity {
+    let ring = spawn_ring(w, name, Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.entity_mut(ring).remove::<Curse>();
     w.get_mut::<Backpack>(user).unwrap().items.push(ring);
@@ -84,7 +84,7 @@ fn increase_damage_is_two_points_on_every_swing() {
     let p = player(&mut w);
     let before = equipped_total::<PowerBonus>(&w, p);
 
-    put_on(&mut w, p, RingEffect::IncreaseDamage);
+    put_on(&mut w, p, "ring of increase damage");
 
     assert_eq!(
         equipped_total::<PowerBonus>(&w, p),
@@ -99,7 +99,7 @@ fn slow_digestion_slows_everything_else_too() {
     let p = player(&mut w);
     assert_eq!(tempo(&w, p), SpeedKind::Normal);
 
-    let ring = put_on(&mut w, p, RingEffect::SlowDigestion);
+    let ring = put_on(&mut w, p, "ring of slow digestion");
     assert_eq!(tempo(&w, p), SpeedKind::Slow, "worn, you are slowed");
 
     use_item(&mut w, p, ring);
@@ -116,7 +116,7 @@ fn slow_digestion_never_touches_the_speed_a_potion_set() {
     let p = player(&mut w);
     assert!(hasten(&mut w, p));
 
-    let ring = put_on(&mut w, p, RingEffect::SlowDigestion);
+    let ring = put_on(&mut w, p, "ring of slow digestion");
     assert_eq!(tempo(&w, p), SpeedKind::Normal, "hasted, then weighed down");
 
     use_item(&mut w, p, ring);
@@ -132,15 +132,15 @@ fn stealth_and_teleportitis_and_regeneration_are_worn_properties() {
     let mut w = test_world(1);
     let p = player(&mut w);
 
-    let stealth = put_on(&mut w, p, RingEffect::Stealth);
+    let stealth = put_on(&mut w, p, "ring of stealth");
     assert!(w.get::<Stealthy>(p).is_some());
     use_item(&mut w, p, stealth);
     assert!(w.get::<Stealthy>(p).is_none(), "and it comes off again");
 
-    put_on(&mut w, p, RingEffect::Teleportation);
+    put_on(&mut w, p, "ring of teleportation");
     assert!(w.get::<Teleportitis>(p).is_some());
 
-    put_on(&mut w, p, RingEffect::Regeneration);
+    put_on(&mut w, p, "ring of regeneration");
     assert!(w.get::<Regenerates>(p).is_some());
 }
 
@@ -209,7 +209,7 @@ fn stealth_keeps_the_room_from_noticing_you() {
 
     let mut w = test_world(4);
     let p = player(&mut w);
-    put_on(&mut w, p, RingEffect::Stealth);
+    put_on(&mut w, p, "ring of stealth");
     assert!(
         !a_chaser_closes_in(&mut w, 4),
         "wearing the ring, the same orc has no idea you are there"
@@ -225,7 +225,7 @@ fn corrode_the_player(seed: u64, with_ring: bool) -> i32 {
     let mut w = test_world(seed);
     let p = player(&mut w);
     if with_ring {
-        put_on(&mut w, p, RingEffect::MaintainArmor);
+        put_on(&mut w, p, "ring of maintain armor");
     }
     corrode_armor(&mut w, p);
     equipped_total::<ArmorBonus>(&w, p)
@@ -256,7 +256,7 @@ fn sustain_form_lends_its_marker_while_worn() {
     let p = player(&mut w);
     assert!(w.get::<SustainsForm>(p).is_none());
 
-    let ring = put_on(&mut w, p, RingEffect::SustainForm);
+    let ring = put_on(&mut w, p, "ring of sustain form");
     assert!(w.get::<SustainsForm>(p).is_some());
 
     use_item(&mut w, p, ring);
@@ -303,7 +303,7 @@ fn adornment_doubles_the_score_and_burns_itself_out() {
     let p = player(&mut w);
     award(&mut w, 1200);
 
-    let ring = put_on(&mut w, p, RingEffect::Adornment);
+    let ring = put_on(&mut w, p, "ring of adornment");
 
     assert_eq!(score(&mut w), 2400, "worn once, worth everything twice");
     assert!(logged(&w, "And you do it with style!"));
@@ -486,7 +486,7 @@ fn a_run_cannot_be_doubled_into_nothing() {
 fn polymorphitis_eventually_polymorphs_its_bearer() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    put_on(&mut w, p, RingEffect::Polymorph);
+    put_on(&mut w, p, "ring of polymorph");
     assert!(w.get::<Polymorphitis>(p).is_some());
 
     // 1 in 83 a turn: the claim is "eventually", so sweep turns, not seeds.
@@ -510,12 +510,15 @@ fn plus(w: &World, ring: Entity) -> i32 {
 }
 
 /// `n` floor rolls of the ring `effect`, as `(plus, cursed)` pairs.
-fn rolled(effect: RingEffect, n: usize) -> Vec<(i32, bool)> {
+fn rolled(name: &str, n: usize) -> Vec<(i32, bool)> {
     let mut w = World::new();
     let mut rng = ChaCha12Rng::seed_from_u64(7);
     (0..n)
         .map(|_| {
-            let ring = RingDef::of(effect).spawn_as_loot(&mut w, &mut rng, Position { x: 0, y: 0 });
+            let ring =
+                ring_row(name)
+                    .unwrap()
+                    .spawn_as_loot(&mut w, &mut rng, Position { x: 0, y: 0 });
             (plus(&w, ring), w.get::<Curse>(ring).is_some())
         })
         .collect()
@@ -525,10 +528,10 @@ fn rolled(effect: RingEffect, n: usize) -> Vec<(i32, bool)> {
 fn a_numeric_ring_is_plus_two_plain_plus_three_exceptional_and_cursed_from_minus_three_to_plus_two()
 {
     for effect in [
-        RingEffect::Protection,
-        RingEffect::Strength,
-        RingEffect::IncreaseDamage,
-        RingEffect::Sharpshooting,
+        "ring of protection",
+        "ring of strength",
+        "ring of increase damage",
+        "ring of sharpshooting",
     ] {
         let rolls = rolled(effect, 3000);
         for &(plus, cursed) in &rolls {
@@ -555,10 +558,10 @@ fn a_numeric_ring_is_plus_two_plain_plus_three_exceptional_and_cursed_from_minus
 #[test]
 fn a_ring_with_no_number_gets_no_number_however_it_rolls() {
     for effect in [
-        RingEffect::Perception,
-        RingEffect::Stealth,
-        RingEffect::Regeneration,
-        RingEffect::Adornment,
+        "ring of perception",
+        "ring of stealth",
+        "ring of regeneration",
+        "ring of adornment",
     ] {
         let rolls = rolled(effect, 1000);
         assert!(
@@ -618,7 +621,7 @@ fn aim_at_open_tile(w: &World, p: Entity) -> Position {
 fn dualzap_spends_two_charges_for_two_casts() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    put_on(&mut w, p, RingEffect::DualZap);
+    put_on(&mut w, p, "ring of dualzap");
     let at = aim_at_open_tile(&w, p);
 
     let wand = zap_with(&mut w, p, "wand of magic missile", 5, at);
@@ -631,7 +634,7 @@ fn dualzap_spends_two_charges_for_two_casts() {
 fn dualzap_on_a_last_charge_casts_once() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    put_on(&mut w, p, RingEffect::DualZap);
+    put_on(&mut w, p, "ring of dualzap");
     let at = aim_at_open_tile(&w, p);
 
     let wand = zap_with(&mut w, p, "wand of magic missile", 1, at);
@@ -644,7 +647,7 @@ fn dualzap_on_a_last_charge_casts_once() {
 fn dualzap_leaves_utility_wands_alone() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    put_on(&mut w, p, RingEffect::DualZap);
+    put_on(&mut w, p, "ring of dualzap");
     let at = aim_at_open_tile(&w, p);
 
     let wand = zap_with(&mut w, p, "wand of slow monster", 5, at);
@@ -683,7 +686,7 @@ fn health_adds_two_to_max_and_current() {
     let p = player(&mut w);
     let (cur, max) = hp(&w, p);
 
-    put_on(&mut w, p, RingEffect::Health);
+    put_on(&mut w, p, "ring of health");
 
     assert_eq!(hp(&w, p), (cur + 2, max + 2));
 }
@@ -695,7 +698,7 @@ fn health_washes_hp_on_every_swap() {
     let (_, max) = hp(&w, p);
     set_hp(&mut w, p, 1);
 
-    let ring = put_on(&mut w, p, RingEffect::Health);
+    let ring = put_on(&mut w, p, "ring of health");
     assert_eq!(hp(&w, p), (3, max + 2));
     use_item(&mut w, p, ring);
     assert_eq!(hp(&w, p), (3, max), "taking it off keeps the hit points");
@@ -709,7 +712,7 @@ fn health_taken_off_at_full_clamps_to_the_old_max() {
     let p = player(&mut w);
     let (_, max) = hp(&w, p);
 
-    let ring = put_on(&mut w, p, RingEffect::Health);
+    let ring = put_on(&mut w, p, "ring of health");
     use_item(&mut w, p, ring);
 
     assert_eq!(hp(&w, p), (max, max));
@@ -721,7 +724,7 @@ fn health_leaves_with_a_ring_that_was_dropped() {
     let p = player(&mut w);
     let (_, max) = hp(&w, p);
 
-    let ring = put_on(&mut w, p, RingEffect::Health);
+    let ring = put_on(&mut w, p, "ring of health");
     force_unequip(&mut w, ring);
     equipment_effects_system(&mut w);
 
@@ -734,7 +737,7 @@ fn health_changes_nothing_twice() {
     let p = player(&mut w);
     let (cur, max) = hp(&w, p);
 
-    put_on(&mut w, p, RingEffect::Health);
+    put_on(&mut w, p, "ring of health");
     equipment_effects_system(&mut w);
     equipment_effects_system(&mut w);
 
@@ -747,7 +750,7 @@ fn a_cursed_ring_of_health_can_kill() {
     let p = player(&mut w);
     let (_, base_max) = hp(&w, p);
     set_hp(&mut w, p, 2);
-    let ring = spawn_ring(&mut w, RingEffect::Health, Position { x: 0, y: 0 });
+    let ring = spawn_ring(&mut w, "ring of health", Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     set_plus(&mut w, ring, -3);
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
@@ -784,4 +787,54 @@ fn a_trick_shot_combo_logs_the_shout_and_the_combo_and_nothing_between() {
         "the line after the shout is the combo's: {unread:?}"
     );
     assert!(!log.history.iter().any(|l| l == "the noise of the chain"));
+}
+
+static WARDING: RingDef = RingDef::new("ring of the test")
+    .armor_bonus(3)
+    .grants(&[Grant::of::<Stealthy>()]);
+
+#[test]
+fn a_worn_ring_row_lends_its_bonus_and_its_grants() {
+    let mut w = test_world(1);
+    let p = player(&mut w);
+    let ring = (&WARDING).spawn(&mut w, Position { x: 0, y: 0 });
+    w.entity_mut(ring).remove::<Position>();
+    w.entity_mut(ring).remove::<Curse>();
+    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+    use_item(&mut w, p, ring);
+
+    assert!(std::ptr::eq(w.get::<Ring>(ring).unwrap().row, &WARDING));
+    assert!(w.get::<Stealthy>(p).is_some());
+    assert_eq!(w.get::<ArmorBonus>(ring).map(|b| b.0), Some(3));
+}
+
+#[test]
+fn every_ring_row_comes_back_from_a_save_as_the_same_row() {
+    let mut w = test_world(5);
+    let p = player(&mut w);
+    for &row in RINGS {
+        let ring = row.spawn(&mut w, Position { x: 0, y: 0 });
+        w.entity_mut(ring).remove::<Position>();
+        w.get_mut::<Backpack>(p).unwrap().items.push(ring);
+    }
+    let save = crate::common::SaveFile::new("ring-rows");
+    save_game(&mut w, save.path()).unwrap();
+    let mut w2 = World::new();
+    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(5)));
+    w2.insert_resource(RngSeed(5));
+    w2.init_resource::<GameLog>();
+    w2.insert_resource(PlayerName { what: "X".into() });
+    load_game(&mut w2, save.path()).unwrap();
+
+    let hero = w2.query_filtered::<Entity, With<Player>>().single(&w2);
+    let packed = w2.get::<Backpack>(hero).unwrap().items.clone();
+    for &row in RINGS {
+        assert!(
+            packed
+                .iter()
+                .any(|&e| w2.get::<Ring>(e).is_some_and(|r| std::ptr::eq(r.row, row))),
+            "{}",
+            row.name
+        );
+    }
 }

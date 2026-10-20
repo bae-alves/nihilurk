@@ -612,7 +612,7 @@ fn a_ring_of_strength_stops_the_dart_poison() {
     w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
     let power_before = w.get::<Fighter>(p).unwrap().power;
 
-    let ring = spawn_ring(&mut w, RingEffect::Strength, Position { x: 0, y: 0 });
+    let ring = spawn_ring(&mut w, "ring of strength", Position { x: 0, y: 0 });
     w.entity_mut(ring).remove::<Position>();
     w.get_mut::<Equipped>(ring).unwrap().by = Some(p);
     sync_equipment_effects(&mut w, p);

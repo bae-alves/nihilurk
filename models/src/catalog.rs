@@ -15,13 +15,12 @@
 //! item that says it answers to [`FireArrow`] ([`AmmoDef::launched_by`]). Neither knows the
 //! other exists, and a sling is one row in each table away.
 //!
-//! Rings are the clearest case of the design. A ring of protection is not a
-//! `RingEffect::Protection` that seven files have to recognise; it is an item
+//! Rings are the clearest case of the design. A ring of protection is not an
+//! enum variant that seven files have to recognise; it is an item
 //! carrying [`ArmorBonus`]`(2)`, which combat already folds in for plate mail.
 //! A ring of perception is an item that [`Grants`] [`SeesInvisible`] to whoever
 //! wears it, which the visibility system already asks about. Adding "ring of
-//! fire resistance" is a row here plus a [`RingEffect`] variant to key it by —
-//! and no behaviour code at all, anywhere.
+//! fire resistance" is a row here — and no behaviour code at all, anywhere.
 //!
 //! The full recipes, per category, are in `docs/how-to/add-an-item.md`.
 
@@ -1348,8 +1347,6 @@ pub const ARMORS: &[ArmorDef] = &[
 /// lends marker effects to its wearer through [`Grants`]. There is no such thing
 /// as "ring logic" anywhere else in the codebase.
 pub struct RingDef {
-    /// The [`RingEffect`] this row is the entry for.
-    pub effect: RingEffect,
     /// The row's identity: the save file stores it and
     /// [`crate::spawn::spawn_named`] finds the row by it. The player reads
     /// [`ItemDef::display_name`] instead.
@@ -1370,9 +1367,10 @@ pub struct RingDef {
 }
 
 impl RingDef {
-    const fn new(effect: RingEffect, name: &'static str) -> Self {
+    /// A ring with no bonus, no grants and no `on_wear`: the builders below
+    /// add them.
+    pub const fn new(name: &'static str) -> Self {
         Self {
-            effect,
             name,
             power_die: 0,
             power_bonus: 0,
@@ -1386,48 +1384,39 @@ impl RingDef {
     }
 
     /// Flat modifier on the wearer's damage roll.
-    const fn power_bonus(mut self, n: i32) -> Self {
+    pub const fn power_bonus(mut self, n: i32) -> Self {
         self.power_bonus = n;
         self
     }
 
     /// Flat modifier on the wearer's armour roll.
-    const fn armor_bonus(mut self, n: i32) -> Self {
+    pub const fn armor_bonus(mut self, n: i32) -> Self {
         self.armor_bonus = n;
         self
     }
 
     /// Flat modifier on everything the wearer throws.
-    const fn throw_bonus(mut self, n: i32) -> Self {
+    pub const fn throw_bonus(mut self, n: i32) -> Self {
         self.throw_bonus = n;
         self
     }
 
     /// Flat modifier on the wearer's maximum hit points.
-    const fn max_hp_bonus(mut self, n: i32) -> Self {
+    pub const fn max_hp_bonus(mut self, n: i32) -> Self {
         self.max_hp_bonus = n;
         self
     }
 
     /// Marker effects the wearer gains while it's on.
-    const fn grants(mut self, grants: &'static [Grant]) -> Self {
+    pub const fn grants(mut self, grants: &'static [Grant]) -> Self {
         self.grants = grants;
         self
     }
 
     /// A one-shot fired the instant it goes on (see [`OnWear`]).
-    const fn on_wear(mut self, on_wear: OnWear) -> Self {
+    pub const fn on_wear(mut self, on_wear: OnWear) -> Self {
         self.on_wear = Some(on_wear);
         self
-    }
-
-    /// The catalog row for `effect`. Panics on a ring that isn't in the table —
-    /// which would mean a [`RingEffect`] variant nobody ever gave a row.
-    pub fn of(effect: RingEffect) -> &'static RingDef {
-        RINGS
-            .iter()
-            .find(|r| r.effect == effect)
-            .unwrap_or_else(|| panic!("no ring row for {effect:?}"))
     }
 
     /// The row's flat modifiers: `(power, armor, throw, max hp)`.
@@ -1447,7 +1436,7 @@ impl RingDef {
     }
 }
 
-impl ItemDef for RingDef {
+impl ItemDef for &'static RingDef {
     fn name(&self) -> &'static str {
         self.name
     }
@@ -1463,9 +1452,7 @@ impl ItemDef for RingDef {
             },
             pos,
             Item,
-            Ring {
-                effect: self.effect,
-            },
+            Ring { row: self },
             Equipped::loose(Slot::Finger),
         ));
         insert_modifier(&mut e, PowerDie(self.power_die));
@@ -1495,53 +1482,53 @@ impl ItemDef for RingDef {
 /// adornment needed a verb written for it, and it is named here the same way
 /// everything else is — see `crate::items::rings`.
 #[rustfmt::skip]
-pub const RINGS: &[RingDef] = &[
-    RingDef::new(RingEffect::Protection, "ring of protection")
+pub static RINGS: &[&RingDef] = &[
+    &RingDef::new("ring of protection")
         .armor_bonus(PLAIN_BONUS),
     // Rogue's separate add-strength and sustain-strength rings, merged.
-    RingDef::new(RingEffect::Strength, "ring of strength")
+    &RingDef::new("ring of strength")
         .power_bonus(PLAIN_BONUS)
         .grants(&[Grant::of::<SustainsStrength>()]),
     // Rogue's separate searching and see-invisible rings, merged.
-    RingDef::new(RingEffect::Perception, "ring of perception")
+    &RingDef::new("ring of perception")
         .grants(&[Grant::of::<SeesInvisible>()]),
-    RingDef::new(RingEffect::AggravateMonster, "ring of aggravate monster")
+    &RingDef::new("ring of aggravate monster")
         .grants(&[Grant::of::<AggravatesMonsters>()]),
     // A steady hand: worth as much on a hurled dagger as on a loosed arrow.
-    RingDef::new(RingEffect::Sharpshooting, "ring of sharpshooting")
+    &RingDef::new("ring of sharpshooting")
         .throw_bonus(PLAIN_BONUS),
     // Rogue's useless ring, made the most valuable thing in the dungeon: worn
     // once, for one action, it doubles the run's score and is gone.
-    RingDef::new(RingEffect::Adornment, "ring of adornment")
+    &RingDef::new("ring of adornment")
         .on_wear(crate::items::rings::ADORNMENT),
     // The ring of strength's plain twin: the same two points on the damage
     // roll, without the arm behind it that a dart can't drain.
-    RingDef::new(RingEffect::IncreaseDamage, "ring of increase damage")
+    &RingDef::new("ring of increase damage")
         .power_bonus(PLAIN_BONUS),
-    RingDef::new(RingEffect::Regeneration, "ring of regeneration")
+    &RingDef::new("ring of regeneration")
         .grants(&[Grant::of::<Regenerates>()]),
     // The joke it has always been, taken literally: it slows your digestion by
     // slowing *you*.
-    RingDef::new(RingEffect::SlowDigestion, "ring of slow digestion")
+    &RingDef::new("ring of slow digestion")
         .grants(&[Grant::of::<Sluggish>()]),
-    RingDef::new(RingEffect::Teleportation, "ring of teleportation")
+    &RingDef::new("ring of teleportation")
         .grants(&[Grant::of::<Teleportitis>()]),
-    RingDef::new(RingEffect::Stealth, "ring of stealth")
+    &RingDef::new("ring of stealth")
         .grants(&[Grant::of::<Stealthy>()]),
     // The ring of strength's other twin: that one keeps the poison out of your
     // arm, this one keeps the corrosion off your plate.
-    RingDef::new(RingEffect::MaintainArmor, "ring of maintain armor")
+    &RingDef::new("ring of maintain armor")
         .grants(&[Grant::of::<SustainsArmor>()]),
-    RingDef::new(RingEffect::Polymorph, "ring of polymorph")
+    &RingDef::new("ring of polymorph")
         .grants(&[Grant::of::<Polymorphitis>()]),
-    RingDef::new(RingEffect::SustainForm, "ring of sustain form")
+    &RingDef::new("ring of sustain form")
         .grants(&[Grant::of::<SustainsForm>()]),
     // The staff's bargain, for wands: two charges, two casts, one turn.
-    RingDef::new(RingEffect::DualZap, "ring of dualzap")
+    &RingDef::new("ring of dualzap")
         .grants(&[Grant::of::<DualZap>()]),
     // Hit points on the way on, none taken back on the way off: swapping it
     // washes health, and a cursed one can kill.
-    RingDef::new(RingEffect::Health, "ring of health")
+    &RingDef::new("ring of health")
         .max_hp_bonus(PLAIN_BONUS),
 ];
 
@@ -1960,10 +1947,15 @@ fn named<'a, D: ItemDef>(table: &'a [D], name: &str, kind: &str) -> &'a D {
         .unwrap_or_else(|| panic!("no {kind} named {name:?}"))
 }
 
-/// A ring of `effect` on the floor at `pos`. Panics on a variant with no row in
-/// [`RINGS`], same as [`RingDef::of`].
-pub fn spawn_ring(world: &mut World, effect: RingEffect, pos: Position) -> Entity {
-    RingDef::of(effect).spawn(world, pos)
+/// The ring called `name` on the floor at `pos`. Panics if [`RINGS`] has no
+/// such row; see [`spawn_weapon`].
+pub fn spawn_ring(world: &mut World, name: &str, pos: Position) -> Entity {
+    named(RINGS, name, "ring").spawn(world, pos)
+}
+
+/// The ring row named `name`, for a save to find its ring by.
+pub fn ring_row(name: &str) -> Option<&'static RingDef> {
+    RINGS.iter().copied().find(|row| row.name == name)
 }
 
 /// The weapon called `name` on the floor at `pos`. Panics if [`WEAPONS`] has no
@@ -2038,7 +2030,7 @@ pub(crate) fn content_id_of(display: &str) -> Option<&'static str> {
 /// Re-attaches what a catalog row gives an item that the save file does not
 /// store: how a weapon behaves in flight, what a bow lends its wielder, what a
 /// missile answers to. Keyed by the row's id (see `content_id_of`), the same
-/// way a ring's grants come back from [`RingDef::of`] — the row is the
+/// way a ring's grants come back from its [`Ring`] row — the row is the
 /// definition, so a save that stored these would only be storing the table
 /// twice.
 pub fn restore_from_catalog(entity: &mut bevy_ecs::world::EntityWorldMut, id: &str) {

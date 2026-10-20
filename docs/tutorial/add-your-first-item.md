@@ -194,10 +194,10 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 
 **A ring**, as long as what it does is a number combat already folds or a marker some system already asks about. This one is the whole argument for the design in three lines:
 
-    RingDef::new(RingEffect::FireResistance, "ring of fire resistance")
+    &RingDef::new("ring of fire resistance")
         .grants(&[Grant::of::<FireImmune>()]),
 
-`FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. `RingEffect::FireResistance` is a variant you append to the enum. It is just the key the row is spawned by -- an identity, not behaviour.
+`FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. The row's `name` is its identity: the save stores it, and `spawn_named` finds it.
 
 **A treat.** `TREATS`. A treat is thrown at a creature as an offer of loyalty; `takes` names the fn that says which creatures take it (`companion::has_no_hands` for a snack). Write the row as a static and list it in `TREATS`:
 

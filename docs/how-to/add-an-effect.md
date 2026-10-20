@@ -70,7 +70,7 @@ Adding a marker effect
        MonsterDef::row("basilisk", ...).grants(&[Grant::of::<PoisonImmune>()]),
 
        // a ring that lends it while worn
-       RingDef::new(RingEffect::PoisonResistance, "ring of poison resistance")
+       &RingDef::new("ring of poison resistance")
            .grants(&[Grant::of::<PoisonImmune>()]),
 
        // a launcher that lends it while held
