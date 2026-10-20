@@ -18,7 +18,7 @@ nihilurk resolves a fight as two independent rolls, subtracted:
 
     damage = (1d[power] + power_bonus) - (1d[armor] + armor_bonus)
 
-Both sides roll every time. There is no to-hit roll and nothing ever misses -- a swing that fails is not a miss, it is a hit the armour ate.
+Both sides roll every time. There is no to-hit roll -- a monster's swing the log calls a miss is a hit the armour ate whole.
 
 Each `1d` there is really two dice of that size averaged, rounding down (`BELL_CURVE_DICE`). The range is the plain die's; the spread is narrower, and the rounding shades the mean down by about a quarter point. An excellent hit, below, rolls its dice flat.
 
@@ -42,7 +42,7 @@ A creature's survival comes from winning the armour roll, not from absorbing man
 
 The practical rule: **raise `armor` and `armor_bonus` to make a thing hard to kill; raise `power` and `power_bonus` to make it frightening to stand next to; raise `hp` only to buy a creature one more exchange.**
 
-The tension this buys is Rogue's: every fight is short, every fight can go wrong, and once your armour falls behind, an orc with a lucky roll can end a run that had a plan. Fragility cuts both ways -- the player has twelve hit points.
+The tension this buys is Rogue's: every fight is short, every fight can go wrong, and once your armour falls behind, an orc with a lucky roll can end a run that had a plan. Fragility cuts both ways -- the player starts with `player::START_HP` hit points, inside the bestiary's own range.
 
 
 The two rules that apply only to the player
@@ -62,9 +62,9 @@ Monsters get neither. A monster that cannot hurt you simply cannot hurt you, and
 The price of a hand
 -------------------
 
-One slot holds one thing, and nihilurk has no wait action -- you cannot spend a turn swapping and then act. So the hand you commit is committed until you spend a real turn getting out of it, with whatever is next to you getting a free swing.
+One slot holds one thing, swapping (`x`) costs a whole turn, and nihilurk has no wait action. So the hand you commit is committed until you spend a real turn getting out of it, with whatever is next to you getting a free swing.
 
-That is the whole design of the bow. Drawn, it is the best thing in the dungeon: it looses an arrow on the row's own `launched_die`, a bigger die than the `IMPROVISED_THROW_DIE` a hand-thrown one rolls (a crossbow's quarrel rolls bigger still, a blowgun's dart trades its die for venom), its enchantment rides along on every shot, and a corridor is a killing lane. Swung, it carries `MeleeCap(1)` and is worth a bruise -- less than your bare fists, which is the point. Three hundred swings with a +5 bow deal 300 damage; three hundred with a long sword deal about 2,400; bare-handed, about 1,000.
+That is the whole design of the bow. Drawn, it is the best thing in the dungeon: it looses an arrow on the row's own `launched_die`, a bigger die than the `IMPROVISED_THROW_DIE` a hand-thrown one rolls (a crossbow's quarrel rolls bigger still, a blowgun's dart trades its die for venom), its enchantment rides along on every shot, and a corridor is a killing lane. Swung, it carries the row's `melee_cap` as a `MeleeCap` and is worth a bruise a blow, however enchanted -- less than your bare fists, which is the point.
 
 So an archer is not a melee character with a ranged option. An archer is someone who has decided that nothing will reach them, and has to be right. Letting the bow also be a decent club would collapse that decision into a free upgrade, and the cheapest way to keep a decision honest is to price the thing you did not choose.
 
@@ -74,7 +74,7 @@ Why most gear is cursed
 
 Most weapon, armour and ring drops roll cursed: whatever `NORMAL_QUALITY_PCT` and `EXCEPTIONAL_QUALITY_PCT` leave over. That sounds punishing until you look at the bonus range: a cursed item rolls anywhere in `CURSED_BONUS_MIN..=CURSED_BONUS_MAX`, which reaches above zero, so it is often *better* than the plain ones. What you are gambling is not the number, it is the commitment -- a cursed item cannot be taken off again without a scroll of remove curse, which will destroy it, or the matching scroll of enchantment, which lifts the curse and mends the minus but has to be found and has to match the slot.
 
-A numeric ring is the exception to "better than the plain ones". Its curse rolls from -3 to +2 and the plain ring is +2, so a cursed ring is never the better ring, only the one that will not come off. An exceptional one is a flat +3.
+A numeric ring is the exception to "better than the plain ones". Its curse rolls `rings::CURSED_BONUS_MIN..=CURSED_BONUS_MAX`, and the top of that range is the plain ring's `PLAIN_BONUS`, so a cursed ring is never the better ring, only the one that will not come off. An exceptional one is a flat `EXCEPTIONAL_BONUS`.
 
 So the drop table is not "most of your loot is bad". It is "most of your loot is a decision". Picking up an unidentified sword and putting it on is the game asking whether you are sure.
 
@@ -93,13 +93,9 @@ The bear trap pins your feet and nothing else: you can still swing at whatever w
 Reading the existing table
 --------------------------
 
-Rough shape of the bestiary, if you want a new creature to sit in it without standing out:
+To sit a new creature in the bestiary without standing out, read the rows that share its `min_depth`: they are the band it joins, and the numbers climb with depth.
 
-    fodder      hp 3-6    power 4-6     armor 4-6       depth 1
-    mid         hp 3-10   power 4-10    armor 4-12      depth 5
-    deep        hp 13     power 8-12    armor 6-10      depth 10, with bonuses
-
-Each row also keeps its original Rogue level and armour class in a comment table at the top of `models/src/monsters.rs`, as a design anchor. nihilurk does not model either, but they say what the creature was *for*.
+The doc comment on `BESTIARY` in `models/src/monsters.rs` also keeps each Rogue creature's original level and armour class, as a design anchor. nihilurk does not model either, but they say what the creature was *for*.
 
 
 See also
