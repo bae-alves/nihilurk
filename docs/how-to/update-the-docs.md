@@ -19,7 +19,7 @@ Look it up
 |-----------------------------------|-----------------------------------------------------------------------|----------------------------------------------|
 | A monster, weapon, armour, ring, coin, ammo, launcher, treat, potion or trap | nothing, unless it brings a new mechanic (see below)   | `-content` prints every row                  |
 | A scroll                          | `../explanation/the-feel-layer.md`, "What a scroll looks like"       | each scroll has a flourish                   |
-| A wand                            | `../reference/content-tables.md`, the wand table; `../explanation/the-feel-layer.md`, "What a wand looks like" and the thrown-wand list | one table row per wand; a thrown wand blasts by kind |
+| A wand                            | `../reference/content-tables.md`, the `Thrown` table; `../explanation/the-feel-layer.md`, "What a wand looks like" and the thrown-wand list | the `Thrown` table names the wands with a blast of their own; a thrown wand blasts by kind |
 | A spell                           | nothing, unless it adds a `constants::` module (see below)            | `SPELLS` is not in `-content`, but no page lists spells |
 | An effect                         | `../reference/content-tables.md`, one row in the `EFFECTS` table         | the table has one row per id                 |
 | An ability                        | nothing                                                               | the `ABILITIES` page describes fields, not rows |
