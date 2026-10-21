@@ -538,6 +538,40 @@ fn an_erratic_striker_springs_the_trap_it_hops_onto() {
     );
 }
 
+static KILLING_TRAP: TrapDef = TrapDef {
+    apply: |world, spring| {
+        world.get_mut::<Fighter>(spring.victim).unwrap().hp = 0;
+    },
+    ..HOP_TRAP
+};
+
+/// The reaper has already swept by the time the hop lands, so a trap that
+/// kills the hopper finishes it there, not a turn later.
+#[test]
+fn an_erratic_striker_its_trap_kills_dies_the_same_turn() {
+    let mut w = arena(3);
+    w.init_resource::<Ending>();
+    let victim = hero(&mut w, at(10, 10), 20, 8);
+    let hopper = creature(&mut w, at(11, 10), 5, 4);
+    w.entity_mut(hopper).insert(Batty);
+    for x in 10..=12 {
+        for y in 9..=11 {
+            w.spawn(TrapBundle::from_def(
+                &KILLING_TRAP,
+                TrapReveal::Sight,
+                at(x, y),
+            ));
+        }
+    }
+
+    fire_on_hit(&mut w, hopper, victim, CLEAN);
+
+    assert!(
+        w.get::<Fighter>(hopper).is_none(),
+        "the trap killed it and it is still standing"
+    );
+}
+
 #[test]
 fn a_thief_that_flees_takes_something_loose_and_goes() {
     let mut w = arena(11);

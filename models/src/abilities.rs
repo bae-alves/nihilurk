@@ -388,7 +388,8 @@ fn corrode(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool
 /// `trap_system` has run, so it springs what it lands on itself
 /// ([`crate::traps::spring_under`]) rather than tagging
 /// [`EntityMoved`](crate::components::EntityMoved) for a turn that has already
-/// read the tags.
+/// read the tags. The reaper has swept by then too, so a hopper its trap kills
+/// is finished here.
 fn batty_hop(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bool {
     let Some(pos) = world.get::<Position>(attacker).copied() else {
         return false;
@@ -404,6 +405,9 @@ fn batty_hop(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bo
         viewshed.dirty = true;
     }
     crate::traps::spring_under(world, attacker);
+    if world.get::<Fighter>(attacker).is_some_and(|f| f.hp <= 0) {
+        crate::combat::finish_indirect_kill(world, attacker, None);
+    }
     true
 }
 
