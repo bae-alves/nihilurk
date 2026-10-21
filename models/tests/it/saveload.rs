@@ -406,8 +406,10 @@ fn a_monsters_spent_magic_and_spellset_survive_a_save() {
     load_game(&mut w2, save.path()).unwrap();
 
     let (magic, spells) = w2
-        .query_filtered::<(&Magic, &Spellset), With<Mob>>()
-        .single(&w2);
+        .query_filtered::<(&Name, &Magic, &Spellset), With<Mob>>()
+        .iter(&w2)
+        .find_map(|(name, magic, spells)| (name.what == "caster").then_some((magic, spells)))
+        .expect("the caster comes back");
     assert_eq!(magic.points, 1);
     assert_eq!(spells.slots, vec![spell_row("Fireball").unwrap()]);
 }

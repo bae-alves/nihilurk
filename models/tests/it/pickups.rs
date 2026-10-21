@@ -444,10 +444,13 @@ fn a_shot_coin_and_a_shot_trap_each_burst_to_their_own_radius() {
             x: center.x + reach,
             y: center.y,
         };
-        let mobs: Vec<Entity> = w.query_filtered::<Entity, With<Mob>>().iter(&w).collect();
-        for m in mobs {
-            if m != p {
-                w.despawn(m);
+        let placed: Vec<Entity> = w
+            .query_filtered::<Entity, With<Position>>()
+            .iter(&w)
+            .collect();
+        for e in placed {
+            if e != p {
+                w.despawn(e);
             }
         }
         let victim = monster::monster(&mut w, "test monster", victim_at);
