@@ -7,7 +7,7 @@ Why the compatibility matrix is built this way
     This is        Understanding. The recipe is
                    `../how-to/run-the-compat-pipeline.md`.
 
-`gdd.md` makes a claim: nihilurk runs on anything with a terminal. That is a nice thing to say and an easy thing to be wrong about. Nobody notices a 32-bit build breaking, because nobody builds 32-bit, and nobody notices the binary gaining three megabytes, because the machine it was built on has plenty.
+`gdd.md` makes a claim: nihilurk is playable on Linux, Windows and macOS, and its effects crate is small enough "to run on a potato". That is a nice thing to say and an easy thing to be wrong about. Nobody notices a 32-bit build breaking, because nobody builds 32-bit, and nobody notices the binary gaining three megabytes, because the machine it was built on has plenty.
 
 The compatibility matrix exists to turn that claim into something that fails loudly.
 
@@ -49,7 +49,7 @@ It costs a little size, because a static binary carries its own libc, and that c
 Why every `linux` row must have a shell
 ----------------------------------------
 
-A row's `class` of `linux` is a claim: this machine has an operating system, a terminal and a shell, and nihilurk can therefore run on it. That is not a decorative distinction from `bare` -- it is the one thing that determines whether `run_check.sh` will even try to execute a row, and it is checked, not assumed. `check_has_shell` in `compat/lib.sh` runs `/bin/sh -c 'echo shell-ok'` in the row's image before the binary runs, and a row that fails it fails the pipeline -- an image with no shell in it cannot host a terminal program no matter how the binary was built, and `bare` already exists for "compiled, never executed"; a `linux` row that cannot prove a shell is effectively a `bare` row with the wrong label.
+Every row's `class` is `linux`, and that is a claim: this machine has an operating system, a terminal and a shell, and nihilurk can therefore run on it. The claim is checked, not assumed. `check_has_shell` in `compat/lib.sh` runs `/bin/sh -c 'echo shell-ok'` in the row's image before the binary runs, and a row that fails it reports `no shell` and fails the pipeline -- an image with no shell in it cannot host a terminal program no matter how the binary was built.
 
 This is also why the ARM lineup is Raspberry Pi boards -- `pi-zero`, `pi2`, `pi3`, `pi4`, `cm` -- rather than a longer list of cloud SKUs. `graviton` earns its place because an M-series Mac's Linux VM is a common, real way nihilurk gets built and played, but a cloud instance is otherwise an abstraction over hardware someone else runs. A Pi is hardware: it is a board with a shell on it that someone might actually plug a keyboard into, which is closer to what "does nihilurk run on that machine" is asking than a t4g-family instance size is. `pi2` and `pi3`/`pi4`/`cm` share `pi-zero` and `graviton`'s existing triples (`armv7-unknown-linux-musleabihf` and `aarch64-unknown-linux-musl` respectively) rather than needing new `Cross.toml` entries -- the point of adding them was a wider, more realistic spread of real ARM boards, not a new architecture.
 
@@ -59,7 +59,7 @@ Why `nihilurk -content` and not a real session
 
 The check has to run under qemu-user-static for most of the matrix (see below), and it has to run unattended, so it needs to be something that starts, does something observable, and exits on its own. A real game session does none of that: it waits on a keyboard.
 
-`nihilurk -content` prints the game's content index and exits -- see the comment above `list_content` in `engine/src/main.rs`, which is explicit that this never touches the terminal's alternate screen. That is what makes it safe under emulation: there is no pty to size and no terminal ioctl (`TIOCGWINSZ`, raw-mode toggles) for a translation layer to get subtly wrong, only a shell to launch the binary from and stdout to read back. If it prints something and exits 0, the row can run nihilurk -- the terminal-drawing half of that claim is exactly what cross-compiling and starting the binary already stand behind, and testing crossterm's raw-mode behaviour under an architecture qemu-user does not fully emulate would be answering a question about qemu, not about nihilurk.
+`nihilurk -content` prints the game's content index and exits -- see `print_content` in `engine/src/main.rs`, and the doc comments near it, which say outright that `-content` never touches the terminal. That is what makes it safe under emulation: there is no pty to size and no terminal ioctl (`TIOCGWINSZ`, raw-mode toggles) for a translation layer to get subtly wrong, only a shell to launch the binary from and stdout to read back. If it prints something and exits 0, the row can run nihilurk -- the terminal-drawing half of that claim is exactly what cross-compiling and starting the binary already stand behind, and testing crossterm's raw-mode behaviour under an architecture qemu-user does not fully emulate would be answering a question about qemu, not about nihilurk.
 
 
 Why each target gets its own target directory
@@ -82,7 +82,7 @@ One directory per triple means no two toolchains ever share a host artifact. It 
 Running under emulation
 ------------------------
 
-`x86_64` runs natively. So does `i686`: a 64-bit kernel runs 32-bit user space directly, so the potato row is starved rather than emulated.
+`x86_64` runs natively. So does `i686`: a 64-bit kernel runs 32-bit user space directly, so the potato row needs no emulation.
 
 `aarch64` and `armv7` run under a qemu-user-static interpreter `run_check.sh` fetches and runs directly -- no `binfmt_misc`, no `--privileged`. It can do that because every binary the matrix runs is static: the interpreter never needs a foreign sysroot, only to translate the guest's syscalls, so it works as the container's own command on a container built for the *host's* architecture.
 
