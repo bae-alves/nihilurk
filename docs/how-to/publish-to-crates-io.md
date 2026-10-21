@@ -44,12 +44,9 @@ The directories keep their short names. Only the package names carry the game's 
 Before the first upload
 -----------------------
 
-1. Pick a version no tag has used. Bump every crate that changed, and the `version = "..."` on each `path` dependency that points at it:
+1. Pick a version no tag has used, and move all four crates to it: each crate's `version`, and the `version = "..."` on every `path` dependency that points at a neighbour (`engine/` pins `models` and `strings`, `models/` pins `strings`). `lua release/bump.lua X.Y.Z --dry-run` shows that edit, along with the others a release makes.
 
-        engine/Cargo.toml    version, and models = { ..., version = "X.Y.Z", ... }
-        models/Cargo.toml    version
-
-    `engine/tests/workspace.rs` fails if a `path` dependency has no version at all. It cannot tell you the version is stale, and cargo cannot either until the upload has half happened.
+    `all_published_crates_share_one_version` in `engine/tests/workspace.rs` fails if one crate or one pin falls behind the others. It cannot tell you the shared number is one crates.io already has; the upload finds that out.
 
 2. Check the page crates.io will show. Description, keywords, categories, `readme` and `rust-version` are frozen into each version, so a wrong one costs a new number. `engine/tests/workspace.rs` holds the limits crates.io enforces (five keywords, twenty characters each), and fails on an integration test that reads outside its crate without an `exclude` line, because that test cannot pass from an unpacked download. The floors differ by crate: `nihilurk-particle-core` and `nihilurk-strings` build on 1.85, `nihilurk-models` and `nihilurk` need 1.91 (let chains and a const `TypeId::of`; 1.90 fails). The two small crates stay on 1.85 because edition 2024 sets that floor and they need nothing newer. Raise one if you add code that needs a newer compiler, and build it on that compiler first (`cargo +1.85.0 check -p nihilurk-strings`).
 
@@ -86,9 +83,9 @@ When it goes wrong
                                          versions of the crates not yet
                                          sent. Send each with
                                          `cargo publish -p <crate>`, in the
-                                         order under "What goes out". I have
-                                         not tested a partial re-run of
-                                         `--workspace`, so do not rely on it.
+                                         order under "What goes out". A
+                                         partial re-run of `--workspace` is
+                                         untested, so do not rely on it.
   A bad version is live                  `cargo yank --version <v> <crate>`.
                                          It stops new projects from picking
                                          the version up. It does not delete

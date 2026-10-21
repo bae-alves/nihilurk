@@ -131,7 +131,7 @@ The code is a workspace of small libraries and one binary. Pages name files by t
   compat/         A test rig, outside a bare `cargo build` and
                   `cargo test`. See `how-to/run-the-compat-pipeline.md`.
 
-Dependencies run one way, toward the leaves: `engine` uses `models` and `strings`; `models` uses `strings` and `particle-core`. Nothing depends on `engine`. `models` re-exports its public API from the crate root, so `use models::*;` reaches it. `helpers` is private bar four names (`Hit`, `apply_hit`, `chebyshev`, `mob_at`), and so is anything marked `pub(crate)`. A page that names one of those says so.
+Dependencies run one way, toward the leaves: `engine` uses `models` and `strings`; `models` uses `strings` and `particle-core`. Nothing depends on `engine`. `models` re-exports its public API from the crate root, so `use models::*;` reaches it. `helpers` is private bar five names (`Hit`, `apply_hit`, `chebyshev`, `mark_moved`, `mob_at`), and so is anything marked `pub(crate)`. A page that names one of those says so.
 
 
 The rule that keeps this true

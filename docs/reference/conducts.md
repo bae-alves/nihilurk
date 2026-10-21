@@ -7,29 +7,29 @@ Reference: conducts
     Status         As the source is. If this page and the source
                    disagree, the source is right and this page is a bug.
 
-A conduct is something a run can go without. A run that wins is paid 10% of its score for each conduct it kept, added on top (additive: fourteen kept is +140%). A run that dies is paid nothing, and its dump lists no conducts.
+A conduct is something a run can go without. A run that wins is paid `PERCENT_PER_CONDUCT` percent of its score for each conduct it kept, added on top, and the percentages add: every conduct kept is `PERCENT_PER_CONDUCT` times the length of `Conduct::ALL`. A run that dies is paid nothing, and its dump lists no conducts.
 
 Everything here lives in `models/src/conduct.rs` and is re-exported as `models::conduct`, bar `Conduct` and `Conducts`, which are at the crate root.
 
 
-The fourteen
+The conducts
 ------------
 
-Each conduct breaks on one act, at one place in the code. Every site below is player-only: monsters share the code and have no conducts.
+Each conduct breaks on one act, at one place in the code. Every site below is player-only: either it calls `player_broke`, which checks, or it can only ever be the player's doing. Monsters share the code and have no conducts.
 
 | Conduct     | Breaks when the player               | Site                                                   |
 |-------------|--------------------------------------|--------------------------------------------------------|
-| `Potions`   | drinks a potion                      | `resolve_use`, `models/src/items.rs`                   |
-| `Scrolls`   | reads a scroll                       | `resolve_use`                                          |
-| `Wands`     | zaps a wand, or throws one           | `resolve_use`; `resolve_wand_throw`, `throwing.rs`     |
-| `Runes`     | invokes a charged rune               | `resolve_use` (an inert rune does not count)           |
+| `Potions`   | drinks a potion                      | `break_use_conducts`, `models/src/items.rs`            |
+| `Scrolls`   | reads a scroll                       | `break_use_conducts`                                   |
+| `Wands`     | zaps a wand, or throws one           | `break_use_conducts`; `resolve_wand_throw`, `throwing.rs` |
+| `Runes`     | invokes a charged rune               | `break_use_conducts` (an inert rune does not count)    |
 | `Spells`    | pays for a spell                     | `pay_for_spell`, `items/spells.rs`                     |
 | `Coins`     | takes a coin                         | `spend_pickup`, `items/pickups.rs`                     |
 | `Ranged`    | throws or fires anything             | `resolve_throw`, `items/throwing.rs`                   |
 | `Attacking` | lands a melee swing, lunge or reach  | `land_swing`, `combat.rs`                              |
 | `Charming`  | charms a creature                    | `charm`, `companion.rs`                                |
 | `Companion` | recruits a boon companion            | `recruit`, `companion.rs`                              |
-| `Damage`    | loses HP                             | `took_damage`, `helpers.rs`; the angel's test of faith |
+| `Damage`    | loses HP                             | `took_damage`, `helpers.rs`; the angel's test of faith (`angel_event`, `spirits.rs`) |
 | `Gear`      | puts gear on                         | `toggle_equipped`, `equipment.rs`                      |
 | `Armor`     | has armor take a killing blow        | `armor_takes_last_hit`, `helpers.rs`                   |
 | `Lurk`      | is not the lurk                      | not tracked; read off the `Lurk` marker                |
@@ -38,7 +38,7 @@ Each conduct breaks on one act, at one place in the code. Every site below is pl
 
 ### Known gaps
 
-`Damage` is "HP never dropped", and three paths lower the player's HP without going through `took_damage`: system shock from a polymorph (`system_shock`, `wands.rs`), the devil's max-HP price (`pay`, `spirits.rs`), and the vampire's max-HP drain (`vampiric_drain`, `abilities.rs`). A run can keep `Damage` through them. The drain only matters when its hit did no damage. They are left unhooked on purpose.
+`Damage` is "HP never dropped", and three paths lower the player's HP without going through `took_damage`: system shock from a polymorph (`system_shock`, `wands.rs`), a spirit's max-HP price (`pay`, `spirits.rs`), and the vampire's max-HP drain (`vampiric_drain`, `abilities.rs`). A run can keep `Damage` through them. The drain only matters when its hit did no damage. They are left unhooked on purpose.
 
 
 The tally

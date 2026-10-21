@@ -17,7 +17,7 @@ The feel layer once had a lot of coverage: which shake a blow earned, how a shak
 
 All of it shared two problems.
 
-**It asserted the wrong thing.** A shake is punctuation: what matters is whether it reads as heavier than the one below it, and no assertion can tell you that. A test can say `ShakeKind::Heavy` lasts 260 ms, a number you can also read off `ShakeKind::shape` in less time than the test takes to compile.
+**It asserted the wrong thing.** A shake is punctuation: what matters is whether it reads as heavier than the one below it, and no assertion can tell you that. A test can say `ShakeKind::Heavy` lasts `HEAVY_MS`, a number you can also read off `ShakeKind::shape` in less time than the test takes to compile.
 
 **It broke for reasons that were never bugs.** Presentation tests are coupled to presentation, so moving a layer, renaming a badge or reordering the HUD fields turned them red without anything being wrong. The end-to-end render test was the worst: its fixture hand-mirrored twenty-two of `main`'s startup resources, with a comment admitting as much, so it drifted every time startup changed and said nothing when it did.
 
@@ -64,4 +64,4 @@ See also
 
   the-feel-layer.md                    the layer this covers
   ../reference/rendering.md            the frame, and the order it is drawn in
-  cross-platform-testing.md            why `particle-core` stays tested
+  ../../particle-core/tests/parity.rs  the `no_std` parity test this keeps

@@ -28,9 +28,9 @@ Spawns whatever the game knows by that name -- monster, any item category, trap,
     let sword  = spawn_named(&mut world, "long sword", pos).unwrap();
     assert!(spawn_named(&mut world, "sandwich", pos).is_none());
 
-Lookup is a case-sensitive exact match on the row's name, and the tables are searched in this order: bestiary, then each `DROPS` category in table order, then traps, then the relic. Names are unique across all of them -- `every_content_name_is_unique` enforces it -- so the order does not affect the result.
+Lookup is a case-sensitive exact match on the row's name, and the tables are searched in this order: the bestiary (`BESTIARY`, then `SUMMONS`, the two creatures only a deck of cards brings), then each `DROPS` category in table order, then traps, then the relic. Names are unique across all of them -- `every_content_name_is_unique` enforces it -- so the order does not affect the result.
 
-Roughly a hundred rows, all `const`, all in cache: a linear scan beats building a `HashMap` at startup and is one less thing to keep in sync.
+A few hundred rows, all `static` or `const`, all in cache: a linear scan beats building a `HashMap` at startup and is one less thing to keep in sync.
 
 
 Listing what exists
@@ -38,7 +38,7 @@ Listing what exists
 
     pub fn content_names() -> Vec<(&'static str, &'static str)>
 
-Every name `spawn_named` answers to, as `(category, name)`, in table order. Categories are `"monster"`, the ten `DROPS` names, `"trap"` and `"relic"`.
+Every name `spawn_named` answers to but the `SUMMONS` rows, as `(category, name)`, in table order. Categories are `"monster"`, each `DROPS` name, `"trap"` and `"relic"`.
 
 Backs the `-content` flag. Reads the tables, so it can never go stale.
 
@@ -108,16 +108,9 @@ Traps
             -> Self
         pub fn random(rng: &mut ChaCha12Rng, depth: u8, position: Position)
             -> Self
-        // plus one named constructor per trap, for tests:
-        pub fn trapdoor(position: Position) -> Self
-        pub fn bear(position: Position) -> Self
-        pub fn sleep(position: Position) -> Self
-        pub fn teleport(position: Position) -> Self
-        pub fn arrow(position: Position) -> Self
-        pub fn dart(position: Position) -> Self
     }
 
-The named constructors all use `TrapReveal::Sight`, so a test can see the trap it placed. `random` rolls both the kind (weighted, depth-gated) and the reveal style (uniform).
+`random` rolls both the kind (weighted, depth-gated) and the reveal style (uniform). A test that wants one trap it can see passes the row and `TrapReveal::Sight` to `from_def`, or calls `spawn_named`, which does the same.
 
 `TrapBundle` is a bundle, not an entity: `world.spawn(bundle)`.
 
@@ -136,7 +129,7 @@ Convenience wrappers over the tables. Each panics on an unknown name -- they exi
     pub fn spawn_launcher(world, name: &str, pos)          -> Entity
     pub fn spawn_element_of_yoord(world, pos)              -> Entity
 
-`spawn_named` covers all of these. Prefer it in new code unless you have an effect enum rather than a name.
+`spawn_named` covers all of these. Prefer it in new code.
 
 
 The `ItemDef` trait
@@ -145,13 +138,13 @@ The `ItemDef` trait
     pub trait ItemDef {
         fn name(&self) -> &'static str;
         fn spawn(&self, world: &mut World, pos: Position) -> Entity;
-        fn weight(&self) -> u32 { 10 }
+        fn weight(&self) -> u32 { DEFAULT_SPAWN_WEIGHT }
         fn min_depth(&self) -> u8 { 1 }
         fn spawn_as_loot(&self, world: &mut World, rng: &mut ChaCha12Rng,
                          pos: Position) -> Entity { self.spawn(world, pos) }
     }
 
-Implemented by all nine item row types so the loot roller can treat every category alike. See `../how-to/add-an-item-category.md`.
+Implemented by every item row type so the loot roller can treat every category alike. See `../how-to/add-an-item-category.md`.
 
 
 Other catalog helpers
@@ -199,7 +192,7 @@ A const handle to one marker effect. Lets a `const` table name a component it ca
 
 `equipped_total` is where gear turns into *one* number: it sums a modifier across everything an entity has equipped plus anything it carries itself. The throw code folds `ThrowBonus` through it; the trap damage rule folds `ArmorBonus`. Neither knows what kind of item supplied the value.
 
-`loadout` is the same fold with the loop on the outside, and it is what callers that want *all* of them use -- combat, for both sides of a blow, and the HUD, for the five figures on the status line. It returns a `Loadout` (`power_die`, `power_bonus`, `armor_die`, `armor_bonus`, `throw_bonus`, and the strictest `melee_cap`, which folds with `min` rather than `+`). There is no cache and no second copy of anything: `Equipped` is still the only record of who wears what, and this reads it once instead of six times.
+`loadout` is the same fold with the loop on the outside, and it is what callers that want *all* of them use -- combat, for both sides of a blow, the HUD, for the figures on the player line, and a spell that reads the caster's gear. It returns a `Loadout`: one field per `modifiers!` row (`power_die`, `power_bonus`, `armor_die`, `armor_bonus`, `throw_bonus`, `max_hp_bonus`, `momentum`), and the strictest `melee_cap`, which folds with `min` rather than `+`. There is no cache and no second copy of anything: `Equipped` is still the only record of who wears what, and this reads it once instead of once per modifier.
 
 The struct is not written out by hand. Every field but the cap is generated from the `modifiers!` rows in `effects.rs`, along with the line of `Loadout::absorb` that sums it, so a modifier cannot be declared and then quietly left out of the fold -- see `../how-to/add-an-effect.md`. The cap is written out separately because it folds with `min`.
 
@@ -236,13 +229,13 @@ Floors and seeds
 
 A floor's two private streams: `layout_rng` builds its walls, `content_rng` fills it. `layout_rng` is a pure function of `(seed, depth)`, so the walls of a floor never move. `content_rng` also takes `changes` -- the run's `FloorChanges` count, bumped by every staircase, portal and trapdoor -- so the contents are re-rolled each time the floor is entered. The two streams are independent, so a change to one cannot move the other.
 
-`difficulty_tier(depth)` is the 0-4 crowding band the monster and trap budgets read (`DIFFICULTY_TIER_LAST_DEPTH`).
+`difficulty_tier(depth)` is the crowding band the monster, trap and item budgets read: `0` on the shallowest floors, one more past each depth in `DIFFICULTY_TIER_LAST_DEPTH`.
 
 Floor generation draws from these and never from the shared `GameRng`. That is what keeps a seed's *maps* fixed regardless of how the player fought their way through -- and keeps the contents keyed to a clean staircase count rather than to the blow-by-blow. `GameRng` is for the live run -- combat, item effects, traps springing.
 
-    pub fn create_map(world: &mut World) -> ((u16, u16), Vec<Rect>)
+    pub fn create_map(world: &mut World) -> ((u16, u16), Rooms)
 
-Builds the current floor (reading `Depth` and `RngSeed`) into the `Map` resource and returns the player's start tile. Leaves `GameRng` untouched.
+Builds the current floor (reading `Depth` and `RngSeed`) into the `Map` resource and returns the player's start tile and the floor's rooms (`Rooms`, each room its tiles). Leaves `GameRng` untouched.
 
     pub fn regenerate_map(world: &mut World, seed: u64, depth: u8)
 

@@ -20,7 +20,7 @@ How weights work
 
 An entry's chance is its weight over the sum of the weights it competes against, and it competes only inside one draw: a monster's weight against other monsters, a `DROPS` weight against other categories.
 
-**The default weight is the baseline** (`constants::monsters::DEFAULT_SPAWN_WEIGHT` for the bestiary). A row at half of it is half as common as its neighbours; one at double it is twice. Nothing has to total anything, so you can add a row without editing another number. Weights are whole numbers, so 1 is the floor: to make a row rarer than 1 you raise the baseline and every explicit weight with it (spirits did exactly this).
+**The default weight is the baseline** (`constants::monsters::DEFAULT_SPAWN_WEIGHT` for the bestiary). A row at half of it is half as common as its neighbours; one at double it is twice. Nothing has to total anything, so you can add a row without editing another number. Weights are whole numbers, so 1 is the floor: to make a row rarer than that, raise the baseline and every explicit weight with it. The spirits sit at that floor (`constants::spirits::SPAWN_WEIGHT`).
 
 Dial 1: how many things per floor
 ---------------------------------
@@ -53,7 +53,12 @@ Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at th
     traps         TRAP_SLOTS_BASE + tier slots, each filling with
                   probability TRAP_FILL_CHANCE_BASE +
                   TRAP_FILL_CHANCE_PER_TIER * tier, capped at
-                  TRAP_FILL_CHANCE_CAP.
+                  TRAP_FILL_CHANCE_CAP. A labyrinth lays none.
+
+    runs          the monster and item budgets run ORDINARY_BUDGET_RUNS
+                  times on an ordinary floor and more on a battlefield,
+                  vault or bee world (`budget_runs`), and a `-fast` run
+                  doubles the item runs (`Floors::item_multiplier`).
 
 Change these when the dungeon feels too empty or too crowded. Do not change them to make one creature rarer -- that is dial 3.
 
@@ -95,9 +100,9 @@ Dial 3: which row within a category
 
 **Traps** carry it as a field:
 
-    TrapDef { effect: ..., weight: 3, min_depth: 9, ... },
+    TrapDef { name: ..., weight: 3, min_depth: 9, ... },
 
-**Items** do not have per-row rarity today, on purpose: within a category nihilurk picks evenly, and the design likes it that way. The hook exists if you want it -- `ItemDef::weight()` and `ItemDef::min_depth()` are trait methods with defaults of `10` and `1`, and the picker already honours them. To give one category per-row rarity, add a `weight: u32` field to its `Def` struct and return it:
+**Items** mostly pick evenly within a category, on purpose, and the design likes it that way. Two tables weigh their rows: `SCROLLS` (`.common()` doubles a row) and `COINS` (a `weight` per row). The hook is on every category -- `ItemDef::weight()` and `ItemDef::min_depth()` are trait methods with defaults of `DEFAULT_SPAWN_WEIGHT` and `1`, and the picker already honours them. To give another category per-row rarity, add a `weight: u32` field to its `Def` struct and return it:
 
     impl ItemDef for ArmorDef {
         fn name(&self) -> &'static str { self.name }
@@ -116,9 +121,9 @@ Dial 4: is it allowed here at all
 Monsters use it as the last column of the row:
 
     //              name         glyph  colour     move   hp pow pb  ar ab  dep
-    MonsterDef::row("dragon",    'D',   Color::Red, Chase, 8, 12, 2, 10, 2, 10),
+    MonsterDef::row("dragon",    'D',   Color::Red, Chase, 13, 12, 2, 10, 2, 10),
 
-The bestiary uses 1, 5 and 10 -- the shallow stat band from the start, the middle band from floor 5, the nastiest letters from floor 10. Nothing stops you using 2 or 11.
+Most of the bestiary starts at one of a few depths, and the rows at each depth are the band a newcomer there has to fit; any depth from 1 to `FINAL_DEPTH` works.
 
 The dungeon is `FINAL_DEPTH` floors deep, so a `min_depth` above that means "never" -- on the way in. The climb out is the exception: once the Element of Yoord is in the pack, floor population switches from `pick` to `MonsterDef::pick_any`, which drops the gate entirely, so a `min_depth` of 10 (or 99) is no protection on the ascent.
 
@@ -147,7 +152,7 @@ Appendix: quick check
 1. Decide which question you are asking: how many per floor, which category, which row, or allowed here at all.
 2. Per floor: edit `populate_level` in `models/src/map/population.rs`; this moves every row at once.
 3. Category: change its weight in `DROPS` (`models/src/spawn.rs`).
-4. Row: `.weight(n)` on a monster, or `weight` on a trap; twenty is the baseline (monsters and traps; spirits sit at 1, the floor) and items have no per-row weight.
+4. Row: `.weight(n)` on a monster, or `weight` on a trap; `DEFAULT_SPAWN_WEIGHT` is the baseline (spirits sit at `spirits::SPAWN_WEIGHT`), and of the items only scrolls and coins weigh their rows.
 5. Gate: raise `min_depth`; it is a hard gate, and nothing makes a row stop appearing deeper.
 6. Run `cargo test --test it content::`.
 7. Count what a draw gives you with a throwaway loop over `roll_item` or `MonsterDef::pick`.

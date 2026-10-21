@@ -24,7 +24,7 @@ The player's view is the gate
 
 A mob on a tile the player cannot see does nothing. Sight in nihilurk is symmetrical (the player sees the room, the room sees the player), so a monster out of view has, as far as the game is concerned, nothing to perceive. The floor stays quiet out of sight, and nothing happens off-screen that the player could not have watched.
 
-Two things break that on purpose. An aggravated monster heard a shriek, and a shriek carries through walls, so it walks toward the noise. The player's Helper walks back to the player, because a companion stranded around a corner is no companion. Both are single moves with no percept behind them, and both hand back to their rule set the moment they are in view: an aggravated venus flytrap walks in from the next room, then lies in wait like a flytrap once you can see it.
+Three things break that on purpose. An aggravated monster heard a shriek, and a shriek carries through walls, so it walks toward the noise. The player's Helper walks back to the player, because a companion stranded around a corner is no companion. And a charmed ally that is not the Helper counts as in view wherever it stands and sees every monster on the floor, because a charmed creature that switched off in the next room would be no use to anyone. The first two are single moves with no percept behind them, and both hand back to their rule set the moment they are in view: an aggravated venus flytrap walks in from the next room, then lies in wait like a flytrap once you can see it.
 
 That is also why aggravation is a component. As a `MovementType` it would overwrite the tactic it was laid on, and an aggravated flytrap would forget it was a flytrap. As a state on top of the tactic, the tactic is still there to go back to.
 
@@ -34,7 +34,7 @@ First match wins
 
 A rule set is an ordered list, and the first rule that fires takes the turn. Order is the whole design: `CAST` before `SHOOT` before `STRIKE` before `CLOSE_IN` says "magic if you can, a bow if you can, otherwise go to melee", and that sentence is the set. There are no weights to tune and no scores to compare, so reading a set tells you exactly what the creature does, and moving one line changes it.
 
-The chaser's loop is deliberately dumb about its spells: it picks one at random and fires it if it can, and if it cannot it does not try another. A dragon with one spell breathes every time it has a line. A creature with three spells is unpredictable in the way a player can plan around, rather than always casting its best one.
+The chaser's loop is deliberately dumb about its spells: it picks one at random and fires it if it can, and if it cannot it does not try another. A dragon with one spell breathes every time a foe is in range and the Ma is there. A creature with three spells is unpredictable in the way a player can plan around, rather than always casting its best one.
 
 
 Allies look before they cast
@@ -42,13 +42,13 @@ Allies look before they cast
 
 A wild monster does not care whom its fireball catches, its kin included. An ally does: every spell an ally casts is checked against the player's tile first, and a foe standing too close to the player is passed over for one further off, or for a bite. That check lives in the rule (`CAST` asks `ally`), not in the spell, because the spell is the same mechanic whoever casts it. What differs is whose side the caster is on.
 
-The check knows each spell's footprint. A spell it has no footprint for is assumed to reach the player, so an ally never casts one blind. It does not follow chain reactions: a fireball that sets off a trap or a coin can still burst onto the player.
+The footprint comes off the spell's own row: its blast and spread, else the line it flies, else the tile it lands on. A new spell row brings its footprint with it, so an ally never casts one blind. The check does not follow chain reactions: a fireball that sets off a trap or a coin can still burst onto the player.
 
 
 What `ai.rs` keeps
 ------------------
 
-The clock (energy, rounds, the two passes a fast monster gets), the gates (dead, asleep, stone) and the hands (carrying an `Action` into the world). It never decides anything. A new behaviour is a new rule or a new set in `agents.rs`, and `ai.rs` does not change.
+The clock (energy, rounds, the two passes a fast monster gets), the gates (dead, asleep, stone, a paralysed turn lost, a door the player just stepped onto) and the hands (carrying an `Action` into the world). It never decides anything. A new behaviour is a new rule or a new set in `agents.rs`, and `ai.rs` does not change.
 
 
 See also

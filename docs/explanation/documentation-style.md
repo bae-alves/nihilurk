@@ -32,16 +32,16 @@ Every page but `docs/README.md` opens the same way: a setext title, then a four-
                        If this page and the source disagree, the source
                        is right and this page is a bug.
 
-`Audience` and `Prerequisites` are on every page. The third key depends on which of the four kinds you are writing, and it is not decoration — it is the page telling the reader what promise it is making:
+`Audience` and `Prerequisites` are on every page. The keys after them depend on which of the four kinds you are writing, and they are not decoration — they are the page telling the reader what promise it is making:
 
-| Directory      | Third key | What it promises                        |
-|----------------|-----------|-----------------------------------------|
-| `reference/`   | `Status`  | It tracks the source, and the source wins. |
-| `explanation/` | `This is` | It is reasoning, not instructions.      |
-| `how-to/`      | *(none)*  | Nothing beyond the task in the title.   |
-| `tutorial/`    | *(none)*  | Nothing beyond the lesson.              |
+| Directory      | Keys after those two | What it promises                           |
+|----------------|----------------------|--------------------------------------------|
+| `reference/`   | `Status`             | It tracks the source, and the source wins. |
+| `explanation/` | `This is`            | It is reasoning, not instructions.         |
+| `how-to/`      | `Result`             | What you have once the steps are done.     |
+| `tutorial/`    | `Time`, `You will`   | How long the lesson takes, and what you build in it. |
 
-Values wrap under the key, aligned at column 20. A how-to that needs to point somewhere else does it in the opening paragraph, not by growing a third key.
+Values wrap under the key, aligned at column 20. A how-to that needs to point somewhere else does it in the opening paragraph, not by growing another key.
 
 **An ADR is the one exception**, and it keeps the shape ADRs have everywhere: `Status` (accepted / superseded), `Audience`, `Supersedes`, `Related`, and no `Prerequisites`. It is a record with a lifecycle rather than a page about the code, and the header says which.
 

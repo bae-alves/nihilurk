@@ -35,8 +35,9 @@ The three moves
 
 ### 1. A row is the definition, and there is only one
 
-    MonsterDef::row("dragon", 'D', Color::Red, Chase, 8, 12, 2, 10, 2, 10)
-        .grants(&[Grant::of::<FireImmune>()]),
+    MonsterDef::row("dragon", 'D', Color::Red, Chase, 13, 12, 2, 10, 2, 10)
+        .grants(&[Grant::of::<FireImmune>(), Grant::of::<Flies>()])
+        .casts(2, &BREATHES_FIRE),
 
 That line is the entire dragon. Level population reads it, the scroll of create monster reads it, the wand of polymorph reads it, the save file reads it back by name on load. Nothing else in the codebase enumerates species -- so there is no second list to fall out of step, and the question "what is a dragon" has exactly one answer.
 
@@ -46,11 +47,11 @@ The same holds for every category. Each kind of item has its own table, and ther
 
 This is the move that makes the first one possible.
 
-A ring of protection is not an enum variant that seven files have to recognise. It is an item carrying `ArmorBonus(2)` -- the exact component plate mail carries. Combat already folds every `ArmorBonus` on everything you have equipped, so the ring works before anybody writes a line of ring code. It is not that rings are handled well; it is that **there is no ring code at all**.
+A ring of protection is not an enum variant that seven files have to recognise. It is an item carrying `ArmorBonus` -- the exact component an enchanted suit of plate carries. Combat already folds every `ArmorBonus` on everything you have equipped, so the ring works before anybody writes a line of ring code. It is not that rings are handled well; it is that **there is no ring code at all**.
 
 A ring of perception is an item that grants `SeesInvisible`. The visibility system already asks "does this entity see invisible things?", because the phantom made it ask. The ring answers a question that was already being asked.
 
-A bow does not know arrows exist. It grants `FireArrow`. An arrow is a thing that says it answers to `FireArrow`. They meet at the effect and nowhere else, which is why a sling is one row in each table and no new code.
+A bow does not know arrows exist. It grants `FireArrow`. An arrow is a thing that says it answers to `FireArrow`. They meet at the effect and nowhere else, which is why a sling is one row in each table and one new marker for the pair to meet at.
 
 So the design rule is: **when you want new behaviour, first look for a question the engine already asks.** Adding a row that answers an existing question is free. Adding a new question is a small, contained change -- one component, one registry entry, one place that reads it (see `../how-to/add-an-effect.md`).
 
@@ -82,7 +83,7 @@ Every kind of game object -- monster, item, trap -- is built the same three-part
 
   * **The components** (`Trap`, `Fighter`, `Renderable`, ...) go in `models/src/components.rs`. Anything that is an *effect* — a property a creature holds, from `FireArrow` to `Blind` — goes in `models/src/effects.rs` instead, where it gets a registry row, an id in the save file and a lifetime. That file is nouns: every `Component`, `Resource` and `Event` the game is made of, and nothing about what happens as a result. A system reads them; the save file round-trips them.
 
-  * **The table and its `Def` row** (`BESTIARY` / `MonsterDef`, the ten item tables, `TRAPS` / `TrapDef`) go in that object type's own module -- `monsters.rs`, `catalog.rs`, `traps.rs`. A row is plain data: a name, a glyph, and the numbers its components need. Row-level dials (`weight`, `min_depth`, a trap's `snare_turns`) live here too, so adding a row that wants its own value is still a one-file change -- not a trip to `constants.rs`.
+  * **The table and its `Def` row** (`BESTIARY` / `MonsterDef`, every item table, `TRAPS` / `TrapDef`) go in that object type's own module -- `monsters.rs`, `catalog.rs`, `traps.rs`. A row is plain data: a name, a glyph, and the numbers its components need. Row-level dials (`weight`, `min_depth`, a trap's `snare_turns`) live here too, so adding a row that wants its own value is still a one-file change -- not a trip to `constants.rs`.
 
   * **The `Bundle`** -- the struct that assembles the components for one spawn (`MonsterBundle`, `TrapBundle`) -- lives *next to its table*, not in `components.rs`. It is glue between a `Def` and the ECS, it names the row type, and it is the one place an entity of that kind is described. Keeping it with the table keeps "how a trap is made" in one file.
 
@@ -131,7 +132,7 @@ None of those has a list of content in it. They read the tables. A row added tod
 
 **Saves get smaller and more robust.** A saved item stores its *name*, not its components; `restore_from_catalog` rebuilds the rest from the row. A save that stored a bow's grant list would only be storing the table twice, and would go stale the moment the table changed.
 
-**An unfinished row is visible, and finishing it is a chain.** A ring with a name and no chains does nothing, and you can see that at a glance. As a match arm it would be one of several scattered about, indistinguishable from a bug. Finishing it is adding the chain: `.power_bonus(2)` for increase damage, `.grants(&[Grant::of::<Stealthy>()])` for stealth, and so on for regeneration, slow digestion, teleportation and maintain armor. A chain that needs a new marker needs an entry in `EFFECTS` and a system that reads it; none of them needs `catalog.rs` to learn what a ring of stealth is.
+**An unfinished row is visible, and finishing it is a chain.** A ring with a name and no chains does nothing, and you can see that at a glance. As a match arm it would be one of several scattered about, indistinguishable from a bug. Finishing it is adding the chain: `.power_bonus(PLAIN_BONUS)` for increase damage, `.grants(&[Grant::of::<Stealthy>()])` for stealth, and so on for regeneration, slow digestion, teleportation and maintain armor. A chain that needs a new marker needs an entry in `EFFECTS` and a system that reads it; none of them needs `catalog.rs` to learn what a ring of stealth is.
 
 
 Where it does not reach
@@ -143,7 +144,7 @@ Honesty about the seams, because they are where people get stuck.
 
 That buys the missing-handler case, not the missing-*behaviour* case -- the compiler only proves something was named, not that what it does is finished. The potion of fruit juice is deliberate: a taste and a log line, nothing more. Water is the same, reached only when a wand of cancellation turns a carried potion into `POTION_OF_WATER`, a row kept out of the drop table. The scroll of blank paper is the one scroll that does nothing, and -- like water -- it is never a spawnable row; it only ever happens when a wand of cancellation blanks a carried scroll. What the required field buys is that nobody can add a *new* such gap by accident -- a new row has to name what it does, whether that is real behaviour or an honest placeholder.
 
-**And one ring did need a verb.** Most rings are a number or a marker; the ring of adornment is an *event* -- it fires once, when it goes on, and spends itself doing it. A `Grant` cannot say that, so it rides as an `OnWear` component the row attaches, and `models/src/items/rings.rs` holds the ring verbs (the adornment flourish, the regeneration tick, the teleportitis jump). That file is the honest cost of the design: it is where a ring's behaviour goes when the row cannot hold it. It still contains no `match` on which ring it is, and nothing outside it knows which ring is which.
+**And one ring did need a verb.** Most rings are a number or a marker; the ring of adornment is an *event* -- it fires once, when it goes on, and spends itself doing it. A `Grant` cannot say that, so it rides as an `OnWear` component the row attaches, and `models/src/items/rings.rs` holds the ring verbs (the adornment flourish, the regeneration tick, the teleportitis jump, the polymorphitis roll). That file is the honest cost of the design: it is where a ring's behaviour goes when the row cannot hold it. It still contains no `match` on which ring it is, and nothing outside it knows which ring is which.
 
 A mechanic has a third home. A condition (confusion, blindness, paralysis, a shifted tempo) is not a potion's property any more than it is a wand's: both put the same affliction on the same creature, and both have to know that the player takes it as a marker component the input loop reads while a monster takes it as a `MovementType` or a slower tempo. So the verbs live in `models/src/conditions.rs`, one per affliction, and a potion row names the verb itself while a wand handler is one line into it.
 

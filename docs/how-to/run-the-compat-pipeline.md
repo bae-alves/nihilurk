@@ -31,13 +31,14 @@ Quick commands
     ./compat_test.sh --help
 
 When a run ends, pass or fail, it frees the disk it took: the docker images
-it pulled (about 22 GB) and `target/cross` (about 6 GB). It removes only the
+it pulled (about 22 GB) and `target/cross` (several GB more). It removes only the
 images the pipeline names, never prunes, and keeps any image a container is
 using. So every run is a cold run; use `--keep` while you iterate.
 
 The three phases on their own:
 
     ./compat/cross_build.sh           build for every machine + blame
+    ./compat/headless_check.sh        models builds and tests with no terminal
     ./compat/run_check.sh             check each machine actually runs it
 
 The report:
@@ -138,14 +139,14 @@ Add a line to `compat/matrix.tsv`. Seven tab-separated fields:
 
     id        pi5
     target    aarch64-unknown-linux-musl
-    class     linux            has an OS and a shell; nihilurk runs here
+    class     linux            always: an OS, a terminal and a shell
     platform  linux/arm64      docker --platform for a native row; for a
                                qemu row, only picks the interpreter --
                                see run_check.sh
     image     alpine:3.22      what the binary is executed in -- checked
                                for a shell before it is trusted, see
                                "the machines" above
-    exec      qemu             native | qemu | none
+    exec      qemu             native | qemu
     note      Raspberry Pi 5, 64-bit OS
 
 Then, if it is a new triple, add its cross image to `compat/Cross.toml`:
@@ -157,7 +158,8 @@ That is all. `cross_build.sh`, `run_check.sh` and the report all read the table.
 
 Two rules the tests enforce, so you will hear about it:
 
-  - Every `linux` row must be a `-musl` triple. A `-gnu` binary is bound to the glibc it was linked against, which is the one thing the matrix exists to rule out.
+  - Every `linux` row must be a `-musl` triple (`every_linux_row_is_a_musl_target`). A `-gnu` binary is bound to the glibc it was linked against, which is the one thing the matrix exists to rule out.
+  - Every `id` is unique (`ids_are_unique_since_they_name_containers_and_files`): it names the row's containers and files.
 
     cargo test -p nihilurk-compat
 

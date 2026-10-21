@@ -62,7 +62,7 @@ Ten columns, and the header comment above the table names them. The four that de
     ar   its defence die: it rolls 1d[ar] against your swing
     ab   a flat number added to *that* roll, once
 
-There is no to-hit roll and nothing ever misses. A blow is your roll minus its roll, and what is left comes off somebody's hit points. That is the whole of combat; see `../explanation/combat-and-balance.md` when you want to know why the numbers are small.
+There is no to-hit roll. A blow is the attacker's roll minus the defender's, and what is left comes off somebody's hit points; a monster's blow that comes to nothing is logged as a miss. That is the whole of combat; see `../explanation/combat-and-balance.md` when you want to know why the numbers are small.
 
 The last column, `dep`, is the shallowest floor the creature appears on. The emu starts at 1. The dragon starts at 10.
 
@@ -154,7 +154,7 @@ Four things happened, and you wrote no code for any of them.
 
 **`.grants(...)`** hands the creature a property. `FireImmune` is a plain marker component. The wand-of-fire code asks whether its target carries one, and that is the whole check. It has never heard of a basilisk, or of a dragon, or of any ring that might grant the same thing to a player. Every effect on the list works this way; see `../reference/content-tables.md` for what is available, and `../how-to/add-an-effect.md` for adding one.
 
-**`.casts(2, &CASTS_THUNDERBOLT)`** teaches it a spell and the Ma for two casts of it. Thunderbolt costs 1, so the basilisk is born with 2 Ma and a spellset of one. The chaser rule set tries a spell before it tries a bite, so the basilisk zaps you from range until the Ma runs out, and then it walks up and bites. The pool never refills.
+**`.casts(2, &CASTS_THUNDERBOLT)`** teaches it a spell and the Ma for two casts of it (`MonsterDef::magic_pool`): a spellset of one, and a pool of twice Thunderbolt's cost. The chaser rule set tries a spell before it tries a bite, so the basilisk zaps you from range until the Ma runs out, and then it walks up and bites. The pool never refills.
 
 **`.invisible()`** makes it unseeable without second sight. The visibility system already knows what to do with that, because the phantom needed it first.
 
@@ -172,7 +172,7 @@ The best row to read next is the dog. Find it in `models/src/monsters.rs`:
 
     MonsterDef::row("dog", 'd', Color::DarkYellow, Chase, 8, 6, 0, 7, 0, 3)
         .grants(DOG_GRANTS)
-        .weight(2),
+        .weight(4),
 
 The numbers are a plain chaser's. It uses `Chase`, so it thinks with the same rule set as the dragon and tries a spell first. Everything that makes it a dog is in `DOG_GRANTS`, a list of grants with one behaviour each:
 
@@ -188,13 +188,13 @@ No system in the game mentions dogs. Each one asks about its own grant, so any c
 
 Pick up the snack and throw it at the dog (`t`). A snack tames a creature without hands on a `constants::helpers::ACCEPT_CHANCE` roll. It tames a dog every time. Walk a dog into a fight and watch for "It was never a dog, but a ...!". The (d) is a dogppelganger: a faerie shapeshifter wearing a dog, which is why it can change its shape and why no dog ever dies.
 
-Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. Nothing changes. The dog's grants are *identity effects*: a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. Zap the basilisk and it loses `FireImmune`, because a species' ordinary magic stays cancellable. The only difference between the two cases is whether the grant's id is on that list. See "Parts nothing can cancel" in `../how-to/add-a-monster.md` to build a creature that way.
+Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. It stays a dog: four of its five grants are *identity effects*, a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. The fifth, `ShapeshiftOnKill`, is ordinary magic, so the zap stops its shapeshifting. Zap the basilisk and it loses `FireImmune`, because a species' ordinary magic stays cancellable. The only difference between the two cases is whether the grant's id is on that list. See "Parts nothing can cancel" in `../how-to/add-a-monster.md` to build a creature that way.
 
 
 Step 7: keep it or drop it
 --------------------------
 
-If you like the basilisk, leave it -- and add a line about it to `MANUAL.md`'s bestiary, because documentation ships with the change that makes it true. If this was a dry run:
+If you like the basilisk, leave it; no page lists species by hand, so `-content` is its documentation (`../how-to/update-the-docs.md`). If this was a dry run:
 
     git checkout models/src/monsters.rs
 

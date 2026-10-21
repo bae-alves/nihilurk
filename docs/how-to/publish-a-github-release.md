@@ -5,7 +5,7 @@ How to publish a GitHub release
     Prerequisites  Push access to the repository. The version bumped
                    and committed, as in
                    `publish-to-crates-io.md`.
-    Result         A GitHub release with one tarball per machine, each
+    Result         A GitHub release with one archive per machine, each
                    with a checksum, built and checked by CI.
 
 This is the manual path. `release/bump.lua` does the bump and the tag for you: see `cut-a-release.md`.
@@ -51,7 +51,7 @@ The targets:
     x86_64-pc-windows-msvc        windows-latest
     aarch64-apple-darwin          macos-latest
 
-The runner images are named, not `ubuntu-latest`. GitHub moves that label to Ubuntu 26 on 2026-10-19, which would change the `musl-tools` the build installs without a commit in this repository. Move to a newer image on purpose, and run `release/test_package.sh` first.
+The runner images are named, not `ubuntu-latest`. GitHub moves that label from one Ubuntu release to the next, which would change the `musl-tools` the build installs without a commit in this repository. Move to a newer image on purpose, and run `release/test_package.sh` first.
 
 The workflows use `actions/*@v4`. They run on a forced Node 24 and print a deprecation note. They are not bumped, because only a tag exercises the release workflow, and a bump there would go untested until the release it breaks.
 
@@ -60,8 +60,8 @@ Windows gets a `.zip` of `.exe` files and the other targets a `.tar.gz`. `releas
 The Linux builds are musl, so each is one static file with no glibc to match. `../explanation/cross-platform-testing.md` says why that is a promise and not a preference.
 
 
-What is in a tarball
---------------------
+What is in an archive
+---------------------
 
     nihilurk-<version>-<target>/
         nihilurk          the dispatcher; picks a language from $LANG
@@ -112,11 +112,8 @@ When it goes wrong
   `publish` fails after the builds pass Re-run the failed job from the
                                         Actions tab. The artifacts are kept
                                         for the run.
-  The tag is on GitHub, no run starts   Happened on 2026-10-01, when the
-                                        tag went up in the same push that
-                                        first brought `release.yml` to
-                                        GitHub. The cause is not confirmed.
-                                        `gh run list` shows nothing. Delete
+  The tag is on GitHub, no run starts   `gh run list` shows nothing, and
+                                        the cause is not known. Delete
                                         the remote tag and push it again at
                                         the same commit:
                                         `git push origin :refs/tags/vX.Y.Z`
