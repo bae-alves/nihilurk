@@ -98,13 +98,20 @@ Step 5: give the emu the mind
 
 A set is picked by the monster's tactic. Add a variant at the **end** of `MovementType` in `models/src/components.rs` (a save writes it by position):
 
+    /// Bites what is next to it and bolts from a player who comes close.
     Cower,
+
+The doc line is not optional: `models` warns on any public item without one (`missing_docs`).
 
 Then build. The compiler stops at the one exhaustive `match` on `MovementType`, `rule_set_for` in `agents.rs`; give it the arm:
 
     MovementType::Cower => &COWARD,
 
 In `models/src/monsters.rs`, change the emu's movement from `Chase` to `Cower`, and add `Cower` to the `use MovementType::{...}` line at the top.
+
+A save writes this enum by position, and a test pins every saved enum's variant order: `saved_enums_keep_their_variant_order` fails until you record the new variant. Appending at the end is safe, so regenerate the golden file:
+
+    NIHILURK_REGEN_ENUMS=1 cargo test -p nihilurk-models --test it saved_enums::
 
 
 Step 6: meet it
@@ -118,7 +125,8 @@ Walk toward it. At three tiles it runs, straight away from you, so a wall behind
 Step 7: keep it, or put it back
 -------------------------------
 
-    git checkout models/src
+    git checkout models/src/agents.rs models/src/components.rs \
+                 models/src/monsters.rs models/tests/golden/saved_enums.txt
 
 If you keep it, add the rule and the set to `../reference/agents.md`.
 

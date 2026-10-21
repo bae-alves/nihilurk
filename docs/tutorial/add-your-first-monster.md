@@ -52,9 +52,9 @@ Every creature in the game lives in one file:
 Open it and search for `BESTIARY`. One line per species. Read the emu:
 
     //              name       glyph  colour            move   hp  pow  pb  ar  ab  dep
-    MonsterDef::row("emu",     'E',   Color::DarkGreen, Chase,  6,   4,  0,  4,  1,   1),
+    MonsterDef::row("emu", 'E', Color::DarkGreen, Chase, 6, 4, 0, 4, 1, 1),
 
-Ten columns, and the header comment above the table names them. The four that decide how a fight goes are the middle ones:
+Ten arguments, and the header comment at the top of the table names them in order. The four that decide how a fight goes are the middle ones:
 
     hp   how much it can take
     pow  its attack die: it rolls 1d[pow] against you
@@ -70,13 +70,13 @@ The last column, `dep`, is the shallowest floor the creature appears on. The emu
 Step 2: add a row
 -----------------
 
-A basilisk should sit in the middle stat band: tough, slow to kill, and hitting hard. Add this line after the emu, keeping the columns lined up:
+A basilisk should sit in the middle stat band: tough, slow to kill, and hitting hard. Add this line after the emu:
 
-    MonsterDef::row("basilisk",  'b',   Color::DarkGreen,  Chase,  5,   8,  1,   8,  1,   5),
+    MonsterDef::row("basilisk", 'b', Color::DarkGreen, Chase, 5, 8, 1, 8, 1, 5),
 
 `Chase` is the only tactic that walks toward you. The others are `Flee` (walks away), `Static` (never acts at all -- the inert placeholder the test suite reaches for), `Ambush` (lies in wait and never approaches, but lunges the instant you draw alongside it -- the venus flytrap, the ice monster) and `Confused` (staggers at random, which is what anything does after a flash of light).
 
-The table carries `#[rustfmt::skip]`, so `cargo fmt` will leave your alignment alone. These tables are meant to be read as columns.
+The table carries `#[rustfmt::skip]`, so `cargo fmt` leaves each row on one line.
 
 Now build:
 
@@ -144,7 +144,7 @@ Step 6: give it magic nobody wrote
 
 A row can carry more than numbers. Chain onto it:
 
-    MonsterDef::row("basilisk",  'b',   Color::DarkGreen,  Chase,  5,   8,  1,   8,  1,   5)
+    MonsterDef::row("basilisk", 'b', Color::DarkGreen, Chase, 5, 8, 1, 8, 1, 5)
         .grants(&[Grant::of::<FireImmune>()])
         .casts(2, &CASTS_THUNDERBOLT)
         .invisible()
@@ -164,7 +164,11 @@ Rebuild and meet it now:
 
     NIHILURK_SPAWN="basilisk" cargo run -p nihilurk
 
-It is somewhere next to you and you cannot see it. Try burning it with `NIHILURK_SPAWN="basilisk,wand of fire"` -- it will shrug, and the log will say so in as many words.
+It is somewhere next to you and you cannot see it. To burn it, you have to see it: a creature you cannot see takes every hit in silence (`helpers::apply_hit`), so the log says nothing either way. Drink second sight first:
+
+    NIHILURK_SPAWN="potion of see invisible,wand of fire,basilisk" cargo run -p nihilurk
+
+It will not wait for you. Each step costs a turn, and its two Thunderbolts paralyse, so nihil can arrive at the zap with half their hit points. When you zap, the reticle skips the basilisk: `.wasted_on(wands::fireproof)` passes over what fire cannot hurt. Move the cursor onto it by hand and fire. It shrugs, and the log says so: "The basilisk is unharmed by the flames."
 
 ### A creature made of grants
 
@@ -188,7 +192,7 @@ No system in the game mentions dogs. Each one asks about its own grant, so any c
 
 Pick up the snack and throw it at the dog (`t`). A snack tames a creature without hands on a `constants::helpers::ACCEPT_CHANCE` roll. It tames a dog every time. Walk a dog into a fight and watch for "It was never a dog, but a ...!". The (d) is a dogppelganger: a faerie shapeshifter wearing a dog, which is why it can change its shape and why no dog ever dies.
 
-Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. It stays a dog: four of its five grants are *identity effects*, a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. The fifth, `ShapeshiftOnKill`, is ordinary magic, so the zap stops its shapeshifting. Zap the basilisk and it loses `FireImmune`, because a species' ordinary magic stays cancellable. The only difference between the two cases is whether the grant's id is on that list. See "Parts nothing can cancel" in `../how-to/add-a-monster.md` to build a creature that way.
+Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. It stays a dog: four of its five grants are *identity effects*, a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. The fifth, `ShapeshiftOnKill`, is ordinary magic, so the zap stops its shapeshifting. Zap the basilisk (seen, as above) and it loses `FireImmune`: the wand of fire's reticle now lands on it, and the blast burns it. A species' ordinary magic stays cancellable. The only difference between the two cases is whether the grant's id is on that list. See "Parts nothing can cancel" in `../how-to/add-a-monster.md` to build a creature that way.
 
 
 Step 7: keep it or drop it

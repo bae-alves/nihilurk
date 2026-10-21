@@ -185,8 +185,8 @@ Rebuild:
 
     cargo build
 
-Still short one thing: `wear_ninja` is called from nowhere until you also
-handle the spell and the gear.
+It builds: the row already names `wear_ninja`. The spell and the gear come
+next.
 
 
 Step 5: put Sting in the spell bar
@@ -269,8 +269,8 @@ Build:
 
 It compiles, and `-b ninja` already works: `-b` looks the name up in
 `BODIES`. The one place that lists bodies by hand is the error for a name
-nobody has, `no_such_body` in `strings/src/`, one per language. Add the ninja
-there.
+nobody has, `no_such_body` in `strings/src/en.rs`; the other languages
+re-export it. Add the ninja there.
 
 
 Step 7: meet it
@@ -284,7 +284,9 @@ ring of protection, with four spare daggers and Sting in your spell bar.
 Open the pack (`i`) and look — the armour and ring show as worn, the same
 as nihil's ever do.
 
-Fight something and watch the log: "Venom courses through the `<name>` -
+Fight something soft, like an emu, and watch the log. Venom only rides a
+blow that lands: against an aquator's armour the ninja's small dice only
+glance, and a glancing blow carries nothing. When one lands: "Venom courses through the `<name>` -
 its strength ebbs away," the same sentence a rattlesnake's bite would
 read against you, just turned around to name what you bit instead.
 
@@ -296,7 +298,7 @@ It is tempting to guess this bug lives behind a save and reload, the way a
 lurk's identity does. It doesn't — try it first, so you believe the actual
 answer:
 
-    cargo run -p nihilurk -- -b ninja kage
+    cargo run -p nihilurk -- kage -b ninja
     # play a turn or two, quit with Esc then y, then load the save:
     cargo run -p nihilurk -- kage
 
@@ -305,10 +307,15 @@ You come back quick, quiet and venomous, exactly as you left. `Speed.kind`,
 two rows in the `EFFECTS` ledger — and none of them need the body to be
 *identified* to round-trip correctly. A reload is not where this breaks.
 
-**A staircase is.** Find one and take it (`>`):
+**A staircase is.** Find one and take it (`>`). A scroll of teleport to
+stairs saves the search; it never drops, so spawn it:
 
-You come back Normal-paced. Not hasted, not slowed — the HUD's tempo badge
-is simply gone, because `Normal` prints nothing. Nothing else about you
+    NIHILURK_SPAWN="scroll of teleport to stairs" cargo run -p nihilurk -- -b ninja
+
+Read it, then press `>`.
+
+You come back Normal-paced. The log says "You are no longer hasted.", and the
+HUD's tempo badge is gone, because `Normal` prints nothing. Nothing else about you
 changed: still quiet, still venomous, still holding the same daggers.
 
 Here's why, and it's narrower than it first looks. `crate::conditions::clear_player_conditions`

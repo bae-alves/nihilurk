@@ -84,7 +84,12 @@ The error names `spells::ice_bolt`, which does not exist yet. Every spell's func
 A row has to name a function, so a spell that silently does nothing cannot build. Write it next to `breathe_fire`:
 
     pub(crate) fn ice_bolt(world: &mut World, cast: SpellCast) {
-        let SpellCast { user, target, power_mult, .. } = cast;
+        let SpellCast {
+            user,
+            target,
+            power_mult,
+            ..
+        } = cast;
         let (power, power_bonus) = {
             let fighter = world.get::<Fighter>(user);
             let loadout = loadout(world, user);
@@ -93,7 +98,11 @@ A row has to name a function, so a spell that silently does nothing cannot build
                 fighter.map_or(0, |f| f.power_bonus) + loadout.power_bonus,
             )
         };
-        let damage = ((world.resource_mut::<GameRng>().0.gen_range(1..=power.max(1)) + power_bonus)
+        let damage = ((world
+            .resource_mut::<GameRng>()
+            .0
+            .gen_range(1..=power.max(1))
+            + power_bonus)
             .max(0))
             * power_mult;
         world
@@ -130,7 +139,9 @@ There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play
         slots: vec![spell_row("Ice Bolt").unwrap()],
     },
 
-Tests about the lurk, the hero coin, amnesia and the soak bot expect the starting `Spellset` the game really gives, so `cargo test` fails while this edit stands. Step 7 reverts it.
+and add `spell_row` to the `use crate::catalog::{...}` line at the top of `levels.rs`.
+
+Tests about the lurk, the hero coin and amnesia expect the starting `Spellset` the game really gives, so `cargo test` fails while this edit stands. Step 7 reverts it.
 
 Build and run:
 
@@ -164,7 +175,11 @@ None of that is a bug in what you built. It's the shape of the thing: a spell is
 Step 7: keep it or drop it
 ------------------------------
 
-If you like Ice Bolt, leave it. If this was a dry run:
+Either way, put the starting `Spellset` back, so `cargo test` passes again:
+
+    git checkout models/src/map/levels.rs
+
+If you like Ice Bolt, leave the row and its function. If this was a dry run:
 
     git checkout models/src/catalog.rs models/src/items/spells.rs \
                  models/src/map/levels.rs

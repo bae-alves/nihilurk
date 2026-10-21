@@ -50,11 +50,13 @@ Open it and search for `WEAPONS`. The top of it looks like this:
 
     #[rustfmt::skip]
     pub const WEAPONS: &[WeaponDef] = &[
-        WeaponDef::new("dagger",           Color::Grey,     4).missile(4).piercing(),
-        WeaponDef::new("spear",            Color::DarkGrey, 6).missile(8).piercing(),
-        WeaponDef::new("mace",             Color::DarkGrey, 6),
-        WeaponDef::new("long sword",       Color::White,    8),
-        WeaponDef::new("two-handed sword", Color::Cyan,    10),
+        WeaponDef::new("dagger",           Color::Grey,       4).missile(4).piercing(),
+        WeaponDef::new("spear",            Color::DarkGrey,   6).missile(8).piercing(),
+        WeaponDef::new("boomerang",        Color::DarkYellow, 5).returning(),
+        WeaponDef::new("moon blade",       Color::Cyan,       3).returning().hits(3),
+        WeaponDef::new("mace",             Color::DarkGrey,   6),
+        WeaponDef::new("long sword",       Color::White,      8),
+        WeaponDef::new("two-handed sword", Color::Cyan,       10),
         // ... more rows ...
     ];
 
@@ -120,7 +122,7 @@ Looking at it is not the same as knowing it works. Run the table tests:
 
     cargo test --test it content::
 
-Several of those tests just read your new row. They checked that no two rows share a name, that every name spawns something, that what spawns keeps the name it was spawned by, and that the loot table can still produce one of everything. Your quarterstaff was included automatically, because those tests iterate the tables too.
+Several of those tests just read your new row. They checked that no two rows share a name, that every name spawns something, that what spawns keeps the name it was spawned by, and that every loot category still has rows to give. Your quarterstaff was included automatically, because those tests iterate the tables too.
 
 That is the pattern worth taking away: in this codebase, *the tables are data, so tests can check the data*. You did not have to write a test to get your row tested.
 
@@ -150,7 +152,11 @@ Nothing in the throwing code knows a quarterstaff exists. It asks "is this a `Pr
 Step 7: keep it or drop it
 --------------------------
 
-If you like the quarterstaff, leave it. If this was a dry run:
+If you like the quarterstaff, run the whole suite before you keep it:
+
+    cargo test
+
+A new row changes what a seeded floor holds, and `content::` only reads the tables. If this was a dry run:
 
     git checkout models/src/catalog.rs
 

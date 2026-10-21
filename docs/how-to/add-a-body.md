@@ -73,8 +73,8 @@ new shape.
    refusal string — it's what the player reads when they try.
 
 6. **Name it in the refusal.** `-b` looks the name up in `BODIES`, so the
-   flag needs nothing. An unknown name prints `no_such_body` (`strings/src/`,
-   one per language), which lists the bodies by hand: add yours there.
+   flag needs nothing. An unknown name prints `no_such_body` (`strings/src/en.rs`;
+   the other languages re-export it), which lists the bodies by hand: add yours there.
 
 
 Checks that will catch you
