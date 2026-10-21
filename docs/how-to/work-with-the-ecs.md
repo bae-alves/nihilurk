@@ -7,6 +7,8 @@ Working with the ECS
     Prerequisites  You write Rust. You know what a component and a
                    system are. You have read
                    `../reference/components.md` at least once.
+    Result         A mechanic that reaches the entities it needs,
+                   changes them, and compiles.
 
 The snippets are written from inside `models`, so they say `crate::conditions::...`. From `engine` or a test, the same name is `models::...` (see `../reference/spawn-api.md` for what the crate root exports).
 
