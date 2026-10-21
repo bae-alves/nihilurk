@@ -17,7 +17,7 @@ nihilurk adopts them one at a time, crate by crate, each pass touching nothing b
 Phase 1: no `else`
 ------------------
 
-**Done in `models/` and `engine/`.** A control-flow `else` -- `} else {` or `} else if` -- does not appear in either crate.
+**The rule in `models/` and `engine/`.** A control-flow `else` -- `} else {` or `} else if` -- has no place in either crate. The check at the end of this phase lists the ones the code still carries; each is a candidate for one of the moves below.
 
 An `else` is almost always one of a small number of things wearing a disguise, and each has a plainer form:
 
@@ -93,7 +93,7 @@ Pull the shared statement out; keep only the difference behind the `if`. The sam
 
 ### A tail of cases too big for the calling function
 
-When the branches are long and the function is already deep -- the speed-shift message, the auto-fight turn, the two attack-report blocks in `resolve_attack` -- lift them into a named function whose body is guard clauses:
+When the branches are long and the function is already deep -- the speed-shift message, the auto-fight turn, the two attack-report blocks in `resolve_attack` -- lift them into a named function whose body is guard clauses. Simplified from `conditions::speed_shift_message`:
 
     fn speed_shift_message(name: &str, faster: bool, is_player: bool, changed: bool) -> String {
         let extreme = if faster { "quick" } else { "sluggish" };
@@ -138,7 +138,7 @@ Checking a pass
 
     grep -rn '} else' models/src engine/src --include='*.rs'
 
-Every hit should be a `let ... else { ... }` (the guard-clause let, which is encouraged) or an expression ternary as described above. Anything else is a regression.
+Every hit should be a `let ... else { ... }` (the guard-clause let, which is encouraged) or an expression ternary as described above. Anything else breaks the rule, and a `} else if` always does: a three-way choice is a `match`.
 
 `cargo test --workspace` is the proof that the pass changed only shape. Run it before the first edit and after the last; it does not move.
 
@@ -146,7 +146,7 @@ Every hit should be a `let ... else { ... }` (the guard-clause let, which is enc
 Phase 2: shallow nesting
 ------------------------
 
-**Done in `models/` and `engine/`.** No function nests more than about three blocks deep -- a function body, a loop, and one conditional inside it, give or take. The `match` inside an `if` inside a `for` inside a `while` inside a `for` is gone.
+**The rule in `models/` and `engine/`.** No function nests more than about three blocks deep -- a function body, a loop, and one conditional inside it, give or take. The `match` inside an `if` inside a `for` inside a `while` inside a `for` has no place here.
 
 ### The limit is ~3, not 1, on purpose
 
@@ -160,7 +160,7 @@ Mostly the same moves as Phase 1, plus two:
 
 **Extract the loop body.** A `for` whose body is 60 lines and three levels deep is a function that has not been written yet. `ai::monster_round` is a `for` over `step_one_mob`; `items::item_system` a `for` over `resolve_use`; `update::process_input_and_update` is split into `handle_targeting_input`, `handle_inventory_input`, `handle_movement_input` and their callees.
 
-**Name the phases of a procedure.** Not every long function is deep; some are just long, and read as one undifferentiated wall. The cure is the same and the motive is different -- you are not reducing indentation, you are giving a reader somewhere to stop. `combat::resolve_attack` was 180 straight lines and is now seven named steps (`fold_matchup`, `roll_swing`, `clamp_swing`, `land_swing`, `punctuate`, `report_blow`, `settle_the_dead`), each of which can be read or skipped on its name. `map.rs` had the same problem one level up -- 1,374 lines doing four unrelated jobs -- and became `map/` with a submodule per job, the way `items.rs` did before it.
+**Name the phases of a procedure.** Not every long function is deep; some are just long, and read as one undifferentiated wall. The cure is the same and the motive is different -- you are not reducing indentation, you are giving a reader somewhere to stop. `combat::resolve_attack` reads as seven named steps (`fold_matchup`, `roll_swing`, `clamp_swing`, `land_swing`, `punctuate`, `report_blow`, `settle_the_dead`), each of which can be read or skipped on its name. The same cure one level up is a module split: `models/src/map/` and `models/src/items/` keep a submodule per job, so no one file does four unrelated things.
 
 The test for whether an extraction earned its place: can you name what came out in three words, without "helper" or "handle" in them? If not, the split is cosmetic and the parameter list it costs is not worth it.
 
@@ -170,11 +170,11 @@ Iterator chains are *not* subject to a "one method call per line" rule. Chaining
 
 ### Checking a pass
 
-    # statements indented 24+ spaces (6+ levels) -- should print nothing
+    # statements indented 24+ spaces (6+ levels)
     grep -rnP '^ {24,}\S' models/src engine/src --include='*.rs' \
       | grep -v '^\S*:[0-9]*: *//'
 
-A handful of 4-5 level spots remain by choice -- the renderer's cell-diff double loop, a couple of `for` / `match` / `if` combinations where the extraction would be pure ceremony. The test suite is again the proof the pass changed only shape.
+Every hit is a spot to look at, not an automatic failure: the renderer's cell-diff double loop, a long `match` arm or a struct literal inside a loop can sit that deep where an extraction would be pure ceremony. The test suite is again the proof a pass changed only shape.
 
 
 Rules nihilurk deliberately does *not* adopt
@@ -194,7 +194,7 @@ The rest of the classic Object Calisthenics list, and why each is a poor fit her
 One rule of nihilurk's own: a test never asserts a constant
 ------------------------------------------------------
 
-Not a calisthenics rule, but it belongs next to them, because it is the same kind of discipline and it has already cost us a morning.
+Not a calisthenics rule, but it belongs next to them, because it is the same kind of discipline.
 
 **Never write a test whose assertion is a copy of a tuning number.** A test that says a wand rolls `3..=9`, that a floor hides a stash one time in five, or that a kill is worth 700 points is not testing the game; it is testing `constants.rs`, which needs no help. The moment somebody rebalances -- and the working tree is *usually* mid-rebalance -- that test goes red while the code is perfectly correct, and it teaches the next person to distrust the suite.
 
@@ -210,24 +210,11 @@ A test's own loop bound is not a tuning number and should not borrow one. `model
 One rule of nihilurk's own: behavior tests build components, not bestiary rows
 -------------------------------------------------------------------------------
 
-A behavior test should construct the smallest entity that carries the property
-under test. Do not spawn an orc to test equipment, a dragon to test fire
-immunity, or a phantom to test invisibility. A bestiary row is a content
-definition, and spawning it also brings along its grants, gear rolls, speed,
-name and other balance decisions. That makes an unrelated row edit change the
-fixture before the assertion runs.
+A behavior test should construct the smallest entity that carries the property under test. Do not spawn an orc to test equipment, a dragon to test fire immunity, or a phantom to test invisibility. A bestiary row is a content definition, and spawning it also brings along its grants, gear rolls, speed, name and other balance decisions. That makes an unrelated row edit change the fixture before the assertion runs.
 
-Use a neutral monster fixture for ordinary monster mechanics, and attach the
-specific component or grant the test needs. For example, a test of undead
-drain immunity should add `Grant::of::<Undead>()`; a test of catching gear
-should add `ItemUser`; a test of invisibility should insert `Invisible`.
-The assertion then names the contract directly and cannot pass because a
-species happened to carry extra behavior.
+Use a neutral monster fixture for ordinary monster mechanics, and attach the specific component or grant the test needs. For example, a test of undead drain immunity should add `Grant::of::<Undead>()`; a test of catching gear should add `ItemUser`; a test of invisibility should insert `Invisible`. The assertion then names the contract directly and cannot pass because a species happened to carry extra behavior.
 
-Keep bestiary-backed tests only where the bestiary itself is the subject:
-content-table validation, playable-body definitions, spawn behavior, and
-roster-wide contracts. Those tests should say so in their names and comments.
-The shared neutral fixtures live under `models/tests/it/common/monster.rs`.
+Keep bestiary-backed tests only where the bestiary itself is the subject: content-table validation, playable-body definitions, spawn behavior, and roster-wide contracts. Those tests should say so in their names and comments. The shared neutral fixtures live in `models/tests/it/common/monster.rs`.
 
 
 One rule of nihilurk's own: no comments inside a function body
