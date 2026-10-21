@@ -318,15 +318,7 @@ pub fn trap_system(world: &mut World) {
         .collect();
 
     for mover in movers {
-        if world.get::<crate::effects::Flies>(mover).is_some() {
-            continue;
-        }
-        let Some(pos) = world.get::<Position>(mover).copied() else {
-            continue;
-        };
-        if let Some(trap) = trap_at(world, pos) {
-            spring_trap(world, trap, mover);
-        }
+        spring_under(world, mover);
     }
 
     let marked: Vec<Entity> = world
@@ -335,6 +327,21 @@ pub fn trap_system(world: &mut World) {
         .collect();
     for e in marked {
         world.entity_mut(e).remove::<EntityMoved>();
+    }
+}
+
+/// Springs the trap under `mover`, if there is one and it does not fly. What
+/// [`trap_system`] does for each mover, for the one move that lands after it
+/// has run (a [`crate::effects::Batty`] hop, out of `ability_system`).
+pub(crate) fn spring_under(world: &mut World, mover: Entity) {
+    if world.get::<crate::effects::Flies>(mover).is_some() {
+        return;
+    }
+    let Some(pos) = world.get::<Position>(mover).copied() else {
+        return;
+    };
+    if let Some(trap) = trap_at(world, pos) {
+        spring_trap(world, trap, mover);
     }
 }
 

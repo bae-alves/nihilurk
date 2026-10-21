@@ -384,9 +384,11 @@ fn corrode(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool
 
 /// "Batty": every blow it lands, the attacker itself tries to hop to a random
 /// adjacent tile right afterward — the bat's (and the phantom's) erratic
-/// flitting. A no-op when nothing open is free to land on, and tags the
-/// landing tile [`EntityMoved`](crate::components::EntityMoved) so a bat that hops onto a trap still springs
-/// it.
+/// flitting. A no-op when nothing open is free to land on. The hop lands after
+/// `trap_system` has run, so it springs what it lands on itself
+/// ([`crate::traps::spring_under`]) rather than tagging
+/// [`EntityMoved`](crate::components::EntityMoved) for a turn that has already
+/// read the tags.
 fn batty_hop(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bool {
     let Some(pos) = world.get::<Position>(attacker).copied() else {
         return false;
@@ -398,7 +400,10 @@ fn batty_hop(world: &mut World, attacker: Entity, _target: Option<Entity>) -> bo
         p.x = x;
         p.y = y;
     }
-    crate::helpers::mark_moved(world, attacker);
+    if let Some(mut viewshed) = world.get_mut::<crate::components::Viewshed>(attacker) {
+        viewshed.dirty = true;
+    }
+    crate::traps::spring_under(world, attacker);
     true
 }
 

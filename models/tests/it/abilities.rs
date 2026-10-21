@@ -492,9 +492,49 @@ fn an_erratic_striker_hops_after_every_blow_it_lands() {
     let after = pos_of(&w, hopper).expect("the hopper still stands somewhere");
 
     assert_ne!(before, after, "it landed a blow and stayed put");
+}
+
+/// Left on whoever set the fixture trap off.
+#[derive(Component)]
+struct Sprung;
+
+static HOP_TRAP: TrapDef = TrapDef {
+    name: "trap of the test",
+    glyph: '^',
+    color: Color::White,
+    weight: 0,
+    min_depth: 1,
+    snare_turns: 0,
+    always_spent: true,
+    apply: |world, spring| {
+        world.entity_mut(spring.victim).insert(Sprung);
+    },
+    flourish: |_, _, _| {},
+};
+
+/// The hop lands after `trap_system` has run, so it springs what it lands on
+/// itself, the same turn, and leaves no `EntityMoved` for a later turn to find.
+#[test]
+fn an_erratic_striker_springs_the_trap_it_hops_onto() {
+    let mut w = arena(3);
+    let victim = hero(&mut w, at(10, 10), 20, 8);
+    let hopper = creature(&mut w, at(11, 10), 5, 4);
+    w.entity_mut(hopper).insert(Batty);
+    for x in 10..=12 {
+        for y in 9..=11 {
+            w.spawn(TrapBundle::from_def(&HOP_TRAP, TrapReveal::Sight, at(x, y)));
+        }
+    }
+
+    fire_on_hit(&mut w, hopper, victim, CLEAN);
+
     assert!(
-        w.get::<EntityMoved>(hopper).is_some(),
-        "the hop left no EntityMoved, so it could hop onto a trap without springing it"
+        w.get::<Sprung>(hopper).is_some(),
+        "it hopped onto a trap and nothing went off"
+    );
+    assert!(
+        w.get::<EntityMoved>(hopper).is_none(),
+        "the hop left an EntityMoved for the next turn's trap_system"
     );
 }
 
