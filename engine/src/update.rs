@@ -2031,6 +2031,7 @@ mod tests {
         let mut w = test_world(seed);
         w.init_resource::<PackIsOpen>();
         w.init_resource::<QuitPrompt>();
+        w.init_resource::<Ending>();
         w.init_resource::<HelpMenu>();
         w.init_resource::<ItemInfo>();
         w.init_resource::<CommandBar>();
