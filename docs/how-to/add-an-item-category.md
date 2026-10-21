@@ -84,12 +84,14 @@ Categories with nothing to roll inherit the default, which just calls `spawn`.
 Step 3: write the table
 -----------------------
 
-    /// A ration, plain.
-    pub static RATION: FoodDef = FoodDef { name: "ration", color: Color::DarkYellow, eat: items::food::ration };
-
     /// Every food the dungeon drops, one row each.
     #[rustfmt::skip]
-    pub static FOODS: &[&FoodDef] = &[&RATION];
+    pub static FOODS: &[&FoodDef] = &[
+        // A ration, plain.
+        &FoodDef { name: "ration", color: Color::DarkYellow, eat: items::food::ration },
+    ];
+
+Every row sits inline in its table. Code that needs one particular row reaches it through an `index_of!` const (`FOODS[RATION]`), never a name of its own.
 
 `#[rustfmt::skip]` keeps your column alignment once the table has more than one row. These tables are read as columns; that is worth more than uniform formatting. The handlers live in a file of their own under `models/src/items/`, the way `potions.rs` holds the potions'.
 

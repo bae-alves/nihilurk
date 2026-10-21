@@ -64,17 +64,14 @@ Everything a body *is* lives in one file:
 
     models/src/body.rs
 
-Open it and find the table:
+Open it and find the table, one row per body:
 
-    pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK];
-
-and the lurk's row above it:
-
-    pub static LURK: BodyDef = BodyDef {
-        name: "lurk",
-        brings_a_pack: false,
-        wear: wear_lurk,
-    };
+    pub static BODIES: &[&BodyDef] = &[
+        // The default. Wakes up human-shaped and carrying a mace.
+        &BodyDef { name: "nihil", brings_a_pack: true,  wear: wear_nihil },
+        // Quadruped, fanged, clawed, furred: ...
+        &BodyDef { name: "lurk",  brings_a_pack: false, wear: wear_lurk },
+    ];
 
 A player is `Body::Row` of one of these, or `Body::Monster` for `-am`. The
 module's own doc comment at the top of the file explains why that is one
@@ -86,16 +83,16 @@ touch anything below it.
 Step 2: add the row
 ---------------------
 
-    /// Quick, quiet, and poisoned steel.
-    pub static NINJA: BodyDef = BodyDef {
-        name: "ninja",
-        brings_a_pack: false,
-        wear: wear_ninja,
-    };
+    pub static BODIES: &[&BodyDef] = &[
+        // The default. Wakes up human-shaped and carrying a mace.
+        &BodyDef { name: "nihil", brings_a_pack: true,  wear: wear_nihil },
+        // Quadruped, fanged, clawed, furred: ...
+        &BodyDef { name: "lurk",  brings_a_pack: false, wear: wear_lurk },
+        // Quick, quiet, and poisoned steel.
+        &BodyDef { name: "ninja", brings_a_pack: false, wear: wear_ninja },
+    ];
 
-    pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK, &NINJA];
-
-Put the row above `BODIES` and its doc comment, so the comment stays on the table: `models` warns on any public item without one. `name` is what `-b` matches, and what an error about the body prints. A new
+The row goes in the table itself, with no name of its own in Rust. `name` is what `-b` matches, and what an error about the body prints. A new
 player named after it becomes it too: `nihilurk ninja` is `-b ninja`.
 `brings_a_pack` stays false; the ninja gets its gear in step 6.
 
@@ -198,15 +195,19 @@ Step 5: put Sting in the spell bar
 `wear_lurk` ends by handing the lurk one spell it has to pay for:
 
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
-        spellset.slots.push(&crate::catalog::BIDE);
+        spellset.slots.push(crate::catalog::SPELLS[BIDE]);
     }
 
-Sting already exists — a venomed dart at range, 1 Magic, in
-`items/spells.rs`. Give the ninja the same push, at the end of
-`wear_ninja`:
+`BIDE` is an `index_of!` const at the top of `body.rs`, worked out from
+the row's name while compiling. Sting already exists — a venomed dart at
+range, 1 Magic, in `items/spells.rs`. Add a const for it beside `BIDE`:
+
+    const STING: usize = index_of!(crate::catalog::SPELLS, "Sting");
+
+and give the ninja the same push, at the end of `wear_ninja`:
 
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
-        spellset.slots.push(crate::catalog::spell_row("Sting").unwrap());
+        spellset.slots.push(crate::catalog::SPELLS[STING]);
     }
 
 It costs Magic like anybody else's copy of it would — nothing is

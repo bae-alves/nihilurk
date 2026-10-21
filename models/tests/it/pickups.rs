@@ -278,7 +278,7 @@ fn a_forge_coin_pays_a_point_of_plus_at_the_stairs() {
 
 #[test]
 fn a_forge_coin_pays_a_lurk_onto_its_ring() {
-    let mut w = world_as(1, Some(Body::Row(&LURK)));
+    let mut w = world_as(1, Some(Body::Row(body_row("lurk").unwrap())));
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
     let ring = spawn_named(&mut w, "ring of protection", at).expect("a ring");
@@ -944,11 +944,6 @@ fn every_coin_row_comes_back_from_a_save_as_the_same_row() {
     back.sort_by_key(|(x, _)| *x);
     assert_eq!(back.len(), COINS.len());
     for (was, (_, is)) in COINS.iter().zip(&back) {
-        assert!(
-            std::ptr::eq(*was, *is),
-            "{} came back as {}",
-            was.name,
-            is.name
-        );
+        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
     }
 }

@@ -58,16 +58,14 @@ use super::{
 use super::overlays::{BloodStains, Corpses, Smoke};
 
 // Setting a run up — what the hero starts with, worn without a log line about it.
-use crate::catalog::{
-    ItemDef, POTION_OF_HEALING, spawn_ammo, spawn_armor, spawn_launcher, spawn_weapon,
-};
+use crate::catalog::{AMMO, ARMORS, ItemDef, LAUNCHERS, POTIONS, WEAPONS};
 use crate::constants::player::{SIGHT_RANGE, START_ARMOR, START_HP, START_MAGIC, START_POWER};
 use crate::equipment::{Equipped, equip_silently};
 
 // A bones ghost, on the way back out: whoever died on this depth before,
 // come to make the player pay for it.
 use crate::effects::{ArmorBonus, MaxHpBonus, PowerBonus, ThrowBonus};
-use crate::monsters::{GHOST, spawn_monster};
+use crate::monsters::{SUMMONS, spawn_monster};
 use crate::spawn::spawn_named;
 use rand::Rng;
 
@@ -77,6 +75,15 @@ use crate::constants::progression::DESCENT_HEAL_DIVISOR;
 // The vocabulary the whole crate is written in.
 use crate::components::*;
 use crate::state::*;
+
+use crate::catalog::index_of;
+
+const GHOST: usize = index_of!(SUMMONS, "ghost");
+const HEALING: usize = index_of!(POTIONS, "potion of healing");
+const RING_MAIL: usize = index_of!(ARMORS, "ring mail");
+const MACE: usize = index_of!(WEAPONS, "mace");
+const SHORT_BOW: usize = index_of!(LAUNCHERS, "short bow");
+const ARROW: usize = index_of!(AMMO, "arrow");
 
 /// Whether the player is currently carrying the Element of Yoord.
 pub fn holding_element_of_yoord(world: &mut World) -> bool {
@@ -477,7 +484,7 @@ fn spawn_bones_ghost(world: &mut World, depth: u8, rooms: &Rooms) {
     let Some((x, y)) = pos else { return };
     let pos = Position { x, y };
 
-    let ghost = spawn_monster(world, &GHOST, pos);
+    let ghost = spawn_monster(world, &SUMMONS[GHOST], pos);
     world.entity_mut(ghost).insert(Name {
         what: bones.name.clone(),
     });
@@ -679,29 +686,29 @@ fn starting_kit(world: &mut World) -> Vec<Entity> {
         world.entity_mut(item).remove::<Position>();
     };
 
-    let ring_mail = spawn_armor(world, "ring mail", origin);
+    let ring_mail = ARMORS[RING_MAIL].spawn(world, origin);
     world
         .entity_mut(ring_mail)
         .insert(crate::effects::ArmorBonus(1));
     pack_up(world, ring_mail);
 
-    let mace = spawn_weapon(world, "mace", origin);
+    let mace = WEAPONS[MACE].spawn(world, origin);
     world.entity_mut(mace).insert(crate::effects::PowerBonus(1));
     pack_up(world, mace);
 
-    let shortbow = spawn_launcher(world, "short bow", origin);
+    let shortbow = LAUNCHERS[SHORT_BOW].spawn(world, origin);
     world
         .entity_mut(shortbow)
         .insert((crate::effects::ThrowBonus(1), crate::KnownQuality));
     pack_up(world, shortbow);
 
-    let arrows = spawn_ammo(world, "arrow", origin);
+    let arrows = AMMO[ARROW].spawn(world, origin);
     if let Some(mut stack) = world.get_mut::<Stack>(arrows) {
         stack.count = STACK_LIMIT;
     }
     pack_up(world, arrows);
 
-    let healing = (&POTION_OF_HEALING).spawn(world, origin);
+    let healing = POTIONS[HEALING].spawn(world, origin);
     pack_up(world, healing);
 
     vec![ring_mail, mace, shortbow, arrows, healing]

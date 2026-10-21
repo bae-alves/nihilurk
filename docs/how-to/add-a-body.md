@@ -20,7 +20,7 @@ The table
 
     models/src/body.rs      ->  BODIES
 
-Two rows today: `NIHIL` (the default) and `LURK`. A player is `Body::Row`
+Two rows today: nihil (the default) and lurk. A player is `Body::Row`
 of one of them, or `Body::Monster(&'static MonsterDef)` for `-am`. One enum,
 not a flag per body, because a player is exactly one of them and the
 argument parser has nothing to cross-check — see the doc comment at the top
@@ -33,15 +33,9 @@ The recipe
 Follow `wear_lurk` line for line; a new body is a sibling of it, not a
 new shape.
 
-1. **Add the row**, and list it in `BODIES`:
+1. **Add the row** to `BODIES`:
 
-       pub static WRAITHKIN: BodyDef = BodyDef {
-           name: "wraithkin",
-           brings_a_pack: false,
-           wear: wear_wraithkin,
-       };
-
-       pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK, &WRAITHKIN];
+       &BodyDef { name: "wraithkin", brings_a_pack: false, wear: wear_wraithkin },
 
    `name` is what `-b` matches, and a new player named it becomes it
    (`nihilurk wraithkin`). Only nihil brings a pack; leave

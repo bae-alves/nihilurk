@@ -14,9 +14,10 @@ use rand::Rng;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha12Rng;
 
-use crate::catalog::{FIREBALL, FORCE_LANCE, ItemDef, SpellDef, THUNDERBOLT};
+use crate::catalog::{ItemDef, SPELLS, SpellDef};
 use crate::components::*;
 use crate::constants::decks::CARD_CASTER_CASTS;
+use crate::constants::player::{START_ARMOR, START_HP, START_POWER};
 use crate::constants::spirits::{BARTER_STOCK_MAX, BARTER_STOCK_MIN};
 use crate::effects::{
     AlwaysHelper, AlwaysTamed, Batty, Binds, ColdImmune, FaerieOnDeath, FireImmune, Flies,
@@ -41,6 +42,14 @@ use crate::constants::monsters::{
     ULTIMATE_GEAR_CHANCE,
 };
 use crate::constants::spirits::SPAWN_WEIGHT as SPIRIT_WEIGHT;
+
+use crate::catalog::index_of;
+
+const FIREBALL: usize = index_of!(SPELLS, "Fireball");
+const THUNDERBOLT: usize = index_of!(SPELLS, "Thunderbolt");
+const FORCE_LANCE: usize = index_of!(SPELLS, "Force Lance");
+const SHORT_BOW: usize = index_of!(crate::catalog::LAUNCHERS, "short bow");
+const XEROC: usize = index_of!(BESTIARY, "xeroc");
 
 /// Static, per-species description: everything about a monster that does not vary
 /// between individuals of the same kind. The whole bestiary is one table of
@@ -401,9 +410,9 @@ pub const MIRROR_HOUND_GRANTS: &[Grant] = &[
 
 /// The spell lists the bestiary hands to [`MonsterDef::casts`]. Statics: a
 /// const cannot borrow a fresh slice of static rows.
-static BREATHES_FIRE: [&SpellDef; 1] = [&FIREBALL];
-static CASTS_THUNDERBOLT: [&SpellDef; 1] = [&THUNDERBOLT];
-static CASTS_FORCE_LANCE: [&SpellDef; 1] = [&FORCE_LANCE];
+static BREATHES_FIRE: [&SpellDef; 1] = [SPELLS[FIREBALL]];
+static CASTS_THUNDERBOLT: [&SpellDef; 1] = [SPELLS[THUNDERBOLT]];
+static CASTS_FORCE_LANCE: [&SpellDef; 1] = [SPELLS[FORCE_LANCE]];
 
 /// The whole bestiary: Rogue's 26 lettered creatures and the few nihilurk
 /// added, in one table. Effects that pick a
@@ -729,10 +738,10 @@ pub const BESTIARY: &[MonsterDef] = &[
         .spirit(SpiritKind::Eudaemon, SpiritEvent(gnome_event)),
 ];
 
-/// The creatures only a deck of cards brings: THE SKULL KING! and THE BLACK
-/// MAGE. Not in [`BESTIARY`], so no floor, conjuring or polymorph ever rolls
-/// one; [`MonsterDef::lookup`] still finds them, so a save, `NIHILURK_SPAWN`
-/// and `-am` do. The deck reads them by position: the Skull King first.
+/// The creatures no floor rolls: the two only a deck of cards brings, THE
+/// SKULL KING! and THE BLACK MAGE, and the bones ghost. Not in [`BESTIARY`], so
+/// no floor, conjuring or polymorph ever rolls one; [`MonsterDef::lookup`]
+/// still finds them, so a save, `NIHILURK_SPAWN` and `-am` do.
 #[rustfmt::skip]
 pub const SUMMONS: &[MonsterDef] = &[
     //              name          glyph  colour          move   hp  pow  pb  ar  ab  dep
@@ -740,27 +749,14 @@ pub const SUMMONS: &[MonsterDef] = &[
         .casts(CARD_CASTER_CASTS, &CASTS_THUNDERBOLT),
     MonsterDef::row("black mage", '&', Color::Magenta, Chase, 12,  5,  0,  8,  0,  1)
         .casts(CARD_CASTER_CASTS, &CASTS_FORCE_LANCE),
+    // A bones ghost: a past character come back angry (see `crate::bones` and
+    // `crate::map::levels::spawn_bones_ghost`). Its glyph is a blank space,
+    // the same trick NetHack's own ghost uses, and its stats are nihil's own
+    // starting numbers, fixed and the same for every ghost, whoever they used
+    // to be.
+    MonsterDef::row("ghost",       ' ', Color::DarkGrey, Chase, START_HP, START_POWER, 0, START_ARMOR, 0, 1)
+        .grants(&[Grant::of::<Phasing>()]),
 ];
-
-/// A bones ghost — a past character come back angry (see `crate::bones` and
-/// `crate::map::levels::spawn_bones_ghost`). Deliberately *not* in
-/// [`BESTIARY`]: it never turns up in the ordinary weighted population roll,
-/// only ever spawned by name. Its glyph is a blank space, the same trick
-/// NetHack's own ghost uses, and its stats are nihil's own starting numbers —
-/// fixed and the same for every ghost, whoever they used to be.
-pub(crate) const GHOST: MonsterDef = MonsterDef::row(
-    "ghost",
-    ' ',
-    Color::DarkGrey,
-    Chase,
-    crate::constants::player::START_HP,
-    crate::constants::player::START_POWER,
-    0,
-    crate::constants::player::START_ARMOR,
-    0,
-    1,
-)
-.grants(&[Grant::of::<Phasing>()]);
 
 /// Every component a monster is spawned with, built wholesale from a
 /// [`MonsterDef`] — including a record of the magic it was born with and a
@@ -987,7 +983,7 @@ fn roll_gear(
         EquipKind::Armor => (random_row(world, ARMORS, pos, rng), None),
         EquipKind::Ring => (random_row(world, RINGS, pos, rng), None),
         EquipKind::Bow => {
-            let def = &LAUNCHERS[0];
+            let def = &LAUNCHERS[SHORT_BOW];
             let launcher = def.spawn_as_loot(world, rng, pos);
             let ammo_name = if def.name == "crossbow" {
                 "quarrel"
@@ -1148,7 +1144,7 @@ pub fn reveal_mimics(world: &mut World) {
         .collect();
 
     for xeroc in disguised {
-        let def = MonsterDef::named("xeroc");
+        let def = &BESTIARY[XEROC];
         if let Some(mut n) = world.get_mut::<Name>(xeroc) {
             n.what = def.display_name().to_string();
         }
@@ -1201,10 +1197,9 @@ pub fn maybe_split(world: &mut World, victim: Entity) {
         }
         return;
     };
-    let Some(name) = world.get::<Name>(victim).map(|n| n.what.clone()) else {
+    let Some(def) = species_of(world, victim) else {
         return;
     };
-    let def = MonsterDef::named(&name);
     let clone = spawn_monster(world, def, Position { x, y });
     if let Some(mut f) = world.get_mut::<Fighter>(clone) {
         f.hp = hp;
@@ -1425,7 +1420,7 @@ mod tests {
 
     /// A row with nothing to it but one grant. The test is about
     /// `spawn_monster` handing a row's grants to the body it builds, so the
-    /// fixture names its own grant. Borrowing `GHOST` would test what the
+    /// fixture names its own grant. Borrowing the ghost row would test what the
     /// ghost row says, and an edit to that row would break the test.
     const PHASER: MonsterDef =
         MonsterDef::row("phaser", 'p', Color::White, Chase, 1, 1, 0, 0, 0, 1)

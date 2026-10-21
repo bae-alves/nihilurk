@@ -20,8 +20,8 @@ const RAW_READS: &[(&str, usize, &str)] = &[
     ),
     (
         "monsters.rs",
-        4,
-        "two renames at spawn, the slime split and `species_of` looking up the true species",
+        3,
+        "two renames at spawn, and `species_of` looking up the true species (the slime split goes through it)",
     ),
     (
         "helpers.rs",

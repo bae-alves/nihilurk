@@ -12,7 +12,7 @@ use crate::Color;
 use bevy_ecs::{entity::Entity, prelude::With, world::World};
 use rand::seq::SliceRandom;
 
-use crate::catalog::{CARDS, CardDef, FOOL};
+use crate::catalog::{CARDS, CardDef};
 use crate::components::*;
 use crate::constants::decks::*;
 use crate::effects::{Bala, Bole, Crit, Grant, Lifetime, Oof, TimeStopped, lend};
@@ -26,6 +26,12 @@ use super::scrolls::{
     create_monster, enchant_gear, lower_equipped, missing_gear_line, move_reader_to, shift_plus,
     summon_spot,
 };
+
+use crate::catalog::index_of;
+
+const SKULL_KING: usize = index_of!(SUMMONS, "skull king");
+const BLACK_MAGE: usize = index_of!(SUMMONS, "black mage");
+const FOOL: usize = index_of!(CARDS, "FOOL");
 
 /// One draw in progress: who plays, the deck they hold (`None` once it is gone
 /// or on the table), and how many more cards this draw may still play. A
@@ -133,11 +139,11 @@ pub(crate) fn chariot(world: &mut World, deal: &mut Deal, card: Card) {
 }
 
 pub(crate) fn skull_king(world: &mut World, deal: &mut Deal, card: Card) {
-    summon(world, deal.user, &SUMMONS[0], card.reversed);
+    summon(world, deal.user, &SUMMONS[SKULL_KING], card.reversed);
 }
 
 pub(crate) fn black_mage(world: &mut World, deal: &mut Deal, card: Card) {
-    summon(world, deal.user, &SUMMONS[1], card.reversed);
+    summon(world, deal.user, &SUMMONS[BLACK_MAGE], card.reversed);
 }
 
 /// The Child: to this floor's up-stair. Reversed: the down-stair.
@@ -586,9 +592,9 @@ pub fn score_hand(cards: &[Card]) -> Option<Hand> {
     if cards.is_empty() {
         return None;
     }
-    let wild = cards.iter().filter(|c| *c.row == FOOL).count();
+    let wild = cards.iter().filter(|c| *c.row == *CARDS[FOOL]).count();
     let mut groups: Vec<(&'static CardDef, usize)> = Vec::new();
-    for c in cards.iter().filter(|c| *c.row != FOOL) {
+    for c in cards.iter().filter(|c| *c.row != *CARDS[FOOL]) {
         match groups.iter_mut().find(|(f, _)| *f == c.row) {
             Some((_, n)) => *n += 1,
             None => groups.push((c.row, 1)),
@@ -598,7 +604,7 @@ pub fn score_hand(cards: &[Card]) -> Option<Hand> {
     groups.sort_by_key(|g| std::cmp::Reverse(g.1));
     match groups.first_mut() {
         Some(top) => top.1 += wild,
-        None => groups.push((&FOOL, wild)),
+        None => groups.push((CARDS[FOOL], wild)),
     }
     let first = groups[0];
     let second = groups.get(1).map_or(0, |g| g.1);
@@ -630,7 +636,7 @@ fn play_hand(world: &mut World, deal: &mut Deal, cards: &[Card]) {
             let rows: Vec<&'static CardDef> = cards
                 .iter()
                 .map(|c| c.row)
-                .filter(|&f| *f != FOOL)
+                .filter(|&f| *f != *CARDS[FOOL])
                 .collect();
             let row = *rows
                 .choose(&mut world.resource_mut::<GameRng>().0)

@@ -331,7 +331,9 @@ fn a_thrown_wand_of_nothing_makes_confetti_and_nothing_else() {
         )
     };
     let before = hp(&w);
-    let wand = stash(&mut w, p, |w| (&WAND_OF_NOTHING).spawn(w, NOWHERE));
+    let wand = stash(&mut w, p, |w| {
+        (wand_row("wand of nothing").unwrap()).spawn(w, NOWHERE)
+    });
 
     throw(&mut w, p, wand, spot);
 
@@ -427,14 +429,14 @@ fn a_thrown_wand_of_cancellation_devastates_the_player_it_catches() {
         Some(0),
         "a bow's plus is an enchantment like any other, and goes the same way"
     );
-    assert!(std::ptr::eq(
-        w.get::<Scroll>(scroll).unwrap().row,
-        &SCROLL_OF_BLANK_PAPER
-    ));
-    assert!(std::ptr::eq(
-        w.get::<Potion>(potion).unwrap().row,
-        &POTION_OF_WATER
-    ));
+    assert_eq!(
+        w.get::<Scroll>(scroll).unwrap().row.name,
+        scroll_row("scroll of blank paper").unwrap().name
+    );
+    assert_eq!(
+        w.get::<Potion>(potion).unwrap().row.name,
+        potion_row("potion of thirst quenching").unwrap().name
+    );
 }
 
 #[test]
@@ -454,7 +456,7 @@ fn cancellation_blanks_the_runes_the_player_carries() {
     throw(&mut w, p, wand, spot);
 
     let blanked = w.get::<Rune>(rune).unwrap();
-    assert!(std::ptr::eq(blanked.row, &BLANK_RUNE));
+    assert_eq!(blanked.row.name, rune_row("blank rune").unwrap().name);
     assert!(!blanked.charged, "nothing left in it to wake");
 }
 
@@ -1331,7 +1333,16 @@ fn a_bolt_a_line_spell_and_a_look_preview_nothing() {
     let cursor = east_of_player(&mut w, 3);
 
     assert!(preview(&mut w, Some(wand), false, None, cursor).is_empty());
-    assert!(preview(&mut w, None, false, Some(&FORCE_LANCE), cursor).is_empty());
+    assert!(
+        preview(
+            &mut w,
+            None,
+            false,
+            Some(spell_row("Force Lance").unwrap()),
+            cursor
+        )
+        .is_empty()
+    );
     w.resource_mut::<TargetingState>().looking = true;
     assert!(aim_footprint(&mut w).is_empty());
 }

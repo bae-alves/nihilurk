@@ -199,13 +199,9 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 
 `FireImmune` is what a dragon is born with. The wand-of-fire code asks whether its target carries it and has never heard of rings, so wearing one works the moment the row exists. The row's `name` is its identity: the save stores it, and `spawn_named` finds it.
 
-**A treat.** `TREATS`. A treat is thrown at a creature as an offer of loyalty; `takes` names the fn that says which creatures take it (`companion::has_no_hands` for a snack). Write the row as a static and list it in `TREATS`:
+**A treat.** `TREATS`. A treat is thrown at a creature as an offer of loyalty; `takes` names the fn that says which creatures take it (`companion::has_no_hands` for a snack). Add the row to `TREATS`:
 
-    pub static BONE: TreatDef = TreatDef {
-        name: "bone",
-        color: Color::Grey,
-        takes: crate::companion::has_no_hands,
-    };
+    &TreatDef { name: "bone", color: Color::Grey, takes: crate::companion::has_no_hands },
 
 **Ammunition and a launcher** are one job in two rows, and neither names the other. They meet at an effect:
 
@@ -213,15 +209,9 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
     #[derive(Component, Default, Clone, Copy)]
     pub struct FireStone;
 
-    // a static listed in AMMO
-    pub static SLING_STONE: AmmoDef = AmmoDef {
-        name: "sling stone",
-        color: Color::Grey,
-        die: 3,
-        launched_die: 6,
-        launched_by: Grant::of::<FireStone>(),
-        on_blood: |_, _| {},
-    };
+    // in AMMO
+    &AmmoDef { name: "sling stone", color: Color::Grey, die: 3, launched_die: 6,
+               launched_by: Grant::of::<FireStone>(), on_blood: |_, _| {} },
 
     // in LAUNCHERS
     LauncherDef { name: "sling", color: Color::DarkYellow,
@@ -235,7 +225,7 @@ Each of these needs somebody to say what it does, and the compiler holds you to 
 
 **A potion.** A handler in `items/potions.rs` and a row in `POTIONS` that names it; no enum:
 
-    &PotionDef { name: "potion of levitation", color: Color::Cyan, apply: potions::levitation },
+    &PotionDef::new("potion of levitation", Color::Cyan, potions::levitation),
 
 The handler returns `bool` -- whether the dose visibly took hold.
 
@@ -254,7 +244,7 @@ Most of a wand's handler is borrowed. Sleep is `conditions::snare(world, victim,
 
 ### The one thing to check afterwards
 
-Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The one thing a new row must not be is a dud: `cargo test --test it content::` fails if a catalog table ever holds `POTION_OF_WATER`, `SCROLL_OF_BLANK_PAPER`, `BLANK_RUNE` or `WAND_OF_NOTHING`, which are never floor loot.
+Potions, scrolls, wands and rings are always shown by their true name -- there is no cosmetic appearance to keep in step with the table you just edited, and nothing to check. The duds -- the potion of thirst quenching, the scroll of blank paper, the blank rune and the wand of nothing -- sit in their tables with `.never_drops()`, and `cargo test --test it content::` fails if one of them ever gets a drop weight.
 
     cargo test --test it content::
 

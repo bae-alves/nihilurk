@@ -78,10 +78,7 @@ fn mark_invoker(world: &mut World, user: Entity) {
     world.entity_mut(user).insert(Invoked);
 }
 
-static FIXTURE_RUNE: RuneDef = RuneDef {
-    name: "rune of the test",
-    apply: mark_invoker,
-};
+static FIXTURE_RUNE: RuneDef = RuneDef::new("rune of the test", mark_invoker);
 
 #[test]
 fn a_rune_does_what_its_row_says() {
@@ -410,7 +407,7 @@ fn a_blank_rune_does_nothing_and_says_so() {
     let p = player(&mut w);
     let before = *w.get::<Position>(p).unwrap();
     let rune = pack_rune(&mut w, p, "rune of justice");
-    w.get_mut::<Rune>(rune).unwrap().row = &BLANK_RUNE;
+    w.get_mut::<Rune>(rune).unwrap().row = rune_row("blank rune").unwrap();
     use_item(&mut w, p, rune);
     let after = *w.get::<Position>(p).unwrap();
     assert_eq!((after.x, after.y), (before.x, before.y));
@@ -441,7 +438,11 @@ fn every_rune_row_comes_back_from_a_save_as_the_same_row() {
     let mut w = test_world(3);
     let p = player(&mut w);
     w.get_mut::<Backpack>(p).unwrap().items.clear();
-    let rows: Vec<&'static RuneDef> = RUNES.iter().copied().chain([&BLANK_RUNE]).collect();
+    let rows: Vec<&'static RuneDef> = RUNES
+        .iter()
+        .copied()
+        .chain([rune_row("blank rune").unwrap()])
+        .collect();
     for row in &rows {
         let rune = row.spawn(&mut w, NOWHERE);
         stash(&mut w, p, rune);
@@ -459,12 +460,7 @@ fn every_rune_row_comes_back_from_a_save_as_the_same_row() {
         .collect();
     assert_eq!(back.len(), rows.len());
     for (was, is) in rows.iter().zip(&back) {
-        assert!(
-            std::ptr::eq(*was, *is),
-            "{} came back as {}",
-            was.name,
-            is.name
-        );
+        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
     }
 }
 

@@ -34,6 +34,12 @@ use crate::constants::wands::{
     SMOKE_LINGER_TURNS, SYSTEM_SHOCK_CHANCE,
 };
 
+use crate::catalog::index_of;
+
+const BLANK_PAPER: usize = index_of!(crate::catalog::SCROLLS, "scroll of blank paper");
+const BLANK_RUNE: usize = index_of!(crate::catalog::RUNES, "blank rune");
+const WATER: usize = index_of!(crate::catalog::POTIONS, "potion of thirst quenching");
+
 /// A wand's damage: `[DAMAGE_DICE]d[DAMAGE_SIDES]`, rolled once per zap and
 /// applied whole to every creature it touches (armour is never subtracted).
 fn roll_wand_damage(world: &mut World) -> i32 {
@@ -1164,23 +1170,24 @@ fn cancel_player(world: &mut World, player: Entity) {
             em.insert(ThrowBonus(0));
         }
         if let Some(mut scroll) = em.get_mut::<Scroll>() {
-            scroll.row = &crate::catalog::SCROLL_OF_BLANK_PAPER;
+            scroll.row = crate::catalog::SCROLLS[BLANK_PAPER];
             if let Some(mut name) = em.get_mut::<Name>() {
                 name.what =
-                    strings::content_name(crate::catalog::SCROLL_OF_BLANK_PAPER.name).to_string();
+                    strings::content_name(crate::catalog::SCROLLS[BLANK_PAPER].name).to_string();
             }
         }
         if let Some(mut rune) = em.get_mut::<Rune>() {
-            rune.row = &crate::catalog::BLANK_RUNE;
+            rune.row = crate::catalog::RUNES[BLANK_RUNE];
             rune.charged = false;
             if let Some(mut name) = em.get_mut::<Name>() {
-                name.what = strings::content_name(crate::catalog::BLANK_RUNE.name).to_string();
+                name.what =
+                    strings::content_name(crate::catalog::RUNES[BLANK_RUNE].name).to_string();
             }
         }
         if let Some(mut potion) = em.get_mut::<Potion>() {
-            potion.row = &crate::catalog::POTION_OF_WATER;
+            potion.row = crate::catalog::POTIONS[WATER];
             if let Some(mut name) = em.get_mut::<Name>() {
-                name.what = strings::content_name(crate::catalog::POTION_OF_WATER.name).to_string();
+                name.what = strings::content_name(crate::catalog::POTIONS[WATER].name).to_string();
             }
         }
     }

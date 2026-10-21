@@ -88,7 +88,7 @@ The effect must already exist. See `add-an-effect.md`. There is a shorthand for 
 
     MonsterDef::row("basilisk", ...).casts(3, &CASTS_THUNDERBOLT),
 
-The list is a static array of rows beside `BESTIARY` (`static CASTS_THUNDERBOLT: [&SpellDef; 1] = [&THUNDERBOLT];`): a const row cannot borrow a fresh `&[&THUNDERBOLT]`.
+The list is a static array of rows beside `BESTIARY` (`static CASTS_THUNDERBOLT: [&SpellDef; 1] = [SPELLS[THUNDERBOLT]];`, with `THUNDERBOLT` an `index_of!` const): a const row cannot borrow a fresh slice.
 
 The first number is how many casts of its dearest spell the creature has the Ma for (`MonsterDef::magic_pool`): two for the beefy, three for the weak. The pool never refills; each cast spends the spell's `SpellDef::cost`, and a dry caster goes back to its claws. A player wearing the row gets the spells in the spell bar.
 

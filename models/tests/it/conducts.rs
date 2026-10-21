@@ -32,21 +32,21 @@ fn kept(w: &mut World, c: Conduct) -> bool {
 
 #[test]
 fn a_fresh_nihil_run_keeps_every_conduct_but_lurk() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     assert_eq!(conduct::kept_mask(&mut w).count_ones(), 13);
     assert!(!kept(&mut w, Conduct::Lurk));
 }
 
 #[test]
 fn a_fresh_lurk_run_keeps_all_fourteen() {
-    let mut w = run(Body::Row(&LURK));
+    let mut w = run(Body::Row(body_row("lurk").unwrap()));
     assert_eq!(conduct::kept_mask(&mut w).count_ones(), 14);
     assert!(kept(&mut w, Conduct::Lurk));
 }
 
 #[test]
 fn breaking_one_breaks_only_that_one() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     conduct::broke(&mut w, Conduct::Potions);
     assert!(!kept(&mut w, Conduct::Potions));
     assert!(kept(&mut w, Conduct::Scrolls));
@@ -55,7 +55,7 @@ fn breaking_one_breaks_only_that_one() {
 
 #[test]
 fn breaking_a_conduct_twice_costs_nothing_more() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     conduct::broke(&mut w, Conduct::Coins);
     conduct::broke(&mut w, Conduct::Coins);
     assert_eq!(conduct::kept_mask(&mut w).count_ones(), 12);
@@ -131,7 +131,7 @@ fn only_broken(w: &mut World, c: Conduct) {
 
 #[test]
 fn drinking_a_potion_breaks_potions_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let potion = spawn_named(&mut w, "potion of confusion", NOWHERE).unwrap();
     stash(&mut w, potion);
     use_item(&mut w, potion);
@@ -140,7 +140,7 @@ fn drinking_a_potion_breaks_potions_only() {
 
 #[test]
 fn reading_a_scroll_breaks_scrolls_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let scroll = spawn_named(&mut w, "scroll of magic mapping", NOWHERE).unwrap();
     stash(&mut w, scroll);
     use_item(&mut w, scroll);
@@ -149,7 +149,7 @@ fn reading_a_scroll_breaks_scrolls_only() {
 
 #[test]
 fn zapping_a_wand_breaks_wands_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let wand = spawn_named(&mut w, "wand of light", NOWHERE).unwrap();
     stash(&mut w, wand);
     use_item(&mut w, wand);
@@ -158,7 +158,7 @@ fn zapping_a_wand_breaks_wands_only() {
 
 #[test]
 fn invoking_a_charged_rune_breaks_runes_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let rune = spawn_named(&mut w, "rune of recharging", NOWHERE).unwrap();
     stash(&mut w, rune);
     use_item(&mut w, rune);
@@ -167,7 +167,7 @@ fn invoking_a_charged_rune_breaks_runes_only() {
 
 #[test]
 fn an_inert_rune_breaks_nothing() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let rune = spawn_named(&mut w, "rune of recharging", NOWHERE).unwrap();
     w.get_mut::<Rune>(rune).unwrap().charged = false;
     stash(&mut w, rune);
@@ -177,7 +177,7 @@ fn an_inert_rune_breaks_nothing() {
 
 #[test]
 fn casting_a_spell_breaks_spells_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let here = *w.get::<Position>(p).unwrap();
     w.get_mut::<Magic>(p).unwrap().points = 99;
@@ -192,7 +192,7 @@ fn casting_a_spell_breaks_spells_only() {
 
 #[test]
 fn taking_a_coin_breaks_coins_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let at = *w.get::<Position>(p).unwrap();
     let coin = spawn_named(&mut w, "gold coin", at).expect("a coin");
@@ -202,7 +202,7 @@ fn taking_a_coin_breaks_coins_only() {
 
 #[test]
 fn throwing_something_breaks_ranged_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let at = beside(&mut w);
     let potion = spawn_named(&mut w, "potion of confusion", NOWHERE).unwrap();
@@ -223,7 +223,7 @@ fn throwing_something_breaks_ranged_only() {
 
 #[test]
 fn a_melee_swing_breaks_attacking_only() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let at = beside(&mut w);
     let foe = monster::plain_monster(&mut w, "dummy", at);
@@ -233,7 +233,7 @@ fn a_melee_swing_breaks_attacking_only() {
 
 #[test]
 fn being_swung_at_does_not_break_attacking() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let at = beside(&mut w);
     let foe = monster::plain_monster(&mut w, "dummy", at);
@@ -243,7 +243,7 @@ fn being_swung_at_does_not_break_attacking() {
 
 #[test]
 fn charming_breaks_charming_and_recruiting_breaks_companion() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let at = beside(&mut w);
     let a = monster::plain_monster(&mut w, "a", at);
     charm(&mut w, a);
@@ -255,7 +255,7 @@ fn charming_breaks_charming_and_recruiting_breaks_companion() {
 
 #[test]
 fn putting_gear_on_breaks_gear_but_the_starting_kit_and_taking_it_off_do_not() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     assert!(kept(&mut w, Conduct::Gear));
     let mail = equipped_in(&w, p, Slot::Body).expect("nihil starts in armour");
@@ -267,7 +267,7 @@ fn putting_gear_on_breaks_gear_but_the_starting_kit_and_taking_it_off_do_not() {
 
 #[test]
 fn armour_taking_the_killing_blow_breaks_armor() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let mail = equipped_in(&w, p, Slot::Body).unwrap();
     w.entity_mut(mail).insert(ArmorBonus(2));
@@ -278,7 +278,7 @@ fn armour_taking_the_killing_blow_breaks_armor() {
 
 #[test]
 fn a_blow_that_does_not_kill_leaves_armor_kept() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     apply_hit(&mut w, p, Hit::magic(1), None);
     assert!(kept(&mut w, Conduct::Armor));
@@ -286,7 +286,7 @@ fn a_blow_that_does_not_kill_leaves_armor_kept() {
 
 #[test]
 fn losing_hp_breaks_damage_and_hurting_a_monster_does_not() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let at = beside(&mut w);
     let foe = monster::plain_monster(&mut w, "dummy", at);
@@ -298,7 +298,7 @@ fn losing_hp_breaks_damage_and_hurting_a_monster_does_not() {
 
 #[test]
 fn the_angels_test_of_faith_breaks_damage() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     let at = beside(&mut w);
     w.get_mut::<Fighter>(p).unwrap().hp = 21;
@@ -318,7 +318,7 @@ fn score_of(w: &mut World) -> i64 {
 
 #[test]
 fn a_win_pays_ten_percent_of_the_score_for_each_conduct_kept() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     w.get_mut::<Score>(p).unwrap().value = 1_000;
     conduct::broke(&mut w, Conduct::Potions);
@@ -331,7 +331,7 @@ fn a_win_pays_ten_percent_of_the_score_for_each_conduct_kept() {
 
 #[test]
 fn a_clean_lurk_win_pays_one_hundred_forty_percent() {
-    let mut w = run(Body::Row(&LURK));
+    let mut w = run(Body::Row(body_row("lurk").unwrap()));
     let p = player(&mut w);
     w.get_mut::<Score>(p).unwrap().value = 500;
 
@@ -342,7 +342,7 @@ fn a_clean_lurk_win_pays_one_hundred_forty_percent() {
 
 #[test]
 fn a_run_that_kept_nothing_is_paid_nothing() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
     w.get_mut::<Score>(p).unwrap().value = 1_000;
     for c in Conduct::ALL {
@@ -356,7 +356,7 @@ fn a_run_that_kept_nothing_is_paid_nothing() {
 
 #[test]
 fn broken_conducts_survive_a_save() {
-    let mut w = run(Body::Row(&NIHIL));
+    let mut w = run(Body::Row(body_row("nihil").unwrap()));
     conduct::broke(&mut w, Conduct::Potions);
     conduct::broke(&mut w, Conduct::Damage);
     let save = common::SaveFile::new("conducts");
@@ -397,7 +397,7 @@ fn a_broken_conduct_has_no_mark() {
 
 #[test]
 fn the_lurks_mark_is_the_lurks_own_colour() {
-    let mut w = run(Body::Row(&LURK));
+    let mut w = run(Body::Row(body_row("lurk").unwrap()));
     let p = player(&mut w);
     assert_eq!(w.get::<Renderable>(p).unwrap().color, conduct::LURK_COLOR);
 }

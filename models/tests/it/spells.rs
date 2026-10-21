@@ -139,12 +139,7 @@ fn every_spell_row_comes_back_from_a_save_as_the_same_row() {
     let back = &loaded.get::<Spellset>(lp).unwrap().slots;
     assert_eq!(back.len(), SPELLS.len());
     for (was, is) in SPELLS.iter().zip(back) {
-        assert!(
-            std::ptr::eq(*was, *is),
-            "{} came back as {}",
-            was.name,
-            is.name
-        );
+        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
     }
 }
 
@@ -355,7 +350,7 @@ fn hero_coin_teaches_a_spell_up_to_the_four_slot_cap() {
 
     let (_here, spot) = beside_player(&mut w);
     let coin = spawn_named(&mut w, "hero coin", spot).unwrap();
-    assert!(!(HERO_COIN.helps)(&w, p));
+    assert!(!(coin_row("hero coin").unwrap().helps)(&w, p));
     assert!(pick_up(&mut w, p, coin).is_none());
 
     detonate_at(&mut w, spot, Some(p));
@@ -420,7 +415,7 @@ fn a_mob_a_spell_just_killed_does_not_get_a_turn_before_the_reaper_sweeps() {
         movement_type: MovementType::Ambush,
     });
 
-    cast(&mut w, p, &THUNDERBOLT, spot);
+    cast(&mut w, p, spell_row("Thunderbolt").unwrap(), spot);
     assert!(
         w.get::<Fighter>(victim).unwrap().hp <= 0,
         "the fixture did not actually kill the mob"

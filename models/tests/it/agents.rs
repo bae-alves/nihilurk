@@ -63,7 +63,7 @@ fn logged(w: &World, needle: &str) -> bool {
 const BREATHER: &str = "fire breather";
 
 fn breath_cost() -> u8 {
-    FIREBALL.cost
+    spell_row("Fireball").unwrap().cost
 }
 
 /// A neutral caster that knows only the dragon's fireball and has `points` of Ma.
@@ -75,7 +75,7 @@ fn breather(w: &mut World, at: Position, points: u8) -> Entity {
             max_points: points,
         },
         Spellset {
-            slots: vec![&FIREBALL],
+            slots: vec![spell_row("Fireball").unwrap()],
         },
     ));
     e
@@ -378,7 +378,7 @@ fn a_wild_eel_answers_with_lightning_that_finds_the_player() {
     let eel = monster::plain_monster(&mut w, "eel", at);
     w.entity_mut(eel).insert((
         Spellset {
-            slots: vec![&THUNDERBOLT],
+            slots: vec![spell_row("Thunderbolt").unwrap()],
         },
         Magic {
             points: 1,

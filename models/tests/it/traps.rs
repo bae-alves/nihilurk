@@ -913,12 +913,7 @@ fn every_trap_row_comes_back_from_a_save_as_the_same_row() {
     back.sort_by_key(|(x, _)| *x);
     assert_eq!(back.len(), TRAPS.len());
     for (was, (_, is)) in TRAPS.iter().zip(&back) {
-        assert!(
-            std::ptr::eq(*was, *is),
-            "{} came back as {}",
-            was.name,
-            is.name
-        );
+        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
     }
 }
 
@@ -953,7 +948,7 @@ fn traps_and_snares_survive_a_save_and_reload() {
     let revealed = w2
         .query::<(&Trap, Option<&Hidden>)>()
         .iter(&w2)
-        .find(|(t, _)| std::ptr::eq(t.row, &ARROW_TRAP))
+        .find(|(t, _)| t.row.name == TrapDef::lookup("arrow trap").unwrap().name)
         .map(|(t, h)| (t.revealed, h.is_some()))
         .unwrap();
     assert_eq!(revealed, (true, false), "the known arrow trap stays known");

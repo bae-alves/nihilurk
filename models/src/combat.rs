@@ -597,7 +597,7 @@ fn dice_spread(sides: i32, rolls: u32, average: bool) -> Vec<(i32, f64)> {
 }
 
 /// The average damage one blow from `attacker` does to `target`, worked out
-/// exactly from the same numbers [`roll_swing`] and [`clamp_swing`] use: both
+/// exactly from the same numbers `roll_swing` and `clamp_swing` use: both
 /// sides' dice, bonuses and worn gear, the hero's excellent hit and chip
 /// floor, and a launcher's melee cap. Abilities, spells, stone and
 /// protection are left out. Rolls no dice.

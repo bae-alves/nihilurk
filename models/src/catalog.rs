@@ -22,6 +22,11 @@
 //! wears it, which the visibility system already asks about. Adding "ring of
 //! fire resistance" is a row here — and no behaviour code at all, anywhere.
 //!
+//! No row has a name of its own in Rust. Code that wants one particular row
+//! reaches it through an `index_of!` const, `POTIONS[HEALING]`, which the
+//! compiler works out from the row's name; a save stores the name itself.
+//! A row that must never drop sits in its table at weight 0.
+//!
 //! The full recipes, per category, are in `docs/how-to/add-an-item.md`.
 
 use crate::Color;
@@ -106,6 +111,48 @@ pub trait ItemDef {
     }
 }
 
+/// The index of the row of `$table` called `$name`, worked out while compiling.
+/// Code reaches a row through one of these, never a bare number: a name no row
+/// has stops the build, and a row moved within its table keeps its callers.
+///
+/// ```ignore
+/// const HEALING: usize = index_of!(POTIONS, "potion of healing");
+/// POTIONS[HEALING].spawn(world, pos);
+/// ```
+macro_rules! index_of {
+    ($table:expr, $name:literal) => {{
+        let table = $table;
+        let mut i = 0;
+        loop {
+            if i == table.len() {
+                panic!(concat!("no row named ", $name));
+            }
+            if $crate::catalog::same_name(table[i].name, $name) {
+                break i;
+            }
+            i += 1;
+        }
+    }};
+}
+pub(crate) use index_of;
+
+/// Whether two row names are the same, in a form [`index_of`] can run while
+/// compiling.
+pub(crate) const fn same_name(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 /// Attaches a modifier component only when it's worth attaching, so a plain
 /// dagger doesn't drag an `ArmorBonus(0)` through every archetype.
 fn insert_modifier<C: Modifier>(entity: &mut bevy_ecs::world::EntityWorldMut, value: C) {
@@ -132,11 +179,39 @@ pub struct PotionDef {
     /// whether it visibly took hold: a potion thrown at a monster gives itself
     /// away only then.
     pub apply: fn(&mut World, Entity) -> bool,
+    /// How often the dungeon drops it against the other potions.
+    pub weight: u32,
+}
+
+impl PotionDef {
+    /// A potion that does `apply`, dropped as often as most.
+    pub const fn new(
+        name: &'static str,
+        color: Color,
+        apply: fn(&mut World, Entity) -> bool,
+    ) -> Self {
+        Self {
+            name,
+            color,
+            apply,
+            weight: crate::constants::monsters::DEFAULT_SPAWN_WEIGHT,
+        }
+    }
+
+    /// Never dropped: only something else turns a potion into this one.
+    const fn never_drops(mut self) -> Self {
+        self.weight = 0;
+        self
+    }
 }
 
 impl ItemDef for &'static PotionDef {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn weight(&self) -> u32 {
+        self.weight
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
@@ -158,51 +233,32 @@ impl ItemDef for &'static PotionDef {
     }
 }
 
-/// Every potion the dungeon drops, one row each.
+/// Every potion in the game, one row each.
 #[rustfmt::skip]
 pub static POTIONS: &[&PotionDef] = &[
-    &PotionDef { name: "potion of confusion",         color: Color::Magenta,     apply: potions::confusion },
-    &PotionDef { name: "potion of paralysis",         color: Color::DarkGrey,    apply: paralyse },
-    &PotionDef { name: "potion of poison",            color: Color::Green,       apply: potions::poison },
-    &PotionDef { name: "potion of gain strength",     color: Color::Red,         apply: potions::gain_strength },
-    &PotionDef { name: "potion of see invisible",     color: Color::Cyan,        apply: potions::see_invisible },
-    &POTION_OF_HEALING,
-    &PotionDef { name: "potion of monster detection", color: Color::Yellow,      apply: potions::detect_monsters },
-    &PotionDef { name: "potion of magic detection",   color: Color::Yellow,      apply: potions::detect_magic },
-    &PotionDef { name: "potion of raise level",       color: Color::White,       apply: potions::raise_level },
-    &PotionDef { name: "potion of extra healing",     color: Color::Red,         apply: potions::extra_healing },
-    &PotionDef { name: "potion of haste self",        color: Color::DarkYellow,  apply: hasten },
-    &PotionDef { name: "potion of restore strength",  color: Color::Red,         apply: potions::restore_strength },
-    &PotionDef { name: "potion of blindness",         color: Color::DarkGrey,    apply: blind },
-    &PotionDef { name: "potion of fruit juice",       color: Color::DarkYellow,  apply: potions::fruit_juice },
-    &PotionDef { name: "potion of magic",             color: Color::Blue,        apply: potions::gain_magic },
-    &PotionDef { name: "potion of adjustment",        color: Color::DarkCyan,    apply: potions::adjustment },
-    &PotionDef { name: "potion of polymorph",         color: Color::DarkMagenta, apply: potions::polymorph },
+    &PotionDef::new("potion of confusion",         Color::Magenta,     potions::confusion),
+    &PotionDef::new("potion of paralysis",         Color::DarkGrey,    paralyse),
+    &PotionDef::new("potion of poison",            Color::Green,       potions::poison),
+    &PotionDef::new("potion of gain strength",     Color::Red,         potions::gain_strength),
+    &PotionDef::new("potion of see invisible",     Color::Cyan,        potions::see_invisible),
+    &PotionDef::new("potion of healing",           Color::Red,         potions::healing),
+    &PotionDef::new("potion of monster detection", Color::Yellow,      potions::detect_monsters),
+    &PotionDef::new("potion of magic detection",   Color::Yellow,      potions::detect_magic),
+    &PotionDef::new("potion of raise level",       Color::White,       potions::raise_level),
+    &PotionDef::new("potion of extra healing",     Color::Red,         potions::extra_healing),
+    &PotionDef::new("potion of haste self",        Color::DarkYellow,  hasten),
+    &PotionDef::new("potion of restore strength",  Color::Red,         potions::restore_strength),
+    &PotionDef::new("potion of blindness",         Color::DarkGrey,    blind),
+    &PotionDef::new("potion of fruit juice",       Color::DarkYellow,  potions::fruit_juice),
+    &PotionDef::new("potion of magic",             Color::Blue,        potions::gain_magic),
+    &PotionDef::new("potion of adjustment",        Color::DarkCyan,    potions::adjustment),
+    &PotionDef::new("potion of polymorph",         Color::DarkMagenta, potions::polymorph),
+    &PotionDef::new("potion of thirst quenching",  Color::Blue,        potions::water).never_drops(),
 ];
 
-/// Named because every starting pack holds one.
-pub static POTION_OF_HEALING: PotionDef = PotionDef {
-    name: "potion of healing",
-    color: Color::Red,
-    apply: potions::healing,
-};
-
-/// What a wand of cancellation leaves of any potion: plain water. Kept out of
-/// [`POTIONS`], so the dungeon never drops one.
-pub static POTION_OF_WATER: PotionDef = PotionDef {
-    name: "potion of thirst quenching",
-    color: Color::Blue,
-    apply: potions::water,
-};
-
-/// The potion row called `name`, water included: how a load finds a saved
-/// potion's row again.
+/// The potion row called `name`.
 pub fn potion_row(name: &str) -> Option<&'static PotionDef> {
-    POTIONS
-        .iter()
-        .copied()
-        .chain([&POTION_OF_WATER])
-        .find(|row| row.name == name)
+    POTIONS.iter().copied().find(|row| row.name == name)
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +295,12 @@ impl ScrollDef {
         self.weight *= 2;
         self
     }
+
+    /// Never dropped: only something else turns a scroll into this one.
+    const fn never_drops(mut self) -> Self {
+        self.weight = 0;
+        self
+    }
 }
 
 impl ItemDef for &'static ScrollDef {
@@ -269,8 +331,8 @@ impl ItemDef for &'static ScrollDef {
     }
 }
 
-/// Every scroll the dungeon drops, one row each. Identify and remove curse are
-/// the two every run needs, so they are `.common()`.
+/// Every scroll in the game, one row each. Identify and remove curse are the
+/// two every run needs, so they are `.common()`.
 #[rustfmt::skip]
 pub static SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of monster confusion",  scrolls::charm_hands),
@@ -291,22 +353,13 @@ pub static SCROLLS: &[&ScrollDef] = &[
     &ScrollDef::new("scroll of charming",           scrolls::charming),
     &ScrollDef::new("scroll of pitfall",            scrolls::pitfall),
     &ScrollDef::new("scroll of atonement",          scrolls::atonement),
-    &ScrollDef::new("scroll of teleport to stairs", scrolls::teleport_to_stairs),
+    &ScrollDef::new("scroll of teleport to stairs", scrolls::teleport_to_stairs).never_drops(),
+    &ScrollDef::new("scroll of blank paper",        scrolls::blank_paper).never_drops(),
 ];
 
-/// What a wand of cancellation leaves of any scroll. Kept out of [`SCROLLS`],
-/// so the dungeon never drops one.
-pub static SCROLL_OF_BLANK_PAPER: ScrollDef =
-    ScrollDef::new("scroll of blank paper", scrolls::blank_paper);
-
-/// The scroll row called `name`, blank paper included: how a load finds a
-/// saved scroll's row again.
+/// The scroll row called `name`.
 pub fn scroll_row(name: &str) -> Option<&'static ScrollDef> {
-    SCROLLS
-        .iter()
-        .copied()
-        .chain([&SCROLL_OF_BLANK_PAPER])
-        .find(|row| row.name == name)
+    SCROLLS.iter().copied().find(|row| row.name == name)
 }
 
 // ---------------------------------------------------------------------------
@@ -326,7 +379,7 @@ pub struct CardDef {
 
 impl PartialEq for CardDef {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self, other)
+        self.name == other.name
     }
 }
 
@@ -337,12 +390,6 @@ impl std::fmt::Debug for CardDef {
         f.write_str(self.name)
     }
 }
-
-/// FOOL: does nothing drawn, and is wild in a hand ([`decks::score_hand`]).
-pub static FOOL: CardDef = CardDef {
-    name: "FOOL",
-    play: decks::fool,
-};
 
 /// Every card a deck can hold, one row each. A rolled deck draws from these
 /// evenly, with replacement.
@@ -362,8 +409,8 @@ pub static CARDS: &[&CardDef] = &[
     &CardDef { name: "The Child",             play: decks::child },
     &CardDef { name: "The Crone",             play: decks::crone },
     &CardDef { name: "The Eyes Never Lie",    play: decks::eyes },
-    &FOOL,
-    &CardDef { name: "THE EXCUSE",            play: decks::excuse },
+    &CardDef { name: "FOOL",                  play: decks::fool },
+    &CardDef { name: "THE EXCUSE",           play: decks::excuse },
     &CardDef { name: "JESTER",                play: decks::jester },
     &CardDef { name: "VII THE CHARIOT",       play: decks::chariot },
     &CardDef { name: "XXII THE WORLD",        play: decks::the_world },
@@ -468,11 +515,34 @@ pub struct RuneDef {
     pub name: &'static str,
     /// What invoking a charged rune does to its `user`.
     pub apply: fn(&mut World, Entity),
+    /// How often the dungeon drops it against the other runes.
+    pub weight: u32,
+}
+
+impl RuneDef {
+    /// A rune that does `apply`, dropped as often as most.
+    pub const fn new(name: &'static str, apply: fn(&mut World, Entity)) -> Self {
+        Self {
+            name,
+            apply,
+            weight: crate::constants::monsters::DEFAULT_SPAWN_WEIGHT,
+        }
+    }
+
+    /// Never dropped: only something else turns a rune into this one.
+    const fn never_drops(mut self) -> Self {
+        self.weight = 0;
+        self
+    }
 }
 
 impl ItemDef for &'static RuneDef {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn weight(&self) -> u32 {
+        self.weight
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
@@ -496,32 +566,22 @@ impl ItemDef for &'static RuneDef {
     }
 }
 
-/// Every rune the dungeon drops, one row each.
+/// Every rune in the game, one row each.
 #[rustfmt::skip]
 pub static RUNES: &[&RuneDef] = &[
-    &RuneDef { name: "rune of recharging",   apply: runes::recharging },
-    &RuneDef { name: "rune of displacement", apply: runes::displacement },
-    &RuneDef { name: "rune of justice",      apply: runes::justice },
-    &RuneDef { name: "rune of chaos",        apply: runes::chaos },
-    &RuneDef { name: "rune of ice",          apply: runes::ice },
-    &RuneDef { name: "rune of protection",   apply: runes::protection },
+    &RuneDef::new("rune of recharging",   runes::recharging),
+    &RuneDef::new("rune of displacement", runes::displacement),
+    &RuneDef::new("rune of justice",      runes::justice),
+    &RuneDef::new("rune of chaos",        runes::chaos),
+    &RuneDef::new("rune of ice",          runes::ice),
+    &RuneDef::new("rune of protection",   runes::protection),
+    // What a wand of cancellation leaves of any rune.
+    &RuneDef::new("blank rune",           runes::blank).never_drops(),
 ];
 
-/// What a wand of cancellation leaves of any rune. Kept out of [`RUNES`], so
-/// the dungeon never drops one.
-pub static BLANK_RUNE: RuneDef = RuneDef {
-    name: "blank rune",
-    apply: runes::blank,
-};
-
-/// The rune row called `name`, the blank one included: how a load finds a
-/// saved rune's row again.
+/// The rune row called `name`.
 pub fn rune_row(name: &str) -> Option<&'static RuneDef> {
-    RUNES
-        .iter()
-        .copied()
-        .chain([&BLANK_RUNE])
-        .find(|row| row.name == name)
+    RUNES.iter().copied().find(|row| row.name == name)
 }
 
 // ---------------------------------------------------------------------------
@@ -561,6 +621,8 @@ pub struct WandDef {
     pub wasted_on: fn(&World, Entity) -> bool,
     /// What it does thrown.
     pub thrown: Thrown,
+    /// How often the dungeon drops it against the other wands.
+    pub weight: u32,
 }
 
 /// One zap, as a row's handler receives it.
@@ -671,6 +733,7 @@ impl WandDef {
             zap_radius: None,
             wasted_on: |_, _| false,
             thrown: Thrown::blast(|_, _| {}),
+            weight: crate::constants::monsters::DEFAULT_SPAWN_WEIGHT,
         }
     }
 
@@ -710,11 +773,21 @@ impl WandDef {
         self.thrown = thrown;
         self
     }
+
+    /// Never dropped: no floor ever rolls it.
+    const fn never_drops(mut self) -> Self {
+        self.weight = 0;
+        self
+    }
 }
 
 impl ItemDef for &'static WandDef {
     fn name(&self) -> &'static str {
         self.name
+    }
+
+    fn weight(&self) -> u32 {
+        self.weight
     }
 
     fn spawn(&self, world: &mut World, pos: Position) -> Entity {
@@ -739,7 +812,7 @@ impl ItemDef for &'static WandDef {
     }
 }
 
-/// Every wand the dungeon drops, one row each.
+/// Every wand in the game, one row each.
 #[rustfmt::skip]
 pub static WANDS: &[&WandDef] = &[
     &WandDef::new("wand of light",         Color::Yellow,      8, BlastPalette::Glam,   wands::light).unaimed().thrown(Thrown::FLASH),
@@ -758,28 +831,13 @@ pub static WANDS: &[&WandDef] = &[
     &WandDef::new("wand of charming",      Color::Magenta,     6, BlastPalette::Warp,   wands::charming).wasted_on(wands::already_an_ally),
     &WandDef::new("wand of digging",       Color::DarkYellow,  8, BlastPalette::Warp,   wands::digging).thrown(Thrown::CRATER),
     &WandDef::new("wand of swapping",      Color::DarkGreen,   8, BlastPalette::Warp,   wands::swapping).thrown(Thrown::SHUFFLE),
+    // The wand that does nothing, and says so.
+    &WandDef::new("wand of nothing",       Color::Grey,        6, BlastPalette::Warp,   wands::nothing).wasted_on(|_, _| true).thrown(Thrown::CONFETTI).never_drops(),
 ];
 
-/// The wand that does nothing, and says so. Kept out of [`WANDS`], so the
-/// dungeon never drops one.
-pub static WAND_OF_NOTHING: WandDef = WandDef::new(
-    "wand of nothing",
-    Color::Grey,
-    6,
-    BlastPalette::Warp,
-    wands::nothing,
-)
-.wasted_on(|_, _| true)
-.thrown(Thrown::CONFETTI);
-
-/// The wand row called `name`, the wand of nothing included: how a load finds
-/// a saved wand's row again.
+/// The wand row called `name`.
 pub fn wand_row(name: &str) -> Option<&'static WandDef> {
-    WANDS
-        .iter()
-        .copied()
-        .chain([&WAND_OF_NOTHING])
-        .find(|row| row.name == name)
+    WANDS.iter().copied().find(|row| row.name == name)
 }
 
 // ---------------------------------------------------------------------------
@@ -1133,41 +1191,19 @@ impl ItemDef for &'static AmmoDef {
     }
 }
 
-/// The arrow a bow looses.
-pub static ARROW: AmmoDef = AmmoDef {
-    name: "arrow",
-    color: Color::DarkYellow,
-    die: IMPROVISED_THROW_DIE,
-    launched_die: 3,
-    launched_by: Grant::of::<FireArrow>(),
-    on_blood: |_, _| {},
-};
-
-/// The quarrel a crossbow looses.
-pub static QUARREL: AmmoDef = AmmoDef {
-    name: "quarrel",
-    color: Color::Grey,
-    die: IMPROVISED_THROW_DIE,
-    launched_die: 5,
-    launched_by: Grant::of::<FireQuarrel>(),
-    on_blood: |_, _| {},
-};
-
-/// The blowdart a blowgun looses. It saps a victim it bleeds.
-pub static BLOWDART: AmmoDef = AmmoDef {
-    name: "blowdart",
-    color: Color::Green,
-    die: IMPROVISED_THROW_DIE,
-    launched_die: 2,
-    launched_by: Grant::of::<FireDart>(),
-    on_blood: throwing::sap,
-};
-
 /// Every kind of ammunition in the game, one row each.
 ///
-/// To add one: write a static row, naming a fn in `crate::items::throwing`
-/// for `on_blood` if a hit does more than damage, and list it here.
-pub static AMMO: &[&AmmoDef] = &[&ARROW, &QUARREL, &BLOWDART];
+/// To add one: name a fn in `crate::items::throwing` for `on_blood` if a hit
+/// does more than damage, and add a row here.
+#[rustfmt::skip]
+pub static AMMO: &[&AmmoDef] = &[
+    // The arrow a bow looses.
+    &AmmoDef { name: "arrow",    color: Color::DarkYellow, die: IMPROVISED_THROW_DIE, launched_die: 3, launched_by: Grant::of::<FireArrow>(),   on_blood: |_, _| {} },
+    // The quarrel a crossbow looses.
+    &AmmoDef { name: "quarrel",  color: Color::Grey,       die: IMPROVISED_THROW_DIE, launched_die: 5, launched_by: Grant::of::<FireQuarrel>(), on_blood: |_, _| {} },
+    // The blowdart a blowgun looses. It saps a victim it bleeds.
+    &AmmoDef { name: "blowdart", color: Color::Green,      die: IMPROVISED_THROW_DIE, launched_die: 2, launched_by: Grant::of::<FireDart>(),    on_blood: throwing::sap },
+];
 
 /// The row a monster's shot is loosed from: the ammunition answering to the
 /// effect its launcher lends, so a monster's shot and the player's agree on
@@ -1653,7 +1689,7 @@ impl SpellDef {
 
 impl PartialEq for SpellDef {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self, other)
+        self.name == other.name
     }
 }
 
@@ -1670,33 +1706,6 @@ pub fn spell_row(name: &str) -> Option<&'static SpellDef> {
     SPELLS.iter().copied().find(|row| row.name == name)
 }
 
-/// The fire blast a dragon breathes, and the player casts.
-pub static FIREBALL: SpellDef = SpellDef::new("Fireball", 2, spells::breathe_fire)
-    .attack()
-    .aimed(8)
-    .bursts(BLAST_RADIUS)
-    .wasted_on(wands::fireproof);
-
-/// The eel's bolt.
-pub static THUNDERBOLT: SpellDef = SpellDef::new("Thunderbolt", 1, spells::thunderbolt)
-    .attack()
-    .aimed(8);
-
-/// The card caster's lance.
-pub static FORCE_LANCE: SpellDef = SpellDef::new("Force Lance", 2, spells::force_lance)
-    .attack()
-    .aimed(8)
-    .line();
-
-/// What a lurk is born knowing.
-pub static BIDE: SpellDef = SpellDef::new("Bide", 1, spells::bide);
-
-/// The rune of chaos's spell.
-pub static HASTE_SELF: SpellDef = SpellDef::new("Haste Self", 4, spells::haste_self);
-
-/// The rune of ice's spell.
-pub static FROST_NOVA: SpellDef = SpellDef::new("Frost Nova", 4, spells::frost_nova).attack();
-
 /// Every active spell in the game: tiers priced by [`Magic`]
 /// cost, the same way a floor's danger is priced by depth. A
 /// monster pays the same price out of its own
@@ -1706,12 +1715,16 @@ pub static FROST_NOVA: SpellDef = SpellDef::new("Frost Nova", 4, spells::frost_n
 pub static SPELLS: &[&SpellDef] = &[
     // --- 1 Ma ---------------------------------------------------------
     &SpellDef::new("Sting", 1, spells::sting).attack().aimed(8),
-    &THUNDERBOLT,
+    // The eel's bolt.
+    &SpellDef::new("Thunderbolt", 1, spells::thunderbolt).attack().aimed(8),
     &SpellDef::new("Cure", 1, spells::cure_self),
-    &BIDE,
+    // What a lurk is born knowing.
+    &SpellDef::new("Bide", 1, spells::bide),
     // --- 2 Ma ---------------------------------------------------------
-    &FIREBALL,
-    &FORCE_LANCE,
+    // The fire blast a dragon breathes, and the player casts.
+    &SpellDef::new("Fireball", 2, spells::breathe_fire).attack().aimed(8).bursts(BLAST_RADIUS).wasted_on(wands::fireproof),
+    // The card caster's lance.
+    &SpellDef::new("Force Lance", 2, spells::force_lance).attack().aimed(8).line(),
     &SpellDef::new("Identify", 2, spells::identify),
     &SpellDef::new("Setup", 2, spells::setup),
     &SpellDef::new("Polymorph Self", 2, spells::polymorph_self),
@@ -1724,9 +1737,11 @@ pub static SPELLS: &[&SpellDef] = &[
     &SpellDef::new("Polymorph Other", 3, spells::polymorph_other).aimed(8),
     // --- 4 Ma ---------------------------------------------------------
     &SpellDef::new("Meteor Strike", 4, spells::meteor_strike).attack().aimed(8).bursts(GRENADE_RADIUS).spreads(METEOR_STRIKE_CHAIN_SPREAD).wasted_on(wands::fireproof),
-    &FROST_NOVA,
+    // The rune of ice's spell.
+    &SpellDef::new("Frost Nova", 4, spells::frost_nova).attack(),
     &SpellDef::new("Magic Mapping", 4, spells::magic_mapping),
-    &HASTE_SELF,
+    // The rune of chaos's spell.
+    &SpellDef::new("Haste Self", 4, spells::haste_self),
     &SpellDef::new("Gate Down", 4, spells::gate_down),
 ];
 
@@ -1794,19 +1809,6 @@ impl ItemDef for &'static CoinDef {
     }
 }
 
-/// The hero coin: teaches a random spell, and a shot one goes off in the
-/// widest burst in the game ([`crate::traps::detonate_pickup`]). Uncommon, and
-/// never disguised: no colour name — it is always just "a hero coin".
-pub static HERO_COIN: CoinDef = CoinDef {
-    name: "hero coin",
-    color: Color::Magenta,
-    apply: pickups::learn_spell,
-    helps: pickups::can_learn_spell,
-    amount: 0,
-    treasure: false,
-    weight: 3,
-};
-
 /// The coins. Two are treasure and six are a small mercy, and the dungeon
 /// scatters them alike — which is why a `$` on the floor is worth walking to
 /// even when your pack is full.
@@ -1820,7 +1822,10 @@ pub static COINS: &[&CoinDef] = &[
     &CoinDef { name: "green coin",    color: Color::Green,       apply: pickups::restore_strength, helps: pickups::weakened,         amount:    4, treasure: false, weight: 10 },
     &CoinDef { name: "platine coin",  color: Color::White,       apply: pickups::platinum,         helps: pickups::owed_platinum,    amount:    0, treasure: false, weight: 10 },
     &CoinDef { name: "forge coin",    color: Color::DarkYellow,  apply: pickups::forge,            helps: pickups::owed_forge,       amount:    0, treasure: false, weight: 10 },
-    &HERO_COIN,
+    // Teaches a random spell, and a shot one goes off in the widest burst in
+    // the game (`crate::traps::detonate_pickup`). Uncommon, and never
+    // disguised: no colour name, it is always just "a hero coin".
+    &CoinDef { name: "hero coin",     color: Color::Magenta,     apply: pickups::learn_spell,      helps: pickups::can_learn_spell,  amount:    0, treasure: false, weight: 3 },
 ];
 
 /// The coin row named `name`, for a save to find its coin by.
@@ -1872,23 +1877,15 @@ impl ItemDef for &'static TreatDef {
 /// The treats. They share the coins' slice of the drop table: Rogue's food
 /// slot, which coins stand in for.
 ///
-/// To add one: write a static row, naming a fn in `crate::companion` that
-/// says who takes it, and list it here.
-pub static TREATS: &[&TreatDef] = &[&SNACK, &FANCY_OF_PEACE];
-
-/// For a creature without hands.
-pub static SNACK: TreatDef = TreatDef {
-    name: "snack",
-    color: Color::DarkYellow,
-    takes: crate::companion::has_no_hands,
-};
-
-/// For a creature with hands.
-pub static FANCY_OF_PEACE: TreatDef = TreatDef {
-    name: "fancy of peace",
-    color: Color::Cyan,
-    takes: crate::companion::has_hands,
-};
+/// To add one: name a fn in `crate::companion` that says who takes it, and add
+/// a row here.
+#[rustfmt::skip]
+pub static TREATS: &[&TreatDef] = &[
+    // For a creature without hands.
+    &TreatDef { name: "snack",          color: Color::DarkYellow, takes: crate::companion::has_no_hands },
+    // For a creature with hands.
+    &TreatDef { name: "fancy of peace", color: Color::Cyan,       takes: crate::companion::has_hands },
+];
 
 /// The pool a floor at the end of a difficulty tier draws one extra find from,
 /// over and above its budgeted loot: the nine things that leave the hero
@@ -1972,7 +1969,7 @@ pub fn spawn_armor(world: &mut World, name: &str, pos: Position) -> Entity {
 }
 
 /// One arrow or quarrel. Ammunition arrives in bundles from the dungeon floor
-/// ([`AmmoDef::spawn_as_loot`]); this is the single unit tests and splits want.
+/// ([`ItemDef::spawn_as_loot`]); this is the single unit tests and splits want.
 pub fn spawn_ammo(world: &mut World, name: &str, pos: Position) -> Entity {
     named(AMMO, name, "ammo").spawn(world, pos)
 }
@@ -2124,8 +2121,8 @@ pub fn enchant_equipment(world: &mut World, rng: &mut ChaCha12Rng, item: Entity)
     brand(world, item, quality);
 }
 
-/// [`enchant_equipment`], or [`enchant_ring`] for a ring, with the quality
-/// fixed at [`Quality::Exceptional`]. A ring with no number stays as it was.
+/// [`enchant_equipment`], or `enchant_ring` for a ring, with the quality
+/// fixed at `Quality::Exceptional`. A ring with no number stays as it was.
 pub fn make_exceptional(world: &mut World, rng: &mut ChaCha12Rng, item: Entity) {
     if world.entity(item).contains::<Ring>() {
         set_ring_plus(&mut world.entity_mut(item), RING_EXCEPTIONAL_BONUS);

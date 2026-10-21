@@ -30,7 +30,12 @@ use crate::constants::population::{
 };
 use crate::constants::progression::DIFFICULTY_TIER_LAST_DEPTH;
 
-use crate::monsters::{MonsterDef, spawn_monster_with_rng};
+use crate::monsters::{BESTIARY, MonsterDef, spawn_monster_with_rng};
+
+use crate::catalog::index_of;
+
+const APIS: usize = index_of!(BESTIARY, "apis");
+const DRAGON: usize = index_of!(BESTIARY, "dragon");
 use crate::spawn::{roll_exceptional_equipment, roll_item, roll_one, spawn_named, spawn_requested};
 
 use super::generate::{corridor_centers, find_tile, room_floor_tiles, tiles_of};
@@ -207,7 +212,7 @@ fn place_guaranteed(
 
 fn spawn_from_free(
     world: &mut World,
-    species: &str,
+    species: &'static MonsterDef,
     free: &mut Vec<(u16, u16)>,
     occupied: &mut HashSet<(u16, u16)>,
     rng: &mut ChaCha12Rng,
@@ -215,7 +220,7 @@ fn spawn_from_free(
     let i = rng.gen_range(0..free.len());
     let (x, y) = free.remove(i);
     occupied.insert((x, y));
-    spawn_monster_with_rng(world, MonsterDef::named(species), Position { x, y }, rng);
+    spawn_monster_with_rng(world, species, Position { x, y }, rng);
     (x, y)
 }
 
@@ -261,7 +266,8 @@ fn populate_special_rooms(
             SpecialRoom::DragonHoard => {
                 let slots = (tier as usize + 1).min(free.len());
                 for _ in 0..slots {
-                    let (x, y) = spawn_from_free(world, "dragon", &mut free, occupied, rng);
+                    let (x, y) =
+                        spawn_from_free(world, &BESTIARY[DRAGON], &mut free, occupied, rng);
                     if items.insert((x, y)) {
                         roll_exceptional_equipment(world, rng, depth, Position { x, y });
                     }
@@ -289,7 +295,7 @@ fn populate_special_rooms(
             SpecialRoom::TreasureHive => {
                 scatter_coins(world, free.clone(), occupied, items, rng, depth);
                 while !free.is_empty() {
-                    spawn_from_free(world, "apis", &mut free, occupied, rng);
+                    spawn_from_free(world, &BESTIARY[APIS], &mut free, occupied, rng);
                 }
             }
             SpecialRoom::RedRoom => {
@@ -398,7 +404,7 @@ fn populate_castle(
         .map(|r| room_floor_tiles(r, &world.resource::<Map>().tiles))
         .collect();
     if let Some((x, y)) = claim_random_spot(&rooms[..1], occupied, rng) {
-        spawn_monster_with_rng(world, MonsterDef::named("dragon"), Position { x, y }, rng);
+        spawn_monster_with_rng(world, &BESTIARY[DRAGON], Position { x, y }, rng);
     }
     for room in &rooms {
         let room = std::slice::from_ref(room);
@@ -500,7 +506,7 @@ pub(super) fn populate_level(
             return MonsterDef::pick_aquatic(rng);
         }
         match (level == Some(SpecialLevel::BeeWorld), anything_goes) {
-            (true, _) => MonsterDef::named("apis"),
+            (true, _) => &BESTIARY[APIS],
             (false, true) => MonsterDef::pick_any(rng),
             (false, false) => MonsterDef::pick(depth, rng),
         }

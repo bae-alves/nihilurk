@@ -45,7 +45,7 @@ Components — what the player is
 whole page's "nouns only" file doesn't hold, because it is read at
 character-build time, not by a system) is which shape the run's hero
 descends in: `Row(&'static BodyDef)`, a row of `BODIES` picked with `-b`
-(`NIHIL`, the default, or `LURK`), or `Monster(&'static MonsterDef)` — a
+(nihil, the default, or lurk), or `Monster(&'static MonsterDef)` — a
 bestiary row worn as a costume, `-am <species>`. One enum rather than a
 flag per body, because a player is exactly one of them.
 

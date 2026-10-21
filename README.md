@@ -69,7 +69,7 @@ Where things are
 
 `compat/` is a test rig, kept out of the workspace's default members, so a bare `cargo build` or `cargo test` never compiles it:
 
-    ./compat_test.sh                     # nihilurk, built and checked on six machines
+    ./compat_test.sh                     # nihilurk, built and checked on eight machines
     ./docs_style.sh                      # docs/, held to the house style
     ./aur_check.sh                       # aur/PKGBUILD, against the tag it pins and this working copy
 
@@ -96,7 +96,7 @@ That is the change. The pink dragon now populates floors from depth 7, is someth
 Items are the same shape, in `models/src/catalog.rs` -- one table per kind, one row per thing:
 
     WeaponDef::new("quarterstaff", Color::DarkYellow, 7).missile(6),
-    ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6 },
+    ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6, grants: &[] },
 
 A row is a name, an appearance, and the components the thing carries into the world. There is no dragon code and no ring code: combat reads components and never learns what kind of thing put them there. A few categories need one edit more -- somebody has to say what drinking a new potion does -- and the docs say which, and why.
 

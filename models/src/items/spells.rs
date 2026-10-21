@@ -32,7 +32,7 @@ use crate::helpers::{
 use crate::map::{GameRng, Map};
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
-use crate::traps::{ARROW_TRAP, TrapBundle, spring_trap, trap_at, trap_damage_tier};
+use crate::traps::{TRAPS, TrapBundle, spring_trap, trap_at, trap_damage_tier};
 
 use super::wands::{dazzle, elemental_blast};
 
@@ -50,6 +50,10 @@ use crate::constants::traps::{
     DART_DAMAGE_DICE, DART_DAMAGE_SIDES, DART_POWER_DRAIN_BASE, DART_POWER_DRAIN_PER_TIER,
 };
 use crate::constants::wands::{BLAST_RADIUS, GRENADE_DIE_PER_CHARGE, GRENADE_RADIUS};
+
+use crate::catalog::index_of;
+
+const ARROW_TRAP: usize = index_of!(TRAPS, "arrow trap");
 
 /// Whether `user` is wielding a staff — every damaging spell they cast costs
 /// [`TURBO_MAGIC_COST_MULT`] times the [`Magic`] and deals
@@ -427,7 +431,11 @@ pub(crate) fn setup(world: &mut World, cast: SpellCast) {
             continue;
         }
         let trap = world
-            .spawn(TrapBundle::from_def(&ARROW_TRAP, TrapReveal::Sight, spot))
+            .spawn(TrapBundle::from_def(
+                TRAPS[ARROW_TRAP],
+                TrapReveal::Sight,
+                spot,
+            ))
             .id();
         world.entity_mut(trap).remove::<Hidden>();
         if let Some(mut t) = world.get_mut::<Trap>(trap) {

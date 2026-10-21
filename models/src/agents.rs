@@ -245,9 +245,9 @@ pub const SHOOT: Rule = Rule {
 
 /// One spell picked at random from the spellset, fired at the nearest foe it
 /// can reach: in its range, and with a clear line only for a spell that
-/// travels one ([`SpellDef::line`]) — a sting or a bolt is aimed at the foe, not
+/// travels one (`SpellDef::line`) — a sting or a bolt is aimed at the foe, not
 /// flown to it. An ally also passes over any foe whose spell would catch the
-/// player ([`reaches`]); a monster does not care who else it catches. Only
+/// player (`reaches`); a monster does not care who else it catches. Only
 /// attack spells with a range are fired this way.
 pub const CAST: Rule = Rule {
     name: "cast",
@@ -424,7 +424,7 @@ fn reaches(map: &Map, spell: &SpellDef, from: Position, target: Position, who: P
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::catalog::{BIDE, FIREBALL, FORCE_LANCE, SpellDef, THUNDERBOLT, spell_row};
+    use crate::catalog::{SpellDef, spell_row};
     use crate::map::{MAP_TILE_COUNT, TileType, tile_index};
     use bevy_ecs::world::World;
     use fixedbitset::FixedBitSet;
@@ -615,11 +615,11 @@ mod tests {
         let mut p = percept(&map, (6, 6), (5, 6));
         p.helper = true;
         p.ally = true;
-        p.spellset = vec![&FIREBALL];
+        p.spellset = vec![spell_row("Fireball").unwrap()];
         p.foes = vec![sighting(e[0], (11, 6), false)];
         assert_eq!(
             think(&p, &HELPER),
-            Action::Cast(&FIREBALL, Position { x: 11, y: 6 })
+            Action::Cast(spell_row("Fireball").unwrap(), Position { x: 11, y: 6 })
         );
         p.player_at = Position { x: 12, y: 6 };
         assert!(matches!(think(&p, &HELPER), Action::Step(1, 0)));
@@ -633,7 +633,10 @@ mod tests {
         let mut map = room();
         map.tiles[tile_index(9, 6)] = TileType::Wall;
         let e = entities(1);
-        for spell in [spell_row("Sting").unwrap(), &THUNDERBOLT] {
+        for spell in [
+            spell_row("Sting").unwrap(),
+            spell_row("Thunderbolt").unwrap(),
+        ] {
             let mut p = percept(&map, (6, 6), (11, 6));
             p.spellset = vec![spell];
             p.foes = vec![sighting(e[0], (11, 6), true)];
@@ -650,7 +653,7 @@ mod tests {
         map.tiles[tile_index(9, 6)] = TileType::Wall;
         let e = entities(1);
         let mut p = percept(&map, (6, 6), (11, 6));
-        p.spellset = vec![&FORCE_LANCE];
+        p.spellset = vec![spell_row("Force Lance").unwrap()];
         p.foes = vec![sighting(e[0], (11, 6), true)];
         assert!(!matches!(think(&p, &CHASER), Action::Cast(..)));
     }
@@ -662,8 +665,8 @@ mod tests {
         let foe = Position { x: 11, y: 6 };
         for spell in [
             spell_row("Sting").unwrap(),
-            &THUNDERBOLT,
-            &FORCE_LANCE,
+            spell_row("Thunderbolt").unwrap(),
+            spell_row("Force Lance").unwrap(),
             spell_row("Lux").unwrap(),
             spell_row("Meteor Strike").unwrap(),
         ] {
@@ -684,12 +687,12 @@ mod tests {
         p.helper = true;
         p.ally = true;
         p.foes = vec![sighting(e[0], (11, 6), false)];
-        p.spellset = vec![&FORCE_LANCE];
+        p.spellset = vec![spell_row("Force Lance").unwrap()];
         assert!(!matches!(think(&p, &HELPER), Action::Cast(..)));
-        p.spellset = vec![&THUNDERBOLT];
+        p.spellset = vec![spell_row("Thunderbolt").unwrap()];
         assert_eq!(
             think(&p, &HELPER),
-            Action::Cast(&THUNDERBOLT, Position { x: 11, y: 6 })
+            Action::Cast(spell_row("Thunderbolt").unwrap(), Position { x: 11, y: 6 })
         );
     }
 
@@ -744,11 +747,11 @@ mod tests {
         let map = room();
         let e = entities(1);
         let mut p = percept(&map, (6, 6), (11, 6));
-        p.spellset = vec![&FIREBALL];
+        p.spellset = vec![spell_row("Fireball").unwrap()];
         p.foes = vec![sighting(e[0], (11, 6), true)];
         assert_eq!(
             think(&p, &CHASER),
-            Action::Cast(&FIREBALL, Position { x: 11, y: 6 })
+            Action::Cast(spell_row("Fireball").unwrap(), Position { x: 11, y: 6 })
         );
     }
 
@@ -760,11 +763,11 @@ mod tests {
         let map = room();
         let e = entities(1);
         let mut p = percept(&map, (5, 6), (15, 6));
-        p.spellset = vec![&FIREBALL];
+        p.spellset = vec![spell_row("Fireball").unwrap()];
         p.foes = vec![sighting(e[0], (15, 6), true)];
         assert_eq!(think(&p, &CHASER), Action::Step(1, 0));
         p.at = Position { x: 14, y: 6 };
-        p.spellset = vec![&BIDE];
+        p.spellset = vec![spell_row("Bide").unwrap()];
         assert_eq!(think(&p, &CHASER), Action::Strike(e[0]));
     }
 
@@ -775,13 +778,22 @@ mod tests {
         let map = room();
         let e = entities(1);
         let mut p = percept(&map, (6, 6), (11, 6));
-        p.spellset = vec![&FIREBALL, &THUNDERBOLT];
+        p.spellset = vec![
+            spell_row("Fireball").unwrap(),
+            spell_row("Thunderbolt").unwrap(),
+        ];
         p.foes = vec![sighting(e[0], (11, 6), true)];
         let at = Position { x: 11, y: 6 };
         p.roll = 0;
-        assert_eq!(think(&p, &CHASER), Action::Cast(&FIREBALL, at));
+        assert_eq!(
+            think(&p, &CHASER),
+            Action::Cast(spell_row("Fireball").unwrap(), at)
+        );
         p.roll = 1;
-        assert_eq!(think(&p, &CHASER), Action::Cast(&THUNDERBOLT, at));
+        assert_eq!(
+            think(&p, &CHASER),
+            Action::Cast(spell_row("Thunderbolt").unwrap(), at)
+        );
     }
 
     /// A mob cannot step diagonally through a doorway, so it cannot strike,
@@ -794,7 +806,7 @@ mod tests {
         let e = entities(1);
         let mut p = percept(&map, (15, 4), (16, 5));
         p.launcher = true;
-        p.spellset = vec![&FIREBALL];
+        p.spellset = vec![spell_row("Fireball").unwrap()];
         p.foes = vec![sighting(e[0], (16, 5), true)];
         assert!(!matches!(
             think(&p, &CHASER),

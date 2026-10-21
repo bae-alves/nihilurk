@@ -334,7 +334,7 @@ fn a_mimic_is_never_also_invisible() {
 #[test]
 fn a_traps_label_is_its_row() {
     for def in TRAPS {
-        assert!(TrapDef::lookup(def.name).is_some_and(|row| std::ptr::eq(row, *def)));
+        assert!(TrapDef::lookup(def.name).is_some_and(|row| row.name == def.name));
     }
     assert!(TrapDef::lookup("pit trap").is_none());
 }
@@ -522,24 +522,13 @@ fn a_spawn_list_plus_sets_a_numeric_rings_number() {
 /// must never roll one as normal loot.
 #[test]
 fn the_dungeon_never_generates_a_dud_as_normal_loot() {
-    assert!(
-        !POTIONS.iter().any(|d| std::ptr::eq(*d, &POTION_OF_WATER)),
-        "potion of thirst quenching must not be a spawnable row"
+    assert_eq!(
+        potion_row("potion of thirst quenching").unwrap().weight(),
+        0
     );
-    assert!(
-        !SCROLLS
-            .iter()
-            .any(|d| std::ptr::eq(*d, &SCROLL_OF_BLANK_PAPER)),
-        "scroll of blank paper must not be a spawnable row"
-    );
-    assert!(
-        !WANDS.iter().any(|d| std::ptr::eq(*d, &WAND_OF_NOTHING)),
-        "wand of nothing must not be a spawnable row"
-    );
-    assert!(
-        !RUNES.iter().any(|d| std::ptr::eq(*d, &BLANK_RUNE)),
-        "the blank rune must not be a spawnable row"
-    );
+    assert_eq!(scroll_row("scroll of blank paper").unwrap().weight(), 0);
+    assert_eq!(wand_row("wand of nothing").unwrap().weight(), 0);
+    assert_eq!(rune_row("blank rune").unwrap().weight(), 0);
 }
 
 /// A swimmer lives in the water, so only a water tile ever asks for one: the

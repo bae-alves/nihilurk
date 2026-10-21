@@ -63,11 +63,8 @@ fn mark_the_drinker(world: &mut World, user: Entity) -> bool {
     true
 }
 
-static FIXTURE_POTION: PotionDef = PotionDef {
-    name: "potion of the test",
-    color: Color::White,
-    apply: mark_the_drinker,
-};
+static FIXTURE_POTION: PotionDef =
+    PotionDef::new("potion of the test", Color::White, mark_the_drinker);
 
 #[test]
 fn a_potion_does_what_its_row_says() {
@@ -481,7 +478,8 @@ fn fruit_juice_and_water_are_flavour_and_nothing_else() {
 
     quaff(&mut w, p, "potion of fruit juice");
 
-    let water = (&POTION_OF_WATER).spawn(&mut w, Position { x: 0, y: 0 });
+    let water =
+        (potion_row("potion of thirst quenching").unwrap()).spawn(&mut w, Position { x: 0, y: 0 });
     w.entity_mut(water).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(water);
     use_item(&mut w, p, water);
@@ -562,7 +560,11 @@ fn every_potion_row_comes_back_from_a_save_as_the_same_row() {
     let mut w = test_world(3);
     let p = player(&mut w);
     w.get_mut::<Backpack>(p).unwrap().items.clear();
-    let rows: Vec<&'static PotionDef> = POTIONS.iter().copied().chain([&POTION_OF_WATER]).collect();
+    let rows: Vec<&'static PotionDef> = POTIONS
+        .iter()
+        .copied()
+        .chain([potion_row("potion of thirst quenching").unwrap()])
+        .collect();
     for row in &rows {
         let potion = row.spawn(&mut w, Position { x: 0, y: 0 });
         w.entity_mut(potion).remove::<Position>();
@@ -590,11 +592,6 @@ fn every_potion_row_comes_back_from_a_save_as_the_same_row() {
         .collect();
     assert_eq!(back.len(), rows.len());
     for (was, is) in rows.iter().zip(&back) {
-        assert!(
-            std::ptr::eq(*was, *is),
-            "{} came back as {}",
-            was.name,
-            is.name
-        );
+        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
     }
 }

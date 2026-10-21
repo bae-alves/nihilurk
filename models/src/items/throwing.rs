@@ -541,7 +541,7 @@ fn burst_radius(burst: Burst) -> f32 {
 /// already validated (range, a legal target) at the reticle before it was
 /// queued, so this only has to resolve what arrives. A throw that names a pack
 /// row finds its item still in the pack and takes it in hand here (see
-/// [`take_in_hand`]).
+/// `take_in_hand`).
 ///
 /// With time stopped a throw hangs in the air ([`FrozenThrows`]), except a
 /// [`Returns`] weapon: THE WORLD has no hold on it, so it strikes and comes

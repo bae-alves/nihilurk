@@ -803,7 +803,7 @@ fn a_worn_ring_row_lends_its_bonus_and_its_grants() {
     w.get_mut::<Backpack>(p).unwrap().items.push(ring);
     use_item(&mut w, p, ring);
 
-    assert!(std::ptr::eq(w.get::<Ring>(ring).unwrap().row, &WARDING));
+    assert_eq!(w.get::<Ring>(ring).unwrap().row.name, WARDING.name);
     assert!(w.get::<Stealthy>(p).is_some());
     assert_eq!(w.get::<ArmorBonus>(ring).map(|b| b.0), Some(3));
 }
@@ -832,7 +832,7 @@ fn every_ring_row_comes_back_from_a_save_as_the_same_row() {
         assert!(
             packed
                 .iter()
-                .any(|&e| w2.get::<Ring>(e).is_some_and(|r| std::ptr::eq(r.row, row))),
+                .any(|&e| w2.get::<Ring>(e).is_some_and(|r| r.row.name == row.name)),
             "{}",
             row.name
         );

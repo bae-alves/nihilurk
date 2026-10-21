@@ -100,6 +100,10 @@ use crate::map::{
 use crate::particles::{BlastPalette, Particles};
 use crate::shake::{ShakeKind, kick_shake};
 
+use crate::catalog::index_of;
+
+const HERO_COIN: usize = index_of!(crate::catalog::COINS, "hero coin");
+
 // ---------------------------------------------------------------------------
 // The trap catalog
 // ---------------------------------------------------------------------------
@@ -188,22 +192,14 @@ impl TrapDef {
 #[rustfmt::skip]
 pub static TRAPS: &[&TrapDef] = &[
     &TrapDef { name: "trapdoor",          glyph: '^', color: Color::Green,       weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: trapdoor, flourish: no_flourish },
-    &BEAR_TRAP,
+    // A creature's clamping bite holds as long as these jaws do.
+    &TrapDef { name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 3, always_spent: true,  apply: bear,     flourish: jaws },
     &TrapDef { name: "sleeping gas trap", glyph: '^', color: Color::Blue,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 5, always_spent: false, apply: sleep,    flourish: gas },
     &TrapDef { name: "teleport trap",     glyph: '^', color: Color::DarkMagenta, weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: teleport, flourish: no_flourish },
-    &ARROW_TRAP,
+    // The Setup spell plants these.
+    &TrapDef { name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: arrow,    flourish: missile },
     &TrapDef { name: "dart trap",         glyph: '^', color: Color::Cyan,        weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: dart,     flourish: missile },
 ];
-
-/// Named because a creature's clamping bite holds as long as these jaws do.
-#[rustfmt::skip]
-pub static BEAR_TRAP: TrapDef =
-    TrapDef { name: "bear trap",         glyph: '^', color: Color::DarkGreen,   weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 3, always_spent: true,  apply: bear,     flourish: jaws };
-
-/// Named because the Setup spell plants these.
-#[rustfmt::skip]
-pub static ARROW_TRAP: TrapDef =
-    TrapDef { name: "arrow trap",        glyph: '^', color: Color::DarkCyan,    weight: DEFAULT_SPAWN_WEIGHT, min_depth: 1, snare_turns: 0, always_spent: false, apply: arrow,    flourish: missile };
 
 impl TrapReveal {
     const ALL: [TrapReveal; 3] = [
@@ -528,7 +524,7 @@ pub fn detonate_pickup(world: &mut World, pickup: Entity, shooter: Option<Entity
     }
     stand_in(world, pickup);
     world.entity_mut(pickup).despawn();
-    if std::ptr::eq(row, &crate::catalog::HERO_COIN) {
+    if row.name == crate::catalog::COINS[HERO_COIN].name {
         world
             .resource_mut::<GameLog>()
             .add(strings::hero_coin_ultimate());

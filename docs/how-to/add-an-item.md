@@ -84,17 +84,10 @@ Coins are the pickup category: never carried, spent where they lie. A row is `na
 
 ### Ammunition
 
-    /// Bolts: what a crossbow looses.
-    pub static BOLT: AmmoDef = AmmoDef {
-        name: "bolt",
-        color: Color::Grey,
-        die: IMPROVISED_THROW_DIE,
-        launched_die: 5,
-        launched_by: Grant::of::<FireQuarrel>(),
-        on_blood: |_, _| {},
-    };
+    // Bolts: what a crossbow looses.
+    &AmmoDef { name: "bolt", color: Color::Grey, die: IMPROVISED_THROW_DIE, launched_die: 5, launched_by: Grant::of::<FireQuarrel>(), on_blood: |_, _| {} },
 
-List it in `AMMO`. A `pub static` row needs its doc comment: `models` warns on any public item without one.
+The row goes in `AMMO`, like every catalog row: inline, with no name of its own in Rust.
 
 `die` is what one rolls hurled by hand (ammunition is no better thrown than a mace is: `IMPROVISED_THROW_DIE`); a wielder carrying the `launched_by` effect rolls `launched_die` instead. `on_blood` runs on a victim each hit draws blood from: the blowdart names `throwing::sap`, which saps the victim's power. Write a fn in `items/throwing.rs` for a new trick. Stacks up to `constants::items::STACK_LIMIT` per pack slot, and arrives from the dungeon floor in bundles of `constants::loot::AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX`.
 
@@ -113,14 +106,10 @@ Neither half knows the other exists. That is why a sling is one row here and one
 
 ### Treat
 
-    /// A bone: for a creature without hands.
-    pub static BONE: TreatDef = TreatDef {
-        name: "bone",
-        color: Color::White,
-        takes: crate::companion::has_no_hands,
-    };
+    // A bone: for a creature without hands.
+    &TreatDef { name: "bone", color: Color::White, takes: crate::companion::has_no_hands },
 
-List it in `TREATS`. A treat is thrown at a monster as an offer of loyalty and is never used. `takes` says which monsters it is for: `companion::has_hands` (those with `ItemUser`), `companion::has_no_hands`, or a fn of your own in `companion.rs`. Stacks like ammo. Draws as `%`. What accepting one means is `models/src/companion.rs`.
+The row goes in `TREATS`. A treat is thrown at a monster as an offer of loyalty and is never used. `takes` says which monsters it is for: `companion::has_hands` (those with `ItemUser`), `companion::has_no_hands`, or a fn of your own in `companion.rs`. Stacks like ammo. Draws as `%`. What accepting one means is `models/src/companion.rs`.
 
 
 Rings
@@ -158,30 +147,30 @@ These are consumables with a mechanic.
 
 Potions take two edits and no enum. Write the handler, `fn(&mut World, Entity) -> bool`, in `models/src/items/potions.rs`, and name it in the row's required `apply` field:
 
-    &PotionDef { name: "potion of levitation", color: Color::Cyan, apply: potions::levitation },
+    &PotionDef::new("potion of levitation", Color::Cyan, potions::levitation),
 
-The handler returns whether the dose visibly did anything: a potion thrown at a monster names itself only then. A verb that already exists can stand in for a handler: the potion of blindness names `conditions::blind`. The row is the potion: a `Potion` component points at its row, and the save stores the row's name. A row without `apply` does not compile. A potion draws as `!`. `POTION_OF_WATER` is the one row outside `POTIONS`: a wand of cancellation makes it.
+The handler returns whether the dose visibly did anything: a potion thrown at a monster names itself only then. A verb that already exists can stand in for a handler: the potion of blindness names `conditions::blind`. The row is the potion: a `Potion` component points at its row, and the save stores the row's name. `PotionDef::new` takes the handler, so a row without one does not compile. A potion draws as `!`. The potion of thirst quenching is in `POTIONS` with `.never_drops()`: weight 0, so no floor rolls it, and only a wand of cancellation makes it.
 
 Scrolls take two edits and no enum. Write the handler, `fn(&mut World, Entity)`, in `models/src/items/scrolls.rs`, and name it in the row; `ScrollDef::new` takes it, so a row without one does not compile:
 
     &ScrollDef::new("scroll of genocide", scrolls::genocide),
 
-The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do. A scroll draws as `?`, always white. `SCROLL_OF_BLANK_PAPER` is the one row outside `SCROLLS`: a wand of cancellation makes it, and its handler does nothing on purpose. Give the new scroll a flourish (`../explanation/the-feel-layer.md`, "What a scroll looks like").
+The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do. A scroll draws as `?`, always white. The scroll of blank paper is in `SCROLLS` with `.never_drops()`: only a wand of cancellation makes it, and its handler does nothing on purpose. Give the new scroll a flourish (`../explanation/the-feel-layer.md`, "What a scroll looks like").
 
 Runes take two edits and no enum. Write the handler, `fn(&mut World, Entity)`, in `models/src/items/runes.rs`, and name it in the row's required `apply` field:
 
-    &RuneDef { name: "rune of ice", apply: runes::ice },
+    &RuneDef::new("rune of ice", runes::ice),
 
-The row is the rune: a `Rune` component points at its row, and the save stores the row's name. A row without `apply` does not compile.
+The row is the rune: a `Rune` component points at its row, and the save stores the row's name. `RuneDef::new` takes the handler, so a row without one does not compile.
 
-A rune draws as `'`, always white. It is a scroll that goes inert when read instead of crumbling, and a staircase wakes it, so the mechanic is "what happens on each invocation" and never "what is left afterwards". `BLANK_RUNE` is the one row outside `RUNES`: a wand of cancellation makes it. Only the player invokes a rune.
+A rune draws as `'`, always white. It is a scroll that goes inert when read instead of crumbling, and a staircase wakes it, so the mechanic is "what happens on each invocation" and never "what is left afterwards". The blank rune is in `RUNES` with `.never_drops()`: only a wand of cancellation makes it. Only the player invokes a rune.
 
 Wands take two edits and no enum. Write the zap handler, `fn(&mut World, Zap)`, in `models/src/items/wands.rs`, and name it in the row; `WandDef::new` takes it, so a row without one does not compile. The builder adds what the reticle, a throw and a `DualZap` read off the row:
 
     &WandDef::new("wand of fire", Color::Red, 8, BlastPalette::Fire, wands::fire)
         .attack().element(Element::Fire).bursts().wasted_on(wands::fireproof),
 
-`.attack()` makes it a damage wand (thrown, the grenade; doubled by `DualZap`), `.element(..)` names what resists it, `.bursts()` paints the zap's blast on the reticle, `.unaimed()` skips the reticle (the wand of light), `.wasted_on(..)` lets the reticle pass over a creature it would not change, and `.thrown(Thrown::..)` picks what it does thrown (`Thrown::blast(f)` or one of the `Thrown` consts); the default is the small blast that changes nobody. A wand draws as `/`, its `range` feeds the reticle, and it always spawns with `constants::wands::WAND_CHARGES`, full. `WAND_OF_NOTHING` is the one row outside `WANDS`.
+`.attack()` makes it a damage wand (thrown, the grenade; doubled by `DualZap`), `.element(..)` names what resists it, `.bursts()` paints the zap's blast on the reticle, `.unaimed()` skips the reticle (the wand of light), `.wasted_on(..)` lets the reticle pass over a creature it would not change, and `.thrown(Thrown::..)` picks what it does thrown (`Thrown::blast(f)` or one of the `Thrown` consts); the default is the small blast that changes nobody. A wand draws as `/`, its `range` feeds the reticle, and it always spawns with `constants::wands::WAND_CHARGES`, full. The wand of nothing is in `WANDS` with `.never_drops()`.
 
 
 > **Never rename a row.** The save file stores an item's row by its

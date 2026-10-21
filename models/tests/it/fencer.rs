@@ -19,7 +19,7 @@ fn lurk_world(seed: u64) -> World {
     w.insert_resource(PlayerName {
         what: "TESTER".into(),
     });
-    w.insert_resource(StartingBody(Body::Row(&LURK)));
+    w.insert_resource(StartingBody(Body::Row(body_row("lurk").unwrap())));
     initialize_world(&mut w);
     w
 }

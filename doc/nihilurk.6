@@ -7,16 +7,21 @@ nihilurk \- terminal roguelike
 [\fB\-s\fR|\fB\-\-seed\fR \fIseed\fR] [\fB\-c\fR|\fB\-\-centered\fR]
 [\fB\-ns\fR|\fB\-\-no\-save\fR] [\fB\-nb\fR|\fB\-\-no\-blood\fR]
 [\fB\-nshake\fR|\fB\-\-no\-shake\fR] [\fB\-nobones\fR|\fB\-\-no\-bones\fR]
-[\fB\-endless\fR|\fB\-\-endless\fR]
+[\fB\-mouse\fR|\fB\-\-mouse\fR]
+[\fB\-endless\fR|\fB\-\-endless\fR | \fB\-fast\fR|\fB\-\-fast\fR]
+[\fB\-nrec\fR|\fB\-\-no\-recording\fR]
 [\fB\-anim\-rate\fR|\fB\-\-anim\-rate\fR \fImultiplier\fR]
 [\fB\-keymap\fR|\fB\-\-keymap\fR \fIfile\fR]
 [\fB\-b\fR|\fB\-\-body\fR \fIbody\fR | \fB\-am\fR|\fB\-\-as\-monster\fR \fIspecies\fR]
 .PP
 .B nihilurk
+\fB\-v\fR|\fB\-\-replay\fR \fIfile\fR
+.PP
+.B nihilurk
 \fB\-content\fR | \fB\-\-content\fR
 .PP
 .B nihilurk
-\fB\-scores\fR | \fB\-\-leaderboard\fR
+\fB\-scores\fR | \fB\-\-leaderboard\fR [\fB\-fast\fR | \fB\-endless\fR]
 .PP
 .B nihilurk
 \fB\-h\fR | \fB\-help\fR | \fB\-\-help\fR
@@ -36,8 +41,8 @@ and no resurrection.
 What sets the game apart is the trick shot. A missile or a blast that lands on
 a trap you can see, on a coin, or on a potion lying on the floor sets it off
 from a distance, over every tile around it, and the burst can set off the next
-one. A creature standing on something you could set off is drawn on a magenta
-cell. Only ranged attacks do it, and it catches you too if you stand close.
+one. A creature standing on a trap you can see, on a coin, or on the Element is
+drawn on a magenta cell. Only ranged attacks do it, and it catches you too if you stand close.
 .PP
 Spirits are the shops. They are
 .B &
@@ -48,7 +53,7 @@ and turns every spirit hostile. A scroll of atonement makes them peaceful
 again.
 You carry a hidden alignment from \-3 to +3 between two camps of spirit; each
 spirit that leaves the floor moves it one step toward that spirit's camp, and
-the word BALANCE under the status line shows it. Gaining a Helper moves it up
+the word BALANCE at the top left of the map shows it. Gaining a Helper moves it up
 one, and blowing one up moves it down two. Reach either end and the spirits
 turn.
 .PP
@@ -91,8 +96,9 @@ To get started you only need to know two things: the direction keys move you,
 and walking into a monster attacks it. The rest of the commands are listed
 below.
 .PP
-The status line keeps the numbers you need at a glance: health, magic, attack,
-defence, depth, and score. The message log beneath the map describes what has
+The line above the map shows your conditions, the depth, the turns left before
+the Dungeon Lord loses patience, the pack slots in use, and the score. The
+line below it shows health, magic, attack and defence. The message log beneath the map describes what has
 just happened; when
 .B \-\-MORE\-\-
 appears, press Space or Enter to continue reading.
@@ -209,8 +215,9 @@ claws are its weapon and its fur is its armour. In exchange it is
 .BR quick ,
 half again as fast as anything else in the dungeon; it moves unnoticed until
 it is within reach; a step toward a creature across one empty tile lunges for
-a sure hit at triple the roll, and each landed blow winds up the next; it knows Bide and pays for it; and one
-creature in seven that dies on the floor makes it stronger in one of its four
+a sure hit at triple the roll, each bite that lands is followed by a second
+snap of the jaws, and each landed blow winds up the next; it knows Bide and pays for it; and about one
+creature in three that dies on the floor makes it stronger in one of its four
 numbers, at random. A wand of cancellation takes what a lurk has and not what
 it is: the shape, the tempo and the rule about rings survive it. The lurk
 plays slower than nihil: too thin to trade blows, it asks for a decision every
@@ -240,15 +247,24 @@ You keep your own side of the fight, your viewshed, your pack and your score,
 and you start with the pack empty \(em the usual kit is nihil's own. Only a
 species that uses items can equip any, and innate magic that is a spell (a
 dragon's fireball) sits in the spell bar and costs nothing to cast. The body
-is written to the save and restored on load \(em the player's name is the
-species, which is how the save knows. Two argument shapes are refused up front
-so that stays true: a
-.I name
-that is a species (use
+is written to the save and restored on load, so
 .B \-am
-instead), and
-.B \-am
-given together with a save to load, which already knows what body it is in.
+(or
+.BR \-b )
+given together with a save to load is refused: the save already knows what
+body it is in.
+.TP
+.BR \-nrec ", " \-\-no\-recording
+Do not record this run. A new run otherwise writes
+.IR recordings/name \- seed .rec
+in the data directory: the seed, the body, the mode flags, the spawn
+variables, the keymap, and every key the game acted on. A run resumed from a
+save is not recorded.
+.TP
+.BI "\-v, \-\-replay" " file"
+Play back a recording from its first turn. The seed, body and mode come from
+the recording; nothing is saved, scored or dumped, and bones are off. A
+recording from another version may drift, and the game warns when it is one.
 .TP
 .BR \-content ", " \-\-content
 Print every content name accepted by
@@ -266,7 +282,15 @@ as
 .BR "RANK. NAME - OUTCOME - SCORE (WHEN)" ,
 highest first \(em and exit without entering the alternate screen. Read from
 .B leaderboard.sav
-in the data directory, a small versioned file like a save. Updated
+in the data directory, a small versioned file like a save. Each mode keeps
+its own board: with
+.B \-fast
+it reads
+.BR leaderboard\-fast.sav ,
+with
+.B \-endless
+.BR leaderboard\-endless.sav .
+Updated
 whenever a run ends in a win or a death. A leaderboard that is damaged or from
 another version is named and left alone, and no score is recorded until it is
 moved away; a board from before conducts is read and upgraded;
@@ -301,8 +325,8 @@ run, the game asks before spending it.
 An unrecognised argument that starts with a dash, and a flag whose value is
 missing or bad, are refused with
 .BR "invalid argument ARG. Please see -help for more information" ,
-and a player name cannot start with a dash. Options may appear in any order; a later positional
-argument replaces an earlier one.
+and a player name cannot start with a dash. Options may appear in any order
+after the positional argument; a second positional argument is refused.
 .SH ENVIRONMENT
 .TP
 .B NIHILURK_SPAWN
@@ -311,16 +335,18 @@ spawned on the nearest free walkable tile around the player whenever a floor
 is built. Empty entries and unknown names are ignored. The setting applies to
 every floor, including floors revisited on the way back up. Gear and
 ammunition accept dressing around the name, in this order:
-.RB [ cursed ]
+.RB [ cursed | megacursed ]
 .RB [ +N | \-N ]
 .I name
 .RB [ xN ].
 .B cursed
 adds a curse,
+.B megacursed
+adds one that nothing lifts,
 .BR +N / \-N
 adds N to a weapon's hit, armour's guard or a launcher's throw, or sets the
 whole number of a numeric ring (protection, strength, increase damage,
-sharpshooting), and
+sharpshooting, health), and
 .B xN
 sets a stack size, clamped to the stack limit of 13. A curse and a minus are
 independent. A modifier the item cannot use is ignored. Use
@@ -368,8 +394,17 @@ and
 .BR burst .
 An unrecognised value selects a style at random.
 .TP
+.B NIHILURK_READY
+Set and not empty, the game writes the OSC string
+.B "ESC ] nihilurk;ready BEL"
+each time it waits for a key, so a script driving it through a pty knows the
+last key has done all it will. A terminal ignores it.
+.TP
 .B NIHILURK_DATA
-The directory for saves, bones files and the leaderboard. Unset or empty, it is
+The directory for saves, bones files, the leaderboards, recordings, run dumps
+and
+.IR keymap.txt .
+Unset or empty, it is
 .I $XDG_DATA_HOME/nihilurk
 or
 .I ~/.local/share/nihilurk
@@ -499,16 +534,14 @@ Go down, or walk to the down stairs.
 Go up, or walk to the up stairs.
 .TP
 .B x
-Close the current menu or targeting cursor without spending a turn.
-.TP
-.B Esc
-Back out of a menu. It does not quit.
-.TP
-.B Q
-Quit after confirmation.
+Close the current menu or targeting cursor without spending a turn. With
+nothing open, swap between a melee weapon and a launcher (one turn).
 .TP
 .B X
-Close the current interface; with nothing open, quit after confirmation.
+Close the current interface. With nothing open it does nothing.
+.TP
+.B Esc
+Back out of a menu; with nothing open, quit after confirmation.
 .TP
 .B Ctrl-C
 Quit immediately. No other Ctrl key does anything.
@@ -527,8 +560,21 @@ in the data directory. A won run keeps the same file as clear data.
 .TP
 .B leaderboard.sav
 The ten best scores, in the data directory.
+.B leaderboard\-fast.sav
+and
+.B leaderboard\-endless.sav
+hold the boards for those modes.
 .B leaderboard.sav.lock
 beside it lets two runs ending at once take turns.
+.TP
+.B keymap.txt
+Key remaps read at start-up when
+.B \-keymap
+is not given, in the data directory.
+.TP
+.IR recordings/name \- seed .rec
+The recording of a run, for
+.BR \-v .
 .TP
 .BR bones\-N.sav
 What a dead run left on floor N, in the data directory.

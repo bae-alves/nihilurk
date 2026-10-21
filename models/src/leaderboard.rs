@@ -236,7 +236,7 @@ pub struct Standing {
 
 /// The `limit` highest scores ever recorded, highest first, each with a
 /// "YYYY-MM-DD HH:MM" UTC rendering of when the run ended. Errs the way
-/// [`all`] does.
+/// `all` does.
 pub fn top(board: Board, limit: usize) -> std::io::Result<Vec<Standing>> {
     Ok(all(path(board))?
         .into_iter()

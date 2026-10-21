@@ -18,7 +18,7 @@ pub fn write(world: &mut World, screen_text: &str, outcome: Outcome) -> std::io:
     write_in(&data_dir(), world, screen_text, outcome, now_epoch_secs())
 }
 
-/// [`write`] into `dir`'s `morgue/`, stamped `epoch_secs`. Each dump is a new
+/// [`write()`] into `dir`'s `morgue/`, stamped `epoch_secs`. Each dump is a new
 /// file: a name and a second already taken is an error, never an overwrite.
 fn write_in(
     dir: &Path,

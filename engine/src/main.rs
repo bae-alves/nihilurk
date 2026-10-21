@@ -383,7 +383,7 @@ mod tests {
             let shouted = row.name.to_ascii_uppercase();
             for name in [row.name, shouted.as_str()] {
                 let picked = body_named(name, None).unwrap().unwrap();
-                assert!(std::ptr::eq(picked, row), "{name}");
+                assert_eq!(picked.name, row.name, "{name}");
             }
             let same = format!("-b {}", row.name);
             assert!(body_named(row.name, Some(&same)).unwrap().is_some());

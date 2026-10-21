@@ -79,7 +79,7 @@ flowchart LR
 
 Each box is one or more systems. nihilurk's exact edges are in `docs/reference/input-and-turn-loop.md`.
 
-The usual objection to direct mutation is that a system should declare its reads and writes so a scheduler can parallelise it. That assumes the set is known in advance. One hit often is not:
+The usual objection to direct mutation is that a system should declare its reads and writes, so a scheduler can parallelize it. That assumes the set is known in advance. One hit often is not:
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{
@@ -119,7 +119,6 @@ Rust's borrow friction stays. SCS absorbs it into written convention, in phases 
 
 ### Weak
 
-- **Data-driven stops at the spell.** A potion, scroll, wand, rune or trap is a row that names its handler, and a row with no handler does not compile: a new one is a handler and a row. A spell, a coin or a card still costs a variant, a row and an exhaustive `match` arm.
 - **Assumptions are checked late.** Each step's preconditions are prose beside its definition. The soak checks their consequences at the end of a turn, and two `debug_assert!`s check theirs at the step. A step that stops assuming something fails a turn later, in a different place.
 - **Direct mutation gives up conflict detection.** No scheduler checks that two systems fight over the same data. A total order and the soak carry that. The soak checks that no two creatures end a turn on one tile.
 - **Prose drifts.** The step count and the queue count in the docs are tested against the code. Every other number or diagram in a document is a second copy of the code, and nothing compares them.

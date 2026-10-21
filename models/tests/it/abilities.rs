@@ -27,10 +27,10 @@
 //! tables can build their own contents is a different question, already
 //! answered by `tests/it/content.rs` walking `content_names()`.
 //!
-//! One exception, and it is a finding rather than a shortcut: `maybe_split`
-//! (`monsters.rs`) looks its victim up in the bestiary by `Name` and panics
-//! on a miss, so a fixture with a name this file invented cannot split. That
-//! one test takes a name off the table at runtime instead of inventing one.
+//! One exception: `maybe_split` (`monsters.rs`) buds a copy from the bestiary
+//! row its victim shows as, so a fixture with a name this file invented has no
+//! row to bud from. The tests that need a split take a name off the table at
+//! runtime instead of inventing one.
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
@@ -960,11 +960,10 @@ fn a_petrified_player_can_do_nothing_at_all() {
 /// which Phase 2 turns into a moment.
 ///
 /// **The one test here that touches a content table, and it is forced.**
-/// `maybe_split` looks the victim up in the bestiary by its own `Name` and
-/// panics on a miss, so a splitter must be named something the table knows.
-/// The name is taken off the table at runtime rather than written in here, so
-/// this test still names nothing — but the coupling belongs to the mechanic,
-/// not to the test, and it is logged as Phase 2 work.
+/// `maybe_split` buds the copy from the bestiary row the victim shows as, so a
+/// splitter must be named something the table knows. The name is taken off the
+/// table at runtime rather than written in here, so this test still names
+/// nothing.
 #[test]
 fn a_wounded_splitter_becomes_two() {
     let species = any_species();
@@ -1043,6 +1042,20 @@ fn a_boxed_in_splitter_does_not_bud_onto_the_player() {
         !occupied_hero_tile,
         "the splitter's copy landed on the player's own tile"
     );
+}
+
+/// A splitter no bestiary row shows as, the way every slime looks to a lookup
+/// by row id in a translated build: it is wounded like any other, and simply
+/// has no row to bud from.
+#[test]
+fn a_splitter_no_row_shows_as_survives_the_wound_whole() {
+    let mut w = arena(41);
+    let attacker = hero(&mut w, at(10, 10), 20, 10);
+    let splitter = splitter_named(&mut w, "splitter of the test", at(11, 10), 10_000);
+
+    resolve_attack(&mut w, attacker, splitter);
+
+    assert_eq!(count_named(&mut w, "splitter of the test"), 1);
 }
 
 /// Any species the bestiary knows, discovered rather than named. Only
@@ -1141,7 +1154,7 @@ fn breath_round(seed: u64, breathes: bool) -> bool {
     if breathes {
         w.entity_mut(breather).insert((
             Spellset {
-                slots: vec![&FIREBALL],
+                slots: vec![spell_row("Fireball").unwrap()],
             },
             Magic {
                 points: 2,
@@ -1804,7 +1817,7 @@ fn dangers_are_read_off_the_creature_not_guessed() {
     );
     lend(&mut w, nasty, Grant::of::<Flies>(), Lifetime::Permanent);
     w.entity_mut(nasty).insert(Spellset {
-        slots: vec![&FIREBALL],
+        slots: vec![spell_row("Fireball").unwrap()],
     });
 
     let warned = dangers_of(&w, nasty);

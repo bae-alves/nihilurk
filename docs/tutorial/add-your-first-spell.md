@@ -52,17 +52,12 @@ Search for it:
 
     pub static SPELLS: &[&SpellDef] = &[
         // ...
-        &FIREBALL,
+        // The fire blast a dragon breathes, and the player casts.
+        &SpellDef::new("Fireball", 2, spells::breathe_fire).attack().aimed(8).bursts(BLAST_RADIUS).wasted_on(wands::fireproof),
         // ... more rows ...
     ];
 
-Fireball is one of the few rows with a name of its own, because a dragon's bestiary row points at it. Read it:
-
-    pub static FIREBALL: SpellDef = SpellDef::new("Fireball", 2, spells::breathe_fire)
-        .attack()
-        .aimed(8)
-        .bursts(BLAST_RADIUS)
-        .wasted_on(wands::fireproof);
+Like every catalog row, Fireball has no name of its own in Rust. The dragon's bestiary row reaches it through `SPELLS[FIREBALL]`, where `FIREBALL` is an `index_of!` const the compiler works out from the row's name.
 
 `"Fireball"` is the spell's identity: a save stores it. `2` is the `cost` in Magic points, spent by `spell_system` the instant the spell actually fires (multiplied by a wielded staff's `TurboMagic`, but only for an attack). `spells::breathe_fire` is the function that does it. `.attack()` makes it an attack, the staff's business. `.aimed(8)` opens the aiming reticle and lets it reach eight tiles, exactly the way a wand's `Ranged.range` does -- you will aim Ice Bolt the same way you'd zap a wand of cold. `.bursts(..)` is the disc the reticle paints, and `.wasted_on(..)` lets the reticle skip a creature that fire cannot hurt.
 
@@ -161,7 +156,7 @@ Try the things that work on a potion, a wand, a dagger:
   * **Open the pack (`i`) and look for Ice Bolt.** It isn't there. A spell never enters a `Backpack`; the player's copy of it lives only in `Spellset`.
   * **Try to throw it (`t`).** There is nothing to select -- the throw menu only ever lists `Backpack` contents, and a spell was never in one.
   * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/saveload.rs` stores each spell by its row's name. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that marker would need a row in the `EFFECTS` registry and an `effects::lend` to put it there -- see `../how-to/add-a-spell.md` for the two that already do.
-  * **Give a monster the same trick.** A spell's function is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset out of its own `Magic`. Give Ice Bolt a name of its own (`pub static ICE_BOLT`), put it in a static list the way `BREATHES_FIRE` holds `&FIREBALL` in `models/src/monsters.rs`, and chain `.casts(3, &THAT_LIST)` on a bestiary row, and that creature is born with the spell and the Ma for three casts of it, and its rule set will pick it and fire it at you until the Ma runs out. The dragon's Fireball is exactly that. See `../reference/agents.md`.
+  * **Give a monster the same trick.** A spell's function is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset out of its own `Magic`. Reach Ice Bolt through an `index_of!` const (`const ICE_BOLT: usize = index_of!(SPELLS, "Ice Bolt");`), put `SPELLS[ICE_BOLT]` in a static list the way `BREATHES_FIRE` holds `SPELLS[FIREBALL]` in `models/src/monsters.rs`, and chain `.casts(3, &THAT_LIST)` on a bestiary row, and that creature is born with the spell and the Ma for three casts of it, and its rule set will pick it and fire it at you until the Ma runs out. The dragon's Fireball is exactly that. See `../reference/agents.md`.
 
 None of that is a bug in what you built. It's the shape of the thing: a spell is a mechanic on loan to whoever's `Spellset` names it, not a possession with a life of its own on the floor.
 

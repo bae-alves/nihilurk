@@ -376,7 +376,12 @@ fn a_spell_the_pool_cannot_cover_is_refused() {
         max_points: 4,
     });
     let before = log_len(&w);
-    assert!(!queue_cast(&mut w, player, &HASTE_SELF, here));
+    assert!(!queue_cast(
+        &mut w,
+        player,
+        spell_row("Haste Self").unwrap(),
+        here
+    ));
     assert!(log_len(&w) > before);
     assert!(w.resource::<SpellQueue>().spells.is_empty());
 }
@@ -388,7 +393,12 @@ fn an_affordable_spell_is_queued() {
         points: 50,
         max_points: 50,
     });
-    assert!(queue_cast(&mut w, player, &HASTE_SELF, here));
+    assert!(queue_cast(
+        &mut w,
+        player,
+        spell_row("Haste Self").unwrap(),
+        here
+    ));
     assert_eq!(w.resource::<SpellQueue>().spells.len(), 1);
     assert_eq!(w.get::<Magic>(player).unwrap().points, 50);
 }

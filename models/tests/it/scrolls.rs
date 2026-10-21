@@ -1088,7 +1088,7 @@ fn every_scroll_row_comes_back_from_a_save_as_the_same_row() {
     let rows: Vec<&'static ScrollDef> = SCROLLS
         .iter()
         .copied()
-        .chain([&SCROLL_OF_BLANK_PAPER])
+        .chain([scroll_row("scroll of blank paper").unwrap()])
         .collect();
     for row in &rows {
         let scroll = row.spawn(&mut w, Position { x: 0, y: 0 });
@@ -1117,11 +1117,6 @@ fn every_scroll_row_comes_back_from_a_save_as_the_same_row() {
         .collect();
     assert_eq!(back.len(), rows.len());
     for (was, is) in rows.iter().zip(&back) {
-        assert!(
-            std::ptr::eq(*was, *is),
-            "{} came back as {}",
-            was.name,
-            is.name
-        );
+        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
     }
 }

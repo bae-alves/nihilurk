@@ -130,7 +130,8 @@ The scroll of create monster (`models/src/items/scrolls.rs`, `create_monster`) i
        spawn_monster(world, &BESTIARY[idx], pos);        // monsters
        spawn_named(world, "long sword", pos);            // items, by name
        world.spawn(TrapBundle::from_def(                 // a trap is a bundle,
-           &BEAR_TRAP,                                   //   not an entity
+           TRAPS[BEAR_TRAP],                             //   not an entity;
+                                                         //   BEAR_TRAP: an index_of! const
            TrapReveal::Sight,
            pos,
        ));

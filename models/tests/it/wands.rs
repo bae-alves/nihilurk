@@ -1213,7 +1213,11 @@ fn every_wand_row_comes_back_from_a_save_as_the_same_row() {
     let mut w = test_world(3);
     let p = player(&mut w);
     w.get_mut::<Backpack>(p).unwrap().items.clear();
-    let rows: Vec<&'static WandDef> = WANDS.iter().copied().chain([&WAND_OF_NOTHING]).collect();
+    let rows: Vec<&'static WandDef> = WANDS
+        .iter()
+        .copied()
+        .chain([wand_row("wand of nothing").unwrap()])
+        .collect();
     for row in &rows {
         let wand = row.spawn(&mut w, Position { x: 0, y: 0 });
         w.entity_mut(wand).remove::<Position>();
@@ -1241,12 +1245,7 @@ fn every_wand_row_comes_back_from_a_save_as_the_same_row() {
         .collect();
     assert_eq!(back.len(), rows.len());
     for (was, is) in rows.iter().zip(&back) {
-        assert!(
-            std::ptr::eq(*was, *is),
-            "{} came back as {}",
-            was.name,
-            is.name
-        );
+        assert!(was.name == is.name, "{} came back as {}", was.name, is.name);
     }
 }
 
@@ -1254,7 +1253,7 @@ fn every_wand_row_comes_back_from_a_save_as_the_same_row() {
 fn the_wand_of_nothing_changes_nothing_and_the_reticle_skips_everyone() {
     let mut w = test_world(1);
     let p = player(&mut w);
-    let wand = (&WAND_OF_NOTHING).spawn(&mut w, Position { x: 0, y: 0 });
+    let wand = (wand_row("wand of nothing").unwrap()).spawn(&mut w, Position { x: 0, y: 0 });
     w.entity_mut(wand).remove::<Position>();
     w.get_mut::<Backpack>(p).unwrap().items.push(wand);
     let here = *w.get::<Position>(p).unwrap();
@@ -1263,7 +1262,11 @@ fn the_wand_of_nothing_changes_nothing_and_the_reticle_skips_everyone() {
         y: here.y,
     };
     let foe = dummy(&mut w, "dummy", aim, 10);
-    assert!(wand_wasted_on(&w, &WAND_OF_NOTHING, foe));
+    assert!(wand_wasted_on(
+        &w,
+        wand_row("wand of nothing").unwrap(),
+        foe
+    ));
 
     zap(&mut w, p, wand, aim);
 

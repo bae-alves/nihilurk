@@ -265,12 +265,16 @@ fn a_full_spellset_declines_the_offer_instead_of_overflowing() {
     let player = spawn_player(&mut w, 6);
     w.get_mut::<Spellset>(player).unwrap().slots = vec![
         spell_row("Sting").unwrap(),
-        &THUNDERBOLT,
+        spell_row("Thunderbolt").unwrap(),
         spell_row("Cure").unwrap(),
         spell_row("Heal").unwrap(),
     ];
     let before = w.get::<Spellset>(player).unwrap().slots.clone();
-    spirits::confirm_offer(&mut w, player, OfferOption::Spell(&BIDE));
+    spirits::confirm_offer(
+        &mut w,
+        player,
+        OfferOption::Spell(spell_row("Bide").unwrap()),
+    );
     assert_eq!(w.get::<Spellset>(player).unwrap().slots, before);
     assert!(logged(&w, "nowhere to sit"));
 }

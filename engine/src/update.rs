@@ -2378,7 +2378,10 @@ mod tests {
         {
             let mut menu = w.resource_mut::<OfferMenu>();
             menu.open = true;
-            menu.options = vec![OfferOption::Spell(&FIREBALL), OfferOption::Spell(&FIREBALL)];
+            menu.options = vec![
+                OfferOption::Spell(spell_row("Fireball").unwrap()),
+                OfferOption::Spell(spell_row("Fireball").unwrap()),
+            ];
         }
         let queued = flood_the_log(&mut w);
 
@@ -2420,7 +2423,10 @@ mod tests {
         {
             let mut menu = w.resource_mut::<OfferMenu>();
             menu.open = true;
-            menu.options = vec![OfferOption::Spell(&FIREBALL), OfferOption::Spell(&FIREBALL)];
+            menu.options = vec![
+                OfferOption::Spell(spell_row("Fireball").unwrap()),
+                OfferOption::Spell(spell_row("Fireball").unwrap()),
+            ];
         }
         dispatch_key(&mut w, press('j')).unwrap();
         assert_eq!(w.resource::<OfferMenu>().selected, 1);
@@ -2654,10 +2660,10 @@ mod tests {
     /// firing a slot is visible as the reticle it opens.
     fn four_spells() -> [&'static SpellDef; 4] {
         [
-            &FIREBALL,
+            spell_row("Fireball").unwrap(),
             spell_row("Sting").unwrap(),
-            &THUNDERBOLT,
-            &FORCE_LANCE,
+            spell_row("Thunderbolt").unwrap(),
+            spell_row("Force Lance").unwrap(),
         ]
     }
 

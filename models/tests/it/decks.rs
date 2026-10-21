@@ -910,7 +910,7 @@ fn every_card_row_comes_back_from_a_save_as_the_same_row() {
     let loaded = w2.query::<&Deck>().single(&w2);
     for (was, is) in cards.iter().zip(&loaded.cards) {
         assert!(
-            std::ptr::eq(was.row, is.row),
+            was.row.name == is.row.name,
             "{} came back as {}",
             was.row.name,
             is.row.name

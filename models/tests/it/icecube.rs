@@ -346,7 +346,7 @@ fn a_dart_spell_sets_off_a_cube_where_it_lands() {
     let (cube, at) = cubes(&mut w)[0];
     w.resource_mut::<SpellQueue>().spells.push(WantsToCast {
         user: p,
-        spell: &THUNDERBOLT,
+        spell: spell_row("Thunderbolt").unwrap(),
         target: at,
     });
     spell_system(&mut w);

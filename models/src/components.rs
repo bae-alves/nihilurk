@@ -322,9 +322,9 @@ impl BarterMenu {
     ///
     /// ```
     /// use models::{BarterMenu, Tradeable};
-    /// use models::catalog::BIDE;
+    /// use models::catalog::spell_row;
     ///
-    /// let spell = Tradeable::Spell(&BIDE);
+    /// let spell = Tradeable::Spell(spell_row("Bide").unwrap());
     /// let menu = BarterMenu {
     ///     player_side: vec![spell],
     ///     demon_side: vec![spell, spell, spell],
@@ -788,7 +788,7 @@ pub struct Wand {
 }
 
 /// The two shapes an active spell comes in — an attack wand's own split
-/// ([`crate::catalog::WandDef::attack`]), drawn again here because a spell
+/// (`WandDef::attack`), drawn again here because a spell
 /// answers to it too: a staff's [`crate::effects::TurboMagic`] multiplies the
 /// cost ([`TURBO_MAGIC_COST_MULT`](crate::constants::spells::TURBO_MAGIC_COST_MULT))
 /// and the damage ([`TURBO_MAGIC_POWER_MULT`](crate::constants::spells::TURBO_MAGIC_POWER_MULT))
@@ -841,7 +841,7 @@ pub struct Curse;
 /// not remove curse, enchanting, cancellation, a test of faith or a Five
 /// Flush, and nothing destroys the item either — no remove curse, pink demon,
 /// curse merge or shivering ring. The one exception is a suit taking the
-/// killing blow ([`crate::helpers::armor_takes_last_hit`]).
+/// killing blow (`helpers::armor_takes_last_hit`).
 #[derive(Component)]
 pub struct MegaCurse;
 

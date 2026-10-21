@@ -9,13 +9,19 @@
 
 use bevy_ecs::{entity::Entity, world::World};
 
-use crate::catalog::{BLANK_RUNE, FROST_NOVA, HASTE_SELF, SpellDef};
+use crate::catalog::{RUNES, SPELLS, SpellDef};
 use crate::components::*;
 use crate::constants::runes::*;
 use crate::effects::{ExplodesOnDeath, Grant, Lifetime, Protected, lend};
 use crate::helpers::hostiles_in_view;
 
 use super::spells::cast_spell;
+
+use crate::catalog::index_of;
+
+const HASTE_SELF: usize = index_of!(SPELLS, "Haste Self");
+const FROST_NOVA: usize = index_of!(SPELLS, "Frost Nova");
+const BLANK_RUNE: usize = index_of!(RUNES, "blank rune");
 
 /// The blank rune: does nothing, and says so.
 pub(crate) fn blank(world: &mut World, _user: Entity) {
@@ -29,12 +35,12 @@ pub(crate) fn displacement(world: &mut World, user: Entity) {
 
 /// Rune of chaos: the spell Haste Self, free.
 pub(crate) fn chaos(world: &mut World, user: Entity) {
-    cast_free(world, user, &HASTE_SELF);
+    cast_free(world, user, SPELLS[HASTE_SELF]);
 }
 
 /// Rune of ice: the spell Frost Nova, free.
 pub(crate) fn ice(world: &mut World, user: Entity) {
-    cast_free(world, user, &FROST_NOVA);
+    cast_free(world, user, SPELLS[FROST_NOVA]);
 }
 
 /// Rune of protection: no damage at all for [`PROTECTION_TURNS`] turns
@@ -59,7 +65,7 @@ pub(crate) fn recharge_runes(world: &mut World, player: Entity) {
         .unwrap_or_default();
     for item in carried {
         if let Some(mut rune) = world.get_mut::<Rune>(item) {
-            rune.charged |= !std::ptr::eq(rune.row, &BLANK_RUNE);
+            rune.charged |= rune.row.name != RUNES[BLANK_RUNE].name;
         }
     }
 }

@@ -69,10 +69,21 @@ For the live contents of any of them:
     cargo run -p nihilurk -- -content
 
 
+Reaching one row
+----------------
+
+Every row sits inline in its table; none has a name of its own in Rust. Game code that needs one particular row reaches it through a const that `index_of!` (`models/src/catalog.rs`) works out from the row's name while compiling:
+
+    const HEALING: usize = index_of!(POTIONS, "potion of healing");
+    POTIONS[HEALING].spawn(world, pos);
+
+A name no row has stops the build, and a row moved within its table keeps its callers. Never write a bare index. Two rows are the same row when their names match; nothing compares rows by address. Saves store the row's name, never its index. Tests, `spawn_named` and `NIHILURK_SPAWN` take names too (`spell_row("Fireball")`, `TrapDef::lookup("bear trap")`), because a person types those.
+
+
 BESTIARY — MonsterDef
 ----------------------
 
-Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bonus, armor, armor_bonus, min_depth)`, then optional chains. `SUMMONS` holds rows of the same type that no floor, conjuring or polymorph rolls: the creatures only a deck of cards brings. `MonsterDef::lookup` finds them, so a save, `NIHILURK_SPAWN` and `-am` do too.
+Constructor: `MonsterDef::row(name, glyph, color, movement, hp, power, power_bonus, armor, armor_bonus, min_depth)`, then optional chains. `SUMMONS` holds rows of the same type that no floor, conjuring or polymorph rolls: the creatures only a deck of cards brings, and the bones ghost. `MonsterDef::lookup` finds them, so a save, `NIHILURK_SPAWN` and `-am` do too.
 
 | Field         | Type               | Def.    | Meaning                    |
 |---------------|--------------------|---------|----------------------------|
@@ -130,8 +141,9 @@ Two tables weigh their rows: `SCROLLS`, where the scroll of identify and the scr
 | `name`  | `&'static str`                | Identity in saves and for `spawn_named`. |
 | `color` | `Color`                       |                                          |
 | `apply` | `fn(&mut World, Entity) -> bool` | What a dose does to whoever takes it, drunk or splashed; whether it visibly took hold. |
+| `weight` | `u32`                        | How often it drops against the other potions; 0 for one no floor rolls. |
 
-Draws `!`. Attaches `Item`, `Potion`, `Consume`; a `Potion` holds its row. Rows are `static`; `POTION_OF_HEALING` is named because every starting pack holds one, and `POTION_OF_WATER` (the potion of thirst quenching) is kept out of `POTIONS`. Mechanic: the row's `apply`, one handler per row in `models/src/items/potions.rs` or a verb borrowed straight from `crate::conditions` (blindness, paralysis, haste). The field is required, so a row without one does not compile. A handler is allowed to do nothing on purpose (fruit juice and water are a log line and a taste); every other one bites.
+Draws `!`. Attaches `Item`, `Potion`, `Consume`; a `Potion` holds its row. Rows are inline, built with `PotionDef::new(name, color, apply)`; the starting pack reaches the potion of healing through an `index_of!` const, and the potion of thirst quenching sits in `POTIONS` with `.never_drops()`. Mechanic: the row's `apply`, one handler per row in `models/src/items/potions.rs` or a verb borrowed straight from `crate::conditions` (blindness, paralysis, haste). The field is required, so a row without one does not compile. A handler is allowed to do nothing on purpose (fruit juice and water are a log line and a taste); every other one bites.
 
 The dials the handlers read — how much ceiling a dose of healing is worth, how much power poison takes — are `constants::potions`. Healing, extra healing, gain strength, poison and restore strength reach straight into `Fighter`; the potion of magic reaches into `Magic`, filling the pool and lifting its ceiling the way gain strength lifts the arm's. Blindness, paralysis and haste are verbs of `crate::conditions` used as the handler, and confusion calls `confuse`. Monster and magic detection tag things `Detected`; see invisible lends `SeesInvisible` for the floor. Adjustment returns the drinker's `Alignment` to the middle. Polymorph is the wand of polymorph, drunk. Raise level calls `transition_level` upward (and, on Depth 1 with the Element of Yoord in the pack, wins the run outright).
 
@@ -143,7 +155,7 @@ The dials the handlers read — how much ceiling a dose of healing is worth, how
 | `apply`  | `fn(&mut World, Entity)` | What reading it does to the reader.      |
 | `weight` | `u32`                    | How often it drops against the other scrolls. |
 
-Draws `?`, always white — a scroll has no colour field. Attaches `Item`, `Scroll`, `Consume`; a `Scroll` holds its row. Rows are `static`, built with `ScrollDef::new(name, apply)`; `.common()` doubles the weight. Mechanic: the row's `apply`, one handler per row in `models/src/items/scrolls.rs`. `new` takes the handler, so a row without one does not compile. Every row bites; `SCROLL_OF_BLANK_PAPER`, kept out of `SCROLLS`, is the only one that does nothing, and it says so.
+Draws `?`, always white — a scroll has no colour field. Attaches `Item`, `Scroll`, `Consume`; a `Scroll` holds its row. Rows are inline, built with `ScrollDef::new(name, apply)`; `.common()` doubles the weight. Mechanic: the row's `apply`, one handler per row in `models/src/items/scrolls.rs`. `new` takes the handler, so a row without one does not compile. Every row bites; the scroll of blank paper, in `SCROLLS` with `.never_drops()`, is the only one that does nothing, and it says so.
 
 Each scroll has a flourish of its own — which one, and why that one, is `../explanation/the-feel-layer.md`.
 
@@ -155,10 +167,11 @@ The dials the handlers read — what one enchantment is worth, how long sleep an
 |----------|----------------|------------------------------------------|
 | `name`   | `&'static str` | Identity; the save stores it.            |
 | `apply`  | `fn(&mut World, Entity)` | What invoking it does to the user. Required. |
+| `weight` | `u32`          | How often it drops against the other runes; 0 for one no floor rolls. |
 
 Draws `'`, always white. Attaches `Item` and `Rune { row, charged: true }`, and no `Consume`: reading a rune spends its charge (`item_system` clears `charged`), and it stays in its pack slot, shown as `(inert)`. A staircase wakes every spent rune in the pack (`items::recharge_runes`, called from `transition_level` for `LevelChange::Stairs` only: a trapdoor or a portal does not). `r` reads scrolls and runes. Mechanic: the row's `apply`, one handler per row in `models/src/items/runes.rs`. Rows are `static`, so a `Rune` holds the row itself.
 
-`BLANK_RUNE` sits outside `RUNES`, so nothing drops one. A wand of cancellation makes one out of any rune the player carries, and a blank rune never wakes. Displacement is a scroll of teleportation; Chaos and Ice cast Haste Self and Frost Nova for free; Recharging adds `RECHARGE_STEP` to every wand's `Battery` up to `RECHARGE_CAP`; Justice lends `ExplodesOnDeath` to everything in view; Protection lends `Protected` for `PROTECTION_TURNS`. The dials are `constants::runes`. Runes drop from the `rune` row's `min_depth` (see DROPS). Only the player invokes one: a monster that catches a thrown rune does nothing with it.
+The blank rune sits in `RUNES` with `.never_drops()`, so nothing drops one. A wand of cancellation makes one out of any rune the player carries, and a blank rune never wakes. Displacement is a scroll of teleportation; Chaos and Ice cast Haste Self and Frost Nova for free; Recharging adds `RECHARGE_STEP` to every wand's `Battery` up to `RECHARGE_CAP`; Justice lends `ExplodesOnDeath` to everything in view; Protection lends `Protected` for `PROTECTION_TURNS`. The dials are `constants::runes`. Runes drop from the `rune` row's `min_depth` (see DROPS). Only the player invokes one: a monster that catches a thrown rune does nothing with it.
 
 ### WANDS — WandDef
 
@@ -175,8 +188,9 @@ Draws `'`, always white. Attaches `Item` and `Rune { row, charged: true }`, and 
 | `zap_radius`   | `Option<f32>`                | The burst the reticle paints for a zap. |
 | `wasted_on`    | `fn(&World, Entity) -> bool` | Creatures the reticle passes over. |
 | `thrown`       | `Thrown`                     | What it does thrown: the radius the reticle paints, the `burst` handler, and what happens to `each` creature caught. |
+| `weight`       | `u32`                        | How often it drops against the other wands; 0 for one no floor rolls (`.never_drops()`). |
 
-Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. Every wand spawns full, with `WAND_CHARGES`, however it was made. Zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Rows are `static`, built with `WandDef::new(name, color, range, palette, zap)` and a chain (`.attack()`, `.element(..)`, `.bursts()`, `.unaimed()`, `.wasted_on(..)`, `.thrown(..)`); a `Wand` holds its row. Only the wand of light is `.unaimed()`. Mechanic: the row's `zap`, one handler per row in `models/src/items/wands.rs`, run by `zap_wand`. `new` takes the handler, so a row without one does not compile. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), which calls the row's `thrown.burst`.
+Draws `/`. Attaches `Item`, `Wand`, `Ranged`, `Battery`. Every wand spawns full, with `WAND_CHARGES`, however it was made. Zap damage dice and both blast radii live in `models/src/constants.rs` → `wands` (see `constants.md`). Rows are inline, built with `WandDef::new(name, color, range, palette, zap)` and a chain (`.attack()`, `.element(..)`, `.bursts()`, `.unaimed()`, `.wasted_on(..)`, `.thrown(..)`, `.never_drops()`); a `Wand` holds its row. Only the wand of light is `.unaimed()`. Mechanic: the row's `zap`, one handler per row in `models/src/items/wands.rs`, run by `zap_wand`. `new` takes the handler, so a row without one does not compile. Throwing a wand is resolved in `models/src/items/throwing.rs` (`resolve_wand_throw`), which calls the row's `thrown.burst`.
 
 Every wand's zap, burst and poof is described in `../explanation/the-feel-layer.md`; of all that, only the `palette` is a field on this table.
 
@@ -264,7 +278,7 @@ Every throw ignores the target's armour die, but the armour *plus* is always sub
 | `launched_by`  | `Grant`        | The effect that switches to `launched_die`. |
 | `on_blood`     | `fn(&mut World, Entity)` | Runs on a victim a hit draws blood from. The blowdart's saps its power (`throwing::sap`); the others do nothing. |
 
-Draws `)`. Rows are statics (`ARROW`, `QUARREL`, `BLOWDART`) listed in `AMMO`. Attaches `Item`, `ThrownDamage`, `Projectile`, `Ammo { row }` and `Stack { count: 1 }`. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
+Draws `)`. Rows are inline in `AMMO`. Attaches `Item`, `ThrownDamage`, `Projectile`, `Ammo { row }` and `Stack { count: 1 }`. No `PowerDie` and no `Equipped` — there is nothing to wield and nothing to wear.
 
 Stacks to `STACK_LIMIT` per pack slot. A floor drop arrives as a bundle of `AMMO_BUNDLE_MIN..=AMMO_BUNDLE_MAX` (`constants::loot`) — never a lone arrow, because finding one arrow is not finding ammunition.
 
@@ -363,7 +377,7 @@ Draws `$`. Attaches `Item`, `Pickup`, and — for a treasure coin only — `Valu
 | forge | `forge` | the `Forged` promise |
 | hero coin | `learn_spell` | teaches one random, unlearned spell into the taker's `Spellset` (see "SPELLS — SpellDef"). Well under the baseline weight — an uncommon find. Never disguised: it has no appearance and is never identified, because it is always just "a hero coin". |
 
-Mechanic: the handlers in `models/src/items/pickups.rs`. Both fields are required, so a new row does not build until it does something. The hero coin is the named static `HERO_COIN`, because a shot one goes off in the ultimate trick shot.
+Mechanic: the handlers in `models/src/items/pickups.rs`. Both fields are required, so a new row does not build until it does something. The hero coin is reached as `COINS[HERO_COIN]`, an `index_of!` const, because a shot one goes off in the ultimate trick shot.
 
 **One of them is not left to chance.** Every floor is stocked with a coin for the body before its item budget is spent — a blue one on the odd floors, a red one on the even. The last floor of each difficulty tier (`DIFFICULTY_TIER_LAST_DEPTH`, `constants::progression`) also gets one draw from `catalog::PROGRESSION_ITEMS`: the platinum, forge and hero coins, the three potions that raise a ceiling (healing, magic, gain strength), and the three scrolls that sharpen gear for good (the two enchantments and vorpalize weapon). Neither comes out of the budget. See `../how-to/tune-rarity-and-depth.md`, "Dial 1".
 
@@ -381,7 +395,7 @@ A treat is only ever thrown. It is an offer of loyalty: see "Helpers" below.
 | `color`          | `Color`        |                                         |
 | `takes`          | `fn(&World, Entity) -> bool` | Whether a creature takes it: `companion::has_hands` or `companion::has_no_hands`. |
 
-Draws `%`. Rows are statics (`SNACK`, `FANCY_OF_PEACE`) listed in `TREATS`. Attaches `Item`, `Treat { row }` and `Stack`: treats stack like ammo, and `split_one` throws one at a time. `restore_from_catalog` puts `Treat` back on load.
+Draws `%`. Rows are inline in `TREATS`. Attaches `Item`, `Treat { row }` and `Stack`: treats stack like ammo, and `split_one` throws one at a time. `restore_from_catalog` puts `Treat` back on load.
 
 | Treat | Colour | For |
 |---|---|---|
@@ -431,7 +445,7 @@ BODIES — BodyDef
 | `brings_a_pack` | `bool`                   | Whether it starts with the usual kit.   |
 | `wear`          | `fn(&mut World, Entity)` | Dresses the freshly spawned player.     |
 
-`BODIES` lists the rows `-b` can name: `NIHIL` (the default) and `LURK`. A bestiary row can be worn as a body too (`-am`); `components.md`, "Components — what the player is", has both. `../how-to/add-a-body.md` adds one.
+`BODIES` lists the rows `-b` can name: nihil (the default) and lurk. A bestiary row can be worn as a body too (`-am`); `components.md`, "Components — what the player is", has both. `../how-to/add-a-body.md` adds one.
 
 
 TRAPS — TrapDef
@@ -449,7 +463,7 @@ TRAPS — TrapDef
 | `apply`       | `fn(&mut World, Spring)` | What it does to one victim.    |
 | `flourish`    | `fn(&mut World, &'static TrapDef, Position)` | What it looks like going off on its own tile. |
 
-A trap entity carries `Name`, `Renderable`, `Position`, `Trap`, `Hidden`; a `Trap` holds its row. It is never an `Item` and never a tile type. Rows are `static`; `BEAR_TRAP` and `ARROW_TRAP` are named because game code reaches for them (a clamping bite holds as long as the bear trap does, and the Setup spell plants arrow traps).
+A trap entity carries `Name`, `Renderable`, `Position`, `Trap`, `Hidden`; a `Trap` holds its row. It is never an `Item` and never a tile type. Rows are inline; game code reaches the bear trap and the arrow trap through `index_of!` consts (a clamping bite holds as long as the bear trap does, and the Setup spell plants arrow traps).
 
 Mechanic: the row's `apply`, and its `flourish` first when the victim stands on it, both in `models/src/traps.rs`. Both fields are required, so a row without them does not compile. A snaring trap reads its duration straight off the row, so it stays a one-file change.
 
@@ -471,7 +485,7 @@ A missile stops on the first creature in its way, so the tile handed to `detonat
 |---|---|---|---|
 | a `Trap` | `TRICK_SHOT_RADIUS` | the trick-shot dice | the trap's own effect, per survivor |
 | a `Pickup` (a coin) | `PICKUP_TRICK_SHOT_RADIUS` | the same dice | **the coin's effect, paid to the shooter** (`pickups::claim_from_afar`) — a red coin heals them, a gold one pays them, a platinum one makes them its promise. Worked *before* the burst, so the shooter's own blast cannot take the healing back off them. No `helps` gate: stepping over a coin is leaving it for later, shooting one is a decision, and a decision is allowed to be a waste |
-| a hero coin (`HERO_COIN`) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | the spell, taught to the shooter, and then the ULTIMATE TRICK SHOT below. Spent like any other coin |
+| a hero coin | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | the spell, taught to the shooter, and then the ULTIMATE TRICK SHOT below. Spent like any other coin |
 | a `Potion` | `POTION_SPLASH_RADIUS` (`items::detonate_potion`) | none | the potion's own `apply` on every creature it splashes |
 | an `IceCube` | `TRICK_SHOT_RADIUS` | the trick-shot dice, of `Element::Cold` | what the cold kills freezes in its turn (`traps::detonate_ice_cube`) |
 | the `Amulet` (the Element of Yoord) | `PICKUP_TRICK_SHOT_RADIUS`, then `TRICK_SHOT_RADIUS` twice | the dice, once per burst | see below. The relic is never destroyed, moved or spent |
@@ -719,7 +733,7 @@ Potions, scrolls, wands and rings are always shown by their true name — no cos
 
 Identification is equipment-only: a weapon, suit of armour or launcher hides its enchantment plus and cursed status until `KnownQuality` says otherwise (set by wearing it, or by a scroll of identify) — and a ring, which `enchant_ring` curses and, for a numeric ring, gives a plus, hides both the same way. `KnownQuality` is per-*instance* — two rings of protection each rolled their own curse, so each needs its own.
 
-A dud (`POTION_OF_WATER`, `SCROLL_OF_BLANK_PAPER`, `BLANK_RUNE`, `WAND_OF_NOTHING`) is never a spawnable row. The first three only ever happen as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`); nothing makes a wand of nothing today. Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
+A dud (the potion of thirst quenching, the scroll of blank paper, the blank rune, the wand of nothing) sits in its table at weight 0, so no floor rolls one and no gnome sells one. The first three only ever happen as the result of a wand of cancellation mutating a carried item in place (`items/wands.rs::cancel_entity`); nothing makes a wand of nothing today. Guarded by `the_dungeon_never_generates_a_dud_as_normal_loot` in `models/tests/it/content.rs`.
 
 
 The colour palette

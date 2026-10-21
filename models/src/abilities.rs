@@ -51,6 +51,10 @@ use crate::constants::monsters::{
     ICE_MONSTER_PARALYZE_CHANCE, RATTLESNAKE_POWER_DRAIN, VAMPIRE_MAX_HP_DRAIN,
 };
 
+use crate::catalog::index_of;
+
+const BEAR_TRAP: usize = index_of!(crate::traps::TRAPS, "bear trap");
+
 /// *When* an ability fires. One variant per moment the game has.
 ///
 /// This is the field that replaced two tables with one. Before it, a moment
@@ -481,7 +485,7 @@ fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> b
     let Some(target) = target else {
         return false;
     };
-    let turns = crate::traps::BEAR_TRAP.snare_turns;
+    let turns = crate::traps::TRAPS[BEAR_TRAP].snare_turns;
     if !snare(world, target, Grant::of::<Clamped>(), turns) {
         return false;
     }

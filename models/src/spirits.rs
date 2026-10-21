@@ -624,13 +624,29 @@ pub(crate) fn red_demon_event(world: &mut World, player: Entity, spirit: Entity)
     open_shop(world, player, spirit, options);
 }
 
+/// The rows of `table` the dungeon drops: a weight-0 row (the water a
+/// cancelled potion turns into) is never for sale either.
+fn droppable<D: ItemDef + Copy>(table: &[D]) -> Vec<D> {
+    table
+        .iter()
+        .copied()
+        .filter(|row| row.weight() > 0)
+        .collect()
+}
+
 /// Gnome: a scroll, a potion and a wand, each sold for Max Ma.
 pub(crate) fn gnome_event(world: &mut World, player: Entity, spirit: Entity) {
     let options = roll_one_of_each(world, |rng| {
         [
-            SCROLLS.choose(rng).map(|&row| OfferOption::Scroll(row)),
-            POTIONS.choose(rng).map(|&row| OfferOption::Potion(row)),
-            WANDS.choose(rng).map(|&row| OfferOption::Wand(row)),
+            droppable(SCROLLS)
+                .choose(rng)
+                .map(|&row| OfferOption::Scroll(row)),
+            droppable(POTIONS)
+                .choose(rng)
+                .map(|&row| OfferOption::Potion(row)),
+            droppable(WANDS)
+                .choose(rng)
+                .map(|&row| OfferOption::Wand(row)),
         ]
     });
     open_shop(world, player, spirit, options);
@@ -763,5 +779,27 @@ pub fn apply_test_of_faith(world: &mut World, player: Entity) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::droppable;
+    use crate::Color;
+    use crate::catalog::PotionDef;
+
+    static SOLD: PotionDef = PotionDef::new("potion for sale", Color::White, |_, _| false);
+    static UNSOLD: PotionDef = PotionDef {
+        weight: 0,
+        ..PotionDef::new("potion no floor rolls", Color::White, |_, _| false)
+    };
+
+    #[test]
+    fn a_row_at_weight_zero_is_never_for_sale() {
+        let names: Vec<&str> = droppable(&[&SOLD, &UNSOLD])
+            .iter()
+            .map(|row| row.name)
+            .collect();
+        assert_eq!(names, ["potion for sale"]);
     }
 }

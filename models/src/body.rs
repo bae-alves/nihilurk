@@ -32,10 +32,15 @@ use crate::equipment::Slot;
 use crate::map::{GameRng, MAP_HEIGHT, MAP_WIDTH, Map, TileType};
 use crate::monsters::MonsterDef;
 
+use crate::catalog::index_of;
+
+const BIDE: usize = index_of!(crate::catalog::SPELLS, "Bide");
+const NIHIL: usize = index_of!(BODIES, "nihil");
+
 /// A body written to be played, picked by name with `-b`.
 ///
-/// To add one: write its `wear` fn in this file, add a static row naming it,
-/// and list the row in [`BODIES`]. `wear` is required, so a row with nothing
+/// To add one: write its `wear` fn in this file, and add a row naming it to
+/// [`BODIES`]. `wear` is required, so a row with nothing
 /// to put on does not build.
 pub struct BodyDef {
     /// What `-b` matches, and what an error about one says.
@@ -46,23 +51,15 @@ pub struct BodyDef {
     pub wear: fn(&mut World, Entity),
 }
 
-/// The default. Wakes up human-shaped and carrying a mace.
-pub static NIHIL: BodyDef = BodyDef {
-    name: "nihil",
-    brings_a_pack: true,
-    wear: wear_nihil,
-};
-
-/// Quadruped, fanged, clawed, furred: its own species, and the only one
-/// besides nihil that was written to be played. See `wear_lurk`.
-pub static LURK: BodyDef = BodyDef {
-    name: "lurk",
-    brings_a_pack: false,
-    wear: wear_lurk,
-};
-
 /// Every body `-b` can name.
-pub static BODIES: &[&BodyDef] = &[&NIHIL, &LURK];
+#[rustfmt::skip]
+pub static BODIES: &[&BodyDef] = &[
+    // The default. Wakes up human-shaped and carrying a mace.
+    &BodyDef { name: "nihil", brings_a_pack: true,  wear: wear_nihil },
+    // Quadruped, fanged, clawed, furred: its own species, and the only one
+    // besides nihil that was written to be played. See `wear_lurk`.
+    &BodyDef { name: "lurk",  brings_a_pack: false, wear: wear_lurk },
+];
 
 /// The row `-b` names.
 pub fn body_row(name: &str) -> Option<&'static BodyDef> {
@@ -81,7 +78,7 @@ pub enum Body {
 
 impl Default for Body {
     fn default() -> Self {
-        Body::Row(&NIHIL)
+        Body::Row(BODIES[NIHIL])
     }
 }
 
@@ -193,7 +190,7 @@ fn wear_lurk(world: &mut World, player: Entity) {
     ));
     grant_all(world, player, LURK_GRANTS);
     if let Some(mut spellset) = world.get_mut::<Spellset>(player) {
-        spellset.slots.push(&crate::catalog::BIDE);
+        spellset.slots.push(crate::catalog::SPELLS[BIDE]);
     }
 }
 
