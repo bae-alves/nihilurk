@@ -77,5 +77,5 @@ See also
 --------
 
   ../how-to/publish-to-crates-io.md     the release recipe
-  cross-platform-testing.md             why `particle-core` stays separate
+  cross-platform-testing.md             the matrix the shipped crates are built for
   ../../engine/tests/workspace.rs       the tests that hold the names in place
