@@ -168,7 +168,7 @@ It is somewhere next to you and you cannot see it. To burn it, you have to see i
 
     NIHILURK_SPAWN="potion of see invisible,wand of fire,basilisk" cargo run -p nihilurk
 
-It will not wait for you. Each step costs a turn, and its two Thunderbolts paralyse, so nihil can arrive at the zap with half their hit points. When you zap, the reticle skips the basilisk: `.wasted_on(wands::fireproof)` passes over what fire cannot hurt. Move the cursor onto it by hand and fire. It shrugs, and the log says so: "The basilisk is unharmed by the flames."
+It will not wait for you. Each step costs a turn, and its two Thunderbolts paralyse, so nihil can arrive at the zap with half their hit points. When you zap, the reticle skips the basilisk: `.wasted_on(wands::fireproof)` passes over what fire cannot hurt. Move the cursor onto it by hand and fire. The blast catches you too when it stands next to you. It shrugs, and the log says so: "The basilisk is unharmed by the flames."
 
 ### A creature made of grants
 
@@ -190,9 +190,17 @@ No system in the game mentions dogs. Each one asks about its own grant, so any c
 
     NIHILURK_SPAWN="dog,snack" cargo run -p nihilurk
 
-Pick up the snack and throw it at the dog (`t`). A snack tames a creature without hands on a `constants::helpers::ACCEPT_CHANCE` roll. It tames a dog every time. Walk a dog into a fight and watch for "It was never a dog, but a ...!". The (d) is a dogppelganger: a faerie shapeshifter wearing a dog, which is why it can change its shape and why no dog ever dies.
+Pick up the snack and throw it at the dog (`t`). A snack tames a creature without hands on a `constants::helpers::ACCEPT_CHANCE` roll. It tames a dog every time. Walk a dog into a fight and watch for "It was never a dog, but a ...!". A troll is a fight it loses:
 
-Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. It stays a dog: four of its five grants are *identity effects*, a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. The fifth, `ShapeshiftOnKill`, is ordinary magic, so the zap stops its shapeshifting. Zap the basilisk (seen, as above) and it loses `FireImmune`: the wand of fire's reticle now lands on it, and the blast burns it. A species' ordinary magic stays cancellable. The only difference between the two cases is whether the grant's id is on that list. See "Parts nothing can cancel" in `../how-to/add-a-monster.md` to build a creature that way.
+    NIHILURK_SPAWN="dog,snack,troll" cargo run -p nihilurk
+
+Tame the dog and walk away from the troll, so the dog takes it on. The (d) is a dogppelganger: a faerie shapeshifter wearing a dog, which is why it can change its shape and why no dog ever dies.
+
+Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. It stays a dog: four of its five grants are *identity effects*, a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. The fifth, `ShapeshiftOnKill`, is ordinary magic, so the zap stops its shapeshifting. Zap the basilisk and it loses `FireImmune`. It has to be seen, as above, and it hits hard, so drink nihil's potion of healing before the zaps:
+
+    NIHILURK_SPAWN="potion of see invisible,wand of cancellation,wand of fire,basilisk" cargo run -p nihilurk
+
+After the cancellation the wand of fire's reticle lands on it, and the blast kills it. A species' ordinary magic stays cancellable. The only difference between the two cases is whether the grant's id is on that list. See "Parts nothing can cancel" in `../how-to/add-a-monster.md` to build a creature that way.
 
 
 Step 7: keep it or drop it

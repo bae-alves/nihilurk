@@ -156,7 +156,7 @@ Press `Z`. You should see a small box listing Ice Bolt and its Magic cost. Press
 
 Rows are lettered `a` to `d`, the way the pack's are. `Alt`+`Q`, `W`, `E` and `R` fire slots one to four straight from the map, without the menu. While the reticle is up, `Tab` snaps it to the next monster or item in view instead of nudging it one tile at a time.
 
-Confirm the shot at something, and watch your Magic drop by two. Try it again with an empty pool: the reticle never even opens, and the log says why.
+Confirm the shot at something, and watch your Magic drop by two. Cast it once more to empty the pool. If the first bolt froze your target, the reticle opens on you, and the game refuses a blast on your own tile: move the cursor off yourself first. Then try a third time: the reticle never even opens, and the log says why.
 
 
 Step 6: where it stops being an item

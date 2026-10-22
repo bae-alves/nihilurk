@@ -212,6 +212,7 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 **Ammunition and a launcher** are one job in two rows, and neither names the other. They meet at an effect:
 
     // in effects.rs, alongside FireArrow and FireQuarrel
+    /// Lent by a sling: a sling stone its bearer looses rolls its launched die.
     #[derive(Component, Default, Clone, Copy)]
     pub struct FireStone;
 
