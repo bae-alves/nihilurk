@@ -117,7 +117,7 @@ Appendix: quick check
 3. Give it a save marker: an effect already in `EFFECTS` that nothing else puts on the player.
 4. Teach `innate_tempo` if the body does not return to `SpeedKind::Normal`.
 5. Teach `equip_refusal` if the body cannot wear everything, and say why in the string.
-6. Add the name to `no_such_body` in every `strings/src/` language.
+6. Add the name to `no_such_body` in `strings/src/en.rs`; the other languages re-export it.
 7. Leave `brings_a_pack` false.
 8. Copy `models/tests/it/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
 9. Run that test with `cargo test --test it <name>::`, then `cargo test`.

@@ -49,9 +49,10 @@ The recipe
        cargo build
        NIHILURK_SPAWN="basilisk" cargo run -p nihilurk
 
-4. Run the table tests, which will now include your row:
+4. Run the table tests, which will now include your row, then the whole suite. A new row changes what a seeded floor holds, and `content::` only reads the tables:
 
        cargo test --test it content::
+       cargo test
 
 That is the whole procedure. Nothing else in the codebase needs to be told that basilisks exist.
 
@@ -101,6 +102,8 @@ The first number is how many casts of its dearest spell the creature has the Ma 
 **Born invisible** -- unseeable without see-invisible (the phantom):
 
     MonsterDef::row("basilisk", ...).invisible(),
+
+A creature you cannot see takes every hit in silence (`helpers::apply_hit`): no damage line, no "unharmed" line. To watch what its other chains do, drink a potion of see invisible first.
 
 **Rarity** -- how often it is drawn against the rest of the floor's eligible pool. The default is `DEFAULT_SPAWN_WEIGHT`; leave it alone unless you mean it:
 
@@ -153,7 +156,7 @@ Appendix: quick check
 4. Pick a colour from the sixteen in the palette, and never write `Aggravated` as the movement.
 5. Never rename an existing row; saved monsters look their species up by id (the `name`).
 6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk` and look at it.
-7. Run `cargo test --test it content::`.
+7. Run `cargo test --test it content::`, then `cargo test`.
 8. Fix the docs: nothing, unless the row brings a new mechanic (`update-the-docs.md`).
 
 

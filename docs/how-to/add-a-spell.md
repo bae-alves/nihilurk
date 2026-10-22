@@ -119,9 +119,9 @@ There is no `NIHILURK_SPAWN` for a spell. In play the only way to learn one is a
         slots: vec![spell_row("Ice Bolt").unwrap()],
     },
 
-Build, run, and press `Z` to see it listed, then its row letter to aim it, or `Alt`+`Q`/`W`/`E`/`R` for slots one to four. `Tab` while aiming snaps the reticle to the next thing in view.
+and add `spell_row` to the `use crate::catalog::{...}` line at the top of `levels.rs`. Build, run, and press `Z` to see it listed, then its row letter to aim it, or `Alt`+`Q`/`W`/`E`/`R` for slots one to four. `Tab` while aiming snaps the reticle to the next thing in view.
 
-Revert the `initialize_world` edit before you run the tests: a player who starts knowing a spell fails the tests that count the starting spellset (the hero coin, amnesia, lurk and soak tests). If this was a dry run, `git checkout models/src/map/levels.rs` along with `catalog.rs` and `items/spells.rs`.
+Revert the `initialize_world` edit before you run the tests: a player who starts knowing a spell fails the tests that count the starting spellset (the hero coin, amnesia and lurk tests). If this was a dry run, `git checkout models/src/map/levels.rs` along with `catalog.rs` and `items/spells.rs`.
 
 
 > **`Spellset` does survive a save** -- `models/src/saveload.rs` stores each spell by row name and refuses a save that names a spell no row has. So do the two marker components spells have left behind so far, `MagicWard` and `Bided` -- but not through a field of their own: each is a row in the `EFFECTS` registry (`models/src/effects.rs`, `"magic_ward" => MagicWard;`) lent through `effects::lend`, and `EntitySave::effects` saves it by id with the `Lifetime` it is being held for. If your new spell leaves a marker of its own lying around outside `Spellset`, register it there and lend it; a component inserted directly is the one a reload quietly forgets.

@@ -196,6 +196,10 @@ Verify, whichever you added
 
 The tests check that names are unique, that every row can be built by name, that what spawns keeps its name, and that every drop category can still produce something.
 
+Then run the whole suite. `content::` only reads the tables, and a new row changes what a seeded floor holds:
+
+    cargo test
+
 To use the item and see what it does without a terminal of your own, `play-through-a-pty.md` types the keys for you and prints the screen.
 
 
@@ -212,7 +216,7 @@ Appendix: quick check
 5. A wand with no reticle (it acts on the room or the zapper): `.unaimed()` on its row.
 6. Never rename a row; a save stores its name.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.
-8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test it content::`.
+8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test it content::`, then `cargo test`.
 9. Fix the docs `update-the-docs.md` names for your change.
 
 

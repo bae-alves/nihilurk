@@ -30,9 +30,13 @@ Order is the behaviour. Write the set as a sentence first ("shoot if it can, oth
 Step 2: give it a tactic
 ------------------------
 
-A set is picked from the monster's `MovementType` in `rule_set_for`. Add a variant at the **end** of the enum in `models/src/components.rs` (a save writes it by position), then one arm:
+A set is picked from the monster's `MovementType` in `rule_set_for`. Add a variant at the **end** of the enum in `models/src/components.rs` (a save writes it by position), with a `///` line: `models` warns on any public item without one (`missing_docs`). Then one arm:
 
     MovementType::Skirmish => &SKIRMISHER,
+
+A test pins every saved enum's variant order, so `saved_enums_keep_their_variant_order` fails until you record the new variant. Appending at the end is safe; regenerate the golden file:
+
+    NIHILURK_REGEN_ENUMS=1 cargo test -p nihilurk-models --test it saved_enums::
 
 `rule_set_for` is the one exhaustive `match` on `MovementType`, so the compiler stops there and nowhere else. The other places that read the tactic use `matches!` and treat the new one as none of theirs: the renderer's staggering tint (`Confused`, `Flee`) and the garrote's helpless-target check in `combat.rs`. Read both and decide whether the new tactic belongs.
 
@@ -63,7 +67,7 @@ Appendix: quick check
 
 1. Write `pub static <NAME>: RuleSet` in `models/src/agents.rs`; the order of `rules` is the behaviour.
 2. Set `leashed: true` only for a set that hunts the player.
-3. Append a `MovementType` variant at the end in `models/src/components.rs`, and add its arm to `rule_set_for`.
+3. Append a documented `MovementType` variant at the end in `models/src/components.rs`, add its arm to `rule_set_for`, and regenerate `models/tests/golden/saved_enums.txt`.
 4. Check the `matches!` readers of `MovementType` (the renderer's tint, the garrote) and add the new tactic where it belongs.
 5. Put the variant in the `movement` column of a bestiary row.
 6. Test each rule the set lists: one case where it wins, one where an earlier rule passes.
