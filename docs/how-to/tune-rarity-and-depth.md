@@ -143,6 +143,10 @@ The table tests cover the gating but not your intent, so measure it:
 
 `every_loot_category_can_be_drawn_and_has_rows_to_give` asks the table, not a sampler: every category keeps a nonzero weight and has rows at its debut floor and at the deepest. If you weight a category down to nothing, that test tells you.
 
+Then run the whole suite. A weight changes what a seeded floor holds, and `content::` only reads the tables. A `DROPS` weight also fails `the_drops_table_in_the_doc_matches_the_real_weights` (`models/tests/content_docs.rs`) until the weights table in `../reference/content-tables.md` matches:
+
+    cargo test
+
 For a feel, the quickest instrument is a throwaway loop over `roll_item` or `MonsterDef::pick` counting names -- see `models/tests/it/content.rs` for the shape.
 
 
@@ -154,7 +158,7 @@ Appendix: quick check
 3. Category: change its weight in `DROPS` (`models/src/spawn.rs`).
 4. Row: `.weight(n)` on a monster, or `weight` on a trap; `DEFAULT_SPAWN_WEIGHT` is the baseline (spirits sit at `spirits::SPAWN_WEIGHT`), and of the items only scrolls and coins weigh their rows.
 5. Gate: raise `min_depth`; it is a hard gate, and nothing makes a row stop appearing deeper.
-6. Run `cargo test --test it content::`.
+6. Run `cargo test --test it content::`, then `cargo test`.
 7. Count what a draw gives you with a throwaway loop over `roll_item` or `MonsterDef::pick`.
 8. Fix the docs: if you changed a `DROPS` weight, update the weights table in `../reference/content-tables.md` and the listing in this page.
 
