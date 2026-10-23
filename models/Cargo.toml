@@ -1,7 +1,7 @@
 [package]
 name = "nihilurk-models"
 description = "The rules of nihilurk, a terminal roguelike: bevy_ecs components, monsters, items, spells, combat and procedural map generation."
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 license.workspace = true
 repository.workspace = true
@@ -22,7 +22,7 @@ name = "models"
 workspace = true
 
 [dependencies]
-strings = { package = "nihilurk-strings", path = "../strings", version = "0.6.0" }
+strings = { package = "nihilurk-strings", path = "../strings", version = "0.7.0" }
 bevy_ecs = "0.12" 
 rand = "0.8"
 rand_chacha = { version = "0.3", features = ["serde1"] }
