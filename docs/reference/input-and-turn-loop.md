@@ -19,7 +19,7 @@ Reference: input handling and the turn loop
 The split this code sits on
 ----------------------------
 
-`models/` holds the pathfinding and state machines (`autoexplore.rs`, `fastmove.rs`) as **pure functions that only read the world** — no terminal, no sleeping, no turn-taking. `engine/src/update.rs` is the other half: it reads the keyboard through `engine/src/input.rs` (the one place that calls `term::read`/`poll`, so a run can be recorded and replayed), decides when a turn is spent, and drives those pure functions to completion. Neither `update.rs` nor `view.rs` names a terminal library: input reaches them as `input.rs`'s own `Event`, and `engine/src/term.rs` is the one file that names crossterm. Nothing in `models/` blocks on input or sleeps; nothing in `engine/` does pathfinding. If you find yourself wanting to add a `World` query that decides *where* to go, it almost certainly belongs in `models/`, not here — see the module doc comments at the top of `autoexplore.rs` and `fastmove.rs`.
+`models/` holds the pathfinding and state machines (`autoexplore.rs`, `fastmove.rs`) as **pure functions that only read the world** — no terminal, no sleeping, no turn-taking. `engine/src/update.rs` is the other half: it reads the keyboard through `engine/src/input.rs` (the one place that calls `term::read`/`poll`), decides when a turn is spent, and drives those pure functions to completion. Neither `update.rs` nor `view.rs` names a terminal library: input reaches them as `input.rs`'s own `Event`, and `engine/src/term.rs` is the one file that names crossterm. Nothing in `models/` blocks on input or sleeps; nothing in `engine/` does pathfinding. If you find yourself wanting to add a `World` query that decides *where* to go, it almost certainly belongs in `models/`, not here — see the module doc comments at the top of `autoexplore.rs` and `fastmove.rs`.
 
 
 The event types
@@ -32,7 +32,7 @@ pub struct MouseEvent { button: MouseButton, column: u16, row: u16, modifiers: K
 pub enum MouseButton { Left, Right }
 ```
 
-These live in `input.rs` and are the game's own, so `update.rs` matches on them without a terminal library in sight. `KeyCode` has the keys a recording can name (`Char`, `F`, the arrows, `Home`/`End`, `PageUp`/`PageDown`, `Tab`, `BackTab`, `Delete`, `Insert`, `Esc`, `Enter`, `Backspace`). `KeyModifiers` is one byte with Shift 1, Control 2 and Alt 4, the same bits a recording holds; a recording line with any other bit set (Super, say) decodes with that bit dropped.
+These live in `input.rs` and are the game's own, so `update.rs` matches on them without a terminal library in sight. `KeyCode` has the keys the game acts on (`Char`, `F`, the arrows, `Home`/`End`, `PageUp`/`PageDown`, `Tab`, `BackTab`, `Delete`, `Insert`, `Esc`, `Enter`, `Backspace`). `KeyModifiers` is one byte with Shift 1, Control 2 and Alt 4; any other bit (Super, say) is dropped.
 
 `term::read` is where the terminal's events become these, and where the filtering happens. Only a key press and a Left or Right mouse down get through: a release, a repeat, a resize, pointer motion, a middle click and a key with no `KeyCode` (Caps Lock, a media key) return `None` and are never logged. That is why no handler in `update.rs` or `view.rs` checks a key's kind. A click comes back in grid coordinates, with the `-c` centering offset of the frame on screen taken off; a click outside the frame is dropped there too.
 
@@ -360,7 +360,7 @@ Testing
   * **The menus.** The spells list picks a slot by letter and never by digit; `Alt`+`Q`/`W`/`E`/`R` fire slots one to four; a `keymap.txt` remap walks like the key it stands for, and menus keep their literal keys.
   * **The reticle and look.** Where the reticle opens, which targets `Tab` skips, what `?` opens on a pile and in what order, and the tile a zap or a throw lands on.
   * **The mouse.** A cell maps to the tile under it; left looks, right travels; a click on an unseen tile or under a menu does nothing.
-  * **Time stop and replay.** The save on each time-stop edge, the second yes to quit inside one, and that one seed and one key list play out the same run.
+  * **Time stop and seeds.** The save on each time-stop edge, the second yes to quit inside one, and that one seed and one key list play out the same run.
 
 `view.rs` has no tests of what a frame looks like, on purpose — see `rendering.md`. It pins only the log gate and the help-key remap. What is exercised only by playing the game: everything the renderer draws, and the run / travel / auto-explore loops (they poll and sleep). The reticle's opening target and the tile a zap or throw lands on are tested in `update.rs`; its cursor loop is not. What *can* be tested is also tested one level down, in `models/`: `tests/it/pack.rs` pins what each menu shows, and `tests/it/autoexplore.rs` pins which goal the walk picks and what it leaves behind.
 

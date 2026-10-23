@@ -642,8 +642,6 @@ OPTIONS
                                a six-floor dungeon; floors 4 and 5 are special levels
     -anim-rate, --anim-rate N  set animation pacing multiplier (0.1..=5.0)
     -keymap, --keymap FILE     remap keys from FILE (default: keymap.txt in the data dir)
-    -v, --replay FILE          play back a recording; nothing is saved or scored
-    -nrec, --no-recording      do not record this run (recordings go in the data dir)
     -b, --body BODY            play as nihil (default) or lurk
     -am, --as-monster SPECIES  play as a monster: any bestiary name, e.g. -am dragon
     -content, --content        list names accepted by NIHILURK_SPAWN
@@ -766,21 +764,6 @@ pub fn clear_data_saved(save_name: &str) -> String {
 
 pub fn failed_to_save_clear_data(err: &str) -> String {
     format!("Failed to save clear data: {err}")
-}
-
-// TODO: placeholder English; needs a human's pass.
-pub fn replay_unreadable(path: &str, err: &str) -> String {
-    format!("nihilurk: cannot replay '{path}': {err}")
-}
-
-// TODO: placeholder English; needs a human's pass.
-pub fn replay_other_version(recorded: &str, running: &str) -> String {
-    format!("nihilurk: recorded on {recorded}, running {running}; the replay may drift")
-}
-
-// TODO: placeholder English; needs a human's pass.
-pub fn replay_ended(outcome: &str) -> String {
-    format!("Replay over: {outcome}.")
 }
 
 pub fn game_not_saved() -> &'static str {

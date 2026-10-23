@@ -3780,7 +3780,7 @@ mod tests {
     }
     /// What a run has become after `keys`: the log, the place, the floor and the
     /// next roll. Two runs of one seed and one key list must agree on all four,
-    /// which is the whole contract a replay stands on.
+    /// which is what a seed promises.
     fn run_fingerprint(seed: u64, keys: &str) -> (Vec<String>, Position, u8, u64) {
         use rand::RngCore;
         let mut w = modal_world(seed);

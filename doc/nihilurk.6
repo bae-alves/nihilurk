@@ -9,13 +9,9 @@ nihilurk \- terminal roguelike
 [\fB\-nshake\fR|\fB\-\-no\-shake\fR] [\fB\-nobones\fR|\fB\-\-no\-bones\fR]
 [\fB\-mouse\fR|\fB\-\-mouse\fR]
 [\fB\-endless\fR|\fB\-\-endless\fR | \fB\-fast\fR|\fB\-\-fast\fR]
-[\fB\-nrec\fR|\fB\-\-no\-recording\fR]
 [\fB\-anim\-rate\fR|\fB\-\-anim\-rate\fR \fImultiplier\fR]
 [\fB\-keymap\fR|\fB\-\-keymap\fR \fIfile\fR]
 [\fB\-b\fR|\fB\-\-body\fR \fIbody\fR | \fB\-am\fR|\fB\-\-as\-monster\fR \fIspecies\fR]
-.PP
-.B nihilurk
-\fB\-v\fR|\fB\-\-replay\fR \fIfile\fR
 .PP
 .B nihilurk
 \fB\-content\fR | \fB\-\-content\fR
@@ -254,18 +250,6 @@ is written to the save and restored on load, so
 given together with a save to load is refused: the save already knows what
 body it is in.
 .TP
-.BR \-nrec ", " \-\-no\-recording
-Do not record this run. A new run otherwise writes
-.IR recordings/name \- seed .rec
-in the data directory: the seed, the body, the mode flags, the spawn
-variables, the keymap, and every key the game acted on. A run resumed from a
-save is not recorded.
-.TP
-.BI "\-v, \-\-replay" " file"
-Play back a recording from its first turn. The seed, body and mode come from
-the recording; nothing is saved, scored or dumped, and bones are off. A
-recording from another version may drift, and the game warns when it is one.
-.TP
 .BR \-content ", " \-\-content
 Print every content name accepted by
 .BR NIHILURK_SPAWN ,
@@ -401,7 +385,7 @@ each time it waits for a key, so a script driving it through a pty knows the
 last key has done all it will. A terminal ignores it.
 .TP
 .B NIHILURK_DATA
-The directory for saves, bones files, the leaderboards, recordings, run dumps
+The directory for saves, bones files, the leaderboards, run dumps
 and
 .IR keymap.txt .
 Unset or empty, it is
@@ -571,10 +555,6 @@ beside it lets two runs ending at once take turns.
 Key remaps read at start-up when
 .B \-keymap
 is not given, in the data directory.
-.TP
-.IR recordings/name \- seed .rec
-The recording of a run, for
-.BR \-v .
 .TP
 .BR bones\-N.sav
 What a dead run left on floor N, in the data directory.

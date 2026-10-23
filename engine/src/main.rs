@@ -7,7 +7,6 @@ mod constants;
 mod input;
 mod morgue;
 mod ready;
-mod recording;
 mod screen;
 mod term;
 mod update;
@@ -280,39 +279,6 @@ fn dropped_mode_flags(fast: bool, endless: bool, loading: bool) -> Option<String
 /// Floors in a `-fast` run.
 const FAST_FLOORS: u8 = 6;
 
-type Recording = (recording::Header, Vec<(u64, Event)>);
-
-/// Finds `-v FILE` in `args`. With one, loads the recording and returns the
-/// arguments to run with instead: the rest of the line, then the flags that
-/// rebuild the recorded run (a later `-s` wins over an earlier one).
-fn load_replay(args: &[String]) -> Result<(Vec<String>, Option<Recording>), String> {
-    let Some(at) = args.iter().skip(1).position(|a| canonical_flag(a) == "-v") else {
-        return Ok((args.to_vec(), None));
-    };
-    let at = at + 1;
-    let Some(path) = args.get(at + 1) else {
-        return Ok((args.to_vec(), None));
-    };
-    let fail = |e: String| strings::replay_unreadable(path, &e);
-    let text = std::fs::read_to_string(path).map_err(|e| fail(e.to_string()))?;
-    let (header, events) = recording::parse(&text).map_err(fail)?;
-    let mut rebuilt: Vec<String> = args[..at].iter().chain(&args[at + 2..]).cloned().collect();
-    rebuilt.extend([
-        "-s".into(),
-        header.seed.to_string(),
-        "-ns".into(),
-        "-nobones".into(),
-    ]);
-    rebuilt.extend(header.body.iter().flat_map(|b| body_args(b)));
-    if header.endless {
-        rebuilt.push("-endless".into());
-    }
-    if header.fast {
-        rebuilt.push("-fast".into());
-    }
-    Ok((rebuilt, Some((header, events))))
-}
-
 /// The body a new player's name picks: a player named after a row of
 /// [`models::BODIES`], in any case, is that body, as `-b` would make them.
 /// `Err` holds the body flag the name clashes with.
@@ -327,13 +293,6 @@ fn body_named(
         Some(arg) if arg != format!("-b {}", def.name) => Err(arg.to_string()),
         _ => Ok(Some(def)),
     }
-}
-
-/// A recorded body line as two arguments, the flag and the name, so a name
-/// can never read as more flags.
-fn body_args(body: &str) -> Vec<String> {
-    let (flag, name) = body.split_once(' ').unwrap_or((body, ""));
-    vec![flag.to_string(), name.to_string()]
 }
 
 /// Maps a double-dash longhand to the short flag the parser matches on.
@@ -354,8 +313,6 @@ fn canonical_flag(arg: &str) -> &str {
         "--fast" | "--bullet" | "--quick" | "-bullet" | "-quick" => "-fast",
         "--anim-rate" => "-anim-rate",
         "--keymap" => "-keymap",
-        "--replay" => "-v",
-        "--no-recording" => "-nrec",
         "--content" => "-content",
         "--pride" => "-pride",
         "--prideoff" => "-prideoff",
@@ -365,9 +322,7 @@ fn canonical_flag(arg: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        body_args, body_named, canonical_flag, dropped_mode_flags, find_save, save_path_in,
-    };
+    use super::{body_named, canonical_flag, dropped_mode_flags, find_save, save_path_in};
 
     fn data_dir(tag: &str) -> std::path::PathBuf {
         let dir =
@@ -406,15 +361,6 @@ mod tests {
                 Some("-b someone else")
             );
         }
-    }
-
-    #[test]
-    fn a_recorded_body_stays_one_flag_and_one_name() {
-        assert_eq!(body_args("-am dire wolf"), ["-am", "dire wolf"]);
-        assert_eq!(
-            body_args("-b lurk -keymap /etc/passwd"),
-            ["-b", "lurk -keymap /etc/passwd"]
-        );
     }
 
     #[test]
@@ -504,13 +450,6 @@ fn main() -> std::io::Result<()> {
     {
         return finish_listing(print_help(&mut stdout().lock()));
     }
-    let (args, replay) = match load_replay(&args) {
-        Ok(found) => found,
-        Err(message) => {
-            eprintln!("{message}");
-            return Ok(());
-        }
-    };
     let mut seed: Option<u64> = None;
     let mut centered_mode = false;
     let mut no_save = false;
@@ -533,8 +472,6 @@ fn main() -> std::io::Result<()> {
     let mut positional: Option<String> = None;
     let mut anim_rate: f32 = 1.0;
     let mut keymap_path: Option<PathBuf> = None;
-    let mut no_rec = false;
-    let mut replaying = false;
     let mut first = true;
     let mut stray_positional: Option<String> = None;
     let mut invalid_argument: Option<String> = None;
@@ -605,10 +542,6 @@ fn main() -> std::io::Result<()> {
                         invalid_argument.get_or_insert(flag_with_value("-anim-rate", value));
                     }
                 }
-            }
-            "-nrec" => no_rec = true,
-            "-v" => {
-                invalid_argument.get_or_insert(flag_with_value("-v", None));
             }
             "-keymap" => {
                 let value = iter.next();
@@ -683,10 +616,9 @@ fn main() -> std::io::Result<()> {
     }
 
     let data_dir = models::data_dir();
-    let keymap = match (&replay, &keymap_path) {
-        (Some((header, _)), _) => models::parse_keymap(header.keymap.as_deref().unwrap_or("")),
-        (None, Some(path)) => models::load_keymap(path),
-        (None, None) => models::load_keymap_if_present(&data_dir.join("keymap.txt")),
+    let keymap = match &keymap_path {
+        Some(path) => models::load_keymap(path),
+        None => models::load_keymap_if_present(&data_dir.join("keymap.txt")),
     };
     let keymap = match keymap {
         Ok(keymap) => keymap,
@@ -696,23 +628,7 @@ fn main() -> std::io::Result<()> {
         }
     };
     let mut load_path: Option<(PathBuf, String)> = None;
-    if let Some((header, events)) = replay {
-        if header.version != env!("CARGO_PKG_VERSION") {
-            eprintln!(
-                "{}",
-                strings::replay_other_version(&header.version, env!("CARGO_PKG_VERSION"))
-            );
-        }
-        for key in recording::SHAPING_ENV {
-            match header.env.iter().find(|(k, _)| k == key) {
-                Some((_, value)) => unsafe { std::env::set_var(key, value) },
-                None => unsafe { std::env::remove_var(key) },
-            }
-        }
-        player_name = header.name;
-        input::replay_from(events);
-        replaying = true;
-    } else if let Some(arg) = positional {
+    if let Some(arg) = positional {
         match find_save(&arg, &data_dir) {
             Some(found) => load_path = Some((found, arg)),
             None => {
@@ -736,7 +652,6 @@ fn main() -> std::io::Result<()> {
                         match body_named(&arg, body_arg.as_deref()) {
                             Ok(Some(def)) => {
                                 body = Some((models::Body::Row(def), "-b"));
-                                body_arg = Some(format!("-b {}", def.name));
                             }
                             Ok(None) => {}
                             Err(flag) => {
@@ -791,32 +706,6 @@ fn main() -> std::io::Result<()> {
     let seed_value = seed.unwrap_or_else(rand::random);
     world.insert_resource(models::GameRng(ChaCha12Rng::seed_from_u64(seed_value)));
     world.insert_resource(models::RngSeed(seed_value));
-    if !replaying && !no_rec && load_path.is_none() {
-        let header = recording::Header {
-            version: env!("CARGO_PKG_VERSION").into(),
-            seed: seed_value,
-            name: player_name.clone(),
-            body: body_arg.clone(),
-            endless,
-            fast,
-            nobones: no_bones,
-            env: recording::SHAPING_ENV
-                .iter()
-                .filter_map(|k| Some((k.to_string(), std::env::var(k).ok()?)))
-                .filter(|(_, v)| !v.contains('\n'))
-                .collect(),
-            keymap: std::fs::read_to_string(
-                keymap_path
-                    .clone()
-                    .unwrap_or_else(|| data_dir.join("keymap.txt")),
-            )
-            .ok(),
-        };
-        let path = recording::path_for(&data_dir, &player_name, seed_value);
-        if let Ok(file) = recording::start(&path, &header) {
-            input::record_to(Box::new(file));
-        }
-    }
     world.init_resource::<PackIsOpen>();
     world.insert_resource(TargetingState {
         active: false,
@@ -955,17 +844,6 @@ fn main() -> std::io::Result<()> {
         if world.resource::<Ending>().player_dead || world.resource::<Ending>().player_won {
             break;
         }
-    }
-
-    if replaying {
-        let outcome = match world.resource::<Ending>() {
-            e if e.player_won => "the run was won".to_string(),
-            e if e.player_dead => format!("the run ended in death: {}", e.cause),
-            _ => "the recording ended mid-run".to_string(),
-        };
-        drop(guard);
-        println!("{}", strings::replay_ended(&outcome));
-        return Ok(());
     }
 
     if world.resource::<Ending>().player_won {
