@@ -10,12 +10,12 @@ description: Play nihilurk to see a change working in the real game: start a run
     a=.claude/skills/play-nihilurk/agent
     cargo build -q -p nihilurk
     d=$(mktemp -d)
-    NIHILURK_BIN="$PWD/target/debug/nihilurk" NIHILURK_SPAWN="rune of ice,aquator" $a/serve.sh start "$d" -s 1
+    NIHILURK_BIN="$PWD/target/debug/nihilurk" $a/serve.sh start "$d" -s 1
     $a/act.sh -d "$d"              # the screen now
     $a/act.sh -d "$d" ' ' y        # a key at a time; the last percept prints
     kill "$(cat "$d/pid")"; rm -rf "$d"
 
-`start` takes game flags after the directory (`-s 7`, `-b lurk`, `-am dragon`) and runs the game from that directory with `-ns -nobones -nshake -nb -anim-rate 0.1`, so it writes no save or bones, and the feel layer is gone. The directory is also the game's data directory: your own keymap is not read (pass `-keymap FILE` to test one), and a run that ends leaves its `leaderboard.sav` and `morgue/` there, not in yours. It must be yours and closed to other users, as `mktemp -d` makes it; `start` refuses one that others can write into. `NIHILURK_BIN` must be an absolute path. Without it, `start` runs the `nihilurk` on `PATH`, which is not your change. `NIHILURK_SPAWN` and `NIHILURK_LEVEL` (battlefield, labyrinth, vault, bee, castle, island) pass through.
+`start` takes game flags after the directory (`-s 7`, `-b lurk`, `-am dragon`) and runs the game from that directory with `-ns -nshake -nb -anim-rate 0.1`, so it writes no save, and the feel layer is gone. The directory is also the game's data directory: your own keymap is not read (pass `-keymap FILE` to test one), and a run that ends leaves its `leaderboard.sav` and `morgue/` there, not in yours. It must be yours and closed to other users, as `mktemp -d` makes it; `start` refuses one that others can write into. `NIHILURK_BIN` must be an absolute path. Without it, `start` runs the `nihilurk` on `PATH`, which is not your change. `NIHILURK_SPAWN` and `NIHILURK_LEVEL` (battlefield, labyrinth, vault, bee, castle, island) pass through.
 
 A KEY is typed with `printf %b` escapes (`'\r'`, `'\e'`, `'\t'`, `'\eq'` for Alt+q). `?` prints the percept at that point in the list. An empty KEY (`''`) types nothing and gets the screen again. A percept is the 25 screen rows, then a `ROW COL GLYPH COLOUR` line for each cell on a coloured background (a status tint: paralysed Cyan, asleep DarkBlue, held DarkGreen), then `end`, or `over` once the game has exited.
 
@@ -23,8 +23,20 @@ A percept is sent the moment the game signals that it waits on a key (`NIHILURK_
 
 Tests: `bash .claude/skills/play-nihilurk/agent/serve_test.sh`.
 
+## Play to win
+
+A run played to win takes no `NIHILURK_SPAWN` and no `NIHILURK_LEVEL`. A spawn lands on every floor, so it hands you the same help six times over.
+
+- Read `MANUAL.md` before the first key, and read it again when you get stuck: the stairs, TIME, the Element, the climb back up.
+- After each `act.sh` call, say what you saw and what you plan next.
+- Fight in doorways, where diagonals are blocked and foes come one at a time.
+- Use your best item at half HP, not at 1 HP.
+- Run for the stairs when a fight is out of your league. A new floor restores some HP.
+- Drop junk to keep a slot free. The Element will not go into a full pack.
+
 ## Try a content row
 
+    NIHILURK_BIN="$PWD/target/debug/nihilurk" NIHILURK_SPAWN="rune of ice,aquator" $a/serve.sh start "$d" -s 1
     $a/act.sh -d "$d" ' '          # the first --MORE-- needs a Space; find the rune and the aquator
     $a/act.sh -d "$d" y ' ' r f    # step onto the rune (auto-pickup), read it
 

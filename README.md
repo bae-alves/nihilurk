@@ -72,7 +72,7 @@ Adding content
 
 There is no pink dragon in nihilurk. The whole point is putting one in.
 
-Open `models/src/monsters.rs`, find `BESTIARY`, add a line:
+Open `models/src/creatures/monsters.rs`, find `BESTIARY`, add a line:
 
     MonsterDef::row("pink dragon", 'D', Color::Magenta, Chase,
                     8, 12, 2, 10, 2, 7)
@@ -84,7 +84,7 @@ That is: name, glyph, colour, how it moves, then hit points, attack die, attack 
 
 That is the change. The pink dragon now populates floors from depth 7, is something a wand of polymorph can turn a foxbat into, something a scroll of create monster can summon, a legal bane for a vorpal weapon, and it comes back correctly out of a save file. Nothing else in the codebase had to be told it exists, because nothing else enumerates species.
 
-Items are the same shape, in `models/src/catalog.rs` -- one table per kind, one row per thing:
+Items are the same shape, in `models/src/items/catalog.rs` -- one table per kind, one row per thing:
 
     WeaponDef::new("quarterstaff", Color::DarkYellow, 7).missile(6),
     ArmorDef { name: "brigandine", color: Color::Grey, armor_die: 6, grants: &[] },

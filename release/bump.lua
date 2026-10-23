@@ -124,7 +124,7 @@ end
 local function save_version(text)
   return tonumber((text or ""):match("SAVE_VERSION:%s*u%d+%s*=%s*(%d+)"))
 end
-local SAVE_FILE = "models/src/saveload.rs"
+local SAVE_FILE = "models/src/meta/saveload.rs"
 local last_tag, has_tag = git("describe --tags --abbrev=0")
 local f = io.open(path(SAVE_FILE))
 local now = f and save_version(f:read("a"))

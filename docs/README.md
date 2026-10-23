@@ -28,6 +28,7 @@ Start here
 | Add a whole new *kind* of item                 | `how-to/add-an-item-category.md`                |
 | Put a specific thing on a specific tile        | `how-to/spawn-a-thing.md`                       |
 | See a change working in the real game          | `how-to/play-through-a-pty.md`                  |
+| Find the file a name lives in                  | `reference/module-map.md`                       |
 | Look up a component, resource, event           | `reference/components.md`                       |
 | Change a balance number                        | `reference/constants.md`                        |
 | Look up a function I have to call              | `reference/spawn-api.md`                        |
@@ -134,7 +135,7 @@ Three things make that cheap here:
 
   1. The docs describe *tables*, and the tables are short. There is rarely more than one page to touch.
 
-  2. `models/tests/it/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/it/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
+  2. `models/tests/it/meta/content.rs` enforces the claims this documentation makes about the tables -- unique names, reachable rows, depth gating, no catalog row spawning a dud -- and `models/tests/it/meta/determinism.rs` enforces the one claim that protects everyone else's saved seeds: adding content cannot move a wall. `engine/tests/workspace.rs` is the third of that kind: it checks that a bare `cargo test` still covers every crate that ships. If a doc claim can be a test, make it a test and cite it here.
 
   3. `cargo run -p nihilurk -- -content` prints the live content list. It reads the tables, so it can never go stale. Prefer pointing a reader at it over pasting a list into a page.
 

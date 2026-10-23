@@ -29,7 +29,7 @@
 #   -k FILE    keep the raw bytes the game wrote, for screen.lua
 #
 # The game runs from a scratch directory, which is also its data directory,
-# with -ns -nobones -nshake -nb, so it writes no save or bones, never reads your
+# with -ns -nshake -nb, so it writes no save, never reads your
 # keymap or writes to your leaderboard and morgue, and it is killed when the
 # keys run out. Linux: `script` is util-linux's.
 
@@ -60,7 +60,7 @@ rows="${size%x*}" cols="${size#*x}"
 
 if [[ -z "$custom" ]]; then
     (cd "$root" && cargo build -q -p nihilurk)
-    command="exec '$bin' -s $seed -ns -nobones -nshake -nb $extra"
+    command="exec '$bin' -s $seed -ns -nshake -nb $extra"
     if [[ -n "$spawn" ]]; then
         known="$("$bin" -content | sed -nE 's/^  (.+)$/\1/p')"
         IFS=',' read -ra wanted <<< "$spawn"

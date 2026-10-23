@@ -123,11 +123,11 @@ Recipe: add a component
 
 Before you write one, check you need one. Three things that look like new components are not:
 
-  * **A property some system will ask about** — fire immunity, sees invisible, hits harder. That is an *effect*: a marker in `effects.rs` plus a row in the `EFFECTS` registry, so a table can name it with `Grant::of::<C>()` and a wand of cancellation can strip it. Follow `add-an-effect.md` instead.
-  * **A number gear contributes** — a weapon's die, a ring's plus. That is a `Modifier` in `effects.rs`; `equipped_total` already folds it.
+  * **A property some system will ask about** — fire immunity, sees invisible, hits harder. That is an *effect*: a marker in `effects/` plus a row in the `EFFECTS` registry, so a table can name it with `Grant::of::<C>()` and a wand of cancellation can strip it. Follow `add-an-effect.md` instead.
+  * **A number gear contributes** — a weapon's die, a ring's plus. That is a `Modifier` in `effects/`; `equipped_total` already folds it.
   * **Which one of a kind a thing is** — another wand, another potion. That is a row in `catalog.rs`, and the existing type key (`Wand`, `Potion`) points at it. See `add-an-item.md`.
 
-What is left is a genuinely new *fact about an entity*, and it goes in `models/src/components.rs` — nouns only, no behaviour:
+What is left is a genuinely new *fact about an entity*, and it goes in `models/src/meta/components/` — nouns only, no behaviour:
 
     /// Two sentences: what carrying this means, and who owns it. Name the
     /// system that reads it, and — if it is transient — say so here,
@@ -167,7 +167,7 @@ Recipe: add a kind of entity
 
 A new kind is three pieces, and the third is what keeps it from spreading:
 
-**1. A `Def` row type, with the table beside it.** Not in `components.rs` — next to the content it describes, so the type, the table and the one place it is built are all in one file:
+**1. A `Def` row type, with the table beside it.** Not in `components/` — next to the content it describes, so the type, the table and the one place it is built are all in one file:
 
     pub struct TrapDef {
         pub name: &'static str,
@@ -203,7 +203,7 @@ Components that only *some* of the kind carry stay off the bundle and go on afte
         world.entity_mut(e).insert(Invisible);
     }
 
-**3. A way to reach it by name.** Add the table to `spawn::spawn_named` and to `spawn::content_names`, and the new kind immediately answers to `NIHILURK_SPAWN`, to `-content`, to every test, and to `models/tests/it/content.rs`'s "every name spawns and keeps its name" check. If it is *loot* rather than furniture, implement `ItemDef` and give it a `DROPS` row instead — `add-an-item-category.md` is the full recipe.
+**3. A way to reach it by name.** Add the table to `spawn::spawn_named` and to `spawn::content_names`, and the new kind immediately answers to `NIHILURK_SPAWN`, to `-content`, to every test, and to `models/tests/it/meta/content.rs`'s "every name spawns and keeps its name" check. If it is *loot* rather than furniture, implement `ItemDef` and give it a `DROPS` row instead — `add-an-item-category.md` is the full recipe.
 
 Then the bookkeeping, in order:
 
@@ -292,7 +292,7 @@ Every verb returns `bool`: whether it actually took hold. That answer is load-be
 
 **To add a new condition**, in order:
 
-  1. A marker effect in `effects.rs` and its row in `EFFECTS` (`add-an-effect.md`), doc-commented with what it costs the player and what it does to a monster instead. The row is what saves it, by id, with the `Lifetime` it is held for; a condition outside `EFFECTS` silently lifts on reload.
+  1. A marker effect in `effects/` and its row in `EFFECTS` (`add-an-effect.md`), doc-commented with what it costs the player and what it does to a monster instead. The row is what saves it, by id, with the `Lifetime` it is held for; a condition outside `EFFECTS` silently lifts on reload.
   2. A verb in `conditions.rs` that does the player/monster split once, and lends the effect through `effects::lend`, the gate that enforces `CONDITION_CAP`.
   3. A row in `conditions::AFFLICTIONS`, at its place in the worst-first order. That one table is what `afflicted`, `cure_one_condition` (a rosé coin and a ring of regeneration both lift "the worst thing wrong with you") and `clear_player_conditions` all read. A condition meant to survive a staircase stays out of it, the way `Plated` and `Forged` do.
   4. A badge in the HUD's condition list (`engine/src/view.rs`).
@@ -375,7 +375,7 @@ Input handlers do not resolve anything. They push an intent and return whether a
 Recipe: add a system to the turn
 --------------------------------
 
-Register it in `models/src/schedule.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in nihilurk — the schedule is one flat list of seventeen steps, and every edge is deliberate:
+Register it in `models/src/meta/schedule.rs` with an explicit `.after()`. There is no implicit ordering and no `SystemSet` in nihilurk — the schedule is one flat list of seventeen steps, and every edge is deliberate:
 
     schedule.add_systems((
         // …
@@ -452,14 +452,14 @@ Appendix: quick check
 ---------------------
 
 1. Before a new component, check it is not an effect, a modifier, or a row of an existing kind.
-2. Component: add it to `models/src/components.rs` as nouns only, decide and say if it is saved, and add its row to `../reference/components.md`.
+2. Component: add it to `models/src/meta/components/` as nouns only, decide and say if it is saved, and add its row to `../reference/components.md`.
 3. New kind of entity: a `Def` row type and table, a `Bundle`, then `spawn_named` and `content_names`.
 4. Damage: `combat::resolve_attack` if somebody swung, `helpers::apply_hit` with a `Hit` if not; the reaper finishes the dead.
 5. Condition: call the verb in `crate::conditions`; a new one needs an `EFFECTS` row, a verb, an `AFFLICTIONS` row and a HUD badge.
 6. Gear stat: `equipped_total::<C>`, or `loadout` for several; probe the marker to ask a yes or no.
 7. Spawn: `spawn_named` for a row, `roll_item` for a drop; remove an item from the pack before you despawn it.
 8. Input: push an intent onto its queue and return; the matching system drains it.
-9. System: register it in `models/src/schedule.rs` with an explicit `.after()`, and explain the edge in `../reference/input-and-turn-loop.md`.
+9. System: register it in `models/src/meta/schedule.rs` with an explicit `.after()`, and explain the edge in `../reference/input-and-turn-loop.md`.
 10. Cosmetics: use `get_resource_mut`, roll from `FxRng`, and gate anything that leaks on `player_sees`.
 11. Run `cargo test --workspace`, `cargo clippy --all-targets`, `cargo fmt --all`, and `cargo test --test it determinism::`.
 

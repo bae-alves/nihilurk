@@ -1,6 +1,6 @@
 //! Every tuning knob in the binary, in one place.
 //!
-//! The balance of the game lives in `models/src/constants.rs`. This file is its
+//! The balance of the game lives in `models/src/meta/constants/`. This file is its
 //! counterpart for what the *terminal* does with a frame: how big the screen
 //! is, how long a frame is held, how long a turn the player did not choose
 //! stays on screen.
@@ -11,7 +11,7 @@
 //!
 //! ## What is *not* here
 //!
-//! * `STUMBLE_DIRS` in `models/src/player.rs`. A structural table, not a knob.
+//! * `STUMBLE_DIRS` in `models/src/player/mod.rs`. A structural table, not a knob.
 //! * `BLANK_CELL` in `screen.rs`. It is a value of a type that module owns.
 
 /// The cell grid the game paints onto.

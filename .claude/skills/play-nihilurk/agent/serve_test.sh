@@ -68,7 +68,7 @@ dir="$(mktemp -d)"
 dirs+=("$dir")
 NIHILURK_BIN=echo "$serve" start "$dir" -s 9
 out="$("$serve" session "$dir" < /dev/null)"
-grep -q -- '^-ns -nobones -nshake -nb -anim-rate 0.1 -s 9' <<< "$out" || fail "NIHILURK_BIN not run with the flags: $out"
+grep -q -- '^-ns -nshake -nb -anim-rate 0.1 -s 9' <<< "$out" || fail "NIHILURK_BIN not run with the flags: $out"
 
 # 9. Sessions take turns: one that arrives mid-session waits, so its key
 #    never lands between another session's keys.

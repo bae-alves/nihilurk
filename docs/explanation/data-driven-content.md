@@ -81,13 +81,13 @@ Where the pieces live
 
 Every kind of game object -- monster, item, trap -- is built the same three-part way, and each part has one home:
 
-  * **The components** (`Trap`, `Fighter`, `Renderable`, ...) go in `models/src/components.rs`. Anything that is an *effect* — a property a creature holds, from `FireArrow` to `Blind` — goes in `models/src/effects.rs` instead, where it gets a registry row, an id in the save file and a lifetime. That file is nouns: every `Component`, `Resource` and `Event` the game is made of, and nothing about what happens as a result. A system reads them; the save file round-trips them.
+  * **The components** (`Trap`, `Fighter`, `Renderable`, ...) go in `models/src/meta/components/`. Anything that is an *effect* — a property a creature holds, from `FireArrow` to `Blind` — goes in `models/src/combat/effects/` instead, where it gets a registry row, an id in the save file and a lifetime. That file is nouns: every `Component`, `Resource` and `Event` the game is made of, and nothing about what happens as a result. A system reads them; the save file round-trips them.
 
-  * **The table and its `Def` row** (`BESTIARY` / `MonsterDef`, every item table, `TRAPS` / `TrapDef`) go in that object type's own module -- `monsters.rs`, `catalog.rs`, `traps.rs`. A row is plain data: a name, a glyph, and the numbers its components need. Row-level dials (`weight`, `min_depth`, a trap's `snare_turns`) live here too, so adding a row that wants its own value is still a one-file change -- not a trip to `constants.rs`.
+  * **The table and its `Def` row** (`BESTIARY` / `MonsterDef`, every item table, `TRAPS` / `TrapDef`) go in that object type's own module -- `monsters.rs`, `catalog.rs`, `traps.rs`. A row is plain data: a name, a glyph, and the numbers its components need. Row-level dials (`weight`, `min_depth`, a trap's `snare_turns`) live here too, so adding a row that wants its own value is still a one-file change -- not a trip to `constants/`.
 
-  * **The `Bundle`** -- the struct that assembles the components for one spawn (`MonsterBundle`, `TrapBundle`) -- lives *next to its table*, not in `components.rs`. It is glue between a `Def` and the ECS, it names the row type, and it is the one place an entity of that kind is described. Keeping it with the table keeps "how a trap is made" in one file.
+  * **The `Bundle`** -- the struct that assembles the components for one spawn (`MonsterBundle`, `TrapBundle`) -- lives *next to its table*, not in `components/`. It is glue between a `Def` and the ECS, it names the row type, and it is the one place an entity of that kind is described. Keeping it with the table keeps "how a trap is made" in one file.
 
-So a brand-new object type -- say hazards that are neither trap nor monster -- is a new module with its table, `Def` and `Bundle`, plus whatever new components it needs in `components.rs`, plus the system that drives it. `constants.rs` only enters if the type has a game-wide tuning knob, and even then the per-row numbers stay on the row.
+So a brand-new object type -- say hazards that are neither trap nor monster -- is a new module with its table, `Def` and `Bundle`, plus whatever new components it needs in `components/`, plus the system that drives it. `constants/` only enters if the type has a game-wide tuning knob, and even then the per-row numbers stay on the row.
 
 
 The seed contract
@@ -114,7 +114,7 @@ That buys:
 
 Two players on one seed diverge the moment their staircase counts do. The maps are fixed; the run is not.
 
-`models/tests/it/determinism.rs` holds the contract to the fire -- layout is identical across reloads and however much of the shared stream a run burns; contents match between lockstep descents and *differ* on a repeat visit. If the layout half ever fails, floor generation has started reading something it should not.
+`models/tests/it/meta/determinism.rs` holds the contract to the fire -- layout is identical across reloads and however much of the shared stream a run burns; contents match between lockstep descents and *differ* on a repeat visit. If the layout half ever fails, floor generation has started reading something it should not.
 
 What follows from it
 --------------------
@@ -124,7 +124,7 @@ What follows from it
     cargo run -p nihilurk -- -content      lists every name, live
     NIHILURK_SPAWN="dragon,bow"              spawns any of them
     spawn_named(world, name, pos)        one door for tests and scripts
-    models/tests/it/content.rs              tests the data as data
+    models/tests/it/meta/content.rs              tests the data as data
 
 None of those has a list of content in it. They read the tables. A row added today is covered by all four today.
 
@@ -146,7 +146,7 @@ That buys the missing-handler case, not the missing-*behaviour* case -- the comp
 
 **And one ring did need a verb.** Most rings are a number or a marker; the ring of adornment is an *event* -- it fires once, when it goes on, and spends itself doing it. A `Grant` cannot say that, so it rides as an `OnWear` component the row attaches, and `models/src/items/rings.rs` holds the ring verbs (the adornment flourish, the regeneration tick, the teleportitis jump, the polymorphitis roll). That file is the honest cost of the design: it is where a ring's behaviour goes when the row cannot hold it. It still contains no `match` on which ring it is, and nothing outside it knows which ring is which.
 
-A mechanic has a third home. A condition (confusion, blindness, paralysis, a shifted tempo) is not a potion's property any more than it is a wand's: both put the same affliction on the same creature, and both have to know that the player takes it as a marker component the input loop reads while a monster takes it as a `MovementType` or a slower tempo. So the verbs live in `models/src/conditions.rs`, one per affliction, and a potion row names the verb itself while a wand handler is one line into it.
+A mechanic has a third home. A condition (confusion, blindness, paralysis, a shifted tempo) is not a potion's property any more than it is a wand's: both put the same affliction on the same creature, and both have to know that the player takes it as a marker component the input loop reads while a monster takes it as a `MovementType` or a slower tempo. So the verbs live in `models/src/creatures/conditions.rs`, one per affliction, and a potion row names the verb itself while a wand handler is one line into it.
 
 **Numeric modifiers need a place to be *read*.** A new `SightBonus` is one row in `modifiers!`, and that row folds it into `Loadout` for you -- but somebody still has to read the field from the calculation it modifies. There is no generic answer to "where does a new number belong".
 
@@ -158,7 +158,7 @@ A mechanic has a third home. A condition (confusion, blindness, paralysis, a shi
 The test that keeps this honest
 -------------------------------
 
-If you want one sentence that captures the design, it is the assertion in `models/tests/it/content.rs`:
+If you want one sentence that captures the design, it is the assertion in `models/tests/it/meta/content.rs`:
 
     for (category, name) in content_names() {
         let entity = spawn_named(&mut w, name, at(5, 5)).unwrap();

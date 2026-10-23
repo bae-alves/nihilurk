@@ -13,7 +13,7 @@ Reference: input handling and the turn loop
                    If this page and the source disagree, the source is
                    right and this page is a bug.
 
-**This is higher-risk ground than a content table.** A wrong row in `models/src/monsters.rs` is a monster with too much HP; a wrong branch here is a keypress that eats a turn it shouldn't, a modal that can't be closed, or a run loop that spins. `engine/` carries little test coverage: `update.rs` tests what `dispatch_key` decides and `view.rs` tests the log gate and the help-key remap (see "Testing" below), but the loops that poll and sleep and everything the renderer draws have none — so a mistake there is far more likely to be caught by a person playing the game than by `cargo test`. Change this file by reading it end to end first, and test by hand: walk into a wall confused, open the pack mid-throw, run a Shift-direction into a monster.
+**This is higher-risk ground than a content table.** A wrong row in `models/src/creatures/monsters.rs` is a monster with too much HP; a wrong branch here is a keypress that eats a turn it shouldn't, a modal that can't be closed, or a run loop that spins. `engine/` carries little test coverage: `update.rs` tests what `dispatch_key` decides and `view.rs` tests the log gate and the help-key remap (see "Testing" below), but the loops that poll and sleep and everything the renderer draws have none — so a mistake there is far more likely to be caught by a person playing the game than by `cargo test`. Change this file by reading it end to end first, and test by hand: walk into a wall confused, open the pack mid-throw, run a Shift-direction into a monster.
 
 
 The split this code sits on
@@ -292,7 +292,7 @@ Check a new key against the menus' own letters too: pack rows run from `a` for `
 The pack and the action modal
 -------------------------------
 
-Eleven keys open the pack, each in a `PackMode` (`models/src/pack.rs`) that decides the title, which rows are shown (`pack_rows`) and what picking one does (`PackMode::action`). `i` is the only one that asks afterwards; the rest carry their own verb and commit on the spot, closing the pack as they go. `open_pack` refuses with the mode's own line ("You have nothing to read.") rather than opening an empty box.
+Eleven keys open the pack, each in a `PackMode` (`models/src/creatures/pack.rs`) that decides the title, which rows are shown (`pack_rows`) and what picking one does (`PackMode::action`). `i` is the only one that asks afterwards; the rest carry their own verb and commit on the spot, closing the pack as they go. `open_pack` refuses with the mode's own line ("You have nothing to read.") rather than opening an empty box.
 
 Rows are **backpack indices**, not row numbers, everywhere — `PackIsOpen::selected`, `pack_rows`, `commit_item_action`'s `item_idx`, and the letter `draw_inventory` paints. That is what keeps an item's letter the same in every menu; `step_row` walks the cursor between the admitted indices, skipping the rest.
 

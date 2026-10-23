@@ -44,7 +44,7 @@ Step 1: find the table
 
 Every item in the game lives in one file:
 
-    models/src/catalog.rs
+    models/src/items/catalog.rs
 
 Open it and search for `WEAPONS`. The top of it looks like this:
 
@@ -158,7 +158,7 @@ If you like the quarterstaff, run the whole suite before you keep it:
 
 A new row changes what a seeded floor holds, and `content::` only reads the tables. If this was a dry run:
 
-    git checkout models/src/catalog.rs
+    git checkout models/src/items/catalog.rs
 
 
 What you actually learned
@@ -211,7 +211,7 @@ Try any of these the way you tried the quarterstaff -- add the row, `cargo build
 
 **Ammunition and a launcher** are one job in two rows, and neither names the other. They meet at an effect:
 
-    // in effects.rs, alongside FireArrow and FireQuarrel
+    // in effects/, alongside FireArrow and FireQuarrel
     /// Lent by a sling: a sling stone its bearer looses rolls its launched die.
     #[derive(Component, Default, Clone, Copy)]
     pub struct FireStone;

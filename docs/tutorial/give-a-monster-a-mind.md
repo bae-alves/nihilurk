@@ -22,7 +22,7 @@ A monster does not have behaviour code. Each turn it is handed a `Percept` (what
 Step 1: look at a mind that already exists
 ------------------------------------------
 
-Open `models/src/agents.rs` and find `CHASER`:
+Open `models/src/mind/agents.rs` and find `CHASER`:
 
     pub static CHASER: RuleSet = RuleSet {
         name: "chaser",
@@ -96,7 +96,7 @@ No world was built. That is the point of a mind made of plain functions: the tes
 Step 5: give the emu the mind
 --------------------------------
 
-A set is picked by the monster's tactic. Add a variant at the **end** of `MovementType` in `models/src/components.rs` (a save writes it by position):
+A set is picked by the monster's tactic. Add a variant at the **end** of `MovementType` in `models/src/meta/components/` (a save writes it by position):
 
     /// Bites what is next to it and bolts from a player who comes close.
     Cower,
@@ -107,7 +107,7 @@ Then build. The compiler stops at the one exhaustive `match` on `MovementType`, 
 
     MovementType::Cower => &COWARD,
 
-In `models/src/monsters.rs`, change the emu's movement from `Chase` to `Cower`, and add `Cower` to the `use MovementType::{...}` line at the top.
+In `models/src/creatures/monsters.rs`, change the emu's movement from `Chase` to `Cower`, and add `Cower` to the `use MovementType::{...}` line at the top.
 
 A save writes this enum by position, and a test pins every saved enum's variant order: `saved_enums_keep_their_variant_order` fails until you record the new variant. Appending at the end is safe, so regenerate the golden file:
 
@@ -125,8 +125,8 @@ Walk toward it. At three tiles it runs, straight away from you, so a wall behind
 Step 7: keep it, or put it back
 -------------------------------
 
-    git checkout models/src/agents.rs models/src/components.rs \
-                 models/src/monsters.rs models/tests/golden/saved_enums.txt
+    git checkout models/src/mind/agents.rs models/src/meta/components/ \
+                 models/src/creatures/monsters.rs models/tests/golden/saved_enums.txt
 
 If you keep it, add the rule and the set to `../reference/agents.md`.
 

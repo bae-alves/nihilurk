@@ -185,7 +185,7 @@ Step 5 gets skipped most, and it causes the bugs nobody can reproduce.
 
 **Worked example 1: the pink dragon.** `README.md` walks it. Fire-immune is `FireImmune`, which already exists. Its stats are one `BESTIARY` row. It needed no new rule, order or invariant, so `cargo build` and it is real.
 
-**Worked example 2: the ice cube** (`models/src/ice.rs`). Cold kills a creature and leaves a cube. A cube is a `Mob` with no `Fighter`, so the player's step, a monster's path and a missile's line already treat it as a wall. Nothing can hurt it. Walking into it sends it at the nearest weak foe. The existing rules answered every question, so none were added.
+**Worked example 2: the ice cube** (`models/src/world/ice.rs`). Cold kills a creature and leaves a cube. A cube is a `Mob` with no `Fighter`, so the player's step, a monster's path and a missile's line already treat it as a wall. Nothing can hurt it. Walking into it sends it at the nearest weak foe. The existing rules answered every question, so none were added.
 
 **Smells:**
 

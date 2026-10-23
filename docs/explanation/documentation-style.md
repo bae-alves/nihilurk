@@ -135,7 +135,7 @@ A field's *type* is already in the source. What the page adds is the consequence
 
 ### Second person, present tense, active
 
-"You change the value in `constants.rs` and nowhere else." The reader is a person with a diff open, and the docs talk to them.
+"You change the value in `constants/` and nowhere else." The reader is a person with a diff open, and the docs talk to them.
 
 The exception is `reference/`, which describes the program rather than addressing the reader: "`pack_rows` returns backpack indices."
 
@@ -150,7 +150,7 @@ Most paragraphs that explain a decision end by naming the failure the decision p
 > Without this, drinking a potion of blindness would be a way to hide.
 
 > A test that says a wand rolls `3..=9` is not testing the game; it is
-> testing `constants.rs`, which needs no help.
+> testing `constants/`, which needs no help.
 
 If you cannot name what goes wrong without the rule, you may not have a rule.
 
@@ -177,7 +177,7 @@ What a page must not do
   * **Be two kinds of document at once.** A how-to that starts explaining itself is a how-to and an explanation; split it and link. That rule is in `../README.md`, and the ECS pages follow it: a how-to and an explanation, not one page.
   * **Document a deliberate secret.** The `T` key and the `-pride` flags stay out of `MANUAL.md` and out of `../reference/cli-and-env.md` on purpose. Where a page has to mention one — because an engine developer will meet it in the source — it says *keep it out of the manual* in as many words.
   * **Leave a public item in `models` without a doc comment.** The crate carries `#![warn(missing_docs)]`, so a build names the item. Say what the thing is *for*; a field its name already explains needs one short line, and a doc that only repeats the name is worse than none. The voice rules above apply to doc comments too.
-  * **Go stale quietly.** If a claim can be a test, make it a test and cite the test. `models/tests/it/content.rs` exists to hold up the claims `how-to/` makes about the tables.
+  * **Go stale quietly.** If a claim can be a test, make it a test and cite the test. `models/tests/it/meta/content.rs` exists to hold up the claims `how-to/` makes about the tables.
 
 
 

@@ -171,12 +171,12 @@ end
 local function tagged_with(n, then_n)
   reset()
   if n then
-    write("models/src/saveload.rs", save_file(n))
+    write("models/src/meta/saveload.rs", save_file(n))
     in_repo("git add -A && git commit -qm save")
   end
   in_repo("git tag v0.1.2")
   if then_n then
-    write("models/src/saveload.rs", save_file(then_n))
+    write("models/src/meta/saveload.rs", save_file(then_n))
     in_repo("git add -A && git commit -qm bump-save")
   end
 end
@@ -207,7 +207,7 @@ tagged_with(nil, 1)
 refuses_save("patch --no-cargo")
 
 reset()
-write("models/src/saveload.rs", save_file(3))
+write("models/src/meta/saveload.rs", save_file(3))
 in_repo("git add -A && git commit -qm save")
 out, code = bump_cmd("patch --no-cargo")
 assert(code == 0, "no tag, no opinion: " .. out)

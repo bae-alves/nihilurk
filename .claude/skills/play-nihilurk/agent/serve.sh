@@ -11,7 +11,7 @@
 #   serve.sh session DIR                  serve the run in DIR over stdin/stdout
 #
 # The game is the unchanged binary in a 25x80 pty, run with
-# -ns -nobones -nshake -nb -anim-rate 0.1, so nothing is saved and the feel
+# -ns -nshake -nb -anim-rate 0.1, so nothing is saved and the feel
 # layer has finished before a percept is taken. Its data directory is DIR, so
 # it never reads your keymap or writes to your leaderboard and morgue. With
 # NIHILURK_READY=1 it signals each time it waits on a key, and a percept
@@ -137,7 +137,7 @@ start() {
     if [[ "${1:-}" == -c ]]; then
         cmd="$2"
     else
-        cmd="$(printf '%q' "${NIHILURK_BIN:-nihilurk}") -ns -nobones -nshake -nb -anim-rate 0.1 $(printf '%q ' "$@")"
+        cmd="$(printf '%q' "${NIHILURK_BIN:-nihilurk}") -ns -nshake -nb -anim-rate 0.1 $(printf '%q ' "$@")"
     fi
     printf -v pid '%q' "$dir/pid"
     mkfifo "$dir/in"

@@ -6,11 +6,11 @@ Reference: components, resources and events
     Prerequisites  A passing familiarity with `bevy_ecs`: components are
                    per-entity data, resources are singletons, events here
                    travel by queue.
-    Status         Describes `models/src/components.rs` as it is in the
+    Status         Describes `models/src/meta/components/` as it is in the
                    source. If this page and the source disagree, the
                    source is right and this page is a bug.
 
-Almost every `Component`, `Resource` and `Event` is declared in `models/src/components.rs`. That file is **nouns only** — a component says what a thing *is*, never what happens as a result. The verbs are the systems: `combat.rs`, `ai.rs`, `items/`, `visibility.rs`, `traps.rs`.
+Almost every `Component`, `Resource` and `Event` is declared in `models/src/meta/components/`. Those files are **nouns only** — a component says what a thing *is*, never what happens as a result. The verbs are the systems: `combat/`, `ai.rs`, `items/`, `visibility.rs`, `traps.rs`.
 
 The exceptions are the handful of types that come with real logic attached and live with it instead: `Shake` (`shake.rs`), `AutoExplore` / `AutoPickup` / `LeftBehind` (`autoexplore.rs`), `FastMove` (`fastmove.rs`), `IceCube` / `ColdSlain` (`ice.rs`), `Body` (`body.rs`), and the pack screen's `PackIsOpen` / `PackMode` / `ItemAction` (`pack.rs`). All of them are re-exported from `models`, so a call site never has to know which file they came from.
 
@@ -21,7 +21,7 @@ Two shapes recur:
   * **Marker** — no fields. Presence is the fact (`Player`, `Blood`, `Curse`, `Confused`).
   * **Type key** — names which one an item is. The key is identity for `identify.rs` and the save file. `Potion`, `Scroll`, `Wand`, `Rune` and each `Card` in a `Deck` hold their catalog row (`&'static PotionDef` &c.), and the row names the handler that does the work. `Ring` holds its row too, and the row turns into the components that do something. `Pickup`, `Treat`, `Ammo` and `Trap` hold rows the same way.
 
-"Saved?" below means the field survives `models/src/saveload.rs`. A **transient** field is rebuilt every frame or every load and deliberately left out of the save. A **catalog** component is re-attached from the row's id on load (`restore_from_catalog`), so it is never written either.
+"Saved?" below means the field survives `models/src/meta/saveload.rs`. A **transient** field is rebuilt every frame or every load and deliberately left out of the save. A **catalog** component is re-attached from the row's id on load (`restore_from_catalog`), so it is never written either.
 
 
 Components — identity, position, appearance
@@ -41,7 +41,7 @@ Components — identity, position, appearance
 Components — what the player is
 --------------------------------
 
-`Body` (`models/src/body.rs`, not `components.rs` — it is the one type this
+`Body` (`models/src/creatures/body.rs`, not `components/` — it is the one type this
 whole page's "nouns only" file doesn't hold, because it is read at
 character-build time, not by a system) is which shape the run's hero
 descends in: `Row(&'static BodyDef)`, a row of `BODIES` picked with `-b`
@@ -85,7 +85,6 @@ Components — creatures and combat
 
 | `Mimic`   | marker — a xeroc still in disguise: it reads as an item and every "monster nearby" check skips it. `reveal_mimics` strips it when the player stands adjacent | xerocs | yes (`mimic` field) |
 | `Spellset` | `slots: Vec<&'static SpellDef>` — the spells the creature knows, capped at `constants::spells::SPELLSET_CAP` | the hero | yes |
-| `GhostOfPlayer` | marker — the bones ghost of the player's own past run; `combat.rs` narrates a fight with it as "you" against yourself | the bones ghost | no |
 
 `MovementType` — enum, **saved by variant order**:
 
@@ -203,7 +202,7 @@ A `Rune` is a scroll that goes inert when read: reading spends `charged` instead
 `Element` — not a component
 ---------------------------
 
-`Element` (`Fire` / `Cold` / `Drain`) is a plain enum, not a component — it never lives on an entity. It sits in `components.rs` because both the wand mechanic and the throwing mechanic use it.
+`Element` (`Fire` / `Cold` / `Drain`) is a plain enum, not a component — it never lives on an entity. It sits in `components/` because both the wand mechanic and the throwing mechanic use it.
 
 | Method              | Returns                                          |
 |---------------------|-------------------------------------------------|
@@ -278,7 +277,7 @@ The bill for that lands on the line's width. A full set of conditions, a tempo, 
 Components — traps and snares
 -----------------------------
 
-Defined in `components.rs` (nouns); the mechanics are `traps.rs`.
+Defined in `components/` (nouns); the mechanics are `traps.rs`.
 
 | Component     | Data                                        | Meaning | Saved? |
 |---------------|---------------------------------------------|---------|--------|
@@ -301,7 +300,7 @@ Components — score
 |-----------|--------------|----------|--------|
 | `Score`   | `value: i64` | the hero | yes    |
 
-Every change to it goes through `models/src/score.rs`, which is the whole scoring table in one screen:
+Every change to it goes through `models/src/meta/score.rs`, which is the whole scoring table in one screen:
 
 | What | Worth | Where |
 |---|---|---|
@@ -415,7 +414,7 @@ Worn gear still appears on the equip menus — that is how it comes back off.
 | `Heavy`     | everything that hits hard: `combat::resolve_attack` on the player's own excellent hit and on a garrote's pop; `items::wands::elemental_blast` if the player can see the blast centre; `items::rings::do_it_with_style`, the adornment / victory flourish; the three spells that go off with a bang — `circle_of_death`, `meteor_strike`, `frost_nova`; an ice cube shattering (`ice::shatter`); a thief bursting on the Element of Yoord (`theft::element_bursts_thief`); and a Helper exploding or dying (`companion::explode`, `companion::mourn`) | `HEAVY_MS`, `HEAVY_AMPLITUDE` — medium |
 | `Wounded`   | `helpers::warn_if_newly_low`, on the same crossing that logs "You are badly wounded!" | `WOUNDED_MS`, `WOUNDED_AMPLITUDE` — long, and the heaviest there is |
 
-**The player's own death arms nothing.** Both player-death paths in `combat.rs` blank the `@` and set `Ending::player_dead` without kicking the map: a death is watched, not felt through the floor. What replaces the shake is time — `helpers::death_burst` runs the player's burst at `PLAYER_DEATH_STRETCH` times the length of a monster's, which it can afford because nothing is waiting behind it: the run is over and the death screen is next.
+**The player's own death arms nothing.** Both player-death paths in `combat/` blank the `@` and set `Ending::player_dead` without kicking the map: a death is watched, not felt through the floor. What replaces the shake is time — `helpers::death_burst` runs the player's burst at `PLAYER_DEATH_STRETCH` times the length of a monster's, which it can afford because nothing is waiting behind it: the run is over and the death screen is next.
 
 The durations and amplitudes are in `constants::shake`, read as one table by `ShakeKind::shape()`. A kick only displaces an already-running shake if it is worth more than what is *left* of it, so a kill mid-blast cannot truncate the blast — and an ordinary hit landed during either cannot truncate anything. An amplitude of two means the first half throws the map two cells and the rest one; a terminal has no half-cell to decay through.
 
@@ -444,13 +443,13 @@ Unlike every other animation in the game the shake **never blocks input** — se
 
 `GameLog::add()` pushes plain text to both `history` and `unread`. `GameLog::add_colored(message, category)` is the same, except the copy that lands in `unread` — a `LogEntry` — also carries a `LogCategory`. `history` never gets painted, so it stays bare `String`.
 
-The log panel is plain white except for a sparing set of colours, one `LogCategory` per, each colour decided in `hud.rs`: a curse taking hold (dark red), a dazzle (magenta), the bones ghost's lines (dark grey), a faerie's (magenta), a special room's entry line (`Room`, in the room's wall colour), the low-HP warning (red — "You are badly wounded!", fired once as HP crosses down through `constants::player::LOW_HP_WARNING_FRACTION` of max, by `helpers::warn_if_newly_low` — which `helpers::apply_damage` calls for every trap, dart and bolt, and `combat::resolve_attack` calls directly, melee being the one damage path that applies its own damage and would otherwise never report the crossing), the player's own speed shifting (cyan hasted, dark cyan slowed), or the player's own throw/fire (yellow). A trick shot and a combo's "With style." are magenta too. Every category is decided once, by the call that writes the message, and never re-derived from the rendered sentence — see `components::LogCategory` and `hud::log_paint`.
+The log panel is plain white except for a sparing set of colours, one `LogCategory` per, each colour decided in `hud.rs`: a curse taking hold (dark red), a dazzle (magenta), a faerie's (magenta), a special room's entry line (`Room`, in the room's wall colour), the low-HP warning (red — "You are badly wounded!", fired once as HP crosses down through `constants::player::LOW_HP_WARNING_FRACTION` of max, by `helpers::warn_if_newly_low` — which `helpers::apply_damage` calls for every trap, dart and bolt, and `combat::resolve_attack` calls directly, melee being the one damage path that applies its own damage and would otherwise never report the crossing), the player's own speed shifting (cyan hasted, dark cyan slowed), or the player's own throw/fire (yellow). A trick shot and a combo's "With style." are magenta too. Every category is decided once, by the call that writes the message, and never re-derived from the rendered sentence — see `components::LogCategory` and `hud::log_paint`.
 
 **Colour is per message, not per painted row.** Several messages share a row (`hud::pack_line_segments`, which `log_view` returns — the pieces of messages on each row, in order, displayed joined by one space; a message too long for its row wraps at a word boundary onto the next, each piece keeping the message's category), and the renderer paints each one with its own colour. Asking the question of the joined row instead would repaint every sentence beside one shouting message.
 
-`hud::log_paint(entry, stripes)` is the painter's entry point and returns a `LogPaint`: `Solid(Color)` for every category but `LogCategory::Pride`, which comes back `Striped` — the one line that comes out in colours rather than a colour (`hud::pride_line()`, "With pride.", the rare alternative to "With style." on a combo), painted a character at a time, cycling the stripes so red follows purple and no two neighbouring letters match. The stripes come from `pride::stripes(world)`; see `models/src/pride.rs`.
+`hud::log_paint(entry, stripes)` is the painter's entry point and returns a `LogPaint`: `Solid(Color)` for every category but `LogCategory::Pride`, which comes back `Striped` — the one line that comes out in colours rather than a colour (`hud::pride_line()`, "With pride.", the rare alternative to "With style." on a combo), painted a character at a time, cycling the stripes so red follows purple and no two neighbouring letters match. The stripes come from `pride::stripes(world)`; see `models/src/meta/pride.rs`.
 
-Other run-state resources live outside this file: `Map` (`map.rs`), `GameRng` / `RngSeed` / `FxRng` (`map/streams.rs`), `BloodStains`, `Smoke` and `Corpses` (`map/overlays.rs`), `GameState` (`state.rs`). The save file persists the RNG state and the dark-tile set — see `models/src/saveload.rs`.
+Other run-state resources live outside this file: `Map` (`map.rs`), `GameRng` / `RngSeed` / `FxRng` (`map/streams.rs`), `BloodStains`, `Smoke` and `Corpses` (`map/overlays.rs`), `GameState` (`state.rs`). The save file persists the RNG state and the dark-tile set — see `models/src/meta/saveload.rs`.
 
 **No cosmetic state is saved, on purpose.** `BloodStains`, `Corpses`, `Smoke`, `Particles`, `Shake`, `ScoreFlash` and `FxRng` are all rebuilt empty by `load_game`. A fire blast's lingering puffs (`SMOKE_LINGER_TURNS`, ticked by `smoke_system`), a death's corpse marks (`helpers::death_burst`) and the blood under a fight say nothing the game needs back — and the three map-sized overlays alone would come to 2.2 KB, more than the whole save file they would be joining. A reloaded floor is the floor you left, scrubbed of the mess you made on it. The same reasoning keeps the map itself and the message log out; the four exclusions are listed at the top of `saveload.rs`.
 

@@ -1,9 +1,7 @@
 {
   "permissions": {
     "deny": [
-      "Task",
-      "Task(Explore)",
-      "Agent"
+      "Task(Explore)"
     ]
   },
   "hooks": {

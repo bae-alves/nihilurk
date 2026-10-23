@@ -29,7 +29,7 @@ use crate::particles::{BlastPalette, Particles, on_map};
 use crate::shake::{ShakeKind, kick_shake};
 
 // --- Tuning constants ------------------------------------------------------
-// Defined and documented in `constants.rs`.
+// Defined and documented in `constants/`.
 //
 //   TELEPORT_MAGIC_COST  what one deliberate `T` jump costs the wearer
 use crate::constants::rings::TELEPORT_MAGIC_COST;

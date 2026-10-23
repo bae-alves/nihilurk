@@ -114,7 +114,6 @@ fn run_death_screens(
     let board = models::leaderboard::Board::of(world);
     let _ = models::leaderboard::record(board, &name, outcome, score, 0);
     let dump = morgue::write(world, &screen.shown_text(), outcome).ok();
-    let _ = models::bones::deposit(world);
 
     view::render_you_died(term, screen)?;
     wait_for_key(|c| matches!(c, KeyCode::Char(' ') | KeyCode::Enter))?;
@@ -305,7 +304,6 @@ fn canonical_flag(arg: &str) -> &str {
         "--no-blood" => "-nb",
         "--no-shake" => "-nshake",
         "--mouse" => "-mouse",
-        "--no-bones" => "-nobones",
         "--body" => "-b",
         "--as-monster" => "-am",
         "--leaderboard" => "-scores",
@@ -456,7 +454,6 @@ fn main() -> std::io::Result<()> {
     let mut no_blood = false;
     let mut no_shake = false;
     let mut mouse = false;
-    let mut no_bones = false;
     let mut endless = false;
     let mut fast = false;
     let mut list_content = false;
@@ -493,7 +490,6 @@ fn main() -> std::io::Result<()> {
             "-nb" => no_blood = true,
             "-nshake" => no_shake = true,
             "-mouse" => mouse = true,
-            "-nobones" => no_bones = true,
             "-endless" => endless = true,
             "-fast" => fast = true,
             "-content" => list_content = true,
@@ -782,10 +778,6 @@ fn main() -> std::io::Result<()> {
 
     if no_shake {
         world.resource_mut::<Shake>().enabled = false;
-    }
-
-    if no_bones {
-        world.resource_mut::<models::bones::Bones>().enabled = false;
     }
 
     world.insert_resource(models::pride::Pride(pride));

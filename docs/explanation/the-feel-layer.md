@@ -39,7 +39,7 @@ The rules
 
 **Gameplay arms a flourish and forgets it.** A mechanic calls `fx.hit_spark(x, y)` or `shake::kick_shake(world, ShakeKind::Heavy)` and moves on. It never waits, never checks, and never learns whether anything was drawn — the effect resources are reached through `get_resource_mut`, so a headless test world with no renderer in it runs the same code path.
 
-**Cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/it/determinism.rs` exists to catch exactly that.
+**Cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/it/meta/determinism.rs` exists to catch exactly that.
 
 **Anything that could leak information is gated on sight.** A shake for a blast in a room the player has never entered tells them there is a room there. `helpers::player_sees` is the shared check.
 
@@ -115,7 +115,7 @@ One rule on this side of the line does clear that bar, and it is the exception w
 
 One thing in the effect layer keeps its test, and the exception is worth knowing because it is not about feel:
 
-  * `models/tests/it/determinism.rs`, which cares about the effect layer only to prove it stays out of the way — that cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
+  * `models/tests/it/meta/determinism.rs`, which cares about the effect layer only to prove it stays out of the way — that cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
 
 Neither is testing how anything looks.
 

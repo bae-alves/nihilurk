@@ -14,7 +14,7 @@ An effect is a component on the creature, and both the dragon born fire-immune a
 
 Everything here lives in:
 
-    models/src/effects.rs
+    models/src/combat/effects/
 
 
 Which kind do you need?
@@ -31,13 +31,13 @@ Which kind do you need?
 
 Markers are the common case. Take that branch unless your property is literally an integer that adds up, or a limit that overrides one.
 
-There is one cap today (`MeleeCap`, carried by every launcher) and it is read by one line of combat's damage roll (`combat.rs`, where `melee_cap` clamps the blow). It is written out by hand below the `modifiers!` rows rather than being one of them, because ceilings fold with `min` and the generated rows all fold with `+`. A second cap would be the moment to generalise that the way `equipped_total` is generalised over `Modifier`; see `melee_cap` in `models/src/effects.rs`.
+There is one cap today (`MeleeCap`, carried by every launcher) and it is read by one line of combat's damage roll (`combat/`, where `melee_cap` clamps the blow). It is written out by hand below the `modifiers!` rows rather than being one of them, because ceilings fold with `min` and the generated rows all fold with `+`. A second cap would be the moment to generalise that the way `equipped_total` is generalised over `Modifier`; see `melee_cap` in `models/src/combat/effects/`.
 
 
 Adding a marker effect
 ----------------------
 
-1. **Declare the component** in `models/src/effects.rs`, next to its relatives. It must be a unit struct deriving exactly this set:
+1. **Declare the component** in `models/src/combat/effects/`, next to its relatives. It must be a unit struct deriving exactly this set:
 
        /// Poison does nothing to this creature.
        #[derive(Component, Default, Clone, Copy)]
@@ -110,7 +110,7 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 > will do its job for the rest of the session. It will not be saved, will
 > not come back on load, and cannot be cancelled. This is the quiet
 > failure to look for when an effect works until you reload.
-> `every_ability_marker_is_in_the_save_format` (`models/tests/it/abilities.rs`)
+> `every_ability_marker_is_in_the_save_format` (`models/tests/it/creatures/abilities.rs`)
 > catches it for anything armed by an ability row; nothing catches it for an
 > effect only a mechanic reads.
 
@@ -118,9 +118,9 @@ That is the whole of it. Equipping and unequipping, saving and loading, and the 
 Making an effect act on its own
 -------------------------------
 
-Most effects are answers to a question something else asks. Some act by themselves, and `ABILITIES` in `models/src/abilities.rs` is all of those: one list, one row per ability, naming the `Moment` it fires at.
+Most effects are answers to a question something else asks. Some act by themselves, and `ABILITIES` in `models/src/creatures/abilities.rs` is all of those: one list, one row per ability, naming the `Moment` it fires at.
 
-    models/src/abilities.rs     ->  ABILITIES
+    models/src/creatures/abilities.rs     ->  ABILITIES
 
     Ability {
         effect: Grant::of::<AggravatesMonsters>(),
@@ -161,7 +161,7 @@ Adding a numeric modifier
 
 Rarer, and a bigger change, because a number has to be added *somewhere* specific -- there is no generic place a new number belongs.
 
-1. Add a row to the `modifiers!` table in `effects.rs`, naming the component and the `Loadout` field it folds into:
+1. Add a row to the `modifiers!` table in `effects/`, naming the component and the `Loadout` field it folds into:
 
        modifiers! {
            ...
@@ -200,7 +200,7 @@ Modifiers are not in `EFFECTS`; they are saved as the values they are.
 An effect nothing can cancel
 ---------------------------
 
-A wand of cancellation strips every effect except the ones listed in `IDENTITY_EFFECTS` (`models/src/effects.rs`). The lurk's body uses it, and so does every part of a dog. To make your effect one of them, add its stable id to that list. Nothing else changes: `revoke_all` puts the listed ids back with their ledger entry, so they are saved and still there after a reload.
+A wand of cancellation strips every effect except the ones listed in `IDENTITY_EFFECTS` (`models/src/combat/effects/`). The lurk's body uses it, and so does every part of a dog. To make your effect one of them, add its stable id to that list. Nothing else changes: `revoke_all` puts the listed ids back with their ledger entry, so they are saved and still there after a reload.
 
 Use it for what a creature *is*, not for magic it merely has. A dragon's `FireImmune` stays cancellable on purpose, and a cancelled dragon loses it. Make a part uncancellable when taking it away would leave something that is no longer that creature: a dog that can be cancelled into an ordinary helper is not a dog.
 
@@ -211,17 +211,17 @@ Verify
     cargo test                   # save round-trips: tests/it/saveload.rs
     NIHILURK_SPAWN="<a thing that grants it>" cargo run -p nihilurk
 
-If your effect should survive a reload, the test worth copying is in `models/tests/it/wands.rs`: the one named `cancellation_strips_the_magic_but_leaves_the_creature` exercises the grant / probe / revoke path end to end.
+If your effect should survive a reload, the test worth copying is in `models/tests/it/items/wands.rs`: the one named `cancellation_strips_the_magic_but_leaves_the_creature` exercises the grant / probe / revoke path end to end.
 
 
 Appendix: quick check
 ---------------------
 
-1. Marker: add a unit struct deriving `Component, Default, Clone, Copy` in `models/src/effects.rs`.
+1. Marker: add a unit struct deriving `Component, Default, Clone, Copy` in `models/src/combat/effects/`.
 2. Add one `"stable_id" => Type` row to `EFFECTS`, and never rename the id later.
 3. Hand it out with `.grants(&[Grant::of::<Type>()])` on a monster, ring or launcher row.
 4. Read it with a `With<Type>` filter, `world.get::<Type>(e)`, or `grant.probe(world, e)`.
-5. Acts on its own: add one row to `ABILITIES` in `models/src/abilities.rs`, with its `Moment`.
+5. Acts on its own: add one row to `ABILITIES` in `models/src/creatures/abilities.rs`, with its `Moment`.
 6. Fires once on wear: attach `OnWear` from the row (and `OnDoff` if taking it off needs saying).
 7. Number: add one row to `modifiers!`, attach it from rows, and read it with `equipped_total`.
 8. Nothing may cancel it: add its id to `IDENTITY_EFFECTS`.

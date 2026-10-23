@@ -14,7 +14,7 @@ One line in one table. There is no second place.
 The table
 ---------
 
-    models/src/monsters.rs      ->  BESTIARY
+    models/src/creatures/monsters.rs      ->  BESTIARY
 
 Every creature in the game is a row in it. Level population, the scroll of create monster, the wand of polymorph and the scroll of vorpalize weapon all draw from this table, so a row is a species everywhere at once.
 
@@ -22,7 +22,7 @@ Every creature in the game is a row in it. Level population, the scroll of creat
 The recipe
 ----------
 
-1. Open `models/src/monsters.rs` and find `BESTIARY`.
+1. Open `models/src/creatures/monsters.rs` and find `BESTIARY`.
 
 2. Copy a row that is close to what you want and change it. A basilisk, say -- slow, armoured, nasty, and not something floor 1 should meet:
 
@@ -126,7 +126,7 @@ Chains combine in any order:
 > **Only 16 colours survive a save.** The file packs a colour into one
 > byte against a fixed palette; anything off it -- an RGB value, a
 > 256-colour index -- draws correctly and reloads as White. The palette is
-> the sixteen colours in `models/src/color.rs`.
+> the sixteen colours in `models/src/meta/color.rs`.
 
 > **Renaming a row breaks old saves.** A saved monster stores its row's id
 > (the `name`) and looks its species back up on load. Rename `"basilisk"` and every
@@ -149,7 +149,7 @@ Glyph collisions are *not* checked. Two creatures may share a letter; the existi
 Appendix: quick check
 ---------------------
 
-1. Copy the closest row in `BESTIARY` (`models/src/monsters.rs`) and change it.
+1. Copy the closest row in `BESTIARY` (`models/src/creatures/monsters.rs`) and change it.
 2. Give it a unique lowercase name, a stat band from "Choosing the numbers", and a `min_depth`.
 3. Chain extras only if you need them: `.grants(..)`, `.casts(..)`, `.invisible()`, `.weight(..)`.
 4. Pick a colour from the sixteen in the palette, and never write `Aggravated` as the movement.

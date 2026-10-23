@@ -2,7 +2,7 @@ How to add an item
 ==================
 
     Audience       Content author.
-    Prerequisites  You know where `models/src/catalog.rs` is. If not,
+    Prerequisites  You know where `models/src/items/catalog.rs` is. If not,
                    do `../tutorial/add-your-first-item.md` first.
     Result         A new item that drops on floors and survives a save.
                    Equipment (weapons, armour, launchers, rings) hides
@@ -31,7 +31,7 @@ At a glance
 | Deck      | `DECKS`     | yes        | a new card: a `CARDS` row and its `play` handler in `items/decks.rs` |
 | Rune      | `RUNES`     | no         | a handler in `items/runes.rs`, named by the row |
 
-Every table is in `models/src/catalog.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `runes.rs`, `rings.rs`, `decks.rs`, `pickups.rs`, `throwing.rs` (`models/src/items.rs` itself is `item_system`, which plans a use and hands it to the row's handler).
+Every table is in `models/src/items/catalog.rs`. Every mechanic is in `models/src/items/`, one file per kind: `potions.rs`, `scrolls.rs`, `wands.rs`, `runes.rs`, `rings.rs`, `decks.rs`, `pickups.rs`, `throwing.rs` (`models/src/items/mod.rs` itself is `item_system`, which plans a use and hands it to the row's handler).
 
 
 Row-only categories
@@ -59,7 +59,7 @@ Any weapon can be thrown. `.missile()` is the difference between a purpose-built
 
 Chain `.reach(n)` for a weapon aimed with its own reticle (`v`) instead of a walk into the target's tile, `n` tiles out -- a bardiche, a whip. Add `.reach_piercing()` if the strike should run the whole line rather than stopping at the first body, the melee twin of `.piercing()`.
 
-Chain `.grants(&[Grant::of::<SomeMarker>()])` for a trick the weapon lends its wielder while it's in hand -- exactly a ring's own `.grants()`, and read by the same places a ring's effects are: an `ABILITIES` row keyed on `Moment::OnHit` for something that fires when a blow lands, or a direct `world.get::<SomeMarker>(attacker)` probe for something checked elsewhere (the battle axe's `Cleaves`, checked once from `models::melee_attack`). This is also how a weapon-only marker stays invisible to `combat.rs` and `engine/` alike -- see `crate::effects`'s module doc.
+Chain `.grants(&[Grant::of::<SomeMarker>()])` for a trick the weapon lends its wielder while it's in hand -- exactly a ring's own `.grants()`, and read by the same places a ring's effects are: an `ABILITIES` row keyed on `Moment::OnHit` for something that fires when a blow lands, or a direct `world.get::<SomeMarker>(attacker)` probe for something checked elsewhere (the battle axe's `Cleaves`, checked once from `models::melee_attack`). This is also how a weapon-only marker stays invisible to `combat/` and `engine/` alike -- see `crate::effects`'s module doc.
 
 Chain `.on_wear(OnWear(some_fn))` for a one-shot fired the instant it's wielded -- the staff's "You're a wizard now!" -- the same mechanism a ring of adornment's flourish uses. `.on_doff(OnDoff(some_fn))` is its mirror, fired when the weapon is deliberately put away again ("You're no longer that magical."), and it is worth adding only when what the weapon lends is invisible on the HUD: the player has no other way to notice it leaving. It fires from `equipment::toggle_equipped` alone, never from `force_unequip`, so dropping it, being disarmed of it and dying with it say nothing.
 
@@ -109,7 +109,7 @@ Neither half knows the other exists. That is why a sling is one row here and one
     // A bone: for a creature without hands.
     &TreatDef { name: "bone", color: Color::White, takes: crate::companion::has_no_hands },
 
-The row goes in `TREATS`. A treat is thrown at a monster as an offer of loyalty and is never used. `takes` says which monsters it is for: `companion::has_hands` (those with `ItemUser`), `companion::has_no_hands`, or a fn of your own in `companion.rs`. Stacks like ammo. Draws as `%`. What accepting one means is `models/src/companion.rs`.
+The row goes in `TREATS`. A treat is thrown at a monster as an offer of loyalty and is never used. `takes` says which monsters it is for: `companion::has_hands` (those with `ItemUser`), `companion::has_no_hands`, or a fn of your own in `companion.rs`. Stacks like ammo. Draws as `%`. What accepting one means is `models/src/creatures/companion.rs`.
 
 
 Rings
@@ -210,7 +210,7 @@ Appendix: quick check
 ---------------------
 
 1. Find your category in "At a glance".
-2. Weapon, armour, ring, coin, ammo, launcher, treat: add one row to its table in `models/src/catalog.rs`.
+2. Weapon, armour, ring, coin, ammo, launcher, treat: add one row to its table in `models/src/items/catalog.rs`.
 3. A ring's row is `&RingDef::new(name)` and its chains.
 4. Potion, scroll: write the handler in `items/potions.rs` or `items/scrolls.rs` and add the row naming it. Wand: write the zap handler in `items/wands.rs` and add the row naming it. Rune: write the handler in `items/runes.rs` and add the row naming it.
 5. A wand with no reticle (it acts on the room or the zapper): `.unaimed()` on its row.

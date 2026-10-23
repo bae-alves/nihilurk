@@ -1,7 +1,7 @@
-components.rs::Faction = Player,Monster,Ally,Spirits,Inert
-components.rs::MovementType = Static,Chase,Flee,Confused,Aggravated,Ambush
-components.rs::SpeedKind = Slow,Normal,Fast,Quick
-components.rs::TrapReveal = Sight,Adjacent,Triggered
-equipment.rs::Slot = Hand,Body,Finger
-leaderboard.rs::Outcome = Win,LoseAscent,LoseDescent
-saveload.rs::SavedLifetime = Permanent,Floor,Turns,NextAction
+items/equipment.rs::Slot = Hand,Body,Finger
+meta/components/conditions.rs::TrapReveal = Sight,Adjacent,Triggered
+meta/components/creatures.rs::MovementType = Static,Chase,Flee,Confused,Aggravated,Ambush
+meta/components/creatures.rs::SpeedKind = Slow,Normal,Fast,Quick
+meta/components/identity.rs::Faction = Player,Monster,Ally,Spirits,Inert
+meta/leaderboard.rs::Outcome = Win,LoseAscent,LoseDescent
+meta/saveload.rs::SavedLifetime = Permanent,Floor,Turns,NextAction

@@ -20,7 +20,7 @@ The one you probably want
         pos: Position,
     ) -> Option<Entity>
 
-    models/src/spawn.rs
+    models/src/world/spawn.rs
 
 Spawns whatever the game knows by that name -- monster, any item category, trap, or the relic -- and returns `None` if it knows nothing by it. What comes out is the thing **exactly as its row describes it**: no enchantment roll, no ammunition bundle.
 
@@ -73,7 +73,7 @@ The loot table, and the rows one category can produce at a depth.
 Monsters
 --------
 
-    models/src/monsters.rs
+    models/src/creatures/monsters.rs
 
     pub fn spawn_monster(
         world: &mut World,
@@ -96,7 +96,7 @@ The one place a monster is brought into the world. Builds the full bundle, attac
 Traps
 -----
 
-    models/src/traps.rs
+    models/src/world/traps.rs
 
     impl TrapDef {
         pub fn lookup(name: &str) -> Option<&'static TrapDef>
@@ -118,7 +118,7 @@ Traps
 Items, by kind
 --------------
 
-    models/src/catalog.rs
+    models/src/items/catalog.rs
 
 Convenience wrappers over the tables. Each panics on an unknown name -- they exist for call sites holding a literal.
 
@@ -166,7 +166,7 @@ Re-attaches what a row gives an item that the save file does not store: how a we
 Effects
 -------
 
-    models/src/effects.rs
+    models/src/combat/effects/
 
     impl Grant {
         pub const fn of<C: Component + Default>() -> Self
@@ -194,7 +194,7 @@ A const handle to one marker effect. Lets a `const` table name a component it ca
 
 `loadout` is the same fold with the loop on the outside, and it is what callers that want *all* of them use -- combat, for both sides of a blow, the HUD, for the figures on the player line, and a spell that reads the caster's gear. It returns a `Loadout`: one field per `modifiers!` row (`power_die`, `power_bonus`, `armor_die`, `armor_bonus`, `throw_bonus`, `max_hp_bonus`, `momentum`), and the strictest `melee_cap`, which folds with `min` rather than `+`. There is no cache and no second copy of anything: `Equipped` is still the only record of who wears what, and this reads it once instead of once per modifier.
 
-The struct is not written out by hand. Every field but the cap is generated from the `modifiers!` rows in `effects.rs`, along with the line of `Loadout::absorb` that sums it, so a modifier cannot be declared and then quietly left out of the fold -- see `../how-to/add-an-effect.md`. The cap is written out separately because it folds with `min`.
+The struct is not written out by hand. Every field but the cap is generated from the `modifiers!` rows in `effects/`, along with the line of `Loadout::absorb` that sums it, so a modifier cannot be declared and then quietly left out of the fold -- see `../how-to/add-an-effect.md`. The cap is written out separately because it folds with `min`.
 
 
 The dev shortcut
@@ -221,7 +221,7 @@ The same thing without the environment lookup, for tests. Returns how many names
 Floors and seeds
 ----------------
 
-    models/src/map/
+    models/src/world/map/
 
     pub fn layout_rng(seed: u64, depth: u8) -> ChaCha12Rng
     pub fn content_rng(seed: u64, depth: u8, changes: u32) -> ChaCha12Rng
@@ -241,7 +241,7 @@ Builds the current floor (reading `Depth` and `RngSeed`) into the `Map` resource
 
 Rebuilds one floor's tiles without spawning anything. This is why the save file does not store a map: `(seed, depth)` is enough to get the exact layout back (the save carries the staircase count so the contents come back too).
 
-Held by `models/tests/it/determinism.rs`.
+Held by `models/tests/it/meta/determinism.rs`.
 
 
 Constants

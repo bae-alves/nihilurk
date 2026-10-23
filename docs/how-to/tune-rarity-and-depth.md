@@ -10,7 +10,7 @@ How to tune rarity and depth
 There are four places rarity is decided, and they answer different questions. Turning the wrong one is the usual mistake.
 
     1. How many things per floor?        engine knob, map/population.rs
-    2. Which category of item?           DROPS, models/src/spawn.rs
+    2. Which category of item?           DROPS, models/src/world/spawn.rs
     3. Which row within a category?      the row's own weight
     4. Is it allowed here at all?        the row's min_depth
 
@@ -25,7 +25,7 @@ An entry's chance is its weight over the sum of the weights it competes against,
 Dial 1: how many things per floor
 ---------------------------------
 
-This is not content. It is floor generation, in `populate_level` in `models/src/map/population.rs`, and it is the same for every row.
+This is not content. It is floor generation, in `populate_level` in `models/src/world/map/population.rs`, and it is the same for every row.
 
 Everything scales off `tier` -- `map::difficulty_tier(depth)`, which steps at the depths in `constants::progression::DIFFICULTY_TIER_LAST_DEPTH`: tier 0 on the shallowest floors, and the deepest floor a tier of its own. The damage traps scale too, but on their own coarser bands (`constants::traps::TRAP_DAMAGE_TIER_LAST_DEPTH`). Every name below is in `constants::population`.
 
@@ -74,7 +74,7 @@ Change these when the dungeon feels too empty or too crowded. Do not change them
 Dial 2: which category of item
 ------------------------------
 
-    models/src/spawn.rs     ->  DROPS
+    models/src/world/spawn.rs     ->  DROPS
 
     category!("scroll",   <weight>,    1,     SCROLLS),
     category!("potion",   <weight>,    1,     POTIONS),
@@ -88,7 +88,7 @@ To double how often rings turn up, double the ring row's weight. Every other sha
 
 To keep a category out of the shallow dungeon, raise its `min_depth`. A category that cannot appear is simply not in the draw, and the remaining categories divide its share between them in proportion.
 
-The rune row is the example. Its `min_depth` is above 1, so the shallowest floors draw from every other category and the rune joins the draw below that. `models/tests/it/loot.rs` scales a category's expected share by the floors it is on, so a new category that starts deeper needs no special case there.
+The rune row is the example. Its `min_depth` is above 1, so the shallowest floors draw from every other category and the rune joins the draw below that. `models/tests/it/world/loot.rs` scales a category's expected share by the floors it is on, so a new category that starts deeper needs no special case there.
 
 
 Dial 3: which row within a category
@@ -147,15 +147,15 @@ Then run the whole suite. A weight changes what a seeded floor holds, and `conte
 
     cargo test
 
-For a feel, the quickest instrument is a throwaway loop over `roll_item` or `MonsterDef::pick` counting names -- see `models/tests/it/content.rs` for the shape.
+For a feel, the quickest instrument is a throwaway loop over `roll_item` or `MonsterDef::pick` counting names -- see `models/tests/it/meta/content.rs` for the shape.
 
 
 Appendix: quick check
 ---------------------
 
 1. Decide which question you are asking: how many per floor, which category, which row, or allowed here at all.
-2. Per floor: edit `populate_level` in `models/src/map/population.rs`; this moves every row at once.
-3. Category: change its weight in `DROPS` (`models/src/spawn.rs`).
+2. Per floor: edit `populate_level` in `models/src/world/map/population.rs`; this moves every row at once.
+3. Category: change its weight in `DROPS` (`models/src/world/spawn.rs`).
 4. Row: `.weight(n)` on a monster, or `weight` on a trap; `DEFAULT_SPAWN_WEIGHT` is the baseline (spirits sit at `spirits::SPAWN_WEIGHT`), and of the items only scrolls and coins weigh their rows.
 5. Gate: raise `min_depth`; it is a hard gate, and nothing makes a row stop appearing deeper.
 6. Run `cargo test --test it content::`, then `cargo test`.

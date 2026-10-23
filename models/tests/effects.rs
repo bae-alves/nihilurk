@@ -212,7 +212,7 @@ fn workspace_root() -> PathBuf {
 fn registered_effects(src: &str) -> Vec<String> {
     let body = src
         .split_once("effects! {")
-        .expect("the effects! table is in effects.rs")
+        .expect("the effects! table is in combat/effects/registry.rs")
         .1
         .split_once("\n}")
         .expect("the table is closed")
@@ -510,8 +510,8 @@ impl<'ast> Visit<'ast> for LedgerAudit<'_> {
 #[test]
 fn no_effect_is_attached_or_detached_behind_the_ledgers_back() {
     let root = workspace_root();
-    let effects_rs = std::fs::read_to_string(root.join("models/src/effects.rs"))
-        .expect("effects.rs is readable");
+    let effects_rs = std::fs::read_to_string(root.join("models/src/combat/effects/registry.rs"))
+        .expect("registry.rs is readable");
     let types = registered_effects(&effects_rs);
     assert_eq!(
         types.len(),

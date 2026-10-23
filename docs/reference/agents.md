@@ -5,8 +5,8 @@ Reference: agents
                    its turn. Look things up here; do not read it end to
                    end.
     Prerequisites  None.
-    Status         Describes `models/src/agents.rs` and the parts of
-                   `models/src/ai.rs` that call it. If this page and the
+    Status         Describes `models/src/mind/agents.rs` and the parts of
+                   `models/src/mind/ai.rs` that call it. If this page and the
                    source disagree, the source is right and this page is
                    a bug.
 
@@ -16,7 +16,7 @@ Every mob decides its turn the same way: `ai` builds a `Percept`, `agents::think
 The turn, in order
 ------------------
 
-    models/src/ai.rs   step_one_mob
+    models/src/mind/ai.rs   step_one_mob
 
   1. **Gates.** Dead (0 HP), `Asleep`, `Petrified` or out of energy: no turn. `Paralyzed` loses the turn on a `PARALYSIS_LOST_TURN_CHANCE` roll, energy spent. A `Faction::Monster` mob that has noticed the player loses the turn while the player has just stepped onto a door (`door_ward`).
   2. **Percept.** `perceive` builds it (below).
@@ -121,11 +121,11 @@ Where the pieces live
 
 | Piece | File |
 |---|---|
-| `Percept`, `Action`, `Rule`, `RuleSet`, the rules, the sets, `think`, `rule_set_for` | `models/src/agents.rs` |
-| `perceive`, `act`, `slide_past`, `mob_can_enter`, the gates, energy and rounds | `models/src/ai.rs` |
-| `MonsterDef::casts` (a species' spells and Ma) | `models/src/monsters.rs` |
+| `Percept`, `Action`, `Rule`, `RuleSet`, the rules, the sets, `think`, `rule_set_for` | `models/src/mind/agents.rs` |
+| `perceive`, `act`, `slide_past`, `mob_can_enter`, the gates, energy and rounds | `models/src/mind/ai.rs` |
+| `MonsterDef::casts` (a species' spells and Ma) | `models/src/creatures/monsters.rs` |
 | `can_afford_spell`, `pay_for_spell` | `models/src/items/spells.rs` |
-| `Aggravated` | `models/src/components.rs` |
+| `Aggravated` | `models/src/meta/components/` |
 | `blast_cells` | `models/src/items/wands.rs` |
 
 

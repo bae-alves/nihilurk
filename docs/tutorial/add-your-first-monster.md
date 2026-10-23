@@ -47,7 +47,7 @@ Step 1: find the bestiary
 
 Every creature in the game lives in one file:
 
-    models/src/monsters.rs
+    models/src/creatures/monsters.rs
 
 Open it and search for `BESTIARY`. One line per species. Read the emu:
 
@@ -172,7 +172,7 @@ It will not wait for you. Each step costs a turn, and its two Thunderbolts paral
 
 ### A creature made of grants
 
-The best row to read next is the dog. Find it in `models/src/monsters.rs`:
+The best row to read next is the dog. Find it in `models/src/creatures/monsters.rs`:
 
     MonsterDef::row("dog", 'd', Color::DarkYellow, Chase, 8, 6, 0, 7, 0, 3)
         .grants(DOG_GRANTS)
@@ -196,7 +196,7 @@ Pick up the snack and throw it at the dog (`t`). A snack tames a creature withou
 
 Tame the dog and walk away from the troll, so the dog takes it on. The (d) is a dogppelganger: a faerie shapeshifter wearing a dog, which is why it can change its shape and why no dog ever dies.
 
-Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. It stays a dog: four of its five grants are *identity effects*, a short list in `models/src/effects.rs`, `IDENTITY_EFFECTS`, that cancellation skips. The fifth, `ShapeshiftOnKill`, is ordinary magic, so the zap stops its shapeshifting. Zap the basilisk and it loses `FireImmune`. It has to be seen, as above, and it hits hard, so drink nihil's potion of healing before the zaps:
+Now pick up a wand of cancellation (`NIHILURK_SPAWN="dog,wand of cancellation"`) and zap the dog. It stays a dog: four of its five grants are *identity effects*, a short list in `models/src/combat/effects/`, `IDENTITY_EFFECTS`, that cancellation skips. The fifth, `ShapeshiftOnKill`, is ordinary magic, so the zap stops its shapeshifting. Zap the basilisk and it loses `FireImmune`. It has to be seen, as above, and it hits hard, so drink nihil's potion of healing before the zaps:
 
     NIHILURK_SPAWN="potion of see invisible,wand of cancellation,wand of fire,basilisk" cargo run -p nihilurk
 
@@ -208,7 +208,7 @@ Step 7: keep it or drop it
 
 If you like the basilisk, leave it; no page lists species by hand, so `-content` is its documentation. If this was a dry run:
 
-    git checkout models/src/monsters.rs
+    git checkout models/src/creatures/monsters.rs
 
 
 What you actually learned

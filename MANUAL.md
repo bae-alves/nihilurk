@@ -44,7 +44,6 @@ Other flags, in any order after the name:
 | `-nb`, `--no-blood` | No bloodstains, no corpse-and-bones death animation. |
 | `-nshake`, `--no-shake` | No screen shake. |
 | `-mouse`, `--mouse` | Mouse on. Left click looks at a tile, right click travels there. On an aiming reticle left moves, right moves and fires. |
-| `-nobones`, `--no-bones` | A death writes no bones file and an ascent reads none. |
 | `-endless`, `--endless` | No Element of Yoord spawns, so you cannot win. The dungeon keeps going down. |
 | `-fast`, `--fast` | A six-floor dungeon. The Element waits on floor 6, and floors 4 and 5 are always special levels. Cannot be combined with `-endless`. |
 | `-anim-rate N`, `--anim-rate N` | Scale animation hold time, 0.1 to 5.0. Raise it if your terminal redraws slowly. |

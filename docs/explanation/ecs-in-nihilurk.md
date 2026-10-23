@@ -21,7 +21,7 @@ The three nouns, and what each is allowed to be
 
 ### Components are pure data
 
-A component says *what a thing is*. It never says what happens as a result. `models/src/components.rs` is one file of nouns — every `Component`, `Resource` and `Event` the game is made of, and nothing that reaches into the `World`. What methods it does carry are about the type itself: `Name::article`, `SpeedKind::faster`, `GameLog::add`. Two shapes recur:
+A component says *what a thing is*. It never says what happens as a result. `models/src/meta/components/` is a folder of nouns, split by theme — every `Component`, `Resource` and `Event` the game is made of, and nothing that reaches into the `World`. What methods it does carry are about the type itself: `Name::article`, `SpeedKind::faster`, `GameLog::add`. Two shapes recur:
 
   * **Markers** carry nothing. `Player`, `Blood`, `Curse`, `Confused`. Their presence *is* the fact; a system asks `world.get::<Blood>(e).is_some()` and that is the whole check.
   * **Type keys** name which one an item is — `Potion` holds its catalog row, a `&'static PotionDef`. The key is identity for the save file, which stores the row's name. What a potion does is the handler its row names, in `items/potions.rs`; what it *is made of* is the rest of the row.
@@ -36,7 +36,7 @@ Everything singular about a run: the `Map`, the `GameRng`, the `Depth`, the `Gam
 
 Two habits keep them from becoming a junk drawer:
 
-  * **A resource with real logic lives with that logic**, not in `components.rs`. `Shake`, `AutoExplore`, `FastMove`, `PackIsOpen` and `MagicMapReveal` are declared in the modules that own them and re-exported, so a call site never has to know which file they came from.
+  * **A resource with real logic lives with that logic**, not in `components/`. `Shake`, `AutoExplore`, `FastMove`, `PackIsOpen` and `MagicMapReveal` are declared in the modules that own them and re-exported, so a call site never has to know which file they came from.
   * **Cosmetic resources are optional.** `Particles`, `Shake`, `ScoreFlash` and `FxRng` are reached through `get_resource_mut`, never `resource_mut`, because every test builds a bare world without them. Gameplay code arms a flourish and forgets; it must never *require* one.
 
 ### Systems own behaviour in one domain
@@ -121,7 +121,7 @@ Two whole categories of state are kept out of the ECS, and both for the same rea
 
 **Nothing cosmetic is saved.** Bloodstains, corpse marks, smoke, live particles, the shake, the scorekeeper's flash and `FxRng` are all rebuilt empty on load. The three map-sized overlays alone would come to 2.2 KB — more than the entire save file they would be joining — and none of it is gameplay. A reloaded floor is the floor you left, scrubbed of the mess you made on it. The map and the message log are out for the same reason; `saveload.rs` lists all four exclusions at the top.
 
-The related rule is that **cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/it/determinism.rs` exists to catch exactly that class of mistake.
+The related rule is that **cosmetic randomness comes off `FxRng`, never `GameRng`.** A firework's colour drawn from the gameplay stream would mean every flourish quietly reshuffled the dice for everything after it, and `models/tests/it/meta/determinism.rs` exists to catch exactly that class of mistake.
 
 
 See also

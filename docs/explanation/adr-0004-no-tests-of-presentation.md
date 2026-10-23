@@ -32,7 +32,7 @@ A test earns its place if it pins something a player could be cheated by: damage
 Two things keep tests, because they are not about feel:
 
   1. **The `--MORE--` gate.** `log_panel` holds the prompt back until the effect layer is empty, because `play_particles` reads any keypress as "skip". A trick shot's blast is queued behind the missile's flight, so the key would eat the explosion and leave the flight looking fine. The player is cheated of the shot they lined up, and the frame it happens in looks correct, which is the one case playing does not catch. Two tests in `view.rs` pin it, on a fixture of two resources.
-  2. **`models/tests/it/determinism.rs`.** It proves cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
+  2. **`models/tests/it/meta/determinism.rs`.** It proves cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
 
 
 Consequences

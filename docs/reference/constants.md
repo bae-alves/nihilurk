@@ -5,19 +5,19 @@ Tuning constants
                    wand hurts, how cursed the loot is, how fast the
                    Dungeon Lord evicts you.
     Prerequisites  None.
-    Status         Describes `models/src/constants.rs` as it is in the
+    Status         Describes `models/src/meta/constants/` as it is in the
                    source. If this page and the source disagree, the
                    source is right and this page is a bug.
 
 The dry facts: where each knob lives and what it does. *Why* the numbers are what they are is `../explanation/combat-and-balance.md`.
 
-Every balance number in the model is defined in one file:
+Every balance number in the model is defined in one folder:
 
-    models/src/constants.rs
+    models/src/meta/constants/
 
-It is organised into `pub mod` blocks by domain, and every constant carries a doc comment explaining what it does and — where it matters — what else you have to touch if you change it. The file itself is the reference; this page is the map to it.
+It is split into six files by what they tune (`world_tuning.rs`, `creature_tuning.rs`, `item_tuning.rs`, `combat_tuning.rs`, `player_tuning.rs`, `meta_tuning.rs`), each organised into `pub mod` blocks by topic, and every constant carries a doc comment explaining what it does and — where it matters — what else you have to touch if you change it. The files themselves are the reference; this page is the map to it.
 
-The module that *uses* a constant re-exports it (often under its old name), so existing call sites and doc links keep working. You change the value in `constants.rs` and nowhere else, unless a doc comment there tells you otherwise.
+The module that *uses* a constant re-exports it (often under its old name), so existing call sites and doc links keep working. You change the value in `constants/` and nowhere else, unless a doc comment there tells you otherwise.
 
 
 The modules
@@ -59,12 +59,12 @@ The modules
 Two caveats worth repeating
 ---------------------------
 
-**`map::WIDTH` / `map::HEIGHT` pin every seed.** `models/tests/it/determinism.rs` asserts that a given seed produces the same walls it always has. Changing either dimension moves every wall on every seed and that test will fail — correctly. Only change them as a deliberate "all old seeds are void" decision.
+**`map::WIDTH` / `map::HEIGHT` pin every seed.** `models/tests/it/meta/determinism.rs` asserts that a given seed produces the same walls it always has. Changing either dimension moves every wall on every seed and that test will fail — correctly. Only change them as a deliberate "all old seeds are void" decision.
 
 **Enchantment odds are read as ranges against a `0..100` roll.** `loot::NORMAL_QUALITY_PCT` and `loot::EXCEPTIONAL_QUALITY_PCT` must sum to 100 or less; the remainder is the cursed share. `catalog::Quality::roll` reads them as those ranges.
 
 
-What is deliberately *not* in `constants.rs`
+What is deliberately *not* in `constants/`
 -------------------------------------------
 
 * **Content-table numbers** — a monster's HP, a weapon's die, a potion's colour. Those are data, one row per thing, in `catalog.rs` / `monsters.rs` / `traps.rs`.
@@ -76,7 +76,7 @@ What is deliberately *not* in `constants.rs`
 See also
 --------
 
-    constants.rs                         the file itself, fully commented
+    constants/                         the files themselves, fully commented
     ../../engine/src/constants.rs        screen size and frame/pause timing in the binary
-    particle_core/constants.rs           ripple and shake clocks, the shake pattern, under `models/src/`
+    models/src/meta/particle_core/constants.rs  ripple and shake clocks, the shake pattern
     ../explanation/combat-and-balance.md  why the numbers are what they are

@@ -9,7 +9,7 @@ Reference: conducts
 
 A conduct is something a run can go without. A run that wins is paid `PERCENT_PER_CONDUCT` percent of its score for each conduct it kept, added on top, and the percentages add: every conduct kept is `PERCENT_PER_CONDUCT` times the length of `Conduct::ALL`. A run that dies is paid nothing, and its dump lists no conducts.
 
-Everything here lives in `models/src/conduct.rs` and is re-exported as `models::conduct`, bar `Conduct` and `Conducts`, which are at the crate root.
+Everything here lives in `models/src/player/conduct.rs` and is re-exported as `models::conduct`, bar `Conduct` and `Conducts`, which are at the crate root.
 
 
 The conducts
@@ -19,14 +19,14 @@ Each conduct breaks on one act, at one place in the code. Every site below is pl
 
 | Conduct     | Breaks when the player               | Site                                                   |
 |-------------|--------------------------------------|--------------------------------------------------------|
-| `Potions`   | drinks a potion                      | `break_use_conducts`, `models/src/items.rs`            |
+| `Potions`   | drinks a potion                      | `break_use_conducts`, `models/src/items/mod.rs`            |
 | `Scrolls`   | reads a scroll                       | `break_use_conducts`                                   |
 | `Wands`     | zaps a wand, or throws one           | `break_use_conducts`; `resolve_wand_throw`, `throwing.rs` |
 | `Runes`     | invokes a charged rune               | `break_use_conducts` (an inert rune does not count)    |
 | `Spells`    | pays for a spell                     | `pay_for_spell`, `items/spells.rs`                     |
 | `Coins`     | takes a coin                         | `spend_pickup`, `items/pickups.rs`                     |
 | `Ranged`    | throws or fires anything             | `resolve_throw`, `items/throwing.rs`                   |
-| `Attacking` | lands a melee swing, lunge or reach  | `land_swing`, `combat.rs`                              |
+| `Attacking` | lands a melee swing, lunge or reach  | `land_swing`, `combat/`                              |
 | `Charming`  | charms a creature                    | `charm`, `companion.rs`                                |
 | `Companion` | recruits a boon companion            | `recruit`, `companion.rs`                              |
 | `Damage`    | loses HP                             | `took_damage`, `helpers.rs`; the angel's test of faith (`angel_event`, `spirits.rs`) |
@@ -64,7 +64,7 @@ Paying out
 
     pub fn pay_conducts(world: &mut World) -> u16
 
-    models/src/score.rs
+    models/src/meta/score.rs
 
 Settles the turn's kills, adds `bonus_percent(kept_mask)` of the score on top, and returns the mask it paid for. It is called once, by `run_victory_screens` in `engine/src/main.rs`, before the leaderboard is written, so the board, the dump and the win panel all see the bonused score. Calling it twice pays twice.
 

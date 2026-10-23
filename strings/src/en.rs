@@ -21,7 +21,7 @@ pub fn content_name(id: &str) -> &str {
 }
 
 // ---------------------------------------------------------------------------
-// HUD status-line abbreviations (models/src/body.rs, engine/src/view.rs)
+// HUD status-line abbreviations (models/src/creatures/body.rs, engine/src/view.rs)
 //
 // Shared between the two: `view.rs` also matches a rendered label back
 // against these to pick a colour, so both call sites reading from the same
@@ -49,7 +49,7 @@ pub fn skill_abbr() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/body.rs
+// models/src/creatures/body.rs
 // ---------------------------------------------------------------------------
 
 pub fn fear_the_lurk(step: i32, stat: &str) -> String {
@@ -69,7 +69,7 @@ pub fn no_hands_monster(species: &str, item_name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/monsters.rs
+// models/src/creatures/monsters.rs
 // ---------------------------------------------------------------------------
 
 pub fn wearing_gear(verb: &str, name: &str) -> String {
@@ -241,7 +241,7 @@ pub fn cancellation_player_wave() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/traps.rs
+// models/src/world/traps.rs
 // ---------------------------------------------------------------------------
 
 pub fn bear_trap_thrash() -> &'static str {
@@ -360,7 +360,7 @@ pub fn adornment_spent(name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/hud.rs, models/src/score.rs
+// models/src/meta/hud.rs, models/src/meta/score.rs
 // ---------------------------------------------------------------------------
 
 /// The score-flash word for a combo kill. Shared with [`with_pride`]/`"With
@@ -379,7 +379,7 @@ pub fn with_style() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/catalog.rs, models/src/components.rs
+// models/src/items/catalog.rs, models/src/meta/components/
 // ---------------------------------------------------------------------------
 
 pub fn wizard_now() -> &'static str {
@@ -403,7 +403,7 @@ pub fn you_monster() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/effects.rs - what a worn body is born with (`-am`)
+// models/src/combat/effects/ - what a worn body is born with (`-am`)
 // ---------------------------------------------------------------------------
 
 pub const fn feel_fireproof() -> &'static str {
@@ -636,7 +636,6 @@ OPTIONS
     -nb, --no-blood            disable blood and corpse animation
     -nshake, --no-shake        disable screen shake
     -mouse, --mouse            left click looks, right click travels
-    -nobones, --no-bones       skip the bones mechanic (saving and loading a run's own)
     -endless, --endless        no Element of Yoord, no way up, no way to win: just floors
     -fast, --fast, --bullet, --quick
                                a six-floor dungeon; floors 4 and 5 are special levels
@@ -807,7 +806,7 @@ pub fn press_any_key_to_depart() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/pride.rs
+// models/src/meta/pride.rs
 // ---------------------------------------------------------------------------
 
 pub fn pride_off_refusal() -> &'static str {
@@ -815,7 +814,7 @@ pub fn pride_off_refusal() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/pack.rs
+// models/src/creatures/pack.rs
 // ---------------------------------------------------------------------------
 
 pub fn pack_title_browse() -> &'static str {
@@ -891,7 +890,7 @@ pub fn pack_nothing_put_on() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/magicmap.rs
+// models/src/world/magicmap.rs
 // ---------------------------------------------------------------------------
 
 pub fn magicmap_row_by_row() -> &'static str {
@@ -905,7 +904,7 @@ pub fn magicmap_explode() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/effects.rs - the EFFECTS table's `ends`/`beware` text.
+// models/src/combat/effects/ - the EFFECTS table's `ends`/`beware` text.
 //
 // `const fn`, not `fn`: `EFFECTS` is a `const` (see the table's own doc
 // comment on why an id can never be reused as an index), so whatever fills
@@ -988,7 +987,7 @@ pub const fn ends_protected() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/conditions.rs
+// models/src/creatures/conditions.rs
 // ---------------------------------------------------------------------------
 
 pub fn mob_verb_line(name: &str, verb: &str) -> String {
@@ -1016,7 +1015,7 @@ pub fn paralysis_lost_turn() -> &'static str {
 }
 
 // Const: these three rows sit in `AFFLICTIONS`, a `const` table (see
-// `effects.rs`'s note on why `ends`/`beware` are `const fn` too).
+// `effects/`'s note on why `ends`/`beware` are `const fn` too).
 pub const fn blind_cured_line() -> &'static str {
     "The darkness lifts from your eyes."
 }
@@ -1155,7 +1154,7 @@ pub fn slow_mob_line(name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/equipment.rs
+// models/src/items/equipment.rs
 // ---------------------------------------------------------------------------
 
 pub fn donned_hand(name: &str) -> String {
@@ -1235,7 +1234,7 @@ pub fn splinter_hits(target_name: &str, damage: i32) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/abilities.rs
+// models/src/creatures/abilities.rs
 // ---------------------------------------------------------------------------
 
 // Const: these three sit in `ABILITIES`, a `const` table.
@@ -1307,7 +1306,7 @@ pub fn medusa_gaze_line() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/visibility.rs
+// models/src/world/visibility.rs
 // ---------------------------------------------------------------------------
 
 pub fn spotted_line(phrase: &str) -> String {
@@ -1319,7 +1318,7 @@ pub fn trap_spotted(article: &str, label: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/helpers.rs
+// models/src/combat/helpers.rs
 // ---------------------------------------------------------------------------
 
 pub fn ward_turns_aside(name: &str) -> String {
@@ -1345,7 +1344,7 @@ pub fn badly_wounded() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/components.rs - Element::noun()
+// models/src/meta/components/ - Element::noun()
 // ---------------------------------------------------------------------------
 
 pub fn element_fire_noun() -> &'static str {
@@ -1359,7 +1358,7 @@ pub fn element_drain_noun() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/saveload.rs
+// models/src/meta/saveload.rs
 // ---------------------------------------------------------------------------
 
 pub fn retired_enchantment_singular() -> &'static str {
@@ -1371,7 +1370,7 @@ pub fn retired_enchantment_plural(n: usize) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/map/levels.rs
+// models/src/world/map/levels.rs
 // ---------------------------------------------------------------------------
 
 pub fn element_seeks_the_sun() -> &'static str {
@@ -1424,15 +1423,6 @@ pub fn climb_stairs(depth: u8) -> String {
     format!("You climb the stairs. (Depth {depth})")
 }
 
-pub fn bones_ghost_arrives(name: &str) -> String {
-    format!("A chill runs through you. {name} remembers what you did, and is furious.")
-}
-
-pub fn bones_ghost_arrives_self() -> String {
-    "A chill runs through you. Someone who was once you remembers what you did, and is furious."
-        .to_string()
-}
-
 pub fn element_wont_let_you_land() -> &'static str {
     "The Element of Yoord strains toward the sun - but the last stair you must climb yourself."
 }
@@ -1442,7 +1432,7 @@ pub fn portal_no_deeper_floor() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/map.rs
+// models/src/world/map.rs
 // ---------------------------------------------------------------------------
 
 pub fn dragon_hoard_enter() -> &'static str {
@@ -2221,7 +2211,7 @@ pub fn already_there() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/items.rs
+// models/src/items/mod.rs
 // ---------------------------------------------------------------------------
 
 pub fn cant_use_right_now(name: &str) -> String {
@@ -2288,7 +2278,7 @@ pub fn rune_protection_cast(turns: u32) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/combat.rs
+// models/src/combat/
 // ---------------------------------------------------------------------------
 
 // TODO: placeholder English; needs a human's pass.
@@ -2301,7 +2291,7 @@ pub fn mob_dies(name: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (models/src/companion.rs)
+// Helpers (models/src/creatures/companion.rs)
 // ---------------------------------------------------------------------------
 
 /// Use, from the pack, on a treat or a piece of ammunition.
@@ -2375,47 +2365,6 @@ pub fn garrote_kill(target_name: &str) -> String {
 }
 pub fn vorpal_kill(target_name: &str) -> String {
     format!("Snicker-snack! The blade shears clean through the {target_name}!")
-}
-
-/// Bones-ghost-only variants of the five lines above plus `you_have_slain`,
-/// for the one case those can't express in every language at once: the
-/// target is a bones ghost sharing the *player's own* name - see
-/// `crate::combat::report_player_hit`. Kept as dedicated English-only
-/// strings rather than threading a "yourself" label through the shared
-/// functions, which would have broken `pt`/`es`'s own grammar (gendered
-/// articles, contractions) for every ordinary target.
-pub fn excellent_hit_self(damage: i32) -> String {
-    format!("You score an excellent hit on yourself for {damage} damage!")
-}
-pub fn glancing_blow_self() -> &'static str {
-    "You deal a glancing blow to yourself."
-}
-pub fn plain_hit_self(damage: i32) -> String {
-    format!("You hit yourself for {damage} damage.")
-}
-pub fn garrote_kill_self() -> &'static str {
-    "You choke the life out of your helpless self! Atrocious!"
-}
-pub fn vorpal_kill_self() -> &'static str {
-    "Snicker-snack! The blade shears clean through yourself!"
-}
-pub fn you_have_slain_self() -> &'static str {
-    "You have slain yourself!"
-}
-
-/// The reverse direction: a bones ghost sharing the player's own name,
-/// attacking the real player. `mob_hits`/`mob_misses`/`mob_strikes_you_down`
-/// are written for a third-person subject ("The orc hits you"), which breaks
-/// the moment the subject is also "you" - see
-/// `crate::combat::report_ghost_self_hit`.
-pub fn ghost_self_misses() -> &'static str {
-    "You miss yourself."
-}
-pub fn ghost_self_hits(damage: i32) -> String {
-    format!("You hit yourself for {damage} damage.")
-}
-pub fn ghost_self_strikes_you_down() -> &'static str {
-    "You strike yourself down..."
 }
 
 pub fn mob_misses(atk: &str, target_label: &str) -> String {
@@ -2543,7 +2492,7 @@ pub fn offer_menu_title() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/pack.rs - the Use/Throw/Drop action modal
+// models/src/creatures/pack.rs - the Use/Throw/Drop action modal
 // ---------------------------------------------------------------------------
 
 pub fn action_use() -> &'static str {
@@ -2561,7 +2510,7 @@ pub fn action_info() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/identify.rs - the Info row's text
+// models/src/items/identify.rs - the Info row's text
 // ---------------------------------------------------------------------------
 
 // TODO: placeholder English; needs a human's pass.
@@ -2702,7 +2651,7 @@ pub fn element_wont_leave_hand() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/monsters.rs - the xeroc's disguise, a cosmetic-only category word
+// models/src/creatures/monsters.rs - the xeroc's disguise, a cosmetic-only category word
 // ---------------------------------------------------------------------------
 
 pub const fn mimic_look_scroll() -> &'static str {
@@ -2728,7 +2677,7 @@ pub const fn mimic_look_weapon() -> &'static str {
 }
 
 // ---------------------------------------------------------------------------
-// models/src/equipment.rs
+// models/src/items/equipment.rs
 // ---------------------------------------------------------------------------
 
 pub fn worn_tag(names: &str) -> String {
@@ -2736,8 +2685,8 @@ pub fn worn_tag(names: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Shared "the X" / "The X" / pronoun fragments (models/src/combat.rs,
-// models/src/items/theft.rs, models/src/traps.rs)
+// Shared "the X" / "The X" / pronoun fragments (models/src/combat/,
+// models/src/items/theft.rs, models/src/world/traps.rs)
 // ---------------------------------------------------------------------------
 
 pub fn atonement() -> &'static str {

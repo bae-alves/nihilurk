@@ -17,7 +17,7 @@ Worked example below: **food**, a thing you eat for hit points.
 Step 1: define the row
 ----------------------
 
-In `models/src/catalog.rs`, next to the other `Def` structs:
+In `models/src/items/catalog.rs`, next to the other `Def` structs:
 
     /// A ration: eaten once, then gone.
     pub struct FoodDef {
@@ -31,7 +31,7 @@ In `models/src/catalog.rs`, next to the other `Def` structs:
 
 A row says what the thing is and names the handler that does its work. Every category is built this way: the row is the potion, the wand, the treat, and the component on the entity points at it.
 
-The component goes in `models/src/components.rs`:
+The component goes in `models/src/meta/components/`:
 
     /// Something to eat. The row says what eating it does.
     #[derive(Component)]
@@ -99,7 +99,7 @@ Every row sits inline in its table. Code that needs one particular row reaches i
 Step 4: give it a share of the drop table
 -----------------------------------------
 
-In `models/src/spawn.rs`, import the table with the others from `crate::catalog` and add one line to `DROPS`:
+In `models/src/world/spawn.rs`, import the table with the others from `crate::catalog` and add one line to `DROPS`:
 
     category!("food",         120,      1,     FOODS),
 
@@ -111,13 +111,13 @@ Every other category's share shrinks in proportion to pay for the new one. No ot
 Step 5: make it do something
 ----------------------------
 
-Using an item goes through `item_system` in `models/src/items.rs`. `plan_use` reads the row off each component that holds one (`Potion`, `Wand`, `Scroll`, a `Deck`'s top card, a `Rune`) into a `UsePlan`, and `resolve_use` calls that row's handler. Add yours the same way: a `food` field on `UsePlan`, set from `Food` in `plan_use`, and one line in `resolve_use` that calls `(row.eat)(world, item_use.user)`. `Consume` on the entity already makes the use spend it. The pack's menus pick it up too: `PackMode::Browse` and `PackMode::Use` admit everything.
+Using an item goes through `item_system` in `models/src/items/mod.rs`. `plan_use` reads the row off each component that holds one (`Potion`, `Wand`, `Scroll`, a `Deck`'s top card, a `Rune`) into a `UsePlan`, and `resolve_use` calls that row's handler. Add yours the same way: a `food` field on `UsePlan`, set from `Food` in `plan_use`, and one line in `resolve_use` that calls `(row.eat)(world, item_use.user)`. `Consume` on the entity already makes the use spend it. The pack's menus pick it up too: `PackMode::Browse` and `PackMode::Use` admit everything.
 
 
 Step 6: teach the save file
 ---------------------------
 
-An item is saved as its row's id (`content`) plus a fixed set of component slots in `EntitySave` (`models/src/saveload.rs`). `Food` is not one of them, so by default a saved ration comes back as a nameless husk that does nothing.
+An item is saved as its row's id (`content`) plus a fixed set of component slots in `EntitySave` (`models/src/meta/saveload.rs`). `Food` is not one of them, so by default a saved ration comes back as a nameless husk that does nothing.
 
 Two ways out, cheapest first:
 
@@ -166,7 +166,7 @@ Verify
 
 The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `every_loot_category_can_be_drawn_and_has_rows_to_give` fails the same way, and also if it has no rows at the deepest floor.
 
-Round-trip a save before you call it done -- step 6 is the one people skip, and no existing test reaches a new category. Add one to `models/tests/it/saveload.rs` in the shape of `a_quivers_flight_survives_a_save`: spawn a ration with `spawn_named`, `save_game`, `load_game` into a fresh world, and assert a `Food` came back. Without step 6 it fails.
+Round-trip a save before you call it done -- step 6 is the one people skip, and no existing test reaches a new category. Add one to `models/tests/it/meta/saveload.rs` in the shape of `a_quivers_flight_survives_a_save`: spawn a ration with `spawn_named`, `save_game`, `load_game` into a fresh world, and assert a `Food` came back. Without step 6 it fails.
 
     cargo test --test it saveload::
 
@@ -174,10 +174,10 @@ Round-trip a save before you call it done -- step 6 is the one people skip, and 
 Appendix: quick check
 ---------------------
 
-1. Add the `Def` struct in `models/src/catalog.rs` and the component that holds its row in `models/src/components.rs`.
+1. Add the `Def` struct in `models/src/items/catalog.rs` and the component that holds its row in `models/src/meta/components/`.
 2. Implement `ItemDef`: `name`, `spawn`, and `spawn_as_loot`, `weight` or `min_depth` only if you need them.
 3. Write the table as a `pub static` of `&Def` rows with `#[rustfmt::skip]`, and its handlers under `models/src/items/`.
-4. Add one `category!(..)` line to `DROPS` in `models/src/spawn.rs`.
+4. Add one `category!(..)` line to `DROPS` in `models/src/world/spawn.rs`.
 5. Behaviour: read the row in `plan_use` and call its handler in `resolve_use`.
 6. Save: name the table in `content_id_of` and extend `restore_from_catalog`, or append a field to `EntitySave` and bump `SAVE_VERSION`; never insert one.
 7. Worn gear with a hidden quality: run `enchant_equipment` at spawn and let `KnownQuality` gate it.

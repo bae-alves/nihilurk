@@ -13,9 +13,9 @@ Three edits, all in one file, and the compiler enforces the handlers.
 
 The mechanics are one file:
 
-    models/src/traps.rs
+    models/src/world/traps.rs
 
-The components a trap is built from -- `Trap`, `TrapReveal`, `EntityMoved` -- are nouns and live in `models/src/components.rs` with everything else the ECS is made of. The holds a trap can put on a victim (`Asleep`, `Pinned`, and `Rooted` or `Clamped` if yours wants them) are ordinary effects and live in `models/src/effects.rs`. The row and its handlers stay in `traps.rs`, and no enum names the trap: a `Trap` points at its row.
+The components a trap is built from -- `Trap`, `TrapReveal`, `EntityMoved` -- are nouns and live in `models/src/meta/components/` with everything else the ECS is made of. The holds a trap can put on a victim (`Asleep`, `Pinned`, and `Rooted` or `Clamped` if yours wants them) are ordinary effects and live in `models/src/combat/effects/`. The row and its handlers stay in `traps.rs`, and no enum names the trap: a `Trap` points at its row.
 
 
 The recipe
@@ -64,7 +64,7 @@ Then:
     cargo test --test it content::
     NIHILURK_SPAWN="pit trap" cargo run -p nihilurk
 
-The pit trap is this page's example, so `a_traps_label_is_its_row` (`models/tests/it/content.rs`) asserts the game has none: copied as it stands, the row fails that test. Give yours its own name.
+The pit trap is this page's example, so `a_traps_label_is_its_row` (`models/tests/it/meta/content.rs`) asserts the game has none: copied as it stands, the row fails that test. Give yours its own name.
 
 
 Writing the mechanic
@@ -148,7 +148,7 @@ What you never have to do
 Appendix: quick check
 ---------------------
 
-1. Write the mechanic in `models/src/traps.rs`; log through `seen` and `is_player`, and subtract `total_armor_plus` only.
+1. Write the mechanic in `models/src/world/traps.rs`; log through `seen` and `is_player`, and subtract `total_armor_plus` only.
 2. Write the flourish, or name `no_flourish` and do it in the mechanic.
 3. Add the `TrapDef` row to `TRAPS` naming both: `weight`, `min_depth`, `snare_turns` if it holds, `always_spent` if it bites once.
 4. Run `cargo build`, then `cargo test --test it content::`.

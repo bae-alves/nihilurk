@@ -46,7 +46,7 @@ Step 1: find the table
 
 Every spell is a row in `SPELLS`, in:
 
-    models/src/catalog.rs
+    models/src/items/catalog.rs
 
 Search for it:
 
@@ -133,7 +133,7 @@ It compiles.
 Step 4: give it to yourself
 ------------------------------
 
-There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play, the only way to learn one is a hero coin (an uncommon coin-table pickup that teaches a random not-yet-known spell); to try Ice Bolt without hunting for a coin, replace the empty `Spellset::default()` in `initialize_world` (`models/src/map/levels.rs`) with:
+There is no `NIHILURK_SPAWN` for a spell -- there is no entity to spawn. In play, the only way to learn one is a hero coin (an uncommon coin-table pickup that teaches a random not-yet-known spell); to try Ice Bolt without hunting for a coin, replace the empty `Spellset::default()` in `initialize_world` (`models/src/world/map/levels.rs`) with:
 
     Spellset {
         slots: vec![spell_row("Ice Bolt").unwrap()],
@@ -166,8 +166,8 @@ Try the things that work on a potion, a wand, a dagger:
 
   * **Open the pack (`i`) and look for Ice Bolt.** It isn't there. A spell never enters a `Backpack`; the player's copy of it lives only in `Spellset`.
   * **Try to throw it (`t`).** There is nothing to select -- the throw menu only ever lists `Backpack` contents, and a spell was never in one.
-  * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/saveload.rs` stores each spell by its row's name. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that marker would need a row in the `EFFECTS` registry and an `effects::lend` to put it there -- see `../how-to/add-a-spell.md` for the two that already do.
-  * **Give a monster the same trick.** A spell's function is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset out of its own `Magic`. Reach Ice Bolt through an `index_of!` const (`const ICE_BOLT: usize = index_of!(SPELLS, "Ice Bolt");`), put `SPELLS[ICE_BOLT]` in a static list the way `BREATHES_FIRE` holds `SPELLS[FIREBALL]` in `models/src/monsters.rs`, and chain `.casts(3, &THAT_LIST)` on a bestiary row, and that creature is born with the spell and the Ma for three casts of it, and its rule set will pick it and fire it at you until the Ma runs out. The dragon's Fireball is exactly that. See `../reference/agents.md`.
+  * **Save and reload.** Your Magic total survives, and so does your `Spellset` -- `models/src/meta/saveload.rs` stores each spell by its row's name. If Ice Bolt ever left a marker of its own lying around on you (the way the spell Magic Ward or Bide does), that marker would need a row in the `EFFECTS` registry and an `effects::lend` to put it there -- see `../how-to/add-a-spell.md` for the two that already do.
+  * **Give a monster the same trick.** A spell's function is a shared *mechanic* -- `ice_bolt` doesn't care who `user` is -- and a monster casts from its spellset out of its own `Magic`. Reach Ice Bolt through an `index_of!` const (`const ICE_BOLT: usize = index_of!(SPELLS, "Ice Bolt");`), put `SPELLS[ICE_BOLT]` in a static list the way `BREATHES_FIRE` holds `SPELLS[FIREBALL]` in `models/src/creatures/monsters.rs`, and chain `.casts(3, &THAT_LIST)` on a bestiary row, and that creature is born with the spell and the Ma for three casts of it, and its rule set will pick it and fire it at you until the Ma runs out. The dragon's Fireball is exactly that. See `../reference/agents.md`.
 
 None of that is a bug in what you built. It's the shape of the thing: a spell is a mechanic on loan to whoever's `Spellset` names it, not a possession with a life of its own on the floor.
 
@@ -177,12 +177,12 @@ Step 7: keep it or drop it
 
 Either way, put the starting `Spellset` back, so `cargo test` passes again:
 
-    git checkout models/src/map/levels.rs
+    git checkout models/src/world/map/levels.rs
 
 If you like Ice Bolt, leave the row and its function. If this was a dry run:
 
-    git checkout models/src/catalog.rs models/src/items/spells.rs \
-                 models/src/map/levels.rs
+    git checkout models/src/items/catalog.rs models/src/items/spells.rs \
+                 models/src/world/map/levels.rs
 
 
 What you actually learned

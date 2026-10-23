@@ -160,7 +160,7 @@ Mostly the same moves as Phase 1, plus two:
 
 **Extract the loop body.** A `for` whose body is 60 lines and three levels deep is a function that has not been written yet. `ai::monster_round` is a `for` over `step_one_mob`; `items::item_system` a `for` over `resolve_use`; `update::process_input_and_update` is split into `handle_targeting_input`, `handle_inventory_input`, `handle_movement_input` and their callees.
 
-**Name the phases of a procedure.** Not every long function is deep; some are just long, and read as one undifferentiated wall. The cure is the same and the motive is different -- you are not reducing indentation, you are giving a reader somewhere to stop. `combat::resolve_attack` reads as seven named steps (`fold_matchup`, `roll_swing`, `clamp_swing`, `land_swing`, `punctuate`, `report_blow`, `settle_the_dead`), each of which can be read or skipped on its name. The same cure one level up is a module split: `models/src/map/` and `models/src/items/` keep a submodule per job, so no one file does four unrelated things.
+**Name the phases of a procedure.** Not every long function is deep; some are just long, and read as one undifferentiated wall. The cure is the same and the motive is different -- you are not reducing indentation, you are giving a reader somewhere to stop. `combat::resolve_attack` reads as seven named steps (`fold_matchup`, `roll_swing`, `clamp_swing`, `land_swing`, `punctuate`, `report_blow`, `settle_the_dead`), each of which can be read or skipped on its name. The same cure one level up is a module split: `models/src/world/map/` and `models/src/items/` keep a submodule per job, so no one file does four unrelated things.
 
 The test for whether an extraction earned its place: can you name what came out in three words, without "helper" or "handle" in them? If not, the split is cosmetic and the parameter list it costs is not worth it.
 
@@ -196,7 +196,7 @@ One rule of nihilurk's own: a test never asserts a constant
 
 Not a calisthenics rule, but it belongs next to them, because it is the same kind of discipline.
 
-**Never write a test whose assertion is a copy of a tuning number.** A test that says a wand rolls `3..=9`, that a floor hides a stash one time in five, or that a kill is worth 700 points is not testing the game; it is testing `constants.rs`, which needs no help. The moment somebody rebalances -- and the working tree is *usually* mid-rebalance -- that test goes red while the code is perfectly correct, and it teaches the next person to distrust the suite.
+**Never write a test whose assertion is a copy of a tuning number.** A test that says a wand rolls `3..=9`, that a floor hides a stash one time in five, or that a kill is worth 700 points is not testing the game; it is testing `constants/`, which needs no help. The moment somebody rebalances -- and the working tree is *usually* mid-rebalance -- that test goes red while the code is perfectly correct, and it teaches the next person to distrust the suite.
 
 Three ways out, in order of preference:
 
@@ -204,7 +204,7 @@ Three ways out, in order of preference:
 2. **Read the constant.** `DAMAGE_DICE * DAMAGE_SIDES` instead of `8`; `share_of("coin")` off `DROPS` instead of `17.0`. Now the test proves the roller honours the table rather than proving the table says what it says.
 3. **Purge it.** If a test's only claim was the number, delete it and put something real in its place. "A stashed item carries `Invisible` *and* `Hidden`" is the kind of claim to put there: an invariant a rebalance cannot touch and a bug could.
 
-A test's own loop bound is not a tuning number and should not borrow one. `models/tests/it/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it would make a tightened valve look like an infinite loop.
+A test's own loop bound is not a tuning number and should not borrow one. `models/tests/it/mind/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it would make a tightened valve look like an infinite loop.
 
 
 One rule of nihilurk's own: behavior tests build components, not bestiary rows

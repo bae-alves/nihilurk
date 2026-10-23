@@ -7,8 +7,6 @@ Why monsters are so fragile
     This is        Understanding, not instructions. For the act of
                    adding a row, see `../how-to/add-a-monster.md`.
 
-A kestral has three hit points. That is not a placeholder.
-
 
 One exchange, two dice
 ----------------------
@@ -93,8 +91,6 @@ Reading the existing table
 --------------------------
 
 To sit a new creature in the bestiary without standing out, read the rows that share its `min_depth`: they are the band it joins, and the numbers climb with depth.
-
-The doc comment on `BESTIARY` in `models/src/monsters.rs` also keeps each Rogue creature's original level and armour class, as a design anchor. nihilurk does not model either, but they say what the creature was *for*.
 
 
 See also

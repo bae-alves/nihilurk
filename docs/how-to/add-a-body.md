@@ -18,7 +18,7 @@ from `-am` genuinely won't do.
 The table
 ---------
 
-    models/src/body.rs      ->  BODIES
+    models/src/creatures/body.rs      ->  BODIES
 
 Two rows today: nihil (the default) and lurk. A player is `Body::Row`
 of one of them, or `Body::Monster(&'static MonsterDef)` for `-am`. One enum,
@@ -80,7 +80,7 @@ new shape.
 Checks that will catch you
 ---------------------------
 
-`models/tests/it/body.rs` and `lurk.rs` are the pattern to copy for a new
+`models/tests/it/creatures/body.rs` and `lurk.rs` are the pattern to copy for a new
 `wraithkin.rs`, declared as `mod wraithkin;` in `models/tests/it/main.rs`
 and run with `cargo test --test it wraithkin::`. Build a `World` with
 `StartingBody(Body::Row(&WRAITHKIN))`,
@@ -112,14 +112,14 @@ and will say something wrong about your body if you don't touch it:
 Appendix: quick check
 ---------------------
 
-1. Add the `BodyDef` row in `models/src/body.rs`, and list it in `BODIES`.
+1. Add the `BodyDef` row in `models/src/creatures/body.rs`, and list it in `BODIES`.
 2. Write `wear_<name>` next to `wear_lurk`, with every number in a new `constants::<name>` module.
 3. Give it a save marker: an effect already in `EFFECTS` that nothing else puts on the player.
 4. Teach `innate_tempo` if the body does not return to `SpeedKind::Normal`.
 5. Teach `equip_refusal` if the body cannot wear everything, and say why in the string.
 6. Add the name to `no_such_body` in `strings/src/en.rs`; the other languages re-export it.
 7. Leave `brings_a_pack` false.
-8. Copy `models/tests/it/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
+8. Copy `models/tests/it/creatures/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
 9. Run that test with `cargo test --test it <name>::`, then `cargo test`.
 
 

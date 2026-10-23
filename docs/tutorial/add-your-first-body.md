@@ -62,7 +62,7 @@ Step 1: find the table
 
 Everything a body *is* lives in one file:
 
-    models/src/body.rs
+    models/src/creatures/body.rs
 
 Open it and find the table, one row per body:
 
@@ -159,7 +159,7 @@ borrowing both:
     }
 
 The numbers are placeholders for now — 8 HP, dice a point under nihil's bare
-ones (`player::START_POWER`, `START_ARMOR`), 2 Magic. You'll pull them out to `constants.rs` in the step where you decide
+ones (`player::START_POWER`, `START_ARMOR`), 2 Magic. You'll pull them out to `constants/` in the step where you decide
 you're keeping this.
 
 
@@ -354,7 +354,7 @@ Step 9: keep it or drop it
 If you like the ninja, decide on its save marker and finish the job. If
 this was a dry run:
 
-    git checkout models/src/body.rs strings/src
+    git checkout models/src/creatures/body.rs strings/src
 
 
 What you actually learned

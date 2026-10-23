@@ -88,7 +88,7 @@ Potions, scrolls, wands and rings tell you exactly what they are on sight — no
 
 You start the run already equipped: armor worn, a weapon in hand, and in the pack a bow with arrows and a single potion, the armor, weapon and bow all +1.
 
-Drops follow Rogue's own category odds, with coins and treats standing in for food. The shares below are rounded; `DROPS` in `models/src/spawn.rs` has the exact weights:
+Drops follow Rogue's own category odds, with coins and treats standing in for food. The shares below are rounded; `DROPS` in `models/src/world/spawn.rs` has the exact weights:
 
 - Scrolls, about 27%.
 - Runes, about 5%, from depth 3. Not used up when read, and they wake each time you take the stairs.
