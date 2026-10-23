@@ -48,7 +48,7 @@ new shape.
    whatever innate effects the body is born with through `grant_all` — a
    `const &[Grant]` slice, the same shape `LURK_GRANTS` uses, so it can be
    handed to `grant_all` unchanged. Pull every number out to its own
-   `constants::wraithkin` module (see `../reference/constants.md` below) rather than
+   `constants::wraithkin` module (`models/src/meta/constants/`) rather than
    writing them inline — that is the one line `wear_lurk` itself would fail
    review on if it didn't.
 
@@ -102,11 +102,7 @@ and will say something wrong about your body if you don't touch it:
 
   * `../reference/cli-and-env.md` — the `-b <body>` section spells out
     each body's dice, kit and quirks for the player.
-  * `../reference/constants.md` — a row in the modules table for the new
-    `constants::<name>` module.
-  * `../reference/components.md` — the "what the player is" section, if
-    the new marker or resource is worth a reader reaching for.
-  * `MANUAL.md` / `doc/nihilurk.6` — the shipped manual page.
+  * `MANUAL.md` — the shipped manual.
 
 
 Appendix: quick check
@@ -130,5 +126,5 @@ See also
   ../reference/cli-and-env.md      the player-facing story, `-b` and `-am` both
   add-a-monster.md                 the other way to play as something else
   add-an-effect.md                 writing the `Grant`s a body is born with
-  ../reference/components.md       `Body`, `MonsterBody`, `StartingBody`
+  ../../models/src/meta/components/ `Body`, `MonsterBody`, `StartingBody`
   ../explanation/combat-and-balance.md   picking dice that don't need gear to matter

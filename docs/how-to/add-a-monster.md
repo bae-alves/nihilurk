@@ -36,7 +36,7 @@ The recipe
        color         Color::DarkGreen    see the palette note below
        movement      Chase               Static | Chase | Ambush | Flee | Confused
                                          picks its rule set: see
-                                         ../reference/agents.md
+                                         ../explanation/agents.md
        hp            5                   total hit points
        power         10                  attack die: damage rolls 1d10
        power_bonus   1                   flat, added once to that roll
@@ -166,5 +166,5 @@ See also
   add-a-body.md                    a hand-written body instead of a bestiary row
   add-an-effect.md                 give it a property nothing else has
   tune-rarity-and-depth.md         where and how often it shows up
-  ../reference/spawn-api.md        MonsterDef::pick, spawn_monster
+  cargo doc -p nihilurk-models --open  MonsterDef::pick, spawn_monster
   ../explanation/combat-and-balance.md   what the numbers mean

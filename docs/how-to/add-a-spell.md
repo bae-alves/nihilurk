@@ -2,8 +2,7 @@ How to add a spell
 ==================
 
     Audience       Content author.
-    Prerequisites  You know where `models/src/items/catalog.rs` is. If not,
-                   do `../tutorial/add-your-first-spell.md` first.
+    Prerequisites  You know where `models/src/items/catalog.rs` is.
     Result         A new active ability the player can trigger from
                    the `Z` menu, that costs Magic -- an
                    aimed **attack** like a wand, or a self/room-wide
@@ -126,7 +125,7 @@ Revert the `initialize_world` edit before you run the tests: a player who starts
 
 > **`Spellset` does survive a save** -- `models/src/meta/saveload.rs` stores each spell by row name and refuses a save that names a spell no row has. So do the two marker components spells have left behind so far, `MagicWard` and `Bided` -- but not through a field of their own: each is a row in the `EFFECTS` registry (`models/src/combat/effects/`, `"magic_ward" => MagicWard;`) lent through `effects::lend`, and `EntitySave::effects` saves it by id with the `Lifetime` it is being held for. If your new spell leaves a marker of its own lying around outside `Spellset`, register it there and lend it; a component inserted directly is the one a reload quietly forgets.
 
-> **A monster casts from its spellset, out of its own Ma.** Its rule set picks one of the spells in its `Spellset` that its `Magic` can pay for, at random each turn, and fires it if it can (`../reference/agents.md`, the `cast` rule). To give a species your spell, give a static list of rows to `.casts(n, &YOUR_LIST)` on its bestiary row (a const row cannot borrow a fresh slice in place; see `BREATHES_FIRE = [SPELLS[FIREBALL]]` in `models/src/creatures/monsters.rs`, `FIREBALL` an `index_of!` const) -- that is all the dragon's Fireball is. Only an `Attack` spell with a range is ever fired this way; a skill never is. A player wearing the row (`-am`) gets the spells in the spell bar and pays from the player's Ma.
+> **A monster casts from its spellset, out of its own Ma.** Its rule set picks one of the spells in its `Spellset` that its `Magic` can pay for, at random each turn, and fires it if it can (`../explanation/agents.md`, the `cast` rule). To give a species your spell, give a static list of rows to `.casts(n, &YOUR_LIST)` on its bestiary row (a const row cannot borrow a fresh slice in place; see `BREATHES_FIRE = [SPELLS[FIREBALL]]` in `models/src/creatures/monsters.rs`, `FIREBALL` an `index_of!` const) -- that is all the dragon's Fireball is. Only an `Attack` spell with a range is ever fired this way; a skill never is. A player wearing the row (`-am`) gets the spells in the spell bar and pays from the player's Ma.
 
 
 Verify what you added
@@ -157,6 +156,5 @@ Appendix: quick check
 See also
 --------
 
-  ../tutorial/add-your-first-spell.md   the long version, as a lesson
   add-an-item.md                       the pattern this one borrows
   ../reference/input-and-turn-loop.md  where `spell_system` sits in the schedule

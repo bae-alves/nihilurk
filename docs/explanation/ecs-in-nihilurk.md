@@ -130,5 +130,5 @@ See also
   ../how-to/work-with-the-ecs.md   the recipes, and the borrow patterns
   data-driven-content.md           why behaviour is a table, not a branch
   code-calisthenics.md             the shape this code is held to
-  ../reference/components.md       every component, resource and event
+  ../../models/src/meta/components/ every component, resource and event
   ../reference/input-and-turn-loop.md   the schedule and the main loop

@@ -27,8 +27,9 @@
 //! * **RNG salts** and the neighbour-offset tables. Structural, not balance.
 //!   The grid and special-level dials are here ([`layout`], [`special_levels`]),
 //!   with the caveat that moving one moves every layout on every seed.
-//! * A couple of one-off rolls still inline where they fire. Called out in
-//!   `docs/reference/constants.md`.
+//! * A few one-off numbers still sit where they fire: spikemail's prick
+//!   (`abilities::spike_prick`), the relic's `Value` (`spawn_element_of_yoord`),
+//!   and the `-anim-rate` clamp (`engine/src/main.rs`).
 
 mod combat_tuning;
 mod creature_tuning;

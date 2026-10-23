@@ -166,5 +166,5 @@ Appendix: quick check
 See also
 --------
 
-  ../reference/spawn-api.md        pick_weighted, roll_item, DROPS
+  cargo doc -p nihilurk-models --open  pick_weighted, roll_item, DROPS
   add-an-item-category.md          adding a row to DROPS itself

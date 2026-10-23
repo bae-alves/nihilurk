@@ -2,7 +2,7 @@ How to add a rule
 =================
 
     Audience       Engine developer.
-    Prerequisites  `../reference/agents.md`.
+    Prerequisites  `../explanation/agents.md`.
     Result         A new reflex any rule set can list.
 
 A rule is a condition on the percept and the action it calls for, in one function. It answers `None` when its condition does not hold.
@@ -53,7 +53,7 @@ Verify
 
     cargo test -p nihilurk-models --lib agents
 
-Then add the rule's row to the rules table in `../reference/agents.md`.
+Then add the rule's row to the rules table in `../explanation/agents.md`.
 
 
 Appendix: quick check
@@ -64,12 +64,11 @@ Appendix: quick check
 3. List it in a rule set (`add-a-rule-set.md`).
 4. Test both sides on a hand-built `percept(...)`: once where it fires, once where it passes.
 5. Run `cargo test -p nihilurk-models --lib agents`.
-6. Add the rule's row to the rules table in `../reference/agents.md`.
+6. Add the rule's row to the rules table in `../explanation/agents.md`.
 
 
 See also
 --------
 
   add-a-rule-set.md                 putting the rule to work
-  ../reference/agents.md            every rule that exists already
-  ../explanation/agents.md          why a rule may only read the percept
+  ../explanation/agents.md            every rule that exists already, and why a rule may only read the percept

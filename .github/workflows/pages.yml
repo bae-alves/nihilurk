@@ -1,5 +1,5 @@
 # Builds the documentation site (MANUAL.md and docs/) with mdBook and puts it
-# on GitHub Pages. The recipe is docs/how-to/publish-the-site.md. A one-time
+# on GitHub Pages. The recipe is docs/how-to/cut-a-release.md. A one-time
 # step lives outside the repository: Settings > Pages > Source must be
 # "GitHub Actions".
 name: pages

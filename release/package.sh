@@ -8,7 +8,7 @@
 # it.
 #
 # Runs in bash on Linux, macOS and Windows (Git Bash). See
-# docs/how-to/publish-a-github-release.md.
+# docs/how-to/cut-a-release.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -31,7 +31,7 @@ mkdir -p "$OUT"
 cargo build --locked --release --target "$TARGET" -p nihilurk --bin nihilurk
 cp "$BIN/nihilurk$EXT" "$OUT/nihilurk$EXT"
 
-cp LICENSE MANUAL.md doc/nihilurk.6 "$OUT/"
+cp LICENSE MANUAL.md "$OUT/"
 
 # macOS has no sha256sum, and Git Bash on Windows has no zip, but has 7z.
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }

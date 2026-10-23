@@ -2,7 +2,7 @@ How to add a rule set
 =====================
 
     Audience       Engine developer.
-    Prerequisites  `../reference/agents.md`. For a rule that does not
+    Prerequisites  `../explanation/agents.md`. For a rule that does not
                    exist yet, `add-a-rule.md` first.
     Result         A new way for a creature to think, picked by its
                    tactic.
@@ -59,7 +59,7 @@ Verify
     cargo test -p nihilurk-models --lib agents
     NIHILURK_SPAWN="your monster" cargo run -p nihilurk
 
-Then add the set's row to the sets table in `../reference/agents.md`.
+Then add the set's row to the sets table in `../explanation/agents.md`.
 
 
 Appendix: quick check
@@ -72,12 +72,11 @@ Appendix: quick check
 5. Put the variant in the `movement` column of a bestiary row.
 6. Test each rule the set lists: one case where it wins, one where an earlier rule passes.
 7. Run `cargo test -p nihilurk-models --lib agents` and `NIHILURK_SPAWN="<monster>" cargo run -p nihilurk`.
-8. Add the set's row to the sets table in `../reference/agents.md`.
+8. Add the set's row to the sets table in `../explanation/agents.md`.
 
 
 See also
 --------
 
   add-a-rule.md                     when no rule does what you need
-  ../reference/agents.md            every set, and what picks it
-  ../tutorial/give-a-monster-a-mind.md   the same thing, taught slowly
+  ../explanation/agents.md            every set, and what picks it

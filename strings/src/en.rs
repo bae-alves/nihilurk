@@ -655,12 +655,6 @@ ENVIRONMENT
     NIHILURK_SPAWN       comma-separated names to place near the player on every
                      generated floor; use -content to list valid names
 
-LANGUAGE
-    Prebuilt download:   nihilurk --lang pt   (en, pt, es, ht; first argument)
-                     otherwise the language comes from LC_ALL, LANG or LANGUAGE
-    cargo install:       one language per install; switch by reinstalling
-                     cargo install nihilurk --force --no-default-features --features lang-pt
-
 EXAMPLES
     nihilurk
     nihilurk bae
@@ -670,9 +664,8 @@ EXAMPLES
     NIHILURK_SPAWN=\"dragon,ring of protection\" nihilurk
 
 SEE ALSO
-    man nihilurk          full command, environment, and spawn API reference
+    MANUAL.md
     docs/reference/cli-and-env.md
-    docs/reference/spawn-api.md
 "
 }
 

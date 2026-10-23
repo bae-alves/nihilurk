@@ -5,7 +5,7 @@ Reference: input handling and the turn loop
                    row to copy — this is the engine itself: the main
                    loop, the keyboard, the modal stack.
     Prerequisites  A passing familiarity with bevy_ecs, and
-                   `components.md` for the resources named
+                   `models/src/meta/components/` for the resources named
                    below (`GameLog`, `PackIsOpen`, `TargetingState`,
                    `AutoExplore`, `FastMove`, `TravelCursor`, `Ending`).
     Status         Describes `engine/src/update.rs` and the main loop
@@ -81,7 +81,7 @@ One `Schedule`, run once per turn, in this fixed order:
       -> dungeon_lord_system -> ability_system -> sink_system
       -> visibility_system -> score_turn_system
 
-`ai` keeps the clock, the gates and the hands; what each mob decides to do is its rule set's (`agents.md`). A mob off the player's view does nothing, unless it is aggravated or a Helper.
+`ai` keeps the clock, the gates and the hands; what each mob decides to do is its rule set's (`../explanation/agents.md`). A mob off the player's view does nothing, unless it is aggravated or a Helper.
 
 `reveal_mimics` runs before `ai`: a xeroc's disguise falls away the instant the player is standing next to it, so the same turn that happens, `ai` already sees the plain `Ambush` monster underneath and can lash out. `spell_system` runs before `ai`: an active spell (`Z`, or `Alt`+`Q`/`W`/`E`/`R`) spends its `Magic` cost and resolves before monsters get their response. This matches ordinary movement, which `player_action_system` applies as the schedule's first step. A damaging spell only zeroes its victim's HP — `reaper_system` sweeps the body at the far end of the turn — so `ai` skips any mob already at 0 HP rather than letting a corpse take a parting shot on its way out.
 
@@ -374,6 +374,6 @@ See also
   ../how-to/work-with-the-ecs.md   adding a system, and the borrow patterns
   ../explanation/ecs-in-nihilurk.md    why the schedule is shaped this way
   ../explanation/adr-0005-aim-resolves-before-the-mobs-move.md  why aiming systems sit ahead of `ai`
-  ../reference/components.md    the resources named throughout this page
+  ../../models/src/meta/components/  the resources named throughout this page
   ../reference/cli-and-env.md   the flags this code reads (`-anim-rate`, `-nshake`)
   ../explanation/code-calisthenics.md   the shape this code (and all engine code) is held to

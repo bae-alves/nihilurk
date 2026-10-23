@@ -6,7 +6,7 @@ ADR 0002: every crate has a package name and a library name
                    the package is `nihilurk-models` and the library is
                    `models`, or who is about to rename one of them.
     Supersedes     --
-    Related        ../how-to/publish-to-crates-io.md
+    Related        ../how-to/cut-a-release.md
 
 Every crate in this workspace has two names, and they are different on purpose.
 
@@ -73,5 +73,5 @@ Reopen this decision if any of these becomes true:
 See also
 --------
 
-  ../how-to/publish-to-crates-io.md     the release recipe
+  ../how-to/cut-a-release.md            the release recipe
   ../../engine/tests/workspace.rs       the tests that hold the names in place

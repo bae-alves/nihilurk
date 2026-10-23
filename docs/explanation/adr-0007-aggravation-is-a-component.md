@@ -50,6 +50,5 @@ Reopen this decision if any of these becomes true:
 See also
 --------
 
-  agents.md                             the rule sets and what each tactic does
-  ../reference/agents.md                the `Aggravated` rule, in the tables
-  ../reference/components.md            the component and the retired variant
+  agents.md                             the rule sets, what each tactic does, the `Aggravated` rule
+  ../../models/src/meta/components/ the component and the retired variant

@@ -58,4 +58,4 @@ See also
 
   adr-0005-aim-resolves-before-the-mobs-move.md   the same ordering, for aimed use and throw
   ../reference/input-and-turn-loop.md             the step, in order, and the schedule
-  ../reference/components.md                      `PlayerActionQueue`
+  ../../models/src/meta/components/          `PlayerActionQueue`

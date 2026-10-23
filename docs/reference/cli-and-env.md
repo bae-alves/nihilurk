@@ -137,9 +137,7 @@ The body is saved with the run and comes back on load: a worn species as its row
 A monster's hit points are its own, so several rows are a one or two-hit death: that
 is intended, and `-s` is how you retry it.
 
-`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is `nihilurk(6)`. The prebuilt tarball installs it, so `man nihilurk` works there; `cargo install` installs the binary only, so from a clone read it with:
-
-    man ./doc/nihilurk.6
+`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. This page is the full reference.
 
 The game needs a terminal of at least `SCREEN_W` columns by `SCREEN_H` rows (`engine/src/constants.rs`). In a smaller one the message log draws garbled letters. That is a known limit and will not be fixed.
 
@@ -298,7 +296,6 @@ Test a throw build from turn one:
 See also
 --------
 
-  spawn-api.md                  spawn_named, spawn_requested
   conducts.md                   the conducts behind the marks on -scores
   input-and-turn-loop.md        where these flags are read (`engine/src/main.rs`)
   rendering.md                  `-c`, `-anim-rate` and `-nshake` in the renderer

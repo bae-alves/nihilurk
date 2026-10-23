@@ -5,12 +5,12 @@ Working with the ECS
                    row in a table — you need to reach an entity, change
                    it, and get the borrow checker to let you.
     Prerequisites  You write Rust. You know what a component and a
-                   system are. You have read
-                   `../reference/components.md` at least once.
+                   system are. You have skimmed
+                   `models/src/meta/components/`.
     Result         A mechanic that reaches the entities it needs,
                    changes them, and compiles.
 
-The snippets are written from inside `models`, so they say `crate::conditions::...`. From `engine` or a test, the same name is `models::...` (see `../reference/spawn-api.md` for what the crate root exports).
+The snippets are written from inside `models`, so they say `crate::conditions::...`. From `engine` or a test, the same name is `models::...` (`cargo doc -p nihilurk-models --open` shows what the crate root exports).
 
 Recipes: copy the shape, change the nouns. *Why* the code is arranged this way is `../explanation/ecs-in-nihilurk.md`.
 
@@ -142,7 +142,6 @@ Then, in order:
 
   1. **Derive no more than it needs.** `Component` always. `Clone, Copy` when it is small and gets read out by value. `Serialize, Deserialize` *only* if the save stores the type itself rather than its fields — most do not.
   2. **Decide if it is saved**, and write the answer in the doc comment. If yes: a field appended to `saveload::EntitySave`, plus the save line, the load line and a new `SAVE_VERSION`. If no, say *why* — rebuilt every frame (`Viewshed::visible_tiles`), reset on load (`Speed::energy`), or re-attached from a catalog row by id (`ThrownDamage`). A component that is silently neither is a bug waiting for somebody's save file.
-  3. **Give it a row** in `../reference/components.md`, in the section it belongs to, with its "Saved?" column filled in.
 
 Rules that are not negotiable:
 
@@ -210,7 +209,6 @@ Then the bookkeeping, in order:
   * **Saving.** Decide what the save stores and what it reads back off the row. Store the row's *name*, never its contents (see `restore_from_catalog`), and add the entity's own mutable state — a trap's `revealed` latch, a wand's charges.
   * **Despawning between floors.** `map::levels::transition_level` clears everything with a `Position` that is not the player, not a `Helper` and not in a backpack. If your kind should survive a staircase, it needs a reason and an exception like the Helper's; if it should not, you have nothing to do.
   * **Drawing.** A `Renderable` gets it on screen, but *when* it draws is a layer in `engine/src/view.rs`'s `render`, and the order matters — a later layer covers an earlier one. See `../reference/rendering.md`.
-  * **Documenting.** A row in `../reference/components.md` for anything new it carries.
 
 The test that tells you it landed: `cargo run -p nihilurk -- -content` lists it, and `NIHILURK_SPAWN="<name>"` puts one in front of you.
 
@@ -452,7 +450,7 @@ Appendix: quick check
 ---------------------
 
 1. Before a new component, check it is not an effect, a modifier, or a row of an existing kind.
-2. Component: add it to `models/src/meta/components/` as nouns only, decide and say if it is saved, and add its row to `../reference/components.md`.
+2. Component: add it to `models/src/meta/components/` as nouns only, and decide and say if it is saved.
 3. New kind of entity: a `Def` row type and table, a `Bundle`, then `spawn_named` and `content_names`.
 4. Damage: `combat::resolve_attack` if somebody swung, `helpers::apply_hit` with a `Hit` if not; the reaper finishes the dead.
 5. Condition: call the verb in `crate::conditions`; a new one needs an `EFFECTS` row, a verb, an `AFFLICTIONS` row and a HUD badge.
@@ -468,8 +466,7 @@ See also
 --------
 
   ../explanation/ecs-in-nihilurk.md   why the world is driven this way
-  ../reference/components.md      every component, resource and event
-  ../reference/spawn-api.md       the functions that build entities
+  ../../models/src/meta/components/    every component, resource and event
   ../reference/input-and-turn-loop.md   the schedule, in order
   add-an-effect.md                adding a property rather than a mechanic
   add-an-item-category.md         adding a whole new kind of item

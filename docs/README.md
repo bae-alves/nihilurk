@@ -13,9 +13,7 @@ Start here
 |------------------------------------------------|-------------------------------------------------|
 | Add my first item, hand-held                   | `tutorial/add-your-first-item.md`               |
 | Add my first monster, hand-held                | `tutorial/add-your-first-monster.md`            |
-| Add my first spell, hand-held                  | `tutorial/add-your-first-spell.md`              |
 | Add my first body, hand-held                   | `tutorial/add-your-first-body.md`               |
-| Give a monster a mind, hand-held               | `tutorial/give-a-monster-a-mind.md`             |
 | Add a monster                                  | `how-to/add-a-monster.md`                       |
 | Add a new playable body, like the lurk         | `how-to/add-a-body.md`                          |
 | Add a potion, wand, weapon, ring               | `how-to/add-an-item.md`                         |
@@ -28,27 +26,20 @@ Start here
 | Add a whole new *kind* of item                 | `how-to/add-an-item-category.md`                |
 | Put a specific thing on a specific tile        | `how-to/spawn-a-thing.md`                       |
 | See a change working in the real game          | `how-to/play-through-a-pty.md`                  |
-| Find the file a name lives in                  | `reference/module-map.md`                       |
-| Look up a component, resource, event           | `reference/components.md`                       |
-| Change a balance number                        | `reference/constants.md`                        |
-| Look up a function I have to call              | `reference/spawn-api.md`                        |
+| Find a name, or a function to call             | `cargo doc -p nihilurk-models --open`           |
+| Change a balance number                        | `models/src/meta/constants/`                    |
 | Look up a flag or an env var                   | `reference/cli-and-env.md`                      |
 | Look up a conduct, or what a win is paid       | `reference/conducts.md`                         |
 | Look up how input and the turn loop work       | `reference/input-and-turn-loop.md`              |
-| Look up what a monster does with its turn      | `reference/agents.md`                           |
 | Look up how a frame gets to the screen         | `reference/rendering.md`                        |
 | Reach an entity and change it                  | `how-to/work-with-the-ecs.md`                   |
 | Understand why it is built this way            | `explanation/data-driven-content.md`            |
 | Understand how bevy_ecs is used here           | `explanation/ecs-in-nihilurk.md`                |
-| Understand why monsters think in rule sets     | `explanation/agents.md`                         |
-| Know what an effect should look like           | `explanation/the-feel-layer.md`                 |
+| Know what a monster does, and why              | `explanation/agents.md`                         |
 | Write or edit a page in here                   | `explanation/documentation-style.md`            |
 | Know what good numbers look like               | `explanation/combat-and-balance.md`             |
 | Know what shape to leave the code in           | `explanation/code-calisthenics.md`              |
-| Cut a release, one command and a push          | `how-to/cut-a-release.md`                       |
-| Publish a release to crates.io                 | `how-to/publish-to-crates-io.md`                |
-| Publish a GitHub release                       | `how-to/publish-a-github-release.md`            |
-| Publish the documentation site                 | `how-to/publish-the-site.md`                    |
+| Cut a release, or publish the site             | `how-to/cut-a-release.md`                       |
 | Know why package names differ from directories | `explanation/adr-0002-two-names-per-crate.md`   |
 
 And architecture decision records. They keep the history the other pages leave out: what was tried, what was rejected, and when to reopen it.

@@ -2,10 +2,10 @@
 --
 --   lua release/bump.lua <X.Y.Z | patch | minor | major> [--no-cargo] [--dry-run]
 --
--- All four published crates move to one version (lockstep), and every `path`
--- dependency pin moves with them. The man page header and the
--- README's download links follow. Then, unless --no-cargo: Cargo.lock is refreshed, the tests
--- run, and a publish dry run proves the packages build. Then it commits
+-- All three published crates move to one version (lockstep), and every `path`
+-- dependency pin moves with them. The README's download links follow. Then,
+-- unless --no-cargo: Cargo.lock is refreshed, the tests run, and a publish dry
+-- run proves the packages build. Then it commits
 -- `Release vX.Y.Z` and tags it.
 --
 -- It never pushes. Pushing the tag is what starts the release, so it stays a
@@ -157,12 +157,6 @@ local function crate_manifest(text)
   end))
 end
 
-local function man_page(text)
-  local out, n = text:gsub('(%.TH NIHILURK 6 )"[^"]*" "nihilurk [^"]*"',
-    '%1"' .. os.date("%B %Y") .. '" "nihilurk ' .. version .. '"')
-  return count_one(out, n)
-end
-
 -- The download links and the "(vX.Y.Z)" in the line above them. A link that
 -- stays behind would send a reader to the old release, so a README with
 -- neither is an error and not a quiet no-op.
@@ -179,7 +173,6 @@ local edits = {}
 for _, dir in ipairs(crates) do
   edits[#edits + 1] = { dir .. "/Cargo.toml", crate_manifest }
 end
-edits[#edits + 1] = { "doc/nihilurk.6", man_page }
 edits[#edits + 1] = { "README.md", readme }
 
 local changed = {}

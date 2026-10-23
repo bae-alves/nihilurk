@@ -19,7 +19,7 @@
 //! lets each set be tested on a percept built by hand.
 //!
 //! The sets, what picks them, and every rule are listed in
-//! `docs/reference/agents.md`.
+//! `docs/explanation/agents.md`.
 
 use bevy_ecs::entity::Entity;
 

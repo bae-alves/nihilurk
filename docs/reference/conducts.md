@@ -88,7 +88,7 @@ A version 1 leaderboard is still read, with every mask zero, and becomes version
 See also
 --------
 
-  constants.md                  the score constants the bonus sits on
+  ../../models/src/meta/constants/ the score constants the bonus sits on
   cli-and-env.md                -scores, the run dump and the data directory
   rendering.md                  the win panel the marks are drawn on
   ../explanation/ecs-in-nihilurk.md   resources, and why the tally is one

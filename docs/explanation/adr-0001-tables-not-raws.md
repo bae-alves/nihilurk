@@ -102,5 +102,5 @@ See also
 --------
 
   data-driven-content.md           what the architecture buys, in prose
-  ../reference/spawn-api.md        the interface this ADR is about
+  cargo doc -p nihilurk-models --open  the interface this ADR is about
   bracketproductions.com/chapter_45.html  the raws design this rejects

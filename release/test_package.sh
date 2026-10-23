@@ -48,8 +48,7 @@ dir="$tmp/$NAME"
 
 # 1. contents
 want="$(printf '%s\n' \
-  "$NAME" "$NAME/LICENSE" "$NAME/MANUAL.md" "$NAME/nihilurk$EXT" \
-  "$NAME/nihilurk.6" | sort)"
+  "$NAME" "$NAME/LICENSE" "$NAME/MANUAL.md" "$NAME/nihilurk$EXT" | sort)"
 got="$(cd "$tmp" && find "$NAME" | sort)"
 [ "$want" = "$got" ] || fail "archive contents differ
 --- want

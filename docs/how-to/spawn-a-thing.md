@@ -4,7 +4,7 @@ How to spawn a thing
     Audience       Engine developer, or a content author who wants to
                    look at the row they just wrote.
     Prerequisites  Rust and a passing familiarity with bevy_ecs.
-                   `../reference/spawn-api.md` lists the signatures;
+                   `cargo doc -p nihilurk-models --open` lists the signatures;
                    this page is the recipes.
     Result         A named monster, item, trap or the relic, in the
                    world, on the tile you meant.
@@ -221,7 +221,6 @@ Appendix: quick check
 See also
 --------
 
-  ../reference/spawn-api.md       every signature on this page
   ../reference/cli-and-env.md     NIHILURK_SPAWN and -content in full
   add-a-monster.md                adding the row you want to spawn
   add-an-item.md                  the same, for items

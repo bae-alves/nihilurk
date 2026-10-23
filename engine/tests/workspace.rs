@@ -89,7 +89,7 @@ fn every_published_crate_is_named_for_the_game() {
     assert!(
         wrong.is_empty(),
         "crates that crates.io would refuse or that squat a generic name: {wrong:?}\n\
-         name them `nihilurk` or `nihilurk-<thing>`; see docs/how-to/publish-to-crates-io.md"
+         name them `nihilurk` or `nihilurk-<thing>`; see docs/explanation/adr-0002-two-names-per-crate.md"
     );
 }
 
@@ -180,11 +180,7 @@ fn every_published_crate_has_what_crates_io_asks_for() {
         }
     }
 
-    assert!(
-        missing.is_empty(),
-        "not ready for crates.io: {missing:#?}\n\
-         see docs/how-to/publish-to-crates-io.md"
-    );
+    assert!(missing.is_empty(), "not ready for crates.io: {missing:#?}");
 }
 
 /// The minimum Rust is written in the manifest and again in prose that tells a

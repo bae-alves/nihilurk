@@ -1,7 +1,7 @@
 -- lua release/bump_test.lua
 --
 -- Runs release/bump.lua inside a throwaway git repo shaped like this one: a
--- small workspace, a man page. `--no-cargo` skips the cargo steps
+-- small workspace. `--no-cargo` skips the cargo steps
 -- (lock refresh, tests, publish dry run) so the test needs no toolchain, and
 -- still commits and tags, so the whole local flow is covered.
 
@@ -63,7 +63,6 @@ serde = { version = "1", features = ["derive"] }
 syn = { version = "2", features = ["full"] }
 ]])
   write("strings/Cargo.toml", '[package]\nname = "nihilurk-strings"\nversion = "0.1.0"\nrust-version = "1.85"')
-  write("doc/nihilurk.6", '.TH NIHILURK 6 "October 2026" "nihilurk 0.1.0" "Games"\n.SH NAME\nnihilurk 0.1.2 is not a header\n')
   write("README.md", [[
 Download a prebuilt game (v0.1.2), no Rust needed:
 
@@ -101,12 +100,7 @@ assert(has(models, 'syn = { version = "2"'), "third-party version = 2 must not m
 assert(has(read("strings/Cargo.toml"), '\nversion = "0.1.3"\n'), "strings joins lockstep")
 assert(read("strings/Cargo.toml"):sub(-1) == '"', "a file with no final newline must not gain one")
 
--- 2. The man page header follows.
-local man = read("doc/nihilurk.6")
-assert(has(man, '.TH NIHILURK 6 "' .. os.date("%B %Y") .. '" "nihilurk 0.1.3" "Games"'), "man header: " .. man)
-assert(has(man, "nihilurk 0.1.2 is not a header"), "only the .TH line changes")
-
--- 2b. The README download links move to the new tag and file names, and the
+-- 2. The README download links move to the new tag and file names, and the
 --    version in the heading line follows. A plain mention of the old version
 --    elsewhere in the README is not a link and stays.
 local readme = read("README.md")

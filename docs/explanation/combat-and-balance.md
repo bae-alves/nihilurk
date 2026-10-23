@@ -51,7 +51,7 @@ Both exist to stop the maths above producing a *stalemate*, which is the one out
 
   * **Chip damage.** The player's worst swing still takes `CHIP_DAMAGE` off -- but a blow that weak can never be the killing one. It leaves things alive on the last point of HP. Without it, an unlucky player against a well-armoured monster can swing forever and never move the number.
 
-The two dials above and the chip floor (`CHIP_DAMAGE`) are in `constants::combat`. See `../reference/constants.md`.
+The two dials above and the chip floor (`CHIP_DAMAGE`) are in `constants::combat`. See `models/src/meta/constants/`.
 
 Monsters get neither. A monster that cannot hurt you simply cannot hurt you, and that asymmetry is what makes armour worth wearing.
 
@@ -96,7 +96,7 @@ To sit a new creature in the bestiary without standing out, read the rows that s
 See also
 --------
 
-  ../reference/constants.md        every balance knob and where it lives
+  ../../models/src/meta/constants/ every balance knob, fully commented
   ../how-to/add-a-monster.md       putting a row in
   data-driven-content.md           why a creature is a row at all
   ../../gdd.md                     what the game is trying to be

@@ -391,4 +391,4 @@ Where to go next
   add-your-first-monster.md          the same kind of lesson, for a bestiary row
   ../how-to/add-an-effect.md         where `Stealthy` and `Venomous` actually come from
   ../reference/cli-and-env.md        `-b` and `-am`, from the player's side
-  ../reference/components.md         `Body`, `MonsterBody`, `StartingBody`
+  ../../models/src/meta/components/ `Body`, `MonsterBody`, `StartingBody`

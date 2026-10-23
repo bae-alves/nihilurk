@@ -5,7 +5,7 @@
 //! * `autoexplore`, `autofight` — the player's own automation (`o` and `Tab`).
 //!
 //! A monster's tactic is its `MovementType`; `agents::rule_set_for` is the one
-//! exhaustive match on it. See `docs/reference/agents.md`.
+//! exhaustive match on it. See `docs/explanation/agents.md`.
 //!
 //! Every module is re-exported at the crate root (`models::ai`), so callers never
 //! write `models::mind::ai`.

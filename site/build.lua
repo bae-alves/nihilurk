@@ -13,7 +13,7 @@
 --
 -- then `mdbook build <out>` makes the site, and `lua site/finish.lua <out>`
 -- gives each built page its own description, canonical url and og:url. The
--- one site URL lives in site/book.toml (`site-url`). The recipe is docs/how-to/publish-the-site.md.
+-- one site URL lives in site/book.toml (`site-url`). The recipe is docs/how-to/cut-a-release.md.
 
 local here = (arg[0]:match("^(.*)/[^/]*$")) or "."
 local root = arg[1] or (here .. "/..")

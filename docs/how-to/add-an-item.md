@@ -183,7 +183,7 @@ Wands take two edits and no enum. Write the zap handler, `fn(&mut World, Zap)`, 
 > to keep in step with the catalog -- add a row and it just works. Only
 > equipment (weapons, armour, launchers, rings) hides anything: its
 > enchantment plus and cursed status, until `KnownQuality` says otherwise
-> (see `../reference/components.md`).
+> (see `KnownQuality` in `models/src/meta/components/`).
 
 
 Verify, whichever you added

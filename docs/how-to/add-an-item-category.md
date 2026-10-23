@@ -190,5 +190,5 @@ See also
 
   add-an-item.md                   the categories that already exist
   tune-rarity-and-depth.md         picking that weight
-  ../reference/spawn-api.md        ItemDef, DropCategory, the category! macro
+  cargo doc -p nihilurk-models --open  ItemDef, DropCategory, the category! macro
   ../explanation/data-driven-content.md   why rows carry components

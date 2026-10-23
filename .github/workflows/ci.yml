@@ -46,11 +46,11 @@ jobs:
       - name: the binary starts
         run: cargo run --locked -p nihilurk -- --help
 
-  # The release tarball and zip, built and played the way release.yml does it.
-  # Four fat-LTO builds per OS, so not on pull requests. Linux gets this check
-  # on a tag; Windows and macOS get it here so a tag day is not the first run.
+  # The release zip and tarball for Windows and macOS, built and played the way
+  # release.yml does it. Fat LTO, so only on a manual run, before a tag:
+  # `gh workflow run ci.yml --ref master`. Without that, the tag is the first run.
   package:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:

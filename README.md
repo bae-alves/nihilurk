@@ -53,7 +53,6 @@ Where things are
 
     MANUAL.md      how to play: controls, combat math, items, monsters.
     the site       https://bae-alves.github.io/nihilurk/, the manual and docs/, built from this repository.
-    doc/nihilurk.6     the command reference. `man nihilurk` works from the prebuilt tarball (it ships `nihilurk.6`); `cargo install` installs the binary only, so use `nihilurk -h` or `man ./doc/nihilurk.6` from a clone.
     docs/          how to add content to the game. Start at docs/README.md.
     CONTRIBUTING.md    reporting bugs, sending patches, and the LLM rule.
     gdd.md         what nihilurk is trying to be. Design, not code.

@@ -159,4 +159,4 @@ See also
 --------
 
   tune-rarity-and-depth.md         make a trap rare, or deep-only
-  ../reference/spawn-api.md        TrapDef::pick, TrapBundle::from_def
+  cargo doc -p nihilurk-models --open  TrapDef::pick, TrapBundle::from_def
