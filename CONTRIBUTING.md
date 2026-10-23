@@ -32,11 +32,6 @@ Only for some jobs:
 - Changing a workflow under `.github/`: `actionlint`.
 - Claude Code users: `npx`, for the `/codebase-architecture` command only.
 - Playing the game from a script (`.claude/skills/play-nihilurk`): `script`, from util-linux, which Linux has. See `docs/how-to/play-through-a-pty.md`.
-- Cutting a release, which is the maintainer's job: `gh` to watch CI. Lua
-  runs `release/bump.lua`, and CI publishes, so no crates.io token lives on
-  your machine. The local checks need a little more: the musl targets for
-  `release/test_package.sh`.
-  See `docs/how-to/cut-a-release.md`.
 
 In Claude Code, `/prepare-for-nihilurk` checks your machine against this list
 and fixes the gaps. It asks before it installs anything, turns on the
@@ -91,8 +86,8 @@ own eye too.
 The reasoning is bae's own opinion about LLMs in code. In short:
 
 - An LLM is built from text it took without asking. The damage of making the
-  weights is done and cannot be undone, and using one costs far less. Big
-  tech cannot be stopped without a revolution.
+  weights is done and cannot be undone. Big tech cannot be stopped without a
+  revolution.
 - So bae uses code assistants, and points the output at free software: GPL
   code, structured and documented so that humans can pick it up, play it and
   mod it. In bae's words, that is praxis in a scenario of calamity.
@@ -104,15 +99,5 @@ The reasoning is bae's own opinion about LLMs in code. In short:
   and not ever. Placeholders are not the final text, and what players end up
   reading should be human work, localization above all.
 
-The full manifesto is at https://bae-alves.itch.io/. bae chose itch to host it
-because itch is probably the worst ecosystem for it. The aim is to bring a more
-practical perspective, rooted in material reality, to the AI stigma there.
-
-
-Translations
-------------
-
-This repository is English only. A translation is a fork that replaces
-`strings/src/en.rs`; every sentence the player reads goes through the
-`strings` crate, so nothing else needs to change. bae keeps those forks
-separately. Translation PRs are not taken here.
+The aim is to bring a more practical perspective, rooted in material reality,
+to the AI stigma in independent game development.
