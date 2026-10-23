@@ -23,7 +23,7 @@ Checked 2026-10-20 against `models/`, `engine/` and `strings/`: none of these ex
 | scroll of genocide, `scrolls::genocide` | scroll | `how-to/add-an-item.md` |
 | wand of sleep, `wands::sleep`, `wands::put_to_sleep` | wand | `tutorial/add-your-first-item.md` |
 | food, ration, `FoodDef`, `Food`, `FOODS` | item category | `how-to/add-an-item-category.md` |
-| pit trap | trap row | `how-to/add-a-trap.md`; `content::a_traps_label_is_its_row` asserts it is absent |
+| pit trap | trap row | `how-to/add-a-trap.md` |
 | basilisk | monster row | `tutorial/add-your-first-monster.md`, `how-to/add-a-monster.md`, `how-to/add-an-effect.md`, `reference/cli-and-env.md`, `doc/nihilurk.6` |
 | Ice Bolt, `ice_bolt` | spell | `tutorial/add-your-first-spell.md`, `how-to/add-a-spell.md` |
 | ninja, `NINJA`, `wear_ninja`, `NINJA_GRANTS` | body | `tutorial/add-your-first-body.md` |

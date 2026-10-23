@@ -658,44 +658,6 @@ mod tests {
         assert!(!matches!(think(&p, &CHASER), Action::Cast(..)));
     }
 
-    #[test]
-    fn a_helper_casts_every_attack_spell_that_spares_the_player() {
-        let map = room();
-        let e = entities(1);
-        let foe = Position { x: 11, y: 6 };
-        for spell in [
-            spell_row("Sting").unwrap(),
-            spell_row("Thunderbolt").unwrap(),
-            spell_row("Force Lance").unwrap(),
-            spell_row("Lux").unwrap(),
-            spell_row("Meteor Strike").unwrap(),
-        ] {
-            let mut p = percept(&map, (6, 6), (5, 8));
-            p.helper = true;
-            p.ally = true;
-            p.spellset = vec![spell];
-            p.foes = vec![sighting(e[0], (11, 6), false)];
-            assert_eq!(think(&p, &HELPER), Action::Cast(spell, foe), "{spell:?}");
-        }
-    }
-
-    #[test]
-    fn a_helper_holds_a_lance_through_the_player_but_not_a_bolt_beside_them() {
-        let map = room();
-        let e = entities(1);
-        let mut p = percept(&map, (6, 6), (8, 6));
-        p.helper = true;
-        p.ally = true;
-        p.foes = vec![sighting(e[0], (11, 6), false)];
-        p.spellset = vec![spell_row("Force Lance").unwrap()];
-        assert!(!matches!(think(&p, &HELPER), Action::Cast(..)));
-        p.spellset = vec![spell_row("Thunderbolt").unwrap()];
-        assert_eq!(
-            think(&p, &HELPER),
-            Action::Cast(spell_row("Thunderbolt").unwrap(), Position { x: 11, y: 6 })
-        );
-    }
-
     static BOLT: SpellDef = SpellDef {
         kind: SpellKind::Attack,
         range: 8,

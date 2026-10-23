@@ -164,9 +164,9 @@ Verify
     NIHILURK_SPAWN="ration" cargo run -p nihilurk
     cargo test
 
-The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `every_loot_category_can_be_drawn_and_has_rows_to_give` fails the same way, and also if it has no rows at the deepest floor.
+The table tests pick your category up automatically: `every_loot_category_can_be_drawn_and_has_rows_to_give` fails if you gave it a weight of zero, or no rows at its own `min_depth` or at the deepest floor.
 
-Round-trip a save before you call it done -- step 6 is the one people skip, and no existing test reaches a new category. Add one to `models/tests/it/meta/saveload.rs` in the shape of `a_quivers_flight_survives_a_save`: spawn a ration with `spawn_named`, `save_game`, `load_game` into a fresh world, and assert a `Food` came back. Without step 6 it fails.
+Round-trip a save before you call it done -- step 6 is the one people skip, and no existing test reaches a new category. Add one to `models/tests/it/meta/saveload.rs`: spawn a ration with `spawn_named`, `save_game`, `load_game` into a fresh world, and assert a `Food` came back. Without step 6 it fails.
 
     cargo test --test it saveload::
 

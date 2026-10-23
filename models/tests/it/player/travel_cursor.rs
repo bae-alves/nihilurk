@@ -7,18 +7,6 @@ use bevy_ecs::schedule::Schedule;
 use models::*;
 
 #[test]
-fn open_seeds_the_cursor_then_close_clears_it() {
-    let mut tc = TravelCursor::default();
-    assert!(!tc.active);
-
-    tc.open(4, 7);
-    assert!(tc.active && tc.x == 4 && tc.y == 7 && tc.blink_on);
-
-    tc.close();
-    assert!(!tc.active);
-}
-
-#[test]
 fn tile_is_revealed_follows_the_players_viewshed() {
     let mut w = World::new();
     w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(2112)));

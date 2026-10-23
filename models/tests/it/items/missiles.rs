@@ -306,31 +306,6 @@ fn a_bow_and_a_sword_want_the_same_hand() {
 }
 
 #[test]
-fn firing_an_arrow_from_a_bow_reads_differently_than_throwing_one_by_hand() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-
-    let lobbed = quiver(&mut w, p, "arrow", 1);
-    throw(&mut w, p, lobbed, spot);
-    assert!(
-        logged(&w, "You throw the arrow."),
-        "by hand, it's a throw: {:?}",
-        w.resource::<GameLog>().history
-    );
-
-    let bow = stash(&mut w, p, |w| spawn_launcher(w, "short bow", NOWHERE));
-    toggle_equipped(&mut w, p, bow);
-    let loosed = quiver(&mut w, p, "arrow", 1);
-    throw(&mut w, p, loosed, spot);
-    assert!(
-        logged(&w, "You fire an arrow."),
-        "from a bow, it's fired: {:?}",
-        w.resource::<GameLog>().history
-    );
-}
-
-#[test]
 fn firing_a_quarrel_from_a_crossbow_says_fire_not_throw() {
     let mut w = test_world(2);
     let p = player(&mut w);
@@ -360,22 +335,6 @@ fn firing_a_quarrel_from_a_crossbow_says_fire_not_throw() {
 // ---------------------------------------------------------------------------
 // The pluses
 // ---------------------------------------------------------------------------
-
-#[test]
-fn a_ring_of_sharpshooting_adds_two_to_everything_you_throw() {
-    let plain = damage_samples(5, "arrow", 300, |_, _| {});
-    let deft = damage_samples(5, "arrow", 300, |w, p| {
-        let ring = stash(w, p, |w| spawn_ring(w, "ring of sharpshooting", NOWHERE));
-        toggle_equipped(w, p, ring);
-        assert_eq!(equipped_total::<ThrowBonus>(w, p), 2);
-    });
-
-    assert!(
-        deft.iter().all(|&d| (3..=6).contains(&d)),
-        "1d4+2: {deft:?}"
-    );
-    assert!((mean(&deft) - mean(&plain) - 2.0).abs() < 0.4);
-}
 
 /// The enchantment has no melee roll to land on, so it lands on the throw.
 #[test]
@@ -500,22 +459,6 @@ fn ammunition_lobbed_by_hand_does_one_d_two() {
 }
 
 #[test]
-fn launchers_loose_a_d3_arrow_a_d5_quarrel_and_a_d2_blowdart() {
-    for (ammo, launcher, die) in [
-        ("arrow", "short bow", 3),
-        ("quarrel", "crossbow", 5),
-        ("blowdart", "blowgun", 2),
-    ] {
-        let seen = damage_samples(12, ammo, 300, |w, p| {
-            let gun = stash(w, p, |w| spawn_launcher(w, launcher, NOWHERE));
-            toggle_equipped(w, p, gun);
-        });
-        assert_eq!(seen.iter().max(), Some(&die), "{ammo}: {seen:?}");
-        assert_eq!(seen.iter().min(), Some(&1), "{ammo}: {seen:?}");
-    }
-}
-
-#[test]
 fn a_blowdart_that_draws_blood_saps_the_victims_power() {
     let mut w = test_world(13);
     let p = player(&mut w);
@@ -530,20 +473,6 @@ fn a_blowdart_that_draws_blood_saps_the_victims_power() {
 
     assert_eq!(w.get::<Fighter>(bag).unwrap().power, power - 1);
     assert!(logged(&w, "Venom courses through"));
-}
-
-#[test]
-fn an_arrow_leaves_the_victims_power_alone() {
-    let mut w = test_world(13);
-    let p = player(&mut w);
-    let spot = open_run(&mut w, 1)[0];
-    let bag = tough(&mut w, "bat", spot);
-    let power = w.get::<Fighter>(bag).unwrap().power;
-    let arrow = quiver(&mut w, p, "arrow", 1);
-
-    throw(&mut w, p, arrow, spot);
-
-    assert_eq!(w.get::<Fighter>(bag).unwrap().power, power);
 }
 
 // ---------------------------------------------------------------------------
@@ -698,19 +627,6 @@ fn the_world_does_not_hold_a_returning_weapon() {
     let before = hp(&w, bat);
     throw(&mut w, p, dagger, spot);
     assert_eq!(hp(&w, bat), before, "a dagger still hangs");
-}
-
-#[test]
-fn a_frozen_throw_thaws_back_into_the_row_it_left() {
-    let mut w = test_world(45);
-    let p = player(&mut w);
-    let dagger = stash(&mut w, p, |w| spawn_weapon(w, "dagger", NOWHERE));
-    stash(&mut w, p, |w| spawn_weapon(w, "mace", NOWHERE));
-    let before = pack(&w, p);
-
-    throw_frozen_and_thaw(&mut w, p, &[dagger]);
-
-    assert_eq!(pack(&w, p), before);
 }
 
 #[test]

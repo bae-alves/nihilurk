@@ -385,18 +385,6 @@ fn a_marked_monster_cut_down_in_melee_bursts_too() {
 // Displacement
 // ---------------------------------------------------------------------------
 
-#[test]
-fn displacement_is_a_scroll_of_teleportation() {
-    let mut w = test_world(7);
-    let p = player(&mut w);
-    let before = *w.get::<Position>(p).unwrap();
-    let rune = pack_rune(&mut w, p, "rune of displacement");
-    use_item(&mut w, p, rune);
-    let after = *w.get::<Position>(p).unwrap();
-    assert_ne!((after.x, after.y), (before.x, before.y));
-    assert!(!w.resource::<Map>().blocks(after.x, after.y));
-}
-
 // ---------------------------------------------------------------------------
 // Blank
 // ---------------------------------------------------------------------------

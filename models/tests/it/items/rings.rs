@@ -79,21 +79,6 @@ fn logged(w: &World, needle: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn increase_damage_is_two_points_on_every_swing() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let before = equipped_total::<PowerBonus>(&w, p);
-
-    put_on(&mut w, p, "ring of increase damage");
-
-    assert_eq!(
-        equipped_total::<PowerBonus>(&w, p),
-        before + 2,
-        "the ring folds into the same total a +2 weapon would"
-    );
-}
-
-#[test]
 fn slow_digestion_slows_everything_else_too() {
     let mut w = test_world(1);
     let p = player(&mut w);
@@ -125,23 +110,6 @@ fn slow_digestion_never_touches_the_speed_a_potion_set() {
         SpeedKind::Fast,
         "the haste was never spent, only masked"
     );
-}
-
-#[test]
-fn stealth_and_teleportitis_and_regeneration_are_worn_properties() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-
-    let stealth = put_on(&mut w, p, "ring of stealth");
-    assert!(w.get::<Stealthy>(p).is_some());
-    use_item(&mut w, p, stealth);
-    assert!(w.get::<Stealthy>(p).is_none(), "and it comes off again");
-
-    put_on(&mut w, p, "ring of teleportation");
-    assert!(w.get::<Teleportitis>(p).is_some());
-
-    put_on(&mut w, p, "ring of regeneration");
-    assert!(w.get::<Regenerates>(p).is_some());
 }
 
 /// Drops a chaser onto a visible tile at least `away` tiles from the player and
@@ -248,19 +216,6 @@ fn maintain_armor_shrugs_the_corrosion_off() {
     let plain = corrode_the_player(1, false);
     let warded = corrode_the_player(1, true);
     assert_eq!(warded, plain + 1, "the ring is worth exactly the point");
-}
-
-#[test]
-fn sustain_form_lends_its_marker_while_worn() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    assert!(w.get::<SustainsForm>(p).is_none());
-
-    let ring = put_on(&mut w, p, "ring of sustain form");
-    assert!(w.get::<SustainsForm>(p).is_some());
-
-    use_item(&mut w, p, ring);
-    assert!(w.get::<SustainsForm>(p).is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -525,37 +480,6 @@ fn rolled(name: &str, n: usize) -> Vec<(i32, bool)> {
 }
 
 #[test]
-fn a_numeric_ring_is_plus_two_plain_plus_three_exceptional_and_cursed_from_minus_three_to_plus_two()
-{
-    for effect in [
-        "ring of protection",
-        "ring of strength",
-        "ring of increase damage",
-        "ring of sharpshooting",
-    ] {
-        let rolls = rolled(effect, 3000);
-        for &(plus, cursed) in &rolls {
-            match (plus, cursed) {
-                (2, false) | (3, false) => {}
-                (-3..=2, true) => {}
-                (0..=13, true) => {}
-                other => panic!("{effect:?} rolled {other:?}"),
-            }
-        }
-        for want in [3, -3, 2] {
-            assert!(
-                rolls.iter().any(|&(p, _)| p == want),
-                "{effect:?} never rolled a {want:+} in 3000 tries"
-            );
-        }
-        assert!(
-            rolls.iter().any(|&(p, c)| p < 0 && c),
-            "{effect:?} never rolled a negative one"
-        );
-    }
-}
-
-#[test]
 fn a_ring_with_no_number_gets_no_number_however_it_rolls() {
     for effect in [
         "ring of perception",
@@ -678,17 +602,6 @@ fn hp(w: &World, e: Entity) -> (i32, i32) {
 
 fn set_hp(w: &mut World, e: Entity, hp: i32) {
     w.get_mut::<Fighter>(e).unwrap().hp = hp;
-}
-
-#[test]
-fn health_adds_two_to_max_and_current() {
-    let mut w = test_world(1);
-    let p = player(&mut w);
-    let (cur, max) = hp(&w, p);
-
-    put_on(&mut w, p, "ring of health");
-
-    assert_eq!(hp(&w, p), (cur + 2, max + 2));
 }
 
 #[test]

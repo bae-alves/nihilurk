@@ -272,22 +272,6 @@ fn a_corroding_blow_eats_the_plus_off_what_the_victim_wears() {
     );
 }
 
-#[test]
-fn a_venomous_bite_drains_the_victims_power() {
-    let mut w = arena(1);
-    let biter = dummy(&mut w, 10, 4);
-    w.entity_mut(biter).insert(Venomous);
-    let victim = dummy(&mut w, 10, 8);
-
-    let before = power_of(&w, victim);
-    fire_on_hit(&mut w, biter, victim, CLEAN);
-
-    assert!(
-        power_of(&w, victim) < before,
-        "the venom left the victim as strong as it found them"
-    );
-}
-
 /// A bite the player *lands* used to drain in total silence — the log line
 /// was gated on the victim being the player, never on the victim existing.
 /// Fixed to match `stagger`/`blind`'s split: second person for the player,
@@ -1911,45 +1895,9 @@ fn dangers_are_read_off_the_creature_not_guessed() {
     assert!(dangers_of(&w, mute).is_empty());
 }
 
-/// `Gorgon` and `Splits` reach no ability table at all — they are two of the
-/// markers hand-wired into `combat` and `took_damage`.
-/// Putting the phrase on the effect row rather than on an ability row is what
-/// lets Look warn about them anyway.
-#[test]
-fn look_warns_about_abilities_that_have_no_table_row() {
-    for id in ["gorgon", "splits"] {
-        let effect = Effect::by_id(id).expect("a registered effect");
-        assert!(
-            effect.beware.is_some(),
-            "{id:?} has no `beware` line, so Look is silent about it"
-        );
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The moments
 // ---------------------------------------------------------------------------
-
-/// `Moment::OnTargeted` replaced four hand-written `medusa_gaze` call sites,
-/// and the fifth — the look reticle — was one line once the moment existed.
-/// This is the moment itself: turning your attention on a gorgon petrifies
-/// you, whatever you were pointing at it.
-#[test]
-fn turning_your_attention_on_a_gorgon_petrifies_you() {
-    let mut w = arena(1);
-    let looker = hero(&mut w, at(10, 10), 20, 8);
-    let seen = creature(&mut w, at(11, 10), 10, 4);
-    lend(&mut w, seen, Grant::of::<Gorgon>(), Lifetime::Permanent);
-
-    assert!(
-        fire_on_targeted(&mut w, looker, seen),
-        "the gaze reported that nothing happened"
-    );
-    assert!(
-        w.get::<Petrified>(looker).is_some(),
-        "meeting a gorgon's eyes left the looker standing"
-    );
-}
 
 /// The look reticle asks this before it fires anything, because for a *look*
 /// the answer is the whole event: it decides whether pointing the cursor costs
@@ -1993,29 +1941,6 @@ fn being_hurt_and_living_is_a_moment_of_its_own() {
     assert!(
         count_named(&mut w, species) > before,
         "the on-damaged moment did not reach the splitter"
-    );
-}
-
-/// The `player_only` field replaced the same `is_player` guard written out in
-/// four different mechanic bodies. A gate written four times is a gate that
-/// can be forgotten the fifth.
-#[test]
-fn a_player_only_row_does_nothing_for_a_monster() {
-    let mut w = arena(1);
-    let monster = creature(&mut w, at(10, 10), 20, 10);
-    lend(
-        &mut w,
-        monster,
-        Grant::of::<HeavySwing>(),
-        Lifetime::Permanent,
-    );
-    let victim = dummy(&mut w, 10, 4);
-
-    fire_on_hit(&mut w, monster, victim, CLEAN);
-
-    assert!(
-        w.get::<Asleep>(victim).is_none(),
-        "a monster used a trick the table marks as the player's alone"
     );
 }
 

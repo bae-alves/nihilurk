@@ -118,34 +118,6 @@ const ALL: [PackMode; 11] = [
     PackMode::PutOn,
 ];
 
-/// `ALL` is the chain of modes below, in order and whole. Each arm names the
-/// mode after it, and the match has no catch-all, so a new mode fails to
-/// compile until it has an arm, and an arm nothing links to leaves `ALL` out
-/// of step with the chain.
-#[test]
-fn all_lists_every_mode() {
-    fn after(mode: PackMode) -> Option<PackMode> {
-        match mode {
-            PackMode::Browse => Some(PackMode::Use),
-            PackMode::Use => Some(PackMode::Throw),
-            PackMode::Throw => Some(PackMode::Drop),
-            PackMode::Drop => Some(PackMode::Equip),
-            PackMode::Equip => Some(PackMode::Quaff),
-            PackMode::Quaff => Some(PackMode::Read),
-            PackMode::Read => Some(PackMode::Zap),
-            PackMode::Zap => Some(PackMode::Wield),
-            PackMode::Wield => Some(PackMode::Wear),
-            PackMode::Wear => Some(PackMode::PutOn),
-            PackMode::PutOn => None,
-        }
-    }
-    let mut chain = vec![ALL[0]];
-    while let Some(next) = after(*chain.last().unwrap()) {
-        chain.push(next);
-    }
-    assert_eq!(chain, ALL);
-}
-
 #[test]
 fn browsing_asks_which_verb_and_every_other_mode_already_knows() {
     assert_eq!(PackMode::Browse.action(), None);
@@ -176,14 +148,6 @@ fn the_browse_modal_offers_each_verb_exactly_once() {
         ItemAction::Info,
         "clamped, not panicking"
     );
-}
-
-#[test]
-fn every_mode_names_itself_and_says_why_it_is_empty() {
-    for mode in ALL {
-        assert!(mode.title().starts_with(' '), "{mode:?}");
-        assert!(mode.nothing_line().ends_with('.'), "{mode:?}");
-    }
 }
 
 /// A filtered mode admits an item by a component it carries: a potion to

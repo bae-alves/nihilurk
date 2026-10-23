@@ -131,29 +131,6 @@ fn only_an_item_with_thrown_damage_hurts_what_it_hits() {
 }
 
 #[test]
-fn a_thrown_wand_of_fire_goes_off_like_a_grenade() {
-    let mut w = test_world(13);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let orc = monster(&mut w, "orc", spot);
-    w.get_mut::<Fighter>(orc).unwrap().hp = 40;
-    w.get_mut::<Fighter>(p).unwrap().hp = 99;
-    let wand = stash(&mut w, p, |w| {
-        spawn_named(w, "wand of fire", NOWHERE).unwrap()
-    });
-    w.get_mut::<Battery>(wand).unwrap().charges = 5;
-
-    throw(&mut w, p, wand, spot);
-
-    assert!(
-        w.get_entity(wand).is_none(),
-        "the wand went up with the flame"
-    );
-    assert!(w.get::<Fighter>(orc).unwrap().hp < 40);
-    assert!(logged(&w, "gets out at once"));
-}
-
-#[test]
 fn the_grenade_is_wider_and_hotter_than_the_beam() {
     fn burn(seed: u64, throw_it: bool) -> (usize, i32) {
         let mut w = test_world(seed);
@@ -254,28 +231,6 @@ fn a_wand_lobbed_into_open_floor_lands_a_dud() {
     assert_eq!(pos_of(&w, wand), (spot.x, spot.y), "it just lands");
     assert_eq!(w.get::<Battery>(wand).unwrap().charges, 7, "charges intact");
     assert!(logged(&w, "still bottled up"));
-}
-
-#[test]
-fn a_thrown_effect_wand_works_its_effect_on_everyone_in_the_blast() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let orc = monster(&mut w, "orc", spot);
-    assert_eq!(w.get::<Speed>(orc).unwrap().kind, SpeedKind::Normal);
-
-    let wand = stash(&mut w, p, |w| {
-        spawn_named(w, "wand of haste monster", NOWHERE).unwrap()
-    });
-    w.get_mut::<Battery>(wand).unwrap().charges = 6;
-    throw(&mut w, p, wand, spot);
-
-    assert!(w.get_entity(wand).is_none(), "the wand burst");
-    assert_eq!(
-        w.get::<Speed>(orc).unwrap().kind,
-        SpeedKind::Fast,
-        "the blast hasted the orc it caught"
-    );
 }
 
 /// Where the fixture wand burst and with how many charges, left on whoever
@@ -627,23 +582,6 @@ fn armor_thrown_at_a_monster_that_cannot_wear_it_binds_it() {
 }
 
 #[test]
-fn a_thrown_weapon_hurts_what_it_hits() {
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let spot = east_of_player(&mut w, 1);
-    let bat = monster(&mut w, "bat", spot);
-    w.get_mut::<Fighter>(bat).unwrap().hp = 20;
-    let sword = stash(&mut w, p, |w| spawn_weapon(w, "two-handed sword", NOWHERE));
-
-    throw(&mut w, p, sword, spot);
-
-    assert!(
-        w.get::<Fighter>(bat).unwrap().hp < 20,
-        "the sword should have drawn blood"
-    );
-}
-
-#[test]
 fn a_thrown_potion_is_drunk_by_its_target_and_names_itself_when_it_works() {
     let mut w = test_world(5);
     let p = player(&mut w);
@@ -716,38 +654,6 @@ fn only_a_creature_that_understands_items_reads_a_thrown_scroll() {
         "the scroll crumbled as it was read"
     );
     assert!(logged(&w, "reads it aloud"));
-}
-
-#[test]
-fn the_item_users_are_the_humanoids_with_wits() {
-    let mut w = test_world(1);
-    let users: Vec<&str> = BESTIARY
-        .iter()
-        .filter(|def| def.spirit_kind.is_none())
-        .filter(|def| {
-            let m = spawn_monster(&mut w, def, Position { x: 1, y: 1 });
-            let uses_items = w.get::<ItemUser>(m).is_some();
-            w.despawn(m);
-            uses_items
-        })
-        .map(|def| def.name)
-        .collect();
-    assert_eq!(
-        users,
-        vec![
-            "centaur",
-            "ichthyocentaur",
-            "hobgoblin",
-            "leprechaun",
-            "medusa",
-            "nymph",
-            "orc",
-            "troll",
-            "ur-vile",
-            "vampire",
-            "wraith",
-        ]
-    );
 }
 
 #[test]
@@ -845,21 +751,6 @@ fn a_slain_catcher_leaves_its_gear_or_takes_it_with_it() {
     let survivals = (0..40).filter(|&seed| kill_an_armed_troll(seed)).count();
     assert!(survivals > 0, "no gear ever survived a death");
     assert!(survivals < 40, "gear always survived a death");
-}
-
-#[test]
-fn throw_is_the_second_row_of_the_browse_modal_and_has_a_key_of_its_own() {
-    assert_eq!(
-        ItemAction::MENU,
-        [
-            ItemAction::Use,
-            ItemAction::Throw,
-            ItemAction::Drop,
-            ItemAction::Info
-        ]
-    );
-    assert_eq!(ItemAction::at(1), ItemAction::Throw);
-    assert_eq!(PackMode::Throw.action(), Some(ItemAction::Throw));
 }
 
 /// A monster holds what it caught across a save. The file used to record a

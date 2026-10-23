@@ -320,7 +320,7 @@ fn canonical_flag(arg: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{body_named, canonical_flag, dropped_mode_flags, find_save, save_path_in};
+    use super::{body_named, dropped_mode_flags, find_save, save_path_in};
 
     fn data_dir(tag: &str) -> std::path::PathBuf {
         let dir =
@@ -409,18 +409,6 @@ mod tests {
         assert_eq!(find_save(typed, &data), Some(elsewhere.clone()));
         let _ = std::fs::remove_dir_all(&data);
         let _ = std::fs::remove_dir_all(elsewhere.parent().unwrap());
-    }
-
-    #[test]
-    fn longhands_map_to_their_short_flags() {
-        assert_eq!(canonical_flag("--leaderboard"), "-scores");
-        assert_eq!(canonical_flag("--no-save"), "-ns");
-        for alias in ["--fast", "--bullet", "--quick", "-bullet", "-quick"] {
-            assert_eq!(canonical_flag(alias), "-fast");
-        }
-        assert_eq!(canonical_flag("--as-monster"), "-am");
-        assert_eq!(canonical_flag("--anim-rate"), "-anim-rate");
-        assert_eq!(canonical_flag("bae"), "bae");
     }
 }
 

@@ -64,8 +64,6 @@ Then:
     cargo test --test it content::
     NIHILURK_SPAWN="pit trap" cargo run -p nihilurk
 
-The pit trap is this page's example, so `a_traps_label_is_its_row` (`models/tests/it/meta/content.rs`) asserts the game has none: copied as it stands, the row fails that test. Give yours its own name.
-
 
 Writing the mechanic
 --------------------

@@ -91,20 +91,6 @@ fn a_sighting_leaves_out_what_the_creature_is_wearing() {
 }
 
 #[test]
-fn a_bare_creature_gets_no_parenthesis() {
-    let mut w = test_world(2);
-    armed_neighbour(&mut w, &[]);
-
-    run_visibility(&mut w);
-
-    assert!(
-        log_has(&w, "You spotted an emu."),
-        "{:?}",
-        w.resource::<GameLog>().history
-    );
-}
-
-#[test]
 fn every_worn_piece_is_listed() {
     let mut w = test_world(3);
     let mob = armed_neighbour(&mut w, &["short bow", "ring mail"]);

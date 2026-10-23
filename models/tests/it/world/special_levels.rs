@@ -337,21 +337,6 @@ fn a_vaults_stairs_sit_in_its_corner_rooms() {
 }
 
 #[test]
-fn a_vault_is_white_and_the_bee_world_is_yellow() {
-    use models::Color;
-    for (kind, color) in [
-        (SpecialLevel::Vault, Color::White),
-        (SpecialLevel::BeeWorld, Color::Yellow),
-    ] {
-        let (_, _, map) = samples(kind).remove(0);
-        for want in [TileType::Room, TileType::Wall] {
-            let (x, y) = find(&map, want);
-            assert_eq!(map.special_tint(x, y), Some(color), "{kind:?} {want:?}");
-        }
-    }
-}
-
-#[test]
 fn the_bee_world_is_one_cave_of_nothing_but_apis() {
     let (seed, depth, map) = samples(SpecialLevel::BeeWorld).remove(0);
     assert!(

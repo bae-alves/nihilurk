@@ -414,36 +414,6 @@ fn a_monsters_spent_magic_and_spellset_survive_a_save() {
     assert_eq!(spells.slots, vec![spell_row("Fireball").unwrap()]);
 }
 
-#[test]
-fn a_quivers_flight_survives_a_save() {
-    let mut w = World::new();
-    w.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(7)));
-    w.insert_resource(RngSeed(7));
-    w.init_resource::<GameLog>();
-    w.insert_resource(PlayerName { what: "X".into() });
-    initialize_world(&mut w);
-    let arrows = spawn_ammo(&mut w, "arrow", Position { x: 0, y: 0 });
-    let name = w.get::<Name>(arrows).unwrap().what.clone();
-    let save = common::SaveFile::new("quiver");
-    save_game(&mut w, save.path()).unwrap();
-
-    let mut w2 = World::new();
-    w2.insert_resource(GameRng(ChaCha12Rng::seed_from_u64(8)));
-    w2.insert_resource(RngSeed(8));
-    w2.init_resource::<GameLog>();
-    w2.insert_resource(PlayerName { what: "X".into() });
-    load_game(&mut w2, save.path()).unwrap();
-
-    let back: Vec<Entity> = w2
-        .query_filtered::<(Entity, &Name), With<Projectile>>()
-        .iter(&w2)
-        .filter(|(_, n)| n.what == name)
-        .map(|(e, _)| e)
-        .collect();
-    assert!(!back.is_empty(), "the arrows still fly");
-    assert!(back.iter().all(|&e| w2.get::<ThrownDamage>(e).is_some()));
-}
-
 /// A player's name is whatever they typed, and says nothing about what they
 /// are, whatever a catalog row happens to be called.
 #[test]

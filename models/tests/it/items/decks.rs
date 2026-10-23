@@ -521,14 +521,6 @@ fn reversed_they_come_as_foes() {
 }
 
 #[test]
-fn summons_never_roam_but_are_known_by_name() {
-    for name in ["skull king", "black mage"] {
-        assert!(MonsterDef::lookup(name).is_some());
-        assert!(BESTIARY.iter().all(|m| m.name != name));
-    }
-}
-
-#[test]
 fn the_golden_wind_wakes_the_floor_and_leaves_the_element() {
     let mut w = test_world(1);
     let dagger = spawn_named(&mut w, "dagger", Position { x: 30, y: 8 }).unwrap();

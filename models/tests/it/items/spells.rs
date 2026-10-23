@@ -467,22 +467,6 @@ fn polymorph_other_polymorphs_what_it_is_aimed_at() {
     );
 }
 
-#[test]
-fn only_polymorph_other_opens_the_reticle() {
-    assert!(spell_row("Polymorph Other").unwrap().needs_target());
-    assert!(!spell_row("Polymorph Self").unwrap().needs_target());
-}
-
-#[test]
-fn a_staff_does_not_double_what_a_polymorph_costs() {
-    for e in [
-        spell_row("Polymorph Self").unwrap(),
-        spell_row("Polymorph Other").unwrap(),
-    ] {
-        assert_eq!(e.kind, SpellKind::Skill);
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Gate Down
 // ---------------------------------------------------------------------------

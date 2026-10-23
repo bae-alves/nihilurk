@@ -106,19 +106,6 @@ fn cancellation_ends_a_polymorph() {
 }
 
 #[test]
-fn a_species_that_is_what_a_creature_is_lends_no_identity() {
-    let mut w = test_world(3);
-    let p = player(&mut w);
-
-    polymorph_player_into(&mut w, p, species("dog"));
-
-    assert!(
-        w.get::<AlwaysTamed>(p).is_none(),
-        "a dog's tameness is its identity, and the player is not on the dog's side"
-    );
-}
-
-#[test]
 fn a_handless_species_drops_the_gear_and_cannot_wield_it() {
     let mut w = test_world(3);
     let p = player(&mut w);

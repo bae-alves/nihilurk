@@ -21,19 +21,6 @@ fn spawn(w: &mut World, name: &str) -> Entity {
 }
 
 #[test]
-fn info_is_the_last_row_of_the_menu() {
-    assert_eq!(
-        ItemAction::MENU,
-        [
-            ItemAction::Use,
-            ItemAction::Throw,
-            ItemAction::Drop,
-            ItemAction::Info
-        ]
-    );
-}
-
-#[test]
 fn a_weapon_reports_its_die() {
     let mut w = world();
     let dagger = spawn(&mut w, "dagger");

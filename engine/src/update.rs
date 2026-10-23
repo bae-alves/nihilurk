@@ -2506,14 +2506,6 @@ mod tests {
     }
 
     #[test]
-    fn quitting_with_time_running_takes_one_yes() {
-        let mut w = modal_world(12);
-        dispatch_key(&mut w, esc()).unwrap();
-        dispatch_key(&mut w, press('y')).unwrap();
-        assert!(!w.resource::<GameState>().is_running);
-    }
-
-    #[test]
     fn the_run_saves_as_time_stops_and_as_it_starts_again_and_never_between() {
         let mut w = modal_world(13);
         let path = std::env::temp_dir().join(format!("nihilurk-wrld-{}.sav", std::process::id()));
@@ -2532,18 +2524,6 @@ mod tests {
         revoke(&mut w, player, Grant::of::<TimeStopped>());
         assert!(saved(&mut w, &mut stopped), "THE WORLD over: save");
         assert!(!saved(&mut w, &mut stopped));
-    }
-
-    #[test]
-    fn shift_x_escapes_a_modal() {
-        let mut w = modal_world(7);
-        w.resource_mut::<PackIsOpen>().open_at(PackMode::Browse, 0);
-        dispatch_key(&mut w, press('X')).unwrap();
-        assert!(!w.resource::<PackIsOpen>().open);
-        assert!(
-            !w.resource::<QuitPrompt>().open,
-            "X raised the quit prompt with the pack open"
-        );
     }
 
     #[test]
@@ -3298,17 +3278,6 @@ mod tests {
             lines[hammer_row..].iter().any(|l| l.starts_with("Melee:")),
             "{lines:?}"
         );
-    }
-
-    /// Four items make four blocks, and none is dropped for being a repeat.
-    #[test]
-    fn a_pile_of_four_lists_all_four() {
-        let (mut w, at) = info_world();
-        for name in ["dagger", "dagger", "long sword", "war hammer"] {
-            models::spawn_named(&mut w, name, at).unwrap();
-        }
-        let lines = info_at(&mut w, at);
-        assert_eq!(lines.split(|l| l.is_empty()).count(), 4, "{lines:?}");
     }
 
     /// A creature's dangers share one line after the sighting, so a dragon

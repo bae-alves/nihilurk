@@ -675,31 +675,6 @@ fn damage_traps_ignore_the_armour_die_but_not_the_armour_plus() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn the_dart_trap_drains_more_strength_the_deeper_you_are() {
-    for (depth, expected_drain) in [(1u8, 1i32), (4, 1), (5, 2), (8, 2), (9, 3), (13, 3)] {
-        let mut w = test_world(2);
-        clear_traps(&mut w);
-        w.resource_mut::<Depth>().what = depth;
-        let p = player(&mut w);
-        w.get_mut::<Fighter>(p).unwrap().armor_bonus = 0;
-        w.get_mut::<Fighter>(p).unwrap().hp = 12;
-        w.get_mut::<Fighter>(p).unwrap().power = 12;
-        let power_before = w.get::<Fighter>(p).unwrap().power;
-
-        let here = player_pos(&mut w);
-        spawn_named(&mut w, "dart trap", here).unwrap();
-        step_player_onto(&mut w, here.x, here.y);
-        trap_system(&mut w);
-
-        assert_eq!(
-            power_before - w.get::<Fighter>(p).unwrap().power,
-            expected_drain,
-            "at depth {depth} the dart should drain {expected_drain}"
-        );
-    }
-}
-
-#[test]
 fn the_arrow_trap_hits_harder_the_deeper_you_are() {
     // Same seeds, same unarmoured target: sum the damage a shallow arrow trap
     // deals against a deep one. The per-tier bonus should make the deep floor

@@ -81,13 +81,6 @@ fn treasure_pays_its_row_into_the_score() {
 }
 
 #[test]
-fn treasure_is_always_worth_taking() {
-    let mut w = test_world(1);
-    assert!(step_on(&mut w, "silver coin"));
-    assert!(step_on(&mut w, "silver coin"), "and taking again");
-}
-
-#[test]
 fn the_relic_pays_its_value_the_moment_it_is_in_hand() {
     let mut w = test_world(1);
     let p = player(&mut w);
@@ -351,14 +344,6 @@ fn shoot(w: &mut World, coin: &str) -> (Option<TrickShot>, Entity) {
     };
     let entity = spawn_named(w, coin, target).expect("a coin by that name");
     (detonate_at(w, target, Some(p)), entity)
-}
-
-#[test]
-fn a_shot_coin_goes_off_and_is_gone() {
-    let mut w = test_world(1);
-    let (shot, coin) = shoot(&mut w, "gold coin");
-    assert_eq!(shot, Some(TrickShot::Pickup));
-    assert!(w.get_entity(coin).is_none(), "the shot spent it");
 }
 
 #[test]

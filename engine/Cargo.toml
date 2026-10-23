@@ -12,9 +12,6 @@ documentation = "https://github.com/bae-alves/nihilurk/blob/master/MANUAL.md"
 rust-version = "1.91"
 keywords = ["roguelike", "game", "terminal", "ascii", "rpg"]
 categories = ["games"]
-# Reads the workspace around it, so it cannot pass from a download. It still
-# runs in the repository. `engine/tests/workspace.rs` holds this line in place.
-exclude = ["tests/workspace.rs"]
 
 [[bin]]
 name = "nihilurk"

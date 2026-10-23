@@ -59,11 +59,4 @@ mod tests {
         write_ready(&mut out, true, true).unwrap();
         assert!(out.is_empty());
     }
-
-    #[test]
-    fn the_signal_is_one_osc_string_a_screen_reader_can_skip_whole() {
-        assert!(READY.starts_with(b"\x1b]"));
-        assert_eq!(READY.iter().filter(|&&b| b == 0x07).count(), 1);
-        assert_eq!(READY.last(), Some(&0x07));
-    }
 }

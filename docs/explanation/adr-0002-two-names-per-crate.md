@@ -30,7 +30,7 @@ Decision
 
 **Rename the packages. Keep the directories and the library names.**
 
-  1. Every crate that ships is `nihilurk` or `nihilurk-<thing>`. `engine/tests/workspace.rs` fails if a new one is not.
+  1. Every crate that ships is `nihilurk` or `nihilurk-<thing>`.
   2. The binary's package takes the bare name `nihilurk`, which is free. The binary was already called `nihilurk`, so `cargo install nihilurk` installs the thing it says.
   3. A package name and a library name are separate settings in Cargo, so two lines keep the library names:
 
@@ -74,4 +74,3 @@ See also
 --------
 
   ../how-to/cut-a-release.md            the release recipe
-  ../../engine/tests/workspace.rs       the tests that hold the names in place

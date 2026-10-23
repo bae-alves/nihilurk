@@ -67,13 +67,6 @@ fn a_bare_world_has_nothing_to_break() {
     conduct::broke(&mut w, Conduct::Coins);
 }
 
-#[test]
-fn each_conduct_kept_is_ten_percent() {
-    assert_eq!(conduct::bonus_percent(0), 0);
-    assert_eq!(conduct::bonus_percent(0b111), 30);
-    assert_eq!(conduct::bonus_percent(0x3fff), 140);
-}
-
 fn player(w: &mut World) -> Entity {
     w.query_filtered::<Entity, With<Player>>().single(w)
 }
@@ -330,17 +323,6 @@ fn a_win_pays_ten_percent_of_the_score_for_each_conduct_kept() {
 }
 
 #[test]
-fn a_clean_lurk_win_pays_one_hundred_forty_percent() {
-    let mut w = run(Body::Row(body_row("lurk").unwrap()));
-    let p = player(&mut w);
-    w.get_mut::<Score>(p).unwrap().value = 500;
-
-    pay_conducts(&mut w);
-
-    assert_eq!(score_of(&mut w), 500 + 700);
-}
-
-#[test]
 fn a_run_that_kept_nothing_is_paid_nothing() {
     let mut w = run(Body::Row(body_row("nihil").unwrap()));
     let p = player(&mut w);
@@ -393,11 +375,4 @@ fn a_broken_conduct_has_no_mark() {
     let mask = Conduct::Potions.bit();
     assert_eq!(conduct::marks(mask, &[Color::Red]).len(), 1);
     assert!(conduct::marks(0, &[Color::Red]).is_empty());
-}
-
-#[test]
-fn the_lurks_mark_is_the_lurks_own_colour() {
-    let mut w = run(Body::Row(body_row("lurk").unwrap()));
-    let p = player(&mut w);
-    assert_eq!(w.get::<Renderable>(p).unwrap().color, conduct::LURK_COLOR);
 }

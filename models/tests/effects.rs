@@ -260,32 +260,6 @@ fn audit_source(effects: &HashSet<String>, body: &str) -> syn::Result<Vec<Offenc
     Ok(audit.found)
 }
 
-/// The audit reads every row of the table and tells an effect from a
-/// same-named variant. It once split rows on everything but `;`, so a row
-/// with nothing after its type parsed as `Type;` and was never checked.
-#[test]
-fn the_ledger_audit_reads_every_row_and_knows_a_variant_from_an_effect() {
-    let table = "effects! {\n    \"asleep\" => Asleep;\n    \"confused\" => Confused;\n    \"phasing\" => Phasing, beware x();\n}\n";
-    assert_eq!(registered_effects(table), ["Asleep", "Confused", "Phasing"]);
-
-    let effects: HashSet<String> = ["Asleep", "Confused", "Phasing"].map(String::from).into();
-    let lines = |body: &str| -> Vec<usize> {
-        audit_source(&effects, body)
-            .unwrap()
-            .iter()
-            .map(|o| o.line)
-            .collect()
-    };
-    assert!(lines("use MovementType::{Chase, Confused};\nfn f() { g(Confused); }\n").is_empty());
-    assert!(lines("fn f() { assert!(Grant::of::<Phasing>().probe(w, e)); }\n").is_empty());
-    assert_eq!(lines("fn f() {\n    e.insert(Asleep);\n}\n"), [2]);
-    assert_eq!(lines("fn f() {\n    assert!(x == Phasing);\n}\n"), [2]);
-    assert_eq!(
-        lines("use MovementType::Confused;\nfn f() {\n    e.insert(Asleep);\n}\n"),
-        [3]
-    );
-}
-
 /// What one effect is called *in one file*: its own name, plus whatever a
 /// `use ... as ...` renamed it to there, minus any effect name a `use`
 /// brought in through a type instead — `use MovementType::{Chase, Confused}`

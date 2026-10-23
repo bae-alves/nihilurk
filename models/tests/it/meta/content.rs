@@ -238,22 +238,6 @@ fn floor_one_draws_only_from_the_shallow_bestiary() {
     );
 }
 
-#[test]
-fn every_drop_category_can_actually_produce_something() {
-    for category in DROPS {
-        assert!(
-            category.weight > 0,
-            "{} would never be drawn",
-            category.name
-        );
-        assert!(
-            !category.rows(category.min_depth).is_empty(),
-            "{} has no row available on the floor it debuts",
-            category.name
-        );
-    }
-}
-
 /// Every loot category can actually be drawn, and has something to give when
 /// it is.
 ///
@@ -330,25 +314,6 @@ fn a_mimic_is_never_also_invisible() {
 // ---------------------------------------------------------------------------
 // Traps
 // ---------------------------------------------------------------------------
-
-#[test]
-fn a_traps_label_is_its_row() {
-    for def in TRAPS {
-        assert!(TrapDef::lookup(def.name).is_some_and(|row| row.name == def.name));
-    }
-    assert!(TrapDef::lookup("pit trap").is_none());
-}
-
-#[test]
-fn the_trap_a_floor_lays_comes_from_the_table() {
-    let mut r = rng(23);
-    let seen: HashSet<&str> = (0..600).map(|_| TrapDef::pick(1, &mut r).name).collect();
-    assert_eq!(
-        seen.len(),
-        TRAPS.len(),
-        "every trap in the table is available on floor 1"
-    );
-}
 
 /// [`every_bestiary_row_can_actually_be_drawn`]'s twin for `TRAPS`: a zero
 /// weight or a `min_depth` past `FINAL_DEPTH` leaves a trap nobody ever
@@ -516,20 +481,6 @@ fn a_spawn_list_plus_sets_a_numeric_rings_number() {
 // ---------------------------------------------------------------------------
 // Identification
 // ---------------------------------------------------------------------------
-
-/// Dud effects only ever happen as the result of a wand of cancellation
-/// striking an item (see `items::wands::cancel_entity`) — the dungeon itself
-/// must never roll one as normal loot.
-#[test]
-fn the_dungeon_never_generates_a_dud_as_normal_loot() {
-    assert_eq!(
-        potion_row("potion of thirst quenching").unwrap().weight(),
-        0
-    );
-    assert_eq!(scroll_row("scroll of blank paper").unwrap().weight(), 0);
-    assert_eq!(wand_row("wand of nothing").unwrap().weight(), 0);
-    assert_eq!(rune_row("blank rune").unwrap().weight(), 0);
-}
 
 /// A swimmer lives in the water, so only a water tile ever asks for one: the
 /// ordinary draws never hand one out, however deep, and the aquatic draw

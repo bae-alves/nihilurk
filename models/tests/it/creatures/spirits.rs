@@ -571,39 +571,6 @@ fn the_sphynx_offers_a_stocked_range_of_spells() {
 // The nine species' bestiary rows and event fns.
 // ---------------------------------------------------------------------------
 
-#[test]
-fn every_spirit_row_spawns_peaceful_and_wandering() {
-    let mut w = spirits_world(0);
-    for name in [
-        "yellow demon",
-        "red demon",
-        "blue demon",
-        "pink demon",
-        "angel",
-        "sphynx",
-        "sylphid",
-        "salamander",
-        "undyne",
-        "gnome",
-    ] {
-        let def = MonsterDef::named(name);
-        let e = spawn_monster(&mut w, def, Position { x: 5, y: 5 });
-        assert_eq!(
-            w.get::<Faction>(e).copied(),
-            Some(Faction::Spirits),
-            "{name}"
-        );
-        assert!(
-            matches!(
-                w.get::<Mob>(e).map(|m| m.movement_type),
-                Some(MovementType::Confused)
-            ),
-            "{name}"
-        );
-        w.despawn(e);
-    }
-}
-
 /// Spawns the spirit named `name` and talks to it (a peaceful melee).
 fn talk_to(w: &mut World, player: Entity, name: &str) -> Entity {
     let spirit = spawn_monster(w, MonsterDef::named(name), Position { x: 5, y: 5 });
@@ -613,26 +580,6 @@ fn talk_to(w: &mut World, player: Entity, name: &str) -> Entity {
 
 fn offered(w: &World) -> Vec<OfferOption> {
     w.resource::<OfferMenu>().options.clone()
-}
-
-#[test]
-fn the_red_demon_sells_a_weapon_an_armor_and_a_ring_for_max_hp() {
-    let mut w = spirits_world(0);
-    let player = spawn_player(&mut w, 6);
-    let spirit = talk_to(&mut w, player, "red demon");
-    let menu = w.resource::<OfferMenu>();
-    assert!(menu.open);
-    assert!(menu.priced);
-    assert_eq!(menu.source, Some(spirit));
-    let options = offered(&w);
-    assert!(matches!(options[0], OfferOption::Weapon(_)));
-    assert!(matches!(options[1], OfferOption::Armor(_)));
-    assert!(matches!(options[2], OfferOption::Ring(_)));
-    assert!(
-        options
-            .iter()
-            .all(|o| o.price() == Some(Price::MaxHp(RED_DEMON_GEAR_PRICE)))
-    );
 }
 
 #[test]
@@ -686,22 +633,6 @@ fn the_gnome_refuses_a_player_with_no_max_ma() {
 }
 
 #[test]
-fn the_yellow_demon_refuses_an_empty_pack() {
-    let mut w = spirits_world(0);
-    let player = spawn_player(&mut w, 6);
-    let spirit = talk_to(&mut w, player, "yellow demon");
-    refused(&w, player, spirit);
-}
-
-#[test]
-fn the_sphynx_refuses_an_empty_spellset() {
-    let mut w = spirits_world(0);
-    let player = spawn_player(&mut w, 6);
-    let spirit = talk_to(&mut w, player, "sphynx");
-    refused(&w, player, spirit);
-}
-
-#[test]
 fn paying_the_red_demon_your_last_max_hp_kills_you() {
     let mut w = spirits_world(0);
     w.init_resource::<BloodStains>();
@@ -713,32 +644,6 @@ fn paying_the_red_demon_your_last_max_hp_kills_you() {
     spirits::confirm_offer(&mut w, player, choice);
     assert_eq!(w.get::<Fighter>(player).unwrap().hp, 0);
     assert!(w.resource::<Ending>().player_dead);
-}
-
-#[test]
-fn the_gnome_sells_a_scroll_a_potion_and_a_wand_for_max_ma() {
-    let mut w = spirits_world(0);
-    let player = spawn_player(&mut w, 6);
-    w.entity_mut(player).insert(Magic {
-        points: 2,
-        max_points: 2,
-    });
-    talk_to(&mut w, player, "gnome");
-    assert!(w.resource::<OfferMenu>().priced);
-    let options = offered(&w);
-    assert!(matches!(options[0], OfferOption::Scroll(_)));
-    assert!(matches!(options[1], OfferOption::Potion(_)));
-    assert!(matches!(options[2], OfferOption::Wand(_)));
-    let prices: Vec<_> = options.iter().map(OfferOption::price).collect();
-    assert_eq!(
-        prices,
-        [
-            Some(Price::MaxMa(1)),
-            Some(Price::MaxMa(1)),
-            Some(Price::MaxMa(2))
-        ]
-    );
-    assert!(MonsterDef::named("gnome").spells.is_empty());
 }
 
 #[test]

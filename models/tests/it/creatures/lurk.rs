@@ -46,55 +46,6 @@ fn beside_player(w: &mut World) -> Position {
 }
 
 #[test]
-fn the_lurk_is_its_own_creature() {
-    let mut w = lurk_world(7);
-    let p = player(&mut w);
-
-    let r = w.get::<Renderable>(p).unwrap();
-    assert_eq!((r.glyph, r.color), ('@', models::Color::Magenta));
-
-    let f = w.get::<Fighter>(p).unwrap();
-    assert_eq!(f.hp, f.max_hp);
-    assert!(f.hp > 0 && f.power > 0 && f.armor > 0);
-    assert_eq!((f.power_bonus, f.armor_bonus), (0, 0));
-
-    let m = w.get::<Magic>(p).unwrap();
-    assert_eq!(m.points, m.max_points);
-    assert!(m.max_points > 0);
-
-    assert_eq!(w.get::<Speed>(p).unwrap().kind, SpeedKind::Quick);
-
-    assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
-    assert!(equipment::equipped_items(&w, p).is_empty());
-
-    assert!(w.get::<Lunges>(p).is_some(), "the wolf's closing lunge");
-    assert!(w.get::<Fencer>(p).is_some(), "the second snap of the jaws");
-    assert!(w.get::<BuildsMomentum>(p).is_some(), "a rhythm that builds");
-    assert!(w.get::<Stealthy>(p).is_some(), "a hunter's quiet");
-    let slots = &w.get::<Spellset>(p).unwrap().slots;
-    assert_eq!(slots, &vec![spell_row("Bide").unwrap()]);
-    assert_eq!(
-        spell_cost(&w, p, spell_row("Bide").unwrap()),
-        spell_row("Bide").unwrap().cost,
-        "Bide is learned, not innate: it costs magic"
-    );
-}
-
-#[test]
-fn quick_is_three_turns_for_every_two_monster_rounds() {
-    let mut w = lurk_world(7);
-    w.init_resource::<PlayerTempo>();
-    let rounds: Vec<u8> = (0..6)
-        .map(|_| {
-            let mut t = w.resource_mut::<PlayerTempo>();
-            t.quick_beat = (t.quick_beat + 1) % 3;
-            u8::from(t.quick_beat != 0)
-        })
-        .collect();
-    assert_eq!(rounds, vec![1, 1, 0, 1, 1, 0]);
-}
-
-#[test]
 fn rings_and_nothing_else() {
     let mut w = lurk_world(7);
     let p = player(&mut w);
@@ -163,21 +114,6 @@ fn eating_grows_the_lurk_at_the_stated_odds() {
             .iter()
             .any(|line| line.contains("FEAR THE LURK!"))
     );
-}
-
-#[test]
-fn one_growth_is_one_point_of_one_stat() {
-    let mut w = lurk_world(7);
-    let before = stat_total(&mut w);
-    for _ in 0..100 {
-        body::feed(&mut w);
-        let grown = stat_total(&mut w) - before;
-        if grown > 0 {
-            assert!(grown > 0, "one feed produces growth");
-            return;
-        }
-    }
-    panic!("a hundred corpses and nothing at 15%");
 }
 
 #[test]

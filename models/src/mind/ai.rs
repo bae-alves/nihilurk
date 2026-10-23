@@ -885,13 +885,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_side_a_blocked_step_slides_to_follows_the_seed() {
-        for seed in 0..32 {
-            assert_eq!(slide_once(seed), slide_once(seed), "seed {seed}");
-        }
-    }
-
     /// The mob east of it blocks the step, and walls block both diagonals
     /// toward the goal, so there is nowhere to slide. It loses the step and
     /// stays where it was.

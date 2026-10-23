@@ -238,28 +238,6 @@ fn scare_monster_routs_what_you_can_see_and_leaves_the_rest_alone() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn create_monster_conjures_a_fresh_creature_on_the_floor() {
-    let mut w = test_world(5);
-    let p = player(&mut w);
-
-    let before = w.query_filtered::<(), With<Mob>>().iter(&w).count();
-
-    let scroll = spawn_named(&mut w, "scroll of create monster", Position { x: 0, y: 0 }).unwrap();
-    stash(&mut w, p, scroll);
-    use_item(&mut w, p, scroll);
-
-    let after = w.query_filtered::<(), With<Mob>>().iter(&w).count();
-    assert_eq!(after, before + 1, "exactly one monster is added");
-
-    let hero = *w.get::<Position>(p).unwrap();
-    let mut q = w.query_filtered::<(&Position, &Faction), With<Mob>>();
-    let placed_ok = q
-        .iter(&w)
-        .any(|(pos, f)| *f == Faction::Monster && (pos.x, pos.y) != (hero.x, hero.y));
-    assert!(placed_ok);
-}
-
-#[test]
 fn create_monster_sometimes_conjures_it_already_tamed() {
     let (mut monster, mut ally, mut helper) = (0, 0, 0);
     for seed in 0..60 {

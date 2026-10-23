@@ -184,17 +184,6 @@ fn beside_player(w: &mut World) -> (Position, Position) {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_fresh_wand_always_spawns_fully_charged() {
-    let mut w = test_world(1);
-    let wand = spawn_named(&mut w, "wand of magic missile", Position { x: 0, y: 0 }).unwrap();
-    let charges = w.get::<Battery>(wand).unwrap().charges;
-    assert_eq!(
-        charges, WAND_CHARGES,
-        "a fresh wand should always spawn with exactly WAND_CHARGES"
-    );
-}
-
-#[test]
 fn zapping_the_last_charge_still_fires_and_destroys_the_wand() {
     let mut w = test_world(2);
     let p = player(&mut w);

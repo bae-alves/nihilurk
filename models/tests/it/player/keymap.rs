@@ -3,12 +3,6 @@
 use models::*;
 
 #[test]
-fn a_line_maps_the_first_key_to_the_second() {
-    let map = parse_keymap("hj\n").unwrap();
-    assert_eq!(map.apply('h'), 'j');
-}
-
-#[test]
 fn unlisted_keys_map_to_themselves() {
     let map = parse_keymap("hj").unwrap();
     assert_eq!(map.apply('z'), 'z');

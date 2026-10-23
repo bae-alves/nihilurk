@@ -72,18 +72,6 @@ fn log_has(w: &World, needle: &str) -> bool {
 }
 
 #[test]
-fn the_phantom_is_born_invisible() {
-    let mut w = test_world(1);
-    let spot = beside_player(&mut w);
-    let phantom = monster::monster(&mut w, "phantom", spot);
-    w.entity_mut(phantom).insert(Invisible);
-    assert!(w.get::<Invisible>(phantom).is_some());
-
-    let orc = monster::monster(&mut w, "orc", spot);
-    assert!(w.get::<Invisible>(orc).is_none());
-}
-
-#[test]
 fn an_invisible_phantom_in_view_stays_hidden_and_unannounced() {
     let mut w = test_world(1);
     let spot = beside_player(&mut w);

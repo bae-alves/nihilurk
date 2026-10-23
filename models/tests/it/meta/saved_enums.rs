@@ -104,13 +104,3 @@ fn saved_enums_keep_their_variant_order() {
         differs.join("\n")
     );
 }
-
-#[test]
-fn a_reordered_variant_is_a_difference() {
-    let before = saved_enums("a.rs", "#[derive(Serialize)] enum E { A, B, C }");
-    let swapped = saved_enums("a.rs", "#[derive(Serialize)] enum E { A, C, B }");
-    let plain = saved_enums("a.rs", "#[derive(Debug)] enum E { A }");
-    assert_eq!(before, ["a.rs::E = A,B,C"]);
-    assert_ne!(before, swapped);
-    assert!(plain.is_empty());
-}

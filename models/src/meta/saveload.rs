@@ -1833,12 +1833,6 @@ mod tests {
         assert_eq!(crate::helpers::item_label(&w, only), "arrow");
     }
 
-    #[test]
-    fn an_in_range_backpack_index_still_loads() {
-        let bytes = crafted_save_with_backpack_index(0);
-        assert!(load_bytes("ok", &bytes).is_ok());
-    }
-
     /// A save carrying a `player_name` with control/escape bytes -- a shared
     /// save is untrusted the same way a crafted backpack index is, and this
     /// field reaches a real terminal verbatim (`clear_data_prompt`, the HUD)

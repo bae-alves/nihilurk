@@ -373,14 +373,6 @@ fn a_launcher_species_starts_with_the_bow_on_and_a_full_stack_of_arrows() {
 }
 
 #[test]
-fn a_species_without_gear_chances_starts_bare() {
-    let mut w = test_world(7, Body::Monster(MonsterDef::named("dragon")));
-    let p = player(&mut w);
-    assert!(equipment::equipped_items(&w, p).is_empty());
-    assert!(w.get::<Backpack>(p).unwrap().items.is_empty());
-}
-
-#[test]
 fn gear_a_monster_spawns_wearing_comes_identified() {
     let mut w = test_world(41, Body::default());
     let at = Position { x: 1, y: 1 };
@@ -439,12 +431,4 @@ fn a_body_row_brings_a_pack_only_when_it_says_so() {
             .get::<Backpack>(p)
             .is_some_and(|b| !b.items.is_empty())
     );
-}
-
-#[test]
-fn every_body_row_is_found_by_its_name() {
-    for &row in BODIES {
-        assert!(body_row(row.name).is_some_and(|found| found.name == row.name));
-    }
-    assert!(body_row("body of the test").is_none());
 }

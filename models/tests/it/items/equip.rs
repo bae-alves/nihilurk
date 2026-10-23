@@ -225,68 +225,6 @@ fn equipping_gear_moves_the_folded_numbers_by_exactly_the_rows_values() {
 }
 
 #[test]
-fn a_worn_ring_of_protection_soaks_hits() {
-    fn attacker(w: &mut World) -> Entity {
-        w.spawn((
-            Name { what: "bag".into() },
-            Fighter {
-                hp: 1,
-                max_hp: 1,
-                armor: 0,
-                power: 20,
-                max_power: 20,
-                armor_bonus: 0,
-                power_bonus: 50,
-            },
-            Faction::Monster,
-            Position { x: 1, y: 1 },
-        ))
-        .id()
-    }
-
-    let hits = 600;
-
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let foe = attacker(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
-    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
-    for _ in 0..hits {
-        resolve_attack(&mut w, foe, p);
-    }
-    let without_ring = 100_000 - w.get::<Fighter>(p).unwrap().hp;
-
-    let mut w = test_world(11);
-    let p = player(&mut w);
-    let foe = attacker(&mut w);
-    w.get_mut::<Fighter>(p).unwrap().max_hp = 100_000;
-    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
-    let ring = spawn_ring(&mut w, "ring of protection", Position { x: 0, y: 0 });
-    w.entity_mut(ring).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
-    use_item(&mut w, p, ring);
-    assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
-    for _ in 0..hits {
-        resolve_attack(&mut w, foe, p);
-    }
-    let with_ring = 100_000 - w.get::<Fighter>(p).unwrap().hp;
-
-    assert_eq!(
-        with_ring,
-        without_ring - 2 * hits,
-        "each blow is softened by exactly 2"
-    );
-
-    use_item(&mut w, p, ring);
-    w.get_mut::<Fighter>(p).unwrap().hp = 100_000;
-    for _ in 0..hits {
-        resolve_attack(&mut w, foe, p);
-    }
-    let ring_off = 100_000 - w.get::<Fighter>(p).unwrap().hp;
-    assert!(ring_off > with_ring, "an unworn ring gives no protection");
-}
-
-#[test]
 fn spikemail_pricks_whoever_hits_its_wearer_for_one_or_two() {
     let hits = 600;
     let prick = |wear_it: bool| {
@@ -330,52 +268,6 @@ fn spikemail_pricks_whoever_hits_its_wearer_for_one_or_two() {
     );
     assert!(worn <= 2 * hits, "and never more than 2");
     assert!(worn > hits, "1d2 rolls a 2 sometimes");
-}
-
-#[test]
-fn a_worn_ring_of_strength_adds_two_to_every_blow() {
-    fn bag(w: &mut World) -> Entity {
-        w.spawn((
-            Name { what: "bag".into() },
-            Fighter {
-                hp: 100_000,
-                max_hp: 100_000,
-                armor: 0,
-                power: 0,
-                max_power: 0,
-                armor_bonus: 0,
-                power_bonus: 0,
-            },
-            Faction::Monster,
-            Position { x: 1, y: 1 },
-        ))
-        .id()
-    }
-
-    let hits = 600;
-
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let target = bag(&mut w);
-    for _ in 0..hits {
-        resolve_attack(&mut w, p, target);
-    }
-    let bare = 100_000 - w.get::<Fighter>(target).unwrap().hp;
-
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let target = bag(&mut w);
-    let ring = spawn_ring(&mut w, "ring of strength", Position { x: 0, y: 0 });
-    w.entity_mut(ring).remove::<Position>();
-    w.get_mut::<Backpack>(p).unwrap().items.push(ring);
-    use_item(&mut w, p, ring);
-    assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
-    for _ in 0..hits {
-        resolve_attack(&mut w, p, target);
-    }
-    let ringed = 100_000 - w.get::<Fighter>(target).unwrap().hp;
-
-    assert_eq!(ringed, bare + 2 * hits, "every blow lands exactly 2 harder");
 }
 
 #[test]

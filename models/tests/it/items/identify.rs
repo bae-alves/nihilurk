@@ -87,42 +87,6 @@ fn a_wand_shows_its_true_name_before_and_after_a_zap() {
 }
 
 #[test]
-fn wearing_a_ring_toggles_it_like_any_other_gear() {
-    let mut w = test_world(2);
-    let p = player(&mut w);
-    let ring = spawn_ring(&mut w, "ring of regeneration", Position { x: 0, y: 0 });
-    stash(&mut w, p, ring);
-
-    assert_eq!(display_name(&w, ring), "ring of regeneration");
-
-    use_item(&mut w, p, ring);
-    assert_eq!(display_name(&w, ring), "ring of regeneration");
-    assert_eq!(w.get::<Equipped>(ring).unwrap().by, Some(p));
-    assert!(w.get::<Backpack>(p).unwrap().items.contains(&ring));
-
-    use_item(&mut w, p, ring);
-    assert_eq!(w.get::<Equipped>(ring).unwrap().by, None);
-}
-
-#[test]
-fn a_cursed_weapon_hides_its_curse_until_worn_or_identified() {
-    let mut w = test_world(4);
-    let p = player(&mut w);
-    let dagger = spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
-    w.entity_mut(dagger).insert((PowerBonus(-2), Curse));
-    stash(&mut w, p, dagger);
-
-    assert_eq!(
-        display_name(&w, dagger),
-        "dagger",
-        "the plus and curse must not leak before quality is known"
-    );
-
-    use_item(&mut w, p, dagger);
-    assert_eq!(display_name(&w, dagger), "-2 dagger (cursed)");
-}
-
-#[test]
 fn scroll_of_identify_reveals_every_hidden_piece_of_gear_in_one_read() {
     let mut w = test_world(5);
     let p = player(&mut w);

@@ -62,7 +62,7 @@ It refuses, and edits nothing, if the working tree has uncommitted changes, if y
     README.md                     the four download links and the
                                   version in the line above them
 
-All three crates move to the same number, so there is one version to think about. `engine/tests/workspace.rs` fails if one crate or one pin falls behind.
+All three crates move to the same number, so there is one version to think about.
 
 Then, unless `--no-cargo`: `cargo update --workspace` refreshes `Cargo.lock` (it touches only the three workspace lines, no dependency moves), `cargo test --locked` runs the suite, and `cargo publish --workspace --dry-run` proves all three packages build. If a step fails, the edits stay in the working tree and `git checkout .` puts them back. When they pass, it commits `Release vX.Y.Z` and tags it.
 
