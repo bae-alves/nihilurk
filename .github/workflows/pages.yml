@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the sitemap's lastmod reads each page's last commit
       - run: sudo apt-get update && sudo apt-get install -y lua5.4
       - run: lua5.4 site/build_test.lua
       # Pinned, with its checksum: the site should not change because a
@@ -35,6 +37,7 @@ jobs:
           tar xzf mdbook.tgz mdbook
       - run: lua5.4 site/build.lua
       - run: ./mdbook build target/site-book
+      - run: lua5.4 site/finish.lua
       - uses: actions/upload-pages-artifact@v3
         with:
           path: target/site-book/book

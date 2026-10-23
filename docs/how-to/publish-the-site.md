@@ -18,6 +18,7 @@ Quick commands
 
     lua site/build.lua                     stage the pages in target/site-book/
     mdbook build target/site-book          build the site into target/site-book/book
+    lua site/finish.lua                    give each built page its own tags
     mdbook serve target/site-book          read it at localhost:3000
     lua site/build_test.lua                the script's test
 
@@ -36,13 +37,19 @@ It copies `README.md`, `MANUAL.md` and every page under `docs/` into `target/sit
     SUMMARY.md    the contents list: the landing page, the manual, then
                   tutorials, how-to guides, reference, explanation.
                   Each entry takes its title from the page's first heading.
-    sitemap.xml   one line per page.
+    sitemap.xml   one line per page, with the day of its last commit.
     robots.txt    allows everything and points at the sitemap.
     llms.txt      `site/llms.txt`, for AI answer engines.
+    og-image.png  `site/og-image.png`, the picture link previews show
+                  (1200x630).
+    pages.tsv     each page's html path, url and description, for the
+                  next step. It is not published.
 
 It refuses a page with no heading, and names it.
 
 The site URL is `site-url` in `site/book.toml`, and nowhere else. The script writes it into the sitemap, `robots.txt`, `llms.txt` and the structured data in `site/theme/head.hbs`. A custom domain is a one-line change there.
+
+`site/finish.lua` runs after `mdbook build`. For each page in `pages.tsv` it writes the page's own description into the description, `og:description` and `twitter:description` tags, and adds a canonical link and `og:url`. A page's description is its first prose paragraph, cut at 160 characters; the landing page keeps the book's. Print and 404 pages are left alone.
 
 
 The facts a crawler reads
@@ -50,7 +57,9 @@ The facts a crawler reads
 
 `site/llms.txt` states what nihilurk is, the install line, the languages and the license. Each of those is a fact that `README.md` or `engine/Cargo.toml` also holds. When you change one, change both: nothing checks it.
 
-The description in `site/book.toml` is the one every page shares. mdBook has no description per page.
+The description in `site/book.toml` is the landing page's, and the fallback in the head template. `site/finish.lua` replaces it on every other page.
+
+The workflow checks out full history (`fetch-depth: 0`) so the sitemap's `lastmod` is right. A shallow clone would give every page the same day.
 
 
 Before the first deploy

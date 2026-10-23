@@ -8,10 +8,12 @@
 --   out/src/                    README.md, MANUAL.md and docs/, with a backticked
 --                               path to another page turned into a link
 --   out/src/SUMMARY.md          the table of contents mdBook needs
---   out/src/sitemap.xml, robots.txt, llms.txt
+--   out/src/sitemap.xml, robots.txt, llms.txt, og-image.png
+--   out/pages.tsv               per page: html path, url, description
 --
--- then `mdbook build <out>` makes the site. The one site URL lives in
--- site/book.toml (`site-url`). The recipe is docs/how-to/publish-the-site.md.
+-- then `mdbook build <out>` makes the site, and `lua site/finish.lua <out>`
+-- gives each built page its own description, canonical url and og:url. The
+-- one site URL lives in site/book.toml (`site-url`). The recipe is docs/how-to/publish-the-site.md.
 
 local here = (arg[0]:match("^(.*)/[^/]*$")) or "."
 local root = arg[1] or (here .. "/..")
@@ -73,11 +75,37 @@ local function title_of(path, text)
   local l = lines(text)
   for i, line in ipairs(l) do
     local atx = line:match("^#%s+(.-)%s*$")
-    if atx then return atx end
-    if line:match("%S") and l[i + 1] and l[i + 1]:match("^=+%s*$") then return line end
-    if line:match("%S") and l[i + 1] and l[i + 1]:match("^%-%-+%s*$") then return line end
+    if atx then return atx, i end
+    if line:match("%S") and l[i + 1] and l[i + 1]:match("^=+%s*$") then return line, i + 1 end
+    if line:match("%S") and l[i + 1] and l[i + 1]:match("^%-%-+%s*$") then return line, i + 1 end
   end
   die(path .. " has no title (a first heading)")
+end
+
+-- A page's description: its first prose paragraph after the title, as plain
+-- text. Indented blocks, fences, tables, lists, quotes and html are skipped.
+local function describe(path, text)
+  local l = lines(text)
+  local _, at = title_of(path, text)
+  local fenced, para = false, {}
+  for i = at + 1, #l do
+    local line = l[i]
+    if line:match("^%s*```") then
+      fenced = not fenced
+    elseif fenced then
+      -- inside a code block
+    elseif not line:match("%S") then
+      if #para > 0 then break end
+    elseif line:match("^%s") or line:match("^[|#>*<-]") or line:match("^%d+%.%s") or line:match("^=+%s*$") then
+      if #para > 0 then break end
+    else
+      para[#para + 1] = line
+    end
+  end
+  local d = table.concat(para, " ")
+  d = d:gsub("%[([^%]]*)%]%([^)]*%)", "%1"):gsub("[`*]", ""):gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+  if #d > 160 then d = d:sub(1, 157):gsub("%s*%S*$", "") .. "..." end
+  return d
 end
 
 -- `a/../b.md` -> `b.md`; nil if it climbs out of the tree.
@@ -155,12 +183,30 @@ local function url_of(p)
   if p:match("README%.md$") then return site_url .. dir_of(p) .. "/" end
   return site_url .. p:gsub("%.md$", ".html")
 end
+local function html_of(p) return (p:gsub("README%.md$", "index.md"):gsub("%.md$", ".html")) end
+-- The day of a page's last commit, "" outside git. CI must fetch full history.
+local function lastmod(p)
+  return sh("git -C " .. q(root) .. " log -1 --format=%cs -- " .. q(p) .. " 2>/dev/null"):match("%d%d%d%d%-%d%d%-%d%d") or ""
+end
 local sm = { '<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' }
-for _, p in ipairs(pages) do sm[#sm + 1] = "  <url><loc>" .. url_of(p) .. "</loc></url>" end
+local tsv = {}
+for _, p in ipairs(pages) do
+  local day = lastmod(p)
+  sm[#sm + 1] = "  <url><loc>" .. url_of(p) .. "</loc>" .. (day ~= "" and "<lastmod>" .. day .. "</lastmod>" or "") .. "</url>"
+  -- The landing page keeps the book's description.
+  local desc = p == "README.md" and "" or describe(p, read(root .. "/" .. p))
+  tsv[#tsv + 1] = html_of(p) .. "\t" .. url_of(p) .. "\t" .. desc
+end
 sm[#sm + 1] = "</urlset>"
 write(src .. "/sitemap.xml", table.concat(sm, "\n") .. "\n")
+write(out .. "/pages.tsv", table.concat(tsv, "\n") .. "\n")
 write(src .. "/robots.txt", "User-agent: *\nAllow: /\n\nSitemap: " .. site_url .. "sitemap.xml\n")
 write(src .. "/llms.txt", fill(read(root .. "/site/llms.txt")))
+local og = io.open(root .. "/site/og-image.png", "rb")
+if og then
+  write(src .. "/og-image.png", og:read("a"))
+  og:close()
+end
 
 -- mdBook inputs.
 write(out .. "/book.toml", book_toml)

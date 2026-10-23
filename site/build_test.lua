@@ -109,5 +109,61 @@ sh("rm '" .. dir .. "/docs/tutorial/d.md'")
 assert(select(2, run()) == 0)
 assert(not has(sh("ls '" .. out_dir .. "/src/docs/tutorial' 2>&1"), "d.md"), "stale pages are removed")
 
+-- 8. Per-page data for finish.lua: html path, url, and a description from the
+--    page's first prose paragraph (links, backticks and emphasis stripped, the
+--    indented header block, tables and fences skipped, long ones cut).
+fixture()
+write("docs/how-to/long.md", "Long\n====\n\n" .. string.rep("word ", 60) .. "\n")
+write("docs/tutorial/d.md", "Tutorial D\n==========\n\n    Audience   Someone.\n\n```\ncode\n```\n\n| a | b |\n|---|---|\n\nA *lesson* with [a link](x.md) and `code`.\nSecond line.\n\nNext paragraph.\n")
+assert(select(2, run()) == 0)
+local rows = {}
+for line in read("pages.tsv"):gmatch("[^\n]+") do
+  local html, url, desc = line:match("^([^\t]*)\t([^\t]*)\t([^\t]*)$")
+  assert(html, "pages.tsv row has three fields: " .. line)
+  rows[html] = { url = url, desc = desc }
+end
+assert(rows["index.html"].url == "https://example.test/nihilurk/", "README is index.html")
+assert(rows["docs/index.html"].url == "https://example.test/nihilurk/docs/", "docs README is docs/index.html")
+assert(rows["MANUAL.html"].desc == "How to play.", "first paragraph is the description")
+assert(rows["docs/tutorial/d.html"].desc == "A lesson with a link and code. Second line.", "markup stripped, header block and table skipped: " .. rows["docs/tutorial/d.html"].desc)
+local long = rows["docs/how-to/long.html"].desc
+assert(#long <= 160 and long:sub(-3) == "..." and not long:find("%s%.%.%.$"), "long description is cut at a word: " .. long)
+assert(rows["docs/how-to/a.html"].desc == "See ../reference/b.md.", "a page's own words")
+
+-- 9. The image is staged next to the pages, and lastmod comes from git when
+--    the tree is a repository.
+write("site/og-image.png", "png")
+assert(select(2, run()) == 0)
+assert(has(sh("ls '" .. out_dir .. "/src'"), "og-image.png"), "og image is staged")
+assert(not has(read("src/sitemap.xml"), "lastmod"), "no git, no lastmod")
+sh("cd '" .. dir .. "' && git init -q && git add -A && git -c user.name=t -c user.email=t@t commit -qm x")
+assert(select(2, run()) == 0)
+assert(read("src/sitemap.xml"):find("<loc>https://example.test/nihilurk/MANUAL.html</loc><lastmod>%d%d%d%d%-%d%d%-%d%d</lastmod>"), "lastmod from git")
+
+-- 10. finish.lua gives each built page its own description, a canonical url
+--     and og:url. It leaves pages that are not in the list (print, 404) alone.
+local finish = build:gsub("build%.lua$", "finish.lua")
+local book = out_dir .. "/book"
+local function page(desc)
+  return '<head>\n<meta property="og:description" content="' .. desc .. '">\n<meta name="description" content="' .. desc .. '">\n</head>\n'
+end
+sh("mkdir -p '" .. book .. "/docs/how-to'")
+local function put(path, text)
+  sh("mkdir -p \x27" .. book .. "/" .. (path:match("^(.*)/[^/]*$") or ".") .. "\x27")
+  local f = assert(io.open(book .. "/" .. path, "w")); f:write(text); f:close()
+end
+local function got(path) local f = assert(io.open(book .. "/" .. path)); local s = f:read("a"); f:close(); return s end
+sh("mkdir -p \x27" .. book .. "/docs\x27")
+for html in pairs(rows) do put(html, page("Book &amp; description.")) end
+put("print.html", page("Book &amp; description."))
+o, code = sh("lua '" .. finish .. "' '" .. out_dir .. "'")
+assert(code == 0, "finish should succeed: " .. o)
+local m = got("MANUAL.html")
+assert(has(m, '<meta name="description" content="How to play.">') and has(m, '<meta property="og:description" content="How to play.">'), "description replaced everywhere")
+assert(has(m, '<link rel="canonical" href="https://example.test/nihilurk/MANUAL.html">') and has(m, '<meta property="og:url" content="https://example.test/nihilurk/MANUAL.html">'), "canonical and og:url")
+assert(has(got("docs/how-to/a.html"), "content=\"See ../reference/b.md.\""), "nested page gets its own")
+assert(has(got("index.html"), "content=\"Book &amp; description.\"") and has(got("index.html"), 'href="https://example.test/nihilurk/"'), "the landing page keeps the book description")
+assert(got("print.html") == page("Book &amp; description."), "unlisted pages are untouched")
+
 sh("rm -rf '" .. dir .. "'")
-print("ok  site/build.lua")
+print("ok  site/build.lua, site/finish.lua")
