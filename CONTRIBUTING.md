@@ -29,9 +29,9 @@ Open an issue first, and wait for a yes, before you write code for:
 
 A pull request for one of these with no issue behind it may be closed unread.
 
-Not taken: translations (see Translations below), and scripts in any language
-but bash or Lua. An issue outside this scope gets closed. Reopen it, or open a
-new one, if you have more to add.
+Not taken: translations, and scripts in any language but bash or Lua. An issue
+outside this scope gets closed. Reopen it, or open a new one, if you have more
+to add.
 
 
 What you need
