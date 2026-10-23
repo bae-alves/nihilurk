@@ -23,7 +23,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the sitemap's lastmod reads each page's last commit
       - run: sudo apt-get update && sudo apt-get install -y lua5.4
@@ -38,7 +38,7 @@ jobs:
       - run: lua5.4 site/build.lua
       - run: ./mdbook build target/site-book
       - run: lua5.4 site/finish.lua
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: target/site-book/book
 
@@ -50,4 +50,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

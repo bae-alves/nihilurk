@@ -17,7 +17,7 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y lua5.4
       - name: no python
         run: lua5.4 .githooks/no_python.lua --tree
@@ -40,7 +40,7 @@ jobs:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: cargo build --locked -p nihilurk
       - run: cargo test --locked --workspace
       - name: the binary starts
@@ -59,7 +59,7 @@ jobs:
           - { target: aarch64-apple-darwin,   os: macos-latest }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Windows runs `run:` in PowerShell, which would skip a .sh file and
       # report success. Name bash.
       - run: release/test_package.sh ${{ matrix.target }}
