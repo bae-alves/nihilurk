@@ -28,4 +28,4 @@ models = { package = "nihilurk-models", path = "../models", version = "0.7.0" }
 strings = { package = "nihilurk-strings", path = "../strings", version = "0.7.0" }
 crossterm = "0.29.0"
 bevy_ecs = "0.12"
-rand = "0.8"
+rand = "0.10"

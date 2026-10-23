@@ -24,7 +24,7 @@ workspace = true
 [dependencies]
 strings = { package = "nihilurk-strings", path = "../strings", version = "0.7.0" }
 bevy_ecs = "0.12" 
-rand = "0.8"
+rand = "0.10"
 rand_chacha = { version = "0.3", features = ["serde1"] }
 serde = { version = "1", features = ["derive"] }
 postcard = { version = "1", features = ["use-std"] }
@@ -42,5 +42,5 @@ fixedbitset = { version = "0.5", features = ["serde"] }
 # name — syn builds again here for the host rather than for a proc macro, and
 # `span-locations` is what turns a finding into a file and a line somebody can
 # open.
-syn = { version = "2", features = ["full", "visit", "parsing"] }
+syn = { version = "3", features = ["full", "visit", "parsing"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
