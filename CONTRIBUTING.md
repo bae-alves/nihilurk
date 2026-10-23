@@ -7,6 +7,33 @@ maintainer. GitHub holds a first-time contributor's workflow run until the
 maintainer approves it, so CI starts a little late on your first pull request.
 
 
+Scope and limits
+----------------
+
+bae maintains nihilurk alone, in spare time. A reply can take weeks, and there
+are no release dates. Silence is not a no.
+
+Send a pull request straight away for:
+
+- a bug fix, with a test that fails without it;
+- a new content row (a monster, item, trap or spell) that follows its how-to
+  under `docs/how-to/`;
+- a fix to the docs;
+- a platform report, through the issue template.
+
+Open an issue first, and wait for a yes, before you write code for:
+
+- a new mechanic, or a change to what `gdd.md` describes;
+- a new dependency;
+- a new platform, package or place to publish.
+
+A pull request for one of these with no issue behind it may be closed unread.
+
+Not taken: translations (see Translations below), and scripts in any language
+but bash or Lua. An issue outside this scope gets closed. Reopen it, or open a
+new one, if you have more to add.
+
+
 What you need
 -------------
 
