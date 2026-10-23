@@ -37,6 +37,7 @@ pub mod magicmap;
 pub mod map;
 mod monsters;
 pub mod pack;
+mod particle_core;
 pub mod particles;
 pub mod player;
 pub mod pride;

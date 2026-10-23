@@ -152,7 +152,6 @@ Appendix: quick check
 7. Give it to a species with `.casts(n, &LIST)`, `LIST` a static array of rows; only a ranged attack is ever cast that way.
 8. Try it: put it in the starting `Spellset` in `initialize_world`, press `Z`, then revert that edit.
 9. Run `cargo test --test it spells::`.
-10. Fix the docs: nothing, unless it adds a `constants::` module (`update-the-docs.md`).
 
 
 See also

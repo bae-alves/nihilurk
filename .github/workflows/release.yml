@@ -28,7 +28,7 @@ jobs:
             echo "tag is $GITHUB_REF_NAME but engine/Cargo.toml says v$version" >&2
             exit 1
           fi
-      - run: cargo test --locked --workspace --exclude nihilurk-compat
+      - run: cargo test --locked --workspace
 
   build:
     needs: check
@@ -98,7 +98,7 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
-          for dir in particle-core strings models engine; do
+          for dir in strings models engine; do
             name="$(sed -n 's/^name = "\(.*\)"/\1/p' "$dir/Cargo.toml" | head -1)"
             version="$(sed -n 's/^version = "\(.*\)"/\1/p' "$dir/Cargo.toml" | head -1)"
             if curl -fs -A "nihilurk-release (github.com/bae-alves/nihilurk)" \

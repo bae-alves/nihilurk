@@ -66,7 +66,7 @@ One weapon, one line. Read one:
                      |          |           |
                   its name   its colour   its damage die
 
-The mace rolls `1d6` when you swing it. The long sword rolls `1d8`. That third number is the whole of what a weapon is worth in a fight -- see `../reference/content-tables.md` if you want the combat maths now, though you do not need it yet.
+The mace rolls `1d6` when you swing it. The long sword rolls `1d8`. That third number is the whole of what a weapon is worth in a fight.
 
 
 Step 2: add a row
@@ -262,5 +262,4 @@ Where to go next
   add-your-first-monster.md         the same lesson, for the bestiary
   ../how-to/add-an-item.md          every item category, one recipe each
   ../how-to/add-an-effect.md        adding a property like `FireImmune`
-  ../reference/content-tables.md    every field of every table
   ../explanation/data-driven-content.md   why it is built like this

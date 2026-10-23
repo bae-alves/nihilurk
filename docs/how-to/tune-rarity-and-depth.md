@@ -82,13 +82,13 @@ Dial 2: which category of item
                               |        |
                            weight   min_depth
 
-Those weights are Rogue's own drop odds in tenths of a percent. `../reference/content-tables.md` carries the current table, and a test holds it in step with `DROPS`. They do not have to total anything round, which is only convenient to read.
+Those weights are Rogue's own drop odds in tenths of a percent. `DROPS` carries the current table. They do not have to total anything round, which is only convenient to read.
 
 To double how often rings turn up, double the ring row's weight. Every other share drops slightly to pay for it, automatically.
 
 To keep a category out of the shallow dungeon, raise its `min_depth`. A category that cannot appear is simply not in the draw, and the remaining categories divide its share between them in proportion.
 
-The rune row is the example. Its `min_depth` is above 1, so the shallowest floors draw from every other category and the rune joins the draw below that. The weights table in `../reference/content-tables.md` shows the share with the rune in the draw, and says what the shallower floors total. `models/tests/it/loot.rs` scales a category's expected share by the floors it is on, so a new category that starts deeper needs no special case there.
+The rune row is the example. Its `min_depth` is above 1, so the shallowest floors draw from every other category and the rune joins the draw below that. `models/tests/it/loot.rs` scales a category's expected share by the floors it is on, so a new category that starts deeper needs no special case there.
 
 
 Dial 3: which row within a category
@@ -143,7 +143,7 @@ The table tests cover the gating but not your intent, so measure it:
 
 `every_loot_category_can_be_drawn_and_has_rows_to_give` asks the table, not a sampler: every category keeps a nonzero weight and has rows at its debut floor and at the deepest. If you weight a category down to nothing, that test tells you.
 
-Then run the whole suite. A weight changes what a seeded floor holds, and `content::` only reads the tables. A `DROPS` weight also fails `the_drops_table_in_the_doc_matches_the_real_weights` (`models/tests/content_docs.rs`) until the weights table in `../reference/content-tables.md` matches:
+Then run the whole suite. A weight changes what a seeded floor holds, and `content::` only reads the tables.
 
     cargo test
 
@@ -160,12 +160,11 @@ Appendix: quick check
 5. Gate: raise `min_depth`; it is a hard gate, and nothing makes a row stop appearing deeper.
 6. Run `cargo test --test it content::`, then `cargo test`.
 7. Count what a draw gives you with a throwaway loop over `roll_item` or `MonsterDef::pick`.
-8. Fix the docs: if you changed a `DROPS` weight, update the weights table in `../reference/content-tables.md` and the listing in this page.
+8. Fix the docs: if you changed a `DROPS` weight, update the listing in this page.
 
 
 See also
 --------
 
   ../reference/spawn-api.md        pick_weighted, roll_item, DROPS
-  ../reference/content-tables.md   where weight and min_depth live
   add-an-item-category.md          adding a row to DROPS itself

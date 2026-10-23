@@ -123,7 +123,7 @@ A **body** cannot be cancelled. It is the creature the run is about, and no
 wand in the dungeon is a wand of being something else: a lurk stays a lurk,
 keeps its shape, and keeps the rule about rings.
 
-A **species** can, apart from any part its row marks as an identity effect (the dog's five grants, see `content-tables.md`, "Identity effects"). A player wearing a bestiary row keeps the shape and the
+A **species** can, apart from any part its row marks as an identity effect (the dog's five grants). A player wearing a bestiary row keeps the shape and the
 dice -- those are not effects at all -- but the magic is only on loan: a
 cancelled dragon-bodied player loses fire immunity exactly as a real dragon
 would, and a cancelled orc-bodied one loses `ItemUser`, which is to say the
@@ -138,7 +138,7 @@ The body is saved with the run and comes back on load: a worn species as its row
 A monster's hit points are its own, so several rows are a one or two-hit death: that
 is intended, and `-s` is how you retry it.
 
-`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is `nihilurk(6)`. The prebuilt tarball and the AUR package install it, so `man nihilurk` works there; `cargo install` installs the binary only, so from a clone read it with:
+`-h`, `-help`, and `--help` print a short guide and exit before the terminal is configured. The full reference is `nihilurk(6)`. The prebuilt tarball installs it, so `man nihilurk` works there; `cargo install` installs the binary only, so from a clone read it with:
 
     man ./doc/nihilurk.6
 
@@ -169,18 +169,6 @@ One bare argument, meaning one of two things:
         cargo run -p nihilurk -- bae           # otherwise: a new run as bae
 
 If the save is *clear data* -- a won run, which is kept rather than deleted -- the game asks before spending it.
-
-
-Language
---------
-
-The language is a build-time choice, not a flag. `engine` forwards one `lang-*` feature (`en` by default, `pt`, `es`, `ht`) to `strings`, `models` and `view`, and the binary carries that language only:
-
-    cargo run -p nihilurk --no-default-features --features lang-pt
-
-The installed `nihilurk` command is `nihilurk-dispatch`, which reads `LC_ALL`, `LANG` or `LANGUAGE`, and `exec`s the matching `nihilurk-<lang>` beside it, passing every argument through. `--lang <en|pt|es|ht>` as the first two arguments overrides that and is stripped before forwarding. Anything it does not recognise gets English.
-
-A `cargo install` has no dispatcher and no `--lang`: it holds the one language it was built with. Reinstall with `cargo install nihilurk --force --no-default-features --features lang-pt` to switch. The prebuilt download holds all four.
 
 
 Environment variables
@@ -313,7 +301,6 @@ See also
 
   spawn-api.md                  spawn_named, spawn_requested
   conducts.md                   the conducts behind the marks on -scores
-  content-tables.md             what the names refer to
   input-and-turn-loop.md        where these flags are read (`engine/src/main.rs`)
   rendering.md                  `-c`, `-anim-rate` and `-nshake` in the renderer
   ../tutorial/add-your-first-item.md   these tools in context

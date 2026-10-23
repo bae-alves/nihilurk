@@ -253,7 +253,6 @@ Constants
 See also
 --------
 
-  content-tables.md             the tables these functions read
   cli-and-env.md                NIHILURK_SPAWN and the -content flag
   ../how-to/spawn-a-thing.md    recipes for the functions above
   ../how-to/work-with-the-ecs.md      spawning, despawning, and the borrows

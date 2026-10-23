@@ -173,5 +173,4 @@ See also
 
   adr-0001-tables-not-raws.md      why not JSON files
   ecs-in-nihilurk.md                   the ECS half of the same argument
-  ../reference/content-tables.md   the tables themselves
   ../how-to/add-an-effect.md       adding a new question the engine asks

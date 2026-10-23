@@ -119,7 +119,7 @@ A row has to name a function, so a spell that silently does nothing cannot build
         );
     }
 
-The log line is a string literal so the lesson stays on one page; a sentence the player reads belongs in `strings/src/en.rs`, the way `breathe_fire`'s does (`../how-to/update-the-docs.md`, "Player-facing text").
+The log line is a string literal so the lesson stays on one page; a sentence the player reads belongs in `strings/src/en.rs`, the way `breathe_fire`'s does.
 
 Look closely and you'll notice you wrote almost nothing. `elemental_blast` is the same function a zapped wand of cold calls -- the disc, the line-of-sight check, the animation, the chain reaction into any trap or coin caught in it, all of it borrowed. The only thing `ice_bolt` supplies is *how much damage*, computed from the caster's own claws rather than a wand's dice. That computation is copied verbatim from `breathe_fire` right above it; a spell that inflicts a status instead of damage would instead borrow from `crate::conditions`, the way a wand's utility effects do.
 

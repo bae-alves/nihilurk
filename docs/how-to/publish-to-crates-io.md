@@ -6,7 +6,7 @@ How to publish nihilurk to crates.io
                    (`cargo login`). A clean working tree, and the
                    release committed and tagged. A verified email on
                    the account: crates.io refuses an upload without one.
-    Result         Four crates on crates.io, and `cargo install
+    Result         Three crates on crates.io, and `cargo install
                    nihilurk` gives a stranger the game.
 
 This is the manual path. A release is `lua release/bump.lua` and a tag push, and CI publishes: see `cut-a-release.md`. Use this page when CI cannot.
@@ -18,57 +18,48 @@ Quick commands
 --------------
 
     cargo test                                   workspace still green
-    cargo publish --workspace --dry-run          package and build all four
+    cargo publish --workspace --dry-run          package and build all three
     cargo publish --workspace                    the real upload, in order
 
-`--workspace` sends the crates in dependency order. `compat` is skipped on its own, because it is `publish = false`.
+`--workspace` sends the crates in dependency order.
 
-crates.io limits how fast a new crate can appear: a burst of about five, then one every ten minutes. A first upload of all four fits in the burst. A fifth new crate would wait.
+crates.io limits how fast a new crate can appear: a burst of about five, then one every ten minutes. A first upload of all three fits in the burst.
 
 
 What goes out
 -------------
 
-Four crates, in the order cargo sends them:
+Three crates, in the order cargo sends them:
 
-    nihilurk-particle-core   particle-core/   the `no_std` arithmetic
-    nihilurk-strings         strings/         every sentence, per language
+    nihilurk-strings         strings/         every sentence
     nihilurk-models          models/          the game
     nihilurk                 engine/          the binary
 
 The directories keep their short names. Only the package names carry the game's name, and `[lib] name` keeps the short library names, so `use models::*;` still compiles. `../explanation/adr-0002-two-names-per-crate.md` has the reasoning.
 
-`compat/` does not go out. It pulls in ratatui, which the shipped binary may not depend on, and nobody installs a test rig.
-
 
 Before the first upload
 -----------------------
 
-1. Pick a version no tag has used, and move all four crates to it: each crate's `version`, and the `version = "..."` on every `path` dependency that points at a neighbour (`engine/` pins `models` and `strings`, `models/` pins `strings`). `lua release/bump.lua X.Y.Z --dry-run` shows that edit, along with the others a release makes.
+1. Pick a version no tag has used, and move all three crates to it: each crate's `version`, and the `version = "..."` on every `path` dependency that points at a neighbour (`engine/` pins `models` and `strings`, `models/` pins `strings`). `lua release/bump.lua X.Y.Z --dry-run` shows that edit, along with the others a release makes.
 
     `all_published_crates_share_one_version` in `engine/tests/workspace.rs` fails if one crate or one pin falls behind the others. It cannot tell you the shared number is one crates.io already has; the upload finds that out.
 
-2. Check the page crates.io will show. Description, keywords, categories, `readme` and `rust-version` are frozen into each version, so a wrong one costs a new number. `engine/tests/workspace.rs` holds the limits crates.io enforces (five keywords, twenty characters each), and fails on an integration test that reads outside its crate without an `exclude` line, because that test cannot pass from an unpacked download. The floors differ by crate: `nihilurk-particle-core` and `nihilurk-strings` build on 1.85, `nihilurk-models` and `nihilurk` need 1.91 (let chains and a const `TypeId::of`; 1.90 fails). The two small crates stay on 1.85 because edition 2024 sets that floor and they need nothing newer. Raise one if you add code that needs a newer compiler, and build it on that compiler first (`cargo +1.85.0 check -p nihilurk-strings`).
+2. Check the page crates.io will show. Description, keywords, categories, `readme` and `rust-version` are frozen into each version, so a wrong one costs a new number. `engine/tests/workspace.rs` holds the limits crates.io enforces (five keywords, twenty characters each), and fails on an integration test that reads outside its crate without an `exclude` line, because that test cannot pass from an unpacked download. The floors differ by crate: `nihilurk-strings` builds on 1.85, `nihilurk-models` and `nihilurk` need 1.91 (let chains and a const `TypeId::of`; 1.90 fails). `strings` stays on 1.85 because edition 2024 sets that floor and it needs nothing newer. Raise one if you add code that needs a newer compiler, and build it on that compiler first (`cargo +1.85.0 check -p nihilurk-strings`).
 
-3. Commit, then tag: `git tag v<version>`. The GitHub release and the AUR package both build from that tag. Pushing the tag starts the release workflow, so see `publish-a-github-release.md` first.
+3. Commit, then tag: `git tag v<version>`. The GitHub release builds from that tag. Pushing the tag starts the release workflow, so see `publish-a-github-release.md` first.
 
-4. Run the three commands under Quick commands, in order. A dry run that says `aborting upload due to dry run` for all four crates is a pass.
+4. Run the three commands under Quick commands, in order. A dry run that says `aborting upload due to dry run` for all three crates is a pass.
 
 
 After the upload
 ----------------
 
-A stranger installs the English game with:
+A stranger installs the game with:
 
     cargo install nihilurk
 
-and another language by naming its feature:
-
-    cargo install nihilurk --no-default-features --features lang-pt
-
-That installs one binary, `nihilurk`, in one language, into `~/.cargo/bin`. A stranger whose shell lacks that directory on `PATH` gets "command not found", so the README's install steps carries the fix; keep it there when you edit the install lines.
-
-The forwarder that picks a language from `$LANG` (`nihilurk-dispatch`) is behind the `dispatch` feature and is not installed, because it execs a `nihilurk-<lang>` next to itself and an install from crates.io has none. `release/package.sh` and `aur/PKGBUILD` ask for it by name. `--no-default-features` is not optional for a second language: leaving it off builds English and the requested language together, and `strings` then fails to compile.
+That installs one binary, `nihilurk`, into `~/.cargo/bin`. A stranger whose shell lacks that directory on `PATH` gets "command not found", so the README's install steps carries the fix; keep it there when you edit the install lines.
 
 Check the install once, in a scratch directory, before you announce anything:
 
@@ -99,4 +90,3 @@ See also
     ../explanation/adr-0002-two-names-per-crate.md     why the names differ from the directories
     ../reference/cli-and-env.md                        the flags of the installed binary
     ../../engine/tests/workspace.rs                    the tests that guard the manifests
-    ../../aur/PKGBUILD                                 the other way a release gets installed

@@ -21,13 +21,12 @@
 //! to fill the gap — the map is the same size mid-shake as it is at rest.
 //!
 //! The arithmetic — which way the map is thrown on a given frame, and how far —
-//! is [`particle_core::shake_offset`], for the same reason the rest of the
-//! effect layer's timing lives there: it is pure, it allocates nothing, and
-//! `compat/` compiles it for a microcontroller on every run.
+//! is [`crate::particle_core::shake_offset`], for the same reason the rest of the
+//! effect layer's timing lives there: it is pure and it allocates nothing.
 
 use bevy_ecs::prelude::*;
 
-use particle_core as core_math;
+use crate::particle_core as core_math;
 
 use crate::constants::shake::{
     HEAVY_AMPLITUDE, HEAVY_MS, HIT_AMPLITUDE, HIT_MS, KILL_AMPLITUDE, KILL_MS, WOUNDED_AMPLITUDE,

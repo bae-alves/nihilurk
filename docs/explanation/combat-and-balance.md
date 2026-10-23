@@ -4,9 +4,8 @@ Why monsters are so fragile
     Audience       Anyone choosing numbers for a new monster or a new
                    piece of gear and wondering what "good" looks like.
     Prerequisites  None. Helps to have read a bestiary row.
-    This is        Understanding, not instructions. For the numbers
-                   themselves see `../reference/content-tables.md`; for
-                   the act of adding a row, `../how-to/add-a-monster.md`.
+    This is        Understanding, not instructions. For the act of
+                   adding a row, see `../how-to/add-a-monster.md`.
 
 A kestral has three hit points. That is not a placeholder.
 
@@ -101,7 +100,6 @@ The doc comment on `BESTIARY` in `models/src/monsters.rs` also keeps each Rogue 
 See also
 --------
 
-  ../reference/content-tables.md   the fields, the enchantment odds
   ../reference/constants.md        every balance knob and where it lives
   ../how-to/add-a-monster.md       putting a row in
   data-driven-content.md           why a creature is a row at all

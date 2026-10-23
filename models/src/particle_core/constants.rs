@@ -2,11 +2,11 @@
 //!
 //! These are presentation timings, not balance: they set how an effect *feels*.
 //! `models/src/constants.rs` holds the numbers that balance the game; this file
-//! holds the two clocks and the one table that the functions in this crate read.
+//! holds the two clocks and the one table that the functions in `particle_core.rs` read.
 //!
-//! [`RIPPLE_MS_PER_TILE`] and [`SHAKE_STEP_MS`] are re-exported from the crate
-//! root, so `particle_core::RIPPLE_MS_PER_TILE` keeps resolving. Change the value
-//! here; nothing else needs to move unless a doc comment below says so.
+//! [`RIPPLE_MS_PER_TILE`] and [`SHAKE_STEP_MS`] are re-exported from
+//! `particle_core`. Change the value here; nothing else needs to move unless a
+//! doc comment below says so.
 
 /// How long an explosion's ripple takes to cross one tile of radius.
 ///

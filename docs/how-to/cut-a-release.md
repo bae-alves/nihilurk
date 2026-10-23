@@ -4,11 +4,11 @@ How to cut a release
     Audience       The maintainer.
     Prerequisites  A clean `master` with green CI, and crates.io
                    Trusted Publishing set up once for each of the
-                   four crates (see "Before the first automated
+                   three crates (see "Before the first automated
                    release").
     Result         A new version on GitHub, with archives for two
                    Linux machines, Windows and Apple Silicon Macs,
-                   and on crates.io, as four crates.
+                   and on crates.io, as three crates.
                    One command and one push.
 
 A release is `release/bump.lua` and a tag. The script edits the files, runs the checks and tags the commit. CI does the publishing when the tag is pushed. The push is the one step that cannot be taken back, and the script never does it for you.
@@ -48,16 +48,15 @@ What the script does
 
 It refuses, and edits nothing, if the working tree has uncommitted changes, if you are not on `master`, if the tag already exists, if the new version is not greater than the current one, or if `SAVE_VERSION` changed since the last tag and the new version keeps the same major and minor. Then it edits:
 
-    the four published crates     `version`, and every `path` pin on
+    the three published crates    `version`, and every `path` pin on
                                   a dependency line
     doc/nihilurk.6                the version and date in the `.TH` line
-    aur/PKGBUILD                  `pkgver`, and `pkgrel` back to 1
     README.md                     the four download links and the
                                   version in the line above them
 
-All four crates move to the same number, so there is one version to think about. `engine/tests/workspace.rs` fails if one crate or one pin falls behind. `compat/` is a test rig and is left alone.
+All three crates move to the same number, so there is one version to think about. `engine/tests/workspace.rs` fails if one crate or one pin falls behind.
 
-Then, unless `--no-cargo`: `cargo update --workspace` refreshes `Cargo.lock` (it touches only the four workspace lines, no dependency moves), `cargo test --locked` runs the suite (the compat rig left out), and `cargo publish --workspace --dry-run` proves all four packages build. If a step fails, the edits stay in the working tree and `git checkout .` puts them back. When they pass, it commits `Release vX.Y.Z` and tags it.
+Then, unless `--no-cargo`: `cargo update --workspace` refreshes `Cargo.lock` (it touches only the three workspace lines, no dependency moves), `cargo test --locked` runs the suite, and `cargo publish --workspace --dry-run` proves all four packages build. If a step fails, the edits stay in the working tree and `git checkout .` puts them back. When they pass, it commits `Release vX.Y.Z` and tags it.
 
 `release/bump_test.lua` runs the script in a throwaway repository. Run it with `lua release/bump_test.lua` after you change the script.
 
@@ -72,7 +71,7 @@ Pushing the tag starts `.github/workflows/release.yml`:
   build        One runner per machine. Builds, unpacks and plays
                each tarball.
   publish      Creates the GitHub release with the tarballs.
-  crates-io    Publishes the four crates, in dependency order. It
+  crates-io    Publishes the three crates, in dependency order. It
                skips any version crates.io already has, so a
                failed run can be run again.
 
@@ -84,14 +83,14 @@ Pushing the tag starts `.github/workflows/release.yml`:
 Before the first automated release
 ----------------------------------
 
-Do this once. It is the one part CI cannot do for you. For each of `nihilurk`, `nihilurk-models`, `nihilurk-strings` and `nihilurk-particle-core`, open the crate's settings on crates.io and add a trusted publisher with:
+Do this once. It is the one part CI cannot do for you. For each of `nihilurk`, `nihilurk-models` and `nihilurk-strings`, open the crate's settings on crates.io and add a trusted publisher with:
 
     GitHub user         bae-alves
     Repository          nihilurk
     Workflow filename   release.yml
     Environment         (leave empty)
 
-A crate has to exist before it can have a trusted publisher. All four do.
+A crate has to exist before it can have a trusted publisher. All three do.
 
 To check the setup without releasing anything, rehearse it:
 
@@ -130,9 +129,8 @@ The manual versions of these steps are in `publish-to-crates-io.md` and `publish
 Adding another place to publish
 -------------------------------
 
-Each place is one job in `release.yml`. Give it `needs: build` (or `needs: publish` if it uses the GitHub release), keep its credentials in repository secrets, and gate it on a repository variable such as `vars.AUR_ENABLED == 'true'` until the account behind it exists. A new job does not change the script, because the script only edits files and tags.
+Each place is one job in `release.yml`. Give it `needs: build` (or `needs: publish` if it uses the GitHub release), keep its credentials in repository secrets, and gate it on a repository variable until the account behind it exists. A new job does not change the script, because the script only edits files and tags.
 
-The AUR package is not published by CI yet. The script bumps `pkgver`, and the repo's PKGBUILD carries `SKIP` for the sha. Until an AUR job exists, publishing there is a hand step after the tag: see "Updating the AUR package" in `publish-a-github-release.md`.
 
 
 See also

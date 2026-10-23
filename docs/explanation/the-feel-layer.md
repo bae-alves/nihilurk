@@ -5,8 +5,7 @@ The feel layer
                    look like, or wondering why a wand of striking gets a
                    white flash and a wand of drain life gets a magenta
                    one.
-    Prerequisites  None. `../reference/content-tables.md` if you want to
-                   know which row produced the thing being described.
+    Prerequisites  None.
     This is        Understanding: what nihilurk spends its cosmetics on, and
                    what each one is trying to tell the player. The dry
                    facts — which row, which field — are the reference.
@@ -114,9 +113,8 @@ The rule: **assert game rules, not their presentation.** A test earns its place 
 
 One rule on this side of the line does clear that bar, and it is the exception worth knowing: `log_panel` holds the log's `--MORE--` prompt back until the effect layer is empty, because `play_particles` reads any keypress as "skip" and a prompt asking for Space mid-animation asks for exactly that key. A trick shot's blast is queued behind the missile's flight, so the key eats the explosion and leaves the flight looking fine — the player is cheated of the thing they lined the shot up for, and the frame it happens in looks perfectly correct, which is the one case playing the game does not catch. Two tests in `view.rs` pin it, on a fixture of two resources.
 
-Two things in the effect layer keep their tests, and the exceptions are worth knowing because they are not about feel:
+One thing in the effect layer keeps its test, and the exception is worth knowing because it is not about feel:
 
-  * `particle-core`'s own tests, including `tests/parity.rs`. That crate is `no_std`, and `f32::ceil` has two implementations — the hosted intrinsic and a hand-rolled branch. If those disagree, a `no_std` build animates differently from the game. `parity.rs` runs both branches under `cargo test`.
   * `models/tests/it/determinism.rs`, which cares about the effect layer only to prove it stays out of the way — that cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
 
 Neither is testing how anything looks.
@@ -125,7 +123,6 @@ Neither is testing how anything looks.
 See also
 --------
 
-  ../reference/content-tables.md  which row produces each of these
   ../reference/rendering.md       the layers, and the three playback loops
   ../reference/components.md      the shake table, and what arms each kind
   ../how-to/add-an-effect.md      adding a property, and giving it a look

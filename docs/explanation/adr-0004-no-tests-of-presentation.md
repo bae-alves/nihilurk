@@ -29,11 +29,10 @@ Decision
 
 A test earns its place if it pins something a player could be cheated by: damage arithmetic, what a seed generates, what survives a save, what a menu offers. If the worst case of it being wrong is "that looked a bit off", it belongs in a playtest.
 
-Three things keep tests, because they are not about feel:
+Two things keep tests, because they are not about feel:
 
   1. **The `--MORE--` gate.** `log_panel` holds the prompt back until the effect layer is empty, because `play_particles` reads any keypress as "skip". A trick shot's blast is queued behind the missile's flight, so the key would eat the explosion and leave the flight looking fine. The player is cheated of the shot they lined up, and the frame it happens in looks correct, which is the one case playing does not catch. Two tests in `view.rs` pin it, on a fixture of two resources.
-  2. **`particle-core`.** It is `no_std`, and `f32::ceil` has two implementations. If they disagree, a `no_std` build animates differently from the game. `tests/parity.rs` runs both under `cargo test`.
-  3. **`models/tests/it/determinism.rs`.** It proves cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
+  2. **`models/tests/it/determinism.rs`.** It proves cosmetic randomness comes off `FxRng` and never perturbs `GameRng`.
 
 
 Consequences
@@ -64,4 +63,3 @@ See also
 
   the-feel-layer.md                    the layer this covers
   ../reference/rendering.md            the frame, and the order it is drawn in
-  ../../particle-core/tests/parity.rs  the `no_std` parity test this keeps

@@ -21,8 +21,6 @@ To build the game, run the tests and send a patch:
   `engine/Cargo.toml`.
 - bash, and Lua 5.4 or newer with `lua` on your PATH. The scripts and hooks are
   bash and Lua.
-- The usual Unix tools (`grep`, `sed`, `awk`, `find`, `sort`, `xargs`), which
-  `docs_style.sh` uses.
 - A terminal, and a network connection for the first build, which downloads
   the crates.
 - Linux. The game also runs on Windows (a tester built and played it), but the
@@ -31,15 +29,13 @@ To build the game, run the tests and send a patch:
 
 Only for some jobs:
 
-- Portability work (`compat/`, `particle-core/`): Docker and `cross`. See
-  `docs/how-to/run-the-compat-pipeline.md`.
 - Changing a workflow under `.github/`: `actionlint`.
 - Claude Code users: `npx`, for the `/codebase-architecture` command only.
 - Playing the game from a script (`.claude/skills/play-nihilurk`): `script`, from util-linux, which Linux has. See `docs/how-to/play-through-a-pty.md`.
 - Cutting a release, which is the maintainer's job: `gh` to watch CI. Lua
   runs `release/bump.lua`, and CI publishes, so no crates.io token lives on
   your machine. The local checks need a little more: the musl targets for
-  `release/test_package.sh`, and `cargo`, `git`, `curl` and `sha256sum` for `aur_check.sh` (not `makepkg`).
+  `release/test_package.sh`.
   See `docs/how-to/cut-a-release.md`.
 
 In Claude Code, `/prepare-for-nihilurk` checks your machine against this list
@@ -63,7 +59,7 @@ refused before it leaves your machine.
 Comments
 --------
 
-In `engine`, `models` and `particle-core`, a comment goes above the thing it
+In `engine` and `models`, a comment goes above the thing it
 describes and never inside a function body. These stay: doc comments, a note
 over a signature, a file header, a note on its own line directly above a
 closure, and the notes over a catalog table (`BESTIARY` and its kin) that say
@@ -116,52 +112,7 @@ practical perspective, rooted in material reality, to the AI stigma there.
 Translations
 ------------
 
-Localization has to be made by humans, because LLMs do not have a culture.
-More than translation, the game text is part of the game's feel, and it is the
-only part of the game that bae considers art. Machine translation, LLM text
-included, is fine as a starter or a placeholder, and only as that. A starter
-is where you begin. Put your heart into the rest. Localization requires heart.
-
-nihilurk ships in four languages -- English, Portuguese, Spanish, Haitian
-Creole -- one binary per language, picked at build time (see
-`strings/src/lib.rs`). English is the reference translation. The other three
-are beta: they compile and run correctly today because `strings/src/pt.rs`,
-`es.rs` and `ht.rs` each re-export English wholesale, function by function,
-until someone translates that function for real. A beta binary shows a notice
-saying so on startup.
-
-Of those three, only Portuguese is done by a native speaker (the maintainer
-is Brazilian). Spanish and Haitian Creole were started with machine
-translation, because bae only speaks English and Portuguese. No native
-speaker has checked them, and they need review as much as they need
-finishing. Roguelikes have shipped in English-only for decades, but this one
-should not have to.
-
-So this is a plea. Spanish and Haitian Creole need you. Machine translation
-got them started, nobody who speaks either one natively has checked a word of
-them, and bae cannot do it alone. If you speak Spanish or Haitian Creole,
-please open `strings/src/es.rs` or `strings/src/ht.rs` and fix one sentence.
-One is enough. Read the English line, think about how it sounds in your own
-mouth, and write that. Send it as a pull request, or open an issue and say you
-are coming. You will have bae's gratitude, and so will every player who
-finally sees their own language down in the dungeon.
-
-Found an English sentence where a translation should be? Open an issue, or
-send a PR: pick a function in `strings/src/en.rs`, translate it, and add the
-translated version to the matching language file (overriding the `pub use
-super::en::*` re-export for that one function -- see the comment at the top
-of `strings/src/pt.rs` for the exact shape). Once every function in a
-language file has a real translation, delete that language's `Some(...)` arm
-in `beta_notice()` (`strings/src/lib.rs`) in the same PR -- a language stops
-being beta the day it earns it, not before.
-
-One known rough edge, flagged in a code comment where it lives, that a
-translation can't paper over and nobody has designed around yet:
-
-- `models/src/identify.rs`: articles and pluralization ("a dagger", "7
-  arrows") are English grammar rules, hardcoded. Portuguese and Spanish need
-  gender agreement; none of the three need "-s" for a plural in the general
-  case. This needs real design, not just new strings.
-
-That's out of scope for a translation PR. If you want to take it on, say so
-in an issue first -- it's a small data-model change, not a string edit.
+This repository is English only. A translation is a fork that replaces
+`strings/src/en.rs`; every sentence the player reads goes through the
+`strings` crate, so nothing else needs to change. bae keeps those forks
+separately. Translation PRs are not taken here.

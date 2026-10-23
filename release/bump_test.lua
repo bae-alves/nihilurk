@@ -1,7 +1,7 @@
 -- lua release/bump_test.lua
 --
 -- Runs release/bump.lua inside a throwaway git repo shaped like this one: a
--- small workspace, a man page, a PKGBUILD. `--no-cargo` skips the cargo steps
+-- small workspace, a man page. `--no-cargo` skips the cargo steps
 -- (lock refresh, tests, publish dry run) so the test needs no toolchain, and
 -- still commits and tags, so the whole local flow is covered.
 
@@ -37,8 +37,7 @@ end
 -- yet, a pin sits on a `path` line, and there are lines that look like a
 -- version without being one (`rust-version`, third-party `version = "1"`).
 local function fixture()
-  write("Cargo.toml", '[workspace]\nresolver = "3"\nmembers = [\n    "compat",\n    "engine",\n    "models",\n    "particle-core",\n    "strings"\n]\n')
-  write("compat/Cargo.toml", '[package]\nname = "nihilurk-compat"\nversion = "0.1.0"\npublish = false\n')
+  write("Cargo.toml", '[workspace]\nresolver = "3"\nmembers = [\n    "engine",\n    "models",\n    "strings"\n]\n')
   write("engine/Cargo.toml", [[
 [package]
 name = "nihilurk"
@@ -46,7 +45,7 @@ version = "0.1.2"
 rust-version = "1.91"
 
 [dependencies]
-models = { package = "nihilurk-models", path = "../models", version = "0.1.2", default-features = false }
+models = { package = "nihilurk-models", path = "../models", version = "0.1.2" }
 strings = { package = "nihilurk-strings", path = "../strings", version = "0.1.0", default-features = false }
 crossterm = "0.29.0"
 ]])
@@ -58,16 +57,13 @@ rust-version = "1.91"
 
 [dependencies]
 strings = { package = "nihilurk-strings", path = "../strings", version = "0.1.0", default-features = false }
-particle-core = { package = "nihilurk-particle-core", path = "../particle-core", version = "0.1.0", features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 syn = { version = "2", features = ["full"] }
 ]])
-  write("strings/Cargo.toml", '[package]\nname = "nihilurk-strings"\nversion = "0.1.0"\nrust-version = "1.85"\n')
-  write("particle-core/Cargo.toml", '[package]\nname = "nihilurk-particle-core"\nversion = "0.1.0"\nrust-version = "1.85"\nstd = "x"')
+  write("strings/Cargo.toml", '[package]\nname = "nihilurk-strings"\nversion = "0.1.0"\nrust-version = "1.85"')
   write("doc/nihilurk.6", '.TH NIHILURK 6 "October 2026" "nihilurk 0.1.0" "Games"\n.SH NAME\nnihilurk 0.1.2 is not a header\n')
-  write("aur/PKGBUILD", "pkgname=nihilurk\npkgver=0.1.2\npkgrel=3\nsha256sums=('abc')\n")
   write("README.md", [[
 Download a prebuilt game (v0.1.2), no Rust needed:
 
@@ -100,21 +96,15 @@ assert(has(engine, 'rust-version = "1.91"'), "rust-version must not move")
 assert(has(engine, 'crossterm = "0.29.0"'), "a third-party dependency must not move")
 local models = read("models/Cargo.toml")
 assert(has(models, '\nversion = "0.1.3"\n'), "models version")
-assert(has(models, 'path = "../particle-core", version = "0.1.3"'), "models' particle-core pin")
 assert(has(models, 'serde = { version = "1"'), "third-party version = 1 must not move")
 assert(has(models, 'syn = { version = "2"'), "third-party version = 2 must not move")
 assert(has(read("strings/Cargo.toml"), '\nversion = "0.1.3"\n'), "strings joins lockstep")
-assert(has(read("particle-core/Cargo.toml"), '\nversion = "0.1.3"\n'), "particle-core joins lockstep")
-assert(read("particle-core/Cargo.toml"):sub(-1) == '"', "a file with no final newline must not gain one")
-assert(has(read("compat/Cargo.toml"), 'version = "0.1.0"'), "the test rig is not published and stays put")
+assert(read("strings/Cargo.toml"):sub(-1) == '"', "a file with no final newline must not gain one")
 
--- 2. The man page header and the PKGBUILD follow.
+-- 2. The man page header follows.
 local man = read("doc/nihilurk.6")
 assert(has(man, '.TH NIHILURK 6 "' .. os.date("%B %Y") .. '" "nihilurk 0.1.3" "Games"'), "man header: " .. man)
 assert(has(man, "nihilurk 0.1.2 is not a header"), "only the .TH line changes")
-local pkg = read("aur/PKGBUILD")
-assert(has(pkg, "pkgver=0.1.3\n") and has(pkg, "pkgrel=1\n"), "pkgver bumped, pkgrel reset")
-assert(has(pkg, "sha256sums=('abc')"), "the sha is not this script's job")
 
 -- 2b. The README download links move to the new tag and file names, and the
 --    version in the heading line follows. A plain mention of the old version

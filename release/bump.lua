@@ -3,8 +3,8 @@
 --   lua release/bump.lua <X.Y.Z | patch | minor | major> [--no-cargo] [--dry-run]
 --
 -- All four published crates move to one version (lockstep), and every `path`
--- dependency pin moves with them. The man page header, the PKGBUILD's
--- pkgver and the README's download links follow. Then, unless --no-cargo: Cargo.lock is refreshed, the tests
+-- dependency pin moves with them. The man page header and the
+-- README's download links follow. Then, unless --no-cargo: Cargo.lock is refreshed, the tests
 -- run, and a publish dry run proves the packages build. Then it commits
 -- `Release vX.Y.Z` and tags it.
 --
@@ -163,13 +163,6 @@ local function man_page(text)
   return count_one(out, n)
 end
 
-local function pkgbuild(text)
-  local out, n = text:gsub("(\npkgver=)[^\n]*", "%1" .. version)
-  count_one(out, n)
-  out, n = out:gsub("(\npkgrel=)[^\n]*", "%11")
-  return count_one(out, n)
-end
-
 -- The download links and the "(vX.Y.Z)" in the line above them. A link that
 -- stays behind would send a reader to the old release, so a README with
 -- neither is an error and not a quiet no-op.
@@ -187,7 +180,6 @@ for _, dir in ipairs(crates) do
   edits[#edits + 1] = { dir .. "/Cargo.toml", crate_manifest }
 end
 edits[#edits + 1] = { "doc/nihilurk.6", man_page }
-edits[#edits + 1] = { "aur/PKGBUILD", pkgbuild }
 edits[#edits + 1] = { "README.md", readme }
 
 local changed = {}
@@ -225,7 +217,7 @@ for _, c in ipairs(changed) do write(c[1], c[3]) end
 if not no_cargo then
   local steps = {
     "cargo update --workspace",
-    "cargo test --locked --workspace --exclude nihilurk-compat",
+    "cargo test --locked --workspace",
     "cargo publish --workspace --dry-run --allow-dirty",
   }
   for _, step in ipairs(steps) do

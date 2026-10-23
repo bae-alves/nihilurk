@@ -26,7 +26,7 @@ To try the packaging on your own machine before you tag, without CI:
 
     release/test_package.sh x86_64-unknown-linux-musl
 
-It builds all four languages with fat LTO, so it takes a few minutes, then unpacks the tarball and runs it.
+It builds with fat LTO, so it takes a few minutes, then unpacks the tarball and runs it.
 
 
 What the workflow does
@@ -41,7 +41,7 @@ Four jobs. `check` runs first, then `build`, then `publish` and `crates-io` side
             Uploads the tarball and its `.sha256`.
   publish   Collects every tarball and creates the release with
             generated notes.
-  crates-io Publishes the four crates to crates.io, skipping any
+  crates-io Publishes the three crates to crates.io, skipping any
             version already there. See `cut-a-release.md`.
 
 The targets:
@@ -55,48 +55,29 @@ The runner images are named, not `ubuntu-latest`. GitHub moves that label from o
 
 The workflows use `actions/*@v4`. They run on a forced Node 24 and print a deprecation note. They are not bumped, because only a tag exercises the release workflow, and a bump there would go untested until the release it breaks.
 
-Windows gets a `.zip` of `.exe` files and the other targets a `.tar.gz`. `release/package.sh` and `release/test_package.sh` run in bash on all three systems, and the workflow names `shell: bash` because Windows would otherwise run a `.sh` file in PowerShell and report success. Windows has no `LANG`, so the dispatcher starts English there; `nihilurk --lang pt` picks another language. A macOS download from a browser is quarantined by Gatekeeper, since the binaries are not signed: `xattr -d com.apple.quarantine nihilurk*` clears it.
+Windows gets a `.zip` of `.exe` files and the other targets a `.tar.gz`. `release/package.sh` and `release/test_package.sh` run in bash on all three systems, and the workflow names `shell: bash` because Windows would otherwise run a `.sh` file in PowerShell and report success. A macOS download from a browser is quarantined by Gatekeeper, since the binaries are not signed: `xattr -d com.apple.quarantine nihilurk*` clears it.
 
-The Linux builds are musl, so each is one static file with no glibc to match. `../explanation/cross-platform-testing.md` says why that is a promise and not a preference.
+The Linux builds are musl, so each is one static file with no glibc to match.
 
 
 What is in an archive
 ---------------------
 
     nihilurk-<version>-<target>/
-        nihilurk          the dispatcher; picks a language from $LANG
-        nihilurk-en       the English game
-        nihilurk-pt       Portuguese (beta)
-        nihilurk-es       Spanish (beta)
-        nihilurk-ht       Haitian Creole (beta)
+        nihilurk          the game
         nihilurk.6        the man page
         MANUAL.md
         LICENSE
 
-The five binaries must stay in one directory. The dispatcher looks for `nihilurk-<lang>` next to itself and exits if it is not there. A user can put the directory anywhere, or `install` the files into `/usr/local/bin`.
+A user can put the directory anywhere, or `install` the files into `/usr/local/bin`.
 
 
 What CI shows
 -------------
 
-Every tarball is unpacked and run by CI on the machine that built it: the dispatcher has to start all four language binaries, and the four have to differ. That proves each binary launches and that the packaging is right. It is not a playtest.
+Every tarball is unpacked and run by CI on the machine that built it: the binary has to start. That proves it launches and that the packaging is right. It is not a playtest.
 
 Adding a target is one line in the `matrix` of `release.yml`. Windows was played by a person before it went in. The macOS build has not been played yet: CI is all it has.
-
-Updating the AUR package
-------------------------
-
-`aur/PKGBUILD` is bumped with everything else. `release/bump.lua` sets `pkgver` in the release commit, so the PKGBUILD names the tag that commit gets, and `aur_check.sh` builds that tag with the PKGBUILD as written.
-
-The repo copy carries `sha256sums=('SKIP')`. A real sha exists only once the tag does, and it would be stale from then on. The copy that goes to the AUR needs the real one, and `aur_check.sh` does not compare it.
-
-CI does not publish to the AUR yet, so until it does that is a hand step after the tag exists. Work on a copy, and never commit the result:
-
-    cp -r aur /tmp/aur-publish && cd /tmp/aur-publish
-    updpkgsums                     writes the real sha256sums
-    makepkg --printsrcinfo > .SRCINFO
-
-then push `PKGBUILD` and `.SRCINFO` to the AUR repository. Run `./aur_check.sh` in the repository first: both trees must be green.
 
 When it goes wrong
 ------------------
@@ -128,8 +109,6 @@ See also
 --------
 
     publish-to-crates-io.md                    the other half of a release
-    ../../aur_check.sh                         builds the PKGBUILD's pinned tag and this tree
-    ../explanation/cross-platform-testing.md   why the Linux builds are musl
     ../../release/package.sh                   the build, one target
     ../../release/test_package.sh              the check on that build
     ../../.github/workflows/release.yml        the workflow itself

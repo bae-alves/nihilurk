@@ -88,7 +88,7 @@ Potions, scrolls, wands and rings tell you exactly what they are on sight — no
 
 You start the run already equipped: armor worn, a weapon in hand, and in the pack a bow with arrows and a single potion, the armor, weapon and bow all +1.
 
-Drops follow Rogue's own category odds, with coins and treats standing in for food. The shares below are rounded, `docs/reference/content-tables.md` carries the exact weights:
+Drops follow Rogue's own category odds, with coins and treats standing in for food. The shares below are rounded; `DROPS` in `models/src/spawn.rs` has the exact weights:
 
 - Scrolls, about 27%.
 - Runes, about 5%, from depth 3. Not used up when read, and they wake each time you take the stairs.
@@ -145,7 +145,6 @@ This game is made for terminal screens and is styled like the original Rogue, wi
 ### Technical Description
 This is a game made to run on most shells and devices that run shells. It uses keyboard controls though, that might limit the hardware scope. It is made using bevy_ecs and crossterm on rust for unnecesarily peak performance.
 
-The particle arithmetic is portable and lives in a reusable effects crate, `particle-core`: `no_std`, no dependencies, so it's likely to run on a potato if you try hard enough.
 
 Content is data. Every monster, item and trap is a row in a table, and the dungeon decides what turns up by drawing from those tables with a weight and a debut depth, so adding a thing is usually adding a line. `docs/` covers how: a tutorial, a recipe per kind of content, a reference for every field, and the reasoning behind the shape. This document is the design; `docs/` is the code.
 
@@ -153,10 +152,7 @@ Content is data. Every monster, item and trap is a row in a table, and the dunge
 The developer. Seriously. I made this game because I want to play it.
 
 ### Platforms and Monetization
-Free and open source. It installs from crates.io, ships as prebuilt tarballs and a Windows zip and has an AUR package. Linux is where it is played, Windows has been built and played by a tester, and macOS builds and passes its tests. There is a Ko-Fi link for anyone who wants to buy me a coffee.
-
-### Localization
-English, Portuguese, Spanish and Haitian Creole, one binary each. A classic roguelike in non-English is important to exist.
+Free and open source. It installs from crates.io, ships as prebuilt tarballs and a Windows zip. Linux is where it is played, Windows has been built and played by a tester, and macOS builds and passes its tests. There is a Ko-Fi link for anyone who wants to buy me a coffee.
 
 ### APPENDIX N - Instruction and Inspiration
 This is a list of everything I took instruction and inspiration from when designing nihilurk and its codebase.
@@ -175,7 +171,7 @@ This is a list of everything I took instruction and inspiration from when design
 - Dwarf Fortress
 - XCOM
 - The Nier series
-- Dicing Knight. from Platinum Dispositif
+- Dicing Knight. from PlatineDispositif
 - The Souls games made by From Software
 - Darkest Dungeon
 - Nuclear Throne

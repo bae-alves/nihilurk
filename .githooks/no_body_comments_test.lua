@@ -2,8 +2,7 @@
 --
 -- no_body_comments.lua finds comments inside function bodies. Comments above
 -- an item, in a signature, or on their own line above a closure are not body
--- comments. It reads the staged blob, and only in engine, models and
--- particle-core.
+-- comments. It reads the staged blob, and only in engine and models.
 
 local here = (arg[0]:match("^(.*)/[^/]*$")) or "."
 local root = io.popen("cd '" .. here .. "' && pwd"):read("l")
@@ -134,9 +133,9 @@ end
 local BAD = "fn a() {\n    // why\n    let x = 1;\n}\n"
 local GOOD = "// why\nfn a() {\n    let x = 1;\n}\n"
 
--- A body comment in a staged file of each of the three crates is refused,
+-- A body comment in a staged file of each of the two crates is refused,
 -- with the file and line named.
-for _, path in ipairs({ "engine/src/a.rs", "models/src/a.rs", "particle-core/src/a.rs" }) do
+for _, path in ipairs({ "engine/src/a.rs", "models/src/a.rs" }) do
     stage(path, BAD)
     local out, code = check()
     assert(code == 1, path .. " should refuse, got " .. tostring(code))

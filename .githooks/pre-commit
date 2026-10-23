@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 #
-# Checks 1-3 are all about the same failure: a doc that quietly stops being
-# true. See docs/explanation/documentation-style.md -- this hook exists
-# because the schedule step count and the intent queue count once went stale
-# in three files at once, with nothing that would have caught it. Check 4 is
-# the same failure in code: a language binary that quietly stops building.
+# No Python, no comments in function bodies, and English placeholder tags.
 #
 # Not run automatically -- git does not trust a repo-tracked hooks directory
 # by default. Enable it once per clone:
@@ -20,7 +16,7 @@ staged() { git diff --cached --name-only --diff-filter=ACM; }
 # cheapest check and the one with no way to be argued with.
 lua .githooks/no_python.lua || exit 1
 
-# 0b. No comments inside function bodies in engine, models or particle-core.
+# 0b. No comments inside function bodies in engine or models.
 # A note goes above the function, or on its own line above a closure.
 lua .githooks/no_body_comments.lua || exit 1
 
@@ -32,99 +28,12 @@ if staged | grep -qE '^\.githooks/no_body_comments(_test)?\.lua$'; then
     }
 fi
 
-# 1. The house documentation lint, whenever a page under docs/ is staged.
-if staged | grep -q '^docs/'; then
-    ./docs_style.sh || {
-        echo "pre-commit: docs_style.sh failed -- see above." >&2
-        exit 1
-    }
-fi
-
-# 2. The schedule (models/src/schedule.rs) and the intent queues
-# (models/src/components.rs) are exactly the two seams that drifted -- three
-# files stale on the step count, one wrong on the queue count. Matching on
-# the whole file would fire on every unrelated edit to either one (components.rs is
-# over 1000 lines), so this greps the staged *diff* for
-# the actual markers: a step gaining, losing or reordering an `.after()` edge,
-# or a queue struct being added or removed.
-schedule_diff() { git diff --cached -U0 -- models/src/schedule.rs; }
-queue_diff()    { git diff --cached -U0 -- models/src/components.rs; }
-
-touched_schedule=false
-schedule_diff | grep -qE '^[+-].*\.after\(' && touched_schedule=true
-
-touched_queues=false
-queue_diff | grep -qE '^[+-]pub struct (AttackQueue|UseQueue|ThrowQueue|SpellQueue)\b' && touched_queues=true
-
-if ( $touched_schedule || $touched_queues ) && ! staged | grep -q '^docs/'; then
-    echo "pre-commit: this commit changes the turn schedule or an intent queue," >&2
-    echo "  but no page under docs/. If the docs already say this (a comment-only" >&2
-    echo "  or ordering-preserving change), commit with --no-verify. Otherwise:" >&2
-    echo "  docs/explanation/ecs-in-nihilurk.md, docs/how-to/work-with-the-ecs.md," >&2
-    echo "  docs/reference/input-and-turn-loop.md and docs/reference/components.md" >&2
-    echo "  are the pages that name the step count and the queue count." >&2
-    exit 1
-fi
-
-# 3. content-tables.md's DROPS weights against the real models::spawn::DROPS.
-# This one isn't a "did you remember" heuristic like the two above -- it's a
-# real equality check (models/tests/content_docs.rs), so there's no false
-# positive to guard against by grepping for a narrower diff shape first. Run
-# it whenever either side of the comparison is staged.
-if staged | grep -qE '^(models/src/spawn\.rs|docs/reference/content-tables\.md)$'; then
-    cargo test -p nihilurk-models --test content_docs --quiet || {
-        echo "pre-commit: models/tests/content_docs.rs failed -- DROPS and" >&2
-        echo "  content-tables.md have drifted apart. See the failure above" >&2
-        echo "  for which side moved." >&2
-        exit 1
-    }
-fi
-
-# 4. Keep pt/es from missing a `strings::` call. `pt.rs` and `es.rs` do not
-# glob-import `en`, so a new call with no pt/es line breaks those two
-# binaries -- and a bare `cargo check` only builds `lang-en`. 24 strings went
-# missing that way before this check existed.
-#
-# Translating is not this commit's job. `stub_missing_translations.lua` fills
-# anything `pt.rs`/`es.rs` hasn't caught up with as an empty,
-# `// TODO: translate.`-marked stub and stages what it touched, so translating
-# stays something people pick up in their own commit. The build of every
-# language runs in CI ("every language still builds" in ci.yml), not here: a
-# stub that does not compile, or a hand-written translation with a mistake,
-# shows up there. To check locally:
-#   cargo check -p nihilurk --no-default-features --features lang-pt
-if staged | grep -qE '^(strings|models|engine|view)/.*\.rs$'; then
-    stub_output="$(lua .githooks/stub_missing_translations.lua)"
-    if [[ -n "$stub_output" ]]; then
-        echo "$stub_output"
-        echo "$stub_output" | grep -E '^strings/src/(pt|es)\.rs$' | xargs -r git add
-    fi
-fi
-
-# 4b. English is placeholder text until a human replaces it. Any `pub fn` or
+# 4. English is placeholder text until a human replaces it. Any `pub fn` or
 # `pub const` that en.rs gained since HEAD is tagged `// TODO: placeholder
 # English` and re-staged, never refused: a human who writes a real sentence
 # deletes the tag in a later commit, and the script leaves HEAD's items alone.
 if staged | grep -qx 'strings/src/en.rs'; then
     lua .githooks/tag_english_placeholders.lua | xargs -r git add
-fi
-
-# 5. A reminder, never a refusal. When the staged code adds a ring, a flag, a
-# key, a constants module or anything else a page lists by hand, name the pages
-# that are not staged too. docs/how-to/update-the-docs.md is the full table.
-# Check 2 above refuses because the schedule and queue counts drifted three
-# files deep; most additions need no page at all, so this one only asks.
-lua .githooks/docs_nudge.lua || true
-
-# The nudge's rules and docs/how-to/update-the-docs.md are two copies of one
-# table. docs_nudge_test.lua refuses a commit that leaves them disagreeing. It
-# builds scratch git repos, so it must not inherit this commit's index.
-if staged | grep -qE '^(docs/how-to/update-the-docs\.md|\.githooks/docs_nudge.*\.lua)$'; then
-    env -u GIT_INDEX_FILE -u GIT_DIR -u GIT_WORK_TREE lua .githooks/docs_nudge_test.lua >/dev/null || {
-        echo "pre-commit: update-the-docs.md and .githooks/docs_nudge_rules.lua disagree --" >&2
-        echo "  run: lua .githooks/docs_nudge_test.lua" >&2
-        exit 1
-    }
 fi
 
 exit 0

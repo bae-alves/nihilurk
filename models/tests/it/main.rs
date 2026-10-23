@@ -12,8 +12,7 @@
 //!
 //! A test that only needs what `models` exports lives here. A test that needs
 //! a private item stays in its module, inline at the bottom, as
-//! `#[cfg(test)] mod tests { ... }`, the same as in `engine` and
-//! `particle-core`. Its scratch files go through `crate::scratch::Scratch`,
+//! `#[cfg(test)] mod tests { ... }`, the same as in `engine`. Its scratch files go through `crate::scratch::Scratch`,
 //! the unit-test twin of `common::SaveFile`.
 
 mod common;

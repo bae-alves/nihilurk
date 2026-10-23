@@ -210,7 +210,7 @@ Then the bookkeeping, in order:
   * **Saving.** Decide what the save stores and what it reads back off the row. Store the row's *name*, never its contents (see `restore_from_catalog`), and add the entity's own mutable state — a trap's `revealed` latch, a wand's charges.
   * **Despawning between floors.** `map::levels::transition_level` clears everything with a `Position` that is not the player, not a `Helper` and not in a backpack. If your kind should survive a staircase, it needs a reason and an exception like the Helper's; if it should not, you have nothing to do.
   * **Drawing.** A `Renderable` gets it on screen, but *when* it draws is a layer in `engine/src/view.rs`'s `render`, and the order matters — a later layer covers an earlier one. See `../reference/rendering.md`.
-  * **Documenting.** A row in `../reference/content-tables.md` for the table and one in `../reference/components.md` for anything new it carries.
+  * **Documenting.** A row in `../reference/components.md` for anything new it carries.
 
 The test that tells you it landed: `cargo run -p nihilurk -- -content` lists it, and `NIHILURK_SPAWN="<name>"` puts one in front of you.
 

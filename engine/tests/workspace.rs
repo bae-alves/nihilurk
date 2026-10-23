@@ -1,26 +1,7 @@
-//! One check on the workspace manifest itself: that a bare `cargo test` still
-//! covers everything that ships.
-//!
-//! `default-members` is a list of what to *include*, and what it is really for
-//! here is excluding one crate: `compat` is a test rig that pulls in ratatui,
-//! which the shipped binary is not allowed to depend on. Written as an
-//! include-list, it only stays correct if whoever adds the next game crate
-//! remembers to add it in two places.
-//!
-//! Nothing would have complained if they didn't. A new crate missing from
-//! `default-members` is not an error — it builds fine, it tests fine when you
-//! name it, and it silently stops being part of `cargo test` at the workspace
-//! root. Two lists that have to agree, and no third thing checking that they
-//! do. This is the third thing.
-//!
-//! Cargo has no `default-exclude`, so the list stays as it is and the intent
-//! is asserted here instead.
+//! One check on the workspace manifest itself: that every crate in the tree is a
+//! member.
 
 use std::path::{Path, PathBuf};
-
-/// The one crate that is deliberately outside a bare `cargo test`. Reaching
-/// it is always explicit: `-p nihilurk-compat` or `compat_test.sh`.
-const RIGS: [&str; 1] = ["compat"];
 
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -46,29 +27,6 @@ fn array(manifest: &str, key: &str) -> Vec<String> {
 }
 
 #[test]
-fn a_bare_cargo_test_covers_every_crate_but_the_rig() {
-    let manifest = std::fs::read_to_string(workspace_root().join("Cargo.toml"))
-        .expect("the workspace manifest is readable");
-    let members = array(&manifest, "members");
-    let default = array(&manifest, "default-members");
-
-    let mut excluded: Vec<&String> = members.iter().filter(|m| !default.contains(m)).collect();
-    excluded.sort();
-    let expected: Vec<&str> = RIGS.to_vec();
-    let excluded: Vec<&str> = excluded.iter().map(|m| m.as_str()).collect();
-
-    assert_eq!(
-        excluded, expected,
-        "`default-members` should exclude exactly the test rig.\n\
-         members:         {members:?}\n\
-         default-members: {default:?}\n\
-         If you added a crate, add it to `default-members` too, or a bare \
-         `cargo test` will quietly stop covering it. If you added a rig, add \
-         its name to RIGS in this test."
-    );
-}
-
-#[test]
 fn every_crate_in_the_tree_is_a_workspace_member() {
     let root = workspace_root();
     let manifest = std::fs::read_to_string(root.join("Cargo.toml"))
@@ -89,42 +47,16 @@ fn every_crate_in_the_tree_is_a_workspace_member() {
     assert!(
         unlisted.is_empty(),
         "crate directories that are not workspace members: {unlisted:?}\n\
-         add them to `members` (and to `default-members` unless they are rigs)"
+         add them to `members`"
     );
 }
 
-#[test]
-fn the_docs_crate_map_names_every_crate() {
-    let root = workspace_root();
-    let manifest = std::fs::read_to_string(root.join("Cargo.toml"))
-        .expect("the workspace manifest is readable");
-    let map =
-        std::fs::read_to_string(root.join("docs/README.md")).expect("docs/README.md is readable");
-    let (_, map) = map
-        .split_once("\nThe crates\n")
-        .expect("docs/README.md has a `The crates` section");
-    let map = map
-        .split_once("\nThe rule that keeps this true")
-        .map_or(map, |s| s.0);
-
-    let missing: Vec<String> = array(&manifest, "members")
-        .into_iter()
-        .filter(|name| !map.contains(&format!("  {name}/")))
-        .collect();
-
-    assert!(
-        missing.is_empty(),
-        "crates missing from the `The crates` map in docs/README.md: {missing:?}"
-    );
-}
-
-/// Every crate that goes to crates.io: the members that are not rigs.
+/// Every crate that goes to crates.io: the members.
 fn published(root: &Path) -> Vec<(String, String)> {
     let manifest = std::fs::read_to_string(root.join("Cargo.toml"))
         .expect("the workspace manifest is readable");
     array(&manifest, "members")
         .into_iter()
-        .filter(|dir| !RIGS.contains(&dir.as_str()))
         .map(|dir| {
             let text = std::fs::read_to_string(root.join(&dir).join("Cargo.toml"))
                 .unwrap_or_else(|_| panic!("{dir}/Cargo.toml is readable"));
@@ -252,33 +184,6 @@ fn every_published_crate_has_what_crates_io_asks_for() {
         missing.is_empty(),
         "not ready for crates.io: {missing:#?}\n\
          see docs/how-to/publish-to-crates-io.md"
-    );
-}
-
-/// `cargo install nihilurk` installs every `[[bin]]` that does not need a
-/// feature. The dispatcher execs a `nihilurk-<lang>` sitting next to it, and
-/// an install from crates.io has no such file, so installed by default it is a
-/// command that only ever errors. It has to sit behind a feature that packaging
-/// asks for by name.
-#[test]
-fn the_dispatcher_is_not_installed_by_default() {
-    let manifest = std::fs::read_to_string(workspace_root().join("engine/Cargo.toml"))
-        .expect("engine/Cargo.toml is readable");
-    let bin = manifest
-        .split("[[bin]]")
-        .find(|b| b.contains("name = \"nihilurk-dispatch\""))
-        .expect("engine declares the nihilurk-dispatch bin");
-    let bin = bin.split("\n[").next().expect("the table has a body");
-
-    assert!(
-        bin.contains("required-features = [\"dispatch\"]"),
-        "nihilurk-dispatch must carry `required-features = [\"dispatch\"]`, or \
-         `cargo install nihilurk` installs a command that cannot work.\n\
-         release/package.sh and aur/PKGBUILD build it with `--features dispatch`."
-    );
-    assert!(
-        !manifest.contains("default = [\"lang-en\", \"dispatch\"]"),
-        "`dispatch` must not be a default feature"
     );
 }
 

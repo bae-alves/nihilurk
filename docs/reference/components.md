@@ -171,7 +171,7 @@ A `Pickup` is a different kind of thing from an item you stow, in three ways tha
 
 * **A full pack is no obstacle.** There is nothing to find room for.
 * **It is left alone when it would do nothing.** Its row's `helps` gates it — a red coin at full health stays on the floor, and `autoexplore::known_item_tiles` skips it so a walk never beelines for something it will refuse. It keeps until the day it helps.
-* **It can be shot** — and the shooter gets the effect across the room, plus a burst twice a trap's width. A shot that stops on a *creature* standing on one counts, and the renderer advertises that with a magenta cell. See `content-tables.md`, "Trick shots".
+* **It can be shot** — and the shooter gets the effect across the room, plus a burst twice a trap's width. A shot that stops on a *creature* standing on one counts, and the renderer advertises that with a magenta cell.
 
 The row's handlers live in `models/src/items/pickups.rs`.
 
@@ -244,7 +244,7 @@ Components — player conditions
 | `Confused`  | marker | player-only stumble (a monster uses `MovementType::Confused`); blocks fast-move / auto-explore / auto-fight; HUD `CONF` | yes |
 | `Blind`     | marker | player-only: viewshed cut to the 3x3, every glyph in it painted white, every mob `Hidden` (so auto-walk and auto-fight stall too). The AI is unaffected — see below. HUD `BLND` | yes |
 | `Paralyzed` | marker | a `PARALYSIS_LOST_TURN_CHANCE` share of turns forfeited outright, tempo untouched: for the player before a key is read (never over an open menu), for a monster in its round (`ai.rs`). A monster carries it for the renderer's tint too, plus a log line of its own if the player can actually see it land (`conditions::paralyse`). HUD `PARL` | yes |
-| `ConfusingTouch` | marker | hands charged by a scroll of monster confusion: the next blow the bearer *lands* confuses what it hits and is spent doing it (an `ABILITIES` row keyed on `Moment::OnHit` — see `content-tables.md`). Not an impairment, and it survives a staircase. HUD `GLOW` | yes |
+| `ConfusingTouch` | marker | hands charged by a scroll of monster confusion: the next blow the bearer *lands* confuses what it hits and is spent doing it (an `ABILITIES` row keyed on `Moment::OnHit`). Not an impairment, and it survives a staircase. HUD `GLOW` | yes |
 | `Plated` | count | the platinum coin's promise: reach the next **staircase** unhurt and it pays a permanent point of attack or defence *die*, the dungeon's coin flip. stacks to 3, one payout per coin, one blow takes all. HUD `PLxN` | yes |
 | `Forged` | count | the forge coin's promise: the same terms, paying a point of *plus* on the wielded weapon, worn armour or a worn ring with a number to it (the Princess of Diamonds' pool), one of the three at random. stacks likewise. HUD `FOxN` | yes |
 | `MagicWard` | marker | the spell Magic Ward: for the rest of the floor, checked in `helpers::apply_hit` (every `Hit` with `magical` set -- zapped, thrown, breathed or cast -- bounces off with a cosmetic ricochet, `wands::ward_ricochet`) and `abilities::fire_on_hit` (nothing a monster's landed blow carries with it takes hold). Lifted like `Confused`/`Blind`/`Paralyzed` above. HUD `WARD` | yes |
@@ -460,7 +460,6 @@ Other run-state resources live outside this file: `Map` (`map.rs`), `GameRng` / 
 See also
 --------
 
-  content-tables.md            the tables that attach these components
   spawn-api.md                 the functions that build entities
   ../how-to/work-with-the-ecs.md  reading and changing these
   ../explanation/ecs-in-nihilurk.md   what each of the three nouns may be

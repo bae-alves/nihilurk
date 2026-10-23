@@ -28,7 +28,6 @@ Start here
 | Add a whole new *kind* of item                 | `how-to/add-an-item-category.md`                |
 | Put a specific thing on a specific tile        | `how-to/spawn-a-thing.md`                       |
 | See a change working in the real game          | `how-to/play-through-a-pty.md`                  |
-| Look up a field, a type, a default             | `reference/content-tables.md`                   |
 | Look up a component, resource, event           | `reference/components.md`                       |
 | Change a balance number                        | `reference/constants.md`                        |
 | Look up a function I have to call              | `reference/spawn-api.md`                        |
@@ -43,11 +42,8 @@ Start here
 | Understand why monsters think in rule sets     | `explanation/agents.md`                         |
 | Know what an effect should look like           | `explanation/the-feel-layer.md`                 |
 | Write or edit a page in here                   | `explanation/documentation-style.md`            |
-| Know which pages to touch after a change       | `how-to/update-the-docs.md`                     |
 | Know what good numbers look like               | `explanation/combat-and-balance.md`             |
 | Know what shape to leave the code in           | `explanation/code-calisthenics.md`              |
-| Check it still runs on a Pi                    | `how-to/run-the-compat-pipeline.md`             |
-| Know how portability is tested                 | `explanation/cross-platform-testing.md`         |
 | Cut a release, one command and a push          | `how-to/cut-a-release.md`                       |
 | Publish a release to crates.io                 | `how-to/publish-to-crates-io.md`                |
 | Publish a GitHub release                       | `how-to/publish-a-github-release.md`            |
@@ -58,7 +54,6 @@ And architecture decision records. They keep the history the other pages leave o
 
     explanation/adr-0001-tables-not-raws.md                  content is compiled in, not loaded from JSON
     explanation/adr-0002-two-names-per-crate.md              package names differ from library names
-    explanation/adr-0003-compat-checks-start-not-speed.md    the matrix checks that it starts, not that it is fast
     explanation/adr-0004-no-tests-of-presentation.md         presentation is checked by playing
     explanation/adr-0005-aim-resolves-before-the-mobs-move.md  a zap and a throw resolve before the mobs move
     explanation/adr-0006-effects-saved-by-id.md              effects are saved by string id
@@ -116,22 +111,18 @@ The game design document (`../gdd.md`) is a third thing again: what nihilurk is 
 The crates
 ----------
 
-The code is a workspace of small libraries and one binary. Pages name files by their path from the repo root, so this is the map. The directory names are the short ones below; the packages are `nihilurk-models`, `nihilurk-strings`, `nihilurk-particle-core` and `nihilurk` (for `engine/`), and `cargo -p` takes those. See `explanation/adr-0002-two-names-per-crate.md`.
+The code is a workspace of small libraries and one binary. Pages name files by their path from the repo root, so this is the map. The directory names are the short ones below; the packages are `nihilurk-models`, `nihilurk-strings` and `nihilurk` (for `engine/`), and `cargo -p` takes those. See `explanation/adr-0002-two-names-per-crate.md`.
 
   models/         The game. Rules, content tables, ECS systems, save
                   files. No input, no drawing. Almost everything in
                   `tutorial/`, `how-to/` and `reference/` lives here.
-  strings/        Every player-facing sentence, one file per language,
-                  chosen by a `lang-*` feature at build time.
-  particle-core/  The particle arithmetic. `no_std`, no dependencies.
+  strings/        Every player-facing sentence, in English. A
+                  translation is a fork that swaps `en.rs`.
   engine/         The binary. Key handling, the turn loop, `Screen`
                   (the cell grid and its diff) and every layer that
-                  paints into it. Also
-                  `nihilurk-dispatch`, which picks a language binary.
-  compat/         A test rig, outside a bare `cargo build` and
-                  `cargo test`. See `how-to/run-the-compat-pipeline.md`.
+                  paints into it.
 
-Dependencies run one way, toward the leaves: `engine` uses `models` and `strings`; `models` uses `strings` and `particle-core`. Nothing depends on `engine`. `models` re-exports its public API from the crate root, so `use models::*;` reaches it. `helpers` is private bar five names (`Hit`, `apply_hit`, `chebyshev`, `mark_moved`, `mob_at`), and so is anything marked `pub(crate)`. A page that names one of those says so.
+Dependencies run one way, toward the leaves: `engine` uses `models` and `strings`; `models` uses `strings`. Nothing depends on `engine`. `models` re-exports its public API from the crate root, so `use models::*;` reaches it. `helpers` is private bar five names (`Hit`, `apply_hit`, `chebyshev`, `mark_moved`, `mob_at`), and so is anything marked `pub(crate)`. A page that names one of those says so.
 
 
 The rule that keeps this true
@@ -151,14 +142,9 @@ Three things make that cheap here:
 Quick sanity check
 ------------------
 
-    ./docs_style.sh                           these pages, house style
     cargo test                                # everything still works
     cargo test --test it content::                 # the tables specifically
     cargo test --test it determinism::             # seeds still mean what they meant
     cargo test -p nihilurk --test workspace     # the root test run still covers everything
     cargo run -p nihilurk -- -content           # what the game knows
     NIHILURK_SPAWN="dragon" cargo run -p nihilurk   # put one in front of me
-
-And the compatibility pipeline, which is slower and answers a different question:
-
-    ./compat_test.sh                          # does it still run on a Pi?

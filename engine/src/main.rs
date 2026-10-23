@@ -767,10 +767,7 @@ fn main() -> std::io::Result<()> {
                 drop(guard);
                 return Err(refuse_save(e));
             }
-            let mut unread = vec![LogEntry::plain(strings::welcome_back())];
-            if let Some(notice) = strings::beta_notice() {
-                unread.push(LogEntry::plain(notice));
-            }
+            let unread = vec![LogEntry::plain(strings::welcome_back())];
             world.insert_resource(GameLog {
                 history: Vec::new(),
                 unread,

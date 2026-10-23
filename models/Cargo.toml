@@ -9,12 +9,9 @@ readme.workspace = true
 rust-version = "1.91"
 keywords = ["roguelike", "ecs", "bevy", "procedural", "gamedev"]
 categories = ["game-development", "games"]
-# All four read the workspace around the crate (`../docs`, and `engine/src`),
-# so none can pass from a download. They still run in the repository.
+# This one reads the workspace around the crate, so it cannot pass from a
+# download. It still runs in the repository.
 exclude = [
-    "tests/content_docs.rs",
-    "tests/docs_constants.rs",
-    "tests/docs_counts.rs",
     "tests/effects.rs",
 ]
 
@@ -24,27 +21,8 @@ name = "models"
 [lints]
 workspace = true
 
-# One language, chosen at build time, forwarded straight through to `strings`.
-# `default-features = false` here matters: without it, this crate's own
-# default (`lang-en`) would stay active even when something depending on
-# `models` (namely `engine`) asks for a different language, and the two
-# would both be enabled on the one shared `strings` instance at once -- see
-# `strings/Cargo.toml`'s comment on what that does.
-[features]
-default = ["lang-en"]
-lang-en = ["strings/lang-en"]
-lang-pt = ["strings/lang-pt"]
-lang-es = ["strings/lang-es"]
-lang-ht = ["strings/lang-ht"]
-
 [dependencies]
-strings = { package = "nihilurk-strings", path = "../strings", version = "0.6.0", default-features = false }
-# The particle layer's arithmetic, kept in a `no_std` crate with no dependencies
-# so `compat/` can compile it for a microcontroller and have that mean something
-# about the game rather than about a copy of it. `std` is on here because a
-# hosted build has an `f32::ceil` intrinsic worth using; see the crate's own
-# `Cargo.toml` for why that flag cannot change an answer.
-particle-core = { package = "nihilurk-particle-core", path = "../particle-core", version = "0.6.0", features = ["std"] }
+strings = { package = "nihilurk-strings", path = "../strings", version = "0.6.0" }
 bevy_ecs = "0.12" 
 rand = "0.8"
 rand_chacha = { version = "0.3", features = ["serde1"] }

@@ -61,13 +61,13 @@ Two caveats worth repeating
 
 **`map::WIDTH` / `map::HEIGHT` pin every seed.** `models/tests/it/determinism.rs` asserts that a given seed produces the same walls it always has. Changing either dimension moves every wall on every seed and that test will fail — correctly. Only change them as a deliberate "all old seeds are void" decision.
 
-**Enchantment odds are read as ranges against a `0..100` roll.** `loot::NORMAL_QUALITY_PCT` and `loot::EXCEPTIONAL_QUALITY_PCT` must sum to 100 or less; the remainder is the cursed share. `catalog::Quality::roll` reads them as those ranges, and `content-tables.md` names the constants rather than their values, so neither needs touching when they change.
+**Enchantment odds are read as ranges against a `0..100` roll.** `loot::NORMAL_QUALITY_PCT` and `loot::EXCEPTIONAL_QUALITY_PCT` must sum to 100 or less; the remainder is the cursed share. `catalog::Quality::roll` reads them as those ranges.
 
 
 What is deliberately *not* in `constants.rs`
 -------------------------------------------
 
-* **Content-table numbers** — a monster's HP, a weapon's die, a potion's colour. Those are data, one row per thing, in `catalog.rs` / `monsters.rs` / `traps.rs`. See `content-tables.md`.
+* **Content-table numbers** — a monster's HP, a weapon's die, a potion's colour. Those are data, one row per thing, in `catalog.rs` / `monsters.rs` / `traps.rs`.
 * **Animation timing** — the millisecond figures in `particles.rs` (bolt speed, blast ripple) and the wave counts in `magicmap.rs`. Presentation feel, wound tightly around the code that reads them. The shake table is the exception, in `constants::shake`.
 * **RNG salts** and the neighbour-offset tables. Structural, not balance.
 * **A few one-off numbers** still sit where they fire: spikemail's prick (`abilities::spike_prick`), the relic's `Value` (`spawn_element_of_yoord`), and the `-anim-rate` clamp (`engine/src/main.rs`).
@@ -78,6 +78,5 @@ See also
 
     constants.rs                         the file itself, fully commented
     ../../engine/src/constants.rs        screen size and frame/pause timing in the binary
-    ../../particle-core/src/constants.rs ripple and shake clocks, the shake pattern
+    particle_core/constants.rs           ripple and shake clocks, the shake pattern, under `models/src/`
     ../explanation/combat-and-balance.md  why the numbers are what they are
-    content-tables.md                     the per-row content numbers

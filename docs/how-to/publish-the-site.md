@@ -90,5 +90,4 @@ See also
     ../../site/build.lua                  the script
     ../../site/build_test.lua             its test
     ../../.github/workflows/pages.yml     what a push to master starts
-    update-the-docs.md                    which pages a change touches
     ../explanation/documentation-style.md the house style the pages keep

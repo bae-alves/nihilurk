@@ -226,7 +226,6 @@ Appendix: quick check
 7. Number: add one row to `modifiers!`, attach it from rows, and read it with `equipped_total`.
 8. Nothing may cancel it: add its id to `IDENTITY_EFFECTS`.
 9. Run `cargo test`, spawn something that grants it, save, reload, and check it is still there.
-10. Fix the docs: one row in the `EFFECTS` table in `../reference/content-tables.md` (`update-the-docs.md`).
 
 
 See also
@@ -234,7 +233,6 @@ See also
 
   add-a-monster.md                 .grants(...) on a bestiary row
   add-an-item.md                   .grants(...) on a ring or launcher
-  ../reference/content-tables.md   the effect registry as a table
   ../explanation/the-feel-layer.md  giving it a look, and the rules for one
   work-with-the-ecs.md             reaching the entity you want to change
   ../explanation/data-driven-content.md   why effects are components

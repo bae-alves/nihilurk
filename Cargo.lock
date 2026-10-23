@@ -614,16 +614,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "nihilurk-compat"
-version = "0.1.0"
-
-[[package]]
 name = "nihilurk-models"
 version = "0.6.0"
 dependencies = [
  "bevy_ecs",
  "fixedbitset 0.5.7",
- "nihilurk-particle-core",
  "nihilurk-strings",
  "postcard",
  "proc-macro2",
@@ -632,10 +627,6 @@ dependencies = [
  "serde",
  "syn 2.0.119",
 ]
-
-[[package]]
-name = "nihilurk-particle-core"
-version = "0.6.0"
 
 [[package]]
 name = "nihilurk-strings"

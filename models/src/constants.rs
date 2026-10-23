@@ -18,7 +18,7 @@
 //!   the game by touching them. The shake table is the exception: [`shake`].
 //! * **Content-table numbers** — a monster's HP, a weapon's die, a potion's
 //!   colour. Those are data, one row per thing, and live in `catalog.rs` /
-//!   `monsters.rs` / `traps.rs`. See `docs/reference/content-tables.md`.
+//!   `monsters.rs` / `traps.rs`.
 //! * **RNG salts** and the neighbour-offset tables. Structural, not balance.
 //!   The grid and special-level dials are here ([`layout`], [`special_levels`]),
 //!   with the caveat that moving one moves every layout on every seed.
@@ -171,7 +171,7 @@ pub mod progression {
     ///
     /// **If you change this:** the Element-of-Yoord placement and the
     /// staircase-inversion logic key off it automatically, but
-    /// `docs/reference/content-tables.md` and `gdd.md` name the final depth in
+    /// `gdd.md` names the final depth in
     /// prose and would need a pass. Monster/trap `min_depth` values in the catalog
     /// are relative to 1, not to this, so deep content still appears — just
     /// with fewer floors to spread over.
@@ -688,8 +688,7 @@ pub mod loot {
     /// **If you change these two:** they are read as `0..NORMAL` and
     /// `NORMAL..NORMAL+EXCEPTIONAL` against a `0..100` roll in
     /// `catalog::Quality::roll`. Keep `NORMAL + EXCEPTIONAL <= 100`. The odds
-    /// table in that function's doc comment and in
-    /// `docs/reference/content-tables.md` is prose — update it too.
+    /// table in that function's doc comment is prose — update it too.
     pub const NORMAL_QUALITY_PCT: i32 = 25;
 
     /// Percent chance a gear drop is exceptional — a clean bonus in
@@ -772,8 +771,7 @@ pub mod items {
     /// second slot. A round, generous number — nothing in the engine forces a
     /// particular value.
     ///
-    /// **If you change it:** `models/tests/it/missiles.rs` and
-    /// `docs/reference/content-tables.md` name the current value and would need
+    /// **If you change it:** `models/tests/it/missiles.rs` names the current value and would need
     /// a pass.
     pub const STACK_LIMIT: u8 = 13;
 

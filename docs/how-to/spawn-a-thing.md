@@ -223,7 +223,6 @@ See also
 
   ../reference/spawn-api.md       every signature on this page
   ../reference/cli-and-env.md     NIHILURK_SPAWN and -content in full
-  ../reference/content-tables.md  the tables these functions read
   add-a-monster.md                adding the row you want to spawn
   add-an-item.md                  the same, for items
   work-with-the-ecs.md            spawning from inside a system

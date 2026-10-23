@@ -20,7 +20,7 @@ Context
 
 The directory and the library name are the short ones the code was written with. Publishing to crates.io forced the package name to change.
 
-crates.io gives out names on a first-come basis. `engine`, `models` and `strings` were all taken by other people before nihilurk existed, so a crate published under those names would be refused. `particle-core` was free, but it was marked `publish = false`, and the crates above it cannot go out unless it does.
+crates.io gives out names on a first-come basis. `engine`, `models` and `strings` were all taken by other people before nihilurk existed, so a crate published under those names would be refused.
 
 That last point forces the issue. `engine` depends on `models` and `strings` by `path`. crates.io does not accept a `path` dependency: it needs a version that resolves in its own index. So publishing the game means publishing the whole chain, and each link in it needs a name nobody else holds.
 
@@ -41,12 +41,10 @@ Decision
                                          the dependency is still called
                                          `models` in the code.
 
-  4. `compat/` is already `nihilurk-compat` and is `publish = false`. It is a test rig that builds the game for other machines, and it depends on ratatui, which the shipped binary may not. Nothing installs it, so it has no name to defend.
-
 Rejected:
 
-  5. **Renaming the library too.** The library name defaults to the package name with hyphens turned into underscores, so renaming the package alone would have made it `nihilurk_models` and broken every `use models::` line in the game, the tests and the docs. Renaming the library means touching every file that mentions it, a diff a hundred times the size for a gain the player never sees.
-  6. **One crate.** Fold `models`, `strings` and `particle-core` into one `nihilurk` crate as modules and publish once. Two reasons against: `particle-core` is `no_std` with no dependencies so anyone can build it for a machine with no OS and get the arithmetic the game runs, and folded in it would sit beside `bevy_ecs` and the save-file code, and that would end. And `models` is the crate the documentation is written around: almost every page under `tutorial/`, `how-to/` and `reference/` names a file in it, so moving it is a rewrite of the docs, not a release task.
+  4. **Renaming the library too.** The library name defaults to the package name with hyphens turned into underscores, so renaming the package alone would have made it `nihilurk_models` and broken every `use models::` line in the game, the tests and the docs. Renaming the library means touching every file that mentions it, a diff a hundred times the size for a gain the player never sees.
+  5. **One crate.** Fold `models` and `strings` into one `nihilurk` crate as modules and publish once. `models` is the crate the documentation is written around: almost every page under `tutorial/`, `how-to/` and `reference/` names a file in it, so moving it is a rewrite of the docs, not a release task.
 
 
 Consequences
@@ -60,7 +58,6 @@ Benefits realised:
 
   * The game, its tests and its docs kept every `use models::` line.
   * `cargo install nihilurk` installs the game.
-  * `particle-core` stays small, `no_std` and dependency-free.
 
 
 When to revisit
@@ -77,5 +74,4 @@ See also
 --------
 
   ../how-to/publish-to-crates-io.md     the release recipe
-  cross-platform-testing.md             the matrix the shipped crates are built for
   ../../engine/tests/workspace.rs       the tests that hold the names in place

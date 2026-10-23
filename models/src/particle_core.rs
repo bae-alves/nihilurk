@@ -1,42 +1,10 @@
 //! The arithmetic half of nihilurk's particle layer: when a mote is visible,
 //! which of its keyframes is showing, and where a ripple's delay comes from.
 //!
-//! It is `no_std`, allocates nothing, and depends on no crate at all -- not
-//! `crossterm`, not `bevy_ecs`, not `core::fmt`. That is the whole reason it is
-//! a separate crate rather than a module of `models`: this is the only part of
-//! the game that can run somewhere without an operating system. `compat/` no
-//! longer builds it for a microcontroller; it stays `no_std` for whoever does.
-//!
-//! The proof is only worth something because the game runs this code and not a
-//! copy of it. `models::particles` owns the `Vec` of keyframes, the colour
-//! type and the ECS resource; every decision it makes about *time* is one of
-//! the functions below. If this crate is wrong, the game is wrong, and
-//! `models/src/particles.rs`'s own `#[cfg(test)] mod tests` fails.
-//!
-//! # What is deliberately absent
-//!
-//! No colour type appears anywhere in this crate. A keyframe lookup returns an
-//! *index*, not a `(char, Color)`, so the caller's palette type -- crossterm's
-//! on a terminal, a packed RGB565 on a display panel -- never has to cross the
-//! boundary. That is what keeps the crate portable, and it costs the caller one
-//! index into a slice it already owns.
-//!
-//! No `f32` method from `std` is reached for unconditionally either. `sqrt`,
-//! `ceil`, `floor` and friends live in `std` rather than `core` because they
-//! lower to libm calls a bare-metal target has no reason to link. [`ceil`] is
-//! the one nihilurk needs, and it is the crate's single `#[cfg(feature = "std")]`:
-//! hosted builds take the intrinsic, bare-metal builds take a hand-rolled
-//! branch, and `tests/parity.rs` proves the two agree over the domain nihilurk
-//! uses. See [`ceil`].
-
-#![no_std]
-
-// `f32::ceil` is an inherent method defined in `std`, so reaching it takes more
-// than turning the feature on: the crate has to link `std` for the method to be
-// in scope at all. This is the only line in the crate that knows what an
-// operating system is, and it is behind the flag.
-#[cfg(feature = "std")]
-extern crate std;
+//! No colour type appears here. A keyframe lookup returns an *index*, not a
+//! `(char, Color)`, so this module never touches the palette. `particles.rs`
+//! owns the `Vec` of keyframes, the colour type and the ECS resource; every
+//! decision it makes about *time* is one of the functions below.
 
 pub mod constants;
 
@@ -113,7 +81,7 @@ pub fn ripple_delay(dist: f32) -> f32 {
 /// a beat late is what makes it read as a second event.
 #[inline]
 pub fn follow_delay(radius: f32, follow_ms: f32) -> f32 {
-    ceil(radius) * RIPPLE_MS_PER_TILE + follow_ms
+    radius.ceil() * RIPPLE_MS_PER_TILE + follow_ms
 }
 
 /// Where the screen sits `age_ms` into a shake of `duration_ms` that started at
@@ -138,48 +106,8 @@ pub fn shake_offset(age_ms: f32, duration_ms: f32, amplitude: i8) -> (i8, i8) {
     let step = (age_ms.max(0.0) / SHAKE_STEP_MS) as usize;
     let (dx, dy) = SHAKE_PATTERN[step % SHAKE_PATTERN.len()];
     let remaining = 1.0 - age_ms.max(0.0) / duration_ms;
-    let magnitude = ceil(amplitude as f32 * remaining) as i8;
+    let magnitude = (amplitude as f32 * remaining).ceil() as i8;
     (dx * magnitude, dy * magnitude)
-}
-
-/// `f32::ceil`, on a target that may not have one.
-///
-/// This is the crate's one real fork in the road, and the reason it has a
-/// feature flag at all. `f32::ceil` lives in `std`, not `core`: it is an
-/// intrinsic that lowers to a libm call (or, on x86-64, a single `roundss`),
-/// and a bare-metal target has no libm to lower to. So a hosted build takes the
-/// intrinsic and a `no_std` build takes the hand-rolled branch below.
-///
-/// The hand-rolled version is exact over the domain nihilurk uses it on -- finite
-/// values within `i32`'s range, in practice a blast radius of 0..=20 -- and
-/// that is all it claims. Rust's float-to-int casts saturate rather than wrap,
-/// so a NaN comes back as 0.0 instead of misbehaving, but no caller should be
-/// there. `tests/parity.rs` runs both branches against `f32::ceil` across that
-/// domain, which is what stops the feature flag from quietly changing what the
-/// game draws.
-#[inline]
-pub fn ceil(x: f32) -> f32 {
-    #[cfg(feature = "std")]
-    {
-        x.ceil()
-    }
-    #[cfg(not(feature = "std"))]
-    {
-        ceil_portable(x)
-    }
-}
-
-/// The `no_std` branch of [`ceil`], always compiled, so the parity test can
-/// reach it on a hosted build where `ceil` itself resolves to the intrinsic.
-/// Not public API: nothing but the test should call this instead of [`ceil`].
-#[doc(hidden)]
-#[inline]
-pub fn ceil_portable(x: f32) -> f32 {
-    let truncated = x as i32 as f32;
-    if truncated < x {
-        return truncated + 1.0;
-    }
-    truncated
 }
 
 #[cfg(test)]

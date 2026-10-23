@@ -152,7 +152,7 @@ A row can carry more than numbers. Chain onto it:
 
 Four things happened, and you wrote no code for any of them.
 
-**`.grants(...)`** hands the creature a property. `FireImmune` is a plain marker component. The wand-of-fire code asks whether its target carries one, and that is the whole check. It has never heard of a basilisk, or of a dragon, or of any ring that might grant the same thing to a player. Every effect on the list works this way; see `../reference/content-tables.md` for what is available, and `../how-to/add-an-effect.md` for adding one.
+**`.grants(...)`** hands the creature a property. `FireImmune` is a plain marker component. The wand-of-fire code asks whether its target carries one, and that is the whole check. It has never heard of a basilisk, or of a dragon, or of any ring that might grant the same thing to a player. Every effect on the list works this way; see `../how-to/add-an-effect.md` for adding one.
 
 **`.casts(2, &CASTS_THUNDERBOLT)`** teaches it a spell and the Ma for two casts of it (`MonsterDef::magic_pool`): a spellset of one, and a pool of twice Thunderbolt's cost. The chaser rule set tries a spell before it tries a bite, so the basilisk zaps you from range until the Ma runs out, and then it walks up and bites. The pool never refills.
 
@@ -206,7 +206,7 @@ After the cancellation the wand of fire's reticle lands on it, and the blast kil
 Step 7: keep it or drop it
 --------------------------
 
-If you like the basilisk, leave it; no page lists species by hand, so `-content` is its documentation (`../how-to/update-the-docs.md`). If this was a dry run:
+If you like the basilisk, leave it; no page lists species by hand, so `-content` is its documentation. If this was a dry run:
 
     git checkout models/src/monsters.rs
 
@@ -234,5 +234,4 @@ Where to go next
   ../how-to/add-a-monster.md        the short version, as a recipe
   ../how-to/add-an-effect.md        giving it a property nothing else has
   ../how-to/tune-rarity-and-depth.md  weights and debut depths in full
-  ../reference/content-tables.md    every field of every table
   ../explanation/combat-and-balance.md  what good numbers look like

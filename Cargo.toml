@@ -1,32 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-    "compat",
     "engine",
     "models",
-    "particle-core",
-    "strings"
-]
-
-# `compat` is a test rig, not part of the game: it pulls in ratatui, which the
-# shipped binary is not allowed to depend on (see the portability note in
-# `gdd.md`). It is also a rig that builds and runs the game for *other
-# machines*, so it is never itself part of what is being measured. Keeping it
-# out of `default-members` means a bare `cargo build` / `cargo test` at the
-# workspace root never compiles it; reaching it is always explicit, via
-# `-p nihilurk-compat` or `compat_test.sh`.
-#
-# Cargo has no `default-exclude`, so this has to be written as an include-list:
-# one name meaning "not that one", kept in step by hand. Two lists that have to
-# agree and nothing checking that they do is why there is a third thing here --
-# `engine/tests/workspace.rs` asserts that the difference between `members` and
-# `default-members` is exactly the rig, and that no crate in the tree is
-# missing from `members` altogether. Add a crate to one list and forget the
-# other and a bare `cargo test` says so.
-default-members = [
-    "engine",
-    "models",
-    "particle-core",
     "strings"
 ]
 
@@ -76,25 +52,10 @@ debug = "line-tables-only"
 #                        mid-turn is unrecoverable anyway. Cargo ignores this
 #                        key for the `test`/`bench` profiles, so benches and
 #                        `cargo test` are unaffected.
-#   strip = "symbols"    a ~2-3x smaller binary. This is *also* why profiling
-#                        does not run on this profile -- see below.
+#   strip = "symbols"    a ~2-3x smaller binary.
 [profile.release]
 opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
-
-# The profile `compat/cross_build.sh`'s "blame" stage builds with, to attribute
-# a foreign-target binary's size back to the crates that produced it.
-#
-# It is byte-for-byte the same machine code as `release` -- same opt-level,
-# same LTO, same codegen-units -- with the symbols put back. That matters: a
-# stripped binary has nothing for `llvm-nm` to read, and a per-crate size
-# breakdown of a *differently optimised* binary would be a breakdown of a
-# program nobody ships. Inheriting rather than redeclaring is what keeps the
-# two from drifting.
-[profile.profiling]
-inherits = "release"
-debug = true
-strip = "none"

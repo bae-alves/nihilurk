@@ -1,5 +1,5 @@
 -- Refuses a commit that stages a comment inside a function body in engine,
--- models or particle-core. Called by .githooks/pre-commit.
+-- models. Called by .githooks/pre-commit.
 --
 -- A comment goes above the item it describes: a doc comment, a note over the
 -- signature, a file header, or the note over a catalog table that says how to
@@ -13,9 +13,9 @@
 -- committed. A file whose braces do not balance is refused too, because a
 -- check that cannot read a file has not passed it.
 
-local MESSAGE = "No comments inside function bodies in engine, models or particle-core.\n"
+local MESSAGE = "No comments inside function bodies in engine or models.\n"
     .. "Put the note above the function, or above a closure; or make the code say it."
-local CRATES = { "engine", "models", "particle-core" }
+local CRATES = { "engine", "models" }
 
 -- rustfmt wraps a closure argument onto its own line (`|x| x + 1,`, `|| f(),`),
 -- and breaks `||` chains, bit-or and or-patterns the same way: a line that

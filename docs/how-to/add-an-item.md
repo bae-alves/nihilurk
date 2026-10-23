@@ -217,7 +217,6 @@ Appendix: quick check
 6. Never rename a row; a save stores its name.
 7. Run `cargo run -p nihilurk -- -content | grep '<name>'`.
 8. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`, then `cargo test --test it content::`, then `cargo test`.
-9. Fix the docs `update-the-docs.md` names for your change.
 
 
 See also
@@ -226,5 +225,4 @@ See also
   add-an-effect.md                 a property no component covers yet
   add-an-item-category.md          a whole new *kind* of item
   tune-rarity-and-depth.md         make it rare, or make it deep
-  ../reference/content-tables.md   every field of every table
   ../explanation/data-driven-content.md   why rows carry components

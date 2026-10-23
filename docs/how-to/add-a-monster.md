@@ -121,13 +121,12 @@ Chains combine in any order:
 
 > **Do not write `Aggravated` in a row.** It is a retired `MovementType`
 > kept only so old saves load; aggravation is the `Aggravated` component
-> now. The five legal values for a row are the ones listed above; what each does is in
-> `../reference/content-tables.md`.
+> now. The five legal values for a row are the ones listed above.
 
 > **Only 16 colours survive a save.** The file packs a colour into one
 > byte against a fixed palette; anything off it -- an RGB value, a
 > 256-colour index -- draws correctly and reloads as White. The palette is
-> listed in `../reference/content-tables.md`.
+> the sixteen colours in `models/src/color.rs`.
 
 > **Renaming a row breaks old saves.** A saved monster stores its row's id
 > (the `name`) and looks its species back up on load. Rename `"basilisk"` and every
@@ -157,7 +156,6 @@ Appendix: quick check
 5. Never rename an existing row; saved monsters look their species up by id (the `name`).
 6. Run `NIHILURK_SPAWN="<name>" cargo run -p nihilurk` and look at it.
 7. Run `cargo test --test it content::`, then `cargo test`.
-8. Fix the docs: nothing, unless the row brings a new mechanic (`update-the-docs.md`).
 
 
 See also
@@ -168,6 +166,5 @@ See also
   add-a-body.md                    a hand-written body instead of a bestiary row
   add-an-effect.md                 give it a property nothing else has
   tune-rarity-and-depth.md         where and how often it shows up
-  ../reference/content-tables.md   every field, every type, the palette
   ../reference/spawn-api.md        MonsterDef::pick, spawn_monster
   ../explanation/combat-and-balance.md   what the numbers mean

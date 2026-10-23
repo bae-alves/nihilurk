@@ -220,7 +220,7 @@ Keep bestiary-backed tests only where the bestiary itself is the subject: conten
 One rule of nihilurk's own: no comments inside a function body
 ---------------------------------------------------------------
 
-In `engine`, `models` and `particle-core`, a comment sits above the thing it describes. It never sits inside a function body, test functions included.
+In `engine` and `models`, a comment sits above the thing it describes. It never sits inside a function body, test functions included.
 
 A comment in a body is a name or a function that has not been written yet. "Skip the dead" becomes `if is_dead(mob) { return }`. "Then the second pass" becomes a function called `second_pass`. The code stays where it is and the sentence moves into an identifier, where a rename keeps it true and an edit to the code cannot leave it behind.
 

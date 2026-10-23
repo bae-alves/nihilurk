@@ -53,16 +53,6 @@ Other flags, in any order after the name:
 | `-scores`, `--leaderboard` | Print the ten highest scores, and exit. Each mode keeps its own board: add `-fast` or `-endless` to see that one. |
 | `-h`, `-help`, `--help` | Print a short guide, and exit. |
 
-nihilurk speaks English and a bit of Portuguese (`pt`). Spanish (`es`) and Haitian Creole (`ht`) exist in the codebase but need help, so please contribute! The installed `nihilurk` command picks the language from `LC_ALL`, `LANG` or `LANGUAGE`, and falls back to English if none matches. To choose one yourself, put `--lang` first:
-
-    nihilurk --lang pt
-
-A `cargo install` holds one language and has no `--lang`; switch by reinstalling with `cargo install nihilurk --force --no-default-features --features lang-pt` (or `lang-es`, `lang-ht`). The prebuilt download from the releases page holds all four.
-
-From a clone, a language is a build choice and there is no flag:
-
-    cargo run -p nihilurk --no-default-features --features lang-pt
-
 Other roguelikes keep a wizard mode for testing. nihilurk has three environment variables instead. `NIHILURK_SPAWN` drops the things you name around you on every floor, `NIHILURK_LEVEL` makes every floor one kind of special level, and `NIHILURK_MAGICMAP` picks the magic mapping animation. The list is in `docs/reference/cli-and-env.md`.
 
 You may quit and return to one expedition later. Saves are for stopping, not for undoing a death: when an expedition ends, the save is gone. A completed expedition is kept as clear data, so beginning another game after a victory is a choice to enter the dungeon again.

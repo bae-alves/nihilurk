@@ -1453,10 +1453,7 @@ pub struct GameLog {
 
 impl Default for GameLog {
     fn default() -> Self {
-        let mut unread = vec![LogEntry::plain(strings::welcome_new_run())];
-        if let Some(notice) = strings::beta_notice() {
-            unread.push(LogEntry::plain(notice));
-        }
+        let unread = vec![LogEntry::plain(strings::welcome_new_run())];
         Self {
             history: Vec::new(),
             unread,

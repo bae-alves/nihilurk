@@ -159,5 +159,4 @@ See also
 --------
 
   tune-rarity-and-depth.md         make a trap rare, or deep-only
-  ../reference/content-tables.md   the TrapDef fields
   ../reference/spawn-api.md        TrapDef::pick, TrapBundle::from_def

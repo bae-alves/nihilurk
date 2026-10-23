@@ -16,49 +16,16 @@ categories = ["games"]
 # runs in the repository. `engine/tests/workspace.rs` holds this line in place.
 exclude = ["tests/workspace.rs"]
 
-# `cargo run -p nihilurk` / `cargo build -p nihilurk` with no `--bin` keeps
-# meaning exactly what it always has: the game, in English by default. The
-# second bin (`nihilurk-dispatch`) only gets built explicitly or as part of
-# packaging (`aur/PKGBUILD`), never by accident.
-default-run = "nihilurk"
-
 [[bin]]
 name = "nihilurk"
 path = "src/main.rs"
 
-# The locale-sniffing forwarder installed as the plain `nihilurk` command.
-# It is feature-independent -- it never touches `models` or `strings`, only
-# `exec`s whichever `nihilurk-<lang>` binary matches the environment -- so it
-# builds identically no matter which `lang-*` feature this crate itself was
-# built with. See `src/bin/dispatch.rs`.
-[[bin]]
-name = "nihilurk-dispatch"
-path = "src/bin/dispatch.rs"
-# Behind a feature so `cargo install nihilurk` does not install it. From
-# crates.io there is no `nihilurk-<lang>` next to it, so it could only fail.
-# Packaging (`release/package.sh`, `aur/PKGBUILD`) builds it with
-# `--features dispatch`; `engine/tests/workspace.rs` holds this line in place.
-required-features = ["dispatch"]
-
 [lints]
 workspace = true
 
-# One language per binary, decided at build time: `--no-default-features
-# --features lang-pt --bin nihilurk` (then the packaging step renames the
-# resulting artifact to `nihilurk-pt`; see `aur/PKGBUILD`). `default-features
-# = false` on the `models`/`strings` edges below is what makes picking
-# `lang-pt` here actually exclusive -- see `models/Cargo.toml`'s comment.
-[features]
-default = ["lang-en"]
-dispatch = []
-lang-en = ["strings/lang-en", "models/lang-en"]
-lang-pt = ["strings/lang-pt", "models/lang-pt"]
-lang-es = ["strings/lang-es", "models/lang-es"]
-lang-ht = ["strings/lang-ht", "models/lang-ht"]
-
 [dependencies]
-models = { package = "nihilurk-models", path = "../models", version = "0.6.0", default-features = false }
-strings = { package = "nihilurk-strings", path = "../strings", version = "0.6.0", default-features = false }
+models = { package = "nihilurk-models", path = "../models", version = "0.6.0" }
+strings = { package = "nihilurk-strings", path = "../strings", version = "0.6.0" }
 crossterm = "0.29.0"
 bevy_ecs = "0.12"
 rand = "0.8"

@@ -30,8 +30,8 @@ Why it reads the way it does:
 
 Why it works for this codebase:
 
-- The repo checks itself. `cargo test` runs the whole suite, and some tests hold docs to the code (`models/tests/content_docs.rs`, `models/tests/docs_counts.rs`). `docs_style.sh` lints the pages, and the pre-commit hook runs it on staged docs once you enable `.githooks`. That makes "read `docs/` first" safe, and "failing test first" has somewhere to land.
-- The pre-commit hook also refuses a comment inside a function body in `engine`, `models` and `particle-core` (`.githooks/no_body_comments.lua`). `CLAUDE.md` states the rule in one line, so Claude writes the note above the function, or above a closure, and does not need the hook to tell it.
+- The repo checks itself. `cargo test` runs the whole suite. That makes "read `docs/` first" safe, and "failing test first" has somewhere to land.
+- The pre-commit hook also refuses a comment inside a function body in `engine` and `models` (`.githooks/no_body_comments.lua`). `CLAUDE.md` states the rule in one line, so Claude writes the note above the function, or above a closure, and does not need the hook to tell it.
 - Rules the compiler cannot state live in tests, not prose (`models/tests/effects.rs`, `engine/tests/workspace.rs`). `CLAUDE.md` says "Enforcement=hooks/permissions; docs=guidance", and `settings.json` follows it: it denies `Task` and `Agent`, and runs `rustfmt --edition 2024` after every edit to a `.rs` file (`hooks/rustfmt.lua`). Scripts here are bash or Lua.
 - The cost of denying `Agent`: Claude explores in one context, so a wide audit takes more sequential reads.
 
@@ -45,7 +45,7 @@ Four things name this repo or its maintainer: the `/docs` pointer, the content-t
 
 | Command | What it does |
 |---|---|
-| `/prepare-for-nihilurk` | Sets up a new contributor. Claude reads "What you need" in `CONTRIBUTING.md`, checks the machine against it with version flags only, and asks before it installs anything. It offers to turn on the pre-commit hook and run a smoke test, then points to the onboarding page for the job: content, translation or engine. It edits no repo file, and it never commits or pushes. |
+| `/prepare-for-nihilurk` | Sets up a new contributor. Claude reads "What you need" in `CONTRIBUTING.md`, checks the machine against it with version flags only, and asks before it installs anything. It offers to turn on the pre-commit hook and run a smoke test, then points to the onboarding page for the job: content or engine. It edits no repo file, and it never commits or pushes. |
 | `/careful-review` | Re-reads the code Claude just wrote or changed, looks for bugs, and fixes them. |
 | `/codebase-architecture` | Runs `npx skills use` to fetch `improve-codebase-architecture` from mattpocock/skills on GitHub, then follows it. `npx` runs an npm package and needs the network. |
 

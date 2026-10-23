@@ -103,7 +103,7 @@ In `models/src/spawn.rs`, import the table with the others from `crate::catalog`
 
     category!("food",         120,      1,     FOODS),
 
-That single line wires up everything: floor drops, `spawn_named`, the `-content` listing, and the table tests. The macro erases the table's element type into three function pointers so the whole thing can stay `const`; you never write those by hand. The weights are in `../reference/content-tables.md`, and `models/tests/content_docs.rs` fails until that page's DROPS table says the same.
+That single line wires up everything: floor drops, `spawn_named`, the `-content` listing, and the table tests. The macro erases the table's element type into three function pointers so the whole thing can stay `const`; you never write those by hand. The weights are in `DROPS`.
 
 Every other category's share shrinks in proportion to pay for the new one. No other number needs editing.
 
@@ -164,7 +164,7 @@ Verify
     NIHILURK_SPAWN="ration" cargo run -p nihilurk
     cargo test
 
-The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `every_loot_category_can_be_drawn_and_has_rows_to_give` fails the same way, and also if it has no rows at the deepest floor. `the_drops_table_in_the_doc_matches_the_real_weights` (`models/tests/content_docs.rs`) fails until `../reference/content-tables.md` lists the new weight.
+The table tests pick your category up automatically: `every_drop_category_can_actually_produce_something` will fail if you gave it a weight of zero or no rows at its own `min_depth`, and `every_loot_category_can_be_drawn_and_has_rows_to_give` fails the same way, and also if it has no rows at the deepest floor.
 
 Round-trip a save before you call it done -- step 6 is the one people skip, and no existing test reaches a new category. Add one to `models/tests/it/saveload.rs` in the shape of `a_quivers_flight_survives_a_save`: spawn a ration with `spawn_named`, `save_game`, `load_game` into a fresh world, and assert a `Food` came back. Without step 6 it fails.
 
@@ -183,7 +183,6 @@ Appendix: quick check
 7. Worn gear with a hidden quality: run `enchant_equipment` at spawn and let `KnownQuality` gate it.
 8. Run `cargo run -p nihilurk -- -content | grep -A3 '^<category>'` and `NIHILURK_SPAWN="<name>" cargo run -p nihilurk`.
 9. Write the save round-trip test, then run `cargo test`.
-10. Fix the docs: `update-the-docs.md`, "A whole item category".
 
 
 See also

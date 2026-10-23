@@ -11,7 +11,6 @@ What you get:
   * Auto-explore (`o`) and auto-fight (`Tab`), so safe ground is quick and the fights are the game.
   * Trick shots, the thing nihilurk does that Rogue never did: shoot a trap, a coin or a potion on the floor from across the room and it goes off over everything around it. Bursts chain. Only ranged attacks do it, and it catches you too if you stand close.
   * Seeded floors (`-s 1234`), and two ways down: nihil, who carries gear, or the lurk (`-b lurk`), who has claws and fur.
-  * Four languages, English, Portuguese, Spanish and Haitian Creole, one binary each, picked at build time.
 
 Download a prebuilt game (v0.6.0), no Rust needed:
 
@@ -20,15 +19,12 @@ Download a prebuilt game (v0.6.0), no Rust needed:
   * [Linux, x86_64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.6.0/nihilurk-0.6.0-x86_64-unknown-linux-musl.tar.gz)
   * [Linux, aarch64 (.tar.gz)](https://github.com/bae-alves/nihilurk/releases/download/v0.6.0/nihilurk-0.6.0-aarch64-unknown-linux-musl.tar.gz)
 
-Unpack it and run `./nihilurk` (`nihilurk.exe` on Windows). All four languages are in the download: `./nihilurk --lang pt` picks one (`en`, `pt`, `es`, `ht`), and with no flag it follows your `LC_ALL`, `LANG` or `LANGUAGE`. Keep the files together: the dispatcher starts the `nihilurk-<lang>` binary next to it. The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it. Every file has a checksum at the same address plus `.sha256`, and older versions are on the [releases page](https://github.com/bae-alves/nihilurk/releases).
+Unpack it and run `./nihilurk` (`nihilurk.exe` on Windows). The binaries are not signed, so macOS quarantines a browser download: `xattr -d com.apple.quarantine nihilurk*` clears it. Every file has a checksum at the same address plus `.sha256`, and older versions are on the [releases page](https://github.com/bae-alves/nihilurk/releases).
 
 Or install from crates.io (needs Rust 1.91 or newer) and play:
 
-    cargo install nihilurk                  # install the English game
-    cargo install nihilurk --force --no-default-features --features lang-pt    # or lang-es, lang-ht
+    cargo install nihilurk
     nihilurk                                # play
-
-A crates.io install holds one language, and `--lang` does nothing there. Run the install line again with another `lang-*` to switch. The prebuilt download is the way to keep all four.
 
 If the shell says `nihilurk: command not found`, the cargo bin directory is not on your `PATH`. `rustup` normally adds it, but a rebuilt dotfile or a distro Rust package may not. Add it, then open a new shell:
 
@@ -57,23 +53,18 @@ Where things are
 
     MANUAL.md      how to play: controls, combat math, items, monsters.
     the site       https://bae-alves.github.io/nihilurk/, the manual and docs/, built from this repository.
-    doc/nihilurk.6     the command reference. `man nihilurk` works from the prebuilt tarball (it ships `nihilurk.6`) and the AUR package; `cargo install` installs the binary only, so use `nihilurk -h` or `man ./doc/nihilurk.6` from a clone.
+    doc/nihilurk.6     the command reference. `man nihilurk` works from the prebuilt tarball (it ships `nihilurk.6`); `cargo install` installs the binary only, so use `nihilurk -h` or `man ./doc/nihilurk.6` from a clone.
     docs/          how to add content to the game. Start at docs/README.md.
-    CONTRIBUTING.md    reporting bugs, sending patches and translations, and the LLM rule.
+    CONTRIBUTING.md    reporting bugs, sending patches, and the LLM rule.
     gdd.md         what nihilurk is trying to be. Design, not code.
     models/        the game: rules, content tables, ECS systems.
     strings/       every player-facing sentence, one file per language.
     engine/        the terminal front end: input, rendering, the loop.
-    particle-core/ the particle arithmetic, `no_std` and dependency-free.
-    compat/        the machine matrix. Does it still run on a Pi?
 
-`compat/` is a test rig, kept out of the workspace's default members, so a bare `cargo build` or `cargo test` never compiles it:
+Two checks run outside `cargo test`:
 
-    ./compat_test.sh                     # nihilurk, built and checked on eight machines
-    ./docs_style.sh                      # docs/, held to the house style
-    ./aur_check.sh                       # aur/PKGBUILD, against the tag it pins and this working copy
 
-Once per clone, `git config core.hooksPath .githooks` turns on a pre-commit check that runs `docs_style.sh` and refuses a commit that changes the turn schedule or an intent queue without touching a page under `docs/`. It also names the pages to update when you add a ring, a flag, a key or the like, and never refuses for that -- see `.githooks/pre-commit`.
+Once per clone, `git config core.hooksPath .githooks` turns on a pre-commit check: no Python, no comments in function bodies, and English placeholder tags -- see `.githooks/pre-commit`.
 
 
 Adding content

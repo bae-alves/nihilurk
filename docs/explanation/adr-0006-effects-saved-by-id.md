@@ -52,4 +52,3 @@ See also
 --------
 
   ../how-to/add-an-effect.md            adding a row, and the warning about ids
-  ../reference/content-tables.md        the `EFFECTS` table

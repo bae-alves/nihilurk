@@ -121,7 +121,6 @@ Appendix: quick check
 7. Leave `brings_a_pack` false.
 8. Copy `models/tests/it/body.rs` and `lurk.rs` into a new test file named for the body: glyph, dice, grants, save round trip.
 9. Run that test with `cargo test --test it <name>::`, then `cargo test`.
-10. Fix the docs: `update-the-docs.md`, "A playable body".
 
 
 See also

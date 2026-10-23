@@ -180,8 +180,7 @@ macro_rules! category {
 /// what was Rogue's food slot with the treats, which are food of a kind.
 ///
 /// The weights are not copied here, so they cannot go stale. The table below
-/// is the source, `docs/reference/content-tables.md` carries the one copy that
-/// a test holds in step (`models/tests/content_docs.rs`), and the shares are
+/// is the source, and the shares are
 /// derived: add a category and every share moves, which is the point.
 #[rustfmt::skip]
 pub const DROPS: &[DropCategory] = &[

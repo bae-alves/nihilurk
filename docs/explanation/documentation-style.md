@@ -113,7 +113,6 @@ Last section on every page — except a tutorial, which points *forward* rather 
     See also
     --------
 
-      content-tables.md             the tables these functions read
       cli-and-env.md                NIHILURK_SPAWN and the -content flag
       ../how-to/spawn-a-thing.md    recipes for the functions above
 
@@ -179,21 +178,7 @@ What a page must not do
   * **Document a deliberate secret.** The `T` key and the `-pride` flags stay out of `MANUAL.md` and out of `../reference/cli-and-env.md` on purpose. Where a page has to mention one — because an engine developer will meet it in the source — it says *keep it out of the manual* in as many words.
   * **Leave a public item in `models` without a doc comment.** The crate carries `#![warn(missing_docs)]`, so a build names the item. Say what the thing is *for*; a field its name already explains needs one short line, and a doc that only repeats the name is worse than none. The voice rules above apply to doc comments too.
   * **Go stale quietly.** If a claim can be a test, make it a test and cite the test. `models/tests/it/content.rs` exists to hold up the claims `how-to/` makes about the tables.
-  * **Qualify a path it cannot keep.** `` `models/src/map/levels.rs` `` is a claim about where something lives, and `docs_style.sh` checks it. A bare `` `levels.rs` `` is prose and is not checked — so name the directory when the reader needs it, and drop it once context has established where you are.
 
-
-Checking a page
----------------
-
-Every rule above is checked by one script, so none of this has to be remembered:
-
-    ./docs_style.sh                   every page under docs/
-    ./docs_style.sh docs/how-to       one directory, or one file
-    ./docs_style.sh --quiet           print only what failed
-
-It reports and never rewrites, because where a check fires the fix is a judgement call about where a sentence should break. Ten checks, one per section of this page; its own header comment says which is which, and why a markdown formatter is the wrong tool for this particular corpus.
-
-Exit status is 0 when everything passes, so it drops into a pre-commit hook or a CI step as `./docs_style.sh || exit 1`.
 
 
 See also

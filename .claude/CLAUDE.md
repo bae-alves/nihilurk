@@ -15,7 +15,7 @@ Conflicts: correctness > my goal > repo convention. Cite repo evidence to resolv
 - Scripting in codebase: Only bash and lua ever get committed.
 - Temp Scripts/Scratchpad: ruby.
 - Diffs you didn't cause: be quiet, it was bae or a peer.
-- Comments: none inside fn bodies in engine/models/particle-core. OK: docs, signature notes, file headers, catalog how-to-add notes, an own-line note directly above a closure. Name it or split it.
+- Comments: none inside fn bodies in engine/models. OK: docs, signature notes, file headers, catalog how-to-add notes, an own-line note directly above a closure. Name it or split it.
 - Dwarven Council ideas: read, investigate, Q/A
 
 # Test/debug

@@ -20,10 +20,9 @@ use crate::map::{MAP_HEIGHT, MAP_WIDTH};
 
 /// Every decision this module makes about *time* -- when a mote is visible,
 /// which keyframe it is showing, how long a ripple takes to reach a tile --
-/// lives in `particle-core`, a `no_std` crate with no dependencies at all. This
-/// module owns what a microcontroller cannot have: the `Vec` of keyframes, the
+/// lives in `particle_core.rs`. This module owns the `Vec` of keyframes, the
 /// colour, and the ECS resource.
-use particle_core as core_math;
+use crate::particle_core as core_math;
 
 /// The colour family an area blast burns in. Each maps to a five-keyframe
 /// glyph/colour cycle every cell in the blast steps through as it fades.
@@ -216,9 +215,9 @@ impl Particle {
     /// The `(glyph, colour)` to paint this frame, or `None` if the mote is still
     /// waiting out its delay or has already expired.
     ///
-    /// The keyframe *choice* is arithmetic and lives in `particle-core`; what
+    /// The keyframe *choice* is arithmetic and lives in `particle_core.rs`; what
     /// stays here is the one indexing step, because the keyframes are a `Vec`
-    /// of a colour type that crate deliberately knows nothing about.
+    /// of a colour type that module knows nothing about.
     pub fn current(&self) -> Option<(char, Color)> {
         let idx = core_math::keyframe(
             self.age_ms,
