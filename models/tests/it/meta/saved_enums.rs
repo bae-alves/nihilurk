@@ -64,7 +64,13 @@ fn current() -> Vec<String> {
     let mut lines: Vec<String> = files
         .iter()
         .flat_map(|path| {
-            let name = path.strip_prefix(src()).unwrap().display().to_string();
+            let name = path
+                .strip_prefix(src())
+                .unwrap()
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/");
             let body = std::fs::read_to_string(path).expect("source is readable");
             saved_enums(&name, &body)
         })
