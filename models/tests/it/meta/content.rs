@@ -86,6 +86,22 @@ fn every_loot_category_can_be_drawn_and_has_rows_to_give() {
 /// waits for a floor the run never has. Neither is a bug a player reports --
 /// it just reads as a species nobody happens to have met.
 #[test]
+fn a_species_never_appears_above_its_min_depth() {
+    let mut r = rng(11);
+    for depth in 1..=FINAL_DEPTH {
+        for _ in 0..300 {
+            let def = MonsterDef::pick(depth, &mut r);
+            assert!(
+                def.min_depth <= depth,
+                "{} (min_depth {}) turned up on floor {depth}",
+                def.name,
+                def.min_depth
+            );
+        }
+    }
+}
+
+#[test]
 fn every_bestiary_row_can_actually_be_drawn() {
     for def in BESTIARY {
         assert!(

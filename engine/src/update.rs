@@ -3332,4 +3332,152 @@ mod tests {
             );
         }
     }
+
+    /// A zap resolves against the dungeon the player aimed at, not the one the
+    /// monsters have already walked through.
+    ///
+    /// `item_system` used to run *after* `ai`, so a wand that reads one exact
+    /// tile — teleport, polymorph, haste, slow, cancellation — found that tile
+    /// empty whenever the target took a step first, and reported that there
+    /// was nothing there. The reticle had been on the monster the whole time.
+    #[test]
+    fn a_zap_lands_on_the_tile_the_player_aimed_at_not_the_one_the_target_left() {
+        let mut w = modal_world(3);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+
+        let row: Vec<u16> = {
+            let map = w.resource::<Map>();
+            (1..=4)
+                .map(|d| here.x + d)
+                .take_while(|&x| !map.blocks(x, here.y))
+                .collect()
+        };
+        assert!(row.len() >= 3, "need open floor for the walk");
+        let mob = w
+            .spawn((
+                Name { what: "orc".into() },
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                Position {
+                    x: row[2],
+                    y: here.y,
+                },
+                Fighter {
+                    hp: 5,
+                    max_hp: 5,
+                    armor: 0,
+                    power: 1,
+                    max_power: 1,
+                    armor_bonus: 0,
+                    power_bonus: 0,
+                },
+                Faction::Monster,
+                Blood,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = row
+            .iter()
+            .map(|&x| (x, here.y))
+            .chain([(here.x, here.y)])
+            .collect();
+
+        let aimed_at = *w.get::<Position>(mob).unwrap();
+        let wand =
+            models::spawn_named(&mut w, "wand of slow monster", Position { x: 0, y: 0 }).unwrap();
+        w.entity_mut(wand).remove::<Position>();
+        w.resource_mut::<UseQueue>().uses.push(WantsToUse {
+            user: player,
+            item: wand,
+            target: Some(aimed_at),
+            slot_idx: None,
+        });
+
+        crate::turn_schedule().run(&mut w);
+
+        assert_eq!(
+            w.get::<Speed>(mob).unwrap().kind,
+            SpeedKind::Slow,
+            "the zap found the target on the tile it was aimed at"
+        );
+    }
+
+    /// A throw comes down on the floor as it was when the player let go, not
+    /// as the monsters have since rearranged it.
+    ///
+    /// Aimed at the empty tile *in front of* an approaching orc: with
+    /// `throw_system` after `ai`, the orc had already stepped onto that tile
+    /// by the time the dagger arrived and caught one it was never thrown at.
+    #[test]
+    fn a_throw_lands_where_the_floor_was_when_the_player_let_go() {
+        let mut w = modal_world(5);
+        let player = player_entity(&mut w);
+        let here = *w.get::<Position>(player).unwrap();
+        let row: Vec<u16> = {
+            let map = w.resource::<Map>();
+            (1..=4)
+                .map(|d| here.x + d)
+                .take_while(|&x| !map.blocks(x, here.y))
+                .collect()
+        };
+        assert!(row.len() >= 3, "need open floor beside the player");
+
+        let mob = w
+            .spawn((
+                Name { what: "orc".into() },
+                Mob {
+                    movement_type: MovementType::Chase,
+                },
+                Position {
+                    x: row[2],
+                    y: here.y,
+                },
+                Fighter {
+                    hp: 20,
+                    max_hp: 20,
+                    armor: 0,
+                    power: 1,
+                    max_power: 1,
+                    armor_bonus: 0,
+                    power_bonus: 0,
+                },
+                Faction::Monster,
+                Blood,
+                Speed::new(SpeedKind::Normal),
+            ))
+            .id();
+        w.get_mut::<Viewshed>(player).unwrap().visible_tiles = row
+            .iter()
+            .map(|&x| (x, here.y))
+            .chain([(here.x, here.y)])
+            .collect();
+
+        let empty_tile = Position {
+            x: row[1],
+            y: here.y,
+        };
+        let dagger = models::spawn_weapon(&mut w, "dagger", Position { x: 0, y: 0 });
+        w.entity_mut(dagger).remove::<Position>();
+        w.resource_mut::<ThrowQueue>().throws.push(WantsToThrow {
+            thrower: player,
+            item: dagger,
+            target: empty_tile,
+            slot_idx: None,
+        });
+
+        crate::turn_schedule().run(&mut w);
+
+        assert_eq!(
+            w.get::<Position>(mob).unwrap().x,
+            empty_tile.x,
+            "the orc did walk onto the aimed tile this turn"
+        );
+        assert_eq!(
+            w.get::<Fighter>(mob).unwrap().hp,
+            20,
+            "but the dagger was already on the floor by then"
+        );
+    }
 }

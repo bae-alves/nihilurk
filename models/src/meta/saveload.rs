@@ -42,7 +42,8 @@
 //!   nothing: postcard is not self-describing, so a field added or removed
 //!   changes every byte after it. Every field this file has ever gained has
 //!   cost exactly that. Bump the constant with the change, and ship it as a
-//!   minor release (`release/bump.lua` refuses a patch one); believe the
+//!   minor release (`the_save_layout_only_changes_with_the_version` fails
+//!   until you do, and `release/bump.lua` refuses a patch one); believe the
 //!   attribute instead, and the next one ships as a change that quietly kills
 //!   every run already in progress.
 
@@ -1598,6 +1599,147 @@ mod tests {
             .expect("an unknown species must not load as a plain nihil");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
         assert!(err.to_string().contains("no such species"));
+    }
+
+    /// Every saved field set to a value no empty default shares, the wide ones
+    /// past a one-byte varint, and each enum at its last variant: inserting a
+    /// variant anywhere before it moves its index and changes the bytes, while
+    /// appending one (which the module docs allow) does not. A new field is a
+    /// compile error here, which is the point.
+    fn full_entity<'a>() -> EntitySave<'a> {
+        EntitySave {
+            position: Some((700, 300)),
+            renderable: Some(('@', 14)),
+            player: true,
+            hidden: true,
+            invisible: true,
+            consume: true,
+            amulet: true,
+            name: Some(Cow::Borrowed("name")),
+            viewshed: Some((9, bits(&[3, 69]))),
+            fighter: Some((300, 301, -2, 5, 6, 7, 8)),
+            magic: Some(Magic {
+                points: 3,
+                max_points: 4,
+            }),
+            faction: Some(Faction::Spirits),
+            backpack: Some(vec![1, 300]),
+            score: Some(-5000),
+            mob: Some(MovementType::Ambush),
+            item: true,
+            value: Some(300),
+            potion: Some("potion of polymorph".to_string()),
+            battery: Some(-3),
+            wand: Some("wand of swapping".to_string()),
+            ranged: Some(300),
+            scroll: Some("scroll of atonement".to_string()),
+            ring: Some("ring of polymorph".to_string()),
+            equipped: Some(Slot::Finger),
+            power_die: Some(300),
+            power_bonus: Some(-300),
+            armor_die: Some(301),
+            armor_bonus: Some(-301),
+            throw_bonus: Some(302),
+            max_hp_bonus: None,
+            stack: Some(200),
+            curse: true,
+            megacurse: true,
+            known_quality: true,
+            vorpal: Some(Cow::Borrowed("bane")),
+            effects: vec![
+                SavedEffect {
+                    id: "first".into(),
+                    lifetime: SavedLifetime::Turns(300),
+                    count: 0,
+                },
+                SavedEffect {
+                    id: "second".into(),
+                    lifetime: SavedLifetime::NextAction,
+                    count: 0,
+                },
+            ],
+            speed: Some(SpeedKind::Quick),
+            trap: Some(("dart trap".to_string(), TrapReveal::Triggered, true)),
+            pickup: Some("hero coin".to_string()),
+            plated: 1,
+            forged: 1,
+            spellset: Some(vec!["Gate Down".to_string()]),
+            equipped_by: Some(300),
+            helper: true,
+            mimic: true,
+            ice_cube: true,
+            aggravated: Some((700, 701)),
+            alignment: Some(-100),
+            deck: Some(vec![("XXIII GOLDEN WIND".to_string(), true)]),
+            rune: Some(("rune of protection".to_string(), true)),
+            content: Some(Cow::Borrowed("arrow")),
+        }
+    }
+
+    /// A 70-tile set with the tiles in `set` marked.
+    fn bits(set: &[usize]) -> FixedBitSet {
+        let mut bits = FixedBitSet::with_capacity(70);
+        bits.extend(set.iter().copied());
+        bits
+    }
+
+    /// A [`SaveGame`] holding [`full_entity`] and a blank entity, with the
+    /// top-level fields it names set the same way: a value no default
+    /// shares, the wide ones past a one-byte varint.
+    fn full_save<'a>() -> SaveGame<'a> {
+        let mut save = blank_save(vec![full_entity(), blank_entity()]);
+        save.player_name = Cow::Borrowed("player");
+        save.depth = 200;
+        save.floor_changes = 70_000;
+        save.rng_seed = 0x0123_4567_89ab_cdef;
+        save.dark_tiles = bits(&[0, 64]);
+        save.dug_tiles = vec![1, 70_000];
+        save.cleared = true;
+        save.spirits_hostile = true;
+        save.monster_body = Some(Cow::Borrowed("dragon"));
+        save.kills = vec![(Cow::Borrowed("rat"), 70_000)];
+        save
+    }
+
+    /// The version a save starts with, and the bytes after it.
+    fn split_header(bytes: &[u8]) -> (u16, &[u8]) {
+        postcard::take_from_bytes::<u16>(bytes).expect("a version leads the file")
+    }
+
+    const GOLDEN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden/save.bin");
+
+    /// The bytes of [`full_save`] are checked in. A change to a saved struct,
+    /// or to a serialised dependency such as the RNG, changes them, and the
+    /// test then asks for two things in order: bump [`SAVE_VERSION`], then
+    /// regenerate the file. It will not regenerate under the old version, so a
+    /// format change cannot slip into a release as a patch.
+    #[test]
+    fn the_save_layout_only_changes_with_the_version() {
+        let now = encode(SAVE_VERSION, &full_save());
+        let (now_version, now_body) = split_header(&now);
+        let golden = std::fs::read(GOLDEN).unwrap_or_default();
+        let (golden_version, golden_body) = match golden.is_empty() {
+            true => (0, &golden[..]),
+            false => split_header(&golden),
+        };
+        if now_body != golden_body {
+            assert_ne!(
+                now_version, golden_version,
+                "the saved layout changed, but SAVE_VERSION is still {now_version}. Bump it in \
+                 saveload.rs: old saves no longer load, so this ships as a minor release."
+            );
+        }
+        if std::env::var_os("NIHILURK_REGEN_GOLDEN").is_some() {
+            std::fs::create_dir_all(std::path::Path::new(GOLDEN).parent().unwrap()).unwrap();
+            std::fs::write(GOLDEN, &now).unwrap();
+            return;
+        }
+        assert!(
+            now == golden,
+            "tests/golden/save.bin is out of date. Regenerate it with \
+             `NIHILURK_REGEN_GOLDEN=1 cargo test -p nihilurk-models --lib the_save_layout`"
+        );
+        decode(&golden).expect("the checked-in save still decodes");
     }
 
     /// Loads a save holding only `entity`, and fails the test if it refuses.

@@ -2,7 +2,8 @@
 //!
 //! postcard writes an enum as its variant's position, so reordering variants
 //! (or inserting one anywhere but the end) silently changes what old saves
-//! mean. This reads the source and sees them all.
+//! mean. `tests/golden/save.bin` only sees the variants its fixture uses; this
+//! reads the source and sees them all.
 //!
 //! A failure means a saved enum differs from `tests/golden/saved_enums.txt`.
 //! Appended a variant at the end, or added or removed a saved enum? Regenerate
