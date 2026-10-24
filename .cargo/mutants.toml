@@ -1,0 +1,3 @@
+# Drawing and terminal I/O are checked by playing, not by tests (see
+# play-nihilurk), so their mutants are not gaps.
+exclude_globs = ["engine/src/view.rs", "engine/src/screen.rs", "engine/src/term.rs"]

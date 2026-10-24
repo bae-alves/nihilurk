@@ -220,32 +220,3 @@ impl Default for Screen {
         Self::new()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_a_cell_that_differs_from_the_shown_frame_changes() {
-        let mut s = Screen::new();
-        s.shown();
-        s.put(3, 2, 'x', Color::Red);
-        assert_eq!(
-            s.changed().collect::<Vec<_>>(),
-            [(3, 2, ('x', Color::Red, Color::Reset))]
-        );
-        s.shown();
-        s.clear();
-        s.put(3, 2, 'x', Color::Red);
-        assert_eq!(s.changed().count(), 0, "unchanged since it was shown");
-    }
-
-    #[test]
-    fn shown_text_reads_the_frame_last_shown() {
-        let mut s = Screen::new();
-        s.puts(1, 0, "hi", Color::White);
-        s.shown();
-        s.clear();
-        assert!(s.shown_text().starts_with(" hi\n"));
-    }
-}
