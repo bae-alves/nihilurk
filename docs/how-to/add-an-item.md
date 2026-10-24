@@ -155,7 +155,7 @@ Scrolls take two edits and no enum. Write the handler, `fn(&mut World, Entity)`,
 
     &ScrollDef::new("scroll of genocide", scrolls::genocide),
 
-The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do. A scroll draws as `?`, always white. The scroll of blank paper is in `SCROLLS` with `.never_drops()`: only a wand of cancellation makes it, and its handler does nothing on purpose. Give the new scroll a flourish (`../explanation/the-feel-layer.md`, "What a scroll looks like").
+The reader is the player, or a monster the scroll was thrown at. A scroll every run needs drops twice as often with `.common()`, as identify and remove curse do. A scroll draws as `?`, always white. The scroll of blank paper is in `SCROLLS` with `.never_drops()`: only a wand of cancellation makes it, and its handler does nothing on purpose. Give the new scroll a flourish, the way its neighbours in `models/src/items/scrolls.rs` call `spark_burst_at` on the reader.
 
 Runes take two edits and no enum. Write the handler, `fn(&mut World, Entity)`, in `models/src/items/runes.rs`, and name it in the row's required `apply` field:
 

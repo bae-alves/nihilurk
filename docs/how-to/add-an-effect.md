@@ -231,7 +231,6 @@ See also
 
   add-a-monster.md                 .grants(...) on a bestiary row
   add-an-item.md                   .grants(...) on a ring or launcher
-  ../explanation/the-feel-layer.md  giving it a look, and the rules for one
   work-with-the-ecs.md             reaching the entity you want to change
   ../explanation/data-driven-content.md   why effects are components
   ../explanation/ecs-in-nihilurk.md    what a component is allowed to be

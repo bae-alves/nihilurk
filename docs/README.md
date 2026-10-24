@@ -35,7 +35,7 @@ Start here
 | Reach an entity and change it                  | `how-to/work-with-the-ecs.md`                   |
 | Understand why it is built this way            | `explanation/data-driven-content.md`            |
 | Understand how bevy_ecs is used here           | `explanation/ecs-in-nihilurk.md`                |
-| Know what a monster does, and why              | `explanation/agents.md`                         |
+| Know why monsters think the way they do        | `explanation/agents.md`                         |
 | Write or edit a page in here                   | `explanation/documentation-style.md`            |
 | Know what good numbers look like               | `explanation/combat-and-balance.md`             |
 | Know what shape to leave the code in           | `explanation/code-calisthenics.md`              |

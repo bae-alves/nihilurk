@@ -41,7 +41,7 @@ Two habits keep them from becoming a junk drawer:
 
 ### Systems own behaviour in one domain
 
-The schedule is seventeen steps, and each has one job. This diagram draws all seventeen with their real `.after()` edges; what each step does is `../reference/input-and-turn-loop.md`:
+The schedule is seventeen steps, and each has one job. This diagram draws all seventeen with their real `.after()` edges; what each step does is its own doc comment, and why the load-bearing edges hold is `../reference/input-and-turn-loop.md`:
 
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{
@@ -64,7 +64,7 @@ flowchart LR
   classDef cold  fill:#17323a,stroke:#4aa3c0,color:#bfe4f0
 ```
 
-What each step does, and every `.after()` edge that holds them in that order, is `../reference/input-and-turn-loop.md` — this page is about *why the shape is a shape*, and repeating the list here would be one more copy to keep true.
+What each step does is its doc comment, and why the load-bearing edges hold is `../reference/input-and-turn-loop.md` — this page is about *why the shape is a shape*, and repeating the list here would be one more copy to keep true.
 
 The two tail positions are what the diagram is for. `ability_system` rolls *after* the monsters move so a ring of teleportation's jump lands at the top of the player's next turn — they see the new tile and act from it before anything on the floor moves again, which is the difference between a ring you might keep on and a curse. `score_turn_system` is dead last so a combo multiplier is applied once the dying is over, never to a number still growing.
 

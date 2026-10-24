@@ -57,5 +57,5 @@ See also
 --------
 
   adr-0005-aim-resolves-before-the-mobs-move.md   the same ordering, for aimed use and throw
-  ../reference/input-and-turn-loop.md             the step, in order, and the schedule
+  ../reference/input-and-turn-loop.md             the schedule's load-bearing edges
   ../../models/src/meta/components/          `PlayerActionQueue`

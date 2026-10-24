@@ -50,5 +50,5 @@ Reopen this decision if any of these becomes true:
 See also
 --------
 
-  agents.md                             the rule sets, what each tactic does, the `Aggravated` rule
+  agents.md                             why a mob keeps no memory, and what it does out of view
   ../../models/src/meta/components/ the component and the retired variant

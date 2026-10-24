@@ -52,7 +52,7 @@ The screen is text. Colour is how the game marks a monster that cannot fight at 
     == backgrounds ==
     4 19 U Cyan
 
-That line is an ur-vile on a cyan square: paralysed. The tints and what each one means are in `../reference/rendering.md`. Run the same keys without the step that should cause the tint, and the list is empty: that is your control.
+That line is an ur-vile on a cyan square: paralysed. The tints and what each one means are `status_tint` in `engine/src/view.rs`. Run the same keys without the step that should cause the tint, and the list is empty: that is your control.
 
 
 What wastes a run
@@ -110,6 +110,6 @@ See also
 
   spawn-a-thing.md                   put the thing in front of you
   add-an-item.md                     the recipe whose last step is "look at it"
-  ../reference/rendering.md          the status tints `%` reports
+  ../reference/rendering.md          the layer the status tints paint on
   ../reference/cli-and-env.md        the flags and `NIHILURK_SPAWN`
   ../explanation/adr-0004-no-tests-of-presentation.md  why a look is checked by playing

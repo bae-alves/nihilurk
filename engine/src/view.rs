@@ -1735,7 +1735,7 @@ mod tests {
     /// A world holding only what the log panel reads. Deliberately not a
     /// mirror of `main`'s startup: this asserts a rule, not a frame, and the
     /// last end-to-end render test here died of hand-copying twenty-two
-    /// resources — see `docs/explanation/the-feel-layer.md`.
+    /// resources — see `docs/explanation/adr-0004-no-tests-of-presentation.md`.
     fn gate_world() -> World {
         let mut w = World::new();
         w.init_resource::<GameLog>();

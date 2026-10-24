@@ -6,237 +6,87 @@ Reference: rendering
                    appears in it.
     Prerequisites  A passing familiarity with bevy_ecs, and
                    `models/src/meta/components/` for the
-                   resources read below (`BloodStains`, `Corpses`,
-                   `Smoke`, `Particles`, `Shake`, `MagicMapReveal`, `AnimRate`).
-    Status         Describes `engine/src/view.rs` as it is in the
-                   source. If this page and the source disagree, the
-                   source is right and this page is a bug.
+                   resources `view.rs` reads.
+    Status         Describes `engine/src/view.rs` and
+                   `engine/src/screen.rs` as they are in the source.
+                   If this page and the source disagree, the source is
+                   right and this page is a bug.
 
-**Nothing on this page is covered by an automated test, and that is the policy rather than a gap.** A test of the renderer, the HUD or the frame geometry would check presentation — which glyph lands in which cell, which colour a log line comes out — so it would break whenever a layer moved and never catch something a glance at the terminal would miss. See `../explanation/the-feel-layer.md`, "Why none of this is unit-tested".
+**Nothing on this page is covered by an automated test, and that is the policy rather than a gap.** A test of the renderer, the HUD or the frame geometry would check which glyph lands in which cell, so it would break whenever a layer moved and never catch something a glance at the terminal would miss. The reasoning is `../explanation/adr-0004-no-tests-of-presentation.md`. The easiest thing to get wrong here, a later layer silently covering an earlier one, is caught by you: change it, run the game, and look.
 
-So the thing easiest to get subtly wrong here — the draw order in `render`, where a later layer silently covers an earlier one — is caught by you, not by CI. Change it, then run the game and look, in more than one terminal if you can.
-
-The one thing here that *is* asserted is not presentation: `log_panel` — the rule that holds the `--MORE--` prompt back while particles are playing, below — is pinned by two tests in `view.rs`, on a fixture of two resources. What it protects is a keypress the player loses an animation to, not which cell a glyph landed in, and it cannot be checked by looking: the frame it is wrong in looks exactly right.
+The one thing asserted is not presentation. `log_panel`, which holds the `--MORE--` prompt back while particles play, is pinned by `a_backlog_holds_its_prompt_until_the_animation_is_over` in `view.rs`. It protects a keypress, and the frame it is wrong in looks exactly right.
 
 
 The frame buffer
 -----------------
 
-```
-pub struct Screen {
-    cur: Vec<Cell>,        // this frame, being painted
-    prev: Vec<Cell>,       // last frame, as presented
-    map_shift: (i16, i16), // where the screen shake has thrown the map
-    ...
-}
-type Cell = (char, Color, Color); // glyph, foreground, background
-```
+`Screen` (`engine/src/screen.rs`) holds the grid, a double buffer and the cell diff, and knows nothing about the game. `render` paints the whole grid every call; `Screen::changed` yields only the cells that differ from the last frame, and `Term::present` (`engine/src/term.rs`, the one file that names crossterm) writes those and swaps the buffers. `dirty_all` forces a full repaint, on the first frame and whenever the centering offset (`-c`) changes.
 
-`render` paints the entire `SCREEN_W` x `SCREEN_H` grid into `cur` every call — nothing is incremental at that level. `Screen::changed` is what's incremental: it diffs `cur` against `prev` cell by cell and yields only the cells that differ, and `Term::present` (`engine/src/term.rs`, the one file that names crossterm) turns those into a `MoveTo`/`Print` (plus `SetForegroundColor`/`SetBackgroundColor` when the colour actually changed), flushes, then calls `Screen::shown` to swap the two buffers. A typical turn changes a handful of cells; `present` writes a handful of escape sequences, not one per cell of the grid. `dirty_all` forces a full repaint — set on the first frame, and by `present` whenever the centering offset changes (`-c`, or the terminal was resized), since a shifted viewport would otherwise leave stale cells sitting where the old frame was.
-
-`put`/`set_fg`/`set_bg`/`puts`/`hline` are the only ways `render` touches `cur`; they silently no-op on an out-of-bounds coordinate rather than panicking, since a couple of callers (the targeting beam, the travel cursor) compute a tile position that can legitimately fall off the frame.
-
-**Two coordinate systems, and the map layers use the second one.** `put`/`puts`/`hline` take *screen* coordinates and are what the status line, the message log and the pack overlay paint in. `put_map`/`fg_map`/`bg_map`/`get_map` take *map* coordinates and are what every layer from Terrain to the travel cursor paints in; they run the coordinate through `map_cell`, which adds `MAP_TOP` (the map starts on row 1, under the status line) and `map_shift` (the screen shake), then clips to the map's own rows. That is why the layers below carry no `y + 1` of their own, and it is the one place the shake can affect what is drawn.
-
-`map_cell` returning `None` means "not drawn". It never clamps: a tile the shake pushes off the left edge is dropped, not piled onto column 0, and a tile pushed off the top is dropped, not smeared into the status line. Nothing is rendered to fill the gap either — **the shake does not change the game's resolution, and what leaves the viewport is simply not drawn.** With `map_shift` at `(0, 0)` every map tile maps to the same cell every frame, so a resting map holds still. `screen.rs`'s module docs state the same rules.
-
-`Term::present` works out the top-left offset that keeps the fixed frame centred from the real terminal size when `Term::new(true)` (`-c`) built it; `(0, 0)` otherwise. Nothing above `term.rs` sees the offset: a click comes back from `term::read` already in grid coordinates, and `view` and `update` paint and read the grid alone. Every `view` function that draws takes `term: &mut Term` and the `Screen`.
-
-**`Screen` is not in this file.** It is `engine/src/screen.rs`, which holds the grid, the double buffer, the cell diff and the map/screen coordinate split, and knows nothing about the game. `engine` paints into it and `term.rs` presents it; what *this* file owns is everything that goes *in* the grid: the layers below, the HUD, the overlays and the playback loops.
+**Two coordinate systems.** `put`/`puts`/`hline` take *screen* coordinates: the HUD, the log and the overlays. `put_map`/`fg_map`/`bg_map` take *map* coordinates and go through `Screen::map_cell`, which adds `MAP_TOP` and the shake's `map_shift`, then clips. It never clamps: a tile shaken off the edge is not drawn. Every painter no-ops out of bounds rather than panicking. Nothing above `term.rs` sees the centering offset; a click arrives already in grid coordinates.
 
 
 `render`: the layers, in order
 --------------------------------
 
-```
-pub fn render(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::io::Result<()>
-```
+Each layer draws over the ones before it on the same cell. The order is the code in `render`; this list is a map of it.
 
-```mermaid
-%%{init: {'theme':'base','themeVariables':{
-  'primaryColor':'#20242b','primaryTextColor':'#d7dae0',
-  'primaryBorderColor':'#5c6370','lineColor':'#8a8f98',
-  'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
-  'fontSize':'13px'}}}%%
-flowchart LR
-  subgraph screen["screen coordinates — the shake does not move these"]
-    direction TB
-    H["1 · top HUD"]:::cold
-    L["14 · player line<br/>+ score flash<br/>+ message log"]:::cold
-    V["15 · pack overlay<br/>+ quit prompt"]:::cold
-  end
-  subgraph map["map coordinates — put_map, so the shake moves them"]
-    direction LR
-    T["2 · terrain"] --> B["3 · blood"]:::peril
-    B --> K["4 · corpses"]:::peril
-    K --> IT["5 · items"]:::magic
-    IT --> TR["6 · traps"]:::peril
-    TR --> SM["7 · smoke"]
-    SM --> AC["8 · actors"]:::hero
-    AC --> TI["9 · status tints"]:::magic
-    TI --> DE["10 · detected"]:::magic
-    DE --> PA["11 · particles"]:::magic
-    PA --> BE["12 · target beam"]:::hero
-    BE --> CU["13 · travel cursor"]:::hero
-  end
-  screen ~~~ map
-  classDef hero fill:#3a3418,stroke:#d7ba4a,color:#e8dfa8
-  classDef peril fill:#3a1f1f,stroke:#c05050,color:#f0c8c8
-  classDef magic fill:#2f2038,stroke:#a86fc0,color:#e6cdf0
-  classDef cold  fill:#17323a,stroke:#4aa3c0,color:#bfe4f0
-```
+  1. Top HUD (row 0, screen coordinates)
+  2. Terrain, with the stealth-range and special-room tints
+  3. Blood
+  4. Corpses
+  5. Floor items
+  6. Traps (a found trap stays drawn out of sight, like a known staircase)
+  7. Smoke
+  8. Actors
+  9. Monster status tints (`status_tint`), then the trick-shot magenta, which outranks them
+  10. Detected things out of sight
+  11. Particles, over actors on purpose
+  12. Targeting beam and blast preview (`models::aim_footprint`)
+  13. Travel cursor
+  14. Player line, score flash, balance gauge, command bar, message log (screen coordinates)
+  15. Overlays, last: pack, spells, offer, barter, F1 key list, Info popup, quit prompt
 
-Painted in this order — everything after "Terrain" draws over whatever came before it on the same cell. Layers 2-13 paint in map coordinates (so the screen shake moves them); 1, 14 and 15 paint in screen coordinates (so it does not):
-
-  1. **Top HUD** (row 0) — the dungeon's half of the status. See below.
-  2. **Terrain** — every tile with `visible` or `revealed` set; `revealed`-but-not-`visible` tiles are painted `DarkGrey` (the "remembered, not seen" fog look). A corridor's walls are skipped entirely (`Map::is_room_wall`) so passages read as tunnels, not ditches framed on every side. Two tints follow on the same layer: a `DarkBlue` background on every visible floor tile within `STEALTH_RANGE` of a lurk standing in a lit room, where it would be noticed (`models::stealth_range_tiles`), and, unless the player is `Blind`, a special room's own colour on its visible tiles (`Map::special_tint`).
-  3. **Blood overlay** — recolours a tile's existing glyph (`fg_map`, not `put_map`) `DarkRed`, or `DarkGreen` where the blood is green (`GreenBlood`), only where currently `visible` and never where `occupied_by_actor` — the stain marks the floor, not whatever is standing on it. Skipped entirely while the player is `Blind`: blood is carried by colour alone, and they have none.
-  4. **Corpses** — same visibility rule as blood, drawn as a `%` in `DarkGrey`.
-  5. **Floor items** — visible and not actor-occupied.
-  6. **Traps** — the one exception to "unseen means blank": a previously-discovered trap (`Without<Hidden>`) still shows in `DarkGrey` once out of sight, same as a known staircase.
-  7. **Smoke** — visible, not actor-occupied, not under a live particle, `≈` in grey; fades on its own over a few turns (see `Smoke` in `models/src/meta/components/`).
-  8. **Actors** — the player and every non-`Hidden` `Mob`, visible only. A creature in a chimeric form is drawn with the form's glyph (`models::chimeric_form`). (While the player is `Blind` the visibility system has already tagged every mob `Hidden`, so nothing here has to know about blindness.)
-  9. **Monster status tints** — a background (`set_bg`) on a visible, non-`Hidden` mob that cannot fight back properly, in this precedence (`status_tint`): `DarkBlue` for one `Asleep`, `Cyan` for one `Paralyzed`, `DarkGreen` for one held down (`Pinned`, `Rooted` or `Clamped`), `Yellow` for one staggering (`MovementType::Confused` or `Flee`), `Grey` for one merely slowed. The glyph repaints black over the tint. The player's `Helper` takes `DarkCyan` instead, and any other ally `Green`, whatever state it is in; a spirit gets no tint while the spirits are peaceful. Painted after the actors so it lands under a glyph that is actually drawn. A paralysed monster loses a share of its turns in the monster round, at an otherwise normal tempo. `play.sh %` (see `../how-to/play-through-a-pty.md`) lists these tints from a live run.
-  9a. **Trick-shot potential** — a bright `Magenta` background on any visible, non-`Hidden` mob standing on a coin (`Pickup`), on the Element of Yoord (`Amulet`), or on a trap the player has already found (`Trap`, `Without<Hidden>`). It is an offer: a missile that stops on that creature stops on the tile under it too, and sets the thing off (`traps::detonate_at`). A trap still `Hidden` is not in here, because an aimed shot passes straight over one. Painted *after* layer 9, so it outranks the status tints: a sleeping monster on a bear trap is worth reading as the shot rather than as the nap, and the two never disagree — a helpless monster on a live trap is both at once.
-  10. **Detected things** — everything carrying `Detected` (a potion of magic or monster detection, or a scroll of food detection) that is *not* currently visible, painted in one flat `DarkMagenta`. Anything in view is already drawn above in its own colour; this layer is the sense, not the sight.
-  11. **Particles** — drawn over actors deliberately, so a hit motes over the thing it hit rather than under it.
-  12. **Targeting beam** — a Bresenham line from the player to the reticle, drawn as `*` in yellow, except where it crosses an actor: the actor's own glyph is kept but recoloured yellow (or black, if the actor was already yellow-ish, so it doesn't vanish into the beam). When the recoloured glyph is black, its tile also gets a `DarkYellow` background. The reticle's own tip gets a `DarkBlue` background. After the line, the **blast preview**: every in-view tile of `models::aim_footprint` gets a `DarkYellow` background, the tip aside. A spell or a zap bursts on the cursor; a throw bursts where `flight_path` says it comes down, traced past `Hidden` creatures so the preview gives none away, and a wand lobbed onto open floor previews nothing because it lands whole.
-  13. **Travel cursor** — a background-only highlight (`set_bg`), so the glyph and colour of whatever's on that tile stay readable.
-  14. **Player line** (row 22), the **scorekeeper's flash** (row 1, over the map's top row), the **balance gauge** (`hud::balance_gauge`, the same row from column 1: BALANCE with the letter for your alignment lit, BROKEN once spirits are hostile, blank at zero; the flash paints after it and wins an overlap), the **command bar** (rows 22–24, yellow, from column `BAR_X`, parted from the rest by blank columns; F2 hides it via `CommandBar`) and the **message log** (rows 23–24, from column `LOG_X`, or column 0 once the bar is hidden). While the `O` cursor is open, its prompt and hint replace the log's two rows. The log's `--MORE--` prompt waits for the effect layer — see `log_panel`, under "The two blocking loops" below.
-  15. **Overlays** — drawn last, on top of everything, in this order: the pack (`draw_inventory`), the spells list (`draw_spells`), a spirit's offer (`draw_offer_menu`), a demon's barter (`draw_barter_menu`), the F1 key list (`draw_help`, rows from `strings::help_rows`), the Info popup (`draw_item_info`, its `ItemInfo` lines wrapped at 54 columns) and the quit prompt.
-
-`occupied_by_actor`, computed once up front, is the set every "don't draw under a mob" rule in steps 3–8 checks against.
-
-**Blindness takes the colour out of the map.** While the player carries `Blind`, every map-space colour in steps 2, 4, 5, 6, 7 and 8 goes through `by_touch`, which returns `Color::White` for all of them — the 3x3 the visibility system left them reads as bare shapes felt out by hand. Remembered tiles keep their `DarkGrey`, and the detection layer keeps its magenta: neither is something the player is looking at.
+Layers 2–13 paint in map coordinates, so the shake moves them. **Blood, corpses, items and smoke skip any tile in `occupied_by_actor`**: the stain marks the floor, not whoever stands on it. **Blindness takes the colour out of the map**: map colours go through `by_touch`, which returns white, except remembered tiles and detected things, which the player is not looking at.
 
 
 The HUD
 --------
 
-Two lines, on opposite sides of the map: the dungeon's half on row 0, the player's half on row 22, directly under the viewport. The second one costs the map's bottom row; that is why the log is two lines. The command bar (`strings::onboarding_keys`, three keys one per row) takes the left of the bottom three rows, so the log and the player line both start at `LOG_X` and the log wraps at `LOG_WIDTH`, not the map's full width. F2 hides the bar and both slide to column 0; the log then wraps at `LOG_FULL_WIDTH`. `CommandBar::log_x` and `log_width` give the pair, and `hud::log_view` and `hud::acknowledge` take the width, so the page drawn and the page cut always agree. A message wider than that wraps at a word boundary onto the next line; when it runs past the second line the `--MORE--` pager keeps the unshown words (`hud::acknowledge`), so no word is lost between pages.
+Row 0 is the dungeon's half: condition badges from the left, `DEPTH` and `TIME` centred, pack and score on the right. **The three anchors do not negotiate**, so a long badge run can paint over `DEPTH`, and that is accepted: the alternative is dropping a badge the player needs. The badges, and the order they show in, are built in `render`.
 
-**Row 0** carries condition badges from column 1, `DEPTH n  TIME t` centred (each word in magenta, each number white; `t` is the turns left before the Dungeon Lord's patience, `DUNGEON_LORD_PATIENCE`, runs out on this floor) and the score pinned to the right edge in white, with `PACK: (used/total)` in white just left of it (the backpack's length over `PACK_CAPACITY`, the same cap a pickup checks). Nothing on it is laid out relative to anything else on it, so a player wearing six badges cannot push the depth or the score off the line.
+Row 22 is the player's half. **Every figure comes from the same call combat uses**, so the HUD cannot drift from the game: `Pow.`/`Arm.`/`Skl.` from one `models::loadout` fold, and `HP` turns red on `models::player_too_injured`, the same check auto-fight refuses under.
 
-**Row 22** is the player: name in capitals, `HP x/y`, `Ma x/y`, `Pow.`, `Arm.`, optionally `Skl.` — joined with `" · "` in `DarkGrey`. The label carries the colour and the figure beside it stays white — `Ma` dark cyan, `Pow.` red, `Arm.` cyan, `Skl.` green, the name white — so the line reads as one row of numbers over a colour-coded key rather than six differently coloured numbers. Two figures colour themselves, below: `HP`, and `Pow.`, which turns green while a dart or a bite has drained `power` below `max_power`.
+**Priority badges are never shed.** A creature carries at most `CONDITION_CAP` ledger conditions (`models/src/combat/effects/ledger.rs`), but the tempo badges, a worn ring's `STLH` and the two coin promises sit outside that count. Each is something the player cannot act correctly without seeing.
 
-`HP` is the one field that colours its own number, because the number is the thing that changes meaning: yellow normally, `DarkRed` once `models::player_too_injured` is true. That is the same call auto-fight refuses under, not a second threshold copied into the HUD, so the field can never say "fine" about a bar `Tab` will not swing on.
-
-The score itself is `view::score_text`, shared by the HUD and both end panels: six digits zero-padded (`SCORE 000140`), and past what six digits hold, an order of magnitude instead — `4.09M`, `1.31B`, `9.44T`, and `4.61e18` past a thousand trillion, where the suffixes run out. Truncated, never rounded: a score should never read higher than it is. A score that has saturated reads `MAXIMUM`: it is not a number any more, it is a ceiling.
-
-**The scorekeeper flashes, in the gutter under itself.** While `models::ScoreFlash` is lit — one frame per payment — the flash paints on **row 1**, right-aligned under the score, a character at a time from the flash's own colour list: `+700` in one random bright colour, `COMBO! +2400` with the word in the six flag stripes and the number in one colour, or `DOUBLE`. The running total keeps its place on row 0 throughout, so the frame that pays shows both what was paid and what it came to. Row 1 is the map's own top row, which is wall or nothing, and the flash is painted after the map layers (step 14, with the player line) so terrain cannot paint back over it.
-
-The displayed `Pow.`/`Arm.`/`Skl.` figures are **not** just `Fighter.power` etc. — they fold in every equipped modifier via one `models::loadout` call, the same fold `combat_system` runs, so the HUD can never drift from the number combat actually rolls against. One pass, not one per field: this runs on every frame of every animation. `Skl.` only appears once it's nonzero, since a player who never picked up something that boosts throws never needs to see a field that would always read `+0`. The bonus on `Pow.`/`Arm.` carries its own sign and is omitted entirely when it is zero, so a plain weapon reads `Pow. 10`, an enchanted one `Pow. 10+2` and a cursed one `Pow. 10-2` — the sign comes from the number, never from a `+` glued in front of it.
-
-Condition badges, in the order checked: `FAST`/`QUIK`/`SLOW` (read through `conditions::tempo`, not off `Speed.kind` — so a ring of slow digestion reads `SLOW` exactly like a wand of slow monster does), `STLH` (`Stealthy`, a ring of stealth), `POLY` (`Polymorphed`), the cards' floor ledgers (`BALA`, `BOLE`, `CRT!`, `OOF!`, `VULN`, `WRLD`), `CONF` (`Confused`), `BLND` (`Blind`), `PARL` (`Paralyzed`), `GLOW` (`ConfusingTouch`, a scroll of monster confusion still waiting on the next blow to land), `PLxN`/`FOxN` (the two coin promises and how many are stacked), `WARD`, `BIDE`, `PROT` (`Protected`), then a snare label, worst first (`STONE` for a medusa's gaze, `ASLEEP` for sleeping gas, `HELD` for a bear trap, jaws or roots), then an auto-walk badge (`EXPLORING`/`TRAVELING`, or `ASCENDING` — magenta — once the player carries the Element of Yoord), then `TRAVEL?` while the `O` cursor is open. Each is independent; several can show at once — though never more than `CONDITION_CAP` *ledger* conditions, which is a rule about the creature rather than about the line: see `CONDITION_CAP` in `models/src/combat/effects/ledger.rs`. A worn ring's `STLH`, the tempo badges and the two coin promises are **priority badges**, outside that count and never shed.
-
-They earn that by being things the player cannot act correctly without. A tempo changes what every single step costs, and it is a value on `Speed` rather than a marker something either has or has not, so there is nothing to shed. The two coin promises are standing bets that any damage at all cancels (`helpers::took_damage`) and a staircase settles (`items::settle_promises`); a promise silently displaced by one condition too many would be a bet the player is still playing around and can no longer see.
-
-**A long enough badge run paints over the centred `DEPTH`, and that is accepted.** The three anchors on row 0 do not negotiate with each other — that is what splitting the HUD bought — so the only way the line could stay clean under a full set of conditions, a tempo, `STLH`, both promises and an auto-walk badge would be to drop a badge the player needs. Nothing panics either way: `puts` no-ops past the frame edge. A player wearing that much at once did it to themselves.
+`score_text` truncates and never rounds, so a score never reads higher than it is.
 
 
 Animation playback
 --------------------
 
-```mermaid
-%%{init: {'theme':'base','themeVariables':{
-  'primaryColor':'#20242b','primaryTextColor':'#d7dae0',
-  'primaryBorderColor':'#5c6370','lineColor':'#8a8f98',
-  'fontFamily':'ui-monospace, SFMono-Regular, Menlo, monospace',
-  'fontSize':'13px'}}}%%
-flowchart LR
-  subgraph blocking["blocking — the turn is already resolved"]
-    direction LR
-    P1["advance one frame"]:::magic --> P2["render"]:::cold
-    P2 --> P3{"key?"}
-    P3 -- no --> P4{"anything<br/>left?"}
-    P4 -- yes --> P1
-    P4 -- no --> P5(["done"])
-    P3 -- "yes: swallow it" --> P6(["skip to the end"]):::hero
-  end
-  subgraph shake["play_shake — never blocks"]
-    direction LR
-    S1["advance one frame"]:::magic --> S2["render"]:::cold
-    S2 --> S3{"key?"}
-    S3 -- no --> S4{"still<br/>rocking?"}
-    S4 -- yes --> S1
-    S4 -- no --> S5(["settled"])
-    S3 -- "yes: leave it unread" --> S6(["settle, repaint,<br/>hand the key back"]):::hero
-  end
-  blocking ~~~ shake
-  classDef hero fill:#3a3418,stroke:#d7ba4a,color:#e8dfa8
-  classDef peril fill:#3a1f1f,stroke:#c05050,color:#f0c8c8
-  classDef magic fill:#2f2038,stroke:#a86fc0,color:#e6cdf0
-  classDef cold  fill:#17323a,stroke:#4aa3c0,color:#bfe4f0
-```
+The main loop calls `play_particles` and `play_magic_map` after the schedule and before the frame's own `render`. Both **block**: the turn is already resolved, so freezing input to show it is safe, and a keypress skips to the end and is swallowed. `drain_input` empties the queue before the first frame and `interrupted` counts only key presses, so the release of the key that fired a wand cannot kill its own bolt.
 
-Both of these are **blocking** loops called once per main-loop iteration, after the schedule runs and before the frame's own `render`. Both are no-ops when nothing armed them, so a turn that fought nothing and read no scroll passes straight through. (The third playback loop, `play_shake`, is the one that does not block — it has its own section below.)
+**`--MORE--` waits for the particles** (`log_panel`). The prompt asks for a key, and any key skips the animation, so a prompt shown mid-burst would eat a trick shot's blast. Only the prompt waits; the log lines still paint.
 
-```
-pub fn play_particles(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::io::Result<()>
-pub fn play_magic_map(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::io::Result<()>
-```
+`play_shake` is the odd one out: it **never blocks**. The dungeon arms a shake at the moments a player is most likely typing ahead, so the moment a key arrives it settles the map, repaints and returns *without reading the key*. It runs straight after the frame that armed it, so the map is never left skewed while the loop waits. `-nshake` stops anything arming one (`Shake::enabled`); `rg ShakeKind::` finds what does. The blocking loops age the shake too, so a blast's shake and sparks play together and skip together.
 
-Both share the same shape. Each runs only when armed (`Particles::pending`, `MagicMapReveal::active`): `drain_input` first, then — while the effect still has something to show — advance it one frame, call `render` to paint the result, and `interrupted` for the frame's duration — a key *press* during that poll is swallowed and skips straight to the finished state (magic mapping additionally `finish_magic_map_reveal`s the map instantly rather than leaving it part-revealed). Frame duration is `AnimRate`-scaled (`-anim-rate`, clamped `0.1..=5.0`) off `BASE_FRAME_MS` for particles and `MagicMapReveal::frame_ms()` for the map wipe, and each frame's poll is held `ANIMATION_SLOWDOWN` times longer, so a slow terminal or a player who wants snappier turns can retune both without either one's code changing.
-
-The two helpers around that poll exist for one bug: the loops treat a pending event as "skip this", and the key that *started* the animation can still be echoing — a terminal that reports key releases hands back the release of the zap key, which killed the bolt on its first frame and made a wand look like it drew nothing at all. `drain_input` empties the queue before the first frame; `interrupted` counts only `Event::Key`, and `term::read` hands up nothing but presses and clicks, so a release, a resize or a mouse report arriving mid-flight is not a skip. Keys typed ahead are still swallowed, before the first frame.
-
-The turn itself is already fully resolved by the time either of these runs — they only animate what already happened, which is what makes it safe to block input here the way NetHack and DCSS do for a bolt.
-
-**The `--MORE--` prompt waits for the effect layer** (`log_panel`, which packs layer 14's lines and answers for the prompt in the same breath). Because that poll takes *any* key as "skip", a prompt asking for Space while motes are still on screen asks for the one key that throws the rest of the batch away — and a batch is ordered. A trick shot's blast is queued *behind* the missile's flight (`Particles::hold_ms`), so the key lands during the wind-up, eats the explosion, and leaves the flight looking fine: the shot animates perfectly right up to the part worth watching. A trick shot raises the prompt every time — it shouts, kills, drops the dead one's gear and then says "Very clever.", eleven messages for two lines of log — which is why that was the blast nobody could get to play. Only the prompt waits: the lines that fit are painted throughout, and the backlog is out of reach for no longer than the animation the player is already watching.
-
-Both also call `age_shake` once per frame and `settle_shake` on the skip-keypress, so a shake armed by the same turn keeps decaying over whichever animation happens to be on screen — which is the common case, not an edge one: a blast arms the shake and queues its particles in the same breath, and the two are meant to be seen together. Skipping the sparks skips the shake with them; they are one effect.
+Frame timing for all three scales with `AnimRate` (`-anim-rate`).
 
 
-The screen shake
-------------------
+End-of-run panels and overlays
+-------------------------------
 
-```
-pub fn play_shake(world: &mut World, term: &mut Term, screen: &mut Screen) -> std::io::Result<()>
-```
+`render_you_died`, `render_lose` and `render_win` replace `render` with a cleared, fully dirty screen; `main.rs`'s `run_death_screens` and `run_victory_screens` drive them. The run dump (`morgue.rs`) is written first, while the last map frame is still on screen, so `Screen::shown_text` captures what the player last saw.
 
-Same shape as the two loops above — advance, `render`, `poll` — with one deliberate difference that is the whole reason it is a separate function: **it never blocks on the player.**
+`draw_inventory` takes its rows from `models::pack_rows` and its title from `PackMode::title`, so it can never show a row the cursor cannot reach. A row's letter is its backpack index; its screen line is its place in the filtered list.
 
-`play_particles` can afford to freeze for the length of a burst because it animates an aftermath the player asked for by swinging. A shake is armed *by the dungeon*, at exactly the moments a player is most likely to be typing ahead: mid-fight, or half a second from dying. A flourish that eats a keystroke there is a flourish that gets a flag turned off. So `play_shake` runs only in the gap where nothing is waiting to be read, and the moment `poll` reports a key it settles the map, repaints one steady frame, and returns **without consuming the key** — leaving it for the input handler that was about to block on it anyway. Worst case, a player typing through a shake sees one frame of it and no more.
-
-It runs as Step C1 of the main loop, straight after the frame that armed it and before the loop can block again, which is what guarantees the map is never left frozen mid-lurch on screen: either the shake runs out inside `play_shake` or a keypress settles it there.
-
-What arms it is every call that passes a `ShakeKind` (`rg ShakeKind::`). `render` reads the current displacement into `Screen::map_shift` at the top of every frame, so nothing else in this file has to know the feature exists. `-nshake` turns it off at the source (`Shake::enabled`), so nothing is ever armed; `-anim-rate` scales its frames like every other animation's.
-
-A player death is the one moment with nothing left to protect, and it arms no shake at all — the map holds still and `helpers::death_burst` plays out three times slower instead, in Step B2, before the main loop reaches its `Ending` check and `run_death_screens` paints over it.
-
-One thing to know if you are measuring: a shake frame changes most of the map's cells, so it is the one situation where the cell-diff has little left to skip. It lasts as long as its `ShakeKind::shape` says.
-
-
-End-of-run panels
--------------------
-
-```
-pub fn render_you_died(term, screen) -> std::io::Result<()>
-pub fn render_lose(term, screen, player_name, cause, score)
-pub fn render_win(term, screen, player_name, score, marks)
-```
-
-Full-screen, drawn in place of `render` (not layered with it) via `screen.clear()` and `screen.dirty_all = true` — a full repaint, since nothing about the map frame should bleed through. Both end panels are one word — `strings::win_title` or `strings::lose_title` — then the name in capitals, the cause (death only), the score and the prompt; `centered_x` centres every line. `main.rs`'s `run_death_screens`/`run_victory_screens` drive these: death shows the "You die..." panel, blocks for the acknowledging keypress (`wait_for_key`), then shows LOSE and blocks again; victory shows WIN and blocks once. The win panel also draws `marks`, one coloured `conduct::MARK` per conduct kept, under the score (`conducts.md`). Both write the run dump (`morgue.rs`) first, while the last map frame is still the one on the terminal: `Screen::shown_text` reads that frame, so the dump's final screen is what the player last saw.
-
-
-The inventory overlay
-------------------------
-
-```
-fn draw_inventory(world: &mut World, screen: &mut Screen)
-```
-
-A bordered box sized to the widest row actually being drawn (`row_text`, the one place a row's text — letter, name, `" (E)"` for equipped — is assembled, so sizing and drawing can never disagree about a row's width), the title, or 30 columns, whichever is largest. Row colour is a small decision table on `(selected, cursed_known, equipped)` — `known_quality` gates the cursed colouring, so an unidentified cursed item still reads as ordinary. The Use/Drop/Throw/Info action modal, when open, is a second small box floated to the right of the item row it belongs to, its four labels coming from `ItemAction::MENU`.
-
-`draw_quit_prompt` is the overlay's sibling and the last thing painted in the frame, so "Really quit?" sits over everything: a box centred on the map (two lines, four once `QuitPrompt.warned` adds the red time-stopped rows), spelling out both answers rather than leaning on "any key". It is the only modal in the game whose job is to *slow the player down*, which is also why it is centred instead of tucked into a corner where a key could be answered by reflex.
-
-Which rows the inventory box has, and the heading over them, come from `PackIsOpen::mode`: `models::pack_rows` for the rows and `PackMode::title` for the heading, so the drawing code holds no filter of its own and can never show a row the cursor cannot reach. The rows it gets back are backpack indices — the row's *letter* is that index, while its *screen line* is its position in the filtered list, which is why the two are tracked separately in the loop.
+`draw_quit_prompt` paints last, centred over everything: it is the one modal whose job is to slow the player down.
 
 
 See also
 --------
 
   input-and-turn-loop.md        the other half of the frame: keyboard and turns
-  ../explanation/the-feel-layer.md   why each effect looks the way it does
-  ../../models/src/meta/components/  the resources named throughout this page
+  ../explanation/adr-0004-no-tests-of-presentation.md   why none of this is unit-tested
+  ../../models/src/meta/components/  the resources `view.rs` reads
   ../reference/cli-and-env.md   `-c`, `-anim-rate`, `-nb`, `-nshake`
