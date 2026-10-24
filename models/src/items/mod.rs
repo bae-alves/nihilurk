@@ -8,8 +8,6 @@
 //!
 //! * [`potions`] — quaffing a potion (each row of `crate::catalog::POTIONS` names its handler there)
 //! * [`scrolls`] — reading a scroll (each row of `crate::catalog::SCROLLS` names its handler there)
-//! * [`runes`] — invoking a rune (each row's `apply` handler), which goes
-//!   inert instead of crumbling and wakes on the stairs
 //! * [`wands`] — zapping a wand ([`wands::zap_wand`]), plus the blast
 //!   and bolt machinery a thrown wand also borrows
 //! * [`throwing`] — hurling anything at anything, and what catches it
@@ -35,7 +33,6 @@ pub(crate) mod identify;
 pub(crate) mod pickups;
 pub(crate) mod potions;
 pub(crate) mod rings;
-pub(crate) mod runes;
 pub(crate) mod scrolls;
 pub(crate) mod spells;
 mod theft;
@@ -61,13 +58,10 @@ pub(crate) use wands::blast_cells;
 
 pub use decks::{Deal, Hand, Rank, score_hand};
 
+pub(crate) use scrolls::map_the_floor;
 /// One blast, resolved. A creature marked to burst when it dies
 /// ([`crate::effects::ExplodesOnDeath`]) lets one off through it.
 pub(crate) use wands::elemental_blast;
-
-/// What a staircase does to every spent rune in the pack.
-pub(crate) use runes::recharge_runes;
-pub(crate) use scrolls::map_the_floor;
 
 pub use throwing::{
     FrozenThrows, aim_footprint, ammo_noun, draw_one, drop_refusal, first_matching_ammo, stow,
@@ -251,8 +245,6 @@ struct UsePlan {
     scroll: Option<&'static crate::catalog::ScrollDef>,
     /// The card just taken off the top of a deck.
     card: Option<Card>,
-    /// A rune's row, and whether it held a charge going in.
-    rune: Option<(&'static crate::catalog::RuneDef, bool)>,
     is_equipment: bool,
     destroy: bool,
     keep: bool,
@@ -272,11 +264,6 @@ fn plan_use(world: &mut World, user: Entity, item: Entity) -> UsePlan {
     plan.wand = e.get::<Wand>().map(|w| w.row);
     plan.scroll = e.get::<Scroll>().map(|s| s.row);
     plan.is_equipment = e.get::<crate::equipment::Equipped>().is_some();
-    if let Some(mut rune) = e.get_mut::<Rune>() {
-        plan.rune = Some((rune.row, rune.charged));
-        rune.charged = false;
-        plan.keep = true;
-    }
     if let Some(mut battery) = e.get_mut::<Battery>() {
         if battery.charges <= 0 {
             plan.wand = None;
@@ -359,28 +346,15 @@ fn resolve_use(world: &mut World, item_use: WantsToUse) {
         let deck = (!plan.destroy).then_some(item_use.item);
         decks::draw(world, item_use.user, deck, card);
     }
-    match plan.rune {
-        Some((row, true)) => {
-            world
-                .resource_mut::<GameLog>()
-                .add(strings::you_invoke(&seen_name));
-            (row.apply)(world, item_use.user);
-        }
-        Some((_, false)) => world
-            .resource_mut::<GameLog>()
-            .add(strings::rune_is_inert().to_string()),
-        None => {}
-    }
 }
 
 /// Breaks the conduct for each kind of thing `plan` is about to do, if the
-/// user is the player. A rune only counts when it was charged to fire.
+/// user is the player.
 fn break_use_conducts(world: &mut World, user: Entity, plan: &UsePlan) {
     let used = [
         (plan.potion.is_some(), Conduct::Potions),
         (plan.wand.is_some(), Conduct::Wands),
         (plan.scroll.is_some(), Conduct::Scrolls),
-        (matches!(plan.rune, Some((_, true))), Conduct::Runes),
     ];
     for (did, conduct) in used {
         if did {

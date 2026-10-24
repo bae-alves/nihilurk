@@ -236,8 +236,7 @@ pub fn revoke_matching(world: &mut World, entity: Entity, doomed: impl Fn(&Held)
 /// Takes back every entry lending `grant`, whoever lent it: a charge spent, a
 /// hold broken out of. The counterpart to [`lend`], and the reason no caller
 /// has to spell an effect's id as a string — a misspelled literal compiles,
-/// matches nothing, and revokes nothing, which is the same silence the bare
-/// `remove` it replaced used to give.
+/// matches nothing, and revokes nothing.
 pub fn revoke(world: &mut World, entity: Entity, grant: Grant) {
     let Some(id) = grant.effect_id() else {
         return;

@@ -45,9 +45,8 @@ macro_rules! modifiers {
         /// shape when a caller wants one — a trap measuring armour plus, a
         /// throw measuring its bonus. It is the wrong shape when a caller
         /// wants all of them, because each call walks the wearer's gear again:
-        /// combat used to make four passes per blow and the HUD five per
-        /// frame, over the same handful of items, to assemble numbers it
-        /// needed together anyway.
+        /// combat would make four passes per blow and the HUD five per frame,
+        /// over the same handful of items.
         ///
         /// This is the same fold with the loop on the outside. There is no
         /// cache and no second copy of anything — `Equipped` is still the only
@@ -58,7 +57,7 @@ macro_rules! modifiers {
         ///
         /// Concrete fields are what make the single pass possible, and they
         /// cost generality: [`equipped_total::<C>`](equipped_total) takes a new
-        /// modifier for free, and this does not. What it no longer costs is
+        /// modifier for free, and this does not. What it does not cost is
         /// *silence* — the struct and the fold are generated from the row
         /// above, so a modifier cannot be added and quietly left out of the
         /// numbers. What is still by hand is the callers that read the fields

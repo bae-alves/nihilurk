@@ -498,7 +498,7 @@ pub fn regenerate_map(world: &mut World, seed: u64, depth: u8) {
     world.insert_resource(build_floor(seed, depth, bees, Floors::of(world)).0);
 }
 
-// What a floor is populated *with* is no longer decided here. Which creature,
+// What a floor is populated *with* is not decided here. Which creature,
 // which item and which trap are weighted draws over the content tables
 // themselves -- MonsterDef::pick, spawn::roll_item and TrapDef::pick. This file
 // decides only how many and where.

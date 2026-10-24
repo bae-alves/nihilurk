@@ -22,7 +22,6 @@ Each conduct breaks on one act, at one place in the code. Every site below is pl
 | `Potions`   | drinks a potion                      | `break_use_conducts`, `models/src/items/mod.rs`            |
 | `Scrolls`   | reads a scroll                       | `break_use_conducts`                                   |
 | `Wands`     | zaps a wand, or throws one           | `break_use_conducts`; `resolve_wand_throw`, `throwing.rs` |
-| `Runes`     | invokes a charged rune               | `break_use_conducts` (an inert rune does not count)    |
 | `Spells`    | pays for a spell                     | `pay_for_spell`, `items/spells.rs`                     |
 | `Coins`     | takes a coin                         | `spend_pickup`, `items/pickups.rs`                     |
 | `Ranged`    | throws or fires anything             | `resolve_throw`, `items/throwing.rs`                   |

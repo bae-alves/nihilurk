@@ -63,13 +63,9 @@ pub fn use_refusal(world: &World, item: Entity) -> Option<String> {
     if thrown_only {
         return Some(strings::for_throwing(&display_name(world, item)));
     }
-    if world.get::<Rune>(item).is_some_and(|r| !r.charged) {
-        return Some(strings::rune_is_inert().to_string());
-    }
     let has_a_use = world.get::<Potion>(item).is_some()
         || world.get::<Wand>(item).is_some()
         || world.get::<Scroll>(item).is_some()
-        || world.get::<Rune>(item).is_some()
         || world.get::<Battery>(item).is_some()
         || world.get::<Deck>(item).is_some()
         || world.get::<Equipped>(item).is_some()
@@ -225,12 +221,11 @@ fn is_fired(world: &World, thrower: Entity, item: Entity) -> bool {
         .is_some_and(|a| a.row.launched_by.probe(world, thrower))
 }
 
-/// A potion, a scroll, a rune, a wand or a ring — the small stuff, which carries
+/// A potion, a scroll, a wand or a ring — the small stuff, which carries
 /// [`LIGHT_THROW_RANGE`] instead of the [`THROW_RANGE`] a spear gets.
 fn is_light(world: &World, item: Entity) -> bool {
     world.get::<Potion>(item).is_some()
         || world.get::<Scroll>(item).is_some()
-        || world.get::<Rune>(item).is_some()
         || world.get::<Wand>(item).is_some()
         || world.get::<Ring>(item).is_some()
 }
@@ -418,6 +413,8 @@ pub fn stow(world: &mut World, carrier: Entity, item: Entity) -> Option<String> 
 
 /// A thrown wand bursts where it lands, spending every charge it had left in one
 /// go, the way its row's [`Thrown`] says.
+///
+/// [`Thrown`]: crate::catalog::Thrown
 fn resolve_wand_throw(
     world: &mut World,
     thrower: Entity,
@@ -447,6 +444,9 @@ fn resolve_wand_throw(
 /// [`Thrown::GRENADE`] and [`Thrown::FLASH`]: one die of
 /// [`GRENADE_DIE_PER_CHARGE`] sides a charge (at 1, a flat point a charge),
 /// armour-ignoring, elemental where the wand is.
+///
+/// [`Thrown::GRENADE`]: crate::catalog::Thrown::GRENADE
+/// [`Thrown::FLASH`]: crate::catalog::Thrown::FLASH
 pub(crate) fn grenade(world: &mut World, burst: Burst) {
     let damage = roll_dice(world, burst.charges, GRENADE_DIE_PER_CHARGE);
     let caught = shatter(world, burst, damage);
@@ -454,6 +454,8 @@ pub(crate) fn grenade(world: &mut World, burst: Burst) {
 }
 
 /// [`Thrown::blast`]: it deals *no* damage; the payload is the row's `each`.
+///
+/// [`Thrown::blast`]: crate::catalog::Thrown::blast
 pub(crate) fn blast(world: &mut World, burst: Burst) {
     let caught = shatter(world, burst, 0);
     touch(world, burst, &caught, burst.row.thrown.each);
@@ -461,6 +463,8 @@ pub(crate) fn blast(world: &mut World, burst: Burst) {
 
 /// [`Thrown::SHUFFLE`]: the harmless blast, and the creatures it catches trade
 /// places.
+///
+/// [`Thrown::SHUFFLE`]: crate::catalog::Thrown::SHUFFLE
 pub(crate) fn shuffle(world: &mut World, burst: Burst) {
     let caught = shatter(world, burst, 0);
     shuffle_places(world, &caught);
@@ -468,6 +472,8 @@ pub(crate) fn shuffle(world: &mut World, burst: Burst) {
 }
 
 /// [`Thrown::CONFETTI`].
+///
+/// [`Thrown::CONFETTI`]: crate::catalog::Thrown::CONFETTI
 pub(crate) fn confetti(world: &mut World, burst: Burst) {
     world
         .resource_mut::<GameLog>()
@@ -478,6 +484,8 @@ pub(crate) fn confetti(world: &mut World, burst: Burst) {
 }
 
 /// [`Thrown::CRATER`]: the grenade's reach, dug.
+///
+/// [`Thrown::CRATER`]: crate::catalog::Thrown::CRATER
 pub(crate) fn crater(world: &mut World, burst: Burst) {
     world
         .resource_mut::<GameLog>()
@@ -531,6 +539,8 @@ fn touch(world: &mut World, burst: Burst, caught: &[Entity], each: Option<fn(&mu
 }
 
 /// The disc the row's [`Thrown`] bursts in, the one the reticle painted.
+///
+/// [`Thrown`]: crate::catalog::Thrown
 fn burst_radius(burst: Burst) -> f32 {
     burst.row.thrown.radius.unwrap_or(BLAST_RADIUS)
 }

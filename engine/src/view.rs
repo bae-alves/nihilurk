@@ -65,8 +65,8 @@ fn bresenham_line(x0: u16, y0: u16, x1: u16, y1: u16) -> Vec<(u16, u16)> {
 /// is queued *behind* the missile's flight (`Particles::hold_ms`), so that
 /// keypress eats the explosion and leaves the flight looking fine. A trick
 /// shot raises the prompt every time — it shouts, kills, drops the dead one's
-/// gear and then says "Very clever." — which is why it was the shot nobody
-/// could get to explode.
+/// gear and then says "Very clever." — so without the wait it is the one shot
+/// whose explosion never shows.
 ///
 /// Only the prompt waits. The lines that fit are painted throughout, and the
 /// backlog is out of reach for no longer than the animation the player is
@@ -872,8 +872,8 @@ fn settle_shake(world: &mut World) {
 /// treat *any* pending event as "the player wants this skipped" — and the key
 /// that triggered the animation can still be echoing. A terminal that reports
 /// key releases (and some do) hands us the release of the very keypress that
-/// zapped the wand, which used to kill the bolt on its first frame, so a zap
-/// looked like it drew nothing at all. Keys typed ahead are swallowed here
+/// zapped the wand, which would kill the bolt on its first frame, so a zap
+/// would look like it drew nothing at all. Keys typed ahead are swallowed here
 /// instead of one frame later, which is where they were going anyway.
 fn drain_input() -> std::io::Result<()> {
     while poll(Duration::from_millis(0))? {
@@ -1023,8 +1023,8 @@ pub fn play_shake(world: &mut World, term: &mut Term, screen: &mut Screen) -> st
 
 /// A die and its flat bonus, as the HUD prints them: `10`, `10+2`, `10-2`.
 ///
-/// The sign comes from the number, never from a `+` glued on in front of it —
-/// which is what used to render a cursed weapon as `Pow. 10+-2`. A bonus of
+/// The sign comes from the number, never from a `+` glued on in front of it,
+/// which would render a cursed weapon as `Pow. 10+-2`. A bonus of
 /// zero is not shown at all: a plain weapon is a die and nothing else, and a
 /// trailing `+0` on every field would be four characters of noise on a status
 /// line that has to fit eight of them.
@@ -1735,7 +1735,7 @@ mod tests {
     /// A world holding only what the log panel reads. Deliberately not a
     /// mirror of `main`'s startup: this asserts a rule, not a frame, and the
     /// last end-to-end render test here died of hand-copying twenty-two
-    /// resources — see `docs/explanation/adr-0004-no-tests-of-presentation.md`.
+    /// resources.
     fn gate_world() -> World {
         let mut w = World::new();
         w.init_resource::<GameLog>();

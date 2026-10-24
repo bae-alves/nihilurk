@@ -152,7 +152,6 @@ The map uses these symbols:
 | `^`    | A discovered trap |
 | `$`    | A coin or other pickup |
 | `! ? / =` | Potion, scroll (or a magenta deck of cards), wand, or ring |
-| `'`    | A rune: a scroll that goes dark instead of crumbling, and wakes when you take the stairs |
 | `) ] }` | Weapon, armour, or launcher |
 | `"`    | The Element of Yoord |
 
@@ -219,7 +218,7 @@ These commands go directly to the relevant kind of action:
 | `d` | Drop an item |
 | `e` | Equip something you can wear or wield |
 | `q` | Quaff a potion |
-| `r` | Read a scroll or a rune |
+| `r` | Read a scroll |
 | `z` | Zap a wand |
 | `w` | Wield a weapon or launcher |
 | `W` | Wear armour |
@@ -267,7 +266,7 @@ Conducts
 
 A conduct is something you go without. Win a run and each one you kept adds 10% of your score on top, so a clean run is worth much more than a loud one. Die and you earn nothing for them.
 
-  * No potions, no scrolls, no wands, no runes.
+  * No potions, no scrolls, no wands.
   * No casting, no coins, no throwing or firing, no melee attacks.
   * No charming, no boon companion.
   * No damage taken, no gear put on, never saved by your armour.

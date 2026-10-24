@@ -37,7 +37,6 @@ use crate::constants::wands::{
 use crate::catalog::index_of;
 
 const BLANK_PAPER: usize = index_of!(crate::catalog::SCROLLS, "scroll of blank paper");
-const BLANK_RUNE: usize = index_of!(crate::catalog::RUNES, "blank rune");
 const WATER: usize = index_of!(crate::catalog::POTIONS, "potion of thirst quenching");
 
 /// A wand's damage: `[DAMAGE_DICE]d[DAMAGE_SIDES]`, rolled once per zap and
@@ -49,9 +48,8 @@ fn roll_wand_damage(world: &mut World) -> i32 {
 /// Applies `damage` of `element` (or non-elemental if `None`) to `entity`.
 /// Returns how much HP was actually taken off.
 ///
-/// This used to be where the ward and the immunity were decided, and it was
-/// the only damage path in the game that decided both. It is a one-line
-/// wrapper over [`apply_hit`] now, which is where every path decides them.
+/// A one-line wrapper over [`apply_hit`], which is where every damage path
+/// decides the ward and the immunity.
 fn damage_with_element(
     world: &mut World,
     entity: Entity,
@@ -957,10 +955,10 @@ pub(crate) fn teleport_entity_away(world: &mut World, victim: Entity) {
 /// With nothing on the aimed tile the magic still has to land on *someone* — and
 /// the only body in range is the wielder's own.
 ///
-/// Boxed in, the drag simply fails. It used to fall back to
-/// [`random_open_tile`] — which is a teleport *away* wearing teleport-to's
-/// "dragged to your side!" message, the one outcome this wand exists not to
-/// produce.
+/// Boxed in, the pull goes ahead anyway and ends in [`burst_in_transit`]. It
+/// never falls back to [`random_open_tile`]: that would be a teleport *away*
+/// wearing teleport-to's "dragged to your side!" message, the one outcome this
+/// wand exists not to produce.
 fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos: Position) {
     let Some(victim) = monster_at(world, pos) else {
         teleport_entity_to_self(world, user);
@@ -988,9 +986,9 @@ fn teleport_target_here(world: &mut World, user: Entity, user_pos: Position, pos
 /// fizzle: it pulls anyway, and what comes out the far end is not in one piece.
 ///
 /// Both wands end here — teleport away with the floor full, teleport to with
-/// no room at the zapper's side — because both are the same failure, and both
-/// used to resolve it by quietly doing nothing (or, worse, by flinging the
-/// target somewhere the message didn't claim). `source` is what the gore flies
+/// no room at the zapper's side — because both are the same failure, and
+/// neither may quietly do nothing or fling the target somewhere the message
+/// didn't claim. `source` is what the gore flies
 /// away from. The kill goes through [`crate::combat::finish_indirect_kill`]
 /// like every other death with no swinger behind it, so it pays score, drops
 /// gear and bursts exactly as a bolt's kill does.
@@ -1174,14 +1172,6 @@ fn cancel_player(world: &mut World, player: Entity) {
             if let Some(mut name) = em.get_mut::<Name>() {
                 name.what =
                     strings::content_name(crate::catalog::SCROLLS[BLANK_PAPER].name).to_string();
-            }
-        }
-        if let Some(mut rune) = em.get_mut::<Rune>() {
-            rune.row = crate::catalog::RUNES[BLANK_RUNE];
-            rune.charged = false;
-            if let Some(mut name) = em.get_mut::<Name>() {
-                name.what =
-                    strings::content_name(crate::catalog::RUNES[BLANK_RUNE].name).to_string();
             }
         }
         if let Some(mut potion) = em.get_mut::<Potion>() {

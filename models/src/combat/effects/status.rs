@@ -47,8 +47,8 @@ pub struct Paralyzed;
 /// ([`crate::conditions::clear_player_conditions`]).
 #[derive(Component, Default, Clone, Copy)]
 pub struct MagicWard;
-/// A rune of protection: no damage of any kind, however it comes. Held for
-/// [`crate::constants::runes::PROTECTION_TURNS`] turns. See
+/// A scroll of protection: no damage of any kind, however it comes. Held for
+/// [`crate::constants::scrolls::PROTECTION_TURNS`] turns. See
 /// [`crate::helpers::apply_hit`] and [`crate::combat::resolve_attack`], the two
 /// places HP comes off.
 #[derive(Component, Default, Clone, Copy)]

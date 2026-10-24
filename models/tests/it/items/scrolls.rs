@@ -1,12 +1,17 @@
-//! The scroll table, now that every row does something: teleportation,
-//! aggravate monsters, scare monster, create monster and vorpalize weapon (plus
-//! the rule that a glancing blow can never be the killing one), then the six
-//! that used to be readable and inert — the two enchantments, monster
-//! confusion, hold monster, sleep and food detection.
+//! The scroll table: teleportation, aggravate monsters, scare monster, create
+//! monster and vorpalize weapon (plus the rule that a glancing blow can never
+//! be the killing one), then the two enchantments, monster confusion, hold
+//! monster, sleep and food detection, and the three rare ones: recharging,
+//! protection and justice.
+
+#[allow(dead_code)] // only the handless fixture is wanted here
+use crate::common::monster;
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::Schedule;
 use models::*;
+
+const NOWHERE: Position = Position { x: 0, y: 0 };
 
 fn test_world(seed: u64) -> World {
     let mut w = World::new();
@@ -810,4 +815,150 @@ fn teleport_to_stairs_goes_down_without_the_element_and_up_with_it() {
 
     read(&mut w, p, "scroll of teleport to stairs");
     assert!(within_one_of(&w, p, TileType::Upstairs));
+}
+
+/// Two open tiles side by side on the hero's row, east of them, nearest first.
+fn two_open_east(w: &mut World, hero: Position) -> (Position, Position) {
+    let map = w.resource::<Map>();
+    (1..12)
+        .map(|d| (hero.x + d, hero.y))
+        .find(|&(x, y)| !map.blocks(x, y) && !map.blocks(x + 1, y))
+        .map(|(x, y)| (Position { x, y }, Position { x: x + 1, y }))
+        .expect("two open tiles east of the start")
+}
+
+fn make_tough(w: &mut World, e: Entity) {
+    let mut f = w.get_mut::<Fighter>(e).unwrap();
+    f.hp = 1000;
+    f.max_hp = 1000;
+}
+
+// ---------------------------------------------------------------------------
+// Recharging
+// ---------------------------------------------------------------------------
+
+#[test]
+fn recharging_adds_one_charge_to_every_wand_up_to_the_cap() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    let charges = [3, 5, constants::wands::WAND_CHARGES];
+    let wands: Vec<Entity> = charges
+        .iter()
+        .map(|&c| {
+            let wand = spawn_named(&mut w, "wand of light", NOWHERE).unwrap();
+            w.get_mut::<Battery>(wand).unwrap().charges = c;
+            stash(&mut w, p, wand);
+            wand
+        })
+        .collect();
+
+    read(&mut w, p, "scroll of recharging");
+
+    let now: Vec<i8> = wands
+        .iter()
+        .map(|&e| w.get::<Battery>(e).unwrap().charges)
+        .collect();
+    let cap = constants::wands::WAND_CHARGES;
+    assert_eq!(now, vec![4, cap, cap]);
+}
+
+// ---------------------------------------------------------------------------
+// Protection
+// ---------------------------------------------------------------------------
+
+#[test]
+fn protection_stops_all_damage_for_six_turns_and_then_stops_stopping_it() {
+    let mut w = test_world(7);
+    let p = player(&mut w);
+    make_tough(&mut w, p);
+    let start = w.get::<Fighter>(p).unwrap().hp;
+    let hero = *w.get::<Position>(p).unwrap();
+    let (near, _) = two_open_east(&mut w, hero);
+    let orc = monster::plain_monster(&mut w, "orc", near);
+    w.get_mut::<Fighter>(orc).unwrap().power = 8;
+
+    read(&mut w, p, "scroll of protection");
+    assert!(w.get::<Protected>(p).is_some());
+
+    assert_eq!(apply_hit(&mut w, p, Hit::physical(9), None), 0);
+    assert_eq!(
+        apply_hit(
+            &mut w,
+            p,
+            Hit {
+                amount: 9,
+                element: Some(Element::Fire),
+                magical: true,
+            },
+            None
+        ),
+        0
+    );
+    for _ in 0..100 {
+        resolve_attack(&mut w, orc, p);
+    }
+    assert_eq!(w.get::<Fighter>(p).unwrap().hp, start, "untouched");
+
+    for _ in 0..constants::scrolls::PROTECTION_TURNS {
+        assert!(w.get::<Protected>(p).is_some());
+        tick_effects(&mut w);
+    }
+    assert!(w.get::<Protected>(p).is_none(), "six turns, then it ends");
+
+    assert!(apply_hit(&mut w, p, Hit::physical(9), None) > 0);
+    for _ in 0..100 {
+        resolve_attack(&mut w, orc, p);
+    }
+    assert!(
+        w.get::<Fighter>(p).unwrap().hp < start - 9,
+        "blades bite again"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Justice
+// ---------------------------------------------------------------------------
+
+/// The hero, a marked monster `a` beside them, and a one-HP bystander `b` next
+/// to `a`, out of the hero's sight so the scroll never marked it. `a`'s power die
+/// is what the burst rolls.
+fn justice_scene(w: &mut World) -> (Entity, Entity, Entity) {
+    let p = player(w);
+    make_tough(w, p);
+    let hero = *w.get::<Position>(p).unwrap();
+    let (at_a, at_b) = two_open_east(w, hero);
+    let a = monster::plain_monster(w, "orc", at_a);
+    let b = monster::plain_monster(w, "bat", at_b);
+    {
+        let mut f = w.get_mut::<Fighter>(a).unwrap();
+        f.hp = 1;
+        f.max_hp = 1;
+        f.power = 6;
+        f.max_power = 6;
+    }
+    {
+        let mut f = w.get_mut::<Fighter>(b).unwrap();
+        f.hp = 1;
+        f.max_hp = 1;
+    }
+    w.get_mut::<Viewshed>(p).unwrap().visible_tiles = vec![(hero.x, hero.y), (at_a.x, at_a.y)];
+
+    read(w, p, "scroll of justice");
+    (p, a, b)
+}
+
+#[test]
+fn a_marked_monster_cut_down_in_melee_bursts_too() {
+    let mut w = test_world(7);
+    let (p, a, b) = justice_scene(&mut w);
+
+    for _ in 0..200 {
+        if w.get_entity(a).is_none() {
+            break;
+        }
+        resolve_attack(&mut w, p, a);
+    }
+
+    assert!(w.get_entity(a).is_none(), "the orc fell");
+    assert!(w.get_entity(b).is_none(), "and the burst took the bat");
 }

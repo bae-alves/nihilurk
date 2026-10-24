@@ -49,15 +49,8 @@ fn pick_weighted_is_proportional_and_skips_zeroes() {
 /// Every loot category can actually be drawn, and has something to give when
 /// it is.
 ///
-/// This used to roll 20,000 items off a hand-picked seed and check that each
-/// category had turned up at least once. That measured the sampler rather than
-/// the table: it was the slowest test in the suite, it depended on a seed
-/// nobody could re-derive, and a category whose rows had all become
-/// unreachable would have been indistinguishable from a run of bad luck. Worse,
-/// it could only ever get *weaker* as the table grew -- add a category rarer
-/// than `launcher` and 20,000 draws stops being enough.
-///
-/// The claim is about the table, so it is asked of the table. A zero weight
+/// The claim is about the table, so it is asked of the table, not of a seeded
+/// run of draws. A zero weight
 /// means `pick_weighted` can never choose the category; an empty row list means
 /// choosing it would have nothing to hand back. Neither can hide behind a seed.
 #[test]

@@ -417,9 +417,9 @@ fn a_fast_monster_moves_twice_and_a_slow_one_every_other_turn() {
 // ---------------------------------------------------------------------------
 
 /// With genuinely nowhere to put them, the pull happens anyway and the target
-/// does not survive it. It used to fall back to `random_open_tile` — a
-/// teleport *away* wearing teleport-to's "dragged to your side!" message,
-/// which is the one outcome this wand exists not to produce.
+/// does not survive it. A fall back to `random_open_tile` would be a teleport
+/// *away* wearing teleport-to's "dragged to your side!" message, the one
+/// outcome this wand exists not to produce.
 #[test]
 fn teleport_to_with_no_room_bursts_the_target() {
     let mut w = test_world(4);

@@ -175,7 +175,7 @@ mod tests {
         let won = render(&mut w, "", Outcome::Win, "2026-10-12 14:15");
         let lost = render(&mut w, "", Outcome::LoseDescent, "2026-10-12 14:15");
 
-        assert!(won.contains("-- Conducts (+120%) --"), "{won}");
+        assert!(won.contains("-- Conducts (+110%) --"), "{won}");
         assert!(won.contains("no scrolls"), "{won}");
         assert!(!won.contains("no potions"), "{won}");
         assert!(!lost.contains("Conducts"), "{lost}");

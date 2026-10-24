@@ -140,7 +140,7 @@ Where it does not reach
 
 Honesty about the seams, because they are where people get stuck.
 
-**Potions, scrolls, wands and runes still need a mechanic.** "Restore hit points" is not expressible as a component the engine already folds. A potion, scroll, wand or rune row names its handler, a function in `models/src/items/potions.rs`, `scrolls.rs`, `wands.rs` or `runes.rs`, in a required field, so a row with no handler does not build, rather than compiling and shipping as a silent dud.
+**Potions, scrolls and wands still need a mechanic.** "Restore hit points" is not expressible as a component the engine already folds. A potion, scroll or wand row names its handler, a function in `models/src/items/potions.rs`, `scrolls.rs` or `wands.rs`, in a required field, so a row with no handler does not build, rather than compiling and shipping as a silent dud.
 
 That buys the missing-handler case, not the missing-*behaviour* case -- the compiler only proves something was named, not that what it does is finished. The potion of fruit juice is deliberate: a taste and a log line, nothing more. Water is the same, reached only when a wand of cancellation turns a carried potion into the potion of thirst quenching, a row at drop weight 0. The scroll of blank paper is the one scroll that does nothing, and -- like water -- no floor ever rolls it; it only ever happens when a wand of cancellation blanks a carried scroll. What the required field buys is that nobody can add a *new* such gap by accident -- a new row has to name what it does, whether that is real behaviour or an honest placeholder.
 

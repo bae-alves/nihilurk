@@ -88,7 +88,7 @@ To double how often rings turn up, double the ring row's weight. Every other sha
 
 To keep a category out of the shallow dungeon, raise its `min_depth`. A category that cannot appear is simply not in the draw, and the remaining categories divide its share between them in proportion.
 
-The rune row is the example. Its `min_depth` is above 1, so the shallowest floors draw from every other category and the rune joins the draw below that. `models/tests/it/world/loot.rs` scales a category's expected share by the floors it is on, so a new category that starts deeper needs no special case there.
+No category starts deeper than floor 1 today. One that does needs its expected share in `models/tests/it/world/loot.rs` scaled by the floors it is on, since that test reads every share as if every category were in every draw.
 
 
 Dial 3: which row within a category

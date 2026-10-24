@@ -6,13 +6,9 @@
 //! [`Moment`] it fires at, and what it does.
 //!
 //! **The moment is a field, not a table.** That is the whole shape of this
-//! file. It used to be a table per moment — one for "every turn", one for "on
-//! a blow that lands" — which meant a moment nobody had written a table for
-//! was an `if` welded into whichever system happened to be standing there.
-//! Six of the bestiary's markers reached no table at all for that reason: the
-//! medusa's gaze was hand-called from four sites, the slime's split was a
-//! hardcoded line in `took_damage`, and adding a fifth path meant remembering
-//! to call it again.
+//! file. With a table per moment, a moment nobody had written a table for
+//! would be an `if` welded into whichever system happened to be standing
+//! there, and every new attack path would have to remember to call it.
 //!
 //! Adding a moment is a [`Moment`] variant, one arm in `fires_at`, and an
 //! entry point that says who the bearer is. Adding an ability at a moment that
@@ -227,8 +223,7 @@ pub const ABILITIES: &[Ability] = &[
         flavour: Some(strings::flavour_polymorphitis()),
     },
     // --- hurt and lived --------------------------------------------------
-    // The slime's split. It used to be a hardcoded line in
-    // `helpers::took_damage`, beside two things that are not abilities.
+    // The slime's split.
     row(Grant::of::<Splits>(), Moment::OnDamaged, |w, e, _| {
         crate::monsters::maybe_split(w, e);
         true
@@ -236,8 +231,7 @@ pub const ABILITIES: &[Ability] = &[
     // --- struck ----------------------------------------------------------
     row(Grant::of::<Spiked>(), Moment::OnStruck, spike_prick),
     // --- looked upon -----------------------------------------------------
-    // The medusa's gaze. It used to be hand-called from four sites, and a
-    // fifth attack path would silently have missed it.
+    // The medusa's gaze.
     row(
         Grant::of::<Gorgon>(),
         Moment::OnTargeted,
@@ -437,8 +431,8 @@ fn freezing_touch(world: &mut World, _attacker: Entity, target: Option<Entity>) 
 /// Announced either way, the same split `stagger`/`blind` already use: the
 /// player reads it in the second person, anything else gets its own name in
 /// the third. A bite the *player* lands (`-am rattlesnake`, or a hand-written
-/// body that borrows the marker) used to drain in total silence — nothing
-/// else in the ability table stays quiet just because the victim isn't you.
+/// body that borrows the marker) is announced too: nothing in the ability
+/// table stays quiet just because the victim isn't you.
 pub(crate) fn venomous_bite(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool {
     let Some(target) = target else {
         return false;
@@ -462,9 +456,7 @@ pub(crate) fn venomous_bite(world: &mut World, _attacker: Entity, target: Option
 /// *maximum* HP, permanently, clamping current HP down with it if it now
 /// exceeds the new ceiling.
 ///
-/// Announced either way — see [`venomous_bite`], the same fix for the same
-/// reason: a landed drain the player caused instead of suffered used to
-/// leave nothing in the log to show for it.
+/// Announced either way, for the same reason as [`venomous_bite`].
 fn vampiric_drain(world: &mut World, _attacker: Entity, target: Option<Entity>) -> bool {
     let Some(target) = target else {
         return false;
@@ -520,8 +512,7 @@ fn bind_victim(world: &mut World, attacker: Entity, target: Option<Entity>) -> b
 /// [`crate::effects::Petrified`] costs the player their turns exactly as sleep
 /// does, and protects them while it lasts: nothing in the dungeon gets more
 /// than a chip through stone, and nothing but a war hammer takes their last
-/// point. It used to *be* sleep, which is why a player turned to stone was
-/// told they had shaken off their drowsiness when it let go.
+/// point.
 ///
 /// A no-op for anything that isn't the player looking upon a [`Gorgon`]: a
 /// medusa's own kind is unmoved by each other, and nothing but a person's eyes

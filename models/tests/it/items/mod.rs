@@ -9,7 +9,6 @@ mod missiles;
 mod pickups;
 mod potions;
 mod rings;
-mod runes;
 mod scrolls;
 mod spells;
 mod throw;

@@ -20,7 +20,7 @@ Conflicts: correctness > my goal > repo convention. Cite repo evidence to resolv
 
 # Test/debug
 Reference code→match its patterns, not its description.
-Fix fails 2x→stop, re-read top-down, name where your model was wrong. "Step back"/"calm your tits"→fully undo, explain, ask me.
+Fix fails 2x→stop, re-read top-down, name where your model was wrong. "Step back"→fully undo, explain, ask me.
 Never test application data (content table rows or constants), use fixtures to test real behavior.
 No mock modes in app code.
 

@@ -171,9 +171,6 @@ impl BlastPalette {
 /// opens *every* burst on, so a white number would read as one more hit spark
 /// instead of the score talking. Bright black is in — a number the colour of
 /// the night it goes off against is exactly the sort of joke this game makes.
-///
-/// A ring of adornment's fireworks used to draw from here too; they have their
-/// own three-colour palette now (`rings::GLAM_COLORS`).
 pub const GLORY_COLORS: [Color; 7] = [
     Color::Red,
     Color::Green,
