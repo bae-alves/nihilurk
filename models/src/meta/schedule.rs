@@ -1,7 +1,7 @@
 //! The turn, in order.
 //!
 //! One flat list, run once per player turn. Every `.after()`/`.before()` is
-//! load-bearing; the order is documented in
+//! load-bearing; why each one holds is in
 //! `docs/reference/input-and-turn-loop.md` and pinned by
 //! `models/tests/it/meta/schedule.rs`.
 

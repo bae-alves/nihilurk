@@ -53,8 +53,6 @@ Verify
 
     cargo test -p nihilurk-models --lib agents
 
-Then add the rule's row to the rules table in `../explanation/agents.md`.
-
 
 Appendix: quick check
 ---------------------
@@ -64,11 +62,10 @@ Appendix: quick check
 3. List it in a rule set (`add-a-rule-set.md`).
 4. Test both sides on a hand-built `percept(...)`: once where it fires, once where it passes.
 5. Run `cargo test -p nihilurk-models --lib agents`.
-6. Add the rule's row to the rules table in `../explanation/agents.md`.
 
 
 See also
 --------
 
   add-a-rule-set.md                 putting the rule to work
-  ../explanation/agents.md            every rule that exists already, and why a rule may only read the percept
+  ../explanation/agents.md            why a rule may only read the percept

@@ -382,7 +382,7 @@ Register it in `models/src/meta/schedule.rs` with an explicit `.after()`. There 
         // …
     ));
 
-Then say *why* the edge exists in `../reference/input-and-turn-loop.md`, which prints the whole order. Before you add a step, check whether it belongs at the tail: `ability_system` and `score_turn_system` are both there on purpose (a passive that moves you must land at the top of your next turn; a combo cannot be totalled until the dying is over).
+Then say *why* the edge exists in `../reference/input-and-turn-loop.md`, with the other load-bearing edges. Before you add a step, check whether it belongs at the tail: `ability_system` and `score_turn_system` are both there on purpose (a passive that moves you must land at the top of your next turn; a combo cannot be totalled until the dying is over).
 
 
 Recipe: decorate without depending on the renderer

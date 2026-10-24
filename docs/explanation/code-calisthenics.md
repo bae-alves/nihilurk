@@ -9,231 +9,85 @@ Code calisthenics in nihilurk
                    tells you what shape the code is kept in and why, so
                    your change lands in the same shape.
 
-Code calisthenics is a set of deliberately strict constraints you apply while editing, to push code toward a shape it does not fall into on its own. The constraints are not laws of good code -- some of them are arguable -- but holding to one across a whole crate makes that crate uniform, and uniform code is code you can skim.
-
-nihilurk adopts them one at a time, crate by crate, each pass touching nothing but the shape. A pass never changes behaviour: the test suite is the proof, and it stays green from the first edit to the last.
+Code calisthenics is a set of deliberately strict constraints that push code toward a shape it does not fall into on its own. Some of them are arguable, but holding to one across a whole crate makes that crate uniform, and uniform code is code you can skim. A change that only reshapes code never changes behaviour: `cargo test --workspace` is the proof, green before the first edit and after the last.
 
 
-Phase 1: no `else`
-------------------
+No `else`
+---------
 
-**The rule in `models/` and `engine/`.** A control-flow `else` -- `} else {` or `} else if` -- has no place in either crate. The check at the end of this phase lists the ones the code still carries; each is a candidate for one of the moves below.
+**In `models/` and `engine/`, a control-flow `else` -- `} else {` or `} else if` -- has no place.** An `else` is almost always one of these in disguise:
 
-An `else` is almost always one of a small number of things wearing a disguise, and each has a plainer form:
+  * **A guard.** Handle the bad case, `return` (or `continue` in a loop), and let the rest of the function run at one indent level.
+  * **A `match`.** A chain of `else if` on the same value is a `match` that has not admitted it yet. Two bools that are one decision are a `match` on the pair. An `if let ... else` is a `match` on `Some` and `None`.
+  * **A shared statement.** When both branches do most of the same thing, pull the shared part out and keep only the difference behind the `if`.
+  * **A function.** A long tail of cases in an already deep function is a named function whose body is guard clauses (`conditions::speed_shift_message`).
+  * **Noise.** An `if` that ends in `return`, `continue` or `break` needs no `else`; dedent the block.
 
-### A guard that should have returned early
+**The `else` that stays is the expression ternary.** Rust has no `?:`, and `let sx = if x0 < x1 { 1 } else { -1 };` is the clearest two-way choice of a value there is. Both arms a bare value, no statements. The moment a branch grows a statement or a third case appears, it is back in scope. `let ... else` is a guard and is encouraged.
 
-    fn tile(&self, x: u16, y: u16) -> TileType {
-        if x >= MAP_WIDTH || y >= MAP_HEIGHT {
-            TileType::Wall
-        } else {
-            self.tiles[tile_index(x, y)]
-        }
-    }
-
-becomes
-
-    fn tile(&self, x: u16, y: u16) -> TileType {
-        if x >= MAP_WIDTH || y >= MAP_HEIGHT {
-            return TileType::Wall;
-        }
-        self.tiles[tile_index(x, y)]
-    }
-
-The out-of-bounds case is handled and dismissed; the rest of the function runs at one indent level, unconditionally, because by the time you reach it the bad input is gone. This is the single most common transformation, and in a loop the early exit is `continue` rather than `return`.
-
-### A branch on an enum or an `Option` that should have been a `match`
-
-    if arg == "-s" {
-        ...
-    } else if arg == "-c" {
-        centered_mode = true;
-    } else if arg == "-ns" {
-        no_save = true;
-    } else {
-        positional = Some(arg.clone());
-    }
-
-becomes
-
-    match arg.as_str() {
-        "-s" => { ... }
-        "-c" => centered_mode = true,
-        "-ns" => no_save = true,
-        _ => positional = Some(arg.clone()),
-    }
-
-A chain of `else if` comparing the same value against constants is a `match` that has not admitted it yet. When the arms test *two* bools that are really one decision, match the pair:
-
-    let color = match (i == selected_idx, *equipped) {
-        (true, _) => Color::Yellow,
-        (_, true) => Color::Cyan,
-        _ => Color::White,
-    };
-
-An `if let ... else` whose `else` is the `None` case is `match ... { Some(x) => ..., None => ... }`.
-
-### Two branches that do most of the same thing
-
-    if last && more {
-        screen.puts(0, y, line, Color::White);
-        screen.puts(57, y, "--MORE--", Color::Yellow);
-    } else {
-        screen.puts(0, y, line, Color::White);
-    }
-
-becomes
-
-    screen.puts(0, y, line, Color::White);
-    if last && more {
-        screen.puts(57, y, "--MORE--", Color::Yellow);
-    }
-
-Pull the shared statement out; keep only the difference behind the `if`. The same move collapses `if a { X } else if b { X }` into `if a || b { X }`.
-
-### A tail of cases too big for the calling function
-
-When the branches are long and the function is already deep -- the speed-shift message, the auto-fight turn, the two attack-report blocks in `resolve_attack` -- lift them into a named function whose body is guard clauses. Simplified from `conditions::speed_shift_message`:
-
-    fn speed_shift_message(name: &str, faster: bool, is_player: bool, changed: bool) -> String {
-        let extreme = if faster { "quick" } else { "sluggish" };
-        if !changed && is_player {
-            return format!("You are already as {extreme} as you can be.");
-        }
-        if !changed {
-            return format!("The {name} is already as {extreme} as it can be.");
-        }
-        match (is_player, faster) { ... }
-    }
-
-The call site loses a branch and gains a name that says what the branch was for.
-
-### A returning `if` followed by its own `else`
-
-    if let Some(idx) = action_mode {
-        ...
-        return Ok(turn_taken);
-    }
-    else { ... }
-
-If the `if` block ends in `return` (or `continue`, or `break`), the `else` is noise. Drop the keyword and dedent the block. The `return` already says the rest is the fall-through, and a comment would only say it again.
+    grep -rn '} else' models/src engine/src --include='*.rs'   # each hit: a let-else or a ternary
 
 
-The one `else` that stays: the expression ternary
--------------------------------------------------
-
-Rust has no `?:`. The nearest thing is `let x = if c { a } else { b }`, and for a **two-way choice of a value** that is the clearest form there is:
-
-    let sx = if x0 < x1 { 1 } else { -1 };
-    let dice = if excellent { EXCELLENT_HIT_DICE } else { 1 };
-    let label = if equipped { " (E)" } else { "" };
-
-These are kept. Rewriting them as `match c { true => a, false => b }` trades a familiar idiom for an unfamiliar one and reads worse. A two-way `if`/`else` in **expression position, both arms a bare value, no statements** is not the `else` this rule is about.
-
-The moment a branch grows a statement, or a third case appears, it is back in scope: a three-way value choice is a `match`, and a branch that *does* something rather than *evaluating to* something is a guard.
-
-
-Checking a pass
+Shallow nesting
 ---------------
 
-    grep -rn '} else' models/src engine/src --include='*.rs'
+**No function nests more than about three blocks deep** -- a function body, a loop, and one conditional inside it, give or take. The strict calisthenics rule is one level, and that is the wrong stopping point here: pushed all the way, one readable 40-line function becomes eight three-line ones, each threading six `world` parameters, and you read a call graph instead of a procedure. Three is a ceiling, not a target.
 
-Every hit should be a `let ... else { ... }` (the guard-clause let, which is encouraged) or an expression ternary as described above. Anything else breaks the rule, and a `} else if` always does: a three-way choice is a `match`.
+The depth comes down the same ways an `else` goes, plus three:
 
-`cargo test --workspace` is the proof that the pass changed only shape. Run it before the first edit and after the last; it does not move.
+  * **Extract the loop body.** `ai::monster_round` is a `for` over `step_one_mob`; `items::item_system` a `for` over `resolve_use`.
+  * **Name the phases of a long procedure.** `combat::resolve_attack` reads as `fold_matchup`, `roll_swing`, `clamp_swing`, `land_swing`, `punctuate`, `report_blow`, `settle_the_dead`. An extraction earns its place if you can name it in three words without "helper" or "handle".
+  * **Reach for iterators.** `.filter().map()`, `.any()` and `.find_map()` flatten a loop and a conditional into one expression. A long chain is one thought; leave it whole.
 
-
-Phase 2: shallow nesting
-------------------------
-
-**The rule in `models/` and `engine/`.** No function nests more than about three blocks deep -- a function body, a loop, and one conditional inside it, give or take. The `match` inside an `if` inside a `for` inside a `while` inside a `for` has no place here.
-
-### The limit is ~3, not 1, on purpose
-
-The strict calisthenics rule is *one* level of indentation per method. That is the right pressure but the wrong stopping point for nihilurk. Pushed all the way it turns one readable 40-line function into eight three-line ones, each named, each taking six `world`-threading parameters, and you now read a call graph instead of a procedure. The bloat costs more than the nesting did.
-
-So the rule here is a **ceiling, not a target**: get out of the deep nests, stop when the function reads top to bottom without scrolling your eye rightward. In practice that lands around three levels.
-
-### How the depth comes down
-
-Mostly the same moves as Phase 1, plus two:
-
-**Extract the loop body.** A `for` whose body is 60 lines and three levels deep is a function that has not been written yet. `ai::monster_round` is a `for` over `step_one_mob`; `items::item_system` a `for` over `resolve_use`; `update::process_input_and_update` is split into `handle_targeting_input`, `handle_inventory_input`, `handle_movement_input` and their callees.
-
-**Name the phases of a procedure.** Not every long function is deep; some are just long, and read as one undifferentiated wall. The cure is the same and the motive is different -- you are not reducing indentation, you are giving a reader somewhere to stop. `combat::resolve_attack` reads as seven named steps (`fold_matchup`, `roll_swing`, `clamp_swing`, `land_swing`, `punctuate`, `report_blow`, `settle_the_dead`), each of which can be read or skipped on its name. The same cure one level up is a module split: `models/src/world/map/` and `models/src/items/` keep a submodule per job, so no one file does four unrelated things.
-
-The test for whether an extraction earned its place: can you name what came out in three words, without "helper" or "handle" in them? If not, the split is cosmetic and the parameter list it costs is not worth it.
-
-**Reach for iterators before nesting.** `.filter().map().flat_map()` and `.any()` / `.find_map()` flatten a loop-plus-conditional into one expression with no indentation at all. `visibility::flood_fill_room` walks `neighbours(x, y)` -- an iterator that yields the in-bounds neighbours -- instead of a `for dy { for dx { if in_bounds ...`.
-
-Iterator chains are *not* subject to a "one method call per line" rule. Chaining is how idiomatic Rust expresses a data-structure transform, and breaking a chain across statements to satisfy a dot budget makes it harder to read, not easier. A long chain is one thought; leave it whole.
-
-### Checking a pass
+Each hit of this check is a spot to look at, not a failure: the renderer's cell-diff double loop can sit that deep where an extraction would be ceremony.
 
     # statements indented 24+ spaces (6+ levels)
     grep -rnP '^ {24,}\S' models/src engine/src --include='*.rs' \
       | grep -v '^\S*:[0-9]*: *//'
 
-Every hit is a spot to look at, not an automatic failure: the renderer's cell-diff double loop, a long `match` arm or a struct literal inside a loop can sit that deep where an extraction would be pure ceremony. The test suite is again the proof a pass changed only shape.
-
 
 Rules nihilurk deliberately does *not* adopt
 ----------------------------------------
 
-The rest of the classic Object Calisthenics list, and why each is a poor fit here rather than an oversight:
+**Wrap every primitive in a type.** Tile coordinates are `(u16, u16)` tuples, which already destructure, `Copy` and pattern-match, and the arithmetic on them is one-liners. A coordinate newtype would be ceremony until it grows real behaviour.
 
-**Wrap every primitive in a type.** nihilurk passes `(u16, u16)` tile coordinates and `(i16, i16)` steps around by the hundred. A `Point` newtype would carry the arithmetic, but Rust tuples already destructure, `Copy`, and pattern-match cleanly, and the operations are mostly one-liners (`.signum()`, `saturating_add_signed`) that read fine inline. The wrapper would be ceremony without a payoff. If a coordinate type ever grows real behaviour -- distance metrics, neighbour iteration used everywhere -- revisit it then.
+**First-class collections.** The collections here are short-lived locals: a set of visible tiles, the mobs for this pass. The ECS supplies the real domain structure, and wrapping scratch space in named types would couple call sites to an interface built for one function.
 
-**First-class collections** (wrap every `Vec`/`HashMap` in a domain type). This one would actively hurt. The collections in nihilurk are short-lived locals -- a `HashSet` of visible tiles, a `Vec` of mob entities for this pass, a spatial `HashMap` rebuilt every tick. Wrapping each in a named type with its own methods would couple call sites to an interface that exists for one function's benefit, and make the loose, rearrange-it-in-five-minutes character of this code stiff. The ECS already supplies the real domain structure; the collections are just scratch space, and scratch space benefits from staying informal.
+**One dot per line.** Chaining is how Rust expresses a data transform.
 
-**One dot per line.** Covered above: chaining is load-bearing in Rust and nihilurk uses it deliberately. Not adopted.
-
-**Keep entities (structs) small.** This one is *sound* -- a component with eight fields is usually two components -- and worth keeping in mind when you add one. It is not enforced here only because nihilurk's components already tend to be small (`Position` is two fields, most grants are zero), so there is nothing to clean up. Treat it as advice, not a pass.
+**Keep entities small.** Sound advice -- a component with eight fields is usually two -- but the components are already small, so it is not a pass.
 
 
 One rule of nihilurk's own: a test never asserts a constant
 ------------------------------------------------------
 
-Not a calisthenics rule, but it belongs next to them, because it is the same kind of discipline.
+**Never write a test whose assertion is a copy of a tuning number.** A test that says a wand rolls `3..=9` is testing `constants/`, which needs no help. The next rebalance turns it red while the code is correct, and it teaches the next person to distrust the suite. In order of preference:
 
-**Never write a test whose assertion is a copy of a tuning number.** A test that says a wand rolls `3..=9`, that a floor hides a stash one time in five, or that a kill is worth 700 points is not testing the game; it is testing `constants/`, which needs no help. The moment somebody rebalances -- and the working tree is *usually* mid-rebalance -- that test goes red while the code is perfectly correct, and it teaches the next person to distrust the suite.
+  1. **Assert the relation.** "A thrown wand hits harder than the zap it gave up." It stays true across every rebalance because it is what the feature *is*.
+  2. **Read the constant.** `DAMAGE_DICE * DAMAGE_SIDES`, not `8`. The test proves the roller honours the table.
+  3. **Purge it.** If the number was the only claim, delete the test and assert an invariant a rebalance cannot touch and a bug could.
 
-Three ways out, in order of preference:
-
-1. **Assert the relation.** "A thrown wand hits harder than the zap it gave up." "Two corpses in one turn beat two corpses in two turns." "A coin's burst reaches a tile a trap's does not." These stay true across every rebalance because they are what the feature *is*.
-2. **Read the constant.** `DAMAGE_DICE * DAMAGE_SIDES` instead of `8`; `share_of("coin")` off `DROPS` instead of `17.0`. Now the test proves the roller honours the table rather than proving the table says what it says.
-3. **Purge it.** If a test's only claim was the number, delete it and put something real in its place. "A stashed item carries `Invisible` *and* `Hidden`" is the kind of claim to put there: an invariant a rebalance cannot touch and a bug could.
-
-A test's own loop bound is not a tuning number and should not borrow one. `models/tests/it/mind/autoexplore.rs` asserts termination against a local `NEVER: u32 = 20_000`, not against `travel::AUTO_EXPLORE_STEP_CAP` -- the cap is a safety valve somebody tunes, and borrowing it would make a tightened valve look like an infinite loop.
+A test's own loop bound is not a tuning number and should not borrow one. `models/tests/it/mind/autoexplore.rs` asserts termination against a local `NEVER`, not `travel::AUTO_EXPLORE_STEP_CAP`: borrowing the cap would make a tightened safety valve look like an infinite loop.
 
 
 One rule of nihilurk's own: behavior tests build components, not bestiary rows
 -------------------------------------------------------------------------------
 
-A behavior test should construct the smallest entity that carries the property under test. Do not spawn an orc to test equipment, a dragon to test fire immunity, or a phantom to test invisibility. A bestiary row is a content definition, and spawning it also brings along its grants, gear rolls, speed, name and other balance decisions. That makes an unrelated row edit change the fixture before the assertion runs.
+**A behavior test builds the smallest entity that carries the property under test.** Do not spawn an orc to test equipment or a dragon to test fire immunity. A bestiary row brings its grants, gear, speed and balance with it, so an unrelated row edit changes the fixture before the assertion runs.
 
-Use a neutral monster fixture for ordinary monster mechanics, and attach the specific component or grant the test needs. For example, a test of undead drain immunity should add `Grant::of::<Undead>()`; a test of catching gear should add `ItemUser`; a test of invisibility should insert `Invisible`. The assertion then names the contract directly and cannot pass because a species happened to carry extra behavior.
-
-Keep bestiary-backed tests only where the bestiary itself is the subject: content-table validation, playable-body definitions, spawn behavior, and roster-wide contracts. Those tests should say so in their names and comments. The shared neutral fixtures live in `models/tests/it/common/monster.rs`.
+Start from the neutral fixtures in `models/tests/it/common/monster.rs` and attach what the test needs: `Grant::of::<Undead>()`, `ItemUser`, `Invisible`. The assertion then names the contract and cannot pass because a species happened to carry extra behaviour. Keep bestiary-backed tests for where the bestiary is the subject: content-table validation, playable bodies, spawning, roster-wide contracts.
 
 
 One rule of nihilurk's own: no comments inside a function body
 ---------------------------------------------------------------
 
-In `engine` and `models`, a comment sits above the thing it describes. It never sits inside a function body, test functions included.
+**In `engine` and `models`, a comment sits above the thing it describes, never inside a function body**, test functions included. A comment in a body is a name or a function not written yet: "skip the dead" becomes `if is_dead(mob) { return }`. In an identifier, a rename keeps it true and an edit to the code cannot leave it behind.
 
-A comment in a body is a name or a function that has not been written yet. "Skip the dead" becomes `if is_dead(mob) { return }`. "Then the second pass" becomes a function called `second_pass`. The code stays where it is and the sentence moves into an identifier, where a rename keeps it true and an edit to the code cannot leave it behind.
+These sit outside a body and stay: doc comments (`///`) and file headers (`//!`); a note over a signature or between its parameters; a note on its own line directly above a closure, with no blank line between; the how-to-add-a-row notes over a catalog table like `BESTIARY`.
 
-These stay, because they sit outside a body:
+The pre-commit hook enforces this (`.githooks/no_body_comments.lua`, tested by `.githooks/no_body_comments_test.lua`) on the staged file as `cargo fmt` writes it. CI does not run it, so a clone without the hook can break the rule and review is what catches that.
 
-- Doc comments (`///`) and file headers (`//!`).
-- A note over a signature, or between its parameters.
-- A note on its own line directly above a closure, which describes the closure the way a signature note describes a function. A blank line between the note and the closure breaks it, and so does a note on the closure's own line or inside its body.
-- The notes over a catalog table (`BESTIARY` and its kin) that say how to add a row. They are about the table, not about a function.
-
-The pre-commit hook enforces this (`.githooks/no_body_comments.lua`), and `.githooks/no_body_comments_test.lua` is its test. It reads the staged file as `cargo fmt` writes it. CI does not run it, so a clone without the hook can break the rule and review is what catches that.
-
-To check every tracked file at once, run `lua .githooks/no_body_comments.lua --tree`. Every hit is a file, a line and the comment. It reads what git has staged, so `git add` your edits first.
+    lua .githooks/no_body_comments.lua --tree      # every tracked file; reads what git has staged
 
 
 See also

@@ -56,5 +56,5 @@ Reopen this decision if any of these becomes true:
 See also
 --------
 
-  ../reference/input-and-turn-loop.md   the schedule, step by step
+  ../reference/input-and-turn-loop.md   the schedule's load-bearing edges
   ../how-to/work-with-the-ecs.md        adding a step with an `.after()` edge

@@ -18,8 +18,7 @@
 //! the world: every rule is a plain function of the percept, which is what
 //! lets each set be tested on a percept built by hand.
 //!
-//! The sets, what picks them, and every rule are listed in
-//! `docs/explanation/agents.md`.
+//! Why monsters think this way is `docs/explanation/agents.md`.
 
 use bevy_ecs::entity::Entity;
 

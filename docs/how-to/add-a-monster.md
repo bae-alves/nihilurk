@@ -36,7 +36,7 @@ The recipe
        color         Color::DarkGreen    see the palette note below
        movement      Chase               Static | Chase | Ambush | Flee | Confused
                                          picks its rule set: see
-                                         ../explanation/agents.md
+                                         `rule_set_for` in models/src/mind/agents.rs
        hp            5                   total hit points
        power         10                  attack die: damage rolls 1d10
        power_bonus   1                   flat, added once to that roll
