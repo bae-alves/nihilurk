@@ -1493,6 +1493,93 @@ mod tests {
     }
 
     #[test]
+    fn an_out_of_range_equipped_by_index_is_rejected_not_indexed() {
+        let mut entity = blank_entity();
+        entity.equipped_by = Some(1);
+        let err = load_bytes(
+            "oob-equipped",
+            &encode(SAVE_VERSION, &blank_save(vec![entity])),
+        )
+        .err()
+        .expect("a crafted save with an out-of-range wearer must not load");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn the_last_floor_loads_without_a_way_down() {
+        let mut save = blank_save(vec![blank_entity()]);
+        save.depth = save.floors;
+        let w = load_bytes("last-floor", &encode(SAVE_VERSION, &save)).unwrap();
+        assert!(!w.resource::<Map>().tiles.contains(&TileType::Downstairs));
+    }
+
+    #[test]
+    fn plating_and_forging_come_back_and_bare_gear_stays_bare() {
+        let mut worked = blank_entity();
+        worked.item = true;
+        worked.plated = 2;
+        worked.forged = 1;
+        let mut bare = blank_entity();
+        bare.item = true;
+        let mut w = load_bytes(
+            "plated",
+            &encode(SAVE_VERSION, &blank_save(vec![worked, bare])),
+        )
+        .unwrap();
+        let mut plated: Vec<u8> = w.query::<&Plated>().iter(&w).map(|p| p.0).collect();
+        let mut forged: Vec<u8> = w.query::<&Forged>().iter(&w).map(|f| f.0).collect();
+        plated.sort();
+        forged.sort();
+        assert_eq!(plated, [2]);
+        assert_eq!(forged, [1]);
+    }
+
+    /// Loads one entity holding `effects`, and returns the game log's lines.
+    fn log_after_loading_effects(tag: &str, effects: Vec<SavedEffect>) -> Vec<String> {
+        let mut entity = blank_entity();
+        entity.effects = effects;
+        let w = load_one(tag, entity);
+        w.resource::<GameLog>().history.clone()
+    }
+
+    fn saved_effect(id: &str) -> SavedEffect {
+        SavedEffect {
+            id: id.to_string(),
+            lifetime: SavedLifetime::Permanent,
+            count: 1,
+        }
+    }
+
+    #[test]
+    fn an_effect_this_build_lacks_is_retired_with_one_line() {
+        let log = log_after_loading_effects(
+            "retired",
+            vec![
+                saved_effect(crate::effects::EFFECTS[0].id),
+                saved_effect("no such effect"),
+            ],
+        );
+        assert_eq!(log, [strings::retired_enchantment_singular()]);
+    }
+
+    #[test]
+    fn a_load_that_retires_nothing_says_nothing() {
+        let log = log_after_loading_effects(
+            "retired-none",
+            vec![saved_effect(crate::effects::EFFECTS[0].id)],
+        );
+        assert!(log.is_empty(), "{log:?}");
+    }
+
+    #[test]
+    fn a_loaded_monster_still_bleeds() {
+        let mut entity = blank_entity();
+        entity.mob = Some(MovementType::Chase);
+        let mut w = load_one("bleeds", entity);
+        assert_eq!(w.query::<&Blood>().iter(&w).count(), 1);
+    }
+
+    #[test]
     fn clear_data_leaves_a_save_from_another_version_to_the_loader() {
         let mut save = blank_save(vec![blank_entity()]);
         save.cleared = true;
